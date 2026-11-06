@@ -69,6 +69,7 @@ Conventions the whole file uses:
 | [`Core\IO`](#core-core-io) | whole-file read and write on paths the configuration has granted |
 | [`Core\IO\Lines`](#core-core-io-lines) | the lines of a text file, which `Core\IO::lines` returns. You read them with a `foreach` loop |
 | [`Core\IO\Walk`](#core-core-io-walk) | every file and folder under a folder, which `Core\IO::walk` returns. You read the paths with a `foreach` loop |
+| [`Core\IO\StdinStream`](#core-core-io-stdinstream) |  |
 | [`Core\IO\File`](#core-core-io-file) |  |
 | [`Core\IO\Metadata`](#core-core-io-metadata) |  |
 | [`Core\Process`](#core-core-process) |  |
@@ -87,13 +88,13 @@ Conventions the whole file uses:
 | [`Core\Random`](#core-core-random) | cryptographically secure random integers, floats, bytes, tokens and array draws |
 | [`Core\Random\Seeded`](#core-core-random-seeded) |  |
 | [`Core\Uuid`](#core-core-uuid) | a 128-bit UUID value — random v4, time-ordered v7, parsed from canonical text |
-| [`Core\Hash`](#core-core-hash) | digests and HMACs over text or bytes, answered as raw `bytes` — the algorithm is an argument, never part of the member's name |
-| [`Core\Hash\Stream`](#core-core-hash-stream) | an incremental digest — fed piece by piece with `update`, closed once with `finish` |
+| [`Core\Hash`](#core-core-hash) | digests and HMACs of text, bytes, a file, an upload or the request body, returned as raw `bytes`. The algorithm is an argument |
+| [`Core\Hash\Stream`](#core-core-hash-stream) | a digest of data your program makes in pieces. You add each piece with `update` and read the digest once with `finish` |
 | [`Core\Uri`](#core-core-uri) | RFC 3986 URI references read, rebuilt, resolved and compared, with the two percent-encoders and the bracket query-string convention |
 | [`Core\Router`](#core-core-router) | reverse routing — a link to a route by its method, as a rooted path or with the configured origin in front — and the verbs a path claims |
 | [`Core\Router\Match`](#core-core-router-match) | the route a request matched — the method it belongs to, the captures its path filled, its verb and its access decision, decided once at the door |
 | [`Core\Csv`](#core-core-csv) | RFC 4180 documents read into rows of `string` fields and written back, with an optional header row and dialect |
-| [`Core\Csv\Rows`](#core-core-csv-rows) | the records of a CSV file, which `Core\Csv::rows` returns. You read them one at a time with a `foreach` loop |
+| [`Core\Csv\Rows<T>`](#core-core-csv-rows) | the records of a CSV file, which `Core\Csv::rows` returns. You read them one at a time with a `foreach` loop |
 | [`Core\Serialize`](#core-core-serialize) | a value graph — scalars, arrays, objects, cycles included — copied into Novis's own byte format and rebuilt from it |
 | [`Core\Validate`](#core-core-validate) | the format predicates — is this text an email address, a hostname, an IP or MAC address, ASCII, printable — answering `bool` and laundering nothing |
 | [`Core\Out`](#core-core-out) | output buffering scoped to a callable — what it echoes is captured as the sink's carrier instead of reaching the output |
@@ -34469,7 +34470,8 @@ Each property is checked against its type. Only a property with a `?` type, such
 
 `Core\Json::encodeEach` and `Core\Json::decodeEach` work on a long list one element at a time. The
 whole document is never in memory at once. `encodeEach` returns a `Core\Json\Pieces`: the JSON text
-in pieces of bytes. `decodeEach<T>` reads a file or a stream of bytes and returns a
+in pieces of bytes. `decodeEach<T>` reads an open file, an uploaded file,
+`Core\Request::bodyStream()`, `bytes`, or a list or loop that gives `bytes` pieces. It returns a
 `Core\Json\Elements<T>`. You read both with a `foreach` loop. Set `lines` to `true` to write or read
 JSON Lines, with one value on each line.
 
@@ -34531,7 +34533,7 @@ Ben user
 | [`Core\Json::decode`](#core-core-json-decode) | `decode(string $json, { maxDepth?: uint }): mixed` |
 | [`Core\Json::decodeAs`](#core-core-json-decodeas) | `decodeAs<T>(string $json, { maxDepth?: uint }): T` |
 | [`Core\Json::isValid`](#core-core-json-isvalid) | `isValid(string $json): bool` |
-| [`Core\Json::decodeEach`](#core-core-json-decodeeach) | `decodeEach<T>(Core\IO\File\|array<tainted bytes>\|Iterable<tainted bytes>\|Iterator<tainted bytes> $source, string $at = "", { lines?: bool, maxDepth?: uint }): Core\Json\Elements<T>` |
+| [`Core\Json::decodeEach`](#core-core-json-decodeeach) | `decodeEach<T>(Core\Bytes::Source\|Core\Bytes::Chunks $source, string $at = "", { lines?: bool, maxDepth?: uint }): Core\Json\Elements<T>` |
 | [`Core\Json::encodeEach`](#core-core-json-encodeeach) | `encodeEach(array<mixed>\|Iterable<mixed>\|Iterator<mixed> $items, { lines?: bool }): Core\Json\Pieces` |
 
 <a id="core-core-json-encode"></a>
@@ -34608,14 +34610,14 @@ Checks whether `decode` accepts `$json` at the default depth of `512`. It parses
 #### `Core\Json::decodeEach`
 
 ```nvs skip
-Core\Json::decodeEach<T>(Core\IO\File|array<tainted bytes>|Iterable<tainted bytes>|Iterator<tainted bytes> $source, string $at = "", { lines?: bool, maxDepth?: uint }): Core\Json\Elements<T>
+Core\Json::decodeEach<T>(Core\Bytes::Source|Core\Bytes::Chunks $source, string $at = "", { lines?: bool, maxDepth?: uint }): Core\Json\Elements<T>
 ```
 
 Reads the elements of a JSON array one at a time, in a `foreach` loop. Each element is checked as `decodeAs` checks a document. Only one element is in memory at a time, so a document larger than memory works. You can loop over the result only once.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$source` | `Core\IO\File\|array<tainted bytes>\|Iterable<tainted bytes>\|Iterator<tainted bytes>` | The JSON to read. It is an open `Core\IO\File`, read from its current position, or chunks of bytes such as `Core\Request::bodyStream()`. |
+| `$source` | `Core\Bytes::Source\|Core\Bytes::Chunks` | The JSON to read. It is `bytes`, an open `Core\IO\File`, an uploaded `Core\Request\Part`, `Core\Request::bodyStream()`, or a list or loop of `bytes` pieces. A file is read from its first byte. |
 | `$at` | `string` (default `""`, neutral) | A JSON Pointer to the array to read, such as `/items`. The default is `''`, which is the whole document. |
 | `{ lines: … }` | `bool` (default `false`) | When `true`, the source is JSON Lines: one JSON value on each line. Then `at` must be `''`. The default is `false`. |
 | `{ maxDepth: … }` | `uint` (default `512`) | The deepest nesting allowed in the document. The default is `512`, and the largest value is `1024`. |
@@ -34648,8 +34650,9 @@ Writes a JSON array in pieces, in a `foreach` loop. It takes the next item from 
 Keywords: large JSON file, stream JSON, read JSON array, JSON element by element, JSON Lines, NDJSON, import JSON, low memory,
 
 `Core\Json\Elements<T>` contains the elements of a JSON array. `Core\Json::decodeEach<T>` returns it.
-It reads an open `Core\IO\File` or a stream of bytes, such as `Core\Request::bodyStream()`. The class
-has no methods. You read it with a `foreach` loop.
+It reads an open `Core\IO\File`, an uploaded file, `Core\Request::bodyStream()`, `bytes`, or a list or
+loop that gives `bytes` pieces. A file is read from its first byte. The class has no methods. You read
+it with a `foreach` loop.
 
 Each item is one element, as a `T`. `T` can be a class with the `#[Core\Json\Derive]` attribute, a shape
 such as `{ name: string, age: int }`, or `mixed`. Each element is checked against `T`. When `T` is
@@ -35023,6 +35026,19 @@ png
 9 123456781234ff0000
 -1
 ```
+
+##### Byte sources
+
+`Core\Bytes` names two types for methods that read bytes.
+
+- `Core\Bytes::Source` is `bytes`, an open `Core\IO\File`, an uploaded file (`Core\Request\Part`) or
+  the request body (`Core\Request\BodyStream`). A method can read its start, or read it in any order.
+- `Core\Bytes::Chunks` is bytes that arrive in pieces: an array, a generator or any other loop over
+  `bytes` values. A method reads it once, from the first piece to the last.
+
+A method that reads from the start to the end takes both: `Core\Bytes::Source|Core\Bytes::Chunks`.
+You pass the value you have, and the method decides how much of it to read. Your own functions can use
+both types too.
 
 | Member | Signature |
 |---|---|
@@ -35513,9 +35529,11 @@ Returns the full path of the folder that contains this source file. The compiler
 <a id="core-core-io"></a>
 ### `Core\IO`
 
-Keywords: file, read a file, write a file, file system, fs.read, fs.write, capability, permission, nvs.toml, path, read, write, append, writeStream, exists, isFile, isDir, isReadable, isWritable, size, modifiedAt, stat, copy, move, remove, makeDir, removeDir, list, walk, temporaryDir, canonicalize, within, readText, lines, open, stdin
+Keywords: file, read a file, write a file, file system, fs.read, fs.write, capability, permission, nvs.toml, path, read, readBytes, write, append, writeStream, exists, isFile, isDir, isReadable, isWritable, size, modifiedAt, stat, copy, move, remove, makeDir, removeDir, list, walk, temporaryDir, canonicalize, within, readText, lines, open, stdin, stdinStream
 
-`Core\IO` reads or replaces a whole file as text. Every call first checks a capability. The path
+`Core\IO` reads or replaces a whole file. `read` reads it as text. `readBytes` reads a file that is
+not text, such as an image, as `bytes`. `write` and `append` take a `string` or `bytes`. Every call
+first checks a capability. The path
 must be inside a folder that `nvs.toml` grants as `fs.read` or `fs.write`. A read grant does not
 allow writing. A path the configuration does not grant throws a `RuntimeError` that names the
 capability. Your program can catch it and continue. A path the configuration allows but the
@@ -35526,6 +35544,9 @@ folder, as `./out.txt` and not `out.txt`. Otherwise the check finds it not grant
 When `nvs.toml` does not set `fs.read` or `fs.write`, a program started from the command line reads
 and writes any path. Server work reads its application folder, except `nvs.toml` and names that
 start with `.`. It writes only the temporary folders that `Core\IO::temporaryDir` made for it.
+
+`stdinStream` reads the program's standard input in pieces of `bytes`, one piece per step of a
+`foreach` loop.
 
 ```toml file=nvs.toml
 [capabilities.fs]
@@ -35567,8 +35588,9 @@ outside: refused
 | Member | Signature |
 |---|---|
 | [`Core\IO::read`](#core-core-io-read) | `read(string $path): string` |
-| [`Core\IO::write`](#core-core-io-write) | `write(string $path, string $content): void` |
-| [`Core\IO::append`](#core-core-io-append) | `append(string $path, string $content): void` |
+| [`Core\IO::readBytes`](#core-core-io-readbytes) | `readBytes(string $path): bytes` |
+| [`Core\IO::write`](#core-core-io-write) | `write(string $path, string\|bytes $content): void` |
+| [`Core\IO::append`](#core-core-io-append) | `append(string $path, string\|bytes $content): void` |
 | [`Core\IO::writeStream`](#core-core-io-writestream) | `writeStream(string $path, array<bytes>\|Iterable<bytes>\|Iterator<bytes> $src, { max?: uint, overwrite?: bool }): void` |
 | [`Core\IO::exists`](#core-core-io-exists) | `exists(string $path): bool` |
 | [`Core\IO::isFile`](#core-core-io-isfile) | `isFile(string $path): bool` |
@@ -35592,6 +35614,7 @@ outside: refused
 | [`Core\IO::lines`](#core-core-io-lines) | `lines(string $path): Core\IO\Lines` |
 | [`Core\IO::open`](#core-core-io-open) | `open(string $path, Core\IO::FileMode $mode): Core\IO\File` |
 | [`Core\IO::stdin`](#core-core-io-stdin) | `stdin(): tainted string` |
+| [`Core\IO::stdinStream`](#core-core-io-stdinstream) | `stdinStream(): Core\IO\StdinStream` |
 
 <a id="core-core-io-read"></a>
 #### `Core\IO::read`
@@ -35610,11 +35633,28 @@ Returns the whole content of a file as text. It needs the `fs.read` capability f
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path. The message names the capability the way `nvs.toml` writes it. Or the file is larger than `[limits] max_output`, the limit for a single read in a request. The same setting limits the captured output of a child process. Or the file is not valid UTF-8, and the message names the byte where the text stops.; `IOError` — The capability allowed the call, but the operating system did not. The file does not exist, is a directory, or could not be read.
 
+<a id="core-core-io-readbytes"></a>
+#### `Core\IO::readBytes`
+
+```nvs skip
+Core\IO::readBytes(string $path): bytes
+```
+
+Reads a whole file as `bytes`, exactly as it is on disk. Use it for a file that is not text, such as an image or an archive. It needs the `fs.read` capability for the path.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
+
+**Returns** `bytes` — The file's content as `bytes`, with nothing changed.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path. The message names the capability the way `nvs.toml` writes it. Or the file is larger than `[limits] max_output`, the limit for a single read in a request.; `IOError` — The capability allowed the call, but the operating system did not. The file does not exist, is a directory, or could not be read.
+
 <a id="core-core-io-write"></a>
 #### `Core\IO::write`
 
 ```nvs skip
-Core\IO::write(string $path, string $content): void
+Core\IO::write(string $path, string|bytes $content): void
 ```
 
 Replaces a file's whole content. It creates the file if it does not exist. It needs the `fs.write` capability for the path. Permission to read a folder does not give permission to write in it.
@@ -35622,7 +35662,7 @@ Replaces a file's whole content. It creates the file if it does not exist. It ne
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$path` | `string` (sink) | The file to write. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
-| `$content` | `string` (neutral) | The bytes to write. They become the file's entire content. `append` is the method that adds to what is already there. |
+| `$content` | `string\|bytes` (neutral) | The text or bytes to write, written as they are. They become the file's entire content. `append` is the method that adds to what is already there. |
 
 **Returns** `void` — Nothing. A failure throws an error. It never returns `false`, so a caller that ignores the result does not miss a failure.
 
@@ -35632,7 +35672,7 @@ Replaces a file's whole content. It creates the file if it does not exist. It ne
 #### `Core\IO::append`
 
 ```nvs skip
-Core\IO::append(string $path, string $content): void
+Core\IO::append(string $path, string|bytes $content): void
 ```
 
 Adds content to the end of a file. It creates the file if it does not exist. It needs the `fs.write` capability for the path.
@@ -35640,7 +35680,7 @@ Adds content to the end of a file. It creates the file if it does not exist. It 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$path` | `string` (sink) | The file to add to. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
-| `$content` | `string` (neutral) | The bytes to add. The file's current content is kept, and these bytes come after it. The operating system finds the end of the file when it writes. The file is not read first. |
+| `$content` | `string\|bytes` (neutral) | The text or bytes to add. The file's current content is kept, and these bytes come after it. The operating system finds the end of the file when it writes. The file is not read first. |
 
 **Returns** `void` — Nothing. A failure throws an error. It never returns `false`, so a caller that ignores the result does not miss a failure.
 
@@ -36037,6 +36077,19 @@ Reads everything from the program's standard input in one call. The result is `t
 
 **Throws** `IOError` — The read failed in the operating system. The process writing to the pipe stopped, or standard input was not open for reading.; `RuntimeError` — The input is not valid UTF-8. The message gives the position of the first byte that is not text.
 
+<a id="core-core-io-stdinstream"></a>
+#### `Core\IO::stdinStream`
+
+```nvs skip
+Core\IO::stdinStream(): Core\IO\StdinStream
+```
+
+Reads the program's standard input in pieces, as bytes. Use it in a `foreach` loop. Each piece is `tainted` bytes, so input that is not text is read as it is. The whole input is never in memory at once.
+
+**Returns** `Core\IO\StdinStream` — A `Core\IO\StdinStream`. Each loop step gives the next piece of the input, up to 64 KiB. The loop ends when the input ends. It gives no piece when the input is already closed.
+
+**Throws** `IOError` — The read failed in the operating system. The process writing to the pipe stopped, or standard input was not open for reading.
+
 <a id="core-core-io-lines"></a>
 ### `Core\IO\Lines`
 
@@ -36142,14 +36195,23 @@ index.html
 | Member | Signature |
 |---|---|
 
+<a id="core-core-io-stdinstream"></a>
+### `Core\IO\StdinStream`
+
+Keywords:
+
+| Member | Signature |
+|---|---|
+
 <a id="core-core-io-file"></a>
 ### `Core\IO\File`
 
-Keywords: read, readLine, write, seek, tell, truncate, flush, lock, close
+Keywords: read, readBytes, readLine, write, seek, tell, truncate, flush, lock, close
 
 | Member | Signature |
 |---|---|
 | [`Core\IO\File->read`](#core-core-io-file-read) | `read(uint $max): string` |
+| [`Core\IO\File->readBytes`](#core-core-io-file-readbytes) | `readBytes(uint $max): bytes` |
 | [`Core\IO\File->readLine`](#core-core-io-file-readline) | `readLine(): ?string` |
 | [`Core\IO\File->write`](#core-core-io-file-write) | `write(string\|bytes $data): uint` |
 | [`Core\IO\File->seek`](#core-core-io-file-seek) | `seek(uint $offset): void` |
@@ -36175,6 +36237,23 @@ Reads up to `$max` bytes from the handle's position and moves the position past 
 **Returns** `string` — The bytes read, as a `string`. The text always ends with a whole character. When `$max` ends inside a character, that character stays in the file for the next read. An empty string means the end of the file.
 
 **Throws** `RuntimeError` — The handle has already been closed.; `RuntimeError` — The bytes are not valid UTF-8, or the next character is longer than `$max`. The handle does not move, so the next read starts at the same byte.; `IOError` — The read itself failed, or the handle was not opened for reading.
+
+<a id="core-core-io-file-readbytes"></a>
+#### `Core\IO\File->readBytes`
+
+```nvs skip
+$file->readBytes(uint $max): bytes
+```
+
+Reads up to `$max` bytes from the handle's position and moves the position past them. The bytes are returned as they are in the file.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$max` | `uint` | The most bytes to read. Fewer are returned when the file ends first. |
+
+**Returns** `bytes` — The bytes read. Empty `bytes` means the end of the file.
+
+**Throws** `RuntimeError` — The handle has already been closed.; `IOError` — The read itself failed, or the handle was not opened for reading.
 
 <a id="core-core-io-file-readline"></a>
 #### `Core\IO\File->readLine`
@@ -39017,14 +39096,18 @@ Returns the sixteen bytes of the UUID. Use it to store a UUID in a binary databa
 <a id="core-core-hash"></a>
 ### `Core\Hash`
 
-Keywords: hash, md5, sha1, sha256, crc32, digest, HMAC, checksum, fingerprint, constant-time comparison, of, hmac, equals, stream
+Keywords: hash, md5, sha1, sha256, crc32, digest, HMAC, checksum, fingerprint, constant-time comparison, hash a file, file checksum, of, hmac, equals, stream
 
-`Core\Hash::of` computes any `Core\Hash::Digest` case over a `string` or `bytes` and answers the raw
-digest as `bytes` — never hex and never an `int` — so printing one goes through
-`Core\Encoding::toHex`. `hmac` takes only the strong cases: `Core\Hash::Digest::Md5`, `Sha1`, `Crc32`,
-`Crc32c` and `Blake3` are compile errors there, while `of` accepts every case for checksum interop.
-Compare two digests with `equals`, which runs in constant time. Input that arrives in pieces goes
-through `stream`, which opens a `Core\Hash\Stream`.
+`Core\Hash::of` computes a digest with any `Core\Hash::Digest` case. `Core\Hash::hmac` computes a
+signature with a secret key. Both take a `string`, `bytes`, an open file, an uploaded file,
+`Core\Request::bodyStream()`, or a list or loop that gives `bytes` pieces. A file is read from its
+first byte, one piece at a time. So a large file is never in memory as a whole.
+
+The result is the raw digest as `bytes`. It is not hex and not an `int`. To print it, convert it with
+`Core\Encoding::toHex`. `hmac` takes only the strong algorithms. `Core\Hash::Digest::Md5`, `Sha1`,
+`Crc32`, `Crc32c` and `Blake3` do not compile there. `of` takes every case, so you can check
+checksums from older systems. `equals` compares two digests in constant time. For data your program
+makes one piece at a time, `stream` opens a `Core\Hash\Stream`.
 
 ```nvs
 <?nvs
@@ -39052,8 +39135,8 @@ differ
 
 | Member | Signature |
 |---|---|
-| [`Core\Hash::of`](#core-core-hash-of) | `of(bytes\|string $data, Core\Hash::Digest $digest): bytes` |
-| [`Core\Hash::hmac`](#core-core-hash-hmac) | `hmac(bytes\|string $data, secret bytes $key, Core\Hash::Digest::Sha224\|Core\Hash::Digest::Sha256\|Core\Hash::Digest::Sha384\|Core\Hash::Digest::Sha512\|Core\Hash::Digest::Sha512_224\|Core\Hash::Digest::Sha512_256\|Core\Hash::Digest::Sha3_224\|Core\Hash::Digest::Sha3_256\|Core\Hash::Digest::Sha3_384\|Core\Hash::Digest::Sha3_512 $digest): bytes` |
+| [`Core\Hash::of`](#core-core-hash-of) | `of(Core\Bytes::Source\|string\|Core\Bytes::Chunks $data, Core\Hash::Digest $digest): bytes` |
+| [`Core\Hash::hmac`](#core-core-hash-hmac) | `hmac(Core\Bytes::Source\|string\|Core\Bytes::Chunks $data, secret bytes $key, Core\Hash::Digest::Sha224\|Core\Hash::Digest::Sha256\|Core\Hash::Digest::Sha384\|Core\Hash::Digest::Sha512\|Core\Hash::Digest::Sha512_224\|Core\Hash::Digest::Sha512_256\|Core\Hash::Digest::Sha3_224\|Core\Hash::Digest::Sha3_256\|Core\Hash::Digest::Sha3_384\|Core\Hash::Digest::Sha3_512 $digest): bytes` |
 | [`Core\Hash::equals`](#core-core-hash-equals) | `equals(bytes $a, bytes $b): bool` |
 | [`Core\Hash::stream`](#core-core-hash-stream) | `stream(Core\Hash::Digest $digest): Core\Hash\Stream` |
 
@@ -39061,14 +39144,14 @@ differ
 #### `Core\Hash::of`
 
 ```nvs skip
-Core\Hash::of(bytes|string $data, Core\Hash::Digest $digest): bytes
+Core\Hash::of(Core\Bytes::Source|string|Core\Bytes::Chunks $data, Core\Hash::Digest $digest): bytes
 ```
 
 Computes the digest of `$data` with the algorithm `$digest`. The result is raw bytes. It is not hexadecimal text and not an `int`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `bytes\|string` (neutral) | The data to hash. A `string` is read as its UTF-8 bytes. |
+| `$data` | `Core\Bytes::Source\|string\|Core\Bytes::Chunks` (neutral) | The data to hash: `bytes`, a `string`, an open `Core\IO\File`, an uploaded file, the request body, or the pieces of a loop. A `string` is read as its UTF-8 bytes. A file is read one piece at a time, so a large file is never held in memory. |
 | `$digest` | `Core\Hash::Digest` | The algorithm. Every `Core\Hash::Digest` case is allowed, also the broken ones. |
 
 **Returns** `bytes` — The digest as `bytes`, with the length of the chosen algorithm. Every algorithm accepts any input, also an empty one.
@@ -39077,14 +39160,14 @@ Computes the digest of `$data` with the algorithm `$digest`. The result is raw b
 #### `Core\Hash::hmac`
 
 ```nvs skip
-Core\Hash::hmac(bytes|string $data, secret bytes $key, Core\Hash::Digest::Sha224|Core\Hash::Digest::Sha256|Core\Hash::Digest::Sha384|Core\Hash::Digest::Sha512|Core\Hash::Digest::Sha512_224|Core\Hash::Digest::Sha512_256|Core\Hash::Digest::Sha3_224|Core\Hash::Digest::Sha3_256|Core\Hash::Digest::Sha3_384|Core\Hash::Digest::Sha3_512 $digest): bytes
+Core\Hash::hmac(Core\Bytes::Source|string|Core\Bytes::Chunks $data, secret bytes $key, Core\Hash::Digest::Sha224|Core\Hash::Digest::Sha256|Core\Hash::Digest::Sha384|Core\Hash::Digest::Sha512|Core\Hash::Digest::Sha512_224|Core\Hash::Digest::Sha512_256|Core\Hash::Digest::Sha3_224|Core\Hash::Digest::Sha3_256|Core\Hash::Digest::Sha3_384|Core\Hash::Digest::Sha3_512 $digest): bytes
 ```
 
 Computes the HMAC of RFC 2104 for `$data`, with `$key` and the algorithm `$digest`. The result is raw bytes. Only a `StrongDigest` is allowed, so `Digest::Md5` or `Digest::Sha1` does not compile.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `bytes\|string` (neutral) | The data to sign. A `string` is read as its UTF-8 bytes. |
+| `$data` | `Core\Bytes::Source\|string\|Core\Bytes::Chunks` (neutral) | The data to sign: `bytes`, a `string`, an open `Core\IO\File`, an uploaded file, the request body, or the pieces of a loop. A `string` is read as its UTF-8 bytes. A file is read one piece at a time. |
 | `$key` | `secret bytes` (sink) | The secret key, of any length. A long key is hashed first, and a short key is padded with zero bytes, as RFC 2104 § 2 says. |
 | `$digest` | `Core\Hash::Digest::Sha224\|Core\Hash::Digest::Sha256\|Core\Hash::Digest::Sha384\|Core\Hash::Digest::Sha512\|Core\Hash::Digest::Sha512_224\|Core\Hash::Digest::Sha512_256\|Core\Hash::Digest::Sha3_224\|Core\Hash::Digest::Sha3_256\|Core\Hash::Digest::Sha3_384\|Core\Hash::Digest::Sha3_512` | The algorithm, one of the ten SHA-2 and SHA-3 `Core\Hash::Digest` cases. |
 
@@ -39124,12 +39207,15 @@ Starts a digest with the algorithm `$digest` that you feed in parts. It returns 
 <a id="core-core-hash-stream"></a>
 ### `Core\Hash\Stream`
 
-Keywords: incremental hash, streaming digest, chunked input, hash a large file, checksum, update, finish
+Keywords: incremental hash, streaming digest, chunked input, checksum, update, finish
 
-A `Core\Hash\Stream` is opened by `Core\Hash::stream` with a `Core\Hash::Digest` case and digests
-everything `update` feeds it, in order, so `finish` answers exactly what `Core\Hash::of` answers
-over the concatenation. `finish` consumes the stream: a second `finish`, or an `update` after one,
-throws `RuntimeError`. Two digests of one input need two streams.
+`Core\Hash::stream` opens a `Core\Hash\Stream` with a `Core\Hash::Digest` case. Each `update` adds
+one piece of data, in order. `finish` returns the same digest that `Core\Hash::of` returns for all
+the pieces joined together. After `finish`, the stream is closed. A second `finish` or another
+`update` throws a `RuntimeError`, so two digests of one input need two streams.
+
+To hash a file, an upload or the request body, pass it to `Core\Hash::of`. It reads the data in
+pieces for you.
 
 ```nvs
 <?nvs
@@ -39969,6 +40055,10 @@ first record. Each record ends with `lineEnd`: `"\n"` by default, or `"\r\n"`. A
 `tainted string` too. The dialect options
 `separator`, `quote` and `escape` are single ASCII bytes.
 
+`Core\Csv::rows` reads a large document one record at a time. You pass it the data directly: an open
+file, an uploaded file, `Core\Request::bodyStream()`, `bytes`, or a list or loop that gives `bytes`
+pieces. It also takes `charset` for data that is not UTF-8.
+
 ```nvs
 <?nvs
 string $doc = "name,qty,note\nfig,2,ripe\nplum,10,\"a, b\"\n";
@@ -39998,7 +40088,7 @@ plum,"a, b"
 |---|---|
 | [`Core\Csv::parse`](#core-core-csv-parse) | `parse(string $text, { separator?: string, quote?: string, escape?: string, header?: bool }): array<array<string>>` |
 | [`Core\Csv::format`](#core-core-csv-format) | `format(array<array<string>> $rows, { separator?: string, quote?: string, header?: array<string>, lineEnd?: string }): string` |
-| [`Core\Csv::rows`](#core-core-csv-rows) | `rows(Core\IO\File $file, { separator?: string, quote?: string, escape?: string, header?: bool }): Core\Csv\Rows` |
+| [`Core\Csv::rows`](#core-core-csv-rows) | `rows(Core\Bytes::Source\|Core\Bytes::Chunks $source, { separator?: string, quote?: string, escape?: string, header?: bool, charset?: Core\Charset }): Core\Csv\Rows<string>` |
 
 <a id="core-core-csv-parse"></a>
 #### `Core\Csv::parse`
@@ -40046,43 +40136,47 @@ Writes `$rows` as a CSV document. A field is quoted only when it contains the se
 #### `Core\Csv::rows`
 
 ```nvs skip
-Core\Csv::rows(Core\IO\File $file, { separator?: string, quote?: string, escape?: string, header?: bool }): Core\Csv\Rows
+Core\Csv::rows(Core\Bytes::Source|Core\Bytes::Chunks $source, { separator?: string, quote?: string, escape?: string, header?: bool, charset?: Core\Charset }): Core\Csv\Rows<string>
 ```
 
-Reads an open file one record at a time, in a `foreach` loop. It uses the same RFC 4180 rules and the same options as `parse`. Only one record is in memory at a time, so a file larger than memory works. It reads forward from the current position of the file, and you can loop over it only once.
+Reads CSV one record at a time, in a `foreach` loop. It reads an open file, `bytes`, an uploaded file, the request body or a loop over `bytes` pieces. It uses the same RFC 4180 rules and the same options as `parse`. Only one record is in memory at a time, so a file larger than memory works. You can loop over it only once.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$file` | `Core\IO\File` | The open file to read from. Reading starts at its current position. |
+| `$source` | `Core\Bytes::Source\|Core\Bytes::Chunks` | The bytes to read. An open file is read from its first byte, whatever its current position is. A loop over `bytes` pieces is read once, from the first piece to the last. |
 | `{ separator: … }` | `string` (default `","`, neutral) | The one ASCII character between fields. The default is `,`. |
 | `{ quote: … }` | `string` (default `"\""`, neutral) | The one ASCII character that quotes a field. The default is `"`. |
 | `{ escape: … }` | `string` (default `""`, neutral) | The one ASCII character that escapes a quote inside a quoted field. The default is the empty string, which means no escape character. Then two quotes are read as one quote, as RFC 4180 says. |
 | `{ header: … }` | `bool` (default `false`) | When `true`, the first record is read as column names, and every record uses them as keys. By default, each field has its column number as the key. |
+| `{ charset: … }` | `Core\Charset` (default `Core\Charset::Utf8`) | The charset of the bytes, such as `Core\Charset::Windows1252`. The default is `Core\Charset::Utf8`. The bytes are converted to text one piece at a time, so the whole file is never in memory. When the bytes start with a byte order mark for UTF-8 or UTF-16, that mark sets the charset, and it is not part of the first field. |
 
-**Returns** `Core\Csv\Rows` — The records, one at a time. Each record is an array of `string` fields with the same keys that `parse` gives. Nothing is read until the loop starts.
+**Returns** `Core\Csv\Rows<string>` — The records, one at a time. Each record is an array of `string` fields with the same keys that `parse` gives. The fields are `tainted string` when the bytes come from the request. Nothing is read until the loop starts.
 
-**Throws** `RuntimeError` — An option for the CSV format is empty, longer than one ASCII character, or `CR` or `LF`. It is also thrown when two of `separator`, `quote` and `escape` are the same character, or the file was closed before or during the loop.; `IOError` — The operating system could not read the file during the loop.; `ParseError` — A field is not valid UTF-8. The message gives the line where the field ends, and the loop stops there.
+**Throws** `RuntimeError` — An option for the CSV format is empty, longer than one ASCII character, or `CR` or `LF`. It is also thrown when two of `separator`, `quote` and `escape` are the same character, or the file was closed before or during the loop.; `IOError` — The operating system could not read the file during the loop.; `ParseError` — A field is not valid UTF-8. The message gives the line where the field ends, and the loop stops there. With another `charset`, the bytes are not text in that charset. Then the message gives the position of the first wrong byte.
 
 <a id="core-core-csv-rows"></a>
-### `Core\Csv\Rows`
+### `Core\Csv\Rows<T>`
 
 Keywords: read CSV file, large CSV file, CSV line by line, stream CSV, CSV records, CSV header, import CSV, low memory,
 
-`Core\Csv\Rows` contains the records of a CSV file. `Core\Csv::rows` returns it. It needs a file that
-`Core\IO::open` opened for reading. The class has no methods. You read it with a `foreach` loop.
+`Core\Csv\Rows` contains the records of a CSV file. `Core\Csv::rows` returns it. It reads an open
+`Core\IO\File`, an uploaded file, `Core\Request::bodyStream()`, `bytes`, or a list or loop that gives
+`bytes` pieces. The class has no methods. You read it with a `foreach` loop.
 
 Each item is one record, as an `array<string>`. The keys are the column numbers, starting at `0`. With
 `{ header: true }`, the first record gives the column names, and the keys are these names. The header
 is not one of the items.
 
 The file is read while the loop runs, and only one record is in memory at a time. So a file larger
-than your memory limit still works. Reading starts at the current position of the file. You can read
-the records only once. A second loop continues after the last record the first loop read. After the
+than your memory limit still works. A file is read from its first byte. You can read the records only
+once. A second loop continues after the last record the first loop read. After the
 last record, a loop gives no items.
 
 `rows` throws a `RuntimeError` when an option is not valid, such as `{ separator: ';;' }`. The loop throws a
 `RuntimeError` when the file is closed, and an `IOError` when the operating system cannot read it. It
-throws a `ParseError` when a field is not valid UTF-8 text. `rows` does not close the file. Call
+throws a `ParseError` when a field is not valid UTF-8 text. For a file in another charset, set
+`charset`, such as `Core\Charset::Windows1252`. A UTF-8 or UTF-16 byte order mark at the start sets the
+charset for you. `rows` does not close the file. Call
 `close()` on the file when the loop is done.
 
 ```csv file=orders.csv
@@ -43440,11 +43534,10 @@ Returns the glob captures of the mount serving this request, in order. `{1}` is 
 <a id="core-core-request-bodystream"></a>
 ### `Core\Request\BodyStream`
 
-Keywords: raw request body, streaming request body, read the body in chunks, large upload, chunked body, chunk, Iterable bytes, memory limit,
+Keywords: raw request body, streaming request body, read the body in chunks, large upload, chunked body, chunk, Iterable bytes, memory limit, peek
 
 `Core\Request\BodyStream` is what `Core\Request::bodyStream()` answers with: an `Iterable<tainted bytes>`
-that a `foreach` walks once. It has no members — the walk is everything it does — and it holds nothing
-but the chunk the loop body is looking at, so a body far larger than the machine's memory passes through
+that a `foreach` walks once. It holds nothing but the chunk the loop body is looking at, so a body far larger than the machine's memory passes through
 a program that never has more than one chunk of it resident. That is the whole difference from `body()`,
 which fills the request's hold under `[limits] request_body` and can be read back any number of times.
 This walk is under no such cap, because what a program keeps out of it is the program's own decision and
@@ -43455,6 +43548,9 @@ a program that needs lines, records or frames finds them itself, across chunks; 
 chunk to anything the sender wrote. Each chunk is copied out as the loop body receives it and stays valid
 after the next pull, so keeping one keeps bytes the wire cannot revoke. The walk is empty where the
 request carried no body at all.
+
+`peek($max)` returns the first `$max` bytes of the body and does not use them up, so the loop after it
+still starts at the first byte. Call it before the loop starts: after that it throws `LogicError`.
 
 **Naming the walk is the reading.** `bodyStream()` claims the body when the walk is built, long before a
 single byte moves, so `body()`, `post()`, `json()`, `jsonAs<T>()` or `files()` after it is refused with
@@ -43504,6 +43600,24 @@ no request here
 
 | Member | Signature |
 |---|---|
+| [`Core\Request\BodyStream->peek`](#core-core-request-bodystream-peek) | `peek(uint $max): tainted bytes` |
+
+<a id="core-core-request-bodystream-peek"></a>
+#### `Core\Request\BodyStream->peek`
+
+```nvs skip
+$bodyStream->peek(uint $max): tainted bytes
+```
+
+Returns the first bytes of the request body and does not use them up. A `foreach` loop over this value still gives every byte of the body after it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$max` | `uint` | The most bytes to return. A body shorter than `max` is returned whole. A second call with a larger `max` reads further. |
+
+**Returns** `tainted bytes` — The first `max` bytes of the body, or fewer. The value is `tainted`.
+
+**Throws** `LogicError` — This program is not handling a request. Or a `foreach` loop has already read this value. Or `max` is larger than this request's `[limits] memory`.; `IOError` — The connection failed while the body was read.
 
 <a id="core-core-request-files"></a>
 ### `Core\Request\Files`
@@ -43575,7 +43689,7 @@ no request here
 <a id="core-core-request-part"></a>
 ### `Core\Request\Part`
 
-Keywords: uploaded file, upload name, client filename, form field, Content-Disposition, Content-Type, multipart part, read an upload, save an upload, name, filename, contentType, content, readAll, saveTo
+Keywords: uploaded file, upload name, client filename, form field, Content-Disposition, Content-Type, multipart part, read an upload, save an upload, name, filename, contentType, content, readAll, saveTo, peek
 
 A `Core\Request\Part` is one file part of a `multipart/form-data` body, handed to the loop body by the
 `Core\Request::files()` walk. Three members say what it declared about itself — `name()`, the form field
@@ -43601,6 +43715,9 @@ time, holding none of it, for an upload that must never be resident whole. `save
 overwrite?})` writes it straight to disk one chunk at a time — the path almost every upload takes — under
 the `fs.write` capability for that path; it is `Core\IO::writeStream` underneath, so the path must not
 already exist unless `overwrite` says so, and a write that fails leaves no partial file behind.
+
+`peek($max)` returns the first `$max` bytes of the part and uses none of them up, so you can check the
+start of a file before one of the three ways above reads all of it.
 
 **All of them are valid only while this part is the walk's current one.** A part kept past the iteration
 that opened the next names bytes the parse has already drained, so it is refused rather than answered with
@@ -43646,6 +43763,7 @@ part is described, and what it does in a program answering no request.
 | [`Core\Request\Part->content`](#core-core-request-part-content) | `content(): Core\Request\PartContent` |
 | [`Core\Request\Part->readAll`](#core-core-request-part-readall) | `readAll({ max?: uint }): tainted bytes` |
 | [`Core\Request\Part->saveTo`](#core-core-request-part-saveto) | `saveTo(string $path, { max?: uint, overwrite?: bool }): void` |
+| [`Core\Request\Part->peek`](#core-core-request-part-peek) | `peek(uint $max): tainted bytes` |
 
 <a id="core-core-request-part-name"></a>
 #### `Core\Request\Part->name`
@@ -43728,6 +43846,23 @@ Writes this part directly to `$path`, one chunk at a time. Use it to save an upl
 **Returns** `void` — Nothing. If the write fails partway, the partial file is deleted before the error is thrown. No later reader finds a cut-off upload that the program thinks is complete.
 
 **Throws** `LogicError` — This program is not handling a request. Or the `files()` loop has moved to a later part, and the bytes of this part are gone.; `RuntimeError` — The configuration does not grant `fs.write` for this path, or the part is larger than `max` bytes.; `IOError` — A file is already at the path and `overwrite` is `false`. Or the operating system did not allow the file to be created or written. Or the connection failed while the body was read.; `ParseError` — The body is not the multipart body the request declared.
+
+<a id="core-core-request-part-peek"></a>
+#### `Core\Request\Part->peek`
+
+```nvs skip
+$part->peek(uint $max): tainted bytes
+```
+
+Returns the first bytes of this part and does not use them up. `content()`, `readAll()` and `saveTo()` still give every byte of the part after it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$max` | `uint` | The most bytes to return. A part shorter than `max` is returned whole. A second call with a larger `max` reads further. |
+
+**Returns** `tainted bytes` — The first `max` bytes of the part, or fewer. The value is `tainted`.
+
+**Throws** `LogicError` — This program is not handling a request. Or the `files()` loop has moved to a later part. Or `content()`, `readAll()` or `saveTo()` has already started to read this part. Or `max` is larger than this request's `[limits] memory`.; `IOError` — The connection failed while the body was read, or the body ended before the closing boundary.; `ParseError` — The body is not the multipart body the request declared.
 
 <a id="core-core-request-partcontent"></a>
 ### `Core\Request\PartContent`
@@ -44869,7 +45004,7 @@ Keywords: put, get, delete, list
 
 | Member | Signature |
 |---|---|
-| [`Core\Storage::put`](#core-core-storage-put) | `put(string $disk, string $key, bytes $contents, { overwrite?: bool }): void` |
+| [`Core\Storage::put`](#core-core-storage-put) | `put(string $disk, string $key, Core\Bytes::Source\|Core\Bytes::Chunks $contents, { overwrite?: bool }): void` |
 | [`Core\Storage::get`](#core-core-storage-get) | `get(string $disk, string $key): ?tainted bytes` |
 | [`Core\Storage::delete`](#core-core-storage-delete) | `delete(string $disk, string $key): void` |
 | [`Core\Storage::list`](#core-core-storage-list) | `list(string $disk, { prefix?: string }): array<string>` |
@@ -44878,7 +45013,7 @@ Keywords: put, get, delete, list
 #### `Core\Storage::put`
 
 ```nvs skip
-Core\Storage::put(string $disk, string $key, bytes $contents, { overwrite?: bool }): void
+Core\Storage::put(string $disk, string $key, Core\Bytes::Source|Core\Bytes::Chunks $contents, { overwrite?: bool }): void
 ```
 
 Saves `$contents` as the file `$key` on `$disk`. A file that is already there is replaced, unless `overwrite` is `false`.
@@ -44887,7 +45022,7 @@ Saves `$contents` as the file `$key` on `$disk`. A file that is already there is
 |---|---|---|
 | `$disk` | `string` (sink) | The name of a `[storage.<name>]` block in `nvs.toml`. That block sets the folder the files are saved in. A `tainted` value is not allowed here, because the program chooses the disk and user input never does. |
 | `$key` | `string` (neutral) | The name of the file on the disk. It is 1 to 255 ASCII letters, digits, `.`, `-` and `_`, and it does not start with a `.`. A `/` or a `\` throws an error, so a key never points into another folder. |
-| `$contents` | `bytes` (neutral) | The bytes to save. The whole value is written. |
+| `$contents` | `Core\Bytes::Source\|Core\Bytes::Chunks` (neutral) | The data to save: `bytes`, an open `Core\IO\File`, an uploaded file, the request body, or the pieces of a loop. A file or an upload is written one piece at a time, so it is never held in memory as a whole. |
 | `{ overwrite: … }` | `bool` (default `true`) | Whether a file that already has this key may be replaced. The default is `true`. With `false`, `put` throws an `IOError` if the key is already used. |
 
 **Returns** `void` — Nothing. The file is on the disk when `put` returns.
@@ -46585,7 +46720,7 @@ Keywords: parse, reader, writer
 | Member | Signature |
 |---|---|
 | [`Core\Xml::parse`](#core-core-xml-parse) | `parse(string $document): Core\Xml\Node` |
-| [`Core\Xml::reader`](#core-core-xml-reader) | `reader(string $document): Core\Xml\Reader` |
+| [`Core\Xml::reader`](#core-core-xml-reader) | `reader(string\|Core\Bytes::Source\|Core\Bytes::Chunks $document): Core\Xml\Reader` |
 | [`Core\Xml::writer`](#core-core-xml-writer) | `writer({ indent?: string }): Core\Xml\Writer` |
 
 <a id="core-core-xml-parse"></a>
@@ -46609,16 +46744,18 @@ Reads a whole XML document and returns its document node. A document that is not
 #### `Core\Xml::reader`
 
 ```nvs skip
-Core\Xml::reader(string $document): Core\Xml\Reader
+Core\Xml::reader(string|Core\Bytes::Source|Core\Bytes::Chunks $document): Core\Xml\Reader
 ```
 
 Returns a reader that goes through `$document` one node at a time. Call `read` until it returns `null`. The reader does not build a tree. It keeps the current node and the names of the elements that are open. This call reads nothing yet. The first `read` reads the first node.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$document` | `string` (neutral) | The document text. The reader does not copy it. Entity references are handled the same way as in `Core\Xml::parse`. |
+| `$document` | `string\|Core\Bytes::Source\|Core\Bytes::Chunks` (neutral) | The document. It can be a `string`, `bytes`, an open `Core\IO\File`, an upload, the request body, or a list or stream of `bytes` chunks. The reader reads a file or a stream a little at a time, so a document of any size uses the same memory. Bytes must be UTF-8, or UTF-16 with a byte order mark. Entity references are handled the same way as in `Core\Xml::parse`. |
 
 **Returns** `Core\Xml\Reader` — A reader. Its first `read` returns the first node of the document.
+
+**Throws** `RuntimeError` — The file is already closed.
 
 <a id="core-core-xml-writer"></a>
 #### `Core\Xml::writer`
@@ -46752,7 +46889,7 @@ Reads the next node of the document and returns it. At the end of the document, 
 
 **Returns** `?Core\Xml\Node` — The next node: an element, a text, a comment or a processing instruction. The result is `null` at the end of the document. Every string you read from the node is `tainted`, because it came from outside the program.
 
-**Throws** `ParseError` — The document is not well-formed at the place the reader has reached. `Core\Xml::parse` throws the same errors. The nodes before that place were already returned. The reader does not move past the error, so the next `read` throws the same error again.
+**Throws** `ParseError` — The document is not well-formed at the place the reader has reached. `Core\Xml::parse` throws the same errors. The nodes before that place were already returned. The reader does not move past the error, so the next `read` throws the same error again. A document read from bytes also throws this error when its bytes are not UTF-8 or UTF-16, or when it declares another encoding.
 
 <a id="core-core-xml-reader-depth"></a>
 #### `Core\Xml\Reader->depth`
@@ -46950,8 +47087,8 @@ Keywords: compress, decompress, compressor, decompressor
 
 | Member | Signature |
 |---|---|
-| [`Core\Compress::compress`](#core-core-compress-compress) | `compress(bytes\|string $data, Core\Compress::Codec $codec): bytes` |
-| [`Core\Compress::decompress`](#core-core-compress-decompress) | `decompress(bytes $data, Core\Compress::Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes` |
+| [`Core\Compress::compress`](#core-core-compress-compress) | `compress(Core\Bytes::Source\|string\|Core\Bytes::Chunks $data, Core\Compress::Codec $codec): bytes` |
+| [`Core\Compress::decompress`](#core-core-compress-decompress) | `decompress(Core\Bytes::Source\|Core\Bytes::Chunks $data, Core\Compress::Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes` |
 | [`Core\Compress::compressor`](#core-core-compress-compressor) | `compressor(Core\Compress::Codec $codec): Core\Compress\Compressor` |
 | [`Core\Compress::decompressor`](#core-core-compress-decompressor) | `decompressor(Core\Compress::Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): Core\Compress\Decompressor` |
 
@@ -46959,14 +47096,14 @@ Keywords: compress, decompress, compressor, decompressor
 #### `Core\Compress::compress`
 
 ```nvs skip
-Core\Compress::compress(bytes|string $data, Core\Compress::Codec $codec): bytes
+Core\Compress::compress(Core\Bytes::Source|string|Core\Bytes::Chunks $data, Core\Compress::Codec $codec): bytes
 ```
 
 Compresses `$data` in the format `$codec`. The format is a case of `Core\Compress::Codec`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `bytes\|string` | The bytes to compress. A `string` is read as its UTF-8 bytes. |
+| `$data` | `Core\Bytes::Source\|string\|Core\Bytes::Chunks` | The data to compress: `bytes`, a `string`, an open `Core\IO\File`, an uploaded file, the request body, or the pieces of a loop. A `string` is read as its UTF-8 bytes. |
 | `$codec` | `Core\Compress::Codec` | The format to write. Use `Core\Compress::Codec::Gzip` when you send the result over a network. |
 
 **Returns** `bytes` — The compressed data, as `bytes`. Compressing has no size limit, because the output is never much larger than the input.
@@ -46975,14 +47112,14 @@ Compresses `$data` in the format `$codec`. The format is a case of `Core\Compres
 #### `Core\Compress::decompress`
 
 ```nvs skip
-Core\Compress::decompress(bytes $data, Core\Compress::Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes
+Core\Compress::decompress(Core\Bytes::Source|Core\Bytes::Chunks $data, Core\Compress::Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes
 ```
 
 Decompresses `$data` from the format `$codec`. **The output has a size limit that cannot be switched off.**
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `bytes` | The compressed data. If `$data` is `tainted`, the result is `tainted` too. Decompressing does not make data safe to use. |
+| `$data` | `Core\Bytes::Source\|Core\Bytes::Chunks` | The compressed data: `bytes`, an open `Core\IO\File`, an uploaded file, the request body, or the pieces of a loop. If `$data` is `tainted`, the result is `tainted` too. Decompressing does not make data safe to use. A source that is not `bytes` is checked against `$maxRatio` while it is read, so a small upload that would decompress to a lot stops early. |
 | `$codec` | `Core\Compress::Codec` | The format `$data` is in. The method does not detect the format. Data in another format throws an error. |
 | `$maxBytes` | `uint` (default `67108864`) | The most output this call produces, in bytes. It can be lower than `[limits] max_decompressed`, but not higher. `0` means zero bytes. It does not mean no limit. |
 | `$maxRatio` | `uint` (default `1000`) | The most bytes of output for each byte of input. This is the second part of the size limit. A compression bomb is small data that decompresses to a huge size. With a limit in bytes alone, a small request can still reach that limit. |
@@ -47110,23 +47247,25 @@ Keywords: detect, mediaType
 
 | Member | Signature |
 |---|---|
-| [`Core\Mime::detect`](#core-core-mime-detect) | `detect(bytes $data): Core\Mime::Type` |
+| [`Core\Mime::detect`](#core-core-mime-detect) | `detect(Core\Bytes::Source $data): Core\Mime::Type` |
 | [`Core\Mime::mediaType`](#core-core-mime-mediatype) | `mediaType(Core\Mime::Type $type): string` |
 
 <a id="core-core-mime-detect"></a>
 #### `Core\Mime::detect`
 
 ```nvs skip
-Core\Mime::detect(bytes $data): Core\Mime::Type
+Core\Mime::detect(Core\Bytes::Source $data): Core\Mime::Type
 ```
 
 Returns the type of `$data`, read from the bytes themselves. There is no parameter for a file name, because an attacker can choose a file name's extension.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `bytes` (neutral) | The bytes to check. Only the first 16 bytes or fewer are read. So the start of an upload gives the same result as the whole upload. |
+| `$data` | `Core\Bytes::Source` (neutral) | What to check: a `bytes` value, an open `Core\IO\File`, an uploaded `Core\Request\Part` or `Core\Request::bodyStream()`. Only the first 12 bytes are read. A file keeps its position. An upload is not used up, so you can still save it or read it after this call. |
 
 **Returns** `Core\Mime::Type` — The case for the kind of file. It is `Core\Mime::Type::Unknown` when no format matches, and for every text format. **The result does not make the data safe.** Bytes detected as `image/png` are still `tainted`, because only the first bytes were checked.
+
+**Throws** `LogicError` — The part is not the one the `files()` loop is on. Or a loop, `readAll()` or `saveTo()` has already started to read the upload, so its first bytes are gone. Call `detect` before them.; `IOError` — The file or the connection failed while the first bytes were read.
 
 <a id="core-core-mime-mediatype"></a>
 #### `Core\Mime::mediaType`
@@ -47150,22 +47289,22 @@ Keywords: entries, read, extract
 
 | Member | Signature |
 |---|---|
-| [`Core\Zip::entries`](#core-core-zip-entries) | `entries(bytes $archive): array<tainted string>` |
-| [`Core\Zip::read`](#core-core-zip-read) | `read(bytes $archive, string $name, uint $maxBytes = 67108864, uint $maxRatio = 1000): tainted bytes` |
-| [`Core\Zip::extract`](#core-core-zip-extract) | `extract(bytes $archive, string $destination, uint $maxBytes = 67108864, uint $maxRatio = 1000): uint` |
+| [`Core\Zip::entries`](#core-core-zip-entries) | `entries(Core\Bytes::Source $archive): array<tainted string>` |
+| [`Core\Zip::read`](#core-core-zip-read) | `read(Core\Bytes::Source $archive, string $name, uint $maxBytes = 67108864, uint $maxRatio = 1000): tainted bytes` |
+| [`Core\Zip::extract`](#core-core-zip-extract) | `extract(Core\Bytes::Source $archive, string $destination, uint $maxBytes = 67108864, uint $maxRatio = 1000): uint` |
 
 <a id="core-core-zip-entries"></a>
 #### `Core\Zip::entries`
 
 ```nvs skip
-Core\Zip::entries(bytes $archive): array<tainted string>
+Core\Zip::entries(Core\Bytes::Source $archive): array<tainted string>
 ```
 
 Returns the names of the entries in an archive, in the order its central directory lists them. The whole archive is checked first. If one entry uses `..`, an absolute path or a symlink, it throws an error and lists nothing.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$archive` | `bytes` (neutral) | The bytes of the archive. Only its central directory is read. So the time to list an archive depends on the number of entries, not on the size of the archive. |
+| `$archive` | `Core\Bytes::Source` (neutral) | The archive. It can be `bytes`, an open `Core\IO\File`, an uploaded `Core\Request\Part` or a `Core\Request\BodyStream`. Only its central directory is read. So the time to list an archive depends on the number of entries, not on the size of the archive. A file is read in small pieces and is never held whole. |
 
 **Returns** `array<tainted string>` — One `tainted string` per entry. A name is always tainted, whatever the type of the archive was. The name was written by whoever built the archive. An archive written directly in a test is no safer than a downloaded one.
 
@@ -47175,14 +47314,14 @@ Returns the names of the entries in an archive, in the order its central directo
 #### `Core\Zip::read`
 
 ```nvs skip
-Core\Zip::read(bytes $archive, string $name, uint $maxBytes = 67108864, uint $maxRatio = 1000): tainted bytes
+Core\Zip::read(Core\Bytes::Source $archive, string $name, uint $maxBytes = 67108864, uint $maxRatio = 1000): tainted bytes
 ```
 
 Returns the decompressed bytes of one entry. **The output has a size limit that cannot be switched off.**
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$archive` | `bytes` (neutral) | The bytes of the archive. It is checked the same way as in `entries`. An unsafe entry anywhere in the archive makes this call throw too, whichever entry you read. |
+| `$archive` | `Core\Bytes::Source` (neutral) | The archive, as `bytes` or any source `entries` takes. It is checked the same way as in `entries`. An unsafe entry anywhere in the archive makes this call throw too, whichever entry you read. |
 | `$name` | `string` (neutral) | The entry to read. It is compared with the names in the archive exactly, and it is never treated as a path. A name that `entries` returned works as it is. |
 | `$maxBytes` | `uint` (default `67108864`) | The largest output this call may produce, in bytes. It can be lower than `[limits] max_decompressed`, but not higher. `0` means zero bytes, not unlimited. |
 | `$maxRatio` | `uint` (default `1000`) | The largest output per byte of the compressed entry. This is the second part of the size limit, because a zip bomb is small before it is decompressed. |
@@ -47195,14 +47334,14 @@ Returns the decompressed bytes of one entry. **The output has a size limit that 
 #### `Core\Zip::extract`
 
 ```nvs skip
-Core\Zip::extract(bytes $archive, string $destination, uint $maxBytes = 67108864, uint $maxRatio = 1000): uint
+Core\Zip::extract(Core\Bytes::Source $archive, string $destination, uint $maxBytes = 67108864, uint $maxRatio = 1000): uint
 ```
 
 Writes the entries of an archive under `$destination` and returns how many files it wrote. The whole archive is checked before any byte is written. Each directory is created and then checked to be inside `$destination`, before anything is written into it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$archive` | `bytes` (neutral) | The bytes of the archive. It is checked the same way as in `entries`. An unsafe entry anywhere in the archive makes this call throw before it writes anything. |
+| `$archive` | `Core\Bytes::Source` (neutral) | The archive, as `bytes` or any source `entries` takes. It is checked the same way as in `entries`. An unsafe entry anywhere in the archive makes this call throw before it writes anything. |
 | `$destination` | `string` (sink) | The directory to write the files to. It is created if it does not exist. The call needs `fs.write` and also `fs.read` for it, because Novis reads the directories above a name to find where it points. |
 | `$maxBytes` | `uint` (default `67108864`) | The largest output this call may produce **for the whole archive**, in bytes. It is not a limit per entry. Many small entries can add up to an attack too. It can be lower than `[limits] max_decompressed`, but not higher. |
 | `$maxRatio` | `uint` (default `1000`) | The largest output per byte of a compressed entry. This limit is per entry, because each entry is decompressed on its own. |
@@ -53119,7 +53258,8 @@ Keywords: image, picture, thumbnail, resize, scale, crop, rotate, convert, image
 `Novis\Image\Image` is an image and a list of steps to run on it. Each step method, such as
 `resize`, `crop` or `format`, returns a new `Image` and does not change the old one. No pixel is
 decoded until `encode`, `variants` or `raw` runs the steps, so bytes that are not an image throw a
-`ParseError` only then. `encode` removes all metadata, such as the place a photo was taken, unless
+`ParseError` only then. `open`, `info`, `hash`, `placeholder`, `palette` and `compare` read an
+encoded image from `bytes`, an open `Core\IO\File` or an uploaded `Core\Request\Part`. `encode` removes all metadata, such as the place a photo was taken, unless
 `metadata({ keep: true })` is a step.
 
 ```nvs
@@ -53145,10 +53285,10 @@ image/jpeg 6x4
 
 | Member | Signature |
 |---|---|
-| [`Novis\Image\Image::open`](#core-novis-image-image-open) | `open(bytes $data, ?{ autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float } $options = null): Image` |
+| [`Novis\Image\Image::open`](#core-novis-image-image-open) | `open(Core\Bytes::Source $data, ?{ autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float } $options = null): Image` |
 | [`Novis\Image\Image::create`](#core-novis-image-image-create) | `create(uint $width, uint $height, ?Color $fill = null): Image` |
 | [`Novis\Image\Image::fromRaw`](#core-novis-image-image-fromraw) | `fromRaw(Raw $raw): Image` |
-| [`Novis\Image\Image::info`](#core-novis-image-image-info) | `info(bytes $data): Info` |
+| [`Novis\Image\Image::info`](#core-novis-image-image-info) | `info(Core\Bytes::Source $data): Info` |
 | [`Novis\Image\Image::mime`](#core-novis-image-image-mime) | `mime(Format $format): string` |
 | [`Novis\Image\Image::extension`](#core-novis-image-image-extension) | `extension(Format $format): string` |
 | [`Novis\Image\Image->resize`](#core-novis-image-image-resize) | `resize(Resize $options): Image` |
@@ -53172,21 +53312,22 @@ image/jpeg 6x4
 | [`Novis\Image\Image->encode`](#core-novis-image-image-encode) | `encode(): bytes` |
 | [`Novis\Image\Image->raw`](#core-novis-image-image-raw) | `raw(): Raw` |
 | [`Novis\Image\Image->variants`](#core-novis-image-image-variants) | `variants(array<Variant> $set): array<bytes>` |
-| [`Novis\Image\Image::compare`](#core-novis-image-image-compare) | `compare(bytes\|Image $a, bytes\|Image $b, ?{ tolerance?: uint, render?: bool } $options = null): Diff` |
-| [`Novis\Image\Image::hash`](#core-novis-image-image-hash) | `hash(bytes $data, HashKind $kind): bytes` |
+| [`Novis\Image\Image::compare`](#core-novis-image-image-compare) | `compare(Core\Bytes::Source\|Image $a, Core\Bytes::Source\|Image $b, ?{ tolerance?: uint, render?: bool } $options = null): Diff` |
+| [`Novis\Image\Image::hash`](#core-novis-image-image-hash) | `hash(Core\Bytes::Source $data, HashKind $kind): bytes` |
 | [`Novis\Image\Image::hashDistance`](#core-novis-image-image-hashdistance) | `hashDistance(bytes $a, bytes $b): uint` |
-| [`Novis\Image\Image::placeholder`](#core-novis-image-image-placeholder) | `placeholder(bytes $data, PlaceholderKind $kind): string` |
-| [`Novis\Image\Image::palette`](#core-novis-image-image-palette) | `palette(bytes $data, uint $count = 5): array<Color>` |
+| [`Novis\Image\Image::placeholder`](#core-novis-image-image-placeholder) | `placeholder(Core\Bytes::Source $data, PlaceholderKind $kind): string` |
+| [`Novis\Image\Image::palette`](#core-novis-image-image-palette) | `palette(Core\Bytes::Source $data, uint $count = 5): array<Color>` |
 
 <a id="core-novis-image-image-open"></a>
 #### `Novis\Image\Image::open`
 
 ```nvs skip
-Novis\Image\Image::open(bytes $data, ?{ autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float } $options = null): Image
+Novis\Image\Image::open(Core\Bytes::Source $data, ?{ autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float } $options = null): Image
 ```
 
-`Image::open` starts from the bytes of an encoded image. It turns the image upright and
-converts its colours to sRGB, unless `autoOrient` or `toSrgb` is `false`.
+`Image::open` starts from an encoded image: its bytes, an open file, an uploaded file or a request body.
+It turns the image upright and converts its colours to sRGB, unless `autoOrient` or `toSrgb` is `false`.
+The file or upload is read whole each time `encode`, `variants` or `raw` runs, so keep it open until then.
 `page` chooses one page of a document, starting at 1. `dpi` is the resolution of that page, 150 by default.
 An image with one page has only page 1, and a page past the end throws an error.
 Bytes that are not an image throw an error when `encode`, `variants` or `raw` runs.
@@ -53219,10 +53360,11 @@ Novis\Image\Image::fromRaw(Raw $raw): Image
 #### `Novis\Image\Image::info`
 
 ```nvs skip
-Novis\Image\Image::info(bytes $data): Info
+Novis\Image\Image::info(Core\Bytes::Source $data): Info
 ```
 
 `Image::info` reads the format, the size and the orientation from the header. No pixel is decoded.
+`$data` is the image's bytes, an open file or an uploaded file. A file keeps its position, and an upload can still be saved.
 
 **Returns** `Info`
 
@@ -53499,11 +53641,11 @@ An entry may resize the image and choose its own format and quality.
 #### `Novis\Image\Image::compare`
 
 ```nvs skip
-Novis\Image\Image::compare(bytes|Image $a, bytes|Image $b, ?{ tolerance?: uint, render?: bool } $options = null): Diff
+Novis\Image\Image::compare(Core\Bytes::Source|Image $a, Core\Bytes::Source|Image $b, ?{ tolerance?: uint, render?: bool } $options = null): Diff
 ```
 
 `Image::compare` compares two images of the same size and returns a `Diff`. Other sizes throw a `LogicError`.
-A pixel differs when its delta is above `tolerance`, which is 0 by default.
+Each image is an `Image`, its bytes, an open file or an uploaded file. A pixel differs when its delta is above `tolerance`, which is 0 by default.
 
 **Returns** `Diff`
 
@@ -53511,11 +53653,11 @@ A pixel differs when its delta is above `tolerance`, which is 0 by default.
 #### `Novis\Image\Image::hash`
 
 ```nvs skip
-Novis\Image\Image::hash(bytes $data, HashKind $kind): bytes
+Novis\Image\Image::hash(Core\Bytes::Source $data, HashKind $kind): bytes
 ```
 
-`Image::hash` returns a short hash of an encoded image. Two similar images have similar hashes.
-Each `HashKind` returns a hash of its own fixed length.
+`Image::hash` returns a short hash of an encoded image: its bytes, an open file or an uploaded file.
+Two similar images have similar hashes. Each `HashKind` returns a hash of its own fixed length.
 
 **Returns** `bytes`
 
@@ -53535,11 +53677,11 @@ Two hashes of different lengths throw a `LogicError`.
 #### `Novis\Image\Image::placeholder`
 
 ```nvs skip
-Novis\Image\Image::placeholder(bytes $data, PlaceholderKind $kind): string
+Novis\Image\Image::placeholder(Core\Bytes::Source $data, PlaceholderKind $kind): string
 ```
 
 `Image::placeholder` returns a short text that a web page can draw as a blurred preview of the image.
-Its average colour is the average colour of the image.
+`$data` is the image's bytes, an open file or an uploaded file. The preview has the average colour of the image.
 
 **Returns** `string`
 
@@ -53547,11 +53689,11 @@ Its average colour is the average colour of the image.
 #### `Novis\Image\Image::palette`
 
 ```nvs skip
-Novis\Image\Image::palette(bytes $data, uint $count = 5): array<Color>
+Novis\Image\Image::palette(Core\Bytes::Source $data, uint $count = 5): array<Color>
 ```
 
 `Image::palette` returns at most `count` main colours of the image, the most common first.
-Transparent pixels are not counted. A `count` above 256 throws a `LogicError`.
+`$data` is the image's bytes, an open file or an uploaded file. Transparent pixels are not counted. A `count` above 256 throws a `LogicError`.
 
 **Returns** `array<Color>`
 
@@ -53609,13 +53751,13 @@ Keywords: info, run, variants, compare, hash, placeholder, palette, qr, barcode
 
 | Member | Signature |
 |---|---|
-| [`Novis\Image\Codec::info`](#core-novis-image-codec-info) | `info(bytes $data): { format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool }` |
+| [`Novis\Image\Codec::info`](#core-novis-image-codec-info) | `info(Core\Bytes::Source $data): { format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool }` |
 | [`Novis\Image\Codec::run`](#core-novis-image-codec-run) | `run(Source $source, { steps: array<{ resize?: { width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool }, crop?: { x: uint, y: uint, width: uint, height: uint }, trim?: { threshold?: float }, rotate?: { degrees: float, background: ?{ r: uint, g: uint, b: uint, alpha: float } }, flip?: Axis, composite?: { overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend }, flatten?: { r: uint, g: uint, b: uint, alpha: float }, sharpen?: { sigma?: float }, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: { r: uint, g: uint, b: uint, alpha: float }, text?: { text: string, font: bytes, size: float, color: { r: uint, g: uint, b: uint, alpha: float }, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align }, format?: { format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint }, metadata?: { keep: bool } }>, overlays: array<{ source: Source, steps: array<{ resize?: { width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool }, crop?: { x: uint, y: uint, width: uint, height: uint }, trim?: { threshold?: float }, rotate?: { degrees: float, background: ?{ r: uint, g: uint, b: uint, alpha: float } }, flip?: Axis, composite?: { overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend }, flatten?: { r: uint, g: uint, b: uint, alpha: float }, sharpen?: { sigma?: float }, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: { r: uint, g: uint, b: uint, alpha: float }, text?: { text: string, font: bytes, size: float, color: { r: uint, g: uint, b: uint, alpha: float }, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align }, format?: { format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint }, metadata?: { keep: bool } }> }>, output: Output } $plan): bytes` |
 | [`Novis\Image\Codec::variants`](#core-novis-image-codec-variants) | `variants(Source $source, array<{ steps: array<{ resize?: { width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool }, crop?: { x: uint, y: uint, width: uint, height: uint }, trim?: { threshold?: float }, rotate?: { degrees: float, background: ?{ r: uint, g: uint, b: uint, alpha: float } }, flip?: Axis, composite?: { overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend }, flatten?: { r: uint, g: uint, b: uint, alpha: float }, sharpen?: { sigma?: float }, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: { r: uint, g: uint, b: uint, alpha: float }, text?: { text: string, font: bytes, size: float, color: { r: uint, g: uint, b: uint, alpha: float }, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align }, format?: { format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint }, metadata?: { keep: bool } }>, overlays: array<{ source: Source, steps: array<{ resize?: { width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool }, crop?: { x: uint, y: uint, width: uint, height: uint }, trim?: { threshold?: float }, rotate?: { degrees: float, background: ?{ r: uint, g: uint, b: uint, alpha: float } }, flip?: Axis, composite?: { overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend }, flatten?: { r: uint, g: uint, b: uint, alpha: float }, sharpen?: { sigma?: float }, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: { r: uint, g: uint, b: uint, alpha: float }, text?: { text: string, font: bytes, size: float, color: { r: uint, g: uint, b: uint, alpha: float }, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align }, format?: { format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint }, metadata?: { keep: bool } }> }>, output: Output }> $plans): array<bytes>` |
-| [`Novis\Image\Codec::compare`](#core-novis-image-codec-compare) | `compare(bytes $a, bytes $b, { tolerance: ?uint, render: bool } $options): { identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes }` |
-| [`Novis\Image\Codec::hash`](#core-novis-image-codec-hash) | `hash(bytes $data, HashKind $kind): bytes` |
-| [`Novis\Image\Codec::placeholder`](#core-novis-image-codec-placeholder) | `placeholder(bytes $data, PlaceholderKind $kind): string` |
-| [`Novis\Image\Codec::palette`](#core-novis-image-codec-palette) | `palette(bytes $data, uint $count): array<{ r: uint, g: uint, b: uint, alpha: float }>` |
+| [`Novis\Image\Codec::compare`](#core-novis-image-codec-compare) | `compare(Core\Bytes::Source $a, Core\Bytes::Source $b, { tolerance: ?uint, render: bool } $options): { identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes }` |
+| [`Novis\Image\Codec::hash`](#core-novis-image-codec-hash) | `hash(Core\Bytes::Source $data, HashKind $kind): bytes` |
+| [`Novis\Image\Codec::placeholder`](#core-novis-image-codec-placeholder) | `placeholder(Core\Bytes::Source $data, PlaceholderKind $kind): string` |
+| [`Novis\Image\Codec::palette`](#core-novis-image-codec-palette) | `palette(Core\Bytes::Source $data, uint $count): array<{ r: uint, g: uint, b: uint, alpha: float }>` |
 | [`Novis\Image\Codec::qr`](#core-novis-image-codec-qr) | `qr(string $data, { size: ?uint, margin: ?uint, level: ?Level, format: ?Format } $options): bytes` |
 | [`Novis\Image\Codec::barcode`](#core-novis-image-codec-barcode) | `barcode(string $data, Symbology $symbology, { height: ?uint, module: ?uint, margin: ?uint, text: ?bool, format: ?Format } $options): bytes` |
 
@@ -53623,14 +53765,14 @@ Keywords: info, run, variants, compare, hash, placeholder, palette, qr, barcode
 #### `Novis\Image\Codec::info`
 
 ```nvs skip
-Novis\Image\Codec::info(bytes $data): { format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool }
+Novis\Image\Codec::info(Core\Bytes::Source $data): { format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool }
 ```
 
 Reads the format, the size and the orientation of an encoded image from its header. No pixel is decoded.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `bytes` |  |
+| `$data` | `Core\Bytes::Source` |  |
 
 **Returns** `{ format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool }`
 
@@ -53670,15 +53812,15 @@ Decodes a source once and runs each pipeline on it. Returns one result per pipel
 #### `Novis\Image\Codec::compare`
 
 ```nvs skip
-Novis\Image\Codec::compare(bytes $a, bytes $b, { tolerance: ?uint, render: bool } $options): { identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes }
+Novis\Image\Codec::compare(Core\Bytes::Source $a, Core\Bytes::Source $b, { tolerance: ?uint, render: bool } $options): { identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes }
 ```
 
 Decodes two encoded images of the same size and compares their pixels. Two images of different sizes throw a `LogicError`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `bytes` |  |
-| `$b` | `bytes` |  |
+| `$a` | `Core\Bytes::Source` |  |
+| `$b` | `Core\Bytes::Source` |  |
 | `$options` | `{ tolerance: ?uint, render: bool }` |  |
 
 **Returns** `{ identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes }`
@@ -53687,14 +53829,14 @@ Decodes two encoded images of the same size and compares their pixels. Two image
 #### `Novis\Image\Codec::hash`
 
 ```nvs skip
-Novis\Image\Codec::hash(bytes $data, HashKind $kind): bytes
+Novis\Image\Codec::hash(Core\Bytes::Source $data, HashKind $kind): bytes
 ```
 
 Decodes an encoded image and returns its hash. Similar images have hashes that differ in few bits.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `bytes` |  |
+| `$data` | `Core\Bytes::Source` |  |
 | `$kind` | `HashKind` |  |
 
 **Returns** `bytes`
@@ -53703,14 +53845,14 @@ Decodes an encoded image and returns its hash. Similar images have hashes that d
 #### `Novis\Image\Codec::placeholder`
 
 ```nvs skip
-Novis\Image\Codec::placeholder(bytes $data, PlaceholderKind $kind): string
+Novis\Image\Codec::placeholder(Core\Bytes::Source $data, PlaceholderKind $kind): string
 ```
 
 Decodes an encoded image and returns a short text that a web page can draw as a blurred preview of it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `bytes` |  |
+| `$data` | `Core\Bytes::Source` |  |
 | `$kind` | `PlaceholderKind` |  |
 
 **Returns** `string`
@@ -53719,14 +53861,14 @@ Decodes an encoded image and returns a short text that a web page can draw as a 
 #### `Novis\Image\Codec::palette`
 
 ```nvs skip
-Novis\Image\Codec::palette(bytes $data, uint $count): array<{ r: uint, g: uint, b: uint, alpha: float }>
+Novis\Image\Codec::palette(Core\Bytes::Source $data, uint $count): array<{ r: uint, g: uint, b: uint, alpha: float }>
 ```
 
 Decodes an encoded image and returns at most `count` of its main colours, the most common first.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `bytes` |  |
+| `$data` | `Core\Bytes::Source` |  |
 | `$count` | `uint` |  |
 
 **Returns** `array<{ r: uint, g: uint, b: uint, alpha: float }>`
@@ -54541,18 +54683,19 @@ Keywords: of, merge
 
 | Member | Signature |
 |---|---|
-| [`Novis\Pdf\Pages::of`](#core-novis-pdf-pages-of) | `of(bytes $pdf, ?array<uint> $pages = null): Pages` |
+| [`Novis\Pdf\Pages::of`](#core-novis-pdf-pages-of) | `of(Core\Bytes::Source $pdf, ?array<uint> $pages = null): Pages` |
 | [`Novis\Pdf\Pages::merge`](#core-novis-pdf-pages-merge) | `merge(array<Pages> $parts): bytes` |
 
 <a id="core-novis-pdf-pages-of"></a>
 #### `Novis\Pdf\Pages::of`
 
 ```nvs skip
-Novis\Pdf\Pages::of(bytes $pdf, ?array<uint> $pages = null): Pages
+Novis\Pdf\Pages::of(Core\Bytes::Source $pdf, ?array<uint> $pages = null): Pages
 ```
 
 `Pages::of` chooses pages of a PDF file, in the order of `$pages`. Pages count from 1.
 Without `$pages`, every page is chosen. A page listed twice is used twice, and a page not listed is left out.
+`$pdf` is the file's bytes, an open file, an uploaded file or a request body. `merge` reads it whole.
 
 **Returns** `Pages`
 
@@ -54575,19 +54718,20 @@ Keywords: open, attachments, invoiceXml, text
 
 | Member | Signature |
 |---|---|
-| [`Novis\Pdf\Reader::open`](#core-novis-pdf-reader-open) | `open(bytes $pdf): Reader` |
+| [`Novis\Pdf\Reader::open`](#core-novis-pdf-reader-open) | `open(Core\Bytes::Source $pdf): Reader` |
 | [`Novis\Pdf\Reader->attachments`](#core-novis-pdf-reader-attachments) | `attachments(): array<Attachment>` |
-| [`Novis\Pdf\Reader->invoiceXml`](#core-novis-pdf-reader-invoicexml) | `invoiceXml(): ?string` |
-| [`Novis\Pdf\Reader->text`](#core-novis-pdf-reader-text) | `text(uint $page): string` |
+| [`Novis\Pdf\Reader->invoiceXml`](#core-novis-pdf-reader-invoicexml) | `invoiceXml(): ?tainted string` |
+| [`Novis\Pdf\Reader->text`](#core-novis-pdf-reader-text) | `text(uint $page): tainted string` |
 
 <a id="core-novis-pdf-reader-open"></a>
 #### `Novis\Pdf\Reader::open`
 
 ```nvs skip
-Novis\Pdf\Reader::open(bytes $pdf): Reader
+Novis\Pdf\Reader::open(Core\Bytes::Source $pdf): Reader
 ```
 
 `Reader::open` reads the page count, the metadata and the attached files of a PDF file.
+`$pdf` is the file's bytes, an open file, an uploaded file or a request body. It is read whole when `open` runs.
 A file that is encrypted or does not parse throws a `ParseError`.
 
 **Returns** `Reader`
@@ -54607,26 +54751,26 @@ $reader->attachments(): array<Attachment>
 #### `Novis\Pdf\Reader->invoiceXml`
 
 ```nvs skip
-$reader->invoiceXml(): ?string
+$reader->invoiceXml(): ?tainted string
 ```
 
 `invoiceXml` returns the XML of an electronic invoice attached to the file.
 If the file is not an electronic invoice, the result is `null`.
 
-**Returns** `?string`
+**Returns** `?tainted string`
 
 <a id="core-novis-pdf-reader-text"></a>
 #### `Novis\Pdf\Reader->text`
 
 ```nvs skip
-$reader->text(uint $page): string
+$reader->text(uint $page): tainted string
 ```
 
 `text` returns the text of one page, in the order the file stores it. Pages count from 1.
 Tables and columns are not rebuilt. A page number past the end throws a `LogicError`.
 The file is read from the reader, so a call does not copy it again.
 
-**Returns** `string`
+**Returns** `tainted string`
 
 <a id="core-novis-pdf-rendered"></a>
 ### `Novis\Pdf\Rendered`
@@ -54657,8 +54801,8 @@ Keywords: render, renderFirst, renderSecond, merge, read, readText
 | [`Novis\Pdf\Engine::render`](#core-novis-pdf-engine-render) | `render({ html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\Time\Instant, bound: ?{ maxBytes: ?uint, maxRatio: ?uint } } } $document): { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> }` |
 | [`Novis\Pdf\Engine::renderFirst`](#core-novis-pdf-engine-renderfirst) | `renderFirst({ document: { html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\Time\Instant, bound: ?{ maxBytes: ?uint, maxRatio: ?uint } } }, headerHeight: ?string, footerHeight: ?string } $pass): { body: Kept, facts: { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> } }` |
 | [`Novis\Pdf\Engine::renderSecond`](#core-novis-pdf-engine-rendersecond) | `renderSecond(Kept $body, { pages: array<{ header: ?string, footer: ?string, slots: array<{ name: string, value: string }> }> } $margins): { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> }` |
-| [`Novis\Pdf\Engine::merge`](#core-novis-pdf-engine-merge) | `merge(array<{ data: bytes, pages: ?array<uint> }> $parts, { maxBytes: ?uint, maxRatio: ?uint } $bound): bytes` |
-| [`Novis\Pdf\Engine::read`](#core-novis-pdf-engine-read) | `read(bytes $data, { maxBytes: ?uint, maxRatio: ?uint } $bound): { file: Reading, pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }` |
+| [`Novis\Pdf\Engine::merge`](#core-novis-pdf-engine-merge) | `merge(array<{ data: Core\Bytes::Source, pages: ?array<uint> }> $parts, { maxBytes: ?uint, maxRatio: ?uint } $bound): bytes` |
+| [`Novis\Pdf\Engine::read`](#core-novis-pdf-engine-read) | `read(Core\Bytes::Source $data, { maxBytes: ?uint, maxRatio: ?uint } $bound): { file: Reading, pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }` |
 | [`Novis\Pdf\Engine::readText`](#core-novis-pdf-engine-readtext) | `readText(Reading $file, { maxBytes: ?uint, maxRatio: ?uint } $bound, array<uint> $pages): array<string>` |
 
 <a id="core-novis-pdf-engine-render"></a>
@@ -54711,14 +54855,14 @@ Draws the markup of each page on a body from `renderFirst`, and returns the PDF 
 #### `Novis\Pdf\Engine::merge`
 
 ```nvs skip
-Novis\Pdf\Engine::merge(array<{ data: bytes, pages: ?array<uint> }> $parts, { maxBytes: ?uint, maxRatio: ?uint } $bound): bytes
+Novis\Pdf\Engine::merge(array<{ data: Core\Bytes::Source, pages: ?array<uint> }> $parts, { maxBytes: ?uint, maxRatio: ?uint } $bound): bytes
 ```
 
 Returns one PDF file with the chosen pages of each part, in order. An encrypted part throws a `ParseError`. Every stream in the file decompresses to at most `maxBytes` bytes, and to at most `maxRatio` times its compressed size. The server sets both from `[limits]`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$parts` | `array<{ data: bytes, pages: ?array<uint> }>` |  |
+| `$parts` | `array<{ data: Core\Bytes::Source, pages: ?array<uint> }>` |  |
 | `$bound` | `{ maxBytes: ?uint, maxRatio: ?uint }` |  |
 
 **Returns** `bytes`
@@ -54727,14 +54871,14 @@ Returns one PDF file with the chosen pages of each part, in order. An encrypted 
 #### `Novis\Pdf\Engine::read`
 
 ```nvs skip
-Novis\Pdf\Engine::read(bytes $data, { maxBytes: ?uint, maxRatio: ?uint } $bound): { file: Reading, pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }
+Novis\Pdf\Engine::read(Core\Bytes::Source $data, { maxBytes: ?uint, maxRatio: ?uint } $bound): { file: Reading, pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }
 ```
 
 Opens a PDF file. Returns the file for `readText`, and its page count, its metadata and its attached files. Every stream in the file decompresses to at most `maxBytes` bytes, and to at most `maxRatio` times its compressed size. The server sets both from `[limits]`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `bytes` |  |
+| `$data` | `Core\Bytes::Source` |  |
 | `$bound` | `{ maxBytes: ?uint, maxRatio: ?uint }` |  |
 
 **Returns** `{ file: Reading, pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }`
@@ -55039,7 +55183,7 @@ Keywords: open, sheets, macros, merged, links, notes, names, tables, evaluate, i
 
 | Member | Signature |
 |---|---|
-| [`Novis\Spreadsheet\Reader::open`](#core-novis-spreadsheet-reader-open) | `open(tainted bytes\|Core\IO\File $source, OpenOptions $options = null): Reader` |
+| [`Novis\Spreadsheet\Reader::open`](#core-novis-spreadsheet-reader-open) | `open(Core\Bytes::Source $source, OpenOptions $options = null): Reader` |
 | [`Novis\Spreadsheet\Reader->sheets`](#core-novis-spreadsheet-reader-sheets) | `sheets(): array<SheetInfo>` |
 | [`Novis\Spreadsheet\Reader->macros`](#core-novis-spreadsheet-reader-macros) | `macros(): array<tainted string>` |
 | [`Novis\Spreadsheet\Reader->merged`](#core-novis-spreadsheet-reader-merged) | `merged(tainted string\|int $sheet): array<tainted string>` |
@@ -55056,11 +55200,11 @@ Keywords: open, sheets, macros, merged, links, notes, names, tables, evaluate, i
 #### `Novis\Spreadsheet\Reader::open`
 
 ```nvs skip
-Novis\Spreadsheet\Reader::open(tainted bytes|Core\IO\File $source, OpenOptions $options = null): Reader
+Novis\Spreadsheet\Reader::open(Core\Bytes::Source $source, OpenOptions $options = null): Reader
 ```
 
-`Reader::open` opens the spreadsheet in `$source`, the bytes of the file or a file your program opened. Other bytes throw a `ParseError`.
-A CSV file is UTF-8 text, or UTF-16 text with a byte order mark. Other CSV text needs `csv`'s `encoding`, or it throws a `ParseError`.
+`Reader::open` opens the spreadsheet in `$source`: the bytes of the file, a file your program opened, an uploaded file, or the body of the request. Other bytes throw a `ParseError`.
+A CSV file is UTF-8 text, or UTF-16 text with a byte order mark. Other CSV text needs `csv`'s `charset`, or it throws a `ParseError`.
 A first CSV line such as `sep=;` sets the separator, and it is not a row. When you set the `separator` option, that line is a normal row.
 
 **Returns** `Reader`
@@ -55640,7 +55784,7 @@ new Novis\Spreadsheet\Written(array<int> $rows, int $size, ?bytes $bytes)
 <a id="core-novis-spreadsheet-engine"></a>
 ### `Novis\Spreadsheet\Engine`
 
-Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerCell, writerColumn, writerFinish, readerOpen, readerSheets, readerMacros, readerMerged, readerLinks, readerNotes, readerNames, readerTables, readerImages, readerProperties, readerEvaluate, sourceBytes, readerHeader, readerRows, templateOpen, templateSet, templateFill, templateItems, templateFinish
+Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerCell, writerColumn, writerFinish, readerOpen, readerSheets, readerMacros, readerMerged, readerLinks, readerNotes, readerNames, readerTables, readerImages, readerProperties, readerEvaluate, readerHeader, readerRows, templateOpen, templateSet, templateFill, templateItems, templateFinish
 
 | Member | Signature |
 |---|---|
@@ -55664,7 +55808,6 @@ Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDe
 | [`Novis\Spreadsheet\Engine::readerImages`](#core-novis-spreadsheet-engine-readerimages) | `readerImages(Reading $reader, mixed $source, string $sheet): array<{ at: string, image: bytes, format: string, link: ?string }>` |
 | [`Novis\Spreadsheet\Engine::readerProperties`](#core-novis-spreadsheet-engine-readerproperties) | `readerProperties(Reading $reader, mixed $source): { title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{ day: Core\Time\Date, clock: Core\Time\TimeOfDay } }` |
 | [`Novis\Spreadsheet\Engine::readerEvaluate`](#core-novis-spreadsheet-engine-readerevaluate) | `readerEvaluate(Reading $reader, mixed $source): array<{ cell: string, kind: string, text: string }>` |
-| [`Novis\Spreadsheet\Engine::sourceBytes`](#core-novis-spreadsheet-engine-sourcebytes) | `sourceBytes(mixed $source, uint $offset, ?uint $length): bytes` |
 | [`Novis\Spreadsheet\Engine::readerHeader`](#core-novis-spreadsheet-engine-readerheader) | `readerHeader(Reading $reader, mixed $source, { sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string } $options): array<string>` |
 | [`Novis\Spreadsheet\Engine::readerRows`](#core-novis-spreadsheet-engine-readerrows) | `readerRows(Reading $reader, mixed $source, { sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string } $options, uint $max): { rows: array<{ number: uint, cells: array<{ column: uint, value: ?ReadValue, formula: ?string, display: ?string }> }>, done: bool }` |
 | [`Novis\Spreadsheet\Engine::templateOpen`](#core-novis-spreadsheet-engine-templateopen) | `templateOpen(mixed $source, { maxBytes: ?uint, maxRatio: ?uint } $bound): Filling` |
@@ -55998,23 +56141,6 @@ Computes every formula in the workbook and returns the cells it could not comput
 | `$source` | `mixed` |  |
 
 **Returns** `array<{ cell: string, kind: string, text: string }>`
-
-<a id="core-novis-spreadsheet-engine-sourcebytes"></a>
-#### `Novis\Spreadsheet\Engine::sourceBytes`
-
-```nvs skip
-Novis\Spreadsheet\Engine::sourceBytes(mixed $source, uint $offset, ?uint $length): bytes
-```
-
-Returns at most `length` bytes of `source` from `offset`. When `length` is `null`, it returns every byte from `offset` to the end. `source` is `bytes` or an open `Core\IO\File`.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$source` | `mixed` |  |
-| `$offset` | `uint` |  |
-| `$length` | `?uint` |  |
-
-**Returns** `bytes`
 
 <a id="core-novis-spreadsheet-engine-readerheader"></a>
 #### `Novis\Spreadsheet\Engine::readerHeader`

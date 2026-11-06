@@ -3800,7 +3800,18 @@
       "name": "Core\\Bytes",
       "summary": "Works with binary data, the `bytes` type. It reads, searches, compares and builds buffers, and converts values to and from a fixed binary format, such as a network message header.",
       "enums": [],
-      "types": [],
+      "types": [
+        {
+          "name": "Source",
+          "type": "tainted bytes|Core\\IO\\File|Core\\Request\\Part|Core\\Request\\BodyStream",
+          "descHtml": "Bytes a member can read from the start or in any order: <code>bytes</code>, an open file, an uploaded file or the request body."
+        },
+        {
+          "name": "Chunks",
+          "type": "array<tainted bytes>|Iterable<tainted bytes>|Iterator<tainted bytes>",
+          "descHtml": "Bytes that arrive in pieces: an array, a generator or any other loop over <code>bytes</code> values, read once from the first piece to the last."
+        }
+      ],
       "constants": [],
       "members": [
         {
@@ -4447,6 +4458,9 @@
         {
           "code": "8 137 10\npng\n504e47 4\n123456781234ff\n[305419896,4660,255]\n9 123456781234ff0000\n-1",
           "lang": "output"
+        },
+        {
+          "html": "<p>## Byte sources</p>\n<p><code>Core\\Bytes</code> names two types for methods that read bytes.</p>\n<ul><li><code>Core\\Bytes::Source</code> is <code>bytes</code>, an open <code>Core\\IO\\File</code>, an uploaded file (<code>Core\\Request\\Part</code>) or the request body (<code>Core\\Request\\BodyStream</code>). A method can read its start, or read it in any order.</li><li><code>Core\\Bytes::Chunks</code> is bytes that arrive in pieces: an array, a generator or any other loop over <code>bytes</code> values. A method reads it once, from the first piece to the last.</li></ul>\n<p>A method that reads from the start to the end takes both: <code>Core\\Bytes::Source|Core\\Bytes::Chunks</code>. You pass the value you have, and the method decides how much of it to read. Your own functions can use both types too.</p>"
         }
       ],
       "returnedBy": []
@@ -6411,12 +6425,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "compress(bytes|string $data, Core\\Compress::Codec $codec): bytes",
+          "signature": "compress(Core\\Bytes::Source|string|Core\\Bytes::Chunks $data, Core\\Compress::Codec $codec): bytes",
           "params": [
             {
               "kind": "param",
               "name": "data",
-              "type": "bytes|string",
+              "type": "Core\\Bytes::Source|string|Core\\Bytes::Chunks",
               "default": null,
               "optional": false,
               "variadic": false
@@ -6437,7 +6451,7 @@
             "params": [
               {
                 "name": "data",
-                "descHtml": "The bytes to compress. A <code>string</code> is read as its UTF-8 bytes."
+                "descHtml": "The data to compress: <code>bytes</code>, a <code>string</code>, an open <code>Core\\IO\\File</code>, an uploaded file, the request body, or the pieces of a loop. A <code>string</code> is read as its UTF-8 bytes."
               },
               {
                 "name": "codec",
@@ -6456,12 +6470,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "decompress(bytes $data, Core\\Compress::Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes",
+          "signature": "decompress(Core\\Bytes::Source|Core\\Bytes::Chunks $data, Core\\Compress::Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes",
           "params": [
             {
               "kind": "param",
               "name": "data",
-              "type": "bytes",
+              "type": "Core\\Bytes::Source|Core\\Bytes::Chunks",
               "default": null,
               "optional": false,
               "variadic": false
@@ -6498,7 +6512,7 @@
             "params": [
               {
                 "name": "data",
-                "descHtml": "The compressed data. If <code>$data</code> is <code>tainted</code>, the result is <code>tainted</code> too. Decompressing does not make data safe to use."
+                "descHtml": "The compressed data: <code>bytes</code>, an open <code>Core\\IO\\File</code>, an uploaded file, the request body, or the pieces of a loop. If <code>$data</code> is <code>tainted</code>, the result is <code>tainted</code> too. Decompressing does not make data safe to use. A source that is not <code>bytes</code> is checked against <code>$maxRatio</code> while it is read, so a small upload that would decompress to a lot stops early."
               },
               {
                 "name": "codec",
@@ -8163,12 +8177,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "rows(Core\\IO\\File $file, { separator?: string, quote?: string, escape?: string, header?: bool }): Core\\Csv\\Rows",
+          "signature": "rows(Core\\Bytes::Source|Core\\Bytes::Chunks $source, { separator?: string, quote?: string, escape?: string, header?: bool, charset?: Core\\Charset }): Core\\Csv\\Rows<string>",
           "params": [
             {
               "kind": "param",
-              "name": "file",
-              "type": "Core\\IO\\File",
+              "name": "source",
+              "type": "Core\\Bytes::Source|Core\\Bytes::Chunks",
               "default": null,
               "optional": false,
               "variadic": false
@@ -8190,15 +8204,19 @@
             {
               "name": "header",
               "type": "bool"
+            },
+            {
+              "name": "charset",
+              "type": "Core\\Charset"
             }
           ],
-          "returnType": "Core\\Csv\\Rows",
+          "returnType": "Core\\Csv\\Rows<string>",
           "doc": {
-            "shortHtml": "Reads an open file one record at a time, in a <code>foreach</code> loop. It uses the same RFC 4180 rules and the same options as <code>parse</code>. Only one record is in memory at a time, so a file larger than memory works. It reads forward from the current position of the file, and you can loop over it only once.",
+            "shortHtml": "Reads CSV one record at a time, in a <code>foreach</code> loop. It reads an open file, <code>bytes</code>, an uploaded file, the request body or a loop over <code>bytes</code> pieces. It uses the same RFC 4180 rules and the same options as <code>parse</code>. Only one record is in memory at a time, so a file larger than memory works. You can loop over it only once.",
             "params": [
               {
-                "name": "file",
-                "descHtml": "The open file to read from. Reading starts at its current position."
+                "name": "source",
+                "descHtml": "The bytes to read. An open file is read from its first byte, whatever its current position is. A loop over <code>bytes</code> pieces is read once, from the first piece to the last."
               },
               {
                 "name": "separator",
@@ -8215,9 +8233,13 @@
               {
                 "name": "header",
                 "descHtml": "When <code>true</code>, the first record is read as column names, and every record uses them as keys. By default, each field has its column number as the key."
+              },
+              {
+                "name": "charset",
+                "descHtml": "The charset of the bytes, such as <code>Core\\Charset::Windows1252</code>. The default is <code>Core\\Charset::Utf8</code>. The bytes are converted to text one piece at a time, so the whole file is never in memory. When the bytes start with a byte order mark for UTF-8 or UTF-16, that mark sets the charset, and it is not part of the first field."
               }
             ],
-            "returnHtml": "The records, one at a time. Each record is an array of <code>string</code> fields with the same keys that <code>parse</code> gives. Nothing is read until the loop starts.",
+            "returnHtml": "The records, one at a time. Each record is an array of <code>string</code> fields with the same keys that <code>parse</code> gives. The fields are <code>tainted string</code> when the bytes come from the request. Nothing is read until the loop starts.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -8229,7 +8251,7 @@
               },
               {
                 "error": "ParseError",
-                "descHtml": "A field is not valid UTF-8. The message gives the line where the field ends, and the loop stops there."
+                "descHtml": "A field is not valid UTF-8. The message gives the line where the field ends, and the loop stops there. With another <code>charset</code>, the bytes are not text in that charset. Then the message gives the position of the first wrong byte."
               }
             ]
           },
@@ -8242,7 +8264,7 @@
       "url": "/reference/core/csv/",
       "summaryBlocks": [
         {
-          "html": "<p>Reads CSV text into rows of strings, and writes rows back as CSV. It can use a header row, and a different separator or quote character.</p>\n<p><code>Core\\Csv::parse</code> reads a whole document into <code>array&lt;array&lt;string&gt;&gt;</code> — every field is a <code>string</code>, quoted fields and embedded newlines included. With <code>{ header: true }</code> the first record is consumed as column names and every row is keyed by them; without it a row's keys are <code>&quot;0&quot;</code>, <code>&quot;1&quot;</code>, …. <code>format</code> writes each row by its values in order (its keys are ignored), quotes a field only where a byte would change the parse or where it starts or ends with a space, and <code>{ header: [...] }</code> writes a first record. Each record ends with <code>lineEnd</code>: <code>&quot;\\n&quot;</code> by default, or <code>&quot;\\r\\n&quot;</code>. A field can be a <code>tainted string</code>, such as a value read from a database, and then the document is a <code>tainted string</code> too. The dialect options <code>separator</code>, <code>quote</code> and <code>escape</code> are single ASCII bytes.</p>"
+          "html": "<p>Reads CSV text into rows of strings, and writes rows back as CSV. It can use a header row, and a different separator or quote character.</p>\n<p><code>Core\\Csv::parse</code> reads a whole document into <code>array&lt;array&lt;string&gt;&gt;</code> — every field is a <code>string</code>, quoted fields and embedded newlines included. With <code>{ header: true }</code> the first record is consumed as column names and every row is keyed by them; without it a row's keys are <code>&quot;0&quot;</code>, <code>&quot;1&quot;</code>, …. <code>format</code> writes each row by its values in order (its keys are ignored), quotes a field only where a byte would change the parse or where it starts or ends with a space, and <code>{ header: [...] }</code> writes a first record. Each record ends with <code>lineEnd</code>: <code>&quot;\\n&quot;</code> by default, or <code>&quot;\\r\\n&quot;</code>. A field can be a <code>tainted string</code>, such as a value read from a database, and then the document is a <code>tainted string</code> too. The dialect options <code>separator</code>, <code>quote</code> and <code>escape</code> are single ASCII bytes.</p>\n<p><code>Core\\Csv::rows</code> reads a large document one record at a time. You pass it the data directly: an open file, an uploaded file, <code>Core\\Request::bodyStream()</code>, <code>bytes</code>, or a list or loop that gives <code>bytes</code> pieces. It also takes <code>charset</code> for data that is not UTF-8.</p>"
         },
         {
           "code": "<?nvs\nstring $doc = \"name,qty,note\\nfig,2,ripe\\nplum,10,\\\"a, b\\\"\\n\";\nvar $rows = Core\\Csv::parse($doc, { header: true });\necho Core\\Arr::count($rows), \" rows\\n\";\nforeach ($rows as array<string> $row) {\n    echo $row['name'], '=', $row['qty'], ' (', $row['note'], \")\\n\";\n}\n\nvar $plain = Core\\Csv::parse(\"a;b\\n1;2\\n\", { separator: ';' });\necho $plain['1']['0'], '+', $plain['1']['1'], \"\\n\";\n\narray<array<string>> $out = [['fig', '2'], ['plum', 'a, b']];\necho Core\\Csv::format($out, { header: ['item', 'note'] });",
@@ -8267,7 +8289,7 @@
       "url": "/reference/core/csv-rows/",
       "summaryBlocks": [
         {
-          "html": "<p>The rows of a CSV file, read one at a time while a <code>foreach</code> loop runs. The whole file is never in memory at once.</p>\n<p><code>Core\\Csv\\Rows</code> contains the records of a CSV file. <code>Core\\Csv::rows</code> returns it. It needs a file that <code>Core\\IO::open</code> opened for reading. The class has no methods. You read it with a <code>foreach</code> loop.</p>\n<p>Each item is one record, as an <code>array&lt;string&gt;</code>. The keys are the column numbers, starting at <code>0</code>. With <code>{ header: true }</code>, the first record gives the column names, and the keys are these names. The header is not one of the items.</p>\n<p>The file is read while the loop runs, and only one record is in memory at a time. So a file larger than your memory limit still works. Reading starts at the current position of the file. You can read the records only once. A second loop continues after the last record the first loop read. After the last record, a loop gives no items.</p>\n<p><code>rows</code> throws a <code>RuntimeError</code> when an option is not valid, such as <code>{ separator: ';;' }</code>. The loop throws a <code>RuntimeError</code> when the file is closed, and an <code>IOError</code> when the operating system cannot read it. It throws a <code>ParseError</code> when a field is not valid UTF-8 text. <code>rows</code> does not close the file. Call <code>close()</code> on the file when the loop is done.</p>"
+          "html": "<p>The rows of a CSV file, read one at a time while a <code>foreach</code> loop runs. The whole file is never in memory at once.</p>\n<p><code>Core\\Csv\\Rows</code> contains the records of a CSV file. <code>Core\\Csv::rows</code> returns it. It reads an open <code>Core\\IO\\File</code>, an uploaded file, <code>Core\\Request::bodyStream()</code>, <code>bytes</code>, or a list or loop that gives <code>bytes</code> pieces. The class has no methods. You read it with a <code>foreach</code> loop.</p>\n<p>Each item is one record, as an <code>array&lt;string&gt;</code>. The keys are the column numbers, starting at <code>0</code>. With <code>{ header: true }</code>, the first record gives the column names, and the keys are these names. The header is not one of the items.</p>\n<p>The file is read while the loop runs, and only one record is in memory at a time. So a file larger than your memory limit still works. A file is read from its first byte. You can read the records only once. A second loop continues after the last record the first loop read. After the last record, a loop gives no items.</p>\n<p><code>rows</code> throws a <code>RuntimeError</code> when an option is not valid, such as <code>{ separator: ';;' }</code>. The loop throws a <code>RuntimeError</code> when the file is closed, and an <code>IOError</code> when the operating system cannot read it. It throws a <code>ParseError</code> when a field is not valid UTF-8 text. For a file in another charset, set <code>charset</code>, such as <code>Core\\Charset::Windows1252</code>. A UTF-8 or UTF-16 byte order mark at the start sets the charset for you. <code>rows</code> does not close the file. Call <code>close()</code> on the file when the loop is done.</p>"
         },
         {
           "code": "item,qty\nfig,2\napple,10\nplum,5",
@@ -12548,12 +12570,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "of(bytes|string $data, Core\\Hash::Digest $digest): bytes",
+          "signature": "of(Core\\Bytes::Source|string|Core\\Bytes::Chunks $data, Core\\Hash::Digest $digest): bytes",
           "params": [
             {
               "kind": "param",
               "name": "data",
-              "type": "bytes|string",
+              "type": "Core\\Bytes::Source|string|Core\\Bytes::Chunks",
               "default": null,
               "optional": false,
               "variadic": false
@@ -12574,7 +12596,7 @@
             "params": [
               {
                 "name": "data",
-                "descHtml": "The data to hash. A <code>string</code> is read as its UTF-8 bytes."
+                "descHtml": "The data to hash: <code>bytes</code>, a <code>string</code>, an open <code>Core\\IO\\File</code>, an uploaded file, the request body, or the pieces of a loop. A <code>string</code> is read as its UTF-8 bytes. A file is read one piece at a time, so a large file is never held in memory."
               },
               {
                 "name": "digest",
@@ -12593,12 +12615,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "hmac(bytes|string $data, secret bytes $key, Core\\Hash::Digest::Sha224|Core\\Hash::Digest::Sha256|Core\\Hash::Digest::Sha384|Core\\Hash::Digest::Sha512|Core\\Hash::Digest::Sha512_224|Core\\Hash::Digest::Sha512_256|Core\\Hash::Digest::Sha3_224|Core\\Hash::Digest::Sha3_256|Core\\Hash::Digest::Sha3_384|Core\\Hash::Digest::Sha3_512 $digest): bytes",
+          "signature": "hmac(Core\\Bytes::Source|string|Core\\Bytes::Chunks $data, secret bytes $key, Core\\Hash::Digest::Sha224|Core\\Hash::Digest::Sha256|Core\\Hash::Digest::Sha384|Core\\Hash::Digest::Sha512|Core\\Hash::Digest::Sha512_224|Core\\Hash::Digest::Sha512_256|Core\\Hash::Digest::Sha3_224|Core\\Hash::Digest::Sha3_256|Core\\Hash::Digest::Sha3_384|Core\\Hash::Digest::Sha3_512 $digest): bytes",
           "params": [
             {
               "kind": "param",
               "name": "data",
-              "type": "bytes|string",
+              "type": "Core\\Bytes::Source|string|Core\\Bytes::Chunks",
               "default": null,
               "optional": false,
               "variadic": false
@@ -12627,7 +12649,7 @@
             "params": [
               {
                 "name": "data",
-                "descHtml": "The data to sign. A <code>string</code> is read as its UTF-8 bytes."
+                "descHtml": "The data to sign: <code>bytes</code>, a <code>string</code>, an open <code>Core\\IO\\File</code>, an uploaded file, the request body, or the pieces of a loop. A <code>string</code> is read as its UTF-8 bytes. A file is read one piece at a time."
               },
               {
                 "name": "key",
@@ -12727,7 +12749,7 @@
       "url": "/reference/core/hash/",
       "summaryBlocks": [
         {
-          "html": "<p>Computes hashes and HMAC signatures of text or bytes, and compares two of them safely. You choose the algorithm as an argument.</p>\n<p><code>Core\\Hash::of</code> computes any <code>Core\\Hash::Digest</code> case over a <code>string</code> or <code>bytes</code> and answers the raw digest as <code>bytes</code> — never hex and never an <code>int</code> — so printing one goes through <code>Core\\Encoding::toHex</code>. <code>hmac</code> takes only the strong cases: <code>Core\\Hash::Digest::Md5</code>, <code>Sha1</code>, <code>Crc32</code>, <code>Crc32c</code> and <code>Blake3</code> are compile errors there, while <code>of</code> accepts every case for checksum interop. Compare two digests with <code>equals</code>, which runs in constant time. Input that arrives in pieces goes through <code>stream</code>, which opens a <code>Core\\Hash\\Stream</code>.</p>"
+          "html": "<p>Computes hashes and HMAC signatures of text or bytes, and compares two of them safely. You choose the algorithm as an argument.</p>\n<p><code>Core\\Hash::of</code> computes a digest with any <code>Core\\Hash::Digest</code> case. <code>Core\\Hash::hmac</code> computes a signature with a secret key. Both take a <code>string</code>, <code>bytes</code>, an open file, an uploaded file, <code>Core\\Request::bodyStream()</code>, or a list or loop that gives <code>bytes</code> pieces. A file is read from its first byte, one piece at a time. So a large file is never in memory as a whole.</p>\n<p>The result is the raw digest as <code>bytes</code>. It is not hex and not an <code>int</code>. To print it, convert it with <code>Core\\Encoding::toHex</code>. <code>hmac</code> takes only the strong algorithms. <code>Core\\Hash::Digest::Md5</code>, <code>Sha1</code>, <code>Crc32</code>, <code>Crc32c</code> and <code>Blake3</code> do not compile there. <code>of</code> takes every case, so you can check checksums from older systems. <code>equals</code> compares two digests in constant time. For data your program makes one piece at a time, <code>stream</code> opens a <code>Core\\Hash\\Stream</code>.</p>"
         },
         {
           "code": "<?nvs\nbytes $digest = Core\\Hash::of('abc', Core\\Hash::Digest::Sha256);\necho Core\\Encoding::toHex($digest), \"\\n\";\necho Core\\Encoding::toHex(Core\\Hash::of('abc', Core\\Hash::Digest::Md5)), \"\\n\";\necho Core\\Encoding::toHex(Core\\Hash::of('abc', Core\\Hash::Digest::Crc32)), \"\\n\";\n\nbytes $key = 'Jefe' as bytes;\nbytes $mac = Core\\Hash::hmac('what do ya want for nothing?', $key, Core\\Hash::Digest::Sha256);\necho Core\\Encoding::toHex($mac), \"\\n\";\n\nbytes $again = Core\\Hash::of('abc', Core\\Hash::Digest::Sha256);\necho Core\\Hash::equals($digest, $again) ? 'same' : 'differ', \"\\n\";\necho Core\\Hash::equals($digest, Core\\Hash::of('abd', Core\\Hash::Digest::Sha256)) ? 'same' : 'differ', \"\\n\";",
@@ -12816,7 +12838,7 @@
       "url": "/reference/core/hash-stream/",
       "summaryBlocks": [
         {
-          "html": "<p>Computes a hash from data that arrives in pieces. You add each piece in order, and then read the hash once at the end.</p>\n<p>A <code>Core\\Hash\\Stream</code> is opened by <code>Core\\Hash::stream</code> with a <code>Core\\Hash::Digest</code> case and digests everything <code>update</code> feeds it, in order, so <code>finish</code> answers exactly what <code>Core\\Hash::of</code> answers over the concatenation. <code>finish</code> consumes the stream: a second <code>finish</code>, or an <code>update</code> after one, throws <code>RuntimeError</code>. Two digests of one input need two streams.</p>"
+          "html": "<p>Computes a hash from data that arrives in pieces. You add each piece in order, and then read the hash once at the end.</p>\n<p><code>Core\\Hash::stream</code> opens a <code>Core\\Hash\\Stream</code> with a <code>Core\\Hash::Digest</code> case. Each <code>update</code> adds one piece of data, in order. <code>finish</code> returns the same digest that <code>Core\\Hash::of</code> returns for all the pieces joined together. After <code>finish</code>, the stream is closed. A second <code>finish</code> or another <code>update</code> throws a <code>RuntimeError</code>, so two digests of one input need two streams.</p>\n<p>To hash a file, an upload or the request body, pass it to <code>Core\\Hash::of</code>. It reads the data in pieces for you.</p>"
         },
         {
           "code": "<?nvs\nvar $stream = Core\\Hash::stream(Core\\Hash::Digest::Sha256);\n$stream->update('a');\n$stream->update('bc');\nbytes $streamed = $stream->finish();\necho Core\\Encoding::toHex($streamed), \"\\n\";\n\nbytes $whole = Core\\Hash::of('abc', Core\\Hash::Digest::Sha256);\necho Core\\Hash::equals($streamed, $whole) ? 'same' : 'differ', \"\\n\";\n\ntry {\n    $stream->update('more');\n} catch (RuntimeError $e) {\n    echo \"finished\\n\";\n}",
@@ -16656,12 +16678,55 @@
           "examples": "core/IO/read"
         },
         {
+          "id": "IO.readBytes",
+          "name": "readBytes",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "readBytes(string $path): bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "path",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "bytes",
+          "doc": {
+            "shortHtml": "Reads a whole file as <code>bytes</code>, exactly as it is on disk. Use it for a file that is not text, such as an image or an archive. It needs the <code>fs.read</code> capability for the path.",
+            "params": [
+              {
+                "name": "path",
+                "descHtml": "The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
+              }
+            ],
+            "returnHtml": "The file's content as <code>bytes</code>, with nothing changed.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The configuration does not grant <code>fs.read</code> for this path. The message names the capability the way <code>nvs.toml</code> writes it. Or the file is larger than <code>[limits] max_output</code>, the limit for a single read in a request."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The capability allowed the call, but the operating system did not. The file does not exist, is a directory, or could not be read."
+              }
+            ]
+          },
+          "slug": "readbytes",
+          "url": "/reference/core/io/readbytes/",
+          "examples": "core/IO/readBytes"
+        },
+        {
           "id": "IO.write",
           "name": "write",
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "write(string $path, string $content): void",
+          "signature": "write(string $path, string|bytes $content): void",
           "params": [
             {
               "kind": "param",
@@ -16674,7 +16739,7 @@
             {
               "kind": "param",
               "name": "content",
-              "type": "string",
+              "type": "string|bytes",
               "default": null,
               "optional": false,
               "variadic": false
@@ -16691,7 +16756,7 @@
               },
               {
                 "name": "content",
-                "descHtml": "The bytes to write. They become the file's entire content. <code>append</code> is the method that adds to what is already there."
+                "descHtml": "The text or bytes to write, written as they are. They become the file's entire content. <code>append</code> is the method that adds to what is already there."
               }
             ],
             "returnHtml": "Nothing. A failure throws an error. It never returns <code>false</code>, so a caller that ignores the result does not miss a failure.",
@@ -16716,7 +16781,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "append(string $path, string $content): void",
+          "signature": "append(string $path, string|bytes $content): void",
           "params": [
             {
               "kind": "param",
@@ -16729,7 +16794,7 @@
             {
               "kind": "param",
               "name": "content",
-              "type": "string",
+              "type": "string|bytes",
               "default": null,
               "optional": false,
               "variadic": false
@@ -16746,7 +16811,7 @@
               },
               {
                 "name": "content",
-                "descHtml": "The bytes to add. The file's current content is kept, and these bytes come after it. The operating system finds the end of the file when it writes. The file is not read first."
+                "descHtml": "The text or bytes to add. The file's current content is kept, and these bytes come after it. The operating system finds the end of the file when it writes. The file is not read first."
               }
             ],
             "returnHtml": "Nothing. A failure throws an error. It never returns <code>false</code>, so a caller that ignores the result does not miss a failure.",
@@ -17801,13 +17866,37 @@
           "slug": "stdin",
           "url": "/reference/core/io/stdin/",
           "examples": "core/IO/stdin"
+        },
+        {
+          "id": "IO.stdinStream",
+          "name": "stdinStream",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "stdinStream(): Core\\IO\\StdinStream",
+          "params": [],
+          "options": [],
+          "returnType": "Core\\IO\\StdinStream",
+          "doc": {
+            "shortHtml": "Reads the program's standard input in pieces, as bytes. Use it in a <code>foreach</code> loop. Each piece is <code>tainted</code> bytes, so input that is not text is read as it is. The whole input is never in memory at once.",
+            "returnHtml": "A <code>Core\\IO\\StdinStream</code>. Each loop step gives the next piece of the input, up to 64 KiB. The loop ends when the input ends. It gives no piece when the input is already closed.",
+            "errors": [
+              {
+                "error": "IOError",
+                "descHtml": "The read failed in the operating system. The process writing to the pipe stopped, or standard input was not open for reading."
+              }
+            ]
+          },
+          "slug": "stdinstream",
+          "url": "/reference/core/io/stdinstream/",
+          "examples": "core/IO/stdinStream"
         }
       ],
       "slug": "io",
       "url": "/reference/core/io/",
       "summaryBlocks": [
         {
-          "html": "<p>Reads, writes, copies and lists files and directories. Each method needs the <code>fs.read</code> or <code>fs.write</code> capability for its path, and throws an error instead of returning <code>false</code>. <code>open</code> gives a <code>Core\\IO\\File</code> to read or write part of a file.</p>\n<p><code>Core\\IO</code> reads or replaces a whole file as text. Every call first checks a capability. The path must be inside a folder that <code>nvs.toml</code> grants as <code>fs.read</code> or <code>fs.write</code>. A read grant does not allow writing. A path the configuration does not grant throws a <code>RuntimeError</code> that names the capability. Your program can catch it and continue. A path the configuration allows but the operating system does not throws an <code>IOError</code>. Examples are a missing file and a directory. The check follows the path through its deepest folder that exists. Write a new file's path from such a folder, as <code>./out.txt</code> and not <code>out.txt</code>. Otherwise the check finds it not granted.</p>\n<p>When <code>nvs.toml</code> does not set <code>fs.read</code> or <code>fs.write</code>, a program started from the command line reads and writes any path. Server work reads its application folder, except <code>nvs.toml</code> and names that start with <code>.</code>. It writes only the temporary folders that <code>Core\\IO::temporaryDir</code> made for it.</p>"
+          "html": "<p>Reads, writes, copies and lists files and directories. Each method needs the <code>fs.read</code> or <code>fs.write</code> capability for its path, and throws an error instead of returning <code>false</code>. <code>open</code> gives a <code>Core\\IO\\File</code> to read or write part of a file.</p>\n<p><code>Core\\IO</code> reads or replaces a whole file. <code>read</code> reads it as text. <code>readBytes</code> reads a file that is not text, such as an image, as <code>bytes</code>. <code>write</code> and <code>append</code> take a <code>string</code> or <code>bytes</code>. Every call first checks a capability. The path must be inside a folder that <code>nvs.toml</code> grants as <code>fs.read</code> or <code>fs.write</code>. A read grant does not allow writing. A path the configuration does not grant throws a <code>RuntimeError</code> that names the capability. Your program can catch it and continue. A path the configuration allows but the operating system does not throws an <code>IOError</code>. Examples are a missing file and a directory. The check follows the path through its deepest folder that exists. Write a new file's path from such a folder, as <code>./out.txt</code> and not <code>out.txt</code>. Otherwise the check finds it not granted.</p>\n<p>When <code>nvs.toml</code> does not set <code>fs.read</code> or <code>fs.write</code>, a program started from the command line reads and writes any path. Server work reads its application folder, except <code>nvs.toml</code> and names that start with <code>.</code>. It writes only the temporary folders that <code>Core\\IO::temporaryDir</code> made for it.</p>\n<p><code>stdinStream</code> reads the program's standard input in pieces of <code>bytes</code>, one piece per step of a <code>foreach</code> loop.</p>"
         },
         {
           "code": "[capabilities.fs]\nread = [\".\"]\nwrite = [\".\"]",
@@ -17882,6 +17971,49 @@
           "slug": "read",
           "url": "/reference/core/io-file/read/",
           "examples": "core/IO-File/read"
+        },
+        {
+          "id": "IO.File.readBytes",
+          "name": "readBytes",
+          "static": false,
+          "receiver": "file",
+          "generics": null,
+          "signature": "readBytes(uint $max): bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "max",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "bytes",
+          "doc": {
+            "shortHtml": "Reads up to <code>$max</code> bytes from the handle's position and moves the position past them. The bytes are returned as they are in the file.",
+            "params": [
+              {
+                "name": "max",
+                "descHtml": "The most bytes to read. Fewer are returned when the file ends first."
+              }
+            ],
+            "returnHtml": "The bytes read. Empty <code>bytes</code> means the end of the file.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The handle has already been closed."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The read itself failed, or the handle was not opened for reading."
+              }
+            ]
+          },
+          "slug": "readbytes",
+          "url": "/reference/core/io-file/readbytes/",
+          "examples": "core/IO-File/readBytes"
         },
         {
           "id": "IO.File.readLine",
@@ -18297,6 +18429,28 @@
       ]
     },
     {
+      "id": "IO.StdinStream",
+      "name": "Core\\IO\\StdinStream",
+      "summary": "The program's standard input, read in pieces. `Core\\IO::stdinStream` returns it. Use it in a `foreach` loop to get each piece as `tainted` bytes.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "members": [],
+      "slug": "io-stdinstream",
+      "url": "/reference/core/io-stdinstream/",
+      "summaryBlocks": [
+        {
+          "html": "<p>The program's standard input, read in pieces. <code>Core\\IO::stdinStream</code> returns it. Use it in a <code>foreach</code> loop to get each piece as <code>tainted</code> bytes.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\IO::stdinStream",
+          "url": "/reference/core/io/stdinstream/"
+        }
+      ]
+    },
+    {
       "id": "IO.Walk",
       "name": "Core\\IO\\Walk",
       "summary": "Every file and directory under a directory, which `Core\\IO::walk` returns. Use it in a `foreach` loop to get each path, relative to the directory you started from.",
@@ -18549,12 +18703,12 @@
           "static": true,
           "receiver": null,
           "generics": "<T>",
-          "signature": "decodeEach<T>(Core\\IO\\File|array<tainted bytes>|Iterable<tainted bytes>|Iterator<tainted bytes> $source, string $at = \"\", { lines?: bool, maxDepth?: uint }): Core\\Json\\Elements<T>",
+          "signature": "decodeEach<T>(Core\\Bytes::Source|Core\\Bytes::Chunks $source, string $at = \"\", { lines?: bool, maxDepth?: uint }): Core\\Json\\Elements<T>",
           "params": [
             {
               "kind": "param",
               "name": "source",
-              "type": "Core\\IO\\File|array<tainted bytes>|Iterable<tainted bytes>|Iterator<tainted bytes>",
+              "type": "Core\\Bytes::Source|Core\\Bytes::Chunks",
               "default": null,
               "optional": false,
               "variadic": false
@@ -18584,7 +18738,7 @@
             "params": [
               {
                 "name": "source",
-                "descHtml": "The JSON to read. It is an open <code>Core\\IO\\File</code>, read from its current position, or chunks of bytes such as <code>Core\\Request::bodyStream()</code>."
+                "descHtml": "The JSON to read. It is <code>bytes</code>, an open <code>Core\\IO\\File</code>, an uploaded <code>Core\\Request\\Part</code>, <code>Core\\Request::bodyStream()</code>, or a list or loop of <code>bytes</code> pieces. A file is read from its first byte."
               },
               {
                 "name": "at",
@@ -18672,7 +18826,7 @@
       "url": "/reference/core/json/",
       "summaryBlocks": [
         {
-          "html": "<p>Converts values to JSON text and back. <code>encode</code> writes a value as JSON, <code>decode</code> reads JSON into arrays and scalars, and <code>decodeAs</code> reads it into a class or a shape. <code>decodeEach</code> and <code>encodeEach</code> read and write a large document one element at a time. A document that is not valid JSON throws a <code>ParseError</code>.</p>\n<p><code>Core\\Json::encode</code> converts a value to JSON text. A list becomes a JSON array. Any other array becomes a JSON object, and its keys keep their order. An object can be encoded only if its class has the <code>#[Core\\Json\\Derive]</code> attribute. Any other object throws an error.</p>\n<p><code>Core\\Json::decode</code> reads JSON text and returns <code>mixed</code>. A JSON object becomes an array with string keys. Text that is not valid JSON throws a <code>ParseError</code>. Text that is nested too deep throws one too.</p>\n<p><code>Core\\Json::decodeAs&lt;T&gt;</code> reads JSON text into a new instance of a class with <code>#[Core\\Json\\Derive]</code>. Each property is checked against its type. Only a property with a <code>?</code> type, such as <code>?int</code>, accepts <code>null</code>. If fields are wrong, the <code>ParseError</code> has one entry for each of them in its <code>issues</code> list. <code>#[Core\\Json\\Field(name: 'is_admin')]</code> gives a property a different key in the JSON text. Write <code>decodeAs&lt;array&lt;User&gt;&gt;</code> to read a JSON array with one <code>User</code> in each element.</p>\n<p><code>Core\\Json::encodeEach</code> and <code>Core\\Json::decodeEach</code> work on a long list one element at a time. The whole document is never in memory at once. <code>encodeEach</code> returns a <code>Core\\Json\\Pieces</code>: the JSON text in pieces of bytes. <code>decodeEach&lt;T&gt;</code> reads a file or a stream of bytes and returns a <code>Core\\Json\\Elements&lt;T&gt;</code>. You read both with a <code>foreach</code> loop. Set <code>lines</code> to <code>true</code> to write or read JSON Lines, with one value on each line.</p>"
+          "html": "<p>Converts values to JSON text and back. <code>encode</code> writes a value as JSON, <code>decode</code> reads JSON into arrays and scalars, and <code>decodeAs</code> reads it into a class or a shape. <code>decodeEach</code> and <code>encodeEach</code> read and write a large document one element at a time. A document that is not valid JSON throws a <code>ParseError</code>.</p>\n<p><code>Core\\Json::encode</code> converts a value to JSON text. A list becomes a JSON array. Any other array becomes a JSON object, and its keys keep their order. An object can be encoded only if its class has the <code>#[Core\\Json\\Derive]</code> attribute. Any other object throws an error.</p>\n<p><code>Core\\Json::decode</code> reads JSON text and returns <code>mixed</code>. A JSON object becomes an array with string keys. Text that is not valid JSON throws a <code>ParseError</code>. Text that is nested too deep throws one too.</p>\n<p><code>Core\\Json::decodeAs&lt;T&gt;</code> reads JSON text into a new instance of a class with <code>#[Core\\Json\\Derive]</code>. Each property is checked against its type. Only a property with a <code>?</code> type, such as <code>?int</code>, accepts <code>null</code>. If fields are wrong, the <code>ParseError</code> has one entry for each of them in its <code>issues</code> list. <code>#[Core\\Json\\Field(name: 'is_admin')]</code> gives a property a different key in the JSON text. Write <code>decodeAs&lt;array&lt;User&gt;&gt;</code> to read a JSON array with one <code>User</code> in each element.</p>\n<p><code>Core\\Json::encodeEach</code> and <code>Core\\Json::decodeEach</code> work on a long list one element at a time. The whole document is never in memory at once. <code>encodeEach</code> returns a <code>Core\\Json\\Pieces</code>: the JSON text in pieces of bytes. <code>decodeEach&lt;T&gt;</code> reads an open file, an uploaded file, <code>Core\\Request::bodyStream()</code>, <code>bytes</code>, or a list or loop that gives <code>bytes</code> pieces. It returns a <code>Core\\Json\\Elements&lt;T&gt;</code>. You read both with a <code>foreach</code> loop. Set <code>lines</code> to <code>true</code> to write or read JSON Lines, with one value on each line.</p>"
         },
         {
           "code": "<?nvs\n#[Core\\Json\\Derive]\nclass User\n{\n    public string $name;\n    public ?int $age;\n    #[Core\\Json\\Field(name: 'is_admin')]\n    public bool $admin;\n\n    public function constructor(string $name, ?int $age, bool $admin)\n    {\n        $this->name = $name;\n        $this->age = $age;\n        $this->admin = $admin;\n    }\n}\n\necho Core\\Json::encode(['id' => 7, 'tags' => ['a', 'b'], 'ok' => true]), \"\\n\";\nvar $doc = Core\\Json::decode(\"{\\\"n\\\": 3.5, \\\"list\\\": [1, 2]}\");\necho Core\\Json::encode($doc, { pretty: true }), \"\\n\";\nUser $u = Core\\Json::decodeAs<User>(\"{\\\"name\\\":\\\"Ada\\\",\\\"age\\\":null,\\\"is_admin\\\":true}\");\necho $u->name, ' ', $u->age ?? 'unknown', ' ', Core\\Json::encode($u), \"\\n\";\necho Core\\Json::isValid('{oops}') ? 'valid' : 'invalid', \"\\n\";\ntry {\n    Core\\Json::decodeAs<User>(\"{\\\"name\\\":1}\");\n} catch (ParseError $e) {\n    echo Core\\Arr::count($e->issues), \" issues\\n\";\n}\n\n// `encodeEach` writes the list in pieces, and `decodeEach` reads the pieces back one user at a time.\narray<User> $team = [new User('Ada', 36, true), new User('Ben', null, false)];\nforeach (Core\\Json::decodeEach<User>(Core\\Json::encodeEach($team)) as User $member) {\n    echo $member->name, ' ', $member->admin ? 'admin' : 'user', \"\\n\";\n}",
@@ -18697,7 +18851,7 @@
       "url": "/reference/core/json-elements/",
       "summaryBlocks": [
         {
-          "html": "<p>The elements of a JSON array, read one at a time while a <code>foreach</code> loop runs. The whole document is never in memory at once.</p>\n<p><code>Core\\Json\\Elements&lt;T&gt;</code> contains the elements of a JSON array. <code>Core\\Json::decodeEach&lt;T&gt;</code> returns it. It reads an open <code>Core\\IO\\File</code> or a stream of bytes, such as <code>Core\\Request::bodyStream()</code>. The class has no methods. You read it with a <code>foreach</code> loop.</p>\n<p>Each item is one element, as a <code>T</code>. <code>T</code> can be a class with the <code>#[Core\\Json\\Derive]</code> attribute, a shape such as <code>{ name: string, age: int }</code>, or <code>mixed</code>. Each element is checked against <code>T</code>. When <code>T</code> is <code>mixed</code>, every string in an element is a <code>tainted string</code>.</p>\n<p>The JSON is read while the loop runs, and only one element is in memory at a time. You can read the elements only once. A second loop continues after the last element the first loop read. After the last element, a loop gives no items.</p>\n<p>The loop throws a <code>ParseError</code> when the JSON is not valid or an element does not match <code>T</code>. The message gives the byte offset. Your loop has already received the elements before it. The loop throws a <code>RuntimeError</code> when the file is closed or cannot be read. <code>decodeEach</code> does not close the file. Call <code>close()</code> on the file when the loop is done.</p>"
+          "html": "<p>The elements of a JSON array, read one at a time while a <code>foreach</code> loop runs. The whole document is never in memory at once.</p>\n<p><code>Core\\Json\\Elements&lt;T&gt;</code> contains the elements of a JSON array. <code>Core\\Json::decodeEach&lt;T&gt;</code> returns it. It reads an open <code>Core\\IO\\File</code>, an uploaded file, <code>Core\\Request::bodyStream()</code>, <code>bytes</code>, or a list or loop that gives <code>bytes</code> pieces. A file is read from its first byte. The class has no methods. You read it with a <code>foreach</code> loop.</p>\n<p>Each item is one element, as a <code>T</code>. <code>T</code> can be a class with the <code>#[Core\\Json\\Derive]</code> attribute, a shape such as <code>{ name: string, age: int }</code>, or <code>mixed</code>. Each element is checked against <code>T</code>. When <code>T</code> is <code>mixed</code>, every string in an element is a <code>tainted string</code>.</p>\n<p>The JSON is read while the loop runs, and only one element is in memory at a time. You can read the elements only once. A second loop continues after the last element the first loop read. After the last element, a loop gives no items.</p>\n<p>The loop throws a <code>ParseError</code> when the JSON is not valid or an element does not match <code>T</code>. The message gives the byte offset. Your loop has already received the elements before it. The loop throws a <code>RuntimeError</code> when the file is closed or cannot be read. <code>decodeEach</code> does not close the file. Call <code>close()</code> on the file when the loop is done.</p>"
         },
         {
           "code": "[\n  {\"name\": \"Ada\", \"age\": 36},\n  {\"name\": \"Ben\", \"age\": 41}\n]",
@@ -25459,12 +25613,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "detect(bytes $data): Core\\Mime::Type",
+          "signature": "detect(Core\\Bytes::Source $data): Core\\Mime::Type",
           "params": [
             {
               "kind": "param",
               "name": "data",
-              "type": "bytes",
+              "type": "Core\\Bytes::Source",
               "default": null,
               "optional": false,
               "variadic": false
@@ -25477,10 +25631,20 @@
             "params": [
               {
                 "name": "data",
-                "descHtml": "The bytes to check. Only the first 16 bytes or fewer are read. So the start of an upload gives the same result as the whole upload."
+                "descHtml": "What to check: a <code>bytes</code> value, an open <code>Core\\IO\\File</code>, an uploaded <code>Core\\Request\\Part</code> or <code>Core\\Request::bodyStream()</code>. Only the first 12 bytes are read. A file keeps its position. An upload is not used up, so you can still save it or read it after this call."
               }
             ],
-            "returnHtml": "The case for the kind of file. It is <code>Core\\Mime::Type::Unknown</code> when no format matches, and for every text format. <strong>The result does not make the data safe.</strong> Bytes detected as <code>image/png</code> are still <code>tainted</code>, because only the first bytes were checked."
+            "returnHtml": "The case for the kind of file. It is <code>Core\\Mime::Type::Unknown</code> when no format matches, and for every text format. <strong>The result does not make the data safe.</strong> Bytes detected as <code>image/png</code> are still <code>tainted</code>, because only the first bytes were checked.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "The part is not the one the <code>files()</code> loop is on. Or a loop, <code>readAll()</code> or <code>saveTo()</code> has already started to read the upload, so its first bytes are gone. Call <code>detect</code> before them."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The file or the connection failed while the first bytes were read."
+              }
+            ]
           },
           "slug": "detect",
           "url": "/reference/core/mime/detect/",
@@ -26878,23 +27042,28 @@
       "types": [
         {
           "name": "Resize",
-          "type": "{ width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool }"
+          "type": "{ width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool }",
+          "descHtml": ""
         },
         {
           "name": "Raw",
-          "type": "{ width: uint, height: uint, pixels: bytes }"
+          "type": "{ width: uint, height: uint, pixels: bytes }",
+          "descHtml": ""
         },
         {
           "name": "Info",
-          "type": "{\n        format: Format,\n        width: uint,\n        height: uint,\n        hasAlpha: bool,\n        frames: uint,\n        orientation: uint,\n        exif: ?array<string>,\n        hasIcc: bool,\n    }"
+          "type": "{\n        format: Format,\n        width: uint,\n        height: uint,\n        hasAlpha: bool,\n        frames: uint,\n        orientation: uint,\n        exif: ?array<tainted string>,\n        hasIcc: bool,\n    }",
+          "descHtml": ""
         },
         {
           "name": "Variant",
-          "type": "{ width?: uint, height?: uint, fit?: Fit, format?: Format, quality?: uint }"
+          "type": "{ width?: uint, height?: uint, fit?: Fit, format?: Format, quality?: uint }",
+          "descHtml": ""
         },
         {
           "name": "Size",
-          "type": "{ width: uint, height: uint }"
+          "type": "{ width: uint, height: uint }",
+          "descHtml": ""
         }
       ],
       "constants": [],
@@ -26905,12 +27074,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "open(bytes $data, ?{ autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float } $options = null): Image",
+          "signature": "open(Core\\Bytes::Source $data, ?{ autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float } $options = null): Image",
           "params": [
             {
               "kind": "param",
               "name": "data",
-              "type": "bytes",
+              "type": "Core\\Bytes::Source",
               "default": null,
               "optional": false,
               "variadic": false
@@ -26927,7 +27096,7 @@
           "options": [],
           "returnType": "Image",
           "doc": {
-            "shortHtml": "<code>Image::open</code> starts from the bytes of an encoded image. It turns the image upright and\nconverts its colours to sRGB, unless <code>autoOrient</code> or <code>toSrgb</code> is <code>false</code>.\n<code>page</code> chooses one page of a document, starting at 1. <code>dpi</code> is the resolution of that page, 150 by default.\nAn image with one page has only page 1, and a page past the end throws an error.\nBytes that are not an image throw an error when <code>encode</code>, <code>variants</code> or <code>raw</code> runs."
+            "shortHtml": "<code>Image::open</code> starts from an encoded image: its bytes, an open file, an uploaded file or a request body.\nIt turns the image upright and converts its colours to sRGB, unless <code>autoOrient</code> or <code>toSrgb</code> is <code>false</code>.\nThe file or upload is read whole each time <code>encode</code>, <code>variants</code> or <code>raw</code> runs, so keep it open until then.\n<code>page</code> chooses one page of a document, starting at 1. <code>dpi</code> is the resolution of that page, 150 by default.\nAn image with one page has only page 1, and a page past the end throws an error.\nBytes that are not an image throw an error when <code>encode</code>, <code>variants</code> or <code>raw</code> runs."
           },
           "slug": "open",
           "url": "/reference/core/novis-image-image/open/",
@@ -27007,12 +27176,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "info(bytes $data): Info",
+          "signature": "info(Core\\Bytes::Source $data): Info",
           "params": [
             {
               "kind": "param",
               "name": "data",
-              "type": "bytes",
+              "type": "Core\\Bytes::Source",
               "default": null,
               "optional": false,
               "variadic": false
@@ -27021,7 +27190,7 @@
           "options": [],
           "returnType": "Info",
           "doc": {
-            "shortHtml": "<code>Image::info</code> reads the format, the size and the orientation from the header. No pixel is decoded."
+            "shortHtml": "<code>Image::info</code> reads the format, the size and the orientation from the header. No pixel is decoded.\n<code>$data</code> is the image's bytes, an open file or an uploaded file. A file keeps its position, and an upload can still be saved."
           },
           "slug": "info",
           "url": "/reference/core/novis-image-image/info/",
@@ -27660,12 +27829,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "compare(bytes|Image $a, bytes|Image $b, ?{ tolerance?: uint, render?: bool } $options = null): Diff",
+          "signature": "compare(Core\\Bytes::Source|Image $a, Core\\Bytes::Source|Image $b, ?{ tolerance?: uint, render?: bool } $options = null): Diff",
           "params": [
             {
               "kind": "param",
               "name": "a",
-              "type": "bytes|Image",
+              "type": "Core\\Bytes::Source|Image",
               "default": null,
               "optional": false,
               "variadic": false
@@ -27673,7 +27842,7 @@
             {
               "kind": "param",
               "name": "b",
-              "type": "bytes|Image",
+              "type": "Core\\Bytes::Source|Image",
               "default": null,
               "optional": false,
               "variadic": false
@@ -27690,7 +27859,7 @@
           "options": [],
           "returnType": "Diff",
           "doc": {
-            "shortHtml": "<code>Image::compare</code> compares two images of the same size and returns a <code>Diff</code>. Other sizes throw a <code>LogicError</code>.\nA pixel differs when its delta is above <code>tolerance</code>, which is 0 by default."
+            "shortHtml": "<code>Image::compare</code> compares two images of the same size and returns a <code>Diff</code>. Other sizes throw a <code>LogicError</code>.\nEach image is an <code>Image</code>, its bytes, an open file or an uploaded file. A pixel differs when its delta is above <code>tolerance</code>, which is 0 by default."
           },
           "slug": "compare",
           "url": "/reference/core/novis-image-image/compare/",
@@ -27702,12 +27871,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "hash(bytes $data, HashKind $kind): bytes",
+          "signature": "hash(Core\\Bytes::Source $data, HashKind $kind): bytes",
           "params": [
             {
               "kind": "param",
               "name": "data",
-              "type": "bytes",
+              "type": "Core\\Bytes::Source",
               "default": null,
               "optional": false,
               "variadic": false
@@ -27724,7 +27893,7 @@
           "options": [],
           "returnType": "bytes",
           "doc": {
-            "shortHtml": "<code>Image::hash</code> returns a short hash of an encoded image. Two similar images have similar hashes.\nEach <code>HashKind</code> returns a hash of its own fixed length."
+            "shortHtml": "<code>Image::hash</code> returns a short hash of an encoded image: its bytes, an open file or an uploaded file.\nTwo similar images have similar hashes. Each <code>HashKind</code> returns a hash of its own fixed length."
           },
           "slug": "hash",
           "url": "/reference/core/novis-image-image/hash/",
@@ -27770,12 +27939,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "placeholder(bytes $data, PlaceholderKind $kind): string",
+          "signature": "placeholder(Core\\Bytes::Source $data, PlaceholderKind $kind): string",
           "params": [
             {
               "kind": "param",
               "name": "data",
-              "type": "bytes",
+              "type": "Core\\Bytes::Source",
               "default": null,
               "optional": false,
               "variadic": false
@@ -27792,7 +27961,7 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "<code>Image::placeholder</code> returns a short text that a web page can draw as a blurred preview of the image.\nIts average colour is the average colour of the image."
+            "shortHtml": "<code>Image::placeholder</code> returns a short text that a web page can draw as a blurred preview of the image.\n<code>$data</code> is the image's bytes, an open file or an uploaded file. The preview has the average colour of the image."
           },
           "slug": "placeholder",
           "url": "/reference/core/novis-image-image/placeholder/",
@@ -27804,12 +27973,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "palette(bytes $data, uint $count = 5): array<Color>",
+          "signature": "palette(Core\\Bytes::Source $data, uint $count = 5): array<Color>",
           "params": [
             {
               "kind": "param",
               "name": "data",
-              "type": "bytes",
+              "type": "Core\\Bytes::Source",
               "default": null,
               "optional": false,
               "variadic": false
@@ -27826,7 +27995,7 @@
           "options": [],
           "returnType": "array<Color>",
           "doc": {
-            "shortHtml": "<code>Image::palette</code> returns at most <code>count</code> main colours of the image, the most common first.\nTransparent pixels are not counted. A <code>count</code> above 256 throws a <code>LogicError</code>."
+            "shortHtml": "<code>Image::palette</code> returns at most <code>count</code> main colours of the image, the most common first.\n<code>$data</code> is the image's bytes, an open file or an uploaded file. Transparent pixels are not counted. A <code>count</code> above 256 throws a <code>LogicError</code>."
           },
           "slug": "palette",
           "url": "/reference/core/novis-image-image/palette/",
@@ -27837,7 +28006,7 @@
       "url": "/reference/core/novis-image-image/",
       "summaryBlocks": [
         {
-          "html": "<p>An image and a list of steps to run on it. Each step method returns a new <code>Image</code> and leaves this one as it was. Nothing is decoded until <code>encode</code>, <code>variants</code> or <code>raw</code> runs.</p>\n<p><code>Novis\\Image\\Image</code> is an image and a list of steps to run on it. Each step method, such as <code>resize</code>, <code>crop</code> or <code>format</code>, returns a new <code>Image</code> and does not change the old one. No pixel is decoded until <code>encode</code>, <code>variants</code> or <code>raw</code> runs the steps, so bytes that are not an image throw a <code>ParseError</code> only then. <code>encode</code> removes all metadata, such as the place a photo was taken, unless <code>metadata({ keep: true })</code> is a step.</p>"
+          "html": "<p>An image and a list of steps to run on it. Each step method returns a new <code>Image</code> and leaves this one as it was. Nothing is decoded until <code>encode</code>, <code>variants</code> or <code>raw</code> runs.</p>\n<p><code>Novis\\Image\\Image</code> is an image and a list of steps to run on it. Each step method, such as <code>resize</code>, <code>crop</code> or <code>format</code>, returns a new <code>Image</code> and does not change the old one. No pixel is decoded until <code>encode</code>, <code>variants</code> or <code>raw</code> runs the steps, so bytes that are not an image throw a <code>ParseError</code> only then. <code>open</code>, <code>info</code>, <code>hash</code>, <code>placeholder</code>, <code>palette</code> and <code>compare</code> read an encoded image from <code>bytes</code>, an open <code>Core\\IO\\File</code> or an uploaded <code>Core\\Request\\Part</code>. <code>encode</code> removes all metadata, such as the place a photo was taken, unless <code>metadata({ keep: true })</code> is a step.</p>"
         },
         {
           "code": "<?nvs\nuse Novis\\Image\\Format;\nuse Novis\\Image\\Image;\n\n// A PNG of 3 by 2 pixels, written as hex.\nbytes $png = Core\\Encoding::fromHex(\n    '89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a'\n        . '0000000b49444154789c6360c00500001a0001bc3ce0410000000049454e44ae426082',\n);\n\nImage $photo = Image::open($png);\nbytes $thumb = $photo->resize({ width: 6, upscale: true })->format(Format::Jpeg, { quality: 80 })->encode();\n\nvar $info = Image::info($thumb);\necho Image::mime($info->format), ' ', $info->width, 'x', $info->height, \"\\n\";",
@@ -28011,7 +28180,8 @@
       "types": [
         {
           "name": "CollateOptions",
-          "type": "{ strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool }"
+          "type": "{ strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool }",
+          "descHtml": ""
         }
       ],
       "constants": [],
@@ -28496,7 +28666,8 @@
       "types": [
         {
           "name": "DigitOptions",
-          "type": "{ minFractionDigits?: uint, maxFractionDigits?: uint, grouping?: bool }"
+          "type": "{ minFractionDigits?: uint, maxFractionDigits?: uint, grouping?: bool }",
+          "descHtml": ""
         }
       ],
       "constants": [],
@@ -29270,7 +29441,8 @@
       "types": [
         {
           "name": "Named",
-          "type": "{ name: string, value: string }"
+          "type": "{ name: string, value: string }",
+          "descHtml": ""
         }
       ],
       "constants": [],
@@ -29469,12 +29641,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "of(bytes $pdf, ?array<uint> $pages = null): Pages",
+          "signature": "of(Core\\Bytes::Source $pdf, ?array<uint> $pages = null): Pages",
           "params": [
             {
               "kind": "param",
               "name": "pdf",
-              "type": "bytes",
+              "type": "Core\\Bytes::Source",
               "default": null,
               "optional": false,
               "variadic": false
@@ -29491,7 +29663,7 @@
           "options": [],
           "returnType": "Pages",
           "doc": {
-            "shortHtml": "<code>Pages::of</code> chooses pages of a PDF file, in the order of <code>$pages</code>. Pages count from 1.\nWithout <code>$pages</code>, every page is chosen. A page listed twice is used twice, and a page not listed is left out."
+            "shortHtml": "<code>Pages::of</code> chooses pages of a PDF file, in the order of <code>$pages</code>. Pages count from 1.\nWithout <code>$pages</code>, every page is chosen. A page listed twice is used twice, and a page not listed is left out.\n<code>$pdf</code> is the file's bytes, an open file, an uploaded file or a request body. <code>merge</code> reads it whole."
           },
           "slug": "of",
           "url": "/reference/core/novis-pdf-pages/of/",
@@ -29536,16 +29708,18 @@
     {
       "id": "Novis.Pdf.Reader",
       "name": "Novis\\Pdf\\Reader",
-      "summary": "An existing PDF file opened for reading: its page count, its metadata, its attached files and its text.",
+      "summary": "An existing PDF file opened for reading: its page count, its metadata, its attached files and its text.\nEvery string and `bytes` value it returns is `tainted`, because it comes from the file.",
       "enums": [],
       "types": [
         {
           "name": "Metadata",
-          "type": "{ title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }"
+          "type": "{ title: ?tainted string, author: ?tainted string, subject: ?tainted string, keywords: ?tainted string, creator: ?tainted string, producer: ?tainted string }",
+          "descHtml": ""
         },
         {
           "name": "Attachment",
-          "type": "{ name: string, data: bytes }"
+          "type": "{ name: tainted string, data: tainted bytes }",
+          "descHtml": ""
         }
       ],
       "constants": [],
@@ -29556,12 +29730,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "open(bytes $pdf): Reader",
+          "signature": "open(Core\\Bytes::Source $pdf): Reader",
           "params": [
             {
               "kind": "param",
               "name": "pdf",
-              "type": "bytes",
+              "type": "Core\\Bytes::Source",
               "default": null,
               "optional": false,
               "variadic": false
@@ -29570,7 +29744,7 @@
           "options": [],
           "returnType": "Reader",
           "doc": {
-            "shortHtml": "<code>Reader::open</code> reads the page count, the metadata and the attached files of a PDF file.\nA file that is encrypted or does not parse throws a <code>ParseError</code>."
+            "shortHtml": "<code>Reader::open</code> reads the page count, the metadata and the attached files of a PDF file.\n<code>$pdf</code> is the file's bytes, an open file, an uploaded file or a request body. It is read whole when <code>open</code> runs.\nA file that is encrypted or does not parse throws a <code>ParseError</code>."
           },
           "slug": "open",
           "url": "/reference/core/novis-pdf-reader/open/",
@@ -29599,10 +29773,10 @@
           "static": false,
           "receiver": "reader",
           "generics": null,
-          "signature": "invoiceXml(): ?string",
+          "signature": "invoiceXml(): ?tainted string",
           "params": [],
           "options": [],
-          "returnType": "?string",
+          "returnType": "?tainted string",
           "doc": {
             "shortHtml": "<code>invoiceXml</code> returns the XML of an electronic invoice attached to the file.\nIf the file is not an electronic invoice, the result is <code>null</code>."
           },
@@ -29616,7 +29790,7 @@
           "static": false,
           "receiver": "reader",
           "generics": null,
-          "signature": "text(uint $page): string",
+          "signature": "text(uint $page): tainted string",
           "params": [
             {
               "kind": "param",
@@ -29628,7 +29802,7 @@
             }
           ],
           "options": [],
-          "returnType": "string",
+          "returnType": "tainted string",
           "doc": {
             "shortHtml": "<code>text</code> returns the text of one page, in the order the file stores it. Pages count from 1.\nTables and columns are not rebuilt. A page number past the end throws a <code>LogicError</code>.\nThe file is read from the reader, so a call does not copy it again."
           },
@@ -29641,7 +29815,7 @@
       "url": "/reference/core/novis-pdf-reader/",
       "summaryBlocks": [
         {
-          "html": "<p>An existing PDF file opened for reading: its page count, its metadata, its attached files and its text.</p>"
+          "html": "<p>An existing PDF file opened for reading: its page count, its metadata, its attached files and its text. Every string and <code>bytes</code> value it returns is <code>tainted</code>, because it comes from the file.</p>"
         }
       ],
       "returnedBy": []
@@ -29654,15 +29828,18 @@
       "types": [
         {
           "name": "Dropped",
-          "type": "{ property: string, value: string, selector: string, line: uint, column: uint }"
+          "type": "{ property: string, value: string, selector: string, line: uint, column: uint }",
+          "descHtml": ""
         },
         {
           "name": "MissingGlyph",
-          "type": "{ text: string, fonts: array<string>, page: uint }"
+          "type": "{ text: string, fonts: array<string>, page: uint }",
+          "descHtml": ""
         },
         {
           "name": "Overflow",
-          "type": "{ page: uint, area: string, text: string }"
+          "type": "{ page: uint, area: string, text: string }",
+          "descHtml": ""
         }
       ],
       "constants": [],
@@ -29748,7 +29925,8 @@
       "types": [
         {
           "name": "Run",
-          "type": "{ text: string, style: ?Style }"
+          "type": "{ text: string, style: ?Style }",
+          "descHtml": ""
         }
       ],
       "constants": [],
@@ -29904,19 +30082,23 @@
       "types": [
         {
           "name": "Series",
-          "type": "{ values: string, categories: ?string, name: ?string, color: ?string }"
+          "type": "{ values: string, categories: ?string, name: ?string, color: ?string }",
+          "descHtml": ""
         },
         {
           "name": "Layer",
-          "type": "{ kind: Kind, series: array<Series> }"
+          "type": "{ kind: Kind, series: array<Series> }",
+          "descHtml": ""
         },
         {
           "name": "Options",
-          "type": "?{ title?: string, xTitle?: string, yTitle?: string, legend?: string, labels?: bool }"
+          "type": "?{ title?: string, xTitle?: string, yTitle?: string, legend?: string, labels?: bool }",
+          "descHtml": ""
         },
         {
           "name": "SeriesOptions",
-          "type": "?{ categories?: string, name?: string, color?: string }"
+          "type": "?{ categories?: string, name?: string, color?: string }",
+          "descHtml": ""
         }
       ],
       "constants": [],
@@ -30263,7 +30445,8 @@
       "types": [
         {
           "name": "Options",
-          "type": "?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant }, csv?: { separator?: string, quote?: string, encoding?: Core\\Charset } }"
+          "type": "?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant }, csv?: { separator?: string, quote?: string, charset?: Core\\Charset } }",
+          "descHtml": ""
         }
       ],
       "constants": [],
@@ -30550,43 +30733,53 @@
       "types": [
         {
           "name": "RowOptions",
-          "type": "?{ header?: bool|int, from?: uint, limit?: uint, columns?: array<string>, zone?: string, text?: bool|array<string>, formulas?: bool, emptyRows?: string, merged?: string, hidden?: string, locale?: string }"
+          "type": "?{ header?: bool|int, from?: uint, limit?: uint, columns?: array<string>, zone?: string, text?: bool|array<string>, formulas?: bool, emptyRows?: string, merged?: string, hidden?: string, locale?: string }",
+          "descHtml": ""
         },
         {
           "name": "SheetInfo",
-          "type": "{ name: tainted string, position: uint, visibility: Visibility, rows: ?uint, columns: ?uint, kind: SheetKind }"
+          "type": "{ name: tainted string, position: uint, visibility: Visibility, rows: ?uint, columns: ?uint, kind: SheetKind }",
+          "descHtml": ""
         },
         {
           "name": "Link",
-          "type": "{ anchor: tainted string, target: tainted string, text: ?tainted string, tooltip: ?tainted string, external: bool }"
+          "type": "{ anchor: tainted string, target: tainted string, text: ?tainted string, tooltip: ?tainted string, external: bool }",
+          "descHtml": ""
         },
         {
           "name": "Note",
-          "type": "{ noted: tainted string, note: tainted string, author: ?tainted string }"
+          "type": "{ noted: tainted string, note: tainted string, author: ?tainted string }",
+          "descHtml": ""
         },
         {
           "name": "Name",
-          "type": "{ name: tainted string, reference: tainted string, sheet: ?tainted string }"
+          "type": "{ name: tainted string, reference: tainted string, sheet: ?tainted string }",
+          "descHtml": ""
         },
         {
           "name": "Table",
-          "type": "{ table: tainted string, name: tainted string, sheet: tainted string }"
+          "type": "{ table: tainted string, name: tainted string, sheet: tainted string }",
+          "descHtml": ""
         },
         {
           "name": "Missed",
-          "type": "{ cell: tainted string, kind: string, text: tainted string }"
+          "type": "{ cell: tainted string, kind: string, text: tainted string }",
+          "descHtml": ""
         },
         {
           "name": "Image",
-          "type": "{ at: tainted string, image: tainted bytes, format: tainted string, link: ?tainted string }"
+          "type": "{ at: tainted string, image: tainted bytes, format: tainted string, link: ?tainted string }",
+          "descHtml": ""
         },
         {
           "name": "Properties",
-          "type": "{ title: ?tainted string, subject: ?tainted string, author: ?tainted string, company: ?tainted string, keywords: ?tainted string, created: ?Core\\Time\\Instant }"
+          "type": "{ title: ?tainted string, subject: ?tainted string, author: ?tainted string, company: ?tainted string, keywords: ?tainted string, created: ?Core\\Time\\Instant }",
+          "descHtml": ""
         },
         {
           "name": "OpenOptions",
-          "type": "?{ csv?: { separator?: string, quote?: string, escape?: string, encoding?: Core\\Charset } }"
+          "type": "?{ csv?: { separator?: string, quote?: string, escape?: string, charset?: Core\\Charset } }",
+          "descHtml": ""
         }
       ],
       "constants": [],
@@ -30597,12 +30790,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "open(tainted bytes|Core\\IO\\File $source, OpenOptions $options = null): Reader",
+          "signature": "open(Core\\Bytes::Source $source, OpenOptions $options = null): Reader",
           "params": [
             {
               "kind": "param",
               "name": "source",
-              "type": "tainted bytes|Core\\IO\\File",
+              "type": "Core\\Bytes::Source",
               "default": null,
               "optional": false,
               "variadic": false
@@ -30619,7 +30812,7 @@
           "options": [],
           "returnType": "Reader",
           "doc": {
-            "shortHtml": "<code>Reader::open</code> opens the spreadsheet in <code>$source</code>, the bytes of the file or a file your program opened. Other bytes throw a <code>ParseError</code>.\nA CSV file is UTF-8 text, or UTF-16 text with a byte order mark. Other CSV text needs <code>csv</code>'s <code>encoding</code>, or it throws a <code>ParseError</code>.\nA first CSV line such as <code>sep=;</code> sets the separator, and it is not a row. When you set the <code>separator</code> option, that line is a normal row."
+            "shortHtml": "<code>Reader::open</code> opens the spreadsheet in <code>$source</code>: the bytes of the file, a file your program opened, an uploaded file, or the body of the request. Other bytes throw a <code>ParseError</code>.\nA CSV file is UTF-8 text, or UTF-16 text with a byte order mark. Other CSV text needs <code>csv</code>'s <code>charset</code>, or it throws a <code>ParseError</code>.\nA first CSV line such as <code>sep=;</code> sets the separator, and it is not a row. When you set the <code>separator</code> option, that line is a normal row."
           },
           "slug": "open",
           "url": "/reference/core/novis-spreadsheet-reader/open/",
@@ -30944,27 +31137,33 @@
       "types": [
         {
           "name": "RowOptions",
-          "type": "?{ height?: float, hidden?: bool, level?: uint, style?: Style }"
+          "type": "?{ height?: float, hidden?: bool, level?: uint, style?: Style }",
+          "descHtml": ""
         },
         {
           "name": "Bounds",
-          "type": "{ min?: int|float|string, max?: int|float|string }"
+          "type": "{ min?: int|float|string, max?: int|float|string }",
+          "descHtml": ""
         },
         {
           "name": "Validation",
-          "type": "{ list?: array<string>, whole?: Bounds, decimal?: Bounds, date?: Bounds, length?: Bounds, formula?: string, input?: string, inputTitle?: string, error?: string, errorTitle?: string, allowEmpty?: bool }"
+          "type": "{ list?: array<string>, whole?: Bounds, decimal?: Bounds, date?: Bounds, length?: Bounds, formula?: string, input?: string, inputTitle?: string, error?: string, errorTitle?: string, allowEmpty?: bool }",
+          "descHtml": ""
         },
         {
           "name": "TableOptions",
-          "type": "?{ name?: string, style?: string, banded?: bool, filter?: bool, totals?: array<string|Formula> }"
+          "type": "?{ name?: string, style?: string, banded?: bool, filter?: bool, totals?: array<string|Formula> }",
+          "descHtml": ""
         },
         {
           "name": "Conditional",
-          "type": "{ kind: string, operator?: string, values?: array<string>, colors?: array<string>, icons?: string, rank?: uint, percent?: bool, style?: Style }"
+          "type": "{ kind: string, operator?: string, values?: array<string>, colors?: array<string>, icons?: string, rank?: uint, percent?: bool, style?: Style }",
+          "descHtml": ""
         },
         {
           "name": "PrintOptions",
-          "type": "{ orientation?: string, fitToPage?: { width?: uint, height?: uint }, margins?: { top: float, right: float, bottom: float, left: float }, header?: string, footer?: string, repeatRows?: string, area?: string }"
+          "type": "{ orientation?: string, fitToPage?: { width?: uint, height?: uint }, margins?: { top: float, right: float, bottom: float, left: float }, header?: string, footer?: string, repeatRows?: string, area?: string }",
+          "descHtml": ""
         }
       ],
       "constants": [],
@@ -31621,15 +31820,18 @@
       "types": [
         {
           "name": "Lines",
-          "type": "{ top?: string, right?: string, bottom?: string, left?: string }"
+          "type": "{ top?: string, right?: string, bottom?: string, left?: string }",
+          "descHtml": ""
         },
         {
           "name": "Fields",
-          "type": "{ font?: string, size?: float, bold?: bool, italic?: bool, strike?: bool, underline?: bool|string, color?: string, fill?: string, border?: string|Lines, borderColor?: string, align?: string, valign?: string, wrap?: bool, rotate?: int, indent?: uint, format?: string, locked?: bool, hideFormula?: bool }"
+          "type": "{ font?: string, size?: float, bold?: bool, italic?: bool, strike?: bool, underline?: bool|string, color?: string, fill?: string, border?: string|Lines, borderColor?: string, align?: string, valign?: string, wrap?: bool, rotate?: int, indent?: uint, format?: string, locked?: bool, hideFormula?: bool }",
+          "descHtml": ""
         },
         {
           "name": "Record",
-          "type": "{ font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{ top: ?Line, right: ?Line, bottom: ?Line, left: ?Line }, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool }"
+          "type": "{ font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{ top: ?Line, right: ?Line, bottom: ?Line, left: ?Line }, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool }",
+          "descHtml": ""
         }
       ],
       "constants": [],
@@ -31712,11 +31914,13 @@
       "types": [
         {
           "name": "Options",
-          "type": "?{ zone?: string }"
+          "type": "?{ zone?: string }",
+          "descHtml": ""
         },
         {
           "name": "Value",
-          "type": "{ text: string }|{ number: float }|{ integer: int }|{ decimal: string }|{ boolean: bool }|{ date: Core\\Time\\Date }|{ time: Core\\Time\\TimeOfDay }|{ duration: Core\\Time\\Duration }|{ day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay }|{ formula: string, cachedText: ?string, cachedNumber: ?float }|{ runs: array<{ text: string, style: ?uint }> }"
+          "type": "{ text: string }|{ number: float }|{ integer: int }|{ decimal: string }|{ boolean: bool }|{ date: Core\\Time\\Date }|{ time: Core\\Time\\TimeOfDay }|{ duration: Core\\Time\\Duration }|{ day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay }|{ formula: string, cachedText: ?string, cachedNumber: ?float }|{ runs: array<{ text: string, style: ?uint }> }",
+          "descHtml": ""
         }
       ],
       "constants": [],
@@ -31833,35 +32037,43 @@
       "types": [
         {
           "name": "Options",
-          "type": "?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant }, csv?: { separator?: string, quote?: string, encoding?: Core\\Charset } }"
+          "type": "?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant }, csv?: { separator?: string, quote?: string, charset?: Core\\Charset } }",
+          "descHtml": ""
         },
         {
           "name": "Column",
-          "type": "{ header?: string, width?: int|float|string, format?: string, style?: Style, hidden?: bool, formula?: callable(int): Formula }"
+          "type": "{ header?: string, width?: int|float|string, format?: string, style?: Style, hidden?: bool, formula?: callable(int): Formula }",
+          "descHtml": ""
         },
         {
           "name": "SheetOptions",
-          "type": "?{ columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool }"
+          "type": "?{ columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool }",
+          "descHtml": ""
         },
         {
           "name": "ExportOptions",
-          "type": "?{ sheet?: string, zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant }, csv?: { separator?: string, quote?: string, encoding?: Core\\Charset }, columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool }"
+          "type": "?{ sheet?: string, zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant }, csv?: { separator?: string, quote?: string, charset?: Core\\Charset }, columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool }",
+          "descHtml": ""
         },
         {
           "name": "RowOptions",
-          "type": "?{ height?: float, hidden?: bool, level?: uint, style?: Style }"
+          "type": "?{ height?: float, hidden?: bool, level?: uint, style?: Style }",
+          "descHtml": ""
         },
         {
           "name": "Value",
-          "type": "{ text: string }|{ number: float }|{ integer: int }|{ decimal: string }|{ boolean: bool }|{ date: Core\\Time\\Date }|{ time: Core\\Time\\TimeOfDay }|{ duration: Core\\Time\\Duration }|{ day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay }|{ formula: string, cachedText: ?string, cachedNumber: ?float }|{ runs: array<{ text: string, style: ?uint }> }"
+          "type": "{ text: string }|{ number: float }|{ integer: int }|{ decimal: string }|{ boolean: bool }|{ date: Core\\Time\\Date }|{ time: Core\\Time\\TimeOfDay }|{ duration: Core\\Time\\Duration }|{ day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay }|{ formula: string, cachedText: ?string, cachedNumber: ?float }|{ runs: array<{ text: string, style: ?uint }> }",
+          "descHtml": ""
         },
         {
           "name": "Entry",
-          "type": "{ value: ?Value, style: ?uint }"
+          "type": "{ value: ?Value, style: ?uint }",
+          "descHtml": ""
         },
         {
           "name": "Row",
-          "type": "{ cells: array<Entry>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool }"
+          "type": "{ cells: array<Entry>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool }",
+          "descHtml": ""
         }
       ],
       "constants": [],
@@ -38846,12 +39058,56 @@
       "enums": [],
       "types": [],
       "constants": [],
-      "members": [],
+      "members": [
+        {
+          "id": "Request.BodyStream.peek",
+          "name": "peek",
+          "static": false,
+          "receiver": "bodyStream",
+          "generics": null,
+          "signature": "peek(uint $max): tainted bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "max",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "tainted bytes",
+          "doc": {
+            "shortHtml": "Returns the first bytes of the request body and does not use them up. A <code>foreach</code> loop over this value still gives every byte of the body after it.",
+            "params": [
+              {
+                "name": "max",
+                "descHtml": "The most bytes to return. A body shorter than <code>max</code> is returned whole. A second call with a larger <code>max</code> reads further."
+              }
+            ],
+            "returnHtml": "The first <code>max</code> bytes of the body, or fewer. The value is <code>tainted</code>.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "This program is not handling a request. Or a <code>foreach</code> loop has already read this value. Or <code>max</code> is larger than this request's <code>[limits] memory</code>."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The connection failed while the body was read."
+              }
+            ]
+          },
+          "slug": "peek",
+          "url": "/reference/core/request-bodystream/peek/",
+          "examples": "core/Request-BodyStream/peek"
+        }
+      ],
       "slug": "request-bodystream",
       "url": "/reference/core/request-bodystream/",
       "summaryBlocks": [
         {
-          "html": "<p>The request body, read in pieces as it arrives. <code>Core\\Request::bodyStream</code> returns it. Use it in a <code>foreach</code> loop to get each piece as <code>tainted</code> bytes, so the whole body is never in memory at once.</p>\n<p><code>Core\\Request\\BodyStream</code> is what <code>Core\\Request::bodyStream()</code> answers with: an <code>Iterable&lt;tainted bytes&gt;</code> that a <code>foreach</code> walks once. It has no members — the walk is everything it does — and it holds nothing but the chunk the loop body is looking at, so a body far larger than the machine's memory passes through a program that never has more than one chunk of it resident. That is the whole difference from <code>body()</code>, which fills the request's hold under <code>[limits] request_body</code> and can be read back any number of times. This walk is under no such cap, because what a program keeps out of it is the program's own decision and its own bill.</p>\n<p><strong>A chunk boundary is the wire's, and carries no meaning.</strong> It is where the octets happened to arrive, so a program that needs lines, records or frames finds them itself, across chunks; nothing here aligns a chunk to anything the sender wrote. Each chunk is copied out as the loop body receives it and stays valid after the next pull, so keeping one keeps bytes the wire cannot revoke. The walk is empty where the request carried no body at all.</p>\n<p><strong>Naming the walk is the reading.</strong> <code>bodyStream()</code> claims the body when the walk is built, long before a single byte moves, so <code>body()</code>, <code>post()</code>, <code>json()</code>, <code>jsonAs&lt;T&gt;()</code> or <code>files()</code> after it is refused with <code>LogicError</code> whether or not the loop ever ran — and refused the same way in the other direction. That refusal is a defect in the program, never something a peer can provoke; the split between the readers that share the body and the ones that consume it is <code>rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it</code>, and <code>Core\\Request</code> is where all five readers are named together.</p>\n<p>Every chunk is <code>tainted bytes</code>, like everything else a peer chose, so it reaches a sink only through a launderer named for that sink. The common destination is disk, and <code>Core\\IO::writeStream</code> takes this walk directly — it is where every stream reaches a file, under a byte bound of its own, and it removes the partial file if a write fails, so there is no half-written upload to clean up after.</p>"
+          "html": "<p>The request body, read in pieces as it arrives. <code>Core\\Request::bodyStream</code> returns it. Use it in a <code>foreach</code> loop to get each piece as <code>tainted</code> bytes, so the whole body is never in memory at once.</p>\n<p><code>Core\\Request\\BodyStream</code> is what <code>Core\\Request::bodyStream()</code> answers with: an <code>Iterable&lt;tainted bytes&gt;</code> that a <code>foreach</code> walks once. It holds nothing but the chunk the loop body is looking at, so a body far larger than the machine's memory passes through a program that never has more than one chunk of it resident. That is the whole difference from <code>body()</code>, which fills the request's hold under <code>[limits] request_body</code> and can be read back any number of times. This walk is under no such cap, because what a program keeps out of it is the program's own decision and its own bill.</p>\n<p><strong>A chunk boundary is the wire's, and carries no meaning.</strong> It is where the octets happened to arrive, so a program that needs lines, records or frames finds them itself, across chunks; nothing here aligns a chunk to anything the sender wrote. Each chunk is copied out as the loop body receives it and stays valid after the next pull, so keeping one keeps bytes the wire cannot revoke. The walk is empty where the request carried no body at all.</p>\n<p><code>peek($max)</code> returns the first <code>$max</code> bytes of the body and does not use them up, so the loop after it still starts at the first byte. Call it before the loop starts: after that it throws <code>LogicError</code>.</p>\n<p><strong>Naming the walk is the reading.</strong> <code>bodyStream()</code> claims the body when the walk is built, long before a single byte moves, so <code>body()</code>, <code>post()</code>, <code>json()</code>, <code>jsonAs&lt;T&gt;()</code> or <code>files()</code> after it is refused with <code>LogicError</code> whether or not the loop ever ran — and refused the same way in the other direction. That refusal is a defect in the program, never something a peer can provoke; the split between the readers that share the body and the ones that consume it is <code>rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it</code>, and <code>Core\\Request</code> is where all five readers are named together.</p>\n<p>Every chunk is <code>tainted bytes</code>, like everything else a peer chose, so it reaches a sink only through a launderer named for that sink. The common destination is disk, and <code>Core\\IO::writeStream</code> takes this walk directly — it is where every stream reaches a file, under a byte bound of its own, and it removes the partial file if a write fails, so there is no half-written upload to clean up after.</p>"
         },
         {
           "code": "<?nvs\nint $total = 0;\nforeach (Core\\Request::bodyStream() as tainted bytes $chunk) {\n    $total = $total + Core\\Bytes::length($chunk);\n}\necho 'read ', $total, \" bytes\\n\";",
@@ -39202,13 +39458,60 @@
           "slug": "saveto",
           "url": "/reference/core/request-part/saveto/",
           "examples": "core/Request-Part/saveTo"
+        },
+        {
+          "id": "Request.Part.peek",
+          "name": "peek",
+          "static": false,
+          "receiver": "part",
+          "generics": null,
+          "signature": "peek(uint $max): tainted bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "max",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "tainted bytes",
+          "doc": {
+            "shortHtml": "Returns the first bytes of this part and does not use them up. <code>content()</code>, <code>readAll()</code> and <code>saveTo()</code> still give every byte of the part after it.",
+            "params": [
+              {
+                "name": "max",
+                "descHtml": "The most bytes to return. A part shorter than <code>max</code> is returned whole. A second call with a larger <code>max</code> reads further."
+              }
+            ],
+            "returnHtml": "The first <code>max</code> bytes of the part, or fewer. The value is <code>tainted</code>.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "This program is not handling a request. Or the <code>files()</code> loop has moved to a later part. Or <code>content()</code>, <code>readAll()</code> or <code>saveTo()</code> has already started to read this part. Or <code>max</code> is larger than this request's <code>[limits] memory</code>."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The connection failed while the body was read, or the body ended before the closing boundary."
+              },
+              {
+                "error": "ParseError",
+                "descHtml": "The body is not the multipart body the request declared."
+              }
+            ]
+          },
+          "slug": "peek",
+          "url": "/reference/core/request-part/peek/",
+          "examples": "core/Request-Part/peek"
         }
       ],
       "slug": "request-part",
       "url": "/reference/core/request-part/",
       "summaryBlocks": [
         {
-          "html": "<p>One uploaded file, as the <code>Core\\Request::files()</code> loop gives it. <code>name()</code>, <code>filename()</code> and <code>contentType()</code> return what the client sent about the file, and all three are <code>tainted</code>. <code>readAll()</code> returns the content as one value, <code>content()</code> returns it in pieces, and <code>saveTo()</code> writes it to a file. Read the content before the loop moves to the next file.</p>\n<p>A <code>Core\\Request\\Part</code> is one file part of a <code>multipart/form-data</code> body, handed to the loop body by the <code>Core\\Request::files()</code> walk. Three members say what it declared about itself — <code>name()</code>, the form field it arrived under; <code>filename()</code>, the name the client claimed; and <code>contentType()</code>, which answers <code>text/plain</code> where the part declared none, RFC 7578's own default rather than a repair of a missing value. All three are <code>tainted string</code>: they are what a peer wrote back, and a client is free to send a field name the form never declared.</p>\n<p>**<code>filename()</code> is a claim about a file on someone else's machine, and never a path on this one.** As a <code>tainted string</code> it reaches a path only through <code>Core\\IO::within</code>, which is the same refusal every other untrusted string meets — and it is the refusal that matters most here, since the one place an upload could choose where it lands is the one place the qualifier stands in the way.</p>\n<p>**There is no <code>size</code>.** Nothing honest can be said about a part's length before it has been consumed, and inventing a number is the kind of repair this language refuses everywhere. A program that needs the count gets it from the bytes it read.</p>\n<p><strong>Three ways to spend a part, and each of them spends it.</strong> <code>readAll({max?})</code> pulls the whole part into one <code>tainted bytes</code> — the reading for an upload small enough to hold — bounded by <code>[limits] request_body</code> (8M) when <code>max</code> is omitted, by that number when it is named, and refusing outright a <code>max</code> larger than the request's own <code>[limits] memory</code> rather than quietly clamping it. <code>content()</code> walks the part a chunk at a time, holding none of it, for an upload that must never be resident whole. <code>saveTo($path, {max?, overwrite?})</code> writes it straight to disk one chunk at a time — the path almost every upload takes — under the <code>fs.write</code> capability for that path; it is <code>Core\\IO::writeStream</code> underneath, so the path must not already exist unless <code>overwrite</code> says so, and a write that fails leaves no partial file behind.</p>\n<p><strong>All of them are valid only while this part is the walk's current one.</strong> A part kept past the iteration that opened the next names bytes the parse has already drained, so it is refused rather than answered with the current part's content.</p>"
+          "html": "<p>One uploaded file, as the <code>Core\\Request::files()</code> loop gives it. <code>name()</code>, <code>filename()</code> and <code>contentType()</code> return what the client sent about the file, and all three are <code>tainted</code>. <code>readAll()</code> returns the content as one value, <code>content()</code> returns it in pieces, and <code>saveTo()</code> writes it to a file. Read the content before the loop moves to the next file.</p>\n<p>A <code>Core\\Request\\Part</code> is one file part of a <code>multipart/form-data</code> body, handed to the loop body by the <code>Core\\Request::files()</code> walk. Three members say what it declared about itself — <code>name()</code>, the form field it arrived under; <code>filename()</code>, the name the client claimed; and <code>contentType()</code>, which answers <code>text/plain</code> where the part declared none, RFC 7578's own default rather than a repair of a missing value. All three are <code>tainted string</code>: they are what a peer wrote back, and a client is free to send a field name the form never declared.</p>\n<p>**<code>filename()</code> is a claim about a file on someone else's machine, and never a path on this one.** As a <code>tainted string</code> it reaches a path only through <code>Core\\IO::within</code>, which is the same refusal every other untrusted string meets — and it is the refusal that matters most here, since the one place an upload could choose where it lands is the one place the qualifier stands in the way.</p>\n<p>**There is no <code>size</code>.** Nothing honest can be said about a part's length before it has been consumed, and inventing a number is the kind of repair this language refuses everywhere. A program that needs the count gets it from the bytes it read.</p>\n<p><strong>Three ways to spend a part, and each of them spends it.</strong> <code>readAll({max?})</code> pulls the whole part into one <code>tainted bytes</code> — the reading for an upload small enough to hold — bounded by <code>[limits] request_body</code> (8M) when <code>max</code> is omitted, by that number when it is named, and refusing outright a <code>max</code> larger than the request's own <code>[limits] memory</code> rather than quietly clamping it. <code>content()</code> walks the part a chunk at a time, holding none of it, for an upload that must never be resident whole. <code>saveTo($path, {max?, overwrite?})</code> writes it straight to disk one chunk at a time — the path almost every upload takes — under the <code>fs.write</code> capability for that path; it is <code>Core\\IO::writeStream</code> underneath, so the path must not already exist unless <code>overwrite</code> says so, and a write that fails leaves no partial file behind.</p>\n<p><code>peek($max)</code> returns the first <code>$max</code> bytes of the part and uses none of them up, so you can check the start of a file before one of the three ways above reads all of it.</p>\n<p><strong>All of them are valid only while this part is the walk's current one.</strong> A part kept past the iteration that opened the next names bytes the parse has already drained, so it is refused rather than answered with the current part's content.</p>"
         },
         {
           "code": "<?nvs\nforeach (Core\\Request::files() as Core\\Request\\Part $part) {\n    int $bytes = 0;\n    foreach ($part->content() as tainted bytes $chunk) {\n        $bytes = $bytes + Core\\Bytes::length($chunk);\n    }\n    echo $part->name(), ' (', $part->filename(), ', ', $part->contentType(), '): ', $bytes, \"\\n\";\n}",
@@ -42523,7 +42826,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "put(string $disk, string $key, bytes $contents, { overwrite?: bool }): void",
+          "signature": "put(string $disk, string $key, Core\\Bytes::Source|Core\\Bytes::Chunks $contents, { overwrite?: bool }): void",
           "params": [
             {
               "kind": "param",
@@ -42544,7 +42847,7 @@
             {
               "kind": "param",
               "name": "contents",
-              "type": "bytes",
+              "type": "Core\\Bytes::Source|Core\\Bytes::Chunks",
               "default": null,
               "optional": false,
               "variadic": false
@@ -42570,7 +42873,7 @@
               },
               {
                 "name": "contents",
-                "descHtml": "The bytes to save. The whole value is written."
+                "descHtml": "The data to save: <code>bytes</code>, an open <code>Core\\IO\\File</code>, an uploaded file, the request body, or the pieces of a loop. A file or an upload is written one piece at a time, so it is never held in memory as a whole."
               },
               {
                 "name": "overwrite",
@@ -51714,12 +52017,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "reader(string $document): Core\\Xml\\Reader",
+          "signature": "reader(string|Core\\Bytes::Source|Core\\Bytes::Chunks $document): Core\\Xml\\Reader",
           "params": [
             {
               "kind": "param",
               "name": "document",
-              "type": "string",
+              "type": "string|Core\\Bytes::Source|Core\\Bytes::Chunks",
               "default": null,
               "optional": false,
               "variadic": false
@@ -51732,10 +52035,16 @@
             "params": [
               {
                 "name": "document",
-                "descHtml": "The document text. The reader does not copy it. Entity references are handled the same way as in <code>Core\\Xml::parse</code>."
+                "descHtml": "The document. It can be a <code>string</code>, <code>bytes</code>, an open <code>Core\\IO\\File</code>, an upload, the request body, or a list or stream of <code>bytes</code> chunks. The reader reads a file or a stream a little at a time, so a document of any size uses the same memory. Bytes must be UTF-8, or UTF-16 with a byte order mark. Entity references are handled the same way as in <code>Core\\Xml::parse</code>."
               }
             ],
-            "returnHtml": "A reader. Its first <code>read</code> returns the first node of the document."
+            "returnHtml": "A reader. Its first <code>read</code> returns the first node of the document.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The file is already closed."
+              }
+            ]
           },
           "slug": "reader",
           "url": "/reference/core/xml/reader/",
@@ -51983,7 +52292,7 @@
             "errors": [
               {
                 "error": "ParseError",
-                "descHtml": "The document is not well-formed at the place the reader has reached. <code>Core\\Xml::parse</code> throws the same errors. The nodes before that place were already returned. The reader does not move past the error, so the next <code>read</code> throws the same error again."
+                "descHtml": "The document is not well-formed at the place the reader has reached. <code>Core\\Xml::parse</code> throws the same errors. The nodes before that place were already returned. The reader does not move past the error, so the next <code>read</code> throws the same error again. A document read from bytes also throws this error when its bytes are not UTF-8 or UTF-16, or when it declares another encoding."
               }
             ]
           },
@@ -52430,12 +52739,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "entries(bytes $archive): array<tainted string>",
+          "signature": "entries(Core\\Bytes::Source $archive): array<tainted string>",
           "params": [
             {
               "kind": "param",
               "name": "archive",
-              "type": "bytes",
+              "type": "Core\\Bytes::Source",
               "default": null,
               "optional": false,
               "variadic": false
@@ -52448,7 +52757,7 @@
             "params": [
               {
                 "name": "archive",
-                "descHtml": "The bytes of the archive. Only its central directory is read. So the time to list an archive depends on the number of entries, not on the size of the archive."
+                "descHtml": "The archive. It can be <code>bytes</code>, an open <code>Core\\IO\\File</code>, an uploaded <code>Core\\Request\\Part</code> or a <code>Core\\Request\\BodyStream</code>. Only its central directory is read. So the time to list an archive depends on the number of entries, not on the size of the archive. A file is read in small pieces and is never held whole."
               }
             ],
             "returnHtml": "One <code>tainted string</code> per entry. A name is always tainted, whatever the type of the archive was. The name was written by whoever built the archive. An archive written directly in a test is no safer than a downloaded one.",
@@ -52469,12 +52778,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "read(bytes $archive, string $name, uint $maxBytes = 67108864, uint $maxRatio = 1000): tainted bytes",
+          "signature": "read(Core\\Bytes::Source $archive, string $name, uint $maxBytes = 67108864, uint $maxRatio = 1000): tainted bytes",
           "params": [
             {
               "kind": "param",
               "name": "archive",
-              "type": "bytes",
+              "type": "Core\\Bytes::Source",
               "default": null,
               "optional": false,
               "variadic": false
@@ -52511,7 +52820,7 @@
             "params": [
               {
                 "name": "archive",
-                "descHtml": "The bytes of the archive. It is checked the same way as in <code>entries</code>. An unsafe entry anywhere in the archive makes this call throw too, whichever entry you read."
+                "descHtml": "The archive, as <code>bytes</code> or any source <code>entries</code> takes. It is checked the same way as in <code>entries</code>. An unsafe entry anywhere in the archive makes this call throw too, whichever entry you read."
               },
               {
                 "name": "name",
@@ -52544,12 +52853,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "extract(bytes $archive, string $destination, uint $maxBytes = 67108864, uint $maxRatio = 1000): uint",
+          "signature": "extract(Core\\Bytes::Source $archive, string $destination, uint $maxBytes = 67108864, uint $maxRatio = 1000): uint",
           "params": [
             {
               "kind": "param",
               "name": "archive",
-              "type": "bytes",
+              "type": "Core\\Bytes::Source",
               "default": null,
               "optional": false,
               "variadic": false
@@ -52586,7 +52895,7 @@
             "params": [
               {
                 "name": "archive",
-                "descHtml": "The bytes of the archive. It is checked the same way as in <code>entries</code>. An unsafe entry anywhere in the archive makes this call throw before it writes anything."
+                "descHtml": "The archive, as <code>bytes</code> or any source <code>entries</code> takes. It is checked the same way as in <code>entries</code>. An unsafe entry anywhere in the archive makes this call throw before it writes anything."
               },
               {
                 "name": "destination",

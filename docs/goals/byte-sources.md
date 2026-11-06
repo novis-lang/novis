@@ -46,11 +46,11 @@ stages:
     context: [benches/members/README.md, tests/hostile/README.md, docs/rules/testing/feature-proofs.md, data/proofs/policy.json]
   - id: 11
     title: "every source kind has a bench with its growth, and every attack on a source is a hostile case"
-    status: open
+    status: done
     context: [benches/members/README.md, tests/hostile/README.md, docs/rules/testing/member-perf-ledger.md]
   - id: 12
     title: "the examples, cards and rules show the direct call"
-    status: open
+    status: done
     context: [docs/examples/README.md, docs/agent/prose.md]
   - id: 13
     title: "the goal is verified once, and every failure is fixed"
@@ -582,6 +582,19 @@ has no memory check; and the decompression ratio needs the input's length.
     - **The ASAN leg runs no `.nvs` program,** so the two chunk attacks on `Csv::rows` run under
       valgrind through `bun nv proofs --run --valgrind`, which reads every hostile case. Stage 13
       runs it for them in WSL. A CI step for it is not added by this goal.
+26. **The end of stage 11, as built.**
+    - **`rampPerOp`** (`tools/nv/cmd/scaling.ts`) judges a `constant` bench's sibling. At each input
+      size it runs half the rounds and all of them, and `perOpOf` divides their difference by the
+      added operations. Those per-operation counts are judged as a size ramp's totals are, under
+      `constant`'s bound, and a count fails only when a second run agrees. The clock of one
+      operation is a difference of two runs, so it is recorded and not judged; the bench's own
+      batch ramp still judges its clock. A `prints` sibling's rounds are its bench's `iterations`.
+      A sibling that runs the member itself declares `// bench: rounds N` and passes it beside
+      `start` (`Zip/entries.scale.nvs`). All three constant siblings pass on the debug binary.
+    - **A seekable file's read buffer is its size plus one byte, at most `READ_CHUNK`**
+      (`FileSource::next`). The extra byte reads the end in the same call as the last byte. A file
+      that grew after its size was read fills the buffer, and the next read takes a whole
+      `READ_CHUNK`. **What it spends:** less than before for every file under 64 KiB.
 
 ## Stages
 
@@ -741,9 +754,9 @@ tool is missed.
 - [x] `rule:testing/member-perf-ledger` hashes `byte_source.rs` for its consumers.
   `docs/rules/testing/member-perf-ledger.md:1`
 - [x] The attacks of decision 9. `tests/hostile/core/IO-File/readBytes/01-a-file-that-changes-while-it-is-read.nvs:1`
-- [ ] The ramp judges a `constant` bench's `.scale.nvs` by per-operation counts (decision 25).
+- [x] The ramp judges a `constant` bench's `.scale.nvs` by per-operation counts (decision 25).
   `tools/nv/cmd/scaling.ts:1112`
-- [ ] `Hash::of` on a small file allocates no 64 KiB buffer (decision 25).
+- [x] `Hash::of` on a small file allocates no 64 KiB buffer (decision 25).
   `crates/nvs-stdlib/src/byte_source.rs:1`
 
 ### 12. the examples, cards and rules show the direct call
@@ -751,26 +764,26 @@ tool is missed.
 **Split:** writing subagents by family, side by side: Mime and Image; Zip; Csv, Hash, Compress and
 Storage; IO, Serialize and Charset. None builds.
 
-- [ ] Serialize/decode/03 writes and reads bytes, with no Base64.
+- [x] Serialize/decode/03 writes and reads bytes, with no Base64.
   `docs/examples/core/Serialize/decode/03-load-saved-jobs-from-a-file.nvs:24`
-- [ ] Request-Part/readAll/03 shows a use that needs the whole part; its PDF check moves to
+- [x] Request-Part/readAll/03 shows a use that needs the whole part; its PDF check moves to
   `Core\Mime::detect($part)`. `docs/examples/core/Request-Part/readAll/03-accepting-only-pdf-invoices.nvs:5`
-- [ ] Request/files/03 checks the avatar with `Image::info($part)` and then saves it.
+- [x] Request/files/03 checks the avatar with `Image::info($part)` and then saves it.
   `docs/examples/core/Request/files/03-checking-an-avatar-before-it-is-stored.nvs:18`
-- [ ] Compress-Compressor/add/03 shows blocks the program makes.
-  `docs/examples/core/Compress-Compressor/add/03-compress-a-large-file-block-by-block.nvs:5`
-- [ ] Hash-Digest/03 checks a downloaded file with `Core\Hash::of($file)`.
+- [x] Compress-Compressor/add/03 shows blocks the program makes.
+  `docs/examples/core/Compress-Compressor/add/03-compress-a-report-while-you-write-it.nvs:1`
+- [x] Hash-Digest/03 checks a downloaded file with `Core\Hash::of($file)`.
   `docs/examples/types/Hash-Digest/03-checking-a-download-against-its-checksum.nvs:9`
-- [ ] Charset/01 reads its Latin-1 bytes from a file. `docs/examples/types/Charset/01-reading-text-that-is-not-utf-8.nvs:5`
-- [ ] Mime: detect/03 passes the part; Mime-Type/01 and mediaType/03 pass a file; detect's about
+- [x] Charset/01 reads its Latin-1 bytes from a file. `docs/examples/types/Charset/01-reading-text-that-is-not-utf-8.nvs:5`
+- [x] Mime: detect/03 passes the part; Mime-Type/01 and mediaType/03 pass a file; detect's about
   page names its sources. `docs/examples/core/Mime/detect/about.md:1`
-- [ ] Zip: one example each of `entries`, `read` and `extract` opens a file. `docs/examples/core/Zip/entries/about.md:1`
-- [ ] The about pages and reference cards of every widened member name their sources: Csv/rows,
+- [x] Zip: one example each of `entries`, `read` and `extract` opens a file. `docs/examples/core/Zip/entries/about.md:1`
+- [x] The about pages and reference cards of every widened member name their sources: Csv/rows,
   Json/decodeEach, Hash, Compress, Xml/reader, Storage/put, IO/write, IO/append, Image, Pdf.
   `docs/reference/core/Hash.md:6`, `docs/examples/core/IO/write/about.md:1`
-- [ ] The doc comments that state the old signatures. `crates/nvs-stdlib/src/zip.rs:1076`
-- [ ] `bun nv render --website` regenerates `website/src/data/core.json` and `llms-full.txt`.
-- [ ] `bun nv proofs --comments` over every changed `.nvs`, and each line it names written again.
+- [x] The doc comments that state the old signatures. `crates/nvs-stdlib/src/zip.rs:1076`
+- [x] `bun nv render --website` regenerates `website/src/data/core.json` and `llms-full.txt`.
+- [x] `bun nv proofs --comments` over every changed `.nvs`, and each line it names written again.
 
 ### 13. the goal is verified once, and every failure is fixed
 
@@ -785,18 +798,17 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Stages 1 to 10 are done, and stage 11's three planned items landed. The benches of decision 8
-(`Mime/detect`, `Request-Part/peek`, `Hash/of`, `Zip/entries`) pass `scaling --growth` on the
-debug binary, and their shares are stored (decision 24). `SHARED_IMPL` in
-`tools/nv/proofs/collect.ts` joins `byte_source.rs` into its consumers' hash, so every figure of
-`io.rs`, `request.rs`, `mime.rs`, `hash.rs`, `zip.rs`, `compress.rs`, `csv.rs`, `xml.rs`,
-`storage.rs` and `json/each.rs` is stale until stage 13. Fourteen hostile cases cover decision 9,
-and all but the two Unix-only ones passed on Windows. One of them found that a component's source
-did not have to fit twice, and `read_sources` now checks it (decision 25). Stage 11 owes the two
-items decision 25 added. The sweep's reds were stale (no `env-secret-proofs` check; Miri ran
-at `26dda366`). `scaling --budget --write` still exits 1 on benches this goal did not touch (many
-`novis/Spreadsheet-*`, `core/Cap/has`, `core/Metrics/*`, the pipeline operator and its twin,
-`Image-Image/compare`), measured on a release binary older than the tree.
+Stages 1 to 12 are done; only the gate stage is left. Stage 11 ended with `rampPerOp` and the
+sized file buffer (decision 26); all four byte source benches pass `scaling --growth` on the debug
+binary, the three `constant` siblings judged per operation. Stage 12 rewrote the examples, about
+pages and cards of every widened member to pass the source directly; `bun nv proofs --comments`
+passes on all 39 changed files, and `render --website` regenerated `core.json` and
+`llms-full.txt`. Every figure of a file that names `byte_source::` is stale until stage 13
+(decision 24). The sweep's reds were stale: no `env-secret-proofs` check exists, and the three
+nightly Miri timeouts at `26dda366` are `cfg_attr(miri, ignore)` in the tree. `scaling --budget
+--write` still exits 1 on benches this goal did not touch, measured on an old release binary.
+Hex fixtures stay in examples that build literal bytes (`Mime/detect/01`, `Mime-Type/02`, `03`,
+`Image-Image`, `Encoding/decodeText/03`). `Image.nvs`' long comment blocks predate this goal.
 
 May go red at the gate: the cards, meta, LSP stub, `nvs agent` and perf-ledger snapshots of every
 widened member (`Xml::reader`, `Zip`, `Hash`, `Compress`, `Storage::put`, `BodyStream::peek`,
@@ -809,19 +821,17 @@ spreadsheet cases quoting the old CSV path; `llms-full.txt` (`sourceBytes`); a p
 
 ### Next
 
-**The end of stage 11**, one session with no subagents, then stage 12 in the same session if it
-fits.
+**Stage 13, the gate**, one session.
 
-- [ ] The ramp judges a `constant` bench's sibling by per-operation counts. `tools/nv/cmd/scaling.ts:1112`
-- [ ] `Hash::of` on a small file sizes its buffer to the file. `crates/nvs-stdlib/src/byte_source.rs:1`
+- [ ] `bun nv proofs --record-perf` over the stale figures. `tools/nv/proofs/collect.ts:1`
+- [ ] The two chunk attacks under valgrind in WSL. `tests/hostile/core/Csv/rows/02-pieces-that-throw-on-the-second-piece.nvs:1`
+- [ ] `looper verify`, one fix pass, `looper verify` again. `docs/goals/byte-sources.md:788`
+- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes byte-sources`, `bun nv ci --check`. `docs/goals/byte-sources.md:788`
 
-The ramp: at each input size, run two batch sizes and judge their difference against the class
-(decision 25). `Mime/detect`, `Request-Part/peek` and `Zip/entries` are the three constant benches
-with a sibling, and each should pass once it lands. Update `benches/members/README.md` where it
-says `constant` needs nothing more, and add a test beside the ramp's existing tests under
-`tools/nv/test/`. The buffer: `next_chunk` reads a file into a reused buffer; size it to
-`min(READ_CHUNK, size)` when the size is known, then recheck `Hash/of.nvs`'s
-`// bench: bytes` and `allocations` lines with `scaling --growth`. Then stage 12.
+Record the perf figures first (they are long; run in the background and read its report), then
+start `looper verify` in the background. Expect red in the snapshots listed below, and in
+`bun nv ci --check`'s rustfmt and proofs gate. Before `DONE`, move each decision only this file
+holds into its rule or module doc, as AGENTS.md § *In the loop* says.
 
 ### Backlog
 
