@@ -38,7 +38,7 @@ stages:
     context: [crates/nvs-stdlib/src/xml.rs, docs/rules/core-classes/xml-tree-and-stream.md]
   - id: 9
     title: "Core\\Pdf and Core\\Image read every source, and their text is tainted"
-    status: open
+    status: done
     context: [extensions/pdf/nvs/Reader.nvs, extensions/pdf/nvs/Pages.nvs, extensions/image/nvs/Image.nvs, crates/nvs-cli/src/extensions.rs, docs/rules/packaging/values-cross-as-handles.md, docs/rules/core-classes/pdf-roster.md]
   - id: 10
     title: "the new members and the alias carry their feature proofs"
@@ -526,6 +526,29 @@ has no memory check; and the decompression ratio needs the input's length.
     - The reader's parameter arms are `Neutral`, as `parse`'s is: every text it gives is
       `tainted` whatever it read. **What it spends:** the largest node about twice over, plus one
       chunk, per open walk.
+23. **The whole-buffer components, as built in stage 9.** This revises decision 5's "manifests do
+    not change" and "`Image` reads at `open`".
+    - A built-in's manifest writes `Core\Bytes::Source` where its WIT has `list<u8>`
+      (`NovisType::Source`, `crates/nvs-ext/src/types.rs`). The checker lowers it to the `Core`
+      alias, and the load check refuses it in a result or in a third party's export. The WIT does
+      not change.
+    - The host walks each argument by its manifest type (`read_sources`,
+      `crates/nvs-cli/src/extensions.rs`) and reads each source whole through
+      `extension_source_size` and `extension_source_range`, a shape's and a union's fields
+      included, so `Image`'s `Origin` and `Pages::merge`'s parts carry the source.
+    - **`Pages::of` and `Image::open` keep the source**, and the host reads it at `merge`,
+      `encode`, `variants` or `raw`. Reading at `open` needs a `Core` member that turns a source
+      into whole `bytes`, which `rule:core-api/the-first-call-is-the-best-one` keeps out. So a file
+      is read at that call from its start, and a part must still be the walk's current part.
+    - **Tainted:** a PDF's text, metadata, attachments and invoice XML, and an image's EXIF
+      fields, always, as the spreadsheet reader's are. A Novis method has no contagious return,
+      so "contagious" became "always". An image hash, a placeholder and a drawn diff are computed
+      in a fixed format and are trusted with a written reason (`Core\Taint::assertTrusted`), the
+      same as `encode`'s bytes.
+    - A `.nvsr` body after `--BODY--` may hold bytes that are not UTF-8
+      (`nvs_test::request::split_octets`), so a test uploads an image or a PDF as a part.
+    - **What it spends:** the source's size twice while the call runs, the host's copy and the
+      component's; a part also stays held until the walk advances.
 
 ## Stages
 
@@ -649,16 +672,16 @@ tool is missed.
 
 ### 9. Core\Pdf and Core\Image read every source, and their text is tainted
 
-- [ ] The host reads a source whole through `range()` for a whole-buffer component (decision 5).
+- [x] The host reads a source whole through `range()` for a whole-buffer component (decision 23).
   `crates/nvs-cli/src/extensions.rs:838`
-- [ ] `Core\Pdf`'s `Reader::open` and `Pages::of` take `Core\Bytes::Source`, and their text is
-  contagious. `extensions/pdf/nvs/Reader.nvs:21`, `extensions/pdf/nvs/Pages.nvs:15`
-- [ ] `Core\Image`'s `open`, `info`, `hash`, `placeholder`, `palette` and `compare` take
-  `Core\Bytes::Source`; `open` reads at the call. `extensions/image/nvs/Image.nvs:64`,
+- [x] `Core\Pdf`'s `Reader::open` and `Pages::of` take `Core\Bytes::Source`, and their text is
+  tainted. `extensions/pdf/nvs/Reader.nvs:21`, `extensions/pdf/nvs/Pages.nvs:15`
+- [x] `Core\Image`'s `open`, `info`, `hash`, `placeholder`, `palette` and `compare` take
+  `Core\Bytes::Source`; `open` keeps the source (decision 23). `extensions/image/nvs/Image.nvs:64`,
   `extensions/image/nvs/Image.nvs:332`
-- [ ] The tests of `pdf-file` and `image-file`, and the pinned `info(bytes $data)`.
+- [x] The tests of `pdf-file` and `image-file`, and the pinned `info(bytes $data)`.
   `crates/nvs-cli/tests/meta.rs:293`
-- [ ] `rule:core-classes/pdf-roster` quotes the new signatures. `docs/rules/core-classes/pdf-roster.md:22`
+- [x] `rule:core-classes/pdf-roster` quotes the new signatures. `docs/rules/core-classes/pdf-roster.md:22`
 
 ### 10. the new members and the alias carry their feature proofs
 
@@ -721,45 +744,41 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Stages 1 to 8 are done. Stage 8 (decision 22): `Core\Xml::reader` reads every forward source
-through one `xml::Window` (`crates/nvs-stdlib/src/xml.rs:@read_window`); a `string` keeps its old
-path. The three `xml-stream` tests ran green on Windows; the other `xml::tests` were not run. The
-sweep's reds are stale (no `env-secret-proofs` check; Miri's 8 MiB tests are skipped at HEAD).
+Stages 1 to 9 are done. Stage 9 (decision 23): the host reads a manifest's `Core\Bytes::Source`
+whole at the call (`crates/nvs-cli/src/extensions.rs:@read_sources`); `Pages` and `Image` keep
+the source until their engine call. The `pdf-file` and `image-file` tests ran green on Windows. A
+`.nvsr` body may hold any bytes. The sweep's reds are stale: no `env-secret-proofs` check exists,
+and the three Miri timeouts are `ignore`d under Miri at HEAD (the nightly ran at `26dda366`).
 
-Tests that may go red at the gate: the cards, meta, LSP stub and `nvs agent` snapshots and
-perf-ledger figures of `Core\Xml::reader` (a widened parameter, new error rows, a `window` slot),
-`Core\Zip::entries`, `read`, `extract`, `Core\Hash::of`, `hmac`, `Core\Compress::compress`,
-`decompress` and `Core\Storage::put` (widened parameters; figures now hash `byte_source.rs`);
-`BodyStream`'s (a new `peek`); `Csv::rows`' card, meta and LSP snapshots (a new `charset` option);
-`meta.rs` and `ext_world.rs` lists of the engine's exports; `Reader::open`'s signature wherever a
-snapshot pins `Reader::Source`; the spreadsheet conformance cases whose output quotes the reader's
-old CSV path, such as a `sep=` line in UTF-16 or a CSV read from a file whose position was moved;
-the website's `llms-full.txt`, which still lists `sourceBytes` until it is rendered again;
-`Mime::detect` and `Part` snapshots; a pin of `part_parse`'s old message; `Mime::detect`'s
-perf-ledger figure; the stage 2 to 4 snapshots (`decodeEach`, `Core\IO`, `render.test.ts`).
+May go red at the gate: the cards, meta, LSP stub, `nvs agent` and perf-ledger snapshots of every
+widened member (`Xml::reader`, `Zip`, `Hash`, `Compress`, `Storage::put`, `BodyStream::peek`,
+`Csv::rows`' `charset`, `Mime::detect`, `Part`, spreadsheet `Reader::open`, and stage 9's
+`Image`, `Codec`, Pdf `Reader`, `Pages`, `Engine`); `meta.rs` and `ext_world.rs` export lists;
+spreadsheet cases quoting the old CSV path; `llms-full.txt` (`sourceBytes`); a pin of
+`part_parse`'s old message; the stage 2 to 4 snapshots (`decodeEach`, `Core\IO`,
+`render.test.ts`); examples that put a PDF's text or an image's `exif` in a plain `string`;
+`crates/nvs-ext/tests/builtin.rs`' manifest size figures.
 
 ### Next
 
-**Stage 9: `Core\Pdf` and `Core\Image` read every source** (decision 5), one session.
+**Stage 10: the new members and the alias carry their feature proofs**, one session, split into
+one writing subagent per member, side by side; none builds, and the session builds once they end.
 
-- [ ] `crates/nvs-cli/src/extensions.rs:838`: the host reads a `Core\Bytes::Source` whole at the
-  call through `range()` (`nvs_stdlib::extension_source_range`,
-  `crates/nvs-stdlib/src/byte_source.rs`) and passes `bytes` to a whole-buffer component. Their
-  manifests and WIT do not change.
-- [ ] `extensions/pdf/nvs/Reader.nvs:21`, `extensions/pdf/nvs/Pages.nvs:15`: `Reader::open` and
-  `Pages::of` take `Core\Bytes::Source`, and their text results are contagious, as the
-  spreadsheet reader's are (decision 19).
-- [ ] `extensions/image/nvs/Image.nvs:64`, `:332`: `open`, `info`, `hash`, `placeholder`,
-  `palette` and `compare` take `Core\Bytes::Source`; `open` reads at the call, since `Image` is
-  lazy.
-- [ ] `crates/nvs-cli/tests/meta.rs:293`: the pinned `info(bytes $data)`, and the `pdf-file` and
-  `image-file` tests.
-- [ ] `docs/rules/core-classes/pdf-roster.md:22` quotes the new signatures.
+- [ ] `Core\IO\File::readBytes`. `docs/examples/core/IO-File/readBytes/about.md:1`
+- [ ] `Core\IO::readBytes`, and `docs/reference/core/IO.md` names it. `docs/examples/core/IO/readBytes/about.md:1`
+- [ ] `Core\IO::stdinStream`. `docs/examples/core/IO/stdinStream/about.md:1`
+- [ ] `Core\Request\Part::peek`, with a binary `.nvsr` upload. `docs/examples/core/Request-Part/peek/about.md:1`
+- [ ] `Core\Request\BodyStream::peek`, with a `.nvsr` body. `docs/examples/core/Request-BodyStream/peek/about.md:1`
+- [ ] The aliases' proofs, as stage 2's roster item decided. `docs/examples/types/Bytes-Source/about.md:1`
+- [ ] `bun nv proofs --comments` over every new `.nvs`, each line it names rewritten. `docs/agent/prose.md:1`
 
-Stages 10 and 11 follow; stage 10 is split into one writing subagent per member.
+Each subagent's brief: `bun nv proofs --id '<feature>'` prints what it owes and each path, and
+every `.nvs` and `about.md` follows AGENTS.md § *Text an end user reads*. Stage 11 follows.
 
 ### Backlog
 
+- `Image::open` keeps a file or a part until `encode` (decision 23). Reading at `open` needs a
+  way to turn a source into `bytes` inside a component's Novis half that is not a `Core` member.
 - `Pdf\Document::asset`, `Spreadsheet\Sheet::image`, `Font::fromBytes`, the image overlay's `font`,
   QR and barcode inputs take `bytes` the program built; they were not judged against the criterion.
 - `Core\Http\Stream` as a source (a download's start, held for a random read) needs the HTTP client's
