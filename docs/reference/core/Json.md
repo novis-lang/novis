@@ -28,12 +28,12 @@ JSON Lines, with one value on each line.
 #[Core\Json\Derive]
 class User
 {
-    public string $name;
+    public tainted string $name;
     public ?int $age;
     #[Core\Json\Field(name: 'is_admin')]
     public bool $admin;
 
-    public function constructor(string $name, ?int $age, bool $admin)
+    public function constructor(tainted string $name, ?int $age, bool $admin)
     {
         $this->name = $name;
         $this->age = $age;
