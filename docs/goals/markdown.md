@@ -458,11 +458,22 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
 
 **Gate:** `crates/nvs-stdlib/src/byte_source.rs` exists (decision 13).
 
-- [ ] The block-group splitter and its boundary rules (decision 7). `crates/nvs-stdlib/src/markdown.rs:1`
+- [x] The block-group splitter and its boundary rules (decision 7). `crates/nvs-stdlib/src/markdown.rs:1`
+  - [x] `Renderer` borrows the text and the callbacks, and everything it builds is a `State`.
+  - [x] `group_ends` and `take_group` cut the one walk at each top-level end where nothing is open.
+  - [x] `groups::Balance` reads raw HTML and keeps a group open while an element it opened is open.
+  - [x] `groups::Written` rebuilds a later group behind the first group's doctype and `<body>`.
 - [ ] `toHtmlEach` over a source: a file read twice, any other source held whole.
   `crates/nvs-stdlib/src/byte_source.rs:1`
+  - [ ] An engine patch: a `Parser` takes the definitions read outside its text, and they win.
+  - [ ] A file is read in segments cut before each segment's last top-level block, twice.
+  - [ ] The walk is filed on the request, as `decodeEach`'s is, with its class and its row.
+  - [ ] The conformance case and the reference page's section.
 - [ ] The three tests of the `chunks` check. The equality test runs over every spec example and every
   catalogue entry. `crates/nvs-stdlib/src/markdown.rs:1`
+  - [x] `rendering_in_chunks_gives_the_same_html_as_the_whole_document` passes.
+  - [x] `an_unclosed_raw_html_element_keeps_its_blocks_in_one_group` passes.
+  - [ ] `to_html_each_holds_one_block_group_of_a_file_not_the_document`.
 
 ### 6. Core\Markdown\Live renders text that arrives in pieces
 
@@ -529,42 +540,55 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 4 is done in one commit (`23e26c5a`). Stage 5 is next, and its gate holds:
-`crates/nvs-stdlib/src/byte_source.rs` exists.
-
-- **`toHtml` takes `link`, `image`, `heading` and `code` by name**, each `?callable` with a `null`
-  default, as `Core\Heap`'s constructor writes its comparator. The renderer sees them through the
-  `Callbacks` trait (`crates/nvs-stdlib/src/markdown/callbacks.rs`). `Callables` calls the program's
-  callables, and `NoCallbacks` is what `rendered` passes. `rendered_with` and `tree_with`
-  (`crates/nvs-stdlib/src/markdown.rs:1000`) take the trait, and the first fault a callback raises
-  ends the render.
-- **The `code` result is not rebuilt.** The handoff recommended rebuilding it. Decision 6 says the
-  `Markup` is used as it is, and a rebuild would remove a highlighter's `style`, which stage 11's guide
-  needs. The renderer writes a random per-render token in its place, and `Trusted::spliced` writes the
-  fragment after the rebuild. `rule:core-classes/markdown-to-html` records this with its Declined line.
-- **The four `callbacks` tests pass**, each run once by name, and
-  `tests/conformance/core/markdown-to-html-calls-each-callback-a-program-passes.nvst` passes on the
-  debug binary. `docs/reference/core/Markdown.md` has a callbacks section. `bun nv reference` runs its
-  examples on `target/release/nvs`, which predates `Core\Markdown` until the goal end rebuilds it.
-- **The sweep reds were stale a third time.** No `env-secret-proofs` check log exists, and
-  `f13f4064` ignores the three Miri timeouts of run `42201104003` under Miri.
+Stage 5's splitter is in, in one commit. The member over a source is next.
+- **One walk, cut where nothing is open.** `groups::grouped_with`
+  (`crates/nvs-stdlib/src/markdown/groups.rs:428`) runs the one `Renderer` over the whole text, as
+  `tree_with` does, and takes a group out at each event where `group_ends`
+  (`crates/nvs-stdlib/src/markdown.rs:1000`) holds. The budget, footnote numbers and definitions and
+  `line_start` stay in the renderer, so a group is the slice of the whole tree between two cuts, and
+  footnotes are the last group. Only tests call it yet, under an `expect(dead_code)`.
+- **`Renderer` is now a borrow of the text and the callbacks over an owned `State`**
+  (`crates/nvs-stdlib/src/markdown.rs:363`), reached through `Deref`. So a lazy walk can file the
+  `State` on the request and rebuild a `Renderer` around it at each `advance()`.
+- **Raw HTML decides the cuts.** `groups::Balance` tokenizes each raw piece outside footnote
+  definitions. It errs toward one group: an end tag closes only the innermost element it names, and a
+  tag, comment or raw-text element that Markdown output interrupts stops every later cut.
+  `groups::Written` rebuilds a later group behind the first group's doctype and `<body>`, keeping its
+  leading whitespace. `rule:core-classes/markdown-chunks` says both.
+- **Two of the three `chunks` tests pass**, each run once by name, over every spec example and
+  every to-html catalogue entry. `toHtml` now rebuilds for raw HTML in a footnote only when footnotes
+  are written, and counts the footnote section one level deeper; unverified until the gate.
+- **The sweep reds were stale a fourth time**: no `env-secret-proofs` check exists, and `f13f4064`
+  postdates nightly run `42201104003`.
 
 ### Next
 
-**Stage 5**, `toHtmlEach` over a source, by decision 7. Write the checkpoints under its three items
-first.
+The rest of stage 5. Its checkpoints are under items 2 and 3.
 
-- [ ] The block-group splitter, over `tree_with`'s loop. `crates/nvs-stdlib/src/markdown.rs:1000`
-  It reads the engine's top-level events with their ranges and ends a group only where decision 7
-  allows. A group renders through the same `Renderer`, so the callbacks reach it too.
-- [ ] The source half. `crates/nvs-stdlib/src/byte_source.rs:81` is `ByteSource`, and
-  `for_each_chunk` (`:493`) and `Reader` (`:531`) read it. `Core\Json::decodeEach`
-  (`crates/nvs-stdlib/src/json/each.rs:697`, its row at `crates/nvs-stdlib/src/json.rs:460`) is the
-  model for the row and the iterable answer.
-- [ ] References and footnotes, from `Renderer::finish`. `crates/nvs-stdlib/src/markdown.rs:925`
-  A file is read twice, once for the definitions. Every other source is held whole. Footnotes are
-  written after the last group.
-- [ ] The three tests of the `chunks` check. `crates/nvs-stdlib/src/markdown/tests.rs:1`
+- [ ] **The engine patch.** `vendor/pulldown-cmark/src/parse.rs:331` is `fetch_link_type_url_title`,
+  and `:793` is where a footnote reference checks `footdefs`. Add one `Outside` the parser takes:
+  the whole document's reference definitions, first one winning, consulted *before* the parser's own,
+  and the footnote labels. Carry the engine's `link_ref_expansion_limit` fuel in it too, so the fuel is
+  the document's and not each segment's. Record the patch in the engine paragraph of
+  `docs/rules/core-classes/markdown-to-html.md:90`.
+- [ ] **A file in segments, twice.** `crates/nvs-stdlib/src/byte_source.rs:81` is the source. Pass 1 reads the definitions from each segment's first pass
+  alone, with no inline parse. Pass 2 renders. Cut a segment at the end of its second-to-last
+  top-level block, moved to the next line start. That keeps a trailing reference definition, whose
+  title may be on the next line, in the next segment. Parse again only when the buffer has doubled
+  since the last parse, so one huge block costs linear work. A patched `Parser` method that returns
+  the top-level block ranges from the first pass gives the cut without an inline parse. Carry a
+  trailing `\r` and an unfinished UTF-8 sequence across reads, and strip the byte-order mark only at
+  the start.
+- [ ] **The member**, on `Core\Json::decodeEach`'s model (`crates/nvs-stdlib/src/json/each.rs:697`,
+  its row at `crates/nvs-stdlib/src/json.rs:460`). It returns `iterable<Core\Html\Markup>`, with a new
+  class for the walk. A new class trips three closed lists (the playbook's *A new `Core` class* bullet).
+  Every source but a file is read whole with `ByteSource`, then walked in the same segments with one
+  set of definitions. The walk files `State`, the source and the text still unread. A callback runs
+  inside `advance()`.
+- [ ] `crates/nvs-stdlib/src/markdown/tests.rs:1` gets
+  `to_html_each_holds_one_block_group_of_a_file_not_the_document`. Use a file of many groups, and check that the most
+  bytes held stays near one group plus the definitions. A conformance case, and a section of
+  `docs/reference/core/Markdown.md`.
 
 Expected red: the floor check `proofs-gate`, since `Core\Markdown::toHtml` owes its feature proofs
 until stage 10 writes them. Stages 7 and 8 may run as a side goal (decision 12).
@@ -579,3 +603,6 @@ until stage 10 writes them. Stages 7 and 8 may run as a side goal (decision 12).
   CVE-2023-22483, md4c's issue 172, and comrak's GHSA-j7hq-qg5v-47jq, which was left out.
 - The footnote patch writes an undefined label as its source text, so `[^a\_b]` keeps its
   backslash. Stage 9's differential fuzz triages what cmark-gfm writes there.
+- `groups::Balance` keeps a group open after `<p>` and other elements the parser closes on its own.
+  A document with many unclosed `<p>` tags in raw HTML is then one group. That is correct, and costs
+  memory only for such a document.

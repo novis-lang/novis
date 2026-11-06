@@ -67,6 +67,14 @@ use callbacks::{Answer, Callables, Callbacks, NoCallbacks, Trusted, given};
 
 mod autolink;
 pub(crate) mod callbacks;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the tests call it until `toHtmlEach` is registered"
+    )
+)]
+mod groups;
 
 /// `Core\Markdown`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
@@ -331,9 +339,31 @@ struct Table {
 /// `stack[0]` is the document. Every start event pushes a node and its end
 /// event pops it into its parent. A [`Kind::Document`] node is a link that is
 /// written as its text: its children join the parent.
+///
+/// It borrows the text being read and the callbacks, and everything it builds
+/// is its [`State`], which it reaches through `Deref`.
 struct Renderer<'a, 'h> {
     text: &'a str,
     hooks: &'h mut dyn Callbacks,
+    state: State,
+}
+
+impl std::ops::Deref for Renderer<'_, '_> {
+    type Target = State;
+
+    fn deref(&self) -> &State {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for Renderer<'_, '_> {
+    fn deref_mut(&mut self) -> &mut State {
+        &mut self.state
+    }
+}
+
+/// What a [`Renderer`] has built, which borrows nothing.
+struct State {
     /// What the first callback that failed raised. No callback runs after it,
     /// and [`tree`] stops reading.
     fault: Option<Fault>,
@@ -371,13 +401,22 @@ struct Renderer<'a, 'h> {
     links: usize,
     /// Whether the text being read is a code block's.
     code: bool,
+    /// How many of the engine's start events are open. A block group can end
+    /// only where it is `0`.
+    depth: usize,
+    /// The raw HTML of the group being read, outside footnote definitions.
+    balance: groups::Balance,
+    /// Whether a footnote definition holds raw HTML.
+    notes_raw: bool,
+    /// The deepest the footnote section will be, counted where each
+    /// definition is read: one level deeper than there, under its `ol`.
+    notes_deepest: usize,
 }
 
-impl<'a, 'h> Renderer<'a, 'h> {
-    fn new(text: &'a str, hooks: &'h mut dyn Callbacks) -> Self {
+impl State {
+    /// An empty document that may add `budget` bytes of output.
+    fn new(budget: usize) -> Self {
         Self {
-            text,
-            hooks,
             fault: None,
             trusted: Trusted::default(),
             language: None,
@@ -385,7 +424,7 @@ impl<'a, 'h> Renderer<'a, 'h> {
             deepest: 1,
             raw: false,
             line_start: true,
-            budget: text.len().saturating_add(ADDED_OUTPUT_SLACK),
+            budget,
             skipping: 0,
             image: None,
             table: None,
@@ -396,6 +435,22 @@ impl<'a, 'h> Renderer<'a, 'h> {
             pending: String::new(),
             links: 0,
             code: false,
+            depth: 0,
+            balance: groups::Balance::default(),
+            notes_raw: false,
+            notes_deepest: 0,
+        }
+    }
+}
+
+impl<'a, 'h> Renderer<'a, 'h> {
+    /// A renderer over the whole document `text`.
+    fn new(text: &'a str, hooks: &'h mut dyn Callbacks) -> Self {
+        let budget = text.len().saturating_add(ADDED_OUTPUT_SLACK);
+        Self {
+            text,
+            hooks,
+            state: State::new(budget),
         }
     }
 
@@ -459,6 +514,9 @@ impl<'a, 'h> Renderer<'a, 'h> {
         node.attributes = attributes;
         self.stack.push(node);
         self.deepest = self.deepest.max(self.stack.len());
+        if !self.defining.is_empty() {
+            self.notes_deepest = self.notes_deepest.max(self.stack.len() + 1);
+        }
         self.line_start = false;
     }
 
@@ -505,7 +563,12 @@ impl<'a, 'h> Renderer<'a, 'h> {
 
     /// `html` appended as source, which forces the rebuild.
     fn write_raw(&mut self, html: &str) {
-        self.raw = true;
+        if self.defining.is_empty() {
+            self.raw = true;
+            self.balance.feed(html);
+        } else {
+            self.notes_raw = true;
+        }
         self.line_start = html.ends_with('\n');
         let top = self.top();
         if let Some(last) = top.children.last_mut()
@@ -540,6 +603,14 @@ impl<'a, 'h> Renderer<'a, 'h> {
     fn event(&mut self, event: Event<'_>, range: Range<usize>) {
         if !matches!(event, Event::Text(_)) {
             self.flush();
+        }
+        match event {
+            Event::Start(_) => self.depth += 1,
+            Event::End(_) => self.depth -= 1,
+            _ => {}
+        }
+        if !matches!(event, Event::Html(_) | Event::InlineHtml(_)) {
+            self.balance.interrupt();
         }
         if self.skipping > 0 {
             match event {
@@ -664,7 +735,8 @@ impl<'a, 'h> Renderer<'a, 'h> {
                 self.open("li", Vec::new());
             }
             Tag::FootnoteDefinition(label) => {
-                self.defining.push((label.into_string(), self.line_start));
+                let line_start = self.line_start;
+                self.defining.push((label.into_string(), line_start));
                 self.open("li", Vec::new());
                 self.line_start = false;
             }
@@ -920,6 +992,44 @@ impl<'a, 'h> Renderer<'a, 'h> {
         self.close();
     }
 
+    /// Whether the output so far is a block group that can be written alone
+    /// (`rule:core-classes/markdown-chunks`): every block it opened is
+    /// closed, it is not inside a footnote definition, its raw HTML leaves
+    /// nothing open, and it has written something.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the tests call it until `toHtmlEach` is registered"
+        )
+    )]
+    fn group_ends(&self) -> bool {
+        self.depth == 0
+            && self.stack.len() == 1
+            && self.skipping == 0
+            && self.image.is_none()
+            && self.defining.is_empty()
+            && self.balance.closed()
+            && !self.stack[0].children.is_empty()
+    }
+
+    /// The group [`Self::group_ends`] found, taken out of the tree: its
+    /// nodes, whether it must be rebuilt, and the `code` results it names.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the tests call it until `toHtmlEach` is registered"
+        )
+    )]
+    fn take_group(&mut self) -> (Parsed, bool, Trusted) {
+        let tree = std::mem::replace(&mut self.stack[0], Parsed::new(Kind::Document));
+        let rebuild = self.raw || self.deepest + 2 >= OPEN_ELEMENTS_CAP;
+        self.raw = false;
+        self.deepest = 1;
+        (tree, rebuild, std::mem::take(&mut self.trusted))
+    }
+
     /// The tree with its footnotes written after it, whether it must be
     /// rebuilt before it is written, and the `code` results its tokens name.
     fn finish(mut self) -> (Parsed, bool, Trusted) {
@@ -933,7 +1043,8 @@ impl<'a, 'h> Renderer<'a, 'h> {
             .enumerate()
             .filter_map(|(at, label)| self.definitions.remove(label).map(|item| (at + 1, item)))
             .collect();
-        if !notes.is_empty() {
+        let has_notes = !notes.is_empty();
+        if has_notes {
             self.cr();
             self.void("hr", Vec::new());
             self.write("\n");
@@ -967,12 +1078,12 @@ impl<'a, 'h> Renderer<'a, 'h> {
             self.write("\n");
             // The list sits two levels below the document, and each item's
             // own content below that.
-            self.deepest = self.deepest.max(3);
+            self.deepest = self.deepest.max(3).max(self.notes_deepest);
         }
         let deep = self.deepest + 2 >= OPEN_ELEMENTS_CAP;
-        let raw = self.raw;
+        let raw = self.raw || (self.notes_raw && has_notes);
         let tree = self.stack.pop().expect("the document node");
-        (tree, raw || deep, self.trusted)
+        (tree, raw || deep, std::mem::take(&mut self.trusted))
     }
 }
 

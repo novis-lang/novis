@@ -7,6 +7,12 @@ code block, an HTML block of types 1 to 5, an unclosed raw HTML element, or a li
 document that keeps one open, such as one huge list, becomes one larger group: correctness first.
 `rendering_in_chunks_gives_the_same_html_as_the_whole_document` is the acceptance.
 
+**Raw HTML is read with a tokenizer that errs toward one group.** It keeps the elements raw HTML
+opened, and an end tag closes only the innermost one it names. A comment, a raw-text element or a tag
+left unfinished when Markdown output follows ends every later boundary. A group after the first is
+rebuilt behind the first group's leading doctype and a `<body>` tag, with its leading whitespace kept,
+so the parser reads it in the mode and place the whole document's parse did.
+
 **References may be defined after their first use.** A `Core\IO\File` is read twice: once to collect
 the reference definitions, once to render. Every other source is read once and held whole under the
 request's memory cap, as a random read of an upload part already is. Footnotes are written at the end,

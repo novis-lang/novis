@@ -669,3 +669,109 @@ fn a_code_callback_replaces_a_fenced_block() {
     assert!(!out.contains("onclick"), "the document is rebuilt: {out}");
     assert!(!out.contains('\u{E000}'), "no token is left: {out}");
 }
+
+/// `markdown` written one block group at a time.
+fn grouped(markdown: &str) -> Vec<String> {
+    groups::grouped_with(markdown, "a test", &mut NoCallbacks).expect("no limit in a test")
+}
+
+/// Every to-html entry of the known-bug catalogue, as its id and its input
+/// with `repeat` written `n` times.
+fn catalogue_inputs(n: usize) -> Vec<(String, String)> {
+    let path = format!(
+        "{}/../../tests/data/markdown/known-bugs.toml",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
+    let catalogue: toml::Table = toml::from_str(&text).unwrap_or_else(|e| panic!("{path}: {e}"));
+    let field = |bug: &toml::Table, key: &str| {
+        bug.get(key)
+            .and_then(toml::Value::as_str)
+            .unwrap_or("")
+            .to_owned()
+    };
+    catalogue["bug"]
+        .as_array()
+        .expect("`bug` is an array of tables")
+        .iter()
+        .filter_map(toml::Value::as_table)
+        .filter(|bug| field(bug, "direction") == "to-html")
+        .map(|bug| {
+            let text =
+                field(bug, "input") + &field(bug, "repeat").repeat(n) + &field(bug, "suffix");
+            (field(bug, "id"), text)
+        })
+        .collect()
+}
+
+/// `rule:core-classes/markdown-chunks`' acceptance: the groups of every spec
+/// example and every catalogued input join to the whole document's HTML.
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "reads the spec files, which Miri's isolation does not allow"
+)]
+fn rendering_in_chunks_gives_the_same_html_as_the_whole_document() {
+    let mut inputs: Vec<(String, String)> = examples("commonmark-0.31.2.txt")
+        .into_iter()
+        .map(|example| (format!("commonmark {}", example.number), example.markdown))
+        .chain(
+            examples("gfm-0.29.txt")
+                .into_iter()
+                .map(|example| (format!("gfm {}", example.number), example.markdown)),
+        )
+        .collect();
+    inputs.extend(catalogue_inputs(64));
+    inputs.extend(
+        [
+            "a[^1]\n\n<div>\n\nb\n\n</div>\n\n[^1]: <span>note</span>\n\nc [x]\n\n[x]: /u\n",
+            "<!DOCTYPE html>\n<p>a\n\n# b\n\n<table><tr><td>c</td></tr></table>\n",
+            "# a\n\n  <!-- c -->\n\n<p>x <table>\n\n- b\n- c\n\n<script>\n\nd\n</script>\n\ne\n",
+            "x <span a=\"1>2\">y\n\nz</span>\n\nw <!-- open\n\nq -->\n\nend\n",
+        ]
+        .map(|text| ("inline".to_owned(), text.to_owned())),
+    );
+    let mut split = 0;
+    let report: Vec<String> = inputs
+        .iter()
+        .filter_map(|(id, markdown)| {
+            let whole = rendered(markdown, "a test").expect("no limit in a test");
+            let groups = grouped(markdown);
+            split += usize::from(groups.len() > 1);
+            let joined = groups.concat();
+            (joined != whole)
+                .then(|| format!("{id} {markdown:?}\n  whole  {whole:?}\n  groups {groups:?}"))
+        })
+        .collect();
+    assert!(
+        report.is_empty(),
+        "{} input(s):\n{}",
+        report.len(),
+        report.join("\n")
+    );
+    assert!(split > 100, "only {split} inputs had more than one group");
+}
+
+/// A raw HTML element that is still open keeps the blocks after it in its
+/// group, up to the block that closes it.
+#[test]
+fn an_unclosed_raw_html_element_keeps_its_blocks_in_one_group() {
+    let groups = grouped("<div>\n\n# a\n\npara\n\n</div>\n\nafter\n");
+    assert_eq!(groups.len(), 2, "{groups:?}");
+    assert!(
+        groups[0].contains("<h1>a</h1>") && groups[0].contains("</div>"),
+        "{groups:?}"
+    );
+    assert_eq!(groups[1], "<p>after</p>\n");
+
+    let groups = grouped("a <span>b\n\nc\n\nd</span>\n\ne\n");
+    assert_eq!(groups.len(), 2, "{groups:?}");
+    assert!(groups[0].contains("<p>c</p>"), "{groups:?}");
+
+    let groups = grouped("# a\n\nb\n\n- c\n");
+    assert_eq!(
+        groups.len(),
+        3,
+        "a document with no raw HTML ends a group at each block: {groups:?}"
+    );
+}

@@ -2159,6 +2159,15 @@ fn verdict(node: &Parsed) -> Verdict {
 /// Iterative for [`Step`]'s reason: the tree under it is a parse's, so it is
 /// [`DEPTH_CEILING`] deep at its deepest.
 pub(crate) fn rebuilt(tree: &Parsed) -> Parsed {
+    let mut built = rebuilt_in_body(tree);
+    without_leading_whitespace(&mut built);
+    built
+}
+
+/// [`rebuilt`] for a document that continues one written before it, so the
+/// whitespace it starts with is kept. `Core\Markdown::toHtmlEach` rebuilds
+/// each block group after the first with it.
+pub(crate) fn rebuilt_in_body(tree: &Parsed) -> Parsed {
     let mut stack = vec![(tree.children.iter(), Parsed::new(Kind::Document))];
     loop {
         let next = stack
@@ -2179,9 +2188,8 @@ pub(crate) fn rebuilt(tree: &Parsed) -> Parsed {
             }
             continue;
         }
-        let (_, mut built) = stack.pop().expect("the frame just read to its end");
+        let (_, built) = stack.pop().expect("the frame just read to its end");
         let Some(parent) = stack.last_mut() else {
-            without_leading_whitespace(&mut built);
             return built;
         };
         if built.kind == Kind::Document {
