@@ -42,6 +42,9 @@
 //! - **GFM's extended autolinks** ([`autolink`]) are found in each run of
 //!   text outside a link and a code block.
 //! - **Added output has a budget** ([`ADDED_OUTPUT_SLACK`]).
+//! - **Four callbacks** ([`callbacks`]) change a link's or an image's URL, set
+//!   a heading's `id` and replace a fenced block. A URL a callback returns
+//!   passes [`url_allowed`] too, and an `id` passes the sanitizer's test.
 //!
 //! **What it spends:** the prepared text when it differs from the input, the
 //! output tree, the footnote definitions until the end, and the answer's
@@ -56,12 +59,14 @@ use pulldown_cmark::{Alignment, CodeBlockKind, Event, LinkType, Options, Parser,
 
 use crate::html::{
     MARKUP, MARKUP_NAME, OPEN_ELEMENTS_CAP, RAW_SOURCE, addressable, bounded, language_class,
-    rebuilt, source,
+    markdown_id, rebuilt, source,
 };
-use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+use crate::registry::{ClassDoc, Const, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
 use crate::xml::{Kind, Parsed};
+use callbacks::{Answer, Callables, Callbacks, NoCallbacks, Trusted, given};
 
 mod autolink;
+pub(crate) mod callbacks;
 
 /// `Core\Markdown`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
@@ -77,9 +82,27 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     doc: Some(&CARD),
     methods: &[CoreMethod {
         name: "toHtml",
-        names: &["markdown"],
-        params: &[CoreTy::Text(Qual::Launder)],
-        defaults: &[],
+        names: &["markdown", "link", "image", "heading", "code"],
+        params: &[
+            CoreTy::Text(Qual::Launder),
+            CoreTy::Nullable(&CoreTy::CallableSig(
+                &[CoreTy::Str],
+                &CoreTy::Nullable(&CoreTy::Str),
+            )),
+            CoreTy::Nullable(&CoreTy::CallableSig(
+                &[CoreTy::Str],
+                &CoreTy::Nullable(&CoreTy::Str),
+            )),
+            CoreTy::Nullable(&CoreTy::CallableSig(
+                &[CoreTy::Int, CoreTy::Str],
+                &CoreTy::Nullable(&CoreTy::Str),
+            )),
+            CoreTy::Nullable(&CoreTy::CallableSig(
+                &[CoreTy::Str, CoreTy::Str],
+                &CoreTy::Nullable(&CoreTy::Instance(MARKUP_NAME)),
+            )),
+        ],
+        defaults: &[Const::Null, Const::Null, Const::Null, Const::Null],
         return_ty: CoreTy::Instance(MARKUP_NAME),
         symbol: "nvs_core_markdown_to_html",
         doc: Some(&TO_HTML_DOC),
@@ -92,16 +115,47 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 const TO_HTML_DOC: MethodDoc = MethodDoc {
     short: "Converts the Markdown document `$markdown` to HTML. The result is safe to write \
             into a page, even when the document comes from a user.",
-    params: &[ParamDoc {
-        name: "markdown",
-        desc: "The Markdown document. Any text is a valid document, so this method never \
-               throws an error.",
-        shape: &[],
-    }],
+    params: &[
+        ParamDoc {
+            name: "markdown",
+            desc: "The Markdown document. Any text is a valid document.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "link",
+            desc: "A function that gets each link's URL and returns the URL to write. If it \
+                   returns `null`, the link is removed and its text stays. The URL it returns \
+                   is checked like a URL in the document.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "image",
+            desc: "A function that gets each image's URL and returns the URL to write. If it \
+                   returns `null`, the image is removed. The URL it returns is checked like a \
+                   URL in the document.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "heading",
+            desc: "A function that gets each heading's level and text and returns its `id`. \
+                   The `id` is written after `md-`, so `intro` gives `md-intro`. If it returns \
+                   `null`, or an `id` with a space, the heading has no `id`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "code",
+            desc: "A function that gets the language and the text of each fenced code block \
+                   that names a language. The `Core\\Html\\Markup` it returns replaces the \
+                   block, exactly as it is. If it returns `null`, the block is written as usual. \
+                   Use it for syntax highlighting, math or diagrams.",
+            shape: &[],
+        },
+    ],
     ret: "A `Core\\Html\\Markup` with the document's HTML. HTML inside the document is \
           cleaned the same way `Core\\Html::sanitize` cleans it. A link with an unsafe URL, \
           such as `javascript:`, is written as plain text. An image with an unsafe URL is \
-          removed.",
+          removed. If a callback throws an error, the conversion stops and your code gets \
+          that error.",
     errors: &[],
 };
 
@@ -277,8 +331,17 @@ struct Table {
 /// `stack[0]` is the document. Every start event pushes a node and its end
 /// event pops it into its parent. A [`Kind::Document`] node is a link that is
 /// written as its text: its children join the parent.
-struct Renderer<'a> {
+struct Renderer<'a, 'h> {
     text: &'a str,
+    hooks: &'h mut dyn Callbacks,
+    /// What the first callback that failed raised. No callback runs after it,
+    /// and [`tree`] stops reading.
+    fault: Option<Fault>,
+    /// The `code` results, and the tokens written in their place.
+    trusted: Trusted,
+    /// The language of the fenced block being read, when the `code`
+    /// callback runs for it.
+    language: Option<String>,
     stack: Vec<Parsed>,
     /// The deepest the stack has been, to compare with [`OPEN_ELEMENTS_CAP`].
     deepest: usize,
@@ -310,10 +373,14 @@ struct Renderer<'a> {
     code: bool,
 }
 
-impl<'a> Renderer<'a> {
-    fn new(text: &'a str) -> Self {
+impl<'a, 'h> Renderer<'a, 'h> {
+    fn new(text: &'a str, hooks: &'h mut dyn Callbacks) -> Self {
         Self {
             text,
+            hooks,
+            fault: None,
+            trusted: Trusted::default(),
+            language: None,
             stack: vec![Parsed::new(Kind::Document)],
             deepest: 1,
             raw: false,
@@ -332,6 +399,29 @@ impl<'a> Renderer<'a> {
         }
     }
 
+    /// What `call` returns from the callbacks, or [`Answer::Default`] once a
+    /// callback has failed, keeping that fault.
+    fn ask(&mut self, call: impl FnOnce(&mut dyn Callbacks) -> Result<Answer, Fault>) -> Answer {
+        if self.fault.is_some() {
+            return Answer::Default;
+        }
+        call(&mut *self.hooks).unwrap_or_else(|fault| {
+            self.fault = Some(fault);
+            Answer::Default
+        })
+    }
+
+    /// The URL to write for a link to `url`, after the `link` callback and
+    /// [`url_allowed`], or `None` when the link is written as its text.
+    fn link_url(&mut self, url: String) -> Option<String> {
+        let url = match self.ask(|hooks| hooks.link(&url)) {
+            Answer::Default => url,
+            Answer::Null => return None,
+            Answer::Value(changed) => changed,
+        };
+        url_allowed(&url).then(|| encoded_href(&url))
+    }
+
     /// The pending text written, with each extended autolink in it as a link.
     fn flush(&mut self) {
         if self.pending.is_empty() {
@@ -342,8 +432,8 @@ impl<'a> Renderer<'a> {
         for span in autolink::spans(&text) {
             self.write(&text[done..span.range.start]);
             let shown = &text[span.range.clone()];
-            if url_allowed(&span.url) {
-                self.open("a", vec![("href".to_owned(), encoded_href(&span.url))]);
+            if let Some(href) = self.link_url(span.url) {
+                self.open("a", vec![("href".to_owned(), href)]);
                 self.write(shown);
                 self.close();
             } else {
@@ -552,6 +642,9 @@ impl<'a> Renderer<'a> {
                     if language_class(&class) {
                         attributes.push(("class".to_owned(), class));
                     }
+                    if !language.is_empty() && self.hooks.wants_code() {
+                        self.language = Some(language.to_owned());
+                    }
                 }
                 self.open("code", attributes);
                 self.code = true;
@@ -631,8 +724,8 @@ impl<'a> Renderer<'a> {
                 } else {
                     dest_url.into_string()
                 };
-                if url_allowed(&url) {
-                    let mut attributes = vec![("href".to_owned(), encoded_href(&url))];
+                if let Some(href) = self.link_url(url) {
+                    let mut attributes = vec![("href".to_owned(), href)];
                     if !title.is_empty() {
                         attributes.push(("title".to_owned(), title.into_string()));
                     }
@@ -651,9 +744,16 @@ impl<'a> Renderer<'a> {
                     self.as_source(range);
                     return;
                 }
+                let url = match self.ask(|hooks| hooks.image(&dest_url)) {
+                    Answer::Default => Some(dest_url.into_string()),
+                    Answer::Null => None,
+                    Answer::Value(changed) => Some(changed),
+                };
                 self.image = Some(Image {
                     depth: 1,
-                    src: url_allowed(&dest_url).then(|| encoded_href(&dest_url)),
+                    src: url
+                        .filter(|url| url_allowed(url))
+                        .map(|url| encoded_href(&url)),
                     title: title.into_string(),
                     alt: String::new(),
                 });
@@ -700,7 +800,23 @@ impl<'a> Renderer<'a> {
 
     fn end(&mut self, tag: TagEnd) {
         match tag {
-            TagEnd::Paragraph | TagEnd::Heading(_) | TagEnd::Item | TagEnd::TableRow => {
+            TagEnd::Heading(level) => {
+                if self.hooks.wants_heading() {
+                    let mut text = String::new();
+                    text_of(self.top(), &mut text);
+                    if let Answer::Value(id) =
+                        self.ask(|hooks| hooks.heading(level as usize, &text))
+                    {
+                        let id = format!("md-{id}");
+                        if markdown_id(&id) {
+                            self.top().attributes.push(("id".to_owned(), id));
+                        }
+                    }
+                }
+                self.close();
+                self.write("\n");
+            }
+            TagEnd::Paragraph | TagEnd::Item | TagEnd::TableRow => {
                 self.close();
                 self.write("\n");
             }
@@ -711,8 +827,29 @@ impl<'a> Renderer<'a> {
             }
             TagEnd::CodeBlock => {
                 self.code = false;
-                self.close();
-                self.close();
+                let replaced = match self.language.take() {
+                    Some(language) => {
+                        let mut code = String::new();
+                        text_of(self.top(), &mut code);
+                        match self.ask(|hooks| hooks.code(&language, &code)) {
+                            Answer::Value(html) => Some(html),
+                            Answer::Default | Answer::Null => None,
+                        }
+                    }
+                    None => None,
+                };
+                if let Some(html) = replaced {
+                    self.stack.pop();
+                    self.stack.pop();
+                    let token = self.trusted.token(html);
+                    let mut node = Parsed::new(Kind::Text);
+                    node.text.push_str(&token);
+                    self.top().children.push(node);
+                    self.line_start = false;
+                } else {
+                    self.close();
+                    self.close();
+                }
                 self.write("\n");
             }
             TagEnd::HtmlBlock => self.cr(),
@@ -783,9 +920,9 @@ impl<'a> Renderer<'a> {
         self.close();
     }
 
-    /// The tree with its footnotes written after it, and whether it must be
-    /// rebuilt before it is written.
-    fn finish(mut self) -> (Parsed, bool) {
+    /// The tree with its footnotes written after it, whether it must be
+    /// rebuilt before it is written, and the `code` results its tokens name.
+    fn finish(mut self) -> (Parsed, bool, Trusted) {
         self.flush();
         while self.stack.len() > 1 {
             self.close();
@@ -835,18 +972,41 @@ impl<'a> Renderer<'a> {
         let deep = self.deepest + 2 >= OPEN_ELEMENTS_CAP;
         let raw = self.raw;
         let tree = self.stack.pop().expect("the document node");
-        (tree, raw || deep)
+        (tree, raw || deep, self.trusted)
+    }
+}
+
+/// The character data under `node`, appended to `out`. A [`RAW_SOURCE`]
+/// node is markup, so it adds nothing.
+fn text_of(node: &Parsed, out: &mut String) {
+    for child in &node.children {
+        match child.kind {
+            Kind::Text if child.name.is_empty() => out.push_str(&child.text),
+            Kind::Element | Kind::Document => text_of(child, out),
+            _ => {}
+        }
     }
 }
 
 /// `markdown`'s output tree, and whether it must be rebuilt.
+#[cfg(test)]
 fn tree(markdown: &str) -> (Parsed, bool) {
+    let (tree, rebuild, _) = tree_with(markdown, &mut NoCallbacks).expect("no callbacks");
+    (tree, rebuild)
+}
+
+/// `markdown`'s output tree under `hooks`, whether it must be rebuilt, and
+/// the `code` results it names.
+fn tree_with(markdown: &str, hooks: &mut dyn Callbacks) -> Result<(Parsed, bool, Trusted), Fault> {
     let text = prepared(markdown);
-    let mut renderer = Renderer::new(&text);
+    let mut renderer = Renderer::new(&text, hooks);
     for (event, range) in Parser::new_ext(&text, options()).into_offset_iter() {
         renderer.event(event, range);
+        if let Some(fault) = renderer.fault.take() {
+            return Err(fault);
+        }
     }
-    renderer.finish()
+    Ok(renderer.finish())
 }
 
 /// `markdown` rendered to HTML source, `member` naming the caller in the
@@ -857,23 +1017,39 @@ fn tree(markdown: &str) -> (Parsed, bool) {
 /// A [`Fault::Fatal`] when a document with raw HTML parses to a tree larger
 /// than the request's memory limit allows.
 pub(crate) fn rendered(markdown: &str, member: &str) -> Result<String, Fault> {
-    let (tree, rebuild) = tree(markdown);
+    rendered_with(markdown, member, &mut NoCallbacks)
+}
+
+/// [`rendered`] under `hooks`.
+///
+/// # Errors
+///
+/// [`rendered`]'s, and the fault of the first callback that fails.
+pub(crate) fn rendered_with(
+    markdown: &str,
+    member: &str,
+    hooks: &mut dyn Callbacks,
+) -> Result<String, Fault> {
+    let (tree, rebuild, trusted) = tree_with(markdown, hooks)?;
     let out = source(&tree);
     if !rebuild {
-        return Ok(out);
+        return Ok(trusted.spliced(out));
     }
     drop(tree);
-    Ok(source(&rebuilt(&bounded(&out, member)?)))
+    Ok(trusted.spliced(source(&rebuilt(&bounded(&out, member)?))))
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Markdown::toHtml(tainted string $markdown): Core\Html\Markup` —
-    /// `rule:core-classes/markdown-to-html`'s renderer over a whole document.
+    /// `Core\Markdown::toHtml(tainted string $markdown, ?callable $link,
+    /// ?callable $image, ?callable $heading, ?callable $code):
+    /// Core\Html\Markup` — `rule:core-classes/markdown-to-html`'s renderer
+    /// over a whole document.
     ///
     /// The answer is a carrier for `Core\Html::sanitize`'s reason
     /// (`rule:security/launderer-answers-a-carrier`), and the parse never
-    /// fails: Markdown has no invalid input.
-    fn nvs_core_markdown_to_html(_ctx, args: [1]) {
+    /// fails: Markdown has no invalid input. A callback that throws ends the
+    /// render with its fault.
+    fn nvs_core_markdown_to_html(ctx, args: [5]) {
         // unreachable from source: the parameter is `CoreTy::Text`.
         let Some(markdown) = args[0].as_text() else {
             return Err(Fault::fatal(format!(
@@ -881,7 +1057,14 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             )));
         };
-        let out = rendered(markdown, r"Core\Markdown::toHtml")?;
+        let mut hooks = Callables {
+            ctx,
+            link: given(args[1]),
+            image: given(args[2]),
+            heading: given(args[3]),
+            code: given(args[4]),
+        };
+        let out = rendered_with(markdown, r"Core\Markdown::toHtml", &mut hooks)?;
         Ok(crate::instance::build(&MARKUP, [Value::text(&out)]))
     }
 }

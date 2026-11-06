@@ -378,7 +378,8 @@ fn slow_inputs(n: usize) -> Vec<(String, String)> {
         .filter_map(toml::Value::as_table)
         .filter(|bug| field(bug, "work") == "linear" && field(bug, "direction") == "to-html")
         .map(|bug| {
-            let text = field(bug, "input") + &field(bug, "repeat").repeat(n) + &field(bug, "suffix");
+            let text =
+                field(bug, "input") + &field(bug, "repeat").repeat(n) + &field(bug, "suffix");
             (field(bug, "id"), text)
         })
         .collect()
@@ -425,4 +426,246 @@ fn work_grows_linearly_over_every_catalogued_slow_input() {
         report.len(),
         report.join("\n")
     );
+}
+
+type UrlHook = Box<dyn Fn(&str) -> Answer>;
+type HeadingHook = Box<dyn Fn(usize, &str) -> Answer>;
+type CodeHook = Box<dyn Fn(&str, &str) -> Answer>;
+
+/// The four callbacks as Rust closures, each `None` when the test passes none,
+/// and what each was called with.
+#[derive(Default)]
+struct Hooks {
+    link: Option<UrlHook>,
+    image: Option<UrlHook>,
+    heading: Option<HeadingHook>,
+    code: Option<CodeHook>,
+    calls: Vec<String>,
+}
+
+impl Callbacks for Hooks {
+    fn link(&mut self, url: &str) -> Result<Answer, Fault> {
+        self.calls.push(format!("link {url}"));
+        Ok(self.link.as_ref().map_or(Answer::Default, |link| link(url)))
+    }
+
+    fn image(&mut self, url: &str) -> Result<Answer, Fault> {
+        self.calls.push(format!("image {url}"));
+        Ok(self
+            .image
+            .as_ref()
+            .map_or(Answer::Default, |image| image(url)))
+    }
+
+    fn wants_heading(&self) -> bool {
+        self.heading.is_some()
+    }
+
+    fn heading(&mut self, level: usize, text: &str) -> Result<Answer, Fault> {
+        self.calls.push(format!("heading {level} {text}"));
+        Ok(self
+            .heading
+            .as_ref()
+            .map_or(Answer::Default, |heading| heading(level, text)))
+    }
+
+    fn wants_code(&self) -> bool {
+        self.code.is_some()
+    }
+
+    fn code(&mut self, language: &str, code: &str) -> Result<Answer, Fault> {
+        self.calls.push(format!("code {language} {code:?}"));
+        Ok(self
+            .code
+            .as_ref()
+            .map_or(Answer::Default, |hook| hook(language, code)))
+    }
+}
+
+/// A URL callback that returns `url` whatever it is given.
+fn returning(url: &'static str) -> Option<UrlHook> {
+    Some(Box::new(move |_| Answer::Value(url.to_owned())))
+}
+
+/// `markdown` rendered under `hooks`.
+fn rendered_by(markdown: &str, hooks: &mut Hooks) -> String {
+    rendered_with(markdown, "a test", hooks).expect("no limit in a test")
+}
+
+#[test]
+fn a_link_callback_cannot_produce_a_javascript_url() {
+    let markdown = "[a](https://example.com/a) and www.example.com and <https://example.com/b>\n";
+    let mut hooks = Hooks {
+        link: returning("java\tscript:alert(1)"),
+        ..Hooks::default()
+    };
+    let out = rendered_by(markdown, &mut hooks);
+    assert_eq!(
+        hooks.calls,
+        [
+            "link https://example.com/a",
+            "link http://www.example.com",
+            "link https://example.com/b"
+        ]
+    );
+    assert_eq!(
+        out, "<p>a and www.example.com and https://example.com/b</p>\n",
+        "every link is written as its text"
+    );
+
+    for refused in [
+        "javascript:alert(1)",
+        "%6Aavascript:alert(1)",
+        "//example.org/x",
+    ] {
+        let mut hooks = Hooks {
+            link: returning(refused),
+            ..Hooks::default()
+        };
+        let out = rendered_by("[a](https://example.com/)\n", &mut hooks);
+        assert_eq!(out, "<p>a</p>\n", "{refused} is not written");
+    }
+
+    let mut hooks = Hooks {
+        link: Some(Box::new(|url| {
+            Answer::Value(url.replace("example.com", "example.org"))
+        })),
+        ..Hooks::default()
+    };
+    assert_eq!(
+        rendered_by("[a](https://example.com/x)\n", &mut hooks),
+        "<p><a href=\"https://example.org/x\">a</a></p>\n"
+    );
+    let mut hooks = Hooks {
+        link: Some(Box::new(|_| Answer::Null)),
+        ..Hooks::default()
+    };
+    assert_eq!(
+        rendered_by("[a *b*](https://example.com/x)\n", &mut hooks),
+        "<p>a <em>b</em></p>\n",
+        "`null` keeps the link's text"
+    );
+}
+
+#[test]
+fn an_image_callback_returning_null_removes_the_image() {
+    let mut hooks = Hooks {
+        image: Some(Box::new(|_| Answer::Null)),
+        ..Hooks::default()
+    };
+    let out = rendered_by("a ![a cat](https://example.com/cat.png) b\n", &mut hooks);
+    assert_eq!(hooks.calls, ["image https://example.com/cat.png"]);
+    assert_eq!(out, "<p>a  b</p>\n");
+
+    let mut hooks = Hooks {
+        image: Some(Box::new(|url| {
+            Answer::Value(format!("https://cdn.example.com/{url}"))
+        })),
+        ..Hooks::default()
+    };
+    assert_eq!(
+        rendered_by("![a cat](cat.png)\n", &mut hooks),
+        "<p><img src=\"https://cdn.example.com/cat.png\" alt=\"a cat\"></p>\n"
+    );
+
+    let mut hooks = Hooks {
+        image: returning("javascript:alert(1)"),
+        ..Hooks::default()
+    };
+    assert_eq!(
+        rendered_by("![a cat](cat.png)\n", &mut hooks),
+        "<p></p>\n",
+        "a refused URL removes the image"
+    );
+}
+
+#[test]
+fn a_heading_callback_sets_the_id() {
+    let mut hooks = Hooks {
+        heading: Some(Box::new(|_, text| {
+            Answer::Value(text.to_lowercase().replace(' ', "-"))
+        })),
+        ..Hooks::default()
+    };
+    let out = rendered_by("## Hello *new* `World`\n\nSetext\n===\n", &mut hooks);
+    assert_eq!(
+        hooks.calls,
+        ["heading 2 Hello new World", "heading 1 Setext"]
+    );
+    assert_eq!(
+        out,
+        "<h2 id=\"md-hello-new-world\">Hello <em>new</em> <code>World</code></h2>\n\
+         <h1 id=\"md-setext\">Setext</h1>\n"
+    );
+
+    for answer in [None, Some("a b"), Some("")] {
+        let mut hooks = Hooks {
+            heading: Some(Box::new(move |_, _| {
+                answer.map_or(Answer::Null, |id| Answer::Value(id.to_owned()))
+            })),
+            ..Hooks::default()
+        };
+        assert_eq!(
+            rendered_by("# A\n", &mut hooks),
+            "<h1>A</h1>\n",
+            "{answer:?} writes no `id`"
+        );
+    }
+
+    let mut hooks = Hooks {
+        heading: Some(Box::new(|_, _| {
+            Answer::Value("\"><script>alert(1)</script>".to_owned())
+        })),
+        ..Hooks::default()
+    };
+    assert_eq!(
+        rendered_by("# A\n\n<div>raw</div>\n", &mut hooks),
+        "<h1 id=\"md-&quot;><script>alert(1)</script>\">A</h1>\n<div>raw</div>\n",
+        "the `id` stays one attribute value through the rebuild"
+    );
+}
+
+#[test]
+fn a_code_callback_replaces_a_fenced_block() {
+    const HIGHLIGHTED: &str =
+        "<pre class=\"hl\"><span style=\"color:red\">fn</span> main() {}</pre>";
+    let mut hooks = Hooks {
+        code: Some(Box::new(|language, _| {
+            if language == "rust" {
+                Answer::Value(HIGHLIGHTED.to_owned())
+            } else {
+                Answer::Null
+            }
+        })),
+        ..Hooks::default()
+    };
+    let markdown =
+        "```rust\nfn main() {}\n```\n\n```text\nplain\n```\n\n    indented\n\n```\nbare\n```\n";
+    let out = rendered_by(markdown, &mut hooks);
+    assert_eq!(
+        hooks.calls,
+        ["code rust \"fn main() {}\\n\"", "code text \"plain\\n\""],
+        "only a fenced block that names a language reaches the callback"
+    );
+    assert_eq!(
+        out,
+        format!(
+            "{HIGHLIGHTED}\n<pre><code class=\"language-text\">plain\n</code></pre>\n\
+             <pre><code>indented\n</code></pre>\n<pre><code>bare\n</code></pre>\n"
+        ),
+        "`null` keeps the default block"
+    );
+
+    // Raw HTML elsewhere sends the document through the sanitizer's rebuild,
+    // which would remove the `style`. The `Markup` is written as it is.
+    let out = rendered_by(
+        "<div onclick=\"x\">raw</div>\n\n```rust\nfn main() {}\n```\n",
+        &mut hooks,
+    );
+    assert!(
+        out.contains(HIGHLIGHTED),
+        "the fragment is unchanged: {out}"
+    );
+    assert!(!out.contains("onclick"), "the document is rebuilt: {out}");
+    assert!(!out.contains('\u{E000}'), "no token is left: {out}");
 }

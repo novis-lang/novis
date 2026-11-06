@@ -1972,7 +1972,7 @@ const CHECKED: &[(&str, &str, ValueTest)] = &[
 
 /// Whether `value` is an `id` Markdown writes: `md-` and at least one more
 /// character, none of them whitespace, which an `id` may not hold.
-fn markdown_id(value: &str) -> bool {
+pub(crate) fn markdown_id(value: &str) -> bool {
     value
         .strip_prefix("md-")
         .is_some_and(|rest| !rest.is_empty() && !rest.contains(|ch: char| ch.is_ascii_whitespace()))

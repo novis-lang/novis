@@ -61,6 +61,19 @@ an attribute value is escaped by the same code, and a heading's text cannot beco
   the default. A `Markup` is trusted by its type, so the result is used as it is. This is the one door
   for syntax highlighting, math and diagrams.
 
+`link` sees every link, the extended autolinks too, with an email autolink's `mailto:`. A heading's
+text is its character data, with no markup. `code` sees a fenced block that names a language, with the
+language written as its class would be and the block's text. A callback that throws ends the render,
+and the error reaches the caller.
+
+**A `code` result is not rebuilt.** A rebuild would remove what the program wrote, such as a
+highlighter's `style`, so the renderer writes a token in the block's place: a random 128-bit prefix
+drawn for each render, which a document cannot write, and the fragment's index. The rebuild a
+document's raw HTML takes runs over the token, and each fragment is written where its token is
+afterwards. So `sanitizing_the_output_again_changes_nothing` holds for what the document wrote, and a
+`code` result is outside it, as `Markup + Markup` is. **Declined:** rebuilding the result, which takes
+away the one door this callback is for.
+
 **The engine is `pulldown-cmark`.** It was measured against `comrak` over the 652 CommonMark examples,
 the 670 enabled GFM examples and the 441 to-html entries of the known-bug catalogue
 (`tests/data/markdown/known-bugs.toml`), in decision order:

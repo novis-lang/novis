@@ -1,0 +1,23 @@
+--TEST--
+`Core\Markdown::toHtml` calls the `link`, `image`, `heading` and `code` callbacks a program passes by name, and a URL a callback returns is checked like one in the document (`rule:core-classes/markdown-to-html`)
+--FILE--
+<?nvs
+string $doc = "# Intro\n\n[home](/home) [bad](/bad) ![cat](cat.png)\n\n```rust\nfn main() {}\n```\n";
+
+Core\Html\Markup $html = Core\Markdown::toHtml(
+    $doc,
+    link: fn (string $url): ?string => $url == "/bad" ? "javascript:alert(1)" : "https://example.com" . $url,
+    image: fn (string $url): ?string => null,
+    heading: fn (int $level, string $text): ?string => Core\Str::lower($text) . "-" . $level,
+    code: fn (string $language, string $code): ?Core\Html\Markup =>
+        Core\Html::escape("[" . $language . "] " . Core\Str::trim($code)),
+);
+echo Core\Html::toSource($html, "the case reads the bytes back");
+
+// With no callbacks, the document renders as it is written.
+echo Core\Html::toSource(Core\Markdown::toHtml("[a](/a)\n"), "the case reads the bytes back");
+--EXPECT--
+<h1 id="md-intro-1">Intro</h1>
+<p><a href="https://example.com/home">home</a> bad </p>
+[rust] fn main() {}
+<p><a href="/a">a</a></p>
