@@ -1,0 +1,65 @@
+<?nvs
+// Measures reading one JSON file of small orders one element at a time, at growing file sizes in bytes.
+// bench: start 1048576
+// bench: max 268435456
+
+#[Core\Json\Derive]
+class Item
+{
+    public string $sku;
+    public int $count;
+    public bool $gift;
+
+    public function constructor(string $sku, int $count, bool $gift)
+    {
+        $this->sku = $sku;
+        $this->count = $count;
+        $this->gift = $gift;
+    }
+}
+
+class Document
+{
+    // One element and its comma are 37 bytes. The generator gives the file in pieces
+    // of 1024 elements, so the whole document is never in memory.
+    public static function pieces(uint $size): Iterator<bytes>
+    {
+        string $element = '{"sku":"T-1","count":2,"gift":false}';
+        bytes $piece = Core\Str::repeat($element . ',', 1024) as bytes;
+        uint $count = Core\Math::intDiv($size as int, 37) as uint;
+        yield '[' as bytes;
+        uint $i = 0;
+        uint $full = Core\Math::intDiv($count as int, 1024) as uint;
+        while ($i < $full) {
+            yield $piece;
+            $i = $i + 1;
+        }
+        yield Core\Str::repeat($element . ',', $count % 1024) as bytes;
+        yield ($element . ']') as bytes;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), 'decode-each-scale.json');
+        Core\IO::writeStream($path, Document::pieces($size), { overwrite: true });
+
+        uint $total = 0;
+        Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+        foreach (Core\Json::decodeEach<Item>($file) as Item $item) {
+            $total = $total + ($item->count as uint);
+        }
+        $file->close();
+        Core\IO::remove($path);
+
+        // The memory used must not grow with the file.
+        if (Core\Budget::memoryPeak() > 4194304) {
+            throw new RuntimeError('decodeEach used more than 4 MiB');
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1048576), "\n";

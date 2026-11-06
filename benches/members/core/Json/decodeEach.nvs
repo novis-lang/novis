@@ -1,0 +1,52 @@
+<?nvs
+// Measures reading a small JSON file one element at a time, as an import job does with each file it is given.
+// bench: iterations 256
+// bench: complexity linear
+
+#[Core\Json\Derive]
+class Item
+{
+    public string $sku;
+    public int $count;
+    public bool $gift;
+
+    public function constructor(string $sku, int $count, bool $gift)
+    {
+        $this->sku = $sku;
+        $this->count = $count;
+        $this->gift = $gift;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        string $dir = Core\IO::temporaryDir();
+        array<string> $paths = [
+            Core\Path::join($dir, 'decode-each-a.json'),
+            Core\Path::join($dir, 'decode-each-b.json'),
+            Core\Path::join($dir, 'decode-each-c.json'),
+        ];
+        Core\IO::write($paths[0], '[{"sku":"T-1","count":2,"gift":false},{"sku":"CUP-40","count":2,"gift":true}]');
+        Core\IO::write($paths[1], '[{"sku":"BAG-7","count":4,"gift":false}]');
+        Core\IO::write($paths[2], '[{"sku":"PEN-2","count":5,"gift":false},{"sku":"MAP-9","count":1,"gift":true},{"sku":"INK-3","count":4,"gift":false}]');
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The file of every round is chosen by the elements read so far, so
+            // the loop cannot be left out.
+            int $which = ($total % 3) as int;
+            Core\IO\File $file = Core\IO::open($paths[$which], Core\IO::FileMode::Read);
+            foreach (Core\Json::decodeEach<Item>($file) as Item $item) {
+                $total = $total + ($item->count as uint);
+            }
+            $file->close();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

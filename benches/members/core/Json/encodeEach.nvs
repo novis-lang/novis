@@ -1,0 +1,33 @@
+<?nvs
+// Measures writing a short list as JSON in pieces, as an export job does for each file it writes.
+// bench: iterations 256
+// bench: complexity linear
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<array<{ sku: string, count: int, gift: bool }>> $lists = [
+            [{ sku: "T-1", count: 2, gift: false }, { sku: "CUP-4", count: 1, gift: true }],
+            [{ sku: "BAG-7", count: 3, gift: false }],
+            [
+                { sku: "PEN-22", count: 5, gift: false },
+                { sku: "MAP-9", count: 1, gift: true },
+                { sku: "INK-3", count: 4, gift: false },
+            ],
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The list of every round is chosen by the bytes written so far, so
+            // the loop cannot be left out.
+            foreach (Core\Json::encodeEach($lists[($total % 3) as int]) as tainted bytes $piece) {
+                $total = $total + Core\Bytes::length($piece);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

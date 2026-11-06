@@ -1,0 +1,53 @@
+<?nvs
+// Measures writing a long list of small orders as JSON in pieces, at growing sizes in bytes.
+// bench: start 1048576
+// bench: max 268435456
+
+#[Core\Json\Derive]
+class Order
+{
+    public string $sku;
+    public int $count;
+    public bool $gift;
+
+    public function constructor(string $sku, int $count, bool $gift)
+    {
+        $this->sku = $sku;
+        $this->count = $count;
+        $this->gift = $gift;
+    }
+}
+
+class Orders
+{
+    // One order and its comma are 37 bytes of JSON. The generator makes each order
+    // only when `encodeEach` needs the next one.
+    public static function each(uint $size): Iterator<Order>
+    {
+        uint $count = Core\Math::intDiv($size as int, 37) as uint;
+        uint $i = 0;
+        while ($i < $count) {
+            yield new Order('T-1', 2, false);
+            $i = $i + 1;
+        }
+    }
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        uint $total = 0;
+        foreach (Core\Json::encodeEach(Orders::each($size)) as tainted bytes $piece) {
+            $total = $total + Core\Bytes::length($piece);
+        }
+
+        // The memory used must not grow with the size of the list.
+        if (Core\Budget::memoryPeak() > 4194304) {
+            throw new RuntimeError('encodeEach used more than 4 MiB');
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1048576), "\n";
