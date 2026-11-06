@@ -3,8 +3,9 @@
 
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { analyse } from "../keys/scan.ts";
+import { analyse, analyseAll, digest } from "../keys/scan.ts";
 import { abs } from "../lib/paths.ts";
+import { implHash, sharedIn } from "../proofs/collect.ts";
 
 const BASE = `//! A module.
 use std::fmt;
@@ -98,5 +99,22 @@ describe("the tiers", () => {
       { path: "fixture.txt", inTest: true },
       { path: "data.txt", inTest: false },
     ]);
+  });
+});
+
+describe("a shared module", () => {
+  const BYTE_SOURCE = "crates/nvs-stdlib/src/byte_source.rs";
+
+  test("a file that reads through the byte source names it, and the byte source names nothing", () => {
+    expect(sharedIn("crates/nvs-stdlib/src/hash.rs", "let s = crate::byte_source::ByteSource::from_arg(ctx);")).toEqual([BYTE_SOURCE]);
+    expect(sharedIn("crates/nvs-stdlib/src/str.rs", "fn len() {}")).toEqual([]);
+    expect(sharedIn(BYTE_SOURCE, "byte_source::Chunk")).toEqual([]);
+  });
+
+  test("a consumer's hash is its own card joined to the byte source's", () => {
+    const own = analyseAll([readFileSync(abs("crates/nvs-stdlib/src/hash.rs"), "utf8")])[0]!.card;
+    const shared = analyseAll([readFileSync(abs(BYTE_SOURCE), "utf8")])[0]!.card;
+    expect(implHash("crates/nvs-stdlib/src/hash.rs")).toBe(digest(own, shared));
+    expect(implHash("crates/nvs-stdlib/src/str.rs")).toBe(analyseAll([readFileSync(abs("crates/nvs-stdlib/src/str.rs"), "utf8")])[0]!.card);
   });
 });

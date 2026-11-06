@@ -360,10 +360,25 @@ export function ledgerRecords(keyed = false): Map<string, Record<string, unknown
 const sha12 = (text: string) => createHash("sha1").update(text, "utf8").digest("hex").slice(0, 12);
 
 /**
+ * Modules many members read through, so a change to one changes what each of them does. A Rust
+ * file that names one (`byte_source::`) is hashed with that module's `card` tier joined to its own,
+ * and a change to the module stales every figure that file implements
+ * (`rule:testing/member-perf-ledger`).
+ */
+export const SHARED_IMPL: readonly { module: string; path: string }[] = [
+  { module: "byte_source", path: "crates/nvs-stdlib/src/byte_source.rs" },
+];
+
+/** The shared modules `text` names, in `SHARED_IMPL`'s order; a module's own file names none. */
+export function sharedIn(path: string, text: string): string[] {
+  return SHARED_IMPL.filter((s) => s.path !== path && new RegExp(`\\b${s.module}::`).test(text)).map((s) => s.path);
+}
+
+/**
  * What a perf figure is current against: the implementing file's `card` tier, which is its tokens
- * without comments, layout, test code or reference cards (`keys/scan.ts`). A file that is not Rust,
- * such as a reference chapter, is its text with its line endings made `\n`. Empty when there is no
- * such file.
+ * without comments, layout, test code or reference cards (`keys/scan.ts`), joined to the tier of each
+ * `SHARED_IMPL` module it reads through. A file that is not Rust, such as a reference chapter, is its
+ * text with its line endings made `\n`. Empty when there is no such file.
  */
 export function implHash(path: string): string {
   return implHashes([path]).get(path)!;
@@ -384,7 +399,16 @@ export function implHashes(paths: string[]): Map<string, string> {
     else if (path.endsWith(".rs")) rust.push(path);
     else out.set(path, digest(read(path)));
   }
-  analyseAll(rust.map(read)).forEach((a, i) => out.set(rust[i]!, a.card));
+  const texts = rust.map(read);
+  const shared = texts.map((t, i) => sharedIn(rust[i]!, t));
+  const extra = [...new Set(shared.flat())].filter((p) => !rust.includes(p) && existsSync(abs(p)));
+  const cards = new Map<string, string>();
+  analyseAll([...texts, ...extra.map(read)]).forEach((a, i) => cards.set(i < rust.length ? rust[i]! : extra[i - rust.length]!, a.card));
+  rust.forEach((path, i) => {
+    const own = cards.get(path)!;
+    const joined = shared[i]!.filter((p) => cards.has(p));
+    out.set(path, joined.length === 0 ? own : digest(own, ...joined.map((p) => cards.get(p)!)));
+  });
   return out;
 }
 
