@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/mime.rs, docs/rules/http-server/a-part-is-consumed-in-one-of-three-ways.md, docs/rules/http-server/the-body-is-read-on-demand-under-two-caps.md, docs/rules/http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it.md]
   - id: 6
     title: "Core\\Csv::rows decodes a charset as it reads, and the spreadsheet reader has one CSV path"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/csv.rs, extensions/spreadsheet/nvs/Reader.nvs, extensions/spreadsheet/nvs/Template.nvs, extensions/spreadsheet/src/lib.rs, docs/rules/core-classes/spreadsheet-has-no-io.md, docs/rules/core-classes/spreadsheet-reads-as-a-stream.md]
   - id: 7
     title: "Core\\Zip, Core\\Hash, Core\\Compress and Core\\Storage::put read from every source"
@@ -567,14 +567,14 @@ tool is missed.
 - [x] The `charset` option and its three tests. `crates/nvs-stdlib/src/csv.rs:259`
 - [x] The spreadsheet's `csvFile`, `head` and `decoded` (decision 7), and `csv.encoding` renamed
   `charset`. `extensions/spreadsheet/nvs/Reader.nvs:25`, `extensions/spreadsheet/nvs/Reader.nvs:436`
-- [ ] `Reader::open` and `Template::open` take `Core\Bytes::Source` (decision 19).
+- [x] `Reader::open` and `Template::open` take `Core\Bytes::Source` (decision 19).
   `extensions/spreadsheet/nvs/Reader.nvs:42`, `extensions/spreadsheet/nvs/Template.nvs:43`
   - [x] `Reader::open` takes bytes, a file and a part, and the host lends each through the byte source.
   - [x] `Template::open` keeps `bytes|Core\IO\File`, by its taint rule.
-  - [ ] `Core\Request\BodyStream::peek`, then `Reader::Source` becomes `Core\Bytes::Source`.
+  - [x] `Core\Request\BodyStream::peek`, then `Reader::Source` becomes `Core\Bytes::Source`.
 - [x] `Engine::sourceBytes` deleted. `extensions/spreadsheet/src/lib.rs:1338`
 - [x] The test of the `spreadsheet-csv` check. `crates/nvs-cli/tests/spreadsheet_reader.rs:198`
-- [ ] The spreadsheet rules say what is true now. `docs/rules/core-classes/spreadsheet-has-no-io.md:34`
+- [x] The spreadsheet rules say what is true now. `docs/rules/core-classes/spreadsheet-has-no-io.md:34`
 
 ### 7. Core\Zip, Core\Hash, Core\Compress and Core\Storage::put read from every source
 
@@ -619,6 +619,8 @@ tool is missed.
 - [ ] `Core\IO::stdinStream`. `docs/examples/core/IO/stdinStream/about.md:1`
 - [ ] `Core\Request\Part::peek`, with checks no `Core` member makes, and
   `docs/reference/core/Request-Part.md` names it. `docs/examples/core/Request-Part/peek/about.md:1`
+- [ ] `Core\Request\BodyStream::peek`, with an `.nvsr` request body, and
+  `docs/reference/core/Request.md` names it. `docs/examples/core/Request-BodyStream/peek/about.md:1`
 - [ ] The aliases' proofs, as stage 2's roster item decided. `docs/examples/types/Bytes-Source/about.md:1`
 - [ ] `bun nv proofs --comments` over every new `.nvs`, and each line it names written again.
 
@@ -669,39 +671,41 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Stages 1 to 5 are done, and most of stage 6. `Core\Csv::rows` takes `charset` and decodes one
-chunk at a time (decision 18); the `csv-charset` tests pass. The spreadsheet reader has one CSV
-path through `Core\Csv::rows`, `csv.encoding` is `charset` on the reader and the writer, and
-`Engine::sourceBytes` is deleted (decision 19). `a_latin1_csv_file_is_read_without_holding_it_whole`
-passes: a 9 MB Latin-1 file reads under an 8M limit. The `spreadsheet-csv` check named the
-wrong file (`nvs-ext` cannot run the Novis half) and now names `spreadsheet_reader`.
-`Part::peek` had no symbol address, so any program calling it panicked; that is fixed in
-`request.rs`'s address table. `stdinStream` and `peek` owe feature proofs in stage 10.
+Stages 1 to 6 are done. This session added `Core\Request\BodyStream::peek(uint $max): tainted bytes`
+(`crates/nvs-stdlib/src/request.rs`, beside `Part::peek`; both share `peek_max`), with its card,
+its address row and `body_stream_peek_gives_the_first_bytes_and_the_loop_still_gives_all_of_them`.
+`BodyStream` is no longer a handle in the registry's handle test. `Reader::open` takes
+`Core\Bytes::Source`, and its `head` peeks a body stream; a `sep=;` CSV `PUT` body read through
+`Reader::open(Core\Request::bodyStream())` gives its rows under `nvs run --request`. The two
+spreadsheet rules, `a-part-is-consumed-in-one-of-three-ways` and the source table say what is true
+now. `spreadsheet-csv` passes. `stdinStream`, `Part::peek` and `BodyStream::peek` owe feature
+proofs in stage 10. A `chore` commit formatted the files earlier stages left unformatted.
 
-Tests that may go red at the gate: `Csv::rows`' card, meta and LSP snapshots (a new `charset`
-option); `meta.rs` and `ext_world.rs` lists of the engine's exports; the spreadsheet conformance
-cases whose output quotes the reader's old CSV path, such as a `sep=` line in UTF-16 or a CSV
-read from a file whose position was moved; the website's `llms-full.txt`, which still lists
-`sourceBytes` until it is rendered again; `Mime::detect` and `Part` snapshots; a pin of
-`part_parse`'s old message; `Mime::detect`'s perf-ledger figure; the stage 2 to 4 snapshots
-(`decodeEach`, `Core\IO`, `render.test.ts`). The sweep's reds were stale: nightly `42201104003`
-built `26dda36627`, and `env-secret-proofs` has no check or log anywhere.
+Tests that may go red at the gate: `BodyStream`'s card, meta, LSP stub and `nvs agent` snapshots
+(a new `peek` member); `Csv::rows`' card, meta and LSP snapshots (a new `charset` option);
+`meta.rs` and `ext_world.rs` lists of the engine's exports; `Reader::open`'s signature wherever a
+snapshot pins `Reader::Source`; the spreadsheet conformance cases whose output quotes the reader's
+old CSV path, such as a `sep=` line in UTF-16 or a CSV read from a file whose position was moved;
+the website's `llms-full.txt`, which still lists `sourceBytes` until it is rendered again;
+`Mime::detect` and `Part` snapshots; a pin of `part_parse`'s old message; `Mime::detect`'s
+perf-ledger figure; the stage 2 to 4 snapshots (`decodeEach`, `Core\IO`, `render.test.ts`). The
+sweep's reds were stale again: `env-secret-proofs` has no check and no log under
+`.looper/loops/main/checks/`, and nightly `42201104003` built `26dda36627`.
 
 ### Next
 
-**The rest of stage 6** (decision 19).
+**Stage 7** (decision 5), two lanes that share no file.
 
-- [ ] `crates/nvs-stdlib/src/request.rs:1258`: `Core\Request\BodyStream::peek(uint $max): tainted bytes`,
-  as `Part::peek` is (`body_stream_prefix` `crates/nvs-stdlib/src/request.rs:3735`), with its
-  card, its address-table row and a test. Rewrite `BODY_STREAM`'s "Why it has no members" doc.
-- [ ] `extensions/spreadsheet/nvs/Reader.nvs:27`: `Reader::Source` becomes `Core\Bytes::Source`,
-  and `head` (`Reader.nvs:405`) reads a body stream with `peek`.
-- [ ] `docs/rules/core-classes/spreadsheet-has-no-io.md:25` and
-  `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md` say what is true now: `charset`, one
-  path through `Core\Csv::rows`, a mark sets the charset, a part is a source, no `sourceBytes`.
-  Then `bun nv rules` to regenerate `docs/rules/core-classes.md`.
+- [ ] `crates/nvs-stdlib/src/zip.rs:559`: Zip reads the directory through `ByteSource::range()`
+  under `affordable`, each entry inflated through a bounded reader over its range
+  (`crates/nvs-stdlib/src/zip.rs:773`), a short range a `ParseError`, and the four `zip-file`
+  tests (`crates/nvs-stdlib/src/zip.rs:1093`).
+- [ ] `crates/nvs-stdlib/src/hash.rs:336`: `Core\Hash::of` and `hmac` through `for_each_chunk`,
+  `Core\Compress` through `reader()` with the running ratio (`crates/nvs-stdlib/src/compress.rs:644`),
+  `Core\Storage::put` through `for_each_chunk` (`crates/nvs-stdlib/src/storage.rs:188`), the tests
+  of `hash-sources` and `compress-sources`, and `docs/rules/core-classes/decompression-bound.md:4`.
 
-Stages 7, 8 and 9 touch files disjoint from stage 6 and may run beside it (decision 13).
+Stages 8 and 9 touch files disjoint from stage 7 and may run beside it (decision 13).
 
 ### Backlog
 
