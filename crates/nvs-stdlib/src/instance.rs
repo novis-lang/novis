@@ -143,6 +143,10 @@ const INTERNAL_CLASSES: &[&CoreClass] = &[&crate::cursor::CLASS];
 const HOST_HANDLE_CLASSES: &[&CoreClass] = &[
     &crate::io::FILE,
     &crate::csv::ROWS,
+    // The two JSON walks, whose first slot is the key their suspended reader
+    // or writer is filed under.
+    &crate::json::ELEMENTS,
+    &crate::json::PIECES,
     &crate::process::HANDLE,
     &crate::script::HANDLE,
     &crate::socket::CLASS,
@@ -321,6 +325,24 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
             (sequence::ITERATE, crate::csv::ROWS_ITERATE_SYMBOL),
             (sequence::ADVANCE, crate::csv::ROWS_ADVANCE_SYMBOL),
             (sequence::CURRENT, crate::csv::ROWS_CURRENT_SYMBOL),
+        ],
+    ),
+    // And `Core\Json`'s two walks, for `Core\Csv\Rows`' reason: an element is
+    // parsed, and a piece written, by the `advance` that answers it.
+    (
+        crate::json::ELEMENTS_NAME,
+        &[
+            (sequence::ITERATE, crate::json::ELEMENTS_ITERATE_SYMBOL),
+            (sequence::ADVANCE, crate::json::ELEMENTS_ADVANCE_SYMBOL),
+            (sequence::CURRENT, crate::json::ELEMENTS_CURRENT_SYMBOL),
+        ],
+    ),
+    (
+        crate::json::PIECES_NAME,
+        &[
+            (sequence::ITERATE, crate::json::PIECES_ITERATE_SYMBOL),
+            (sequence::ADVANCE, crate::json::PIECES_ADVANCE_SYMBOL),
+            (sequence::CURRENT, crate::json::PIECES_CURRENT_SYMBOL),
         ],
     ),
     // A streamed reply's three framings, which carry all three names for the

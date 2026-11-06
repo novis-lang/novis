@@ -401,13 +401,14 @@ use crate::registry::{
 // Registration — this class's rows, and where its symbols live
 // ============================================================================
 
-/// `Core\Json`'s registry rows — all four of its members: `encode`, `decode`,
-/// `decodeAs` and `isValid`.
+/// `Core\Json`'s registry rows — all six of its members: `encode`, `decode`,
+/// `decodeAs` and `isValid` over a whole document, and `decodeEach` and
+/// `encodeEach` one element at a time (`rule:core-classes/json-whole-and-stream`).
 ///
-/// `decodeAs` is one of the rows whose helper takes arguments its `params` does
-/// not declare: `registry::WRITTEN_CLASS_MEMBERS` puts the class its call site
-/// wrote in slot 0, and that roster owns why. `Core\Request::jsonAs` is the
-/// same decode over a request body and calls [`decode_as`] too.
+/// `decodeAs` and `decodeEach` are rows whose helper takes arguments its
+/// `params` does not declare: `registry::WRITTEN_CLASS_MEMBERS` puts the class
+/// its call site wrote in slot 0, and that roster owns why. `Core\Request::jsonAs`
+/// is the same decode over a request body and calls [`decode_as`] too.
 // rank: 100
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Json",
@@ -455,6 +456,48 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_json_is_valid",
             doc: Some(&IS_VALID_DOC),
         },
+        CoreMethod {
+            name: "decodeEach",
+            names: &["source", "at"],
+            // The source is the open file `Core\Csv::rows` reads, or the
+            // chunks `Core\Request::bodyStream()` and a part's `content()`
+            // give: one parameter for both, because a document is the same
+            // document wherever its bytes are. The chunks arm is `tainted
+            // bytes`, the element both of those walks yield, and a plain
+            // `bytes` chunk widens to it. Every string an element holds is
+            // tainted whatever the source was, as `decodeAs`'s are. The
+            // pointer selects and is never written into anything, so it is
+            // `Neutral`.
+            params: &[
+                CoreTy::Union(&[
+                    CoreTy::Instance(crate::io::FILE_NAME),
+                    CoreTy::Iterated(&CoreTy::TaintedBytes),
+                ]),
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Options(DECODE_EACH_OPTIONS),
+            ],
+            defaults: &[Const::Str("")],
+            // `Iterable<T>` at the type the call site wrote, exactly as
+            // `Core\Db\Queryable::streamAs<T>` answers its walk: one generic
+            // class, so the element is the receiver's own `T`.
+            return_ty: CoreTy::InstanceAt(ELEMENTS_NAME, &[CoreTy::Written("T")]),
+            symbol: "nvs_core_json_decode_each",
+            doc: Some(&DECODE_EACH_DOC),
+        },
+        CoreMethod {
+            name: "encodeEach",
+            names: &["items"],
+            // `encode`'s `mixed`, one item at a time, through
+            // `rule:iteration/foreach-subjects`' three shapes.
+            params: &[
+                CoreTy::Iterated(&CoreTy::Mixed),
+                CoreTy::Options(ENCODE_EACH_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(PIECES_NAME),
+            symbol: "nvs_core_json_encode_each",
+            doc: Some(&ENCODE_EACH_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -464,8 +507,165 @@ pub const CLASS: CoreClass = CoreClass {
 /// `Core\Json`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Converts values to JSON text and back. `encode` writes a value as JSON, `decode` reads \
-            JSON into arrays and scalars, and `decodeAs` reads it into a class or a shape. A \
-            document that is not valid JSON throws a `ParseError`.",
+            JSON into arrays and scalars, and `decodeAs` reads it into a class or a shape. \
+            `decodeEach` and `encodeEach` read and write a large document one element at a time. \
+            A document that is not valid JSON throws a `ParseError`.",
+};
+
+/// `Core\Json\Elements`'s fully-qualified name, written once for the reason
+/// `Core\Csv\Rows`'s is.
+pub(crate) const ELEMENTS_NAME: &str = r"Core\Json\Elements";
+
+/// The symbols behind [`ELEMENTS`]' `iterate()`, `advance()` and `current()`,
+/// reached by name through [`crate::instance`]'s dispatch roster rather than
+/// registered as members — `Core\Csv\Rows`' three, for its reason.
+pub(crate) const ELEMENTS_ITERATE_SYMBOL: &str = "nvs_core_json_elements_iterate";
+/// See [`ELEMENTS_ITERATE_SYMBOL`].
+pub(crate) const ELEMENTS_ADVANCE_SYMBOL: &str = "nvs_core_json_elements_advance";
+/// See [`ELEMENTS_ITERATE_SYMBOL`].
+pub(crate) const ELEMENTS_CURRENT_SYMBOL: &str = "nvs_core_json_elements_current";
+
+/// What `Core\Json::decodeEach` answers with: the walk over one array's
+/// elements, generic over the `T` its call site wrote, as `Core\Db\Stream` is.
+///
+/// It is its own iterator, as `Core\Csv\Rows` is and for the same reason: an
+/// element does not exist until the reader has parsed that far, so there is no
+/// snapshot a cursor could walk. It has no members, only the iteration trio
+/// dispatched by name, which makes it a handle beside `Core\Csv\Rows`.
+///
+/// Its slots are the key the reader's suspended parse is filed under, `0` once
+/// the walk has ended, and the element the last `advance()` built — the one
+/// element the walk holds, whatever the document's size.
+// rank: 101
+pub(crate) const ELEMENTS: CoreClass = CoreClass {
+    name: ELEMENTS_NAME,
+    doc: Some(&ELEMENTS_CARD),
+    methods: &[],
+    instance: &[],
+    slots: &["reader", "element"],
+    constants: &[],
+};
+
+/// `Core\Json\Elements`' class card — `rule:core-api/reference-card`.
+const ELEMENTS_CARD: ClassDoc = ClassDoc {
+    short: "The elements of a JSON array, read one at a time while a `foreach` loop runs. The \
+            whole document is never in memory at once.",
+};
+
+/// `Core\Json\Pieces`' fully-qualified name.
+pub(crate) const PIECES_NAME: &str = r"Core\Json\Pieces";
+
+/// The symbols behind [`PIECES`]' iteration trio. See
+/// [`ELEMENTS_ITERATE_SYMBOL`].
+pub(crate) const PIECES_ITERATE_SYMBOL: &str = "nvs_core_json_pieces_iterate";
+/// See [`PIECES_ITERATE_SYMBOL`].
+pub(crate) const PIECES_ADVANCE_SYMBOL: &str = "nvs_core_json_pieces_advance";
+/// See [`PIECES_ITERATE_SYMBOL`].
+pub(crate) const PIECES_CURRENT_SYMBOL: &str = "nvs_core_json_pieces_current";
+
+/// What `Core\Json::encodeEach` answers with: the document's text in pieces,
+/// each written when the walk asks for it, so the items it pulls are pulled one
+/// at a time. A handle with only the iteration trio, as [`ELEMENTS`] is.
+///
+/// Its slots are the key the writer's state is filed under, `0` once the
+/// closing `]` has been given, and the piece the last `advance()` wrote — at
+/// most 64 KiB, which is what the walk holds.
+// rank: 102
+pub(crate) const PIECES: CoreClass = CoreClass {
+    name: PIECES_NAME,
+    doc: Some(&PIECES_CARD),
+    methods: &[],
+    instance: &[],
+    slots: &["writer", "piece"],
+    constants: &[],
+};
+
+/// `Core\Json\Pieces`' class card — `rule:core-api/reference-card`.
+const PIECES_CARD: ClassDoc = ClassDoc {
+    short: "The text of a JSON document in pieces of `bytes`, written one at a time while a \
+            `foreach` loop runs. The whole document is never in memory at once.",
+};
+
+/// `Core\Json::decodeEach`'s reference card — `rule:core-api/reference-card`.
+const DECODE_EACH_DOC: MethodDoc = MethodDoc {
+    short: "Reads the elements of a JSON array one at a time, in a `foreach` loop. Each element is \
+            checked as `decodeAs` checks a document. Only one element is in memory at a time, so \
+            a document larger than memory works. You can loop over the result only once.",
+    params: &[
+        ParamDoc {
+            name: "source",
+            desc: "The JSON to read. It is an open `Core\\IO\\File`, read from its current \
+                   position, or chunks of bytes such as `Core\\Request::bodyStream()`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "at",
+            desc: "A JSON Pointer to the array to read, such as `/items`. The default is `''`, \
+                   which is the whole document.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "lines",
+            desc: "When `true`, the source is JSON Lines: one JSON value on each line. Then `at` \
+                   must be `''`. The default is `false`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "maxDepth",
+            desc: "The deepest nesting allowed in the document. The default is `512`, and the \
+                   largest value is `1024`.",
+            shape: &[],
+        },
+    ],
+    ret: "The elements, one at a time. Each element is a new `T`. When `T` is `mixed`, each \
+          element is read as `decode` reads a document. Nothing is read until the loop starts.",
+    errors: &[
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The JSON is not valid, nests deeper than `maxDepth`, or an element does not \
+                   match `T`. It is also thrown when `at` does not name an array. The error is \
+                   thrown when the loop reaches the problem. Your loop has already received the \
+                   elements before it. The message gives the byte offset.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`T` cannot be read from JSON, or `maxDepth` is `0` or above `1024`. It is \
+                   also thrown when `lines` is `true` and `at` is not `''`.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The file is closed, or reading from the source fails.",
+        },
+    ],
+};
+
+/// `Core\Json::encodeEach`'s reference card — `rule:core-api/reference-card`.
+const ENCODE_EACH_DOC: MethodDoc = MethodDoc {
+    short: "Writes a JSON array in pieces, in a `foreach` loop. It takes the next item from \
+            `$items` only when it needs it, and encodes each item as `encode` does. You can write \
+            the pieces to a file with `Core\\IO::writeStream`.",
+    params: &[
+        ParamDoc {
+            name: "items",
+            desc: "The values to write. It can be an array or an iterable, such as a database \
+                   stream.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "lines",
+            desc: "When `true`, it writes JSON Lines: one value on each line, with no brackets and \
+                   no commas. The default is `false`.",
+            shape: &[],
+        },
+    ],
+    ret: "The JSON text as `bytes`, in pieces of at most 64 KiB. The first piece starts with `[` \
+          and the last piece ends with `]`. Nothing is encoded until the loop starts.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "An item contains something that JSON cannot represent, as for `encode`. The error \
+               is thrown when the loop reaches that item. Your loop has already received the \
+               pieces before it.",
+    }],
 };
 
 /// `Core\Json::encode`'s `{ pretty?: bool, escapeUnicode?: bool }` — the two
@@ -634,6 +834,29 @@ pub(crate) const DECODE_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Uint(DEFAULT_MAX_DEPTH),
 }];
 
+/// `Core\Json::decodeEach`'s `{ lines?: bool, maxDepth?: uint }`: JSON Lines
+/// instead of one document, and `decode`'s own depth bound.
+const DECODE_EACH_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "lines",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+    CoreOption {
+        name: "maxDepth",
+        ty: CoreTy::Uint,
+        default: Const::Uint(DEFAULT_MAX_DEPTH),
+    },
+];
+
+/// `Core\Json::encodeEach`'s `{ lines?: bool }`: JSON Lines instead of one
+/// array.
+const ENCODE_EACH_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "lines",
+    ty: CoreTy::Bool,
+    default: Const::Bool(false),
+}];
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -642,8 +865,95 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_json_decode" => (nvs_core_json_decode as *const ()).cast(),
         "nvs_core_json_decode_as" => (nvs_core_json_decode_as as *const ()).cast(),
         "nvs_core_json_is_valid" => (nvs_core_json_is_valid as *const ()).cast(),
+        "nvs_core_json_decode_each" => (nvs_core_json_decode_each as *const ()).cast(),
+        "nvs_core_json_encode_each" => (nvs_core_json_encode_each as *const ()).cast(),
+        // The two walks' trios, which no registry row names: they are reached
+        // by name through the dispatch roster, which resolves them here.
+        ELEMENTS_ITERATE_SYMBOL => (nvs_core_json_elements_iterate as *const ()).cast(),
+        ELEMENTS_ADVANCE_SYMBOL => (nvs_core_json_elements_advance as *const ()).cast(),
+        ELEMENTS_CURRENT_SYMBOL => (nvs_core_json_elements_current as *const ()).cast(),
+        PIECES_ITERATE_SYMBOL => (nvs_core_json_pieces_iterate as *const ()).cast(),
+        PIECES_ADVANCE_SYMBOL => (nvs_core_json_pieces_advance as *const ()).cast(),
+        PIECES_CURRENT_SYMBOL => (nvs_core_json_pieces_current as *const ()).cast(),
         _ => return None,
     })
+}
+
+// ============================================================================
+// One element at a time — `decodeEach` and `encodeEach`
+// ============================================================================
+
+/// The one failure every entry point below gives until the goal
+/// `json-streaming`'s stages 2 and 3 build the walks: the rows and cards are
+/// registered first so the feature is stated before it is built.
+fn not_built(member: &'static str) -> Fault {
+    Fault::thrown(format!("`Core\\Json::{member}` is not available in this build yet."))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Json::decodeEach<T>($source, string $at = '', { lines?: bool,
+    /// maxDepth?: uint }): Iterable<T>`. Slots 0 to 2 are
+    /// `registry::WRITTEN_CLASS_MEMBERS`' block, as `decodeAs`'s are.
+    fn nvs_core_json_decode_each(_ctx, args: [7]) {
+        let _ = args;
+        Err(not_built("decodeEach"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Json::encodeEach(Iterable<mixed> $items, { lines?: bool }): Iterable<bytes>`.
+    fn nvs_core_json_encode_each(_ctx, args: [2]) {
+        let _ = args;
+        Err(not_built("encodeEach"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterable<T>::iterate()` on a `Core\Json\Elements`.
+    fn nvs_core_json_elements_iterate(_ctx, args: [1]) {
+        let _ = args;
+        Err(not_built("decodeEach"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<T>::advance()` on a `Core\Json\Elements`.
+    fn nvs_core_json_elements_advance(_ctx, args: [1]) {
+        let _ = args;
+        Err(not_built("decodeEach"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<T>::current()` on a `Core\Json\Elements`.
+    fn nvs_core_json_elements_current(_ctx, args: [1]) {
+        let _ = args;
+        Err(not_built("decodeEach"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterable<bytes>::iterate()` on a `Core\Json\Pieces`.
+    fn nvs_core_json_pieces_iterate(_ctx, args: [1]) {
+        let _ = args;
+        Err(not_built("encodeEach"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<bytes>::advance()` on a `Core\Json\Pieces`.
+    fn nvs_core_json_pieces_advance(_ctx, args: [1]) {
+        let _ = args;
+        Err(not_built("encodeEach"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<bytes>::current()` on a `Core\Json\Pieces`.
+    fn nvs_core_json_pieces_current(_ctx, args: [1]) {
+        let _ = args;
+        Err(not_built("encodeEach"))
+    }
 }
 
 // ============================================================================

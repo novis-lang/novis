@@ -3033,6 +3033,7 @@ pub(crate) fn render_member(class: &CoreClass) -> Option<&'static str> {
 pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
     (r"Core\Arr", "shapeAs"),
     (r"Core\Json", "decodeAs"),
+    (r"Core\Json", "decodeEach"),
     (r"Core\Jwt", "verifyIssued"),
     (r"Core\Request", "jsonAs"),
     (r"Core\Request", "queryAs"),
@@ -3451,6 +3452,9 @@ pub const GENERIC_CLASSES: &[(&str, &[&str])] = &[
     // `streamAs<T>`, so the two members answer one class at two arguments
     // rather than two classes with one iteration protocol each.
     (crate::db::STREAM_NAME, &["T"]),
+    // `Core\Json::decodeEach<T>`'s walk, generic for the same reason as the
+    // row above: each element is built into the type the call site wrote.
+    (crate::json::ELEMENTS_NAME, &["T"]),
 ];
 
 /// Every `Core` class a `foreach` can walk, and the element its
@@ -3536,6 +3540,11 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // walk's exactly: a chunk of an upload is a chunk of a request body with a
     // delimiter search in front of it, and `tainted` for the same reason.
     (crate::request::PART_CONTENT_NAME, &CoreTy::TaintedBytes),
+    // `Core\Json::decodeEach<T>`'s walk yields the receiver's own `T`, as
+    // `Core\Db\Stream` does, and `encodeEach`'s yields the document's text,
+    // `tainted` for the reason `Core\Json::encode`'s `mixed` answer is.
+    (crate::json::ELEMENTS_NAME, &CoreTy::Var("T")),
+    (crate::json::PIECES_NAME, &CoreTy::TaintedBytes),
 ];
 
 /// The element type `class`'s `Iterable<T>` is fixed at, or `None` when it is
@@ -6517,6 +6526,8 @@ mod tests {
             crate::io::LINES_NAME,
             crate::io::WALK_NAME,
             crate::csv::ROWS_NAME,
+            crate::json::ELEMENTS_NAME,
+            crate::json::PIECES_NAME,
             crate::http::TARGET_NAME,
             crate::http::IDENTITY_NAME,
             crate::http::PART_NAME,

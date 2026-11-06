@@ -22,6 +22,8 @@ pub const CLASSES: &[CoreClass] = &[
     crate::regex::MATCH,
     crate::regex::PATTERN,
     crate::json::CLASS,
+    crate::json::ELEMENTS,
+    crate::json::PIECES,
     crate::encoding::CLASS,
     crate::bytes::CLASS,
     crate::path::CLASS,

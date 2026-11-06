@@ -100,6 +100,8 @@ const REFUSED: &[(&str, &str)] = &[
     ("Core\\Hash\\Stream", STATE),
     ("Core\\Router\\Match", REQUEST),
     ("Core\\Csv\\Rows", READER),
+    ("Core\\Json\\Elements", READER),
+    ("Core\\Json\\Pieces", READER),
     ("Core\\Test\\Response", REQUEST),
     ("Core\\Test\\SentRequest", REQUEST),
     (
