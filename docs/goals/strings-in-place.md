@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-ir/src/ir.rs, crates/nvs-codegen/src/emit.rs, crates/nvs-codegen/src/lib.rs]
   - id: 3
     title: "a literal Core\\Str::format writes each placeholder into the result"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/format.rs]
   - id: 4
     title: "the changed features are measured again, and their allocation counts are declared"
@@ -98,6 +98,17 @@ every html template, and every literal `Core\Str::format` call.
 9. **Lanes.** Stage 1 is the runtime and `nvs-render`. Stage 2 is `nvs-ir` and `nvs-codegen`, which
    stage 3 also touches, so stages 1 to 3 run in order. The goal shares no file with `json-one-pass` or
    `ceiling-wake`, so it may run as a side goal beside either.
+10. **The runtime owns an integer placeholder, and the checker packs it.** `nvs-runtime` cannot depend
+   on `nvs-stdlib`, so the integer half of `Spec`'s conversion and padding moved down into
+   `nvs_runtime::placeholder::IntPlaceholder`, and `nvs_stdlib::format`'s `render` writes every integer
+   placeholder through it. One home, so the two paths cannot print different text. The checker calls
+   `nvs_stdlib::format::integer_part` once per placeholder and records `FormatPiece::Integer` with the
+   packed `StrPart::FORMAT` kind word. The kind is the word's low byte, and the placeholder is the
+   other 56 bits, so a part stays two words and the join parses nothing. A width or precision past
+   `PACKED_MAX` (16383) does not pack, and the checker already stops at four digits. `%s` over a
+   `string` with a flag, a width or a precision stays a `Converted` piece through
+   `nvs_core_str_format_piece`, because its width counts graphemes, which `nvs_stdlib::granularity`
+   owns. Floats stay with decision 5. Memory: none, the digits are written on the stack.
 
 ## Stages
 
@@ -134,11 +145,17 @@ pieces in `nvs-ir`, `nvs-codegen` and the IR passes, as `file:line` with one lin
 
 **Does:** removes the per-placeholder parse and allocation.
 
-- [ ] Add the `Format` part, which writes through `Spec`'s conversion and padding.
+- [x] Add the `Format` part, which writes through `Spec`'s conversion and padding.
   `crates/nvs-stdlib/src/format.rs:450` `crates/nvs-stdlib/src/format.rs:699`
-- [ ] Lower a `FormatPiece::Converted` placeholder to a `Format` part with its pre-parsed spec, and keep
+  - [x] `IntPlaceholder` in `nvs-runtime`, packed into the kind word, and `StrPart::FORMAT`.
+  - [x] `format`'s `render` writes integer placeholders through it, and `Digits` is gone.
+  - [x] A test that each packed part writes what `format` writes.
+- [x] Lower a `FormatPiece::Converted` placeholder to a `Format` part with its pre-parsed spec, and keep
   decision 4's fallback. `crates/nvs-ir/src/lower/expr.rs:2512` `crates/nvs-ir/src/lower/expr.rs:2384`
-- [ ] Rewrite the doc of `PIECE_SYMBOL` and `nvs_core_str_format_piece` as a whole, saying which
+  - [x] The checker records `FormatPiece::Integer` with the packed word.
+  - [x] `nvs-ir` lowers it to `PartKind::Format`, and a typed piece alone is still joined.
+  - [x] Codegen stores the word as the part's kind.
+- [x] Rewrite the doc of `PIECE_SYMBOL` and `nvs_core_str_format_piece` as a whole, saying which
   placeholders still reach them. `crates/nvs-stdlib/src/format.rs:125`
 
 ### 4. the changed features are measured again, and their allocation counts are declared
@@ -165,38 +182,33 @@ pieces in `nvs-ir`, `nvs-codegen` and the IR passes, as `file:line` with one lin
 
 ### State
 
-Stages 1 and 2 are done, and `parts-join` is green. *Why*'s figures are from `293a3b9b9`.
+Stages 1 to 3 are done, and `parts-join` is green. *Why*'s figures are from `293a3b9b9`.
 
-- Each `Concat` piece is a `ConcatPart`: a `PartKind` (`Str`, `Int`, `HtmlText`) and a value.
-  A join of strings alone consumes its leading piece. A typed join consumes none
-  (`Lowering::emit_concat`, `ConcatPart::all_str`), and may hold one non-`Str` piece.
-- `interpolated_hole` and `lower_html_template_hole` make the typed pieces. `echo` of a template
-  converts or escapes each typed hole in `html_hole_bytes`, the escape call's only user.
-- Codegen's `emit_concat_parts` stores two words per piece (`crates/nvs-codegen/src/emit.rs:4019`).
-- `StrPart` kinds are `STR = 0`, `INT = 1`, `HTML_TEXT = 2` (`crates/nvs-runtime/src/string.rs:1560`).
-  Stage 3 adds `FORMAT = 3`.
-- `env-secret-proofs` is the driver's stale state for a retired check, and its command exits 0.
+- Each `Concat` piece is a `ConcatPart`: a `PartKind` (`Str`, `Int`, `HtmlText`, `Format(word)`) and
+  a value. A join of strings alone consumes its leading piece. A typed join consumes none
+  (`Lowering::emit_concat`, `ConcatPart::all_str`). A typed piece alone is still joined
+  (`join_pieces`), so `Core\Str::format("%04d", $n)` is one `concat format 0x… vN`.
+- Decision 10 is how a placeholder is written: `IntPlaceholder` (`crates/nvs-runtime/src/placeholder.rs`),
+  `integer_part` (`crates/nvs-stdlib/src/format.rs`), `FormatPiece::Integer`
+  (`crates/nvs-types/src/expr_table.rs`). `a_packed_integer_part_writes_what_format_writes` and
+  `a_placeholder_packs_into_a_kind_word_and_back` pass.
+- A smoke run printed `[-0042] [ff    ] [*****255] [+7]`, `0009` and `ab      |   12|`.
+- `env-secret-proofs` is the driver's stale state for a retired check: `looper check --name
+  env-secret-proofs` says no check matches, and nothing in the tree names it.
 
-Expected red in stage 5: each `nvs-ir` snapshot of an interpolation with an `int` hole or a template
-with a hole. It now prints `int vN` and `html vN` pieces and releases the leading literal after the
-join. `INSTA_UPDATE=always bun nv verify -p nvs-ir` rewrites them; check each diff for that shape.
+Expected red in stage 5:
+- Each `nvs-ir` snapshot of an interpolation with an `int` hole or a template with a hole. It now
+  prints `int vN` and `html vN` pieces and releases the leading literal after the join.
+- Each `nvs-ir` snapshot of a literal `Core\Str::format` with an integer placeholder that has a flag,
+  a width or a non-plain conversion. It now prints `format 0x… vN` where it called
+  `nvs_core_str_format_piece`.
+- `INSTA_UPDATE=always bun nv verify -p nvs-ir` rewrites them; check each diff for that shape.
 
 ### Next
 
-**Stage 3**, files `crates/nvs-stdlib/src/format.rs`, `crates/nvs-runtime/src/string.rs`,
-`crates/nvs-ir/src/lower/expr.rs` and `crates/nvs-codegen/src/emit.rs`. No gate.
-
-**The design call first:** `Spec` and its conversion are in `nvs-stdlib`, and
-`nvs_str_concat_parts` is in `nvs-runtime`, which cannot depend on `nvs-stdlib`. So decision 4's
-part writer cannot call `Spec` from the runtime's `Piece`. Decide where the `Format` part is
-measured and written, record it under *Standing decisions*, and build on it.
-
-- [ ] The `Format` part, through `Spec`'s conversion and padding. `crates/nvs-stdlib/src/format.rs:470`
-  `crates/nvs-stdlib/src/format.rs:624` `crates/nvs-stdlib/src/format.rs:699`
-  `crates/nvs-runtime/src/string.rs:1560`
-- [ ] A converted placeholder as a `Format` piece. `crates/nvs-ir/src/lower/expr.rs:2422`
-  `crates/nvs-ir/src/lower/expr.rs:2550` Its spec is pre-parsed, and decision 4's fallback stays.
-- [ ] Codegen of the `Format` piece. `crates/nvs-codegen/src/emit.rs:4019`
-- [ ] The docs of `PIECE_SYMBOL` and the piece helper. `crates/nvs-stdlib/src/format.rs:142`
+**Stage 4**, files `benches/members/`, `benches/compare/profile.sh` and the perf ledgers. No code.
+Follow the stage's items in order: the `Explore` subagent lists the benches first.
+`Core\Str::format`'s count was 2 allocations per call. With an integer placeholder it should now be
+1. A `%-10s` over a string still makes 2.
 
 ### Backlog
