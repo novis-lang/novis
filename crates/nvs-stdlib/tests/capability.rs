@@ -382,8 +382,10 @@ fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
         // exchange against a listener they open themselves, which is the only way to test a
         // transport at all. So the scan stops at the test module: a `#[cfg(test)]` whose next line
         // opens a `mod`. One on a single field or block hides nothing and is scanned like the code
-        // around it. The scan asserts there is at most one test module per file, since a second
-        // one higher up would hide everything under it rather than just the tests.
+        // around it, and so does one on a `mod name;` declaration: that module's code is in a file
+        // of its own, which this loop scans whole. The scan asserts there is at most one test
+        // module per file, since a second one higher up would hide everything under it rather than
+        // just the tests.
         let lines: Vec<&str> = text.lines().collect();
         let opens_tests = |at: usize| {
             lines[at].trim_start() == "#[cfg(test)]"
@@ -391,7 +393,7 @@ fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
                     let next = next.trim_start();
                     let next = next.strip_prefix("pub(crate) ").unwrap_or(next);
                     let next = next.strip_prefix("pub ").unwrap_or(next);
-                    next.starts_with("mod ")
+                    next.starts_with("mod ") && !next.trim_end().ends_with(';')
                 })
         };
         assert!(
@@ -469,8 +471,9 @@ const NOT_DOORS: &[&str] = &[
     "io_failure",
 ];
 
-/// The lines of `text` a release build compiles: everything above its `#[cfg(test)]` module, with
-/// each line's number. A comment line is left out, because it names a door without calling one.
+/// The lines of `text` a release build compiles: everything above its inline `#[cfg(test)]`
+/// module, with each line's number. A `#[cfg(test)] mod name;` declaration ends nothing, because
+/// its module is a file of its own. A comment line is left out, because it names a door without calling one.
 fn shipped_lines(text: &str) -> Vec<(usize, &str)> {
     let lines: Vec<&str> = text.lines().collect();
     let end = (0..lines.len())
@@ -480,7 +483,7 @@ fn shipped_lines(text: &str) -> Vec<(usize, &str)> {
                     let next = next.trim_start();
                     let next = next.strip_prefix("pub(crate) ").unwrap_or(next);
                     let next = next.strip_prefix("pub ").unwrap_or(next);
-                    next.starts_with("mod ")
+                    next.starts_with("mod ") && !next.trim_end().ends_with(';')
                 })
         })
         .unwrap_or(lines.len());
