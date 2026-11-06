@@ -10,6 +10,21 @@ import { ROOT } from "../lib/paths.ts";
 
 const SCENES = join(ROOT, "website", "src", "components", "walkthrough", "scenes");
 const scenes = readdirSync(SCENES).filter((f) => f.endsWith(".ts"));
+const DOCS = join(ROOT, "website", "src", "content", "docs");
+const pages = readdirSync(DOCS, { recursive: true, encoding: "utf8" }).filter((f) => f.endsWith(".mdx"));
+
+/** The website pages that show the scene module `file`: the pages that import the `.astro` component
+ * whose script imports it. */
+function pagesShowing(file: string): string[] {
+  const module = `./${file.replace(/\.ts$/, "")}`;
+  const components = readdirSync(SCENES)
+    .filter((f) => f.endsWith(".astro"))
+    .filter((f) => readFileSync(join(SCENES, f), "utf8").includes(`from '${module}'`));
+  return pages.filter((p) => {
+    const text = readFileSync(join(DOCS, p), "utf8");
+    return components.some((c) => text.includes(`/walkthrough/scenes/${c}'`));
+  });
+}
 
 test("there is at least one walkthrough scene", () => {
   expect(scenes.length).toBeGreaterThan(0);
@@ -38,5 +53,15 @@ for (const file of scenes) {
     const says = src.match(/\bstage\.say\(/g) ?? [];
     expect(steps.length).toBeGreaterThan(0);
     expect(says.length).toBe(steps.length);
+  });
+
+  // `rule:website/a-walkthrough-has-one-moment`: the page's text links where the viewer reads on.
+  test(`${file} is shown on a page whose text links further reading`, () => {
+    const shown = pagesShowing(file);
+    expect(shown.length).toBeGreaterThan(0);
+    for (const p of shown) {
+      const body = readFileSync(join(DOCS, p), "utf8").replace(/^---[\s\S]*?\n---\n/, "");
+      expect({ page: p, links: /\]\(\/[^)\s]+\)/.test(body) }).toEqual({ page: p, links: true });
+    }
   });
 }

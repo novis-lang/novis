@@ -8,7 +8,8 @@ tableOfContents: false
 import PageNow from '../../../../components/walkthrough/scenes/PageNow.astro'
 
 One request. The browser shows the page at once, and each slow part fills in when it is ready.
-`Core\Html::later` runs a slow part of a page, and `Core\Response::slotted()` sends the page before
-that part is done. Press play to see each step.
+[`Core\Html::later`](/reference/core/html/later/) runs a slow part of a page.
+[`Core\Response::slotted()`](/reference/core/response/slotted/) sends the page before that part is
+done. Press play to see each step.
 
 <PageNow />
