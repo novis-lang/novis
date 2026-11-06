@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "JSON of any size",
-      "text": "`Core\\Json::decodeEach` reads a large JSON document one element at a time, from a file or a request body. `Core\\Json::encodeEach` writes one in parts. Memory stays the same however large the document is. Both also read and write JSON Lines.",
-      "goals": [
-        "json-streaming"
-      ]
-    },
-    {
       "title": "Setup in any order",
       "text": "You can run `nvs run`, `nvs init` and `nvs service install` in any order, and the service starts every time. `nvs init` sets up the data folder and the project file. A command that needs admin rights asks for them itself.",
       "goals": [
