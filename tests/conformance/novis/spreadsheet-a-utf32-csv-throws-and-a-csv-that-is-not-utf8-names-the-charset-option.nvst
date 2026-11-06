@@ -39,10 +39,14 @@ try {
 }
 $file->close();
 
-// A character that is not UTF-8 after the first 4 KiB.
+// A character that is not UTF-8 after the first 4 KiB. `open` checks the
+// first 4 KiB only, so reading the rows finds it.
 bytes $late = Core\Bytes::join([Core\Encoding::encodeText(Core\Str::repeat("Bolt,1\n", 700), Core\Charset::Utf8), $latin]);
 try {
-    Reader::open($late);
+    uint $count = 0;
+    foreach (Reader::open($late)->rows(0) as var $row) {
+        $count = $count + 1;
+    }
     echo "not reached\n";
 } catch (ParseError $e) {
     echo $e->message, "\n";
@@ -61,5 +65,5 @@ The CSV file is in UTF-32. UTF-32 is not supported. Save the file as UTF-8 or UT
 The CSV file is in UTF-32. UTF-32 is not supported. Save the file as UTF-8 or UTF-16.
 The CSV file is not UTF-8 text. Set the `csv` option `charset` to its charset, such as `Core\Charset::Windows1252`.
 The CSV file is not UTF-8 text. Set the `csv` option `charset` to its charset, such as `Core\Charset::Windows1252`.
-The CSV file is not UTF-8 text. Set the `csv` option `charset` to its charset, such as `Core\Charset::Windows1252`.
+Core\Csv::rows: line 702 of the source has a field that is not valid UTF-8
 Jürgen in Köln
