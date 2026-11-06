@@ -2,6 +2,11 @@
 /**
  * Sidebar override: the default sidebar plus a filter box at the top.
  *
+ * Below 50rem the sidebar is the mobile menu. There it starts with the site
+ * navigation (SiteNav.astro), so the links of the header are the first thing
+ * the menu shows, and it ends with Starlight's default footer: the social
+ * icons and the theme switch.
+ *
  * A link can have a second, smaller line under its label: give the entry in
  * astro.config.ts `attrs: { 'data-subtext': '...' }`. The line is drawn by CSS
  * from that attribute, so it needs no script, and the filter matches it too.
@@ -12,15 +17,22 @@
  * This filters the *navigation tree* only — full-text search is the search
  * button in the header.
  *
- * On load the current page's entry is always in view: an inline script after
- * the tree scrolls the pane before the first paint (see the script there).
+ * On a wide screen the current page's entry is always in view on load: an
+ * inline script after the tree scrolls the pane before the first paint. In
+ * the mobile menu the script opens the entry's groups and leaves the menu at
+ * its top (see the script there).
  */
-import MobileMenuFooter from 'virtual:starlight/components/MobileMenuFooter'
+import MobileMenuFooter from '@astrojs/starlight/components/MobileMenuFooter.astro'
+import SiteNav from './SiteNav.astro'
 import SidebarPersister from '@astrojs/starlight/components/SidebarPersister.astro'
 import SidebarSublist from '@astrojs/starlight/components/SidebarSublist.astro'
 
 const { sidebar } = Astro.locals.starlightRoute
 ---
+
+<div class="md:sl-hidden">
+  <SiteNav />
+</div>
 
 <div class="nv-sidebar-filter print:hidden">
   <label>
@@ -52,10 +64,13 @@ const { sidebar } = Astro.locals.starlightRoute
         const scroller = document.getElementById('starlight__sidebar')
         const current = scroller && scroller.querySelector('a[aria-current="page"]')
         if (!current) return
-        const reveal = () => {
+        const openGroups = () => {
           for (let group = current.closest('details'); group; group = group.parentElement.closest('details')) {
             group.open = true
           }
+        }
+        const reveal = () => {
+          openGroups()
           const view = scroller.getBoundingClientRect()
           const filter = scroller.querySelector('.nv-sidebar-filter')
           // The filter box is sticky and covers the top of the pane.
@@ -66,10 +81,13 @@ const { sidebar } = Astro.locals.starlightRoute
           scroller.scrollTo({ top: scroller.scrollTop + link.top - centred, behavior: 'instant' })
         }
         if (matchMedia('(min-width: 50em)').matches) reveal()
-        // Below 50em the sidebar is a menu that is closed on load. It is
-        // revealed when it opens, in the frame before it is first drawn.
+        // Below 50em the sidebar is a menu that is closed on load, and it
+        // starts with the site navigation. It opens at the top, so those
+        // links are in view, with the current page's groups open.
         scroller.addEventListener('beforetoggle', (event) => {
-          if (event.newState === 'open') requestAnimationFrame(reveal)
+          if (event.newState !== 'open') return
+          openGroups()
+          scroller.scrollTo({ top: 0, behavior: 'instant' })
         })
       } catch {}
     })()

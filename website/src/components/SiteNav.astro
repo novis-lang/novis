@@ -1,0 +1,96 @@
+---
+/**
+ * The site navigation of the mobile menu: one tile per area, then Install,
+ * then the links in NAV_EXTRAS, in two columns. Each tile shows its subtitle,
+ * if it has one, under its label, as the header does on a wide screen. The
+ * tile of the area the page is in is marked as the current one.
+ *
+ * It is the first thing in the menu. Sidebar.astro puts it above the
+ * sidebar's filter box, and on a page without a sidebar MobileMenuFooter.astro
+ * shows it above the social icons and the theme switch.
+ */
+import { AREAS, INSTALL, NAV_EXTRAS } from '@config/site.mjs'
+import { withBase } from '~/lib/base'
+
+const links = [
+  ...AREAS.map((area) => ({ label: area.navLabel?.join(' ') ?? area.label, subtitle: area.subtitle, href: area.href })),
+  { label: INSTALL.label, subtitle: 'Build and set up nvs', href: INSTALL.href },
+  ...NAV_EXTRAS,
+].map((link) => ({ ...link, href: withBase(link.href) }))
+
+interface Props {
+  /** Whether a line under the tiles sets them apart from what follows. */
+  divider?: boolean
+}
+const { divider = true } = Astro.props
+const { pathname } = Astro.url
+const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefined)
+---
+
+<nav class:list={['nv-mobile-nav', { divider }]} aria-label="Site">
+  {
+    links.map((link) => (
+      <a href={link.href} aria-current={current(link.href)}>
+        <span class="label">{link.label}</span>
+        {link.subtitle && <span class="subtitle">{link.subtitle}</span>}
+      </a>
+    ))
+  }
+</nav>
+
+<style>
+  /* Two columns of tiles, each at least 44px high. */
+  .nv-mobile-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--nv-space-2);
+    padding-block: var(--nv-space-2) var(--nv-space-4);
+  }
+  .nv-mobile-nav.divider {
+    margin-block-end: var(--nv-space-4);
+    border-bottom: 1px solid var(--nv-hairline);
+  }
+  .nv-mobile-nav a {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 0.1rem;
+    text-align: start;
+    min-height: 2.75rem;
+    padding: var(--nv-space-2) var(--nv-space-4);
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius);
+    background-color: var(--nv-surface);
+    text-decoration: none;
+    transition:
+      background-color var(--nv-fast) var(--nv-ease),
+      border-color var(--nv-fast) var(--nv-ease);
+  }
+  .label {
+    color: var(--sl-color-white);
+    font-weight: 650;
+    line-height: 1.3;
+  }
+  .subtitle {
+    font-size: var(--sl-text-xs);
+    line-height: 1.3;
+    color: var(--sl-color-gray-3);
+  }
+  .nv-mobile-nav a:hover,
+  .nv-mobile-nav a:active {
+    border-color: var(--sl-color-accent);
+    background-color: var(--nv-wash-soft);
+  }
+  /* The sidebar's style for the current link adds a bar at its start, which
+     a tile does not need: its border and its label are marked instead. */
+  .nv-mobile-nav a[aria-current='page'] {
+    border-color: var(--sl-color-accent);
+  }
+  .nv-mobile-nav a[aria-current='page']::before {
+    display: none;
+  }
+  .nv-mobile-nav a[aria-current='page'] .label {
+    color: var(--sl-color-text-accent);
+  }
+</style>

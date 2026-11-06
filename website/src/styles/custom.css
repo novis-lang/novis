@@ -869,6 +869,12 @@ starlight-tabs [role='tab']:active {
     display: flex;
     align-items: center;
   }
+  /* A link with a subtext shows it under its label, as on a wide screen. */
+  .sidebar-content a[data-subtext] {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+  }
 }
 
 /* ================================================== header controls */
