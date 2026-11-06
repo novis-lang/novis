@@ -127,9 +127,9 @@ checked value. Memory is the nesting depth plus one element, whatever the docume
 **Split:** an `Explore` subagent lists how `Core\Csv::rows` is registered, typed and iterated: its
 class, its slots and its iteration trio, as `file:line` with one line each.
 
-- [ ] Probe decision 6's options (a) to (c) as `#[ignore]`d Rust tests that print the figures with
+- [x] Probe decision 6's options (a) to (c) as `#[ignore]`d Rust tests that print the figures with
   `--nocapture`. Write the figures and the verdict into `json.rs`'s module doc. `crates/nvs-stdlib/src/json.rs:1`
-- [ ] Write the fragment `json-whole-and-stream.md` beside the XML one, and correct the XML fragment's sentence.
+- [x] Write the fragment `json-whole-and-stream.md` beside the XML one, and correct the XML fragment's sentence.
   `docs/rules/core-classes/xml-tree-and-stream.md:1`
 - [ ] Register `decodeEach` and `encodeEach` with their reference cards, and the iterable class
   `decodeEach` returns, after `Core\Csv::rows`'s shape. `rule:core-api/reference-card`
@@ -182,16 +182,49 @@ AGENTS.md § *Text an end user reads*, and `bun nv proofs --comments <paths>` is
 
 ### State
 
-Nothing is built yet. It runs after `json-one-pass` and `json-any-size`, whose decoder it reuses.
+Stage 1's first two items landed. The probe chose **option (a), serde_json inside a coroutine**.
+On the `proof` profile it reads 19.2 ns per byte against the whole read's 15.9, stays flat within
+8 KiB from 1 MiB to 256 MiB (311,735 to 318,907 bytes peak), and gives the whole read's message
+(`line 1 column 35`). The framer was 10.8 ns per byte but said `column 7`. The figures are in
+`json.rs`'s module doc, § *A document read one element at a time*, and the probe is
+`crates/nvs-stdlib/src/json/each_probe.rs` (`cargo test --profile proof --lib json::each_probe --
+--ignored --nocapture`). `corosensei` is now a dev-dependency of `nvs-stdlib`. Stage 2 makes it a
+normal one, or adds a coroutine API to `nvs-host` beside `on_spare_stack` (`crates/nvs-host/src/stack.rs:230`).
+
+`rule:core-classes/json-whole-and-stream` exists with status `designed` and `goal: json-streaming`
+(`data/rules/core-classes/json-whole-and-stream.json`). Stage 5 sets it `shipped`, drops the
+`goal` key and fills `guardedBy`. The XML fragment names it as the second two-shape subsystem.
+
+The sweep's `env-secret-proofs` red is still the driver's stale state: no file names that check, and
+`looper check --name env-secret` finds none.
+
+No test is expected to go red: nothing a test reaches changed.
 
 ### Next
 
-**Stage 1**, gated on `docs/goals/json-any-size.md` being deleted. Files: `crates/nvs-stdlib/src/json.rs`,
-`crates/nvs-stdlib/src/registry.rs` and `docs/rules/core-classes/`.
+**Stage 1's last item**: register the two members, their cards and the iterable class. Files:
+`crates/nvs-stdlib/src/json.rs`, `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-stdlib/src/classes.rs`,
+`crates/nvs-stdlib/src/instance.rs`.
 
-- [ ] The probe of the three readers, and its verdict. `crates/nvs-stdlib/src/json.rs:1`
-- [ ] The rule fragment and the XML sentence. `docs/rules/core-classes/xml-tree-and-stream.md:1`
 - [ ] The two members and their cards. `crates/nvs-stdlib/src/csv.rs:326`
+
+`Core\Csv::rows`'s shape, from this session's map:
+
+- the `rows` row `crates/nvs-stdlib/src/csv.rs:258`, its class `ROWS` `csv.rs:331`, its card `ROWS_DOC`
+  `csv.rs:434`, the slots' indices `csv.rs:293`;
+- the roster `crates/nvs-stdlib/src/classes.rs:54`, the element type in `ITERABLES`
+  `crates/nvs-stdlib/src/registry.rs:3474`, `HOST_HANDLE_CLASSES` `crates/nvs-stdlib/src/instance.rs:143`
+  and the iteration trio in `DISPATCH_ROSTER` `instance.rs:318`;
+- the trio's helpers `csv.rs:1443`-`1468`, their symbols in `address()` `csv.rs:581`.
+
+The open type question: `decodeEach<T>` answers `Iterable<T>`, and `ITERABLES` gives a class one
+element type. `CoreTy::InstanceAt(name, &[CoreTy::Written("T")])` (`registry.rs:794`) beside an
+`ITERABLES` row of `CoreTy::Var("T")`, as `Core\ObjectSet`'s is (`registry.rs:3476`), is the first
+thing to try. `decodeAs` reaches `T` through `WRITTEN_CLASS_MEMBERS` (`registry.rs:3035`), so
+`decodeEach` joins that roster. `$source` is `CoreTy::Union` (`registry.rs:688`) of
+`Instance(crate::io::FILE_NAME)` and an `Iterable<bytes>`. If the registry cannot write that union,
+take decision 2's safe default. Do not register a member whose helper does not exist: land a helper
+that throws "not built yet" only if the registry's own tests demand one per row.
 
 ### Backlog
 
