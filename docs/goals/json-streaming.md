@@ -120,6 +120,24 @@ checked value. Memory is the nesting depth plus one element, whatever the docume
 10. **Lanes.** It shares `json.rs` with `json-one-pass` and `json-any-size` and runs after both.
     Stage 4's examples, attacks and pages are written by subagents side by side once stages 2 and 3
     have landed.
+11. **A skipped string value is not kept.** `Skip` reads every value with `deserialize_any`, and
+    serde_json copies a string into its scratch buffer to give a `&str`, so a 64 MiB skipped string
+    needs 64 MiB (`tests/hostile/core/Json/decodeEach/04-*`). The fix: `Skip::deserialize` calls
+    `deserialize_option`, which peeks past whitespace without consuming. In `visit_some`, the byte
+    serde_json peeked is the last one [`Feed`] handed out, because `io::Bytes` reads one byte per
+    call. Record it in a `Cell<u8>` beside `handed`. A `"` reads with `deserialize_ignored_any`,
+    whose `ignore_str` keeps nothing. `[` and `{` keep `deserialize_any` with `Skip`, so the depth
+    check stays. A skipped object's **keys** still pass through serde_json's `MapKey`, which always
+    copies a key into scratch. That bound, O(longest key) counted against the request, is stated in
+    the rule's *Outside the pointer* paragraph and the module doc. Declined: `deserialize_ignored_any`
+    for a whole skipped subtree, because `ignore_value` checks no depth and keeps one byte per open
+    level, so it trades the string hole for a nesting one and drops `maxDepth`. Also declined: a
+    framer that rewrites skipped values in `Feed`, which is decision 6's option (c).
+12. **A `Core` walk parameter is covariant in its element** (`dba33b4041`, `d0fd6cbdaa`).
+    `encodeEach(Iterable<mixed>)` refused a generator of `Product`, and `decodeEach`'s walk of
+    `tainted bytes` refused an `Iterator<bytes>`. `reads_any_walk` (`crates/nvs-types/src/expr/args.rs`)
+    admits a walk whose element is assignable to the declared one, at a `Core` row only, because a
+    `Core` member only reads a walk. A method a program declares keeps `Iterator<T>` invariant.
 
 ## Stages
 
@@ -179,14 +197,24 @@ and `--id 'Core\Json::encodeEach'` print what each owes and where.
 examples; the `.nvst` tests; the two benches; the attacks. Every `.nvs` and `about.md` follows
 AGENTS.md § *Text an end user reads*, and `bun nv proofs --comments <paths>` is run over them.
 
-- [ ] Three examples each: an import from a request body, an export of database rows to a file, and
+- [x] Three examples each: an import from a request body, an export of database rows to a file, and
   JSON Lines. One of them shows decision 4's rollback. `docs/examples/core/Json/decodeAs/03-reading-a-list-of-orders.nvs:1`
 - [ ] A bench for each, whose ladder shows memory flat from 1 MiB to 256 MiB. `benches/members/README.md:1`
+  - [x] the four bench files, each run once with the debug binary
+  - [ ] `bun nv proofs --record-perf` on a release binary, after the `Skip` fix below
+  - [ ] `bun nv scaling --budget --write` stores each new bench's share (benches/members/README.md)
 - [ ] Attacks: an array that never ends stops at the CPU limit; one element larger than the memory
   limit stops there; nesting past `maxDepth` stops at once; a huge string outside the pointer is not
   kept. `tests/hostile/README.md:1`
-- [ ] A section on the JSON guide page that shows both members.
+  - [x] five cases written and committed; four pass
+  - [ ] `decodeEach/04-a-huge-string-outside-the-pointer.nvs` passes after the `Skip` fix
+- [ ] A skipped string is not kept: decision 11. `crates/nvs-stdlib/src/json/each.rs:237`
+  - [ ] `Skip` peeks with `deserialize_option` and reads a string value with `deserialize_ignored_any`
+  - [ ] a skipped object's keys: the bound decision 11 states, in the rule and the module doc
+  - [ ] a Rust test: a skipped 8 MiB string keeps the walk's peak within 64 KiB of a walk without it
+- [x] A section on the JSON guide page that shows both members.
   `website/src/content/docs/guides/simple-programs/json-api.mdx:1`
+- [x] The about pages and seven `.nvst` cases (`tests/conformance/core/json-*-each-*.nvst`).
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -198,51 +226,53 @@ AGENTS.md § *Text an end user reads*, and `bun nv proofs --comments <paths>` is
 
 ### State
 
-**Stages 1 to 3 are done.** Both members are built: `decodeEach` in
-`crates/nvs-stdlib/src/json/each.rs` and `encodeEach` in `crates/nvs-stdlib/src/json/pieces.rs`,
-whose module docs own their shapes. The `stream-read` and `stream-write` checks' tests pass.
+**Stage 4 is done except decision 11's `Skip` fix and the perf records.** Landed, each committed:
+the two about pages; six examples (`decodeEach/03-*` is decision 4's rollback, on an in-memory
+SQLite database); seven `.nvst` cases (`tests/conformance/core/json-*-each-*.nvst`, green under
+`target/debug/nvs.exe test <files>`); four benches, whose `.scale.nvs` throw past a 4 MiB
+`Core\Budget::memoryPeak()` because no directive checks a member ladder's peak; five attacks; the
+JSON guide's *Large lists* section; decision 12, with its test
+`a_core_walk_takes_a_walk_of_a_narrower_element` (`crates/nvs-types/tests/core_members.rs`), green.
 
-**`Core\IO::writeStream` now takes a walk of `tainted bytes`** (`fb739c336d`). Two parts:
-`CoreTy::classification` answers `Neutral` for an `Iterated` whose element is written `Neutral`
-(`crates/nvs-stdlib/src/registry.rs`), and `check_arg_admitting_quals`
-(`crates/nvs-types/src/expr/args.rs`) compares a refused argument once more against
-`tainted_walks(expected)` (`crates/nvs-types/src/expr/quals.rs`), the declared walk with its array,
-`Iterable` and `Iterator` elements tainted. Untainting the argument cannot work, because a `Core`
-class fixes its element in its own declaration and a generic argument is invariant. Tests:
-`a_neutral_walk_parameter_admits_a_walk_of_tainted_bytes` (`crates/nvs-types/tests/tainted.rs`) and
-`write_stream_writes_encode_each_pieces_that_decode_each_reads_back` (`crates/nvs-stdlib/src/io.rs`),
-each run once by name, green. A scratch `nvs run` wrote `encodeEach`'s pieces with `writeStream`,
-read them back with `decodeEach<mixed>`, and wrote JSON Lines and an `array<bytes>`.
+**Red: `tests/hostile/core/Json/decodeEach/04-a-huge-string-outside-the-pointer.nvs`.** A skipped
+64 MiB string is kept in serde_json's scratch buffer. Decision 11 is the fix.
 
-`writeStream` refuses an existing file unless `{ overwrite: true }` is passed. Examples that write
-twice to one path need it.
-
-The sweep's `env-secret-proofs` red is the driver's stale state: `defaults-that-work` defined it and
-retired, and its command, `bun nv proofs --gate --only 'Core\Env::secret'`, exits 0 this session.
+Facts: `decodeEach<int>` does not compile (E0465), so plain values use `decodeEach<mixed>`. The CPU
+limit counts from the start of the program. The sweep's `env-secret-proofs` red is stale driver
+state, and its command exits 0. Another session's uncommitted changes (`crates/nvs-cli/src/config.rs`,
+`docs/rules/config*.md`, the install docs) are not this goal's.
 
 Not run, and worth a look in stage 5: the `tsan` leg. `src/tsan.rs` brackets a task's resume with a
 fiber switch, and a `suspendable` resume has no bracket.
 
 ### Next
 
-**Stage 4, by its `**Split:**` line: five writing subagents side by side, one per file set.**
+**Stage 4's last item: decision 11, then the perf records. One session, no subagents.**
 
-- First run `bun nv proofs --id 'Core\Json::decodeEach'` and `--id 'Core\Json::encodeEach'`, and
-  give each subagent the paths it prints for its file set.
-- The file sets: the two `about.md` pages; the six examples (three per member, decision 4's rollback
-  in one); the `.nvst` tests; the two benches (`benches/members/README.md`, memory flat from 1 MiB to
-  256 MiB, `.scale.nvs` for `linear`); the four attacks (`tests/hostile/README.md`).
-- Each brief names AGENTS.md § *Text an end user reads* and the facts above: a piece is
-  `tainted bytes`; `decodeEach<T>` takes a `Core\IO\File` or an `Iterable<bytes>`; a file is opened
-  with `Core\IO::open($path, Core\IO::FileMode::Read)`; a program starts with `<?nvs`.
-- After they end: build once, `bun nv proofs --comments <paths>` over every `.nvs` and `about.md`,
-  then `bun nv proofs --gate --group 'Core\Json'` and `--group 'Core\Json\Elements'` and
-  `--group 'Core\Json\Pieces'`. Then the JSON guide section,
-  `website/src/content/docs/guides/simple-programs/json-api.mdx`.
+1. `crates/nvs-stdlib/src/json/each.rs`: give `Feed` a `last: &Cell<u8>` set to the last byte each
+   `read` hands out, next to `handed`. `Skip::deserialize` calls `deserialize_option` with a visitor
+   whose `visit_none` is `Ok(())` and whose `visit_some(d)` reads `last`: a `"` goes to
+   `d.deserialize_ignored_any(IgnoredAny)`, and anything else goes to `d.deserialize_any(skip)`.
+   Check first that `Feed::read` hands out one byte per call under `io::Bytes`. If it hands out
+   more, `last` is not the peeked byte, and the fix must count differently.
+2. Rewrite the module doc's *Outside the pointer* and the rule's paragraph
+   (`docs/rules/core-classes/json-whole-and-stream.md:32`): a skipped string value is not kept, and
+   a skipped object's keys cost O(longest key).
+3. A Rust test beside `decode_each_skips_a_value_outside_the_pointer_without_building_it`: a skipped
+   8 MiB string keeps the peak within 64 KiB of a walk without it. Run it and the `stream-read`
+   check's five tests once by name.
+4. `bun nv proofs --run --only 'Core\Json::decodeEach' 'Core\Json::encodeEach'`: all hostile cases
+   pass.
+5. `cargo build --release -p nvs-cli`, then `bun nv proofs --record-perf --only 'Core\Json::decodeEach' 'Core\Json::encodeEach'`
+   and `bun nv scaling --budget --write` (benches/members/README.md). Then
+   `bun nv proofs --gate --group 'Core\Json' --group 'Core\Json\Elements' --group 'Core\Json\Pieces'`
+   is green, and stage 4 is done.
 
-Expected red until stage 4 ends: the proofs gate names both members' missing proofs. Expected red
-until stage 5: a snapshot of `nvs meta --json` gains two members, two classes, the `source` and
-`items` slots, and `writeStream`'s chunks parameter now classified `neutral`.
+Expected red until then: the proofs gate names both members' perf as stale, and the hostile run
+names `decodeEach/04`. Expected red until stage 5: a snapshot of `nvs meta --json` gains two
+members, two classes, the `source` and `items` slots, and `writeStream`'s chunks parameter
+classified `neutral`. A type-checker snapshot or test that pinned E0401 for a `Core` walk of a
+narrower element now sees no error (decision 12).
 
 ### Backlog
 
