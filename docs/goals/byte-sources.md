@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-hir/src/aliases.rs, crates/nvs-types/src/enums.rs, crates/nvs-cli/src/meta.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-lsp/src/stubs.rs, tools/nv/renderers/website-core.ts, tools/nv/proofs/roster.ts, docs/rules/types/type-alias.md, docs/rules/types/class-scoped-alias.md]
   - id: 3
     title: "one byte source module, under Core\\Csv and Core\\Json"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/csv.rs, crates/nvs-stdlib/src/json/each.rs, crates/nvs-runtime/src/sequence.rs, crates/nvs-host/src/stack.rs, docs/rules/core-classes/json-whole-and-stream.md, docs/rules/core-api/a-lifetime-is-an-object.md]
   - id: 4
     title: "Core\\IO reads and writes bytes, and standard input is a byte stream"
@@ -503,11 +503,11 @@ tool is missed.
   `Part`, from `Core\Request::bodyStream()` and from an `Iterable<tainted bytes>`, assigned to a
   plain `string`, does not compile.
   `tests/conformance/reject/a-result-read-from-an-upload-part-is-tainted.nvst:1`
-- [ ] The rules that quote the old signatures say what is true now.
+- [x] The rules that quote the old signatures say what is true now.
   `docs/rules/core-classes/json-whole-and-stream.md:10`, `docs/rules/core-api/a-lifetime-is-an-object.md:6`
   - [x] `a-lifetime-is-an-object` and `json-whole-and-stream` name `Csv::rows`' source.
-  - [ ] `decodeEach`'s row takes `Core\Bytes::Source|Core\Bytes::Chunks`, and its rule bullet says so.
-  - [ ] `ByteSource::from_arg` reads a `Core\Request\Part` forward, as `content()` does.
+  - [x] `decodeEach`'s row takes `Core\Bytes::Source|Core\Bytes::Chunks`, and its rule bullet says so.
+  - [x] `ByteSource::from_arg` reads a `Core\Request\Part` forward, as `content()` does.
 
 ### 4. Core\IO reads and writes bytes, and standard input is a byte stream
 
@@ -642,49 +642,43 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Stages 1 and 2 are done. Stage 3 has two points left (below). `byte_source.rs` serves
-`Core\Json::decodeEach` and now `Core\Csv::rows`; `byte-source` and `csv-forward` pass.
+Stages 1, 2 and 3 are done; `byte-source` and `csv-forward` pass. `Core\Csv::rows`
+(`crates/nvs-stdlib/src/csv.rs:270`) and `Core\Json::decodeEach` (`crates/nvs-stdlib/src/json.rs:474`)
+take `Core\Bytes::Source|Core\Bytes::Chunks` and read through `byte_source.rs`. `rows`' bytes arm
+is `Blob(Contagious)` and its `Rows<T>` cells follow the source (`registry::CELL_CLASSES`);
+`decodeEach`'s has no mark, so it is `TaintedBytes`. The spreadsheet's `records()`
+(`extensions/spreadsheet/nvs/Reader.nvs:325`) strips a BOM and a `sep=` record until stage 6.
 
-`Core\Csv::rows` takes `Core\Bytes::Source|Core\Bytes::Chunks` (`crates/nvs-stdlib/src/csv.rs:259`),
-reads through `ByteSource` (`next_record`, `csv.rs:1268`) and returns `Core\Csv\Rows<string>`.
-`Rows` is generic (`GENERIC_CLASSES`, `ITERABLES` at `array<T>`), and the new roster
-`registry::CELL_CLASSES` (`crates/nvs-stdlib/src/registry.rs:3566`) lets `tainted_result` and
-`carries_tainted` (`crates/nvs-types/src/expr/quals.rs`) reach its argument, so a part, a body
-stream or tainted chunks give `Rows<tainted string>`. The Chunks arm is `Iterated(TaintedBytes)`,
-which has no mark, so the first trap the last handoff named did not arise; the union's mark is the
-Source arm's `Blob(Contagious)`. A file is read from byte 0 (decision 4), so the spreadsheet
-reader's `records()` (`extensions/spreadsheet/nvs/Reader.nvs:325`) now strips a byte order mark
-off the first field and drops a `sep=` first record, in place of seeking past them. Stage 6
-replaces that path. A program that names the walk now writes `Core\Csv\Rows<string>`.
+`ByteSource::from_arg` reads a part forward through `request::part_content_walk`
+(`crates/nvs-stdlib/src/request.rs:4008`), the walk `content()` gives. It is `Kind::Chunks`, so a
+part's `prefix` and `range` fail as a walk's do until stage 5 gives it a kind of its own. Its check
+is `request::tests::a_byte_source_reads_a_part_forward_as_content_does`, green; no `.nvst` holds a part.
 
-`csv-forward`, `cargo test --lib csv_rows_` and every new or changed `csv` case are green; a whole
-`bun nv suite tests/conformance` run had only those cases red before they were fixed.
+Tests that may go red at the gate: registry invariants over a `Union` of `Alias` arms or over
+`CELL_CLASSES`; `nvs meta --json` and card snapshots of `Csv::rows` and `decodeEach`; LSP stubs
+naming `Core\Csv\Rows` without `<T>`; `tools/nv/test/render.test.ts` (`descHtml`); a `decodeEach`
+case that moved a file's position.
 
-Tests that may go red at the gate: registry invariant tests over a `Union` that holds `Alias` arms
-(the first row that writes one) or over `CELL_CLASSES`; a `nvs meta --json` or card snapshot of
-`Core\Csv::rows` (param `source`, new text); LSP stubs naming `Core\Csv\Rows` without `<T>`;
-`tools/nv/test/render.test.ts` (`descHtml`); a `decodeEach` case that moved a file's position.
-
-The sweep's reds are stale: run `42201104003` is on `26dda36`, and `env-secret-proofs` does not exist.
+The sweep's reds are stale: run `42201104003` is on `26dda36`, its Miri reds are 300 s timeouts
+of three size tests that `d2a3a8e63d` marked `cfg_attr(miri, ignore)`, and `env-secret-proofs`
+does not exist.
 
 ### Next
 
-**Stage 3**, its last item's two open points, then stage 3 is done.
+**Stage 4**, `crates/nvs-stdlib/src/io.rs` alone (decision 13 lets stage 5 run beside it).
 
-- [ ] `ByteSource::from_arg` (`crates/nvs-stdlib/src/byte_source.rs:180`) has no `Part` arm, so
-  `Core\Csv::rows($part)` compiles and fails when `sequence::start` meets a part. Add the arm as a
-  forward read (decision 6): run `part_ordinal` and `part_parse` as
-  `nvs_core_request_part_content` does (`crates/nvs-stdlib/src/request.rs:3993`), build the
-  `PART_CONTENT` walk and start the cursor over it. Make the two `pub(crate)`. Stage 5 adds prefix
-  and random reads. Add a conformance case with a `.nvsr` upload read by `Csv::rows($part)`.
-- [ ] `decodeEach`'s row (`crates/nvs-stdlib/src/json.rs:474`) becomes
-  `Union[Alias(Source, Union[TaintedBytes, File, Part, BodyStream]), Alias(Chunks, Iterated(TaintedBytes))]`.
-  Its parameter has no mark, as today, so the bytes arm is `TaintedBytes`, not `Blob(Contagious)`:
-  a contagious mark would refuse a tainted `bytes` argument, since `Elements<T>` is not in
-  `CELL_CLASSES`. Then update `rule:core-classes/json-whole-and-stream`'s `$source` bullet
-  (`docs/rules/core-classes/json-whole-and-stream.md:13`) and run `bun nv rules --render`.
+- [ ] `Core\IO\File` remembers its mode (`io.rs:1474`), then `File::readBytes(uint $max)`
+  (`io.rs:1376`) in `READ_CHUNK` pieces under `nvs_runtime::affordable`. Then `from_arg`
+  (`crates/nvs-stdlib/src/byte_source.rs:185`) throws the write-only `LogicError` (decision 17).
+- [ ] `Core\IO::readBytes` (`crates/nvs-stdlib/src/io.rs:99`), with no preallocation from the
+  stated size, and `Core\IO::stdinStream` (`io.rs:396`) under the main-task rule.
+- [ ] `write` and `append` take `string|bytes` (`crates/nvs-stdlib/src/io.rs:113`); the text reads
+  pass their hint into `text_of` (`io.rs:2072`); capability rows at `crates/nvs-stdlib/src/registry.rs:1903`.
+- [ ] The seven `io-bytes` tests (`crates/nvs-stdlib/src/io.rs:1`), in WSL too with
+  `bun nv linux-test`, the PNG conformance case and the readLine case's pinned message, as stage 4 lists.
 
-Then stages 4 and 5 (decision 13's lanes).
+Then stage 5: the part's own `Kind` in `byte_source.rs` for prefix and random reads, beside the
+forward arm stage 3 added.
 
 ### Backlog
 
