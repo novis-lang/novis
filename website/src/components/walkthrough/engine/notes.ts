@@ -24,7 +24,7 @@ const RATE = 120
 function realClock(stage: Stage): (t: number) => number {
   const n = Math.ceil(stage.duration * RATE) + 1
   const table = new Float64Array(n)
-  for (let k = 1; k < n; k++) table[k] = table[k - 1] + 1 / RATE / Math.max(stage.tl.speed.value((k - 0.5) / RATE), 0.05)
+  for (let k = 1; k < n; k++) table[k] = table[k - 1] + 1 / RATE / Math.max(stage.tl.rate((k - 0.5) / RATE), 0.01)
   return (t) => {
     const x = Math.min(Math.max(t * RATE, 0), n - 1)
     const k = Math.floor(x)

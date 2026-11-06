@@ -69,6 +69,8 @@ function parseRect(s: string | undefined): Rect | undefined {
 export abstract class Part {
   /** 1 while the camera frames this part, 0 while it frames others; written by the camera. */
   focus = 1
+  /** 1 while the caption on screen is about other parts, 0 otherwise; written by the stage. */
+  blur = 0
 
   constructor(
     readonly stage: Stage,
@@ -124,7 +126,13 @@ export abstract class Part {
   abstract render(t: number): void
 }
 
-/** A part that appears: fades and rises in with a little scale, and dims when out of focus. */
+/** How far a panel blurs while the caption is about other parts, in world units. */
+const BLUR = 5
+
+/**
+ * A part that appears: fades and rises in with a little scale, dims when out of focus, and blurs while
+ * the caption is about other parts.
+ */
 export abstract class Panel extends Part {
   protected readonly shown = this.tl.track(0)
 
@@ -143,6 +151,8 @@ export abstract class Panel extends Part {
     css(this.el, 'opacity', String(clamp01(s) * dim))
     css(this.el, 'transform', `translateY(${(1 - s) * 28}px) scale(${mix(0.94, 1, s)})`)
     css(this.el, 'visibility', s <= 0.001 ? 'hidden' : 'visible')
+    // No filter at all while sharp: a filter, even a zero blur, makes the browser paint the panel apart.
+    css(this.el, 'filter', this.blur > 0.01 ? `blur(${(this.blur * BLUR).toFixed(2)}px)` : 'none')
   }
 }
 
@@ -154,9 +164,12 @@ interface Shot {
   motion: Motion
   target: Target
   pad?: number
+  room?: PerLayout<Room>
   maxZoom: number
   only?: Layout
 }
+/** Extra world units a shot leaves on some of its sides, such as room for a caption beside a part. */
+export type Room = Partial<Record<Side, number>>
 
 /** The room the camera leaves around what it frames, per layout. A phone frames one part edge to edge. */
 const PAD: Record<Layout, number> = { wide: 48, tall: 20 }
@@ -180,14 +193,24 @@ export class Camera {
 
   constructor(private readonly stage: Stage) {}
 
-  /** Frames `target` at the cursor: one part, several, or the whole world. */
+  /**
+   * Frames `target` at the cursor: one part, several, the whole world or a region. `room` leaves extra
+   * world units on some sides, so a caption beside the part does not cover it.
+   */
   focus(
     target: Target,
-    opts: { motion?: MotionName | Motion; pad?: number; maxZoom?: number; delay?: number; only?: Layout } = {},
+    opts: {
+      motion?: MotionName | Motion
+      pad?: number
+      room?: PerLayout<Room>
+      maxZoom?: number
+      delay?: number
+      only?: Layout
+    } = {},
   ): number {
     const motion = motionOf(opts.motion ?? 'glide')
     const at = this.stage.tl.now + (opts.delay ?? 0)
-    this.shots.push({ at, motion, target, pad: opts.pad, maxZoom: opts.maxZoom ?? 1.9, only: opts.only })
+    this.shots.push({ at, motion, target, pad: opts.pad, room: opts.room, maxZoom: opts.maxZoom ?? 1.9, only: opts.only })
     this.shots.sort((a, b) => a.at - b.at)
     this.inLayout = {}
     // The scene is timed once for both layouts, so a shot for one layout still returns its length.
@@ -206,10 +229,11 @@ export class Camera {
     if (!shot || shot.target === 'all') return all
     const rs = isRect(shot.target) ? [shot.target] : this.parts(shot.target)!.map((p) => p.rect())
     const pad = shot.pad ?? PAD[this.stage.layout]
-    const x0 = Math.min(...rs.map((r) => r.x)) - pad
-    const y0 = Math.min(...rs.map((r) => r.y)) - pad
-    const x1 = Math.max(...rs.map((r) => r.x + r.w)) + pad
-    const y1 = Math.max(...rs.map((r) => r.y + r.h)) + pad
+    const room: Room = (shot.room && this.stage.pick(shot.room)) ?? {}
+    const x0 = Math.min(...rs.map((r) => r.x)) - pad - (room.left ?? 0)
+    const y0 = Math.min(...rs.map((r) => r.y)) - pad - (room.above ?? 0)
+    const x1 = Math.max(...rs.map((r) => r.x + r.w)) + pad + (room.right ?? 0)
+    const y1 = Math.max(...rs.map((r) => r.y + r.h)) + pad + (room.below ?? 0)
     // Never closer than maxZoom: grow the rect around its centre to the world's aspect at that zoom.
     const minW = world.w / shot.maxZoom
     const minH = world.h / shot.maxZoom
@@ -251,6 +275,49 @@ export class Camera {
   }
 }
 
+/** Which side of the point it is about a caption shows on. */
+export type Side = 'above' | 'below' | 'left' | 'right'
+
+/** Where a step's caption shows and what it is about; see `Stage.say`. */
+export interface Say {
+  /** The side of the point the caption sits on. */
+  side: PerLayout<Side>
+  /** The point the caption points at. By default, the middle of the part's side that faces the caption. */
+  point?: PerLayout<Anchor>
+  /** The parts that stay sharp while the caption shows; the other panels blur. By default, the part. */
+  focus?: Part[]
+  /**
+   * World units between the point and the caption, on top of the usual small gap, so the caption
+   * does not cover something next to the point. A line joins them.
+   */
+  lift?: number
+  /** Whether the scene slows down to let the caption be read. On by default. */
+  hold?: boolean
+}
+
+/** One step's caption on the stage: where it points from scene time `at` until its step ends. */
+interface Callout {
+  beat: number
+  at: number
+  part: Part | null
+  side: PerLayout<Side>
+  point?: PerLayout<Anchor>
+  focus: Set<Part> | null
+  lift: number
+}
+
+/** Real seconds to read a caption: a base and a time per word, a slow reader's pace. */
+const READ_BASE = 0.7
+const READ_PER_WORD = 0.24
+/** Scene seconds between one word's arrival and the next's. */
+const WORD_GAP = 0.03
+/** Scene seconds a caption takes to fade out after its step, and the blur to come and go. */
+const FADE = 0.3
+/** The space a caption keeps from the stage's edge, in CSS pixels. */
+const MARGIN = 10
+
+const words = (s: string) => s.split(' ').filter(Boolean)
+
 /** The stage: world, parts, camera, captions and the player. */
 export class Stage {
   readonly tl = new Timeline()
@@ -264,6 +331,13 @@ export class Stage {
   private fit = 1
   private vw = 0
   private vh = 0
+  /** The camera's last frame: zoom and centre. */
+  private cam = { k: 1, cx: 0, cy: 0 }
+  private says: Callout[] = []
+  /** The caption's size and font size in CSS pixels, measured when its text changes; -1 to measure. */
+  private capW = -1
+  private capH = 0
+  private capEm = 16
 
   // Player state.
   t = 0
@@ -272,7 +346,8 @@ export class Stage {
   private last = 0
   private raf = 0
   private visible = true
-  private beatShown = -1
+  /** The index in `says` of the caption whose words are in the caption element. */
+  private sayShown = -1
   private readonly reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
   private readonly listeners: Array<() => void> = []
 
@@ -291,8 +366,33 @@ export class Stage {
     return p
   }
 
+  /**
+   * Shows the current step's caption at the cursor, as a bubble beside `part` that points at it. The
+   * other panels blur while it shows, and the scene slows almost to a stop for the time it takes to
+   * read, so the viewer reads where the thing happens and then watches it. A step calls this once;
+   * a step that does not shows its caption at the bottom of the stage from its start.
+   */
+  say(part: Part, opts: Say): void {
+    const beat = this.tl.beats.length - 1
+    if (beat < 0) throw new Error('walkthrough: say() belongs inside a step')
+    if (this.says.some((s) => s.beat === beat)) throw new Error(`walkthrough: step ${beat + 1} already has its caption`)
+    const at = this.tl.now
+    const focus = new Set(opts.focus ?? [part])
+    this.says.push({ beat, at, part, side: opts.side, point: opts.point, focus, lift: opts.lift ?? 0 })
+    if (opts.hold === false) return
+    const n = words(this.tl.beats[beat].caption).length
+    // The hold starts once the words are in; the viewer has been reading since the first one.
+    const enter = 0.1 + n * WORD_GAP + MOTION.snappy.dur * 0.5
+    this.tl.wait(enter)
+    this.tl.hold(Math.max(0.8, READ_BASE + READ_PER_WORD * n - enter))
+  }
+
   /** Called once the scene is authored: lays out, renders the first frame and wires the controls. */
   start(): void {
+    for (const [i, b] of this.tl.beats.entries())
+      if (!this.says.some((s) => s.beat === i))
+        this.says.push({ beat: i, at: b.start, part: null, side: 'below', focus: null, lift: 0 })
+    this.says.sort((a, b) => a.at - b.at)
     new ResizeObserver(() => this.relayout()).observe(this.root)
     document.addEventListener('fullscreenchange', () => this.relayout())
     new IntersectionObserver(([e]) => {
@@ -373,11 +473,14 @@ export class Stage {
       css(p.el, 'height', `${r.h}px`)
     }
     for (const p of this.parts) p.measure()
+    // The caption's font size follows the stage's width.
+    this.capW = -1
     this.render()
   }
 
   /** Called by the camera: world zoom `k` (1 = the whole world fills the stage) centred on (cx, cy). */
   frame(k: number, cx: number, cy: number): void {
+    this.cam = { k, cx, cy }
     const s = this.fit * k
     css(this.world, 'transform', `translate(${this.vw / 2 - cx * s}px, ${this.vh / 2 - cy * s}px) scale(${s})`)
   }
@@ -385,34 +488,104 @@ export class Stage {
   render(): void {
     const t = this.t
     this.camera.render(t)
+    this.renderBlur(t)
     for (const p of this.parts) p.render(t)
     this.renderCaption(t)
     for (const fn of this.listeners) fn()
   }
 
+  /** How much a caption is on the stage at `t`: 0 before it, 1 while it shows, 0 again after its step. */
+  private presence(c: Callout, t: number): number {
+    const end = this.tl.beats[c.beat].end
+    return MOTION.out.ease(clamp01((t - c.at) / FADE)) * (1 - MOTION.out.ease(clamp01((t - end) / FADE)))
+  }
+
+  /** Blurs every panel a caption on the stage is not about. */
+  private renderBlur(t: number): void {
+    for (const p of this.parts) p.blur = 0
+    for (const c of this.says) {
+      if (!c.focus) continue
+      const r = this.presence(c, t)
+      if (r > 0) for (const p of this.parts) if (!c.focus.has(p)) p.blur = Math.max(p.blur, r)
+    }
+  }
+
+  /** Where world point `p` is on the stage, in CSS pixels from its top left corner. */
+  private toScreen(p: Point): Point {
+    const s = this.fit * this.cam.k
+    return { x: this.vw / 2 + (p.x - this.cam.cx) * s, y: this.vh / 2 + (p.y - this.cam.cy) * s }
+  }
+
   private renderCaption(t: number): void {
-    const i = this.beatAt(t)
-    const beat: Beat | undefined = this.tl.beats[i]
-    if (i !== this.beatShown) {
-      this.beatShown = i
+    let i = -1
+    for (let k = 0; k < this.says.length; k++) if (this.says[k].at <= t) i = k
+    const c: Callout | undefined = this.says[i]
+    const beat: Beat | undefined = c && this.tl.beats[c.beat]
+    const side = c?.part ? this.pick(c.side) : 'none'
+    if (i !== this.sayShown) {
+      this.sayShown = i
       this.caption.replaceChildren(
-        ...(beat?.caption ?? '').split(' ').map((w) => {
+        ...words(beat?.caption ?? '').map((w) => {
           const s = document.createElement('span')
           s.textContent = w + ' '
           return s
         }),
       )
       this.caption.classList.toggle('is-moment', !!beat?.moment)
+      this.capW = -1
     }
-    if (!beat) return
-    // The words of a caption arrive one after another, like a person saying them.
-    const since = this.reduced ? 99 : t - beat.start
-    const words = this.caption.children
-    for (let w = 0; w < words.length; w++) {
-      const p = MOTION.soft.ease(clamp01((since - 0.15 - w * 0.06) / MOTION.soft.dur))
-      const el = words[w] as HTMLElement
+    this.caption.dataset.side = side
+    if (!c || !beat) {
+      css(this.caption, 'opacity', '0')
+      return
+    }
+    if (this.capW < 0) {
+      this.capW = this.caption.offsetWidth
+      this.capH = this.caption.offsetHeight
+      this.capEm = parseFloat(getComputedStyle(this.caption).fontSize) || 16
+    }
+    const w = this.capW
+    const h = this.capH
+    const lead = c.lift * this.fit * this.cam.k
+    const gap = this.capEm * 0.8 + lead
+
+    // The bubble sits on its side of the point and stays on the stage; its tail points at the point.
+    let x = (this.vw - w) / 2
+    let y = this.vh - h - MARGIN * 2
+    let tail = 0
+    if (c.part) {
+      const part = c.part
+      const facing = { above: 'top', below: 'bottom', left: 'left', right: 'right' } as const
+      const pt = this.toScreen(c.point ? this.pick(c.point)(t) : part.edge(facing[side as Side]))
+      if (side === 'above' || side === 'below') {
+        x = pt.x - w / 2
+        y = side === 'above' ? pt.y - gap - h : pt.y + gap
+      } else {
+        x = side === 'left' ? pt.x - gap - w : pt.x + gap
+        y = pt.y - h / 2
+      }
+      x = Math.min(Math.max(x, MARGIN), this.vw - w - MARGIN)
+      y = Math.min(Math.max(y, MARGIN), this.vh - h - MARGIN)
+      const r = this.capEm
+      tail = side === 'above' || side === 'below' ? Math.min(Math.max(pt.x - x, r), w - r) : Math.min(Math.max(pt.y - y, r), h - r)
+    }
+
+    // The bubble grows out of its tail, then the words arrive one after another.
+    const since = this.reduced ? 99 : t - c.at
+    const grow = MOTION.pop.ease(clamp01(since / MOTION.pop.dur))
+    const origin =
+      side === 'above' ? `${tail}px ${h}px` : side === 'below' ? `${tail}px 0` : side === 'left' ? `${w}px ${tail}px` : side === 'right' ? `0 ${tail}px` : '50% 100%'
+    css(this.caption, '--tail', `${tail.toFixed(1)}px`)
+    css(this.caption, '--lead', `${lead > 0 ? (gap - this.capEm * 0.15).toFixed(1) : 0}px`)
+    css(this.caption, 'transform-origin', origin)
+    css(this.caption, 'transform', `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${mix(0.86, 1, grow).toFixed(4)})`)
+    css(this.caption, 'opacity', this.reduced ? '1' : this.presence(c, t).toFixed(3))
+    const spans = this.caption.children
+    for (let k = 0; k < spans.length; k++) {
+      const p = MOTION.snappy.ease(clamp01((since - 0.08 - k * WORD_GAP) / MOTION.snappy.dur))
+      const el = spans[k] as HTMLElement
       css(el, 'opacity', String(clamp01(p)))
-      css(el, 'transform', `translateY(${(1 - p) * 0.5}em)`)
+      css(el, 'transform', `translateY(${((1 - p) * 0.4).toFixed(3)}em)`)
     }
   }
 
@@ -474,7 +647,7 @@ export class Stage {
       // A long gap (a background tab) counts as one frame, so the scene never jumps.
       const dt = Math.min(now - this.last, 50) / 1000
       this.last = now
-      this.t = Math.min(this.t + dt * this.tl.speed.value(this.t), this.duration, this.stopAt)
+      this.t = Math.min(this.t + dt * this.tl.rate(this.t), this.duration, this.stopAt)
       const done = this.t >= this.duration || this.t >= this.stopAt
       if (done) this.playing = false
       if (done) delete this.root.dataset.playing

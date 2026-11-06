@@ -128,6 +128,9 @@ export interface Beat {
   end: number
 }
 
+/** How fast the scene runs while a caption is read: slow enough to look still, not stopped. */
+const HOLD = 0.12
+
 /** The cursor, the tracks and the beats of one scene. */
 export class Timeline {
   /** The authoring cursor, in scene seconds. */
@@ -136,9 +139,31 @@ export class Timeline {
   private readonly tracks: Track[] = []
   /** Playback speed over scene time; a scene slows down for its moment. */
   readonly speed: Track
+  /** A second speed, multiplied in: almost still while a caption is read (`hold`). */
+  private readonly holding: Track
 
   constructor() {
     this.speed = new Track(this, 1)
+    this.holding = new Track(this, 1)
+  }
+
+  /** The playback speed at scene time `t`: real seconds times this is scene seconds. */
+  rate(t: number): number {
+    return this.speed.value(t) * this.holding.value(t)
+  }
+
+  /**
+   * Slows the scene almost to a stop for about `real` seconds of real time, from the cursor, and moves
+   * the cursor past it, so what is authored next happens after the viewer has read. Things already
+   * moving keep moving, slowly, so the frame does not freeze.
+   */
+  hold(real: number): void {
+    const down = 0.12
+    const up = 0.3
+    const span = real * HOLD * this.speed.value(this.now)
+    this.holding.to(HOLD, 'out', { dur: down })
+    this.holding.to(1, 'out', { dur: up, delay: span })
+    this.now += span + up * 0.5
   }
 
   track(initial = 0): Track {
@@ -160,11 +185,12 @@ export class Timeline {
     this.now = saved
   }
 
-  /** Authors one beat; its end is where `fn` leaves the cursor. */
+  /** Authors one beat; its end is where `fn` leaves the cursor. While `fn` runs, it is the last beat. */
   beat(title: string, info: { caption: string; notes?: string; moment?: boolean }, fn: () => void): void {
-    const start = this.now
+    const beat: Beat = { title, ...info, start: this.now, end: this.now }
+    this.beats.push(beat)
     fn()
-    this.beats.push({ title, ...info, start, end: this.now })
+    beat.end = this.now
   }
 
   /** Changes the playback speed at the cursor, smoothly. */

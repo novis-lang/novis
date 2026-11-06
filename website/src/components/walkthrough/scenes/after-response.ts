@@ -44,6 +44,11 @@ export function start(root: HTMLElement): void {
     return { x: p.x - 30, y: p.y + 70 }
   }
   const mailbox = () => inbox.anchor('.wt-mails')
+  const order = '[data-anchor="order"]'
+  // The left edge of the editor, level with the function's lines.
+  const fnLines = () => ({ x: editor.rect().x, y: editor.lines(6, 8)(0).y })
+  // Wide, a shot of the browser leaves room on its right for the caption.
+  const nextToBrowser = { maxZoom: 1.45, room: { wide: { right: 300 }, tall: {} } }
   let row: ReturnType<Browser['request']>
 
   tl.beat(
@@ -65,7 +70,12 @@ export function start(root: HTMLElement): void {
         () => ({ x: server.rect().x, y: lane.origin(0).y }),
         { leave: { wide: 'right', tall: 'left' }, arrive: 'right', ends: [browser, server] },
       )
-      tl.wait(2.4)
+      tl.wait(0.9)
+      stage.say(browser, {
+        side: { wide: 'right', tall: 'above' },
+        point: { wide: () => browser.edge('right', 0.2), tall: () => browser.edge('top') },
+      })
+      tl.wait(0.6)
     },
   )
 
@@ -76,12 +86,17 @@ export function start(root: HTMLElement): void {
       notes: 'Lines 6 to 8 are the function that sends the receipt. Line 10 makes the page.',
     },
     () => {
-      camera.focus(editor, { maxZoom: 1.7 })
+      // Wide, the shot leaves room on the left for the caption, which points at the lines.
+      camera.focus(editor, { maxZoom: 1.7, room: { wide: { left: 380 }, tall: {} } })
       tl.wait(0.9)
       editor.highlight(5, 8)
       tl.wait(0.5)
       editor.glow(1)
-      tl.wait(2.6)
+      stage.say(editor, {
+        side: { wide: 'left', tall: 'below' },
+        point: { wide: fnLines, tall: () => editor.edge('bottom') },
+      })
+      tl.wait(0.8)
     },
   )
 
@@ -94,9 +109,16 @@ export function start(root: HTMLElement): void {
     () => {
       editor.glow(0)
       editor.unhighlight()
-      camera.focus(browser, { maxZoom: 1.45 })
-      tl.wait(0.7)
-      tl.wait(pointer.moveTo(browser.at('[data-anchor="order"]')))
+      camera.focus(browser, nextToBrowser)
+      tl.wait(1)
+      // The pointer comes in from below, so the caption sits beside the button or above it.
+      stage.say(browser, {
+        side: { wide: 'right', tall: 'above' },
+        point: { wide: browser.at(order, 'right'), tall: browser.at(order, 'top') },
+        // The request goes on to the server, which a phone's camera follows.
+        focus: [browser, server],
+      })
+      tl.wait(pointer.moveTo(browser.at(order)))
       tl.wait(pointer.click())
       browser.loading(true)
       row = browser.request({ method: 'POST', path: '/order' })
@@ -117,10 +139,15 @@ export function start(root: HTMLElement): void {
     },
     () => {
       pointer.leave()
-      camera.focus([editor, server], { maxZoom: 1.3, only: 'wide' })
+      camera.focus([editor, server], { maxZoom: 1.3, room: { left: 340 }, only: 'wide' })
       // On a phone the camera shows the code, then flies with the card down to the server.
       camera.focus(editor, { only: 'tall' })
-      tl.wait(0.5)
+      tl.wait(0.9)
+      stage.say(editor, {
+        side: { wide: 'left', tall: 'below' },
+        point: { wide: fnLines, tall: () => editor.edge('bottom') },
+        focus: [editor, server],
+      })
       editor.highlight(2, 3)
       tl.wait(0.8)
       editor.highlight(6, 8)
@@ -144,15 +171,19 @@ export function start(root: HTMLElement): void {
     () => {
       editor.unhighlight()
       wire.pulse('back', 0.9, 'var(--wt-ok)')
-      camera.focus(browser, { maxZoom: 1.45 })
+      camera.focus(browser, nextToBrowser)
       tl.wait(0.85)
       server.marker(lane, 'Browser has the page')
       lane.phase('sends the receipt', 'var(--wt-after)')
       row.finish(200, 38)
       browser.loading(false)
       tl.wait(browser.screen('done'))
+      stage.say(browser, {
+        side: { wide: 'right', tall: 'below' },
+        point: { wide: () => browser.edge('right', 0.35), tall: () => browser.edge('bottom') },
+      })
       // Stillness: the viewer has to believe the story is over.
-      tl.wait(1.8)
+      tl.wait(1)
     },
   )
 
@@ -170,7 +201,18 @@ export function start(root: HTMLElement): void {
       tl.wait(camera.focus('all', { motion: 'glide', only: 'wide' }) * 0.4)
       card.glow(1)
       tl.wait(card.follow(onTip, 'soft', 0.06))
-      tl.wait(1.6)
+      // The caption points at the bar that is still growing, from above the marker's label. The code
+      // is not part of the moment, so it blurs.
+      stage.say(server, {
+        side: 'above',
+        point: (t) => {
+          const p = lane.tip(t)
+          return { x: p.x - 24, y: p.y - 22 }
+        },
+        lift: 64,
+        focus: [browser, server, inbox],
+      })
+      tl.wait(0.5)
       tl.wait(card.moveTo(mailbox, 'soft', -0.18) * 0.7)
       inbox.arrive({ from: 'shop.example.com', subject: 'Receipt for order #1042', preview: 'Thank you for your order' })
       card.leave()
@@ -186,10 +228,14 @@ export function start(root: HTMLElement): void {
       notes: 'Point at the one row in the Network panel. The receipt came from the same request.',
     },
     () => {
-      camera.focus(browser, { maxZoom: 1.45 })
+      camera.focus(browser, nextToBrowser)
       tl.wait(0.8)
       browser.highlightRow(0)
-      tl.wait(2.4)
+      stage.say(browser, {
+        side: { wide: 'right', tall: 'below' },
+        point: { wide: browser.at('.wt-row', 'right'), tall: browser.at('.wt-row', 'bottom') },
+      })
+      tl.wait(0.8)
       tl.slow(1)
     },
   )
@@ -207,7 +253,11 @@ export function start(root: HTMLElement): void {
       tl.wait(0.4)
       editor.highlight(6, 8)
       editor.glow(1)
-      tl.wait(3.2)
+      stage.say(editor, {
+        side: { wide: 'left', tall: 'below' },
+        point: { wide: fnLines, tall: () => editor.edge('bottom') },
+      })
+      tl.wait(1.4)
     },
   )
 

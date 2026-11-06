@@ -46,6 +46,7 @@
     radial-gradient(55% 60% at 88% 95%, color-mix(in oklab, var(--wt-after) 11%, transparent), transparent 70%),
     var(--wt-bg);
   isolation: isolate;
+  container-type: size;
 }
 .wt-viewport::before {
   /* A faint dot grid, so the camera's moves read as moves across a surface. */
@@ -587,23 +588,114 @@
   filter: drop-shadow(0 0 10px var(--wt-tone, var(--wt-run)));
 }
 
-/* Caption */
+/*
+ * Caption: a bubble over the stage, beside the part it is about, with a tail that points at it. The
+ * stage places it in CSS pixels, so it keeps its size while the camera zooms; its font size follows the
+ * stage's width (`cqw`).
+ */
 .wt-caption {
-  min-height: 3.4em;
-  margin: 1.1rem auto 0;
-  max-width: 46rem;
-  text-align: center;
-  font-size: clamp(1.05rem, 2.2vw, 1.4rem);
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 15;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(31cqw, 24em);
+  margin: 0;
+  padding: 0.55em 0.85em 0.6em;
+  border: 1px solid var(--wt-line-strong);
+  border-radius: 0.7em;
+  background: var(--wt-win);
+  box-shadow: var(--wt-shadow);
+  color: var(--wt-text);
+  font-size: clamp(13px, 1.6cqw, 30px);
   font-weight: 600;
-  line-height: 1.45;
+  line-height: 1.4;
   text-wrap: balance;
+  pointer-events: none;
+  opacity: 0;
+}
+.wt[data-layout='tall'] .wt-caption {
+  max-width: 86cqw;
+  font-size: clamp(14px, 3.9cqw, 19px);
 }
 .wt-caption span {
   display: inline-block;
   white-space: pre;
 }
+.wt-caption::before {
+  content: '';
+  position: absolute;
+  width: 0.9em;
+  height: 0.9em;
+  border: inherit;
+  border-radius: 0 0 0.18em 0;
+  background: inherit;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.wt-caption[data-side='above']::before {
+  left: var(--tail);
+  top: 100%;
+  border-width: 0 1px 1px 0;
+}
+.wt-caption[data-side='below']::before {
+  left: var(--tail);
+  top: 0;
+  border-width: 1px 0 0 1px;
+  border-radius: 0.18em 0 0 0;
+}
+.wt-caption[data-side='left']::before {
+  left: 100%;
+  top: var(--tail);
+  border-width: 1px 1px 0 0;
+  border-radius: 0 0.18em 0 0;
+}
+.wt-caption[data-side='right']::before {
+  left: 0;
+  top: var(--tail);
+  border-width: 0 0 1px 1px;
+  border-radius: 0 0 0 0.18em;
+}
+.wt-caption[data-side='none']::before {
+  display: none;
+}
+/* The line from a lifted caption to its point. */
+.wt-caption::after {
+  content: '';
+  position: absolute;
+  background: var(--wt-line-strong);
+  border-radius: 1px;
+}
+.wt-caption.is-moment::after {
+  background: var(--wt-moment);
+}
+.wt-caption[data-side='above']::after,
+.wt-caption[data-side='below']::after {
+  left: calc(var(--tail) - 1px);
+  width: 2px;
+  height: var(--lead);
+}
+.wt-caption[data-side='above']::after {
+  top: 100%;
+}
+.wt-caption[data-side='below']::after {
+  bottom: 100%;
+}
+.wt-caption[data-side='left']::after,
+.wt-caption[data-side='right']::after {
+  top: calc(var(--tail) - 1px);
+  height: 2px;
+  width: var(--lead);
+}
+.wt-caption[data-side='left']::after {
+  left: 100%;
+}
+.wt-caption[data-side='right']::after {
+  right: 100%;
+}
 .wt-caption.is-moment {
   color: var(--wt-moment);
+  border-color: color-mix(in oklab, var(--wt-moment) 75%, transparent);
 }
 :root[data-theme='light'] .wt-caption.is-moment {
   color: var(--nv-gold-text);
@@ -746,15 +838,6 @@
 .wt:fullscreen .wt-viewport {
   border: 0;
   border-radius: 0;
-}
-.wt:fullscreen .wt-caption {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 6vh;
-  max-width: 60vw;
-  font-size: 2.2vw;
-  text-shadow: 0 2px 18px var(--wt-bg);
 }
 .wt:fullscreen .wt-controls {
   position: absolute;

@@ -8,7 +8,8 @@
  * - `request({ method, path })` adds a row to the Network panel and returns it; `row.finish(status,
  *   ms)` ends it. A pending row's time counts up, so a slow request is seen to be slow.
  * - `highlightRow(row)` rings a row, for the moment a scene points at it.
- * - `at(selector)` is an anchor at an element of the page, where the pointer clicks.
+ * - `at(selector, where?)` is an anchor at an element of the browser, where the pointer clicks or a
+ *   caption points.
  */
 import { attr, css, mix, Panel, type Anchor, type Stage } from '../engine/stage'
 import type { Track } from '../engine/time'
@@ -99,16 +100,19 @@ export class Browser extends Panel {
     return d
   }
 
-  /** An anchor at an element of the page, such as a button. */
-  at(selector: string): Anchor {
-    return () => this.anchors.get(selector) ?? this.anchor(selector)
+  /** An anchor at an element of the browser, such as a button: its centre, or the middle of one side. */
+  at(selector: string, where: 'center' | 'left' | 'right' | 'top' | 'bottom' = 'center'): Anchor {
+    const key = `${selector} ${where}`
+    return () => {
+      let p = this.anchors.get(key)
+      // Measured once per layout, on the first frame that needs it.
+      if (!p) this.anchors.set(key, (p = this.anchor(selector, where)))
+      return p
+    }
   }
 
   measure(): void {
     this.anchors.clear()
-    for (const sel of this.el.querySelectorAll<HTMLElement>('[data-anchor]')) {
-      this.anchors.set(`[data-anchor="${sel.dataset.anchor}"]`, this.anchor(sel))
-    }
   }
 
   render(t: number): void {

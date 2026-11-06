@@ -1,6 +1,6 @@
 ---
 /**
- * The frame of one walkthrough: the stage the parts sit in, the caption under it and the controls.
+ * The frame of one walkthrough: the stage the parts sit in, the caption bubble over it and the controls.
  * A scene component puts its parts in the slot and starts itself with a client script; see
  * `scenes/AfterResponse.astro` for the shape.
  *
@@ -23,13 +23,13 @@ const { id, label } = Astro.props
     <div class="wt-world">
       <slot />
     </div>
+    <p class="wt-caption" aria-live="polite"></p>
     <button class="wt-start" type="button" aria-label="Play">
       <span>
         <svg width="34" height="34" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"></path></svg>
       </span>
     </button>
   </div>
-  <p class="wt-caption" aria-live="polite"></p>
   <div class="wt-controls">
     <button class="wt-btn-i wt-prev" type="button" aria-label="Previous step">
       <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M18 5.5v13L8.5 12z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path></svg>
