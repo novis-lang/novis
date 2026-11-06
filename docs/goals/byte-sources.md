@@ -787,51 +787,53 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### 13. the goal is verified once, and every failure is fixed
 
-- [ ] `bun nv proofs --record-perf` over the classes whose figures are stale.
-- [ ] `bun nv proofs --run --valgrind --only 'Core\Csv::rows'` in WSL, for the two chunk attacks
+- [x] `bun nv proofs --record-perf` over the classes whose figures are stale.
+- [x] `bun nv proofs --run --valgrind --only 'Core\Csv::rows'` in WSL, for the two chunk attacks
   (decision 25).
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
+- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes byte-sources` (green),
+  `bun nv ci --check`, and each decision only this file holds moved to its rule or module doc.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 12 are done; only the gate stage is left. Stage 11 ended with `rampPerOp` and the
-sized file buffer (decision 26); all four byte source benches pass `scaling --growth` on the debug
-binary, the three `constant` siblings judged per operation. Stage 12 rewrote the examples, about
-pages and cards of every widened member to pass the source directly; `bun nv proofs --comments`
-passes on all 39 changed files, and `render --website` regenerated `core.json` and
-`llms-full.txt`. Every figure of a file that names `byte_source::` is stale until stage 13
-(decision 24). The sweep's reds were stale: no `env-secret-proofs` check exists, and the three
-nightly Miri timeouts at `26dda366` are `cfg_attr(miri, ignore)` in the tree. `scaling --budget
---write` still exits 1 on benches this goal did not touch, measured on an old release binary.
-Hex fixtures stay in examples that build literal bytes (`Mime/detect/01`, `Mime-Type/02`, `03`,
-`Image-Image`, `Encoding/decodeText/03`). `Image.nvs`' long comment blocks predate this goal.
+Stages 1 to 12 are done, and stage 13 is down to the goal-end gates. `looper verify` is green at
+`6fd989af`. The fix pass: `classes.rs` and five rule chapters rendered again; the `render.test.ts`
+fixture gained `descHtml`; `byte_source.rs` names its descriptor `nvs_runtime::capability::File`,
+since the capability scan forbids `std::fs`; `Part::peek` and `BodyStream::peek` joined the tainted
+roster in `core_lib.rs`; the Xml door test and the `Image::open` card test read the new
+signatures; the `decodeEach` peak tests pad the file past four chunks, because decision 26 sizes the
+buffer by the file; five error paths are declared at their sites; a zip case reaches `short()`;
+ten cases lift the five new readers to the floor of three; the spreadsheet case reads rows to find a
+late byte that is not UTF-8; the Json reference example's `$name` is `tainted`. The three Zip
+about pages fit 200 words. The proofs runner now passes `tools/valgrind.supp` to valgrind, and the
+three `Csv::rows` attacks are clean under it in WSL. Both byte source rules are `shipped`, so
+`owners --closes` is green. The sweep's reds were stale: no `env-secret-proofs` check exists, and
+the nightly Miri timeouts at `26dda366` are ignored under Miri in the tree.
 
-May go red at the gate: the cards, meta, LSP stub, `nvs agent` and perf-ledger snapshots of every
-widened member (`Xml::reader`, `Zip`, `Hash`, `Compress`, `Storage::put`, `BodyStream::peek`,
-`Csv::rows`' `charset`, `Mime::detect`, `Part`, spreadsheet `Reader::open`, and stage 9's
-`Image`, `Codec`, Pdf `Reader`, `Pages`, `Engine`); `meta.rs` and `ext_world.rs` export lists;
-spreadsheet cases quoting the old CSV path; `llms-full.txt` (`sourceBytes`); a pin of
-`part_parse`'s old message; the stage 2 to 4 snapshots (`decodeEach`, `Core\IO`,
-`render.test.ts`); examples that put a PDF's text or an image's `exif` in a plain `string`;
-`crates/nvs-ext/tests/builtin.rs`' manifest size figures.
+The `byte_source.rs` type change made every figure joined to it stale again after the first
+record. A second `bun nv proofs --record-perf` recorded 121 figures, and two did not record:
+`Core\IO::within` grows in instructions with slope 1.19 over `complexity linear`, the same on a run
+alone, so it is real (callgrind counts are exact); and `Core\Request::jsonAs`' clock grows with
+slope 1.9 on two runs while its counts do not. Find whether this goal's `io.rs` or `request.rs`
+change caused each before calling it noise.
 
 ### Next
 
-**Stage 13, the gate**, one session.
+**Stage 13's end**, one session.
 
-- [ ] `bun nv proofs --record-perf` over the stale figures. `tools/nv/proofs/collect.ts:1`
-- [ ] The two chunk attacks under valgrind in WSL. `tests/hostile/core/Csv/rows/02-pieces-that-throw-on-the-second-piece.nvs:1`
-- [ ] `looper verify`, one fix pass, `looper verify` again. `docs/goals/byte-sources.md:788`
-- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes byte-sources`, `bun nv ci --check`. `docs/goals/byte-sources.md:788`
-
-Record the perf figures first (they are long; run in the background and read its report), then
-start `looper verify` in the background. Expect red in the snapshots listed below, and in
-`bun nv ci --check`'s rustfmt and proofs gate. Before `DONE`, move each decision only this file
-holds into its rule or module doc, as AGENTS.md § *In the loop* says.
+- [ ] `Core\IO::within` and `Core\Request::jsonAs` record their figures. `benches/members/core/IO/within.scale.nvs:1`
+- [ ] `bun nv proofs --gate --limit 0` is green; record what it names. `tools/nv/proofs/collect.ts:1`
+- [ ] `bun nv verify --doc`, every broken doc link fixed. `docs/goals/byte-sources.md:788`
+- [ ] `bun nv ci --check`, each red fixed. `docs/goals/byte-sources.md:788`
+  A page stamp for `docs/reference/core/Json.md` may be owed (`bun nv site --stamp`).
+- [ ] Each decision only this file holds, moved to its home. `crates/nvs-stdlib/src/byte_source.rs:1`
+  Decisions 4, 17 and 26 go to `byte_source.rs`, 20 to `compress.rs`, 21 to `zip.rs`, 22 to
+  `xml.rs`, 24 to `tools/nv/proofs/collect.ts`, and 25's ramp to `tools/nv/cmd/scaling.ts`.
+  Then `DONE`.
 
 ### Backlog
 
@@ -853,3 +855,8 @@ holds into its rule or module doc, as AGENTS.md § *In the loop* says.
 - A cursor on `Order::Meta` in type position for a source alias reaches `Target::Constant`, not
   `Target::TypeAlias` (`crates/nvs-lsp/src/definition.rs:944`); the `Core` alias's hover is answered
   in `card.rs`' `core_member_hover`.
+- A spreadsheet CSV with a byte that is not UTF-8 past its first 4 KiB throws `Core\Csv::rows`' own
+  message when its rows are read, which does not name the reader's `charset` option
+  (`extensions/spreadsheet/nvs/Reader.nvs:326`).
+- `peek_max` in `crates/nvs-stdlib/src/request.rs` says no case can reach it, but a case can, through
+  `Core\Test::request` and `Core\Router::dispatch`.
