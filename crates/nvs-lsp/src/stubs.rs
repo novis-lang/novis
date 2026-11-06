@@ -382,7 +382,7 @@ fn short(name: &str) -> &str {
 /// The lines of each enum a class stub writes in its body, by the enum's name.
 type OwnedLines = Vec<(&'static str, Vec<(Option<String>, Line)>)>;
 
-/// One class: its card, then every enum it owns, every constant, every static
+/// One class: its card, then every enum it owns, every type alias, every constant, every static
 /// member, the constructor `new` reaches where there is one, and every
 /// instance member, each under its own card.
 fn class_stub(class: &CoreClass) -> (String, Vec<(Option<String>, Line)>, OwnedLines) {
@@ -420,6 +420,16 @@ fn class_stub(class: &CoreClass) -> (String, Vec<(Option<String>, Line)>, OwnedL
     {
         separate(&mut writer, &mut first);
         owned.push((core.name, enum_decl(&mut writer, core, "    ")));
+    }
+    for alias in registry::aliases_of(class.name) {
+        separate(&mut writer, &mut first);
+        writer.doc("    ", alias.doc.short);
+        writer.push("    type ");
+        lines.push((
+            Some(alias.short_name().to_owned()),
+            writer.name(alias.short_name()),
+        ));
+        writer.push(&format!(" = {};\n", stub_ty(&alias.ty)));
     }
     for constant in class.constants {
         separate(&mut writer, &mut first);

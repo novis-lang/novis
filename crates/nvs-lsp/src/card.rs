@@ -158,12 +158,23 @@ pub(crate) fn core_type_hover(name: &str) -> Option<String> {
     ))
 }
 
-/// The hover for a `Core` constant or enum case: `Owner::NAME` as a code
-/// block, then the constant's sentence or the case's line — and for a case
-/// nobody described on its own, its enum's line. `None` for a member no `Core`
-/// class or enum declares.
+/// The hover for a `Core` type alias, constant or enum case: `Owner::NAME` as
+/// a code block, then the constant's sentence or the case's line — and for a
+/// case nobody described on its own, its enum's line. An alias shows the type
+/// it stands for, then its card. `None` for a member no `Core` class or enum
+/// declares.
 pub(crate) fn core_member_hover(owner: &str, member: &str) -> Option<String> {
     nvs_footprint::card(owner);
+    // A `Core` type alias is written `Owner::Name` as a constant is, and its
+    // hover shows what it stands for under its card.
+    if let Some(alias) = registry::core_alias(&format!("{owner}::{member}")) {
+        return Some(format!(
+            "```nvs\ntype {} = {}\n```\n\n{}",
+            alias.name,
+            alias.ty.spelled(),
+            alias.doc.short
+        ));
+    }
     let line = format!("```nvs\n{owner}::{member}\n```");
     let desc = if let Some(class) = registry::class(owner) {
         class.constant(member)?.desc
@@ -288,6 +299,16 @@ mod tests {
         let (card, lines) = nvs_footprint::capture(|| core_member(r"Core\Math", "gcd"));
         assert!(card.is_some());
         assert!(lines.contains(&"card\tCore\\Math".to_string()), "{lines:?}");
+    }
+
+    #[test]
+    fn a_core_alias_hover_shows_its_name_its_type_and_its_card() {
+        let hover = core_member_hover(r"Core\Bytes", "Source").expect("an alias has a hover");
+        assert!(
+            hover.contains(r"type Core\Bytes::Source = tainted bytes|Core\IO\File"),
+            "{hover}"
+        );
+        assert!(hover.contains("an uploaded file"), "{hover}");
     }
 
     #[test]

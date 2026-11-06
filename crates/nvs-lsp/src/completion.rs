@@ -3291,15 +3291,26 @@ fn owner_written(analysed: &Analysed, offset: BytePos) -> Option<QName> {
 /// the `type` aliases it declares, its enum cases and its class constants.
 ///
 /// The same three rosters [`members_of`] chooses between, asked for the half of
-/// each that stands in a type. A `Core` class contributes its constants and a
-/// `Core` enum its cases; neither declares a `type` alias, which is a member of
-/// a written body and the registry holds none.
+/// each that stands in a type. A `Core` class contributes its type aliases and
+/// its constants, and a `Core` enum its cases.
 fn type_members_of(cursor: &Cursor<'_>, owner: &QName) -> Vec<CompletionItem> {
     let name = owner.to_string();
     if let Some(core) = registry::class(&name) {
-        core.constants
-            .iter()
-            .map(|constant| core_constant(core, constant))
+        registry::aliases_of(core.name)
+            .map(|alias| {
+                valued_row(
+                    core.name,
+                    alias.short_name().to_owned(),
+                    CompletionItemKind::TYPE_PARAMETER,
+                    None,
+                    Some(alias.ty.spelled()),
+                )
+            })
+            .chain(
+                core.constants
+                    .iter()
+                    .map(|constant| core_constant(core, constant)),
+            )
             .collect()
     } else if let Some(core) = registry::core_enum(&name) {
         core_cases(core, Reach::Static)
