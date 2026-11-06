@@ -1,6 +1,6 @@
 {
   "title": "A `Core` member that reads bytes takes the source the program holds",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-api/the-first-call-is-the-best-one",
     "core-api/no-encoding-argument",
@@ -9,7 +9,7 @@
   ],
   "guardedBy": [
     "crates/nvs-types/src/expr/quals.rs",
-    "crates/nvs-stdlib/src/registry.rs"
-  ],
-  "goal": "byte-sources"
+    "crates/nvs-stdlib/src/registry.rs",
+    "crates/nvs-stdlib/src/byte_source.rs"
+  ]
 }

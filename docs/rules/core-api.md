@@ -3,8 +3,6 @@
 
 # The Core API
 
-*2 of 61 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="core-api-core-means-always-present"></a>
 
 ## `Core` means always present, so nothing outside Tier 0 may register a name under it
@@ -918,7 +916,7 @@ made instead of defaulted per call.
 
 <a id="core-api-the-first-call-is-the-best-one"></a>
 
-## The call a program reaches for first is the safest and fastest way to do the job  *(designed — owned by goal byte-sources)*
+## The call a program reaches for first is the safest and fastest way to do the job
 
 `rule:core-api/the-first-call-is-the-best-one`
 
@@ -951,7 +949,7 @@ Which values a member that reads bytes takes is
 
 <a id="core-api-a-member-takes-the-source-the-program-holds"></a>
 
-## A `Core` member that reads bytes takes the source the program holds  *(designed — owned by goal byte-sources)*
+## A `Core` member that reads bytes takes the source the program holds
 
 `rule:core-api/a-member-takes-the-source-the-program-holds`
 

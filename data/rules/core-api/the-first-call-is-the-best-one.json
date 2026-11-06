@@ -1,11 +1,12 @@
 {
   "title": "The call a program reaches for first is the safest and fastest way to do the job",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-api/a-member-takes-the-source-the-program-holds",
     "http-server/an-upload-is-received-only-through-files",
     "core-api/one-paradigm-per-operation"
   ],
-  "guardedBy": [],
-  "goal": "byte-sources"
+  "guardedBy": [
+    "crates/nvs-stdlib/src/byte_source.rs"
+  ]
 }
