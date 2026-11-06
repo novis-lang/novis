@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/response.rs, crates/nvs-stdlib/src/io.rs]
   - id: 4
     title: "both members carry their feature proofs, and the JSON guide shows them"
-    status: open
+    status: done
     context: [benches/members/README.md, tests/hostile/README.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -199,19 +199,19 @@ AGENTS.md § *Text an end user reads*, and `bun nv proofs --comments <paths>` is
 
 - [x] Three examples each: an import from a request body, an export of database rows to a file, and
   JSON Lines. One of them shows decision 4's rollback. `docs/examples/core/Json/decodeAs/03-reading-a-list-of-orders.nvs:1`
-- [ ] A bench for each, whose ladder shows memory flat from 1 MiB to 256 MiB. `benches/members/README.md:1`
+- [x] A bench for each, whose ladder shows memory flat from 1 MiB to 256 MiB. `benches/members/README.md:1`
   - [x] the four bench files, each run once with the debug binary
-  - [ ] `bun nv proofs --record-perf` on a release binary, after the `Skip` fix below
-  - [ ] `bun nv scaling --budget --write` stores each new bench's share (benches/members/README.md)
-- [ ] Attacks: an array that never ends stops at the CPU limit; one element larger than the memory
+  - [x] `bun nv proofs --record-perf` on a release binary, after the `Skip` fix below
+  - [x] `bun nv scaling --budget --write` stores each new bench's share (benches/members/README.md)
+- [x] Attacks: an array that never ends stops at the CPU limit; one element larger than the memory
   limit stops there; nesting past `maxDepth` stops at once; a huge string outside the pointer is not
   kept. `tests/hostile/README.md:1`
   - [x] five cases written and committed; four pass
-  - [ ] `decodeEach/04-a-huge-string-outside-the-pointer.nvs` passes after the `Skip` fix
-- [ ] A skipped string is not kept: decision 11. `crates/nvs-stdlib/src/json/each.rs:237`
-  - [ ] `Skip` peeks with `deserialize_option` and reads a string value with `deserialize_ignored_any`
-  - [ ] a skipped object's keys: the bound decision 11 states, in the rule and the module doc
-  - [ ] a Rust test: a skipped 8 MiB string keeps the walk's peak within 64 KiB of a walk without it
+  - [x] `decodeEach/04-a-huge-string-outside-the-pointer.nvs` passes after the `Skip` fix
+- [x] A skipped string is not kept: decision 11. `crates/nvs-stdlib/src/json/each.rs:237`
+  - [x] `Skip` peeks with `deserialize_option` and reads a string value with `deserialize_ignored_any`
+  - [x] a skipped object's keys: the bound decision 11 states, in the rule and the module doc
+  - [x] a Rust test: a skipped 8 MiB string keeps the walk's peak within 64 KiB of a walk without it
 - [x] A section on the JSON guide page that shows both members.
   `website/src/content/docs/guides/simple-programs/json-api.mdx:1`
 - [x] The about pages and seven `.nvst` cases (`tests/conformance/core/json-*-each-*.nvst`).
@@ -226,53 +226,42 @@ AGENTS.md § *Text an end user reads*, and `bun nv proofs --comments <paths>` is
 
 ### State
 
-**Stage 4 is done except decision 11's `Skip` fix and the perf records.** Landed, each committed:
-the two about pages; six examples (`decodeEach/03-*` is decision 4's rollback, on an in-memory
-SQLite database); seven `.nvst` cases (`tests/conformance/core/json-*-each-*.nvst`, green under
-`target/debug/nvs.exe test <files>`); four benches, whose `.scale.nvs` throw past a 4 MiB
-`Core\Budget::memoryPeak()` because no directive checks a member ladder's peak; five attacks; the
-JSON guide's *Large lists* section; decision 12, with its test
-`a_core_walk_takes_a_walk_of_a_narrower_element` (`crates/nvs-types/tests/core_members.rs`), green.
+**Stages 1 to 4 are done.** Decision 11 landed (`18fa8e0554`): `Skip` peeks with
+`deserialize_option`, a skipped string goes through `deserialize_ignored_any`, and
+`decode_each_does_not_keep_a_skipped_string` is green with the `stream-read` check's five tests.
+The perf records for all six `Core\Json` members are in `d9fb9751c8` (measured after the fix).
+`bun nv proofs --run --only` both members: 6 examples and 5 attacks pass. `bun nv proofs --gate
+--group 'Core\Json'` owes nothing. `Core\Json\Elements` and `Core\Json\Pieces` are not proofs
+groups (`no group`), so that gate covers them.
 
-**Red: `tests/hostile/core/Json/decodeEach/04-a-huge-string-outside-the-pointer.nvs`.** A skipped
-64 MiB string is kept in serde_json's scratch buffer. Decision 11 is the fix.
+`bun nv scaling --budget --write` stored nothing while any bench was over, and 46 benches of other
+features are over (about 40 `novis/Spreadsheet-*`, plus `core/Cap/has`, `core/Metrics/*` and
+`lang/expressions/the-pipeline-operator*`). No gate runs `--budget`, so the ledger had not been
+written since 2026-10-20. `--write` now stores every share that is within budget, keeps an over
+bench's old share, and still exits 1 (`budgetAfter`, `tools/nv/cmd/scaling.ts`, tested in
+`tools/nv/test/proof-growth.test.ts`). Both new shares are stored: `decodeEach.nvs` 4106,
+`encodeEach.nvs` 1286.
 
 Facts: `decodeEach<int>` does not compile (E0465), so plain values use `decodeEach<mixed>`. The CPU
-limit counts from the start of the program. The sweep's `env-secret-proofs` red is stale driver
-state, and its command exits 0. Another session's uncommitted changes (`crates/nvs-cli/src/config.rs`,
-`docs/rules/config*.md`, the install docs) are not this goal's.
-
-Not run, and worth a look in stage 5: the `tsan` leg. `src/tsan.rs` brackets a task's resume with a
-fiber switch, and a `suspendable` resume has no bracket.
+limit counts from the start of the program. `decodeEach`'s perf record says `growth: unclear`
+(counts and callgrind did not agree by the ceiling); its `size_growth` is `flat`, and the gate
+accepts it. The sweep's `env-secret-proofs` red is stale driver state: no goal or floor names that
+check (`looper check --name env-secret-proofs` answers `no check matches`). The uncommitted
+`docs/rules/core-classes.md` is another session's.
 
 ### Next
 
-**Stage 4's last item: decision 11, then the perf records. One session, no subagents.**
+**Stage 5, the gate. One session, no subagents.**
 
-1. `crates/nvs-stdlib/src/json/each.rs`: give `Feed` a `last: &Cell<u8>` set to the last byte each
-   `read` hands out, next to `handed`. `Skip::deserialize` calls `deserialize_option` with a visitor
-   whose `visit_none` is `Ok(())` and whose `visit_some(d)` reads `last`: a `"` goes to
-   `d.deserialize_ignored_any(IgnoredAny)`, and anything else goes to `d.deserialize_any(skip)`.
-   Check first that `Feed::read` hands out one byte per call under `io::Bytes`. If it hands out
-   more, `last` is not the peeked byte, and the fix must count differently.
-2. Rewrite the module doc's *Outside the pointer* and the rule's paragraph
-   (`docs/rules/core-classes/json-whole-and-stream.md:32`): a skipped string value is not kept, and
-   a skipped object's keys cost O(longest key).
-3. A Rust test beside `decode_each_skips_a_value_outside_the_pointer_without_building_it`: a skipped
-   8 MiB string keeps the peak within 64 KiB of a walk without it. Run it and the `stream-read`
-   check's five tests once by name.
-4. `bun nv proofs --run --only 'Core\Json::decodeEach' 'Core\Json::encodeEach'`: all hostile cases
-   pass.
-5. `cargo build --release -p nvs-cli`, then `bun nv proofs --record-perf --only 'Core\Json::decodeEach' 'Core\Json::encodeEach'`
-   and `bun nv scaling --budget --write` (benches/members/README.md). Then
-   `bun nv proofs --gate --group 'Core\Json' --group 'Core\Json\Elements' --group 'Core\Json\Pieces'`
-   is green, and stage 4 is done.
-
-Expected red until then: the proofs gate names both members' perf as stale, and the hostile run
-names `decodeEach/04`. Expected red until stage 5: a snapshot of `nvs meta --json` gains two
-members, two classes, the `source` and `items` slots, and `writeStream`'s chunks parameter
-classified `neutral`. A type-checker snapshot or test that pinned E0401 for a `Core` walk of a
-narrower element now sees no error (decision 12).
+1. Start `looper verify` with `run_in_background`, write the handoff, end the turn.
+2. Fix every failure it names in one pass. Expected red: a snapshot of `nvs meta --json` gains two
+   members, two classes, the `source` and `items` slots, and `writeStream`'s chunks parameter
+   classified `neutral`. A type-checker snapshot or test that pinned E0401 for a `Core` walk of a
+   narrower element now sees no error (decision 12). Update each snapshot to the new truth.
+3. The `tsan` leg was never run: `src/tsan.rs` brackets a task's resume with a fiber switch, and a
+   `suspendable` resume (`decodeEach`'s coroutine) has no bracket. Read it before the goal ends.
+4. Run `looper verify` once more, then the goal-end gates (AGENTS.md § *In the loop*):
+   `bun nv verify --doc`, `bun nv owners --closes json-streaming`, `bun nv ci --check`.
 
 ### Backlog
 
@@ -286,3 +275,7 @@ Neither is this goal's work.
 - `Core\Str::format('%d', $n)` alone in a template hole still makes its own string through
   `nvs_int_to_string`, 4.6% of the `html-page` profile. Written as an `Int` part of the template,
   it allocates nothing (`nvs_str_concat_parts`).
+- `bun nv scaling --budget` is red over 46 benches of other features, and
+  `benches/members/novis/Spreadsheet-Sheet/chart.nvs` throws under `--count` ("The sheet `Sales` has
+  no data row yet"). Each over bench lowers its N or writes its reason. No gate runs `--budget`, so
+  its drift goes unseen until a goal stores a share.
