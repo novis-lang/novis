@@ -22,7 +22,7 @@ stages:
     context: [benches/members/README.md, benches/compare/profile.sh]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: parts-join
@@ -187,50 +187,37 @@ pieces in `nvs-ir`, `nvs-codegen` and the IR passes, as `file:line` with one lin
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done, and `parts-join` is green. *Why*'s figures are from `293a3b9b9`.
+Every stage is done, and the goal is reached. `looper verify` is green over the whole goal, and
+`parts-join` is green. *Why*'s figures are from `293a3b9b9`.
 
 - Stage 4's profile: 11,192 requests a second, 89.3 µs each, against *Why*'s 10,551 and 94.8 µs.
-  Escaping fell from 11.4% to 5.6%. `nvs_core_str_format_piece` is gone, and `IntPlaceholder` takes
-  about 1.3%. `nvs_str_concat_parts` takes 10.2%, because the copy and the escape now run inside it.
-  The allocator's accounting fell from about 12% to 9.9%.
-- Ledger: `Core\Str::format` makes 1 allocation (was 2). The template bench makes 2, the join and its
-  `Markup` (decision 12). `string-operators` stays 4 (decision 11). All three declare their counts.
-
-- Each `Concat` piece is a `ConcatPart`: a `PartKind` (`Str`, `Int`, `HtmlText`, `Format(word)`) and
-  a value. A join of strings alone consumes its leading piece. A typed join consumes none
-  (`Lowering::emit_concat`, `ConcatPart::all_str`). A typed piece alone is still joined
-  (`join_pieces`), so `Core\Str::format("%04d", $n)` is one `concat format 0x… vN`.
+  Escaping fell from 11.4% to 5.6%, `nvs_core_str_format_piece` is gone from it, and the allocator's
+  accounting fell from about 12% to 9.9%.
+- The gate's one code failure was not this goal's: `nvs_stdlib_reaches_the_os_only_through_the_gate`
+  refused `Core\Test::request`'s `std::fs::read` of a sent file. It now reads through
+  `Completion::read_file_body` (`crates/nvs-runtime/src/host.rs`), and `Core\Test`'s perf was
+  recorded again. One conformance image case failed on os error 1455, a full paging file, and
+  passed alone and in the next run.
+- The `nvs-ir` snapshots the last handoff expected red were already green.
+- Decisions 1 and 2 already live in `nvs_str_concat_parts`'s and `StrPart`'s docs. Decisions 4 and
+  10 are `crates/nvs-runtime/src/placeholder.rs`'s module doc, with § *What does not pack*.
+  Decision 12 is `benches/members/README.md` § *Where a bench goes*.
+- The goal-end gates: `bun nv verify --doc` resolves every link, `bun nv owners --closes
+  strings-in-place` names no gap, and `bun nv ci --check` is green.
 - `env-secret-proofs` is stale driver state: `looper check --name env-secret-proofs` matches nothing.
-
-Expected red in stage 5:
-- Each `nvs-ir` snapshot of an interpolation with an `int` hole or a template with a hole. It now
-  prints `int vN` and `html vN` pieces and releases the leading literal after the join.
-- Each `nvs-ir` snapshot of a literal `Core\Str::format` with an integer placeholder that has a flag,
-  a width or a non-plain conversion. It now prints `format 0x… vN` where it called
-  `nvs_core_str_format_piece`.
-- `INSTA_UPDATE=always bun nv verify -p nvs-ir` rewrites them; check each diff for that shape.
 
 ### Next
 
-**Stage 5**, the gate. Start `looper verify` with `run_in_background`, fix every failure in one pass
-(the `nvs-ir` snapshots above first), and run it once more. Then the goal-end gates in AGENTS.md
-§ *In the loop*: `bun nv verify --doc`, `bun nv owners --closes strings-in-place`, `bun nv ci --check`.
-Before the file is deleted, move decisions 1, 4, 10 and 12 into the module docs of
-`crates/nvs-runtime/src/string.rs` and `crates/nvs-runtime/src/placeholder.rs` and into
-`benches/members/README.md`, and move the Backlog item into a goal file.
+Nothing. The driver retires this file. The two follow-ups are `compare-recorded`'s Backlog.
 
 ### Backlog
 
-- A `.` chain with an `int` piece lowers as interpolation does, and a `Uint` part writes a `uint` hole
-  (decision 11). `lang:expressions/string-operators` would fall from 4 allocations. Anchors:
-  `crates/nvs-ir/src/lower/expr.rs:2356`, `crates/nvs-codegen/src/emit.rs:4035`.
-- `Core\Str::format('%d', $n)` alone in a template hole still makes its own string through
-  `nvs_int_to_string` (4.6% in the profile). Writing it as an `Int` part of the template would remove it.
+Moved to `docs/goals/compare-recorded.md` § *Backlog*.
