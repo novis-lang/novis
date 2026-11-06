@@ -25,8 +25,11 @@
  * loading. Without JavaScript every link stays in the bar.
  *
  * Below 50rem the whole navigation moves into the mobile menu, and the bar
- * keeps two links beside the mark: the first area and Install. Below 22rem
- * only Install stays.
+ * shows as many of its links beside the mark as fit, each by its short label.
+ * When the bar is too narrow, the same script first hides the name beside
+ * the mark, and then the links from the end, the current page's link last.
+ * Install always stays. Without JavaScript the bar shows the first area and
+ * Install, and below 22rem Install alone.
  */
 import config from 'virtual:starlight/user-config'
 
@@ -98,10 +101,23 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
       }
     </div>
     <nav class="phone-nav print:hidden" aria-label="Quick links">
-      <a href={areas[0].href} aria-current={current(areas[0].href)}>{areas[0].label}</a>
+      {
+        areas.map((area, i) => (
+          <a href={area.href} aria-current={current(area.href)} data-phone-item hidden={i > 0}>
+            {area.label}
+          </a>
+        ))
+      }
       <a href={install.href} aria-current={current(install.href)} class="install">
         {install.label}
       </a>
+      {
+        extras.map((link) => (
+          <a href={link.href} aria-current={current(link.href)} data-phone-item hidden>
+            {link.label}
+          </a>
+        ))
+      }
     </nav>
   </div>
   <div class="sl-flex print:hidden search-wrapper">
@@ -128,6 +144,11 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
         const pairs = [...bar.querySelectorAll('.site-nav [data-nav-item]')]
           .map((link) => [link, menu.querySelector(`[data-nav-item="${link.dataset.navItem}"]`)])
           .reverse()
+        // The phone bar's links in the order they are hidden: the last link
+        // first, and the current page's link only after every other one.
+        const phone = [...bar.querySelectorAll('.phone-nav [data-phone-item]')]
+          .reverse()
+          .sort((a, b) => a.hasAttribute('aria-current') - b.hasAttribute('aria-current'))
         const wide = matchMedia('(min-width: 50rem)')
         const steps = ['subtitles', 'social', 'search']
         const overflows = () => bar.scrollWidth > bar.clientWidth + 1
@@ -154,6 +175,13 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
               copy.hidden = false
               count++
             }
+          } else {
+            for (const link of phone) link.hidden = false
+            if (overflows()) bar.setAttribute('data-squeeze', 'name')
+            for (const link of phone) {
+              if (!overflows()) break
+              link.hidden = true
+            }
           }
           button.toggleAttribute(
             'data-current',
@@ -171,6 +199,7 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
           menu.style.top = `${at.bottom + 6}px`
           menu.style.left = `${Math.max(8, Math.min(at.left, right - width))}px`
         })
+        bar.setAttribute('data-fit', '')
         fit()
         new ResizeObserver(fit).observe(bar)
         if (document.fonts) document.fonts.ready.then(fit)
@@ -204,10 +233,11 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
   /* The mark and the links keep their width. When they do not fit, the bar
      overflows, and the script at the end of the bar sees that and removes
      parts until it fits. */
-  @media (min-width: 50rem) {
-    .start-group {
-      flex-shrink: 0;
-    }
+  .start-group {
+    flex-shrink: 0;
+  }
+  .header[data-squeeze~='name'] :global(.wordmark) {
+    display: none;
   }
   .header [hidden] {
     display: none !important;
@@ -422,7 +452,7 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
     display: inline-flex;
     align-items: center;
     min-height: 2.25rem;
-    padding-inline: 0.65rem;
+    padding-inline: 0.5rem;
     border-radius: var(--nv-radius-pill);
     color: var(--sl-color-gray-2);
     font-size: var(--sl-text-sm);
@@ -450,8 +480,10 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
   .phone-nav a.install:active {
     background-image: none;
   }
+  /* Without the script, which marks the bar `data-fit`, a narrow phone shows
+     Install alone, because the first area may not fit beside it. */
   @media (max-width: 22rem) {
-    .phone-nav a:not(.install) {
+    .header:not([data-fit]) .phone-nav a:not(.install) {
       display: none;
     }
   }
