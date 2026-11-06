@@ -1,25 +1,34 @@
 <?nvs
 // Shows how a website checks an uploaded profile picture before it stores it.
+use Novis\Image\Format;
+use Novis\Image\Image;
 
-array<string> $allowed = ['image/png' => 'png', 'image/jpeg' => 'jpg'];
-
+string $folder = Core\IO::temporaryDir();
 foreach (Core\Request::files() as Core\Request\Part $part) {
     // The form has one file field, `avatar`. Other files are skipped.
     if ($part->name() != 'avatar') {
         continue;
     }
-    string $extension = $allowed[$part->contentType()] ?? '';
-    if ($extension == '') {
-        echo "only PNG and JPEG pictures are allowed\n";
-        continue;
-    }
     try {
-        // `max` is the largest size in bytes. A larger file throws a `RuntimeError`.
-        tainted bytes $picture = $part->readAll({ max: 2000000 });
+        // `Image::info` reads the format and the size from the upload. It does not decode the pixels.
+        // A file that is not an image throws a `ParseError`.
+        var $info = Image::info($part);
+        if ($info->format != Format::Png && $info->format != Format::Jpeg) {
+            echo "only PNG and JPEG pictures are allowed\n";
+            continue;
+        }
+        if ($info->width > 1000 || $info->height > 1000) {
+            echo "the picture is larger than 1000 by 1000 pixels\n";
+            continue;
+        }
         // The client chose the file name "../../me.png", so the program does not use it.
-        // The stored name is the SHA-256 checksum of the picture.
-        string $stored = Core\Encoding::toHex(Core\Hash::of($picture, Core\Hash::Digest::Sha256));
-        echo 'stored as ', $stored, '.', $extension, "\n";
+        string $path = Core\Path::join($folder, 'avatar-1042.' . Image::extension($info->format));
+        // `saveTo` still writes the whole file, because `Image::info` did not use it up.
+        // `max` is the largest size in bytes. A larger file throws a `RuntimeError`.
+        $part->saveTo($path, { max: 2000000 });
+        echo 'stored a ', $info->width, ' by ', $info->height, ' picture of ', Core\IO::size($path), " bytes\n";
+    } catch (ParseError $notAnImage) {
+        echo "the file is not a picture\n";
     } catch (RuntimeError $tooLarge) {
         echo "the picture is larger than 2 MB\n";
     }

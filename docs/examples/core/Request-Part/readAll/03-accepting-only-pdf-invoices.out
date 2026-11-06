@@ -1,2 +1,2 @@
-invoice-march.pdf: accepted, 52 bytes
+invoice-march.pdf: 52 bytes, sent as 72 characters of Base64
 invoice-april.pdf: not a PDF file

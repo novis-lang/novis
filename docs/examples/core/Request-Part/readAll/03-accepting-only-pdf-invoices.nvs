@@ -1,15 +1,17 @@
 <?nvs
-// Shows how an accounting website checks that each uploaded invoice is really a PDF file.
+// Shows how an accounting website sends each uploaded PDF invoice to its bookkeeping service.
 
 foreach (Core\Request::files() as Core\Request\Part $part) {
-    // An invoice is small, so the program reads the whole file.
+    // The client chooses the file name, so the program checks the content.
+    // `Core\Mime::detect` reads only the first bytes. The program can still read the whole file after it.
+    if (Core\Mime::detect($part) != Core\Mime::Type::Pdf) {
+        echo $part->filename(), ": not a PDF file\n";
+        continue;
+    }
+    // The bookkeeping service needs the whole file as Base64 text, so the program reads all of it.
     // A file larger than 5000000 bytes throws a `RuntimeError`.
     tainted bytes $content = $part->readAll({ max: 5000000 });
-    // The client chooses the file name, so the program checks the content.
-    // Every PDF file starts with the bytes "%PDF-".
-    if (Core\Bytes::startsWith($content, '%PDF-' as bytes)) {
-        echo $part->filename(), ': accepted, ', Core\Bytes::length($content), " bytes\n";
-    } else {
-        echo $part->filename(), ": not a PDF file\n";
-    }
+    tainted string $encoded = Core\Encoding::toBase64($content);
+    echo $part->filename(), ': ', Core\Bytes::length($content), ' bytes, sent as ';
+    echo Core\Str::length($encoded), " characters of Base64\n";
 }

@@ -1,15 +1,19 @@
-`Core\Mime::detect` finds out what kind of file some bytes are, such as a PNG image, a PDF or a ZIP
-archive. It reads the first bytes, where most file formats write a fixed signature.
+`Core\Mime::detect` finds out what kind of file some data is, such as a PNG image, a PDF or a ZIP
+archive. It reads only the first 12 bytes, where most file formats write a fixed signature.
 
-The result is a case of the enum `Core\Mime::Type`, for example `Core\Mime::Type::Png`. When no
-signature matches, the result is `Core\Mime::Type::Unknown`. Text formats such as JSON, CSV, HTML and
-SVG have no signature, so they are always `Unknown`.
+You can pass `bytes`, an open `Core\IO\File`, an uploaded `Core\Request\Part` or the request body
+stream. A file keeps its position. An upload is not used up, so `saveTo` still writes the whole file
+after `detect`.
 
-`detect` has no parameter for a file name. A file name comes from the user, and anybody can call a
-program `photo.png`. Only the bytes decide the answer.
+The result is a case of the enum `Core\Mime::Type`, such as `Core\Mime::Type::Png`. When no
+signature matches, the result is `Core\Mime::Type::Unknown`. Text formats such as JSON, CSV and HTML
+have no signature, so they are always `Unknown`.
 
-**Good to know:** the result does not make the bytes safe. Bytes from a request are still
-`tainted` (they came from outside the program) after `detect` read them.
+`detect` has no parameter for a file name. Anybody can call a program `photo.png`, so only the bytes
+decide the answer.
 
-**The examples below** show checking one upload, then a file name that is not a type, then an upload
-form that accepts only images.
+**Good to know:** the result does not make the data safe. Bytes from a request are still `tainted`
+(they came from outside the program) after `detect` read them.
+
+**The examples below** show checking some bytes, then a file name that is not a type, then an upload
+form that accepts only images and saves them.

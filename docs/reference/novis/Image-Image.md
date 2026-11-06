@@ -6,7 +6,8 @@ keywords: image, picture, thumbnail, resize, scale, crop, rotate, convert, image
 `Novis\Image\Image` is an image and a list of steps to run on it. Each step method, such as
 `resize`, `crop` or `format`, returns a new `Image` and does not change the old one. No pixel is
 decoded until `encode`, `variants` or `raw` runs the steps, so bytes that are not an image throw a
-`ParseError` only then. `encode` removes all metadata, such as the place a photo was taken, unless
+`ParseError` only then. `open`, `info`, `hash`, `placeholder`, `palette` and `compare` read an
+encoded image from `bytes`, an open `Core\IO\File` or an uploaded `Core\Request\Part`. `encode` removes all metadata, such as the place a photo was taken, unless
 `metadata({ keep: true })` is a step.
 
 ```nvs

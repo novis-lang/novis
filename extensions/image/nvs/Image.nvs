@@ -89,6 +89,7 @@ final class Image
     }
 
     /// `Image::info` reads the format, the size and the orientation from the header. No pixel is decoded.
+    /// `$data` is the image's bytes, an open file or an uploaded file. A file keeps its position, and an upload can still be saved.
     public static function info(Core\Bytes::Source $data): Info
     {
         return Codec::info($data);
@@ -329,7 +330,7 @@ final class Image
     }
 
     /// `Image::compare` compares two images of the same size and returns a `Diff`. Other sizes throw a `LogicError`.
-    /// A pixel differs when its delta is above `tolerance`, which is 0 by default.
+    /// Each image is an `Image`, its bytes, an open file or an uploaded file. A pixel differs when its delta is above `tolerance`, which is 0 by default.
     public static function compare(Core\Bytes::Source|Image $a, Core\Bytes::Source|Image $b, ?{ tolerance?: uint, render?: bool } $options = null): Diff
     {
         ?uint $tolerance = $options?->tolerance ?? null;
@@ -343,8 +344,8 @@ final class Image
         return new Diff($found->identical, $found->differingPixels, $found->maxDelta, $found->ssim, $diff);
     }
 
-    /// `Image::hash` returns a short hash of an encoded image. Two similar images have similar hashes.
-    /// Each `HashKind` returns a hash of its own fixed length.
+    /// `Image::hash` returns a short hash of an encoded image: its bytes, an open file or an uploaded file.
+    /// Two similar images have similar hashes. Each `HashKind` returns a hash of its own fixed length.
     public static function hash(Core\Bytes::Source $data, HashKind $kind): bytes
     {
         return Core\Taint::assertTrustedBytes(Codec::hash($data, $kind), 'a hash has a fixed length and is computed from pixels');
@@ -370,14 +371,14 @@ final class Image
     }
 
     /// `Image::placeholder` returns a short text that a web page can draw as a blurred preview of the image.
-    /// Its average colour is the average colour of the image.
+    /// `$data` is the image's bytes, an open file or an uploaded file. The preview has the average colour of the image.
     public static function placeholder(Core\Bytes::Source $data, PlaceholderKind $kind): string
     {
         return Core\Taint::assertTrusted(Codec::placeholder($data, $kind), 'a placeholder uses a fixed alphabet and is computed from pixels');
     }
 
     /// `Image::palette` returns at most `count` main colours of the image, the most common first.
-    /// Transparent pixels are not counted. A `count` above 256 throws a `LogicError`.
+    /// `$data` is the image's bytes, an open file or an uploaded file. Transparent pixels are not counted. A `count` above 256 throws a `LogicError`.
     public static function palette(Core\Bytes::Source $data, uint $count = 5): array<Color>
     {
         array<Color> $colours = [];

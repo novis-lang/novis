@@ -9,7 +9,8 @@ by default. `{ max: … }` sets your own largest size in bytes. A file larger th
 moves on, it throws a `LogicError`. The content can be read only once, so a second call returns empty
 bytes.
 
-Use `content()` to read a large file in pieces, and `saveTo` to write it to a file.
+Use `content()` to read a large file in pieces, and `saveTo` to write it to a file. Some methods
+read the upload directly, such as `Core\Mime::detect` and `Core\Hash::of`. They need no `readAll`.
 
-The examples show how to print a small text file, how to set a size limit, and how to check that an
-upload really is a PDF file.
+The examples show how to print a small text file, how to set a size limit, and how to send a PDF
+upload to another service as Base64.

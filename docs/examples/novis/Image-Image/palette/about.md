@@ -1,6 +1,7 @@
 Returns the main colours of an image, the most common colour first.
 
-`Image::palette` reads an encoded image and returns an array of `Color` values. You choose how many
+`Image::palette` reads an encoded image and returns an array of `Color` values. You can pass
+`bytes`, an open `Core\IO\File` or an uploaded `Core\Request\Part`. You choose how many
 colours you want with `count`, which is 5 by default. The array can be shorter than `count` when the
 image has fewer colours. Transparent pixels are not counted.
 

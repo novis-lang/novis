@@ -1,6 +1,7 @@
 Returns a short hash of an image, so you can find copies of the same picture.
 
-`Image::hash` reads an encoded image, such as a PNG or JPEG file, and returns a few bytes. Two images
+`Image::hash` reads an encoded image, such as a PNG or JPEG file, and returns a few bytes. You can
+pass `bytes`, an open `Core\IO\File` or an uploaded `Core\Request\Part`. Two images
 that look the same give hashes that are almost equal, even when one is smaller or saved in another
 format. You compare two hashes with `Image::hashDistance`.
 

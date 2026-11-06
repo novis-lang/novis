@@ -1,6 +1,7 @@
 Returns a short text that a web page can draw as a blurred preview of an image.
 
-`Image::placeholder` reads an encoded image and returns a string of about 30 characters. You send
+`Image::placeholder` reads an encoded image and returns a string of about 30 characters. You can
+pass `bytes`, an open `Core\IO\File` or an uploaded `Core\Request\Part`. You send
 this string with the page. A small script in the browser draws it as a blurred picture while the
 real image loads. The average colour of the preview is the average colour of the image.
 

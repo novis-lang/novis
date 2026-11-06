@@ -1,6 +1,7 @@
 Compares two images of the same size and returns a `Diff` with the result.
 
-`Image::compare` takes two encoded images, or two `Image` values, or one of each. The `Diff` it
+`Image::compare` takes two images. Each one is an `Image` value, `bytes`, an open `Core\IO\File` or
+an uploaded `Core\Request\Part`. The `Diff` it
 returns has five values. `identical` is `true` when every pixel is the same. `differingPixels` is
 the number of pixels that are not the same. `maxDelta` is the largest difference in one colour
 channel, from 0 to 255. `ssim` is a score from 0.0 to 1.0 for how similar the two images look, and

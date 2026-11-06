@@ -1,17 +1,17 @@
 <?nvs
 // `Core\Mime::detect` reads the first bytes of a file and returns its type.
-// This program checks four files. Their first bytes are written in hex:
-// two characters for each byte.
+// This program checks four files in the `data` folder beside it.
 
-array<string> $arrived = [
-    'a photo from a phone' => 'ffd8ffe000104a4649',
-    'a screenshot' => '89504e470d0a1a0a',
-    'an invoice' => '255044462d312e37',
-    'a spreadsheet' => '504b03041400',
+array<Core\IO\File> $arrived = [
+    'a photo from a phone' => Core\IO::open('data/photo.jpg', Core\IO::FileMode::Read),
+    'a screenshot' => Core\IO::open('data/screenshot.png', Core\IO::FileMode::Read),
+    'an invoice' => Core\IO::open('data/invoice.pdf', Core\IO::FileMode::Read),
+    'a spreadsheet' => Core\IO::open('data/sales.xlsx', Core\IO::FileMode::Read),
 ];
 
-foreach ($arrived as string $what => string $firstBytes) {
-    Core\Mime::Type $found = Core\Mime::detect(Core\Encoding::fromHex($firstBytes));
+foreach ($arrived as string $what => Core\IO\File $file) {
+    // `detect` reads only the start of the file. It does not read the whole file.
+    Core\Mime::Type $found = Core\Mime::detect($file);
     echo $what, ': ', Core\Mime::mediaType($found), "\n";
 }
 
