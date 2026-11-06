@@ -30,6 +30,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::io::CLASS,
     crate::io::LINES,
     crate::io::WALK,
+    crate::io::STDIN_STREAM,
     crate::io::FILE,
     crate::io::METADATA,
     crate::process::CLASS,

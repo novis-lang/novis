@@ -77,6 +77,7 @@ const REFUSED: &[(&str, &str)] = &[
     ),
     ("Core\\IO\\Lines", READER),
     ("Core\\IO\\Walk", READER),
+    ("Core\\IO\\StdinStream", READER),
     ("Core\\IO\\File", HANDLE),
     ("Core\\IO\\Metadata", REPORT),
     ("Core\\Process\\Result", REPORT),

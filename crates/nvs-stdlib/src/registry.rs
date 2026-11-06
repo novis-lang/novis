@@ -2086,6 +2086,8 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // A grant would be a boolean over an authority the invoker already
     // exercised by running the program with its input attached.
     (crate::io::NAME, "stdin", None),
+    // The byte half of `stdin`, over the same descriptor, for the same reason.
+    (crate::io::NAME, "stdinStream", None),
     // `Core\IO\File`'s members need no row of their own: the descriptor was
     // checked when `open` produced it, which `capability::open_read`'s own doc
     // states as the reason a door hands back a handle at all. A `None` row here
@@ -3617,6 +3619,9 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // And the second, for the same reason: an entry of a walked tree is a
     // `string` whatever the tree held.
     (crate::io::WALK_NAME, &CoreTy::Str),
+    // `Core\IO::stdinStream`'s chunks, `tainted` as `stdin`'s text is: the
+    // bytes are whatever the invoker piped in.
+    (crate::io::STDIN_STREAM_NAME, &CoreTy::TaintedBytes),
     // A streamed reply's three framings, whose elements are `tainted` for the
     // reason every byte of a reply is: pinning says where the octets came from
     // and nothing about what is in them.
@@ -6709,6 +6714,7 @@ mod tests {
             crate::script::HANDLE_NAME,
             crate::io::LINES_NAME,
             crate::io::WALK_NAME,
+            crate::io::STDIN_STREAM_NAME,
             crate::csv::ROWS_NAME,
             crate::json::ELEMENTS_NAME,
             crate::json::PIECES_NAME,

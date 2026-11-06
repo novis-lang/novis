@@ -418,6 +418,18 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_io_stdin",
             doc: Some(&STDIN_DOC),
         },
+        CoreMethod {
+            name: "stdinStream",
+            names: &[],
+            params: &[],
+            // The byte half of `stdin`: the same input, as `tainted bytes`
+            // chunks a `foreach` pulls one at a time. [`STDIN_STREAM`] is the
+            // home of why it is its own iterator.
+            defaults: &[],
+            return_ty: CoreTy::Instance(STDIN_STREAM_NAME),
+            symbol: "nvs_core_io_stdin_stream",
+            doc: Some(&STDIN_STREAM_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -1277,6 +1289,74 @@ const STDIN_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\IO::stdinStream`'s reference card — `rule:core-api/reference-card`.
+const STDIN_STREAM_DOC: MethodDoc = MethodDoc {
+    short: "Reads the program's standard input in pieces, as bytes. Use it in a `foreach` loop. \
+            Each piece is `tainted` bytes, so input that is not text is read as it is. The whole \
+            input is never in memory at once.",
+    params: &[],
+    ret: "A `Core\\IO\\StdinStream`. Each loop step gives the next piece of the input, up to 64 KiB. \
+          The loop ends when the input ends. It gives no piece when the input is already closed.",
+    errors: &[ErrorDoc {
+        error: "IOError",
+        desc: "The read failed in the operating system. The process writing to the pipe stopped, \
+               or standard input was not open for reading.",
+    }],
+};
+
+/// `Core\IO::stdinStream`'s answer, as [`CoreTy::Instance`] spells it.
+pub(crate) const STDIN_STREAM_NAME: &str = r"Core\IO\StdinStream";
+
+/// The symbol behind `Iterable<tainted bytes>::iterate()`, reached by name
+/// through [`crate::instance`]'s dispatch roster.
+pub(crate) const STDIN_STREAM_ITERATE_SYMBOL: &str = "nvs_core_io_stdin_stream_iterate";
+/// The symbol behind `Iterator<tainted bytes>::advance()`, which reads the
+/// next chunk of standard input.
+pub(crate) const STDIN_STREAM_ADVANCE_SYMBOL: &str = "nvs_core_io_stdin_stream_advance";
+/// The symbol behind `Iterator<tainted bytes>::current()`.
+pub(crate) const STDIN_STREAM_CURRENT_SYMBOL: &str = "nvs_core_io_stdin_stream_current";
+
+/// [`STDIN_STREAM`]'s one slot: the chunk the last `advance()` read, and
+/// `null` before the first one and after the last.
+const STDIN_STREAM_CHUNK: usize = 0;
+
+/// `Core\IO\StdinStream`'s class card — `rule:core-api/reference-card`.
+const STDIN_STREAM_CARD: ClassDoc = ClassDoc {
+    short: "The program's standard input, read in pieces. `Core\\IO::stdinStream` returns it. \
+            Use it in a `foreach` loop to get each piece as `tainted` bytes.",
+};
+
+/// The class `stdinStream` answers with: its `Iterable<tainted bytes>`, given
+/// the name the registry needs to write it.
+///
+/// # It is its own iterator, for `Core\Request\BodyStream`'s reason
+///
+/// The next chunk of standard input does not exist when the walk is named, so
+/// `iterate()` answers the receiver and `advance()` reads one chunk of at most
+/// [`STDIN_CHUNK`] bytes, through [`StdinUntil`] under a run's wall time.
+/// `crate::request`'s `BODY_STREAM` docs are the argument, one source over.
+///
+/// **Taint comes from its `ITERABLES` row**, which fixes the element as
+/// `tainted bytes`: `nvs_stdlib::registry::carries_tainted_bytes` reads every
+/// such class as a carrier, so `Core\Hash::of(Core\IO::stdinStream(), …)`'s
+/// contagious result is tainted, as `stdin`'s text is.
+///
+/// **A `#[Test]` run reads end of input** and gives no chunk, as
+/// [`nvs_core_io_stdin`] does, so a test never waits for a person.
+///
+/// **What it spends:** one chunk, resident in the slot until the next pull,
+/// and nothing that grows with the input. A loop that keeps every chunk keeps
+/// what it chose to keep, under the request's memory limit.
+// rank: 160
+pub(crate) const STDIN_STREAM: CoreClass = CoreClass {
+    name: STDIN_STREAM_NAME,
+    doc: Some(&STDIN_STREAM_CARD),
+    methods: &[],
+    instance: &[],
+    slots: &["chunk"],
+    constants: &[],
+};
+
 /// `Core\IO::FileMode`'s fully-qualified name, in one place for the same reason
 /// [`NAME`] is.
 pub(crate) const FILE_MODE_NAME: &str = r"Core\IO::FileMode";
@@ -2104,6 +2184,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_walk" => (nvs_core_io_walk as *const ()).cast(),
         "nvs_core_io_open" => (nvs_core_io_open as *const ()).cast(),
         "nvs_core_io_stdin" => (nvs_core_io_stdin as *const ()).cast(),
+        "nvs_core_io_stdin_stream" => (nvs_core_io_stdin_stream as *const ()).cast(),
+        STDIN_STREAM_ITERATE_SYMBOL => (nvs_core_io_stdin_stream_iterate as *const ()).cast(),
+        STDIN_STREAM_ADVANCE_SYMBOL => (nvs_core_io_stdin_stream_advance as *const ()).cast(),
+        STDIN_STREAM_CURRENT_SYMBOL => (nvs_core_io_stdin_stream_current as *const ()).cast(),
         "nvs_core_io_file_read" => (nvs_core_io_file_read as *const ()).cast(),
         "nvs_core_io_file_read_bytes" => (nvs_core_io_file_read_bytes as *const ()).cast(),
         "nvs_core_io_read_bytes" => (nvs_core_io_read_bytes as *const ()).cast(),
@@ -2428,9 +2512,114 @@ fn read_to_text(ctx: &nvs_runtime::Ctx, input: &mut impl std::io::Read) -> Resul
 }
 
 /// What `Core\IO::stdin`'s message says to do with input that is not UTF-8.
-/// It names no member yet: the byte read of standard input,
-/// `Core\IO::stdinStream`, is the next work of this stage.
-const STDIN_HINT: &str = "";
+const STDIN_HINT: &str = "Use `Core\\IO::stdinStream` to read it as bytes.";
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::stdinStream(): Iterable<tainted bytes>`, standard input as
+    /// chunks. It reads nothing: `advance()` reads, one chunk at a time.
+    /// [`STDIN_STREAM`]'s docs say why it is its own iterator.
+    fn nvs_core_io_stdin_stream(_ctx, _args: [0]) {
+        Ok(crate::instance::build(&STDIN_STREAM, [Value::null()]))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterable<tainted bytes>::iterate(): Iterator<tainted bytes>`: the
+    /// stream itself, with the receiver's transferred reference handed back.
+    fn nvs_core_io_stdin_stream_iterate(_ctx, args: [1]) {
+        crate::instance::receiver(args[0], &STDIN_STREAM, nvs_runtime::sequence::ITERATE)?;
+        Ok(args[0])
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<tainted bytes>::advance(): bool`: reads the next chunk of
+    /// standard input, and answers `false` at the end of input.
+    fn nvs_core_io_stdin_stream_advance(ctx, args: [1]) {
+        let stepped = if ctx.run_kind() == nvs_runtime::RunKind::Test {
+            stdin_stream_step(args[0], &mut std::io::empty())
+        } else if let Some(deadline) = ctx.wall_bound() {
+            let read = stdin_stream_step(args[0], &mut StdinUntil { deadline });
+            match ctx.wall_time_fault() {
+                Some(fault) if read.is_err() => Err(fault),
+                _ => read,
+            }
+        } else {
+            stdin_stream_step(args[0], &mut std::io::stdin().lock())
+        };
+        crate::cursor::consume(args[0]);
+        stepped
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<tainted bytes>::current(): tainted bytes`: the chunk the last
+    /// `advance()` read.
+    fn nvs_core_io_stdin_stream_current(_ctx, args: [1]) {
+        let read = stdin_stream_chunk(args[0]);
+        crate::cursor::consume(args[0]);
+        read
+    }
+}
+
+/// [`STDIN_STREAM_ADVANCE_SYMBOL`]'s body over any reader: one read of at most
+/// [`STDIN_CHUNK`] bytes, stored in the receiver's slot, and whether there was
+/// anything to store. The member hands it the process's standard input; a test
+/// hands it a `Cursor`.
+///
+/// The slot is cleared to `null` at the end of input, so a stream the program
+/// still holds after its loop holds no chunk.
+///
+/// # Errors
+///
+/// [`nvs_runtime::capability::io_failure`]'s `IOError` when the read fails, so
+/// a short input is never reported as a complete one.
+fn stdin_stream_step(value: Value, input: &mut impl std::io::Read) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(value, &STDIN_STREAM, nvs_runtime::sequence::ADVANCE)?;
+    let mut chunk = vec![0; STDIN_CHUNK];
+    let got = loop {
+        match input.read(&mut chunk) {
+            Ok(got) => break got,
+            Err(err) if err.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(err) => {
+                return Err(nvs_runtime::capability::io_failure(
+                    "Core\\IO::stdinStream",
+                    Path::new("<stdin>"),
+                    &err,
+                ));
+            }
+        }
+    };
+    chunk.truncate(got);
+    let held = if got == 0 {
+        Value::null()
+    } else {
+        Value::bytes(nvs_runtime::NvsStr::new(&chunk))
+    };
+    crate::instance::set_slot(receiver, STDIN_STREAM_CHUNK, held);
+    Ok(Value::bool(got != 0))
+}
+
+/// [`STDIN_STREAM_CURRENT_SYMBOL`]'s body: the slot [`stdin_stream_step`] last
+/// wrote, retained, because the receiver keeps it until the next pull.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a receiver that is not a stream, which only a bug in
+/// this crate can produce.
+fn stdin_stream_chunk(value: Value) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(value, &STDIN_STREAM, nvs_runtime::sequence::CURRENT)?;
+    let held = crate::instance::slot(receiver, STDIN_STREAM_CHUNK);
+    #[expect(
+        unsafe_code,
+        reason = "the slot keeps its reference until the next `advance`, so the \
+                  value handed back needs one of its own"
+    )]
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
+}
 
 /// Every byte `input` gives, read no further than the request can hold.
 ///
@@ -5950,6 +6139,62 @@ mod tests {
             message.contains("Core\\IO::stdin") && message.contains("the writer went away"),
             "{message}"
         );
+    }
+
+    /// `Core\IO::stdinStream` gives its input as `tainted bytes` chunks of at most
+    /// `STDIN_CHUNK` bytes, octets that are not UTF-8 as they are, and no chunk at the end.
+    /// A failed read throws an `IOError` naming the member.
+    // covers: Core\IO::stdinStream
+    #[test]
+    fn stdin_stream_gives_tainted_chunks() {
+        assert!(
+            crate::registry::ITERABLES
+                .iter()
+                .any(|(class, element)| *class == STDIN_STREAM_NAME
+                    && matches!(element, CoreTy::TaintedBytes)),
+            "a chunk of standard input is `tainted bytes`"
+        );
+
+        let mut input = vec![b'a'; STDIN_CHUNK];
+        input.extend_from_slice(b"\x00\xff\xfe");
+        let mut source = std::io::Cursor::new(input);
+        let stream = crate::instance::build(&STDIN_STREAM, [Value::null()]);
+        let mut chunks: Vec<Vec<u8>> = Vec::new();
+        loop {
+            let more = stdin_stream_step(stream, &mut source).expect("the read");
+            let chunk = stdin_stream_chunk(stream).expect("the slot");
+            if more.as_bool() != Some(true) {
+                assert_eq!(chunk.tag(), Some(Tag::Null), "the slot is cleared at the end of input");
+                break;
+            }
+            chunks.push(chunk.as_bytes().expect("a chunk is bytes").to_vec());
+            #[expect(unsafe_code, reason = "`current` handed back a reference of its own")]
+            unsafe {
+                chunk.release();
+            }
+        }
+        assert_eq!(chunks.len(), 2, "one full chunk and the rest");
+        assert_eq!(chunks[0].len(), STDIN_CHUNK);
+        assert_eq!(chunks[1], b"\x00\xff\xfe");
+
+        struct Broken;
+        impl std::io::Read for Broken {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other("the writer went away"))
+            }
+        }
+        let failed = stdin_stream_step(stream, &mut Broken).expect_err("a failed read");
+        let Fault::Thrown(nvs_runtime::ThrownClass::Io, message) = failed else {
+            panic!("a failed read is an `IOError`: {failed:?}");
+        };
+        assert!(
+            message.contains("Core\\IO::stdinStream") && message.contains("the writer went away"),
+            "{message}"
+        );
+        #[expect(unsafe_code, reason = "the test built the stream and owns its reference")]
+        unsafe {
+            stream.release();
+        }
     }
 
     /// `Core\IO::FileMode::ReadWrite`'s case index, as a call site passes it.

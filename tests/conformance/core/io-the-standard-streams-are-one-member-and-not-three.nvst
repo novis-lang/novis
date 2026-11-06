@@ -1,5 +1,5 @@
 --TEST--
-The standard streams are `Core\IO::stdin` alone — there is no `stdout` half, because writing to that stream is `Core\Cli::write`'s sink — `rule:tooling/terminal-output-is-a-sink` and `rule:tooling/no-raw-handle-onto-standard-output`
+The standard streams are standard input alone, read by `Core\IO::stdin` or `Core\IO::stdinStream` — there is no `stdout` half, because writing to that stream is `Core\Cli::write`'s sink — `rule:tooling/terminal-output-is-a-sink` and `rule:tooling/no-raw-handle-onto-standard-output`
 --FILE--
 <?nvs
 // The reading half is here, and it is a value rather than a handle: a
