@@ -11,6 +11,8 @@
 // A package's unit is its class, not each method as for a `Core` class: a package is not in the binary,
 // and its class's page is the one place a user reads it. Its help is the comment above the class, and
 // its tests are the package's own `#[Test]` methods that carry a `covers:` marker.
+// A type alias a class declares, `Core\Bytes::Source` or a component's shape, is no feature of its own:
+// it is part of its class's card, and the members that take it owe the proofs.
 // A class or enum `nvs meta --json` calls `internal` — a component's engine, and an enum only its
 // signature uses — is no feature, since a program never calls it.
 //

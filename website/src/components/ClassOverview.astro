@@ -140,12 +140,13 @@ const enumPage = (name: string) => {
   {
     cls.types.length > 0 && (
       <>
-        <h2 id="types">Shape types</h2>
+        <h2 id="types">Types</h2>
         {cls.types.map((t) => (
           <>
             <h3 id={shapeAnchor(t.name)}>
               <code>{t.name}</code>
             </h3>
+            {t.descHtml && <p set:html={t.descHtml} />}
             <div class="method-signature shape-type not-content">
               <div class="method-signature-decl-row">
                 <pre class="method-signature-decl"><code>{shapeLines(t.name, t.type, cls.name).map((html) => <span class="sig-line"><span class="sig-code" set:html={html} /><span class="sig-comment" /></span>)}</code></pre>

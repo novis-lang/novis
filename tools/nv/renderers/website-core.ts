@@ -94,7 +94,13 @@ function registry(root: string): Registry {
       name: cls.name,
       short: typeof cls.doc?.short === "string" ? cls.doc.short : "",
       members: (cls.members ?? []).map((m: RegistryMember) => ({ name: m.name, kind: m.kind, signature: m.signature })),
-      types: (cls.types ?? []).filter((t: { internal?: boolean }) => !t.internal).map((t: { name: string; type: string }) => ({ name: t.name.slice(t.name.lastIndexOf("::") + 2), type: t.type })),
+      types: (cls.types ?? [])
+        .filter((t: { internal?: boolean }) => !t.internal)
+        .map((t: { name: string; type: string; doc?: { short?: string } }) => ({
+          name: t.name.slice(t.name.lastIndexOf("::") + 2),
+          type: t.type,
+          descHtml: typeof t.doc?.short === "string" && t.doc.short ? inlineHtml(t.doc.short) : "",
+        })),
       constants: (cls.constants ?? []).map((c: { name: string }) => c.name),
     });
     for (const m of cls.members ?? []) if (m.doc) out.docs.set(`${cls.name}::${m.name}`, m.doc);
@@ -330,10 +336,12 @@ export function parseSignature(raw: string): Signature | null {
 
 // ---------------------------------------------------------------- the registry, read into classes
 
-/** A named shape a class declares: `Info` and `{format: Format, width: uint, …}`. */
+/** A type alias a class declares: `Info` and `{format: Format, width: uint, …}`, or `Source` and a
+ * union, with its card's one sentence as HTML, empty where it has none. */
 interface ShapeType {
   name: string;
   type: string;
+  descHtml: string;
 }
 
 interface ClassEnum {

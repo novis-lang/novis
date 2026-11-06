@@ -71,7 +71,7 @@ const apps = member ? [] : await examplesShowing(cls.name)
 if (!member) {
   section('members', 'Members', cls.members.length > 0)
   section('enums', 'Enums', cls.enums.length > 0)
-  section('types', 'Shape types', cls.types.length > 0)
+  section('types', 'Types', cls.types.length > 0)
   section('constants', 'Constants', cls.constants.length > 0)
   section('example-apps', 'Example apps', apps.length > 0)
 }

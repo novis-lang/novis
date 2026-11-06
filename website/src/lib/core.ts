@@ -80,8 +80,9 @@ export interface CoreClass {
    */
   summaryBlocks: ({ html: string } | { code: string; lang: string })[]
   enums: { name: string; cases: string[]; raw: string; doc?: CoreEnumDoc }[]
-  /** The shape types the class declares, by the name its signatures use: `Info` and `{ format: Format, … }`. */
-  types: { name: string; type: string }[]
+  /** The type aliases the class declares, by the name its signatures use: `Info` and `{ format: Format, … }`,
+   * with each one's card as HTML, empty where it has none. */
+  types: { name: string; type: string; descHtml?: string }[]
   constants: { name: string; descHtml: string }[]
   members: CoreMember[]
   slug: string

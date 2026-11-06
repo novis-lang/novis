@@ -35,3 +35,16 @@ png
 9 123456781234ff0000
 -1
 ```
+
+## Byte sources
+
+`Core\Bytes` names two types for methods that read bytes.
+
+- `Core\Bytes::Source` is `bytes`, an open `Core\IO\File`, an uploaded file (`Core\Request\Part`) or
+  the request body (`Core\Request\BodyStream`). A method can read its start, or read it in any order.
+- `Core\Bytes::Chunks` is bytes that arrive in pieces: an array, a generator or any other loop over
+  `bytes` values. A method reads it once, from the first piece to the last.
+
+A method that reads from the start to the end takes both: `Core\Bytes::Source|Core\Bytes::Chunks`.
+You pass the value you have, and the method decides how much of it to read. Your own functions can use
+both types too.
