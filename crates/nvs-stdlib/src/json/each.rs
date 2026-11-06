@@ -19,8 +19,8 @@
 //! path `decodeAs` takes for a class that reads its own document, so every
 //! check and every message is the one `decodeAs` makes.
 //!
-//! **What it spends:** per walk in flight, one chunk of up to [`CHUNK`] bytes,
-//! the coroutine's stack (`nvs_host::suspendable`'s cost), one element as a
+//! **What it spends:** per walk in flight, the source's own chunk
+//! (`crate::byte_source`'s cost) and the parse's copy of it, the coroutine's stack (`nvs_host::suspendable`'s cost), one element as a
 //! value, and for a typed walk the same element as `T`. A typed element is
 //! built twice, once as a value and once as `T`, which is time spent per
 //! element in place of a second decoder that runs compiled code across
@@ -59,6 +59,8 @@ use nvs_host::{CoroutineResult, Suspendable, Yielder};
 use nvs_runtime::{Fault, Tag, ThrownClass, Value};
 use serde::de::{DeserializeSeed, Deserializer, IgnoredAny, MapAccess, SeqAccess, Visitor};
 
+use crate::byte_source::ByteSource;
+
 use super::{
     Decode, ELEMENTS, ELEMENTS_NAME, Lists, Reading, check_codec, hydrate, max_depth, repeated,
 };
@@ -66,9 +68,6 @@ use super::{
 /// The member every message names.
 const MEMBER: &str = "Core\\Json::decodeEach";
 
-/// The most bytes one read of a `Core\IO\File` takes:
-/// `Core\Request::bodyStream()`'s chunk size.
-const CHUNK: usize = 64 << 10;
 
 /// [`ELEMENTS`]' first slot: the key the walk is filed under with
 /// `nvs_runtime::Ctx::hold_open_reader`, and `0` once the walk has ended.
@@ -76,9 +75,9 @@ const READER_AT: usize = 0;
 /// [`ELEMENTS`]' second slot: the element the last `advance()` built, `null`
 /// before the first one and after the last.
 const ELEMENT_AT: usize = 1;
-/// [`ELEMENTS`]' third slot: the source. The `Core\IO\File`, or the cursor
-/// `nvs_runtime::sequence::start` began over the chunks. It is in a slot and
-/// not in the filed state so that the request's own release frees it.
+/// [`ELEMENTS`]' third slot: the value [`ByteSource::from_arg`] gave, which
+/// every read of the source is handed. It is in a slot and not in the filed
+/// state so that the request's own release frees it.
 const SOURCE_AT: usize = 2;
 
 /// What the coroutine suspends with.
@@ -98,24 +97,15 @@ type Down = Option<Vec<u8>>;
 /// the byte offset it was found at.
 type Ended = Result<(), (String, u64)>;
 
-/// Where the chunks come from.
-#[derive(Debug, Clone, Copy)]
-enum Source {
-    /// An open `Core\IO\File`, by the key its handle holds.
-    File(u64),
-    /// The cursor in [`SOURCE_AT`], and where an array's walk goes on.
-    Chunks(usize),
-}
 
 /// One walk's state, filed on the request.
 struct Walk {
     /// The suspended parse. It is taken out for the length of one `advance()`,
     /// because pulling a chunk needs the context the walk is filed in.
     parse: Option<Suspendable<Down, Up, Ended>>,
-    /// Where the chunks come from.
-    source: Source,
-    /// Whether the source has ended. Every later read is answered `None`.
-    drained: bool,
+    /// Where the chunks come from. It is taken out for the length of one
+    /// `advance()`, as the parse is.
+    source: Option<ByteSource>,
     /// The class each element is built as, or `None` for `mixed`. It lives in
     /// the compiled unit's constants, which outlive the request.
     class: Option<*const nvs_runtime::ClassDesc>,
@@ -129,7 +119,6 @@ impl std::fmt::Debug for Walk {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Walk")
             .field("source", &self.source)
-            .field("drained", &self.drained)
             .field("typed", &self.class.is_some())
             .finish_non_exhaustive()
     }
@@ -578,71 +567,6 @@ fn walk_at(ctx: &mut nvs_runtime::Ctx, key: u64) -> Result<&mut Walk, Fault> {
         })
 }
 
-/// The next chunk of the source, or `None` at its end.
-///
-/// # Errors
-///
-/// A `RuntimeError` for a file closed under the walk, an `IOError` for a read
-/// the operating system refused, and whatever a driven `Iterable` throws.
-fn next_chunk(
-    ctx: &mut nvs_runtime::Ctx,
-    source: &mut Source,
-    holder: Value,
-) -> Result<Option<Vec<u8>>, Fault> {
-    match source {
-        Source::File(file) => {
-            let (_, path) = crate::io::handle_of(holder, MEMBER)?;
-            let mut buffer = vec![0_u8; CHUNK];
-            let read = {
-                let open = ctx.open_file_mut(*file).ok_or_else(|| closed(&path))?;
-                io::Read::read(open, &mut buffer)
-            }
-            .map_err(|err| {
-                nvs_runtime::capability::io_failure(
-                    MEMBER,
-                    std::path::Path::new(path.as_text().unwrap_or("?")),
-                    &err,
-                )
-            })?;
-            if read == 0 {
-                return Ok(None);
-            }
-            buffer.truncate(read);
-            Ok(Some(buffer))
-        }
-        Source::Chunks(from) => {
-            let Some(chunk) = nvs_runtime::sequence::pull(ctx, holder, from, MEMBER)? else {
-                return Ok(None);
-            };
-            let bytes = chunk
-                .as_bytes()
-                .or_else(|| chunk.as_str_bytes())
-                .map(<[u8]>::to_vec);
-            #[expect(
-                unsafe_code,
-                reason = "the pull handed this frame its own reference, and the bytes \
-                          are copied out of it"
-            )]
-            unsafe {
-                chunk.release();
-            }
-            bytes.map(Some).ok_or_else(|| {
-                Fault::fatal(format!(
-                    "internal error: {MEMBER} was handed a chunk that is not bytes"
-                ))
-            })
-        }
-    }
-}
-
-/// The `RuntimeError` for a file the program closed under the walk, worded as
-/// `Core\Csv::rows` words it.
-fn closed(path: &Value) -> Fault {
-    Fault::thrown(format!(
-        "{MEMBER}: this handle is closed — {}",
-        path.as_text().unwrap_or("?")
-    ))
-}
 
 /// The `ParseError` for a parse that failed at byte `at` of the source.
 fn unparsed(why: &str, at: u64) -> Fault {
@@ -656,8 +580,8 @@ fn unparsed(why: &str, at: u64) -> Fault {
 ///
 /// # Errors
 ///
-/// [`next_chunk`]'s, [`unparsed`]'s, and [`hydrate`]'s for an element that is
-/// not a `T`.
+/// [`ByteSource::next_chunk`]'s, [`unparsed`]'s, and [`hydrate`]'s for an
+/// element that is not a `T`.
 fn next_element(
     ctx: &mut nvs_runtime::Ctx,
     key: u64,
@@ -669,16 +593,22 @@ fn next_element(
             "internal error: a `{ELEMENTS_NAME}` walk lost its parse"
         ))
     })?;
-    let (mut source, mut drained) = (walk.source, walk.drained);
+    let mut source = walk.source.take().ok_or_else(|| {
+        Fault::fatal(format!(
+            "internal error: a `{ELEMENTS_NAME}` walk lost its source"
+        ))
+    })?;
     let (class, shape, list) = (walk.class, walk.shape, walk.list);
     let mut input: Down = None;
     let raw = loop {
         match parse.resume(input.take()) {
+            // The parse copies each chunk into its feed, since it reads the
+            // chunk across `advance()` calls and the source lends it only
+            // until the next read.
             CoroutineResult::Yield(Up::Need) => {
-                if !drained {
-                    input = next_chunk(ctx, &mut source, holder)?;
-                    drained = input.is_none();
-                }
+                input = source
+                    .next_chunk(ctx, holder)?
+                    .map(|chunk| chunk.bytes().to_vec());
             }
             CoroutineResult::Yield(Up::Element(value, lists)) => break Some((value, lists)),
             CoroutineResult::Return(Ok(())) => break None,
@@ -686,8 +616,7 @@ fn next_element(
         }
     };
     let walk = walk_at(ctx, key)?;
-    walk.source = source;
-    walk.drained = drained;
+    walk.source = Some(source);
     let Some((value, lists)) = raw else {
         return Ok(None);
     };
@@ -795,25 +724,7 @@ nvs_runtime::nvs_helper! {
         }
         let max = max_depth(&args[6], MEMBER)?;
 
-        let (source, holder) = if crate::instance::is_instance(args[3], &crate::io::FILE) {
-            let (file, path) = crate::io::handle_of(args[3], MEMBER)?;
-            // Refused where the program can still see which call was wrong.
-            if ctx.open_file_mut(file).is_none() {
-                return Err(closed(&path));
-            }
-            #[expect(
-                unsafe_code,
-                reason = "the file is borrowed for this call, and the walk's slot \
-                          owns the reference this takes"
-            )]
-            unsafe {
-                args[3].retain();
-            }
-            (Source::File(file), args[3])
-        } else {
-            let cursor = nvs_runtime::sequence::start(ctx, args[3], MEMBER)?;
-            (Source::Chunks(0), cursor)
-        };
+        let (source, holder) = ByteSource::from_arg(ctx, args[3], MEMBER)?;
 
         let typed = class.is_some();
         let parse = nvs_host::suspendable(move |yielder: &Yielder<Down, Up>, _: Down| {
@@ -833,8 +744,7 @@ nvs_runtime::nvs_helper! {
         };
         let key = ctx.hold_open_reader(Box::new(Walk {
             parse: Some(parse),
-            source,
-            drained: false,
+            source: Some(source),
             class,
             shape,
             list,
