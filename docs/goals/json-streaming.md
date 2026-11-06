@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/json.rs, docs/rules/core-classes/xml-tree-and-st
 stages:
   - id: 1
     title: "the rule, the two member cards, and the reader chosen by a probe"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/csv.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-host/src/stack.rs, deny.toml]
   - id: 2
     title: "Core\\Json::decodeEach reads one element at a time from a file or a byte stream"
@@ -83,6 +83,9 @@ checked value. Memory is the nesting depth plus one element, whatever the docume
    closes, as `Core\Csv::rows` does, or an `Iterable<bytes>` such as `Core\Request::bodyStream()` or a
    request part's `content()`. Safe default, if a `Core` parameter cannot be that union: the parameter
    is `Iterable<bytes>`, and `Core\IO\File` gains `chunks(): Iterable<bytes>`, with its own proofs.
+   **Built:** the registry writes the union, so the safe default is not taken. The chunks arm is
+   `Iterated(TaintedBytes)`: a `bytes` arm refused `bodyStream()`'s `Iterable<tainted bytes>`, and a
+   plain `bytes` chunk widens to `tainted bytes`.
 3. **A walk is taken once.** Like `Core\Csv::rows`, the iterable reads forward, and a second `foreach`
    gives nothing.
 4. **A failure halfway throws where it is found.** The elements already given to the program stay
@@ -131,9 +134,13 @@ class, its slots and its iteration trio, as `file:line` with one line each.
   `--nocapture`. Write the figures and the verdict into `json.rs`'s module doc. `crates/nvs-stdlib/src/json.rs:1`
 - [x] Write the fragment `json-whole-and-stream.md` beside the XML one, and correct the XML fragment's sentence.
   `docs/rules/core-classes/xml-tree-and-stream.md:1`
-- [ ] Register `decodeEach` and `encodeEach` with their reference cards, and the iterable class
+- [x] Register `decodeEach` and `encodeEach` with their reference cards, and the iterable class
   `decodeEach` returns, after `Core\Csv::rows`'s shape. `rule:core-api/reference-card`
   `crates/nvs-stdlib/src/csv.rs:326`
+  - [x] The two rows, their options and cards, and the classes `Core\Json\Elements` and `Core\Json\Pieces`.
+  - [x] The rosters: written-class members, generic classes, iterables, handles, host handles, dispatch.
+  - [x] Stub helpers so every registered symbol resolves.
+  - [x] `nvs check` types a scratch program's elements, and `ext_world`'s refused list names both classes.
 
 ### 2. Core\Json::decodeEach reads one element at a time from a file or a byte stream
 
@@ -182,49 +189,42 @@ AGENTS.md § *Text an end user reads*, and `bun nv proofs --comments <paths>` is
 
 ### State
 
-Stage 1's first two items landed. The probe chose **option (a), serde_json inside a coroutine**.
-On the `proof` profile it reads 19.2 ns per byte against the whole read's 15.9, stays flat within
-8 KiB from 1 MiB to 256 MiB (311,735 to 318,907 bytes peak), and gives the whole read's message
-(`line 1 column 35`). The framer was 10.8 ns per byte but said `column 7`. The figures are in
-`json.rs`'s module doc, § *A document read one element at a time*, and the probe is
-`crates/nvs-stdlib/src/json/each_probe.rs` (`cargo test --profile proof --lib json::each_probe --
---ignored --nocapture`). `corosensei` is now a dev-dependency of `nvs-stdlib`. Stage 2 makes it a
-normal one, or adds a coroutine API to `nvs-host` beside `on_spare_stack` (`crates/nvs-host/src/stack.rs:230`).
+**Stage 1 is done.** The probe chose serde_json in a coroutine (`json.rs`'s module doc, probe in
+`crates/nvs-stdlib/src/json/each_probe.rs`); `corosensei` is a dev-dependency only. The rule is
+`designed` with `goal: json-streaming`; stage 5 sets it `shipped` and fills `guardedBy`.
 
-`rule:core-classes/json-whole-and-stream` exists with status `designed` and `goal: json-streaming`
-(`data/rules/core-classes/json-whole-and-stream.json`). Stage 5 sets it `shipped`, drops the
-`goal` key and fills `guardedBy`. The XML fragment names it as the second two-shape subsystem.
+Both members are registered (`crates/nvs-stdlib/src/json.rs:460`). `decodeEach<T>` answers
+`Core\Json\Elements<T>` (`json.rs:540`, slots `reader`, `element`), generic as `Core\Db\Stream` is.
+`encodeEach` answers `Core\Json\Pieces` (`json.rs:574`, slots `writer`, `piece`), an
+`Iterable<tainted bytes>`. Cards at `json.rs:590`. Both classes are in every roster `Core\Csv\Rows`
+is in, `ext_world.rs`'s `REFUSED` included. Each symbol is a stub throwing "not available in this
+build yet" (`not_built`, `json.rs:889`), since a registered symbol must resolve to link; stages 2
+and 3 replace them and delete `not_built`.
 
-The sweep's `env-secret-proofs` red is still the driver's stale state: no file names that check, and
-`looper check --name env-secret` finds none.
+A scratch `nvs check` typed `$item` as the written class, refused an `int` source and took
+`bodyStream()`. It also showed `decodeEach<mixed>` refused with `E0465`
+(`crates/nvs-types/src/expr/args.rs:2067`), which decision 1 needs allowed.
 
-No test is expected to go red: nothing a test reaches changed.
+The sweep's `env-secret-proofs` red is the driver's stale state: no file names that check.
+
+**Expected red until stage 4:** the proofs gate (`bun nv proofs`, `bun nv ci --check`) names both
+members' missing proofs, and any snapshot of `nvs meta --json` gains two members and two classes.
 
 ### Next
 
-**Stage 1's last item**: register the two members, their cards and the iterable class. Files:
-`crates/nvs-stdlib/src/json.rs`, `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-stdlib/src/classes.rs`,
-`crates/nvs-stdlib/src/instance.rs`.
+**Stage 2: the reader.** Files: `crates/nvs-stdlib/src/json.rs` (the stubs at `json.rs:895`-`950`),
+`crates/nvs-stdlib/src/json/each_probe.rs` (the coroutine shape to lift), `crates/nvs-stdlib/Cargo.toml`
+(`corosensei` to a normal dependency) or `crates/nvs-host/src/stack.rs:230` (a coroutine API beside
+`on_spare_stack`), `crates/nvs-types/src/expr/args.rs:2067` (`mixed`).
 
-- [ ] The two members and their cards. `crates/nvs-stdlib/src/csv.rs:326`
-
-`Core\Csv::rows`'s shape, from this session's map:
-
-- the `rows` row `crates/nvs-stdlib/src/csv.rs:258`, its class `ROWS` `csv.rs:331`, its card `ROWS_DOC`
-  `csv.rs:434`, the slots' indices `csv.rs:293`;
-- the roster `crates/nvs-stdlib/src/classes.rs:54`, the element type in `ITERABLES`
-  `crates/nvs-stdlib/src/registry.rs:3474`, `HOST_HANDLE_CLASSES` `crates/nvs-stdlib/src/instance.rs:143`
-  and the iteration trio in `DISPATCH_ROSTER` `instance.rs:318`;
-- the trio's helpers `csv.rs:1443`-`1468`, their symbols in `address()` `csv.rs:581`.
-
-The open type question: `decodeEach<T>` answers `Iterable<T>`, and `ITERABLES` gives a class one
-element type. `CoreTy::InstanceAt(name, &[CoreTy::Written("T")])` (`registry.rs:794`) beside an
-`ITERABLES` row of `CoreTy::Var("T")`, as `Core\ObjectSet`'s is (`registry.rs:3476`), is the first
-thing to try. `decodeAs` reaches `T` through `WRITTEN_CLASS_MEMBERS` (`registry.rs:3035`), so
-`decodeEach` joins that roster. `$source` is `CoreTy::Union` (`registry.rs:688`) of
-`Instance(crate::io::FILE_NAME)` and an `Iterable<bytes>`. If the registry cannot write that union,
-take decision 2's safe default. Do not register a member whose helper does not exist: land a helper
-that throws "not built yet" only if the registry's own tests demand one per row.
+- The helper's ABI: `nvs_core_json_decode_each` is `args: [7]`, slots 0 to 2 the written-class block
+  (as `nvs_core_json_decode_as`, `json.rs:2230`, reads them), then source, at, lines, maxDepth.
+- The source: a `Core\IO\File` through `crate::io::handle_of` as `nvs_core_csv_rows` does
+  (`crates/nvs-stdlib/src/csv.rs:1383`); chunks through the `Tag::Obj` cursor drive `CoreTy::Iterated`'s
+  doc describes (`registry.rs:811`), or a `Tag::Array` walked directly.
+- The walk state: filed with `nvs_runtime::Ctx::hold_open_reader` as `Core\Csv\Rows` files its
+  reader (`csv.rs:293`), the key in slot 0, the element in slot 1; the trio mirrors `csv.rs:1443`-`1468`.
+- Then decision 5's pointer walk and skipping, JSON Lines, and the five `stream-read` tests.
 
 ### Backlog
 
