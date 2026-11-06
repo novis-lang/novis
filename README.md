@@ -131,7 +131,9 @@ This section shows what comes next for Novis. There are no dates. The
 The work is in the order it is planned. The order can change.
 
 1. **Binary files and uploads.** *Working on it now.* `Core\IO` reads a binary file, such as an image or an archive, as `bytes`. `Core\Mime`, `Core\Zip`, `Core\Hash`, `Core\Csv`, `Core\Image` and `Core\Pdf` take bytes, an open file or an upload, and read only what they need. `Core\Mime::detect($upload)` reads the start of an upload, and you can still save the whole file after it. A command-line tool can read binary input from `stdin`.
-2. **Example apps and checked examples.** The chat app uses WebSockets, and the poll app uses server-sent events. You can start a real project from either one. Every block of code on this website is run by a test, or it says why it is not.
+2. **Markdown.** `Core\Markdown` converts Markdown to HTML, and HTML to Markdown. It converts a whole document, or a document in pieces while it arrives. Every example of the CommonMark and GitHub Flavored Markdown specifications passes. The time it needs grows in step with the size of the input.
+3. **Example apps and checked examples.** The chat app uses WebSockets, and the poll app uses server-sent events. You can start a real project from either one. Every block of code on this website is run by a test, or it says why it is not. Each page shows the `nvs.toml` settings that its examples run with.
+4. **JSON in web pages, and queue jobs.** `Core\Json::encode` escapes `<`, `>`, `&` and `'` in the text it writes. So you can put its output inside an HTML page or a `<script>` tag. A queue job's id has a string form, and a later request can find the job with it. A guessed or changed id finds no job. `Core\Response::stream` sends the pieces that `Core\Json::encodeEach` gives.
 <!-- roadmap:end -->
 
 ## Contributing

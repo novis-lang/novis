@@ -68,8 +68,8 @@ Conventions the whole file uses:
 | [`Core\Path`](#core-core-path) | path text taken apart and put together — basename, extension, join, normalize, relative paths — without touching the filesystem |
 | [`Core\IO`](#core-core-io) | whole-file read and write on paths the configuration has granted |
 | [`Core\IO\Lines`](#core-core-io-lines) | the lines of a text file, which `Core\IO::lines` returns. You read them with a `foreach` loop |
-| [`Core\IO\Walk`](#core-core-io-walk) | every file and folder under a folder, which `Core\IO::walk` returns. You read the paths with a `foreach` loop |
 | [`Core\IO\StdinStream`](#core-core-io-stdinstream) |  |
+| [`Core\IO\Walk`](#core-core-io-walk) | every file and folder under a folder, which `Core\IO::walk` returns. You read the paths with a `foreach` loop |
 | [`Core\IO\File`](#core-core-io-file) |  |
 | [`Core\IO\Metadata`](#core-core-io-metadata) |  |
 | [`Core\Process`](#core-core-process) |  |
@@ -34480,12 +34480,12 @@ JSON Lines, with one value on each line.
 #[Core\Json\Derive]
 class User
 {
-    public string $name;
+    public tainted string $name;
     public ?int $age;
     #[Core\Json\Field(name: 'is_admin')]
     public bool $admin;
 
-    public function constructor(string $name, ?int $age, bool $admin)
+    public function constructor(tainted string $name, ?int $age, bool $admin)
     {
         $this->name = $name;
         $this->age = $age;
@@ -36141,6 +36141,14 @@ echo "\n";
 | Member | Signature |
 |---|---|
 
+<a id="core-core-io-stdinstream"></a>
+### `Core\IO\StdinStream`
+
+Keywords:
+
+| Member | Signature |
+|---|---|
+
 <a id="core-core-io-walk"></a>
 ### `Core\IO\Walk`
 
@@ -36191,14 +36199,6 @@ images/icons/cart.svg
 images/logo.svg
 index.html
 ```
-
-| Member | Signature |
-|---|---|
-
-<a id="core-core-io-stdinstream"></a>
-### `Core\IO\StdinStream`
-
-Keywords:
 
 | Member | Signature |
 |---|---|

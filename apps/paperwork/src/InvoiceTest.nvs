@@ -38,9 +38,9 @@ final class InvoiceTest
     #[Test]
     public function theXmlHasTheSameNumberAndTotal(): void
     {
-        ?string $xml = Reader::open(Invoice::render()->bytes)->invoiceXml();
+        ?tainted string $xml = Reader::open(Invoice::render()->bytes)->invoiceXml();
         Test::assertTrue($xml != null);
-        string $text = $xml ?? '';
+        tainted string $text = $xml ?? '';
         Test::assertTrue(Str::contains($text, '<ram:ID>2026-1042</ram:ID>'));
         Test::assertTrue(Str::contains($text, '<ram:GrandTotalAmount>6119.52</ram:GrandTotalAmount>'));
         Test::assertTrue(Str::contains($text, '<ram:DuePayableAmount>6119.52</ram:DuePayableAmount>'));

@@ -61,7 +61,9 @@
 //! chunks. The member keeps it in a slot of the object it returns, so the
 //! request's own release frees it, and hands it back to every read. The source
 //! itself holds no Novis value, so it can be filed on the request as plain Rust
-//! state.
+//! state. A lazy walk takes the source out of that state for one `advance()`
+//! and files it back after, as it does its parse, because every read needs the
+//! context the state is filed in.
 
 use std::io::{Read, Seek, SeekFrom};
 

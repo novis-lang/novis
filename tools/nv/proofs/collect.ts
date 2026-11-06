@@ -363,7 +363,9 @@ const sha12 = (text: string) => createHash("sha1").update(text, "utf8").digest("
  * Modules many members read through, so a change to one changes what each of them does. A Rust
  * file that names one (`byte_source::`) is hashed with that module's `card` tier joined to its own,
  * and a change to the module stales every figure that file implements
- * (`rule:testing/member-perf-ledger`).
+ * (`rule:testing/member-perf-ledger`). The test is by text, so a file that names the module only in
+ * its tests is staled too, which is the safe direction. An extension's member reads through the host's
+ * `extension_source_range`, and its own files never name the module, so its figures are not joined.
  */
 export const SHARED_IMPL: readonly { module: string; path: string }[] = [
   { module: "byte_source", path: "crates/nvs-stdlib/src/byte_source.rs" },
