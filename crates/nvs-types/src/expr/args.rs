@@ -608,9 +608,9 @@ impl Admitted {
     };
 
     /// Whether the narrowed comparison is worth making at all: a qualifier
-    /// to clear, or a `Core` walk of `mixed` to widen.
+    /// to clear, or a `Core` walk to widen.
     fn any(self, want: TypeId, env: &Env<'_>) -> bool {
-        self.tainted || self.secret || (self.core && mixed_walk_param(want, env))
+        self.tainted || self.secret || (self.core && !walk_params(want, env).is_empty())
     }
 }
 
@@ -675,34 +675,48 @@ fn check_arg_admitting_quals(
     actual
 }
 
-/// Whether a `Core` parameter declared as a walk of `mixed`, such as
-/// `Core\Json::encodeEach`'s `$items`, takes `actual`, a walk of some other
-/// element. `Iterator<T>` is invariant everywhere else ([`super::assign`]'s
-/// `class_satisfied` says why), and a generator of `Product`s is still the
-/// argument a program means. A `Core` member only ever reads a walk's elements
-/// through `current()`, so a `mixed` element is an output position there and
-/// widening it stores nothing a narrower reader could see. An array needs no
-/// admission: `array<T>` is covariant already.
+/// Whether a `Core` parameter declared as a walk, such as
+/// `Core\Json::encodeEach`'s `Iterable<mixed>` or `Core\Json::decodeEach`'s
+/// walk of `tainted bytes`, takes `actual`, a walk of a narrower element.
+/// `Iterator<T>` is invariant everywhere else ([`super::assign`]'s
+/// `class_satisfied` says why), and a generator of `Product`s, or of plain
+/// `bytes`, is still the argument a program means. A `Core` member only ever
+/// reads a walk's elements through `current()`, so the element is an output
+/// position there and widening it stores nothing a narrower reader could see.
+/// An array needs no admission: `array<T>` is covariant already.
 fn reads_any_walk(actual: TypeId, expected: TypeId, env: &mut Env<'_>) -> bool {
-    let Ty::Class(qname, args) = env.interner.get(actual).clone() else {
+    let Some(element) = walk_element(actual, env) else {
         return false;
     };
-    let is_walk = (qname.is_reserved_global_interface() && args.len() == 1)
-        || crate::signatures::resolve_iteration_element(&qname, env.signatures, env.graph).is_some();
-    is_walk && mixed_walk_param(expected, env)
+    walk_params(expected, env).into_iter().any(|declared| {
+        is_assignable(element, declared, env.interner, env.graph, env.signatures)
+    })
 }
 
-/// Whether `declared` is, or is a union with, `Iterable<mixed>` or
-/// `Iterator<mixed>`.
-fn mixed_walk_param(declared: TypeId, env: &Env<'_>) -> bool {
+/// The element `ty` gives a `foreach`, when it is an `Iterable<T>`, an
+/// `Iterator<T>` or a class that implements one. An array answers `None`.
+fn walk_element(ty: TypeId, env: &mut Env<'_>) -> Option<TypeId> {
+    let Ty::Class(qname, args) = env.interner.get(ty).clone() else {
+        return None;
+    };
+    if qname.is_reserved_global_interface() {
+        return args.first().copied();
+    }
+    let (_, element) =
+        crate::signatures::resolve_iteration_element(&qname, env.signatures, env.graph)?;
+    Some(crate::generics::with_class_args(&qname, &args, element, env.interner))
+}
+
+/// The element of each `Iterable<T>` or `Iterator<T>` that `declared` is, or
+/// is a union of.
+fn walk_params(declared: TypeId, env: &Env<'_>) -> Vec<TypeId> {
     match env.interner.get(declared) {
-        Ty::Class(q, args) => {
-            args.len() == 1
-                && q.is_reserved_global_interface()
-                && matches!(env.interner.get(args[0]), Ty::Mixed)
-        }
-        Ty::Union(members) => members.iter().any(|&member| mixed_walk_param(member, env)),
-        _ => false,
+        Ty::Class(q, args) if args.len() == 1 && q.is_reserved_global_interface() => vec![args[0]],
+        Ty::Union(members) => members
+            .iter()
+            .flat_map(|&member| walk_params(member, env))
+            .collect(),
+        _ => Vec::new(),
     }
 }
 

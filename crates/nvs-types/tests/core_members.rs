@@ -19,10 +19,11 @@ fn a_core_member_call_type_checks_against_its_registered_signature() {
 }
 
 /// `Core\Json::encodeEach` takes a walk of `mixed`, and a generator of objects
-/// is a walk of `Product`. A `Core` member only reads the elements, so the walk
-/// widens there. A method a program declares keeps `Iterator<T>` invariant.
+/// is a walk of `Product`. A `Core` member only reads the elements, so a walk
+/// of a narrower element widens there. A method a program declares keeps
+/// `Iterator<T>` invariant.
 #[test]
-fn a_core_walk_of_mixed_takes_a_walk_of_any_element() {
+fn a_core_walk_takes_a_walk_of_a_narrower_element() {
     let generator = "<?nvs\nclass Product { public int $id = 1; }\n\
          class Catalog {\n\
          \x20 static function all(): Iterator<Product> { yield new Product(); }\n";
@@ -30,6 +31,23 @@ fn a_core_walk_of_mixed_takes_a_walk_of_any_element() {
         "{generator}\x20 static function run(): void {{ Core\\Json::encodeEach(Catalog::all()); }}\n}}\n"
     ));
     assert!(!diags.has_errors(), "{diags:?}");
+    // `decodeEach` reads chunks of `tainted bytes`, and a generator of plain
+    // `bytes` gives chunks that widen to them.
+    let diags = check_src(&format!(
+        "{generator}\x20 static function chunks(): Iterator<bytes> {{ yield \"[1]\" as bytes; }}\n\
+         \x20 static function run(): void {{\n\
+         \x20   foreach (Core\\Json::decodeEach<mixed>(Catalog::chunks()) as mixed $v) {{}}\n\
+         \x20 }}\n}}\n"
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    // The element is still checked: a generator of `int`s is not a walk of bytes.
+    let diags = check_src(&format!(
+        "{generator}\x20 static function numbers(): Iterator<int> {{ yield 1; }}\n\
+         \x20 static function run(): void {{\n\
+         \x20   foreach (Core\\Json::decodeEach<mixed>(Catalog::numbers()) as mixed $v) {{}}\n\
+         \x20 }}\n}}\n"
+    ));
+    assert!(diags.has_errors(), "an `Iterator<int>` is not a walk of bytes");
     let diags = check_src(&format!(
         "{generator}\x20 static function take(Iterator<mixed> $items): void {{}}\n\
          \x20 static function run(): void {{ Catalog::take(Catalog::all()); }}\n}}\n"
