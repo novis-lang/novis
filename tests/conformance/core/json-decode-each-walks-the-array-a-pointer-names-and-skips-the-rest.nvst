@@ -1,0 +1,60 @@
+--TEST--
+`Core\Json::decodeEach` walks only the array its JSON Pointer names, typed as `decodeAs` types it, and reads every value before and after that array without giving it — `rule:core-classes/json-whole-and-stream`
+--FILE--
+<?nvs
+// covers: Core\Json::decodeEach
+#[Core\Json\Derive]
+final class Item {
+    public int $id;
+    public tainted string $name;
+
+    public function constructor(int $id, tainted string $name) {
+        $this->id = $id;
+        $this->name = $name;
+    }
+}
+
+// The array is at `/data/items`. Other arrays come before it and after it,
+// and none of their values is an `Item`.
+Core\IO\File $out = Core\IO::open("doc.json", Core\IO::FileMode::Write);
+$out->write('{"meta":{"skip":[1,"two",{"x":[3]}]},"data":{"count":2,"items":[{"id":1,"name":"fig"},{"id":2,"name":"plum"}]},"after":["z"]}');
+$out->close();
+
+Core\IO\File $in = Core\IO::open("doc.json", Core\IO::FileMode::Read);
+foreach (Core\Json::decodeEach<Item>($in, '/data/items') as Item $item) {
+    echo $item->id, "=", $item->name, "\n";
+}
+$in->close();
+
+// A pointer token may also be an array index: `/1` is the second element.
+Core\IO\File $nested = Core\IO::open("nested.json", Core\IO::FileMode::Write);
+$nested->write('[[9,9],[4,5,6]]');
+$nested->close();
+Core\IO\File $again = Core\IO::open("nested.json", Core\IO::FileMode::Read);
+foreach (Core\Json::decodeEach<mixed>($again, '/1') as mixed $n) {
+    echo "n=", $n, "\n";
+}
+$again->close();
+
+// A pointer that does not start with `/` is a mistake in the program.
+Core\IO\File $third = Core\IO::open("nested.json", Core\IO::FileMode::Read);
+try {
+    foreach (Core\Json::decodeEach<mixed>($third, 'data') as mixed $m) {
+        echo "m=", $m, "\n";
+    }
+    echo "the pointer was accepted\n";
+} catch (LogicError $bad) {
+    echo $bad->message, "\n";
+}
+$third->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+1=fig
+2=plum
+n=4
+n=5
+n=6
+Core\Json::decodeEach(): the pointer "data" does not start with `/`

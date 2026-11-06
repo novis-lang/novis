@@ -1,0 +1,44 @@
+--TEST--
+`Core\Json::encodeEach` with `{lines: true}` writes one value per line, and `Core\Json::decodeEach` with `{lines: true}` reads them back one at a time and needs the pointer `''` — `rule:core-classes/json-whole-and-stream`
+--FILE--
+<?nvs
+// covers: Core\Json::encodeEach
+array<mixed> $events = [["kind" => "open", "id" => 1], ["kind" => "close", "id" => 2], "done", 7];
+Core\IO::writeStream("events.jsonl", Core\Json::encodeEach($events, {lines: true}));
+echo Core\IO::readText("events.jsonl");
+echo "--\n";
+
+Core\IO\File $in = Core\IO::open("events.jsonl", Core\IO::FileMode::Read);
+int $count = 0;
+foreach (Core\Json::decodeEach<mixed>($in, '', {lines: true}) as mixed $event) {
+    $count = $count + 1;
+    echo $count, " ", Core\Json::encode($event), "\n";
+}
+$in->close();
+
+// JSON Lines has no single document, so a pointer into it is a mistake.
+Core\IO\File $again = Core\IO::open("events.jsonl", Core\IO::FileMode::Read);
+try {
+    foreach (Core\Json::decodeEach<mixed>($again, '/0', {lines: true}) as mixed $value) {
+        echo Core\Json::encode($value), "\n";
+    }
+    echo "the pointer was accepted\n";
+} catch (LogicError $bad) {
+    echo $bad->message, "\n";
+}
+$again->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+{"kind":"open","id":1}
+{"kind":"close","id":2}
+"done"
+7
+--
+1 {"kind":"open","id":1}
+2 {"kind":"close","id":2}
+3 "done"
+4 7
+Core\Json::decodeEach(): JSON Lines has no document to point into, so `at` must be ''

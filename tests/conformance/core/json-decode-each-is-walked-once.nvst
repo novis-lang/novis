@@ -1,0 +1,44 @@
+--TEST--
+A walk `Core\Json::decodeEach` returns is read once: a second `foreach` goes on from the element after the last one given, so it gives the rest after a `break` and nothing once the walk has ended —`rule:core-classes/json-whole-and-stream`
+--FILE--
+<?nvs
+// covers: Core\Json::decodeEach
+Core\IO\File $out = Core\IO::open("nums.json", Core\IO::FileMode::Write);
+$out->write('[10,20,30]');
+$out->close();
+
+Core\IO\File $in = Core\IO::open("nums.json", Core\IO::FileMode::Read);
+var $walk = Core\Json::decodeEach<mixed>($in);
+foreach ($walk as mixed $first) {
+    echo "first ", $first, "\n";
+}
+int $second = 0;
+foreach ($walk as mixed $again) {
+    $second = $second + 1;
+}
+echo "second loop ran ", $second, " times\n";
+$in->close();
+
+// After a `break`, the next loop starts at the element after the last one given.
+Core\IO\File $other = Core\IO::open("nums.json", Core\IO::FileMode::Read);
+var $short = Core\Json::decodeEach<mixed>($other);
+foreach ($short as mixed $n) {
+    echo "took ", $n, "\n";
+    break;
+}
+foreach ($short as mixed $rest) {
+    echo "rest ", $rest, "\n";
+}
+$other->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+first 10
+first 20
+first 30
+second loop ran 0 times
+took 10
+rest 20
+rest 30

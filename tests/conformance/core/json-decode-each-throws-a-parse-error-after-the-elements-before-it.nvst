@@ -1,0 +1,51 @@
+--TEST--
+`Core\Json::decodeEach` gives every element before a syntax error, then throws a `ParseError` that names the byte, and text after the array fails the same way — `rule:core-classes/json-whole-and-stream`
+--FILE--
+<?nvs
+// covers: Core\Json::decodeEach
+Core\IO\File $out = Core\IO::open("broken.json", Core\IO::FileMode::Write);
+$out->write('[1,2,3,}');
+$out->close();
+
+Core\IO\File $in = Core\IO::open("broken.json", Core\IO::FileMode::Read);
+int $given = 0;
+try {
+    foreach (Core\Json::decodeEach<mixed>($in) as mixed $n) {
+        $given = $given + 1;
+        echo "got ", $n, "\n";
+    }
+    echo "the document was accepted\n";
+} catch (ParseError $broken) {
+    echo $broken->message, "\n";
+}
+$in->close();
+echo "given before the error: ", $given, "\n";
+
+// The array is complete, and text follows it.
+Core\IO\File $tail = Core\IO::open("tail.json", Core\IO::FileMode::Write);
+$tail->write('[4,5] x');
+$tail->close();
+Core\IO\File $again = Core\IO::open("tail.json", Core\IO::FileMode::Read);
+int $before = 0;
+try {
+    foreach (Core\Json::decodeEach<mixed>($again) as mixed $m) {
+        $before = $before + 1;
+    }
+    echo "the trailing text was accepted\n";
+} catch (ParseError $trailing) {
+    echo $trailing->message, "\n";
+}
+$again->close();
+echo "given before the error: ", $before, "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECTF--
+got 1
+got 2
+got 3
+Core\Json::decodeEach(): %s, at byte %d
+given before the error: 3
+Core\Json::decodeEach(): %s, at byte %d
+given before the error: 2

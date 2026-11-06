@@ -1,0 +1,51 @@
+--TEST--
+The pieces `Core\Json::encodeEach` gives, written with `Core\IO::writeStream`, are the bytes `Core\Json::encode` writes for the same array, and `Core\Json::decodeEach` reads them back from the file or from the pieces themselves — `rule:core-classes/json-whole-and-stream`
+--FILE--
+<?nvs
+// covers: Core\Json::encodeEach
+array<mixed> $rows = [1, "two", 3.5, null, true, ["a" => [1, 2]], []];
+Core\IO::writeStream("rows.json", Core\Json::encodeEach($rows));
+string $written = Core\IO::readText("rows.json");
+echo $written, "\n";
+echo "same as encode: ", $written == Core\Json::encode($rows) ? "yes" : "no", "\n";
+
+// An empty array is two pieces, `[` and `]`.
+array<mixed> $none = [];
+Core\IO::writeStream("rows.json", Core\Json::encodeEach($none), {overwrite: true});
+echo "empty: ", Core\IO::readText("rows.json"), "\n";
+
+// The file already exists, so a second write needs `overwrite`.
+try {
+    Core\IO::writeStream("rows.json", Core\Json::encodeEach($rows));
+    echo "overwrote without asking\n";
+} catch (RuntimeError $exists) {
+    echo "exists: refused\n";
+}
+Core\IO::writeStream("rows.json", Core\Json::encodeEach($rows), {overwrite: true});
+
+// Read back from the file.
+Core\IO\File $in = Core\IO::open("rows.json", Core\IO::FileMode::Read);
+tainted string $fromFile = "";
+foreach (Core\Json::decodeEach<mixed>($in) as mixed $row) {
+    $fromFile = $fromFile . Core\Json::encode($row) . ";";
+}
+$in->close();
+echo "file: ", $fromFile, "\n";
+
+// Read back from the pieces, with no file in between.
+tainted string $fromPieces = "";
+foreach (Core\Json::decodeEach<mixed>(Core\Json::encodeEach($rows)) as mixed $piece) {
+    $fromPieces = $fromPieces . Core\Json::encode($piece) . ";";
+}
+echo "pieces: ", $fromPieces, "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+[1,"two",3.5,null,true,{"a":[1,2]},[]]
+same as encode: yes
+empty: []
+exists: refused
+file: 1;"two";3.5;null;true;{"a":[1,2]};[];
+pieces: 1;"two";3.5;null;true;{"a":[1,2]};[];

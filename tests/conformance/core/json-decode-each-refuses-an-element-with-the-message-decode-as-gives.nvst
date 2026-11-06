@@ -1,0 +1,50 @@
+--TEST--
+`Core\Json::decodeEach<T>` checks each element as `Core\Json::decodeAs<T>` checks a document, gives the elements before a wrong one, and throws the same message for it — `rule:core-classes/json-whole-and-stream`
+--FILE--
+<?nvs
+// covers: Core\Json::decodeEach
+#[Core\Json\Derive]
+final class Point {
+    public int $x;
+    public int $y;
+
+    public function constructor(int $x, int $y) {
+        $this->x = $x;
+        $this->y = $y;
+    }
+}
+
+// The second element has a string where `y` needs a whole number.
+Core\IO\File $out = Core\IO::open("points.json", Core\IO::FileMode::Write);
+$out->write('[{"x":1,"y":2},{"x":3,"y":"four"},{"x":5,"y":6}]');
+$out->close();
+
+string $eachMessage = "";
+Core\IO\File $in = Core\IO::open("points.json", Core\IO::FileMode::Read);
+try {
+    foreach (Core\Json::decodeEach<Point>($in) as Point $p) {
+        echo "point ", $p->x, ",", $p->y, "\n";
+    }
+    echo "the wrong element was accepted\n";
+} catch (ParseError $each) {
+    $eachMessage = $each->message;
+}
+$in->close();
+
+string $asMessage = "";
+try {
+    var $one = Core\Json::decodeAs<Point>('{"x":3,"y":"four"}');
+    echo "decodeAs accepted it\n";
+} catch (ParseError $whole) {
+    $asMessage = $whole->message;
+}
+echo $eachMessage, "\n";
+echo $asMessage, "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+point 1,2
+Core\Json::decodeEach(): 1 value(s) of `Point` did not match
+Core\Json::decodeAs(): 1 value(s) of `Point` did not match
