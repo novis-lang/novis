@@ -191,7 +191,9 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use corosensei::stack::{DefaultStack, Stack as _};
-use corosensei::{Coroutine, Yielder};
+use corosensei::{Coroutine, CoroutineResult, Yielder};
+
+use crate::tsan::Fiber;
 
 /// The address space one task's stack reserves, guard page excluded.
 ///
@@ -286,14 +288,53 @@ pub fn suspendable<I: 'static, Y: 'static, R: 'static>(
     body: impl FnOnce(&Yielder<I, Y>, I) -> R + 'static,
 ) -> std::io::Result<Suspendable<I, Y, R>> {
     let stack = DefaultStack::new(SPARE_STACK_SIZE)?;
-    Ok(Coroutine::with_stack(
-        stack,
-        move |yielder: &Yielder<I, Y>, input: I| native_frame(|| body(yielder, input)),
-    ))
+    Ok(Suspendable {
+        coro: Coroutine::with_stack(stack, move |yielder: &Yielder<I, Y>, input: I| {
+            native_frame(|| body(yielder, input))
+        }),
+        fiber: Fiber::new(),
+    })
 }
 
 /// A coroutine [`suspendable`] made.
-pub type Suspendable<I, Y, R> = Coroutine<I, Y, R, DefaultStack>;
+///
+/// Every switch onto its stack is bracketed by a ThreadSanitizer fiber switch,
+/// as a scheduler task's is ([`crate::tsan`]). A parse suspends with its frames
+/// still open, so without the bracket the sanitizer's shadow call stack would
+/// pop the caller's frames for the parse's. That holds for [`Self::resume`]
+/// and for the forced unwind a drop makes while the parse is suspended.
+pub struct Suspendable<I, Y, R> {
+    coro: Coroutine<I, Y, R, DefaultStack>,
+    /// A zero-sized nothing in every build but the sanitizer leg's.
+    fiber: Fiber,
+}
+
+impl<I, Y, R> Suspendable<I, Y, R> {
+    /// Runs the coroutine until it yields or returns, as
+    /// [`Coroutine::resume`] does.
+    pub fn resume(&mut self, input: I) -> CoroutineResult<Y, R> {
+        let Self { coro, fiber } = self;
+        fiber.around(|| coro.resume(input))
+    }
+}
+
+impl<I, Y, R> Drop for Suspendable<I, Y, R> {
+    /// Unwinds a suspended parse inside the fiber bracket. `Coroutine`'s own
+    /// drop would make the same switch with nothing to announce it. A
+    /// coroutine that never started or already returned switches no stack.
+    fn drop(&mut self) {
+        let Self { coro, fiber } = self;
+        if coro.started() && !coro.done() {
+            fiber.around(|| coro.force_unwind());
+        }
+    }
+}
+
+impl<I, Y, R> std::fmt::Debug for Suspendable<I, Y, R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Suspendable").finish_non_exhaustive()
+    }
+}
 
 /// Calls `f` in a frame of its own: the one wrapper every closure handed to
 /// `corosensei` runs inside.

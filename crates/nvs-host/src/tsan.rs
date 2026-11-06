@@ -12,7 +12,8 @@
 //! it. The sanitizer's own answer is a **fiber**: one history per stack, moved
 //! from one to the next at the moment the stack actually moves.
 //!
-//! [`Fiber`] is a task's, made when its coroutine is built and retired with it;
+//! [`Fiber`] is a task's, made when its coroutine is built and retired with it,
+//! and a [`crate::Suspendable`] parse holds one the same way;
 //! the scheduler's own is whatever the thread already had, read back at each
 //! switch rather than held. [`Fiber::around`] is the whole surface, and the
 //! shape of it is the point — see § *Why it is one call and not two*. **A
