@@ -6,7 +6,7 @@ use Novis\Spreadsheet\Reader;
 bytes $file = Core\Encoding::encodeText("Artikel;Preis\nMüsli;3,50\nKäse;4,20\n", Core\Charset::Windows1252);
 
 // `csv` sets the separator and the charset of the file.
-var $reader = Reader::open($file, { csv: { separator: ';', encoding: Core\Charset::Windows1252 } });
+var $reader = Reader::open($file, { csv: { separator: ';', charset: Core\Charset::Windows1252 } });
 foreach ($reader->rows(0, { header: true }) as var $row) {
     echo $row->values['Artikel'], ' costs ', $row->values['Preis'], "\n";
 }

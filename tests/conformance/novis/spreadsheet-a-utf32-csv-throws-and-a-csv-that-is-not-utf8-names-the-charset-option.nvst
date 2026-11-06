@@ -1,5 +1,5 @@
 --TEST--
-`Reader::open` throws a `ParseError` for a CSV in UTF-32, little-endian or big-endian, and for a CSV that is not UTF-8, from bytes and from a file, naming the `encoding` option; with that option the same bytes read: rule:core-classes/spreadsheet-reads-as-a-stream
+`Reader::open` throws a `ParseError` for a CSV in UTF-32, little-endian or big-endian, and for a CSV that is not UTF-8, from bytes and from a file, naming the `charset` option; with that option the same bytes read: rule:core-classes/spreadsheet-reads-as-a-stream
 --FILE--
 <?nvs
 use Novis\Spreadsheet\Reader;
@@ -17,7 +17,7 @@ foreach ($marked as bytes $utf32) {
     }
 }
 
-// Windows-1252 bytes with no `encoding` option. `ü` is the one byte 0xFC.
+// Windows-1252 bytes with no `charset` option. `ü` is the one byte 0xFC.
 bytes $latin = Core\Encoding::encodeText("Name;City\nJürgen;Köln\n", Core\Charset::Windows1252);
 try {
     Reader::open($latin, { csv: { separator: ';' } });
@@ -48,8 +48,8 @@ try {
     echo $e->message, "\n";
 }
 
-// With the `encoding` option, the bytes read.
-foreach (Reader::open($latin, { csv: { separator: ';', encoding: Core\Charset::Windows1252 } })->rows(0, { header: true }) as var $row) {
+// With the `charset` option, the bytes read.
+foreach (Reader::open($latin, { csv: { separator: ';', charset: Core\Charset::Windows1252 } })->rows(0, { header: true }) as var $row) {
     echo $row->values['Name'] as string, " in ", $row->values['City'] as string, "\n";
 }
 --FILE nvs.toml--
@@ -59,7 +59,7 @@ write = ["."]
 --EXPECT--
 The CSV file is in UTF-32. UTF-32 is not supported. Save the file as UTF-8 or UTF-16.
 The CSV file is in UTF-32. UTF-32 is not supported. Save the file as UTF-8 or UTF-16.
-The CSV file is not UTF-8 text. Set the `csv` option `encoding` to its charset, such as `Core\Charset::Windows1252`.
-The CSV file is not UTF-8 text. Set the `csv` option `encoding` to its charset, such as `Core\Charset::Windows1252`.
-The CSV file is not UTF-8 text. Set the `csv` option `encoding` to its charset, such as `Core\Charset::Windows1252`.
+The CSV file is not UTF-8 text. Set the `csv` option `charset` to its charset, such as `Core\Charset::Windows1252`.
+The CSV file is not UTF-8 text. Set the `csv` option `charset` to its charset, such as `Core\Charset::Windows1252`.
+The CSV file is not UTF-8 text. Set the `csv` option `charset` to its charset, such as `Core\Charset::Windows1252`.
 Jürgen in Köln

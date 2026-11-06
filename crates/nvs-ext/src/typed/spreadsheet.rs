@@ -76,7 +76,6 @@ world! {
     reader_properties(ResourceAny, ResourceAny) -> Properties;
     reader_macros(ResourceAny, ResourceAny) -> Vec<String>;
     reader_evaluate(ResourceAny, ResourceAny) -> Vec<MissedInfo>;
-    source_bytes(ResourceAny, u64, Option<u64>) -> Vec<u8>;
     template_open(ResourceAny, DecompressionBound) -> ResourceAny;
     template_set(ResourceAny, String, Option<CellValue>) -> ();
     template_fill(ResourceAny, Vec<Placeholder>, Vec<String>) -> Filled;

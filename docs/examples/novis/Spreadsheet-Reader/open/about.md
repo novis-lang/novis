@@ -4,7 +4,7 @@ Opens a spreadsheet file so that your program can read it.
 file can be xlsx, xlsm, xlsb, xls, ods or CSV. `Reader::open` finds the type from the bytes. Then
 `sheets` lists the sheets, and `rows` reads one of them.
 
-A CSV file is UTF-8 text by default. `csv` sets its `separator`, `quote`, `escape` and `encoding`.
+A CSV file is UTF-8 text by default. `csv` sets its `separator`, `quote`, `escape` and `charset`.
 A first line such as `sep=;` sets the separator and is not a row, unless you set `separator`.
 A CSV file has one sheet, `Sheet1`, and each value in it is a string.
 

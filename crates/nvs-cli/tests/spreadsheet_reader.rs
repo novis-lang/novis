@@ -20,7 +20,15 @@ fn scratch(case: &str) -> PathBuf {
 /// Runs `body` after the `use` lines in the case's own directory, with `toml` as its `nvs.toml`
 /// when given, and returns its stdout, failing the test on a non-zero exit.
 fn run(case: &str, toml: Option<&str>, body: &str) -> String {
+    run_beside(case, toml, &[], body)
+}
+
+/// [`run`], with each of `files` written beside the program first.
+fn run_beside(case: &str, toml: Option<&str>, files: &[(&str, &[u8])], body: &str) -> String {
     let dir = scratch(case);
+    for (name, content) in files {
+        fs::write(dir.join(name), content).unwrap();
+    }
     let program = format!(
         "<?nvs\nuse Novis\\Spreadsheet\\Reader;\nuse Novis\\Spreadsheet\\Row;\nuse Novis\\Spreadsheet\\Workbook;\n{body}"
     );
@@ -181,6 +189,39 @@ try {
     assert_eq!(
         out,
         "Sheet1\n{\"Item\":\"Widget\",\"Price\":\"2.50\"}\n0000000\nnull\nA CSV file has one sheet, `Sheet1` at position 0. It has no sheet `1`.\n"
+    );
+}
+
+/// A Latin-1 CSV file larger than the program's memory limit opens with `csv`'s `charset` and is
+/// read to its end, because `Core\Csv::rows` converts one piece of it at a time. Its first row
+/// reads with the accents of the file, and the file keeps its position.
+// covers: Novis\Spreadsheet\Reader::open, Novis\Spreadsheet\Reader::sheets
+#[test]
+fn a_latin1_csv_file_is_read_without_holding_it_whole() {
+    const ROWS: usize = 700_000;
+    let mut latin1 = b"Name,City\n".to_vec();
+    for _ in 0..ROWS {
+        // `Renée` and `Zürich` in Latin-1: `é` is 0xE9 and `ü` is 0xFC.
+        latin1.extend_from_slice(b"Ren\xE9e,Z\xFCrich\n");
+    }
+    assert!(latin1.len() > 8 << 20, "the file is larger than the limit");
+    let out = run_beside(
+        "latin1",
+        Some("[limits]\nmemory = \"8M\"\n"),
+        &[("people.csv", &latin1)],
+        r#"
+Core\IO\File $file = Core\IO::open("people.csv", Core\IO::FileMode::Read);
+var $reader = Reader::open($file, {csv: {charset: Core\Charset::Latin1}});
+echo $reader->sheets()[0]->rows, "\n";
+echo $file->tell(), "\n";
+foreach ($reader->rows(0, {header: true, limit: 1}) as Row $row) {
+    echo Core\Json::encode($row->values), "\n";
+}
+"#,
+    );
+    assert_eq!(
+        out,
+        format!("{}\n0\n{{\"Name\":\"Renée\",\"City\":\"Zürich\"}}\n", ROWS + 1)
     );
 }
 

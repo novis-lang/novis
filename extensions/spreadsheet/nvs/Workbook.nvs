@@ -11,10 +11,10 @@ use Throwable;
 /// Each `create` method sets where the file goes. Add a sheet with `sheet`, add its rows, and call `finish` at the end.
 final class Workbook
 {
-    type Options = ?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant }, csv?: { separator?: string, quote?: string, encoding?: Core\Charset } };
+    type Options = ?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant }, csv?: { separator?: string, quote?: string, charset?: Core\Charset } };
     type Column = { header?: string, width?: int|float|string, format?: string, style?: Style, hidden?: bool, formula?: callable(int): Formula };
     type SheetOptions = ?{ columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool };
-    type ExportOptions = ?{ sheet?: string, zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant }, csv?: { separator?: string, quote?: string, encoding?: Core\Charset }, columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool };
+    type ExportOptions = ?{ sheet?: string, zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant }, csv?: { separator?: string, quote?: string, charset?: Core\Charset }, columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool };
     type RowOptions = ?{ height?: float, hidden?: bool, level?: uint, style?: Style };
     type Value = { text: string }|{ number: float }|{ integer: int }|{ decimal: string }|{ boolean: bool }|{ date: Core\Time\Date }|{ time: Core\Time\TimeOfDay }|{ duration: Core\Time\Duration }|{ day: Core\Time\Date, clock: Core\Time\TimeOfDay }|{ formula: string, cachedText: ?string, cachedNumber: ?float }|{ runs: array<{ text: string, style: ?uint }> };
     type Entry = { value: ?Value, style: ?uint };
@@ -317,7 +317,7 @@ final class Workbook
         var $csv = $options?->csv ?? null;
         $book->separator = $csv?->separator ?? ',';
         $book->quote = $csv?->quote ?? '"';
-        ?Core\Charset $encoding = $csv?->encoding ?? null;
+        ?Core\Charset $encoding = $csv?->charset ?? null;
         $book->encoding = $encoding == Core\Charset::Utf8 ? null : $encoding;
         if ($book->csv) {
             // `Core\Csv` checks the dialect here, so a wrong `separator` or `quote` throws before any byte is written.
@@ -747,7 +747,7 @@ final class Workbook
                     if (self::lacks($field, $charset)) {
                         uint $number = $this->csvRecords + $at;
                         string $cell = self::column($column) . ($number as string);
-                        throw new LogicError("The cell {$cell} has a character that the CSV file's `encoding` does not have. Remove the character, or choose an `encoding` that has it, such as `Core\\Charset::Utf8`.");
+                        throw new LogicError("The cell {$cell} has a character that the CSV file's `charset` does not have. Remove the character, or choose a `charset` that has it, such as `Core\\Charset::Utf8`.");
                     }
                     $column = $column + 1;
                 }

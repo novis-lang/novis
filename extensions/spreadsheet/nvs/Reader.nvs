@@ -22,58 +22,49 @@ final class Reader
     type Read = { text: tainted string }|{ integer: int }|{ number: float }|{ boolean: bool }|{ day: Core\Time\Date, clock: Core\Time\TimeOfDay }|{ date: Core\Time\Date }|{ time: Core\Time\TimeOfDay }|{ duration: Core\Time\Duration }|{ error: CellError };
     type Asked = { sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string };
 
-    type OpenOptions = ?{ csv?: { separator?: string, quote?: string, escape?: string, encoding?: Core\Charset } };
+    type OpenOptions = ?{ csv?: { separator?: string, quote?: string, escape?: string, charset?: Core\Charset } };
     type Dialect = { separator: string, quote: string, escape: string };
+    type Source = tainted bytes|Core\IO\File|Core\Request\Part;
 
-    // `$reader` is `null` for a CSV file. `$csv` is the text of CSV bytes, or of a CSV file read whole.
-    // `$skip` is the length of a byte order mark at the start of a CSV file.
+    // `$reader` is `null` for a CSV file. `$charset` is the charset of a CSV file.
+    // `$sep` is `true` when the first record of a CSV file is a `sep=` line, which is not a row.
     private function constructor(
         private readonly ?Reading $reader,
-        private readonly tainted bytes|Core\IO\File $source,
-        private readonly ?tainted string $csv,
-        private readonly uint $skip,
+        private readonly Source $source,
+        private readonly Core\Charset $charset,
+        private readonly bool $sep,
         private readonly Dialect $dialect,
     )
     {}
 
-    /// `Reader::open` opens the spreadsheet in `$source`, the bytes of the file or a file your program opened. Other bytes throw a `ParseError`.
-    /// A CSV file is UTF-8 text, or UTF-16 text with a byte order mark. Other CSV text needs `csv`'s `encoding`, or it throws a `ParseError`.
+    /// `Reader::open` opens the spreadsheet in `$source`: the bytes of the file, a file your program opened, or an uploaded file. Other bytes throw a `ParseError`.
+    /// A CSV file is UTF-8 text, or UTF-16 text with a byte order mark. Other CSV text needs `csv`'s `charset`, or it throws a `ParseError`.
     /// A first CSV line such as `sep=;` sets the separator, and it is not a row. When you set the `separator` option, that line is a normal row.
-    public static function open(tainted bytes|Core\IO\File $source, OpenOptions $options = null): Reader
+    public static function open(Source $source, OpenOptions $options = null): Reader
     {
         var $csv = $options?->csv ?? null;
         Dialect $dialect = { separator: $csv?->separator ?? ',', quote: $csv?->quote ?? '"', escape: $csv?->escape ?? '' };
         tainted bytes $start = self::head($source);
         tainted string $head = Core\Encoding::toHex(Core\Bytes::slice($start, 0, 4));
         if (!self::workbookStart($head)) {
-            ?Core\Charset $asked = $csv?->encoding ?? null;
+            ?Core\Charset $asked = $csv?->charset ?? null;
             if ($asked == null && (Core\Str::startsWith($head, 'fffe0000') || Core\Str::startsWith($head, '0000feff'))) {
                 throw new ParseError('The CSV file is in UTF-32. UTF-32 is not supported. Save the file as UTF-8 or UTF-16.');
             }
+            ?Core\Charset $marked = self::markOf($head);
+            if ($marked == null && ($asked == null || $asked == Core\Charset::Utf8)) {
+                if (!self::isText($start)) {
+                    throw new ParseError('The file is not a spreadsheet. `Reader::open` reads xlsx, xlsm, xlsb, xls, ods and CSV files.');
+                }
+                if (!self::isUtf8($start)) {
+                    throw new ParseError(self::notUtf8());
+                }
+            }
             bool $chosen = ($csv?->separator ?? null) != null;
-            ?Core\Charset $charset = self::charsetOf($head, $asked);
-            if ($charset != null) {
-                return self::csvReader($source, self::decoded($source, $charset), 0, $dialect, $chosen);
-            }
-            if (!self::isText($start)) {
-                throw new ParseError('The file is not a spreadsheet. `Reader::open` reads xlsx, xlsm, xlsb, xls, ods and CSV files.');
-            }
-            if (!self::isUtf8($start)) {
-                throw new ParseError(self::notUtf8());
-            }
-            if ($source is Core\IO\File) {
-                ?uint $skip = self::csvFile($source);
-                if ($skip != null) {
-                    return self::csvReader($source, null, $skip, $dialect, $chosen, self::startText($start, $skip));
-                }
-            } elseif ($source is bytes) {
-                ?tainted string $text = self::csvText($source);
-                if ($text != null) {
-                    return self::csvReader($source, $text, 0, $dialect, $chosen);
-                }
-            }
+            Core\Charset $charset = $asked ?? Core\Charset::Utf8;
+            return self::csvReader($source, $charset, self::startText($start, $marked ?? $charset), $dialect, $chosen);
         }
-        return new Reader(Engine::readerOpen($source, { maxBytes: null, maxRatio: null }), $source, null, 0, $dialect);
+        return new Reader(Engine::readerOpen($source, { maxBytes: null, maxRatio: null }), $source, Core\Charset::Utf8, false, $dialect);
     }
 
     /// `sheets` returns each sheet in tab order, with its name, its position from 0, whether it is hidden, its size and its kind.
@@ -322,39 +313,25 @@ final class Reader
         }
     }
 
-    // Each record of the CSV file, from its first byte after a byte order mark. A walk to the end puts the position of an open file back.
+    // Each record of the CSV file. `Core\Csv::rows` reads one piece of the file at a time, converts it from its charset, and drops a byte order mark.
+    // A walk to the end puts the position of an open file back.
     private function records(): Iterator<array<tainted string>>
     {
-        ?tainted string $text = $this->csv;
         Dialect $dialect = $this->dialect;
-        if ($text != null) {
-            foreach (Core\Csv::parse($text, { separator: $dialect->separator, quote: $dialect->quote, escape: $dialect->escape }) as array<tainted string> $record) {
-                yield $record;
-            }
-            return;
-        }
         var $source = $this->source;
+        uint $at = 0;
         if ($source is Core\IO\File) {
-            // `rows` reads the file from its first byte. The byte order mark is taken off the first field.
-            // When `$skip` is longer than the mark, the first record is the `sep=` line, and it is not a row.
-            uint $at = $source->tell();
-            bool $first = true;
-            foreach (Core\Csv::rows($source, { separator: $dialect->separator, quote: $dialect->quote, escape: $dialect->escape }) as array<string> $line) {
-                if (!$first) {
-                    yield $line;
-                    continue;
-                }
-                $first = false;
-                array<string> $kept = $line;
-                uint $mark = 0;
-                if (Core\Arr::hasKey($kept, '0') && Core\Str::startsWith($kept['0'], "\u{FEFF}")) {
-                    $kept['0'] = Core\Str::slice($kept['0'], 1);
-                    $mark = 3;
-                }
-                if ($this->skip <= $mark) {
-                    yield $kept;
-                }
+            $at = $source->tell();
+        }
+        bool $skip = $this->sep;
+        foreach (Core\Csv::rows($source, { separator: $dialect->separator, quote: $dialect->quote, escape: $dialect->escape, charset: $this->charset }) as array<tainted string> $record) {
+            if ($skip) {
+                $skip = false;
+                continue;
             }
+            yield $record;
+        }
+        if ($source is Core\IO\File) {
             $source->seek($at);
         }
     }
@@ -424,65 +401,23 @@ final class Reader
         return { name: 'Sheet1', position: 0, visibility: Visibility::Visible, rows: $rows, columns: $columns, kind: SheetKind::Worksheet };
     }
 
-    // The text of CSV bytes, or `null` for a zip archive, which the engine reads. Bytes that are not UTF-8 throw.
-    private static function csvText(tainted bytes $data): ?tainted string
-    {
-        tainted string $text = '';
-        bool $utf8 = true;
-        try {
-            $text = Core\Encoding::decodeText($data, Core\Charset::Utf8);
-        } catch (RuntimeError $e) {
-            $utf8 = false;
-        }
-        if (!$utf8) {
-            throw new ParseError(self::notUtf8());
-        }
-        if (self::zipStart(Core\Str::codePoints(Core\Str::slice($text, 0, 3)))) {
-            return null;
-        }
-        if (Core\Str::startsWith($text, "\u{FEFF}")) {
-            return Core\Str::slice($text, 1);
-        }
-        return $text;
-    }
-
-    // The length of the byte order mark of a CSV file. It is `null` for a zip archive, or a file that does not start with UTF-8 text.
-    // The position of `$file` is the same after this call.
-    private static function csvFile(Core\IO\File $file): ?uint
-    {
-        uint $at = $file->tell();
-        $file->seek(0);
-        string $head = '';
-        try {
-            $head = $file->read(4);
-        } catch (RuntimeError $e) {
-            $file->seek($at);
-            return null;
-        }
-        $file->seek($at);
-        array<uint> $codes = Core\Str::codePoints($head);
-        if (self::zipStart($codes)) {
-            return null;
-        }
-        if (Core\Arr::count($codes) > 0 && $codes[0] == 65279) {
-            return 3;
-        }
-        return 0;
-    }
-
-    // A zip archive starts with `PK` and a control byte. A CSV file that starts with `PK` has a letter or a separator next.
-    private static function zipStart(array<uint> $codes): bool
-    {
-        return Core\Arr::count($codes) >= 3 && $codes[0] == 80 && $codes[1] == 75 && $codes[2] < 9;
-    }
-
-    // The first 4 KiB of the source. A file keeps its position.
-    private static function head(tainted bytes|Core\IO\File $source): tainted bytes
+    // The first 4 KiB of the source. A file keeps its position, and an uploaded file still gives every byte after this.
+    private static function head(Source $source): tainted bytes
     {
         if ($source is bytes) {
             return Core\Bytes::slice($source, 0, 4096);
         }
-        return Engine::sourceBytes($source, 0, 4096);
+        if ($source is Core\IO\File) {
+            uint $at = $source->tell();
+            $source->seek(0);
+            bytes $start = $source->readBytes(4096);
+            $source->seek($at);
+            return $start;
+        }
+        if ($source is Core\Request\Part) {
+            return $source->peek(4096);
+        }
+        throw new LogicError('`Reader::open` reads bytes, an open file or an uploaded file.');
     }
 
     // CSV is text. Its first 4 KiB have no NUL byte and no control character other than tab, line feed, form feed and carriage return.
@@ -519,7 +454,7 @@ final class Reader
     // The message for a CSV file that is not UTF-8.
     private static function notUtf8(): string
     {
-        return 'The CSV file is not UTF-8 text. Set the `csv` option `encoding` to its charset, such as `Core\Charset::Windows1252`.';
+        return 'The CSV file is not UTF-8 text. Set the `csv` option `charset` to its charset, such as `Core\Charset::Windows1252`.';
     }
 
     // A zip archive (xlsx, xlsm, xlsb, ods) or a compound file (xls) is a workbook, whatever the `csv` options say.
@@ -532,12 +467,12 @@ final class Reader
         return Core\Str::startsWith($head, 'd0cf11e0');
     }
 
-    // The charset a CSV source is decoded with, whole. It is `null` for UTF-8 text, which is read as before.
-    // A UTF-16 byte order mark sets the charset when the options give none.
-    private static function charsetOf(tainted string $head, ?Core\Charset $encoding): ?Core\Charset
+    // The charset that the byte order mark at the start of `$head` gives, or `null` when there is no mark.
+    // `$head` is the first bytes in hex. `Core\Csv::rows` reads a file with a mark in the charset of the mark.
+    private static function markOf(tainted string $head): ?Core\Charset
     {
-        if ($encoding != null) {
-            return $encoding == Core\Charset::Utf8 ? null : $encoding;
+        if (Core\Str::startsWith($head, 'efbbbf')) {
+            return Core\Charset::Utf8;
         }
         if (Core\Str::startsWith($head, 'fffe')) {
             return Core\Charset::Utf16Le;
@@ -548,39 +483,19 @@ final class Reader
         return null;
     }
 
-    // The whole source as text in `$charset`, without a byte order mark. A file is read whole, and keeps its position.
-    private static function decoded(tainted bytes|Core\IO\File $source, Core\Charset $charset): tainted string
-    {
-        tainted bytes $data = Core\Bytes::fill(0, 0);
-        if ($source is bytes) {
-            $data = $source;
-        } else {
-            $data = Engine::sourceBytes($source, 0, null);
-        }
-        tainted string $text = Core\Encoding::decodeText($data, $charset);
-        if (Core\Str::startsWith($text, "\u{FEFF}")) {
-            return Core\Str::slice($text, 1);
-        }
-        return $text;
-    }
-
-    // A reader of CSV `$text`, or of a file from byte `$skip`, whose first characters are `$start`.
+    // A reader of a CSV file in `$charset`, whose first characters are `$start`.
     // When `$chosen` is false, a first line that is `sep=` and one character sets the separator and is not a row.
-    private static function csvReader(tainted bytes|Core\IO\File $source, ?tainted string $text, uint $skip, Dialect $dialect, bool $chosen, tainted string $start = ''): Reader
+    private static function csvReader(Source $source, Core\Charset $charset, tainted string $start, Dialect $dialect, bool $chosen): Reader
     {
-        ?tainted string $line = $chosen ? null : self::sepLine($text ?? $start, $dialect->quote);
+        ?tainted string $line = $chosen ? null : self::sepLine($start, $dialect->quote);
         if ($line == null) {
             self::checkDialect($dialect);
-            return new Reader(null, $source, $text, $skip, $dialect);
+            return new Reader(null, $source, $charset, false, $dialect);
         }
         string $separator = Core\Taint::assertTrusted(Core\Str::slice($line, 4, 1), 'the separator only splits the same file into fields');
         Dialect $found = { separator: $separator, quote: $dialect->quote, escape: $dialect->escape };
         self::checkDialect($found);
-        if ($text != null) {
-            return new Reader(null, $source, Core\Str::slice($text, Core\Str::length($line) as int), $skip, $found);
-        }
-        uint $length = Core\Bytes::length(Core\Encoding::encodeText($line, Core\Charset::Utf8));
-        return new Reader(null, $source, null, $skip + $length, $found);
+        return new Reader(null, $source, $charset, true, $found);
     }
 
     // The first line of CSV text, with its line end, when it is `sep=` and one character. It is `null` for any other first line.
@@ -603,14 +518,18 @@ final class Reader
 
     // The text of the first bytes of a CSV file after its byte order mark, enough for a `sep=` line.
     // A character cut at the end is left out.
-    private static function startText(tainted bytes $start, uint $skip): tainted string
+    private static function startText(tainted bytes $start, Core\Charset $charset): tainted string
     {
-        tainted bytes $part = Core\Bytes::slice($start, $skip as int, 12);
+        tainted bytes $part = Core\Bytes::slice($start, 0, 20);
         int $length = Core\Bytes::length($part) as int;
         int $cut = 0;
         while ($cut < 4 && $cut <= $length) {
             try {
-                return Core\Encoding::decodeText(Core\Bytes::slice($part, 0, $length - $cut), Core\Charset::Utf8);
+                tainted string $text = Core\Encoding::decodeText(Core\Bytes::slice($part, 0, $length - $cut), $charset);
+                if (Core\Str::startsWith($text, "\u{FEFF}")) {
+                    return Core\Str::slice($text, 1);
+                }
+                return $text;
             } catch (RuntimeError $e) {
             }
             $cut = $cut + 1;

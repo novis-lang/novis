@@ -1784,6 +1784,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_part_content" => (nvs_core_request_part_content as *const ()).cast(),
         "nvs_core_request_part_read_all" => (nvs_core_request_part_read_all as *const ()).cast(),
         "nvs_core_request_part_save_to" => (nvs_core_request_part_save_to as *const ()).cast(),
+        "nvs_core_request_part_peek" => (nvs_core_request_part_peek as *const ()).cast(),
         PART_CONTENT_ITERATE_SYMBOL => (nvs_core_request_part_content_iterate as *const ()).cast(),
         PART_CONTENT_ADVANCE_SYMBOL => (nvs_core_request_part_content_advance as *const ()).cast(),
         PART_CONTENT_CURRENT_SYMBOL => (nvs_core_request_part_content_current as *const ()).cast(),

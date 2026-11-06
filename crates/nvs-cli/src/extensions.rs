@@ -514,8 +514,10 @@ impl Drop for Calls {
 /// A guest's read of a lent source waits in [`Spent`] the same way, and [`Spent::reads`] serves
 /// it from the call's own arguments (`rule:core-classes/spreadsheet-reads-as-a-stream`): a range
 /// of a `bytes` argument is copied from the runtime's string, and a range of an open
-/// `Core\IO\File` is read through `nvs_stdlib::extension_file_range`. So a source is never copied
-/// whole as it crosses, and only the ranges the guest reads leave the program's memory.
+/// `Core\IO\File`, a part or a body stream is read through `nvs_stdlib::extension_source_range`.
+/// So a source is never copied whole as it crosses, and only the ranges the guest reads leave the
+/// program's memory. A part or a body is held whole on the request by its first range, under
+/// `[limits] request_body`.
 ///
 /// What it spends: one copy of the request's configuration, which is an `Arc` of its snapshot and
 /// the few keys the request set for itself, the `grants:` list of the isolate that
@@ -610,7 +612,7 @@ impl Spent {
                         let take = usize::try_from(length).unwrap_or(usize::MAX);
                         Ok(bytes[start..start.saturating_add(take).min(bytes.len())].to_vec())
                     }
-                    None => nvs_stdlib::extension_file_range(ctx, source, offset, length)
+                    None => nvs_stdlib::extension_source_range(ctx, source, offset, length)
                         .map_err(fault_text),
                 },
             });
@@ -916,7 +918,8 @@ fn drive<T>(call: impl Future<Output = T>, between: impl FnMut() -> bool) -> T {
 }
 
 /// `value` lent to a guest by its number in `lent`, when it is a source the guest reads a range at
-/// a time: a `bytes` value or an open `Core\IO\File` (`rule:core-classes/spreadsheet-reads-as-a-stream`).
+/// a time: a `bytes` value, an open `Core\IO\File`, a `Core\Request\Part` or a
+/// `Core\Request\BodyStream` (`rule:core-classes/spreadsheet-reads-as-a-stream`).
 /// `None` for any other value, which crosses as [`crossed`] gives it.
 fn lent_source(
     ctx: &mut Ctx,
@@ -925,7 +928,7 @@ fn lent_source(
 ) -> Option<Result<Crossed, String>> {
     let size = match value.as_bytes() {
         Some(bytes) => Ok(u64::try_from(bytes.len()).unwrap_or(u64::MAX)),
-        None => nvs_stdlib::extension_file_size(ctx, value)?.map_err(fault_text),
+        None => nvs_stdlib::extension_source_size(ctx, value)?.map_err(fault_text),
     };
     Some(size.map(|size| {
         let id = u64::try_from(lent.len()).unwrap_or(u64::MAX);

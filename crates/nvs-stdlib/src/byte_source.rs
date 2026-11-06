@@ -372,10 +372,6 @@ impl ByteSource {
     ///
     /// [`Self::prefix`]'s, and the memory limit's fatal for a read the request
     /// cannot hold, checked before each [`READ_CHUNK`].
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "`Core\\Zip` and the spreadsheet reader are its first callers")
-    )]
     pub(crate) fn range(
         &mut self,
         ctx: &mut Ctx,
@@ -413,10 +409,6 @@ impl ByteSource {
     /// # Errors
     ///
     /// [`Self::range`]'s.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "`Core\\Zip` and the spreadsheet reader are its first callers")
-    )]
     pub(crate) fn size(&mut self, ctx: &mut Ctx, holder: Value) -> Result<u64, Fault> {
         let member = self.member;
         match &mut self.kind {
@@ -615,6 +607,72 @@ fn closed(member: &str, path: &str) -> Fault {
 /// The `IOError` for a read or a seek the operating system refused.
 fn failed(member: &str, path: &str, err: &std::io::Error) -> Fault {
     nvs_runtime::capability::io_failure(member, std::path::Path::new(path), err)
+}
+
+/// What a message of a guest's read of a lent source names.
+const LENT_MEMBER: &str = "an extension's read of its source";
+
+/// The size of `value` when it is a source `nvs_cli`'s extension host lends to a
+/// guest as a source of byte ranges: an open `Core\IO\File`, a
+/// `Core\Request\Part` or a `Core\Request\BodyStream`
+/// (`rule:core-classes/spreadsheet-reads-as-a-stream`). `None` for any other
+/// value. The host serves a `bytes` value from its own string.
+///
+/// Each read is one [`ByteSource`] of its own, made and finished in the call,
+/// because a lent value is valid only for the call that lends it. A part or a
+/// body is held whole on the request by the first read, under
+/// `[limits] request_body`, so the later reads cost no wire read.
+///
+/// # Errors
+///
+/// [`ByteSource::from_arg`]'s and [`ByteSource::size`]'s.
+pub fn extension_source_size(ctx: &mut Ctx, value: Value) -> Option<Result<u64, Fault>> {
+    let lendable = crate::instance::is_instance(value, &crate::io::FILE)
+        || crate::instance::is_instance(value, &crate::request::PART)
+        || crate::instance::is_instance(value, &crate::request::BODY_STREAM);
+    lendable.then(|| lent_read(ctx, value, |source, ctx, holder| source.size(ctx, holder)))
+}
+
+/// At most `length` bytes at `offset` of the source [`extension_source_size`]
+/// lent, fewer where it ends first. A file's position is where it was before.
+///
+/// # Errors
+///
+/// [`ByteSource::from_arg`]'s and [`ByteSource::range`]'s, such as the memory
+/// limit's for a part larger than the request may hold.
+pub fn extension_source_range(
+    ctx: &mut Ctx,
+    value: Value,
+    offset: u64,
+    length: u64,
+) -> Result<Vec<u8>, Fault> {
+    lent_read(ctx, value, |source, ctx, holder| {
+        source.range(ctx, holder, offset, length)
+    })
+}
+
+/// `read` over a [`ByteSource`] of `value`, which is then finished and freed,
+/// with the reference [`ByteSource::from_arg`] took released.
+fn lent_read<T>(
+    ctx: &mut Ctx,
+    value: Value,
+    read: impl FnOnce(&mut ByteSource, &mut Ctx, Value) -> Result<T, Fault>,
+) -> Result<T, Fault> {
+    let (mut source, holder) = ByteSource::from_arg(ctx, value, LENT_MEMBER)?;
+    let read = read(&mut source, ctx, holder);
+    let finished = source.finish();
+    drop(source);
+    #[expect(
+        unsafe_code,
+        reason = "`from_arg` gave this call a reference of its own, and nothing \
+                  keeps it past the read"
+    )]
+    unsafe {
+        holder.release();
+    }
+    let read = read?;
+    finished?;
+    Ok(read)
 }
 
 /// The fatal for a prefix or random read of a walk of chunks, which the

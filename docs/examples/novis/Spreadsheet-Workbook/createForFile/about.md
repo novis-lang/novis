@@ -10,7 +10,7 @@ change. On a server, a program needs the `fs.write` capability in `nvs.toml` for
 path. A program you start from the command line may write any path.
 
 A CSV file is UTF-8 with `,` between values. It starts with a byte order mark and ends each line
-with CR and LF, so Excel opens it correctly. `csv` sets its `separator`, `quote` and `encoding`.
+with CR and LF, so Excel opens it correctly. `csv` sets its `separator`, `quote` and `charset`.
 
 **The examples below** save an Excel file and read it back, save a CSV file, save two sheets with
 the summary first, save a CSV file with `;` in Windows-1252, and save an ods file.

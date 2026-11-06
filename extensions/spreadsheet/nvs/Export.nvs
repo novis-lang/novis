@@ -7,7 +7,7 @@ use Throwable;
 /// A whole workbook from `Workbook::fromRows` or `Template::fill`. The method you call on it sets where the file goes.
 final class Export
 {
-    type Options = ?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant }, csv?: { separator?: string, quote?: string, encoding?: Core\Charset } };
+    type Options = ?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant }, csv?: { separator?: string, quote?: string, charset?: Core\Charset } };
 
     // Whether an export with `$once` has written its file.
     private bool $used = false;

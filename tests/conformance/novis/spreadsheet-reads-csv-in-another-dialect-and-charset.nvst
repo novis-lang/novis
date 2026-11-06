@@ -1,5 +1,5 @@
 --TEST--
-`Reader::open` reads a CSV with the `csv` options' separator, quote, escape and encoding, from bytes and from a file, reads a UTF-16 byte order mark with no option, and reads a workbook as a workbook whatever `csv` says: rule:core-classes/spreadsheet-has-no-io
+`Reader::open` reads a CSV with the `csv` options' separator, quote, escape and charset, from bytes and from a file, reads a UTF-16 byte order mark with no option, and reads a workbook as a workbook whatever `csv` says: rule:core-classes/spreadsheet-has-no-io
 --FILE--
 <?nvs
 use Novis\Spreadsheet\Reader;
@@ -30,12 +30,12 @@ Show::rows(Reader::open($escaped, { csv: { escape: "\\" } })->rows(0, { header: 
 // Latin-1 bytes, from `bytes` and from a file. `ü` is the one byte 0xFC.
 bytes $latin = Core\Encoding::encodeText("Name;City\nJürgen;Köln\n", Core\Charset::Latin1);
 echo Core\Bytes::length($latin), " bytes\n";
-Show::rows(Reader::open($latin, { csv: { separator: ';', encoding: Core\Charset::Latin1 } })->rows(0, { header: true }));
+Show::rows(Reader::open($latin, { csv: { separator: ';', charset: Core\Charset::Latin1 } })->rows(0, { header: true }));
 Core\IO\File $out = Core\IO::open("latin.csv", Core\IO::FileMode::Write);
 $out->write($latin);
 $out->close();
 Core\IO\File $file = Core\IO::open("latin.csv", Core\IO::FileMode::Read);
-var $reader = Reader::open($file, { csv: { separator: ';', encoding: Core\Charset::Latin1 } });
+var $reader = Reader::open($file, { csv: { separator: ';', charset: Core\Charset::Latin1 } });
 echo Core\Arr::count($reader->sheets()), " sheet\n";
 Show::rows($reader->rows("Sheet1", { header: true }));
 echo "the file is at byte ", $file->tell(), "\n";
@@ -49,7 +49,7 @@ Show::rows(Reader::open($big)->rows(0, { header: true }));
 
 // An xlsx is read as a workbook, whatever the `csv` options say.
 bytes $xlsx = Workbook::fromRows([['Item' => 'Gizmo']])->bytes();
-Show::rows(Reader::open($xlsx, { csv: { encoding: Core\Charset::Latin1, separator: ';' } })->rows(0, { header: true }));
+Show::rows(Reader::open($xlsx, { csv: { charset: Core\Charset::Latin1, separator: ';' } })->rows(0, { header: true }));
 
 // A separator of two characters throws at `open`.
 try {
