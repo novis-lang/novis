@@ -11,7 +11,7 @@
     },
     {
       "title": "Binary files and uploads",
-      "text": "`Core\\IO` reads a binary file, such as an image or an archive, as `bytes`. `Core\\Request\\Part::peek` gives the first bytes of an upload, and the upload stays complete. `Core\\Zip`, `Core\\Pdf` and `Core\\Image` open a file directly. `Core\\Csv::rows` reads an upload and text that is not UTF-8.",
+      "text": "`Core\\IO` reads a binary file, such as an image or an archive, as `bytes`. `Core\\Mime`, `Core\\Zip`, `Core\\Hash`, `Core\\Csv`, `Core\\Image` and `Core\\Pdf` take bytes, an open file or an upload, and read only what they need. `Core\\Mime::detect($upload)` reads the start of an upload, and you can still save the whole file after it.",
       "goals": [
         "byte-sources"
       ]
