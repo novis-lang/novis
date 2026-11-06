@@ -1,7 +1,7 @@
 <?nvs
-// Measures the SHA-256 digest of a short text, as a program does when it makes a cache key.
-// bench: iterations 256
-// bench: allocations 1
+// Measures the SHA-256 digest of a small file, as a program does to check a download or find a duplicate.
+// bench: iterations 128
+// bench: allocations 3
 // bench: calls 2
 // bench: complexity linear
 
@@ -9,13 +9,20 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        array<string> $keys = ['user:1042', 'cart:77', 'page:/shop/shoes'];
+        string $dir = Core\IO::temporaryDir();
+        array<string> $names = ['invoice.pdf', 'logo.png', 'notes.txt'];
+        array<Core\IO\File> $files = [];
+        foreach ($names as string $name) {
+            string $path = Core\Path::join($dir, $name);
+            Core\IO::write($path, Core\Bytes::repeat($name as bytes, 40));
+            $files[] = Core\IO::open($path, Core\IO::FileMode::Read);
+        }
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // The text hashed in each round is chosen by the round before it, so no round
-            // can be left out.
-            bytes $digest = Core\Hash::of($keys[($total % 3) as int], Core\Hash::Digest::Sha256);
+            // The file hashed in each round is chosen by the round before it, so no round
+            // can be left out. `Core\Hash::of` reads each file from its start.
+            bytes $digest = Core\Hash::of($files[($total % 3) as int], Core\Hash::Digest::Sha256);
             $total = $total + Core\Bytes::at($digest, 0) + 1;
             $i = $i + 1;
         }
@@ -23,4 +30,4 @@ class Bench
     }
 }
 
-echo Bench::run(256), "\n";
+echo Bench::run(128), "\n";

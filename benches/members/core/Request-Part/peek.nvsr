@@ -1,0 +1,21 @@
+--METHOD--
+POST
+--PATH--
+/imports
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=----ShopFormBoundary
+--BODY_CRLF--
+------ShopFormBoundary
+Content-Disposition: form-data; name="orders"; filename="orders.csv"
+Content-Type: text/csv
+
+order,customer,total
+1042,Blog Ltd,19.90
+1043,Shop GmbH,4.50
+1044,Framework Inc,120.00
+1045,Blog Ltd,8.25
+1046,Shop GmbH,64.00
+------ShopFormBoundary--

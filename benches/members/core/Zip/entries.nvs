@@ -1,7 +1,9 @@
 <?nvs
-// Lists the names in a small archive, as a program does before it accepts an upload.
-// bench: iterations 256
-// bench: complexity linear
+// Lists the names in a small archive file, as a program does before it unpacks a saved upload.
+// bench: iterations 128
+// bench: allocations 32
+// bench: calls 2
+// bench: complexity constant
 
 class Bench
 {
@@ -9,12 +11,20 @@ class Bench
     {
         // Five entries: `readme.txt`, `src/`, `src/app.nvs`, `src/lib.nvs` and `composer.json`.
         bytes $archive = Core\Encoding::fromBase64('UEsDBBQAAAAAAAAAIVyCidH3BQAAAAUAAAAKAAAAcmVhZG1lLnR4dEhlbGxvUEsDBBQAAAAAAAAAIVwAAAAAAAAAAAAAAAAEAAAAc3JjL1BLAwQUAAAAAAAAACFcsVKb+AUAAAAFAAAACwAAAHNyYy9hcHAubnZzPD9udnNQSwMEFAAAAAAAAAAhXLFSm/gFAAAABQAAAAsAAABzcmMvbGliLm52czw/bnZzUEsDBBQAAAAAAAAAIVxDv6ajAgAAAAIAAAANAAAAY29tcG9zZXIuanNvbnt9UEsBAhQAFAAAAAAAAAAhXIKJ0fcFAAAABQAAAAoAAAAAAAAAAAAAAKSBAAAAAHJlYWRtZS50eHRQSwECFAAUAAAAAAAAACFcAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAA7UEtAAAAc3JjL1BLAQIUABQAAAAAAAAAIVyxUpv4BQAAAAUAAAALAAAAAAAAAAAAAACkgU8AAABzcmMvYXBwLm52c1BLAQIUABQAAAAAAAAAIVyxUpv4BQAAAAUAAAALAAAAAAAAAAAAAACkgX0AAABzcmMvbGliLm52c1BLAQIUABQAAAAAAAAAIVxDv6ajAgAAAAIAAAANAAAAAAAAAAAAAACkgasAAABjb21wb3Nlci5qc29uUEsFBgAAAAAFAAUAFwEAANgAAAAAAA==');
-        // The second copy has extra bytes after the archive. `entries` ignores them.
-        array<bytes> $archives = [$archive, Core\Bytes::join([$archive, 'trailing' as bytes])];
+        // The second file has extra bytes after the archive. `entries` ignores them.
+        string $dir = Core\IO::temporaryDir();
+        string $first = Core\Path::join($dir, 'project.zip');
+        string $second = Core\Path::join($dir, 'project-trailing.zip');
+        Core\IO::write($first, $archive);
+        Core\IO::write($second, Core\Bytes::join([$archive, 'trailing' as bytes]));
+        array<Core\IO\File> $archives = [
+            Core\IO::open($first, Core\IO::FileMode::Read),
+            Core\IO::open($second, Core\IO::FileMode::Read),
+        ];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Chained: which archive is listed depends on the last round's total.
+            // Chained: which file is listed depends on the last round's total.
             $total = $total + Core\Arr::count(Core\Zip::entries($archives[($total % 2) as int]));
             $i = $i + 1;
         }
@@ -22,4 +32,4 @@ class Bench
     }
 }
 
-echo Bench::run(256), "\n";
+echo Bench::run(128), "\n";

@@ -1,7 +1,7 @@
 <?nvs
-// Measures `Core\Zip::entries` on one archive, at growing numbers of files in it.
-// bench: start 16
-// bench: max 256
+// Measures `Core\Zip::entries` on one archive file of 16 files, at growing file sizes.
+// bench: start 16384
+// bench: max 262144
 
 class Bench
 {
@@ -67,19 +67,23 @@ class Bench
     {
         array<string> $names = [];
         uint $n = 0;
-        while ($n < $size) {
+        while ($n < 16) {
             $names[] = 'src/file' . $n . '.nvs';
             $n = $n + 1;
         }
-        bytes $archive = Bench::archive($names, 'Hello' as bytes);
+        // Each of the 16 files has `$size` bytes, so the archive grows and the list does not.
+        string $path = Core\Path::join(Core\IO::temporaryDir(), 'project.zip');
+        Core\IO::write($path, Bench::archive($names, Core\Bytes::repeat('a' as bytes, $size)));
+        Core\IO\File $archive = Core\IO::open($path, Core\IO::FileMode::Read);
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
             $total = $total + Core\Arr::count(Core\Zip::entries($archive));
             $i = $i + 1;
         }
+        $archive->close();
         return $total;
     }
 }
 
-echo Bench::run(16), "\n";
+echo Bench::run(16384), "\n";

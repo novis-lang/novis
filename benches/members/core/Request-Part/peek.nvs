@@ -1,0 +1,26 @@
+<?nvs
+// Reads the first bytes of an uploaded file, as a handler does to check a file's header before it saves the file.
+// bench: iterations 256
+// bench: allocations 2
+// bench: calls 2
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // The upload is the file in the form in `peek.nvsr` beside this one.
+        // `peek` does not use up the file, so every round reads the same first bytes.
+        uint $total = 0;
+        foreach (Core\Request::files() as Core\Request\Part $part) {
+            uint $i = 0;
+            while ($i < $rounds) {
+                $total = $total + Core\Bytes::length($part->peek(16));
+                $i = $i + 1;
+            }
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";
