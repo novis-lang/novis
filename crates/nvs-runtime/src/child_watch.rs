@@ -226,8 +226,10 @@ mod unix {
     /// Starts a watcher and connects it to this process.
     fn start() -> io::Result<Link> {
         let (socket, theirs) = UnixStream::pair()?;
-        let watcher = Command::new(this_binary()?)
-            .env_clear()
+        let mut command = Command::new(this_binary()?);
+        command.env_clear();
+        crate::capability::keep_coverage_counters(&mut command);
+        let watcher = command
             .env(super::WATCHER, std::process::id().to_string())
             .current_dir("/")
             .stdin(Stdio::from(OwnedFd::from(theirs)))

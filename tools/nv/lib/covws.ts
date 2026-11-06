@@ -8,7 +8,9 @@
 // dependencies, build scripts and proc-macros carry no counters. The build goes to `target/covws`,
 // and its binaries to `target/covws/<host triple>/debug`. A run writes its counters where
 // `LLVM_PROFILE_FILE` says, and into `default_*.profraw` in its working directory when that is unset,
-// so every run of these binaries sets it.
+// so every run of these binaries sets it. A child process starts with a cleared environment, so the
+// wrapper also sets `--cfg nvs_coverage`, and `nvs_runtime::capability::keep_coverage_counters` then
+// passes the variable on to the child.
 //
 // `llvm-profdata` and `llvm-cov` read the counters. They come with the toolchain's `llvm-tools`
 // component, which `rust-toolchain.toml` names.

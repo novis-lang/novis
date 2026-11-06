@@ -1614,6 +1614,23 @@ const BASE_ENV: &[&str] = &["PATH", "USERPROFILE", "TEMP", "TMP", "SYSTEMROOT", 
 #[cfg(not(windows))]
 const BASE_ENV: &[&str] = &["PATH", "HOME", "TEMP", "TMP", "LANG"];
 
+/// Gives a child this process's `LLVM_PROFILE_FILE` when this is the `covws` build, and does
+/// nothing in any other build.
+///
+/// A binary built with coverage counters writes them where `LLVM_PROFILE_FILE` says, and into
+/// `default_*.profraw` in its working folder when the variable is unset. A child that starts with
+/// a cleared environment, such as a test binary that starts itself or an `nvs` that runs another,
+/// would write that file into the source tree. Only `tools/covwrap` sets `nvs_coverage`, so a
+/// release build passes nothing beyond what the program asked for.
+pub(crate) fn keep_coverage_counters(command: &mut Command) {
+    #[cfg(nvs_coverage)]
+    if let Some(file) = std::env::var_os("LLVM_PROFILE_FILE") {
+        command.env("LLVM_PROFILE_FILE", file);
+    }
+    #[cfg(not(nvs_coverage))]
+    let _ = command;
+}
+
 /// Where a child [`exec_with`] starts runs, and what environment it sees —
 /// `rule:core-classes/process-options`' two fields that reach the operating system. The default
 /// is the parent's folder and [`BASE_ENV`] from the parent's environment.
@@ -1725,6 +1742,7 @@ pub fn exec_with(
     if let Some(options) = std::env::var_os("ASAN_OPTIONS") {
         command.env("ASAN_OPTIONS", options);
     }
+    keep_coverage_counters(&mut command);
     command
         .args(argv)
         .stdin(Stdio::piped())

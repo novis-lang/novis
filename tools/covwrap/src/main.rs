@@ -2,8 +2,8 @@
 //!
 //! Cargo runs a workspace wrapper as `<wrapper> <rustc> <args...>` for the workspace's own crates
 //! and never for a dependency, so dependencies build exactly as they do without coverage and write
-//! no counters. This adds `-C instrument-coverage` only when the invocation compiles for an explicit
-//! target (`--target` is on the command line). `covws.ts` always passes `--target <host triple>`,
+//! no counters. This adds `-C instrument-coverage` and `--cfg nvs_coverage` only when the invocation
+//! compiles for an explicit target (`--target` is on the command line). `covws.ts` always passes `--target <host triple>`,
 //! and cargo then leaves `--target` off the build scripts and proc-macros it compiles for the host,
 //! so those stay uninstrumented too. Everything else is passed to `rustc` unchanged, and `rustc`'s
 //! exit status is this program's.
@@ -31,7 +31,10 @@ fn main() {
     }
 }
 
-/// `rustc`'s arguments with `-C instrument-coverage` added when they compile for an explicit target.
+/// `rustc`'s arguments with `-C instrument-coverage` and `--cfg nvs_coverage` added when they
+/// compile for an explicit target. `nvs_runtime::capability::keep_coverage_counters` reads the cfg,
+/// so a child process of this build keeps `LLVM_PROFILE_FILE` and writes no `default_*.profraw`
+/// into the folder it runs in.
 fn with_coverage(mut args: Vec<OsString>) -> Vec<OsString> {
     if args
         .iter()
@@ -39,6 +42,8 @@ fn with_coverage(mut args: Vec<OsString>) -> Vec<OsString> {
     {
         args.push("-C".into());
         args.push("instrument-coverage".into());
+        args.push("--cfg".into());
+        args.push("nvs_coverage".into());
     }
     args
 }
@@ -59,15 +64,10 @@ mod tests {
             "--target",
             "x86_64-pc-windows-msvc",
         ]));
-        assert_eq!(got[got.len() - 2..], args(&["-C", "instrument-coverage"]));
+        let added = args(&["-C", "instrument-coverage", "--cfg", "nvs_coverage"]);
+        assert_eq!(got[got.len() - 4..], added);
         let joined = with_coverage(args(&["--target=x86_64-unknown-linux-gnu", "src/lib.rs"]));
-        assert_eq!(
-            joined
-                .last()
-                .map(|a| a.to_string_lossy().into_owned())
-                .as_deref(),
-            Some("instrument-coverage")
-        );
+        assert_eq!(joined[joined.len() - 4..], added);
     }
 
     #[test]
