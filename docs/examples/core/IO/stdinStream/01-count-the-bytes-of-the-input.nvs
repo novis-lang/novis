@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read standard input in pieces and count its bytes.
+// Start it with `nvs run 01-count-the-bytes-of-the-input.nvs < notes.txt`.
+// Here the input is the file `01-count-the-bytes-of-the-input.in` beside this one.
+
+uint $pieces = 0;
+uint $total = 0;
+
+// Each loop step gives the next piece of the input as `tainted bytes`.
+foreach (Core\IO::stdinStream() as tainted bytes $piece) {
+    $pieces = $pieces + 1;
+    $total = $total + Core\Bytes::length($piece);
+}
+
+// The input is small, so it arrives in one piece. This prints 1 and 56.
+// The text has 53 characters. `é`, `ö` and `ß` take two bytes each.
+echo 'pieces: ', $pieces, "\n";
+echo 'bytes: ', $total, "\n";

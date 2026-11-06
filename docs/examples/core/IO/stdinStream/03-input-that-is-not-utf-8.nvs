@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to read input from an older system that does not write UTF-8.
+// Here the input is the file `03-input-that-is-not-utf-8.in` beside this one.
+// It is written in windows-1252.
+
+// `Core\IO::stdin` throws an error for this input, because it is not valid UTF-8.
+// `Core\IO::stdinStream` gives the pieces as bytes, so nothing is lost.
+tainted string $text = '';
+foreach (Core\IO::stdinStream() as tainted bytes $piece) {
+    // This prints "valid UTF-8: no".
+    bool $valid = Core\Encoding::isValidText($piece, Core\Charset::Utf8);
+    echo 'valid UTF-8: ', $valid ? 'yes' : 'no', "\n";
+
+    // `Core\Encoding::decodeText` reads the bytes as windows-1252.
+    // In windows-1252 every character is one byte, so each piece is decoded alone.
+    $text = $text . Core\Encoding::decodeText($piece, Core\Charset::Windows1252);
+}
+
+// The result is a normal string, so `Core\Str` methods work on it.
+foreach (Core\Str::lines($text) as tainted string $line) {
+    echo $line, "\n";
+}

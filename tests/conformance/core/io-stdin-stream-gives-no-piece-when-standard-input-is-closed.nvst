@@ -1,0 +1,35 @@
+--TEST--
+`Core\IO::stdinStream` over a closed standard input ends its loop at once with no piece, and `Core\Hash::of` over it gives the digest of no bytes
+--FILE--
+<?nvs
+// covers: Core\IO::stdinStream
+// A case is started with its standard input closed, so end of input arrives
+// at once. The loop must end without a piece and without waiting.
+uint $pieces = 0;
+foreach (Core\IO::stdinStream() as tainted bytes $piece) {
+    $pieces = $pieces + 1;
+}
+echo "pieces=", $pieces, "\n";
+
+// A second stream over the same input ends at once too.
+uint $again = 0;
+foreach (Core\IO::stdinStream() as tainted bytes $piece) {
+    $again = $again + 1;
+}
+echo "again=", $again, "\n";
+
+// `Core\Hash::of` reads a stream to its end, so over an empty input it gives
+// the same digest as the empty string.
+tainted bytes $digest = Core\Hash::of(Core\IO::stdinStream(), Core\Hash::Digest::Sha256);
+bytes $empty = Core\Hash::of('', Core\Hash::Digest::Sha256);
+echo "length=", Core\Bytes::length($digest), "\n";
+if (Core\Encoding::toHex($digest) == Core\Encoding::toHex($empty)) {
+    echo "empty-digest=yes\n";
+} else {
+    echo "empty-digest=no\n";
+}
+--EXPECT--
+pieces=0
+again=0
+length=32
+empty-digest=yes

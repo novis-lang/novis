@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to make a backup copy of a binary file and check that it is exact.
+
+string $dir = Core\IO::temporaryDir();
+string $original = Core\Path::join($dir, 'invoices.zip');
+string $backup = Core\Path::join($dir, 'invoices.zip.bak');
+
+// This writes the start of a ZIP archive. Byte ff and byte 00 are not text.
+Core\IO::write($original, Core\Encoding::fromHex('504b0304140000000800ff00'));
+
+// `write` takes `bytes` too, so the copy has the same bytes as the original.
+Core\IO::write($backup, Core\IO::readBytes($original));
+
+// The two SHA-256 digests are equal only when every byte is equal. This prints "backup ok".
+bytes $before = Core\Hash::of(Core\IO::readBytes($original), Core\Hash::Digest::Sha256);
+bytes $after = Core\Hash::of(Core\IO::readBytes($backup), Core\Hash::Digest::Sha256);
+echo $before == $after ? 'backup ok' : 'backup differs', "\n";

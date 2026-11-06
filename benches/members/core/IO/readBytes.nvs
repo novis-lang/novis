@@ -1,0 +1,30 @@
+<?nvs
+// Reads a small binary file whole, as a program does with an icon, a logo or a font.
+// bench: iterations 256
+// bench: complexity linear
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        string $dir = Core\IO::temporaryDir();
+        array<string> $files = [
+            Core\Path::join($dir, 'icon.png'),
+            Core\Path::join($dir, 'logo.gif'),
+            Core\Path::join($dir, 'invoices.zip'),
+        ];
+        Core\IO::write($files[0], Core\Encoding::fromHex('89504e470d0a1a0a0000000d4948445200000020'));
+        Core\IO::write($files[1], Core\Encoding::fromHex('474946383961100010008000ff00'));
+        Core\IO::write($files[2], Core\Encoding::fromHex('504b0304140000000800ff00e9'));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The file in each round depends on the round before, so no round can be left out.
+            $total = $total + Core\Bytes::length(Core\IO::readBytes($files[($total % 3) as int]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256) > 0 ? 'done' : 'no file was read', "\n";

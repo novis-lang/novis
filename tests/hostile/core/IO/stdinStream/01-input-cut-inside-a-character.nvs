@@ -1,0 +1,44 @@
+<?nvs
+// Attack: the input is larger than one piece, and a piece ends inside a character.
+// The input also has a NUL byte and ends in the middle of a character.
+// Every byte must arrive once, and every read must return or throw an error.
+
+// 1. Reads every piece of the input. The input is the file
+// `01-input-cut-inside-a-character.in` beside this one. It has 99005 bytes.
+uint $total = 0;
+uint $pieces = 0;
+tainted bytes $last = '' as bytes;
+foreach (Core\IO::stdinStream() as tainted bytes $piece) {
+    if (Core\Bytes::length($piece) > 65536) {
+        throw new LogicError('a piece is larger than 64 KiB');
+    }
+    $total = $total + Core\Bytes::length($piece);
+    $pieces = $pieces + 1;
+    $last = $piece;
+}
+if ($total != 99005 || $pieces < 2) {
+    throw new LogicError('the pieces do not add up to the input');
+}
+echo 'step 1: done', "\n";
+
+// 2. The last piece ends in the middle of a character. Reading it as UTF-8 text
+// must throw an error. The error is caught so the next step still runs.
+try {
+    Core\Encoding::decodeText($last, Core\Charset::Utf8);
+    throw new LogicError('a cut character was read as text');
+} catch (RuntimeError $notText) {
+}
+echo 'step 2: done', "\n";
+
+// 3. The input has ended. Every new stream must give no piece, and `Core\IO::stdin` must return "".
+uint $round = 0;
+while ($round < 100000) {
+    foreach (Core\IO::stdinStream() as tainted bytes $piece) {
+        throw new LogicError('the input was read a second time');
+    }
+    $round = $round + 1;
+}
+if (Core\IO::stdin() != '') {
+    throw new LogicError('the input was read a second time');
+}
+echo 'step 3: done', "\n";

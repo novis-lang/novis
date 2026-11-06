@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read an image file as bytes and find its width and height.
+
+// This writes the first 24 bytes of a PNG image that is 640 by 480 pixels.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'photo.png');
+Core\IO::write($path, Core\Encoding::fromHex('89504e470d0a1a0a0000000d4948445200000280000001e0'));
+
+// `readBytes` returns the file exactly as it is on disk. This prints "24 bytes".
+bytes $image = Core\IO::readBytes($path);
+echo Core\Bytes::length($image), " bytes\n";
+
+// Every PNG file starts with the same 8 bytes. This prints "png: yes".
+bytes $signature = Core\Encoding::fromHex('89504e470d0a1a0a');
+echo 'png: ', Core\Bytes::startsWith($image, $signature) ? 'yes' : 'no', "\n";
+
+// The width and height are two 4-byte numbers at position 16. This prints "640 x 480".
+array<mixed> $size = Core\Bytes::unpack(Core\Bytes::slice($image, 16, 8), 'NN');
+echo ($size[0] as uint) as string, ' x ', ($size[1] as uint) as string, "\n";

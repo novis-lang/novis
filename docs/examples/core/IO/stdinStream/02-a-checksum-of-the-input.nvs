@@ -1,0 +1,11 @@
+<?nvs
+// Shows a small checksum tool, like `sha256sum`, that reads its standard input.
+// Start it with `nvs run 02-a-checksum-of-the-input.nvs < backup.tar`.
+// Here the input is the file `02-a-checksum-of-the-input.in` beside this one.
+
+// `Core\Hash::of` reads every piece of the stream and returns one digest.
+// A large file works too, because only one piece is in memory at a time.
+tainted bytes $digest = Core\Hash::of(Core\IO::stdinStream(), Core\Hash::Digest::Sha256);
+
+// `Core\Encoding::toHex` turns the 32 bytes into 64 hex digits.
+echo Core\Encoding::toHex($digest), "  -\n";
