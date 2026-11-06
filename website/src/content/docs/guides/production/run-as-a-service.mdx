@@ -16,7 +16,9 @@ Give the service a name. Everything after `--` is the command that the service r
 nvs service install shop -- serve /srv/shop/public/index.nvs
 ```
 
-Run this as root on Linux. On Windows, run it in a terminal that you started as administrator.
+The command asks for admin rights itself. On Windows it shows the prompt for admin rights, and on
+Linux and macOS it runs `sudo`. [Admin rights](/install/server/#admin-rights) says what happens
+where no prompt can show.
 
 The installer checks the command before it changes anything:
 

@@ -1,7 +1,7 @@
 ---
 title: Install on a server
 covers: []
-description: The data folder where Novis keeps its own files, the folders a server needs, the permissions Novis checks, and the commands that set them on Windows, Linux and macOS.
+description: The three steps that set up a server, the data folder where Novis keeps its own files, the permissions Novis checks, and the commands that set them on Windows, Linux and macOS.
 ---
 
 import { Tabs, TabItem } from '@astrojs/starlight/components'
@@ -9,6 +9,81 @@ import { Tabs, TabItem } from '@astrojs/starlight/components'
 On your own computer, `nvs` runs from any folder. On a server, the folders it uses need the
 correct permissions. Novis checks some of these permissions. If they are wrong, the server does
 not start, or `nvs` prints a warning.
+
+## Set up a server
+
+1. Put `nvs` in a folder, for example `D:\srv\novis\nvs.exe` or `/opt/novis/nvs`. Put that folder
+   on the `PATH`.
+2. In the project folder, run `nvs init`.
+3. Run `nvs service install <name> -- serve <entry file>`. Give the entry file as a full path. The
+   command asks for admin rights itself.
+
+<Tabs syncKey="os">
+<TabItem label="Windows">
+```bat
+cd D:\srv\shop
+nvs init
+nvs service install shop -- serve D:\srv\shop\public\index.nvs
+```
+</TabItem>
+<TabItem label="Linux and macOS">
+```sh
+cd /srv/shop
+nvs init
+nvs service install shop -- serve /srv/shop/public/index.nvs
+```
+</TabItem>
+</Tabs>
+
+The commands work in any order. `nvs init`, `nvs service install` and `nvs run` all use the same
+data folder. The service reads the `nvs.toml` in the data folder. To use the project file instead,
+add `--config` with its full path after `--`. Read [Run as a service](/guides/production/run-as-a-service/).
+
+You need `icacls` or `chmod` only for [folders you choose yourself](#choose-the-folders-yourself),
+and for a folder above one of them.
+
+### What `nvs init` does
+
+`nvs init` creates the data folder with its subfolders `cache`, `tmp`, `lsp` and `logs`. Then it
+writes the project file `nvs.toml` into the current folder. It prints one line for each path:
+
+```txt
+created the data folder `D:\srv\novis\.nvsdata`
+created the project file `D:\srv\shop\nvs.toml`
+```
+
+You can run it again. It then creates nothing and overwrites nothing. It prints `kept` instead of
+`created`, and the exit status is `0`.
+
+`nvs init` also checks the folder it writes into. `nvs serve` makes the same check later. If
+another account can change the folder, `nvs init` asks:
+
+```txt
+Restrict `D:\srv\shop` so only you and administrators can change it? [Y/n]
+```
+
+On Linux and macOS, the question says `root` instead of `administrators`. An empty answer is yes,
+and `--yes` answers yes without asking. On Windows, the change is two `icacls` commands. On Linux
+and macOS, it is `chmod go-w`.
+
+Without a terminal, or when you answer no, `nvs init` prints these commands as help. Then it prints
+an `error:` line, and the exit status is `1`. It never changes a folder above the one it writes
+into. When the folder belongs to another account, `nvs init` asks for admin rights and runs again.
+
+### Admin rights
+
+`nvs service install`, `uninstall`, `start` and `stop` ask for admin rights. `nvs init` asks only
+when it must change a folder that your account cannot change. A command with `--dry-run` never
+asks. `nvs run`, `nvs serve`, `nvs test` and every other command never ask, because your program
+should not run as administrator.
+
+On Windows, the command shows the Windows prompt for admin rights (User Account Control). The output
+appears in the same window. On Linux and macOS, the command runs again with `sudo` in the same
+terminal.
+
+In an SSH session, a CI job or a program without a console, no prompt can show. The option
+`--no-elevate` has the same result. The command then prints the command to run as administrator or
+as root, and the exit status is `1`.
 
 ## The data folder
 
@@ -24,8 +99,8 @@ command accepts it. A relative path starts at the current folder.
 | `lsp` | files for the editor | the editor's `nvs.stubs.dir` setting |
 | `logs` | `nvs.log`, the log of a service | `[log] target` |
 
-`nvs run`, `nvs serve`, `nvs test`, `nvs build`, `nvs check` and `nvs lsp` create the data folder
-and its subfolders when they do not exist. Other commands, such as `nvs config check`, never create
+`nvs init`, `nvs run`, `nvs serve`, `nvs test`, `nvs build`, `nvs check` and `nvs lsp` create the
+data folder and its subfolders when they do not exist. Other commands, such as `nvs config check`, never create
 it. When `nvs` creates the folder, only the account that runs `nvs` can open it. On Windows,
 `Administrators` and `SYSTEM` can open it too.
 
@@ -83,6 +158,8 @@ nvs --data /home/ana/.nvsdata run report.nvs
 ## Choose the folders yourself
 
 You can also choose each folder yourself. The folders can have any names and be anywhere.
+`nvs init` does not restrict these folders. You set their permissions as
+[Set the permissions](#set-the-permissions) shows.
 
 | Folder | Contains | Who writes to it | Who reads it |
 |---|---|---|---|
@@ -99,7 +176,8 @@ nvs --config /opt/novis/config/nvs.toml init
 nvs --config /opt/novis/config/nvs.toml serve /srv/app/index.nvs
 ```
 
-`nvs init` never overwrites a file that already exists. Two settings in the file name the cache
+`nvs init` never overwrites a file that already exists. The folder for the file must already
+exist. Two settings in the file name the cache
 and log folders. Write paths with `/`, also on Windows:
 
 ```toml
@@ -121,7 +199,7 @@ file. A file or folder passes the check when both of these are true:
 
 | | Windows | Linux and macOS |
 |---|---|---|
-| The owner is | the account the server runs as, `Administrators` or `SYSTEM` | the account the server runs as, or `root` |
+| The owner is | the account the server runs as, `Administrators`, a member of `Administrators`, or `SYSTEM` | the account the server runs as, or `root` |
 | Nobody else can write | `Everyone`, `Authenticated Users`, `Users`, `Guests` and `ANONYMOUS LOGON` cannot write to it | the group and others have no write permission |
 
 A permission for one named account, for example your own, passes the check.
@@ -132,7 +210,7 @@ A permission for one named account, for example your own, passes the check.
 | `nvs service install`, also with `--dry-run` | every `--config` file, for the account the service runs as | the error is `E0607`, and nothing is changed. With `--dry-run`, the exit status is `1` |
 | `nvs service status` | every `--config` file, for the account the service runs as | the error is `E0607`, and the exit status is `1` |
 | `nvs config check --as <account>` | the configuration files, for the account you name | the error is `E0607` |
-| `nvs init` | the folder it writes into | nothing is written, and the exit status is `1` |
+| `nvs init` | the folder it writes into | it asks to restrict the folder. Without a terminal, or after the answer no, nothing is written, and the exit status is `1` |
 | `nvs run`, `nvs serve`, `nvs test`, `nvs build`, `nvs check`, `nvs lsp` | the data folder. For a folder that `--data` names, also the folder above it | one warning. The command runs without the data folder |
 | every command that compiles a program | the cache folder, and the folder above it | a warning. The program runs, but it is compiled again every time |
 
@@ -166,10 +244,14 @@ can already replace `nvs` itself. So protect the binary folder, as the next sect
 
 ## Set the permissions
 
-These steps are for the folders you choose yourself. With the data folder, you only need to
-protect the binary folder (step 2 on Windows, the first two lines on Linux). `nvs` makes the data
-folder private when it creates it. `nvs service install --account` gives the service account its
-rights in the data folder. Read [Run as a service](/guides/production/run-as-a-service/).
+These steps are for the folders you choose yourself, and for a folder above one of them.
+`nvs init` restricts the folder it writes into. `nvs` makes the data folder private when it creates
+it. `nvs service install --account` gives the service account its rights in the data folder. Read
+[Run as a service](/guides/production/run-as-a-service/).
+
+Novis does not check the binary folder. Protect it yourself: step 2 on Windows, the first two lines
+on Linux. On Windows, a folder that an administrator created passes the owner check for the service
+account.
 
 <Tabs syncKey="os">
 <TabItem label="Windows">
@@ -256,6 +338,6 @@ nvs config check --as shop
 |---|---|
 | `... grants write access to ...`, `... is group-writable` or `... is world-writable` | Remove the write permission from the named path. On Windows, the message prints the SID to use. |
 | `... is owned by ..., which is neither this account ...` | Make the owner the account the server runs as, or an administrator. On Windows, run `icacls <path> /setowner *S-1-5-32-544` in a prompt started with **Run as administrator**. |
-| `Access is denied` or `Permission denied` | Your own account cannot write there. Use an administrator prompt or `sudo`. |
+| `Access is denied` or `Permission denied` | Your own account cannot write there. Use an administrator prompt or `sudo`. `nvs init` and `nvs service install` ask for admin rights themselves. |
 | `warning: [opcache] file_cache_dir ... is not used` | Fix the named path. Until then, programs work and start more slowly. |
 | `warning: Novis cannot use its data folder ...` | Fix the named folder, or pass `--data` with a folder that only your account can change. Until then, programs run without the compile cache. |
