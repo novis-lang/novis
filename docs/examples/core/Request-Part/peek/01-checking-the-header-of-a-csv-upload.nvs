@@ -1,0 +1,18 @@
+<?nvs
+// Shows how an expense report website checks the first line of a CSV file before it saves the file.
+
+bytes $header = 'date,amount,note' as bytes;
+string $folder = Core\IO::temporaryDir();
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    // `peek` returns the first 16 bytes of the file. The file is not read yet.
+    tainted bytes $start = $part->peek(16);
+    if (!Core\Bytes::startsWith($start, $header)) {
+        echo $part->filename(), ": not an expense sheet\n";
+        continue;
+    }
+    // `saveTo` still writes the whole file, including the first 16 bytes.
+    // This prints "march.csv: saved 63 bytes".
+    string $path = Core\Path::join($folder, 'expenses.csv');
+    $part->saveTo($path);
+    echo $part->filename(), ': saved ', Core\IO::size($path), " bytes\n";
+}

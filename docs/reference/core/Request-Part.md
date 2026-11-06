@@ -28,6 +28,9 @@ overwrite?})` writes it straight to disk one chunk at a time — the path almost
 the `fs.write` capability for that path; it is `Core\IO::writeStream` underneath, so the path must not
 already exist unless `overwrite` says so, and a write that fails leaves no partial file behind.
 
+`peek($max)` returns the first `$max` bytes of the part and uses none of them up, so you can check the
+start of a file before one of the three ways above reads all of it.
+
 **All of them are valid only while this part is the walk's current one.** A part kept past the iteration
 that opened the next names bytes the parse has already drained, so it is refused rather than answered with
 the current part's content.

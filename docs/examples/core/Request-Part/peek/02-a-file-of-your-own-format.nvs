@@ -1,0 +1,21 @@
+<?nvs
+// Shows how a drawing website checks that an upload is a sketch file in a version it can read.
+
+// Every sketch file starts with the 4 bytes "SKCH" and then one byte for the version.
+bytes $magic = 'SKCH' as bytes;
+bytes $version2 = Core\Bytes::join([$magic, Core\Encoding::fromHex('02')]);
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    // `peek(5)` returns the first 5 bytes. The rest of the file is not read yet.
+    tainted bytes $start = $part->peek(5);
+    if (!Core\Bytes::startsWith($start, $magic)) {
+        echo $part->filename(), ": not a sketch file\n";
+        continue;
+    }
+    if (!Core\Bytes::startsWith($start, $version2)) {
+        echo $part->filename(), ": an old version, not supported\n";
+        continue;
+    }
+    // `readAll` still returns the whole file. This prints "logo.skch: 24 bytes".
+    tainted bytes $sketch = $part->readAll({ max: 1000000 });
+    echo $part->filename(), ': ', Core\Bytes::length($sketch), " bytes\n";
+}

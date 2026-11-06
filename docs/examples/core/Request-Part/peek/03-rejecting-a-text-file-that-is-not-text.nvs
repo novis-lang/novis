@@ -1,0 +1,17 @@
+<?nvs
+// Shows how a notes website rejects a text upload that contains a zero byte.
+
+bytes $zero = Core\Encoding::fromHex('00');
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    // A text file never contains a byte with the value 0. Most binary files do.
+    // `peek(512)` returns the first 512 bytes, or the whole file if it is shorter.
+    tainted bytes $start = $part->peek(512);
+    if (Core\Bytes::contains($start, $zero)) {
+        echo $part->filename(), ": not a text file\n";
+        continue;
+    }
+    // `readAll` still returns the whole file, so this prints all of the note.
+    tainted bytes $note = $part->readAll({ max: 100000 });
+    echo $part->filename(), ":\n";
+    echo Core\Encoding::decodeText($note, Core\Charset::Utf8);
+}

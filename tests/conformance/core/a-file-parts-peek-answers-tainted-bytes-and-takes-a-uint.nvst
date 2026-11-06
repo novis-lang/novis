@@ -1,0 +1,25 @@
+--TEST--
+`Core\Request\Part::peek` answers `tainted bytes` like the part's two consumers, so a plain `bytes` binding refuses it, and its bound is a `uint` that a negative count does not meet — `rule:security/tainted-qualifier`, `rule:http-server/a-part-is-consumed-in-one-of-three-ways`
+--FILE--
+<?nvs
+// What `peek` returns is the first octets of the same upload `readAll` and
+// `content` return, read off the same connection, so it carries the same
+// qualifier. A `peek` that dropped it would launder the start of every upload
+// by reading it first. No runtime assertion can show that: a plain value is
+// assignable into a `tainted` target, so the refused binding is the pin.
+//
+// The bound is a count of bytes, so a negative one is refused before the
+// program runs, and the part is not read for it.
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    bytes $start = $part->peek(16);
+    tainted bytes $none = $part->peek(-1);
+}
+// covers: Core\Request\Part::peek
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `bytes`, found `tainted bytes`
+   --> case.nvs:11:20
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
