@@ -86,7 +86,8 @@ The rules, of which the chained input and the `int` subscript are the ones that 
   every operation past that batch is time spent across the whole tree for no new fact.
 - **The tree has a budget.** `bun nv scaling --budget` counts the statements every bench runs at its
   N and holds each to its share in `data/perf/bench-budget.json`, which may only go down. A new bench
-  brings its own share, stored by `--budget --write`. An existing bench may raise its N only with
+  brings its own share, stored by `--budget --write`. A bench that is over keeps its stored share, so
+  it never stops another bench's share from being stored, and the run fails until it is fixed. An existing bench may raise its N only with
   the reason written after ` -- ` on its line: `// bench: iterations 8192 -- <why>`.
 
 ## What a bench declares, so its first run can be judged

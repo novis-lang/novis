@@ -1280,24 +1280,45 @@ interface Budget {
   benches: Record<string, number>;
 }
 
-/** Why the counted work of `now` breaks the budget `was`, one line per bench whose share rose with no
+/** The benches whose counted work in `now` breaks the budget `was`: each whose share rose with no
  * reason beside its N. A bench `was` does not have is new and brings its own share. `reasons` is each
  * bench's raised-N reason. */
+function overBenches(was: Budget, now: Record<string, number>, reasons: Record<string, string>): string[] {
+  return Object.entries(now)
+    .filter(([bench, n]) => was.benches[bench] !== undefined && n > was.benches[bench]! && !reasons[bench])
+    .map(([bench]) => bench);
+}
+
+/** Why the counted work of `now` breaks the budget `was`, one line per bench `overBenches` names. */
 export function overBudget(was: Budget, now: Record<string, number>, reasons: Record<string, string>): string[] {
-  const out: string[] = [];
-  for (const [bench, n] of Object.entries(now)) {
-    const before = was.benches[bench];
-    if (before === undefined || n <= before || reasons[bench]) continue;
-    out.push(`${bench} runs ${n} statements and its budget is ${before}: lower its N, or write the reason it was raised beside its \`// bench: iterations\` line`);
-  }
-  return out;
+  return overBenches(was, now, reasons).map(
+    (bench) =>
+      `${bench} runs ${now[bench]} statements and its budget is ${was.benches[bench]}: lower its N, or write the reason it was raised beside its \`// bench: iterations\` line`,
+  );
+}
+
+/** The budget `--write` stores: each counted bench's share from `now`, except that a bench over its
+ * share keeps the one `was` gave it. So a bench that is over never blocks a new bench's share, and the
+ * write never raises it. A bench not counted keeps its stored share while `present` finds its file. */
+export function budgetAfter(
+  was: Budget,
+  now: Record<string, number>,
+  reasons: Record<string, string>,
+  present: (bench: string) => boolean,
+): Budget {
+  const over = new Set(overBenches(was, now, reasons));
+  const counted = Object.fromEntries(Object.entries(now).map(([b, n]) => [b, over.has(b) ? was.benches[b]! : n]));
+  const kept = Object.fromEntries(Object.entries(was.benches).filter(([b]) => !(b in now) && present(b)));
+  const benches = Object.fromEntries(Object.entries({ ...kept, ...counted }).sort(([a], [b]) => a.localeCompare(b)));
+  return { total: Object.values(benches).reduce((a, b) => a + b, 0), benches };
 }
 
 /**
  * `--budget`: counts the statements every bench runs at its own N, one `nvs run --count` each, and
  * compares each with its share of `BUDGET`. A share may only go down, except for a new bench and for a
- * bench whose N carries a reason. `write` stores the counts when they are within the budget. A bench
- * this host does not run, or one that fails under the count, keeps its stored share.
+ * bench whose N carries a reason. `write` stores what `budgetAfter` gives, and the run still fails
+ * while a bench is over. A bench this host does not run, or one that fails under the count, keeps its
+ * stored share.
  */
 async function budgetRun(write: boolean, jobs: number, named: string | null): Promise<number> {
   let nvs = named;
@@ -1335,18 +1356,21 @@ async function budgetRun(write: boolean, jobs: number, named: string | null): Pr
   for (const u of uncounted.sort()) console.log(`  uncounted ${u}`);
   const over = overBudget(was, now, reasons).sort();
   for (const o of over) console.log(`  over     ${o}`);
-  const kept = Object.fromEntries(Object.entries(was.benches).filter(([b]) => !(b in now) && existsSync(abs(b))));
-  const benches = Object.fromEntries(Object.entries({ ...kept, ...now }).sort(([a], [b]) => a.localeCompare(b)));
-  const total = Object.values(benches).reduce((a, b) => a + b, 0);
-  console.log(`nv scaling: ${Object.keys(now).length} benches run ${total} statements in all; ${BUDGET} holds ${was.total}`);
+  const after = budgetAfter(was, now, reasons, (b) => existsSync(abs(b)));
+  console.log(`nv scaling: ${Object.keys(now).length} benches run ${after.total} statements in all; ${BUDGET} holds ${was.total}`);
+  if (write) {
+    writeFileSync(abs(BUDGET), `${JSON.stringify(after, null, 2)}\n`);
+    console.log(`nv scaling: wrote ${BUDGET}`);
+  }
   if (over.length) return 1;
   if (write) {
-    writeFileSync(abs(BUDGET), `${JSON.stringify({ total, benches }, null, 2)}\n`);
-    console.log(`nv scaling: wrote ${BUDGET}`);
-  } else if (!existsSync(abs(BUDGET))) {
+    console.log(PASSED_BUDGET);
+    return 0;
+  }
+  if (!existsSync(abs(BUDGET))) {
     console.log(`nv scaling: ${BUDGET} does not exist yet -- run --budget --write`);
     return 1;
-  } else if (Object.keys(benches).some((b) => !(b in was.benches))) {
+  } else if (Object.keys(after.benches).some((b) => !(b in was.benches))) {
     console.log(`nv scaling: a new bench has no share in ${BUDGET} yet -- run --budget --write`);
     return 1;
   }

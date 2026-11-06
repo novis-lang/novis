@@ -1,7 +1,17 @@
 import { afterAll, expect, test } from "bun:test";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type Batch, growthOf, type Judged, type Measure, type Options, overBudget, oversized, withIterations } from "../cmd/scaling.ts";
+import {
+  type Batch,
+  budgetAfter,
+  growthOf,
+  type Judged,
+  type Measure,
+  type Options,
+  overBudget,
+  oversized,
+  withIterations,
+} from "../cmd/scaling.ts";
 import { stepCommands } from "../cmd/verify.ts";
 import { ROOT } from "../lib/paths.ts";
 import { COUNTS, ProgramFailed } from "../proofs/perf.ts";
@@ -167,6 +177,13 @@ test("--budget lets a share rise only for a new bench or an N raised with a reas
   expect(overBudget(was, { "a.nvs": 90, "b.nvs": 200, "c.nvs": 5000 }, {})).toEqual([]);
   expect(overBudget(was, { "a.nvs": 101, "b.nvs": 200 }, {})[0]).toContain("a.nvs runs 101 statements and its budget is 100");
   expect(overBudget(was, { "a.nvs": 101, "b.nvs": 200 }, { "a.nvs": "the ramp needs 4096" })).toEqual([]);
+});
+
+test("--budget --write stores a new bench's share while another bench is over, and keeps that one's share", () => {
+  const was = { total: 330, benches: { "a.nvs": 100, "b.nvs": 200, "gone.nvs": 10, "uncounted.nvs": 20 } };
+  const after = budgetAfter(was, { "a.nvs": 150, "b.nvs": 180, "c.nvs": 50 }, {}, (b) => b !== "gone.nvs");
+  expect(after).toEqual({ total: 350, benches: { "a.nvs": 100, "b.nvs": 180, "c.nvs": 50, "uncounted.nvs": 20 } });
+  expect(budgetAfter(was, { "a.nvs": 150 }, { "a.nvs": "the ramp needs 4096" }, () => true).benches["a.nvs"]).toBe(150);
 });
 
 test("nv verify never runs valgrind over a bench", () => {
