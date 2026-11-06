@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/lib.rs, docs/rules/core-api/reference-card.md]
   - id: 4
     title: "a program changes links, images, headings and code blocks through callbacks"
-    status: open
+    status: done
   - id: 5
     title: "Core\\Markdown::toHtmlEach renders a document of any size one block group at a time"
     status: open
@@ -445,8 +445,14 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
 
 ### 4. a program changes links, images, headings and code blocks through callbacks
 
-- [ ] The four callbacks of decision 6, with their results checked. `crates/nvs-stdlib/src/markdown.rs:1`
-- [ ] The four tests of the `callbacks` check. `crates/nvs-stdlib/src/markdown.rs:1`
+- [x] The four callbacks of decision 6, with their results checked. `crates/nvs-stdlib/src/markdown.rs:1`
+  - [x] The registry row's four optional callables, and a card line for each.
+  - [x] `Callbacks` in `crates/nvs-stdlib/src/markdown/callbacks.rs`, called from the renderer.
+  - [x] Returned URLs through `url_allowed`, an `id` through `markdown_id`, a `code` result spliced.
+  - [x] The rule and `docs/reference/core/Markdown.md` say what each callback sees.
+- [x] The four tests of the `callbacks` check. `crates/nvs-stdlib/src/markdown.rs:1`
+  - [x] The four unit tests over a `Hooks` of Rust closures, each run once by name.
+  - [x] A conformance case for the call path from Novis.
 
 ### 5. Core\Markdown::toHtmlEach renders a document of any size one block group at a time
 
@@ -523,46 +529,42 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 3 is done. Its last two items have a commit each: the step count with its test
-(`a1a333b1`) and the catalogue test (`4eff7a89`). Stage 4 is next.
+Stage 4 is done in one commit (`23e26c5a`). Stage 5 is next, and its gate holds:
+`crates/nvs-stdlib/src/byte_source.rs` exists.
 
-- **`Core\Markdown::toHtml` renders**, registered at rank 1045 with its card. Raw HTML, or a tree
-  past the depth cap, is serialized, parsed and rebuilt (`rendered`). `url_allowed` is the one URL
-  check, which stage 4's callbacks reuse.
-- **All six `to-html` tests pass**, each run once by name. Engine work is counted by
-  `vendor/pulldown-cmark/src/steps.rs`, only with debug assertions, and every slow entry grows
-  3.25 to 4.3 times from `n` to `4n`. `rule:core-classes/markdown-cost` says what a step is.
-- **Every to-html catalogue entry passes.** Decision 16 says how each expectation is read. md4c's
-  issue 271 now expects cmark's space. The 67 from-html entries wait for stage 7.
-  `crates/nvs-stdlib/src/fuzz.rs` has the seam: `markdown`, `markdown_counting_steps`,
-  `html_sanitized`, `html_tags`.
-- **The sweep reds were stale again.** No `env-secret-proofs` check exists, and `f13f4064`
-  ignores the three Miri timeouts of run `42201104003` under Miri.
+- **`toHtml` takes `link`, `image`, `heading` and `code` by name**, each `?callable` with a `null`
+  default, as `Core\Heap`'s constructor writes its comparator. The renderer sees them through the
+  `Callbacks` trait (`crates/nvs-stdlib/src/markdown/callbacks.rs`). `Callables` calls the program's
+  callables, and `NoCallbacks` is what `rendered` passes. `rendered_with` and `tree_with`
+  (`crates/nvs-stdlib/src/markdown.rs:1000`) take the trait, and the first fault a callback raises
+  ends the render.
+- **The `code` result is not rebuilt.** The handoff recommended rebuilding it. Decision 6 says the
+  `Markup` is used as it is, and a rebuild would remove a highlighter's `style`, which stage 11's guide
+  needs. The renderer writes a random per-render token in its place, and `Trusted::spliced` writes the
+  fragment after the rebuild. `rule:core-classes/markdown-to-html` records this with its Declined line.
+- **The four `callbacks` tests pass**, each run once by name, and
+  `tests/conformance/core/markdown-to-html-calls-each-callback-a-program-passes.nvst` passes on the
+  debug binary. `docs/reference/core/Markdown.md` has a callbacks section. `bun nv reference` runs its
+  examples on `target/release/nvs`, which predates `Core\Markdown` until the goal end rebuilds it.
+- **The sweep reds were stale a third time.** No `env-secret-proofs` check log exists, and
+  `f13f4064` ignores the three Miri timeouts of run `42201104003` under Miri.
 
 ### Next
 
-**Stage 4**, the four callbacks of decision 6, all in `crates/nvs-stdlib/src/markdown.rs`. Write the
-checkpoints under its two items first.
+**Stage 5**, `toHtmlEach` over a source, by decision 7. Write the checkpoints under its three items
+first.
 
-- [ ] The registry row grows four optional named parameters. `crates/nvs-stdlib/src/markdown.rs:75`
-  `link`, `image`, `heading` and `code` are each a `CoreTy::CallableSig`, as in the filter row at
-  `crates/nvs-stdlib/src/arr.rs:136`, and `TO_HTML_DOC` (`crates/nvs-stdlib/src/markdown.rs:92`)
-  gets a card line for each. The helper's `args: [1]` grows to five.
-- [ ] `Renderer` (`markdown.rs:280`) holds the callbacks and the `ctx`. A call is
-  `nvs_runtime::call_callable(ctx, callable, &[args])`, as at `crates/nvs-stdlib/src/arr.rs:2432`,
-  and a `THROWN` result ends the render with that fault. The hooks are `Tag::Link`
-  (`markdown.rs:618`), `Tag::Image` (`:644`), `Tag::Heading` (`:535`, the text is known only at its
-  end, so the `id` is set then) and `Tag::CodeBlock` (`:544`, the code is collected until its end).
-- [ ] A returned URL goes through `url_allowed` (`markdown.rs:170`), and a refused one is treated as
-  `null`. A `heading` result is written after `md-` and must pass the sanitizer's `id` value test. A
-  `code` result is a `Markup` and is written as raw source, so its tree takes the rebuild path; record
-  in `rule:core-classes/markdown-to-html` whether the rebuild runs over it (recommended: yes, since
-  a sanitize fixed point must hold for the whole answer).
-- [ ] The four tests the `callbacks` check names (`crates/nvs-stdlib/src/markdown/tests.rs:1`).
-  Rust unit tests reach a callable through the
-  helper `callable_of` builds in `crates/nvs-stdlib/tests/allocation_policy.rs` (see the playbook's
-  first bullet), so a `.nvst` conformance case may be simpler for the call path, with unit tests on
-  a `Renderer` that takes plain Rust closures.
+- [ ] The block-group splitter, over `tree_with`'s loop. `crates/nvs-stdlib/src/markdown.rs:1000`
+  It reads the engine's top-level events with their ranges and ends a group only where decision 7
+  allows. A group renders through the same `Renderer`, so the callbacks reach it too.
+- [ ] The source half. `crates/nvs-stdlib/src/byte_source.rs:81` is `ByteSource`, and
+  `for_each_chunk` (`:493`) and `Reader` (`:531`) read it. `Core\Json::decodeEach`
+  (`crates/nvs-stdlib/src/json/each.rs:697`, its row at `crates/nvs-stdlib/src/json.rs:460`) is the
+  model for the row and the iterable answer.
+- [ ] References and footnotes, from `Renderer::finish`. `crates/nvs-stdlib/src/markdown.rs:925`
+  A file is read twice, once for the definitions. Every other source is held whole. Footnotes are
+  written after the last group.
+- [ ] The three tests of the `chunks` check. `crates/nvs-stdlib/src/markdown/tests.rs:1`
 
 Expected red: the floor check `proofs-gate`, since `Core\Markdown::toHtml` owes its feature proofs
 until stage 10 writes them. Stages 7 and 8 may run as a side goal (decision 12).
