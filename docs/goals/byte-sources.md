@@ -476,6 +476,23 @@ has no memory check; and the decompression ratio needs the input's length.
       `[limits] request_body`, so later ranges cost no wire read.
     - A CSV part is read forward by `Core\Csv::rows`, which consumes it. So `sheets()` and then
       `rows()` on a CSV upload reads it twice, and the second read throws. Recorded in the backlog.
+20. **The forward members, as built in stage 7.**
+    - `byte_source::for_each_chunk(ctx, value, member, each)` reads a source to its end in one call
+      (Hash, Storage). `byte_source::Reader` is an `io::Read` over a source for a codec. It copies
+      each chunk once, and counts what the codec took in an `Rc<Cell<u64>>`, which stays readable
+      while the codec owns the reader. A failed read or a passed deadline ends the input with
+      `Ok(0)`, because the zstd encoder panics on a read error. `Reader::close` gives the kept
+      fault, which wins over the codec's message.
+    - `bytes` and `string` keep their direct path in all four members, so the common call costs
+      nothing more than before.
+    - **The running ratio.** `decompress` of a `bytes` value is bounded by its whole length, as
+      before. Every other source is bounded while it runs by
+      `min(consumed × ratio + 64 KiB, ceiling)`, and at its end by the whole input. The 64 KiB
+      floor (`RUNNING_FLOOR`, `crates/nvs-stdlib/src/compress.rs`) covers a frame whose start
+      compresses far better than the rest. The decision's "the codec's header floor, as
+      `Decompressor` does" had no such floor to copy: `Decompressor` checks once at `finish`.
+    - `Storage::put` removes the object it began when its source fails part way, so `get` never
+      reads half an upload. With `overwrite`, the object it replaced is already gone.
 
 ## Stages
 
@@ -583,10 +600,10 @@ tool is missed.
 - [ ] Zip: the directory through `range()` under `affordable`. `crates/nvs-stdlib/src/zip.rs:559`
 - [ ] Zip: each entry inflated through a bounded reader over its range. `crates/nvs-stdlib/src/zip.rs:773`
 - [ ] Zip: a short range is a `ParseError`; the four tests of `zip-file`. `crates/nvs-stdlib/src/zip.rs:1093`
-- [ ] `Core\Hash::of` and `hmac` through `for_each_chunk`. `crates/nvs-stdlib/src/hash.rs:336`
-- [ ] `Core\Compress` through `reader()`, with the running ratio. `crates/nvs-stdlib/src/compress.rs:644`
-- [ ] `Core\Storage::put` through `for_each_chunk`. `crates/nvs-stdlib/src/storage.rs:188`
-- [ ] The tests of `hash-sources` and `compress-sources`, and `rule:core-classes/decompression-bound`
+- [x] `Core\Hash::of` and `hmac` through `for_each_chunk`. `crates/nvs-stdlib/src/hash.rs:336`
+- [x] `Core\Compress` through `reader()`, with the running ratio. `crates/nvs-stdlib/src/compress.rs:644`
+- [x] `Core\Storage::put` through `for_each_chunk`. `crates/nvs-stdlib/src/storage.rs:188`
+- [x] The tests of `hash-sources` and `compress-sources`, and `rule:core-classes/decompression-bound`
   states the running ratio. `docs/rules/core-classes/decompression-bound.md:4`
 
 ### 8. Core\Xml::reader reads a document of any size one window at a time
@@ -671,39 +688,43 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Stages 1 to 6 are done. This session added `Core\Request\BodyStream::peek(uint $max): tainted bytes`
-(`crates/nvs-stdlib/src/request.rs`, beside `Part::peek`; both share `peek_max`), with its card,
-its address row and `body_stream_peek_gives_the_first_bytes_and_the_loop_still_gives_all_of_them`.
-`BodyStream` is no longer a handle in the registry's handle test. `Reader::open` takes
-`Core\Bytes::Source`, and its `head` peeks a body stream; a `sep=;` CSV `PUT` body read through
-`Reader::open(Core\Request::bodyStream())` gives its rows under `nvs run --request`. The two
-spreadsheet rules, `a-part-is-consumed-in-one-of-three-ways` and the source table say what is true
-now. `spreadsheet-csv` passes. `stdinStream`, `Part::peek` and `BodyStream::peek` owe feature
-proofs in stage 10. A `chore` commit formatted the files earlier stages left unformatted.
+Stages 1 to 6 are done, and stage 7's Hash, Compress and Storage lane is done (decision 20).
+`Core\Hash::of` and `hmac`, `Core\Compress::compress` and `decompress`, and `Core\Storage::put`
+take `Core\Bytes::Source|Core\Bytes::Chunks` (a `string` arm stays on Hash and `compress`).
+`byte_source.rs` gained `for_each_chunk` and `Reader`. `hash-sources` and `compress-sources` pass
+(all of `hash::tests` and `compress::tests` ran green). The rule states the running ratio, and the
+four cards name the sources. `Storage::put`'s source path has no test yet; stage 11's "an
+`Iterable` that throws on its second chunk" covers its removal of a partial object.
 
-Tests that may go red at the gate: `BodyStream`'s card, meta, LSP stub and `nvs agent` snapshots
+The sweep's reds were stale: `env-secret-proofs` has no check or log, and nightly `42201104003`'s
+three Miri timeouts are 8 MiB tests that HEAD already skips under Miri.
+
+Tests that may go red at the gate: the cards, meta, LSP stub and `nvs agent` snapshots of
+`Core\Hash::of`, `hmac`, `Core\Compress::compress`, `decompress` and `Core\Storage::put` (a
+widened first or third parameter); their perf-ledger figures (now hashed with `byte_source.rs`);
+`BodyStream`'s card, meta, LSP stub and `nvs agent` snapshots
 (a new `peek` member); `Csv::rows`' card, meta and LSP snapshots (a new `charset` option);
 `meta.rs` and `ext_world.rs` lists of the engine's exports; `Reader::open`'s signature wherever a
 snapshot pins `Reader::Source`; the spreadsheet conformance cases whose output quotes the reader's
 old CSV path, such as a `sep=` line in UTF-16 or a CSV read from a file whose position was moved;
 the website's `llms-full.txt`, which still lists `sourceBytes` until it is rendered again;
 `Mime::detect` and `Part` snapshots; a pin of `part_parse`'s old message; `Mime::detect`'s
-perf-ledger figure; the stage 2 to 4 snapshots (`decodeEach`, `Core\IO`, `render.test.ts`). The
-sweep's reds were stale again: `env-secret-proofs` has no check and no log under
-`.looper/loops/main/checks/`, and nightly `42201104003` built `26dda36627`.
+perf-ledger figure; the stage 2 to 4 snapshots (`decodeEach`, `Core\IO`, `render.test.ts`).
 
 ### Next
 
-**Stage 7** (decision 5), two lanes that share no file.
+**Stage 7's Zip lane** (decision 5), one session of its own.
 
-- [ ] `crates/nvs-stdlib/src/zip.rs:559`: Zip reads the directory through `ByteSource::range()`
-  under `affordable`, each entry inflated through a bounded reader over its range
-  (`crates/nvs-stdlib/src/zip.rs:773`), a short range a `ParseError`, and the four `zip-file`
-  tests (`crates/nvs-stdlib/src/zip.rs:1093`).
-- [ ] `crates/nvs-stdlib/src/hash.rs:336`: `Core\Hash::of` and `hmac` through `for_each_chunk`,
-  `Core\Compress` through `reader()` with the running ratio (`crates/nvs-stdlib/src/compress.rs:644`),
-  `Core\Storage::put` through `for_each_chunk` (`crates/nvs-stdlib/src/storage.rs:188`), the tests
-  of `hash-sources` and `compress-sources`, and `docs/rules/core-classes/decompression-bound.md:4`.
+- [ ] `crates/nvs-stdlib/src/zip.rs:559`: `directory(archive: &[u8])` reads the end record, the
+  zip64 locator and the central directory through `ByteSource::range()` and `size()`
+  (`crates/nvs-stdlib/src/byte_source.rs:378`), which check `affordable` per `READ_CHUNK`.
+  `bytes` keeps its slice path.
+- [ ] `crates/nvs-stdlib/src/zip.rs:773`: each entry is inflated through a bounded reader over its
+  range, under `Budget` and `Bound` as now. A short range read is a `ParseError` naming the entry,
+  never a slice panic. The registry rows take
+  `CoreTy::Alias(r"Core\Bytes::Source", …)` as `crates/nvs-stdlib/src/mime.rs:221` writes it.
+- [ ] The four `zip-file` tests beside `crates/nvs-stdlib/src/zip.rs:1093`, built on a file handle
+  as `crates/nvs-stdlib/src/compress.rs`'s `file_of` test helper does.
 
 Stages 8 and 9 touch files disjoint from stage 7 and may run beside it (decision 13).
 
