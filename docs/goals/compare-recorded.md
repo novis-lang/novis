@@ -10,7 +10,7 @@ stages:
     context: [tools/nv/renderers/website-compare.ts, website/src/lib/compare.ts]
   - id: 2
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: record-is-current
@@ -82,48 +82,28 @@ returns a list of `line: old → new`.
 
 ### 2. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stage 1 is done. Both halves of `benches/compare.json` were recorded at `a14be99be7`, in a detached
-worktree, with the other loops running. `record-is-current` is green. `bun nv render --website`
-copied the record to `website/src/data/compare.json`.
+Both stages are done, and the goal is reached. The record at `a14be99be7` is on the page.
 
-A `reader` subagent compared the page's prose with the record, and the session checked each figure
-it named. Four figures changed, all in the deploy rows: Novis switched after 1.3 s and 4 s, and
-PHP mixed 46% and 94% of its pages. No qualitative claim changed. PHP's cores speedup fell from
-3.83 to 2.91, and the page gives no figure for it.
+The gate is green: `looper verify`, `bun nv verify --doc`, `bun nv owners --closes
+compare-recorded`, `bun nv ci --check` and `record-is-current`. The one failure was
+`ci --check`'s website stale guard. The page's prose changed, so its questions were out of date.
+They still matched the page and were stamped again.
 
-Novis is flat on `json-api` and `html-page`, while Bun, Go and PHP each lost 18% to 37% there.
-That is most likely the load from the other loops, which decision 3 accepts. The commit message
-gives the figures.
-
-The sweep's `env-secret-proofs` red is still the driver's stale state. `bun nv proofs --gate
---only 'Core\Env::secret'` exits 0.
+The sweep's `env-secret-proofs` red is the driver's stale state. No check of that name is in the
+tree, and `bun nv proofs --gate --only 'Core\Env::secret'` exits 0.
 
 ### Next
 
-**Stage 2**, the gate.
-
-- [ ] `looper verify` in the background, then fix every failure in one pass. `docs/goals/compare-recorded.md:83`
-- [ ] The goal-end gates, with `bun nv ci --check` last. `tools/nv/cmd/ci.ts:1`
-  First `bun nv verify --doc`, then `bun nv owners --closes compare-recorded`.
-
-No test is expected to go red. The record and one paragraph of prose are the only changes.
+Nothing. The goal is retired next.
 
 ### Backlog
 
-Two follow-ups on the request path, left by `strings-in-place`. Neither is this goal's work.
-
-- A `.` chain with an `int` piece lowers as interpolation does, and a `Uint` part writes a `uint`
-  hole. `'n ' . $int` still lowers through `helper.int_to_string`, so
-  `lang:expressions/string-operators` makes 4 allocations. Anchors: `Lowering::emit_concat`,
-  `crates/nvs-ir/src/lower/expr.rs:2356`, `crates/nvs-codegen/src/emit.rs:4035`.
-- `Core\Str::format('%d', $n)` alone in a template hole still makes its own string through
-  `nvs_int_to_string`, 4.6% of the `html-page` profile. Written as an `Int` part of the template,
-  it allocates nothing (`nvs_str_concat_parts`).
+The two request-path follow-ups from `strings-in-place` moved to `json-streaming`'s Backlog.

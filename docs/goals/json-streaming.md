@@ -194,3 +194,14 @@ Nothing is built yet. It runs after `json-one-pass` and `json-any-size`, whose d
 - [ ] The two members and their cards. `crates/nvs-stdlib/src/csv.rs:326`
 
 ### Backlog
+
+Two follow-ups on the request path, left by `strings-in-place` and carried by `compare-recorded`.
+Neither is this goal's work.
+
+- A `.` chain with an `int` piece lowers as interpolation does, and a `Uint` part writes a `uint`
+  hole. `'n ' . $int` still lowers through `helper.int_to_string`, so
+  `lang:expressions/string-operators` makes 4 allocations. Anchors: `Lowering::emit_concat`,
+  `crates/nvs-ir/src/lower/expr.rs:2356`, `crates/nvs-codegen/src/emit.rs:4035`.
+- `Core\Str::format('%d', $n)` alone in a template hole still makes its own string through
+  `nvs_int_to_string`, 4.6% of the `html-page` profile. Written as an `Int` part of the template,
+  it allocates nothing (`nvs_str_concat_parts`).
