@@ -142,7 +142,7 @@ checks:
   - id: spreadsheet-csv
     stage: 6
     name: the spreadsheet reader reads a Latin-1 CSV file without holding it whole
-    run: [cargo, test, --test, spreadsheet_read]
+    run: [cargo, test, --test, spreadsheet_reader]
     timeout: 1800
     tests:
       - a_latin1_csv_file_is_read_without_holding_it_whole
@@ -452,6 +452,30 @@ has no memory check; and the decompression ratio needs the input's length.
       because the state lives in the context the read needs.
     - The write-only `LogicError` of decision 4 needs `Core\IO\File` to remember its mode, which is
       stage 4's `io.rs` work; `from_arg` reads the mode there once it exists.
+18. **The charset of a forward read, as built in stage 6.**
+    - `Core\Encoding::StreamDecoder` (`crates/nvs-stdlib/src/encoding.rs`) decodes one chunk at a
+      time without replacement. `encoding_rs` carries a cut UTF-8, UTF-16 or table sequence;
+      `Ascii` and `Latin1` need no state. A wrong byte throws at its offset in the whole source.
+    - **A UTF-8 or UTF-16 byte order mark sets the charset and is dropped, whatever `charset`
+      says**, as the WHATWG Encoding Standard's *decode* does. So a UTF-16 export reads with no
+      option, and the spreadsheet needs no charset logic of its own. Plain UTF-8 is not decoded:
+      each field is checked as it ends, as before, so the default path costs nothing more.
+    - `Core\Csv::rows`'s options are `PARSE_OPTIONS` plus `charset`; `PARSE_OPTIONS` is the first
+      four of `ROWS_OPTIONS`, so the dialect is written once.
+19. **The spreadsheet's sources, as built in stage 6.**
+    - `Template::open` keeps `bytes|Core\IO\File`. Its rule refuses a `tainted` template, since
+      the filled file copies the template's formulas and links, and a part is always tainted. The
+      two untainted members of `Core\Bytes::Source` are exactly what it takes already.
+    - `Reader::open` takes `Reader::Source = tainted bytes|Core\IO\File|Core\Request\Part`. A body
+      stream joins once `Core\Request\BodyStream::peek` exists, because the Novis half must read
+      the start to tell CSV from a workbook. Then `Reader::Source` becomes `Core\Bytes::Source`.
+    - The extension host lends a file, a part or a body stream through
+      `nvs_stdlib::extension_source_size` and `extension_source_range`
+      (`crates/nvs-stdlib/src/byte_source.rs`). Each read is a `ByteSource` of its own, because a
+      lent value is valid only for its call. A part is held whole by the first range, under
+      `[limits] request_body`, so later ranges cost no wire read.
+    - A CSV part is read forward by `Core\Csv::rows`, which consumes it. So `sheets()` and then
+      `rows()` on a CSV upload reads it twice, and the second read throws. Recorded in the backlog.
 
 ## Stages
 
@@ -540,13 +564,16 @@ tool is missed.
 
 ### 6. Core\Csv::rows decodes a charset as it reads, and the spreadsheet reader has one CSV path
 
-- [ ] The `charset` option and its three tests. `crates/nvs-stdlib/src/csv.rs:259`
-- [ ] The spreadsheet's `csvFile`, `head` and `decoded` (decision 7), and `csv.encoding` renamed
+- [x] The `charset` option and its three tests. `crates/nvs-stdlib/src/csv.rs:259`
+- [x] The spreadsheet's `csvFile`, `head` and `decoded` (decision 7), and `csv.encoding` renamed
   `charset`. `extensions/spreadsheet/nvs/Reader.nvs:25`, `extensions/spreadsheet/nvs/Reader.nvs:436`
-- [ ] `Reader::open` and `Template::open` take `Core\Bytes::Source`.
+- [ ] `Reader::open` and `Template::open` take `Core\Bytes::Source` (decision 19).
   `extensions/spreadsheet/nvs/Reader.nvs:42`, `extensions/spreadsheet/nvs/Template.nvs:43`
-- [ ] `Engine::sourceBytes` deleted. `extensions/spreadsheet/src/lib.rs:1338`
-- [ ] The test of the `spreadsheet-csv` check. `crates/nvs-ext/tests/spreadsheet_read.rs:1`
+  - [x] `Reader::open` takes bytes, a file and a part, and the host lends each through the byte source.
+  - [x] `Template::open` keeps `bytes|Core\IO\File`, by its taint rule.
+  - [ ] `Core\Request\BodyStream::peek`, then `Reader::Source` becomes `Core\Bytes::Source`.
+- [x] `Engine::sourceBytes` deleted. `extensions/spreadsheet/src/lib.rs:1338`
+- [x] The test of the `spreadsheet-csv` check. `crates/nvs-cli/tests/spreadsheet_reader.rs:198`
 - [ ] The spreadsheet rules say what is true now. `docs/rules/core-classes/spreadsheet-has-no-io.md:34`
 
 ### 7. Core\Zip, Core\Hash, Core\Compress and Core\Storage::put read from every source
@@ -642,33 +669,37 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Stages 1 to 5 are done. The upload rules say a part or a body stream is held only by a prefix
-or random read, until the walk advances. The `part-source` and `mime-sources` checks pass, and
-`mime::tests::detect_reads_*` pass in WSL. A part's start is held by `Multipart::hold`
-(`crates/nvs-stdlib/src/multipart.rs`); `Part::peek` is `request.rs:4530`, `part_hold`
-`request.rs:4611`, `body_stream_hold` `request.rs:3681`, `detect_source` `mime.rs:626`.
-`stdinStream` and `peek` owe feature proofs in stage 10.
+Stages 1 to 5 are done, and most of stage 6. `Core\Csv::rows` takes `charset` and decodes one
+chunk at a time (decision 18); the `csv-charset` tests pass. The spreadsheet reader has one CSV
+path through `Core\Csv::rows`, `csv.encoding` is `charset` on the reader and the writer, and
+`Engine::sourceBytes` is deleted (decision 19). `a_latin1_csv_file_is_read_without_holding_it_whole`
+passes: a 9 MB Latin-1 file reads under an 8M limit. The `spreadsheet-csv` check named the
+wrong file (`nvs-ext` cannot run the Novis half) and now names `spreadsheet_reader`.
+`Part::peek` had no symbol address, so any program calling it panicked; that is fixed in
+`request.rs`'s address table. `stdinStream` and `peek` owe feature proofs in stage 10.
 
-Tests that may go red at the gate: `Mime::detect` and `Part` card, meta and LSP snapshots; a
-conformance case giving `detect` a non-`bytes` value; a pin of `part_parse`'s old
-`Core\Request::<member>` message; `Mime::detect`'s perf-ledger figure; and the stage 2 to 4
-snapshots (`Csv::rows`, `decodeEach`, `Core\IO`, `render.test.ts`). The sweep's reds are stale:
-nightly `42201104003` built `26dda36627`, and its three Miri timeouts are `ignore`d under Miri
-at HEAD. `env-secret-proofs` has no check anywhere.
+Tests that may go red at the gate: `Csv::rows`' card, meta and LSP snapshots (a new `charset`
+option); `meta.rs` and `ext_world.rs` lists of the engine's exports; the spreadsheet conformance
+cases whose output quotes the reader's old CSV path, such as a `sep=` line in UTF-16 or a CSV
+read from a file whose position was moved; the website's `llms-full.txt`, which still lists
+`sourceBytes` until it is rendered again; `Mime::detect` and `Part` snapshots; a pin of
+`part_parse`'s old message; `Mime::detect`'s perf-ledger figure; the stage 2 to 4 snapshots
+(`decodeEach`, `Core\IO`, `render.test.ts`). The sweep's reds were stale: nightly `42201104003`
+built `26dda36627`, and `env-secret-proofs` has no check or log anywhere.
 
 ### Next
 
-**Stage 6**, as its items say (decision 5's `Csv::rows` bullet and decision 7).
+**The rest of stage 6** (decision 19).
 
-- [ ] `crates/nvs-stdlib/src/csv.rs:259`: `charset?: Core\Charset` on `Core\Csv::rows`, decoded
-  one chunk at a time with a cut character carried over and a byte order mark dropped, and the
-  three `csv-charset` tests.
-- [ ] `extensions/spreadsheet/nvs/Reader.nvs:436`: `csvFile` and `head` read with `readBytes` and
-  go through `Core\Csv::rows` with `charset`; `csv.encoding` (`Reader.nvs:25`) becomes `charset`.
-- [ ] `extensions/spreadsheet/src/lib.rs:1338`: `Reader::open` and `Template::open` take
-  `Core\Bytes::Source`, then `Engine::sourceBytes` is deleted.
-- [ ] `a_latin1_csv_file_is_read_without_holding_it_whole`. `crates/nvs-ext/tests/spreadsheet_read.rs:1`
-- [ ] `docs/rules/core-classes/spreadsheet-has-no-io.md:34` says what is true now.
+- [ ] `crates/nvs-stdlib/src/request.rs:1258`: `Core\Request\BodyStream::peek(uint $max): tainted bytes`,
+  as `Part::peek` is (`body_stream_prefix` `crates/nvs-stdlib/src/request.rs:3735`), with its
+  card, its address-table row and a test. Rewrite `BODY_STREAM`'s "Why it has no members" doc.
+- [ ] `extensions/spreadsheet/nvs/Reader.nvs:27`: `Reader::Source` becomes `Core\Bytes::Source`,
+  and `head` (`Reader.nvs:405`) reads a body stream with `peek`.
+- [ ] `docs/rules/core-classes/spreadsheet-has-no-io.md:25` and
+  `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md` say what is true now: `charset`, one
+  path through `Core\Csv::rows`, a mark sets the charset, a part is a source, no `sourceBytes`.
+  Then `bun nv rules` to regenerate `docs/rules/core-classes.md`.
 
 Stages 7, 8 and 9 touch files disjoint from stage 6 and may run beside it (decision 13).
 
@@ -678,6 +709,9 @@ Stages 7, 8 and 9 touch files disjoint from stage 6 and may run beside it (decis
   QR and barcode inputs take `bytes` the program built; they were not judged against the criterion.
 - `Core\Http\Stream` as a source (a download's start, held for a random read) needs the HTTP client's
   own bound; it fits `Chunks` today.
+- A CSV upload given to `Reader::open` is read forward by `Core\Csv::rows`, which consumes the part.
+  `sheets()` and then `rows()` reads it twice, and the second read throws. A part held whole by a
+  random read could be read forward again from the held bytes (decision 19).
 - `Core\Storage::get` returns whole bytes; a seekable `File` for a stored object would join every
   member at once (decision 3).
 - The new rule `core-api/the-first-call-is-the-best-one` holds for every `Core` member. A review of the rest
