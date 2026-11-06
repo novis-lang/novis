@@ -10,6 +10,14 @@
 //         --at T[,T...]                            these scene times, in seconds, instead of step ends
 //         --stage ID                               only the stage with this element id
 //     bun nv walkthrough --clean                   delete every frame written so far
+//     bun nv walkthrough --posters                 write every walkthrough's poster, in both themes
+//
+// A **poster** is the still the front page's carousel shows before a visitor presses play: the stage's
+// picture area at the end of its moment step, with the caption, and without the controls. It is
+// `website/public/walkthroughs/<page>-<theme>.webp`, `<page>` the walkthrough page's file name, one per
+// site theme, taken at 1.5 times the size the stage has on a 1280-pixel page. Every page under
+// `guides/walkthroughs/` but the overview is shot. A scene that changes what its moment looks like
+// runs `--posters` again, and `walkthrough-briefs.test.ts` fails on a page with a poster missing.
 //
 // PAGE is the page's path on the site, such as `guides/walkthroughs/after-response`. Git Bash rewrites
 // an argument that starts with `/` into a Windows path, so the leading slash is left out, and one that
@@ -24,19 +32,23 @@
 // frames/`, named `<stage id>-<width>-<theme>-<step or time>.png`, and each run replaces the frames it names.
 // Whoever took them deletes them with `--clean` once they have been looked at.
 
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Browser, EXE } from "../test/chromium.ts";
 import { ROOT } from "../lib/paths.ts";
 import { messageOf } from "../lib/proc.ts";
 
-export const summary = "frames of a website walkthrough: nv walkthrough --frames PAGE [--width N] [--theme T] [--step N | --at T] [--stage ID] | --beats PAGE | --clean";
+export const summary = "frames of a website walkthrough: nv walkthrough --frames PAGE [--width N] [--theme T] [--step N | --at T] [--stage ID] | --beats PAGE | --posters | --clean";
 
 const USAGE = `usage: bun nv walkthrough --frames PAGE [--width N] [--theme dark|light|both] [--step N,... | --at T,...] [--stage ID]
        bun nv walkthrough --beats PAGE [--stage ID]
+       bun nv walkthrough --posters
        bun nv walkthrough --clean`;
 
 const OUT = join(ROOT, ".agent-tmp", "walkthrough-frames");
+/** Where the posters go, and the pages they are taken from. */
+export const POSTERS = join(ROOT, "website", "public", "walkthroughs");
+const WALKTHROUGH_PAGES = join(ROOT, "website", "src", "content", "docs", "guides", "walkthroughs");
 const DEV_URL = "http://localhost:4321";
 
 interface Beat {
@@ -60,6 +72,7 @@ export async function run(args: string[]): Promise<number> {
     console.log("walkthrough: frames deleted");
     return 0;
   }
+  if (mode === "--posters" && args.length === 1) return posters();
   if ((mode !== "--frames" && mode !== "--beats") || !args[1] || args[1].startsWith("--")) return usage();
   const page = pagePath(args[1]);
   const opts = new Map<string, string>();
@@ -118,6 +131,50 @@ export async function run(args: string[]): Promise<number> {
   }
 }
 
+/** Writes the poster of every walkthrough page in both themes; see the header's *poster*. */
+async function posters(): Promise<number> {
+  if (!EXE) {
+    console.error("walkthrough: no headless Chromium; install it with\n  PLAYWRIGHT_BROWSERS_PATH=0 node node_modules/playwright-core/cli.js install --only-shell chromium");
+    return 1;
+  }
+  const pages = readdirSync(WALKTHROUGH_PAGES)
+    .filter((f) => f.endsWith(".mdx") && f !== "index.mdx")
+    .map((f) => `guides/walkthroughs/${f.replace(/\.mdx$/, "")}`);
+  const dev = await devServer();
+  if (!dev) return 1;
+  const browser = await Browser.launch("nv-walkthrough", ["--hide-scrollbars"]);
+  try {
+    mkdirSync(POSTERS, { recursive: true });
+    for (const theme of ["dark", "light"]) {
+      for (const page of pages) {
+        const stages = await open(browser, dev.url, page, 1280, theme);
+        if (!stages) return 1;
+        if (stages.length !== 1) {
+          console.error(`walkthrough: ${page} has ${stages.length} stages; a walkthrough page has one`);
+          return 1;
+        }
+        for (const s of stages) {
+          const moment = s.beats.find((b) => b.moment);
+          if (!moment) {
+            console.error(`walkthrough: ${page}: stage ${s.id} has no moment step`);
+            return 1;
+          }
+          const file = join(POSTERS, `${page.split("/").at(-1)}-${theme}.webp`);
+          writeFileSync(file, await s.take(moment.stop, { inner: ".wt-viewport", format: "webp", scale: 1.5 }));
+          console.log(file);
+        }
+      }
+    }
+    return 0;
+  } catch (e) {
+    console.error(`walkthrough: ${messageOf(e)}`);
+    return 1;
+  } finally {
+    await browser.close();
+    dev.stop();
+  }
+}
+
 function usage(): number {
   console.error(USAGE);
   return 2;
@@ -151,7 +208,8 @@ function printBeats(beats: Beat[]): void {
 interface Shot {
   id: string;
   beats: Beat[];
-  take(t: number): Promise<Buffer>;
+  /** The stage at scene time `t`: the whole stage, or its element `inner`, as PNG or WebP at `scale`. */
+  take(t: number, opts?: { inner?: string; format?: "png" | "webp"; scale?: number }): Promise<Buffer>;
 }
 
 /**
@@ -193,12 +251,13 @@ async function open(browser: Browser, base: string, page: string, width: number,
   return stages.map(({ id, beats }) => ({
     id,
     beats,
-    async take(t: number): Promise<Buffer> {
+    async take(t: number, opts: { inner?: string; format?: "png" | "webp"; scale?: number } = {}): Promise<Buffer> {
       const box = await browser.eval(
         `(() => {
           const root = document.getElementById(${JSON.stringify(id)})
           root.wt.seek(${t})
-          const r = root.getBoundingClientRect()
+          const el = ${opts.inner ? `root.querySelector(${JSON.stringify(opts.inner)})` : "root"}
+          const r = el.getBoundingClientRect()
           return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() =>
             done({ x: r.x + scrollX, y: r.y + scrollY, w: r.width, h: r.height }))))
         })()`,
@@ -206,7 +265,12 @@ async function open(browser: Browser, base: string, page: string, width: number,
       );
       const shot = await browser.send(
         "Page.captureScreenshot",
-        { format: "png", clip: { x: box.x, y: box.y, width: box.w, height: box.h, scale: 1 }, captureBeyondViewport: true },
+        {
+          format: opts.format ?? "png",
+          ...(opts.format === "webp" ? { quality: 80 } : {}),
+          clip: { x: box.x, y: box.y, width: box.w, height: box.h, scale: opts.scale ?? 1 },
+          captureBeyondViewport: true,
+        },
         sessionId,
       );
       return Buffer.from(shot.data, "base64");

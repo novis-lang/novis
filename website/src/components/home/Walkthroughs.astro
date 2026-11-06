@@ -1,0 +1,294 @@
+---
+/**
+ * The front page's carousel of walkthroughs: one slide per walkthrough page, in the order the
+ * walkthroughs overview lists them. A slide shows the walkthrough's poster, its title and its
+ * description, and links to its page.
+ *
+ * Nothing of a walkthrough loads before its play button is pressed. The poster is a small WebP
+ * (`bun nv walkthrough --posters`), one per site theme, drawn as a CSS background so the browser
+ * fetches only the current theme's. A hidden `<img>` would be fetched as well. The stage's markup is inside a
+ * `<template>`, which the browser parses but does not lay out, draw or run. Play clones it into the
+ * slide, and `mount` loads that one scene's script, as its own chunk, and starts it. The page always
+ * pays for the walkthrough CSS and the small `mount` loader, and for nothing else until a play.
+ */
+import { getCollection } from 'astro:content'
+import Section from './Section.astro'
+
+const DIR = 'guides/walkthroughs/'
+const docs = await getCollection('docs')
+const overview = docs.find((d) => d.id === `${DIR}index` || d.id === DIR.slice(0, -1))
+if (!overview?.body) throw new Error('Walkthroughs: no walkthroughs overview page')
+
+// The overview's links give the order: each `/guides/walkthroughs/<slug>/` once, as it lists them.
+const order = [...new Set([...overview.body.matchAll(/\]\(\/guides\/walkthroughs\/([a-z0-9-]+)\/\)/g)].map((m) => m[1]!))]
+const scenes = import.meta.glob<{ default: (props: { lazy: boolean }) => unknown }>('../walkthrough/scenes/*.astro', { eager: true })
+
+const slides = order.map((slug) => {
+  const page = docs.find((d) => d.id === `${DIR}${slug}`)
+  if (!page?.body) throw new Error(`Walkthroughs: the overview links ${DIR}${slug}, and there is no such page`)
+  // The page imports its scene component; the slide shows the same one.
+  const file = /walkthrough\/scenes\/(\w+)\.astro/.exec(page.body)?.[1]
+  const Scene = file ? scenes[`../walkthrough/scenes/${file}.astro`]?.default : undefined
+  if (!Scene) throw new Error(`Walkthroughs: ${DIR}${slug} shows no scene component`)
+  return { slug, title: page.data.title, text: page.data.description ?? '', href: `/${DIR}${slug}/`, Scene }
+})
+---
+
+<Section id="walkthroughs" eyebrow="Walkthroughs" title="See your code run, step by step" lead="Each walkthrough is a short animation of one feature. Press play to start it.">
+  <div class="nv-wt-carousel" data-carousel>
+    <div class="track" data-track>
+      {
+        slides.map(({ slug, title, text, href, Scene }, i) => (
+          <article class="slide" data-slide aria-roledescription="slide" aria-label={`${i + 1} of ${slides.length}: ${title}`}>
+            <div class="media" data-media>
+              <button
+                type="button"
+                class="poster"
+                data-play
+                aria-label={`Play the walkthrough: ${title}`}
+                style={`--poster-dark: url(/walkthroughs/${slug}-dark.webp); --poster-light: url(/walkthroughs/${slug}-light.webp)`}
+              >
+                <span class="play" aria-hidden="true">
+                  <svg width="34" height="34" viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="currentColor" /></svg>
+                </span>
+              </button>
+              <template data-stage>
+                <Scene lazy />
+              </template>
+            </div>
+            <div class="text">
+              <h3><a href={href}>{title}</a></h3>
+              <p>{text}</p>
+            </div>
+          </article>
+        ))
+      }
+    </div>
+    {
+      slides.length > 1 && (
+        <div class="nav">
+          <button type="button" class="arrow" data-prev aria-label="Previous walkthrough">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          </button>
+          <div class="dots">
+            {slides.map(({ title }, i) => <button type="button" class="dot" data-dot={i} aria-label={`Show walkthrough ${i + 1}: ${title}`} />)}
+          </div>
+          <button type="button" class="arrow" data-next aria-label="Next walkthrough">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          </button>
+        </div>
+      )
+    }
+  </div>
+</Section>
+
+<style>
+  .nv-wt-carousel {
+    max-width: 60rem;
+    margin-inline: auto;
+  }
+  .track {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 100%;
+    gap: var(--nv-space-5);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+  .track::-webkit-scrollbar {
+    display: none;
+  }
+  .slide {
+    scroll-snap-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: var(--nv-space-4);
+  }
+  .media {
+    position: relative;
+  }
+  .poster {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    padding: 0;
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius-lg);
+    overflow: hidden;
+    background: var(--nv-surface) var(--poster-dark) center / cover no-repeat;
+    cursor: pointer;
+  }
+  :global(:root[data-theme='light']) .poster {
+    background-image: var(--poster-light);
+  }
+  /* A shade over the poster on hover, so the play button stands out. */
+  .poster::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: black;
+    opacity: 0;
+    transition: opacity var(--nv-fast) var(--nv-ease);
+  }
+  .poster:hover::before {
+    opacity: 0.18;
+  }
+  .play {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    display: grid;
+    place-items: center;
+    width: 5.5rem;
+    height: 5.5rem;
+    padding-inline-start: 0.3rem;
+    border-radius: 50%;
+    color: var(--sl-color-black);
+    background: var(--sl-color-white);
+    box-shadow: 0 10px 30px color-mix(in oklab, black 35%, transparent);
+    transition: transform var(--nv-fast) var(--nv-ease);
+  }
+  .poster:hover .play,
+  .poster:focus-visible .play {
+    transform: scale(1.08);
+  }
+  /* While the scene's script loads, the play icon is dimmed. */
+  .poster[data-loading] .play svg {
+    opacity: 0.35;
+  }
+  .text h3 {
+    margin: 0;
+    font-size: var(--sl-text-xl);
+    font-weight: 700;
+  }
+  .text h3 a {
+    color: var(--sl-color-white);
+    text-decoration: none;
+  }
+  .text h3 a:hover {
+    text-decoration: underline;
+  }
+  .text p {
+    margin: var(--nv-space-2) 0 0;
+    color: var(--sl-color-gray-2);
+  }
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--nv-space-4);
+    margin-block-start: var(--nv-space-5);
+  }
+  .arrow {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 50%;
+    border: 1px solid var(--nv-hairline-strong);
+    background: var(--nv-surface);
+    color: var(--sl-color-white);
+    cursor: pointer;
+  }
+  .arrow:hover {
+    background: var(--nv-surface-2);
+  }
+  .arrow:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .dots {
+    display: flex;
+    gap: var(--nv-space-2);
+  }
+  .dot {
+    width: 0.65rem;
+    height: 0.65rem;
+    padding: 0;
+    border-radius: 50%;
+    border: 0;
+    background: var(--nv-hairline-strong);
+    cursor: pointer;
+  }
+  .dot[aria-current='true'] {
+    background: var(--sl-color-accent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .poster::before,
+    .play {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  import { mount } from '../walkthrough/mount'
+  import type { Stage } from '../walkthrough/engine/stage'
+
+  for (const carousel of document.querySelectorAll<HTMLElement>('[data-carousel]')) {
+    const track = carousel.querySelector<HTMLElement>('[data-track]')!
+    const slides = [...carousel.querySelectorAll<HTMLElement>('[data-slide]')]
+    const dots = [...carousel.querySelectorAll<HTMLButtonElement>('[data-dot]')]
+    const prev = carousel.querySelector<HTMLButtonElement>('[data-prev]')
+    const next = carousel.querySelector<HTMLButtonElement>('[data-next]')
+    let current = 0
+
+    /** Pauses every walkthrough that was started in the carousel. */
+    const pauseAll = () => {
+      for (const root of carousel.querySelectorAll<HTMLElement & { wt?: Stage }>('.wt')) root.wt?.pause()
+    }
+    const show = (i: number) => {
+      const target = Math.max(0, Math.min(slides.length - 1, i))
+      pauseAll()
+      track.scrollTo({ left: slides[target]!.offsetLeft - track.offsetLeft, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+    }
+    const mark = (i: number) => {
+      current = i
+      dots.forEach((d, k) => d.setAttribute('aria-current', String(k === i)))
+      if (prev) prev.disabled = i === 0
+      if (next) next.disabled = i === slides.length - 1
+    }
+    mark(0)
+    prev?.addEventListener('click', () => show(current - 1))
+    next?.addEventListener('click', () => show(current + 1))
+    dots.forEach((d, i) => d.addEventListener('click', () => show(i)))
+    // The slide that fills most of the track is the current one, however it got there.
+    const seen = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) if (e.isIntersecting) mark(slides.indexOf(e.target as HTMLElement))
+      },
+      { root: track, threshold: 0.6 },
+    )
+    for (const s of slides) seen.observe(s)
+
+    for (const slide of slides) {
+      const button = slide.querySelector<HTMLButtonElement>('[data-play]')!
+      const template = slide.querySelector<HTMLTemplateElement>('[data-stage]')!
+      button.addEventListener('click', async () => {
+        if (button.dataset.loading !== undefined) return
+        button.dataset.loading = ''
+        pauseAll()
+        const root = (template.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement
+        // The stage takes the poster's place once its first frame is drawn, so the slide never shows
+        // an empty stage.
+        root.style.position = 'absolute'
+        root.style.inset = '0'
+        root.style.visibility = 'hidden'
+        slide.querySelector('[data-media]')!.append(root)
+        try {
+          await mount(root)
+        } catch {
+          root.remove()
+          delete button.dataset.loading
+          return
+        }
+        root.style.cssText = ''
+        button.remove()
+        root.querySelector<HTMLButtonElement>('.wt-start')?.click()
+      })
+    }
+  }
+</script>

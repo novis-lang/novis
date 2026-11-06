@@ -4,7 +4,7 @@
 // brief is its `brief` export, and its moment is the one step written with `moment: true`.
 
 import { expect, test } from "bun:test";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 
@@ -14,12 +14,12 @@ const DOCS = join(ROOT, "website", "src", "content", "docs");
 const pages = readdirSync(DOCS, { recursive: true, encoding: "utf8" }).filter((f) => f.endsWith(".mdx"));
 
 /** The website pages that show the scene module `file`: the pages that import the `.astro` component
- * whose script imports it. */
+ * whose stage names it as its `scene`. */
 function pagesShowing(file: string): string[] {
-  const module = `./${file.replace(/\.ts$/, "")}`;
+  const name = file.replace(/\.ts$/, "");
   const components = readdirSync(SCENES)
     .filter((f) => f.endsWith(".astro"))
-    .filter((f) => readFileSync(join(SCENES, f), "utf8").includes(`from '${module}'`));
+    .filter((f) => readFileSync(join(SCENES, f), "utf8").includes(`scene="${name}"`));
   return pages.filter((p) => {
     const text = readFileSync(join(DOCS, p), "utf8");
     return components.some((c) => text.includes(`/walkthrough/scenes/${c}'`));
@@ -29,6 +29,17 @@ function pagesShowing(file: string): string[] {
 test("there is at least one walkthrough scene", () => {
   expect(scenes.length).toBeGreaterThan(0);
 });
+
+// The front page's carousel shows each walkthrough page's poster until a visitor presses play
+// (`bun nv walkthrough --posters` writes them).
+const WALKTHROUGHS = join(DOCS, "guides", "walkthroughs");
+for (const page of readdirSync(WALKTHROUGHS).filter((f) => f.endsWith(".mdx") && f !== "index.mdx")) {
+  test(`guides/walkthroughs/${page} has a poster in both themes`, () => {
+    const slug = page.replace(/\.mdx$/, "");
+    const missing = ["dark", "light"].filter((t) => !existsSync(join(ROOT, "website", "public", "walkthroughs", `${slug}-${t}.webp`)));
+    expect(missing).toEqual([]);
+  });
+}
 
 for (const file of scenes) {
   test(`${file} has a full brief and exactly one moment`, async () => {

@@ -15,7 +15,7 @@ import Server from '../Server.astro'
 import Movers from '../Movers.astro'
 ---
 
-<Stage id="wt-page-now" label="How Core\Html::later and Core\Response::slotted work, step by step">
+<Stage id="wt-page-now" scene="page-now" lazy={Astro.props.lazy} label="How Core\Html::later and Core\Response::slotted work, step by step">
   <Movers kind="wire" name="wire" />
   <Browser name="browser" url="example.com" tab="Home" place={{ wide: [40, 40, 620, 820], tall: [150, 630, 600, 560] }}>
     <div class="wt-screen" data-screen="blank"></div>
@@ -28,8 +28,3 @@ import Movers from '../Movers.astro'
   <Editor name="editor" src="walkthroughs/page-now.nvs" title="home.nvs" place={{ wide: [720, 24, 840, 560], tall: [50, 30, 800, 560] }} />
   <Server name="server" title="nvs serve" pps={100} place={{ wide: [720, 604, 840, 284], tall: [50, 1240, 800, 290] }} />
 </Stage>
-
-<script>
-  import { start } from './page-now'
-  start(document.getElementById('wt-page-now')!)
-</script>

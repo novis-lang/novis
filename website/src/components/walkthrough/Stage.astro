@@ -1,24 +1,32 @@
 ---
 /**
  * The frame of one walkthrough: the stage the parts sit in, the caption bubble over it and the controls.
- * A scene component puts its parts in the slot and starts itself with a client script; see
- * `scenes/AfterResponse.astro` for the shape.
+ * A scene component puts its parts in the slot and names its module in `scene`, which `mount.ts`
+ * loads and starts once the page has loaded; see `scenes/AfterResponse.astro` for the shape.
  *
- *   <Stage id="after-response" label="How afterResponse works, step by step">…parts…</Stage>
+ *   <Stage id="wt-after-response" scene="after-response" label="How afterResponse works, step by step">…parts…</Stage>
+ *
+ * A stage the page starts itself, such as one in the front page's carousel, is `lazy`: it is left
+ * alone until the page calls `mount` on it. The parts gallery starts its stages with its own script
+ * and names no scene.
  */
 import './walkthrough.css'
 
 interface Props {
-  /** The element id, which the scene's script finds the stage by. */
+  /** The element id. */
   id: string
   /** What the walkthrough shows, for a screen reader. */
   label: string
+  /** The scene module under `scenes/`, without `.ts`, that `mount.ts` starts. */
+  scene?: string
+  /** Not started on load; the page calls `mount` on it. */
+  lazy?: boolean
 }
 
-const { id, label } = Astro.props
+const { id, label, scene, lazy = false } = Astro.props
 ---
 
-<section class="wt not-content" id={id} tabindex="0" aria-label={label} data-captions="on">
+<section class="wt not-content" id={id} tabindex="0" aria-label={label} data-captions="on" data-scene={scene} data-lazy={lazy ? '' : undefined}>
   <div class="wt-viewport">
     <div class="wt-world">
       <slot />
@@ -53,3 +61,8 @@ const { id, label } = Astro.props
     </button>
   </div>
 </section>
+
+<script>
+  import { mountAll } from './mount'
+  mountAll()
+</script>

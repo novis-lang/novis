@@ -14,7 +14,7 @@ import Inbox from '../Inbox.astro'
 import Movers from '../Movers.astro'
 ---
 
-<Stage id="wt-after-response" label="How Core\Task::afterResponse works, step by step">
+<Stage id="wt-after-response" scene="after-response" lazy={Astro.props.lazy} label="How Core\Task::afterResponse works, step by step">
   <Movers kind="wire" name="wire" />
   <Browser name="browser" url="shop.example.com/checkout" tab="Shop" place={{ wide: [50, 50, 600, 610], tall: [150, 530, 600, 610] }}>
     <div class="wt-screen" data-screen="checkout">
@@ -38,8 +38,3 @@ import Movers from '../Movers.astro'
   <Movers kind="card" name="receipt" label="send receipt" />
   <Movers kind="pointer" name="pointer" />
 </Stage>
-
-<script>
-  import { start } from './after-response'
-  start(document.getElementById('wt-after-response')!)
-</script>
