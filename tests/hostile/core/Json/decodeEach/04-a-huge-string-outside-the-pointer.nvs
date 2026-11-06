@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a client sends a document with 64 MiB of text before the array the program reads.
+// The memory limit is 16 MiB. The skipped text is not kept, so the program should finish.
+// hostile: timeout-ms 30000
+
+class Upload
+{
+    // This generator gives `{"junk":"`, then a string of 64 MiB in pieces of 1 MiB, then the array.
+    public static function text(): Iterator<tainted bytes>
+    {
+        bytes $piece = Core\Str::repeat('x', 1048576) as bytes;
+        yield '{"junk":"' as bytes;
+        uint $sent = 0;
+        while ($sent < 64) {
+            yield $piece;
+            $sent = $sent + 1;
+        }
+        yield '","items":[1,2]}' as bytes;
+    }
+
+    // This generator gives `{"junk":` and then an array of about 64 MiB of numbers before `items`.
+    public static function numbers(): Iterator<tainted bytes>
+    {
+        bytes $piece = Core\Str::repeat('12345678,', 116508) as bytes;
+        yield '{"junk":[' as bytes;
+        uint $sent = 0;
+        while ($sent < 64) {
+            yield $piece;
+            $sent = $sent + 1;
+        }
+        yield '0],"items":[1,2]}' as bytes;
+    }
+}
+
+// 1. Lowers the memory limit to `16M`.
+echo 'limit lowered: ', Core\Config::set('limits.memory', '16M') ? 'yes' : 'no', "\n";
+
+// 2. Reads `/items` after a string of 64 MiB. This prints `2`.
+uint $read = 0;
+foreach (Core\Json::decodeEach<mixed>(Upload::text(), '/items') as mixed $value) {
+    $read = $read + 1;
+}
+echo '2 elements read: ', $read, "\n";
+
+// 3. Reads `/items` after an array of 64 MiB. This prints `2`.
+uint $after = 0;
+foreach (Core\Json::decodeEach<mixed>(Upload::numbers(), '/items') as mixed $value) {
+    $after = $after + 1;
+}
+echo '3 elements read: ', $after, "\n";
+
+// 4. The same string in a file, read at `/items`. This prints `2`.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'junk-before-items.json');
+Core\IO::writeStream($path, Upload::text(), { overwrite: true });
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+uint $fromFile = 0;
+foreach (Core\Json::decodeEach<mixed>($file, '/items') as mixed $value) {
+    $fromFile = $fromFile + 1;
+}
+$file->close();
+Core\IO::remove($path);
+echo '4 elements read: ', $fromFile, "\n";

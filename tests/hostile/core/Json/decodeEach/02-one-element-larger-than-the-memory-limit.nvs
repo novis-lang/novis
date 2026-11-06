@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a client sends a JSON array whose second element is a string of 64 MiB.
+// The memory limit is 16 MiB, so the program should stop while it reads that element.
+// hostile: timeout-ms 30000
+// hostile: ends-early 3 FATAL
+
+class Upload
+{
+    // This generator gives `["a",` and then one string of 64 MiB, in pieces of 1 MiB.
+    public static function body(): Iterator<tainted bytes>
+    {
+        bytes $piece = Core\Str::repeat('x', 1048576) as bytes;
+        yield '["a","' as bytes;
+        uint $sent = 0;
+        while ($sent < 64) {
+            yield $piece;
+            $sent = $sent + 1;
+        }
+        yield '"]' as bytes;
+    }
+
+    // This generator gives an array of 200,000 short strings, in pieces of about 64 KiB.
+    public static function many(): Iterator<tainted bytes>
+    {
+        bytes $piece = Core\Str::repeat('"abcdefgh",', 6000) as bytes;
+        yield '[' as bytes;
+        uint $sent = 0;
+        while ($sent < 33) {
+            yield $piece;
+            $sent = $sent + 1;
+        }
+        yield '"end"]' as bytes;
+    }
+}
+
+// 1. Lowers the memory limit to `16M`.
+echo 'limit lowered: ', Core\Config::set('limits.memory', '16M') ? 'yes' : 'no', "\n";
+
+// 2. Reads 200,000 short strings. Only one element is in memory at a time, so this fits.
+uint $read = 0;
+foreach (Core\Json::decodeEach<mixed>(Upload::many()) as mixed $text) {
+    $read = $read + 1;
+}
+echo '2 elements read: ', $read, "\n";
+
+// 3. Reads the array with the string of 64 MiB. The program stops with `FATAL` here.
+echo "step 3\n";
+uint $length = 0;
+foreach (Core\Json::decodeEach<mixed>(Upload::body()) as mixed $text) {
+    $length = $length + Core\Str::length($text as tainted string);
+}
+echo '3 characters read: ', $length, "\n";

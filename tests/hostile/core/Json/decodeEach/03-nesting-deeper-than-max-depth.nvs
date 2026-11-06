@@ -1,0 +1,84 @@
+<?nvs
+// Attack: a client sends JSON nested deeper than `maxDepth` allows. Each read should
+// throw a `ParseError` at once, before the rest of the document is read.
+// hostile: timeout-ms 30000
+
+class Deep
+{
+    // This generator gives `[` again and again. The nesting has no end.
+    public static function opening(): Iterator<tainted bytes>
+    {
+        bytes $piece = Core\Str::repeat('[', 65536) as bytes;
+        while (true) {
+            yield $piece;
+        }
+    }
+
+    // This generator gives `{"junk":` and then `[` again and again, before the array that is read.
+    public static function junk(): Iterator<tainted bytes>
+    {
+        bytes $piece = Core\Str::repeat('[', 65536) as bytes;
+        yield '{"junk":' as bytes;
+        while (true) {
+            yield $piece;
+        }
+    }
+}
+
+// The CPU-time limit is 2 seconds. A read that does not stop at once reaches it, and the case fails.
+Core\Config::set('limits.cpu_time', '2s');
+
+// 1. An array of one element nested 100 levels deep, read with `maxDepth` set to 10.
+string $hundred = '[' . Core\Str::repeat('[', 100) . Core\Str::repeat(']', 100) . ']';
+try {
+    foreach (Core\Json::decodeEach<mixed>([$hundred as bytes], '', { maxDepth: 10 }) as mixed $value) {
+        echo '1 an element was read', "\n";
+    }
+    echo '1 the nested element was read', "\n";
+} catch (ParseError $tooDeep) {
+    echo '1 nesting past maxDepth throws a ParseError', "\n";
+}
+
+// 2. Nesting that never ends, with `maxDepth` set to 64. The error is caught, so the next step runs.
+try {
+    foreach (Core\Json::decodeEach<mixed>(Deep::opening(), '', { maxDepth: 64 }) as mixed $value) {
+        echo '2 an element was read', "\n";
+    }
+    echo '2 the endless nesting ended', "\n";
+} catch (ParseError $tooDeep) {
+    echo '2 endless nesting throws a ParseError', "\n";
+}
+
+// 3. Nesting that never ends, with the default `maxDepth`.
+try {
+    foreach (Core\Json::decodeEach<mixed>(Deep::opening()) as mixed $value) {
+        echo '3 an element was read', "\n";
+    }
+    echo '3 the endless nesting ended', "\n";
+} catch (ParseError $tooDeep) {
+    echo '3 endless nesting throws a ParseError', "\n";
+}
+
+// 4. Nesting that never ends in a field that the pointer `/items` skips.
+try {
+    foreach (Core\Json::decodeEach<mixed>(Deep::junk(), '/items', { maxDepth: 64 }) as mixed $value) {
+        echo '4 an element was read', "\n";
+    }
+    echo '4 the skipped nesting ended', "\n";
+} catch (ParseError $tooDeep) {
+    echo '4 nesting in a skipped field throws a ParseError', "\n";
+}
+
+// 5. `maxDepth` set to 0, and to the largest number that fits.
+array<uint> $depths = [0, 18446744073709551615];
+foreach ($depths as uint $depth) {
+    try {
+        uint $read = 0;
+        foreach (Core\Json::decodeEach<mixed>(['[1,[2],3]' as bytes], '', { maxDepth: $depth }) as mixed $value) {
+            $read = $read + 1;
+        }
+        echo '5 elements read with maxDepth ', $depth, ': ', $read, "\n";
+    } catch (Throwable $error) {
+        echo '5 maxDepth ', $depth, ' throws an error', "\n";
+    }
+}

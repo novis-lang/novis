@@ -1,0 +1,48 @@
+<?nvs
+// Attack: a client sends a JSON array that never ends, and the program reads it
+// one element at a time. The memory in use must not grow, and the CPU-time limit should stop the loop.
+// hostile: timeout-ms 30000
+// hostile: ends-early 3 FATAL
+
+class Endless
+{
+    // This generator gives `[1,` and then `1,` again and again. It has no end.
+    public static function array(): Iterator<tainted bytes>
+    {
+        yield '[1,' as bytes;
+        while (true) {
+            yield '1,' as bytes;
+        }
+    }
+
+    // This generator gives the same array in pieces of 64 KiB.
+    public static function bigPieces(): Iterator<tainted bytes>
+    {
+        bytes $piece = Core\Str::repeat('1,', 32768) as bytes;
+        yield '[' as bytes;
+        while (true) {
+            yield $piece;
+        }
+    }
+}
+
+// 1. Reads 100,000 elements from the array in small pieces, then stops the loop.
+uint $read = 0;
+foreach (Core\Json::decodeEach<mixed>(Endless::array()) as mixed $value) {
+    $read = $read + 1;
+    if ($read == 100000) {
+        break;
+    }
+}
+echo '1 elements read: ', $read, "\n";
+
+// 2. Lowers the CPU-time limit to 1 second. The limit counts from the start of the program.
+echo 'limit lowered: ', Core\Config::set('limits.cpu_time', '1s') ? 'yes' : 'no', "\n";
+
+// 3. Reads the array in big pieces until the CPU-time limit stops the program.
+echo "step 3\n";
+uint $count = 0;
+foreach (Core\Json::decodeEach<mixed>(Endless::bigPieces()) as mixed $value) {
+    $count = $count + 1;
+}
+echo '3 the array ended after ', $count, " elements\n";
