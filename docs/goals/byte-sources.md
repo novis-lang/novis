@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-stdlib/src/zip.rs, crates/nvs-stdlib/src/hash.rs, crates/nvs-stdlib/src/compress.rs, crates/nvs-stdlib/src/storage.rs, docs/rules/core-classes/decompression-bound.md]
   - id: 8
     title: "Core\\Xml::reader reads a document of any size one window at a time"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/xml.rs, docs/rules/core-classes/xml-tree-and-stream.md]
   - id: 9
     title: "Core\\Pdf and Core\\Image read every source, and their text is tainted"
@@ -508,6 +508,24 @@ has no memory check; and the decompression ratio needs the input's length.
     - The repeated-name refusal runs after the walk, over the names the entries own, because the
       window does not keep a name it has passed. An archive with a repeated name and a hostile
       entry after it is now refused for the hostile entry. Both refuse the whole archive.
+22. **The XML reader's window, as built in stage 8.**
+    - A `string` keeps its old path: walked where it lies, a cursor in a slot. Every other source
+      (`bytes` among them) is a `xml::Window` filed on the request, its key in the reader's new
+      `window` slot and its holder in `document`, as `Core\Csv::rows` keeps its source.
+    - **The parser was not made resumable.** The scanner marks a read that looked at the end of
+      its text (`Reader::starts`, `Reader::reached`). A step so marked, while the source has more,
+      is thrown away: more is read and the step runs again from the same place, with the open
+      depth and the root flag put back. Each growth reads at least what the window holds, so a
+      long node is scanned a constant number of times per byte. A malformed document gives the
+      message a `string` gives, at every chunk size (`xml_reader_over_chunks_gives_the_nodes_a_string_gives`).
+    - Bytes are UTF-8, or UTF-16 by a byte order mark through `StreamDecoder`. A declared
+      `encoding` is checked for bytes only: UTF-8, UTF-16 (LE, BE) and US-ASCII read; any other
+      throws `ParseError` naming `Core\Encoding`. A `string` is text already, so its declaration
+      is not read, as before. Bytes that are not text throw a `ParseError` naming the offset,
+      and every later read throws it again.
+    - The reader's parameter arms are `Neutral`, as `parse`'s is: every text it gives is
+      `tainted` whatever it read. **What it spends:** the largest node about twice over, plus one
+      chunk, per open walk.
 
 ## Stages
 
@@ -623,10 +641,10 @@ tool is missed.
 
 ### 8. Core\Xml::reader reads a document of any size one window at a time
 
-- [ ] The reader's walk reads through `next_chunk`, holding one window. If that is more than one
+- [x] The reader's walk reads through `next_chunk`, holding one window. If that is more than one
   session, the session splits the stage before it starts. `crates/nvs-stdlib/src/xml.rs:2792`
-- [ ] The declared-encoding check (decision 5), and the three tests of `xml-stream`.
-- [ ] `rule:core-classes/xml-tree-and-stream` says the stream holds one window of any source.
+- [x] The declared-encoding check (decision 5), and the three tests of `xml-stream`.
+- [x] `rule:core-classes/xml-tree-and-stream` says the stream holds one window of any source.
   `docs/rules/core-classes/xml-tree-and-stream.md:1`
 
 ### 9. Core\Pdf and Core\Image read every source, and their text is tainted
@@ -703,21 +721,16 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Stages 1 to 7 are done. Stage 7's Zip lane landed (decision 21): `Core\Zip::entries`, `read` and
-`extract` take `Core\Bytes::Source`, read by ranges through `zip::Archive`
-(`crates/nvs-stdlib/src/zip.rs:485`), with `bytes` borrowed directly. A short range is a
-`ParseError` naming the entry. All 21 `zip::tests` ran green on Windows and in WSL, the four
-`zip-file` tests among them. `Storage::put`'s source path (decision 20) has no test yet; stage 11
-covers it. The sweep's reds are stale: `env-secret-proofs` has no check and no log, and nightly
-`42201104003`'s Miri jobs are 8 MiB tests HEAD already skips under Miri.
+Stages 1 to 8 are done. Stage 8 (decision 22): `Core\Xml::reader` reads every forward source
+through one `xml::Window` (`crates/nvs-stdlib/src/xml.rs:@read_window`); a `string` keeps its old
+path. The three `xml-stream` tests ran green on Windows; the other `xml::tests` were not run. The
+sweep's reds are stale (no `env-secret-proofs` check; Miri's 8 MiB tests are skipped at HEAD).
 
-Tests that may go red at the gate: the cards, meta, LSP stub and `nvs agent` snapshots of
-`Core\Zip::entries`, `read` and `extract` (a widened first parameter and new `archive` cards), and
-their perf-ledger figures; the cards, meta, LSP stub and `nvs agent` snapshots of
-`Core\Hash::of`, `hmac`, `Core\Compress::compress`, `decompress` and `Core\Storage::put` (a
-widened first or third parameter); their perf-ledger figures (now hashed with `byte_source.rs`);
-`BodyStream`'s card, meta, LSP stub and `nvs agent` snapshots
-(a new `peek` member); `Csv::rows`' card, meta and LSP snapshots (a new `charset` option);
+Tests that may go red at the gate: the cards, meta, LSP stub and `nvs agent` snapshots and
+perf-ledger figures of `Core\Xml::reader` (a widened parameter, new error rows, a `window` slot),
+`Core\Zip::entries`, `read`, `extract`, `Core\Hash::of`, `hmac`, `Core\Compress::compress`,
+`decompress` and `Core\Storage::put` (widened parameters; figures now hash `byte_source.rs`);
+`BodyStream`'s (a new `peek`); `Csv::rows`' card, meta and LSP snapshots (a new `charset` option);
 `meta.rs` and `ext_world.rs` lists of the engine's exports; `Reader::open`'s signature wherever a
 snapshot pins `Reader::Source`; the spreadsheet conformance cases whose output quotes the reader's
 old CSV path, such as a `sep=` line in UTF-16 or a CSV read from a file whose position was moved;
@@ -727,20 +740,23 @@ perf-ledger figure; the stage 2 to 4 snapshots (`decodeEach`, `Core\IO`, `render
 
 ### Next
 
-**Stage 8: `Core\Xml::reader` reads one window at a time** (decision 5), one session of its own.
+**Stage 9: `Core\Pdf` and `Core\Image` read every source** (decision 5), one session.
 
-- [ ] `crates/nvs-stdlib/src/xml.rs:2792`: `nvs_core_xml_reader` takes
-  `Core\Bytes::Source|Core\Bytes::Chunks` and keeps the `ByteSource` and its holder as
-  `Core\Csv::rows` does (`crates/nvs-stdlib/src/csv.rs`, its walk's filed state), reading one
-  chunk per `advance()` through `next_chunk` (`crates/nvs-stdlib/src/byte_source.rs:295`). If the
-  parser cannot resume across a chunk edge in one session, split the stage first.
-- [ ] `crates/nvs-stdlib/src/xml.rs:2828`: the declared-encoding check. A document declares UTF-8
-  or UTF-16, and any other `encoding=` throws `ParseError` naming `Core\Encoding`. Then the three
-  `xml-stream` tests.
-- [ ] `docs/rules/core-classes/xml-tree-and-stream.md:1` says the stream holds one window of any
-  source.
+- [ ] `crates/nvs-cli/src/extensions.rs:838`: the host reads a `Core\Bytes::Source` whole at the
+  call through `range()` (`nvs_stdlib::extension_source_range`,
+  `crates/nvs-stdlib/src/byte_source.rs`) and passes `bytes` to a whole-buffer component. Their
+  manifests and WIT do not change.
+- [ ] `extensions/pdf/nvs/Reader.nvs:21`, `extensions/pdf/nvs/Pages.nvs:15`: `Reader::open` and
+  `Pages::of` take `Core\Bytes::Source`, and their text results are contagious, as the
+  spreadsheet reader's are (decision 19).
+- [ ] `extensions/image/nvs/Image.nvs:64`, `:332`: `open`, `info`, `hash`, `placeholder`,
+  `palette` and `compare` take `Core\Bytes::Source`; `open` reads at the call, since `Image` is
+  lazy.
+- [ ] `crates/nvs-cli/tests/meta.rs:293`: the pinned `info(bytes $data)`, and the `pdf-file` and
+  `image-file` tests.
+- [ ] `docs/rules/core-classes/pdf-roster.md:22` quotes the new signatures.
 
-Stage 9 touches files disjoint from stage 8 and may run beside it (decision 13).
+Stages 10 and 11 follow; stage 10 is split into one writing subagent per member.
 
 ### Backlog
 
