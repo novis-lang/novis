@@ -96,25 +96,38 @@
 //! *stored* entry is the half this catches: a deflate stream that has been
 //! corrupted already fails to decode.
 //!
+//! **The archive is read by ranges, from every `Core\Bytes::Source`**
+//! (`rule:core-api/a-member-takes-the-source-the-program-holds`). [`Archive`]
+//! borrows a `bytes` value directly, and reads a file, an upload part or a
+//! body stream through [`ByteSource::range`]: the end record from the last
+//! bytes, the directory one window at a time, and each entry's compressed
+//! octets one piece at a time through [`Window`]. A range that comes back
+//! short is a `ParseError` naming the entry, so a file cut or changed while it
+//! is read is refused and never a slice panic.
+//!
 //! **What this spends** (`rule:programs/memory-priority`): one entry's output
 //! at a time, bounded by the ceiling above and attributable to the request
 //! that asked for it. An extraction holds one entry and not the archive, for
-//! the same reason. The central directory is walked into a `Vec` of entries
-//! whose size is the archive's own entry count, beside a set of the names
-//! borrowed from the archive — one pointer and length per entry, dropped when
-//! the walk ends — which is what keeps the repeated-name refusal one lookup per
-//! entry rather than a scan of every entry before it. Nothing holds the
+//! the same reason. A source that is not `bytes` adds one directory window and
+//! one compressed piece, each about [`READ_CHUNK`] bytes. The central directory
+//! is walked into a `Vec` of entries whose size is the archive's own entry
+//! count, and then a set of the names borrowed from those entries — one pointer
+//! and length per entry, dropped when the check ends — which is what keeps the
+//! repeated-name refusal one lookup per entry rather than a scan of every entry
+//! before it. Nothing holds the
 //! decompressed archive. Zip64 adds no allocation to that — the wide values land in the
 //! fields the narrow ones would have, and what a zip64 archive costs over a
 //! narrow one is a bounded walk of one record's extra area per entry — and the
 //! CRC is a rolling checksum over octets already held.
 
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};
 
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ThrownClass, Value};
 
+use crate::byte_source::{ByteSource, READ_CHUNK};
 use crate::compress::{Bound, DEFAULT_MAX_BYTES, DEFAULT_MAX_RATIO};
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -131,6 +144,26 @@ pub(crate) const NAME: &str = r"Core\Zip";
 /// `Core\Zip::extract`'s member name, as the capability doors and their
 /// refusals both spell it.
 const EXTRACT: &str = r"Core\Zip::extract";
+
+/// `Core\Zip::entries`'s member name, as a read of its source names it.
+const ENTRIES: &str = r"Core\Zip::entries";
+
+/// `Core\Zip::read`'s member name, as a read of its source names it.
+const READ: &str = r"Core\Zip::read";
+
+/// An archive, as every member takes it
+/// (`rule:core-api/a-member-takes-the-source-the-program-holds`). Its bytes are
+/// [`Qual::Neutral`], because every name and every entry a member returns is
+/// `tainted` whatever the archive was.
+const SOURCE: CoreTy = CoreTy::Alias(
+    r"Core\Bytes::Source",
+    &CoreTy::Union(&[
+        CoreTy::Blob(Qual::Neutral),
+        CoreTy::Instance(crate::io::FILE_NAME),
+        CoreTy::Instance(crate::request::PART_NAME),
+        CoreTy::Instance(crate::request::BODY_STREAM_NAME),
+    ]),
+);
 
 /// `Core\Zip`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
@@ -157,7 +190,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "entries",
             names: &["archive"],
-            params: &[CoreTy::Blob(Qual::Neutral)],
+            params: &[SOURCE],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::TaintedStr),
             symbol: "nvs_core_zip_entries",
@@ -167,7 +200,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "read",
             names: &["archive", "name", "maxBytes", "maxRatio"],
             params: &[
-                CoreTy::Blob(Qual::Neutral),
+                SOURCE,
                 CoreTy::Text(Qual::Neutral),
                 CoreTy::Uint,
                 CoreTy::Uint,
@@ -184,7 +217,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "extract",
             names: &["archive", "destination", "maxBytes", "maxRatio"],
             params: &[
-                CoreTy::Blob(Qual::Neutral),
+                SOURCE,
                 CoreTy::Path(Qual::Sink),
                 CoreTy::Uint,
                 CoreTy::Uint,
@@ -210,8 +243,10 @@ const ENTRIES_DOC: MethodDoc = MethodDoc {
             path or a symlink, it throws an error and lists nothing.",
     params: &[ParamDoc {
         name: "archive",
-        desc: "The bytes of the archive. Only its central directory is read. So the time to list \
-               an archive depends on the number of entries, not on the size of the archive.",
+        desc: "The archive. It can be `bytes`, an open `Core\\IO\\File`, an uploaded \
+               `Core\\Request\\Part` or a `Core\\Request\\BodyStream`. Only its central directory \
+               is read. So the time to list an archive depends on the number of entries, not on \
+               the size of the archive. A file is read in small pieces and is never held whole.",
         shape: &[],
     }],
     ret: "One `tainted string` per entry. A name is always tainted, whatever the type of the \
@@ -233,9 +268,9 @@ const READ_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "archive",
-            desc: "The bytes of the archive. It is checked the same way as in `entries`. An unsafe \
-                   entry anywhere in the archive makes this call throw too, whichever entry you \
-                   read.",
+            desc: "The archive, as `bytes` or any source `entries` takes. It is checked the same \
+                   way as in `entries`. An unsafe entry anywhere in the archive makes this call \
+                   throw too, whichever entry you read.",
             shape: &[],
         },
         ParamDoc {
@@ -278,8 +313,9 @@ const EXTRACT_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "archive",
-            desc: "The bytes of the archive. It is checked the same way as in `entries`. An unsafe \
-                   entry anywhere in the archive makes this call throw before it writes anything.",
+            desc: "The archive, as `bytes` or any source `entries` takes. It is checked the same \
+                   way as in `entries`. An unsafe entry anywhere in the archive makes this call \
+                   throw before it writes anything.",
             shape: &[],
         },
         ParamDoc {
@@ -369,6 +405,10 @@ const ZIP64_LOCATOR_SIGNATURE: u32 = 0x0706_4b50;
 /// comment, so it sits exactly this far in front of the end record.
 const ZIP64_LOCATOR_WIDTH: usize = 20;
 
+/// The fixed part of a zip64 end record, which is as far as its two read
+/// fields reach.
+const ZIP64_END_WIDTH: u64 = 56;
+
 /// The zip64 extended-information extra field's header id.
 const ZIP64_EXTRA_ID: u16 = 0x0001;
 
@@ -422,7 +462,151 @@ pub(crate) struct Entry {
     /// The entry's compressed size — the ratio half's input.
     compressed: usize,
     /// Where the entry's local header begins.
-    at: usize,
+    at: u64,
+}
+
+/// The fixed part of a central-directory record, in front of its name.
+const CENTRAL_WIDTH: usize = 46;
+
+/// The fixed part of a local header, in front of its name.
+const LOCAL_WIDTH: u64 = 30;
+
+/// An archive this module reads by ranges: `bytes` the program holds, or any
+/// other `Core\Bytes::Source`, read through [`ByteSource::range`].
+///
+/// `bytes` keeps its direct path. Every range of it is a borrow, so the common
+/// call costs no more than a slice did. Any other source is read in pieces of
+/// at most [`READ_CHUNK`] bytes, with the memory limit checked before each.
+///
+/// **What it spends:** per call, one window of about [`READ_CHUNK`] bytes for
+/// the directory walk and one piece for each entry read, beside what
+/// [`ByteSource`] holds. A part or a body stream is held whole by its first
+/// range, under `[limits] request_body` (`crate::byte_source`).
+pub(crate) struct Archive<'a> {
+    /// Where the bytes are.
+    backing: Backing<'a>,
+}
+
+/// Where an [`Archive`]'s bytes are.
+enum Backing<'a> {
+    /// A `bytes` value.
+    Slice(&'a [u8]),
+    /// Any other source, and the window the directory walk reads through.
+    Ranges {
+        /// The source.
+        source: ByteSource,
+        /// The value [`ByteSource::from_arg`] gave, with its own reference.
+        holder: Value,
+        /// The bytes of the last window read.
+        window: Vec<u8>,
+        /// Where [`Backing::Ranges::window`] begins in the archive.
+        window_at: u64,
+    },
+}
+
+impl<'a> Archive<'a> {
+    /// An archive held whole by the program.
+    pub(crate) fn slice(raw: &'a [u8]) -> Self {
+        Self {
+            backing: Backing::Slice(raw),
+        }
+    }
+
+    /// The archive in `args[0]`: its own bytes, or the source it is.
+    ///
+    /// # Errors
+    ///
+    /// [`ByteSource::from_arg`]'s.
+    fn of(ctx: &mut Ctx, args: &'a [Value], member: &'static str) -> Result<Self, Fault> {
+        if let Some(raw) = args[0].as_bytes() {
+            return Ok(Self::slice(raw));
+        }
+        let (source, holder) = ByteSource::from_arg(ctx, args[0], member)?;
+        Ok(Self {
+            backing: Backing::Ranges {
+                source,
+                holder,
+                window: Vec::new(),
+                window_at: 0,
+            },
+        })
+    }
+
+    /// The archive's length in bytes.
+    fn size(&mut self, ctx: &mut Ctx) -> Result<u64, Fault> {
+        match &mut self.backing {
+            Backing::Slice(raw) => Ok(raw.len() as u64),
+            Backing::Ranges { source, holder, .. } => source.size(ctx, *holder),
+        }
+    }
+
+    /// At most `len` bytes from `offset`, fewer where the archive ends first.
+    fn range(&mut self, ctx: &mut Ctx, offset: u64, len: u64) -> Result<Cow<'a, [u8]>, Fault> {
+        match &mut self.backing {
+            Backing::Slice(raw) => Ok(Cow::Borrowed(clip(raw, offset, len))),
+            Backing::Ranges { source, holder, .. } => {
+                Ok(Cow::Owned(source.range(ctx, *holder, offset, len)?))
+            }
+        }
+    }
+
+    /// At most `len` bytes from `offset`, read through a window that a walk
+    /// moves forward. A window that does not cover the bytes is read again
+    /// from `offset`, at least [`READ_CHUNK`] bytes of it.
+    fn view(&mut self, ctx: &mut Ctx, offset: u64, len: usize) -> Result<&[u8], Fault> {
+        match &mut self.backing {
+            Backing::Slice(raw) => Ok(clip(raw, offset, len as u64)),
+            Backing::Ranges {
+                source,
+                holder,
+                window,
+                window_at,
+            } => {
+                let held = offset >= *window_at
+                    && offset.saturating_add(len as u64) <= *window_at + window.len() as u64;
+                if !held {
+                    // The old window is freed first, so two are never held.
+                    *window = Vec::new();
+                    *window = source.range(ctx, *holder, offset, len.max(READ_CHUNK) as u64)?;
+                    *window_at = offset;
+                }
+                Ok(clip(window, offset - *window_at, len as u64))
+            }
+        }
+    }
+
+    /// Puts a file's position back where the reads found it.
+    ///
+    /// # Errors
+    ///
+    /// The `IOError` the seek back failed with.
+    fn finish(&mut self) -> Result<(), Fault> {
+        match &mut self.backing {
+            Backing::Slice(_) => Ok(()),
+            Backing::Ranges { source, .. } => source.finish(),
+        }
+    }
+}
+
+impl Drop for Archive<'_> {
+    fn drop(&mut self) {
+        if let Backing::Ranges { holder, .. } = &self.backing {
+            #[expect(
+                unsafe_code,
+                reason = "`from_arg` gave this archive its own reference to the holder"
+            )]
+            unsafe {
+                holder.release();
+            }
+        }
+    }
+}
+
+/// At most `len` bytes of `raw` from `offset`.
+fn clip(raw: &[u8], offset: u64, len: u64) -> &[u8] {
+    let start = usize::try_from(offset).unwrap_or(usize::MAX).min(raw.len());
+    let len = usize::try_from(len).unwrap_or(usize::MAX);
+    &raw[start..start.saturating_add(len).min(raw.len())]
 }
 
 /// The little-endian `u16` at `at`, or `None` where the archive ends first.
@@ -472,32 +656,44 @@ fn end_record(archive: &[u8]) -> Option<usize> {
 /// refused: the sentinel is not a value, and reading it as one would put the
 /// walk at offset `0xFFFFFFFF` of an archive that never claimed to be that
 /// large.
-fn span(archive: &[u8], end: usize) -> Result<(u64, u64), Fault> {
+///
+/// `tail` is the archive's last bytes, read from `tail_at`, and `end` is where
+/// the end record begins inside it. The zip64 records are read by ranges of
+/// their own, since they sit in front of the tail's start in a large archive.
+fn span(
+    ctx: &mut Ctx,
+    archive: &mut Archive<'_>,
+    tail: &[u8],
+    end: usize,
+    tail_at: u64,
+) -> Result<(u64, u64), Fault> {
     let narrow = || malformed("its end record is truncated");
-    let count = u16_at(archive, end + 10).ok_or_else(narrow)?;
-    let begins = u32_at(archive, end + 16).ok_or_else(narrow)?;
+    let count = u16_at(tail, end + 10).ok_or_else(narrow)?;
+    let begins = u32_at(tail, end + 16).ok_or_else(narrow)?;
     if count != WIDE_U16 && begins != WIDE_U32 {
         return Ok((u64::from(count), u64::from(begins)));
     }
-    let locator = end
-        .checked_sub(ZIP64_LOCATOR_WIDTH)
-        .filter(|start| u32_at(archive, *start) == Some(ZIP64_LOCATOR_SIGNATURE))
-        .ok_or_else(|| {
-            malformed("its end record says it is zip64 and no zip64 locator precedes it")
-        })?;
-    let record = usize::try_from(
-        u64_at(archive, locator + 8).ok_or_else(|| malformed("its zip64 locator is truncated"))?,
-    )
-    .map_err(|_| malformed("its zip64 end record sits past the end of the archive"))?;
-    if u32_at(archive, record) != Some(ZIP64_END_SIGNATURE) {
+    let no_locator =
+        || malformed("its end record says it is zip64 and no zip64 locator precedes it");
+    let locator_at = (tail_at + end as u64)
+        .checked_sub(ZIP64_LOCATOR_WIDTH as u64)
+        .ok_or_else(no_locator)?;
+    let locator = archive.range(ctx, locator_at, ZIP64_LOCATOR_WIDTH as u64)?;
+    if u32_at(&locator, 0) != Some(ZIP64_LOCATOR_SIGNATURE) {
+        return Err(no_locator());
+    }
+    let record_at =
+        u64_at(&locator, 8).ok_or_else(|| malformed("its zip64 locator is truncated"))?;
+    let record = archive.range(ctx, record_at, ZIP64_END_WIDTH)?;
+    if u32_at(&record, 0) != Some(ZIP64_END_SIGNATURE) {
         return Err(malformed(
             "its zip64 locator does not point at a zip64 end record",
         ));
     }
     let wide = || malformed("its zip64 end record is truncated");
     Ok((
-        u64_at(archive, record + 32).ok_or_else(wide)?,
-        u64_at(archive, record + 48).ok_or_else(wide)?,
+        u64_at(&record, 32).ok_or_else(wide)?,
+        u64_at(&record, 48).ok_or_else(wide)?,
     ))
 }
 
@@ -556,55 +752,48 @@ impl Wide<'_> {
 /// three refusals total: `entries` and `read` are both callers of it, so there
 /// is no member through which a program reaches an entry that has not been
 /// through [`refuse_hostile`].
-pub(crate) fn directory(archive: &[u8]) -> Result<Vec<Entry>, Fault> {
-    let end = end_record(archive)
-        .ok_or_else(|| malformed("it has no end-of-central-directory record"))?;
-    let (entries, begins) = span(archive, end)?;
+///
+/// The end record is found in the archive's last bytes, and the directory is
+/// walked one record at a time through [`Archive::view`]. So a file or an
+/// upload costs one window of about [`READ_CHUNK`] bytes, whatever its size.
+pub(crate) fn directory(ctx: &mut Ctx, archive: &mut Archive<'_>) -> Result<Vec<Entry>, Fault> {
+    let size = archive.size(ctx)?;
+    let tail_at = size.saturating_sub((END_WIDTH + MAX_COMMENT) as u64);
+    let tail = archive.range(ctx, tail_at, size - tail_at)?;
+    let end =
+        end_record(&tail).ok_or_else(|| malformed("it has no end-of-central-directory record"))?;
+    let (entries, begins) = span(ctx, archive, &tail, end, tail_at)?;
+    drop(tail);
     let count = usize::try_from(entries)
         .map_err(|_| malformed("its end record names more entries than this host can hold"))?;
-    let mut at = usize::try_from(begins)
-        .map_err(|_| malformed("its central directory begins past the end of the archive"))?;
+    let mut at = begins;
 
     let mut out: Vec<Entry> = Vec::with_capacity(count.min(4096));
-    // The names already walked, borrowed from the archive, so a repeated one
-    // is found by one lookup rather than a scan of every entry before it — a
-    // scan an archive of many small entries turns into a hang.
-    let mut seen: HashSet<&str> = HashSet::with_capacity(count.min(4096));
     for _ in 0..count {
-        if u32_at(archive, at) != Some(CENTRAL_SIGNATURE) {
+        let truncated = || malformed("a central-directory record is truncated");
+        let head = archive.view(ctx, at, CENTRAL_WIDTH)?;
+        if u32_at(head, 0) != Some(CENTRAL_SIGNATURE) {
             return Err(malformed(
                 "a central-directory record is missing its signature",
             ));
         }
-        let field = |offset: usize| u16_at(archive, at + offset);
-        let method =
-            field(10).ok_or_else(|| malformed("a central-directory record is truncated"))?;
-        let crc = u32_at(archive, at + 16)
-            .ok_or_else(|| malformed("a central-directory record is truncated"))?;
-        let compressed = u32_at(archive, at + 20)
-            .ok_or_else(|| malformed("a central-directory record is truncated"))?;
-        let uncompressed = u32_at(archive, at + 24)
-            .ok_or_else(|| malformed("a central-directory record is truncated"))?;
-        let name_len = usize::from(
-            field(28).ok_or_else(|| malformed("a central-directory record is truncated"))?,
-        );
-        let extra_len = usize::from(
-            field(30).ok_or_else(|| malformed("a central-directory record is truncated"))?,
-        );
-        let comment_len = usize::from(
-            field(32).ok_or_else(|| malformed("a central-directory record is truncated"))?,
-        );
-        let external = u32_at(archive, at + 38)
-            .ok_or_else(|| malformed("a central-directory record is truncated"))?;
-        let local = u32_at(archive, at + 42)
-            .ok_or_else(|| malformed("a central-directory record is truncated"))?;
-        let raw = archive
-            .get(at + 46..at + 46 + name_len)
+        let method = u16_at(head, 10).ok_or_else(truncated)?;
+        let crc = u32_at(head, 16).ok_or_else(truncated)?;
+        let compressed = u32_at(head, 20).ok_or_else(truncated)?;
+        let uncompressed = u32_at(head, 24).ok_or_else(truncated)?;
+        let name_len = usize::from(u16_at(head, 28).ok_or_else(truncated)?);
+        let extra_len = usize::from(u16_at(head, 30).ok_or_else(truncated)?);
+        let comment_len = usize::from(u16_at(head, 32).ok_or_else(truncated)?);
+        let external = u32_at(head, 38).ok_or_else(truncated)?;
+        let local = u32_at(head, 42).ok_or_else(truncated)?;
+        let body = archive.view(ctx, at + CENTRAL_WIDTH as u64, name_len + extra_len)?;
+        let raw = body
+            .get(..name_len)
             .ok_or_else(|| malformed("an entry's name runs past the end of the archive"))?;
         let name = std::str::from_utf8(raw)
             .map_err(|_| malformed("an entry's name is not UTF-8, and a `string` is"))?;
-        let extra = archive
-            .get(at + 46 + name_len..at + 46 + name_len + extra_len)
+        let extra = body
+            .get(name_len..name_len + extra_len)
             .ok_or_else(|| malformed("an entry's extra field runs past the end of the archive"))?;
         // The uncompressed size is asked for and dropped rather than skipped:
         // it is this class's one unread field, and the two the class does read
@@ -617,33 +806,40 @@ pub(crate) fn directory(archive: &[u8]) -> Result<Vec<Entry>, Fault> {
         let compressed = wide.field(compressed)?;
         let local = wide.field(local)?;
 
-        refuse_hostile(name, external, &mut seen)?;
+        refuse_hostile(name, external)?;
         out.push(Entry {
             name: name.to_owned(),
             method,
             crc,
             compressed: usize::try_from(compressed)
                 .map_err(|_| malformed("an entry's compressed size does not fit this host"))?,
-            at: usize::try_from(local).map_err(|_| {
-                malformed("an entry's local header sits past the end of the archive")
-            })?,
+            at: local,
         });
-        at = at + 46 + name_len + extra_len + comment_len;
+        at += (CENTRAL_WIDTH + name_len + extra_len + comment_len) as u64;
+    }
+    // The names already walked, borrowed from the entries, so a repeated one
+    // is found by one lookup rather than a scan of every entry before it — a
+    // scan an archive of many small entries turns into a hang. It runs after
+    // the walk, because the walk's window does not keep a name it has passed.
+    let mut seen: HashSet<&str> = HashSet::with_capacity(out.len());
+    if let Some(twice) = out.iter().find(|entry| !seen.insert(&entry.name)) {
+        return Err(refuses_entry(
+            "the archive names it twice, and which of the two a reader answers is what the attack \
+             turns on",
+            &twice.name,
+        ));
     }
     Ok(out)
 }
 
-/// The five things an entry is refused for, applied to every entry before any
-/// of them is visible.
+/// The four things an entry is refused for on its own, applied to every entry
+/// before any of them is visible. The fifth, a name the archive gives twice,
+/// is [`directory`]'s, once every name is read.
 ///
 /// The order is the order the refusals are cheapest in and carries no other
 /// meaning: an entry that is two of these at once is refused for whichever is
 /// tested first, and it is refused either way.
-fn refuse_hostile<'a>(
-    name: &'a str,
-    external: u32,
-    seen: &mut HashSet<&'a str>,
-) -> Result<(), Fault> {
+fn refuse_hostile(name: &str, external: u32) -> Result<(), Fault> {
     if name.is_empty() {
         return Err(malformed("an entry has no name at all"));
     }
@@ -696,38 +892,42 @@ fn refuse_hostile<'a>(
             name,
         ));
     }
-    if !seen.insert(name) {
-        return Err(refuses_entry(
-            "the archive names it twice, and which of the two a reader answers is what the attack \
-             turns on",
-            name,
-        ));
-    }
     Ok(())
 }
 
-/// One entry's compressed octets, from its local header.
-fn frame<'a>(archive: &'a [u8], entry: &Entry) -> Result<&'a [u8], Fault> {
-    if u32_at(archive, entry.at) != Some(LOCAL_SIGNATURE) {
-        return Err(malformed(
-            "an entry's local header is missing its signature",
-        ));
+/// Where one entry's compressed octets begin, read from its local header.
+///
+/// Each message names the entry, because a local header is read after the
+/// directory: a header that is missing or short is most often a file that
+/// changed or was cut after the directory was read.
+fn frame(ctx: &mut Ctx, archive: &mut Archive<'_>, entry: &Entry) -> Result<u64, Fault> {
+    let head = archive.range(ctx, entry.at, LOCAL_WIDTH)?;
+    if u32_at(&head, 0) != Some(LOCAL_SIGNATURE) {
+        return Err(malformed(&format!(
+            "an entry's local header is missing its signature (\"{}\")",
+            entry.name
+        )));
     }
-    let name_len = usize::from(
-        u16_at(archive, entry.at + 26)
-            .ok_or_else(|| malformed("an entry's local header is truncated"))?,
-    );
-    let extra_len = usize::from(
-        u16_at(archive, entry.at + 28)
-            .ok_or_else(|| malformed("an entry's local header is truncated"))?,
-    );
-    let from = entry.at + 30 + name_len + extra_len;
+    let truncated = || {
+        malformed(&format!(
+            "an entry's local header is truncated (\"{}\")",
+            entry.name
+        ))
+    };
+    let name_len = u16_at(&head, 26).ok_or_else(truncated)?;
+    let extra_len = u16_at(&head, 28).ok_or_else(truncated)?;
+    let from = entry.at + LOCAL_WIDTH + u64::from(name_len) + u64::from(extra_len);
     // `compressed` is the archive's own claim, up to `u64::MAX` through a
-    // zip64 field, so the end is a checked sum: a wrapping one is a slice
-    // somewhere else in the archive, and an unchecked one is a panic.
-    from.checked_add(entry.compressed)
-        .and_then(|to| archive.get(from..to))
-        .ok_or_else(|| malformed("an entry's data runs past the end of the archive"))
+    // zip64 field, so the end is a checked sum: a wrapping one is a range
+    // somewhere else in the archive. An end past the archive's own is
+    // [`short`], which names the entry.
+    let to = from
+        .checked_add(entry.compressed as u64)
+        .ok_or_else(|| malformed("an entry's data runs past the end of the archive"))?;
+    if to > archive.size(ctx)? {
+        return Err(short(&entry.name));
+    }
+    Ok(from)
 }
 
 /// One archive's share of the bound, spent as its entries are decompressed.
@@ -770,20 +970,26 @@ impl Budget {
     /// One entry's octets, held whole: decompressed by [`inflate`] under both
     /// halves of the bound, its ceiling what the archive has left, and charged
     /// against it.
-    pub(crate) fn read(&mut self, archive: &[u8], entry: &Entry) -> Result<Vec<u8>, Fault> {
-        let frame = frame(archive, entry)?;
+    pub(crate) fn read_from(
+        &mut self,
+        ctx: &mut Ctx,
+        archive: &mut Archive<'_>,
+        entry: &Entry,
+    ) -> Result<Vec<u8>, Fault> {
+        let from = frame(ctx, archive, entry)?;
         let ceiling = Bound {
             bytes: self.left,
             ..self.bound
         }
-        .output_ceiling(frame.len());
+        .output_ceiling(entry.compressed);
         let mut out = Vec::new();
         let sink = &mut |block: &[u8]| {
             out.extend_from_slice(block);
             Ok(())
         };
-        let Some(size) = inflate(frame, entry, ceiling, sink)? else {
-            return Err(over_bound(&entry.name, frame.len(), self, ceiling, false));
+        let mut input = Window::new(ctx, archive, entry, from);
+        let Some(size) = inflate(&mut input, entry, ceiling, sink)? else {
+            return Err(over_bound(&entry.name, entry.compressed, self, ceiling, false));
         };
         self.left = self.left.saturating_sub(size);
         Ok(out)
@@ -805,20 +1011,82 @@ impl Budget {
                       streams its sheets under the same split in its own zip reader"
         )
     )]
-    pub(crate) fn stream(
+    pub(crate) fn stream_from(
         &self,
-        archive: &[u8],
+        ctx: &mut Ctx,
+        archive: &mut Archive<'_>,
         entry: &Entry,
         sink: &mut dyn FnMut(&[u8]) -> Result<(), Fault>,
     ) -> Result<u64, Fault> {
-        let frame = frame(archive, entry)?;
+        let from = frame(ctx, archive, entry)?;
         let ceiling = Bound {
             bytes: u64::MAX,
             ..self.bound
         }
-        .output_ceiling(frame.len());
-        inflate(frame, entry, ceiling, sink)?
-            .ok_or_else(|| over_bound(&entry.name, frame.len(), self, ceiling, true))
+        .output_ceiling(entry.compressed);
+        let mut input = Window::new(ctx, archive, entry, from);
+        inflate(&mut input, entry, ceiling, sink)?
+            .ok_or_else(|| over_bound(&entry.name, entry.compressed, self, ceiling, true))
+    }
+}
+
+/// One entry's compressed octets as an [`std::io::Read`], taken from the
+/// archive in ranges of at most [`READ_CHUNK`] bytes.
+///
+/// A range that comes back empty before the entry's end is an archive shorter
+/// than its directory says, such as a file cut while it is read. The window
+/// keeps that fault, and [`inflate`] gives it in place of the decoder's error,
+/// so the program gets a `ParseError` naming the entry.
+struct Window<'w, 'a> {
+    /// The context every range is read under.
+    ctx: &'w mut Ctx,
+    /// The archive the entry is in.
+    archive: &'w mut Archive<'a>,
+    /// The entry's name, for the fault.
+    name: &'w str,
+    /// Where the next range begins.
+    at: u64,
+    /// How many compressed octets are still to come.
+    left: u64,
+    /// The fault a range ended with, which wins over the decoder's error.
+    fault: Option<Fault>,
+}
+
+impl<'w, 'a> Window<'w, 'a> {
+    /// The window over `entry`'s octets, which begin at `from`.
+    fn new(ctx: &'w mut Ctx, archive: &'w mut Archive<'a>, entry: &'w Entry, from: u64) -> Self {
+        Self {
+            ctx,
+            archive,
+            name: &entry.name,
+            at: from,
+            left: entry.compressed as u64,
+            fault: None,
+        }
+    }
+}
+
+impl std::io::Read for Window<'_, '_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.left == 0 || buf.is_empty() {
+            return Ok(0);
+        }
+        let want = (buf.len() as u64).min(self.left).min(READ_CHUNK as u64);
+        let piece = match self.archive.range(self.ctx, self.at, want) {
+            Ok(piece) if !piece.is_empty() => piece,
+            Ok(_) => {
+                self.fault = Some(short(self.name));
+                return Err(std::io::Error::other("the archive ended before the entry"));
+            }
+            Err(fault) => {
+                self.fault = Some(fault);
+                return Err(std::io::Error::other("the archive's source failed"));
+            }
+        };
+        buf[..piece.len()].copy_from_slice(&piece);
+        self.at += piece.len() as u64;
+        self.left -= piece.len() as u64;
+        Ok(piece.len())
     }
 }
 
@@ -835,14 +1103,44 @@ impl Budget {
 /// this is the one route: `read` answers what it returns and `extract` writes
 /// it, so a corrupt entry has no spelling that reaches either.
 fn inflate(
-    frame: &[u8],
+    input: &mut Window<'_, '_>,
     entry: &Entry,
     ceiling: u64,
     sink: &mut dyn FnMut(&[u8]) -> Result<(), Fault>,
 ) -> Result<Option<u64>, Fault> {
+    let pumped = pump(input, entry, ceiling, sink);
+    // A range that failed or came back short wins over what the decoder made
+    // of it: the archive's source is the cause, not the deflate stream.
+    if let Some(fault) = input.fault.take() {
+        return Err(fault);
+    }
+    let Some((size, sum)) = pumped? else {
+        return Ok(None);
+    };
+    if sum != entry.crc {
+        return Err(refuses_entry(
+            &format!(
+                "its octets do not match the CRC-32 the archive recorded for them ({sum:#010x} \
+                 against {:#010x}), so what is in the archive is not what was put there",
+                entry.crc
+            ),
+            &entry.name,
+        ));
+    }
+    Ok(Some(size))
+}
+
+/// [`inflate`]'s loop: the octets the entry came to and their CRC-32, or
+/// `None` once they pass `ceiling`.
+fn pump(
+    input: &mut Window<'_, '_>,
+    entry: &Entry,
+    ceiling: u64,
+    sink: &mut dyn FnMut(&[u8]) -> Result<(), Fault>,
+) -> Result<Option<(u64, u32)>, Fault> {
     let mut decoder: Box<dyn std::io::Read + '_> = match entry.method {
-        STORED => Box::new(frame),
-        DEFLATE => Box::new(flate2::read::DeflateDecoder::new(frame)),
+        STORED => Box::new(&mut *input),
+        DEFLATE => Box::new(flate2::read::DeflateDecoder::new(&mut *input)),
         other => {
             return Err(refuses_entry(
                 &format!(
@@ -869,18 +1167,7 @@ fn inflate(
         sum.update(&block[..read]);
         sink(&block[..read])?;
     }
-    let sum = sum.finalize();
-    if sum != entry.crc {
-        return Err(refuses_entry(
-            &format!(
-                "its octets do not match the CRC-32 the archive recorded for them ({sum:#010x} \
-                 against {:#010x}), so what is in the archive is not what was put there",
-                entry.crc
-            ),
-            &entry.name,
-        ));
-    }
-    Ok(Some(size))
+    Ok(Some((size, sum.finalize())))
 }
 
 /// The path one entry is written to, with every directory above it created and
@@ -987,6 +1274,20 @@ fn refuses_path(what: &str, name: &str) -> Fault {
     )
 }
 
+/// The refusal for an entry whose octets end before its directory record says.
+///
+/// The archive was shorter when the entry was read than when its directory
+/// was, so a file changed or was cut while it was read.
+fn short(name: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Parse,
+        format!(
+            "Core\\Zip: not a well-formed zip archive: the entry \"{name}\" ends before the size \
+             its directory record gives. The archive may have changed while it was read."
+        ),
+    )
+}
+
 /// The refusal for an entry this class will not read for a reason that is not
 /// about its name.
 fn refuses_entry(what: &str, name: &str) -> Fault {
@@ -1029,22 +1330,6 @@ fn over_bound(name: &str, input: usize, budget: &Budget, ceiling: u64, streamed:
 // Reading arguments
 // ============================================================================
 
-/// The archive in slot 0.
-///
-/// # Errors
-///
-/// A [`Fault::fatal`] for a slot carrying anything but `bytes`.
-fn archive_of<'a>(args: &'a [Value], member: &str) -> Result<&'a [u8], Fault> {
-    // unreachable from source: the parameter is `CoreTy::Blob`, so anything
-    // that is not `bytes` is `E0401` at the call site.
-    args[0].as_bytes().ok_or_else(|| {
-        Fault::fatal(format!(
-            "Core\\Zip expected a `bytes` archive, got tag {} at {member}",
-            args[0].tag_byte()
-        ))
-    })
-}
-
 /// The `uint` in slot `at`.
 ///
 /// # Errors
@@ -1066,16 +1351,18 @@ fn uint_of(args: &[Value], at: usize, position: &str) -> Result<u64, Fault> {
 // ============================================================================
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Zip::entries(bytes $archive): array<tainted string>` — replacing
+    /// `Core\Zip::entries(Core\Bytes::Source $archive): array<tainted string>` — replacing
     /// `zip_read`/`zip_entry_name` and `ZipArchive::statIndex`.
     ///
     /// The listing is the whole archive's or nothing: [`directory`] refuses the
     /// archive rather than skipping the entry, so a program cannot receive a
     /// short list it has no way to know was short.
-    fn nvs_core_zip_entries(_ctx, args: [1]) {
-        let archive = archive_of(args, "entries")?;
+    fn nvs_core_zip_entries(ctx, args: [1]) {
+        let mut archive = Archive::of(ctx, args, ENTRIES)?;
+        let entries = directory(ctx, &mut archive)?;
+        archive.finish()?;
         let mut out = NvsArray::new();
-        for entry in directory(archive)? {
+        for entry in entries {
             out.append(Value::text(&entry.name));
         }
         Ok(Value::array(out))
@@ -1083,7 +1370,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Zip::read(bytes $archive, string $name, uint $maxBytes = 67108864,
+    /// `Core\Zip::read(Core\Bytes::Source $archive, string $name, uint $maxBytes = 67108864,
     /// uint $maxRatio = 1000): tainted bytes` — replacing `zip_entry_read` and
     /// `ZipArchive::getFromName`.
     ///
@@ -1092,7 +1379,6 @@ nvs_runtime::nvs_helper! {
     /// [`Bound::within`], the smaller of the ask and what the operator
     /// configured, on each axis independently.
     fn nvs_core_zip_read(ctx, args: [4]) {
-        let archive = archive_of(args, "read")?;
         // unreachable from source: the parameter is `CoreTy::Text`, so anything
         // that is not a `string` is `E0401` at the call site.
         let Some(name) = args[1].as_str_bytes() else {
@@ -1107,7 +1393,8 @@ nvs_runtime::nvs_helper! {
         };
         let bound = Bound::ceiling(ctx).within(asked);
 
-        let entries = directory(archive)?;
+        let mut archive = Archive::of(ctx, args, READ)?;
+        let entries = directory(ctx, &mut archive)?;
         let wanted = String::from_utf8_lossy(name).into_owned();
         let Some(entry) = entries.iter().find(|entry| entry.name == wanted) else {
             return Err(Fault::thrown_as(
@@ -1119,14 +1406,14 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         };
-        Ok(Value::bytes(NvsStr::new(
-            &Budget::new(bound).read(archive, entry)?,
-        )))
+        let octets = Budget::new(bound).read_from(ctx, &mut archive, entry)?;
+        archive.finish()?;
+        Ok(Value::bytes(NvsStr::new(&octets)))
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Zip::extract(bytes $archive, string $destination,
+    /// `Core\Zip::extract(Core\Bytes::Source $archive, string $destination,
     /// uint $maxBytes = 67108864, uint $maxRatio = 1000): uint` — replacing
     /// `ZipArchive::extractTo`.
     ///
@@ -1137,7 +1424,6 @@ nvs_runtime::nvs_helper! {
     /// one [`Budget`] for the whole call, so what a later entry decompresses
     /// under is what the archive has left.
     fn nvs_core_zip_extract(ctx, args: [4]) {
-        let archive = archive_of(args, "extract")?;
         // unreachable from source: the parameter is `CoreTy::Text`, so anything
         // that is not a `string` is `E0401` at the call site.
         let Some(destination) = args[1].as_str_bytes() else {
@@ -1155,7 +1441,8 @@ nvs_runtime::nvs_helper! {
         // Before the destination is even created: an archive that is refused
         // leaves nothing behind, which is what makes "the refusal is the
         // archive's rather than the extraction's" true of this member too.
-        let entries = directory(archive)?;
+        let mut archive = Archive::of(ctx, args, EXTRACT)?;
+        let entries = directory(ctx, &mut archive)?;
 
         let named = PathBuf::from(String::from_utf8_lossy(destination).into_owned());
         nvs_runtime::capability::create_dir(ctx, &named, EXTRACT)?;
@@ -1166,7 +1453,7 @@ nvs_runtime::nvs_helper! {
             let Some(target) = place(ctx, &root, entry)? else {
                 continue;
             };
-            let octets = budget.read(archive, entry)?;
+            let octets = budget.read_from(ctx, &mut archive, entry)?;
             // Exclusively: a name already taken refuses rather than being
             // followed, and what is already there may be a link.
             let mut file = nvs_runtime::capability::create(ctx, &target, false, EXTRACT)?;
@@ -1174,6 +1461,7 @@ nvs_runtime::nvs_helper! {
                 .map_err(|err| nvs_runtime::capability::io_failure(EXTRACT, &target, &err))?;
             written += 1;
         }
+        archive.finish()?;
         Ok(Value::uint(written))
     }
 }
@@ -1188,6 +1476,34 @@ mod tests {
         bytes: 1 << 20,
         ratio: 1 << 20,
     };
+
+    /// [`super::directory`] over an archive held as `bytes`.
+    fn directory(raw: &[u8]) -> Result<Vec<Entry>, Fault> {
+        super::directory(&mut Ctx::buffered(), &mut Archive::slice(raw))
+    }
+
+    /// An entry's compressed octets in an archive held as `bytes`.
+    fn frame<'r>(raw: &'r [u8], entry: &Entry) -> Result<&'r [u8], Fault> {
+        let from = super::frame(&mut Ctx::buffered(), &mut Archive::slice(raw), entry)?;
+        Ok(clip(raw, from, entry.compressed as u64))
+    }
+
+    impl Budget {
+        /// [`Budget::read_from`] over an archive held as `bytes`.
+        fn read(&mut self, raw: &[u8], entry: &Entry) -> Result<Vec<u8>, Fault> {
+            self.read_from(&mut Ctx::buffered(), &mut Archive::slice(raw), entry)
+        }
+
+        /// [`Budget::stream_from`] over an archive held as `bytes`.
+        fn stream(
+            &self,
+            raw: &[u8],
+            entry: &Entry,
+            sink: &mut dyn FnMut(&[u8]) -> Result<(), Fault>,
+        ) -> Result<u64, Fault> {
+            self.stream_from(&mut Ctx::buffered(), &mut Archive::slice(raw), entry, sink)
+        }
+    }
 
     /// One entry, as an archive builder takes it.
     struct Written<'a> {
@@ -2369,5 +2685,202 @@ mod tests {
             b"first"
         );
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// An open `Core\IO\File` over `path`, and the key its descriptor is filed
+    /// under.
+    fn open_file(ctx: &mut Ctx, path: &Path) -> (u64, Value) {
+        let file = std::fs::File::open(path).expect("the case opens its file");
+        let key = ctx.hold_open_file(file);
+        let handle = crate::io::file_handle(
+            key,
+            Value::text("archive.zip"),
+            nvs_runtime::capability::Access::Read,
+        );
+        (key, handle)
+    }
+
+    /// Releases the one reference each of `values` was made with.
+    fn release(values: &[Value]) {
+        for value in values {
+            #[expect(unsafe_code, reason = "the case owns each value's one reference")]
+            unsafe {
+                value.release();
+            }
+        }
+    }
+
+    /// An archive several reads long: a stored entry of four chunks between
+    /// two small ones.
+    fn long_archive() -> (Vec<u8>, String) {
+        let big: String = "abcdefghijklmnopqrstuvwxyz"
+            .chars()
+            .cycle()
+            .take(4 * READ_CHUNK)
+            .collect();
+        let raw = archive(&[
+            Written::plain("first.txt", "first"),
+            Written::plain("big.txt", &big),
+            Written::deflated("last.txt", &big),
+        ]);
+        (raw, big)
+    }
+
+    /// `entries` lists an archive from a file, and the walk holds one window
+    /// of it, not the whole file.
+    #[test]
+    fn zip_entries_reads_a_file_without_holding_it_whole() {
+        let (raw, _) = long_archive();
+        let (dir, _) = temp_root("entries-file");
+        let path = dir.join("archive.zip");
+        std::fs::write(&path, &raw).expect("the case writes");
+        let mut ctx = Ctx::buffered();
+        let (_, handle) = open_file(&mut ctx, &path);
+
+        let args = [handle];
+        let mut source = Archive::of(&mut ctx, &args, ENTRIES).expect("a file is a source");
+        let entries = super::directory(&mut ctx, &mut source).expect("the archive reads");
+        assert_eq!(
+            entries.iter().map(|entry| entry.name.as_str()).collect::<Vec<_>>(),
+            ["first.txt", "big.txt", "last.txt"]
+        );
+        let Backing::Ranges { window, .. } = &source.backing else {
+            panic!("a file is read by ranges");
+        };
+        assert!(raw.len() > 4 * READ_CHUNK, "the archive is several reads long");
+        assert!(window.len() <= READ_CHUNK, "the walk held {} bytes", window.len());
+        source.finish().expect("the position goes back");
+        drop(source);
+
+        let names = nvs_runtime::call(nvs_core_zip_entries, &mut ctx, &args)
+            .expect("the member lists a file");
+        let listed: Vec<String> =
+            crate::str::Elements::of(names.array_ptr().expect("`entries` returns an array"))
+                .map(|name| name.as_text().expect("a name is a string").to_owned())
+                .collect();
+        assert_eq!(listed, ["first.txt", "big.txt", "last.txt"]);
+        release(&[names, handle]);
+    }
+
+    /// `read` takes an entry from a file in pieces, gives what it gives for
+    /// the same `bytes`, and puts the file's position back.
+    #[test]
+    fn zip_read_from_a_file_streams_the_entry_and_puts_the_position_back() {
+        use std::io::{Seek as _, SeekFrom};
+
+        let (raw, big) = long_archive();
+        let (dir, _) = temp_root("read-file");
+        let path = dir.join("archive.zip");
+        std::fs::write(&path, &raw).expect("the case writes");
+        let mut ctx = Ctx::buffered();
+        let (key, handle) = open_file(&mut ctx, &path);
+        ctx.open_file_mut(key)
+            .expect("the case's file is open")
+            .seek(SeekFrom::Start(7))
+            .expect("the case moves its position");
+
+        for name in ["big.txt", "last.txt"] {
+            let args = [
+                handle,
+                Value::text(name),
+                Value::uint(u64::MAX),
+                Value::uint(u64::MAX),
+            ];
+            let octets =
+                nvs_runtime::call(nvs_core_zip_read, &mut ctx, &args).expect("the entry reads");
+            assert_eq!(octets.as_bytes(), Some(big.as_bytes()), "{name}");
+            release(&[octets, args[1]]);
+        }
+        let position = ctx
+            .open_file_mut(key)
+            .expect("the case's file is open")
+            .stream_position()
+            .expect("the position reads");
+        assert_eq!(position, 7, "the read puts the position back");
+        release(&[handle]);
+    }
+
+    /// `extract` from a file keeps the bound across the archive and the ratio
+    /// per entry, as it does for `bytes`.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn zip_extract_from_a_file_keeps_both_bounds() {
+        let (_dir, root) = temp_root("extract-file");
+        std::fs::create_dir_all(&root).expect("the scratch root is this test's to create");
+        let raw = archive(&[
+            Written::plain("one.txt", "first"),
+            Written::deflated("zeros.txt", &"0".repeat(100_000)),
+        ]);
+        let path = root.join("archive.zip");
+        std::fs::write(&path, &raw).expect("the case writes");
+        let mut ctx = granting(&root);
+        let (_, handle) = open_file(&mut ctx, &path);
+        let extract = |ctx: &mut Ctx, to: &Path, bytes: u64, ratio: u64| {
+            let args = [
+                handle,
+                Value::text(&to.to_string_lossy()),
+                Value::uint(bytes),
+                Value::uint(ratio),
+            ];
+            let answer = match nvs_runtime::call(nvs_core_zip_extract, ctx, &args) {
+                Ok(count) => Ok(count.as_uint().expect("`extract` returns a uint")),
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("the refusal is a throw")
+                    .into_owned()),
+            };
+            release(&[args[1]]);
+            answer
+        };
+
+        let fits = root.join("fits");
+        assert_eq!(extract(&mut ctx, &fits, u64::MAX, u64::MAX), Ok(2));
+        assert_eq!(
+            std::fs::read(fits.join("zeros.txt")).expect("the second file is written"),
+            "0".repeat(100_000).as_bytes()
+        );
+
+        let message = extract(&mut ctx, &root.join("spent"), 100_004, u64::MAX)
+            .expect_err("one byte short across the archive");
+        assert!(message.contains("\"zeros.txt\""), "{message}");
+        assert!(message.contains("bytes left of this archive's limit"), "{message}");
+
+        let message = extract(&mut ctx, &root.join("steep"), u64::MAX, 2)
+            .expect_err("the ratio stops the deflated entry");
+        assert!(message.contains("2 times its"), "{message}");
+        release(&[handle]);
+    }
+
+    /// A file cut after its directory was read is a `ParseError` naming the
+    /// entry, never a slice panic.
+    #[test]
+    fn a_zip_file_truncated_after_its_directory_is_a_parse_error() {
+        let (raw, _) = long_archive();
+        let (dir, _) = temp_root("truncated-file");
+        let path = dir.join("archive.zip");
+        std::fs::write(&path, &raw).expect("the case writes");
+        let mut ctx = Ctx::buffered();
+        let (_, handle) = open_file(&mut ctx, &path);
+
+        let args = [handle];
+        let mut source = Archive::of(&mut ctx, &args, READ).expect("a file is a source");
+        let entries = super::directory(&mut ctx, &mut source).expect("the archive reads");
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&path)
+            .and_then(|file| file.set_len(2 * READ_CHUNK as u64))
+            .expect("the case cuts its file");
+
+        let fault = Budget::new(ROOMY)
+            .read_from(&mut ctx, &mut source, &entries[1])
+            .expect_err("the entry runs past the cut");
+        let message = refusal(fault);
+        assert!(message.contains("\"big.txt\""), "{message}");
+        assert!(message.contains("may have changed while it was read"), "{message}");
+        drop(source);
+        release(&[handle]);
     }
 }
