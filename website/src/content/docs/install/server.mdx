@@ -132,7 +132,7 @@ A permission for one named account, for example your own, passes the check.
 | `nvs service install`, also with `--dry-run` | every `--config` file, for the account the service runs as | the error is `E0607`, and nothing is changed. With `--dry-run`, the exit status is `1` |
 | `nvs service status` | every `--config` file, for the account the service runs as | the error is `E0607`, and the exit status is `1` |
 | `nvs config check --as <account>` | the configuration files, for the account you name | the error is `E0607` |
-| `nvs init` | the folder it writes into, and the folder above it | nothing is written, and the exit status is `1` |
+| `nvs init` | the folder it writes into | nothing is written, and the exit status is `1` |
 | `nvs run`, `nvs serve`, `nvs test`, `nvs build`, `nvs check`, `nvs lsp` | the data folder. For a folder that `--data` names, also the folder above it | one warning. The command runs without the data folder |
 | every command that compiles a program | the cache folder, and the folder above it | a warning. The program runs, but it is compiled again every time |
 

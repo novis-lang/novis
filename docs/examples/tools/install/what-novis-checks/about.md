@@ -10,7 +10,7 @@ no group of ordinary accounts can write to it. A failed check is the error `E060
 - `nvs service install` and `nvs service status` check every `--config` file for the service's
   account. A failed check stops the install before it changes anything.
 - `nvs config check --as <account>` checks for the account you name. Run it before a service starts.
-- `nvs init` checks the folder it writes into and the folder above it.
+- `nvs init` checks the folder it writes into. That is the folder `nvs serve` checks later.
 
 The cache and data folders get the same check. When it fails, `nvs` prints a `warning:` and the
 program still runs.

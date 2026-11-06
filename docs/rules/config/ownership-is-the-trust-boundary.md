@@ -54,6 +54,12 @@ path the configuration names, keeps the full check, parent included. A file insi
 checked as any file is, with the private data folder as its directory. Novis creates the data folder
 private to its account and never re-permissions one that exists: it checks it.
 
+**`nvs init` checks the directory it writes into alone**, because that is the directory `nvs serve`
+checks for the file it writes. The directory above it guards nothing `serve` holds, and refusing over
+it sends an operator to change a shared folder such as `D:\srv`, which every project under it
+inherits from. The new file takes the directory's inheritable entries, and `serve`'s check of the file
+catches an entry that reaches files alone.
+
 **The account is a value the check takes, not one it reads.** `nvs serve` judges for its own account,
 and a command that sets up or reports on a service judges for the account the service runs as, through
 the same function: `trust::check_as` with a `trust::Account`, a uid on Unix and a SID on Windows. On
@@ -73,6 +79,8 @@ account `LocalSystem` nor an administrative one". `resolve::JudgedFor` resolves 
   whose volume directory is `0777 root:root` on a read-only mount.
 - **The waiver for a link's directory another account owns.** Docker Desktop's `0777` bind mount
   belongs to the host's account, and that is the case the mode test is kept for.
+- **Checking the parent in `nvs init`.** It refuses a folder `nvs serve` accepts, and its repair
+  changes a folder that other projects share.
 - **A configuration key that turns the check off.** It would be written in the file the check
   guards, so whoever can write the file could turn it off.
 

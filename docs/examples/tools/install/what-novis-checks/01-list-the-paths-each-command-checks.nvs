@@ -19,11 +19,11 @@ class Checks
         echo "nvs serve:\n";
         echo '  ', $file, "\n  ", $config, "\n";
 
-        // `nvs init` checks the folder it writes the file into, and the folder one level up.
+        // `nvs init` checks only the folder it writes the file into.
         echo "nvs init:\n";
-        echo '  ', $config, "\n  ", self::folderOf($config), "\n";
+        echo '  ', $config, "\n";
 
-        // A command that compiles a program checks the cache folder in the same way.
+        // A command that compiles a program checks the cache folder and the folder one level up.
         echo "every command that compiles a program:\n";
         echo '  ', $cache, "\n  ", self::folderOf($cache), "\n";
     }

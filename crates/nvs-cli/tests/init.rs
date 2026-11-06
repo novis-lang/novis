@@ -330,21 +330,21 @@ fn icacls(dir: &Path, edit: &[&str]) {
     );
 }
 
-/// The install chapter's table of what each command checks, for the two rows that look one level
-/// up: `nvs init` checks the folder it writes into and the folder that contains that folder, and
-/// a command that compiles checks the cache folder the same way.
+/// The install chapter's table of what each command checks, for `nvs init` and the cache folder.
+/// `nvs init` checks the folder it writes into and nothing above it, which is what `nvs serve`
+/// checks too. A command that compiles checks the cache folder and the folder that contains it.
 ///
-/// A folder every account may write fails `nvs init` whichever of the two it is: exit status `1`,
-/// an `error:` naming the folder that failed — the outer one when that is the one to change — and
-/// no file. Taking the right back is the whole repair.
+/// A folder every account may write fails `nvs init` when it is the folder the file goes into:
+/// exit status `1`, an `error:` naming that folder, and no file. Taking the right back is the
+/// whole repair. The same right on the outer folder alone does not stop `nvs init`.
 ///
-/// The same outer folder fails the cache folder inside it, and that is a `warning:` and a program
+/// That outer folder does fail the cache folder inside it, and that is a `warning:` and a program
 /// that still runs with nothing stored. `nvs run` reads its configuration out of a folder every
 /// account may write without a word, because only `nvs serve` and its reloads check the
 /// configuration files.
 // covers: tools:install/what-novis-checks
 #[test]
-fn nvs_init_and_the_cache_are_checked_one_folder_up_and_nvs_run_does_not_check_the_config() {
+fn nvs_init_checks_its_folder_alone_the_cache_one_folder_up_and_nvs_run_not_the_config() {
     let outer = scratch("one-level-up");
     let elsewhere = scratch("one-level-up-cwd");
     let inner = outer.join("config");
@@ -372,40 +372,40 @@ fn nvs_init_and_the_cache_are_checked_one_folder_up_and_nvs_run_does_not_check_t
         format!("`{}` ", canonical.display())
     };
 
-    for failing in [outer.path(), &inner] {
-        writable_by_others(failing, true);
-        let refused = nvs()
-            .arg("init")
-            .output()
-            .expect("the binary under test runs");
-        let stderr = String::from_utf8_lossy(&refused.stderr);
-        assert_eq!(
-            refused.status.code(),
-            Some(1),
-            "a folder every account may write is a refusal: {stderr}"
-        );
-        assert!(!target.exists(), "and nothing is written");
-        assert!(
-            stderr.starts_with("error:") && stderr.contains(&named(failing)),
-            "the message names the folder to change, `{}`: {stderr}",
-            failing.display()
-        );
-        assert!(
-            stderr.contains("the directory that contains it"),
-            "and says that two folders were checked: {stderr}"
-        );
-        writable_by_others(failing, false);
-    }
+    writable_by_others(&inner, true);
+    let refused = nvs()
+        .arg("init")
+        .output()
+        .expect("the binary under test runs");
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert_eq!(
+        refused.status.code(),
+        Some(1),
+        "a folder every account may write is a refusal: {stderr}"
+    );
+    assert!(!target.exists(), "and nothing is written");
+    assert!(
+        stderr.starts_with("error:") && stderr.contains(&named(&inner)),
+        "the message names the folder to change, `{}`: {stderr}",
+        inner.display()
+    );
+    assert!(
+        !stderr.contains("the directory that contains it"),
+        "and does not say a second folder was checked: {stderr}"
+    );
+    writable_by_others(&inner, false);
 
+    writable_by_others(&outer, true);
     let written = nvs()
         .arg("init")
         .output()
         .expect("the binary under test runs");
     assert!(
         written.status.success() && target.exists(),
-        "with the right taken back from both, the file is written: {}",
+        "the outer folder is not checked, so the file is written: {}",
         String::from_utf8_lossy(&written.stderr)
     );
+    writable_by_others(&outer, false);
 
     let slashed = cache.display().to_string().replace('\\', "/");
     std::fs::write(
@@ -540,7 +540,7 @@ fn the_icacls_steps_turn_a_folder_every_account_may_change_into_one_nvs_init_wri
             && stderr.contains(&format!("`{AUTHENTICATED_USERS}`")),
         "the message names the group and the SID to remove: {stderr}"
     );
-    // The folder the file goes into is checked first, so it is the one the message names.
+    // The folder the file goes into is the one `nvs init` checks, so it is the one the message names.
     let named = nvs_config::trust::canonical(&config).expect("the folder exists");
     let named = format!("\"{}\"", named.display());
     for command in [

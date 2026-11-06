@@ -123,15 +123,18 @@ This is what each command checks:
 | Command | Checks | If the check fails |
 |---|---|---|
 | `nvs serve`, at the start and at each reload | every configuration file, and the folder that contains it | the server does not start, or it keeps its configuration and logs `E0607` |
-| `nvs init` | the folder it writes into, **and the folder that contains that folder** | nothing is written and the exit status is `1` |
+| `nvs init` | the folder it writes into | nothing is written and the exit status is `1` |
 | `nvs run`, `nvs serve`, `nvs test`, `nvs build`, `nvs check`, `nvs lsp` | the data folder. For a folder that `--data` names, **also the folder that contains it** | one `warning:` line. The command runs without the data folder |
 | every command that compiles a program | the cache folder, **and the folder that contains it** | a `warning:` line when `file_cache_dir` is set. The program runs, and it is compiled again on every start |
 
 `nvs run`, `nvs check`, `nvs test` and `nvs config check` do not check the configuration files.
 
-The check on the cache folder and in `nvs init` also looks at the folder one level up. If
-`D:\srv\novis\config` has the correct permissions and `D:\srv\novis` does not, the message names
-`D:\srv\novis`. That is the folder to change.
+The check on the cache folder also looks at the folder one level up. If `D:\srv\novis\cache` has
+the correct permissions and `D:\srv\novis` does not, the warning names `D:\srv\novis`. That is the
+folder to change.
+
+`nvs init` checks the same folder that `nvs serve` checks later. It does not check the folder
+above it, so it never asks you to change a folder like `D:\srv` that other projects share.
 
 The default data folder, `.nvsdata` next to `nvs`, is the one exception. The folder that contains it
 is the folder of the `nvs` program, and Novis does not check that folder. An account that can change

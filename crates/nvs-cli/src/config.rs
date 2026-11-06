@@ -264,29 +264,36 @@ impl Declined {
     ///
     /// A breach carries the remedy and the explicit door with it, because that is the only one of
     /// these an operator is expected to act on: the others describe a machine's state rather than
-    /// a decision anybody made. It also says that two directories were examined, because
-    /// `nvs_config::trust::check` covers the directory the file goes into **and the one containing
-    /// it**, and a breach naming the parent otherwise reads as the file having been aimed at the
-    /// wrong place.
+    /// a decision anybody made. When `one_level_up` is set, the check covered the directory the
+    /// file goes into **and the one containing it** (the data folder's write, through
+    /// `nvs_config::data::check`), and the note says so, because a breach naming the parent
+    /// otherwise reads as the file having been aimed at the wrong place. [`init`] checks the
+    /// directory alone, so its note has no such line.
     ///
     /// A directory that could not be examined at all gets neither: the remedy is an answer to a
     /// DACL or a mode that was read, and what stopped this one is whatever the reader said.
     ///
     /// `target` is the file that was to be written, named in full so that a note about a
     /// `--config` path and one about `./nvs.toml` read the same way.
-    pub(crate) fn note_about(&self, target: &Path) -> String {
+    pub(crate) fn note_about(&self, target: &Path, one_level_up: bool) -> String {
         let file = target.display();
         match self {
             Self::Untrusted(nvs_config::trust::Untrusted::Unreadable(why)) => {
                 format!("`{file}` was not written: its directory could not be examined: {why}")
             }
-            Self::Untrusted(nvs_config::trust::Untrusted::Breach { message, help }) => format!(
-                "`{file}` was not written: {message}\n  \
-                 note: the ownership check covers the directory the file goes into and the \
-                 directory that contains it\n  \
-                 help: {help}\n  \
-                 help: then run `nvs init` again",
-            ),
+            Self::Untrusted(nvs_config::trust::Untrusted::Breach { message, help }) => {
+                let note = if one_level_up {
+                    "\n  note: the ownership check covers the directory the file goes into and \
+                     the directory that contains it"
+                } else {
+                    ""
+                };
+                format!(
+                    "`{file}` was not written: {message}{note}\n  \
+                     help: {help}\n  \
+                     help: then run `nvs init` again",
+                )
+            }
             Self::Exists => {
                 format!("`{file}` was not written: it already exists, and it is never overwritten")
             }
@@ -307,15 +314,25 @@ impl Declined {
 /// whatever the directory above it lets every child inherit, which is the state the check refuses.
 /// The data folder is created privately by `nvs_config::data::prepare` before any of this runs, and
 /// `nvs_config::data::check` is the check, so the default data folder is examined without the
-/// binary's directory above it.
+/// binary's directory above it and a `--data` folder with it.
 fn write_default_at(target: &Path, text: &str) -> Result<PathBuf, Declined> {
+    write_checked(target, text, nvs_config::data::check)
+}
+
+/// `text` written at `target` once `check` passes the directory it goes into, as
+/// [`write_default_at`] and [`init`] both write.
+fn write_checked(
+    target: &Path,
+    text: &str,
+    check: fn(&Path) -> Result<PathBuf, nvs_config::trust::Untrusted>,
+) -> Result<PathBuf, Declined> {
     let (Some(dir), Some(name)) = (target.parent(), target.file_name()) else {
         return Err(Declined::Unwritable(format!(
             "`{}` does not name a file",
             target.display()
         )));
     };
-    let dir = nvs_config::data::check(dir).map_err(Declined::Untrusted)?;
+    let dir = check(dir).map_err(Declined::Untrusted)?;
     write_template(dir.join(name), text)
 }
 
@@ -363,13 +380,22 @@ fn write_template(path: PathBuf, text: &str) -> Result<PathBuf, Declined> {
 
 /// `nvs init` — the same file, written because an operator asked for it.
 ///
-/// The write is [`write_default_at`]'s, so this is the template a project command writes into the
-/// data folder and the ownership check in front of it is the same check. The file has no marker
-/// line, because it is the operator's to edit from the start and Novis never refreshes it
-/// ([`nvs_config::data::Folder::refresh_config`]). **What differs is what a refusal means.** Nobody asked for the implicit write, so declining it is silent and the run
-/// carries on; this command exists only to produce the file, so a refusal is the answer to the
-/// question that was asked — an `error:` line and a non-zero exit, which is what a script that runs
-/// this can act on.
+/// The write is [`write_checked`]'s, as a project command's write into the data folder is. The file
+/// has no marker line, because it is the operator's to edit from the start and Novis never refreshes
+/// it ([`nvs_config::data::Folder::refresh_config`]).
+///
+/// **The ownership check is `nvs serve`'s, and no wider.** `serve` checks the file and the
+/// directory it is in, so this checks that directory alone, with
+/// [`nvs_config::trust::check_alone`]. The directory above it is not this file's: `nvs serve`
+/// never looks at it, and refusing over it would send an operator to change the permissions of a
+/// shared folder such as `D:\srv`, which every project under it inherits from. The new file takes the
+/// directory's inheritable entries, and `serve`'s own check of the file is the backstop for an entry
+/// that reaches files alone.
+///
+/// **What differs from the implicit write is what a refusal means.** Nobody asked for the implicit
+/// write, so declining it is silent and the run carries on; this command exists only to produce
+/// the file, so a refusal is the answer to the question that was asked — an `error:` line and a
+/// non-zero exit, which is what a script that runs this can act on.
 ///
 /// It is not a project command and is not in [`crate::initializes`]: it resolves no tree and runs
 /// nothing, so there is no step 4 to reach.
@@ -400,13 +426,17 @@ pub(crate) fn init(config: &[PathBuf]) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    match write_default_at(&target, nvs_config::default_file()) {
+    match write_checked(
+        &target,
+        nvs_config::default_file(),
+        nvs_config::trust::check_alone,
+    ) {
         Ok(written) => {
             println!("wrote `{}`", written.display());
             ExitCode::SUCCESS
         }
         Err(declined) => {
-            eprintln!("error: {}", declined.note_about(&target));
+            eprintln!("error: {}", declined.note_about(&target, false));
             ExitCode::FAILURE
         }
     }
@@ -755,7 +785,7 @@ fn resolved_in(
             Ok(_) | Err(Declined::Exists) => {
                 roots = nvs_config::resolve::roots(config, cwd, Some(data), files);
             }
-            Err(why) => declined = Some(why.note_about(data)),
+            Err(why) => declined = Some(why.note_about(data, true)),
         }
     }
     // Each root is stored as `roots` gives it, absolute and never canonical, so a reload follows its
@@ -1865,7 +1895,7 @@ mod tests {
             matches!(breach, Declined::Untrusted(_)),
             "the ownership check answered first: {breach:?}"
         );
-        let breach_note = breach.note_about(&untrusted.join("nvs.toml"));
+        let breach_note = breach.note_about(&untrusted.join("nvs.toml"), true);
         assert!(
             breach_note.contains("nvs init"),
             "and it points at the one explicit door: {breach_note}"
@@ -1897,8 +1927,8 @@ mod tests {
 
         for note in [
             breach_note,
-            refused.note_about(&refusing.join("nvs.toml")),
-            already.note_about(&occupied.join("nvs.toml")),
+            refused.note_about(&refusing.join("nvs.toml"), true),
+            already.note_about(&occupied.join("nvs.toml"), true),
         ] {
             assert!(
                 note.contains("nvs.toml"),
