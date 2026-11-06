@@ -83,13 +83,15 @@
 //! and for each doubling of an element's attributes or children before it is
 //! made, and stops at the memory limit's `FATAL` rather than build past it.
 //!
-//! Per streaming walk: the document's own text, held as the caller handed it
-//! over rather than copied, plus the node [`nvs_core_xml_reader_read`] last
-//! answered and the names of the elements open around it — [`DEPTH_CEILING`]
-//! of them at the very most. What a walk *builds* is one node, so reading a
-//! document ten times larger costs the reader the same, which is the property
-//! `rule:core-classes/xml-tree-and-stream` names and
-//! `the_reader_holds_one_window_rather_than_the_document` measures.
+//! Per streaming walk: for a `string`, the document's own text, held as the
+//! caller handed it over rather than copied; for any other source, one
+//! [`Window`] — the largest node about twice over, plus one chunk. Then the
+//! node [`nvs_core_xml_reader_read`] last answered and the names of the
+//! elements open around it — [`DEPTH_CEILING`] of them at the very most. What a
+//! walk *builds* is one node, so reading a document ten times larger costs the
+//! reader the same, which is the property `rule:core-classes/xml-tree-and-stream`
+//! names, `the_reader_holds_one_window_rather_than_the_document` measures for a
+//! string and `xml_reader_over_a_file_holds_one_window` for a file.
 //!
 //! # The way back out of a tree
 //!
@@ -149,10 +151,13 @@
 //! document), beside a tree whose names and text already are, and released
 //! with it.
 
+use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 
-use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
+use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
 
+use crate::byte_source::ByteSource;
+use crate::encoding::StreamDecoder;
 use crate::registry::{
     CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
     ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -212,7 +217,26 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "reader",
             names: &["document"],
-            params: &[CoreTy::Text(Qual::Neutral)],
+            // A `string` stays an arm beside every forward source
+            // (`rule:core-api/a-member-takes-the-source-the-program-holds`).
+            // Each arm is `Neutral`, as `parse`'s is: every text the walk
+            // gives is `tainted`, whatever it read.
+            params: &[CoreTy::Union(&[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Alias(
+                    r"Core\Bytes::Source",
+                    &CoreTy::Union(&[
+                        CoreTy::Blob(Qual::Neutral),
+                        CoreTy::Instance(crate::io::FILE_NAME),
+                        CoreTy::Instance(crate::request::PART_NAME),
+                        CoreTy::Instance(crate::request::BODY_STREAM_NAME),
+                    ]),
+                ),
+                CoreTy::Alias(
+                    r"Core\Bytes::Chunks",
+                    &CoreTy::Iterated(&CoreTy::TaintedBytes),
+                ),
+            ])],
             defaults: &[],
             return_ty: CoreTy::Instance(READER_NAME),
             symbol: "nvs_core_xml_reader",
@@ -580,7 +604,7 @@ pub(crate) const READER: CoreClass = CoreClass {
         },
     ],
     slots: &[
-        "document", "cursor", "depth", "stack", "open", "rooted", "scopes",
+        "document", "cursor", "depth", "stack", "open", "rooted", "scopes", "window",
     ],
     constants: &[],
 };
@@ -593,12 +617,18 @@ const READER_DOC: MethodDoc = MethodDoc {
             reads nothing yet. The first `read` reads the first node.",
     params: &[ParamDoc {
         name: "document",
-        desc: "The document text. The reader does not copy it. Entity references are handled \
-               the same way as in `Core\\Xml::parse`.",
+        desc: "The document. It can be a `string`, `bytes`, an open `Core\\IO\\File`, an \
+               upload, the request body, or a list or stream of `bytes` chunks. The reader \
+               reads a file or a stream a little at a time, so a document of any size uses \
+               the same memory. Bytes must be UTF-8, or UTF-16 with a byte order mark. Entity \
+               references are handled the same way as in `Core\\Xml::parse`.",
         shape: &[],
     }],
     ret: "A reader. Its first `read` returns the first node of the document.",
-    errors: &[],
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The file is already closed.",
+    }],
 };
 
 /// `Core\Xml\Reader`'s class card — `rule:core-api/reference-card`.
@@ -625,7 +655,8 @@ const READ_DOC: MethodDoc = MethodDoc {
         desc: "The document is not well-formed at the place the reader has reached. \
                `Core\\Xml::parse` throws the same errors. The nodes before that place were \
                already returned. The reader does not move past the error, so the next `read` \
-               throws the same error again.",
+               throws the same error again. A document read from bytes also throws this error \
+               when its bytes are not UTF-8 or UTF-16, or when it declares another encoding.",
     }],
 };
 
@@ -656,6 +687,10 @@ const OPEN_SLOT: usize = 4;
 const ROOTED_SLOT: usize = 5;
 /// See [`DOCUMENT_SLOT`].
 const SCOPES_SLOT: usize = 6;
+/// The key the walk's [`Window`] is filed under, for a byte source, and `null`
+/// for a `string`. Then [`DOCUMENT_SLOT`] has the value
+/// [`ByteSource::from_arg`] gave, and [`CURSOR_SLOT`] is unused.
+const WINDOW_SLOT: usize = 7;
 
 /// `Core\Xml\Writer`'s registry rows — the other half of the stream, which
 /// builds a document a node at a time and never holds one to walk.
@@ -1290,6 +1325,14 @@ struct Reader<'a> {
     /// How far into it the walk has read, in bytes, always at a character
     /// boundary because every advance is by a character's own width.
     pos: usize,
+    /// Whether a read looked at the end of `src` and could have gone another
+    /// way had more text followed. A walk over a window of a byte source reads
+    /// more and steps again when this is set ([`Window`]); a whole document
+    /// ignores it.
+    edge: Cell<bool>,
+    /// Whether `src` was decoded from bytes, so a declared `encoding` must be
+    /// one the decoder reads.
+    decoded: bool,
 }
 
 /// The names of the elements a streaming walk has open, over the slots that
@@ -1399,7 +1442,40 @@ impl<'a> Reader<'a> {
 
     /// A reader positioned at the start of `src`.
     fn new(src: &'a str) -> Self {
-        Self { src, pos: 0 }
+        Self {
+            src,
+            pos: 0,
+            edge: Cell::new(false),
+            decoded: false,
+        }
+    }
+
+    /// A reader over one window of a byte source's decoded text, from its
+    /// start.
+    fn windowed(src: &'a str) -> Self {
+        Self {
+            decoded: true,
+            ..Self::new(src)
+        }
+    }
+
+    /// Records that a read reached the end of the text.
+    fn reached(&self) {
+        self.edge.set(true);
+    }
+
+    /// Whether `lead` is next. Where the text ends part way into `lead`, the
+    /// answer depends on what follows, so the read is marked as one that
+    /// reached the end.
+    fn starts(&self, lead: &str) -> bool {
+        let rest = self.rest();
+        if rest.starts_with(lead) {
+            return true;
+        }
+        if rest.len() < lead.len() && lead.starts_with(rest) {
+            self.reached();
+        }
+        false
     }
 
     /// A reader positioned `pos` bytes into `src` — a streaming walk resuming
@@ -1410,7 +1486,10 @@ impl<'a> Reader<'a> {
             src.is_char_boundary(pos),
             "a cursor this module wrote is where one of its own reads stopped"
         );
-        Self { src, pos }
+        Self {
+            pos,
+            ..Self::new(src)
+        }
     }
 
     /// What has not been read yet.
@@ -1421,12 +1500,16 @@ impl<'a> Reader<'a> {
     /// A short excerpt of what is next, for a message that has to show where
     /// the document stopped making sense.
     fn here(&self) -> String {
-        self.rest().chars().take(16).collect()
+        let excerpt: String = self.rest().chars().take(16).collect();
+        if excerpt.len() == self.rest().len() {
+            self.reached();
+        }
+        excerpt
     }
 
     /// Consumes `lead` if it is next, and reports whether it was.
     fn eat(&mut self, lead: &str) -> bool {
-        if self.rest().starts_with(lead) {
+        if self.starts(lead) {
             self.pos += lead.len();
             true
         } else {
@@ -1437,6 +1520,9 @@ impl<'a> Reader<'a> {
     /// Consumes any run of whitespace.
     fn skip_space(&mut self) {
         let left = self.rest().trim_start_matches(is_space);
+        if left.is_empty() {
+            self.reached();
+        }
         self.pos = self.src.len() - left.len();
     }
 
@@ -1447,9 +1533,10 @@ impl<'a> Reader<'a> {
     /// A sentence naming `what` for a document that ends first.
     fn take_until(&mut self, close: &str, what: &str) -> Result<&'a str, String> {
         let rest = self.rest();
-        let end = rest
-            .find(close)
-            .ok_or_else(|| format!("{what} is never closed by `{close}`"))?;
+        let Some(end) = rest.find(close) else {
+            self.reached();
+            return Err(format!("{what} is never closed by `{close}`"));
+        };
         if let Some(ch) = rest[..end].chars().find(|&ch| forbidden(ch)) {
             return Err(refused_literal(ch));
         }
@@ -1476,6 +1563,10 @@ impl<'a> Reader<'a> {
             }
             end = at + ch.len_utf8();
         }
+        if end == rest.len() {
+            // The name may go on in text that has not been read yet.
+            self.reached();
+        }
         if end == 0 {
             return Err(format!(
                 "{what} needs a name, and `{}` is not one",
@@ -1501,6 +1592,10 @@ impl<'a> Reader<'a> {
         let rest = &self.rest()[1..];
         let end = rest.find(';').unwrap_or(rest.len());
         let body = &rest[..end];
+        if end == rest.len() && !body.contains(|ch: char| is_space(ch) || ch == '<') {
+            // The `;` may be in text that has not been read yet.
+            self.reached();
+        }
         if end == rest.len()
             || body.is_empty()
             || body.contains(|ch: char| is_space(ch) || ch == '<')
@@ -1561,6 +1656,7 @@ impl<'a> Reader<'a> {
         let mut out = String::new();
         loop {
             let Some(ch) = self.rest().chars().next() else {
+                self.reached();
                 return Err(format!("attribute `{attr}`'s value is never closed"));
             };
             if ch == quote {
@@ -1580,7 +1676,7 @@ impl<'a> Reader<'a> {
                 return Err(refused_literal(ch));
             }
             self.pos += ch.len_utf8();
-            if ch == '\r' && self.rest().starts_with('\n') {
+            if ch == '\r' && self.starts("\n") {
                 self.pos += 1;
             }
             out.push(if matches!(ch, '\t' | '\n' | '\r') {
@@ -1734,15 +1830,18 @@ impl<'a> Reader<'a> {
     fn chardata(&mut self) -> Result<Parsed, String> {
         let mut out = String::new();
         loop {
-            let rest = self.rest();
-            if rest.starts_with("]]>") {
+            if self.starts("]]>") {
                 return Err(
                     "`]]>` is written in character data, where it can only be a CDATA section's \
                      closer"
                         .to_owned(),
                 );
             }
-            let Some(ch) = rest.chars().next() else { break };
+            let Some(ch) = self.rest().chars().next() else {
+                // The text may go on in what has not been read yet.
+                self.reached();
+                break;
+            };
             if ch == '<' {
                 break;
             }
@@ -1764,11 +1863,30 @@ impl<'a> Reader<'a> {
     ///
     /// # Errors
     ///
-    /// A sentence for a declaration the document ends inside.
+    /// A sentence for a declaration the document ends inside, and, for text
+    /// decoded from bytes, for an `encoding` the decoder does not read.
     fn declaration(&mut self) -> Result<(), String> {
-        let rest = self.rest();
-        if rest.starts_with("<?xml") && rest["<?xml".len()..].starts_with(is_space) {
-            self.take_until("?>", "the XML declaration")?;
+        if !self.starts("<?xml") {
+            return Ok(());
+        }
+        let after = &self.rest()["<?xml".len()..];
+        if after.is_empty() {
+            self.reached();
+        }
+        if !after.starts_with(is_space) {
+            return Ok(());
+        }
+        let body = self.take_until("?>", "the XML declaration")?;
+        if self.decoded
+            && let Some(name) = declared_encoding(body)
+            && !READ_ENCODINGS
+                .iter()
+                .any(|read| read.eq_ignore_ascii_case(name))
+        {
+            return Err(format!(
+                "the document declares the encoding `{name}`. A reader reads bytes in UTF-8 or \
+                 UTF-16 only. Convert the bytes to UTF-8 with `Core\\Encoding` first"
+            ));
         }
         Ok(())
     }
@@ -1871,8 +1989,9 @@ impl<'a> Reader<'a> {
         &mut self,
         open: &mut Open<'_>,
         rooted: &mut bool,
+        start: bool,
     ) -> Result<Option<(Parsed, usize)>, String> {
-        if self.pos == 0 {
+        if start {
             self.declaration()?;
         }
         loop {
@@ -1881,8 +2000,8 @@ impl<'a> Reader<'a> {
             if open.depth() == 0 {
                 self.skip_space();
             }
-            let rest = self.rest();
-            if rest.is_empty() {
+            if self.rest().is_empty() {
+                self.reached();
                 if let Some(name) = open.innermost() {
                     return Err(format!("`<{name}>` is never closed"));
                 }
@@ -1891,7 +2010,7 @@ impl<'a> Reader<'a> {
                 }
                 return Ok(None);
             }
-            if rest.starts_with("</") {
+            if self.starts("</") {
                 let Some(opened) = ({
                     self.pos += "</".len();
                     let name = self.name("a closing tag")?;
@@ -1916,25 +2035,25 @@ impl<'a> Reader<'a> {
                 continue;
             }
             let depth = open.depth();
-            if rest.starts_with("<!--") {
+            if self.starts("<!--") {
                 return Ok(Some((self.comment()?, depth)));
             }
-            if rest.starts_with("<!DOCTYPE") {
+            if self.starts("<!DOCTYPE") {
                 return Err(DOCTYPE_REFUSAL.to_owned());
             }
-            if rest.starts_with("<![CDATA[") && depth > 0 {
+            if depth > 0 && self.starts("<![CDATA[") {
                 return Ok(Some((self.cdata()?, depth)));
             }
-            if rest.starts_with("<!") && depth > 0 {
+            if depth > 0 && self.starts("<!") {
                 return Err(format!(
                     "`{}` is not something a document may hold",
                     self.here()
                 ));
             }
-            if rest.starts_with("<?") {
+            if self.starts("<?") {
                 return Ok(Some((self.processing_instruction()?, depth)));
             }
-            if rest.starts_with('<') {
+            if self.starts("<") {
                 if depth == 0 && *rooted {
                     return Err(
                         "a document has one root element, and this is a second one".to_owned()
@@ -2027,6 +2146,23 @@ impl<'a> Reader<'a> {
 /// not parse produces nothing rather than as much of a tree as could be built.
 pub(crate) fn parse(document: &str) -> Result<Parsed, String> {
     Reader::new(document).document()
+}
+
+/// The encodings a document read from bytes may declare: the two the reader
+/// decodes, and US-ASCII, whose bytes are already UTF-8. Compared without case.
+const READ_ENCODINGS: [&str; 6] = [
+    "UTF-8", "UTF8", "UTF-16", "UTF-16LE", "UTF-16BE", "US-ASCII",
+];
+
+/// The value of the `encoding` pseudo-attribute in an XML declaration's
+/// `body`, or `None` where the declaration names none.
+fn declared_encoding(body: &str) -> Option<&str> {
+    let at = body.find("encoding")?;
+    let rest = body[at + "encoding".len()..].trim_start_matches(is_space);
+    let rest = rest.strip_prefix('=')?.trim_start_matches(is_space);
+    let quote = rest.chars().next().filter(|ch| matches!(ch, '"' | '\''))?;
+    let rest = &rest[quote.len_utf8()..];
+    Some(&rest[..rest.find(quote)?])
 }
 
 /// The namespace the XML specification binds the `xml` prefix to for good: a
@@ -2339,23 +2475,22 @@ fn wrong_slot(class: &CoreClass, member: &str, index: usize, held: Value) -> Fau
 /// [`nvs_core_xml_reader_read`]'s body: one step of a walk, over the slots that
 /// hold its position.
 ///
-/// A reader's whole state is those slots — the document's own text, a cursor
-/// into it, the stack of open names, and the two counts — so it is an ordinary
-/// `Core` value with no native allocation behind it and nothing to free when it
-/// is released. What this builds per call is one node.
+/// Over a `string`, a reader's whole state is those slots — the document's own
+/// text, a cursor into it, the stack of open names, and the two counts — so it
+/// has no native allocation behind it. Over any other source, the text is a
+/// [`Window`] filed on the request, read through [`read_window`]. What this
+/// builds per call is one node.
 ///
 /// # Errors
 ///
 /// A `ParseError` for a document that is not well-formed where the walk has
 /// reached, and a `Fault::fatal` for a slot this module wrote wrong. A refusal
 /// writes no slot at all, so asking again reads from the same place and reports
-/// the same sentence rather than skipping the node it refused.
-fn read(receiver: Value) -> Result<Value, Fault> {
+/// the same sentence rather than skipping the node it refused. [`grow`]'s, for
+/// a byte source.
+fn read(ctx: &mut Ctx, receiver: Value) -> Result<Value, Fault> {
     let object = crate::instance::receiver(receiver, &READER, "read")?;
-    let held = crate::instance::slot(object, DOCUMENT_SLOT);
-    let document = held
-        .as_text()
-        .ok_or_else(|| wrong_slot(&READER, "read", DOCUMENT_SLOT, held))?;
+    let window = crate::instance::slot(object, WINDOW_SLOT).as_uint();
     let held = crate::instance::slot(object, ROOTED_SLOT);
     let mut rooted = held
         .as_bool()
@@ -2376,22 +2511,28 @@ fn read(receiver: Value) -> Result<Value, Fault> {
         depth: count_slot(&READER, object, OPEN_SLOT, "read")?,
     };
 
-    let mut scan = Reader::at(document, count_slot(&READER, object, CURSOR_SLOT, "read")?);
-    let stepped = scan.step(&mut open, &mut rooted).map_err(|why| {
-        // A breach is the limit's `FATAL`, as it is for the parse.
-        if why == UNAFFORDABLE {
-            return Fault::fatal(format!("{READER_NAME}::read(): {why}."));
+    let stepped = match window {
+        None => {
+            let held = crate::instance::slot(object, DOCUMENT_SLOT);
+            let document = held
+                .as_text()
+                .ok_or_else(|| wrong_slot(&READER, "read", DOCUMENT_SLOT, held))?;
+            let mut scan = Reader::at(document, count_slot(&READER, object, CURSOR_SLOT, "read")?);
+            let start = scan.pos == 0;
+            let stepped = scan.step(&mut open, &mut rooted, start).map_err(refusal)?;
+            crate::instance::set_slot(object, CURSOR_SLOT, counted(scan.pos));
+            stepped
         }
-        Fault::thrown_as(
-            ThrownClass::Parse,
-            // The sentence is the reader's and the period is here, exactly as
-            // the parse's is, so no message has to remember to end like one.
-            format!("{READER_NAME}::read(): {why}."),
-        )
-    })?;
+        Some(key) => match read_window(ctx, object, key, &mut open, &mut rooted)? {
+            Some(stepped) => stepped,
+            None => {
+                crate::instance::set_slot(object, DEPTH_SLOT, counted(0));
+                return Ok(Value::null());
+            }
+        },
+    };
     let depth = open.depth();
 
-    crate::instance::set_slot(object, CURSOR_SLOT, counted(scan.pos));
     crate::instance::set_slot(object, OPEN_SLOT, counted(depth));
     crate::instance::set_slot(object, ROOTED_SLOT, Value::bool(rooted));
     let Some((node, at)) = stepped else {
@@ -2401,6 +2542,301 @@ fn read(receiver: Value) -> Result<Value, Fault> {
     crate::instance::set_slot(object, DEPTH_SLOT, counted(at));
     let carried = inherited(open.scopes, at, &node);
     Ok(instance_of(node, &carried))
+}
+
+/// The fault a walk's refusal `why` is: the memory limit's `FATAL` for a
+/// breach, as it is for the parse, and a `ParseError` for everything else.
+fn refusal(why: String) -> Fault {
+    if why == UNAFFORDABLE {
+        return Fault::fatal(format!("{READER_NAME}::read(): {why}."));
+    }
+    // The sentence is the reader's and the period is here, exactly as the
+    // parse's is, so no message has to remember to end like one.
+    Fault::thrown_as(ThrownClass::Parse, format!("{READER_NAME}::read(): {why}."))
+}
+
+/// The member a reader's source is taken by, for [`ByteSource`]'s messages.
+const READER_MEMBER: &str = "Core\\Xml::reader";
+
+/// The text a walk over a byte source reads from: one window of the source,
+/// decoded to UTF-8, filed on the request beside the slots.
+///
+/// **One window.** [`Self::start`] moves forward as each node is given, and
+/// the text before it is dropped the next time the window grows. So the
+/// window holds the node being read, plus at most the chunk that was read to
+/// finish it. A node that does not fit in what has been read is read again
+/// from its start once more text is in. [`grow`] then reads at least as much
+/// as the window holds, so a long node is scanned a constant number of times
+/// per byte. **What it spends:** the largest node, about twice over, plus one
+/// chunk, per open walk.
+#[derive(Debug)]
+struct Window {
+    /// The bytes the document is read from, `None` once it is read to its
+    /// end or has failed.
+    source: Option<ByteSource>,
+    /// What a message calls the source: the file's path, or `the document`.
+    origin: String,
+    /// The decoded text. Everything before [`Self::start`] is given already.
+    text: String,
+    /// Where the next step reads from in [`Self::text`].
+    start: usize,
+    /// Decoded octets not yet moved into [`Self::text`]: a UTF-8 sequence
+    /// that the last chunk cut.
+    raw: Vec<u8>,
+    /// The source's first bytes, kept until there are enough to tell its byte
+    /// order mark, and `None` from then on.
+    head: Option<Vec<u8>>,
+    /// The UTF-16 decoder a byte order mark chose, or `None` for UTF-8.
+    decoder: Option<StreamDecoder>,
+    /// How many of the source's bytes are in [`Self::text`], for the offset a
+    /// message names.
+    taken: u64,
+    /// Whether a node has been given, so the XML declaration is behind it.
+    begun: bool,
+    /// Whether the source has been read to its end.
+    ended: bool,
+    /// Whether the walk is over: the end was given, or a read failed.
+    done: bool,
+    /// The `ParseError` bytes that are not text raised, given again by every
+    /// later read, as a refusal of the document is.
+    broken: Option<String>,
+}
+
+impl Window {
+    /// A window over `source` that has read nothing yet.
+    fn over(source: ByteSource) -> Self {
+        let origin = source
+            .path()
+            .map_or_else(|| "the document".to_owned(), |path| format!("`{path}`"));
+        Self {
+            source: Some(source),
+            origin,
+            text: String::new(),
+            start: 0,
+            raw: Vec::new(),
+            head: Some(Vec::new()),
+            decoder: None,
+            taken: 0,
+            begun: false,
+            ended: false,
+            done: false,
+            broken: None,
+        }
+    }
+
+    /// Takes one chunk off the source, or the end of it where `last` is set.
+    ///
+    /// The first [`StreamDecoder::MARK`] bytes are kept until the byte order
+    /// mark can be told. A UTF-16 mark chooses the decoder, and anything else
+    /// is read as UTF-8.
+    ///
+    /// # Errors
+    ///
+    /// The `ParseError` for bytes that are not text, which [`Self::broken`]
+    /// then keeps.
+    fn take(&mut self, chunk: &[u8], last: bool) -> Result<(), Fault> {
+        let Some(head) = &mut self.head else {
+            return self.decode(chunk, last);
+        };
+        head.extend_from_slice(chunk);
+        if head.len() < StreamDecoder::MARK && !last {
+            return Ok(());
+        }
+        let head = self.head.take().unwrap_or_default();
+        // `Core\Charset::Utf8` is case 0: what a source with no mark is read as.
+        let (skip, decoder) = StreamDecoder::start(&Value::int(0), &head, READER_MEMBER)?;
+        self.decoder = decoder;
+        self.taken = u64::try_from(skip).unwrap_or(u64::MAX);
+        self.decode(&head[skip..], last)
+    }
+
+    /// Appends `chunk` to [`Self::text`], decoded, keeping a cut UTF-8
+    /// sequence in [`Self::raw`] until the next chunk ends it.
+    fn decode(&mut self, chunk: &[u8], last: bool) -> Result<(), Fault> {
+        if let Some(decoder) = &mut self.decoder {
+            if let Err(offset) = decoder.decode(chunk, last, &mut self.raw) {
+                return Err(self.not_text(offset, "UTF-16"));
+            }
+        } else {
+            self.raw.extend_from_slice(chunk);
+        }
+        let valid = match std::str::from_utf8(&self.raw) {
+            Ok(text) => text.len(),
+            Err(err) if err.error_len().is_none() && !last => err.valid_up_to(),
+            Err(err) => {
+                let offset = self
+                    .taken
+                    .saturating_add(u64::try_from(err.valid_up_to()).unwrap_or(u64::MAX));
+                return Err(self.not_text(offset, "UTF-8"));
+            }
+        };
+        // The text before the window's start is given already, so it goes now,
+        // before the window grows.
+        self.text.drain(..self.start);
+        self.start = 0;
+        if let Ok(text) = std::str::from_utf8(&self.raw[..valid]) {
+            self.text.push_str(text);
+        }
+        self.raw.drain(..valid);
+        self.taken = self
+            .taken
+            .saturating_add(u64::try_from(valid).unwrap_or(u64::MAX));
+        Ok(())
+    }
+
+    /// The `ParseError` for the byte at `offset`, which is not `what`, kept so
+    /// every later read gives it again.
+    fn not_text(&mut self, offset: u64, what: &str) -> Fault {
+        let why = format!(
+            "{READER_NAME}::read(): byte {offset} of {} is not {what} text. Convert the bytes to \
+             UTF-8 with `Core\\Encoding` first.",
+            self.origin
+        );
+        self.broken = Some(why.clone());
+        Fault::thrown_as(ThrownClass::Parse, why)
+    }
+
+    /// Ends the walk: every later read gives `null`, and every buffer is freed.
+    fn finish(&mut self) {
+        self.done = true;
+        self.ended = true;
+        self.source = None;
+        self.text = String::new();
+        self.start = 0;
+        self.raw = Vec::new();
+        self.head = None;
+        self.decoder = None;
+    }
+}
+
+impl nvs_runtime::HeldReader for Window {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+/// The walk's [`Window`], as the type this module filed it as.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] where the task holds no such window, which only a walk
+/// read in a task other than the one that made it can reach.
+fn window_at(ctx: &mut Ctx, key: u64) -> Result<&mut Window, Fault> {
+    ctx.open_reader_mut(key)
+        .and_then(|held| held.as_any_mut().downcast_mut::<Window>())
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "A `{READER_NAME}` was read in a task other than the one that called \
+                 `{READER_MEMBER}`. A reader works only in that task."
+            ))
+        })
+}
+
+/// One step of a walk over a byte source, or `None` once the walk is over.
+///
+/// The step runs over the window. Where it reached the window's end and the
+/// source has more, its result could change, so nothing it did is kept: more
+/// is read and the step runs again from the same place, with `open` and
+/// `rooted` as they were.
+///
+/// # Errors
+///
+/// [`refusal`]'s, [`grow`]'s, and the `ParseError` a broken window keeps.
+fn read_window(
+    ctx: &mut Ctx,
+    object: *mut ObjHeader,
+    key: u64,
+    open: &mut Open<'_>,
+    rooted: &mut bool,
+) -> Result<Option<Option<(Parsed, usize)>>, Fault> {
+    let depth = open.depth;
+    let was_rooted = *rooted;
+    loop {
+        let window = window_at(ctx, key)?;
+        if let Some(why) = &window.broken {
+            return Err(Fault::thrown_as(ThrownClass::Parse, why.clone()));
+        }
+        if window.done {
+            return Ok(None);
+        }
+        open.depth = depth;
+        *rooted = was_rooted;
+        let mut scan = Reader::windowed(&window.text[window.start..]);
+        let stepped = scan.step(open, rooted, !window.begun);
+        let (read, edge) = (scan.pos, scan.edge.get());
+        if edge && !window.ended {
+            let want = (window.text.len() - window.start).max(1);
+            if let Err(fault) = grow(ctx, key, crate::instance::slot(object, DOCUMENT_SLOT), want) {
+                if window_at(ctx, key)?.done {
+                    crate::instance::set_slot(object, DOCUMENT_SLOT, Value::null());
+                }
+                return Err(fault);
+            }
+            continue;
+        }
+        let stepped = stepped.map_err(refusal)?;
+        window.start += read;
+        window.begun = true;
+        if stepped.is_none() {
+            window.finish();
+            crate::instance::set_slot(object, DOCUMENT_SLOT, Value::null());
+        }
+        return Ok(Some(stepped));
+    }
+}
+
+/// Reads at least `want` more bytes off the walk's source into its window, or
+/// up to the end of the source.
+///
+/// **The source is taken out of the window for one read**, because the read
+/// needs the context the window is filed in, as `Core\Csv::rows` does. A
+/// failed read ends the walk, so a later `read` gives `null`.
+///
+/// # Errors
+///
+/// [`ByteSource::next_chunk`]'s, such as a `RuntimeError` for a file closed
+/// under the walk, the memory limit's `FATAL`, and [`Window::take`]'s
+/// `ParseError` for bytes that are not text.
+fn grow(ctx: &mut Ctx, key: u64, holder: Value, want: usize) -> Result<(), Fault> {
+    let mut added = 0usize;
+    while added < want {
+        let window = window_at(ctx, key)?;
+        let Some(mut source) = window.source.take() else {
+            window.ended = true;
+            return Ok(());
+        };
+        let taken = match source.next_chunk(ctx, holder) {
+            Ok(Some(chunk)) => {
+                let bytes = chunk.bytes();
+                added = added.saturating_add(bytes.len());
+                // UTF-16 decodes to at most one and a half times its bytes.
+                nvs_runtime::affordable(Some(bytes.len().saturating_mul(2).max(1)), READER_MEMBER)
+                    .and_then(|_| window_at(ctx, key))
+                    .and_then(|window| window.take(bytes, false))
+            }
+            Ok(None) => window_at(ctx, key).and_then(|window| {
+                window.ended = true;
+                window.take(&[], true)
+            }),
+            Err(fault) => Err(fault),
+        };
+        let window = window_at(ctx, key)?;
+        match taken {
+            Ok(()) if window.ended => return Ok(()),
+            Ok(()) => window.source = Some(source),
+            Err(fault) => {
+                drop(source);
+                if window.broken.is_none() {
+                    window.finish();
+                } else {
+                    window.source = None;
+                    window.ended = true;
+                }
+                return Err(fault);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The declarations, of those the elements open above `depth` wrote, that
@@ -2781,22 +3217,39 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Xml::reader(string $document): Core\Xml\Reader` — replacing
-    /// `XMLReader::xml` and `xml_parser_create`.
+    /// `Core\Xml::reader(string|Core\Bytes::Source|Core\Bytes::Chunks
+    /// $document): Core\Xml\Reader` — replacing `XMLReader::xml`,
+    /// `XMLReader::open` and `xml_parser_create`.
     ///
-    /// Nothing is read here. The reader holds the document's own text, a cursor
-    /// at its start, an empty stack and the two counts, and the first
+    /// Nothing is read here. For a `string`, the reader holds the document's
+    /// own text, a cursor at its start, an empty stack and the two counts. For
+    /// any other source it files a [`Window`] on the request and keeps the
+    /// source's holder, as `Core\Csv::rows` does. The first
     /// [`nvs_core_xml_reader_read`] is what reaches the first character —
     /// which is why a malformed document is refused by the walk rather than by
     /// this.
-    fn nvs_core_xml_reader(_ctx, args: [1]) {
-        // unreachable from source: the parameter is `CoreTy::Text`, so anything
-        // that is not a `string` is `E0401` at the call site.
+    ///
+    /// # Errors
+    ///
+    /// [`ByteSource::from_arg`]'s, such as the `RuntimeError` for a file that
+    /// is already closed.
+    fn nvs_core_xml_reader(ctx, args: [1]) {
         if args[0].as_text().is_none() {
-            return Err(Fault::fatal(format!(
-                "Core\\Xml::reader expected a `string`, got tag {}",
-                args[0].tag_byte()
-            )));
+            let (source, holder) = ByteSource::from_arg(ctx, args[0], READER_MEMBER)?;
+            let key = ctx.hold_open_reader(Box::new(Window::over(source)));
+            return Ok(crate::instance::build(
+                &READER,
+                [
+                    holder,
+                    counted(0),
+                    counted(0),
+                    Value::array(NvsArray::new()),
+                    counted(0),
+                    Value::bool(false),
+                    Value::array(NvsArray::new()),
+                    Value::uint(key),
+                ],
+            ));
         }
         let document = args[0];
         #[expect(
@@ -2817,6 +3270,7 @@ nvs_runtime::nvs_helper! {
                 counted(0),
                 Value::bool(false),
                 Value::array(NvsArray::new()),
+                Value::null(),
             ],
         ))
     }
@@ -2825,8 +3279,8 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `$reader->read(): ?Core\Xml\Node` — the next node of the walk, or `null`
     /// at the end of the document.
-    fn nvs_core_xml_reader_read(_ctx, args: [1]) {
-        read(args[0])
+    fn nvs_core_xml_reader_read(ctx, args: [1]) {
+        read(ctx, args[0])
     }
 }
 
@@ -5825,6 +6279,238 @@ mod tests {
             large_walk * 8 < large_tree,
             "the two shapes are different jobs rather than two spellings of one: the walk held \
              {large_walk} bytes where the tree held {large_tree}"
+        );
+    }
+
+    /// `pieces` as a Novis array of `bytes` chunks, a `Core\Bytes::Chunks`.
+    fn chunked(pieces: &[&[u8]]) -> Value {
+        let mut array = nvs_runtime::NvsArray::new();
+        for piece in pieces {
+            array.append(Value::bytes(nvs_runtime::NvsStr::new(piece)));
+        }
+        Value::array(array)
+    }
+
+    /// Every node a reader over `source` gives, as `depth:kind:name:text:uri`
+    /// with its attributes, and the message of the error that ended the walk,
+    /// if one did. The reader is read once more after the end or the error, so
+    /// a walk that repeats its error and stays at its end is checked too.
+    fn read_all(source: Value) -> (Vec<String>, Option<String>) {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let reader = call(super::nvs_core_xml_reader, &mut ctx, &[source])
+            .expect("a reader reads nothing until it is asked");
+        let mut seen = Vec::new();
+        let ended = loop {
+            let node = match call(super::nvs_core_xml_reader_read, &mut ctx, &[reader]) {
+                Ok(node) => node,
+                Err(_) => {
+                    let first = ctx.take_pending().map(std::borrow::Cow::into_owned);
+                    call(super::nvs_core_xml_reader_read, &mut ctx, &[reader])
+                        .expect_err("a refused document is refused again");
+                    let again = ctx.take_pending().map(std::borrow::Cow::into_owned);
+                    assert_eq!(first, again);
+                    break first;
+                }
+            };
+            if node.tag() == Some(Tag::Null) {
+                let after = call(super::nvs_core_xml_reader_read, &mut ctx, &[reader])
+                    .expect("a walk at its end stays there");
+                assert_eq!(after.tag(), Some(Tag::Null));
+                break None;
+            }
+            let object = node.obj_ptr().expect("a node is an object");
+            let at = usize::try_from(
+                crate::instance::slot(object, KIND_SLOT)
+                    .as_int()
+                    .expect("a node's kind is its case's ordinal"),
+            )
+            .expect("a case's integer is its own index");
+            let text = |slot| {
+                crate::instance::slot(object, slot)
+                    .as_text()
+                    .unwrap_or("-")
+                    .to_owned()
+            };
+            // An element's source is its tag with every attribute.
+            let written = super::source(node).expect("a node read from a document writes back");
+            let depth = call(super::nvs_core_xml_reader_depth, &mut ctx, &[reader])
+                .expect("a depth is a slot read")
+                .as_uint()
+                .expect("a depth is a count");
+            seen.push(format!(
+                "{depth}:{}:{}:{}:{}:{}",
+                KIND.cases[at].0,
+                text(NAME_SLOT),
+                text(TEXT_SLOT),
+                text(NAMESPACE_SLOT),
+                written
+            ));
+            dropped(node);
+        };
+        dropped(reader);
+        (seen, ended)
+    }
+
+    /// A walk of chunks gives the nodes and the refusals a `string` gives,
+    /// whatever size the chunks are: a tag, a name, a reference, a UTF-8
+    /// character, a `\r\n` and every closer cut at every place.
+    // covers: Core\Xml::reader
+    #[test]
+    fn xml_reader_over_chunks_gives_the_nodes_a_string_gives() {
+        const DOCUMENTS: [&str; 5] = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!--head-->\n<?job run?>\n\
+             <shop xmlns=\"urn:shop\" xmlns:p=\"urn:p\"><p:item sku=\"a&amp;b\" note=\"x\r\ny\">\
+             Zoë &#x263A; &lt;1&gt;<![CDATA[raw <b>]]></p:item><empty/>\n  <last>ü</last></shop>\n",
+            "<a>text]]>more</a>",
+            "<a><b></a>",
+            "<a>&nope;</a>",
+            "<a></a><b/>",
+        ];
+        for document in DOCUMENTS {
+            let source = Value::text(document);
+            let expected = read_all(source);
+            dropped(source);
+            if document.starts_with("<?xml") {
+                assert_eq!(expected.1, None, "the first document is well-formed");
+            } else {
+                assert!(expected.1.is_some(), "`{document}` is refused");
+            }
+            for size in [1, 2, 3, 5, 7, 64] {
+                let pieces: Vec<&[u8]> = document.as_bytes().chunks(size).collect();
+                let source = chunked(&pieces);
+                assert_eq!(
+                    read_all(source),
+                    expected,
+                    "`{document}` in chunks of {size} reads as it does in one string"
+                );
+                dropped(source);
+            }
+            let source = Value::bytes(nvs_runtime::NvsStr::new(document.as_bytes()));
+            assert_eq!(
+                read_all(source),
+                expected,
+                "one `bytes` value reads the same"
+            );
+            dropped(source);
+        }
+    }
+
+    /// A reader over a file reads it one chunk at a time: a file ten times
+    /// larger costs the walk no more, and the walk holds far less than the
+    /// file.
+    // covers: Core\Xml::reader
+    #[test]
+    fn xml_reader_over_a_file_holds_one_window() {
+        /// The most a walk over a file of `items` items holds at once, and
+        /// the file's size.
+        fn cost(items: usize) -> (isize, usize) {
+            let dir = nvs_repo::scratch("xml-reader");
+            let path = dir.join("order.xml");
+            let mut document = String::from("<order>");
+            for at in 0..items {
+                document.push_str(&format!(
+                    "<item sku=\"{at}\"><name>widget {at}</name></item>\n"
+                ));
+            }
+            document.push_str("</order>");
+            std::fs::write(&path, &document).expect("the scratch directory is writable");
+            let size = document.len();
+            drop(document);
+
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            let file = std::fs::File::open(&path).expect("the case wrote this file");
+            let key = ctx.hold_open_file(file);
+            let handle = crate::io::file_handle(
+                key,
+                Value::text(&path.display().to_string()),
+                nvs_runtime::capability::Access::Read,
+            );
+            let base = nvs_runtime::budget::live_bytes();
+            let reader = call(super::nvs_core_xml_reader, &mut ctx, &[handle])
+                .expect("an open file is a source");
+            let mut peak = 0isize;
+            let mut nodes = 0usize;
+            loop {
+                let node = call(super::nvs_core_xml_reader_read, &mut ctx, &[reader])
+                    .expect("the document is well-formed");
+                if node.tag() == Some(Tag::Null) {
+                    break;
+                }
+                nodes += 1;
+                peak = peak.max(nvs_runtime::budget::live_bytes() - base);
+                dropped(node);
+            }
+            assert_eq!(nodes, 1 + items * 4, "every node of the file is read");
+            dropped(reader);
+            dropped(handle);
+            (peak, size)
+        }
+
+        let chunk = crate::byte_source::READ_CHUNK;
+        // About four chunks, and about forty.
+        let items = 4 * chunk / 40;
+        let (small, _) = cost(items);
+        let (large, large_size) = cost(items * 10);
+        assert!(
+            large_size > 4 * chunk * 9,
+            "the large file is many chunks long"
+        );
+        assert!(
+            large <= small + isize::try_from(chunk).unwrap_or(isize::MAX),
+            "a walk holds one window, so a file ten times larger costs it about the same: \
+             {small} bytes against {large}"
+        );
+        assert!(
+            usize::try_from(large).unwrap_or(usize::MAX) < large_size / 4,
+            "the walk held {large} bytes of a {large_size}-byte file"
+        );
+    }
+
+    /// Bytes are read as UTF-8, or as UTF-16 with a byte order mark. A
+    /// document that declares any other encoding throws a `ParseError` that
+    /// names `Core\Encoding`, and the same text given as a `string` reads.
+    // covers: Core\Xml::reader
+    #[test]
+    fn xml_reader_refuses_a_declared_encoding_that_is_not_utf8_or_utf16() {
+        const LATIN: &str = "<?xml version=\"1.0\" encoding='ISO-8859-1'?><a>x</a>";
+        let source = Value::bytes(nvs_runtime::NvsStr::new(LATIN.as_bytes()));
+        let (nodes, refused) = read_all(source);
+        dropped(source);
+        assert!(nodes.is_empty(), "nothing is read past the declaration");
+        let refused = refused.expect("ISO-8859-1 is not decoded");
+        assert!(
+            refused.contains("`ISO-8859-1`") && refused.contains("`Core\\Encoding`"),
+            "{refused}"
+        );
+
+        let source = Value::text(LATIN);
+        let (nodes, refused) = read_all(source);
+        dropped(source);
+        assert_eq!(refused, None, "a `string` is text already");
+        assert_eq!(nodes.len(), 2);
+
+        // UTF-16 with its byte order mark, cut inside a code unit.
+        const WIDE: &str = "<?xml version=\"1.0\" encoding=\"UTF-16\"?><a k=\"ü\">Zoë</a>";
+        let mut octets = vec![0xFF, 0xFE];
+        for unit in WIDE.encode_utf16() {
+            octets.extend_from_slice(&unit.to_le_bytes());
+        }
+        let pieces: Vec<&[u8]> = octets.chunks(3).collect();
+        let source = chunked(&pieces);
+        let wide = read_all(source);
+        dropped(source);
+        let source = Value::text(WIDE);
+        assert_eq!(wide, read_all(source), "UTF-16 reads as the same text");
+        dropped(source);
+
+        // Bytes that are not UTF-8 throw, and name where.
+        let source = Value::bytes(nvs_runtime::NvsStr::new(b"<a>\xFF</a>"));
+        let (_, refused) = read_all(source);
+        dropped(source);
+        let refused = refused.expect("0xFF is not UTF-8");
+        assert!(
+            refused.contains("byte 3 of the document is not UTF-8"),
+            "{refused}"
         );
     }
 }

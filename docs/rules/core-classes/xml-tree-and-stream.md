@@ -24,6 +24,19 @@ once, in `crates/nvs-stdlib/src/xml.rs`'s module doc, and no member card re-argu
 released with its arena; reading through the stream holds one window, and writing through it holds the
 document being built and no tree of nodes at all.
 
+**The stream reads one window of any source.** `Core\Xml::reader` takes a `string` or any forward
+source (`Core\Bytes::Source|Core\Bytes::Chunks`, `rule:core-api/a-member-takes-the-source-the-program-holds`).
+A `string` is walked where it lies. Any other source is read one chunk at a time into a window that
+holds the node being read and at most one more chunk, so a file, an upload or a request body of any
+size costs the walk the same. A node cut by a chunk's end is read again from its start once more text is
+in, and the window then grows by at least what it holds, so a long node is scanned a constant number
+of times per byte. **What it spends:** the largest node, about twice over, plus one chunk, per open walk.
+
+Bytes are UTF-8, or UTF-16 with a byte order mark. A document read from bytes that declares any other
+`encoding` throws a `ParseError` naming `Core\Encoding`, because a reader that ignored the declaration
+would give the wrong characters and one that obeyed it would carry every table `Core\Encoding` already
+has (`rule:core-api/no-encoding-argument`).
+
 **Declined:**
 - **A tree only.** It cannot serve a document larger than the request's memory ceiling, which is a real
   workload.
