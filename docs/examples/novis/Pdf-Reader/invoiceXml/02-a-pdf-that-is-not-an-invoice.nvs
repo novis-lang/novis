@@ -6,5 +6,5 @@ use Novis\Pdf\Reader;
 var $letter = Document::fromHtml('<p>Thank you for your order.</p>')->render()->bytes;
 
 // The letter has no invoice XML, so the result is `null` and this prints `no invoice XML`.
-?string $xml = Reader::open($letter)->invoiceXml();
+?tainted string $xml = Reader::open($letter)->invoiceXml();
 echo $xml ?? 'no invoice XML', "\n";

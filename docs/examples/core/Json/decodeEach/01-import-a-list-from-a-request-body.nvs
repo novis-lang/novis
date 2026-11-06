@@ -4,10 +4,10 @@
 #[Core\Json\Derive]
 class Product
 {
-    public string $sku;
+    public tainted string $sku;
     public int $stock;
 
-    public function constructor(string $sku, int $stock)
+    public function constructor(tainted string $sku, int $stock)
     {
         $this->sku = $sku;
         $this->stock = $stock;

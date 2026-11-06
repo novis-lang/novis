@@ -20,7 +20,7 @@ var $upload = Document::fromHtml(
     ->bytes;
 
 // `invoiceXml` returns the XML as a string. It is the same text the sender attached.
-string $received = Reader::open($upload)->invoiceXml() ?? '';
+tainted string $received = Reader::open($upload)->invoiceXml() ?? '';
 echo $received == $xml ? 'the XML is unchanged' : 'the XML changed', "\n";
 
 // `Core\Xml::parse` reads the XML. This prints the name of the root element.

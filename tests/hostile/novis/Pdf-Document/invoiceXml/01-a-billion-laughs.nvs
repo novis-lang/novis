@@ -17,7 +17,7 @@ class Attack
                 ->created(Core\Time::fromIso('2026-01-01T00:00:00Z'))
                 ->invoiceXml($xml)
                 ->render();
-            ?string $back = Reader::open($rendered->bytes)->invoiceXml();
+            ?tainted string $back = Reader::open($rendered->bytes)->invoiceXml();
             echo 'step ', $step, ' ran ', $back == $xml ? 'unchanged' : 'changed', "\n";
         } catch (Throwable $e) {
             echo 'step ', $step, ' stopped ', $e::class, "\n";

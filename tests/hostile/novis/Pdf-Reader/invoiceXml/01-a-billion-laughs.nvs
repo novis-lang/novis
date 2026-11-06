@@ -85,7 +85,7 @@ try {
 array<string> $names = ['factur-x.xml', 'zugferd-invoice.xml', 'xrechnung.xml'];
 foreach ($names as string $name) {
     try {
-        ?string $back = Reader::open(Forge::invoice($name, $laughs as bytes))->invoiceXml();
+        ?tainted string $back = Reader::open(Forge::invoice($name, $laughs as bytes))->invoiceXml();
         echo 'step 3 ran ', $back == $laughs ? 'unchanged' : 'changed', "\n";
     } catch (Throwable $e) {
         echo "step 3 stopped\n";
@@ -94,7 +94,7 @@ foreach ($names as string $name) {
 
 // 4. Parses the XML that step 3 read back, as a program that books the invoice does.
 try {
-    ?string $laughsBack = Reader::open(Forge::invoice('factur-x.xml', $laughs as bytes))->invoiceXml();
+    ?tainted string $laughsBack = Reader::open(Forge::invoice('factur-x.xml', $laughs as bytes))->invoiceXml();
     echo 'step 4 ran ', Core\Arr::count(Core\Xml::parse($laughsBack ?? '')->children()), "\n";
 } catch (Throwable $e) {
     echo "step 4 stopped\n";
@@ -102,7 +102,7 @@ try {
 
 // 5. Reads back the XML that reads a file on the server, and parses it.
 try {
-    ?string $externalBack = Reader::open(Forge::invoice('factur-x.xml', $external as bytes))->invoiceXml();
+    ?tainted string $externalBack = Reader::open(Forge::invoice('factur-x.xml', $external as bytes))->invoiceXml();
     echo 'step 5 ran ', Core\Arr::count(Core\Xml::parse($externalBack ?? '')->children()), "\n";
 } catch (Throwable $e) {
     echo "step 5 stopped\n";

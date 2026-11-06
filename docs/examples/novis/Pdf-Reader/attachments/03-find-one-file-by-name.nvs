@@ -22,7 +22,7 @@ var $invoice = Document::fromHtml(
 // This prints whether the file `factur-x.xml` contains the invoice number.
 foreach (Reader::open($invoice)->attachments() as var $file) {
     if ($file->name == 'factur-x.xml') {
-        string $content = $file->data as string;
+        tainted string $content = $file->data as string;
         echo $file->name, ' contains Shop-8: ', Core\Str::contains($content, 'Shop-8') ? 'yes' : 'no', "\n";
     }
 }

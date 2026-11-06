@@ -19,7 +19,7 @@ var $rendered = Document::fromHtml($style . "<h1>Annual report</h1><ul>{$content
 echo $rendered->pageCount, " pages\n";
 
 // This prints each chapter in the table of contents, with its page number.
-foreach (Core\Str::split(Reader::open($rendered->bytes)->text(1), "\n") as string $line) {
+foreach (Core\Str::split(Reader::open($rendered->bytes)->text(1), "\n") as tainted string $line) {
     if (Core\Str::startsWith($line, 'Chapter')) {
         echo $line, "\n";
     }

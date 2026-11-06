@@ -26,6 +26,6 @@ var $slots = fn(Page $page): array<Core\Html\Markup> => {
 // This prints that line for each page.
 var $reader = Reader::open(Document::fromHtml($html)->slots($slots)->render()->bytes);
 for (uint $n = 1; $n <= $reader->pageCount; $n++) {
-    array<string> $lines = Core\Str::split($reader->text($n), "\n");
+    array<tainted string> $lines = Core\Str::split($reader->text($n), "\n");
     echo 'page ', $n, ': ', $lines[Core\Arr::count($lines) - 1], "\n";
 }

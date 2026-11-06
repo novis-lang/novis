@@ -14,6 +14,6 @@ var $footer = fn(Page $page): Core\Html\Markup => $page->isFirst()
 // This prints the last line of each page, which is its footer.
 var $reader = Reader::open(Document::fromHtml($html)->footer($footer)->render()->bytes);
 for (uint $n = 1; $n <= $reader->pageCount; $n++) {
-    array<string> $lines = Core\Str::split($reader->text($n), "\n");
+    array<tainted string> $lines = Core\Str::split($reader->text($n), "\n");
     echo 'page ', $n, ': ', $lines[Core\Arr::count($lines) - 1], "\n";
 }
