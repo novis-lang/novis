@@ -4167,8 +4167,9 @@ mod tests {
         }
 
         // The other half of "rather than a flag": no signature on this class
-        // has anywhere to put one. Every door that *reads* takes the document's
-        // text and nothing else, with no defaults, so there is no argument a
+        // has anywhere to put one. Every door that *reads* takes the document
+        // and nothing else, with no defaults: its text, or the reader's byte
+        // sources (`Core\Bytes::Source` and `Chunks`). So there is no argument a
         // caller could pass and no default a deployment could have changed —
         // and the sweep is over the rows rather than over the parse alone,
         // because a flag added to the stream would resolve entities just as
@@ -4179,12 +4180,18 @@ mod tests {
             if matches!(member.return_ty, CoreTy::Instance(name) if name == WRITER_NAME) {
                 continue;
             }
+            let document = |param: &CoreTy| match param {
+                CoreTy::Text(Qual::Neutral) => true,
+                CoreTy::Union(arms) => arms.iter().all(|arm| match arm {
+                    CoreTy::Text(Qual::Neutral) => true,
+                    CoreTy::Alias(name, _) => name.starts_with(r"Core\Bytes::"),
+                    _ => false,
+                }),
+                _ => false,
+            };
             assert!(
-                member
-                    .params
-                    .iter()
-                    .all(|param| matches!(param, CoreTy::Text(Qual::Neutral))),
-                "`Core\\Xml::{}` takes something that is not document text, which is where a \
+                member.params.len() == 1 && member.params.iter().all(document),
+                "`Core\\Xml::{}` takes something that is not the document, which is where a \
                  setting would go",
                 member.name
             );

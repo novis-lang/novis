@@ -1400,6 +1400,9 @@ fn next_record(
             Step::OverMemory => return Err(over_memory("rows")),
             Step::NeedInput => {}
         }
+        // Unreachable from source, with no diagnostic to name: the walk takes
+        // its source out for one read below and puts it back before it
+        // returns, so no program can see a walk without one.
         let mut source = reader.source.take().ok_or_else(|| {
             Fault::fatal(format!(
                 "internal error: a `{ROWS_NAME}` walk lost its source"

@@ -1063,6 +1063,8 @@ nvs_runtime::nvs_helper! {
                 })
             })?
         };
+        // Unreachable from source: a weak digest is `E0401`, as the comment
+        // above the two paths says.
         let mac = mac.ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Hash::hmac reached with `Core\\Hash::Digest::{kind:?}`, which is not a \

@@ -464,7 +464,7 @@ fn a_built_in_member_carries_its_card() {
     let short = |value: serde_json::Value| value["doc"]["short"].as_str().map(str::to_owned);
     let open = short(member(&document, r"Novis\Image\Image", "open")).expect("open has a card");
     assert!(
-        open.starts_with("`Image::open` starts from the bytes"),
+        open.starts_with("`Image::open` starts from an encoded image"),
         "{open}"
     );
     assert!(

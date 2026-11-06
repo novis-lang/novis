@@ -1828,6 +1828,13 @@ mod tests {
                 ),
                 (r"Core\Request\Part", "name", "tainted string".to_owned()),
                 (r"Core\Request\Part", "readAll", "tainted bytes".to_owned(),),
+                // The start of a part or of a body, read without consuming it.
+                (r"Core\Request\Part", "peek", "tainted bytes".to_owned()),
+                (
+                    r"Core\Request\BodyStream",
+                    "peek",
+                    "tainted bytes".to_owned(),
+                ),
                 (
                     r"Core\Router\Match",
                     "param",
@@ -1888,7 +1895,7 @@ mod tests {
              was started with, everything attached to its standard input, every read of \
              the request being answered, the three facts it arrived on, the three \
              declarations one of its uploaded parts made, the bytes of that part held \
-             whole, the two readers of the captures the matched route filled, the captures \
+             whole, the start of that part or of the request body read without consuming it, the two readers of the captures the matched route filled, the captures \
              of the mount serving the request, the two payloads a connection's peer \
              sent, what a socket the program opened itself read back, what one \
              datagram carried, the names and octets read out of an archive, a stored \

@@ -1,0 +1,36 @@
+--TEST--
+An entry whose directory record claims more data than the archive holds is refused with a `ParseError` naming the entry, and listing the archive still works — `rule:core-classes/decompression-bound`
+--FILE--
+<?nvs
+// covers: Core\Zip::read
+// One stored entry, `note.txt`, holding five bytes. Its central record says
+// the entry has 1000 compressed bytes, which is more than the whole archive.
+bytes $crc = Core\Bytes::pack('V', 0x3610a686);
+bytes $local = Core\Bytes::join([
+    Core\Bytes::pack('Vvvvvv', 0x04034b50, 20, 0, 0, 0, 0),
+    $crc,
+    Core\Bytes::pack('VVvv', 5, 5, 8, 0),
+    'note.txthello' as bytes,
+]);
+bytes $record = Core\Bytes::join([
+    Core\Bytes::pack('Vvvvvvv', 0x02014b50, 20, 20, 0, 0, 0, 0),
+    $crc,
+    Core\Bytes::pack('VVvvvvvVV', 1000, 5, 8, 0, 0, 0, 0, 0, 0),
+    'note.txt' as bytes,
+]);
+bytes $end = Core\Bytes::pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, Core\Bytes::length($record), Core\Bytes::length($local), 0);
+bytes $archive = Core\Bytes::join([$local, $record, $end]);
+
+// Listing reads only the directory, so the entry is listed.
+echo "entries: ", Core\Arr::count(Core\Zip::entries($archive)), "\n";
+
+// Reading the entry finds that its data ends before 1000 bytes.
+try {
+    Core\Zip::read($archive, "note.txt");
+    echo "a short entry was read\n";
+} catch (ParseError $error) {
+    echo $error->message, "\n";
+}
+--EXPECT--
+entries: 1
+Core\Zip: not a well-formed zip archive: the entry "note.txt" ends before the size its directory record gives. The archive may have changed while it was read.

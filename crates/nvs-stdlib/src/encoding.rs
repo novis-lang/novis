@@ -819,6 +819,8 @@ impl StreamDecoder {
         let marked = MARKS.iter().find(|(mark, _)| head.starts_with(mark));
         let (skip, charset) = match marked {
             Some((mark, case)) => {
+                // Unreachable from source, with no diagnostic to name: each
+                // case `MARKS` names is a case of `CHARSET` above.
                 let index = CHARSET
                     .cases
                     .iter()

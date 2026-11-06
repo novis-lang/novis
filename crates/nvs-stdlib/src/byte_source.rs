@@ -109,7 +109,7 @@ struct FileSource {
     /// The path, for messages.
     path: String,
     /// A second descriptor on the program's file, sharing its position.
-    file: std::fs::File,
+    file: nvs_runtime::capability::File,
     /// Whether the file is a regular file, which can seek.
     seekable: bool,
     /// The one buffer every forward read goes into. It is the file's size
@@ -330,6 +330,9 @@ impl ByteSource {
                     None => None,
                     Some(chunk) if octets(&chunk).is_some() => Some(Lent::Pulled(chunk)),
                     Some(chunk) => {
+                        // Unreachable from source: every forward member's
+                        // parameter is `Core\Bytes::Chunks`, so a walk of
+                        // anything but `bytes` is `E0401` at the call site.
                         // The guard releases the reference the pull gave.
                         drop(Chunk {
                             lent: Lent::Pulled(chunk),
@@ -851,6 +854,8 @@ fn lent_read<T>(
 /// checker does not let through: a prefix read would consume it, and a random
 /// read cannot go back.
 fn no_random_read(member: &str) -> Fault {
+    // Unreachable from source: a prefix or random member takes
+    // `Core\Bytes::Source`, so a walk of chunks given to one is `E0401`.
     Fault::fatal(format!(
         "internal error: {member} read a walk of chunks out of order"
     ))

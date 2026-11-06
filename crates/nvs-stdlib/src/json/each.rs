@@ -886,10 +886,17 @@ mod tests {
 
     /// The request's peak memory while a walk over `text` at `/items` reads
     /// every element from a file and frees each one.
+    ///
+    /// The file is padded with trailing spaces to four read chunks. A file's
+    /// read buffer is its size, at most a chunk, so without the padding a
+    /// small document would pay for smaller buffers than a large one, and the
+    /// comparison would measure the buffers and not what the walk holds.
     fn peak_of_walk(text: &str) -> usize {
         let dir = nvs_repo::scratch("json-each");
         let path = dir.join("document.json");
-        std::fs::write(&path, text).expect("the case writes its document");
+        let floor = 4 * crate::byte_source::READ_CHUNK;
+        let padded = format!("{text}{}", " ".repeat(floor.saturating_sub(text.len())));
+        std::fs::write(&path, padded).expect("the case writes its document");
         let mut ctx = Ctx::buffered();
         let file = std::fs::File::open(&path).expect("the case wrote this file");
         let key = ctx.hold_open_file(file);

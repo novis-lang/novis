@@ -34,7 +34,6 @@
 //! stays on the core.
 //!
 
-use std::fs::File;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
@@ -48,6 +47,11 @@ use std::process::{Child, Command, Stdio};
 /// Re-exporting the type grants nothing: every way of *obtaining* one still goes through a door
 /// above that has already asked.
 pub use std::fs::Metadata;
+
+/// What [`Ctx::open_file_mut`](crate::Ctx::open_file_mut) lends, re-exported for the same
+/// reason as [`Metadata`]: a byte source keeps a second descriptor on a file the program already
+/// opened through a door.
+pub use std::fs::File;
 
 /// What [`read_dir`] lists, re-exported for the same reason as [`Metadata`].
 pub use crate::beneath::{Entry, Kind};
