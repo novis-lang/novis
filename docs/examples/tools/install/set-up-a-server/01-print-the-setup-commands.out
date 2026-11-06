@@ -1,0 +1,11 @@
+# shop
+cd D:\srv\shop
+nvs init
+nvs service install shop -- serve D:\srv\shop\public\index.nvs
+
+# blog
+cd /srv/blog
+nvs init
+nvs service install blog -- serve /srv/blog/public/index.nvs
+
+skipped wiki: `srv/wiki` is not a full path

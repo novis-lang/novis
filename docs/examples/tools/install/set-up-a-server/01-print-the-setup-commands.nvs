@@ -1,0 +1,40 @@
+<?nvs
+// Prints the three commands that set up a server for each service in the input.
+// Each line of the input has a service name and the full path of its project folder.
+
+class Setup
+{
+    // Returns `true` when the path starts at the root of a disk, like `/srv` or `D:\srv`.
+    public static function isFullPath(tainted string $path): bool
+    {
+        return Core\Str::startsWith($path, '/') || Core\Str::slice($path, 1, 2) == ":\\";
+    }
+
+    public static function commands(tainted string $name, tainted string $folder): void
+    {
+        // A Windows path uses `\`, so the path of the entry file uses it too.
+        string $sep = Core\Str::contains($folder, "\\") ? "\\" : '/';
+
+        echo '# ', $name, "\n";
+        echo 'cd ', $folder, "\n";
+        echo "nvs init\n";
+        echo 'nvs service install ', $name, ' -- serve ', $folder, $sep, 'public', $sep, "index.nvs\n";
+        echo "\n";
+    }
+}
+
+// The input is the file `01-print-the-setup-commands.in` beside this one.
+foreach (Core\Str::lines(Core\IO::stdin()) as tainted string $line) {
+    tainted string $name = Core\Str::before($line, ' ') ?? '';
+    tainted string $folder = Core\Str::after($line, ' ') ?? '';
+    if ($name == '' || $folder == '') {
+        continue;
+    }
+
+    // A service does not start in the project folder, so the entry file needs a full path.
+    if (!Setup::isFullPath($folder)) {
+        echo 'skipped ', $name, ': `', $folder, "` is not a full path\n";
+        continue;
+    }
+    Setup::commands($name, $folder);
+}

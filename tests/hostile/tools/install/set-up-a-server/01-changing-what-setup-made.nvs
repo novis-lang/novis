@@ -1,0 +1,124 @@
+<?nvs
+// Attack: a service runs this program after setup. It may write only in the log folder.
+// It tries to change the files that `nvs init` made, and to give itself more rights.
+// Every attempt should fail, and both `nvs.toml` files should stay the same.
+
+class Attempt
+{
+    // Tries to overwrite each file, to delete it and to move it into the log folder.
+    // Every error is caught, so the next step runs.
+    public static function change(array<string> $paths, string $to): void
+    {
+        foreach ($paths as string $path) {
+            try {
+                Core\IO::write($path, "[capabilities.fs]\nwrite = [\"/\"]\n");
+                echo "written\n";
+            } catch (Throwable $denied) {
+                echo "denied\n";
+            }
+            try {
+                Core\IO::remove($path);
+                echo "deleted\n";
+            } catch (Throwable $denied) {
+                echo "denied\n";
+            }
+            try {
+                Core\IO::move($path, $to);
+                echo "moved\n";
+            } catch (Throwable $denied) {
+                echo "denied\n";
+            }
+        }
+    }
+}
+
+// `Here::path` returns its argument as a full path. A relative path written in quotes
+// starts at the folder of this file.
+class Here
+{
+    public static function path(#[Core\Path] string $path): string
+    {
+        return $path;
+    }
+}
+
+string $dir = Here::path('.');
+string $data = $dir . '/.nvsdata';
+string $project = $dir . '/nvs.toml';
+string $settings = $data . '/nvs.toml';
+
+// 1. Change the two `nvs.toml` files. Most paths start in the log folder and leave it with `..`.
+Attempt::change([
+    $settings,
+    $project,
+    $data . '/logs/../nvs.toml',
+    $data . '/logs/../../nvs.toml',
+    $data . '\\logs\\..\\nvs.toml',
+    $data . '/NVS.TOML',
+    $data . '/nvs.toml.',
+    $data . '/nvs.toml::$DATA',
+    $data . "/nvs.toml\0.log",
+], $data . '/logs/old.toml');
+
+// 2. Create the folders that `nvs init` creates, and write a file into each one.
+array<string> $folders = ['cache', 'tmp', 'lsp', 'logs/../cache', 'config'];
+foreach ($folders as string $folder) {
+    try {
+        Core\IO::makeDir($data . '/' . $folder);
+        Core\IO::write($data . '/' . $folder . '/nvs.toml', "[capabilities.process]\nexec = [\"*\"]\n");
+        echo "written\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 3. Run `nvs init` and `nvs service install` again. No program may be started.
+array<array<string>> $commands = [
+    ['init', '--yes', '--data', $data . '/logs'],
+    ['service', 'install', 'shop', '--', 'serve', $dir . '/01-changing-what-setup-made.nvs'],
+    ['run', '--config', $data . '/logs/nvs.log', $dir . '/01-changing-what-setup-made.nvs'],
+];
+array<string> $programs = ['nvs', 'nvs.exe', '/opt/novis/nvs', "D:\\srv\\novis\\nvs.exe"];
+foreach ($programs as string $program) {
+    foreach ($commands as array<string> $arguments) {
+        try {
+            Core\Process::run($program, $arguments);
+            echo "started\n";
+        } catch (Throwable $denied) {
+            echo "denied\n";
+        }
+    }
+}
+
+// 4. Give itself more rights and move the data folder. Each call should return `false`.
+array<string> $keys = [
+    'capabilities.fs.write',
+    'capabilities.process.exec',
+    'opcache.file_cache_dir',
+    'log.target',
+    'limits.memory',
+    'data',
+];
+foreach ($keys as string $key) {
+    try {
+        echo $key, ': ', Core\Config::set($key, $dir) ? 'changed' : 'not changed', "\n";
+    } catch (Throwable $denied) {
+        echo $key, ": denied\n";
+    }
+}
+
+// 5. Write an `nvs.toml` into the log folder. This is allowed, but no command reads a
+// configuration there. The program deletes the file again.
+try {
+    Core\IO::write($data . '/logs/nvs.toml', "[capabilities.fs]\nwrite = [\"/\"]\n");
+    Core\IO::remove($data . '/logs/nvs.toml');
+    echo "written and deleted\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}
+
+// 6. Both `nvs.toml` files are unchanged. This prints `96M`, `no new rights` and `found`.
+string $text = Core\IO::read($settings);
+echo Core\Str::contains($text, 'memory = "96M"') ? "96M\n" : "changed\n";
+echo Core\Str::contains($text, 'capabilities') ? "new rights\n" : "no new rights\n";
+echo Core\IO::isFile($project) ? "found\n" : "deleted\n";

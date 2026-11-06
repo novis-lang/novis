@@ -71,6 +71,7 @@ fn take(dir: &Path, step: Step) -> Output {
 /// service makes at boot: a last dry-run install judges the configuration for the service's
 /// account, and the data folder, its `nvs.toml`, its cache and the project file each pass
 /// `trust::check_as` for that account.
+// covers: tools:install/set-up-a-server
 #[test]
 fn every_order_of_run_init_and_install_leaves_a_setup_the_service_accepts() {
     use Step::{Init, Install, Run};

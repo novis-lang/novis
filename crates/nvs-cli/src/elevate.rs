@@ -11,7 +11,7 @@
 //! `ShellExecuteExW` with the verb `runas` and a hidden window, and the first process waits for the
 //! second and returns its exit code. The second process gets a hidden `--elevated-for <pid>` before
 //! the arguments, frees its own console and attaches to the first process's, so its output and its
-//! prompts are in the terminal the user typed the command in ([`attach`]). It parses its arguments
+//! prompts are in the terminal the user typed the command in ([`platform::attach`]). It parses its arguments
 //! again and runs every check again: nothing the first process found is trusted. A second process
 //! that is still not elevated never asks again, so a refused prompt can never loop. On Unix the
 //! same arguments run under `sudo` in the same terminal.

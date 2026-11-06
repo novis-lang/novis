@@ -1,0 +1,4 @@
+# The configuration in the data folder. A service reads it when it has no `--config`.
+# The attack tries to change it, to delete it and to replace it.
+[limits]
+memory = "96M"

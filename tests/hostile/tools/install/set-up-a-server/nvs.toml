@@ -1,0 +1,9 @@
+# The attack has the rights of a program that a service runs after setup.
+# It may read its own folder, and it may write only in the folder `logs` of the data folder.
+[capabilities.fs]
+read = ["."]
+write = [".nvsdata/logs"]
+
+# It may not start any program. Without this line, a CLI run may start every program.
+[capabilities.process]
+exec = []

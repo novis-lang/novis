@@ -362,14 +362,14 @@
   },
   "/guides/production/run-as-a-service/": {
     "feature": "guides/production/run-as-a-service.mdx",
-    "hash": "9bacc7feffea4f9a",
+    "hash": "7d46fc6dcd37f770",
     "questions": [
       "How do I keep my Novis server running after a reboot?",
       "Where does a background service write its log?",
       "Why does my service not start, and how do I see the error?",
       "Which folders can the service account write to, such as logs or debug recordings?",
       "Why does the installer stop with E0607 for my config file?",
-      "Install nvs serve as a Windows service"
+      "Why does nvs service install ask for admin rights?"
     ]
   },
   "/guides/production/security-checklist/": {
@@ -1004,13 +1004,13 @@
   },
   "/install/server/": {
     "feature": "install/server.mdx",
-    "hash": "2c2d36d10ac2117d",
+    "hash": "ebac7fa6b9d94518",
     "questions": [
       "How do I install Novis on a production server?",
       "Where does Novis keep its cache, logs and config files?",
       "Which folder permissions does Novis check before it starts?",
       "Why does nvs warn that it cannot use its data folder?",
-      "Set folder permissions for Novis on Windows with icacls",
+      "Does it matter if I run nvs init before nvs service install?",
       "Which folder does nvs init check before it writes nvs.toml?"
     ]
   },
