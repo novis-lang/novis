@@ -901,6 +901,99 @@ pub enum CoreTy {
     /// runtime representation of a shape appears anywhere, and `open`'s helper
     /// is an ordinary `args: [12]`.
     Shape(&'static [&'static [CoreField]]),
+    /// A `Core` **type alias** at one member's parameter: the alias's full
+    /// name, `Core\Bytes::Source`, and the type this parameter takes under it.
+    ///
+    /// The wrapped type is the member's own, not [`CoreAlias::ty`], because a
+    /// parameter's qualifier mark is written on its arms (a union folds its
+    /// mark from them, [`Self::Union`]). One member reads a source's bytes
+    /// into its result and another only looks at them, so each writes its own
+    /// marks under the one name. The wrapped type takes what the alias's own
+    /// type takes, with the member's marks in place of the alias's qualifiers.
+    ///
+    /// It is transparent: it interns exactly as the wrapped type does, and
+    /// the name is only what a message, a hover, a card and the website show.
+    /// [`ALIASES`] declares each one.
+    Alias(&'static str, &'static CoreTy),
+}
+
+/// A `Core` type alias — `rule:types/type-alias`'s class-scoped member,
+/// declared in Rust because its owner is.
+///
+/// A roster of its own, beside [`ENUMS`], for the reason that one is: the
+/// owner is named in the alias's own name, so no [`CoreClass`] row changes
+/// when an alias is added. [`aliases_of`] lists one class's.
+#[derive(Clone, Copy, Debug)]
+pub struct CoreAlias {
+    /// The fully-qualified name, `Core\Bytes::Source`. The part before `::` is
+    /// the owner class, and it must be a registered class.
+    pub name: &'static str,
+    /// What a program's own `Core\Bytes::Source` is: the type its parameter,
+    /// property or return type takes when it writes the alias.
+    pub ty: CoreTy,
+    /// Its card: what the alias is for, in one or two sentences.
+    pub doc: ClassDoc,
+}
+
+impl CoreAlias {
+    /// The class whose body declares this alias, `Core\Bytes` for
+    /// `Core\Bytes::Source`.
+    #[must_use]
+    pub fn owner(&self) -> &'static str {
+        self.name.split_once("::").map_or(self.name, |(owner, _)| owner)
+    }
+
+    /// The alias's own name, after its owner's `::`.
+    #[must_use]
+    pub fn short_name(&self) -> &'static str {
+        self.name.rsplit_once("::").map_or(self.name, |(_, short)| short)
+    }
+}
+
+/// `Core\Bytes::Source`'s own type: what a program's parameter written
+/// `Core\Bytes::Source` takes.
+const BYTE_SOURCE: &[CoreTy] = &[
+    CoreTy::TaintedBytes,
+    CoreTy::Instance(r"Core\IO\File"),
+    CoreTy::Instance(r"Core\Request\Part"),
+    CoreTy::Instance(r"Core\Request\BodyStream"),
+];
+
+/// Every `Core` type alias, `rule:core-api/a-member-takes-the-source-the-program-holds`'s
+/// two first.
+///
+/// `Source` is every source that can give its start without being consumed
+/// and can be read in any order. `Chunks` is every walk of byte chunks, which
+/// a member can read once, forward. A member that reads forward takes both,
+/// written `Core\Bytes::Source|Core\Bytes::Chunks`.
+pub const ALIASES: &[CoreAlias] = &[
+    CoreAlias {
+        name: r"Core\Bytes::Source",
+        ty: CoreTy::Union(BYTE_SOURCE),
+        doc: ClassDoc {
+            short: "Bytes a member can read from the start or in any order: `bytes`, an open \
+                    file, an uploaded file or the request body.",
+        },
+    },
+    CoreAlias {
+        name: r"Core\Bytes::Chunks",
+        ty: CoreTy::Iterated(&CoreTy::TaintedBytes),
+        doc: ClassDoc {
+            short: "Bytes that arrive in pieces: an array, a generator or any other loop over \
+                    `bytes` values, read once from the first piece to the last.",
+        },
+    },
+];
+
+/// Looks a `Core` type alias up by its full name, `Core\Bytes::Source`.
+#[must_use]
+pub fn core_alias(name: &str) -> Option<&'static CoreAlias> {
+    ALIASES.iter().find(|found| found.name == name)
+}
+
+/// Every alias `class` declares, in [`ALIASES`]'s order.
+pub fn aliases_of(class: &str) -> impl Iterator<Item = &'static CoreAlias> + '_ {
+    ALIASES.iter().filter(move |alias| alias.owner() == class)
 }
 
 /// The one name a trailing [`CoreTy::Options`] bag is callable by, for every
@@ -1282,6 +1375,8 @@ impl CoreTy {
             // `?T` is `null|T`, and `null` has no cell, so the mark is the inner type's — as a
             // union's is its text arm's.
             Self::Nullable(inner) => inner.classification(),
+            // An alias names the member's own type, whose arms carry the marks.
+            Self::Alias(_, inner) => inner.classification(),
             // `Core\Str::join`'s parts: every entry's bytes are in the answer,
             // so a tainted entry is admitted exactly where the answer can
             // carry the bit, as a contagious `string` parameter is.
@@ -1416,6 +1511,9 @@ impl CoreTy {
                 .join("|"),
             Self::SingleValueInt(value) => value.to_string(),
             Self::Nullable(inner) => format!("?{}", inner.spelled()),
+            // The name the program writes. The type it stands for is on the
+            // owner class's card.
+            Self::Alias(name, _) => (*name).into(),
             Self::Enum(name) | Self::Instance(name) => (*name).into(),
             Self::InstanceAt(name, args) => {
                 let args: Vec<String> = args.iter().map(Self::spelled).collect();
@@ -1491,7 +1589,7 @@ impl CoreTy {
             Self::Path(_) | Self::Entry => ParamText::Path,
             Self::Program(_) => ParamText::Program,
             Self::ClassName(_) => ParamText::ClassName,
-            Self::Nullable(inner) => inner.param_text(),
+            Self::Nullable(inner) | Self::Alias(_, inner) => inner.param_text(),
             _ => ParamText::Plain,
         }
     }
@@ -6194,6 +6292,33 @@ mod tests {
     /// wanted it first — a capture typed as a class built from text is any
     /// implementor of `Parses`, and no registered class names that set.
     const GLOBAL_INTERFACES: &[&str] = &[crate::router::PARSES_NAME];
+
+    /// A `Core` alias is owned by a registered class, has a card, and names
+    /// only registered classes. Its owner declares no constant or enum by the
+    /// same name, since `Owner::Name` in a type means one thing.
+    #[test]
+    fn every_core_alias_has_a_registered_owner_and_classes() {
+        for alias in ALIASES {
+            let owner = class(alias.owner())
+                .unwrap_or_else(|| panic!("{}: no class {}", alias.name, alias.owner()));
+            assert!(!alias.doc.short.is_empty(), "{}: no card", alias.name);
+            assert!(
+                owner.constant(alias.short_name()).is_none()
+                    && core_enum(alias.name).is_none(),
+                "{}: the name is also a constant or an enum",
+                alias.name
+            );
+            let arms: &[CoreTy] = match &alias.ty {
+                CoreTy::Union(arms) => arms,
+                other => std::slice::from_ref(other),
+            };
+            for arm in arms {
+                if let CoreTy::Instance(name) = arm {
+                    assert!(class(name).is_some(), "{}: no class {name}", alias.name);
+                }
+            }
+        }
+    }
 
     /// A [`CoreTy::Instance`] names a class this crate registers, in every
     /// position a type can appear — the same check

@@ -512,6 +512,11 @@ pub struct TypeInterner {
     base: Option<&'static TypeInterner>,
     types: Vec<Ty>,
     index: FxHashMap<Ty, TypeId>,
+    /// The `Core` aliases interned so far, each under the type it stands for
+    /// (`Core\Bytes::Source`). Only [`Self::describe`] reads it, so a message
+    /// names the alias the program or the member wrote, and the alias stays
+    /// transparent. A few entries per process.
+    aliases: Vec<(TypeId, &'static str)>,
 }
 
 impl TypeInterner {
@@ -661,8 +666,15 @@ impl TypeInterner {
 
     /// A human-readable rendering of `id`, for a diagnostic message —
     /// `"array<int|string>"`, `"App\\User"`, and so on.
+    ///
+    /// A type a `Core` alias stands for is spelled by the alias's name, and
+    /// so is each part of a union that has all of one alias's members:
+    /// `Core\Bytes::Source|Core\Bytes::Chunks`.
     #[must_use]
     pub fn describe(&self, id: TypeId) -> String {
+        if let Some((_, name)) = self.alias_names().find(|(found, _)| *found == id) {
+            return name.to_owned();
+        }
         match self.get(id) {
             Ty::Null => "null".to_owned(),
             Ty::Bool => "bool".to_owned(),
@@ -747,11 +759,7 @@ impl TypeInterner {
                     .join(", ");
                 braced(&inner)
             }
-            Ty::Union(members) => members
-                .iter()
-                .map(|m| self.describe(*m))
-                .collect::<Vec<_>>()
-                .join("|"),
+            Ty::Union(members) => self.describe_union(members),
             Ty::Intersection(members) => members
                 .iter()
                 .map(|m| self.describe(*m))
@@ -759,6 +767,41 @@ impl TypeInterner {
                 .join("&"),
             Ty::TypeVar(name) => name.clone(),
         }
+    }
+
+    /// Records that `id` is what the `Core` alias `name` stands for, so
+    /// [`Self::describe`] spells it by that name. The type is unchanged.
+    pub(crate) fn name_alias(&mut self, id: TypeId, name: &'static str) {
+        if !self.alias_names().any(|(found, _)| found == id) {
+            self.aliases.push((id, name));
+        }
+    }
+
+    /// Every alias name recorded here and in the base, the base's first.
+    fn alias_names(&self) -> impl Iterator<Item = (TypeId, &'static str)> + '_ {
+        self.base
+            .into_iter()
+            .flat_map(|base| base.aliases.iter())
+            .chain(self.aliases.iter())
+            .copied()
+    }
+
+    /// A union's spelling: each alias whose members are all in it, by its
+    /// name, then every member no alias took.
+    fn describe_union(&self, members: &[TypeId]) -> String {
+        let mut rest: Vec<TypeId> = members.to_vec();
+        let mut parts: Vec<String> = Vec::new();
+        for (alias, name) in self.alias_names() {
+            let Ty::Union(inner) = self.get(alias) else {
+                continue;
+            };
+            if inner.iter().all(|member| rest.contains(member)) {
+                rest.retain(|member| !inner.contains(member));
+                parts.push(name.to_owned());
+            }
+        }
+        parts.extend(rest.iter().map(|member| self.describe(*member)));
+        parts.join("|")
     }
 
     /// The interned type variable named `name` — see [`Ty::TypeVar`], which

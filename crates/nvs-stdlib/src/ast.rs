@@ -1397,7 +1397,8 @@ mod tests {
             | CoreTy::Iterated(inner)
             | CoreTy::Variadic(inner)
             | CoreTy::StringHoles(inner, _)
-            | CoreTy::PropertyPath(inner) => mentions(inner, class),
+            | CoreTy::PropertyPath(inner)
+            | CoreTy::Alias(_, inner) => mentions(inner, class),
             CoreTy::InstanceAt(name, args) => {
                 *name == class || args.iter().any(|arg| mentions(arg, class))
             }

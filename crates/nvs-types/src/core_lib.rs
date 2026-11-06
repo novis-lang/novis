@@ -893,12 +893,32 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // [`method_ref_param`], which is asked before the argument is checked
         // at all. `nvs_stdlib::registry::CoreTy::MethodRef` owns why.
         CoreTy::MethodRef => interner.string(),
+        // Transparent: the member's own type, with the alias's name kept for
+        // a message. `nvs_stdlib::registry::CoreTy::Alias` owns why the
+        // member's type is wrapped rather than the alias's own.
+        CoreTy::Alias(name, inner) => {
+            let id = lower(inner, interner);
+            interner.name_alias(id, name);
+            id
+        }
         // `Mixed` and anything a later registry variant adds: `mixed` is the
         // registry's own "unchecked position" spelling, and is the only safe
         // answer for a variant this arm has not learned yet, since `Ty` and
         // `CoreTy` are both `#[non_exhaustive]`.
         _ => interner.mixed(),
     }
+}
+
+/// What a program's own `Core\Bytes::Source` is: the alias's type, with its
+/// name kept for a message. `crate::lower` calls it where `Owner::Name` names
+/// a `Core` alias, after a source alias and before an enum.
+pub(crate) fn lower_core_alias(
+    alias: &nvs_stdlib::registry::CoreAlias,
+    interner: &mut TypeInterner,
+) -> TypeId {
+    let id = lower(&alias.ty, interner);
+    interner.name_alias(id, alias.name);
+    id
 }
 
 /// `rule:core-api/shape-flattens-at-the-abi`'s merged field list: the arms in declaration order, each arm's

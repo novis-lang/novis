@@ -95,8 +95,8 @@
 //!
 //! Its shape mirrors the registry's rather than inventing one: `classes` and
 //! `interfaces` each carry `members` and `constants`, `enums` carry `cases`,
-//! and `types` — which the registry has no roster for, a `type` alias being a
-//! user declaration only — carries the type it stands for. A body owning
+//! and `types` carries the type each alias stands for. A `Core` class carries
+//! a `types` of the same shape, from [`nvs_stdlib::registry::ALIASES`]. A body owning
 //! aliases carries a `types` of its own, the same card shape under the same
 //! key, each named `Owner::Name` as a program reaches it
 //! (`rule:types/type-alias`) — never beside `members`, which an alias is not
@@ -131,8 +131,9 @@ use std::process::ExitCode;
 use nvs_diagnostics::{Diagnostics, SourceFile, SourceMap, Span};
 use nvs_hir::QName;
 use nvs_stdlib::registry::{
-    CAPABILITIES, CLASSES, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy,
-    ENUMS, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual, class_type_params, constructor_of,
+    CAPABILITIES, CLASSES, Const, CoreAlias, CoreClass, CoreConst, CoreEnum, CoreMethod,
+    CoreOption, CoreTy, ENUMS, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual, aliases_of,
+    class_type_params, constructor_of,
 };
 use nvs_syntax::ast::{
     ClassDecl, ClassMember, ClassMemberKind, ConstMember, DocComment, DocTagKind, EnumDecl,
@@ -260,12 +261,26 @@ fn class_json(class: &CoreClass) -> Value {
     }
     out.insert("members".into(), Value::Array(members));
     put_list(&mut out, "constants", class.constants, constant_json);
+    let types: Vec<Value> = aliases_of(class.name).map(core_alias_json).collect();
+    if !types.is_empty() {
+        out.insert("types".into(), Value::Array(types));
+    }
     if let Some(doc) = class.doc {
         let mut card = Map::new();
         put_str(&mut card, "short", doc.short);
         out.insert("doc".into(), Value::Object(card));
     }
     Value::Object(out)
+}
+
+/// One `Core` type alias, in the card shape a program's own alias has: its
+/// name as a program writes it, the type it stands for, and its card.
+fn core_alias_json(alias: &CoreAlias) -> Value {
+    json!({
+        "name": alias.name,
+        "type": alias.ty.spelled(),
+        "doc": { "short": alias.doc.short },
+    })
 }
 
 /// One exception class of the compiler-declared tree: its name, its parent

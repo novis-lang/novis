@@ -92,3 +92,55 @@ class Order {
         "each refusal names the PascalCase rename: {refused:?}"
     );
 }
+
+/// A `Core` class's alias is reached as a source class's is: `Owner::Name`
+/// written in full, and the short owner a `use` line imports. It is as
+/// transparent as one, so both spellings and the expansion written out by hand
+/// are one interned type.
+#[test]
+fn a_core_alias_resolves_as_a_source_alias_does() {
+    let (diags, declared) = check_src_declared(
+        r"<?nvs
+use Core\Bytes;
+type Mine = tainted bytes|Core\IO\File|Core\Request\Part|Core\Request\BodyStream;
+class Reader {
+  function full(Core\Bytes::Source $full, Bytes::Source $short, Mine $mine): void {}
+  function walk(Core\Bytes::Chunks $chunks, array<tainted bytes>|Iterable<tainted bytes>|Iterator<tainted bytes> $hand): void {}
+}
+",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let full = declared.of(r"Core\Bytes::Source", "$full");
+    assert_eq!(full, declared.of("Bytes::Source", "$short"));
+    assert_eq!(full, declared.of("Mine", "$mine"), "the alias is its expansion");
+    assert_eq!(
+        declared.of(r"Core\Bytes::Chunks", "$chunks"),
+        declared.of(
+            "array<tainted bytes>|Iterable<tainted bytes>|Iterator<tainted bytes>",
+            "$hand"
+        ),
+    );
+}
+
+/// A message about a value that does not fit names the alias, not the four
+/// types it stands for, so the reader sees what the signature says.
+#[test]
+fn a_message_names_a_core_alias_by_its_name() {
+    let diags = check_src(
+        r"<?nvs
+class Reader {
+  public static function read(Core\Bytes::Source $source): void {}
+}
+Reader::read(3);
+",
+    );
+    let mismatch = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_TYPE_MISMATCH))
+        .unwrap_or_else(|| panic!("`3` is not a source: {diags:?}"));
+    assert!(
+        mismatch.message.contains(r"Core\Bytes::Source")
+            && !mismatch.message.contains("BodyStream"),
+        "the message names the alias: {mismatch:?}"
+    );
+}

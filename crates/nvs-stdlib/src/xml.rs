@@ -3917,7 +3917,8 @@ mod tests {
             | CoreTy::Iterated(inner)
             | CoreTy::Variadic(inner)
             | CoreTy::StringHoles(inner, _)
-            | CoreTy::PropertyPath(inner) => mentions(inner, class),
+            | CoreTy::PropertyPath(inner)
+            | CoreTy::Alias(_, inner) => mentions(inner, class),
             CoreTy::InstanceAt(name, args) => {
                 *name == class || args.iter().any(|arg| mentions(arg, class))
             }
@@ -3987,7 +3988,8 @@ mod tests {
             | CoreTy::Nullable(inner)
             | CoreTy::Iterated(inner)
             | CoreTy::Variadic(inner)
-            | CoreTy::Bounded(_, inner) => every_text_position_is_tainted(inner),
+            | CoreTy::Bounded(_, inner)
+            | CoreTy::Alias(_, inner) => every_text_position_is_tainted(inner),
             CoreTy::InstanceAt(_, args) => args.iter().all(every_text_position_is_tainted),
             CoreTy::Union(members) => members.iter().all(every_text_position_is_tainted),
             CoreTy::CallableSig(params, ret) => {

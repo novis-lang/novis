@@ -478,6 +478,13 @@ fn lower_member_type(
         return lower_type_at_depth(&alias_ty, depth, ctx, env);
     }
 
+    // A `Core` class's alias, `Core\Bytes::Source`, declared in the registry
+    // because its owner is. It is read where a source alias is, and is as
+    // transparent as one.
+    if let Some(alias) = nvs_stdlib::registry::core_alias(&format!("{qname}::{case}")) {
+        return crate::core_lib::lower_core_alias(alias, env.interner);
+    }
+
     // `rule:enums/class-scoped-enum`: `Order::Status` is the enum the owner's
     // body declares, read after the owner's alias and before a case.
     if let Some(owned) = owned_enum(&qname, &case, env) {
