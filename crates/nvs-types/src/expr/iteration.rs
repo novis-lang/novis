@@ -239,10 +239,17 @@ fn report_unchecked_subject(subject_ty: TypeId, span: Span, env: &mut Env<'_>) {
 
 /// Checks a `foreach` value binding's declared type against what the subject
 /// actually yields.
+///
+/// `literal_subject` is whether the subject is an array literal written in the
+/// header. A written binding type is no target for it, so it is `array<mixed>`
+/// (`rule:types/arrays`), and a mismatch against its `mixed` element gets a
+/// help line naming the two ways to type the items: `as var $x`
+/// (`rule:types/var-inference`) or a typed local declared first.
 pub(crate) fn check_foreach_value(
     source: &ForeachSource,
     declared: TypeId,
     binding: &ForeachBinding,
+    literal_subject: bool,
     env: &mut Env<'_>,
 ) {
     let Some(value) = source.value_ty() else {
@@ -250,6 +257,17 @@ pub(crate) fn check_foreach_value(
     };
     if is_assignable(value, declared, env.interner, env.graph, env.signatures) {
         note_float_widening_at(binding.span, value, declared, env);
+    } else if literal_subject && matches!(env.interner.get(value), Ty::Mixed) {
+        let Some(diag) = mismatch(binding.span, declared, value, env) else {
+            return;
+        };
+        let written = env.interner.describe(declared);
+        let name = span_text(env.src, binding.name);
+        env.diags.report(diag.with_help(format!(
+            "an array written directly in `foreach` has `mixed` items. Write `as var {name}` \
+             to use the type of its items, or declare the array first: \
+             `array<{written}> $items = [...];`"
+        )));
     } else {
         report_mismatch(binding.span, declared, value, env);
     }

@@ -1,0 +1,25 @@
+--TEST--
+A written `foreach` binding type is no target for an array literal subject, so the literal is `array<mixed>`, and the mismatch's help names `as var` and a typed array declared first — `rule:types/arrays`, `rule:types/var-inference`
+--FILE--
+<?nvs
+foreach (['a', 'b'] as string $x) {
+    echo $x, "\n";
+}
+foreach ([1, 2] as int $n) {
+    echo $n, "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `mixed`
+  --> case.nvs:2:%d
+%A
+  = help: an array written directly in `foreach` has `mixed` items. Write `as var $x` to use the type of its items, or declare the array first: `array<string> $items = [...];`
+%A
+error[E0401]: expected `int`, found `mixed`
+  --> case.nvs:5:%d
+%A
+  = help: an array written directly in `foreach` has `mixed` items. Write `as var $n` to use the type of its items, or declare the array first: `array<int> $items = [...];`
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

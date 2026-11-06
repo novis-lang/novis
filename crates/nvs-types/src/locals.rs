@@ -1654,7 +1654,8 @@ pub(crate) fn check_stmt(
             }
             let element = source.value_ty().unwrap_or_else(|| env.interner.mixed());
             let value_ty = foreach_binding_ty(value, element, ctx, env);
-            crate::expr::check_foreach_value(&source, value_ty, value, env);
+            let literal_subject = matches!(subject.kind, ExprKind::ArrayLiteral(_));
+            crate::expr::check_foreach_value(&source, value_ty, value, literal_subject, env);
             if *value_inout {
                 crate::expr::check_foreach_inout(&source, subject, value_ty, value, env);
             }
