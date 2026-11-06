@@ -96,6 +96,11 @@ export class StandIn implements AgentAdapter {
     return parse(line);
   }
 
+  /** A stand-in has no login, so the worker keeps the account it started with. */
+  account(): Promise<string | null> {
+    return Promise.resolve(null);
+  }
+
   classify(end: SessionEnd): ExitClass {
     return classify(end);
   }

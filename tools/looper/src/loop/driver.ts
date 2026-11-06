@@ -197,6 +197,8 @@ export interface Policy {
   failureBackoffMax: number;
   /** Usage walls in a row that end the run. */
   maxWalls: number;
+  /** How often a waiting worker asks the agent's account again, so a switch of login ends the wait. */
+  accountRecheck: number;
 }
 
 export function defaultPolicy(): Policy {
@@ -207,6 +209,7 @@ export function defaultPolicy(): Policy {
     failureBackoff: 30_000,
     failureBackoffMax: 300_000,
     maxWalls: 8,
+    accountRecheck: 60_000,
   };
 }
 

@@ -91,6 +91,13 @@
 //    how Claude reports a stream cut mid-answer.
 // 4. **Failed:** the process exited non-zero, or without a code.
 // 5. **Ok** otherwise.
+//
+// # The account
+//
+// A usage wall belongs to the login, so `account` names the login `claude auth status --json` reports.
+// It is `claude:<email>`, else `claude:<orgId>`, and `claude` for a login with neither, such as an API
+// key. It is null when the command fails, times out, or reports no login. Each field stands in the
+// output of `claude` 2.1.319. One read takes about 0.2 seconds, and `AUTH_TIMEOUT` and `AUTH_MAX` bound it.
 
 import { SIDE_GOAL_VAR } from "../goal/model.ts";
 import {
@@ -142,6 +149,41 @@ export class Claude implements AgentAdapter {
   classify(end: SessionEnd): ExitClass {
     return classify(end);
   }
+
+  account(): Promise<string | null> {
+    return account(this.program);
+  }
+}
+
+/** How long one `claude auth status` may run, in ms. */
+const AUTH_TIMEOUT = 10_000;
+/** The most stdout one `claude auth status` may write, in bytes. */
+const AUTH_MAX = 64 * 1024;
+
+/** The login `program auth status --json` reports, as the head comment's § *The account* names it. */
+export async function account(program = "claude"): Promise<string | null> {
+  try {
+    const p = Bun.spawn([Bun.which(program) ?? program, "auth", "status", "--json"], {
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "ignore",
+      timeout: AUTH_TIMEOUT,
+      maxBuffer: AUTH_MAX,
+    });
+    const [out, code] = await Promise.all([new Response(p.stdout).text(), p.exited]);
+    return code === 0 ? accountOf(JSON.parse(out)) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The account the parsed output `status` of `claude auth status --json` names. */
+export function accountOf(status: unknown): string | null {
+  if (status === null || typeof status !== "object") return null;
+  const s = status as Record<string, unknown>;
+  if (s.loggedIn !== true) return null;
+  for (const id of [s.email, s.orgId]) if (typeof id === "string" && id !== "") return `claude:${id}`;
+  return "claude";
 }
 
 /** Claude's command line for one session, run by the words of `program`. */

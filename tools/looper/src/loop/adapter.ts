@@ -44,6 +44,11 @@ export interface AgentAdapter {
   parse(line: string | Uint8Array): AgentEvent[];
   /** How a session ended. */
   classify(end: SessionEnd): ExitClass;
+  /**
+   * The account the agent is logged in to now, which its usage walls belong to, or null when it cannot
+   * tell. The worker asks before every turn and while it waits, so a switch of login reaches the loop.
+   */
+  account(): Promise<string | null>;
 }
 
 /** One session's command: its words, its working directory, and the variables it adds to the loop's own. */

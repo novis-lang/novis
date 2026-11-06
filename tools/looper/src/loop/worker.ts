@@ -13,6 +13,9 @@
 //   `state.json` read to. It reads new ones every `POLL_MS`, before each turn and while a session runs.
 // - The run calls `Driver.turn` until a turn ends it or a control stops it. A `wait` is waited out, until
 //   a pause or a stop ends it sooner, and a `hold` pauses the loop until someone resumes it.
+// - Its usage walls belong to the account the agent is logged in to (`AgentAdapter.account`). It asks
+//   before each turn and every `Policy.accountRecheck` of a wait. A switch of login ends the wait, so
+//   the next turn reads the new account's wall. An account given in `WorkerOptions` is never asked.
 // - A side loop's `land` lands its branch as `landing.ts` says, under the state `landing`. A landed loop
 //   ends the run. A hold from the landing pauses the loop, and a resume catches up again. A worker that
 //   starts while its loop holds a landing goes on with it before any session. One whose goal is retired
@@ -147,7 +150,7 @@ export interface WorkerOptions {
   adapter: AgentAdapter;
   /** The usage walls, `.looper/walls.json` of the root by default. */
   walls?: Walls;
-  /** The account the agent runs on, `[agent] adapter` by default. */
+  /** The account the agent runs on, for every turn. Left out, it is the adapter's (`AgentAdapter.account`), else `[agent] adapter`. */
   account?: string;
   loopName?: string;
   policy?: Policy;
@@ -237,6 +240,8 @@ export class Worker {
   private landingDue: boolean;
   /** The catch-ups the landing has run while the others were paused, since the run's last hold. */
   private readonly rounds = { n: 0 };
+  /** Whether the account was given, so the adapter is never asked for it. */
+  private readonly fixedAccount: boolean;
 
   constructor(o: WorkerOptions) {
     this.dir = o.dir;
@@ -245,6 +250,7 @@ export class Worker {
     this.reader = new ControlReader(o.dir);
     const status = join(o.dir, "status.txt");
     const cfg = loadConfig(o.root);
+    this.fixedAccount = o.account !== undefined;
     this.driver = new Driver({
       root: o.root,
       dir: o.dir,
@@ -541,12 +547,21 @@ export class Worker {
     return null;
   }
 
-  /** Waits for a turn's `wait` until `at`. A pause or a stop ends it sooner; a `retry-now` ends it and lifts the account's usage wall; a check runs and the wait goes on. */
+  /**
+   * Waits for a turn's `wait` until `at`. A pause or a stop ends it sooner, and so does a switch of the
+   * agent's login, asked every `Policy.accountRecheck`. A `retry-now` ends it and lifts the account's
+   * usage wall. A check runs and the wait goes on.
+   */
   private async wait(at: number): Promise<void> {
     this.name("waiting");
     const retry = this.asks.retry;
     for (;;) {
-      const woke = await this.until((a) => a.stop !== null || a.retry !== retry || a.check !== null || a.paused !== null, at);
+      const step = Math.min(at, Date.now() + this.driver.policy.accountRecheck);
+      const woke = await this.until((a) => a.stop !== null || a.retry !== retry || a.check !== null || a.paused !== null, step);
+      if (!woke) {
+        if (step >= at || (await this.switched())) return;
+        continue;
+      }
       const a = this.asks;
       const [stop, retried, paused] = [a.stop !== null, a.retry !== retry, a.paused !== null];
       if (woke && !stop && !retried && !paused) {
@@ -566,6 +581,7 @@ export class Worker {
       return { kind: "land", slug: this.lander.slug, said: "" };
     }
     const sessions = d.state.sessions;
+    await this.switched();
     let outcome = await d.turn(this.session);
     await this.warned();
     if (d.state.sessions !== sessions) {
@@ -578,6 +594,15 @@ export class Worker {
       }
     }
     return outcome;
+  }
+
+  /** Asks the adapter for the agent's account, and gives the driver a new one. True when the account changed. An adapter that cannot tell changes nothing. */
+  private async switched(): Promise<boolean> {
+    if (this.fixedAccount) return false;
+    const now = await this.driver.adapter.account();
+    if (now === null || now === this.driver.account) return false;
+    this.driver.account = now;
+    return true;
   }
 
   /** Reads `looper.toml` again. One that does not load holds the loop with its error until a resume or a stop, and returns false. */

@@ -30,7 +30,7 @@ import { Refused, SIDE_GOAL_VAR } from "../goal/model.ts";
 import { pack } from "../goal/orient.ts";
 import { looperHome } from "../jobs/slots.ts";
 import { spawnDetached } from "../os/index.ts";
-import { adviceText, adviseLine } from "../loop/claude.ts";
+import { adviceText, adviseLine, account as login } from "../loop/claude.ts";
 import { type Advisor, adviceRequest, type Answered, answer, ask, close, type Decision, discuss, post, readDecisions, reply, runAdvisor } from "../loop/decisions.ts";
 import { ADVISOR_PROMPT } from "../loop/driver.ts";
 import { loopRecord, loopsDir } from "../loop/lanes.ts";
@@ -132,7 +132,7 @@ async function discussVerb(dir: string, args: string[]): Promise<Decision> {
   const tree = record.worktree === "" ? root : record.worktree;
   const cfg = loadConfig(tree);
   // A reply answers a message the wall let through.
-  if (text !== undefined) await wallRefuses(root, cfg.agent.adapter);
+  if (text !== undefined) await wallRefuses(root, (script === undefined ? await login() : null) ?? cfg.agent.adapter);
   // A side loop in the root reads its own goal as the live one, as its sessions do.
   if (record.kind === "side" && record.inRoot === true && record.goal !== null) process.env[SIDE_GOAL_VAR] = record.goal;
   const advise: Advisor = async (d) => {
