@@ -5455,6 +5455,10 @@ mod tests {
         use super::*;
 
         #[test]
+        #[cfg_attr(
+            miri,
+            ignore = "an 8 MiB body, which Miri is too slow to walk in the time limit"
+        )]
         fn a_decoded_body_of_any_size_is_held_once() {
             for size in [64 << 10, (4 << 20) + (64 << 10), (8 << 20) - (64 << 10)] {
                 let text = crate::json::tests::wide_document(size);
