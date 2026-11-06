@@ -32,9 +32,12 @@ that must apply all or nothing wraps the walk in a transaction.
 
 **Outside the pointer, nothing is built.** A value on the way to `$at`, or after the array ends, is
 checked for syntax and depth and then skipped, and a skipped string is not kept. The document after
-the array is read to its end, so trailing garbage still fails the walk. A skipped string passes through
-the parser's scratch buffer, whose capacity stays at the longest string read until the walk ends: that
-is O(longest string), counted against the request, and never O(document).
+the array is read to its end, so trailing garbage still fails the walk. A skipped string value is read
+without a copy: the walk peeks at a skipped value's first byte, and a `"` is read by the parser's
+ignoring path, which keeps nothing. A skipped array or object is read by the walk's own skip again, so
+its depth is still checked. A skipped object's **keys** do pass through the parser's scratch buffer,
+whose capacity stays at the longest key until the walk ends: that is O(longest key), counted against
+the request, and never O(document).
 
 **JSON Lines is values separated by whitespace.** Each value is an element and blank lines are allowed.
 Two values on one line are read as two elements, as every JSON Lines reader reads them, because the
@@ -74,3 +77,6 @@ stack, resident only in the pages the parse touches. An `encodeEach` walk holds 
 - **A framer that finds each element's bytes and hands them to the whole decoder.** It ran 1.5 times
   faster than the coroutine in the probe, but it is a hand-written parser of JSON's outer structure,
   which RFC 8259 being a dependency rules out, and its messages name a column inside the element.
+  Rewriting a skipped value inside the byte feed is the same framer, and is declined with it.
+- **The parser's ignoring path for a whole skipped value.** It checks no depth and keeps one byte per
+  open level, so it would trade the string's copy for a nesting one and drop `maxDepth`.

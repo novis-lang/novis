@@ -30,9 +30,20 @@
 //!
 //! [`Toward`] walks the path `$at` names, one step per nesting level. Every
 //! value off that path, before the array or after it, is read by [`Skip`]:
-//! its syntax and its depth are checked, and nothing is built. A skipped string
-//! is in serde_json's scratch buffer only until the next one. The document
+//! its syntax and its depth are checked, and nothing is built. The document
 //! after the array is read to its end, so trailing text still fails.
+//!
+//! **A skipped string value is not kept.** serde_json copies a string into its
+//! scratch buffer to give a visitor a `&str`, so [`Skip`] does not ask for
+//! one. It peeks with `deserialize_option`, and the byte serde_json peeked is
+//! the last one [`Feed`] handed out, since `io::Bytes` reads one byte per call.
+//! A `"` is read with `deserialize_ignored_any`, whose `ignore_str` keeps
+//! nothing. An array or an object is read with [`Skip`] again, so its depth is
+//! still checked. `ignore_value` would check none.
+//!
+//! **What it spends:** a skipped object's keys still pass through
+//! serde_json's `MapKey`, which copies each key into scratch. So skipping costs
+//! O(longest key), counted against the request, and nothing for its values.
 //!
 //! # A failure in the middle
 //!
@@ -143,6 +154,8 @@ struct Feed<'y> {
     at: usize,
     /// How many bytes of the source were handed out.
     handed: &'y Cell<u64>,
+    /// The last byte handed out: the one serde_json has peeked, where it has.
+    last: &'y Cell<u8>,
     /// The coroutine's side of the switch.
     yielder: &'y Yielder<Down, Up>,
 }
@@ -161,6 +174,9 @@ impl io::Read for Feed<'_> {
         let n = buf.len().min(self.chunk.len() - self.at);
         buf[..n].copy_from_slice(&self.chunk[self.at..self.at + n]);
         self.at += n;
+        if let Some(&byte) = buf[..n].last() {
+            self.last.set(byte);
+        }
         let n_bytes = u64::try_from(n).unwrap_or(u64::MAX);
         self.handed.set(self.handed.get().saturating_add(n_bytes));
         Ok(n)
@@ -179,15 +195,26 @@ struct Walker<'w, 'y> {
     yielder: &'y Yielder<Down, Up>,
     /// Set once the pointer's array is reached.
     found: &'w Cell<bool>,
+    /// [`Feed`]'s last byte handed out, which [`Skip`] reads.
+    last: &'w Cell<u8>,
 }
 
-impl Walker<'_, '_> {
+impl<'w> Walker<'w, '_> {
     /// The [`Decode`] for a value at `depth`.
     const fn decode(self, depth: u32) -> Decode<'static> {
         Decode {
             depth,
             max: self.max,
             lists: None,
+        }
+    }
+
+    /// The [`Skip`] for a value off the path at `depth`.
+    const fn skip(self, depth: u32) -> Skip<'w> {
+        Skip {
+            depth,
+            max: self.max,
+            last: self.last,
         }
     }
 
@@ -232,24 +259,29 @@ macro_rules! accepted_scalars {
 }
 
 /// A value off the pointer's path: its syntax and its depth are checked, and
-/// nothing is built.
+/// nothing is built. A string value is not kept either (§ *Outside the
+/// pointer*).
 #[derive(Clone, Copy)]
-struct Skip {
+struct Skip<'w> {
     /// This value's nesting level.
     depth: u32,
     /// The deepest nesting allowed.
     max: u32,
+    /// [`Feed`]'s last byte handed out.
+    last: &'w Cell<u8>,
 }
 
-impl<'de> DeserializeSeed<'de> for Skip {
+impl<'de> DeserializeSeed<'de> for Skip<'_> {
     type Value = ();
 
     fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<(), D::Error> {
-        deserializer.deserialize_any(self)
+        // `deserialize_option` peeks at the value's first byte and consumes
+        // nothing but a `null`, so `visit_some` chooses how to read the rest.
+        deserializer.deserialize_option(self)
     }
 }
 
-impl<'de> Visitor<'de> for Skip {
+impl<'de> Visitor<'de> for Skip<'_> {
     type Value = ();
 
     fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -257,6 +289,18 @@ impl<'de> Visitor<'de> for Skip {
     }
 
     accepted_scalars!();
+
+    fn visit_none<E: serde::de::Error>(self) -> Result<(), E> {
+        Ok(())
+    }
+
+    fn visit_some<D: Deserializer<'de>>(self, deserializer: D) -> Result<(), D::Error> {
+        if self.last.get() == b'"' {
+            deserializer.deserialize_ignored_any(IgnoredAny).map(|_| ())
+        } else {
+            deserializer.deserialize_any(self)
+        }
+    }
 
     fn visit_seq<S: SeqAccess<'de>>(self, mut seq: S) -> Result<(), S::Error> {
         let inner = self.opened()?;
@@ -273,7 +317,7 @@ impl<'de> Visitor<'de> for Skip {
     }
 }
 
-impl Skip {
+impl Skip<'_> {
     /// The level inside an array or an object opened at this one, or
     /// [`Decode`]'s refusal where this level may not open one.
     fn opened<E: serde::de::Error>(self) -> Result<Self, E> {
@@ -287,7 +331,7 @@ impl Skip {
         }
         Ok(Self {
             depth: self.depth + 1,
-            max: self.max,
+            ..self
         })
     }
 }
@@ -350,10 +394,7 @@ impl<'de> Visitor<'de> for Toward<'_, '_, '_> {
                     walker: self.walker,
                 })?
             } else {
-                seq.next_element_seed(Skip {
-                    depth: inner,
-                    max: self.walker.max,
-                })?
+                seq.next_element_seed(self.walker.skip(inner))?
             };
             if more.is_none() {
                 return Ok(());
@@ -384,10 +425,7 @@ impl<'de> Visitor<'de> for Toward<'_, '_, '_> {
                     walker: self.walker,
                 })?;
             } else {
-                map.next_value_seed(Skip {
-                    depth: inner,
-                    max: self.walker.max,
-                })?;
+                map.next_value_seed(self.walker.skip(inner))?;
             }
         }
         Ok(())
@@ -454,10 +492,12 @@ fn read_source(
 ) -> Ended {
     let handed = Cell::new(0u64);
     let found = Cell::new(false);
+    let last = Cell::new(0u8);
     let feed = Feed {
         chunk: Vec::new(),
         at: 0,
         handed: &handed,
+        last: &last,
         yielder,
     };
     let mut deserializer = serde_json::Deserializer::from_reader(feed);
@@ -469,6 +509,7 @@ fn read_source(
         typed,
         yielder,
         found: &found,
+        last: &last,
     };
     let read = if lines {
         each_line(&mut deserializer, walker)
@@ -1055,6 +1096,37 @@ mod tests {
             "a skipped value is checked for syntax"
         );
         released(elements);
+    }
+
+    /// A skipped string value is not kept: a walk past an 8 MiB string peaks
+    /// where a walk without it does. A string inside a skipped array is not
+    /// kept either, and a broken one still fails.
+    // covers: Core\Json::decodeEach
+    #[test]
+    fn decode_each_does_not_keep_a_skipped_string() {
+        let items = (0..100).map(|at| at.to_string()).collect::<Vec<_>>().join(",");
+        let huge = "x".repeat(8 << 20);
+        let plain = peak_of_walk(&format!("{{\"items\":[{items}],\"end\":true}}"));
+        for text in [
+            format!("{{\"meta\":\"{huge}\",\"items\":[{items}],\"end\":true}}"),
+            format!("{{\"meta\":[1, \"{huge}\"],\"items\":[{items}],\"end\":\"{huge}\"}}"),
+        ] {
+            let skipping = peak_of_walk(&text);
+            assert!(
+                skipping.saturating_sub(plain) < 64 << 10,
+                "a skipped string grew the peak from {plain} to {skipping} bytes"
+            );
+        }
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let broken = r#"{"meta":"a\qb","items":[1]}"#;
+        let elements = walk(&mut ctx, chunks(broken, 4), "/items", false).expect("the walk starts");
+        assert!(
+            next(&mut ctx, elements).is_err(),
+            "a skipped string is checked for syntax"
+        );
+        released(elements);
+        assert_eq!(ints(r#"{"a":null,"b":"s","items":[1,2]}"#, "/items", false), [1, 2]);
     }
 
     /// A syntax error after some elements throws where it is found: the
