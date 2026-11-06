@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: [json-streaming, realtime-example-apps, website-code-checked]
+chain: [json-streaming, setup-in-any-order, realtime-example-apps, website-code-checked]
 floor:
   - id: floor-debt
     name: every owed or red atom is paid green
@@ -37,13 +37,14 @@ floor:
 
 # Goals
 
-The chain holds 3 goal(s). `json-streaming` is live.
+The chain holds 4 goal(s). `json-streaming` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
 | 1 | [`json-streaming`](json-streaming.md) **live** | Reached when Core\Json::decodeEach reads the elements of an array inside a document, or a JSON Lines stream, one at a time from a file or a byte stream, Core\Json::encodeEach writes one in pieces, memory stays flat at any document size, and both members owe no feature proof. | 1 ✓ the rule, the two member cards, and the reader chosen by a probe · 2 ✓ Core\Json::decodeEach reads one element at a time from a file or a byte stream · 3 ✓ Core\Json::encodeEach writes an array or JSON Lines in pieces · **4 both members carry their feature proofs, and the JSON guide shows them** · 5 the goal is verified once, and every failure is fixed |
-| 2 | [`realtime-example-apps`](realtime-example-apps.md) | Reached when apps/chat and apps/poll pass bun nv site --check apps, a browser test drives each app's own script in Chromium, and a guide page tells a reader when to use a WebSocket and when an event stream. | **1 both apps land with one production setup, and the website's app check is green over them** · 2 a browser test drives chat.js and poll.js in Chromium against the served apps · 3 a guide page says when to use a WebSocket and when an event stream, and links both apps · 4 a request's wall_time no longer ends a WebSocket or an event stream it upgraded · 5 the goal is verified once, and every failure is fixed |
-| 3 | [`website-code-checked`](website-code-checked.md) | Reached when bun nv site --check code fails on any code block of a hand-written page or an example app that no check runs and that no marker exempts with a reason, and is green. | **1 every code block of the website is listed with what checks it, and the code part exists** · 2 every TOML, JSON and YAML block is parsed by the tool that reads it · 3 every shell and output block is a run, a parsed nvs command, or marked with its reason · 4 every nginx, Caddy and Dockerfile block, and every app's deploy/ folder, passes its own validator · 5 the code part runs in CI and in bun nv ci --check, and its rule is written · 6 the goal is verified once, and every failure is fixed |
+| 2 | [`setup-in-any-order`](setup-in-any-order.md) | Reached when the order test runs every order of nvs run, nvs init and nvs service install and the service starts with its data folder every time, nvs init sets up the data folder and the project file, and a command that needs admin rights asks for them itself. | **1 an owner that is an administrator passes the ownership check on Windows** · 2 the folder above a checked folder fails only when another account can replace that folder · 3 nvs init sets up the data folder and the project file, and offers to restrict its folder · 4 a command that needs admin rights asks for them itself · 5 the order test passes, and the install guide shows the short path · 6 the goal is verified once, and every failure is fixed |
+| 3 | [`realtime-example-apps`](realtime-example-apps.md) | Reached when apps/chat and apps/poll pass bun nv site --check apps, a browser test drives each app's own script in Chromium, and a guide page tells a reader when to use a WebSocket and when an event stream. | **1 both apps land with one production setup, and the website's app check is green over them** · 2 a browser test drives chat.js and poll.js in Chromium against the served apps · 3 a guide page says when to use a WebSocket and when an event stream, and links both apps · 4 a request's wall_time no longer ends a WebSocket or an event stream it upgraded · 5 the goal is verified once, and every failure is fixed |
+| 4 | [`website-code-checked`](website-code-checked.md) | Reached when bun nv site --check code fails on any code block of a hand-written page or an example app that no check runs and that no marker exempts with a reason, and is green. | **1 every code block of the website is listed with what checks it, and the code part exists** · 2 every TOML, JSON and YAML block is parsed by the tool that reads it · 3 every shell and output block is a run, a parsed nvs command, or marked with its reason · 4 every nginx, Caddy and Dockerfile block, and every app's deploy/ folder, passes its own validator · 5 the code part runs in CI and in bun nv ci --check, and its rule is written · 6 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`ci-green`](ci-green.md).
 
