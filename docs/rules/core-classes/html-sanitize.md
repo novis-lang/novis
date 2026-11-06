@@ -26,5 +26,10 @@ and the member takes the document and nothing else — no options bag, no policy
 deployment cannot hold a hole its own configuration opened. An element a real application needs is
 added to the list in a commit that says why.
 
+**`Core\Markdown` is the other launderer that rebuilds through this list**
+(`rule:core-classes/markdown-to-html`). Its renderer writes only what the list holds, and a document's
+raw HTML is rebuilt here. So the list grows by the five value-checked entries Markdown's output needs,
+and a Markdown answer sanitized again is unchanged. Neither member has a list of its own.
+
 The acceptance property is **mutation XSS**: sanitizing an answer again changes nothing, which is what
 says the approved document is the one a browser will build.

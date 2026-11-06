@@ -1,0 +1,14 @@
+{
+  "title": "`Core\\Markdown` reads CommonMark with GFM and writes HTML only through the sanitizer's list",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/html-sanitize",
+    "core-classes/markdown-cost",
+    "core-classes/markdown-chunks",
+    "core-classes/markdown-from-html"
+  ],
+  "guardedBy": [
+    "tests/data/markdown/known-bugs.toml"
+  ],
+  "goal": "markdown"
+}

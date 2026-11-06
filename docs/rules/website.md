@@ -20,7 +20,8 @@ The scene is written from its **brief**, which its module exports as `brief` (`B
 - `expectation`: what they expect before it, which the moment corrects.
 - `proof`: what on the stage shows the moment is true.
 - `leavesOut`: true things the scene leaves out, because they would pull the eye away from the moment.
-- `then`: where the viewer goes next.
+- `then`: where the viewer goes next. The text above the stage on the walkthrough's page links it,
+  so a viewer who wants more follows the link from where they started.
 
 Exactly one step is written with `moment: true`. The player marks it gold on the scrub bar, its
 caption is gold, and the scene slows down for it.
@@ -36,7 +37,8 @@ the stage is judged against, and naming what is left out stops the next author f
 
 `tools/nv/test/walkthrough-briefs.test.ts` holds every scene under
 `website/src/components/walkthrough/scenes/` to the shape: a `brief` with every field filled and exactly
-one `moment: true`. Whether the stage serves the moment is a judgement no check makes, and the brief is
+one `moment: true`, and holds the page that shows each scene to at least one link in its text. Whether
+the stage serves the moment is a judgement no check makes, and the brief is
 where it is written down. The parts gallery, `in-depth/walkthrough-parts`, shows parts and is not a
 walkthrough, so it has no brief.
 

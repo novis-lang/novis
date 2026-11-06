@@ -1,0 +1,10 @@
+{
+  "title": "`Core\\Markdown::fromHtml` escapes every text node, so HTML text never becomes Markdown syntax",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/markdown-to-html",
+    "core-classes/html-sanitize"
+  ],
+  "guardedBy": [],
+  "goal": "markdown"
+}

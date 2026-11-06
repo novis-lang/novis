@@ -1,0 +1,10 @@
+{
+  "title": "`Core\\Markdown` renders one block group at a time, or as text arrives, and gives the whole document's HTML",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/markdown-to-html",
+    "core-classes/json-whole-and-stream"
+  ],
+  "guardedBy": [],
+  "goal": "markdown"
+}

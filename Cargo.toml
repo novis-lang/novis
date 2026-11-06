@@ -1037,6 +1037,18 @@ fluent-uri = "0.4"
 # a parse.
 html5ever = "0.40"
 
+# --- Markdown (`Core\Markdown`, `rule:core-classes/markdown-to-html`) ---
+# `pulldown-cmark`, MIT, pure Rust. Its build script compiles to an empty
+# `main` unless the `gen-tests` feature is on, which this row never turns on.
+# It was measured
+# against `comrak` over the CommonMark and GFM spec examples and the known-bug
+# catalogue: it is linear on every catalogued slow input where comrak is not,
+# and three times faster. The rule holds the measurement. Without default
+# features it takes `bitflags`, `memchr` and `unicase`; `html` is off because
+# the renderer is ours and builds `Core\Html`'s tree. Stage 3 of the goal
+# vendors it under `vendor/` with its patches, as `html5ever` is.
+pulldown-cmark = { version = "0.13", default-features = false }
+
 # --- compression (`Core\Compress`, `rule:core-classes/decompression-bound`) ---
 # Three crates for five codec cases, and `rule:packaging/a-c-dependency-answers-two-questions`'s first
 # question is "yes" for every one of them: a compressed body is attacker-controlled

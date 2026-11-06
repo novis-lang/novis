@@ -1,0 +1,36 @@
+`Core\Markdown`'s work is linear in its input, its nesting is bounded by the HTML parser's own bound,
+and the output it adds beyond its input is bounded by the input's length plus 64 KiB. Each of these is
+a property of the parse, so no input is refused and no parse fails: Markdown has no invalid input.
+
+**Work is linear.** Every catalogued slow input of every library in the known-bug catalogue is a test
+that counts work steps, as `parsed_counting_steps` does for HTML, and fails when the steps grow faster
+than the input. There is no timing in the test and no timeout in the member, so a slow input is a bug
+found in the tree, not a request cut off in production.
+
+**Nesting deeper than 512 flattens exactly as `rule:core-classes/html-parsing` flattens it.** It is the
+same bound and not a new one: the output passes through, or must equal, the WHATWG parse, and a tree
+the renderer wrote deeper than the parser keeps would change when it is sanitized again.
+
+**Added output** is output that does not come from the input's bytes one for one: a reference's URL
+and title written at each use, and the empty cells that pad a short table row. One document adds at
+most its own input length plus 64 KiB. Past that, a reference renders as its source text and a row is
+not padded. No real document comes near the bound, and without it a 1 MB input writes gigabytes,
+which seven of the catalogued libraries shipped.
+
+**NUL becomes U+FFFD**, as the spec says, before the engine reads the text. Invalid UTF-8 follows
+`rule:types/string-is-utf8`. A byte-order mark at the start of the document is not text.
+
+**A panic is a bug.** The fuzz targets run the parse and the renderer, and a differential fuzz runs
+the other engine the choice was measured against. Each difference is triaged into our bug, fixed and
+catalogued, or a spec reading, one line in `rule:core-classes/markdown-to-html`.
+
+**Memory:** `toHtml` holds the document, its output tree and its reference and footnote definitions,
+all attributed to the request and freed with it. `toHtmlEach` and `Live` hold less, as
+`rule:core-classes/markdown-chunks` says. The added-output budget is one counter per parse.
+
+**Declined:**
+- **A timeout or a worker** in place of linear work. Either one turns a quadratic path into a request
+  that fails late, and still spends the time.
+- **A depth setting.** It could only buy back the quadratic cost the bound removes.
+- **Refusing a document that hits a bound.** A document is still rendered, and the bound decides only
+  how much of the extra output exists.
