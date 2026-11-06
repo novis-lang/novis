@@ -152,6 +152,7 @@ pub use affinity::{CpuId, cpus, pin_current_thread};
 pub use block_on::block_on;
 pub use blocking::BlockingPool;
 pub use channel::{Receiver, RecvError, SendError, Sender, TryRecvError, TrySendError, channel};
+pub use corosensei::{CoroutineResult, Yielder};
 pub use cpuclock::ThreadClock;
 pub use group::SchedulerHost;
 pub use isolate::{Completion, Failure, Isolate, Output, Program, Running};
@@ -169,7 +170,6 @@ pub use scheduler::{
     suspend, suspend_current,
 };
 pub use slice::SliceClock;
-pub use corosensei::{CoroutineResult, Yielder};
 pub use stack::{
     SPARE_STACK_SIZE, Suspendable, TASK_STACK_SIZE, on_spare_stack, on_spare_stack_within,
     suspendable,

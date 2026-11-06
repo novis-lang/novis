@@ -286,9 +286,10 @@ pub fn suspendable<I: 'static, Y: 'static, R: 'static>(
     body: impl FnOnce(&Yielder<I, Y>, I) -> R + 'static,
 ) -> std::io::Result<Suspendable<I, Y, R>> {
     let stack = DefaultStack::new(SPARE_STACK_SIZE)?;
-    Ok(Coroutine::with_stack(stack, move |yielder: &Yielder<I, Y>, input: I| {
-        native_frame(|| body(yielder, input))
-    }))
+    Ok(Coroutine::with_stack(
+        stack,
+        move |yielder: &Yielder<I, Y>, input: I| native_frame(|| body(yielder, input)),
+    ))
 }
 
 /// A coroutine [`suspendable`] made.

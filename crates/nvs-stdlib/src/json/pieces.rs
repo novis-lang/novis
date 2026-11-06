@@ -159,7 +159,11 @@ fn write_item(ctx: &mut nvs_runtime::Ctx, key: u64, item: Value) -> Result<(), F
 /// # Errors
 ///
 /// [`write_item`]'s, and whatever a driven `Iterable` throws.
-fn next_piece(ctx: &mut nvs_runtime::Ctx, key: u64, items: Value) -> Result<Option<Vec<u8>>, Fault> {
+fn next_piece(
+    ctx: &mut nvs_runtime::Ctx,
+    key: u64,
+    items: Value,
+) -> Result<Option<Vec<u8>>, Fault> {
     loop {
         let writer = writer_at(ctx, key)?;
         if writer.ended || writer.waiting() >= CHUNK {
@@ -363,16 +367,29 @@ mod tests {
         let items = list(texts.iter().map(|text| Value::text(text)));
         let pieces = all_pieces(items, false);
         // About 186 KiB of text, so three pieces.
-        assert_eq!(pieces.len(), 3, "the array is written in {} pieces", pieces.len());
+        assert_eq!(
+            pieces.len(),
+            3,
+            "the array is written in {} pieces",
+            pieces.len()
+        );
         for piece in &pieces {
-            assert!(piece.len() <= super::CHUNK, "a piece of {} bytes", piece.len());
+            assert!(
+                piece.len() <= super::CHUNK,
+                "a piece of {} bytes",
+                piece.len()
+            );
         }
         let joined: Vec<u8> = pieces.concat();
         let expected = serde_json::to_string(&texts).expect("strings encode");
         assert_eq!(String::from_utf8(joined).expect("UTF-8"), expected);
 
         let empty = all_pieces(list([]), false);
-        assert_eq!(empty, vec![b"[]".to_vec()], "an empty source is an empty array");
+        assert_eq!(
+            empty,
+            vec![b"[]".to_vec()],
+            "an empty source is an empty array"
+        );
     }
 
     /// JSON Lines is one value per line with no brackets, and an empty source
@@ -386,7 +403,10 @@ mod tests {
             list([Value::bool(true), Value::null()]),
         ]);
         let joined = all_pieces(items, true).concat();
-        assert_eq!(String::from_utf8(joined).expect("UTF-8"), "1\n\"a\"\n[true,null]\n");
+        assert_eq!(
+            String::from_utf8(joined).expect("UTF-8"),
+            "1\n\"a\"\n[true,null]\n"
+        );
         assert!(all_pieces(list([]), true).is_empty(), "no item is no line");
     }
 
@@ -406,7 +426,10 @@ mod tests {
         let (class, message) = thrown(refused);
         let (want_class, want) = thrown(encode);
         assert_eq!(class, want_class);
-        assert_eq!(message, want.replace("Core\\Json::encode()", "Core\\Json::encodeEach()"));
+        assert_eq!(
+            message,
+            want.replace("Core\\Json::encode()", "Core\\Json::encodeEach()")
+        );
         assert!(next(&mut ctx, walk).expect("an ended walk").is_none());
         released(walk);
     }

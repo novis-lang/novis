@@ -240,7 +240,8 @@ fn framer_walk(
 ) -> Result<(), String> {
     const OPEN: &[u8] = br#""items":["#;
     let mut pending: Vec<u8> = Vec::new();
-    let (mut depth, mut in_str, mut escaped, mut started, mut done) = (0u32, false, false, false, false);
+    let (mut depth, mut in_str, mut escaped, mut started, mut done) =
+        (0u32, false, false, false, false);
     let mut emit = |bytes: &mut Vec<u8>| -> Result<(), String> {
         let text = std::str::from_utf8(bytes).map_err(|why| why.to_string())?;
         if !text.trim().is_empty() {
@@ -334,7 +335,9 @@ fn decode_each_reader_probe() {
     let framer = fastest(bytes, 30, || {
         framer_walk(document_chunks(size), release).expect("option (c) walks the document");
     });
-    eprintln!("time at {bytes} bytes, ns per byte: whole read {baseline:.2}, (a) coroutine {coroutine:.2}, (c) framer {framer:.2}");
+    eprintln!(
+        "time at {bytes} bytes, ns per byte: whole read {baseline:.2}, (a) coroutine {coroutine:.2}, (c) framer {framer:.2}"
+    );
     eprintln!("elements per walk: {}", count / 30);
 
     eprintln!("size        (a) peak bytes  (c) peak bytes");
@@ -351,8 +354,16 @@ fn decode_each_reader_probe() {
     }
 
     let broken = r#"{"items":[{"id":1},{"id":2},{"id":}]}"#;
-    eprintln!("whole read: {}", read(broken, DEFAULT_MAX_DEPTH_U32).map(release).expect_err("broken"));
+    eprintln!(
+        "whole read: {}",
+        read(broken, DEFAULT_MAX_DEPTH_U32)
+            .map(release)
+            .expect_err("broken")
+    );
     let one = || std::iter::once(broken.as_bytes().to_vec());
-    eprintln!("(a): {}", coroutine_walk(one(), release).expect_err("broken"));
+    eprintln!(
+        "(a): {}",
+        coroutine_walk(one(), release).expect_err("broken")
+    );
     eprintln!("(c): {}", framer_walk(one(), release).expect_err("broken"));
 }

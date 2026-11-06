@@ -484,7 +484,10 @@ fn read_source(
     let at = handed.get().saturating_sub(1);
     read.map_err(|why| (why.to_string(), at))?;
     if !lines && !found.get() {
-        return Err(("the document has no array where the pointer points".to_owned(), at));
+        return Err((
+            "the document has no array where the pointer points".to_owned(),
+            at,
+        ));
     }
     Ok(())
 }
@@ -621,7 +624,9 @@ fn next_element(
 ) -> Result<Option<Value>, Fault> {
     let walk = walk_at(ctx, key)?;
     let mut parse = walk.parse.take().ok_or_else(|| {
-        Fault::fatal(format!("internal error: a `{ELEMENTS_NAME}` walk lost its parse"))
+        Fault::fatal(format!(
+            "internal error: a `{ELEMENTS_NAME}` walk lost its parse"
+        ))
     })?;
     let (mut source, mut drained) = (walk.source, walk.drained);
     let (class, shape, list) = (walk.class, walk.shape, walk.list);
@@ -657,7 +662,16 @@ fn next_element(
                   reference the parse made, which `hydrate` takes"
     )]
     unsafe {
-        hydrate(ctx, class, shape, value, list, Reading::Wire(&lists), MEMBER).map(Some)
+        hydrate(
+            ctx,
+            class,
+            shape,
+            value,
+            list,
+            Reading::Wire(&lists),
+            MEMBER,
+        )
+        .map(Some)
     }
 }
 
@@ -913,7 +927,11 @@ mod tests {
     fn document(count: usize, skipped: usize) -> String {
         let element = |at: usize| format!("{{\"id\":{at},\"name\":\"item-{at}\"}}");
         let list = |n: usize| (0..n).map(element).collect::<Vec<_>>().join(",");
-        format!("{{\"meta\":[{}],\"items\":[{}],\"end\":true}}", list(skipped), list(count))
+        format!(
+            "{{\"meta\":[{}],\"items\":[{}],\"end\":true}}",
+            list(skipped),
+            list(count)
+        )
     }
 
     /// The request's peak memory while a walk over `text` at `/items` reads
@@ -983,16 +1001,27 @@ mod tests {
         assert_eq!(ints("[7,8]", "", false), [7, 8]);
 
         let mut ctx = Ctx::new(OutputSink::Sink);
-        for (pointer, why) in [("/missing", "no array"), ("/a", "an object"), ("/list/01", "no array")] {
-            let elements = walk(&mut ctx, chunks(text, 5), pointer, false).expect("the walk starts");
+        for (pointer, why) in [
+            ("/missing", "no array"),
+            ("/a", "an object"),
+            ("/list/01", "no array"),
+        ] {
+            let elements =
+                walk(&mut ctx, chunks(text, 5), pointer, false).expect("the walk starts");
             let fault = next(&mut ctx, elements).expect_err("the pointer names no array");
             let (class, message) = thrown(fault);
             assert_eq!(class, ThrownClass::Parse, "{message}");
             assert!(message.contains(why), "{pointer}: {message}");
             released(elements);
         }
-        assert!(walk(&mut ctx, chunks(text, 5), "items", false).is_err(), "a pointer starts with `/`");
-        assert!(walk(&mut ctx, chunks(text, 5), "/a~2", false).is_err(), "`~2` is not an escape");
+        assert!(
+            walk(&mut ctx, chunks(text, 5), "items", false).is_err(),
+            "a pointer starts with `/`"
+        );
+        assert!(
+            walk(&mut ctx, chunks(text, 5), "/a~2", false).is_err(),
+            "`~2` is not an escape"
+        );
     }
 
     /// A value before the array is read and checked but never built: a walk
@@ -1009,7 +1038,11 @@ mod tests {
         );
 
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let deep = format!("{{\"meta\":{}1{},\"items\":[1]}}", "[".repeat(600), "]".repeat(600));
+        let deep = format!(
+            "{{\"meta\":{}1{},\"items\":[1]}}",
+            "[".repeat(600),
+            "]".repeat(600)
+        );
         let elements = walk(&mut ctx, chunks(&deep, 64), "/items", false).expect("the walk starts");
         let (_, message) = thrown(next(&mut ctx, elements).expect_err("too deep"));
         assert!(message.contains("maxDepth"), "{message}");
@@ -1017,7 +1050,10 @@ mod tests {
 
         let broken = r#"{"meta":{"a" 1},"items":[1]}"#;
         let elements = walk(&mut ctx, chunks(broken, 4), "/items", false).expect("the walk starts");
-        assert!(next(&mut ctx, elements).is_err(), "a skipped value is checked for syntax");
+        assert!(
+            next(&mut ctx, elements).is_err(),
+            "a skipped value is checked for syntax"
+        );
         released(elements);
     }
 
@@ -1032,13 +1068,23 @@ mod tests {
             let at = if text.starts_with('[') { "" } else { "/items" };
             let elements = walk(&mut ctx, chunks(text, 2), at, false).expect("the walk starts");
             for _ in 0..given {
-                released(next(&mut ctx, elements).expect("an element before the error").expect("one"));
+                released(
+                    next(&mut ctx, elements)
+                        .expect("an element before the error")
+                        .expect("one"),
+                );
             }
             let (class, message) = thrown(next(&mut ctx, elements).expect_err("the error"));
             assert_eq!(class, ThrownClass::Parse);
-            assert!(message.starts_with("Core\\Json::decodeEach(): "), "{message}");
+            assert!(
+                message.starts_with("Core\\Json::decodeEach(): "),
+                "{message}"
+            );
             assert!(message.contains(", at byte "), "{message}");
-            assert!(next(&mut ctx, elements).unwrap().is_none(), "the walk ended");
+            assert!(
+                next(&mut ctx, elements).unwrap().is_none(),
+                "the walk ended"
+            );
             released(elements);
         }
     }
@@ -1053,7 +1099,8 @@ mod tests {
         assert_eq!(ints("", "", true), Vec::<i64>::new());
 
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let elements = walk(&mut ctx, chunks("{\"a\":1}\n{\"a\":2}\n", 3), "", true).expect("starts");
+        let elements =
+            walk(&mut ctx, chunks("{\"a\":1}\n{\"a\":2}\n", 3), "", true).expect("starts");
         let mut count = 0;
         while let Some(element) = next(&mut ctx, elements).expect("valid lines") {
             assert!(element.array_ptr().is_some(), "each line is an object");
@@ -1068,6 +1115,9 @@ mod tests {
         assert!(next(&mut ctx, elements).is_err(), "a broken line throws");
         released(elements);
 
-        assert!(walk(&mut ctx, chunks("1\n", 3), "/items", true).is_err(), "`at` must be ''");
+        assert!(
+            walk(&mut ctx, chunks("1\n", 3), "/items", true).is_err(),
+            "`at` must be ''"
+        );
     }
 }

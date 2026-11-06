@@ -2944,8 +2944,7 @@ impl<'a> Lowering<'a> {
             // `Ty::ClassDesc` spelling.
             let (desc, _) = self.emit(b, Ty::ClassDesc, InstKind::ShapeCodecConst { shape: None });
             let (list, _) = self.emit(b, Ty::Bool, InstKind::ConstBool(false));
-            let (codec, _) =
-                self.emit(b, Ty::ClassDesc, InstKind::ShapeCodecConst { shape: None });
+            let (codec, _) = self.emit(b, Ty::ClassDesc, InstKind::ShapeCodecConst { shape: None });
             return [desc, list, codec];
         }
         let class = written_class_label(call);
