@@ -359,6 +359,30 @@
 .wt-muted {
   color: var(--wt-muted);
 }
+/* A part of a page that shows a placeholder until its content arrives (`Browser.fill`). */
+.wt-fill {
+  position: relative;
+  display: grid;
+  align-self: stretch;
+  padding: 18px 22px;
+  border-radius: 14px;
+  border: 1px solid var(--wt-line);
+  background: var(--wt-win-2);
+  text-align: left;
+  font-size: 22px;
+  box-shadow: 0 0 calc(var(--flash, 0) * 34px) calc(var(--flash, 0) * 3px) color-mix(in oklab, var(--wt-after) 55%, transparent),
+    inset 0 0 0 calc(var(--flash, 0) * 2.5px) var(--wt-after);
+}
+.wt-fill > * {
+  grid-area: 1 / 1;
+}
+.wt-fill .wt-was {
+  color: var(--wt-muted);
+  font-style: italic;
+}
+.wt-fill .wt-now {
+  font-weight: 600;
+}
 
 /* Server: requests on a time axis. */
 .wt-server .wt-lanes {
@@ -370,6 +394,27 @@
   left: 28px;
   right: 28px;
   height: 60px;
+}
+/* A task that runs as a child of the request above it: thinner, with its label in its bar. */
+.wt-lane-child {
+  height: 36px;
+}
+.wt-lane-child .wt-lane-label {
+  display: none;
+}
+.wt-lane-child .wt-seg {
+  height: 36px;
+  border-radius: 9px;
+}
+.wt-lane-child .wt-seg span {
+  left: 12px;
+  line-height: 36px;
+  font-size: 16px;
+}
+.wt-lane-child .wt-end {
+  top: 4px;
+  width: 28px;
+  height: 28px;
 }
 .wt-lane-label {
   position: absolute;
@@ -445,6 +490,11 @@
   font-weight: 700;
   color: var(--sl-color-black);
   background: var(--wt-tone);
+}
+/* A marker near the lane's right end puts its label on its left, inside the window. */
+.wt-marker-left span {
+  left: auto;
+  right: 14px;
 }
 
 /* Inbox */

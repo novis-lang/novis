@@ -355,6 +355,11 @@ export default defineConfig({
                   link: '/guides/walkthroughs/after-response/',
                   attrs: { 'data-subtext': 'Send an email after the browser has the page' },
                 },
+                {
+                  label: 'Page now, slow parts later',
+                  link: '/guides/walkthroughs/page-now/',
+                  attrs: { 'data-subtext': 'Show the page first, then fill in its slow parts' },
+                },
               ],
             },
             {

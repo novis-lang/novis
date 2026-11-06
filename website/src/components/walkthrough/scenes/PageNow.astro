@@ -1,0 +1,35 @@
+---
+/**
+ * The `later` and `slotted` walkthrough, "Page now, slow parts later". Its brief is at the top of
+ * `page-now.ts`: everything here serves one moment, the page in the browser while its slow parts
+ * still run in the same request.
+ *
+ * Left is the visitor's browser, right is the server's side: the code, and the request with its two
+ * parts on a time axis. The same request runs twice, first without and then with
+ * `Core\Response::slotted()`.
+ */
+import Stage from '../Stage.astro'
+import Editor from '../Editor.astro'
+import Browser from '../Browser.astro'
+import Server from '../Server.astro'
+import Movers from '../Movers.astro'
+---
+
+<Stage id="wt-page-now" label="How Core\Html::later and Core\Response::slotted work, step by step">
+  <Movers kind="wire" name="wire" />
+  <Browser name="browser" url="example.com" tab="Home" place={{ wide: [40, 40, 620, 820], tall: [150, 630, 600, 560] }}>
+    <div class="wt-screen" data-screen="blank"></div>
+    <div class="wt-screen" data-screen="home">
+      <div class="wt-big" data-stagger>Welcome back</div>
+      <div class="wt-fill" data-fill="posts" data-stagger><span class="wt-was">Loading posts…</span><span class="wt-now">3 new blog posts</span></div>
+      <div class="wt-fill" data-fill="deals" data-stagger><span class="wt-was">Loading deals…</span><span class="wt-now">2 deals in the shop</span></div>
+    </div>
+  </Browser>
+  <Editor name="editor" src="walkthroughs/page-now.nvs" title="home.nvs" place={{ wide: [720, 24, 840, 560], tall: [50, 30, 800, 560] }} />
+  <Server name="server" title="nvs serve" pps={100} place={{ wide: [720, 604, 840, 284], tall: [50, 1240, 800, 290] }} />
+</Stage>
+
+<script>
+  import { start } from './page-now'
+  start(document.getElementById('wt-page-now')!)
+</script>
