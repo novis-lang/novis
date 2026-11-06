@@ -14,7 +14,7 @@ stages:
     context: [docs/rules/core-classes/json-whole-and-stream.md, docs/rules/core-api/one-paradigm-per-operation.md, docs/rules/packaging/search-sorts-by-the-readers-choice.md]
   - id: 3
     title: "Core\\Markdown::toHtml renders a whole document safely and in linear time"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/lib.rs, docs/rules/core-api/reference-card.md]
   - id: 4
     title: "a program changes links, images, headings and code blocks through callbacks"
@@ -309,6 +309,15 @@ names a Markdown renderer as a sink.
     DOM-clobbering reason for refusing `id` still holds. The `heading` callback's answer is written
     after `md-`, and footnotes use `md-fn-N` and `md-fnref-N`. Declined: a separate list for Markdown,
     which would make `sanitize` over Markdown's output change it.
+16. **How the catalogue test reads an expectation** (stage 3, held in the test file's module doc).
+    An `html_lacks` string searches only the output's tags (`nvs_stdlib::fuzz::html_tags`), because
+    every such string names a tag, an attribute or a URL scheme, and the same characters in text are
+    harmless. A `work` entry's bound lives in one place, the crate's
+    `work_grows_linearly_over_every_catalogued_slow_input`, which can count the engine's steps; the
+    integration test renders it once. `output = "bounded"` is four times plus the budget from `n` to
+    `4n`, and 32 bytes per input byte plus the budget. A from-html entry is skipped until stage 7 sets
+    `FROM_HTML_BUILT`. The engine counts steps only with debug assertions (`vendor/pulldown-cmark/src/steps.rs`),
+    so release pays nothing; a loop a later patch adds to the engine calls `crate::steps::add` too.
 
 ## Stages
 
@@ -423,9 +432,15 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
     whitespace a second parse drops (`without_leading_whitespace`).
   - [x] `nesting_past_512_flattens_as_the_html_parser_does` and
     `added_output_past_its_budget_renders_as_source_text`.
-  - [ ] `work_grows_linearly_over_every_catalogued_slow_input`, counting the engine's steps.
-- [ ] The catalogue test is no longer ignored, and every entry passes. An entry that fails is fixed in
+  - [x] `work_grows_linearly_over_every_catalogued_slow_input`, counting the engine's steps.
+    - [x] `vendor/pulldown-cmark/src/steps.rs`, and a step in each engine loop and scan primitive.
+    - [x] `nvs_stdlib::fuzz::markdown_counting_steps` adds one step per byte written.
+    - [x] The test over every to-html `work` entry at `n` and `4n`: all between 3.25 and 4.3.
+- [x] The catalogue test is no longer ignored, and every entry passes. An entry that fails is fixed in
   the code, never removed from the catalogue. `crates/nvs-stdlib/tests/markdown_known_bugs.rs:1`
+  - [x] `outcome` for `html`, `html_lacks`, `output` and `work` (decision 16).
+  - [x] The `#[ignore]` removed, and the two failures judged: md4c's 271 now expects cmark's space,
+    and `vbscript:` in a non-link is text.
 - [x] `docs/reference/core/Markdown.md` names the class. `docs/reference/core/Markdown.md:1`
 
 ### 4. a program changes links, images, headings and code blocks through callbacks
@@ -508,43 +523,46 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 3 has six of its eight items. The engine and the sanitizer's list each have a commit, and
-`toHtml` with its tests and page has one (`6463e25a`).
+Stage 3 is done. Its last two items have a commit each: the step count with its test
+(`a1a333b1`) and the catalogue test (`4eff7a89`). Stage 4 is next.
 
-- **`Core\Markdown::toHtml` renders.** `crates/nvs-stdlib/src/markdown.rs` is registered at rank
-  1045 with its card. `Renderer` builds `Parsed` from the engine's events, writing cmark's newlines
-  between tags as text nodes, so the output compares to the spec after only a reparse. Raw HTML is
-  a text node named `RAW_SOURCE` (`html.rs:1689`). Such a tree, or one past the parser's depth cap,
-  is serialized, parsed and rebuilt (`rendered`, `markdown.rs:859`). `url_allowed`
-  (`markdown.rs:170`) is the one URL check that stage 4's callbacks reuse. Footnotes are an `ol`
-  after an `hr`, with `md-fn-N` and `md-fnref-N`, and the rule now says so.
-- **Five of the six `to-html` tests pass**, run once by name: both spec tests, the fixed point, the
-  nesting flatten and the budget. The spec tests take the nine emphasis examples from CommonMark,
-  skip the tag filter, and pin the five examples a bare URL makes a link (`AUTOLINKED` in
-  `markdown/tests.rs`). The rule records that last reading.
-- **`sanitize` changed.** `rebuilt` now removes whitespace before the first element
-  (`without_leading_whitespace`, `html.rs:2202`), because a second parse dropped it, so `sanitize`
-  was not a fixed point. The 37 `html::` tests pass, with `Core\Markdown::toHtml` added to the
-  launderer roster.
-- **The two sweep reds were stale.** No `env-secret-proofs` check exists, since `byte-sources`
-  retired it. The three Miri timeouts ran at `26dda366`, and `f13f4064` ignores all three under Miri.
+- **`Core\Markdown::toHtml` renders**, registered at rank 1045 with its card. Raw HTML, or a tree
+  past the depth cap, is serialized, parsed and rebuilt (`rendered`). `url_allowed` is the one URL
+  check, which stage 4's callbacks reuse.
+- **All six `to-html` tests pass**, each run once by name. Engine work is counted by
+  `vendor/pulldown-cmark/src/steps.rs`, only with debug assertions, and every slow entry grows
+  3.25 to 4.3 times from `n` to `4n`. `rule:core-classes/markdown-cost` says what a step is.
+- **Every to-html catalogue entry passes.** Decision 16 says how each expectation is read. md4c's
+  issue 271 now expects cmark's space. The 67 from-html entries wait for stage 7.
+  `crates/nvs-stdlib/src/fuzz.rs` has the seam: `markdown`, `markdown_counting_steps`,
+  `html_sanitized`, `html_tags`.
+- **The sweep reds were stale again.** No `env-secret-proofs` check exists, and `f13f4064`
+  ignores the three Miri timeouts of run `42201104003` under Miri.
 
 ### Next
 
-**Stage 3** ends with its two open items. Write their checkpoints first:
+**Stage 4**, the four callbacks of decision 6, all in `crates/nvs-stdlib/src/markdown.rs`. Write the
+checkpoints under its two items first.
 
-- [ ] `work_grows_linearly_over_every_catalogued_slow_input`. `crates/nvs-stdlib/src/markdown/tests.rs:1`
-  It needs the
-  engine's work counted, and the events alone do not show it. Recommended: one `// Novis:` patch
-  with a thread-local step counter, bumped in the per-byte loops of `firstpass.rs` and of
-  `parse.rs`'s inline pass, read by a `#[cfg(test)]` helper. Each `work = "linear"` entry then
-  checks steps at n and at 4n, as `crates/nvs-stdlib/src/html.rs:2322` does.
-- [ ] `outcome` written and the `#[ignore]` removed. `crates/nvs-stdlib/tests/markdown_known_bugs.rs:226`
-  An integration test reaches only public items. Add `#[doc(hidden)] pub fn markdown(text) ->
-  String` to `crates/nvs-stdlib/src/fuzz.rs:153`, which stage 9's fuzz target needs too. An `html`
-  entry compares after a reparse, as `spec_normal` does. A `html_lacks` string with a `"` is checked
-  against the parsed output's attributes (stage 3's notes). `output = "bounded"` checks the
-  output against the input's length plus `ADDED_OUTPUT_SLACK` plus the markup a row or a use writes.
+- [ ] The registry row grows four optional named parameters. `crates/nvs-stdlib/src/markdown.rs:75`
+  `link`, `image`, `heading` and `code` are each a `CoreTy::CallableSig`, as in the filter row at
+  `crates/nvs-stdlib/src/arr.rs:136`, and `TO_HTML_DOC` (`crates/nvs-stdlib/src/markdown.rs:92`)
+  gets a card line for each. The helper's `args: [1]` grows to five.
+- [ ] `Renderer` (`markdown.rs:280`) holds the callbacks and the `ctx`. A call is
+  `nvs_runtime::call_callable(ctx, callable, &[args])`, as at `crates/nvs-stdlib/src/arr.rs:2432`,
+  and a `THROWN` result ends the render with that fault. The hooks are `Tag::Link`
+  (`markdown.rs:618`), `Tag::Image` (`:644`), `Tag::Heading` (`:535`, the text is known only at its
+  end, so the `id` is set then) and `Tag::CodeBlock` (`:544`, the code is collected until its end).
+- [ ] A returned URL goes through `url_allowed` (`markdown.rs:170`), and a refused one is treated as
+  `null`. A `heading` result is written after `md-` and must pass the sanitizer's `id` value test. A
+  `code` result is a `Markup` and is written as raw source, so its tree takes the rebuild path; record
+  in `rule:core-classes/markdown-to-html` whether the rebuild runs over it (recommended: yes, since
+  a sanitize fixed point must hold for the whole answer).
+- [ ] The four tests the `callbacks` check names (`crates/nvs-stdlib/src/markdown/tests.rs:1`).
+  Rust unit tests reach a callable through the
+  helper `callable_of` builds in `crates/nvs-stdlib/tests/allocation_policy.rs` (see the playbook's
+  first bullet), so a `.nvst` conformance case may be simpler for the call path, with unit tests on
+  a `Renderer` that takes plain Rust closures.
 
 Expected red: the floor check `proofs-gate`, since `Core\Markdown::toHtml` owes its feature proofs
 until stage 10 writes them. Stages 7 and 8 may run as a side goal (decision 12).
