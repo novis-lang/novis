@@ -42,7 +42,7 @@ stages:
     context: [extensions/pdf/nvs/Reader.nvs, extensions/pdf/nvs/Pages.nvs, extensions/image/nvs/Image.nvs, crates/nvs-cli/src/extensions.rs, docs/rules/packaging/values-cross-as-handles.md, docs/rules/core-classes/pdf-roster.md]
   - id: 10
     title: "the new members and the alias carry their feature proofs"
-    status: open
+    status: done
     context: [benches/members/README.md, tests/hostile/README.md, docs/rules/testing/feature-proofs.md, data/proofs/policy.json]
   - id: 11
     title: "every source kind has a bench with its growth, and every attack on a source is a hostile case"
@@ -687,21 +687,23 @@ tool is missed.
 
 **Split:** one writing subagent per member, side by side. None builds.
 
-- [ ] `Core\IO\File::readBytes`. `docs/examples/core/IO-File/readBytes/about.md:1`
-- [ ] `Core\IO::readBytes`, and `docs/reference/core/IO.md` names it. `docs/examples/core/IO/readBytes/about.md:1`
-- [ ] `Core\IO::stdinStream`. `docs/examples/core/IO/stdinStream/about.md:1`
-- [ ] `Core\Request\Part::peek`, with checks no `Core` member makes, and
+- [x] `Core\IO\File::readBytes`. `docs/examples/core/IO-File/readBytes/about.md:1`
+- [x] `Core\IO::readBytes`, and `docs/reference/core/IO.md` names it. `docs/examples/core/IO/readBytes/about.md:1`
+- [x] `Core\IO::stdinStream`. `docs/examples/core/IO/stdinStream/about.md:1`
+- [x] `Core\Request\Part::peek`, with checks no `Core` member makes, and
   `docs/reference/core/Request-Part.md` names it. `docs/examples/core/Request-Part/peek/about.md:1`
-- [ ] `Core\Request\BodyStream::peek`, with an `.nvsr` request body, and
-  `docs/reference/core/Request.md` names it. `docs/examples/core/Request-BodyStream/peek/about.md:1`
-- [ ] The aliases' proofs, as stage 2's roster item decided. `docs/examples/types/Bytes-Source/about.md:1`
-- [ ] `bun nv proofs --comments` over every new `.nvs`, and each line it names written again.
+- [x] `Core\Request\BodyStream::peek`, with an `.nvsr` request body, and
+  `docs/reference/core/Request-BodyStream.md` names it. `docs/examples/core/Request-BodyStream/peek/about.md:1`
+- [x] The aliases' proofs, as stage 2's roster item decided: an alias is part of its class's card
+  and owes none (`tools/nv/proofs/roster.ts:14`), so `bun nv proofs --id` knows no alias.
+- [x] `bun nv proofs --comments` over every new `.nvs`, and each line it names written again.
 
 ### 11. every source kind has a bench with its growth, and every attack on a source is a hostile case
 
 **Split:** benches and attacks are two writing subagents; their files are disjoint.
 
-- [ ] The four benches of decision 8, and their shares with `bun nv scaling --budget --write`.
+- [ ] The four benches of decision 8, and their shares with `bun nv scaling --budget --write`,
+  which also stores stage 10's `IO/readBytes.scale.nvs` and `IO/stdinStream.scale.nvs`.
   `benches/members/core/Mime/detect.scale.nvs:1`
 - [ ] `rule:testing/member-perf-ledger` hashes `byte_source.rs` for its consumers.
   `docs/rules/testing/member-perf-ledger.md:1`
@@ -744,11 +746,15 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Stages 1 to 9 are done. Stage 9 (decision 23): the host reads a manifest's `Core\Bytes::Source`
-whole at the call (`crates/nvs-cli/src/extensions.rs:@read_sources`); `Pages` and `Image` keep
-the source until their engine call. The `pdf-file` and `image-file` tests ran green on Windows. A
-`.nvsr` body may hold any bytes. The sweep's reds are stale: no `env-secret-proofs` check exists,
-and the three Miri timeouts are `ignore`d under Miri at HEAD (the nightly ran at `26dda366`).
+Stages 1 to 10 are done. Stage 10: the five new members each have an about page, three examples
+and the Novis case they owed, and their class introductions name them. Benches exist for
+`File::readBytes` (constant), `IO::readBytes` and `stdinStream` (linear, each with a `.scale.nvs`
+that meets its growth on the debug binary) and `BodyStream::peek` (constant). Attacks exist for
+`stdinStream` and `BodyStream::peek`. Stage 11 owes the bench of `Part::peek` and the attacks on
+`File::readBytes`, `IO::readBytes` and `Part::peek` (decisions 8 and 9). Every new bench's perf
+reads stale until stage 13's `--record-perf`. The three new `.nvst` cases passed under
+`nvs test`. The sweep's reds are stale: no `env-secret-proofs` check exists, and the three Miri
+timeouts are `ignore`d under Miri at HEAD (the nightly ran at `26dda366`).
 
 May go red at the gate: the cards, meta, LSP stub, `nvs agent` and perf-ledger snapshots of every
 widened member (`Xml::reader`, `Zip`, `Hash`, `Compress`, `Storage::put`, `BodyStream::peek`,
@@ -761,19 +767,19 @@ spreadsheet cases quoting the old CSV path; `llms-full.txt` (`sourceBytes`); a p
 
 ### Next
 
-**Stage 10: the new members and the alias carry their feature proofs**, one session, split into
-one writing subagent per member, side by side; none builds, and the session builds once they end.
+**Stage 11: every source kind has a bench with its growth, and every attack on a source is a
+hostile case**, one session, split into two writing subagents (benches; attacks) with disjoint files.
 
-- [ ] `Core\IO\File::readBytes`. `docs/examples/core/IO-File/readBytes/about.md:1`
-- [ ] `Core\IO::readBytes`, and `docs/reference/core/IO.md` names it. `docs/examples/core/IO/readBytes/about.md:1`
-- [ ] `Core\IO::stdinStream`. `docs/examples/core/IO/stdinStream/about.md:1`
-- [ ] `Core\Request\Part::peek`, with a binary `.nvsr` upload. `docs/examples/core/Request-Part/peek/about.md:1`
-- [ ] `Core\Request\BodyStream::peek`, with a `.nvsr` body. `docs/examples/core/Request-BodyStream/peek/about.md:1`
-- [ ] The aliases' proofs, as stage 2's roster item decided. `docs/examples/types/Bytes-Source/about.md:1`
-- [ ] `bun nv proofs --comments` over every new `.nvs`, each line it names rewritten. `docs/agent/prose.md:1`
+- [ ] The four benches of decision 8, then their shares. `benches/members/core/Mime/detect.scale.nvs:1`
+- [ ] The perf ledger hashes `byte_source.rs`. `docs/rules/testing/member-perf-ledger.md:1`
+- [ ] The attacks of decision 9. `tests/hostile/core/IO-File/readBytes/01-a-file-that-changes-while-it-is-read.nvs:1`
 
-Each subagent's brief: `bun nv proofs --id '<feature>'` prints what it owes and each path, and
-every `.nvs` and `about.md` follows AGENTS.md § *Text an end user reads*. Stage 11 follows.
+The benches are `Mime::detect`, `Part::peek`, `Hash::of` and `Zip::entries`, and their shares are
+written with `bun nv scaling --budget --write`. A bench whose `complexity` is not `constant` needs a `.scale.nvs` sibling
+(`benches/members/README.md:113`); `bun nv scaling --growth --nvs target/debug/nvs.exe <path>`
+checks one without a release build. A binary `.in` or `.nvsr` is written by a script under
+`.agent-tmp/`, since the Write tool cannot write those bytes. A hostile case's directives are in
+`tests/hostile/README.md`. Stage 12 follows.
 
 ### Backlog
 
