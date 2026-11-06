@@ -88,6 +88,7 @@
     "packaging/pdf-decoding-ships-in-the-image-package",
     "packaging/a-service-is-one-stored-argv",
     "packaging/the-installer-is-a-sink",
+    "packaging/a-command-that-needs-admin-rights-asks-for-them",
     "packaging/the-argv-lives-in-imagepath",
     "packaging/a-service-runs-as-a-virtual-account",
     "packaging/a-service-answers-its-manager",

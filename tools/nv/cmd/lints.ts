@@ -96,8 +96,8 @@ export const UNSAFE_CRATES: Record<string, string> = {
     "physical memory size, and creating a Windows data directory with a security descriptor",
   "crates/nvs-cli":
     "signal handling and its self-pipe, Windows service registration and dispatch, the account lookup, the monotonic " +
-    "clock, the socket `umask`, making a cached code pointer callable, and the debug adapter's standard streams and " +
-    "launch environment",
+    "clock, the socket `umask`, making a cached code pointer callable, the debug adapter's standard streams and " +
+    "launch environment, and asking for admin rights (`runas`, the elevated-token check and the console attach)",
   "crates/nvs-ext":
     "loading an extension's compiled component back from the artifact cache, whose bytes wasmtime runs as machine code without validating them; " +
     "and the `ext_bytes` bench's global allocator, which forwards to `System` and counts the host bytes a call allocates",

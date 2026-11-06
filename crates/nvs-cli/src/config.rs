@@ -461,7 +461,8 @@ pub(crate) fn init(
     };
     match project_file(&target, yes) {
         Ok((path, created)) => println!("{} the project file `{}`", done(created), path.display()),
-        Err(error) => {
+        Err(Unfinished::Elsewhere(code)) => return code,
+        Err(Unfinished::Failed(error)) => {
             failed = true;
             eprintln!("error: {error}");
         }
@@ -478,21 +479,38 @@ fn done(created: bool) -> &'static str {
     if created { "created" } else { "kept" }
 }
 
-/// [`init`]'s project file at `target`: its path and whether this call created it, or the text of
-/// the one `error:` line that says why it cannot be used.
-fn project_file(target: &Path, yes: bool) -> Result<(PathBuf, bool), String> {
+/// Why [`project_file`] has no file to report.
+enum Unfinished {
+    /// The text of the one `error:` line that says why the file cannot be used.
+    Failed(String),
+    /// `nvs init` ran again with admin rights, and this is its exit code
+    /// (`rule:packaging/a-command-that-needs-admin-rights-asks-for-them`).
+    Elsewhere(ExitCode),
+}
+
+impl From<String> for Unfinished {
+    fn from(line: String) -> Self {
+        Self::Failed(line)
+    }
+}
+
+/// [`init`]'s project file at `target`: its path and whether this call created it.
+fn project_file(target: &Path, yes: bool) -> Result<(PathBuf, bool), Unfinished> {
     let (Some(dir), Some(name)) = (target.parent(), target.file_name()) else {
-        return Err(
+        return Err(Unfinished::Failed(
             Declined::Unwritable(format!("`{}` does not name a file", target.display()))
                 .note_about(target, false),
-        );
+        ));
     };
-    let dir = restrict_folder(dir, yes).map_err(|declined| {
-        let mut note = declined.note_about(target, false);
-        if matches!(&declined, Declined::Untrusted(why) if why.repair().is_some()) {
-            note.push_str("\n  help: `nvs init --yes` runs these commands for you");
+    let dir = restrict_folder(dir, yes).map_err(|refused| match refused {
+        Restricting::Elsewhere(code) => Unfinished::Elsewhere(code),
+        Restricting::Declined(declined) => {
+            let mut note = declined.note_about(target, false);
+            if matches!(&declined, Declined::Untrusted(why) if why.repair().is_some()) {
+                note.push_str("\n  help: `nvs init --yes` runs these commands for you");
+            }
+            Unfinished::Failed(note)
         }
-        note
     })?;
     match write_template(dir.join(name), nvs_config::default_file()) {
         Ok(path) => Ok((path, true)),
@@ -505,23 +523,29 @@ fn project_file(target: &Path, yes: bool) -> Result<(PathBuf, bool), String> {
                 Err(nvs_config::trust::Untrusted::Unreadable(why)) => Err(format!(
                     "`{}` is kept, and it could not be examined: {why}",
                     path.display()
-                )),
+                )
+                .into()),
                 Err(why) => Err(format!(
                     "`{}` is kept, and `nvs serve` will not read it: {}\n  help: {}",
                     path.display(),
                     why.message(),
                     why.help().unwrap_or_default()
-                )),
+                )
+                .into()),
             }
         }
-        Err(declined) => Err(declined.note_about(target, false)),
+        Err(declined) => Err(declined.note_about(target, false).into()),
     }
 }
 
 /// `dir`, canonical, once [`nvs_config::trust::check_alone`] passes it, repairing on the way each
 /// write right another account has on `dir` itself when the operator agrees. Never changes another
 /// folder: a repair for any path but `dir` is returned as the refusal it came with.
-fn restrict_folder(dir: &Path, yes: bool) -> Result<PathBuf, Declined> {
+///
+/// When the system denies the change, `nvs init` asks for admin rights and runs again with
+/// `--yes`, because the operator has already agreed
+/// (`rule:packaging/a-command-that-needs-admin-rights-asks-for-them`).
+fn restrict_folder(dir: &Path, yes: bool) -> Result<PathBuf, Restricting> {
     let mut applied: Vec<nvs_config::trust::Repair> = Vec::new();
     loop {
         let why = match nvs_config::trust::check_alone(dir) {
@@ -529,28 +553,60 @@ fn restrict_folder(dir: &Path, yes: bool) -> Result<PathBuf, Declined> {
             Err(why) => why,
         };
         let Some(repair) = why.repair().cloned() else {
-            return Err(Declined::Untrusted(why));
+            return Err(Restricting::Declined(Declined::Untrusted(why)));
         };
         let own = nvs_config::trust::canonical(dir).is_ok_and(|dir| dir == repair.path());
         // A repair already applied that did not remove the breach is not applied twice.
         if !own || applied.contains(&repair) {
-            return Err(Declined::Untrusted(why));
+            return Err(Restricting::Declined(Declined::Untrusted(why)));
         }
         if applied.is_empty() && !yes && !agreed(repair.path()) {
-            return Err(Declined::Untrusted(why));
+            return Err(Restricting::Declined(Declined::Untrusted(why)));
         }
-        restrict(&repair).map_err(|err| {
-            Declined::Unwritable(format!(
-                "`{}` could not be restricted: {err}",
-                repair.path().display()
-            ))
-        })?;
+        if let Err(unrestricted) = restrict(&repair) {
+            if unrestricted.denied
+                && let Some(code) = crate::elevate::before(&["--yes"])
+            {
+                return Err(Restricting::Elsewhere(code));
+            }
+            return Err(Restricting::Declined(Declined::Unwritable(format!(
+                "`{}` could not be restricted: {}",
+                repair.path().display(),
+                unrestricted.why
+            ))));
+        }
         println!(
             "restricted `{}` so only you and {} can change it",
             repair.path().display(),
             ADMINISTRATORS
         );
         applied.push(repair);
+    }
+}
+
+/// Why [`restrict_folder`] returned no folder.
+enum Restricting {
+    /// The folder stays as it is, for this reason.
+    Declined(Declined),
+    /// `nvs init` ran again with admin rights, and this is its exit code.
+    Elsewhere(ExitCode),
+}
+
+/// Why [`restrict`] did not change a folder.
+struct Unrestricted {
+    /// The system denied this account the change.
+    denied: bool,
+    /// What failed, in the system's or the tool's own words.
+    why: String,
+}
+
+impl Unrestricted {
+    /// A failure that admin rights would not fix.
+    fn other(why: impl Into<String>) -> Self {
+        Self {
+            denied: false,
+            why: why.into(),
+        }
     }
 }
 
@@ -584,22 +640,26 @@ fn agreed(folder: &Path) -> bool {
 /// Applies `repair`: `chmod go-w` on Unix, and on Windows the two `icacls` commands the breach's
 /// help names, `/inheritance:d` and then `/remove:g` for the group. The second also removes the
 /// group's right to read, as the help says.
-fn restrict(repair: &nvs_config::trust::Repair) -> Result<(), String> {
+fn restrict(repair: &nvs_config::trust::Repair) -> Result<(), Unrestricted> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt as _;
         let path = repair.path();
         let mode = std::fs::metadata(path)
-            .map_err(|err| err.to_string())?
+            .map_err(|err| Unrestricted::other(err.to_string()))?
             .permissions()
             .mode();
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode & !0o022))
-            .map_err(|err| err.to_string())
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode & !0o022)).map_err(
+            |err| Unrestricted {
+                denied: err.kind() == std::io::ErrorKind::PermissionDenied,
+                why: err.to_string(),
+            },
+        )
     }
     #[cfg(windows)]
     {
         let Some(group) = repair.group() else {
-            return Err("the check named no group".to_string());
+            return Err(Unrestricted::other("the check named no group"));
         };
         icacls(repair.path(), &["/inheritance:d"])?;
         icacls(repair.path(), &["/remove:g", group])
@@ -607,9 +667,10 @@ fn restrict(repair: &nvs_config::trust::Repair) -> Result<(), String> {
 }
 
 /// One `icacls` edit of `path`, run from the system folder by its full path, so a program named
-/// `icacls` in the working directory or on `PATH` is never the one that runs.
+/// `icacls` in the working directory or on `PATH` is never the one that runs. Its exit status is
+/// the Windows error code, so `5` is access denied.
 #[cfg(windows)]
-fn icacls(path: &Path, edit: &[&str]) -> Result<(), String> {
+fn icacls(path: &Path, edit: &[&str]) -> Result<(), Unrestricted> {
     let system =
         std::env::var_os("SystemRoot").map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from);
     let ran = std::process::Command::new(system.join("System32").join("icacls.exe"))
@@ -617,7 +678,7 @@ fn icacls(path: &Path, edit: &[&str]) -> Result<(), String> {
         .args(edit)
         .stdin(std::process::Stdio::null())
         .output()
-        .map_err(|err| format!("`icacls` did not start: {err}"))?;
+        .map_err(|err| Unrestricted::other(format!("`icacls` did not start: {err}")))?;
     if ran.status.success() {
         return Ok(());
     }
@@ -627,7 +688,10 @@ fn icacls(path: &Path, edit: &[&str]) -> Result<(), String> {
         .find(|line| !line.trim().is_empty())
         .unwrap_or("")
         .trim();
-    Err(format!("`icacls {}` failed: {said}", edit.join(" ")))
+    Err(Unrestricted {
+        denied: ran.status.code() == Some(5),
+        why: format!("`icacls {}` failed: {said}", edit.join(" ")),
+    })
 }
 
 /// The snapshot this run's request reads — `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s roots, `rule:config/later-wins-and-every-override-is-recorded`'s ordered

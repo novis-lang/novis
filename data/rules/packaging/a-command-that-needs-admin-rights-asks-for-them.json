@@ -1,0 +1,11 @@
+{
+  "title": "A command that needs admin rights asks for them itself, and only `nvs service install`, `uninstall`, `start`, `stop` and an `nvs init` the system denied may ask",
+  "status": "shipped",
+  "seeAlso": [
+    "packaging/the-installer-is-a-sink",
+    "config/ownership-is-the-trust-boundary"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/elevate.rs"
+  ]
+}

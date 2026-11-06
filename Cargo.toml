@@ -301,6 +301,10 @@ windows-sys = { version = "0.61", features = [
     # stacks back (`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`), and these find the
     # committed part of a stack and discard it. `crates/nvs-host/src/stack.rs` is the one caller.
     "Win32_System_Memory",
+    # `ShellExecuteExW` with the verb `runas`: a command on the closed list of
+    # `rule:packaging/a-command-that-needs-admin-rights-asks-for-them` starts itself again with
+    # admin rights. `crates/nvs-cli/src/elevate.rs` is the one caller.
+    "Win32_UI_Shell",
 ] }
 
 # --- TLS over the parking stream (`rule:core-api/tier-roster`'s "TLS via `rustls`") ---

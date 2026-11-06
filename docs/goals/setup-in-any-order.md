@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-cli/src/config.rs, crates/nvs-cli/src/main.rs, crates/nvs-cli/tests/init.rs]
   - id: 4
     title: "a command that needs admin rights asks for them itself"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/service.rs, crates/nvs-cli/src/main.rs, tools/nv/cmd/lints.ts, docs/rules/packaging/the-installer-is-a-sink.md]
   - id: 5
     title: "the order test passes, and the install guide shows the short path"
@@ -152,6 +152,14 @@ The user's rules for this goal:
     edits `crates/nvs-cli/src/config.rs` and may run beside stages 1 and 2. Stage 4 edits
     `crates/nvs-cli/src/service.rs` and a new `elevate.rs`, and may run beside stage 3. Stage 5 runs
     last, after all four.
+12. **The output path is `AttachConsole`, chosen without the hand probe.** An unattended session
+    cannot answer a consent prompt, so decision 8's probe could not run. The attach needs no channel
+    of its own and creates nothing another account can open, and it is how gsudo's attached mode
+    reaches Windows Terminal and `cmd.exe` from an elevated process. The second process then opens
+    `CONOUT$` and `CONIN$` as its standard handles. The named pipe stays the fallback if a person
+    finds a terminal where the attach fails. A failed attach loses the output and still returns the
+    exit code. Decision 9's "a service" is the no-terminal case, so no session-0 check is added.
+    The Unix line is `run this as root:` and the command with `sudo` in front.
 
 ## Stages
 
@@ -198,17 +206,17 @@ The user's rules for this goal:
 
 **Does:** decisions 7, 8, 9 and 10.
 
-- [ ] The probe of decision 8, run by hand in Windows Terminal and in `cmd.exe`. Its result goes
-  into the new rule. `crates/nvs-cli/src/elevate.rs:1`
-- [ ] `elevate.rs`: the closed list, the check for an elevated token (`CheckTokenMembership` with a
+- [x] The probe of decision 8 could not run unattended; decision 12 records the choice, and the
+  backlog keeps the hand check. `crates/nvs-cli/src/elevate.rs:1`
+- [x] `elevate.rs`: the closed list, the check for an elevated token (`CheckTokenMembership` with a
   null token; stage 1 deleted the copy in `trust.rs`, so `elevate.rs` writes its own),
   `runas` with the wait and the exit code, the output path the probe chose, and `sudo` on Unix.
   `crates/nvs-cli/src/elevate.rs:1`
-- [ ] The service verbs and `nvs init` call it before they need the rights.
+- [x] The service verbs and `nvs init` call it before they need the rights.
   `crates/nvs-cli/src/service.rs:446` `crates/nvs-cli/src/config.rs:399`
-- [ ] `--no-elevate`, and the two named tests, which check the list and the no-prompt cases without
+- [x] `--no-elevate`, and the two named tests, which check the list and the no-prompt cases without
   starting a prompt. `crates/nvs-cli/src/elevate.rs:1`
-- [ ] The rule `packaging/a-command-that-needs-admin-rights-asks-for-them`, and the unsafe roster's
+- [x] The rule `packaging/a-command-that-needs-admin-rights-asks-for-them`, and the unsafe roster's
   reason for `nvs-cli`. `docs/rules/packaging/the-installer-is-a-sink.md:1` `tools/nv/cmd/lints.ts:96`
 
 ### 5. the order test passes, and the install guide shows the short path
@@ -237,46 +245,49 @@ website's install page, and another the Windows install example. Their files are
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 3: `Folder::prepare` returns `Prepared::{Created, Kept}` and
-`Unusable` keeps the check's help. `main` calls `nvs_config::data::prepare` for `init` like every
-command in `prepares`, skips the warning for `init`, and hands the result to `config::init`
-(`crates/nvs-cli/src/config.rs:405`). That prints `created|kept the data folder `…``, then
-`created|kept the project file `…``, and exits `1` if either failed. A file already there is kept
-and given `trust::check` (file and folder), so a second run exits `0`. `Untrusted::Breach` gained
-`repair: Option<Box<Repair>>` (path, and the SID on Windows). `trust.rs` sets it for a group's write
-right on Windows and for a Unix mode this account may `chmod` without `sudo`. `restrict_folder`
-(`config.rs:524`) asks on a terminal or takes `--yes`. It applies `icacls /inheritance:d` and
-`/remove:g <SID>` from `System32`, or `chmod go-w`, to the checked folder only, then checks again.
-A refusal with a repair adds `help: `nvs init --yes` runs these commands for you`. Row 4 of the install
-table ("it already exists") is gone from `docs/reference/tools/15-install.md` and the website page.
-The rule fragment has the paragraph. Ran by name, green on Windows: the three new `init` tests and
-`each_refusal_names_a_path_…`; `looper check --name init-sets-up` is green. The Unix half of
-`restrict` has not compiled or run. Stage 6 runs it, or `bun nv linux-test`.
+Stages 1 to 4 are done. `crates/nvs-cli/src/elevate.rs` holds the closed list (`asks`,
+`elevate.rs:42`), the pure `route` over `Facts` (`elevate.rs:95`) and `before(extra)`
+(`elevate.rs:140`). `main` calls `elevate::set`, which attaches to `--elevated-for <pid>`'s
+console, then `before(&[])` for a `Before` command (`crates/nvs-cli/src/main.rs:794`).
+`restrict_folder` calls `before(&["--yes"])` when `icacls` exits `5` or `chmod` is denied
+(`crates/nvs-cli/src/config.rs:568`). Windows asks with `ShellExecuteExW` `runas`, waits and
+returns the exit code; the child attaches to the console (decision 12). Unix runs `sudo`. Without a
+prompt it prints the admin line and the command, and exits `1`, as the debug binary did here.
+`--no-elevate` and hidden `--elevated-for` are global flags; `Win32_UI_Shell` is a `windows-sys`
+feature; the rule and the roster reason are written. Green: the `elevate::` tests, `looper check
+--name elevation`, clippy, `bun nv rules --check`, `bun nv lints --check`. The `runas` path has
+never run (it needs a person at a prompt), and the Unix half of `elevate.rs` and `restrict` has
+not compiled: stage 6, or `bun nv linux-test`.
 
 The sweep's `env-secret-proofs` red is stale state in looper's service. No check by that name exists
-in the tree or its history since json-streaming retired, and `looper check --name env-secret-proofs`
-says `no check matches`. `bun nv rules --check` is red on `docs/goals/byte-sources.md:194,201,456`,
-another goal's citations.
+in the tree, and `looper check --name env-secret-proofs` says `no check matches`. Another
+session's uncommitted edits sit in the tree (`nvs-db`, `nvs-stdlib`, `nvs-runtime`); never stage them.
 
 ### Next
 
-**Stage 4**, over `crates/nvs-cli/src/service.rs`, a new `crates/nvs-cli/src/elevate.rs` and
-`tools/nv/cmd/lints.ts`; no gate.
+**Stage 5**, over a new `crates/nvs-cli/tests/setup_order.rs`, then the install docs; split as the
+stage says.
 
-- [ ] The probe of decision 8 by hand, and its result into the new rule. `crates/nvs-cli/src/elevate.rs:1`
-- [ ] The closed list and the asking itself. `crates/nvs-cli/src/elevate.rs:1`
-  The elevated-token check, `runas` with wait and exit code, the output path, `sudo` on Unix.
-- [ ] The service verbs call it, at `Args::run` (`crates/nvs-cli/src/service.rs:446`). `nvs init`
-  calls it only when `restrict` fails with access denied on a folder another account owns
-  (`crates/nvs-cli/src/config.rs:524`, `restrict_folder`).
-- [ ] `--no-elevate` and the two named tests. `crates/nvs-cli/src/elevate.rs:1`
-- [ ] The rule and the roster reason. `docs/rules/packaging/the-installer-is-a-sink.md:1` `tools/nv/cmd/lints.ts:96`
+- [ ] The order test. `crates/nvs-cli/tests/setup_order.rs:1`. Trap: `registration::Recording`
+  (`crates/nvs-cli/src/service.rs:4521`) is `pub(crate)` in the binary crate, so an integration
+  test cannot reach it. Either the test runs the binary and judges the result on disk with
+  `nvs_config::trust::check_as` (`crates/nvs-config/src/trust.rs:246`), with `service install
+  --dry-run` standing in for the manager. Or the order test becomes a unit test in `service.rs`
+  and the acceptance check's argv changes with it. Decide by what `cargo test --test setup_order`
+  must run. A non-dry-run install now exits `1` with the admin line when the test is not elevated.
+- [ ] The install reference. `docs/reference/tools/15-install.md:142`
+  `nvs` in a folder, `nvs init`, `nvs service install`, which asks for admin rights itself.
+- [ ] The website's install page, the same way. `website/src/content/docs/install/server.mdx:120`
+- [ ] The Windows install example and its output. `docs/examples/tools/install/windows/about.md:1`
 
-Expected red until stage 6: none known. Not run since the change: `the_icacls_steps_…`
-(`crates/nvs-cli/tests/init.rs`) and `nvs_init_checks_its_folder_alone_…`, whose refusals now
-also carry the `--yes` help line, which they do not assert against.
+Expected red until stage 6: none known. Not run since their change: `the_icacls_steps_…`
+(`crates/nvs-cli/tests/init.rs`) and `nvs_init_checks_its_folder_alone_…`, whose refusals carry
+the `--yes` help line, which they do not assert against.
 
 ### Backlog
 
 - Whether `.nvsdata` beside the binary stays the default on Linux, where a normal user cannot
   create it next to `/usr/local/bin/nvs`, is not this goal's question.
+- Decision 8's hand probe: a person runs `nvs service start <name>` from a normal Windows Terminal
+  and from `cmd.exe`, accepts the prompt, and sees the output and the exit code in the same window.
+  If the attach fails in one of them, the named-pipe fallback is built. `crates/nvs-cli/src/elevate.rs:1`

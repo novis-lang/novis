@@ -204,7 +204,7 @@ use crate::render_diagnostics;
 #[derive(clap::Args)]
 pub(crate) struct Args {
     #[command(subcommand)]
-    command: Command,
+    pub(crate) command: Command,
 }
 
 /// `nvs service`'s own subcommands, which are
@@ -224,7 +224,7 @@ pub(crate) struct Args {
 /// anything. Which manager a verb reaches is [`at_host`]'s answer, and this
 /// module's doc owns why `run` is not here yet.
 #[derive(clap::Subcommand)]
-enum Command {
+pub(crate) enum Command {
     // Every `///` line below is printed by `nvs service --help`, so it is
     // written as `AGENTS.md` § *Text an end user reads* asks.
     /// Installs the command after `--` as a system service. The account that
@@ -388,7 +388,7 @@ pub(crate) struct Install {
     description: Option<String>,
     /// Prints every step, and changes nothing.
     #[arg(long)]
-    dry_run: bool,
+    pub(crate) dry_run: bool,
     /// The `nvs` command that the service runs, written after `--`.
     ///
     /// The `--` is required. Everything before it is an option of the

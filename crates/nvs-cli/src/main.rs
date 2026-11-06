@@ -168,6 +168,7 @@ mod debug;
 )]
 mod dispatch;
 mod doc;
+mod elevate;
 mod endpoints;
 mod events;
 mod ext;
@@ -331,6 +332,22 @@ struct Cli {
     // folder is one value per process (`nvs_config::data`).
     #[arg(long, value_name = "PATH", global = true)]
     data: Option<PathBuf>,
+
+    /// Does not ask for administrator rights.
+    ///
+    /// `nvs service install`, `uninstall`, `start` and `stop` need these
+    /// rights. So does `nvs init` when it changes a folder that your account
+    /// may not change. Without the rights, these commands ask for them. With
+    /// this option, they print the command to run as an administrator and
+    /// exit with status 1.
+    // `rule:packaging/a-command-that-needs-admin-rights-asks-for-them`; see [`elevate`].
+    #[arg(long, global = true)]
+    no_elevate: bool,
+
+    // Hidden: the process that asked for admin rights adds it, with its own
+    // process id, and nobody types it. See [`elevate`].
+    #[arg(long, value_name = "PID", global = true, hide = true)]
+    elevated_for: Option<u32>,
 }
 
 /// Names this process's data folder from `--data`, before anything reads it.
@@ -771,6 +788,18 @@ fn main() -> ExitCode {
     let Some(command) = cli.command else {
         return ExitCode::FAILURE;
     };
+
+    // Before anything prints, so a process started with admin rights writes to the terminal of
+    // the one that asked. Then a command on the closed list that needs the rights asks for them.
+    elevate::set(elevate::Options {
+        no_elevate: cli.no_elevate,
+        elevated_for: cli.elevated_for,
+    });
+    if elevate::asks(&command) == elevate::Asks::Before
+        && let Some(code) = elevate::before(&[])
+    {
+        return code;
+    }
 
     // The data folder, named once before any command reads it. `nvs service run` is the one
     // command that runs another command line, and [`run_hosted`] names it from that one.
