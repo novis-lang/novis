@@ -393,9 +393,15 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
 
 - [ ] `crates/nvs-stdlib/src/markdown.rs` with `toHtml`, registered beside `html` and with its reference
   card. `crates/nvs-stdlib/src/lib.rs:162`
-- [ ] `pulldown-cmark` vendored under `vendor/` with an entry in `[patch.crates-io]`, and the
+- [x] `pulldown-cmark` vendored under `vendor/` with an entry in `[patch.crates-io]`, and the
   patches of `rule:core-classes/markdown-to-html`'s engine paragraph, each with a catalogue entry
   that pins it. `Cargo.toml:1314`
+  - [x] 0.13.6's library copied to `vendor/pulldown-cmark/`, with a trimmed manifest and its licence.
+  - [x] The `[patch.crates-io]` row, and `nvs-stdlib` takes the crate.
+  - [x] The seven patches, each with a `// Novis:` comment that names its catalogue entry.
+  - [x] Each pinning input renders as its entry says, and the spec results are unchanged:
+    CommonMark 0 failures, GFM 21 (9 emphasis, 11 extended autolinks, 1 tag filter).
+  - [x] `THIRD-PARTY-LICENSES.txt` regenerated.
 - [ ] The sanitizer's list grows by decision 15's five value-checked entries, with a test each.
   `crates/nvs-stdlib/src/html.rs:1860`
 - [ ] Raw HTML through the sanitizer's rebuild, URLs through the shared check, output as a tree

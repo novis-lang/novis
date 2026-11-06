@@ -26,6 +26,11 @@ nvs-footprint.workspace = true
 # the tree builder through a `TreeSink` of its own into `crate::xml`'s `Parsed`
 # nodes rather than through the sample DOM `markup5ever_rcdom` carries.
 html5ever.workspace = true
+# `rule:core-classes/markdown-to-html`: `Core\Markdown` reads its input with
+# this parser's events and writes `Core\Html`'s tree from them. The workspace
+# row is where the measurement against `comrak` is written, and the patched copy
+# under `vendor/` is what builds.
+pulldown-cmark.workspace = true
 # `rule:security/capability-declaration-is-one-table`: `Cap` is the one place a
 # capability's `nvs.toml` name maps to the field that grants it, so the registry's
 # capability table names that enum rather than a string this crate would have to

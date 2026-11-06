@@ -1045,8 +1045,8 @@ html5ever = "0.40"
 # catalogue: it is linear on every catalogued slow input where comrak is not,
 # and three times faster. The rule holds the measurement. Without default
 # features it takes `bitflags`, `memchr` and `unicase`; `html` is off because
-# the renderer is ours and builds `Core\Html`'s tree. Stage 3 of the goal
-# vendors it under `vendor/` with its patches, as `html5ever` is.
+# the renderer is ours and builds `Core\Html`'s tree. It is vendored under
+# `vendor/` with its patches, as `html5ever` is.
 pulldown-cmark = { version = "0.13", default-features = false }
 
 # --- compression (`Core\Compress`, `rule:core-classes/decompression-bound`) ---
@@ -1321,3 +1321,9 @@ debug-assertions = false
 # row above resolves to this copy unchanged, and upgrading means carrying the
 # patch onto the new release.
 html5ever = { path = "vendor/html5ever" }
+# The published 0.13.6 with the patches `rule:core-classes/markdown-to-html`'s
+# engine paragraph lists, each pinned by an entry of
+# `tests/data/markdown/known-bugs.toml`. The version stays 0.13.6, so the
+# `pulldown-cmark` row above resolves to this copy unchanged, and upgrading
+# means carrying the patches onto the new release.
+pulldown-cmark = { path = "vendor/pulldown-cmark" }

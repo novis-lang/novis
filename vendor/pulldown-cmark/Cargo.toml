@@ -1,0 +1,40 @@
+# pulldown-cmark 0.13.6 as published on crates.io, with the patches
+# `rule:core-classes/markdown-to-html`'s engine paragraph lists. Every changed
+# site carries a `// Novis:` comment, and each patch has a known-bug catalogue
+# entry that pins it (`tests/data/markdown/known-bugs.toml`). The workspace's
+# `[patch.crates-io]` row is what builds this copy in place of the published
+# crate. Only the library is kept: the `html` module, the command-line binary,
+# the build script that generates the spec tests and the examples are not,
+# because `crates/nvs-stdlib/src/markdown.rs` writes its own output.
+[package]
+edition = "2021"
+rust-version = "1.71.1"
+name = "pulldown-cmark"
+version = "0.13.6"
+authors = [
+    "Raph Levien <raph.levien@gmail.com>",
+    "Marcus Klaas de Vries <mail@marcusklaas.nl>",
+]
+description = "A pull parser for CommonMark"
+readme = "README.md"
+license = "MIT"
+repository = "https://github.com/raphlinus/pulldown-cmark"
+publish = false
+
+[features]
+serde = ["dep:serde"]
+
+[lib]
+name = "pulldown_cmark"
+path = "src/lib.rs"
+
+[dependencies]
+bitflags = "2"
+memchr = "2.5"
+serde = { version = "1.0", features = ["derive"], optional = true }
+unicase = "2.6"
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+priority = 0
+check-cfg = ["cfg(rustbuild)", "cfg(feature, values(\"html\", \"simd\"))"]
