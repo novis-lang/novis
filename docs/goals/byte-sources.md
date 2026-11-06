@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: Every Core member that reads bytes takes them from where they are
-summary: "Reached when a binary file is read as bytes, every Core member that reads bytes takes bytes, an open file or an upload part and decides itself how much to read, reading the start of an upload consumes nothing, and no example works around a missing binary read."
+summary: "Reached when a binary file is read as bytes, every Core member that reads bytes takes bytes, an open file or an upload part and decides itself how much to read, reading the start of an upload consumes nothing, Part::peek gives it for a check of the program's own, and no example works around a missing binary read."
 context: [crates/nvs-stdlib/src/registry.rs, docs/rules/core-api/one-paradigm-per-operation.md, docs/rules/http-server/an-upload-is-received-only-through-files.md]
 stages:
   - id: 1
@@ -29,7 +29,7 @@ stages:
     status: open
     context: [extensions/pdf/nvs/Reader.nvs, extensions/pdf/nvs/Pages.nvs, extensions/image/nvs/Image.nvs, crates/nvs-cli/src/extensions.rs, docs/rules/packaging/values-cross-as-handles.md]
   - id: 7
-    title: "the two new members carry their feature proofs"
+    title: "the three new members carry their feature proofs"
     status: open
     context: [benches/members/README.md, tests/hostile/README.md, docs/rules/testing/feature-proofs.md]
   - id: 8
@@ -78,6 +78,14 @@ checks:
       - a_prefix_read_of_a_part_consumes_nothing
       - a_prefix_read_after_a_consumer_started_throws
       - a_random_read_of_a_part_holds_it_under_the_request_memory
+  - id: part-peek
+    stage: 3
+    name: peek gives a part's first bytes, and every consumer still gives the whole part
+    run: [cargo, test, --lib, "request::"]
+    timeout: 1800
+    tests:
+      - part_peek_gives_the_first_bytes_and_content_still_gives_all_of_them
+      - part_peek_then_save_to_writes_the_whole_part
   - id: mime-sources
     stage: 3
     name: detect reads a part, a file and bytes, and the part still saves whole
@@ -175,9 +183,10 @@ What works around the hole today:
 
 The user then set the principle this goal is built on: **the call a program reaches for first must be
 the best, safest and fastest one, never a slower one beside a faster one the caller has to remember.**
-A first plan gave uploads a `Part::peek(16)`, and the user rejected it: a caller who writes `readAll`
-instead still gets the right answer, only slower, and nothing says so. So every member takes the value
-the program already holds and decides itself how much of it to read.
+A first plan made `Core\Mime::detect($part->peek(16))` the way to check an upload, and the user
+rejected it: a caller who writes `readAll` instead still gets the right answer, only slower, and
+nothing says so. So every member takes the value the program already holds and decides itself how
+much of it to read. `Part::peek` stays public, for a check that no `Core` member makes.
 
 ## Standing decisions
 
@@ -234,6 +243,12 @@ the program already holds and decides itself how much of it to read.
      and the message names `readBytes` and `readText`.
    - `Core\IO::write` and `Core\IO::append` take `string|bytes`, as `Core\IO\File::write` does.
    - `Core\Mime::detect` and `Core\Image::info` take the prefix source. The caller passes no count.
+   - `Core\Request\Part::peek(uint $max): tainted bytes` is public. It gives the part's first
+     `min($max, size)` bytes from the same prefix buffer and consumes nothing. It is the direct call
+     for a check that no `Core` member makes, such as a format of the program's own, so such a check
+     never needs `readAll`. A second `peek` with a larger `$max` reads further. A `peek` after a
+     consumer has started throws `LogicError`. The peeked bytes count against the request's memory,
+     as `readAll`'s do, and are freed once a consumer has passed them. No setting is added.
    - `Core\Csv::rows` takes the forward source and a `charset?: Core\Charset` option, decoded one
      chunk at a time, with a character cut across two chunks carried to the next. UTF-8 stays the
      default and is checked as today. `rule:core-api/no-encoding-argument` covers members that take a
@@ -260,8 +275,6 @@ the program already holds and decides itself how much of it to read.
    `tests/hostile/` and `benches/` stay: a case is self-contained, and many of them decode text
    fields, not files. Every `.nvs` and `about.md` follows AGENTS.md § *Text an end user reads*.
 6. **Declined, and written into the rule's Declined list:**
-   - **A public `Core\Request\Part::peek`.** Every member that reads the start takes the part itself,
-     so no caller needs to know how many bytes to ask for.
    - **An `Iterable<bytes>` given to a prefix or random member.** A prefix read would consume it, and
      a random read cannot go back. It does not compile. A raw request body is read with
      `Core\Request::bytes()`, which `[limits] request_body` bounds.
@@ -277,8 +290,8 @@ the program already holds and decides itself how much of it to read.
    `request.rs` and `mime.rs`) and may run as side goals once stage 1 is committed. Stages 4, 5 and 6
    need stage 3's `Part` arm; stage 4 also needs stage 2. Stage 7 needs stage 2. Stage 8 needs stages
    2 to 6.
-8. **What this spends.** A prefix read of a `Part` holds what the member read, at most a header,
-   until a consumer passes it. A random read of a `Part` holds the part, which is what `readAll`
+8. **What this spends.** A prefix read or a `peek` of a `Part` holds what was read, a header or
+   `$max` bytes, until a consumer passes it. A random read of a `Part` holds the part, which is what `readAll`
    costs today. Every other change reads less than today. Each member's doc comment says what it
    holds, per call.
 
@@ -323,6 +336,8 @@ the program already holds and decides itself how much of it to read.
 
 - [ ] The part's prefix buffer, which `content()`, `readAll` and `saveTo` give first.
   `crates/nvs-stdlib/src/request.rs:1426`, `crates/nvs-stdlib/src/request.rs:4125`
+- [ ] `Core\Request\Part::peek` over that buffer (decision 3), and the two tests of the `part-peek`
+  check. `crates/nvs-stdlib/src/request.rs:1435`
 - [ ] The `Part` arm of all three kinds in `source.rs` (decision 2), and the three tests of the
   `part-source` check. `crates/nvs-stdlib/src/source.rs:1`
 - [ ] `Core\Mime::detect` takes the prefix source, and the two tests of the `mime-sources` check.
@@ -367,15 +382,18 @@ the program already holds and decides itself how much of it to read.
 - [ ] The tests of the `pdf-file` and `image-file` checks. `crates/nvs-ext/tests/pdf.rs:1`,
   `crates/nvs-ext/tests/image_decode.rs:1`
 
-### 7. the two new members carry their feature proofs
+### 7. the three new members carry their feature proofs
 
 **Split:** one writing subagent per member, side by side, since their files are disjoint. None
-builds; the session builds once both end.
+builds; the session builds once all three end.
 
 - [ ] `Core\IO\File::readBytes`: what `bun nv proofs --id 'Core\IO\File::readBytes'` names.
   `docs/examples/core/IO-File/readBytes/about.md:1`
 - [ ] `Core\IO::readBytes`: what `bun nv proofs --id 'Core\IO::readBytes'` names.
   `docs/examples/core/IO/readBytes/about.md:1`
+- [ ] `Core\Request\Part::peek`: what `bun nv proofs --id 'Core\Request\Part::peek'` names. Its
+  examples show checks no `Core` member makes, such as a program's own file format, and its about
+  page names `Core\Mime::detect($part)` for a file type. `docs/examples/core/Request-Part/peek/about.md:1`
 - [ ] `bun nv proofs --comments` over every new `.nvs`, and each line it names written again.
 
 ### 8. the examples read real files and pass uploads directly
