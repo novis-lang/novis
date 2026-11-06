@@ -258,10 +258,7 @@ the folder (`crates/nvs-config/src/data.rs`, `replaceable_by_others`), the junct
 `cmd` backslash paths (`crates/nvs-cli/tests/live_edit.rs`, `point`), the spreadsheet reader's
 requests get a one-day CPU deadline (`crates/nvs-ext/tests/spreadsheet_read.rs`, `CPU`), and
 `nvs_coverage`'s check-cfg moved to `[workspace.lints.rust]` with `bun nv lints` rendering a list.
-The last full verify was 23 of 23 green. A later run's one red was another session's untracked
-`tools/nv/cmd/walkthrough.ts`.
-
-Goal-end gates: `bun nv verify --doc` is green after the `platform::attach` link fix in
+The last full verify was 23 of 23 green. Goal-end gates: `bun nv verify --doc` is green after the `platform::attach` link fix in
 `elevate.rs:14`, `bun nv owners --closes` names no gap. `bun nv ci --check` has no red of this
 goal's: `tools:install/set-up-a-server` now has its proofs, the Windows `about.md` fits its bound,
 and both install pages' questions are stamped. What stays red there is other sessions' work: stale
@@ -270,15 +267,14 @@ pages' questions, and four chain goals missing from `roadmap.json`'s themes. `bu
 built the Unix half of `elevate.rs` and `restrict`, and `--test init` (7) and `elevate::` (2) pass
 on Linux.
 
-The sweep's nightly Miri reds were three 8 MiB JSON ladder tests timing out at 300 s.
-`request.rs`'s one is committed with `cfg_attr(miri, ignore)`. The two in
-`crates/nvs-stdlib/src/json.rs` carry the same attribute in the tree, uncommitted: the guard
-refused to stage that file while session goal `json-streaming` claims it.
+The nightly Miri reds were three 8 MiB JSON ladder tests timing out; all three now carry
+`cfg_attr(miri, ignore)` in commits (`request.rs`, and `json.rs` in `d2a3a8e63d`). The refused DONE's `any-order` red was void, not failing: another session's untracked
+`website/src/components/walkthrough/gallery/` changed during the run. A rerun is green. The
+sweep's `env-secret-proofs` red is stale service state: no check by that name exists in the tree.
 
 ### Next
 
-Nothing in this goal. The goal is reached. The `json.rs` Miri attributes go in with
-`json-streaming`'s next commit, or in a commit of their own once its claim ends.
+Nothing in this goal. The goal is reached.
 
 ### Backlog
 
