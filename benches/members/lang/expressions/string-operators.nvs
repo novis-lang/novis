@@ -4,6 +4,7 @@
 // with `.=`, and the number-to-text conversion each makes. Every round takes
 // its input from the round before, so no work can be skipped.
 // bench: iterations 256
+// bench: allocations 4
 // bench: complexity linear
 
 class Bench

@@ -1,23 +1,27 @@
 <?nvs
-// Adds numbers written in hexadecimal, binary, octal and with `_` separators.
-// Each one is a plain number before the program starts, so `0x1F` costs the same as `31`.
-// Each round starts from the last round's total. The loop allocates no memory.
-// bench: iterations 1024
-// bench: allocations 0
+// Fills an html template with a name and a number, as a page does for each row of a list.
+// bench: iterations 256
+// bench: calls 2
+// bench: allocations 2
 // bench: complexity constant
 
 class Bench
 {
-    public static function run(uint $rounds): int
+    public static function run(uint $rounds): uint
     {
-        int $total = 0;
+        array<string> $names = ['Tom & Jerry', 'Ada Lovelace', '<b>Grace</b>'];
+        uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            $total = ($total + 0x1F + 0b101 + 0o17 + 017 + 1_000) % 65_521; // chained: $total is last round's
+            // The name and the number in each round are chosen by the round before, so no round can be left out.
+            string $name = $names[(($total + $i) % 3) as int];
+            int $count = ($total % 1000) as int;
+            Core\Html\Markup $row = html`<li class="user">{$name} has {$count} orders</li>`;
+            $total = $total + Core\Str::length(Core\Html::toSource($row, 'measuring the row'));
             $i = $i + 1;
         }
         return $total;
     }
 }
 
-echo Bench::run(1024), "\n";
+echo Bench::run(256), "\n";
