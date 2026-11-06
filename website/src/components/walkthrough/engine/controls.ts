@@ -4,10 +4,11 @@
  *
  * Keys, while the stage has focus or fills the screen: Space or K plays and pauses, → plays the next
  * step and stops at its end, ← goes back one step, Home goes to the start, F is fullscreen, C turns
- * captions on and off, and `,` and `.` move one frame while paused. In fullscreen the controls and
- * the mouse pointer hide after two seconds without a mouse move, so a screen recording shows the
- * stage alone.
+ * captions on and off, N opens the speaker-notes window (`notes.ts`), and `,` and `.` move one frame
+ * while paused. In fullscreen the controls and the mouse pointer hide after two seconds without a
+ * mouse move, so a screen recording shows the stage alone.
  */
+import { bindNotes } from './notes'
 import type { Stage } from './stage'
 
 export function bindControls(stage: Stage): void {
@@ -123,5 +124,6 @@ export function bindControls(stage: Stage): void {
     if (document.fullscreenElement === root) root.focus({ preventScroll: true })
   })
 
+  bindNotes(stage)
   update()
 }
