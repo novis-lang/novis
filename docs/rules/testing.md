@@ -3441,7 +3441,10 @@ what lets a session measure before the wrap commits the tests it spliced into th
 comment, a card or a reformat cannot change what the binary does, so none of them stales a figure.
 An edit to a string literal, an attribute or any other token of shipped code does. A file with a
 bidirectional-text character in any comment keeps its comments in the hash, so there a comment edit
-stales its figures too. The granularity is still the file rather than the member, which is conservative in the only safe
+stales its figures too. A module many members read through, such as `crates/nvs-stdlib/src/byte_source.rs`, is listed in
+`SHARED_IMPL` (`tools/nv/proofs/collect.ts`), and a file that names it is hashed with that module's
+tier joined to its own, so a change to the byte source stales the figure of every member that reads
+through it. The granularity is still the file rather than the member, which is conservative in the only safe
 direction: the cost of being wrong is one command rather than a wrong number.
 
 The gate accepts a record from any machine and only the report's clock columns insist on this one's,

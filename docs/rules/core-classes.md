@@ -1010,6 +1010,19 @@ once, in `crates/nvs-stdlib/src/xml.rs`'s module doc, and no member card re-argu
 released with its arena; reading through the stream holds one window, and writing through it holds the
 document being built and no tree of nodes at all.
 
+**The stream reads one window of any source.** `Core\Xml::reader` takes a `string` or any forward
+source (`Core\Bytes::Source|Core\Bytes::Chunks`, [`core-api/a-member-takes-the-source-the-program-holds`](core-api.md#core-api-a-member-takes-the-source-the-program-holds)).
+A `string` is walked where it lies. Any other source is read one chunk at a time into a window that
+holds the node being read and at most one more chunk, so a file, an upload or a request body of any
+size costs the walk the same. A node cut by a chunk's end is read again from its start once more text is
+in, and the window then grows by at least what it holds, so a long node is scanned a constant number
+of times per byte. **What it spends:** the largest node, about twice over, plus one chunk, per open walk.
+
+Bytes are UTF-8, or UTF-16 with a byte order mark. A document read from bytes that declares any other
+`encoding` throws a `ParseError` naming `Core\Encoding`, because a reader that ignored the declaration
+would give the wrong characters and one that obeyed it would carry every table `Core\Encoding` already
+has ([`core-api/no-encoding-argument`](core-api.md#core-api-no-encoding-argument)).
+
 **Declined:**
 - **A tree only.** It cannot serve a document larger than the request's memory ceiling, which is a real
   workload.
@@ -3429,6 +3442,15 @@ attack one level up. This is why both classes are Tier 0 rather than sandboxed c
 ([`core-api/tier-roster`](core-api.md#core-api-tier-roster)): a sandboxed decoder gets a memory cap for free and this rule not at
 all.
 
+**A source read forward keeps a running ratio.** `Core\Compress::decompress` takes every source of
+[`core-api/a-member-takes-the-source-the-program-holds`](core-api.md#core-api-a-member-takes-the-source-the-program-holds), and only a `bytes` value has its length
+before the decode starts. Every other source, a file included, is bounded while it runs by the input
+read so far: the output is at most that input times the ratio, plus a floor of 64 KiB, under the
+ceiling. At its end the whole output is checked against the whole input, as for `bytes`. So a bomb in
+an upload or a walk of chunks stops near its start, and a file's stated size is never taken as its
+input. The floor covers a frame whose first part compresses far better than the rest, since a codec
+reads its input ahead of its output.
+
 **The ceiling bounds what is held, and the ratio bounds what is spent.** A part a consumer inflates as
 a stream and never holds — a spreadsheet sheet read row by row
 ([`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream)) — is bounded by `input × ratio` alone, because
@@ -4090,8 +4112,8 @@ methods are the WIT exports (`wit/pdf.wit`), the way `Novis\Image\Codec` is the 
 | `Page->marks(string $name): array<string>`, `->marksUpTo(string $name): array<string>` | the `data-mark` values on this page, and on every page up to it |
 | `Rendered->bytes`, `->pageCount` | the file and its page count |
 | `Rendered->dropped`, `->missingGlyphs`, `->overflows` | what the render could not do ([`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset)) |
-| `Pages::of(bytes $pdf, ?array<uint> $pages = null): Pages`, `Pages::merge(array<Pages> $parts): bytes` | merging, splitting and reordering ([`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge)) |
-| `Reader::open(bytes $pdf): Reader`, `->pageCount`, `->metadata`, `->attachments()`, `->invoiceXml()`, `->text(uint $page): string` | reading a PDF |
+| `Pages::of(Core\Bytes::Source $pdf, ?array<uint> $pages = null): Pages`, `Pages::merge(array<Pages> $parts): bytes` | merging, splitting and reordering ([`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge)); `merge` reads each source whole |
+| `Reader::open(Core\Bytes::Source $pdf): Reader`, `->pageCount`, `->metadata`, `->attachments()`, `->invoiceXml()`, `->text(uint $page): tainted string` | reading a PDF; `open` reads the source whole, and every string and `bytes` value read from the file is `tainted` |
 
 `Document` is a value: each method returns a new `Document`, so a base document with its assets and
 footer is shared and varied without one render changing another. `Standard` is declared in
@@ -4857,8 +4879,8 @@ the boundary crossing noise beside the work ([`core-classes/spreadsheet-bulk-bou
 
 **The component never touches disk, and is granted nothing.** Writing returns compressed chunks, and
 the Novis half sends them on to the response, the file or the memory the program chose
-([`core-classes/spreadsheet-writes-as-a-stream`](core-classes.md#core-classes-spreadsheet-writes-as-a-stream)). Reading pulls byte ranges of a `Core\IO\File`
-the program opened, or of `bytes` it holds, through the call that lent them
+([`core-classes/spreadsheet-writes-as-a-stream`](core-classes.md#core-classes-spreadsheet-writes-as-a-stream)). Reading pulls byte ranges of the
+`Core\Bytes::Source` the program passed, through the call that lent it
 ([`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream)). No preopen and no outbound HTTP is granted to the
 component, under any configuration. **The component fetches nothing**: an external-workbook reference,
 a linked image or a data connection in a read file comes back as **data** — the reference itself — and
@@ -4868,17 +4890,17 @@ is never resolved, and an image placed on write is bytes the caller supplies.
 CSV has one parser and one API for the job. **A workbook reads as a workbook**: a source that starts
 with a zip's `PK` and a control byte, or with a compound file's `D0 CF 11 E0`, goes to the engine
 whatever the options say. `Reader::open`'s second argument is `{csv?: {separator?, quote?, escape?,
-encoding?: Core\Charset}}`, and each field means what `Core\Csv`'s or `Core\Encoding`'s option of
-that name means; `Core\Csv` checks the dialect once at `open`, so a wrong one throws there. The
-options are a `csv` field so that a reader of the call knows they apply to CSV alone. **The charset
-is the program's or the byte order mark's, and nothing guesses it.** With an `encoding` other than
-UTF-8, or with no `encoding` and a UTF-16 byte order mark, the source is decoded whole with
-`Core\Encoding::decodeText`, its mark dropped, and parsed with `Core\Csv::parse`; a file is read
-whole first through the engine's `sourceBytes`, because `Core\IO\File` reads text only, and keeps
-its position. A byte that is not text in that charset throws `decodeText`'s `RuntimeError`.
-Otherwise a source is CSV when its start is UTF-8 (`bytes` decoded whole, a file's first four
-bytes, walked with `Core\Csv::rows`), and anything else goes to the engine, which throws for a file
-that is no workbook. A CSV is one sheet, `Sheet1`, with no extras. `rows` takes every option and gives the xlsx row shape:
+charset?: Core\Charset}}`, and each field means what `Core\Csv::rows`' option of that name means;
+`Core\Csv` checks the dialect once at `open`, so a wrong one throws there. The options are a `csv`
+field so that a reader of the call knows they apply to CSV alone. **The charset is the program's or
+the byte order mark's, and nothing guesses it.** `open` reads the source's first 4 KiB and consumes
+nothing: a slice of `bytes`, a file's start with its position put back, or a part's or a body
+stream's `peek`. **Every CSV source, in every charset, has one path:** `Core\Csv::rows` with
+`charset`, which decodes one chunk at a time, lets a UTF-8 or UTF-16 byte order mark set the
+charset, and drops the mark. The parser is never chosen by the charset, and the spreadsheet has no
+decoder of its own. A byte that is not text in that charset throws `Core\Csv::rows`' `ParseError`.
+A start that is neither a workbook, a mark nor text throws at `open`, and so does a start that is
+not UTF-8 with no `charset`. A CSV is one sheet, `Sheet1`, with no extras. `rows` takes every option and gives the xlsx row shape:
 the header keys numbered and lettered as the engine does, an empty field an empty cell, a short
 record's missing keys `null`, a record numbered by its place in the file. Every value is a `string`.
 `Workbook` writes CSV for a name ending in `.csv` or `{format: 'csv'}`: each batch of rows goes
@@ -4888,8 +4910,9 @@ through `Core\Csv::format`'s `lineEnd`, and a UTF-8 file starts with a byte orde
 which Excel reads its text as the system's ANSI code page. `Core\Csv`'s own defaults stay LF with no
 mark. Each export starts with its own mark, so two exports `to` one open file have two. Cost: three
 bytes per file and one byte per record.
-`Workbook`'s options and `fromRows`'s take `csv?: {separator?, quote?, encoding?: Core\Charset}`,
-checked by `Core\Csv` at create. With an `encoding` other than UTF-8, each batch's text is encoded
+`Workbook`'s options and `fromRows`'s take `csv?: {separator?, quote?, charset?: Core\Charset}`,
+checked by `Core\Csv` at create, so reading and writing name the charset with one option. With a
+`charset` other than UTF-8, each batch's text is encoded
 with `Core\Encoding::encodeText`, a UTF-16 file starts with a byte order mark so that it reads back
 with no option, and a download's `Content-Type` names no charset. **A character the charset lacks
 throws `LogicError` naming its cell**, such as `B3`, counted from the file's first row: the batch is
@@ -4900,9 +4923,12 @@ with `=`, `+`, `-`, `@`, a tab or a carriage return is written with a `'` first*
 such a field as a formula, and a string is always text; reading does not strip it.
 
 - **Performance:** a CSV write still instantiates the component once, for the writer's checks; the
-  rows never cross. A read of `bytes` parses the whole text each time `sheets` or `rows` walks it.
-- **Memory:** a read of `bytes` holds the decoded text and its records, per request; a read of a
-  `Core\IO\File` holds one record (`Core\Csv::rows`). A write holds one batch of rows.
+  rows never cross. Each walk of `sheets` or `rows` reads the source again from its start.
+- **Memory:** a CSV read holds one record and one chunk, in every charset and from every source,
+  plus the 4 KiB `open` peeked, which a part or a body stream holds until its walk gives it. A write
+  holds one batch of rows.
+- **A CSV upload reads forward once.** `Core\Csv::rows` consumes a part or a body stream, so a
+  second walk of one, such as `sheets()` and then `rows()`, throws. A file or `bytes` reads again.
 - **Usability:** one import loop for xlsx and CSV. The `'` a guarded string carries is in the file
   for every tool that reads it, not only for Excel.
 
@@ -4912,7 +4938,8 @@ value is a claim by the author rather than a computation by us
 ([`core-classes/spreadsheet-value-types`](core-classes.md#core-classes-spreadsheet-value-types)). VBA and embedded OLE objects are inert payload the reader
 may list but never executes. The XML parser resolves no entity and loads no DTD.
 
-**Everything read is `tainted`.** `Reader::open` takes `tainted bytes`, so an upload reads, and the
+**Everything read is `tainted`.** `Reader::open` takes a `Core\Bytes::Source`, whose `bytes` are
+`tainted`, so an upload reads as a part, a body stream or `bytes`, and the
 source is held `tainted` whatever the program passed, because a workbook is outside data even when
 the program holds it as plain `bytes`. Every string and `bytes` value `Reader` returns is `tainted`:
 cells, header keys, sheet names, macro names, merged ranges and every extra. A `Formula` read with
@@ -4933,11 +4960,10 @@ surfaced as data and nothing resolved.
 - **Memory:** nothing until a program first uses `Novis\Spreadsheet`. Then the compiled module, held
   once per process and shared by every core, and per calling request one instance under the request's
   cap, freed when the request ends. What a write and a read hold inside it are their own fragments'.
-  A CSV read in another charset holds the source's bytes, its decoded text and, for each walk, its
-  records, per request; a UTF-8 file is still walked a record at a time. A CSV write in another
-  charset holds one batch's text and its encoded bytes.
-- **Latency:** none on a UTF-8 CSV. Another charset costs one decode of the whole source at `open`,
-  or one encode per batch; a file's head is one guest call at `open`.
+  A CSV read in any charset is walked a record at a time, as the paragraph above says. A CSV write
+  in another charset holds one batch's text and its encoded bytes.
+- **Latency:** none on a UTF-8 CSV, and no guest call for any CSV read. Another charset costs one
+  decode of each chunk as it is read, or one encode per batch.
 
 **Declined:**
 - **A first-party `[[extension]]` package, `nvs/spreadsheet`.** It is one configuration step for a
@@ -4954,8 +4980,10 @@ surfaced as data and nothing resolved.
   Windows-1250 text, so a guess turns `€` into another character in silence; the program knows where
   its files come from and names the charset. A first line `sep=;` is not a guess: the file names
   its separator, and a `separator` the program gives still wins.
-- **A `Core\IO\File` member that reads `bytes`, for a CSV file in another charset.** It is new `Core`
-  surface for one reader, and the engine already reads the file's ranges through the call it is lent.
+- **A second CSV path for another charset**, the source decoded whole and parsed with
+  `Core\Csv::parse`. It held the whole file and its text, and chose the parser by the charset;
+  `Core\Csv::rows`' `charset` reads every charset forward
+  ([`core-api/a-member-takes-the-source-the-program-holds`](core-api.md#core-api-a-member-takes-the-source-the-program-holds)).
 - **Written in Novis.** It would reimplement OOXML and BIFF parsing that production crates already
   carry, unfuzzed and ours to maintain, and buy nothing the wasm build does not give. Novis code
   belongs in the builder.
@@ -5681,16 +5709,19 @@ memory:** the repeated rows stream, so a template of a thousand items costs what
 
 `rule:core-classes/spreadsheet-reads-as-a-stream`
 
-`Reader::open($source)` reads a `Core\IO\File` the program opened, or `bytes` it holds, and xlsx and
-xlsb are read as a stream of byte ranges, so a 100 MB upload never enters the guest whole; xlsm, xls
-and ods are read whole, and CSV goes to `Core\Csv`.
+`Reader::open($source)` reads a `Core\Bytes::Source`: `bytes` the program holds, a `Core\IO\File` it
+opened, an upload's `Core\Request\Part` or the request's `Core\Request\BodyStream`. xlsx and xlsb are
+read as a stream of byte ranges, so a 100 MB file never enters the guest whole; xlsm, xls and ods
+are read whole, and CSV goes to `Core\Csv::rows`.
 
 **How the guest reads a range.** Every reader call lends the source as a `mixed` value, and the guest
 reads ranges of it through a host import, an accessor of the `value` handle that returns the bytes at
-an offset and length of a `bytes` value or of an open `Core\IO\File`. The source is lent by number
-and never copied as it crosses: the host serves each range from the program's own `bytes`, or
-reads it from the file and puts the handle's position back, between two polls of the call, and
-gives at most 1 MiB per range. The guest keeps a read-ahead
+an offset and length of the lent source. The source is lent by number and never copied as it
+crosses. The host serves each range through `nvs_stdlib::extension_source_range`, a byte source of
+its own per read: from the program's own `bytes`, from the file with the handle's position put back,
+or from a part or body stream, which the first range holds whole under `[limits] request_body`, so
+later ranges cost no wire read. It reads between two polls of the call, and gives at most 1 MiB
+per range. The guest keeps a read-ahead
 buffer, reads the zip directory from the end, and inflates each part as it parses it. The import
 grants nothing: it reads only what the program lent to this call, and the handle stops being valid
 when the call returns ([`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles)), so the source is lent again on every
@@ -5712,13 +5743,13 @@ so they count against the byte bound once. Memory: the properties' text, per rea
 
 **Formats** are told apart by their bytes: a zip is xlsx or xlsm when its workbook part is XML,
 xlsb when it is `xl/workbook.bin`, and ods when it has a `content.xml` and no workbook part. An OLE
-compound file is xls. Other bytes are CSV when they are text: they start with a UTF-16 byte order
-mark, `csv`'s `encoding` names their charset, or their first 4 KiB have no NUL byte and no control
-character but tab, line feed, form feed and carriage return. Anything else throws `ParseError`,
-naming the formats the reader reads. CSV bytes that start with a UTF-32 byte order mark throw
-`ParseError` when no `encoding` is given, and CSV bytes that are not valid UTF-8 throw `ParseError`
-naming the `encoding` option; the first 4 KiB are judged at the open and the rest as the text is
-decoded. When no `separator` is given, a first CSV line that is exactly `sep=` and one character,
+compound file is xls. Other bytes are CSV when they are text: they start with a UTF-8 or UTF-16
+byte order mark, `csv`'s `charset` names their charset, or their first 4 KiB have no NUL byte and no
+control character but tab, line feed, form feed and carriage return. Anything else throws
+`ParseError`, naming the formats the reader reads. CSV bytes that start with a UTF-32 byte order mark
+throw `ParseError` when no `charset` is given, and CSV bytes that are not valid UTF-8 throw
+`ParseError` naming the `charset` option; the first 4 KiB are judged at the open and the rest as
+`Core\Csv::rows` reads them. When no `separator` is given, a first CSV line that is exactly `sep=` and one character,
 which Excel writes and reads, sets the separator and is not a row; a line end or the quote is no
 separator, so such a line is a row. Cost: one check of the first line per CSV open. An encrypted
 file throws `RuntimeError` ("This file is encrypted with a password. Encrypted
@@ -5866,7 +5897,7 @@ text of each formula of an xls, held with its rows, and for an xlsb the sheets, 
 the names, read with the workbook part when the file opens.
 
 **On disk.** `Reader::open`, `sheets()`, `rows()` and the extras read xlsx, xlsm, xlsb, xls, ods
-and CSV, from `bytes` or an open `Core\IO\File` (`extensions/spreadsheet/nvs/Reader.nvs`,
+and CSV, from every `Core\Bytes::Source` (`extensions/spreadsheet/nvs/Reader.nvs`,
 `extensions/spreadsheet/src/read/`). A CSV is read by `Core\Csv` in the Novis half
 ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
 

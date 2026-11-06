@@ -973,7 +973,7 @@ where a member takes one.
 
 | The member reads | It takes | Members |
 |---|---|---|
-| the start | `Core\Bytes::Source` | `Core\Mime::detect`, `Core\Request\Part::peek` (its own part) |
+| the start | `Core\Bytes::Source` | `Core\Mime::detect`, `Core\Request\Part::peek` and `Core\Request\BodyStream::peek` (their own source) |
 | once, forward | `Core\Bytes::Source\|Core\Bytes::Chunks` | `Core\Json::decodeEach`, `Core\Csv::rows`, `Core\Hash::of`, `Core\Hash::hmac`, `Core\Compress::compress`, `Core\Compress::decompress`, `Core\Xml::reader`, `Core\Storage::put` |
 | in any order | `Core\Bytes::Source` | `Core\Zip`, `Core\Pdf`, `Core\Image` (`open`, `info`, `hash`, `placeholder`, `palette`, `compare`), the spreadsheet `Reader::open` and `Template::open` |
 | the whole value, checked before anything is given | `bytes` | `Core\Crypto::open`, `Core\Crypto::sign`, `Core\Crypto::verify`, `Core\Serialize::decode`, `Core\Uuid::fromBytes` |
@@ -990,14 +990,26 @@ hashes the whole file. A file that cannot seek, such as a pipe, is read forward 
 start is buffered for a read of the start, and a read in any order holds it whole under `[limits] memory`.
 A file opened write-only throws a `LogicError` naming its mode.
 
+**A built-in component that parses one whole buffer reads the source whole at its call.** `Core\Pdf` and
+`Core\Image` write `Core\Bytes::Source` in their manifest where the WIT has `list<u8>`, and the host reads
+the source through the byte source's range read, under `[limits] memory`, and passes the bytes. A third
+party's export cannot declare it, because the host lends a third party's `bytes` by ranges instead.
+`Pages::of` and `Image::open` keep the source and the host reads it at `merge`, `encode`, `variants` or
+`raw`, so a file is read at that call from its start, and a part must still be the walk's current part.
+Reading it at `open` would need a `Core` member that turns a source into whole `bytes`, which is the slow
+path [`core-api/the-first-call-is-the-best-one`](core-api.md#core-api-the-first-call-is-the-best-one) keeps out. Text read from the file, such as a PDF's
+text and metadata or an image's EXIF fields, is `tainted`. A value the component computes in a fixed
+format, such as an image hash, a placeholder or a drawn diff, is not.
+
 **Taint follows the source** ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)). A part, a body stream and a walk of
 `tainted` chunks carry `tainted` into a contagious result, and a `Core\IO\File` carries none, as the text
 `Core\IO::read` gives is not tainted. The checker reads it with no run-time cost.
 
 **Memory:** a source holds one reused chunk buffer. A read of a part's start holds what it read until the
 walk advances. A read of a part in any order holds the part under `[limits] request_body`, which is what
-`readAll` costs, and frees it when the walk advances. Each member's doc comment says what it holds per
-call.
+`readAll` costs, and frees it when the walk advances. A call into `Core\Pdf` or `Core\Image` holds the
+source's bytes twice while it runs, once in the host's copy and once in the component. Each member's doc
+comment says what it holds per call.
 
 **Declined:**
 - **An `Iterable<bytes>` given to a member that reads the start or reads in any order.** Reading the start
