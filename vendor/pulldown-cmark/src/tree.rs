@@ -200,6 +200,7 @@ impl Tree<Item> {
 
         // drop or truncate children based on its range
         while let Some(child_ix) = next_child_ix {
+            crate::steps::add(1);
             let child_end = self[child_ix].item.end;
             if child_end < end_byte_ix {
                 // preserve this node, and go to the next

@@ -355,3 +355,74 @@ fn added_output_past_its_budget_renders_as_source_text() {
         out.len()
     );
 }
+
+/// Every `work = "linear"` to-html entry of the known-bug catalogue, as its
+/// id and its input with `repeat` written `n` times.
+fn slow_inputs(n: usize) -> Vec<(String, String)> {
+    let path = format!(
+        "{}/../../tests/data/markdown/known-bugs.toml",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
+    let catalogue: toml::Table = toml::from_str(&text).unwrap_or_else(|e| panic!("{path}: {e}"));
+    let field = |bug: &toml::Table, key: &str| {
+        bug.get(key)
+            .and_then(toml::Value::as_str)
+            .unwrap_or("")
+            .to_owned()
+    };
+    catalogue["bug"]
+        .as_array()
+        .expect("`bug` is an array of tables")
+        .iter()
+        .filter_map(toml::Value::as_table)
+        .filter(|bug| field(bug, "work") == "linear" && field(bug, "direction") == "to-html")
+        .map(|bug| {
+            let text = field(bug, "input") + &field(bug, "repeat").repeat(n) + &field(bug, "suffix");
+            (field(bug, "id"), text)
+        })
+        .collect()
+}
+
+/// `rule:core-classes/markdown-cost`'s linear work, over every catalogued
+/// slow input.
+///
+/// Each input renders with its `repeat` written `n` times and then `4n`
+/// times, counting the engine's steps and the bytes written
+/// ([`crate::fuzz::markdown_counting_steps`]). Linear work takes about four
+/// times the steps at `4n`. Work in the square of the input takes sixteen.
+/// The bound is five, which leaves room for the steps that do not grow.
+#[test]
+#[cfg_attr(miri, ignore = "hundreds of documents of thousands of lines")]
+#[cfg_attr(
+    not(debug_assertions),
+    ignore = "the engine counts its steps only with debug assertions"
+)]
+fn work_grows_linearly_over_every_catalogued_slow_input() {
+    const N: usize = 1000;
+    let steps = |text: &str| {
+        crate::fuzz::markdown_counting_steps(text)
+            .1
+            .expect("a build with debug assertions counts steps")
+    };
+    let short = slow_inputs(N);
+    let long = slow_inputs(4 * N);
+    assert!(short.len() > 100, "the catalogue has its slow entries");
+    let report: Vec<String> = short
+        .iter()
+        .zip(&long)
+        .filter_map(|((id, short), (_, long))| {
+            let (small, large) = (steps(short), steps(long));
+            // A longer input that costs no more steps would mean the count
+            // misses the loop the input grows, which would hide a slow one.
+            (large <= small || large > 5 * small)
+                .then(|| format!("{id}: {small} steps at n = {N}, {large} at 4n"))
+        })
+        .collect();
+    assert!(
+        report.is_empty(),
+        "{} entries grow faster than their input:\n{}",
+        report.len(),
+        report.join("\n")
+    );
+}

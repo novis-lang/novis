@@ -72,9 +72,11 @@ impl<'a, 'b> FirstPass<'a, 'b> {
     fn run(mut self) -> (Tree<Item>, Allocations<'a>) {
         let mut ix = 0;
         while ix < self.text.len() {
+            crate::steps::add(1);
             ix = self.parse_block(ix);
         }
         while self.tree.spine_len() > 0 {
+            crate::steps::add(1);
             self.pop(ix);
         }
         (self.tree, self.allocs)
@@ -91,6 +93,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
 
         let i = scan_containers(&self.tree, &mut line_start, self.options, true);
         for _ in i..self.tree.spine_len() {
+            crate::steps::add(1);
             self.pop(start_ix);
         }
 
@@ -107,6 +110,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
 
         // Process new containers
         loop {
+            crate::steps::add(1);
             let save = line_start.clone();
             let outer_indent = line_start.scan_space_upto(4);
             if outer_indent >= 4 {
@@ -377,6 +381,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         while let Some((bytecount, label, link_def)) =
             self.parse_refdef_total(start_ix + line_start.bytes_scanned())
         {
+            crate::steps::add(1);
             self.allocs.refdefs.0.entry(label).or_insert(link_def);
             let container_start = start_ix + line_start.bytes_scanned();
             let mut ix = container_start + bytecount;
@@ -464,6 +469,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         while let Some((next_ix, _row_ix)) =
             self.parse_table_row(ix, table_cols, &mut missing_empty_cells)
         {
+            crate::steps::add(1);
             ix = next_ix;
         }
 
@@ -495,6 +501,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         self.tree.push();
 
         loop {
+            crate::steps::add(1);
             ix += scan_ch(&bytes[ix..], b'|');
             let start_ix = ix;
             ix += scan_whitespace_no_nl(&bytes[ix..]);
@@ -533,6 +540,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         // note: this is where GFM and commonmark-extra diverge. we follow
         // GFM here
         for _ in cells..row_cells {
+            crate::steps::add(1);
             if *missing_empty_cells >= MAX_AUTOCOMPLETED_CELLS {
                 return None;
             }
@@ -621,6 +629,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         let bytes = self.text.as_bytes();
         let mut ix = start_ix;
         loop {
+            crate::steps::add(1);
             let scan_mode = if self.options.contains(Options::ENABLE_TABLES) && ix == start_ix {
                 TableParseMode::Scan
             } else {
@@ -734,6 +743,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                 let mut last_line_start = header_start;
                 if attrs.is_some() {
                     loop {
+                        crate::steps::add(1);
                         let next_line_start =
                             last_line_start + scan_nextline(&bytes[last_line_start..content_end]);
                         if next_line_start >= content_end {
@@ -945,6 +955,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                         self.tree.append_text(begin_text, ix, backslash_escaped);
                         backslash_escaped = false;
                         for i in 0..count {
+                            crate::steps::add(1);
                             self.tree.append(Item {
                                 start: ix + i,
                                 end: ix + i + 1,
@@ -1161,9 +1172,11 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                             // – and — are 3 bytes each in utf8
                             let mut buf = String::with_capacity(3 * (ems + ens));
                             for _ in 0..ems {
+                                crate::steps::add(1);
                                 buf.push('—');
                             }
                             for _ in 0..ens {
+                                crate::steps::add(1);
                                 buf.push('–');
                             }
                             ItemBody::SynthesizeText(self.allocs.allocate_cow(buf.into()))
@@ -1243,6 +1256,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         let mut ix = start_ix;
         let end_ix;
         loop {
+            crate::steps::add(1);
             let line_start_ix = ix;
             ix += scan_nextline(&bytes[ix..]);
             self.append_html_line(remaining_space.max(indent), line_start_ix, ix);
@@ -1292,6 +1306,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         let mut ix = start_ix;
         let end_ix;
         loop {
+            crate::steps::add(1);
             let line_start_ix = ix;
             ix += scan_nextline(&bytes[ix..]);
             self.append_html_line(remaining_space.max(indent), line_start_ix, ix);
@@ -1332,6 +1347,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
 
         let mut ix = start_ix;
         loop {
+            crate::steps::add(1);
             let line_start_ix = ix;
             ix += scan_nextline(&bytes[ix..]);
             self.append_code_text(remaining_space, line_start_ix, ix);
@@ -1390,6 +1406,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         });
         self.tree.push();
         loop {
+            crate::steps::add(1);
             let mut line_start = LineStart::new(&bytes[ix..]);
             let n_containers = scan_containers(&self.tree, &mut line_start, self.options, false);
             if n_containers < self.tree.spine_len() {
@@ -1434,6 +1451,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         });
         self.tree.push();
         loop {
+            crate::steps::add(1);
             let mut line_start = LineStart::new(&bytes[ix..]);
             let n_containers = scan_containers(&self.tree, &mut line_start, self.options, false);
             if n_containers < self.tree.spine_len() {
@@ -1802,6 +1820,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
     fn scan_refdef_space(&self, bytes: &[u8], mut i: usize) -> Option<(usize, usize)> {
         let mut newlines = 0;
         loop {
+            crate::steps::add(1);
             let whitespaces = scan_whitespace_no_nl(&bytes[i..]);
             i += whitespaces;
             if let Some(eol_bytes) = scan_eol(&bytes[i..]) {
@@ -1844,6 +1863,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         let mut linebuf = None;
 
         while let Some(&c) = bytes.get(bytecount) {
+            crate::steps::add(1);
             match c {
                 b'(' if closing_delim == b')' => {
                     // https://spec.commonmark.org/0.30/#link-title
@@ -2021,6 +2041,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         let mut bsesc = false;
         let mut last_pipe_ix = 0;
         for (i, &byte) in bytes.iter().enumerate() {
+            crate::steps::add(1);
             match byte {
                 b'\\' => {
                     bsesc = true;
@@ -2234,8 +2255,10 @@ fn get_html_end_tag(text_bytes: &[u8]) -> Option<&'static str> {
 fn surgerize_tight_list(tree: &mut Tree<Item>, list_ix: TreeIndex) {
     let mut list_item = tree[list_ix].child;
     while let Some(listitem_ix) = list_item {
+        crate::steps::add(1);
         let mut node_ix = tree[listitem_ix].child;
         while let Some(node) = node_ix {
+            crate::steps::add(1);
             if let ItemBody::Paragraph = tree[node].item.body {
                 tree[node].item.body = ItemBody::TightParagraph;
             }
@@ -2250,6 +2273,7 @@ fn fixup_end_of_definition_list(tree: &mut Tree<Item>, list_ix: TreeIndex) {
     let mut list_item = tree[list_ix].child;
     let mut previous_list_item = None;
     while let Some(listitem_ix) = list_item {
+        crate::steps::add(1);
         match &mut tree[listitem_ix].item.body {
             ItemBody::DefinitionListTitle | ItemBody::DefinitionListDefinition(_) => {
                 previous_list_item = list_item;
@@ -2460,6 +2484,7 @@ where
     F: FnMut(usize, u8) -> LoopInstruction<Option<T>>,
 {
     while ix < bytes.len() {
+        crate::steps::add(1);
         let b = bytes[ix];
         if lut[b as usize] {
             match callback(ix, b) {

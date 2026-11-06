@@ -404,6 +404,7 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
         let block_text = &self.text[..block_end];
 
         while let Some(mut cur_ix) = cur {
+            crate::steps::add(1);
             match self.tree[cur_ix].item.body {
                 ItemBody::MaybeHtml => {
                     let next = self.tree[cur_ix].next;
@@ -499,6 +500,7 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
                         }
                         let mut invalid = false;
                         while let Some(scan_ix) = scan {
+                            crate::steps::add(1);
                             if let ItemBody::MaybeMath(_can_open, can_close, delim_brace_context) =
                                 self.tree[scan_ix].item.body
                             {
@@ -580,6 +582,7 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
                             None
                         };
                         while let Some(scan_ix) = scan {
+                            crate::steps::add(1);
                             if let ItemBody::MaybeCode(delim_count, _) =
                                 self.tree[scan_ix].item.body
                             {
@@ -1013,6 +1016,7 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
         let mut double_quote_open: bool = false;
 
         while let Some(mut cur_ix) = cur {
+            crate::steps::add(1);
             match self.tree[cur_ix].item.body {
                 ItemBody::MaybeEmphasis(mut count, can_open, can_close) => {
                     let run_length = count;
@@ -1023,6 +1027,7 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
                             self.inline_stack
                                 .find_match(&mut self.tree, c, run_length, both)
                         {
+                            crate::steps::add(1);
                             // have a match!
                             if let Some(prev_ix) = prev {
                                 self.tree[prev_ix].next = None;
@@ -1034,6 +1039,7 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
 
                             // work from the inside out
                             while start > el.start + el.count - match_count {
+                                crate::steps::add(1);
                                 let inc = if start > el.start + el.count - match_count + 1 {
                                     2
                                 } else {
@@ -1119,6 +1125,7 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
                             });
                         } else {
                             for i in 0..count {
+                                crate::steps::add(1);
                                 self.tree[cur_ix + i].item.body = ItemBody::Text {
                                     backslash_escaped: false,
                                 };
@@ -1243,6 +1250,7 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
         let mut i = start_ix + 1;
 
         while i < bytes.len() {
+            crate::steps::add(1);
             let c = bytes[i];
 
             if c == close {
@@ -1344,6 +1352,7 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
         let mut start_ix = 0;
         let mut ix = 0;
         while ix < spanned_bytes.len() {
+            crate::steps::add(1);
             let c = spanned_bytes[ix];
             if c == b'\r' || c == b'\n' {
                 ix += 1;
@@ -1390,6 +1399,7 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
         let mut start_ix = 0;
         let mut ix = 0;
         while ix < spanned_bytes.len() {
+            crate::steps::add(1);
             let c = spanned_bytes[ix];
             if c == b'\r' || c == b'\n' {
                 let buf = buf.get_or_insert_with(|| String::with_capacity(spanned_bytes.len()));
@@ -1504,6 +1514,7 @@ pub(crate) fn scan_containers(
     let mut i = 0;
     let mut spine_iter = tree.walk_spine();
     for &node_ix in &mut spine_iter {
+        crate::steps::add(1);
         match tree[node_ix].item.body {
             // This fix is lifted, almost verbatim,
             // from https://github.com/commonmark/cmark/pull/520/changes
@@ -1564,6 +1575,7 @@ pub(crate) fn scan_containers(
         i += 1;
     }
     for &node_ix in &mut spine_iter {
+        crate::steps::add(1);
         if let ItemBody::List(ref list_flags, _, _) | ItemBody::DefinitionList(ref list_flags) =
             tree[node_ix].item.body
         {
@@ -1608,6 +1620,7 @@ impl Tree<Item> {
                     | ItemBody::TableCell)
         }
         for &ix in self.walk_spine().rev() {
+            crate::steps::add(1);
             if matches!(self[ix].item.body, ItemBody::Table(_)) {
                 return true;
             }
@@ -1655,7 +1668,9 @@ impl InlineStack {
 
     fn pop_all(&mut self, tree: &mut Tree<Item>) {
         for el in self.stack.drain(..) {
+            crate::steps::add(1);
             for i in 0..el.count {
+                crate::steps::add(1);
                 tree[el.start + i].item.body = ItemBody::Text {
                     backslash_escaped: false,
                 };
@@ -1709,6 +1724,7 @@ impl InlineStack {
     fn truncate(&mut self, new_bound: usize) {
         self.stack.truncate(new_bound);
         for lower_bound in &mut self.lower_bounds {
+            crate::steps::add(1);
             if *lower_bound > new_bound {
                 *lower_bound = new_bound;
             }
@@ -1740,7 +1756,9 @@ impl InlineStack {
         if let Some((matching_ix, matching_el)) = res {
             let matching_ix = matching_ix + lowerbound;
             for el in &self.stack[(matching_ix + 1)..] {
+                crate::steps::add(1);
                 for i in 0..el.count {
+                    crate::steps::add(1);
                     tree[el.start + i].item.body = ItemBody::Text {
                         backslash_escaped: false,
                     };
@@ -1784,6 +1802,7 @@ fn scan_nodes_to_ix(
     ix: usize,
 ) -> Option<TreeIndex> {
     while let Some(node_ix) = node {
+        crate::steps::add(1);
         if tree[node_ix].item.end <= ix {
             node = tree[node_ix].next;
         } else {
@@ -1876,6 +1895,7 @@ impl LinkStack {
 
     fn disable_all_links(&mut self) {
         for el in &mut self.inner[self.disabled_ix..] {
+            crate::steps::add(1);
             if el.ty == LinkStackTy::Link {
                 el.ty = LinkStackTy::Disabled;
             }
@@ -1952,6 +1972,7 @@ impl CodeDelims {
 
     fn find(&mut self, open_ix: TreeIndex, count: usize) -> Option<TreeIndex> {
         while let Some(ix) = self.inner.get_mut(&count)?.pop_front() {
+            crate::steps::add(1);
             if ix > open_ix {
                 return Some(ix);
             }
@@ -2005,6 +2026,7 @@ impl MathDelims {
         while let Some((ix, can_close, delim_is_display)) =
             self.inner.get_mut(&brace_context)?.pop_front()
         {
+            crate::steps::add(1);
             if ix <= open_ix || (is_display && tree[open_ix].next == Some(ix)) {
                 continue;
             }

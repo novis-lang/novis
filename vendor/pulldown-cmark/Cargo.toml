@@ -1,7 +1,10 @@
 # pulldown-cmark 0.13.6 as published on crates.io, with the patches
 # `rule:core-classes/markdown-to-html`'s engine paragraph lists. Every changed
 # site carries a `// Novis:` comment, and each patch has a known-bug catalogue
-# entry that pins it (`tests/data/markdown/known-bugs.toml`). The workspace's
+# entry that pins it (`tests/data/markdown/known-bugs.toml`). The step count
+# of `rule:core-classes/markdown-cost` is the one addition that is not a fix:
+# `src/steps.rs` is new, and each `crate::steps::add` line is a site of it
+# with that module's doc as its comment. The workspace's
 # `[patch.crates-io]` row is what builds this copy in place of the published
 # crate. Only the library is kept: the `html` module, the command-line binary,
 # the build script that generates the spec tests and the examples are not,

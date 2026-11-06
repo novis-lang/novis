@@ -165,6 +165,7 @@ impl<'a> LineStart<'a> {
         n_space -= n_from_remaining;
 
         while n_space > 0 && self.ix < self.bytes.len() {
+            crate::steps::add(1);
             match self.bytes[self.ix] {
                 b' ' => {
                     self.ix += 1;
@@ -189,10 +190,12 @@ impl<'a> LineStart<'a> {
     /// Scan all available ASCII whitespace (not including eol).
     pub(crate) fn scan_all_space(&mut self) {
         self.spaces_remaining = 0;
-        self.ix += self.bytes[self.ix..]
+        let spaces = self.bytes[self.ix..]
             .iter()
             .take_while(|&&b| b == b' ' || b == b'\t')
             .count();
+        crate::steps::add(spaces + 1);
+        self.ix += spaces;
     }
 
     /// Determine whether we're at end of line (includes end of file).
@@ -330,6 +333,7 @@ impl<'a> LineStart<'a> {
                 let mut ix = self.ix + 1;
                 let mut val = u64::from(c - b'0');
                 while ix < self.bytes.len() && ix - start_ix < 10 {
+                    crate::steps::add(1);
                     let c = self.bytes[ix];
                     ix += 1;
                     if c.is_ascii_digit() {
@@ -470,14 +474,18 @@ pub(crate) fn scan_while<F>(data: &[u8], mut f: F) -> usize
 where
     F: FnMut(u8) -> bool,
 {
-    data.iter().take_while(|&&c| f(c)).count()
+    let n = data.iter().take_while(|&&c| f(c)).count();
+    crate::steps::add(n + 1);
+    n
 }
 
 pub(crate) fn scan_rev_while<F>(data: &[u8], mut f: F) -> usize
 where
     F: FnMut(u8) -> bool,
 {
-    data.iter().rev().take_while(|&&c| f(c)).count()
+    let n = data.iter().rev().take_while(|&&c| f(c)).count();
+    crate::steps::add(n + 1);
+    n
 }
 
 pub(crate) fn scan_ch_repeat(data: &[u8], c: u8) -> usize {
@@ -510,7 +518,9 @@ pub(crate) fn scan_blank_line(bytes: &[u8]) -> Option<usize> {
 }
 
 pub(crate) fn scan_nextline(bytes: &[u8]) -> usize {
-    memchr(b'\n', bytes).map_or(bytes.len(), |x| x + 1)
+    let n = memchr(b'\n', bytes).map_or(bytes.len(), |x| x + 1);
+    crate::steps::add(n);
+    n
 }
 
 // return: end byte for closing code fence, or None
@@ -564,6 +574,7 @@ pub(crate) fn calc_indent(text: &[u8], max: usize) -> (usize, usize) {
     let mut offset = 0;
 
     for (i, &b) in text.iter().enumerate() {
+        crate::steps::add(1);
         offset = i;
         match b {
             b' ' => {
@@ -605,6 +616,7 @@ pub(crate) fn scan_hrule(bytes: &[u8]) -> Result<usize, usize> {
     let mut i = 0;
 
     while i < bytes.len() {
+        crate::steps::add(1);
         match bytes[i] {
             b'\n' | b'\r' => {
                 i += scan_eol(&bytes[i..]).unwrap_or(0);
@@ -672,6 +684,7 @@ pub(crate) fn scan_table_head(data: &[u8]) -> (usize, Vec<Alignment>) {
         found_pipe = true;
     }
     for c in &data[i..] {
+        crate::steps::add(1);
         if let Some(n) = scan_eol(&data[i..]) {
             i += n;
             break;
@@ -770,6 +783,7 @@ pub(crate) fn scan_metadata_block(
         // Only trailing spaces after the delimiters in the line
         let next_line = scan_nextline(&data[i..]);
         for c in &data[i..i + next_line] {
+            crate::steps::add(1);
             if !c.is_ascii_whitespace() {
                 return None;
             }
@@ -779,6 +793,7 @@ pub(crate) fn scan_metadata_block(
             let mut j = i;
             let mut first_line = true;
             while j < data.len() {
+                crate::steps::add(1);
                 j += scan_nextline(&data[j..]);
                 let closed = scan_closing_metadata_block(&data[j..], c).is_some();
                 // The first line of the metadata block cannot be an empty line
@@ -944,6 +959,7 @@ pub(crate) fn scan_wikilink_pipe(data: &str, start_ix: usize, len: usize) -> Opt
     let mut i = start_ix;
 
     while i < end_ix {
+        crate::steps::add(1);
         if bytes[i] == b'|' {
             return Some((i + 1, &data[start_ix..i]));
         }
@@ -966,6 +982,7 @@ pub(crate) fn scan_link_dest(
     if i != 0 {
         // pointy links
         while i < bytes.len() {
+            crate::steps::add(1);
             match bytes[i] {
                 b'\n' | b'\r' | b'<' => return None,
                 b'>' => return Some((i + 1, &data[(start_ix + 1)..(start_ix + i)])),
@@ -981,6 +998,7 @@ pub(crate) fn scan_link_dest(
         // non-pointy links
         let mut nest = 0;
         while i < bytes.len() {
+            crate::steps::add(1);
             match bytes[i] {
                 // Novis: DEL is an ASCII control character too, and the spec
                 // ends a destination at one (md4c-pr-443-del-ends-destination).
@@ -1069,6 +1087,7 @@ fn scan_whitespace_with_newline_handler(
     buffer_ix: &mut usize,
 ) -> Option<usize> {
     while i < data.len() {
+        crate::steps::add(1);
         if !is_ascii_whitespace(data[i]) {
             return Some(i);
         }
@@ -1104,6 +1123,7 @@ fn scan_whitespace_with_newline_handler_without_buffer(
     newline_handler: Option<&dyn Fn(&[u8]) -> usize>,
 ) -> Option<usize> {
     while i < data.len() {
+        crate::steps::add(1);
         if !is_ascii_whitespace(data[i]) {
             return Some(i);
         }
@@ -1132,6 +1152,7 @@ fn scan_attribute_value(
         b @ b'"' | b @ b'\'' => {
             i += 1;
             while i < data.len() {
+                crate::steps::add(1);
                 if data[i] == b {
                     return Some(i + 1);
                 }
@@ -1171,6 +1192,7 @@ pub(crate) fn unescape<'a, I: Into<CowStr<'a>>>(input: I, is_in_table: bool) -> 
     let mut i = 0;
     let bytes = input.as_bytes();
     while i < bytes.len() {
+        crate::steps::add(1);
         match bytes[i..] {
             // Tables are special, because they're parsed as-if the tables
             // were parsed in a discrete pass, changing `\|` to `|`, and then
@@ -1287,8 +1309,10 @@ pub(crate) fn scan_html_block_inner(
 
     if close_tag_bytes == 0 {
         loop {
+            crate::steps::add(1);
             let old_i = i;
             loop {
+                crate::steps::add(1);
                 i += scan_whitespace_no_nl(&data[i..]);
                 if let Some(eol_bytes) = scan_eol(&data[i..]) {
                     if eol_bytes == 0 {
@@ -1363,6 +1387,7 @@ fn scan_uri(text: &str, start_ix: usize) -> Option<(usize, CowStr<'_>)> {
     let mut i = 1;
 
     while i < bytes.len() {
+        crate::steps::add(1);
         let c = bytes[i];
         i += 1;
         match c {
@@ -1380,6 +1405,7 @@ fn scan_uri(text: &str, start_ix: usize) -> Option<(usize, CowStr<'_>)> {
     }
 
     while i < bytes.len() {
+        crate::steps::add(1);
         match bytes[i] {
             b'>' => return Some((start_ix + i + 1, text[start_ix..(start_ix + i)].into())),
             b'\0'..=b' ' | b'<' => return None,
@@ -1398,6 +1424,7 @@ fn scan_email(text: &str, start_ix: usize) -> Option<(usize, CowStr<'_>)> {
     let mut i = 0;
 
     while i < bytes.len() {
+        crate::steps::add(1);
         let c = bytes[i];
         i += 1;
         match c {
@@ -1410,10 +1437,12 @@ fn scan_email(text: &str, start_ix: usize) -> Option<(usize, CowStr<'_>)> {
     }
 
     loop {
+        crate::steps::add(1);
         let label_start_ix = i;
         let mut fresh_label = true;
 
         while i < bytes.len() {
+            crate::steps::add(1);
             match bytes[i] {
                 c if is_ascii_alphanumeric(c) => (),
                 b'-' if fresh_label => {
@@ -1470,6 +1499,7 @@ pub(crate) fn scan_inline_html_comment(
             ix -= 1;
 
             while let Some(x) = memchr(b'-', &bytes[ix..]) {
+                crate::steps::add(x + 1);
                 ix += x + 1;
                 scan_guard.comment = ix;
                 if bytes.get(ix) == Some(&b'-') && bytes.get(ix + 1) == Some(&b'>') {
@@ -1482,7 +1512,9 @@ pub(crate) fn scan_inline_html_comment(
         // including the string `]]>`, and the string `]]>`.
         b'[' if bytes[ix..].starts_with(b"CDATA[") && ix > scan_guard.cdata => {
             ix += b"CDATA[".len();
+            let from = ix;
             ix = memchr(b']', &bytes[ix..]).map_or(bytes.len(), |x| ix + x);
+            crate::steps::add(ix - from);
             let close_brackets = scan_ch_repeat(&bytes[ix..], b']');
             ix += close_brackets;
 
@@ -1496,7 +1528,9 @@ pub(crate) fn scan_inline_html_comment(
         // A declaration consists of the string `<!`, an ASCII letter, zero or more characters not
         // including the character >, and the character >.
         _ if c.is_ascii_alphabetic() && ix > scan_guard.declaration => {
+            let from = ix;
             ix = memchr(b'>', &bytes[ix..]).map_or(bytes.len(), |x| ix + x);
+            crate::steps::add(ix - from);
             if bytes.get(ix) != Some(&b'>') {
                 scan_guard.declaration = ix;
                 None
@@ -1519,6 +1553,7 @@ pub(crate) fn scan_inline_html_processing(
         return None;
     }
     while let Some(offset) = memchr(b'?', &bytes[ix..]) {
+        crate::steps::add(offset + 1);
         ix += offset + 1;
         if bytes.get(ix) == Some(&b'>') {
             return Some(ix + 1);

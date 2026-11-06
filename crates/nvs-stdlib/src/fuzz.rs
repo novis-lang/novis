@@ -171,3 +171,49 @@ pub fn decompress(codec: u8, data: &[u8], bytes: u64, ratio: u64) -> Option<Vec<
     };
     decompress_within(codec, data, Bound { bytes, ratio }, "fuzz").ok()
 }
+
+/// `text` rendered to HTML as `Core\Markdown::toHtml` renders it.
+///
+/// # Panics
+///
+/// Never outside a request: only a request's memory limit stops a render.
+#[must_use]
+pub fn markdown(text: &str) -> String {
+    crate::markdown::rendered(text, r"Core\Markdown::toHtml").expect("no memory limit")
+}
+
+/// [`markdown`]'s HTML, and the work it cost: the engine's steps
+/// (`pulldown_cmark::steps`) plus one per byte of HTML written. The count is
+/// `None` in a build without debug assertions, which counts nothing.
+#[must_use]
+pub fn markdown_counting_steps(text: &str) -> (String, Option<u64>) {
+    let before = pulldown_cmark::steps::taken();
+    let html = markdown(text);
+    let steps = pulldown_cmark::steps::taken()
+        .zip(before)
+        .map(|(after, before)| after - before + html.len() as u64);
+    (html, steps)
+}
+
+/// `html` parsed and rebuilt as `Core\Html::sanitize` does it, and written out.
+#[must_use]
+pub fn html_sanitized(html: &str) -> String {
+    use crate::html::{parse, rebuilt, source};
+    source(&rebuilt(&parse(html)))
+}
+
+/// `html` parsed and written out with every text node removed, so only its
+/// tags and their attributes are left. A search of it finds markup and never
+/// the text a document shows.
+#[must_use]
+pub fn html_tags(html: &str) -> String {
+    use crate::html::{parse, source};
+    use crate::xml::Kind;
+    let mut tree = parse(html);
+    let mut work = vec![&mut tree];
+    while let Some(node) = work.pop() {
+        node.children.retain(|child| child.kind != Kind::Text);
+        work.extend(node.children.iter_mut());
+    }
+    source(&tree)
+}

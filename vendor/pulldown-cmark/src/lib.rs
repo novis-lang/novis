@@ -90,6 +90,7 @@ mod linklabel;
 mod parse;
 mod puncttable;
 mod scanners;
+pub mod steps;
 mod strings;
 mod tree;
 

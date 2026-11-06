@@ -5,7 +5,12 @@ a property of the parse, so no input is refused and no parse fails: Markdown has
 **Work is linear.** Every catalogued slow input of every library in the known-bug catalogue is a test
 that counts work steps, as `parsed_counting_steps` does for HTML, and fails when the steps grow faster
 than the input. There is no timing in the test and no timeout in the member, so a slow input is a bug
-found in the tree, not a request cut off in production.
+found in the tree, not a request cut off in production. A step is one pass of a loop in the engine, one
+byte one of its scanning primitives reads, and one byte of HTML written; the vendored engine counts its
+own in a build with debug assertions, and a release build compiles the count away. Each input renders
+at `n` and `4n` repeats, and the steps at `4n` must be more than at `n` and at most five times as many.
+A count that misses the loop an input grows is the one way this test can pass a slow input, so a
+loop added to the engine by a patch counts its steps too.
 
 **Nesting deeper than 512 flattens exactly as `rule:core-classes/html-parsing` flattens it.** It is the
 same bound and not a new one: the output passes through, or must equal, the WHATWG parse, and a tree

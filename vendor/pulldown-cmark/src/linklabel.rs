@@ -55,6 +55,7 @@ pub(crate) fn scan_link_label_rest<'t>(
     let mut mark = 0;
 
     loop {
+        crate::steps::add(1);
         if codepoints >= 1000 {
             return None;
         }
@@ -94,6 +95,7 @@ pub(crate) fn scan_link_label_rest<'t>(
                 let whitespace_start = ix;
 
                 while ix < bytes.len() && is_ascii_whitespace(bytes[ix]) {
+                    crate::steps::add(1);
                     if let Some(eol_bytes) = scan_eol(&bytes[ix..]) {
                         linebreaks += 1;
                         if linebreaks > 1 {
@@ -138,12 +140,14 @@ pub(crate) fn scan_link_label_rest<'t>(
                 label.as_bytes().last(),
                 Some(&b' ' | &b'\r' | &b'\n' | &b'\t')
             ) {
+                crate::steps::add(1);
                 label.pop();
             }
             while matches!(
                 label.as_bytes().first(),
                 Some(&b' ' | &b'\r' | &b'\n' | &b'\t')
             ) {
+                crate::steps::add(1);
                 label.remove(0);
             }
             label.into()
