@@ -48,7 +48,8 @@
 // - A `.http.out` is the response body a real server sends: `nvs serve <snippet> --port 0` from the
 //   root, with the same `--config`, is sent one request on the port its `listening on` line names, and
 //   is stopped. The request is the snippet's `.nvsr` (method, path, query, headers and body; a section a
-//   real connection cannot carry is an error), or `PLAIN_GET` when it has none. With no `[server]`
+//   real connection cannot carry is an error), or `PLAIN_GET` when it has none. The request token in
+//   each `Core\Html::later` placeholder is random, so it is written `TOKEN` (`maskSlotTokens`). With no `[server]`
 //   block every path runs the snippet. Status and headers are not compared, because the body is what a
 //   reader compares with the code. The root `nvs.toml` arms a queue on `tests/db/compose.yaml`'s
 //   `postgres`, so before the first snippet served under it that service is brought up and
@@ -1286,6 +1287,7 @@ async function serveSnippet(p: string, request: SnippetRequest, nvs: string): Pr
   const server = runProc(argv, { cwd, signal: stop.signal, timeoutMs: SNIPPET_MS, onLine, env: { NOVIS_NO_INIT: "1" } });
   const started = await Promise.race([port, server.then(() => null)]);
   const served: Served = started === null ? { status: 0, body: "", failure: "", started: false } : { ...(await send(started, request, SNIPPET_MS)), started: true };
+  served.body = maskSlotTokens(served.body);
   stop.abort();
   const ran = await server;
   const tail = ran.stderr.trim().split("\n").slice(-3).join(" / ");
@@ -1293,6 +1295,13 @@ async function serveSnippet(p: string, request: SnippetRequest, nvs: string): Pr
   served.failure = ran.timedOut ? `it did not start within ${SNIPPET_MS / 1000} s` : `the server exited ${ran.code}: ${tail}`;
   return served;
 }
+
+/**
+ * A served body with each `Core\Html::later` placeholder's request token written as `TOKEN`. The token
+ * is 96 random bits drawn per request (`rule:core-classes/html-later`), so a slotted page's body differs
+ * on every run, and only the token does.
+ */
+export const maskSlotTokens = (body: string) => body.replace(/nvs-[A-Za-z0-9_-]{16}-(\d+)/g, "nvs-TOKEN-$1");
 
 /** The text of each of a snippet's two output files, null where it has none. */
 const outputFiles = (p: string) => ({ out: hasFile(ROOT, p, "out") ? readAt(ROOT, snippetFile(p, "out")) : null, http: hasFile(ROOT, p, "http") ? readAt(ROOT, snippetFile(p, "http")) : null });
