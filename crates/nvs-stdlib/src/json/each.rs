@@ -894,9 +894,10 @@ mod tests {
         let mut ctx = Ctx::buffered();
         let file = std::fs::File::open(&path).expect("the case wrote this file");
         let key = ctx.hold_open_file(file);
-        let handle = crate::instance::build(
-            &crate::io::FILE,
-            [Value::uint(key), Value::text(&path.display().to_string())],
+        let handle = crate::io::file_handle(
+            key,
+            Value::text(&path.display().to_string()),
+            nvs_runtime::capability::Access::Read,
         );
         let elements = walk(&mut ctx, handle, "/items", false).expect("the walk starts");
         let mut count = 0usize;

@@ -56,6 +56,7 @@
 
 use std::io::{Read, Seek, SeekFrom};
 
+use nvs_runtime::capability::Access;
 use nvs_runtime::{Ctx, Fault, Value};
 
 /// The most bytes one forward read of a file takes, and the size of each piece
@@ -185,6 +186,12 @@ impl ByteSource {
         let kind = if crate::instance::is_instance(value, &crate::io::FILE) {
             let (key, path) = crate::io::handle_of(value, member)?;
             let path = path.as_text().unwrap_or("?").to_owned();
+            // A write-only handle throws here, by its mode, so the error is
+            // one `LogicError` on every platform and comes before any read.
+            let mode = crate::io::mode_of(value, member)?;
+            if matches!(mode, Access::Write | Access::Append) {
+                return Err(crate::io::write_only(member, mode, &path));
+            }
             let open = ctx.open_file_mut(key).ok_or_else(|| closed(member, &path))?;
             let file = open.try_clone().map_err(|err| failed(member, &path, &err))?;
             let seekable = nvs_runtime::os::can_seek(&file);
@@ -605,9 +612,10 @@ mod tests {
     /// one, and its key.
     fn handle(ctx: &mut Ctx, file: std::fs::File, path: &str) -> (Value, u64) {
         let key = ctx.hold_open_file(file);
-        let opened = crate::instance::build(
-            &crate::io::FILE,
-            [Value::uint(key), Value::text(path)],
+        let opened = crate::io::file_handle(
+            key,
+            Value::text(path),
+            nvs_runtime::capability::Access::ReadWrite,
         );
         (opened, key)
     }

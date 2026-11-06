@@ -50,9 +50,9 @@ $walk->close();
 read = ["."]
 write = ["."]
 --EXPECT--
-not text: Core\IO\File::readLine: what was read is not valid UTF-8, so it is not a `string` — byte 3 is where it stops being text
+not text: Core\IO\File::readLine: the bytes read are not valid UTF-8 from byte 3, so they are not a `string`. Use `readBytes` to read them as bytes.
 still at 0
-not text: Core\IO\File::readLine: what was read is not valid UTF-8, so it is not a `string` — byte 3 is where it stops being text
+not text: Core\IO\File::readLine: the bytes read are not valid UTF-8 from byte 3, so they are not a `string`. Use `readBytes` to read them as bytes.
 still at 0
 then: [next]
 long: 8191

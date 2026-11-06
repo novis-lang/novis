@@ -110,12 +110,25 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&READ_DOC),
         },
         CoreMethod {
+            name: "readBytes",
+            names: &["path"],
+            // `read`'s path, its door and its ceiling. Only the answer's type
+            // differs, so a file that is not text is read as it is.
+            params: &[CoreTy::Path(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Blob(Qual::Neutral),
+            symbol: "nvs_core_io_read_bytes",
+            doc: Some(&READ_BYTES_DOC),
+        },
+        CoreMethod {
             name: "write",
             names: &["path", "content"],
             // The path is a sink and `$content` is not: `rule:security/sink-predicate`'s table
             // puts a file's *contents* on the data side, so bytes that arrived
-            // from outside may be written to a path this program chose.
-            params: &[CoreTy::Path(Qual::Sink), CoreTy::Text(Qual::Neutral)],
+            // from outside may be written to a path this program chose. A
+            // file holds octets, so `bytes` that are not text are written as
+            // they are, as `Core\IO\File::write` writes them.
+            params: &[CoreTy::Path(Qual::Sink), CONTENT],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_io_write",
@@ -127,7 +140,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // `write`'s pair exactly, and for its reason: the path directs a
             // resolver and the content does not, so `rule:security/sink-predicate`'s table marks
             // the first and leaves the second alone.
-            params: &[CoreTy::Path(Qual::Sink), CoreTy::Text(Qual::Neutral)],
+            params: &[CoreTy::Path(Qual::Sink), CONTENT],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_io_append",
@@ -426,6 +439,9 @@ const READ_TEXT_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::EnumCase(crate::encoding::CHARSET_NAME, "Utf8"),
 }];
 
+/// `write`'s and `append`'s `string|bytes` content.
+const CONTENT: CoreTy = CoreTy::Union(&[CoreTy::Text(Qual::Neutral), CoreTy::Blob(Qual::Neutral)]);
+
 /// `Core\IO::writeStream`'s `{max?, overwrite?}` — `rule:core-classes/io-write-stream`'s two rules,
 /// and the whole of what this member decides that [`nvs_core_io_write`] does
 /// not.
@@ -490,6 +506,31 @@ const READ_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\IO::readBytes`'s reference card — `rule:core-api/reference-card`.
+const READ_BYTES_DOC: MethodDoc = MethodDoc {
+    short: "Reads a whole file as `bytes`, exactly as it is on disk. Use it for a file that is not \
+            text, such as an image or an archive. It needs the `fs.read` capability for the path.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
+        shape: &[],
+    }],
+    ret: "The file's content as `bytes`, with nothing changed.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.read` for this path. The message names \
+                   the capability the way `nvs.toml` writes it. Or the file is larger than \
+                   `[limits] max_output`, the limit for a single read in a request.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The capability allowed the call, but the operating system did not. The file \
+                   does not exist, is a directory, or could not be read.",
+        },
+    ],
+};
+
 /// `Core\IO::write`'s reference card — `rule:core-api/reference-card`.
 const WRITE_DOC: MethodDoc = MethodDoc {
     short: "Replaces a file's whole content. It creates the file if it does not exist. It needs the \
@@ -503,7 +544,8 @@ const WRITE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "content",
-            desc: "The bytes to write. They become the file's entire content. `append` is the \
+            desc: "The text or bytes to write, written as they are. They become the file's \
+                   entire content. `append` is the \
                    method that adds to what is already there.",
             shape: &[],
         },
@@ -537,7 +579,7 @@ const APPEND_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "content",
-            desc: "The bytes to add. The file's current content is kept, and these bytes come \
+            desc: "The text or bytes to add. The file's current content is kept, and these bytes come \
                    after it. The operating system finds the end of the file when it writes. \
                    The file is not read first.",
             shape: &[],
@@ -1304,6 +1346,10 @@ const FILE_SLOT: usize = 0;
 /// four open handles cannot act on.
 const FILE_PATH_SLOT: usize = 1;
 
+/// [`FILE`]'s third slot: the `Core\IO::FileMode` case it was opened in, as
+/// [`file_handle`] writes it.
+const FILE_MODE_SLOT: usize = 2;
+
 /// How much [`nvs_core_io_file_read_line`] reads at a time before it looks for
 /// a terminator. A line longer than this costs one more read and nothing else;
 /// the buffer is on the stack, so the number is a syscall-count choice and not
@@ -1381,6 +1427,17 @@ pub(crate) const FILE: CoreClass = CoreClass {
             return_ty: CoreTy::Str,
             symbol: "nvs_core_io_file_read",
             doc: Some(&FILE_READ_DOC),
+        },
+        CoreMethod {
+            name: "readBytes",
+            names: &["max"],
+            // No mark on the result: a file's octets are the program's own,
+            // as `Core\IO::read`'s text is.
+            params: &[CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Blob(Qual::Neutral),
+            symbol: "nvs_core_io_file_read_bytes",
+            doc: Some(&FILE_READ_BYTES_DOC),
         },
         CoreMethod {
             name: "readLine",
@@ -1471,8 +1528,30 @@ pub(crate) const FILE: CoreClass = CoreClass {
             doc: Some(&FILE_CLOSE_DOC),
         },
     ],
-    slots: &["handle", "path"],
+    slots: &["handle", "path", "mode"],
     constants: &[],
+};
+
+/// `Core\IO\File::readBytes`'s reference card — `rule:core-api/reference-card`.
+const FILE_READ_BYTES_DOC: MethodDoc = MethodDoc {
+    short: "Reads up to `$max` bytes from the handle's position and moves the position past them. \
+            The bytes are returned as they are in the file.",
+    params: &[ParamDoc {
+        name: "max",
+        desc: "The most bytes to read. Fewer are returned when the file ends first.",
+        shape: &[],
+    }],
+    ret: "The bytes read. Empty `bytes` means the end of the file.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The handle has already been closed.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The read itself failed, or the handle was not opened for reading.",
+        },
+    ],
 };
 
 /// `Core\IO\File::read`'s reference card — `rule:core-api/reference-card`.
@@ -2026,6 +2105,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_open" => (nvs_core_io_open as *const ()).cast(),
         "nvs_core_io_stdin" => (nvs_core_io_stdin as *const ()).cast(),
         "nvs_core_io_file_read" => (nvs_core_io_file_read as *const ()).cast(),
+        "nvs_core_io_file_read_bytes" => (nvs_core_io_file_read_bytes as *const ()).cast(),
+        "nvs_core_io_read_bytes" => (nvs_core_io_read_bytes as *const ()).cast(),
         "nvs_core_io_file_read_line" => (nvs_core_io_file_read_line as *const ()).cast(),
         "nvs_core_io_file_write" => (nvs_core_io_file_write as *const ()).cast(),
         "nvs_core_io_file_seek" => (nvs_core_io_file_seek as *const ()).cast(),
@@ -2069,16 +2150,29 @@ fn own_word(args: &[Value]) -> i64 {
 /// `NvsStr`'s own invariant, while a file or a pipe holds whatever was written
 /// to it. So the octets are checked before they become one, the way
 /// `Core\Http\Response::text` checks a reply's body.
-fn text_of(octets: &[u8], member: &str) -> Result<Value, Fault> {
+///
+/// `hint` is the caller's sentence naming the read that gives the octets as
+/// they are, such as `Core\IO::readBytes` for a whole file. Each sentence of
+/// the message says one thing, so it holds AGENTS.md's prose rules.
+fn text_of(octets: &[u8], member: &str, hint: &str) -> Result<Value, Fault> {
     match std::str::from_utf8(octets) {
         Ok(text) => Ok(Value::text(text)),
-        Err(err) => Err(Fault::thrown(format!(
-            "{member}: what was read is not valid UTF-8, so it is not a `string` — byte {} \
-             is where it stops being text",
-            err.valid_up_to()
-        ))),
+        Err(err) => Err(not_text(member, err.valid_up_to(), hint)),
     }
 }
+
+/// [`text_of`]'s message, for a read whose octets stop being UTF-8 at byte
+/// `at`.
+fn not_text(member: &str, at: usize, hint: &str) -> Fault {
+    let message = format!(
+        "{member}: the bytes read are not valid UTF-8 from byte {at}, so they are not a \
+         `string`. {hint}"
+    );
+    Fault::thrown(message.trim_end().to_owned())
+}
+
+/// What a handle's text reads say to do with octets that are not UTF-8.
+const FILE_HINT: &str = "Use `readBytes` to read them as bytes.";
 
 nvs_runtime::nvs_helper! {
     /// `Core\IO::read(string $path): string` — replacing
@@ -2094,7 +2188,30 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_io_read(ctx, args: [2]) {
         let path = Path::new(text(&args[1], "read", "path")?);
         let raw = ctx.with_own_file(own_word(args), |ctx| slurp(ctx, path, "Core\\IO::read"))?;
-        text_of(&raw, "Core\\IO::read")
+        text_of(&raw, "Core\\IO::read", READ_HINT)
+    }
+}
+
+/// What a whole-file text read's message says to do with a file that is not
+/// UTF-8.
+const READ_HINT: &str = "Use `Core\\IO::readBytes` to read the file as bytes, or \
+                         `Core\\IO::readText` to decode it.";
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::readBytes(string $path): bytes` — `file_get_contents` for a
+    /// file that is not text.
+    ///
+    /// [`slurp`], which is `read`'s door, buffer and ceiling, with no UTF-8
+    /// check after it. [`read_bounded`] grows its buffer as the octets arrive
+    /// and never from the size the file system states, so `/dev/zero` and a
+    /// sparse file stop at the request's limit. **What it spends:** the file,
+    /// once, as `read` does.
+    fn nvs_core_io_read_bytes(ctx, args: [2]) {
+        let path = Path::new(text(&args[1], "readBytes", "path")?);
+        let raw = ctx.with_own_file(own_word(args), |ctx| {
+            slurp(ctx, path, "Core\\IO::readBytes")
+        })?;
+        Ok(Value::bytes(nvs_runtime::NvsStr::new(&raw)))
     }
 }
 
@@ -2137,13 +2254,8 @@ nvs_runtime::nvs_helper! {
         // leaves no half-filled array to release. No case can reach this:
         // a conformance case runs with no `fs.read` grant, so
         // `core_io_read_and_lines_refuse_a_file_that_is_not_utf8` asserts it.
-        std::str::from_utf8(&raw).map_err(|err| {
-            Fault::thrown(format!(
-                "Core\\IO::lines: the file is not valid UTF-8, so its lines are not `string`s \
-                 — byte {} is where it stops being text",
-                err.valid_up_to()
-            ))
-        })?;
+        std::str::from_utf8(&raw)
+            .map_err(|err| not_text("Core\\IO::lines", err.valid_up_to(), READ_HINT))?;
         let out = crate::str::lines_array(&raw, "Core\\IO::lines")?;
         Ok(crate::instance::build(&LINES, [Value::array(out)]))
     }
@@ -2259,7 +2371,7 @@ nvs_runtime::nvs_helper! {
     /// `nvs test` to wait for a person (`rule:testing/tests-run-across-every-core`).
     fn nvs_core_io_stdin(ctx, _args: [0]) {
         if ctx.run_kind() == nvs_runtime::RunKind::Test {
-            return text_of(&[], "Core\\IO::stdin");
+            return text_of(&[], "Core\\IO::stdin", STDIN_HINT);
         }
         let Some(deadline) = ctx.wall_bound() else {
             return read_to_text(ctx, &mut std::io::stdin().lock());
@@ -2312,8 +2424,13 @@ impl std::io::Read for StdinUntil {
 /// since a test cannot choose what its own process's standard input holds.
 fn read_to_text(ctx: &nvs_runtime::Ctx, input: &mut impl std::io::Read) -> Result<Value, Fault> {
     let bytes = read_bounded(ctx, input, "Core\\IO::stdin", Path::new("<stdin>"))?;
-    text_of(&bytes, "Core\\IO::stdin")
+    text_of(&bytes, "Core\\IO::stdin", STDIN_HINT)
 }
+
+/// What `Core\IO::stdin`'s message says to do with input that is not UTF-8.
+/// It names no member yet: the byte read of standard input,
+/// `Core\IO::stdinStream`, is the next work of this stage.
+const STDIN_HINT: &str = "";
 
 /// Every byte `input` gives, read no further than the request can hold.
 ///
@@ -2384,8 +2501,55 @@ nvs_runtime::nvs_helper! {
         unsafe {
             args[0].retain();
         }
-        Ok(crate::instance::build(&FILE, [Value::uint(key), args[0]]))
+        Ok(file_handle(key, args[0], access))
     }
+}
+
+/// A [`FILE`] over the descriptor filed under `key`, opened on `path` for
+/// `access`. It takes over `path`'s reference.
+///
+/// The mode is kept so that a reader given this handle can refuse a
+/// write-only one by its mode, with one `LogicError` on every platform. The
+/// operating system's own refusal differs by platform and comes only at the
+/// first read. **What it spends:** one `int` slot per open handle.
+pub(crate) fn file_handle(key: u64, path: Value, access: Access) -> Value {
+    let mode = match access {
+        Access::Read => 0,
+        Access::Write => 1,
+        Access::Append => 2,
+        Access::ReadWrite => 3,
+    };
+    crate::instance::build(&FILE, [Value::uint(key), path, Value::int(mode)])
+}
+
+/// The mode a [`FILE`] receiver was opened in, as [`access_of`] reads a
+/// `Core\IO::FileMode` case.
+///
+/// # Errors
+///
+/// [`handle_of`]'s fault for a value that is not a `Core\IO\File`.
+pub(crate) fn mode_of(value: Value, member: &str) -> Result<Access, Fault> {
+    let receiver = crate::instance::receiver(value, &FILE, member)?;
+    access_of(&crate::instance::slot(receiver, FILE_MODE_SLOT))
+}
+
+/// The `LogicError` a reader throws for a handle opened only for writing.
+///
+/// It is a `LogicError` because nothing about the file went wrong. The
+/// program gave a reader a handle it opened for writing.
+pub(crate) fn write_only(member: &str, access: Access, path: &str) -> Fault {
+    let mode = if access == Access::Append {
+        "Append"
+    } else {
+        "Write"
+    };
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "{member}: the file was opened with `{FILE_MODE_NAME}::{mode}`, so it cannot be read. \
+             Open it with `Read` or `ReadWrite`: {path}"
+        ),
+    )
 }
 
 /// One `Core\IO::FileMode` case, as the access
@@ -2609,7 +2773,7 @@ nvs_runtime::nvs_helper! {
                         path.as_text().unwrap_or("?")
                     )));
                 }
-                return text_of(&octets, "Core\\IO\\File::read");
+                return text_of(&octets, "Core\\IO\\File::read", FILE_HINT);
             }
         };
         let cut = i64::try_from(octets.len() - whole)
@@ -2619,7 +2783,50 @@ nvs_runtime::nvs_helper! {
                 .map_err(|err| failed(&err))?;
             octets.truncate(whole);
         }
-        text_of(&octets, "Core\\IO\\File::read")
+        text_of(&octets, "Core\\IO\\File::read", FILE_HINT)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO\File::readBytes(uint $max): bytes` — `fread` for a file that
+    /// is not text.
+    ///
+    /// [`nvs_core_io_file_read`]'s loop with no UTF-8 check after it: the
+    /// buffer grows to what the file had, [`READ_CHUNK`] bytes at a time, and
+    /// [`nvs_runtime::affordable`] is asked after each chunk. Nothing is given
+    /// back, so the position ends past every byte returned. **What it spends:**
+    /// the answer, and one syscall per chunk.
+    fn nvs_core_io_file_read_bytes(ctx, args: [2]) {
+        const MEMBER: &str = "Core\\IO\\File::readBytes";
+        let (key, path) = handle_of(args[0], "readBytes")?;
+        let max = args[1].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{MEMBER} expected {:?} for its max, got tag {}",
+                Tag::Uint,
+                args[1].tag_byte()
+            ))
+        })?;
+        let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("readBytes", &path))?;
+        let mut octets = Vec::new();
+        loop {
+            let chunk = (max - octets.len() as u64).min(READ_CHUNK);
+            if chunk == 0 {
+                break;
+            }
+            let read = (&mut *file).take(chunk).read_to_end(&mut octets).map_err(|err| {
+                nvs_runtime::capability::io_failure(
+                    MEMBER,
+                    Path::new(path.as_text().unwrap_or("?")),
+                    &err,
+                )
+            })?;
+            nvs_runtime::affordable(Some(octets.len()), MEMBER)?;
+            // A chunk that came back short is the end of the file.
+            if (read as u64) < chunk {
+                break;
+            }
+        }
+        Ok(Value::bytes(nvs_runtime::NvsStr::new(&octets)))
     }
 }
 
@@ -2729,7 +2936,7 @@ nvs_runtime::nvs_helper! {
             }
             break;
         }
-        text_of(&line, "Core\\IO\\File::readLine").or_else(|refused| {
+        text_of(&line, "Core\\IO\\File::readLine", FILE_HINT).or_else(|refused| {
             let back = i64::try_from(taken)
                 .expect("a line the request's memory held fits an `i64`");
             file.seek(std::io::SeekFrom::Current(-back))
@@ -3056,13 +3263,24 @@ fn slurp(ctx: &mut nvs_runtime::Ctx, path: &Path, member: &str) -> Result<Vec<u8
     read_bounded(ctx, &mut file, member, path)
 }
 
+/// The octets of `write`'s or `append`'s `string|bytes` content, written as
+/// they are.
+fn content<'a>(value: &'a Value, member: &str) -> Result<&'a [u8], Fault> {
+    value.as_bytes().or_else(|| value.as_str_bytes()).ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\IO::{member} expected a `string` or `bytes` for its content, got tag {}",
+            value.tag_byte()
+        ))
+    })
+}
+
 nvs_runtime::nvs_helper! {
-    /// `Core\IO::write(string $path, string $content): void` — replacing
+    /// `Core\IO::write(string $path, string|bytes $content): void` — replacing
     /// `file_put_contents`.
     fn nvs_core_io_write(ctx, args: [2]) {
         let path = Path::new(text(&args[0], "write", "path")?);
-        let content = text(&args[1], "write", "content")?;
-        nvs_runtime::capability::write(ctx, path, content.as_bytes(), "Core\\IO::write")?;
+        let content = content(&args[1], "write")?;
+        nvs_runtime::capability::write(ctx, path, content, "Core\\IO::write")?;
         Ok(Value::null())
     }
 }
@@ -3088,9 +3306,9 @@ nvs_runtime::nvs_helper! {
     /// argument.
     fn nvs_core_io_append(ctx, args: [2]) {
         let path = Path::new(text(&args[0], "append", "path")?);
-        let content = text(&args[1], "append", "content")?;
+        let content = content(&args[1], "append")?;
         let mut file = nvs_runtime::capability::open(ctx, path, Access::Append, "Core\\IO::append")?;
-        file.write_all(content.as_bytes())
+        file.write_all(content)
             .map_err(|err| nvs_runtime::capability::io_failure("Core\\IO::append", path, &err))?;
         Ok(Value::null())
     }
@@ -6303,5 +6521,164 @@ mod tests {
         let_go(reader);
         assert_eq!(std::fs::read_to_string(&path).as_deref().ok(), Some("kept"));
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// The octets a returned `bytes` value has, released.
+    fn octets_of(value: Value) -> Vec<u8> {
+        let octets = value.as_bytes().expect("the member returns `bytes`").to_vec();
+        #[expect(unsafe_code, reason = "the case owns the value the member returned")]
+        unsafe {
+            value.release();
+        }
+        octets
+    }
+
+    /// `Core\IO\File::readBytes(max)` on `handle`: the octets it returned.
+    fn read_bytes_on(ctx: &mut nvs_runtime::Ctx, handle: Value, max: u64) -> Vec<u8> {
+        let args = [handle, Value::uint(max)];
+        octets_of(
+            nvs_runtime::call(nvs_core_io_file_read_bytes, ctx, &args).expect("`readBytes` reads"),
+        )
+    }
+
+    /// `Core\IO\File::readBytes` gives a file's octets as they are, a PNG
+    /// signature and two bytes that are not UTF-8 included, and moves the
+    /// handle past exactly what it gave.
+    // covers: Core\IO\File::readBytes
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn file_read_bytes_gives_octets_that_are_not_utf8_as_they_are() {
+        let (_dir, path) = scratch("binary.bin");
+        std::fs::write(&path, b"\x89PNG\r\n\x1a\n\xff\xfe").expect("the case writes its file");
+        let mut ctx = handling();
+        let handle = handle_on(&mut ctx, &path);
+        assert_eq!(read_bytes_on(&mut ctx, handle, 4), b"\x89PNG");
+        assert_eq!(read_bytes_on(&mut ctx, handle, 100), b"\r\n\x1a\n\xff\xfe");
+        let_go(handle);
+    }
+
+    /// At the end of the file `readBytes` gives empty `bytes`, and goes on
+    /// giving them.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn file_read_bytes_gives_empty_bytes_at_the_end() {
+        let (_dir, path) = scratch("two.bin");
+        std::fs::write(&path, b"ab").expect("the case writes its file");
+        let mut ctx = handling();
+        let handle = handle_on(&mut ctx, &path);
+        assert_eq!(read_bytes_on(&mut ctx, handle, 2), b"ab");
+        assert!(read_bytes_on(&mut ctx, handle, 8).is_empty());
+        assert!(read_bytes_on(&mut ctx, handle, 8).is_empty());
+        let_go(handle);
+    }
+
+    /// `Core\IO::readBytes` gives a whole file larger than one read chunk,
+    /// every byte value included.
+    // covers: Core\IO::readBytes
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn io_read_bytes_reads_a_whole_binary_file() {
+        let (_dir, path) = scratch("whole.bin");
+        let content: Vec<u8> = (0..=255u8).cycle().take(3 * 64 * 1024 + 7).collect();
+        std::fs::write(&path, &content).expect("the case writes its file");
+        let mut ctx = reading("1MiB");
+        let read = call_read(nvs_core_io_read_bytes, &mut ctx, &[spelled(&path)])
+            .expect("`readBytes` reads a granted file");
+        assert_eq!(octets_of(read), content);
+    }
+
+    /// `Core\IO::write` and `Core\IO::append` take `bytes` and write them as
+    /// they are, and `append` still takes a `string` after them.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn io_write_and_append_take_bytes() {
+        let (_dir, path) = scratch("written.bin");
+        let mut ctx = writing();
+        let target = Value::text(spelled(&path));
+        let first = Value::bytes(nvs_runtime::NvsStr::new(b"\x00\xff"));
+        nvs_runtime::call(nvs_core_io_write, &mut ctx, &[target, first]).expect("`write` writes");
+        let more = Value::bytes(nvs_runtime::NvsStr::new(b"\x01"));
+        nvs_runtime::call(nvs_core_io_append, &mut ctx, &[target, more]).expect("`append` adds");
+        let text = Value::text("z");
+        nvs_runtime::call(nvs_core_io_append, &mut ctx, &[target, text]).expect("`append` adds");
+        assert_eq!(std::fs::read(&path).expect("the file exists"), b"\x00\xff\x01z");
+        #[expect(unsafe_code, reason = "the case owns the four values it built")]
+        unsafe {
+            for value in [target, first, more, text] {
+                value.release();
+            }
+        }
+    }
+
+    /// Every text read of a file that is not UTF-8 throws a message that
+    /// names the read giving the octets as they are.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn a_text_read_of_a_binary_file_names_read_bytes() {
+        let (_dir, path) = scratch("image.bin");
+        std::fs::write(&path, b"\x89PNG\xff").expect("the case writes its file");
+        let mut ctx = reading("1MiB");
+        let whole = read_under(&mut ctx, &path).expect_err("`read` of a file that is not text");
+        assert!(whole.contains("from byte 0") && whole.contains("Core\\IO::readBytes"), "{whole}");
+
+        let args = [Value::int(0), Value::text(spelled(&path))];
+        assert!(nvs_runtime::call(nvs_core_io_lines, &mut ctx, &args).is_err());
+        let lines = ctx.take_pending().expect("the refusal is a thrown error");
+        assert!(lines.contains("Core\\IO::readBytes"), "{lines}");
+        #[expect(unsafe_code, reason = "the list holds the one reference it built")]
+        unsafe {
+            args[1].release();
+        }
+
+        let mut ctx = handling();
+        let handle = handle_on(&mut ctx, &path);
+        let piece = read_on(&mut ctx, handle, 5).expect_err("`File::read` of octets that are not text");
+        assert!(piece.contains("`readBytes`"), "{piece}");
+        let_go(handle);
+    }
+
+    /// A handle opened with `Write` or with `Append` and given to a reader
+    /// throws the same `LogicError` naming its mode, before anything is read.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn a_write_only_file_given_to_a_reader_throws_one_logic_error() {
+        let (_dir, path) = scratch("write-only.bin");
+        let mut ctx = handling();
+        for (mode, name) in [(1, "FileMode::Write"), (2, "FileMode::Append")] {
+            let args = [Value::text(spelled(&path)), Value::int(mode)];
+            let handle =
+                nvs_runtime::call(nvs_core_io_open, &mut ctx, &args).expect("a scratch file opens");
+            let made = crate::byte_source::ByteSource::from_arg(&mut ctx, handle, "Core\\Csv::rows");
+            match made {
+                Err(Fault::Thrown(ThrownClass::Logic, message)) => {
+                    assert!(message.contains(name), "{message}");
+                }
+                Err(other) => panic!("a write-only handle threw {other:?}"),
+                Ok(_) => panic!("a write-only handle became a source"),
+            }
+            let_go(handle);
+            #[expect(unsafe_code, reason = "the list holds the one reference it built")]
+            unsafe {
+                args[0].release();
+            }
+        }
     }
 }

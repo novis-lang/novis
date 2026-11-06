@@ -2067,6 +2067,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     ),
     (crate::io::NAME, "within", Some(nvs_config::Cap::FsRead)),
     (crate::io::NAME, "readText", Some(nvs_config::Cap::FsRead)),
+    (crate::io::NAME, "readBytes", Some(nvs_config::Cap::FsRead)),
     (crate::io::NAME, "lines", Some(nvs_config::Cap::FsRead)),
     // The one member whose capability its *argument* decides: `fs.read` for
     // `FileMode::Read`, `fs.write` for `Write` and `Append`, and both for
@@ -2101,6 +2102,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::io::METADATA_NAME, "isFile", None),
     (crate::io::METADATA_NAME, "isDir", None),
     (crate::io::FILE_NAME, "read", None),
+    (crate::io::FILE_NAME, "readBytes", None),
     (crate::io::FILE_NAME, "readLine", None),
     (crate::io::FILE_NAME, "write", None),
     (crate::io::FILE_NAME, "seek", None),
@@ -2498,6 +2500,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
 pub const OWN_FILE_READS: &[(&str, &str)] = &[
     (crate::io::NAME, "read"),
     (crate::io::NAME, "readText"),
+    (crate::io::NAME, "readBytes"),
     (crate::io::NAME, "lines"),
     (crate::io::NAME, "exists"),
     (crate::io::NAME, "isFile"),
@@ -3396,6 +3399,7 @@ pub const PREPARED_MEMBERS: &[(&str, &str)] = &[
     // `OWN_FILE_READS`, each handed the own-file word of its literal path.
     (crate::io::NAME, "read"),
     (crate::io::NAME, "readText"),
+    (crate::io::NAME, "readBytes"),
     (crate::io::NAME, "lines"),
     (crate::io::NAME, "exists"),
     (crate::io::NAME, "isFile"),

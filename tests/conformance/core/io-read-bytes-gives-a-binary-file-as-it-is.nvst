@@ -1,0 +1,42 @@
+--TEST--
+`Core\IO::readBytes` and `Core\IO\File::readBytes` give a PNG a program wrote as its exact bytes, and `Core\IO::read` of it throws naming `readBytes` — `rule:core-api/a-member-takes-the-source-the-program-holds`
+--FILE--
+<?nvs
+// covers: Core\IO::readBytes, Core\IO\File::readBytes
+// A PNG signature and the start of its first chunk. Byte 0 is not UTF-8.
+bytes $png = Core\Encoding::fromHex("89504e470d0a1a0a0000000d49484452");
+Core\IO::write("image.png", $png);
+
+bytes $whole = Core\IO::readBytes("image.png");
+echo Core\Encoding::toHex($whole), "\n";
+echo ($whole == $png) ? "same\n" : "different\n";
+
+// The handle gives the first 8 bytes, then the rest, then empty bytes.
+Core\IO\File $file = Core\IO::open("image.png", Core\IO::FileMode::Read);
+echo Core\Encoding::toHex($file->readBytes(8)), "\n";
+echo Core\Encoding::toHex($file->readBytes(100)), "\n";
+echo Core\Bytes::length($file->readBytes(100)) as string, "\n";
+$file->close();
+
+// `append` takes bytes too.
+Core\IO::append("image.png", Core\Encoding::fromHex("ff"));
+echo Core\Bytes::length(Core\IO::readBytes("image.png")) as string, "\n";
+
+try {
+    Core\IO::read("image.png");
+    echo "not reached\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+89504e470d0a1a0a0000000d49484452
+same
+89504e470d0a1a0a
+0000000d49484452
+0
+17
+Core\IO::read: the bytes read are not valid UTF-8 from byte 0, so they are not a `string`. Use `Core\IO::readBytes` to read the file as bytes, or `Core\IO::readText` to decode it.

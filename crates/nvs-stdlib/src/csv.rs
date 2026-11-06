@@ -1827,9 +1827,10 @@ mod tests {
     fn handle(ctx: &mut Ctx, path: &std::path::Path) -> (Value, u64) {
         let file = std::fs::File::open(path).expect("the case wrote this file");
         let key = ctx.hold_open_file(file);
-        let opened = crate::instance::build(
-            &crate::io::FILE,
-            [Value::uint(key), s(&path.display().to_string())],
+        let opened = crate::io::file_handle(
+            key,
+            s(&path.display().to_string()),
+            nvs_runtime::capability::Access::Read,
         );
         (opened, key)
     }
