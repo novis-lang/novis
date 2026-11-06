@@ -2468,8 +2468,8 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::storage::NAME, "list", Some(nvs_config::Cap::FsRead)),
     // `Core\Zip` is a door because one of its three members writes files, and
     // the other two then declare what they reach, which is nothing: an archive
-    // is octets a program already holds, so listing it and reading one entry
-    // out of it touch no path at all. `extract` declares `fs.write` for the
+    // is octets, an upload or a file the program already holds open, so listing
+    // it and reading one entry out of it touch no path at all. `extract` declares `fs.write` for the
     // effect it has, and `fs.read` for the destination as well, because
     // resolving a name is reading the directories above it — the reading this
     // table's own `within` row already takes.

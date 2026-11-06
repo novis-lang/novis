@@ -9,8 +9,12 @@ also throw a `ParseError`.
 Each name is a `tainted string`. The person who made the archive chose it, so you check it before
 you use it.
 
+The archive can be `bytes`, a file that `Core\IO::open` opened for reading, an uploaded
+`Core\Request\Part` or a `Core\Request\BodyStream`. A file is read in small pieces, so the whole
+archive is never in memory. An upload is kept in memory whole while it is read.
+
 **Good to know:** listing reads only the table of contents at the end of the archive. A large
 archive lists as quickly as a small one with the same number of files.
 
-**The examples below** list an archive, catch an unsafe archive, and check an upload before
+**The examples below** list an archive file, catch an unsafe archive, and check an upload before
 accepting it.
