@@ -1665,9 +1665,7 @@ impl Piece<'_> {
                 StrPart::HTML_TEXT => Piece::HtmlText(NvsStr::text_of(part.ptr())),
                 kind if kind & 0xff == StrPart::FORMAT => {
                     match crate::placeholder::IntPlaceholder::of_kind_word(kind) {
-                        Some(placeholder) => {
-                            Piece::Format(placeholder, part.payload.cast_signed())
-                        }
+                        Some(placeholder) => Piece::Format(placeholder, part.payload.cast_signed()),
                         None => unreachable!("a miscompile: placeholder word {kind:#x}"),
                     }
                 }
@@ -1778,7 +1776,9 @@ unsafe fn join_parts(parts: &[StrPart]) -> NvsStr {
     unsafe {
         let total = parts
             .iter()
-            .try_fold(0_usize, |total, part| total.checked_add(Piece::of(part).len()))
+            .try_fold(0_usize, |total, part| {
+                total.checked_add(Piece::of(part).len())
+            })
             .expect("an Novis string's length cannot overflow a usize");
         if total == 0 {
             return NvsStr::empty_immortal();
@@ -2292,7 +2292,11 @@ mod tests {
             let bytes = NvsStr::bytes_of(out).to_vec();
             nvs_str_release(out);
             for string in held {
-                assert_eq!(NvsStr::refcount_of(string), 1, "a part was retained or released");
+                assert_eq!(
+                    NvsStr::refcount_of(string),
+                    1,
+                    "a part was retained or released"
+                );
                 nvs_str_release(string);
             }
             bytes
@@ -2329,7 +2333,11 @@ mod tests {
             let out = nvs_str_concat_parts(parts.as_ptr(), parts.len());
             let spent = allocated_bytes() - before;
             assert_eq!(NvsStr::bytes_of(out), want);
-            assert_eq!(spent, PAYLOAD_OFFSET + want.len(), "one buffer, of exactly the result");
+            assert_eq!(
+                spent,
+                PAYLOAD_OFFSET + want.len(),
+                "one buffer, of exactly the result"
+            );
             assert_eq!(NvsStr::refcount_of(out), 1);
             nvs_str_release(out);
 
@@ -2352,7 +2360,19 @@ mod tests {
     /// digit writer, at both ends of `int`'s range and at every digit count.
     #[test]
     fn an_integer_part_writes_the_digits_int_to_string_writes() {
-        let mut values = vec![0, 1, -1, 9, 10, -10, 99, 100, i64::MIN, i64::MAX, i64::MIN + 1];
+        let mut values = vec![
+            0,
+            1,
+            -1,
+            9,
+            10,
+            -10,
+            99,
+            100,
+            i64::MIN,
+            i64::MAX,
+            i64::MIN + 1,
+        ];
         let mut power = 1_i64;
         while let Some(next) = power.checked_mul(10) {
             values.extend([next - 1, next, -next, -(next - 1)]);

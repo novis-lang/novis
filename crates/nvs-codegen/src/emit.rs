@@ -4019,8 +4019,7 @@ impl Emitter<'_, '_> {
     /// fresh piece after this call. It cannot fail, so it has no status check,
     /// like [`Self::emit_concat`]'s two calls.
     fn emit_concat_parts(&mut self, pieces: &[ConcatPart]) -> Result<Value, CodegenError> {
-        let count =
-            i32::try_from(pieces.len()).map_err(|_| internal("a join past i32 pieces"))?;
+        let count = i32::try_from(pieces.len()).map_err(|_| internal("a join past i32 pieces"))?;
         if count == 0 {
             return Err(internal("a join of no pieces"));
         }

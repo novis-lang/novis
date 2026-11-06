@@ -1005,8 +1005,8 @@ mod tests {
     #[test]
     fn a_packed_integer_part_writes_what_format_writes() {
         let specs = [
-            "%d", "%+d", "%05d", "%-6d","%'*8d", "%+08d", "%u", "%x", "%X", "%o", "%b",
-            "%08b", "%s", "%.2s", "%-5.3s", "%+5s", "%'é6x",
+            "%d", "%+d", "%05d", "%-6d", "%'*8d", "%+08d", "%u", "%x", "%X", "%o", "%b", "%08b",
+            "%s", "%.2s", "%-5.3s", "%+5s", "%'é6x",
         ];
         let values = [0, 7, -42, 123_456, i64::MIN, i64::MAX];
         for spec in specs {
