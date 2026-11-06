@@ -158,7 +158,7 @@ describe("render", () => {
           name: "Novis\\Pdf\\Document",
           short: "A PDF document.",
           members: [{ name: "standard", kind: "instance", signature: "standard(Standard $standard): Document" }],
-          types: [{ name: "Asset", type: "{path: string, bytes: bytes}" }],
+          types: [{ name: "Asset", type: "{path: string, bytes: bytes}", descHtml: "" }],
           constants: ["VERSION"],
         },
       ],
@@ -170,7 +170,7 @@ describe("render", () => {
     const [cls] = registryClasses(reg);
     expect(cls!.summary).toBe("A PDF document.");
     expect(cls!.members.map((m) => m.signature)).toEqual(["standard(Standard $standard): Document"]);
-    expect(cls!.types).toEqual([{ name: "Asset", type: "{path: string, bytes: bytes}" }]);
+    expect(cls!.types).toEqual([{ name: "Asset", type: "{path: string, bytes: bytes}", descHtml: "" }]);
     expect(cls!.constants).toEqual([{ name: "VERSION", descHtml: "" }]);
     // A namespace's own enum has no class to sit on, so it is a Types page alone.
     expect(cls!.enums).toEqual([{ name: "Standard", cases: ["PdfA2b", "PdfUa1"], raw: "Standard { PdfA2b, PdfUa1 }" }]);
