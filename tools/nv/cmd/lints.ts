@@ -136,6 +136,8 @@ export function renderValue(value: unknown): string {
   if (typeof value === "boolean") return value ? "true" : "false";
   if (typeof value === "number" && Number.isInteger(value)) return String(value);
   if (typeof value === "bigint") return String(value);
+  // `unexpected_cfgs`' `check-cfg` is a list.
+  if (Array.isArray(value)) return `[${value.map(renderValue).join(", ")}]`;
   if (value !== null && typeof value === "object" && !Array.isArray(value)) {
     const inner = Object.entries(value).map(([k, v]) => `${k} = ${renderValue(v)}`);
     return `{ ${inner.join(", ")} }`;

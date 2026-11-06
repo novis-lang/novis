@@ -1200,6 +1200,9 @@ missing_docs = "warn"
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"
 rust_2018_idioms = { level = "warn", priority = -1 }
+# `tools/covwrap` sets `nvs_coverage` on every crate of the `covws` build, and
+# `nvs-runtime`'s `capability::keep_coverage_counters` reads it.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(nvs_coverage)"] }
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }

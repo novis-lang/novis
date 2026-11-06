@@ -211,6 +211,7 @@ missing_docs = "warn"
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"
 rust_2018_idioms = { level = "warn", priority = -1 }
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(nvs_coverage)"] }
 
 [lints.clippy]
 all = { level = "warn", priority = -1 }
