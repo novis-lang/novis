@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-cli/src/service.rs, crates/nvs-cli/src/main.rs, tools/nv/cmd/lints.ts, docs/rules/packaging/the-installer-is-a-sink.md]
   - id: 5
     title: "the order test passes, and the install guide shows the short path"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/service.rs, docs/reference/tools/15-install.md, website/src/content/docs/install/server.mdx]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -160,6 +160,13 @@ The user's rules for this goal:
     finds a terminal where the attach fails. A failed attach loses the output and still returns the
     exit code. Decision 9's "a service" is the no-terminal case, so no session-0 check is added.
     The Unix line is `run this as root:` and the command with `sudo` in front.
+13. **The order test runs the built binary, and the install in it is `--dry-run`.** The acceptance
+    check is `cargo test --test setup_order`, and `nvs-cli` has no library target, so the recording
+    manager is out of reach. A real install would register a service on an elevated CI runner. The
+    dry run still runs the install's judgement for the service's account, and the folder it would
+    create is the same `Folder::prepare` that `nvs run` and `nvs init` call (decision 4), which
+    `an_install_prepares_the_data_folder_…` in `service.rs` pins. The test is `#[cfg(windows)]`: on
+    Linux the install gives each path to the service's account itself, so no order can break it.
 
 ## Stages
 
@@ -226,14 +233,14 @@ The user's rules for this goal:
 **Split:** after the test is green, one writing subagent rewrites the install reference and the
 website's install page, and another the Windows install example. Their files are disjoint.
 
-- [ ] `crates/nvs-cli/tests/setup_order.rs`: every order of `nvs run`, `nvs init` and the install
-  with the recording manager (`crates/nvs-cli/src/service.rs:5588`), then `trust::check_as` for
+- [x] `crates/nvs-cli/tests/setup_order.rs`: every order of `nvs run`, `nvs init` and
+  `service install --dry-run` through the binary (decision 13), then `trust::check_as` for
   `LOCAL SERVICE` on the data folder, its `nvs.toml`, the cache folder and the project file.
   `crates/nvs-cli/tests/setup_order.rs:1`
-- [ ] The install reference: put `nvs` in a folder, run `nvs init`, run `nvs service install`. The
-  `icacls` steps stay only for a layout `nvs init` cannot restrict. `docs/reference/tools/15-install.md:142`
-- [ ] The website's install page, the same way. `website/src/content/docs/install/server.mdx:120`
-- [ ] The Windows install example and its output. `docs/examples/tools/install/windows/about.md:1`
+- [x] The install reference: put `nvs` in a folder, run `nvs init`, run `nvs service install`. The
+  `icacls` steps stay only for a layout `nvs init` cannot restrict. `docs/reference/tools/15-install.md:8`
+- [x] The website's install page, the same way. `website/src/content/docs/install/server.mdx:13`
+- [x] The Windows install example and its output. `docs/examples/tools/install/windows/about.md:1`
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -245,44 +252,35 @@ website's install page, and another the Windows install example. Their files are
 
 ### State
 
-Stages 1 to 4 are done. `crates/nvs-cli/src/elevate.rs` holds the closed list (`asks`,
-`elevate.rs:42`), the pure `route` over `Facts` (`elevate.rs:95`) and `before(extra)`
-(`elevate.rs:140`). `main` calls `elevate::set`, which attaches to `--elevated-for <pid>`'s
-console, then `before(&[])` for a `Before` command (`crates/nvs-cli/src/main.rs:794`).
-`restrict_folder` calls `before(&["--yes"])` when `icacls` exits `5` or `chmod` is denied
-(`crates/nvs-cli/src/config.rs:568`). Windows asks with `ShellExecuteExW` `runas`, waits and
-returns the exit code; the child attaches to the console (decision 12). Unix runs `sudo`. Without a
-prompt it prints the admin line and the command, and exits `1`, as the debug binary did here.
-`--no-elevate` and hidden `--elevated-for` are global flags; `Win32_UI_Shell` is a `windows-sys`
-feature; the rule and the roster reason are written. Green: the `elevate::` tests, `looper check
---name elevation`, clippy, `bun nv rules --check`, `bun nv lints --check`. The `runas` path has
-never run (it needs a person at a prompt), and the Unix half of `elevate.rs` and `restrict` has
-not compiled: stage 6, or `bun nv linux-test`.
+Stages 1 to 5 are done. Stage 5 landed `crates/nvs-cli/tests/setup_order.rs` (decision 13), green
+once by name on Windows, and the install pages: `docs/reference/tools/15-install.md:8` opens with
+`# Set up a server`, `## What nvs init does` and `## Admin rights`; the website's
+`install/server.mdx:13` has the same in short; `guides/production/run-as-a-service.mdx:19` links to
+`#admin-rights`; the Windows example's `about.md` gives the three steps first. `llms-full.txt` was
+rendered, and only the install hunks were committed: the other hunks come from another session's
+uncommitted `docs/reference/core/IO.md` and `website/src/data/core.json`, so `render --website
+--check` stays red until that session commits.
 
-The sweep's `env-secret-proofs` red is stale state in looper's service. No check by that name exists
-in the tree, and `looper check --name env-secret-proofs` says `no check matches`. Another
-session's uncommitted edits sit in the tree (`nvs-db`, `nvs-stdlib`, `nvs-runtime`); never stage them.
+Elevation is `crates/nvs-cli/src/elevate.rs` (`asks` at `:42`, `route` at `:95`, `before` at
+`:140`). Its `runas` path has never run (it needs a person at a prompt), and its Unix half and
+`restrict`'s have never compiled. Green this session: `looper check --name any-order`, clippy.
+
+The sweep's `env-secret-proofs` red is stale state in looper's service: it has no log, and no check
+by that name exists in the tree. Another session's uncommitted edits sit in the tree (`nvs-db`,
+`nvs-stdlib`, `nvs-runtime`, `IO.md`, `core.json`); never stage them.
 
 ### Next
 
-**Stage 5**, over a new `crates/nvs-cli/tests/setup_order.rs`, then the install docs; split as the
-stage says.
+**Stage 6**, the gate: `looper verify` over the whole goal in the background, fix every failure in
+one pass, run it once more. Then the goal-end gates: `bun nv verify --doc` (the new
+`#admin-rights` link in `run-as-a-service.mdx:19`), `bun nv owners --closes setup-in-any-order`,
+`bun nv ci --check`. Run `bun nv linux-test` for the Unix half of `elevate.rs` and `restrict`,
+which has never compiled.
 
-- [ ] The order test. `crates/nvs-cli/tests/setup_order.rs:1`. Trap: `registration::Recording`
-  (`crates/nvs-cli/src/service.rs:4521`) is `pub(crate)` in the binary crate, so an integration
-  test cannot reach it. Either the test runs the binary and judges the result on disk with
-  `nvs_config::trust::check_as` (`crates/nvs-config/src/trust.rs:246`), with `service install
-  --dry-run` standing in for the manager. Or the order test becomes a unit test in `service.rs`
-  and the acceptance check's argv changes with it. Decide by what `cargo test --test setup_order`
-  must run. A non-dry-run install now exits `1` with the admin line when the test is not elevated.
-- [ ] The install reference. `docs/reference/tools/15-install.md:142`
-  `nvs` in a folder, `nvs init`, `nvs service install`, which asks for admin rights itself.
-- [ ] The website's install page, the same way. `website/src/content/docs/install/server.mdx:120`
-- [ ] The Windows install example and its output. `docs/examples/tools/install/windows/about.md:1`
-
-Expected red until stage 6: none known. Not run since their change: `the_icacls_steps_…`
-(`crates/nvs-cli/tests/init.rs`) and `nvs_init_checks_its_folder_alone_…`, whose refusals carry
-the `--yes` help line, which they do not assert against.
+Expected red: none known. Not run since their change: `the_icacls_steps_…` and
+`nvs_init_checks_its_folder_alone_…` (`crates/nvs-cli/tests/init.rs`), whose refusals carry the
+`--yes` help line. A doc test that pins the install chapter's old first heading or wording may go
+red, as may the website render check if the other session's `IO.md` work is still uncommitted.
 
 ### Backlog
 
