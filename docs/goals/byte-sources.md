@@ -804,20 +804,18 @@ Every stage is done, and the goal is reached. `looper verify` was green at `6fd9
 goal-end gates are green: `bun nv proofs --gate --limit 0` owes nothing, `bun nv verify --doc`
 resolves every link, and `bun nv owners --closes byte-sources` owns no gap.
 
-`bun nv ci --check` is green in every part this goal reaches. Its website stale guard still names
-five pages: `/guides/` and the four walkthrough pages, which another session committed while this
-one ran (`04d9cea3`). They owe their own search questions, and the website render and the proofs
-gate, the floor checks, are green.
+`bun nv ci --check` is green in every part this goal reaches. Every decision this file holds is in
+its module doc: 4, 17 and 26 in `byte_source.rs`, 20 in `compress.rs`, 21 in `zip.rs`, 22 in
+`xml.rs`, 24 in `collect.ts`'s `SHARED_IMPL`, 25's ramp in `scaling.ts`' `rampPerOp`. The sweep's
+other reds are stale: no `env-secret-proofs` check exists, and the three Miri timeouts at
+`26dda366` are ignored under Miri since `f13f4064`.
 
-The last session's fixes: `Core\IO::within`'s figure recorded on a second run, and its ramp is not
-faster than linear; neither `within` nor the resolution walk changed in this goal.
-`Core\Request::jsonAs` was already current. `apps/paperwork` reads its PDF text as `tainted string`
-(decision 23). The website data was rendered again, the enums page stamped, 55 pages' search
-questions written or reread, and the roadmap places the four goals ahead in a theme. Every decision
-this file holds is in its module doc: 4, 17 and 26 in `byte_source.rs`, 20 in `compress.rs` and
-`byte_source.rs`' `Reader`, 21 in `zip.rs`, 22 in `xml.rs`, 24 in `collect.ts`'s `SHARED_IMPL`,
-and 25's ramp in `scaling.ts`' `rampPerOp`. The sweep's reds were stale again: no
-`env-secret-proofs` check exists, and the three Miri timeouts at `26dda366` are ignored under Miri.
+The floor check `floor-debt` was red on 11 proof programs. Each still declared plain text that is
+now tainted: what `Core\Json::decodeEach` hydrates from `Core\Request::bodyStream()` (decision 2),
+and a PDF's text, attachments and invoice XML (decision 23). Nine examples under
+`docs/examples/core/Json/` and `docs/examples/novis/Pdf-*/` and two billion-laughs attacks under
+`tests/hostile/novis/Pdf-*/` now declare `tainted`, and `bun nv proofs --run --no-cache` over
+both Pdf groups and both Json members is green (`bc74e264`).
 
 No test is expected to go red.
 
