@@ -18,6 +18,25 @@ fn a_core_member_call_type_checks_against_its_registered_signature() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
+/// `Core\Json::encodeEach` takes a walk of `mixed`, and a generator of objects
+/// is a walk of `Product`. A `Core` member only reads the elements, so the walk
+/// widens there. A method a program declares keeps `Iterator<T>` invariant.
+#[test]
+fn a_core_walk_of_mixed_takes_a_walk_of_any_element() {
+    let generator = "<?nvs\nclass Product { public int $id = 1; }\n\
+         class Catalog {\n\
+         \x20 static function all(): Iterator<Product> { yield new Product(); }\n";
+    let diags = check_src(&format!(
+        "{generator}\x20 static function run(): void {{ Core\\Json::encodeEach(Catalog::all()); }}\n}}\n"
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    let diags = check_src(&format!(
+        "{generator}\x20 static function take(Iterator<mixed> $items): void {{}}\n\
+         \x20 static function run(): void {{ Catalog::take(Catalog::all()); }}\n}}\n"
+    ));
+    assert!(diags.has_errors(), "a declared `Iterator<mixed>` stays invariant");
+}
+
 /// The point of registering a signature at all: a `Core` call is now
 /// arity-checked exactly like a user-declared one, where before every
 /// `Core\...` reference was trusted unchecked.

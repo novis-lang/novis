@@ -121,6 +121,7 @@ fn check_arg_list(
             ArgSlot::Param(index) => Admitted {
                 tainted: admits_tainted_argument_at(&sig, index, env.interner),
                 secret: admits_secret_argument(sig.qual_at(index)),
+                core: !sig.param_quals.is_empty(),
             },
             // A `...` hands over a subject's entries rather than the subject,
             // so the qualifier is on the array and not on what fills the
@@ -165,7 +166,7 @@ fn check_arg_list(
             key
         } else {
             match expected {
-                Some(want) if admitted.any() => {
+                Some(want) if admitted.any(want, env) => {
                     check_arg_admitting_quals(&arg.value, want, admitted, live, scope, ctx, env)
                 }
                 Some(want) if carrier_help(want, env).is_some() => {
@@ -593,6 +594,9 @@ pub(crate) fn check_arg(
 struct Admitted {
     tainted: bool,
     secret: bool,
+    /// The parameter is a `Core` row's, the one kind of signature that
+    /// fills [`MethodSig::param_quals`], so [`reads_any_walk`] may widen it.
+    core: bool,
 }
 
 impl Admitted {
@@ -600,11 +604,13 @@ impl Admitted {
     const NONE: Self = Self {
         tainted: false,
         secret: false,
+        core: false,
     };
 
-    /// Whether the narrowed comparison is worth making at all.
-    const fn any(self) -> bool {
-        self.tainted || self.secret
+    /// Whether the narrowed comparison is worth making at all: a qualifier
+    /// to clear, or a `Core` walk of `mixed` to widen.
+    fn any(self, want: TypeId, env: &Env<'_>) -> bool {
+        self.tainted || self.secret || (self.core && mixed_walk_param(want, env))
     }
 }
 
@@ -661,11 +667,43 @@ fn check_arg_admitting_quals(
     } else {
         expected
     };
-    if walks == expected || !is_assignable(compared, walks, env.interner, env.graph, env.signatures)
-    {
+    let tainted_walk =
+        walks != expected && is_assignable(compared, walks, env.interner, env.graph, env.signatures);
+    if !tainted_walk && !(admitted.core && reads_any_walk(compared, expected, env)) {
         report_mismatch(value.span, expected, actual, env);
     }
     actual
+}
+
+/// Whether a `Core` parameter declared as a walk of `mixed`, such as
+/// `Core\Json::encodeEach`'s `$items`, takes `actual`, a walk of some other
+/// element. `Iterator<T>` is invariant everywhere else ([`super::assign`]'s
+/// `class_satisfied` says why), and a generator of `Product`s is still the
+/// argument a program means. A `Core` member only ever reads a walk's elements
+/// through `current()`, so a `mixed` element is an output position there and
+/// widening it stores nothing a narrower reader could see. An array needs no
+/// admission: `array<T>` is covariant already.
+fn reads_any_walk(actual: TypeId, expected: TypeId, env: &mut Env<'_>) -> bool {
+    let Ty::Class(qname, args) = env.interner.get(actual).clone() else {
+        return false;
+    };
+    let is_walk = (qname.is_reserved_global_interface() && args.len() == 1)
+        || crate::signatures::resolve_iteration_element(&qname, env.signatures, env.graph).is_some();
+    is_walk && mixed_walk_param(expected, env)
+}
+
+/// Whether `declared` is, or is a union with, `Iterable<mixed>` or
+/// `Iterator<mixed>`.
+fn mixed_walk_param(declared: TypeId, env: &Env<'_>) -> bool {
+    match env.interner.get(declared) {
+        Ty::Class(q, args) => {
+            args.len() == 1
+                && q.is_reserved_global_interface()
+                && matches!(env.interner.get(args[0]), Ty::Mixed)
+        }
+        Ty::Union(members) => members.iter().any(|&member| mixed_walk_param(member, env)),
+        _ => false,
+    }
 }
 
 /// Whether this call's result carries `tainted` — `rule:security/unclassified-parameter-refuses-tainted`'s contagion,
@@ -1642,11 +1680,12 @@ pub(crate) fn check_generic_args(
             ArgSlot::Param(param) if !open => Admitted {
                 tainted: admits_tainted_argument_at(&sig, param, env.interner),
                 secret: admits_secret_argument(sig.qual_at(param)),
+                core: !sig.param_quals.is_empty(),
             },
             _ => Admitted::NONE,
         };
         arg_types.push(match expected {
-            Some(want) if admitted.any() => {
+            Some(want) if admitted.any(want, env) => {
                 check_arg_admitting_quals(value, want, admitted, live, scope, ctx, env)
             }
             _ => check_expr(value, expected, live, scope, ctx, env),
