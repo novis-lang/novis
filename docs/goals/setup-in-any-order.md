@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-config/tests/trust.rs]
   - id: 2
     title: "the folder above a checked folder fails only when another account can replace that folder"
-    status: open
+    status: done
     context: [crates/nvs-config/tests/trust.rs, crates/nvs-cli/tests/init.rs]
   - id: 3
     title: "nvs init sets up the data folder and the project file, and offers to restrict its folder"
@@ -173,13 +173,13 @@ The user's rules for this goal:
 
 **Does:** decision 3.
 
-- [ ] A parent test separate from the full one, for Windows and for Unix. `check_as` uses it for the
+- [x] A parent test separate from the full one, for Windows and for Unix. `check_as` uses it for the
   parent. `crates/nvs-config/src/trust.rs:172` `crates/nvs-config/src/trust.rs:448`
   `crates/nvs-config/src/trust.rs:798`
-- [ ] The two named tests. `crates/nvs-config/tests/trust.rs:1`
-- [ ] The cache half of `nvs_init_checks_its_folder_alone_the_cache_one_folder_up_and_nvs_run_not_the_config`
+- [x] The two named tests. `crates/nvs-config/tests/trust.rs:1`
+- [x] The cache half of `nvs_init_checks_its_folder_alone_the_cache_one_folder_up_and_nvs_run_not_the_config`
   is updated: a parent with write but no replace right no longer warns. `crates/nvs-cli/tests/init.rs:347`
-- [ ] The rule fragment and the install reference's table say what the parent is tested for.
+- [x] The rule fragment and the install reference's table say what the parent is tested for.
   `docs/rules/config/ownership-is-the-trust-boundary.md:1` `docs/reference/tools/15-install.md:121`
 
 ### 3. nvs init sets up the data folder and the project file, and offers to restrict its folder
@@ -237,31 +237,36 @@ website's install page, and another the Windows install example. Their files are
 
 ### State
 
-Stage 1 is done. On Windows the owner test accepts a member of `Administrators` through
-`platform::in_administrators` (`LookupAccountSidW`, then `NetUserGetLocalGroups` with
-`LG_INCLUDE_INDIRECT`, compared by this machine's name for the well-known SID). `Account::administrator`
-exposes it, and `Account::named` knows `LocalService` as a well-known SID. `give_to_administrators`,
-the `O:BA` owner on a created folder and `trust::administrator` are gone. The refusal now ends
-"nor an administrator". Both named tests ran: on this admin account the first passed and the second
-skipped, as written.
+Stages 1 and 2 are done. Stage 2: `check_as` gives a **folder's** parent `platform::check_parent`
+(owner test, then `REPLACE_RIGHTS` = `FILE_DELETE_CHILD | WRITE_DAC | WRITE_OWNER` on Windows; on
+Unix the group/other write bits are ignored when the sticky bit is set). A **file's** parent keeps
+`platform::check`. Which one is one `metadata` of the canonical path. The Windows breach for a parent
+reads "grants the right to delete the folders in it to `<group>`". Link holders are unchanged.
+In `crates/nvs-cli/tests/init.rs`, `writable_by_others` now sets `0o1757` on Unix (write, not
+replace) and the new `replaceable_by_others` grants `(DC)` / `0o757`; both cache halves use the
+latter for the warning. Ran by name, all green on Windows: the two new trust tests,
+`nvs_init_checks_its_folder_alone_…` and `each_refusal_names_a_path_…`. The Unix halves have not
+run; stage 6 runs them (or `bun nv linux-test`).
 
-The sweep's `env-secret-proofs` red is stale driver state: `looper check --name env-secret-proofs`
-says `no check matches`, as the json-streaming goal already recorded. `bun nv rules --check` is red
-on `docs/goals/byte-sources.md:158`, another session's new goal, not this one's.
+The sweep's `env-secret-proofs` red is stale driver state: its log file does not exist, and
+`looper check --name env-secret-proofs` said `no check matches` last session. `bun nv rules --check`
+is red on `docs/goals/byte-sources.md:194,201,456`, another goal's citations, not this one's.
 
 ### Next
 
-**Stage 2**, over `crates/nvs-config/src/trust.rs`; no gate. Stage 3 may run beside it (decision 11).
+**Stage 3**, over `crates/nvs-cli/src/config.rs` and `crates/nvs-cli/src/main.rs`; no gate.
+Stage 4 may run beside it (decision 11).
 
-- [ ] A parent test separate from the full one. `crates/nvs-config/src/trust.rs:174` (`check_as`),
-  `crates/nvs-config/src/trust.rs:330` (Unix `check`), `crates/nvs-config/src/trust.rs:822` (Windows `check`)
-- [ ] The two named tests. `crates/nvs-config/tests/trust.rs:1`
-- [ ] The cache half of the init test. `crates/nvs-cli/tests/init.rs:347`
-- [ ] The rule fragment and the install table. `docs/rules/config/ownership-is-the-trust-boundary.md:1`
-  `docs/reference/tools/15-install.md:121`
+- [ ] `init` joins `prepares`, and its summary prints one line per path. `crates/nvs-cli/src/main.rs:356`
+  (`prepares`), `crates/nvs-cli/src/config.rs:401` (`init`), `crates/nvs-config/src/data.rs:331`
+  (`Folder::prepare`)
+- [ ] The question, `--yes`, and the printed commands without a terminal. `crates/nvs-cli/src/config.rs:401`
+- [ ] The two named tests and the `--yes` one. `crates/nvs-cli/tests/init.rs:1`
+- [ ] The help text of `nvs init` and `--yes`. `crates/nvs-cli/src/main.rs:1`
 
-Expected red until stage 6: none known. A test outside `crates/nvs-config` that matches the old
-"an administrative one" text would fail; grep found none.
+Expected red until stage 6: `the_icacls_steps_turn_a_folder_every_account_may_change_into_one_nvs_init_writes_into`
+(`crates/nvs-cli/tests/init.rs:497`) if it asserts a warning about an outer folder that only has
+`Modify`; it was not run.
 
 ### Backlog
 
