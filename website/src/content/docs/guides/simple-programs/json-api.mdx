@@ -38,3 +38,19 @@ writes the response when a route method throws an error.
 text as the response.
 
 `#[Core\Access]` says who may call the route. `Core\Audience::Public` means everyone may call it.
+
+## Large lists
+
+`Core\Json::encode` and `Core\Json::decodeAs` work with the whole document in memory. For a list
+that can be very long, use `Core\Json::encodeEach` and `Core\Json::decodeEach`. They write and
+read one element at a time, so the memory your program uses stays the same at any size.
+
+<Snippet src="guides/simple-programs/json-api/large-lists.nvs" />
+
+`encodeEach` takes the next product only when it needs it. It returns the JSON text in pieces of up
+to 64 KiB, and `Core\IO::writeStream` writes them to the file. You can also write the pieces to a
+response with `Core\Response::stream`.
+
+`decodeEach` reads from an open file or from the request body, `Core\Request::bodyStream()`. Each
+element is checked like a document that `decodeAs` reads. A second argument such as `'/items'`
+selects an array inside the document. `{ lines: true }` reads JSON Lines, one value on each line.

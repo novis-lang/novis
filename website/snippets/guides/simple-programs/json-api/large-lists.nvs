@@ -1,0 +1,37 @@
+<?nvs
+// This program writes a list of products to a JSON file, then reads it back one product at a time.
+#[Core\Json\Derive]
+class Product
+{
+    public uint $id;
+    public string $name;
+
+    public function constructor(uint $id, string $name)
+    {
+        $this->id = $id;
+        $this->name = $name;
+    }
+}
+
+// A generator creates each product only when `encodeEach` needs the next one.
+class Catalog
+{
+    public static function products(): Iterator<Product>
+    {
+        yield new Product(1, 'Fig');
+        yield new Product(2, 'Apple');
+        yield new Product(3, 'Pear');
+    }
+}
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'products.json');
+
+// `encodeEach` returns the JSON text in pieces. `writeStream` writes each piece to the file.
+Core\IO::writeStream($path, Core\Json::encodeEach(Catalog::products()), { overwrite: true });
+
+// `decodeEach` reads one element of the array, checks it as a `Product`, and gives it to the loop.
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+foreach (Core\Json::decodeEach<Product>($file) as Product $product) {
+    echo $product->id, ' ', $product->name, "\n";
+}
+$file->close();
