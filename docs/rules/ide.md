@@ -3206,7 +3206,7 @@ computed in `editors/vscode/src/tasktree.ts`
 
 <a id="ide-a-file-shows-what-it-declares"></a>
 
-## A file that declares one class, interface, enum or `type` alias and nothing else shows that kind beside its name as a letter, a file decoration with no colour that the server's `nvs/fileKinds` feeds
+## A file that declares one class, interface, enum or `type` alias and nothing else shows that kind beside its name as a letter, and a file with a route handler shows `R`, as a file decoration with no colour that the server's `nvs/fileKinds` feeds
 
 `rule:ide/a-file-shows-what-it-declares`
 
@@ -3219,10 +3219,20 @@ compiler accepts cannot disagree. A file reached by `require` with the same shap
 declares one thing just as plainly, and asking how a file was reached would need an edge the loaded
 file does not keep.
 
-The server answers `nvs/fileKinds` with every such file its index holds and the kind of each. The
-request takes no parameters and answers `[{uri, kind}]`, `kind` being `class`, `interface`, `enum` or
-`type`. The index records the kind as it reads the file, so an answer is one pass over its file map and
-no analysis. The client never finds the kind itself by matching `class` or `enum` in the text, because
+A file in which a method handles a route shows `R` in place of its kind, and its tooltip names the
+class, when the file has the one-class shape, and each route as its verb and path. The first five routes
+are named and the others counted. A file with routes is the one a reader looks for when a request
+arrives, and it is still a class, so `R` says the more useful of the two. A file of any shape shows `R`,
+because a route in a script with other statements serves requests just as one in an autoloaded class
+does.
+
+The server answers `nvs/fileKinds` with every such file its index holds. The request takes no
+parameters and answers `[{uri, kind?, routes?}]`, `kind` being `class`, `interface`, `enum` or `type`
+and absent for a file of another shape, and `routes` every route a method in the file handles, in
+source order, as `GET /users/{id}`, and absent when there is none. Both fields are optional so that a
+client which knows only `kind` draws what it drew before, and nothing for a file with routes alone. The
+index records the kind as it reads the file, and each method's routes off the route table of the
+analysis that indexed it, so an answer is one pass over its file map and no analysis. The client never finds the kind itself by matching `class` or `enum` in the text, because
 every judgement about the language stays in the server ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)). The
 VS Code client draws the answer as a file decoration, the editor's own surface for a badge on a file
 ([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)). The icon is unchanged: an editor picks
@@ -3245,8 +3255,9 @@ old kind until one of those happens, the same staleness every reader of the inde
 the decoration slot with source control, so a modified file may show the source-control badge in place
 of its kind. No setting is added.
 
-- **Memory:** one more field per indexed file in the server, for the life of the server process.
-  Nothing at run time.
+- **Memory:** one more field per indexed file in the server, for the life of the server process. An
+  answer copies each file's routes, which the index already holds per method, for the length of the
+  answer. Nothing at run time.
 
 **Declined:**
 
@@ -3260,8 +3271,13 @@ of its kind. No setting is added.
 - **The kind in the file's name**, such as `Status.enum.nvs`. It would let an icon theme give each kind
   its own icon, but it changes how autoload finds a file, which every program's layout depends on, so it
   is a language decision and not an editor one.
+- **A file icon for a file with routes.** An icon theme picks an icon from a file's name, extension and
+  language. A second language for route files would split every `nvs` selector, setting and grammar in
+  two, and a naming convention for them does not exist.
+- **A new `kind` word for a file with routes**, such as `controller`. A client that does not know the
+  word draws nothing, so an older extension would lose the `C` on every routed class.
 
-<sub>See also [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients).</sub>
+<sub>See also [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients).</sub>
 
 <a id="ide-the-test-tree-is-discovered-and-run-through-the-cli"></a>
 

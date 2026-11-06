@@ -1,7 +1,8 @@
 {
-  "title": "A file that declares one class, interface, enum or `type` alias and nothing else shows that kind beside its name as a letter, a file decoration with no colour that the server's `nvs/fileKinds` feeds",
+  "title": "A file that declares one class, interface, enum or `type` alias and nothing else shows that kind beside its name as a letter, and a file with a route handler shows `R`, as a file decoration with no colour that the server's `nvs/fileKinds` feeds",
   "status": "shipped",
   "seeAlso": [
+    "routing/routes-are-compiled-not-registered",
     "programs/one-declaration-per-autoloaded-file",
     "ide/the-request-set-is-closed",
     "ide/novis-ships-names-not-colours",

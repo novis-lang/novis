@@ -13,6 +13,7 @@ This extension adds support for the Novis language to VS Code. It works with `.n
 - A debugger for `.nvs` programs.
 - In the Explorer, a letter beside a file that declares one class (`C`), interface (`I`), enum (`E`)
   or type alias (`T`).
+- In the Explorer, an `R` beside a file with routes. Hold the pointer over the file to see each route.
 
 ## Getting started
 

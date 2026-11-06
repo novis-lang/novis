@@ -1,5 +1,5 @@
-// The badge beside each Novis file that declares one type: the editor's own file decorations, fed
-// from the server's `nvs/fileKinds` (`rule:ide/a-file-shows-what-it-declares`).
+// The badge beside each Novis file that declares one type or has routes: the editor's own file
+// decorations, fed from the server's `nvs/fileKinds` (`rule:ide/a-file-shows-what-it-declares`).
 //
 // The server knows a file once it is in its index: while it reads the workspace at start, after
 // `nvs.checkWorkspace`, and when the file is opened or edited. So this asks again at the same
@@ -23,7 +23,7 @@ import {
 } from "vscode";
 import { LanguageClient } from "vscode-languageclient/node";
 
-import { BADGES, CHANGED, FileKind, Kind, METHOD, changed, isKind, key } from "./kinds";
+import { Badge, CHANGED, FileKind, METHOD, badgeOf, changed, key } from "./kinds";
 
 /** How long a burst of opened or saved documents is waited out before the server is asked. */
 const SETTLE_MS = 300;
@@ -31,7 +31,7 @@ const SETTLE_MS = 300;
 /** One file the last answer named. */
 interface Known {
   readonly uri: Uri;
-  readonly kind: Kind;
+  readonly badge: Badge;
 }
 
 let serving: LanguageClient | undefined;
@@ -90,14 +90,15 @@ export async function refresh(): Promise<void> {
   }
   const next = new Map<string, Known>();
   for (const file of answer) {
-    if (isKind(file.kind)) {
+    const badge = badgeOf(file);
+    if (badge !== undefined) {
       const uri = Uri.parse(file.uri);
-      next.set(key(uri.fsPath, process.platform), { uri, kind: file.kind });
+      next.set(key(uri.fsPath, process.platform), { uri, badge });
     }
   }
   const before = known;
   known = next;
-  const redraw = changed(kinds(before), kinds(next)).flatMap((file) => {
+  const redraw = changed(badges(before), badges(next)).flatMap((file) => {
     const uri = (next.get(file) ?? before.get(file))?.uri;
     return uri === undefined ? [] : [uri];
   });
@@ -106,9 +107,9 @@ export async function refresh(): Promise<void> {
   }
 }
 
-/** The kind of each file in `files`, by key. */
-function kinds(files: ReadonlyMap<string, Known>): Map<string, Kind> {
-  return new Map([...files].map(([file, { kind }]) => [file, kind]));
+/** The badge of each file in `files`, by key. */
+function badges(files: ReadonlyMap<string, Known>): Map<string, Badge> {
+  return new Map([...files].map(([file, { badge }]) => [file, badge]));
 }
 
 class Provider implements FileDecorationProvider {
@@ -122,7 +123,6 @@ class Provider implements FileDecorationProvider {
     if (found === undefined) {
       return undefined;
     }
-    const badge = BADGES[found.kind];
-    return new FileDecoration(badge.letter, badge.tooltip);
+    return new FileDecoration(found.badge.letter, found.badge.tooltip);
   }
 }

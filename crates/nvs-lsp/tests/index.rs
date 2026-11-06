@@ -278,7 +278,7 @@ fn every_reader_queries_the_one_index() {
             &["supertypes", "subtypes"],
         ),
         ("unused-member dimming", &["unused_private"]),
-        ("nvs/fileKinds", &["sole_kinds"]),
+        ("nvs/fileKinds", &["sole_kinds", "declarations_in"]),
         ("workspace/symbol", &["matching"]),
         (
             "the call graph",
