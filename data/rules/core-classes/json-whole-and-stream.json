@@ -1,11 +1,18 @@
 {
   "title": "`Core\\Json` reads and writes a whole document, or one element at a time, and the two share every check",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/xml-tree-and-stream",
     "core-api/one-paradigm-per-operation",
     "core-classes/derive-reports-every-field"
   ],
-  "guardedBy": [],
-  "goal": "json-streaming"
+  "guardedBy": [
+    "crates/nvs-stdlib/src/json/each.rs",
+    "crates/nvs-stdlib/src/json/pieces.rs",
+    "tests/hostile/core/Json/decodeEach/01-an-array-that-never-ends.nvs",
+    "tests/hostile/core/Json/decodeEach/02-one-element-larger-than-the-memory-limit.nvs",
+    "tests/hostile/core/Json/decodeEach/03-nesting-deeper-than-max-depth.nvs",
+    "tests/hostile/core/Json/decodeEach/04-a-huge-string-outside-the-pointer.nvs",
+    "tests/hostile/core/Json/encodeEach/01-items-that-never-end-and-a-secret.nvs"
+  ]
 }
