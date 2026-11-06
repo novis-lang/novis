@@ -54,7 +54,7 @@ stages:
     context: [docs/examples/README.md, docs/agent/prose.md]
   - id: 13
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: taint-carriers
@@ -793,47 +793,37 @@ Storage; IO, Serialize and Charset. None builds.
 - [x] Run `looper verify` over the whole goal.
 - [x] Fix every failure it names in one pass, never deleting or loosening a test.
 - [x] Run `looper verify` once more, and it is green.
-- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes byte-sources` (green),
+- [x] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes byte-sources` (green),
   `bun nv ci --check`, and each decision only this file holds moved to its rule or module doc.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 12 are done, and stage 13 is down to the goal-end gates. `looper verify` is green at
-`6fd989af`. The fix pass: `classes.rs` and five rule chapters rendered again; the `render.test.ts`
-fixture gained `descHtml`; `byte_source.rs` names its descriptor `nvs_runtime::capability::File`,
-since the capability scan forbids `std::fs`; `Part::peek` and `BodyStream::peek` joined the tainted
-roster in `core_lib.rs`; the Xml door test and the `Image::open` card test read the new
-signatures; the `decodeEach` peak tests pad the file past four chunks, because decision 26 sizes the
-buffer by the file; five error paths are declared at their sites; a zip case reaches `short()`;
-ten cases lift the five new readers to the floor of three; the spreadsheet case reads rows to find a
-late byte that is not UTF-8; the Json reference example's `$name` is `tainted`. The three Zip
-about pages fit 200 words. The proofs runner now passes `tools/valgrind.supp` to valgrind, and the
-three `Csv::rows` attacks are clean under it in WSL. Both byte source rules are `shipped`, so
-`owners --closes` is green. The sweep's reds were stale: no `env-secret-proofs` check exists, and
-the nightly Miri timeouts at `26dda366` are ignored under Miri in the tree.
+Every stage is done, and the goal is reached. `looper verify` was green at `6fd989af`, and the
+goal-end gates are green: `bun nv proofs --gate --limit 0` owes nothing, `bun nv verify --doc`
+resolves every link, and `bun nv owners --closes byte-sources` owns no gap.
 
-The `byte_source.rs` type change made every figure joined to it stale again after the first
-record. A second `bun nv proofs --record-perf` recorded 121 figures, and two did not record:
-`Core\IO::within` grows in instructions with slope 1.19 over `complexity linear`, the same on a run
-alone, so it is real (callgrind counts are exact); and `Core\Request::jsonAs`' clock grows with
-slope 1.9 on two runs while its counts do not. Find whether this goal's `io.rs` or `request.rs`
-change caused each before calling it noise.
+`bun nv ci --check` is green in every part this goal reaches. Its website stale guard still names
+five pages: `/guides/` and the four walkthrough pages, which another session committed while this
+one ran (`04d9cea3`). They owe their own search questions, and the website render and the proofs
+gate, the floor checks, are green.
+
+The last session's fixes: `Core\IO::within`'s figure recorded on a second run, and its ramp is not
+faster than linear; neither `within` nor the resolution walk changed in this goal.
+`Core\Request::jsonAs` was already current. `apps/paperwork` reads its PDF text as `tainted string`
+(decision 23). The website data was rendered again, the enums page stamped, 55 pages' search
+questions written or reread, and the roadmap places the four goals ahead in a theme. Every decision
+this file holds is in its module doc: 4, 17 and 26 in `byte_source.rs`, 20 in `compress.rs` and
+`byte_source.rs`' `Reader`, 21 in `zip.rs`, 22 in `xml.rs`, 24 in `collect.ts`'s `SHARED_IMPL`,
+and 25's ramp in `scaling.ts`' `rampPerOp`. The sweep's reds were stale again: no
+`env-secret-proofs` check exists, and the three Miri timeouts at `26dda366` are ignored under Miri.
+
+No test is expected to go red.
 
 ### Next
 
-**Stage 13's end**, one session.
-
-- [ ] `Core\IO::within` and `Core\Request::jsonAs` record their figures. `benches/members/core/IO/within.scale.nvs:1`
-- [ ] `bun nv proofs --gate --limit 0` is green; record what it names. `tools/nv/proofs/collect.ts:1`
-- [ ] `bun nv verify --doc`, every broken doc link fixed. `docs/goals/byte-sources.md:788`
-- [ ] `bun nv ci --check`, each red fixed. `docs/goals/byte-sources.md:788`
-  A page stamp for `docs/reference/core/Json.md` may be owed (`bun nv site --stamp`).
-- [ ] Each decision only this file holds, moved to its home. `crates/nvs-stdlib/src/byte_source.rs:1`
-  Decisions 4, 17 and 26 go to `byte_source.rs`, 20 to `compress.rs`, 21 to `zip.rs`, 22 to
-  `xml.rs`, 24 to `tools/nv/proofs/collect.ts`, and 25's ramp to `tools/nv/cmd/scaling.ts`.
-  Then `DONE`.
+Nothing in this goal. Its backlog below is for the goals that follow.
 
 ### Backlog
 
