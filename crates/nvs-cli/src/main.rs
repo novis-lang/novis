@@ -1825,9 +1825,23 @@ fn send_file_body(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> std::io
 /// on the wire, already typed by whatever `content-type` line it carries — and
 /// a field the file wrote is a field the spec leaves alone, so the derivation
 /// the two share fires only for a file written by hand that omitted one.
+///
+/// A body after `--BODY--` that is not UTF-8, such as an uploaded image, is sent as its octets
+/// ([`nvs_test::request::split_octets`]). The lines before it are text.
 fn inbound_from(path: &std::path::Path) -> Result<nvs_runtime::Inbound, String> {
-    let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
-    inbound_of(&text)
+    let octets = std::fs::read(path).map_err(|error| error.to_string())?;
+    match String::from_utf8(octets) {
+        Ok(text) => inbound_of(&text, None),
+        Err(error) => {
+            let octets = error.into_bytes();
+            let (head, body) = nvs_test::request::split_octets(&octets).ok_or(
+                "the file is not UTF-8, and only a body after `--BODY--` may hold other bytes",
+            )?;
+            let head = std::str::from_utf8(head)
+                .map_err(|_| "the lines before `--BODY--` are not UTF-8".to_owned())?;
+            inbound_of(head, Some(body))
+        }
+    }
 }
 
 /// The crossing itself, over the file's text rather than its path.
@@ -1836,15 +1850,19 @@ fn inbound_from(path: &std::path::Path) -> Result<nvs_runtime::Inbound, String> 
 /// this is the whole of what this binary decides here — and because the crate
 /// has no library target, so the seam is reachable from a test only from inside
 /// the binary.
-fn inbound_of(text: &str) -> Result<nvs_runtime::Inbound, String> {
+/// `octets` is the body when the file's body is not UTF-8, and `text` then ends at `--BODY--`.
+fn inbound_of(text: &str, octets: Option<&[u8]>) -> Result<nvs_runtime::Inbound, String> {
     let wire = nvs_test::request::read(text)?;
     let mut spec = nvs_runtime::InboundSpec::new(&wire.method, &wire.path);
     spec.set_query(&wire.query);
     for (name, value) in &wire.headers {
         spec.push_header(name, value.as_bytes());
     }
-    if let Some(body) = wire.body {
-        spec.set_body(nvs_runtime::SpecBody::Raw(body.into_bytes()))?;
+    if let Some(body) = octets
+        .map(<[u8]>::to_vec)
+        .or(wire.body.map(String::into_bytes))
+    {
+        spec.set_body(nvs_runtime::SpecBody::Raw(body))?;
     }
     // The peer is stated, never derived: `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
     // walk is what decides a served request's address and scheme, and a file
@@ -3848,7 +3866,8 @@ mod tests {
         )
         .expect("the case parses");
         let request = case.request.as_ref().expect("the case describes a request");
-        let inbound = inbound_of(&nvs_test::request::render(request)).expect("the file reads back");
+        let inbound =
+            inbound_of(&nvs_test::request::render(request), None).expect("the file reads back");
 
         assert_eq!(inbound.method(), "POST", "a case with a body sends one");
         assert_eq!(inbound.path(), "/");
@@ -3896,8 +3915,11 @@ mod tests {
     /// `Core\Request::mount()` reads.
     #[test]
     fn a_request_file_naming_a_mount_carries_it_to_the_inbound() {
-        let inbound = inbound_of("--METHOD--\nGET\n--PATH--\n/orders\n--MOUNT--\n/shop\nacme\n")
-            .expect("the file reads");
+        let inbound = inbound_of(
+            "--METHOD--\nGET\n--PATH--\n/orders\n--MOUNT--\n/shop\nacme\n",
+            None,
+        )
+        .expect("the file reads");
         assert_eq!(inbound.mount_prefix(), "/shop");
         assert_eq!(
             inbound

@@ -194,7 +194,8 @@ file's sections are `nvs_test::request`'s module doc: `--METHOD--`, `--PATH--`, 
 `--CLIENT_IP--`, `--SCHEME--`, `--MOUNT--`, `--HEADERS--` and `--BODY--` last, read to the end of
 the file byte for byte. `--MOUNT--` is the prefix on its first line and one glob capture on each
 line after it. A multipart body
-writes `--BODY_CRLF--` instead, which sends each line ending as CRLF. `tests/hostile/` and
+writes `--BODY_CRLF--` instead, which sends each line ending as CRLF. A body after `--BODY--` may hold
+bytes that are not UTF-8, such as an uploaded image, and is sent as they are. `tests/hostile/` and
 `benches/members/` read a `.nvsr` file the same way.
 
 ## A WebSocket peer for the program — `<name>.nvsp`

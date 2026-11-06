@@ -188,6 +188,21 @@ pub fn render(case: &Request) -> String {
     text
 }
 
+/// A request file whose body is not UTF-8, such as an upload of an image: the file up to and
+/// including its `--BODY--` line, which [`read`] reads, and the body's octets after it. `None`
+/// when the file has no `--BODY--` line. A `--BODY_CRLF--` body is text, so it is not split here.
+#[must_use]
+pub fn split_octets(file: &[u8]) -> Option<(&[u8], &[u8])> {
+    let mut at = 0;
+    for line in file.split_inclusive(|byte| *byte == b'\n') {
+        at += line.len();
+        if line.trim_ascii_end() == b"--BODY--" {
+            return Some((&file[..at], &file[at..]));
+        }
+    }
+    None
+}
+
 /// Reads a rendered request back.
 ///
 /// # Errors
