@@ -202,6 +202,19 @@ impl ByteSource {
             })
         } else if octets(&value).is_some() {
             Kind::Bytes { at: 0 }
+        } else if crate::instance::is_instance(value, &crate::request::PART) {
+            // A part is read forward as `content()` reads it: the walk is its
+            // own cursor, and the one reference it is built with is the
+            // member's to keep.
+            let walk = crate::request::part_content_walk(ctx, value)?;
+            return Ok((
+                Self {
+                    member,
+                    kind: Kind::Chunks { from: 0 },
+                    ended: false,
+                },
+                walk,
+            ));
         } else {
             let cursor = nvs_runtime::sequence::start(ctx, value, member)?;
             return Ok((

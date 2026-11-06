@@ -3991,13 +3991,27 @@ nvs_runtime::nvs_helper! {
     /// chunk — [`nvs_core_request_body_stream`]'s reasoning about where a
     /// refusal lands, over the one thing a body walk has no equivalent of.
     fn nvs_core_request_part_content(ctx, args: [1]) {
-        let ordinal = part_ordinal(args[0], "content")?;
-        part_parse(ctx, ordinal, "content")?;
-        Ok(crate::instance::build(
-            &PART_CONTENT,
-            [Value::null(), Value::uint(ordinal)],
-        ))
+        part_content_walk(ctx, args[0])
     }
+}
+
+/// The walk `content()` gives over `part`, checked as `content()` checks it:
+/// the part must be the one the files walk is on. A member that reads a part
+/// forward, such as `Core\Csv::rows`, reads it through this walk
+/// (`crate::byte_source`), so a part is consumed one way whoever reads it.
+///
+/// The walk is its own cursor, and the caller owns the one reference built.
+///
+/// # Errors
+///
+/// [`part_parse`]'s two refusals, named after `content()`.
+pub(crate) fn part_content_walk(ctx: &mut Ctx, part: Value) -> Result<Value, Fault> {
+    let ordinal = part_ordinal(part, "content")?;
+    part_parse(ctx, ordinal, "content")?;
+    Ok(crate::instance::build(
+        &PART_CONTENT,
+        [Value::null(), Value::uint(ordinal)],
+    ))
 }
 
 nvs_runtime::nvs_helper! {
@@ -6360,6 +6374,43 @@ mod tests {
             b"jotted down".to_vec(),
             "`readAll` is the same pull with a buffer around it"
         );
+        dropped(second);
+        dropped(files);
+    }
+
+    /// A forward member such as `Core\Csv::rows($part)` reads a part through the
+    /// byte source as `content()` reads it: the part's own bytes, and the next
+    /// part is where the walk then stands. A part the walk has passed is refused.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request.
+    #[test]
+    fn a_byte_source_reads_a_part_forward_as_content_does() {
+        let mut arriving = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let first = next_part(&mut arriving, files).expect("the body carries two file parts");
+
+        let (mut source, holder) =
+            crate::byte_source::ByteSource::from_arg(&mut arriving, first, r"Core\Csv::rows")
+                .expect("the part the walk is on is a source");
+        let mut read = Vec::new();
+        while let Some(chunk) = source
+            .next_chunk(&mut arriving, holder)
+            .expect("a part that arrives whole reads whole")
+        {
+            read.extend_from_slice(chunk.bytes());
+        }
+        assert_eq!(read, b"%PDF-1.4 and the rest of it".to_vec());
+        dropped(holder);
+
+        let second = next_part(&mut arriving, files)
+            .expect("a part read to its end leaves the walk where the next one starts");
+        assert!(
+            crate::byte_source::ByteSource::from_arg(&mut arriving, first, r"Core\Csv::rows")
+                .is_err(),
+            "a part the walk has passed is refused where the member is called"
+        );
+        dropped(first);
         dropped(second);
         dropped(files);
     }

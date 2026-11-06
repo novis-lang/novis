@@ -459,12 +459,12 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "decodeEach",
             names: &["source", "at"],
-            // The source is the open file `Core\Csv::rows` reads, or the
-            // chunks `Core\Request::bodyStream()` and a part's `content()`
-            // give: one parameter for both, because a document is the same
-            // document wherever its bytes are. The chunks arm is `tainted
-            // bytes`, the element both of those walks yield, and a plain
-            // `bytes` chunk widens to it. When `T` is `mixed`, every string
+            // The source is any `Core\Bytes::Source` or `Core\Bytes::Chunks`,
+            // the forward source `Core\Csv::rows` takes too, because a
+            // document is the same document wherever its bytes are. The
+            // parameter has no qualifier mark, so the bytes arm is `tainted
+            // bytes` and a plain `bytes` widens to it, as a plain chunk widens
+            // to the chunks arm's `tainted bytes`. When `T` is `mixed`, every string
             // an element holds is tainted whatever the source was. With a
             // shape or a `#[Json\Derive]` class, a `string` property is a
             // plain `string` and a `tainted string` property stays tainted,
@@ -472,8 +472,19 @@ pub const CLASS: CoreClass = CoreClass {
             // `Neutral`.
             params: &[
                 CoreTy::Union(&[
-                    CoreTy::Instance(crate::io::FILE_NAME),
-                    CoreTy::Iterated(&CoreTy::TaintedBytes),
+                    CoreTy::Alias(
+                        r"Core\Bytes::Source",
+                        &CoreTy::Union(&[
+                            CoreTy::TaintedBytes,
+                            CoreTy::Instance(crate::io::FILE_NAME),
+                            CoreTy::Instance(crate::request::PART_NAME),
+                            CoreTy::Instance(crate::request::BODY_STREAM_NAME),
+                        ]),
+                    ),
+                    CoreTy::Alias(
+                        r"Core\Bytes::Chunks",
+                        &CoreTy::Iterated(&CoreTy::TaintedBytes),
+                    ),
                 ]),
                 CoreTy::Text(Qual::Neutral),
                 CoreTy::Options(DECODE_EACH_OPTIONS),

@@ -1097,9 +1097,10 @@ refusal. A program picks the shape that fits how much of the document it needs a
   itself. Each element is decoded and checked exactly as `decodeAs<T>` checks a document, and `mixed`
   reads each element as `decode` would. `{ lines: true }` reads JSON Lines, one value per line, and `$at`
   must then be `''`.
-- `$source` is a `Core\IO\File`, which the member reads whole from its first byte and neither opens
-  nor closes, or an `Iterable<bytes>` such as `Core\Request::bodyStream()` or a part's `content()`.
-  Both are read through the one byte source every such member uses
+- `$source` is a `Core\Bytes::Source|Core\Bytes::Chunks`: `bytes`, a `Core\IO\File`, which the
+  member reads whole from its first byte and neither opens nor closes, a `Core\Request\Part`, which it
+  reads as `content()` does, `Core\Request::bodyStream()`, or any walk of `bytes` chunks. Each is read
+  through the one byte source every such member uses
   ([`core-api/a-member-takes-the-source-the-program-holds`](core-api.md#core-api-a-member-takes-the-source-the-program-holds)).
 - `Core\Json::encodeEach(Iterable<mixed> $items, { lines?: bool }): Iterable<bytes>` pulls one item at a
   time and gives the array's text in pieces of up to 64 KiB, brackets and commas included.
