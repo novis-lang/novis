@@ -1,0 +1,26 @@
+--TEST--
+`Core\Request\BodyStream::peek(0)` gives empty bytes, and `Core\Mime::detect` over the same stream after a peek still reads the body from its first byte
+--HEADERS--
+Content-Type: application/octet-stream
+--POST_RAW--
+%PDF-1.4 a small document
+--FILE--
+<?nvs
+// covers: Core\Request\BodyStream::peek
+Core\Request\BodyStream $body = Core\Request::bodyStream();
+echo "zero=", Core\Bytes::length($body->peek(0)), "\n";
+echo "start=", $body->peek(4) as string, "\n";
+
+// `detect` reads the start of the body too. The peek above consumed nothing.
+echo Core\Mime::detect($body) == Core\Mime::Type::Pdf ? "pdf" : "other", "\n";
+
+uint $total = 0;
+foreach ($body as tainted bytes $chunk) {
+    $total = $total + Core\Bytes::length($chunk);
+}
+echo "walked ", $total, " bytes\n";
+--EXPECT--
+zero=0
+start=%PDF
+pdf
+walked 26 bytes

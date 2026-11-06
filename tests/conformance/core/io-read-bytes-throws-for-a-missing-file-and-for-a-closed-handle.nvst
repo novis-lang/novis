@@ -1,0 +1,30 @@
+--TEST--
+`Core\IO::readBytes` of a file that does not exist throws `IOError`, and `Core\IO\File::readBytes` on a handle after `close()` throws `RuntimeError` naming the file
+--FILE--
+<?nvs
+// covers: Core\IO::readBytes, Core\IO\File::readBytes
+try {
+    Core\IO::readBytes("missing.bin");
+    echo "not reached\n";
+} catch (IOError $missing) {
+    echo "missing: IOError\n";
+}
+
+Core\IO::write("data.bin", Core\Encoding::fromHex("0102"));
+Core\IO\File $file = Core\IO::open("data.bin", Core\IO::FileMode::Read);
+echo Core\Encoding::toHex($file->readBytes(1)), "\n";
+$file->close();
+try {
+    $file->readBytes(1);
+    echo "not reached\n";
+} catch (RuntimeError $closed) {
+    echo $closed->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECTF--
+missing: IOError
+01
+Core\IO\File::readBytes: this handle is closed — %s%edata.bin

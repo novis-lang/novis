@@ -1,0 +1,22 @@
+--TEST--
+`Core\IO\File::readBytes` on a handle opened with `FileMode::Write` throws `IOError`, and the bytes written through the handle are still in the file
+--FILE--
+<?nvs
+// covers: Core\IO\File::readBytes
+Core\IO\File $file = Core\IO::open("out.bin", Core\IO::FileMode::Write);
+$file->write(Core\Encoding::fromHex("0a0b"));
+try {
+    $file->readBytes(2);
+    echo "not reached\n";
+} catch (IOError $writeOnly) {
+    echo "write-only: IOError\n";
+}
+$file->close();
+echo Core\Encoding::toHex(Core\IO::readBytes("out.bin")), "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+write-only: IOError
+0a0b

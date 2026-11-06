@@ -1,0 +1,52 @@
+--TEST--
+`Core\Request\Part::peek` gives the first bytes of an uploaded file, `peek(0)` gives empty bytes, a `max` past its end gives the whole file, and `readAll` after it still gives every byte — `rule:http-server/a-part-is-consumed-in-one-of-three-ways`
+--FILE--
+<?nvs
+// covers: Core\Request\Part::peek
+class Uploads {
+    #[Core\Route(path: "/upload", method: Core\Http\Method::Post)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function save(): void {
+        foreach (Core\Request::files() as Core\Request\Part $part) {
+            echo "start=", $part->peek(5) as string, "\n";
+            echo "zero=", Core\Bytes::length($part->peek(0)), "\n";
+            // The file has 12 bytes, so a larger `max` gives all 12.
+            echo "whole=", Core\Bytes::length($part->peek(1000)), "\n";
+            tainted bytes $all = $part->readAll();
+            echo "readAll=", $all as string, "\n";
+        }
+    }
+}
+
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "refused\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed: ", $error == null ? "" : $error->message, "\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    array<string> $headers = ["content-type" => "multipart/form-data; boundary=edge"];
+    string $body = "--edge\r\n"
+        . "Content-Disposition: form-data; name=\"doc\"; filename=\"note.txt\"\r\n"
+        . "Content-Type: text/plain\r\n\r\n"
+        . "hello upload\r\n"
+        . "--edge--\r\n";
+    var $answer = Core\Test::request(Core\Http\Method::Post, "/upload", {headers: $headers, body: $body});
+    echo $answer->status(), "\n", $answer->body();
+}
+--EXPECT--
+200
+start=hello
+zero=0
+whole=12
+readAll=hello upload

@@ -1,0 +1,69 @@
+--TEST--
+`Core\Request\Part::peek` throws `LogicError` once `readAll` or a `content()` loop has started to read the part — `rule:http-server/a-part-is-consumed-in-one-of-three-ways`
+--FILE--
+<?nvs
+// covers: Core\Request\Part::peek
+class Uploads {
+    #[Core\Route(path: "/upload", method: Core\Http\Method::Post)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function save(): void {
+        foreach (Core\Request::files() as Core\Request\Part $part) {
+            if ($part->name() as string == "first") {
+                // `readAll` reads the whole part, so a peek after it throws.
+                tainted bytes $all = $part->readAll();
+                echo "first=", $all as string, "\n";
+                try {
+                    $part->peek(1);
+                    echo "peek after readAll was accepted\n";
+                } catch (LogicError $read) {
+                    echo "peek after readAll: LogicError\n";
+                }
+            } else {
+                // A peek inside the `content()` loop throws too.
+                uint $refused = 0;
+                foreach ($part->content() as tainted bytes $piece) {
+                    try {
+                        $part->peek(1);
+                    } catch (LogicError $started) {
+                        $refused = $refused + 1;
+                    }
+                }
+                echo $refused > 0 ? "peek in content(): LogicError\n" : "peek in content() was accepted\n";
+            }
+        }
+    }
+}
+
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "refused\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed: ", $error == null ? "" : $error->message, "\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    array<string> $headers = ["content-type" => "multipart/form-data; boundary=edge"];
+    string $body = "--edge\r\n"
+        . "Content-Disposition: form-data; name=\"first\"; filename=\"one.txt\"\r\n\r\n"
+        . "one\r\n"
+        . "--edge\r\n"
+        . "Content-Disposition: form-data; name=\"second\"; filename=\"two.txt\"\r\n\r\n"
+        . "two\r\n"
+        . "--edge--\r\n";
+    var $answer = Core\Test::request(Core\Http\Method::Post, "/upload", {headers: $headers, body: $body});
+    echo $answer->status(), "\n", $answer->body();
+}
+--EXPECT--
+200
+first=one
+peek after readAll: LogicError
+peek in content(): LogicError

@@ -1,0 +1,29 @@
+--TEST--
+`Core\IO::readBytes` of an empty file gives empty bytes, `Core\IO\File::readBytes` on it gives empty bytes too, and `readBytes(0)` on a handle reads nothing and does not move the position
+--FILE--
+<?nvs
+// covers: Core\IO::readBytes, Core\IO\File::readBytes
+Core\IO::write("empty.bin", Core\Encoding::fromHex(""));
+echo "whole=", Core\Bytes::length(Core\IO::readBytes("empty.bin")), "\n";
+
+Core\IO\File $empty = Core\IO::open("empty.bin", Core\IO::FileMode::Read);
+echo "handle=", Core\Bytes::length($empty->readBytes(10)), "\n";
+$empty->close();
+
+// `readBytes(0)` gives empty bytes. The next read still starts at byte 0.
+Core\IO::write("three.bin", Core\Encoding::fromHex("00ff10"));
+Core\IO\File $file = Core\IO::open("three.bin", Core\IO::FileMode::Read);
+echo "zero=", Core\Bytes::length($file->readBytes(0)), "\n";
+echo "next=", Core\Encoding::toHex($file->readBytes(2)), "\n";
+echo "rest=", Core\Encoding::toHex($file->readBytes(2)), "\n";
+$file->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+whole=0
+handle=0
+zero=0
+next=00ff
+rest=10

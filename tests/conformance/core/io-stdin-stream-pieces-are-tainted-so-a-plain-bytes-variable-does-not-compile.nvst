@@ -1,0 +1,14 @@
+--TEST--
+A piece of `Core\IO::stdinStream` is `tainted bytes`, so a loop variable declared as plain `bytes` does not compile — `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+// covers: Core\IO::stdinStream
+// Standard input comes from outside the program, so every piece is tainted.
+foreach (Core\IO::stdinStream() as bytes $piece) {
+    echo Core\Bytes::length($piece), "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `bytes`, found `tainted bytes`
+%A

@@ -1,0 +1,21 @@
+--TEST--
+`Core\Csv::rows` and `Core\Json::decodeEach` with `{lines: true}` take `Core\IO::stdinStream` as their source, and over a closed standard input each loop ends at once with no item
+--FILE--
+<?nvs
+// covers: Core\IO::stdinStream
+// A case runs with its standard input closed, so each reader sees no bytes.
+uint $rows = 0;
+foreach (Core\Csv::rows(Core\IO::stdinStream()) as var $row) {
+    $rows = $rows + 1;
+}
+echo "rows=", $rows, "\n";
+
+// With `lines: true`, each line is one document, so no lines give no documents.
+uint $documents = 0;
+foreach (Core\Json::decodeEach<mixed>(Core\IO::stdinStream(), '', {lines: true}) as mixed $document) {
+    $documents = $documents + 1;
+}
+echo "documents=", $documents, "\n";
+--EXPECT--
+rows=0
+documents=0

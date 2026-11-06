@@ -1,0 +1,17 @@
+--TEST--
+`Core\Request\BodyStream::peek` gives `tainted bytes`, so a plain `bytes` variable does not compile, and its `max` is a `uint`, so a negative count does not compile — `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+// covers: Core\Request\BodyStream::peek
+// The body comes from the client, so the start a peek reads is tainted.
+Core\Request\BodyStream $body = Core\Request::bodyStream();
+bytes $start = $body->peek(16);
+tainted bytes $none = $body->peek(-1);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `bytes`, found `tainted bytes`
+  --> case.nvs:5:16
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

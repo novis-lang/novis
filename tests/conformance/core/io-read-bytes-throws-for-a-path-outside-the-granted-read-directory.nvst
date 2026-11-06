@@ -1,0 +1,24 @@
+--TEST--
+`Core\IO::readBytes` of a file outside the directories `fs.read` grants throws `RuntimeError` naming the capability, even when the file exists
+--FILE--
+<?nvs
+// covers: Core\IO::readBytes
+echo Core\IO::readBytes("public/inside.txt") as string;
+
+try {
+    Core\IO::readBytes("private/outside.txt");
+    echo "not reached\n";
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}
+--FILE public/inside.txt--
+inside
+--FILE private/outside.txt--
+outside
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["public"]
+--EXPECTF--
+inside
+Core\IO::readBytes needs the capability `fs.read` for %s%eprivate%eoutside.txt, which is not granted
+help: add `read = ["%s"]` under `[capabilities.fs]` in nvs.toml
