@@ -24,7 +24,7 @@ path = ":memory:"
 error[E0401]: expected `string`, found `string|tainted string`
   --> case.nvs:7:21
 %A
-error[E0401]: expected `bytes`, found `bytes|tainted bytes`
+error[E0401]: expected `bytes`, found `tainted bytes|bytes`
   --> case.nvs:8:19
 %A
 error[E0401]: expected `string`, found `tainted string`

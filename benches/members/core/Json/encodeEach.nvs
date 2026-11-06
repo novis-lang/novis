@@ -8,12 +8,12 @@ class Bench
     public static function run(uint $rounds): uint
     {
         array<array<{ sku: string, count: int, gift: bool }>> $lists = [
-            [{ sku: "T-1", count: 2, gift: false }, { sku: "CUP-4", count: 1, gift: true }],
-            [{ sku: "BAG-7", count: 3, gift: false }],
+            [{ sku: 'T-1', count: 2, gift: false }, { sku: 'CUP-4', count: 1, gift: true }],
+            [{ sku: 'BAG-7', count: 3, gift: false }],
             [
-                { sku: "PEN-22", count: 5, gift: false },
-                { sku: "MAP-9", count: 1, gift: true },
-                { sku: "INK-3", count: 4, gift: false },
+                { sku: 'PEN-22', count: 5, gift: false },
+                { sku: 'MAP-9', count: 1, gift: true },
+                { sku: 'INK-3', count: 4, gift: false },
             ],
         ];
         uint $total = 0;
