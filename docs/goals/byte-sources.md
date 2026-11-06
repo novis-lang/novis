@@ -435,6 +435,23 @@ has no memory check; and the decompression ratio needs the input's length.
     - A program's own `Core\Bytes::Source` is the alias's `ty` (`tainted bytes|File|Part|BodyStream`).
       A member writes `CoreTy::Alias(name, &its_own_union)` with its own marks, such as
       `Blob(Contagious)` in place of `TaintedBytes`.
+17. **The byte source, as built in stage 3.**
+    - The source holds no Novis value. `ByteSource::from_arg(ctx, value, member)` returns the source
+      and the value every read is handed (the `File`, the `bytes`, or the cursor `sequence::start`
+      began), with a reference of its own. The member keeps that value in a slot, as `decodeEach`
+      kept its holder, so the request's own release frees it; each read takes it as `holder`. A
+      `Value` inside filed Rust state would not be freed by that release.
+    - A file is read through a second descriptor made with `try_clone`, which shares the position
+      on Unix and Windows. That is how the `Drop` backstop puts a position back with no context.
+      Every read still checks the program's handle is open. **What it spends:** one descriptor per
+      source of a file.
+    - Seekability is `nvs_runtime::os::can_seek`: a regular file by mode on Unix, and
+      `GetFileType == FILE_TYPE_DISK` on Windows, where `Metadata::is_file` is true for a pipe and a
+      seek on one succeeds and moves nothing.
+    - A walk takes the source out of its filed state for one `advance()`, as it takes the parse,
+      because the state lives in the context the read needs.
+    - The write-only `LogicError` of decision 4 needs `Core\IO\File` to remember its mode, which is
+      stage 4's `io.rs` work; `from_arg` reads the mode there once it exists.
 
 ## Stages
 
@@ -473,9 +490,9 @@ tool is missed.
 
 ### 3. one byte source module, under Core\Csv and Core\Json
 
-- [ ] `byte_source.rs` (decision 4) and the six tests of the `byte-source` check.
+- [x] `byte_source.rs` (decision 4) and the six tests of the `byte-source` check.
   `crates/nvs-stdlib/src/byte_source.rs:1`
-- [ ] `Core\Json::decodeEach` reads through it; its `File` and chunk arms and their copies are
+- [x] `Core\Json::decodeEach` reads through it; its `File` and chunk arms and their copies are
   deleted. `crates/nvs-stdlib/src/json/each.rs:587`
 - [ ] `Core\Csv::rows` reads through it, takes the forward source, and its `Rows` follows the
   source's taint (decision 2); its own read loop is deleted. `crates/nvs-stdlib/src/csv.rs:1292`,
@@ -622,30 +639,40 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Stages 1 and 2 are done. `core-alias` passes (`looper check --name core-alias`), and so do
-`every_core_alias_has_a_registered_owner_and_classes` (registry) and
-`a_core_alias_hover_shows_its_name_its_type_and_its_card` (`nvs-lsp` `card.rs`). Decision 16 records
-how the aliases are built: an `ALIASES` roster, read by the checker's `lower_member_type`, with the
-name kept in the interner for messages. `nvs meta --json`, the stubs, hover, completion in type
-position, the website's class page (its section is now "Types", with each card) and `Bytes.md` show
-them. `nvs agent find` does not index a class's `types` yet (backlog).
+Stages 1 and 2 are done. In stage 3, `crates/nvs-stdlib/src/byte_source.rs` exists and
+`byte-source` passes (`looper check --name byte-source`); decision 17 records how it is built.
+`prefix`, `range`, `size` and `finish` carry `expect(dead_code)` outside tests until their first
+callers (stages 5 and 7) land, and each such caller deletes the attribute. `Core\Json::decodeEach`
+reads through it, so a `Core\IO\File` given to it is now read from its first byte, and
+`rule:core-classes/json-whole-and-stream` says so. Its signature did not change yet.
+`nvs_runtime::os::can_seek` is new.
 
-Tests that may go red at the gate: `tools/nv/test/render.test.ts` if a fixture compares a class's
-`types` shape (each now has `descHtml`), and any LSP stub snapshot of `Core\Bytes`'s stub, which now
-lists two `type` members.
+Tests that may go red at the gate: a `decodeEach` test or conformance case that moved a file's
+position before the walk (it now starts at byte 0); `tools/nv/test/render.test.ts` if a fixture
+compares a class's `types` shape (each now has `descHtml`); any LSP stub snapshot of `Core\Bytes`'s
+stub, which lists two `type` members.
 
-The sweep's reds were stale. Nightly run `42201104003` ran at 10:14 UTC on `26dda36`, before
-`f13f40646a` fixed the Miri timeouts, and no check named `env-secret-proofs` exists in the tree.
+The sweep's reds were stale, as the last session found. Nightly run `42201104003` ran on
+`26dda36`, before `f13f40646a` fixed the Miri timeouts, and no check named `env-secret-proofs`
+exists in the tree (`git grep env-secret-proofs` finds only this handoff).
 
 ### Next
 
-**Stage 3**, `byte_source.rs` under `Core\Csv::rows` and `Core\Json::decodeEach`. Its items are in
-the stage, in order.
+**Stage 3**, from its third item: `Core\Csv::rows` over the byte source.
 
-- [ ] `byte_source.rs` (decision 4) and the six `byte-source` tests. `crates/nvs-stdlib/src/byte_source.rs:1`
-- [ ] `decodeEach` and `Csv::rows` read through it. `crates/nvs-stdlib/src/json/each.rs:587`,
-  `crates/nvs-stdlib/src/csv.rs:1292`
-- [ ] The reject conformance cases of decision 15, over `crates/nvs-types/src/expr/quals.rs:131`.
+- [ ] `csv.rs:1275`: `Csv::rows` reads through `ByteSource`. `RowReader.file` becomes `source: Option<ByteSource>`,
+  taken out for one `advance()`; `next_record`'s read loop (`crates/nvs-stdlib/src/csv.rs:1290`) is
+  `source.next_chunk(ctx, holder)` and `reader.feed(chunk.bytes())`, with an empty feed at the end.
+  `ROWS_PATH_AT` (`csv.rs:300`) becomes the holder slot, and `not_text` names the file's path or
+  "the source". Delete `csv.rs`' own `READ_CHUNK` and `closed`. `crates/nvs-stdlib/src/csv.rs:1275`
+- [ ] The row (`csv.rs:259`) takes `CoreTy::Alias` of `Core\Bytes::Source|Core\Bytes::Chunks` with
+  contagious arms, and returns `Core\Csv\Rows<T>`: add `ROWS_NAME` to `GENERIC_CLASSES`
+  (`crates/nvs-stdlib/src/registry.rs:3546`) and fix its `ITERABLES` row at `array<T>`, as
+  `Elements<T>` is. The result's `T` is `tainted string` when the source carries taint
+  (`carries_tainted`, `crates/nvs-types/src/expr/quals.rs:139`); `tainted_result` has to reach
+  an instance's type argument for that. Safe default if it cannot: decision 2's.
+- [ ] `csv.rs:1886`: the three `csv-forward` tests, the two conformance cases, the three reject cases, and the
+  rule sentence. `crates/nvs-stdlib/src/csv.rs:1886`, `docs/rules/core-api/a-lifetime-is-an-object.md:6`
 
 Two traps for stage 3:
 
