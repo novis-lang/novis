@@ -3566,6 +3566,34 @@ pub fn iterable_element(class: &str) -> Option<&'static CoreTy> {
         .map(|(_, elem)| *elem)
 }
 
+/// The `Core` classes whose instance is a source of request bytes:
+/// `rule:core-api/a-member-takes-the-source-the-program-holds`'s carriers of
+/// `tainted` into a contagious result. A `Core\IO\File` is not one, as the
+/// text `Core\IO::read` gives is not tainted.
+pub const TAINTED_SOURCES: &[&str] = &[crate::request::PART_NAME, crate::request::BODY_STREAM_NAME];
+
+/// Whether an instance of `class` carries `tainted` bytes into a contagious
+/// result: one of [`TAINTED_SOURCES`], or a class whose [`ITERABLES`] row
+/// fixes a `tainted` element, such as `Core\Request\PartContent`.
+///
+/// It reads [`ITERABLES`] directly rather than through [`iterable_element`],
+/// because the checker asks it of every class type it meets, and
+/// [`iterable_element`] counts a use of the class it is asked about.
+#[must_use]
+pub fn carries_tainted_bytes(class: &str) -> bool {
+    TAINTED_SOURCES.contains(&class)
+        || ITERABLES.iter().any(|(name, elem)| {
+            *name == class
+                && matches!(
+                    elem,
+                    CoreTy::TaintedStr
+                        | CoreTy::TaintedBytes
+                        | CoreTy::SecretTaintedStr
+                        | CoreTy::SecretTaintedBytes
+                )
+        })
+}
+
 /// Whether `class` satisfies `rule:classes/comparable`'s
 /// `Comparable`, so `<`/`<=`/`>`/`>=`/`<=>` order two of its instances.
 ///

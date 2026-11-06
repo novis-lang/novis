@@ -128,6 +128,14 @@ pub fn is_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
 /// the bit on a result, where reaching too far only over-taints, while
 /// [`untainted`]'s decides whether to *admit*, where reaching too far is a
 /// leak. So the safe direction is the wide one here and the narrow one there.
+///
+/// **A source of request bytes carries it too**
+/// (`rule:core-api/a-member-takes-the-source-the-program-holds`): an
+/// `Iterable<T>` or `Iterator<T>` whose `T` carries it, and an instance of a
+/// `Core` class that [`nvs_stdlib::registry::carries_tainted_bytes`] names, such as
+/// `Core\Request\Part`. A member that reads a part's bytes into its result
+/// would otherwise give plain text for an upload, because the class has no
+/// qualifier to read. A `Core\IO\File` carries nothing.
 pub(crate) fn carries_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
     if is_tainted(ty, interner) {
         return true;
@@ -137,6 +145,18 @@ pub(crate) fn carries_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
         Ty::Union(members) => members
             .iter()
             .any(|&member| carries_tainted(member, interner)),
+        Ty::Class(qname, args) => match (qname.segments(), args.as_slice()) {
+            ([only], [elem])
+                if only == nvs_hir::interfaces::ITERABLE
+                    || only == nvs_hir::interfaces::ITERATOR =>
+            {
+                carries_tainted(*elem, interner)
+            }
+            _ => {
+                qname.is_core()
+                    && nvs_stdlib::registry::carries_tainted_bytes(&qname.to_string())
+            }
+        },
         _ => false,
     }
 }
@@ -2219,4 +2239,72 @@ pub(crate) fn reject_secret_attribute_constant(
         ),
     );
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `rule:core-api/a-member-takes-the-source-the-program-holds`'s carriers,
+    /// asked as [`super::super::args::carries_contagion`] asks each argument
+    /// that filled a contagious parameter.
+    fn carries(name: &str, interner: &mut TypeInterner) -> bool {
+        let ty = interner.class(QName::parse(name));
+        carries_tainted(ty, interner)
+    }
+
+    #[test]
+    fn a_request_part_argument_carries_taint() {
+        let mut interner = TypeInterner::new();
+        assert!(carries(r"Core\Request\Part", &mut interner));
+        assert!(carries(r"Core\Request\BodyStream", &mut interner));
+        // A part's `content()` walks the same bytes, so it carries them too.
+        assert!(carries(r"Core\Request\PartContent", &mut interner));
+        // `?Part` and `Part|bytes` are as tainted as the part alone.
+        let part = interner.class(QName::parse(r"Core\Request\Part"));
+        let null = interner.null();
+        let bytes = interner.bytes();
+        let nullable = interner.make_union(vec![null, part]);
+        let either = interner.make_union(vec![bytes, part]);
+        assert!(carries_tainted(nullable, &interner));
+        assert!(carries_tainted(either, &interner));
+    }
+
+    #[test]
+    fn an_iterable_of_tainted_bytes_carries_taint() {
+        let mut interner = TypeInterner::new();
+        let tainted = interner.tainted_bytes();
+        let plain = interner.bytes();
+        for walk in [
+            nvs_hir::interfaces::ITERABLE,
+            nvs_hir::interfaces::ITERATOR,
+        ] {
+            let of_tainted = interner.generic_class(QName::parse(walk), vec![tainted]);
+            let of_plain = interner.generic_class(QName::parse(walk), vec![plain]);
+            assert!(carries_tainted(of_tainted, &interner), "{walk}<tainted bytes>");
+            assert!(!carries_tainted(of_plain, &interner), "{walk}<bytes>");
+        }
+        // An `array<tainted bytes>` already carried it, and still does.
+        let chunks = interner.array(tainted);
+        assert!(carries_tainted(chunks, &interner));
+    }
+
+    #[test]
+    fn a_plain_file_argument_carries_no_taint() {
+        let mut interner = TypeInterner::new();
+        assert!(!carries(r"Core\IO\File", &mut interner));
+        // A walk of a file's lines gives plain `string` lines.
+        assert!(!carries(r"Core\IO\Lines", &mut interner));
+        // A program's own class of the same short name is not a `Core` source.
+        assert!(!carries(r"Shop\Part", &mut interner));
+        // Every name on the roster is a registered `Core` class.
+        for name in nvs_stdlib::registry::TAINTED_SOURCES {
+            assert!(
+                nvs_stdlib::registry::CLASSES
+                    .iter()
+                    .any(|class| class.name == *name),
+                "{name} is not a registered Core class",
+            );
+        }
+    }
 }
