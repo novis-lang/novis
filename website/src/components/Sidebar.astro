@@ -59,10 +59,16 @@ const { sidebar } = Astro.locals.starlightRoute
     // position and before the first paint: the user never sees it scroll. A
     // saved position that already shows the entry is kept, so a click in the
     // sidebar leaves it where it was. Otherwise the entry is centred.
+    //
+    // The entry is looked up in the tree alone. The pane also holds the phone
+    // menu's area links (SiteNav.astro), whose current tile has
+    // aria-current="page" as well and comes first. On a wide screen it is
+    // hidden, so finding it instead stopped the script before it scrolled.
     ;(() => {
       try {
         const scroller = document.getElementById('starlight__sidebar')
-        const current = scroller && scroller.querySelector('a[aria-current="page"]')
+        const tree = document.getElementById('nv-sidebar-tree')
+        const current = scroller && tree && tree.querySelector('a[aria-current="page"]')
         if (!current) return
         const openGroups = () => {
           for (let group = current.closest('details'); group; group = group.parentElement.closest('details')) {
