@@ -7,7 +7,7 @@
   "methods": [
     {
       "name": "info",
-      "params": [{"name": "data", "type": "bytes"}],
+      "params": [{"name": "data", "type": "Core\\Bytes::Source"}],
       "returns": "{ format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool }",
       "help": "Reads the format, the size and the orientation of an encoded image from its header. No pixel is decoded."
     },
@@ -32,8 +32,8 @@
     {
       "name": "compare",
       "params": [
-        {"name": "a", "type": "bytes"},
-        {"name": "b", "type": "bytes"},
+        {"name": "a", "type": "Core\\Bytes::Source"},
+        {"name": "b", "type": "Core\\Bytes::Source"},
         {"name": "options", "type": "{ tolerance: ?uint, render: bool }"}
       ],
       "returns": "{ identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes }",
@@ -42,7 +42,7 @@
     {
       "name": "hash",
       "params": [
-        {"name": "data", "type": "bytes"},
+        {"name": "data", "type": "Core\\Bytes::Source"},
         {"name": "kind", "type": "HashKind"}
       ],
       "returns": "bytes",
@@ -51,7 +51,7 @@
     {
       "name": "placeholder",
       "params": [
-        {"name": "data", "type": "bytes"},
+        {"name": "data", "type": "Core\\Bytes::Source"},
         {"name": "kind", "type": "PlaceholderKind"}
       ],
       "returns": "string",
@@ -60,7 +60,7 @@
     {
       "name": "palette",
       "params": [
-        {"name": "data", "type": "bytes"},
+        {"name": "data", "type": "Core\\Bytes::Source"},
         {"name": "count", "type": "uint"}
       ],
       "returns": "array<{ r: uint, g: uint, b: uint, alpha: float }>",
@@ -102,7 +102,7 @@
   ],
   "unions": [
     {"name": "Source", "cases": [
-      {"name": "Encoded", "shape": "{ data: bytes, autoOrient: bool, toSrgb: bool, maxPixels?: uint, page?: uint, dpi?: float }"},
+      {"name": "Encoded", "shape": "{ data: Core\\Bytes::Source, autoOrient: bool, toSrgb: bool, maxPixels?: uint, page?: uint, dpi?: float }"},
       {"name": "Canvas", "shape": "{ width: uint, height: uint, fill: { r: uint, g: uint, b: uint, alpha: float } }"},
       {"name": "Pixels", "shape": "{ width: uint, height: uint, pixels: bytes }"},
       {"name": "Text", "shape": "{ text: string, font: bytes, size: float, maxWidth: ?uint, align: ?Align }"}

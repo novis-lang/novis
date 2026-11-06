@@ -2,23 +2,25 @@
 namespace Novis\Pdf;
 
 /// An existing PDF file opened for reading: its page count, its metadata, its attached files and its text.
+/// Every string and `bytes` value it returns is `tainted`, because it comes from the file.
 final class Reader
 {
-    type Metadata = { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string };
-    type Attachment = { name: string, data: bytes };
+    type Metadata = { title: ?tainted string, author: ?tainted string, subject: ?tainted string, keywords: ?tainted string, creator: ?tainted string, producer: ?tainted string };
+    type Attachment = { name: tainted string, data: tainted bytes };
 
     private function constructor(
         private readonly Reading $file,
         public readonly uint $pageCount,
         public readonly Metadata $metadata,
         private readonly array<Attachment> $files,
-        private readonly ?string $invoice,
+        private readonly ?tainted string $invoice,
     )
     {}
 
     /// `Reader::open` reads the page count, the metadata and the attached files of a PDF file.
+    /// `$pdf` is the file's bytes, an open file, an uploaded file or a request body. It is read whole when `open` runs.
     /// A file that is encrypted or does not parse throws a `ParseError`.
-    public static function open(bytes $pdf): Reader
+    public static function open(Core\Bytes::Source $pdf): Reader
     {
         var $info = Engine::read($pdf, { maxBytes: null, maxRatio: null });
         return new Reader($info->file, $info->pageCount, $info->metadata, $info->attachments, $info->invoiceXml);
@@ -32,7 +34,7 @@ final class Reader
 
     /// `invoiceXml` returns the XML of an electronic invoice attached to the file.
     /// If the file is not an electronic invoice, the result is `null`.
-    public function invoiceXml(): ?string
+    public function invoiceXml(): ?tainted string
     {
         return $this->invoice;
     }
@@ -40,7 +42,7 @@ final class Reader
     /// `text` returns the text of one page, in the order the file stores it. Pages count from 1.
     /// Tables and columns are not rebuilt. A page number past the end throws a `LogicError`.
     /// The file is read from the reader, so a call does not copy it again.
-    public function text(uint $page): string
+    public function text(uint $page): tainted string
     {
         return Engine::readText($this->file, { maxBytes: null, maxRatio: null }, [$page])[0];
     }

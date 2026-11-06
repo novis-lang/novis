@@ -243,7 +243,7 @@ pub fn to_wit_with(ty: &NovisType, value: Value, call: &mut dyn Crossing) -> Res
         (NovisType::Uint, Value::Int(n)) if let Ok(n) = u64::try_from(n) => Val::U64(n),
         (NovisType::Float, Value::Float(x)) => Val::Float64(x),
         (NovisType::String, Value::String(s)) => Val::String(s),
-        (NovisType::Bytes, value @ (Value::Bytes(_) | Value::Lent { .. })) => {
+        (NovisType::Bytes | NovisType::Source, value @ (Value::Bytes(_) | Value::Lent { .. })) => {
             call.lend_bytes(value)?
         }
         (NovisType::Optional(_), Value::Null) => Val::Option(None),

@@ -357,6 +357,10 @@ fn lower(manifest: &Manifest, ty: &NovisType, interner: &mut TypeInterner) -> Ty
         NovisType::String => interner.string(),
         NovisType::Bytes => interner.bytes(),
         NovisType::Mixed => interner.mixed(),
+        NovisType::Source => match nvs_stdlib::registry::core_alias(r"Core\Bytes::Source") {
+            Some(alias) => crate::core_lib::lower_core_alias(alias, interner),
+            None => interner.mixed(),
+        },
         NovisType::List(elem) | NovisType::Keyed(_, elem) => {
             let elem = lower(manifest, elem, interner);
             interner.array(elem)

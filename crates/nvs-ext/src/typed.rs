@@ -365,7 +365,7 @@ impl Heap for u8 {
 impl<T: FromValue> FromValue for Vec<T> {
     fn from_value(ty: &NovisType, value: Value, call: &mut dyn Crossing) -> Result<Self, String> {
         match (ty, value) {
-            (NovisType::Bytes, Value::Bytes(bytes)) => {
+            (NovisType::Bytes | NovisType::Source, Value::Bytes(bytes)) => {
                 T::list_from_bytes(bytes).ok_or_else(|| back(ty, "a list that is not bytes"))
             }
             (NovisType::List(item), Value::Array(entries)) => entries

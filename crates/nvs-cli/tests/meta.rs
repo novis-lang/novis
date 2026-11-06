@@ -290,7 +290,7 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
     assert!(
         signature
             .as_str()
-            .is_some_and(|s| s.starts_with("info(bytes $data): { format: Format")),
+            .is_some_and(|s| s.starts_with(r"info(Core\Bytes::Source $data): { format: Format")),
         "{signature}"
     );
     assert_eq!(

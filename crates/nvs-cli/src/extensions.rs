@@ -846,6 +846,15 @@ impl nvs_runtime::extension::Extensions for Calls {
                     Ok(NovisType::Bytes) => manifest.builtin.is_none(),
                     _ => false,
                 });
+            // A built-in's `Core\Bytes::Source` is read whole here, at the call.
+            let sourced = declared
+                .and_then(|declared| declared.params.get(at))
+                .and_then(|param| manifest.novis_type(&param.ty).ok())
+                .filter(has_source);
+            if let Some(ty) = sourced {
+                crossing.push(read_sources(ctx, *arg, &ty, &refused)?);
+                continue;
+            }
             let lending = if lends {
                 lent_source(ctx, *arg, &mut lent)
             } else {
@@ -935,6 +944,109 @@ fn lent_source(
         lent.push(value);
         Crossed::Lent { id, size }
     }))
+}
+
+/// Whether a value of `ty` has a `Core\Bytes::Source` in it.
+fn has_source(ty: &NovisType) -> bool {
+    match ty {
+        NovisType::Source => true,
+        NovisType::List(item) | NovisType::Optional(item) => has_source(item),
+        NovisType::Keyed(_, value) => has_source(value),
+        NovisType::Shape(fields) => fields.iter().any(|(_, _, ty)| has_source(ty)),
+        NovisType::Union { cases, .. } => cases
+            .iter()
+            .any(|(_, fields)| fields.iter().any(|(_, _, ty)| has_source(ty))),
+        _ => false,
+    }
+}
+
+/// `value` as it crosses where the manifest's type is `ty`, with each `Core\Bytes::Source` in it
+/// read whole (`rule:core-api/a-member-takes-the-source-the-program-holds`). A built-in component
+/// parses one whole buffer, so a file, a part or a body stream crosses as the `bytes` it holds.
+/// A file is read from its start and keeps its position. A part or a body stream is held on the
+/// request until the walk advances. The read stops at the request's memory limit. Every value with
+/// no source in its type crosses as [`crossed`] gives it.
+///
+/// **What it spends:** the source's size twice while the call runs, once in the copy that crosses
+/// and once in the guest; a part or a body stream also holds its own bytes until the walk advances.
+fn read_sources(
+    ctx: &mut Ctx,
+    value: Value,
+    ty: &NovisType,
+    refused: &dyn Fn(String) -> Fault,
+) -> Result<Crossed, Fault> {
+    if !has_source(ty) || value.tag() == Some(Tag::Null) {
+        return crossed(value).map_err(refused);
+    }
+    match ty {
+        NovisType::Source => {
+            if let Some(bytes) = value.as_bytes() {
+                return Ok(Crossed::Bytes(bytes.to_vec()));
+            }
+            let Some(size) = nvs_stdlib::extension_source_size(ctx, value) else {
+                return Err(refused(
+                    "a source is `bytes`, an open `Core\\IO\\File`, a `Core\\Request\\Part` or a `Core\\Request\\BodyStream`".to_owned(),
+                ));
+            };
+            let size = size?;
+            Ok(Crossed::Bytes(nvs_stdlib::extension_source_range(
+                ctx, value, 0, size,
+            )?))
+        }
+        NovisType::Optional(inner) => read_sources(ctx, value, inner, refused),
+        NovisType::List(item) | NovisType::Keyed(_, item) => {
+            let array = value
+                .as_array()
+                .ok_or_else(|| refused("a list that is not an array".to_owned()))?;
+            let mut entries = Vec::with_capacity(array.count());
+            let mut from = 0;
+            while let Some(slot) = array.next_slot(from) {
+                let key = match array.slot_key(slot) {
+                    Some(SlotKey::Index(index)) => Key::Int(index),
+                    Some(SlotKey::Str(key)) => key_of(key.as_bytes()).map_err(refused)?,
+                    None => return Err(refused("an array entry with no key".to_owned())),
+                };
+                let element = array
+                    .value_at(slot)
+                    .ok_or_else(|| refused("an array entry with no value".to_owned()))?;
+                entries.push((key, read_sources(ctx, element, item, refused)?));
+                from = slot + 1;
+            }
+            Ok(Crossed::Array(entries))
+        }
+        NovisType::Shape(_) | NovisType::Union { .. } => {
+            let fields = value
+                .shape_fields()
+                .ok_or_else(|| refused("a shape that is not an object".to_owned()))?;
+            let mut entries = Vec::with_capacity(fields.len());
+            for (name, field) in fields {
+                let field_ty = field_type(ty, &name);
+                let crossed_field = match field_ty {
+                    Some(field_ty) => read_sources(ctx, field, field_ty, refused)?,
+                    None => crossed(field).map_err(refused)?,
+                };
+                entries.push((Key::String(name), crossed_field));
+            }
+            Ok(Crossed::Array(entries))
+        }
+        _ => crossed(value).map_err(refused),
+    }
+}
+
+/// The type of the field `name` in the shape `ty`, or in the first case of the union `ty` that
+/// has a field of that name.
+fn field_type<'a>(ty: &'a NovisType, name: &str) -> Option<&'a NovisType> {
+    let find = |fields: &'a [Field]| {
+        fields
+            .iter()
+            .find(|(field, _, _)| field == name)
+            .map(|(_, _, ty)| ty)
+    };
+    match ty {
+        NovisType::Shape(fields) => find(fields),
+        NovisType::Union { cases, .. } => cases.iter().find_map(|(_, fields)| find(fields)),
+        _ => None,
+    }
 }
 
 /// The message of `fault`, for a guest that is told why a read of its source failed.

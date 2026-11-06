@@ -33,7 +33,7 @@
     {
       "name": "merge",
       "params": [
-        {"name": "parts", "type": "array<{ data: bytes, pages: ?array<uint> }>"},
+        {"name": "parts", "type": "array<{ data: Core\\Bytes::Source, pages: ?array<uint> }>"},
         {"name": "bound", "type": "{ maxBytes: ?uint, maxRatio: ?uint }"}
       ],
       "returns": "bytes",
@@ -42,7 +42,7 @@
     {
       "name": "read",
       "params": [
-        {"name": "data", "type": "bytes"},
+        {"name": "data", "type": "Core\\Bytes::Source"},
         {"name": "bound", "type": "{ maxBytes: ?uint, maxRatio: ?uint }"}
       ],
       "returns": "{ file: Reading, pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }",

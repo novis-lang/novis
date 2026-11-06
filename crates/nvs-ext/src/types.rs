@@ -33,6 +33,10 @@ pub enum NovisType {
     Bytes,
     /// `mixed`, which crosses as a handle.
     Mixed,
+    /// `Core\Bytes::Source`: `tainted bytes`, an open `Core\IO\File`, a `Core\Request\Part` or a
+    /// `Core\Request\BodyStream`, in a parameter of a built-in's export alone. The host reads the
+    /// source whole at the call, so it crosses as the `bytes` it read, a `list<u8>`.
+    Source,
     /// `array<T>`, a list.
     List(Box<NovisType>),
     /// `array<K, V>`, a list of key and value pairs in order.
@@ -247,6 +251,16 @@ impl TypeParser<'_> {
             return Some(NovisType::Shape(fields));
         }
         let named = self.named;
+        let source = r"Core\Bytes::Source";
+        let rest = &self.text[self.at..];
+        if rest.trim_start().starts_with(source)
+            && !rest.trim_start()[source.len()..]
+                .starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_' || c == '\\')
+        {
+            self.skip_space();
+            self.at += source.len();
+            return Some(NovisType::Source);
+        }
         Some(
             match self.take(|c| c.is_ascii_alphanumeric() || c == '_' || c == '\\')? {
                 "bool" => NovisType::Bool,

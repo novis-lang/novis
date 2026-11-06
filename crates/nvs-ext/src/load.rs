@@ -997,7 +997,7 @@ enum BytesAs<'a> {
 /// a `Core` record, whose byte fields are always `list<u8>`.
 fn has_bytes(ty: &NovisType) -> bool {
     match ty {
-        NovisType::Bytes => true,
+        NovisType::Bytes | NovisType::Source => true,
         NovisType::List(item) | NovisType::Optional(item) => has_bytes(item),
         NovisType::Keyed(key, value) => has_bytes(key) || has_bytes(value),
         NovisType::Shape(fields) => fields.iter().any(|(_, _, ty)| has_bytes(ty)),
@@ -1023,6 +1023,12 @@ fn crosses_as(ty: &NovisType, wit: &Type, side: &Side<'_>) -> bool {
         | (NovisType::Float, Type::Float64)
         | (NovisType::String, Type::String)
         | (NovisType::Mixed, Type::Borrow(_)) => true,
+        // A source is read whole by the host at the call, so it is a built-in's parameter alone.
+        (NovisType::Source, wit) => {
+            !side.returned
+                && matches!(side.bytes, BytesAs::List)
+                && matches!(wit, Type::List(list) if matches!(list.ty(), Type::U8))
+        }
         (NovisType::Bytes, wit) => match side.bytes {
             BytesAs::List => matches!(wit, Type::List(list) if matches!(list.ty(), Type::U8)),
             BytesAs::Resource(bytes) => match wit {

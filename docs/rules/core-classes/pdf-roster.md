@@ -19,8 +19,8 @@ methods are the WIT exports (`wit/pdf.wit`), the way `Novis\Image\Codec` is the 
 | `Page->marks(string $name): array<string>`, `->marksUpTo(string $name): array<string>` | the `data-mark` values on this page, and on every page up to it |
 | `Rendered->bytes`, `->pageCount` | the file and its page count |
 | `Rendered->dropped`, `->missingGlyphs`, `->overflows` | what the render could not do (`rule:core-classes/pdf-css-subset`) |
-| `Pages::of(bytes $pdf, ?array<uint> $pages = null): Pages`, `Pages::merge(array<Pages> $parts): bytes` | merging, splitting and reordering (`rule:core-classes/pdf-reader-and-merge`) |
-| `Reader::open(bytes $pdf): Reader`, `->pageCount`, `->metadata`, `->attachments()`, `->invoiceXml()`, `->text(uint $page): string` | reading a PDF |
+| `Pages::of(Core\Bytes::Source $pdf, ?array<uint> $pages = null): Pages`, `Pages::merge(array<Pages> $parts): bytes` | merging, splitting and reordering (`rule:core-classes/pdf-reader-and-merge`); `merge` reads each source whole |
+| `Reader::open(Core\Bytes::Source $pdf): Reader`, `->pageCount`, `->metadata`, `->attachments()`, `->invoiceXml()`, `->text(uint $page): tainted string` | reading a PDF; `open` reads the source whole, and every string and `bytes` value read from the file is `tainted` |
 
 `Document` is a value: each method returns a new `Document`, so a base document with its assets and
 footer is shared and varied without one render changing another. `Standard` is declared in
