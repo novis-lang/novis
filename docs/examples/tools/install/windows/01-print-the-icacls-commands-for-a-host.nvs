@@ -1,5 +1,5 @@
 <?nvs
-// Shows the Windows steps as a script that prints the `icacls` commands for one host.
+// Prints the `icacls` commands for folders you choose yourself, which `nvs init` cannot restrict.
 // The first line of the input is the binary folder. The second line is the account that runs `nvs`.
 
 class Setup

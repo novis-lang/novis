@@ -1,4 +1,18 @@
-On Windows, Novis reads the owner and the permissions of a file or folder to check who can write to it.
+On Windows, you install Novis in three steps:
+
+1. Put `nvs.exe` in a folder.
+2. Run `nvs init` in the project folder. It creates the data folder and the project file `nvs.toml`.
+3. Run `nvs service install <name> -- serve <full path>`. Windows asks for admin rights.
+
+If another account can change the folder that `nvs init` writes into, `nvs init` offers to restrict
+it. The option `--yes` restricts it without asking.
+
+The `icacls` commands that this example prints are for folders that `nvs init` does not restrict.
+These are folders you choose yourself, such as a separate config, cache or logs folder, and the
+folder that contains one of them.
+
+Novis reads the owner and the permissions of a file or folder to check who can write to it. An
+owner that is a member of `Administrators` passes this check.
 
 On every drive except the system drive, Windows gives the group `Authenticated Users` the right to
 change each new folder. Every account on the computer is in that group, so such a folder fails the
