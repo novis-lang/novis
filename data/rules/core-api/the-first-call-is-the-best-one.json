@@ -1,0 +1,11 @@
+{
+  "title": "The call a program reaches for first is the safest and fastest way to do the job",
+  "status": "designed",
+  "seeAlso": [
+    "core-api/a-member-takes-the-source-the-program-holds",
+    "http-server/an-upload-is-received-only-through-files",
+    "core-api/one-paradigm-per-operation"
+  ],
+  "guardedBy": [],
+  "goal": "byte-sources"
+}

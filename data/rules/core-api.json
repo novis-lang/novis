@@ -33,6 +33,8 @@
     "core-api/no-mode-strings",
     "core-api/units-are-types",
     "core-api/no-encoding-argument",
+    "core-api/the-first-call-is-the-best-one",
+    "core-api/a-member-takes-the-source-the-program-holds",
     "core-api/one-range-convention",
     "core-api/callback-receives-value-and-key",
     "core-api/parameters-are-callable-by-name",

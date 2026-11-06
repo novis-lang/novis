@@ -3,6 +3,8 @@
 
 # The Core API
 
+*2 of 61 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="core-api-core-means-always-present"></a>
 
 ## `Core` means always present, so nothing outside Tier 0 may register a name under it
@@ -904,11 +906,115 @@ decoding arbitrary bytes into a `string` is the operation that can go wrong, and
 so. No member therefore exists twice, once for bytes and once for characters, because the byte version
 cannot be trusted with text.
 
+**A member that reads bytes may take `charset?: Core\Charset` to decode them as it reads,** as
+`Core\IO::readText` does. The argument names what the bytes are, not what a `string` is, so it is the
+boundary above moved into the read.
+
 The cost lands on programs that genuinely handle non-UTF-8 text: they hold `bytes`
 ([`types/bytes`](types.md#types-bytes)) until they have decided what the encoding is, and the decision is written where it is
 made instead of defaulted per call.
 
 <sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes).</sub>
+
+<a id="core-api-the-first-call-is-the-best-one"></a>
+
+## The call a program reaches for first is the safest and fastest way to do the job  *(designed — owned by goal byte-sources)*
+
+`rule:core-api/the-first-call-is-the-best-one`
+
+The call a program reaches for first is the safest and fastest way to do the job.
+
+A `Core` member takes the value the program holds and decides itself how much of it to read. No fast path
+needs an extra call, a count or a step the caller must remember: a program that hands `Core\Mime::detect`
+an upload part reads the part's first bytes, and one that hands `Core\Hash::of` an open file reads it in
+pieces, without either program asking for that. A member that needed the caller to read a prefix first,
+or to pick a streaming twin, would make the fast and safe path depend on the caller knowing a fact about
+the member. That is the defect [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files) names: an API
+whose safe path is selected from a fact the caller cannot see is a defect, whatever the unsafe path costs.
+
+**Where a slower way cannot be removed, it stops at a bound, and its message or its about page names the
+direct call.** A random read of an upload part holds the part, so it stops at `[limits] request_body`, and
+the error names `saveTo`, a `Core\IO\File` and `readAll({ max })`. The slower way is never the one a
+program meets first and never fails silently.
+
+Which values a member that reads bytes takes is
+[`core-api/a-member-takes-the-source-the-program-holds`](core-api.md#core-api-a-member-takes-the-source-the-program-holds).
+
+**Declined:**
+- **A second member for the fast path**, such as a `detectFile` beside `detect`. It is a twin the caller
+  must know about, and one operation is reachable one way ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)). And the member already knows which source it
+  was given.
+- **A size hint the caller passes.** The caller cannot know the size of an upload before it is read, and
+  a member that trusted a hint would read what the hint said.
+
+<sub>See also [`core-api/a-member-takes-the-source-the-program-holds`](core-api.md#core-api-a-member-takes-the-source-the-program-holds), [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation).</sub>
+
+<a id="core-api-a-member-takes-the-source-the-program-holds"></a>
+
+## A `Core` member that reads bytes takes the source the program holds  *(designed — owned by goal byte-sources)*
+
+`rule:core-api/a-member-takes-the-source-the-program-holds`
+
+A `Core` member that reads bytes takes them from where the program holds them: bytes in memory, an open
+`Core\IO\File`, an upload part or the request body, and, where it reads forward once, a walk of chunks.
+
+**Two aliases on `Core\Bytes` name the sources.**
+
+```nvs
+type Source = tainted bytes|Core\IO\File|Core\Request\Part|Core\Request\BodyStream;
+type Chunks = array<tainted bytes>|Iterable<tainted bytes>|Iterator<tainted bytes>;
+```
+
+A `Source` can give its start without being consumed, and can be held for a reading in any order. `Chunks`
+is read once, forward. A plain `bytes` value or chunk widens to its `tainted` form, so both take what a
+program built itself. A forward member writes `Core\Bytes::Source|Core\Bytes::Chunks`, so the one thing a
+reader needs to know, whether a stream is accepted, is visible in the signature. `string` stays an arm
+where a member takes one.
+
+| The member reads | It takes | Members |
+|---|---|---|
+| the start | `Core\Bytes::Source` | `Core\Mime::detect`, `Core\Request\Part::peek` (its own part) |
+| once, forward | `Core\Bytes::Source\|Core\Bytes::Chunks` | `Core\Json::decodeEach`, `Core\Csv::rows`, `Core\Hash::of`, `Core\Hash::hmac`, `Core\Compress::compress`, `Core\Compress::decompress`, `Core\Xml::reader`, `Core\Storage::put` |
+| in any order | `Core\Bytes::Source` | `Core\Zip`, `Core\Pdf`, `Core\Image` (`open`, `info`, `hash`, `placeholder`, `palette`, `compare`), the spreadsheet `Reader::open` and `Template::open` |
+| the whole value, checked before anything is given | `bytes` | `Core\Crypto::open`, `Core\Crypto::sign`, `Core\Crypto::verify`, `Core\Serialize::decode`, `Core\Uuid::fromBytes` |
+
+**The criterion: a member takes a source when it can hold less than its input.** A tree parser holds the
+whole document anyway, so `Core\Xml::parse`, `Core\Html::parse`, `Core\Json::decode` and `Core\Csv::parse`
+keep `string` or `bytes`. So does `Core\Encoding`, whose output is as large as its input. A future source
+joins `Source` only when it can give all three kinds of read. A forward-only source yields `tainted bytes`
+chunks and fits `Chunks` as it is.
+
+**Every kind reads a file whole, from its start.** A read of the start and a read in any order put the
+file's position back. A forward read leaves it at the end. So `$f->readBytes(4); Core\Hash::of($f, …)`
+hashes the whole file. A file that cannot seek, such as a pipe, is read forward from where it is. Its
+start is buffered for a read of the start, and a read in any order holds it whole under `[limits] memory`.
+A file opened write-only throws a `LogicError` naming its mode.
+
+**Taint follows the source** ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)). A part, a body stream and a walk of
+`tainted` chunks carry `tainted` into a contagious result, and a `Core\IO\File` carries none, as the text
+`Core\IO::read` gives is not tainted. The checker reads it with no run-time cost.
+
+**Memory:** a source holds one reused chunk buffer. A read of a part's start holds what it read until the
+walk advances. A read of a part in any order holds the part under `[limits] request_body`, which is what
+`readAll` costs, and frees it when the walk advances. Each member's doc comment says what it holds per
+call.
+
+**Declined:**
+- **An `Iterable<bytes>` given to a member that reads the start or reads in any order.** Reading the start
+  would consume it, and a reading in any order cannot go back. It does not compile.
+- **A temporary file for a held part.** An upload has no temporary file
+  ([`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files)).
+- **A streaming `Core\Crypto`.** `open` must check the tag before it gives a byte, and Ed25519's `sign` and
+  `verify` hash the message twice.
+- **Widening the tree parsers and `Core\Encoding`**, by the criterion above.
+- **`Core\IO\File::chunks()`.** Every forward member takes a `File` directly.
+- **An interface a Novis class implements to be a source.** A native reader would then run compiled code
+  inside a parse, which [`core-classes/json-whole-and-stream`](core-classes.md#core-classes-json-whole-and-stream) avoids. A Novis generator fits `Chunks`
+  already.
+- **Removing `Core\Hash::stream` and `Core\Compress::compressor`/`decompressor`.** They stay, for data the
+  program makes one piece at a time.
+
+<sub>See also [`core-api/the-first-call-is-the-best-one`](core-api.md#core-api-the-first-call-is-the-best-one), [`core-api/no-encoding-argument`](core-api.md#core-api-no-encoding-argument), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways).</sub>
 
 <a id="core-api-one-range-convention"></a>
 
