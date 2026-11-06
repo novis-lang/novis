@@ -58308,15 +58308,19 @@ Three steps set up a server:
 
 On Windows:
 
-    cd D:\srv\shop
-    nvs init
-    nvs service install shop -- serve D:\srv\shop\public\index.nvs
+```text
+cd D:\srv\shop
+nvs init
+nvs service install shop -- serve D:\srv\shop\public\index.nvs
+```
 
 On Linux and macOS:
 
-    cd /srv/shop
-    nvs init
-    nvs service install shop -- serve /srv/shop/public/index.nvs
+```text
+cd /srv/shop
+nvs init
+nvs service install shop -- serve /srv/shop/public/index.nvs
+```
 
 The commands work in any order. `nvs init`, `nvs service install` and `nvs run` all use the same
 data folder.
