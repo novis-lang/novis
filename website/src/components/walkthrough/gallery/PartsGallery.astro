@@ -1,0 +1,64 @@
+---
+/**
+ * The parts gallery: one stage per reusable part, each stepping through the part's states. Its steps
+ * are in `parts-gallery.ts`. The draft page `in-depth/walkthrough-parts` shows it on the dev server.
+ */
+import Stage from '../Stage.astro'
+import Editor from '../Editor.astro'
+import Browser from '../Browser.astro'
+import Server from '../Server.astro'
+import Inbox from '../Inbox.astro'
+import Movers from '../Movers.astro'
+---
+
+<h2>Editor</h2>
+<Stage id="wt-part-editor" label="The Editor part in each of its states">
+  <Editor name="editor" src="walkthroughs/after-response.nvs" title="order.nvs" place={{ wide: [390, 215, 820, 470], tall: [50, 565, 800, 470] }} />
+</Stage>
+
+<h2>Browser</h2>
+<Stage id="wt-part-browser" label="The Browser part in each of its states">
+  <Browser name="browser" url="shop.example.com/checkout" tab="Shop" place={{ wide: [500, 145, 600, 610], tall: [150, 495, 600, 610] }}>
+    <div class="wt-screen" data-screen="checkout">
+      <div class="wt-shop-item" data-stagger>
+        <div class="wt-shop-thumb"></div>
+        <div><div class="wt-big" style="font-size:24px">Desk lamp</div><div class="wt-muted">1 item · € 49</div></div>
+      </div>
+      <div class="wt-btn" data-anchor="order" data-stagger>Place order</div>
+    </div>
+    <div class="wt-screen" data-screen="done">
+      <div class="wt-check" data-stagger>
+        <svg width="44" height="44" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </div>
+      <div class="wt-big" data-stagger>Thank you!</div>
+      <div class="wt-muted" data-stagger>Order #1042 is confirmed.</div>
+    </div>
+  </Browser>
+</Stage>
+
+<h2>Server</h2>
+<Stage id="wt-part-server" label="The Server part in each of its states">
+  <Server name="server" title="nvs serve" pps={100} place={{ wide: [390, 300, 820, 300], tall: [70, 650, 760, 300] }} />
+</Stage>
+
+<h2>Inbox</h2>
+<Stage id="wt-part-inbox" label="The Inbox part in each of its states">
+  <Inbox name="inbox" title="Mail" empty="No new mail" place={{ wide: [500, 280, 600, 340], tall: [150, 630, 600, 340] }} />
+</Stage>
+
+<h2>Wire</h2>
+<Stage id="wt-part-wire" label="The Wire part in each of its states">
+  <Movers kind="wire" name="wire" />
+  <Movers kind="wire" name="loop" />
+</Stage>
+
+<h2>Card and Pointer</h2>
+<Stage id="wt-part-movers" label="The Card and Pointer parts in each of their states">
+  <Movers kind="card" name="card" label="send receipt" />
+  <Movers kind="pointer" name="pointer" />
+</Stage>
+
+<script>
+  import { startGallery } from './parts-gallery'
+  startGallery()
+</script>

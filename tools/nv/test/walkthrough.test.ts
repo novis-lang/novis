@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { pagePath, pickTimes } from "../cmd/walkthrough.ts";
 
 const beats = [
-  { title: "a", caption: "", start: 0, end: 2.5 },
-  { title: "b", caption: "", start: 2.5, end: 6 },
+  { title: "a", caption: "", start: 0, end: 2.5, stop: 2.4999 },
+  { title: "b", caption: "", start: 2.5, end: 6, stop: 5.9999 },
 ];
 
 test("a page path loses its slashes, and Git Bash's rewrite of a leading slash is undone", () => {
@@ -12,12 +12,12 @@ test("a page path loses its slashes, and Git Bash's rewrite of a leading slash i
   expect(pagePath("C:/Program Files/Git/in-depth/walkthrough-after-response/")).toBe("in-depth/walkthrough-after-response");
 });
 
-test("frames are taken at every step's end, at the named steps, or at the named times", () => {
+test("frames are taken where the stage stops at each step's end, at the named steps, or at the named times", () => {
   expect(pickTimes(beats)).toEqual([
-    { label: "step01", t: 2.5 },
-    { label: "step02", t: 6 },
+    { label: "step01", t: 2.4999 },
+    { label: "step02", t: 5.9999 },
   ]);
-  expect(pickTimes(beats, "2")).toEqual([{ label: "step02", t: 6 }]);
+  expect(pickTimes(beats, "2")).toEqual([{ label: "step02", t: 5.9999 }]);
   expect(pickTimes(beats, undefined, "1.5,4")).toEqual([
     { label: "t1.5", t: 1.5 },
     { label: "t4", t: 4 },

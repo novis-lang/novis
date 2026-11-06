@@ -146,7 +146,9 @@ export abstract class Panel extends Part {
   }
 }
 
-type Target = Part | Part[] | 'all'
+/** What a shot frames: one part, several, the whole world, or a region of it. */
+type Target = Part | Part[] | 'all' | Rect
+const isRect = (t: Target): t is Rect => typeof t === 'object' && !Array.isArray(t) && !(t instanceof Part)
 interface Shot {
   at: number
   motion: Motion
@@ -192,15 +194,17 @@ export class Camera {
     return (opts.delay ?? 0) + motion.dur
   }
 
-  private parts(target: Target): Part[] {
-    return target === 'all' ? [] : Array.isArray(target) ? target : [target]
+  /** The parts a shot frames, or `null` when it frames the world or a region and every part is in focus. */
+  private parts(target: Target): Part[] | null {
+    if (target === 'all' || isRect(target)) return null
+    return Array.isArray(target) ? target : [target]
   }
 
   private rectOf(shot: Shot | undefined): Rect {
     const world = WORLD[this.stage.layout]
     const all = { x: 0, y: 0, w: world.w, h: world.h }
     if (!shot || shot.target === 'all') return all
-    const rs = this.parts(shot.target).map((p) => p.rect())
+    const rs = isRect(shot.target) ? [shot.target] : this.parts(shot.target)!.map((p) => p.rect())
     const pad = shot.pad ?? PAD[this.stage.layout]
     const x0 = Math.min(...rs.map((r) => r.x)) - pad
     const y0 = Math.min(...rs.map((r) => r.y)) - pad
@@ -240,8 +244,8 @@ export class Camera {
     }
     this.stage.frame(k, cx, cy)
 
-    const inA = new Set(prev && prev.target !== 'all' ? this.parts(prev.target) : this.stage.parts)
-    const inB = new Set(cur && cur.target !== 'all' ? this.parts(cur.target) : this.stage.parts)
+    const inA = new Set((prev && this.parts(prev.target)) ?? this.stage.parts)
+    const inB = new Set((cur && this.parts(cur.target)) ?? this.stage.parts)
     const q = clamp01(p)
     for (const part of this.stage.parts) part.focus = mix(inA.has(part) ? 1 : 0, inB.has(part) ? 1 : 0, q)
   }
@@ -300,9 +304,9 @@ export class Stage {
     // behind the start button.
     const step = Number(new URLSearchParams(location.search).get('step'))
     if (step > 0 && this.tl.beats[step - 1]) {
-      this.seek(this.tl.beats[step - 1].end)
+      this.seek(this.stepEnd(step - 1))
       this.root.dataset.started = ''
-    } else this.seek(this.tl.beats[0]?.end ?? 0)
+    } else this.seek(this.stepEnd(0))
     this.root.dataset.ready = ''
     // The stage is reachable from the console as `<root>.wt`, to seek and inspect frames.
     Object.assign(this.root, { wt: this })
@@ -321,14 +325,22 @@ export class Stage {
     return this.playing
   }
 
-  /**
-   * The index of the beat scene time `t` is in, the last one past the end. A beat's own end belongs to
-   * it, so a stop at the end of a step, by `next()`, `prev()` or `?step=N`, shows that step's caption.
-   */
+  /** The index of the beat scene time `t` is in, the last one past the end. */
   beatAt(t = this.t): number {
     const beats = this.tl.beats
-    for (let i = 0; i < beats.length; i++) if (t <= beats[i].end) return i
+    for (let i = 0; i < beats.length; i++) if (t < beats[i].end) return i
     return beats.length - 1
+  }
+
+  /**
+   * Where a stop at the end of step `i` lands: a tenth of a millisecond before the next step starts.
+   * At the boundary itself the next step's caption would start empty and a change it makes at its
+   * first instant, such as a row's status, would already show. `next()`, `prev()`, `?step=N` and the
+   * still frames all stop here.
+   */
+  stepEnd(i: number): number {
+    const b = this.tl.beats[i]
+    return b ? Math.max(b.start, b.end - 1e-4) : 0
   }
 
   /** The value of `v` for the current layout. */
@@ -414,7 +426,7 @@ export class Stage {
     if (this.reduced) {
       // Without motion, playing shows the end of the next beat, a still frame.
       const i = this.t >= this.tl.beats[this.beatAt()].end - 1e-3 ? this.beatAt() + 1 : this.beatAt()
-      this.seek(this.tl.beats[Math.min(i, this.tl.beats.length - 1)].end)
+      this.seek(this.stepEnd(Math.min(i, this.tl.beats.length - 1)))
       return
     }
     this.stopAt = until
@@ -443,14 +455,14 @@ export class Stage {
     if (this.t >= beats[i].end - 1e-3) i++
     if (i >= beats.length) return
     if (this.t < beats[i].start) this.t = beats[i].start
-    this.play(beats[i].end)
+    this.play(this.stepEnd(i))
   }
 
   /** Goes back to the end of the beat before the current position, paused. */
   prev(): void {
     const beats = this.tl.beats
     let target = 0
-    for (const b of beats) if (b.end < this.t - 0.05) target = b.end
+    for (const [k, b] of beats.entries()) if (b.end < this.t - 0.05) target = this.stepEnd(k)
     this.pause()
     this.seek(target)
   }

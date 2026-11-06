@@ -8,18 +8,20 @@
 //         --theme dark|light|both                  the site theme (default dark)
 //         --step N[,N...]                          only the end of these steps, counted from 1
 //         --at T[,T...]                            these scene times, in seconds, instead of step ends
+//         --stage ID                               only the stage with this element id
 //     bun nv walkthrough --clean                   delete every frame written so far
 //
 // PAGE is the page's path on the site, such as `in-depth/walkthrough-after-response`. Git Bash rewrites
 // an argument that starts with `/` into a Windows path, so the leading slash is left out, and one that
-// was rewritten anyway is read back. The stage is the page's first `.wt` element.
+// was rewritten anyway is read back. Every stage on the page, each `.wt` element, is listed and shot
+// unless `--stage` names one; the parts gallery, `in-depth/walkthrough-parts`, has one per part.
 //
 // The frames come from the Astro dev server. One that answers on `localhost:4321` is used, so the frames
 // show the tree as it is edited; when none answers, one is started in `website/` for this run and
 // stopped after it. The browser is the tests' headless Chromium (`test/chromium.ts`). A frame is taken
 // by seeking the stage, `<root>.wt.seek(t)`, and waiting for two animation frames, so a frame is a
 // function of scene time alone, as the engine guarantees. The files go to `.agent-tmp/walkthrough-
-// frames/`, named `<width>-<theme>-<step or time>.png`, and each run replaces the frames it names.
+// frames/`, named `<stage id>-<width>-<theme>-<step or time>.png`, and each run replaces the frames it names.
 // Whoever took them deletes them with `--clean` once they have been looked at.
 
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -28,10 +30,10 @@ import { Browser, EXE } from "../test/chromium.ts";
 import { ROOT } from "../lib/paths.ts";
 import { messageOf } from "../lib/proc.ts";
 
-export const summary = "frames of a website walkthrough: nv walkthrough --frames PAGE [--width N] [--theme T] [--step N | --at T] | --beats PAGE | --clean";
+export const summary = "frames of a website walkthrough: nv walkthrough --frames PAGE [--width N] [--theme T] [--step N | --at T] [--stage ID] | --beats PAGE | --clean";
 
-const USAGE = `usage: bun nv walkthrough --frames PAGE [--width N] [--theme dark|light|both] [--step N,... | --at T,...]
-       bun nv walkthrough --beats PAGE
+const USAGE = `usage: bun nv walkthrough --frames PAGE [--width N] [--theme dark|light|both] [--step N,... | --at T,...] [--stage ID]
+       bun nv walkthrough --beats PAGE [--stage ID]
        bun nv walkthrough --clean`;
 
 const OUT = join(ROOT, ".agent-tmp", "walkthrough-frames");
@@ -42,6 +44,8 @@ interface Beat {
   caption: string;
   start: number;
   end: number;
+  /** Where the stage's own step buttons stop at the end of this step, `stepEnd`. */
+  stop: number;
   moment?: boolean;
 }
 
@@ -61,10 +65,10 @@ export async function run(args: string[]): Promise<number> {
   const opts = new Map<string, string>();
   for (let i = 2; i < args.length; i += 2) {
     const [key, value] = [args[i]!, args[i + 1]];
-    if (!["--width", "--theme", "--step", "--at"].includes(key) || value === undefined) return usage();
+    if (!["--width", "--theme", "--step", "--at", "--stage"].includes(key) || value === undefined) return usage();
     opts.set(key, value);
   }
-  if (mode === "--beats" && opts.size > 0) return usage();
+  if (mode === "--beats" && [...opts.keys()].some((k) => k !== "--stage")) return usage();
   if (opts.has("--step") && opts.has("--at")) return usage();
   const width = Number(opts.get("--width") ?? 1280);
   const theme = opts.get("--theme") ?? "dark";
@@ -80,20 +84,28 @@ export async function run(args: string[]): Promise<number> {
   try {
     const themes = theme === "both" ? ["dark", "light"] : [theme];
     for (const th of themes) {
-      const shot = await open(browser, dev.url, page, width, th);
-      if (!shot) return 1;
+      const stages = await open(browser, dev.url, page, width, th, opts.get("--stage"));
+      if (!stages) return 1;
       if (mode === "--beats") {
-        printBeats(shot.beats);
+        for (const s of stages) {
+          if (stages.length > 1) console.log(`${s.id}:`);
+          printBeats(s.beats);
+        }
         return 0;
       }
-      const times = pickTimes(shot.beats, opts.get("--step"), opts.get("--at"));
-      if (!times) return usage();
       mkdirSync(OUT, { recursive: true });
-      for (const { label, t } of times) {
-        const png = await shot.take(t);
-        const file = join(OUT, `${width}-${th}-${label}.png`);
-        writeFileSync(file, png);
-        console.log(file);
+      for (const s of stages) {
+        const times = pickTimes(s.beats, opts.get("--step"), opts.get("--at"));
+        if (!times) {
+          console.error(`walkthrough: ${s.id} has ${s.beats.length} steps; name one stage with --stage`);
+          return usage();
+        }
+        for (const { label, t } of times) {
+          const png = await s.take(t);
+          const file = join(OUT, `${s.id}-${width}-${th}-${label}.png`);
+          writeFileSync(file, png);
+          console.log(file);
+        }
       }
     }
     return 0;
@@ -126,7 +138,7 @@ export function pickTimes(beats: Beat[], steps?: string, at?: string): { label: 
   }
   const ns = steps === undefined ? beats.map((_, i) => i + 1) : steps.split(",").map(Number);
   if (ns.some((n) => !Number.isInteger(n) || n < 1 || n > beats.length)) return null;
-  return ns.map((n) => ({ label: `step${String(n).padStart(2, "0")}`, t: beats[n - 1]!.end }));
+  return ns.map((n) => ({ label: `step${String(n).padStart(2, "0")}`, t: beats[n - 1]!.stop }));
 }
 
 function printBeats(beats: Beat[]): void {
@@ -136,8 +148,17 @@ function printBeats(beats: Beat[]): void {
   }
 }
 
-/** Opens the page in a new tab at `width` with the site theme set, and returns its beats and a camera. */
-async function open(browser: Browser, base: string, page: string, width: number, theme: string) {
+interface Shot {
+  id: string;
+  beats: Beat[];
+  take(t: number): Promise<Buffer>;
+}
+
+/**
+ * Opens the page in a new tab at `width` with the site theme set, and returns each stage on it, or the
+ * one with id `only`: its beats and a camera.
+ */
+async function open(browser: Browser, base: string, page: string, width: number, theme: string, only?: string): Promise<Shot[] | null> {
   const { sessionId } = await browser.tab();
   await browser.send("Emulation.setDeviceMetricsOverride", { width, height: 1200, deviceScaleFactor: 1, mobile: false }, sessionId);
   await browser.send("Page.enable", {}, sessionId);
@@ -151,24 +172,31 @@ async function open(browser: Browser, base: string, page: string, width: number,
     console.error(`walkthrough: ${base}/${page}/ has no walkthrough stage`);
     return null;
   }
-  await browser.until("!!document.querySelector('.wt[data-ready]')", sessionId);
+  await browser.until("[...document.querySelectorAll('.wt')].every((e) => e.hasAttribute('data-ready'))", sessionId);
   await browser.eval("document.fonts.ready.then(() => 1)", sessionId);
   // The engine draws every frame from scene time. The page's own CSS transitions, such as the start
-  // button fading out, would be caught half way, so they are turned off in this tab.
+  // button fading out, would be caught half way, so they are turned off in this tab. Astro's dev
+  // toolbar is fixed to the viewport and would show in the frame of a stage below the fold.
   await browser.eval(
-    `(() => { const s = document.createElement('style'); s.textContent = '.wt, .wt * { transition: none !important }'; document.head.append(s); document.querySelector('.wt').dataset.started = ''; return 1 })()`,
+    `(() => { const s = document.createElement('style'); s.textContent = '.wt, .wt * { transition: none !important } astro-dev-toolbar { display: none !important }'; document.head.append(s); for (const e of document.querySelectorAll('.wt')) e.dataset.started = ''; return 1 })()`,
     sessionId,
   );
-  const beats: Beat[] = await browser.eval(
-    "document.querySelector('.wt').wt.tl.beats.map(({ title, caption, start, end, moment }) => ({ title, caption, start, end, moment }))",
+  const found: { id: string; beats: Beat[] }[] = await browser.eval(
+    `[...document.querySelectorAll('.wt')].map((e) => ({ id: e.id, beats: e.wt.tl.beats.map(({ title, caption, start, end, moment }, i) => ({ title, caption, start, end, stop: e.wt.stepEnd(i), moment })) }))`,
     sessionId,
   );
-  return {
+  const stages = found.filter((s) => only === undefined || s.id === only);
+  if (stages.length === 0) {
+    console.error(`walkthrough: ${base}/${page}/ has no stage ${only}; it has ${found.map((s) => s.id).join(", ")}`);
+    return null;
+  }
+  return stages.map(({ id, beats }) => ({
+    id,
     beats,
     async take(t: number): Promise<Buffer> {
       const box = await browser.eval(
         `(() => {
-          const root = document.querySelector('.wt')
+          const root = document.getElementById(${JSON.stringify(id)})
           root.wt.seek(${t})
           const r = root.getBoundingClientRect()
           return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() =>
@@ -183,7 +211,7 @@ async function open(browser: Browser, base: string, page: string, width: number,
       );
       return Buffer.from(shot.data, "base64");
     },
-  };
+  }));
 }
 
 /** The dev server to read from: the one on `localhost:4321`, or one started for this run. */

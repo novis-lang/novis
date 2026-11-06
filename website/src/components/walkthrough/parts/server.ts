@@ -8,6 +8,8 @@
  *   moment in the request's life, such as when the browser has the page.
  * - `lane.tip` is an anchor at the growing end of the bar, which a card can ride.
  *
+ * Every lane is on one time axis (`axis()`), so a request that starts later starts further right.
+ *
  * `data-pps` on the part's element is how many world units the bar grows per scene second.
  */
 import { css, Panel, type Anchor, type Stage } from '../engine/stage'
@@ -25,8 +27,9 @@ interface Segment {
 
 export class Lane {
   private readonly segs: Segment[] = []
-  private startAt = Infinity
-  private endAt = Infinity
+  /** When the request starts and ends, in scene time; `Infinity` until the scene says. */
+  startAt = Infinity
+  endAt = Infinity
   private readonly endMark: HTMLElement
   private readonly endPop: Track
   private readonly labelOn: Track
@@ -56,6 +59,7 @@ export class Lane {
 
   start(label: string, tone = 'var(--wt-run)'): void {
     this.startAt = this.server.tl.now
+    this.server.axisChanged()
     this.labelOn.to(1, 'out')
     this.segment(label, tone)
   }
@@ -66,23 +70,20 @@ export class Lane {
 
   end(): number {
     this.endAt = this.server.tl.now
+    this.server.axisChanged()
     const last = this.segs.at(-1)
     if (last) last.end = this.endAt
     return this.endPop.to(1, 'pop')
   }
 
-  /** The x of scene time `t` on this lane, in units from the lane's left edge. */
-  x(t: number): number {
-    return Math.max(0, Math.min(t, this.endAt) - this.startAt) * this.scale()
-  }
-
   /**
-   * Units per scene second. A lane that ends is scaled so the whole request fills its width, since a
-   * scene's pauses for narration make requests long; a lane that never ends grows at `data-pps`.
+   * The x of scene time `t` on this lane, in units from the lane's left edge, on the time axis every
+   * lane shares. Before the request starts it is where the request will start.
    */
-  private scale(): number {
-    if (!Number.isFinite(this.endAt)) return this.server.pps
-    return (this.width * 0.86) / Math.max(this.endAt - this.startAt, 0.001)
+  x(t: number): number {
+    if (!Number.isFinite(this.startAt)) return 0
+    const { t0, pps } = this.server.axis()
+    return Math.max(0, Math.min(Math.max(t, this.startAt), this.endAt) - t0) * pps
   }
 
   /** The lane's width and left edge, measured on each layout change. */
@@ -163,6 +164,30 @@ export class Server extends Panel {
     return d
   }
 
+  private axisAt: { t0: number; pps: number } | null = null
+
+  /**
+   * The time axis every lane shares, so a later request starts further right and a marker lines up
+   * on every lane. It starts where the first request starts. While any request never ends, a second
+   * is `data-pps` units. When every request ends, the axis is scaled so that the span from the first
+   * start to the last end fills 86% of the lane, since a scene's pauses for narration make requests
+   * long. It is worked out once after each change.
+   */
+  axis(): { t0: number; pps: number } {
+    if (this.axisAt) return this.axisAt
+    const started = this.lanes.filter((l) => Number.isFinite(l.startAt))
+    const t0 = started.length ? Math.min(...started.map((l) => l.startAt)) : 0
+    const ended = started.length > 0 && started.every((l) => Number.isFinite(l.endAt))
+    const t1 = ended ? Math.max(...started.map((l) => l.endAt)) : 0
+    const pps = ended ? (started[0].width * 0.86) / Math.max(t1 - t0, 0.001) : this.pps
+    return (this.axisAt = { t0, pps })
+  }
+
+  /** Called when a lane starts or ends, and on a layout change. */
+  axisChanged(): void {
+    this.axisAt = null
+  }
+
   /** The world position of a lane's left edge, at the middle of its bar. */
   laneOrigin(lane: Lane): { x: number; y: number } {
     return { x: this.boxAt.x + lane.el.offsetLeft, y: this.boxAt.y + lane.el.offsetTop + 30 }
@@ -175,6 +200,7 @@ export class Server extends Panel {
       l.width = l.el.offsetWidth
       l.left = l.el.offsetLeft
     }
+    this.axisChanged()
   }
 
   render(t: number): void {
