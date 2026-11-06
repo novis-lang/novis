@@ -46,10 +46,15 @@ export const SITE_DESCRIPTION =
  * The five areas of the site, in the order a reader learns them. The header
  * shows each label with its subtitle on a second line, and each area has its
  * own sidebar: the top-level group in astro.config.ts whose label is the
- * area's label. `bun nv site --check structure` reads this list.
+ * area's label. An area with a `navLabel` shows it in the header and the
+ * mobile menu instead of its label: the bar shows each of its lines on a line
+ * of its own, so a long label stays narrow, and the menus join the lines with
+ * a space. The footer, the home page and the phone's quick link keep the
+ * short label. An area without a subtitle shows its label alone.
+ * `bun nv site --check structure` reads this list.
  */
 export const AREAS = [
-  { label: 'Guides', subtitle: 'Examples, how to use', href: '/guides/' },
+  { label: 'Guides', navLabel: ['Guides, Examples', '& Walkthroughs'], href: '/guides/' },
   { label: 'Syntax', subtitle: 'How to write Novis', href: '/syntax/' },
   { label: 'Reference', subtitle: 'Classes and functions', href: '/reference/' },
   { label: 'Tools', subtitle: 'Editor, tests, debugger', href: '/tools/' },

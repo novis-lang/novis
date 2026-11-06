@@ -7,9 +7,9 @@ const beats = [
 ];
 
 test("a page path loses its slashes, and Git Bash's rewrite of a leading slash is undone", () => {
-  expect(pagePath("in-depth/walkthrough-after-response")).toBe("in-depth/walkthrough-after-response");
-  expect(pagePath("/in-depth/walkthrough-after-response/")).toBe("in-depth/walkthrough-after-response");
-  expect(pagePath("C:/Program Files/Git/in-depth/walkthrough-after-response/")).toBe("in-depth/walkthrough-after-response");
+  expect(pagePath("guides/walkthroughs/after-response")).toBe("guides/walkthroughs/after-response");
+  expect(pagePath("/guides/walkthroughs/after-response/")).toBe("guides/walkthroughs/after-response");
+  expect(pagePath("C:/Program Files/Git/guides/walkthroughs/after-response/")).toBe("guides/walkthroughs/after-response");
 });
 
 test("frames are taken where the stage stops at each step's end, at the named steps, or at the named times", () => {

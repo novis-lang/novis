@@ -15,8 +15,8 @@ import { withBase } from '~/lib/base'
   {
     AREAS.map((area) => (
       <a href={withBase(area.href)}>
-        <span class="label">{area.label}</span>
-        <span class="subtitle">{area.subtitle}</span>
+        <span class="label">{area.navLabel?.join(' ') ?? area.label}</span>
+        {area.subtitle && <span class="subtitle">{area.subtitle}</span>}
       </a>
     ))
   }

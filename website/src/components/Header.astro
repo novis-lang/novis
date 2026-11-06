@@ -2,8 +2,9 @@
 /**
  * Header override: the default Starlight header (the mark, search, social
  * icons, theme switch) plus the site navigation: the five areas from AREAS in
- * config/site.mjs, each with its subtitle on a second, smaller line, then
- * Install as the bar's one primary button, then the links in NAV_EXTRAS.
+ * config/site.mjs, each by its `navLabel` (one line each) or else its label,
+ * and with its subtitle, if it has one, on a smaller line. Then comes Install as
+ * the bar's one primary button, then the links in NAV_EXTRAS.
  *
  * `<SiteTitle />` (src/components/SiteTitle.astro) is the mark with the name
  * Novis-Lang beside it, on two lines, and links to the home page. The mark's
@@ -62,8 +63,12 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
       {
         areas.map((area) => (
           <a href={area.href} aria-current={current(area.href)} class="area" data-nav-item={area.item}>
-            <span class="area-label">{area.label}</span>
-            <span class="area-subtitle">{area.subtitle}</span>
+            {area.navLabel ? (
+              area.navLabel.map((line) => <span class="area-label">{line}</span>)
+            ) : (
+              <span class="area-label">{area.label}</span>
+            )}
+            {area.subtitle && <span class="area-subtitle">{area.subtitle}</span>}
           </a>
         ))
       }
@@ -86,8 +91,8 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
       {
         links.map((link) => (
           <a href={link.href} aria-current={current(link.href)} data-nav-item={link.item} hidden>
-            <span class="more-label">{link.label}</span>
-            <span class="more-subtitle">{link.subtitle}</span>
+            <span class="more-label">{link.navLabel?.join(' ') ?? link.label}</span>
+            {link.subtitle && <span class="more-subtitle">{link.subtitle}</span>}
           </a>
         ))
       }

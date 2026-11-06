@@ -11,7 +11,7 @@
 //         --stage ID                               only the stage with this element id
 //     bun nv walkthrough --clean                   delete every frame written so far
 //
-// PAGE is the page's path on the site, such as `in-depth/walkthrough-after-response`. Git Bash rewrites
+// PAGE is the page's path on the site, such as `guides/walkthroughs/after-response`. Git Bash rewrites
 // an argument that starts with `/` into a Windows path, so the leading slash is left out, and one that
 // was rewritten anyway is read back. Every stage on the page, each `.wt` element, is listed and shot
 // unless `--stage` names one; the parts gallery, `in-depth/walkthrough-parts`, has one per part.

@@ -343,6 +343,21 @@ export default defineConfig({
               ],
             },
             {
+              label: 'Walkthroughs - Why Novis is special',
+              items: [
+                {
+                  label: 'Overview',
+                  link: '/guides/walkthroughs/',
+                  attrs: { 'data-subtext': 'Short animations, one feature each' },
+                },
+                {
+                  label: 'Work after the response',
+                  link: '/guides/walkthroughs/after-response/',
+                  attrs: { 'data-subtext': 'Send an email after the browser has the page' },
+                },
+              ],
+            },
+            {
               label: 'Simple programs',
               items: [
                 {

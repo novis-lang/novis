@@ -1820,6 +1820,7 @@ export function syntaxProblems(world: World, root: string = ROOT): string[] {
 export const GUIDE_SECTIONS: [dir: string, least: number, snippets: boolean][] = [
   ["why-novis", 1, false],
   ["tour", 1, false],
+  ["walkthroughs", 1, false],
   ["simple-programs", 6, true],
   ["how-to-use", 1, false],
   ["cookbook", 10, true],
