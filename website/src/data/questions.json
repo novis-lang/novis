@@ -1,13 +1,14 @@
 {
   "/": {
     "feature": "index.mdx",
-    "hash": "855e27cdb7ede97d",
+    "hash": "efb080dc5fdc2654",
     "questions": [
       "What is Novis and what is it for?",
       "A fast and secure programming language for web applications",
       "Short example of a web server written in Novis",
       "Which tools come built into the Novis language?",
-      "Why should I choose Novis for my next web app?"
+      "Why should I choose Novis for my next web app?",
+      "Which mistakes does Novis catch before my program runs?"
     ]
   },
   "/datenschutz/": {
@@ -23,12 +24,13 @@
   },
   "/guides/": {
     "feature": "guides/index.mdx",
-    "hash": "f48e7a327f79af20",
+    "hash": "1b9cad90d38e0794",
     "questions": [
       "Which guide should I read first?",
       "Step by step guides with small programs I can run",
       "How do I build a real program with Novis?",
-      "Novis tutorials and practical examples"
+      "Novis tutorials and practical examples",
+      "List of all Novis guides, from first steps to production"
     ]
   },
   "/guides/cookbook/": {
@@ -217,12 +219,12 @@
   },
   "/guides/extensions/rust/": {
     "feature": "guides/extensions/rust.mdx",
-    "hash": "00b555143661f5f9",
+    "hash": "35056284be4ea64e",
     "questions": [
       "Step by step guide to write an extension in Rust",
-      "Convert Markdown to HTML with a Rust library",
+      "Add syntax highlighting with a Rust library",
+      "Show code blocks in color in Markdown",
       "How do I build and test a .nvsx file?",
-      "Pack Novis classes into the same file as the Rust code",
       "Load my own extension in nvs.toml with its sha256",
       "Which WIT type do I use for bytes, records and lists?"
     ]
@@ -614,6 +616,36 @@
       "What do I learn after finishing the tour?"
     ]
   },
+  "/guides/walkthroughs/": {
+    "feature": "guides/walkthroughs/index.mdx",
+    "hash": "17af880bd5632b24",
+    "questions": [
+      "Animations that show what happens while my program runs",
+      "Watch a request step by step in the browser and on the server",
+      "Short videos of Novis features",
+      "Is there a visual demo of how Novis works?"
+    ]
+  },
+  "/guides/walkthroughs/after-response/": {
+    "feature": "guides/walkthroughs/after-response.mdx",
+    "hash": "f16b1d05c39e9df5",
+    "questions": [
+      "Send an email after the visitor already has the page",
+      "Animation of work that runs after the response",
+      "Can the browser get the page before my code finishes?",
+      "Do slow jobs without making the visitor wait or a second request"
+    ]
+  },
+  "/guides/walkthroughs/page-now/": {
+    "feature": "guides/walkthroughs/page-now.mdx",
+    "hash": "fc9cd0b4bc7d4d72",
+    "questions": [
+      "Show the page at once and fill in slow parts later",
+      "Animation of a page whose slow parts arrive when ready",
+      "Load slow sections of a page in the same request",
+      "How can a page appear fast when one part is slow?"
+    ]
+  },
   "/guides/why-novis/": {
     "feature": "guides/why-novis/index.mdx",
     "hash": "2296236957cad3cc",
@@ -955,6 +987,16 @@
       "Is there a public plan for future Novis versions?",
       "What is the Novis team working on now?",
       "Is there a release date for the next feature?"
+    ]
+  },
+  "/in-depth/walkthrough-parts/": {
+    "feature": "in-depth/walkthrough-parts.mdx",
+    "hash": "ed15f96b534c9aa6",
+    "questions": [
+      "Gallery of every walkthrough part in each state",
+      "What do the walkthrough animation parts look like?",
+      "See all states of the walkthrough browser, code and server panels",
+      "Preview every piece used in the walkthrough animations"
     ]
   },
   "/in-depth/what-changed/": {
@@ -6561,7 +6603,7 @@
   },
   "/reference/core/json/decodeeach/": {
     "feature": "Core\\Json::decodeEach",
-    "hash": "52e7685c567cfb42",
+    "hash": "043339460b1d8dbb",
     "questions": [
       "How do I read a JSON file larger than memory?",
       "Read one element of a JSON array at a time",
@@ -6584,7 +6626,7 @@
   },
   "/reference/core/json/encodeeach/": {
     "feature": "Core\\Json::encodeEach",
-    "hash": "6181e8e777a716fe",
+    "hash": "fdcbf979e75b6886",
     "questions": [
       "How do I write a very long list as JSON?",
       "Export database rows to a JSON file without much memory",
@@ -7967,6 +8009,137 @@
       "Set the reply address of an email",
       "What happens when the mail server cannot be reached?",
       "Why does an email address with a line break throw an error?"
+    ]
+  },
+  "/reference/core/markdown/": {
+    "feature": "Core\\Markdown",
+    "hash": "73a29f43da19be64",
+    "questions": [
+      "How do I show Markdown as HTML on a web page?",
+      "Does Novis have a built-in Markdown parser?",
+      "Which Markdown features does Novis support?",
+      "Are Markdown tables, task lists and footnotes supported?",
+      "Work with Markdown and HTML in Novis"
+    ]
+  },
+  "/reference/core/markdown/fromhtml/": {
+    "feature": "Core\\Markdown::fromHtml",
+    "hash": "676aabf4087f0e31",
+    "questions": [
+      "Turn an HTML page back into Markdown",
+      "Convert HTML to Markdown",
+      "Convert one article of a web page to Markdown",
+      "Serve a page as Markdown when a client sends Accept: text/markdown",
+      "Does converting HTML to Markdown escape stars in the text?"
+    ]
+  },
+  "/reference/core/markdown/live/": {
+    "feature": "Core\\Markdown::live",
+    "hash": "2fc15a7f5deccab5",
+    "questions": [
+      "Render Markdown from an LLM while it streams in",
+      "Show an AI reply as HTML while it is still being written",
+      "Convert Markdown to HTML when the text arrives in pieces",
+      "Why does my code highlight function run more than once while streaming?",
+      "Start converting a streamed Markdown reply"
+    ]
+  },
+  "/reference/core/markdown/tohtml/": {
+    "feature": "Core\\Markdown::toHtml",
+    "hash": "dd217d70241fd804",
+    "questions": [
+      "Convert a Markdown string to HTML",
+      "Is it safe to render Markdown that users wrote?",
+      "Add syntax highlighting to Markdown code blocks",
+      "Give each Markdown heading an id for anchor links",
+      "Rewrite or block link URLs when rendering Markdown",
+      "Remove script tags from Markdown comments by users"
+    ]
+  },
+  "/reference/core/markdown/tohtmleach/": {
+    "feature": "Core\\Markdown::toHtmlEach",
+    "hash": "338062458457225e",
+    "questions": [
+      "Convert a very large Markdown file to HTML",
+      "Render a Markdown file bigger than memory",
+      "Turn an uploaded Markdown file into HTML part by part",
+      "What happens with invalid UTF-8 in a large Markdown file?",
+      "Why is a large Markdown file read twice?"
+    ]
+  },
+  "/reference/core/markdown-groups/": {
+    "feature": "Core\\Markdown\\Groups",
+    "hash": "32f89be466fa6e43",
+    "questions": [
+      "What type does toHtmlEach return?",
+      "Loop over the HTML parts of a big Markdown document",
+      "Are the HTML parts together the same as the whole document?",
+      "Read Markdown HTML block by block in a foreach loop"
+    ]
+  },
+  "/reference/core/markdown-live/": {
+    "feature": "Core\\Markdown\\Live",
+    "hash": "08abff98abee1a69",
+    "questions": [
+      "What is Core\\Markdown\\Live?",
+      "Object that turns streaming Markdown into HTML",
+      "How does live Markdown rendering work step by step?",
+      "Finished blocks and the unfinished last block in streamed Markdown",
+      "Convert a chat reply to HTML piece by piece"
+    ]
+  },
+  "/reference/core/markdown-live/finish/": {
+    "feature": "Core\\Markdown\\Live::finish",
+    "hash": "bc8a6b5e354b27e7",
+    "questions": [
+      "How do I end a streamed Markdown document?",
+      "Get the last HTML when the streamed text is complete",
+      "Where do footnotes appear in streamed Markdown?",
+      "Why does push throw an error after finish?",
+      "Reuse a live Markdown object for the next reply"
+    ]
+  },
+  "/reference/core/markdown-live/push/": {
+    "feature": "Core\\Markdown\\Live::push",
+    "hash": "c5f5d3a57af61886",
+    "questions": [
+      "Add the next chunk of streamed Markdown text",
+      "Can a streamed piece end in the middle of a word?",
+      "Send a Markdown reply to the browser while it is written",
+      "Feed each chunk from an AI API into the Markdown converter",
+      "Which HTML changed after a new piece of Markdown arrived?"
+    ]
+  },
+  "/reference/core/markdown-update/": {
+    "feature": "Core\\Markdown\\Update",
+    "hash": "f265f1f9fff4f2e7",
+    "questions": [
+      "What does Live push return?",
+      "Two parts of HTML after each streamed Markdown piece",
+      "Finished HTML and unfinished HTML of a streamed reply",
+      "Which HTML do I append and which do I replace?"
+    ]
+  },
+  "/reference/core/markdown-update/done/": {
+    "feature": "Core\\Markdown\\Update::done",
+    "hash": "2b8539ba8b02d250",
+    "questions": [
+      "Get only the newly finished Markdown blocks",
+      "When is a streamed Markdown paragraph finished?",
+      "Append finished HTML without replacing what is shown",
+      "Build the whole page from finished streamed blocks",
+      "Why does a link stay plain text after its block finished?"
+    ]
+  },
+  "/reference/core/markdown-update/open/": {
+    "feature": "Core\\Markdown\\Update::open",
+    "hash": "a57988f26da606af",
+    "questions": [
+      "Show the half-written last paragraph of a streamed reply",
+      "Why does unclosed bold text show as two stars?",
+      "Replace the unfinished part of streamed HTML at each piece",
+      "Why is the unfinished HTML empty at the start?",
+      "Preview a list that is still growing while text streams"
     ]
   },
   "/reference/core/math/": {
@@ -9481,7 +9654,7 @@
   },
   "/reference/core/novis-pdf-document/footer/": {
     "feature": "Novis\\Pdf\\Document::footer",
-    "hash": "62e0148404df2181",
+    "hash": "123a25d99a69a329",
     "questions": [
       "Add a footer to every PDF page",
       "Show a running total at the bottom of each page",
@@ -9492,13 +9665,14 @@
   },
   "/reference/core/novis-pdf-document/fromhtml/": {
     "feature": "Novis\\Pdf\\Document::fromHtml",
-    "hash": "757b95233bede7fe",
+    "hash": "94e71ebf12ec2c7b",
     "questions": [
       "Start a PDF from an HTML string",
       "Escape user text in a PDF with an html template",
       "Set the paper size and margins of a PDF",
       "Start a new page in a PDF with CSS",
-      "Make a receipt PDF from HTML"
+      "Make a receipt PDF from HTML",
+      "Why is the image missing from my PDF?"
     ]
   },
   "/reference/core/novis-pdf-document/header/": {
@@ -9548,7 +9722,7 @@
   },
   "/reference/core/novis-pdf-document/slots/": {
     "feature": "Novis\\Pdf\\Document::slots",
-    "hash": "738edb776045fda2",
+    "hash": "bab34d85ec06b6cd",
     "questions": [
       "Carry a total forward in a table that spans pages",
       "Fill a cell in the repeated table header on each page",
@@ -9686,7 +9860,7 @@
   },
   "/reference/core/novis-pdf-reader/attachments/": {
     "feature": "Novis\\Pdf\\Reader::attachments",
-    "hash": "bc0e1c369bbf43fe",
+    "hash": "c0809f4572e852a9",
     "questions": [
       "List the files attached to a PDF",
       "Get embedded files from a PDF",
@@ -9696,7 +9870,7 @@
   },
   "/reference/core/novis-pdf-reader/invoicexml/": {
     "feature": "Novis\\Pdf\\Reader::invoiceXml",
-    "hash": "f30a782fd2acb85e",
+    "hash": "e6f244789ef59929",
     "questions": [
       "Read the XML from a ZUGFeRD or XRechnung invoice",
       "Check if an uploaded PDF is an electronic invoice",
@@ -9718,7 +9892,7 @@
   },
   "/reference/core/novis-pdf-reader/text/": {
     "feature": "Novis\\Pdf\\Reader::text",
-    "hash": "e137aca4febae404",
+    "hash": "d5aa73ec7da316fa",
     "questions": [
       "Extract text from a PDF page",
       "Find the total line on an invoice PDF",
