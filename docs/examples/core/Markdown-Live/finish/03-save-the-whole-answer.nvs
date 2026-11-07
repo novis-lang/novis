@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to build the whole HTML of an answer from its pieces, to save it when the answer is complete.
+
+array<string> $pieces = ["## Returns\n\nYou can return an item for 30 d", "ays.\n\n> Keep the receipt", ".\n"];
+
+Core\Markdown\Live $live = Core\Markdown::live();
+Core\Html\Markup $answer = '' as Core\Html\Markup;
+foreach ($pieces as string $piece) {
+    // A page would show `open()` too. Only the finished blocks go into the saved answer.
+    $answer = $answer + $live->push($piece)->done();
+}
+// `finish` returns the last block, the quote. Add it after the finished blocks.
+$answer = $answer + $live->finish();
+echo $answer;
+
+// The saved HTML is the same HTML that `Core\Markdown::toHtml` returns for the whole text.
+Core\Html\Markup $whole = Core\Markdown::toHtml(Core\Str::join($pieces, ''));
+echo Core\Html::toSource($answer, 'the two results are compared') == Core\Html::toSource($whole, 'the two results are compared') ? "same\n" : "different\n";

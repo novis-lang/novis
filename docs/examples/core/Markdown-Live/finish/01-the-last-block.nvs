@@ -1,0 +1,10 @@
+<?nvs
+// Shows that `finish` returns the last block, which no `push` finished.
+
+Core\Markdown\Live $live = Core\Markdown::live();
+echo $live->push("# Release 2.4\n\nFaster sea")->done();
+echo $live->push("rch.\n\n- New filters\n- Fewer bugs")->done();
+
+// The list is the last block. No block comes after it, so only `finish` returns it.
+echo "-- finish:\n";
+echo $live->finish();

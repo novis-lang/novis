@@ -1,0 +1,22 @@
+<?nvs
+// Shows a server that sends a language model's answer to the browser as HTML while the model writes it.
+
+// A real program reads these pieces from the model's API.
+array<string> $pieces = ["Three ste", "ps:\n\n1. Pick a size\n2. Pay", "\n\nThe parcel ships **today**.\n"];
+
+Core\Sse $sse = Core\Sse::stream();
+Core\Markdown\Live $live = Core\Markdown::live();
+foreach ($pieces as string $piece) {
+    Core\Markdown\Update $update = $live->push($piece);
+    string $done = Core\Html::toSource($update->done(), 'the HTML is sent to the browser as JSON');
+    string $open = Core\Html::toSource($update->open(), 'the HTML is sent to the browser as JSON');
+    // The page adds an `append` event to the end of the answer. There is no event when nothing is finished.
+    if ($done != '') {
+        $sse->send(['html' => $done], event: 'append');
+    }
+    // The page removes the last `replace` part and shows this one instead.
+    $sse->send(['html' => $open], event: 'replace');
+}
+
+// The last event has the rest of the answer. The page removes the last `replace` part and adds this.
+$sse->send(['html' => Core\Html::toSource($live->finish(), 'the HTML is sent to the browser as JSON')], event: 'end');

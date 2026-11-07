@@ -1,0 +1,25 @@
+<?nvs
+// Measures finishing a live Markdown converter that has one short open paragraph, as a chat server does at the end of each answer.
+// bench: iterations 256
+// bench: calls 5
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $answers = ['Your order has *shipped*.', 'The parcel arrives on **Tuesday**.', 'Thanks for all your patience.'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Markdown\Live $live = Core\Markdown::live();
+            // The answer pushed in each round is chosen by the round before it, so no round can be left out.
+            $live->push($answers[($total % 3) as int]);
+            $total = $total + Core\Str::length(Core\Html::toSource($live->finish(), 'the bench counts the HTML'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

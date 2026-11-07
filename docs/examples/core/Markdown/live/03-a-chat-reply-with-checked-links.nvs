@@ -1,0 +1,32 @@
+<?nvs
+// Shows a chat reply from a language model, converted while it arrives, with only safe links kept.
+
+class Reply
+{
+    // Only links to the help pages stay links. For any other link, only the text stays.
+    public static function link(string $url): ?string
+    {
+        if (Core\Str::startsWith($url, 'https://help.example.com/')) {
+            return $url;
+        }
+        return null;
+    }
+}
+
+Core\Markdown\Live $live = Core\Markdown::live(link: fn (string $url): ?string => Reply::link($url));
+
+// The model sends its answer in small pieces.
+array<string> $pieces = [
+    "To reset your password, open the [help pa",
+    "ge](https://help.example.com/password).\n\n",
+    "Do not use [this site](https://login.example.net) for it.\n",
+];
+
+// Each finished block is added to the HTML that is saved in the database.
+// The second link is not a help page, so it prints as plain text.
+string $saved = '';
+foreach ($pieces as string $piece) {
+    $saved = $saved . Core\Html::toSource($live->push($piece)->done(), 'the reply is saved in the database');
+}
+$saved = $saved . Core\Html::toSource($live->finish(), 'the reply is saved in the database');
+echo $saved;

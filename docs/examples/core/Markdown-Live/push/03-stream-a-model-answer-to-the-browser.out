@@ -1,0 +1,18 @@
+event: replace
+data: {"html":"<p>Three ste</p>\n"}
+
+event: append
+data: {"html":"<p>Three steps:</p>\n"}
+
+event: replace
+data: {"html":"<ol>\n<li>Pick a size</li>\n<li>Pay</li>\n</ol>\n"}
+
+event: append
+data: {"html":"<ol>\n<li>Pick a size</li>\n<li>Pay</li>\n</ol>\n"}
+
+event: replace
+data: {"html":"<p>The parcel ships <strong>today</strong>.</p>\n"}
+
+event: end
+data: {"html":"<p>The parcel ships <strong>today</strong>.</p>\n"}
+

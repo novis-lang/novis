@@ -1,0 +1,5 @@
+<p>Read [the guide] first.</p>
+<p>Then start.</p>
+-- in one call:
+<p>Read <a href="https://example.com/guide">the guide</a> first.</p>
+<p>Then start.</p>

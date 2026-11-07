@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a program pushes pieces that cut a tag or a character in half, and pushes a long text one
+// character at a time. The HTML must stay safe and correct, and the time must grow only with the text.
+// A code block that is never closed must stop the program at its memory limit.
+// hostile: ends-early 4 FATAL
+// hostile: timeout-ms 30000
+
+// 1. A `<script>` tag and a `javascript:` link, each cut in half. No piece may give a script or a
+// `javascript:` address.
+Core\Markdown\Live $tags = Core\Markdown::live();
+array<string> $cut = ["<scr", "ipt>alert(1)</scr", "ipt>\n\nSee <a hr", "ef=\"javas", "cript:alert(1)\">this</a>\n"];
+string $seen = '';
+foreach ($cut as string $piece) {
+    Core\Markdown\Update $update = $tags->push($piece);
+    $seen = $seen . Core\Html::toSource($update->done(), 'the attack reads the HTML');
+    $seen = $seen . Core\Html::toSource($update->open(), 'the attack reads the HTML');
+}
+$seen = $seen . Core\Html::toSource($tags->finish(), 'the attack reads the HTML');
+bool $unsafe = Core\Str::contains($seen, '<script') || Core\Str::contains($seen, 'javascript:');
+echo 'cut tags: ', $unsafe ? 'unsafe' : 'safe', "\n";
+
+// 2. An accent and a skin tone each arrive in their own piece. The finished text has both.
+Core\Markdown\Live $marks = Core\Markdown::live();
+$marks->push("Cafe");
+$marks->push("\u{301} 👋");
+$marks->push("🏽\n");
+string $joined = Core\Html::toSource($marks->finish(), 'the attack reads the HTML');
+echo 'cut characters: ', $joined == "<p>Cafe\u{301} 👋🏽</p>\n" ? 'joined' : 'broken', "\n";
+
+// 3. A text of 1,000 paragraphs, pushed one character at a time. The result must be the same as
+// converting the whole text at once.
+string $doc = Core\Str::repeat("Some *words* and a [link](/a). \n\n", 1000);
+Core\Markdown\Live $slow = Core\Markdown::live();
+Core\Html\Markup $page = '' as Core\Html\Markup;
+foreach (Core\Str::graphemes($doc) as string $char) {
+    $page = $page + $slow->push($char)->done();
+}
+$page = $page + $slow->finish();
+bool $same = Core\Html::toSource($page, 'the attack compares the HTML')
+    == Core\Html::toSource(Core\Markdown::toHtml($doc), 'the attack compares the HTML');
+echo 'one character at a time: ', $same ? 'same' : 'different', "\n";
+
+// 4. A code block that never ends, under a memory limit of 8 MB. The open block grows with each
+// piece, so this step ends the program at its memory limit.
+echo "step 4\n";
+Core\Config::set('memory', '8M');
+Core\Markdown\Live $fence = Core\Markdown::live();
+$fence->push("```text\n");
+string $line = Core\Str::repeat('a', 50000) . "\n";
+while (true) {
+    $fence->push($line);
+}

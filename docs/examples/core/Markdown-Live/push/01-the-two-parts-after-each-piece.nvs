@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `done()` and `open()` contain after each piece.
+
+Core\Markdown\Live $live = Core\Markdown::live();
+
+// After the first piece, `**` is not closed yet. So `open()` shows the two stars as text.
+array<string> $pieces = ["The order is **pa", "id**.\n\nIt ships on Mon", "day.\n"];
+foreach ($pieces as string $piece) {
+    Core\Markdown\Update $update = $live->push($piece);
+    // The finished blocks. Add this HTML after what you already show.
+    echo "done:\n", $update->done();
+    // The rest, as if the text ended here. Replace the last `open()` with this.
+    echo "open:\n", $update->open();
+}
+echo "finish:\n", $live->finish();

@@ -1,0 +1,16 @@
+<?nvs
+// Shows that the HTML of a finished block stays the same, even when later text could change it.
+
+Core\Markdown\Live $live = Core\Markdown::live();
+
+// The second piece finishes the first paragraph. Its link has no address yet, so it is plain text.
+$live->push("Read [the guide] first.\n\n");
+echo $live->push("Then start.\n\n")->done();
+
+// The address arrives now. The first paragraph is already finished, so it does not change.
+echo $live->push("[the guide]: https://example.com/guide\n")->done();
+echo $live->finish();
+
+// The same text converted in one call gets the link.
+echo "-- in one call:\n";
+echo Core\Markdown::toHtml("Read [the guide] first.\n\nThen start.\n\n[the guide]: https://example.com/guide\n");

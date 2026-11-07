@@ -1,0 +1,30 @@
+<?nvs
+// Shows that a `code` function runs again for a code block that is not finished yet.
+
+class Highlight
+{
+    public static uint $runs = 0;
+
+    // Puts each code block in a box with its language. A real program would color the code here.
+    public static function code(string $language, string $code): ?Core\Html\Markup
+    {
+        Highlight::$runs = Highlight::$runs + 1;
+        return html`<pre class="box" data-language="{$language}">{$code}</pre>`;
+    }
+}
+
+Core\Markdown\Live $live = Core\Markdown::live(
+    code: fn (string $language, string $code): ?Core\Html\Markup => Highlight::code($language, $code),
+);
+
+// The code block arrives in three pieces. Each `push` converts the open block again.
+$live->push("```shell\ncd app\n");
+$live->push("nvs run main.nvs\n");
+// The third piece finishes the code block, so `done()` contains the box.
+echo $live->push("```\n\nThat is all.\n")->done();
+// This prints `runs: 3`.
+echo "runs: ", Highlight::$runs, "\n";
+
+// The code block is finished now, so `finish` does not run the function again.
+echo $live->finish();
+echo "runs: ", Highlight::$runs, "\n";

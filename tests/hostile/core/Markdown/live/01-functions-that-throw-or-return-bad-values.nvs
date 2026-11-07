@@ -1,0 +1,84 @@
+<?nvs
+// Attack: a program passes `link`, `heading` and `code` functions that throw an error or return
+// dangerous values. The error must close only its own text, and every value must be made safe.
+
+class Evil
+{
+    public static uint $codeRuns = 0;
+
+    public static function link(string $url): ?string
+    {
+        throw new RuntimeError('this link is not allowed');
+    }
+
+    public static function code(string $language, string $code): ?Core\Html\Markup
+    {
+        Evil::$codeRuns = Evil::$codeRuns + 1;
+        return null;
+    }
+}
+
+// 1. A `link` function that throws. `push` throws the same error, and the text is closed.
+Core\Markdown\Live $broken = Core\Markdown::live(link: fn (string $url): ?string => Evil::link($url));
+Core\Markdown\Live $other = Core\Markdown::live();
+try {
+    $broken->push("Open [the page](/page).\n\nNext.\n");
+    echo "throwing link: accepted\n";
+} catch (RuntimeError $e) {
+    echo 'throwing link: ', $e->message, "\n";
+}
+
+// 2. A `push` and a `finish` on the closed text. Both throw a `RuntimeError`, and the error is caught.
+try {
+    $broken->push("More.\n");
+    echo "push after the error: accepted\n";
+} catch (RuntimeError $e) {
+    echo "push after the error: closed\n";
+}
+try {
+    $broken->finish();
+    echo "finish after the error: accepted\n";
+} catch (RuntimeError $e) {
+    echo "finish after the error: closed\n";
+}
+
+// 3. Another text created before the error still works.
+$other->push("Still *fine*.\n");
+echo 'other text: ', $other->finish();
+
+// 4. A heading id with a quote and a script tag, and a `javascript:` address. Both must be escaped
+// or removed, so the HTML has no new attribute and no link.
+Core\Markdown\Live $values = Core\Markdown::live(
+    heading: fn (int $level, string $text): ?string => "\" onclick=\"alert(1)",
+    link: fn (string $url): ?string => 'javascript:alert(1)',
+);
+$values->push("# Title\n\n[click](/here)\n");
+string $html = Core\Html::toSource($values->finish(), 'the attack reads the HTML');
+bool $unsafe = Core\Str::contains($html, '" onclick') || Core\Str::contains($html, 'javascript:');
+echo 'bad values: ', $unsafe ? 'unsafe' : 'safe', "\n";
+
+// 5. A code block that stays open for 1,000 pieces. The `code` function runs again for each piece,
+// and the program must still end.
+Core\Markdown\Live $code = Core\Markdown::live(code: fn (string $language, string $code): ?Core\Html\Markup => Evil::code($language, $code));
+$code->push("```sh\n");
+uint $i = 0;
+while ($i < 1000) {
+    $code->push("echo " . $i . "\n");
+    $i = $i + 1;
+}
+$code->push("```\n");
+$code->finish();
+echo 'code function runs: ', Evil::$codeRuns, "\n";
+
+// 6. Three thousand texts, each pushed and finished. `finish` frees each text, so memory stays flat
+// under a limit of 16 MB.
+Core\Config::set('memory', '16M');
+string $long = Core\Str::repeat('word ', 2000);
+$i = 0;
+while ($i < 3000) {
+    Core\Markdown\Live $one = Core\Markdown::live();
+    $one->push("# Note " . $i . "\n\n" . $long);
+    $one->finish();
+    $i = $i + 1;
+}
+echo 'finished texts: ', $i, "\n";

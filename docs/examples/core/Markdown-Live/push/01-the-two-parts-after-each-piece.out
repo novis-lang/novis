@@ -1,0 +1,13 @@
+done:
+open:
+<p>The order is **pa</p>
+done:
+open:
+<p>The order is <strong>paid</strong>.</p>
+<p>It ships on Mon</p>
+done:
+<p>The order is <strong>paid</strong>.</p>
+open:
+<p>It ships on Monday.</p>
+finish:
+<p>It ships on Monday.</p>

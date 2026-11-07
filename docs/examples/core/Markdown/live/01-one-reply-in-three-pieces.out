@@ -1,0 +1,21 @@
+done:
+open:
+<h2>Shop</h2>
+done:
+<h2>Shopping list</h2>
+open:
+<ul>
+<li>bread</li>
+<li>mi</li>
+</ul>
+done:
+open:
+<ul>
+<li>bread</li>
+<li>milk</li>
+</ul>
+finish:
+<ul>
+<li>bread</li>
+<li>milk</li>
+</ul>

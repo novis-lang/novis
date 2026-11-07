@@ -1,0 +1,23 @@
+<?nvs
+// Measures creating a live Markdown converter and closing it with no text, as a chat server does for each answer.
+// bench: iterations 256
+// bench: calls 4
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Markdown\Live $live = Core\Markdown::live();
+            // The length of the result decides what the next round adds, so no round can be left out.
+            $total = $total + Core\Str::length(Core\Html::toSource($live->finish(), 'the bench counts the HTML')) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

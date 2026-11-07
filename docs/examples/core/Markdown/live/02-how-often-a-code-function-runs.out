@@ -1,0 +1,6 @@
+<pre class="box" data-language="shell">cd app
+nvs run main.nvs
+</pre>
+runs: 3
+<p>That is all.</p>
+runs: 3
