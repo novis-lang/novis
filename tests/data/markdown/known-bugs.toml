@@ -3906,6 +3906,17 @@ direction = "to-html"
 input = "a\n- \t|"
 html = "<p>a</p>\n<ul>\n<li>|</li>\n</ul>\n"
 
+# Found by the `markdown_comrak` differential fuzz target, after the entry above. A list marker may
+# follow up to three spaces, so ` - |` is a list item as well. pulldown-cmark 0.13.6 started a table.
+[[bug]]
+id = "pulldown-cmark-indented-delimiter-row-list-item"
+library = "pulldown-cmark"
+source = "https://github.com/github/cmark-gfm/blob/master/src/blocks.c"
+class = "wrong-output"
+direction = "to-html"
+input = "a\n - |\nb"
+html = "<p>a</p>\n<ul>\n<li>|\nb</li>\n</ul>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"

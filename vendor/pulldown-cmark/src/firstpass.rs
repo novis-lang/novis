@@ -2427,7 +2427,11 @@ fn count_header_cols(
 /// marker is the one such block that interrupts a paragraph; `---` is a setext
 /// underline. The published 0.13.6 started a table.
 fn delimiter_row_is_list_item(bytes: &[u8]) -> bool {
-    scan_listitem(bytes).is_some_and(|(ix, ..)| scan_blank_line(&bytes[ix..]).is_none())
+    // A marker may follow up to three spaces, so ` - |` is a list item too.
+    let spaces = bytes.iter().take(3).take_while(|&&b| b == b' ').count();
+    let bytes = &bytes[spaces..];
+    !matches!(bytes.first(), Some(b' ' | b'\t'))
+        && scan_listitem(bytes).is_some_and(|(ix, ..)| scan_blank_line(&bytes[ix..]).is_none())
 }
 
 fn scan_paragraph_interrupt_no_table(

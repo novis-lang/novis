@@ -116,7 +116,7 @@ which still starts a table, a header row that would be an empty list item, which
 line with a delimiter row after it in the paragraph's container, which is a header row there, a
 blank line that ends an HTML block of types 1 to 5 in a list item, which makes the list loose, a
 lazy `===` line in a reference definition, which is not a setext underline and so is part of it, a delimiter row that
-is a list item with text after its marker, which starts the list, a header row that ends with `\`, whose `\` is the cell's text, a
+is a list item with text after its marker, also after up to three spaces, which starts the list, a header row that ends with `\`, whose `\` is the cell's text, a
 paragraph that a table interrupts, whose lines before the header row are plain text and define no
 reference, as in cmark-gfm, a line in a table indented four columns, which ends the table and starts
 an indented code block, a blank line indented as far as the content of an item that starts with
