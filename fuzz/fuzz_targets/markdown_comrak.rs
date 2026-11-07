@@ -418,17 +418,25 @@ fuzz_target!(|data: &[u8]| {
     // in a code span: `>a \`\n \`c` gives it `<code>  </code>`. On a line its
     // container continues, it removes them, as CommonMark does. A document
     // with a code span and an indented line in such a paragraph is not compared.
-    // A `\r\n` ends one line, so it is split first.
+    // A `\r\n` ends one line, so it is split first. A line with fewer `>`
+    // markers than the line before it, as `><r>` after `>>5`, is lazy too.
     let mut contained = false;
+    let mut depth = 0;
     let code = text.contains('`');
     for line in text.split("\r\n").flat_map(|line| line.split(['\n', '\r'])) {
         let start = line.trim_start_matches([' ', '\t']);
         let marker = start.starts_with(['>', '-', '+', '*'])
             || start.trim_start_matches(|c: char| c.is_ascii_digit()).starts_with(['.', ')']);
+        let quoted = start.trim_start_matches(['>', ' ', '\t']);
+        let quotes = start.len() - quoted.len() - start[..start.len() - quoted.len()].matches([' ', '\t']).count();
         if start.is_empty() {
             contained = false;
+            depth = 0;
+        } else if contained && quotes < depth && quoted.starts_with('<') {
+            return;
         } else if marker {
             contained = true;
+            depth = depth.max(quotes);
         } else if contained && (start.starts_with('<') || (code && start.len() < line.len())) {
             return;
         }
