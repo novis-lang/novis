@@ -785,8 +785,13 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
                         } else {
                             // ok, so its not an inline link. maybe it is a reference
                             // to a defined link?
-                            let scan_result =
-                                scan_reference(&self.tree, block_text, next, self.options);
+                            let scan_result = scan_reference(
+                                &self.tree,
+                                block_text,
+                                self.tree[cur_ix].item.end,
+                                next,
+                                self.options,
+                            );
                             let (node_after_link, link_type) = match scan_result {
                                 // [label][reference]
                                 RefScan::LinkLabel(_, end_ix) => {
@@ -2028,6 +2033,7 @@ fn scan_link_label<'text>(
 fn scan_reference<'b>(
     tree: &Tree<Item>,
     text: &'b str,
+    close_end: usize,
     cur: Option<TreeIndex>,
     options: Options,
 ) -> RefScan<'b> {
@@ -2036,6 +2042,12 @@ fn scan_reference<'b>(
         Some(cur_ix) => cur_ix,
     };
     let start = tree[cur_ix].item.start;
+    // Novis: the second label starts right after the `]`. The node after an
+    // escaped `\[` starts at the `[`, so `[]\[a]` read `[a]` as a label. The
+    // published 0.13.6 does not check the gap.
+    if start != close_end {
+        return RefScan::Failed;
+    }
     let tail = &text.as_bytes()[start..];
 
     if tail.starts_with(b"[]") {
