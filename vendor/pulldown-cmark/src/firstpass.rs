@@ -713,6 +713,43 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                     }
                     break;
                 }
+            } else if current_container {
+                // Novis: cmark-gfm takes a table's header row from the
+                // paragraph, whatever its indentation, so a line indented four
+                // columns or more is a header row when a delimiter row follows.
+                // The published 0.13.6 checked no interrupt on such a line.
+                // The paragraph ends, and the table starts at the header's
+                // first cell, since a new block there would be indented code.
+                let mut header = line_start.clone();
+                header.scan_all_space();
+                let ix_new = ix + header.bytes_scanned();
+                let row = &bytes[ix_new..];
+                let cell = row.get(usize::from(row.first() == Some(&b'|'))..).unwrap_or_default();
+                let filled = cell
+                    .iter()
+                    .find(|&&b| b != b' ' && b != b'\t')
+                    .is_some_and(|&b| b != b'\n' && b != b'\r');
+                if let Some((alignment, end)) =
+                    filled.then(|| self.scan_table_interrupt(row)).flatten()
+                {
+                    if let Some(pos) = trailing_backslash_pos {
+                        self.tree.append_text(pos, pos + 1, false);
+                    }
+                    self.table_visited = false;
+                    self.pop(ix);
+                    let table_cols = alignment.len();
+                    let alignment_ix = self.allocs.allocate_alignment(alignment);
+                    self.tree.append(Item {
+                        start: ix_new,
+                        end: 0, // set by `parse_table`
+                        body: ItemBody::Table(alignment_ix),
+                    });
+                    self.tree.push();
+                    if let Some(after) = self.parse_table(table_cols, ix_new, ix_new + end) {
+                        return after;
+                    }
+                    return ix;
+                }
             }
             line_start.scan_all_space();
             if line_start.is_at_eol() {
@@ -2044,6 +2081,13 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         ) {
             return true;
         }
+        self.scan_table_interrupt(bytes).is_some()
+    }
+
+    /// Whether `bytes`, a line of a paragraph and the lines after it, starts a
+    /// table: a header row and then a delimiter row with as many cells. Gives
+    /// the delimiter row's alignments and the offset after it.
+    fn scan_table_interrupt(&self, bytes: &[u8]) -> Option<(Vec<crate::Alignment>, usize)> {
         // Novis: a table interrupts a paragraph wherever its header row is, as
         // cmark-gfm reads it, so the line before a delimiter row is a header
         // row with or without a leading `|`. The published 0.13.6 let only a
@@ -2056,7 +2100,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         //  d | e | f
         // ```
         if !self.options.contains(Options::ENABLE_TABLES) || self.table_visited {
-            return false;
+            return None;
         }
 
         // Checking if something's a valid table or not requires looking at two lines.
@@ -2087,7 +2131,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
 
         // scan_eol can't return 0, so this can't be zero
         if next_line_ix == 0 {
-            return false;
+            return None;
         }
 
         // Scan the table head. The part that looks like:
@@ -2106,13 +2150,13 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         if scan_containers(&self.tree, &mut line_start, self.options, false)
             != self.tree.spine_len()
         {
-            return false;
+            return None;
         }
         let table_head_ix = next_line_ix + line_start.bytes_scanned();
         let (table_head_bytes, alignment) = scan_table_head(&bytes[table_head_ix..]);
 
         if table_head_bytes == 0 {
-            return false;
+            return None;
         }
 
         // computing header count from number of pipes
@@ -2123,7 +2167,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         };
 
         // make sure they match the number of columns we find in separator line
-        alignment.len() == header_count
+        (alignment.len() == header_count).then_some((alignment, table_head_ix + table_head_bytes))
     }
 
     /// Extracts and parses a heading attribute block if exists.

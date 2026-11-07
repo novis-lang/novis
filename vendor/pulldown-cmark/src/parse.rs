@@ -324,12 +324,30 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
     /// order, read from the first pass alone. Call it before the first event:
     /// the inline pass changes the tree it walks.
     pub fn block_ranges(&self) -> Vec<Range<usize>> {
-        let mut ranges = Vec::new();
+        let mut ranges: Vec<Range<usize>> = Vec::new();
         let mut at = self.tree.cur();
         while let Some(ix) = at {
             crate::steps::add(1);
             let item = &self.tree[ix].item;
-            ranges.push(item.start..item.end);
+            // A table whose header row is indented four columns or more
+            // started inside the paragraph before it, and read alone it
+            // would be indented code, so the two are one range.
+            let inside = matches!(item.body, ItemBody::Table(_)) && {
+                let line = &self.text.as_bytes()[..item.start];
+                let indent = line
+                    .iter()
+                    .rev()
+                    .take_while(|&&b| b == b' ' || b == b'\t')
+                    .count();
+                let columns = line[item.start - indent..].iter().fold(0usize, |column, &b| {
+                    if b == b'\t' { column + 4 - column % 4 } else { column + 1 }
+                });
+                columns >= 4
+            };
+            match ranges.last_mut() {
+                Some(last) if inside => last.end = item.end,
+                _ => ranges.push(item.start..item.end),
+            }
             at = self.tree[ix].next;
         }
         ranges

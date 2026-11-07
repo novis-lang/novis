@@ -3,8 +3,9 @@ and the HTML of the groups joined is the HTML of the whole document. `Core\Markd
 that arrives in pieces, and a block it has finished never changes.
 
 **A block group ends only where nothing is open.** A boundary is never placed inside an open fenced
-code block, an HTML block of types 1 to 5, an unclosed raw HTML element, or a list that continues. A
-document that keeps one open, such as one huge list, becomes one larger group: correctness first.
+code block, an HTML block of types 1 to 5, an unclosed raw HTML element, or a list that continues. Nor
+is one placed before a table whose header row is indented four columns or more: that row is read as a
+header only after a paragraph, and alone it would be indented code. A document that keeps one open, such as one huge list, becomes one larger group: correctness first.
 `rendering_in_chunks_gives_the_same_html_as_the_whole_document` is the acceptance.
 
 **Raw HTML is read with a tokenizer that errs toward one group.** It keeps the elements raw HTML

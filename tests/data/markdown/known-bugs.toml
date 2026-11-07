@@ -3621,6 +3621,18 @@ direction = "to-html"
 input = ">\n\t>a\n\n>x\n\t>b"
 html = "<blockquote>\n</blockquote>\n<pre><code>&gt;a\n</code></pre>\n<blockquote>\n<p>x\n&gt;b</p>\n</blockquote>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. cmark-gfm takes a table's header row from the
+# paragraph, whatever the row's indentation. The 0.13.6 block pass checked no interrupt on a line indented
+# four columns or more, so the header and delimiter rows stayed paragraph text.
+[[bug]]
+id = "pulldown-cmark-indented-table-header-row"
+library = "pulldown-cmark"
+source = "https://github.com/github/cmark-gfm/blob/master/extensions/table.c"
+class = "wrong-output"
+direction = "to-html"
+input = "x\n      a|b\n-|-\nc"
+html = "<p>x</p>\n<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>c</td>\n<td></td>\n</tr>\n</tbody>\n</table>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"

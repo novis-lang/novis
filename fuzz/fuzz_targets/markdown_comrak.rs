@@ -187,7 +187,12 @@ fuzz_target!(|data: &[u8]| {
     // 0.31.2 and cmark hold that for a lazy continuation line too. cmark-gfm
     // and comrak 0.59 do not, so `>a\n<t>` ends their block quote. A document
     // with a `<` line in a paragraph a container started is not compared.
+    // comrak 0.59 also keeps the spaces a lazy line starts with, which shows
+    // in a code span: `>a \`\n \`c` gives it `<code>  </code>`. On a line its
+    // container continues, it removes them, as CommonMark does. A document
+    // with a code span and an indented line in such a paragraph is not compared.
     let mut contained = false;
+    let code = text.contains('`');
     for line in text.split(['\n', '\r']) {
         let start = line.trim_start_matches([' ', '\t']);
         let marker = start.starts_with(['>', '-', '+', '*'])
@@ -196,7 +201,7 @@ fuzz_target!(|data: &[u8]| {
             contained = false;
         } else if marker {
             contained = true;
-        } else if contained && start.starts_with('<') {
+        } else if contained && (start.starts_with('<') || (code && start.len() < line.len())) {
             return;
         }
     }
