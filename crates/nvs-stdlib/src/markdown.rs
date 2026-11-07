@@ -588,6 +588,18 @@ fn prepared(markdown: &str) -> std::borrow::Cow<'_, str> {
     std::borrow::Cow::Owned(out)
 }
 
+/// `text` with each CR LF or lone CR as LF.
+///
+/// [`prepared`] has already done this to the source, so a CR here comes from
+/// an entity such as `&#13;`. An HTML parse reads a CR as LF, so the output
+/// writes LF, the text a browser shows, and a second parse gives the same.
+fn line_feeds(text: &str) -> std::borrow::Cow<'_, str> {
+    if !text.contains('\r') {
+        return std::borrow::Cow::Borrowed(text);
+    }
+    std::borrow::Cow::Owned(text.replace("\r\n", "\n").replace('\r', "\n"))
+}
+
 /// Whether `url` may be written into a link or an image.
 ///
 /// `rule:core-classes/markdown-to-html`'s one URL check, for a URL from the
@@ -882,9 +894,14 @@ impl<'a, 'h> Renderer<'a, 'h> {
     }
 
     /// An element named `name` opened with `attributes`.
-    fn open(&mut self, name: &str, attributes: Vec<(String, String)>) {
+    fn open(&mut self, name: &str, mut attributes: Vec<(String, String)>) {
         let mut node = Parsed::new(Kind::Element);
         node.name.push_str(name);
+        for (_, value) in &mut attributes {
+            if let std::borrow::Cow::Owned(lf) = line_feeds(value) {
+                *value = lf;
+            }
+        }
         node.attributes = attributes;
         self.stack.push(node);
         self.deepest = self.deepest.max(self.stack.len());
@@ -940,6 +957,7 @@ impl<'a, 'h> Renderer<'a, 'h> {
         if text.is_empty() {
             return;
         }
+        let text = &*line_feeds(text);
         self.line_start = text.ends_with('\n');
         let top = self.top();
         if let Some(last) = top.children.last_mut()

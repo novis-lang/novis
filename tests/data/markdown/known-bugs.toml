@@ -3977,6 +3977,18 @@ direction = "to-html"
 input = "[a<b@example.com>c<http://d>](/u)"
 html = "<p><a href=\"/u\">ab@example.comchttp://d</a></p>\n"
 
+# Found by the `markdown` fuzz target. `&#13;` decodes to a CR, and pulldown-cmark 0.13.6 and cmark
+# write it as it is. An HTML parse reads a CR as LF, so the output was not a sanitize fixed point.
+# The output writes LF, in text and in an attribute.
+[[bug]]
+id = "pulldown-cmark-entity-carriage-return"
+library = "pulldown-cmark"
+source = "https://html.spec.whatwg.org/multipage/parsing.html#preprocessing-the-input-stream"
+class = "wrong-output"
+direction = "to-html"
+input = "a&#13;b&#13;&#10;[c](/u \"t&#13;\")"
+html = "<p>a\nb\n<a href=\"/u\" title=\"t\n\">c</a></p>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"
