@@ -3692,6 +3692,28 @@ direction = "to-html"
 input = "x\n+\n-:|\nb"
 html = "<p>x</p>\n<table>\n<thead>\n<tr>\n<th align=\"right\">+</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align=\"right\">b</td>\n</tr>\n</tbody>\n</table>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. A CDATA section ends at `]]>`, so
+# `<![CDATA[]>` is text. pulldown-cmark 0.13.6 ended it at one `]` and wrote it as raw HTML.
+[[bug]]
+id = "pulldown-cmark-cdata-one-bracket"
+library = "pulldown-cmark"
+source = "https://spec.commonmark.org/0.31.2/#cdata-section"
+class = "wrong-output"
+direction = "to-html"
+input = "a<![CDATA[]>b"
+html = "<p>a&lt;![CDATA[]&gt;b</p>\n"
+
+# The same scan: pulldown-cmark 0.13.6 looked only at the first run of `]`, so a section with a
+# lone `]` inside did not end, and was text. It is raw HTML, which the rebuild removes.
+[[bug]]
+id = "pulldown-cmark-cdata-bracket-inside"
+library = "pulldown-cmark"
+source = "https://spec.commonmark.org/0.31.2/#cdata-section"
+class = "wrong-output"
+direction = "to-html"
+input = "a<![CDATA[a]b]]>c"
+html = "<p>ac</p>\n"
+
 # Found by the `markdown_comrak` differential fuzz target. cmark-gfm tries every core block before
 # a table, so a delimiter row that is a list item with text after its marker starts the list.
 # pulldown-cmark 0.13.6 started a table.

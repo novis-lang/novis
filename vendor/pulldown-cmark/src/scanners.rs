@@ -1562,17 +1562,22 @@ pub(crate) fn scan_inline_html_comment(
         // including the string `]]>`, and the string `]]>`.
         b'[' if bytes[ix..].starts_with(b"CDATA[") && ix > scan_guard.cdata => {
             ix += b"CDATA[".len();
-            let from = ix;
-            ix = memchr(b']', &bytes[ix..]).map_or(bytes.len(), |x| ix + x);
-            crate::steps::add(ix - from);
-            let close_brackets = scan_ch_repeat(&bytes[ix..], b']');
-            ix += close_brackets;
-
-            if close_brackets == 0 || bytes.get(ix) != Some(&b'>') {
-                scan_guard.cdata = ix;
-                None
-            } else {
-                Some(ix + 1)
+            // Novis: the section ends at the first `]]>`. The published
+            // 0.13.6 looked only at the first run of `]`, so `<![CDATA[]>`
+            // ended at one `]` and `<![CDATA[a]b]]>` did not end at all.
+            loop {
+                let from = ix;
+                ix = memchr(b']', &bytes[ix..]).map_or(bytes.len(), |x| ix + x);
+                let close_brackets = scan_ch_repeat(&bytes[ix..], b']');
+                ix += close_brackets;
+                crate::steps::add(ix - from);
+                if close_brackets >= 2 && bytes.get(ix) == Some(&b'>') {
+                    return Some(ix + 1);
+                }
+                if ix >= bytes.len() {
+                    scan_guard.cdata = ix;
+                    return None;
+                }
             }
         }
         // A declaration consists of the string `<!`, an ASCII letter, zero or more characters not

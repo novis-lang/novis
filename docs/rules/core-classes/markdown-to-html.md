@@ -110,7 +110,8 @@ has no pipe, which is one cell, a delimiter-row cell, which is GFM's: an optiona
 and an optional colon, between spaces, and a paragraph with a delimiter row that made no table, which
 no later line turns into a table, as in cmark-gfm, a header row indented four columns or more,
 which still starts a table, a header row that would be an empty list item, which is still a header row, a delimiter row that
-is a list item with text after its marker, which starts the list, the entities of an autolink, which resolve as cmark resolves them, a tab, which ends an unquoted
+is a list item with text after its marker, which starts the list, a CDATA section in a paragraph,
+which ends at the first `]]>` as the spec says, the entities of an autolink, which resolve as cmark resolves them, a tab, which ends an unquoted
 attribute value in raw HTML, and a tab that makes a block quote marker on a
 continuing line indented four columns, which ends the quote. One patch adds what
 `toHtmlEach` needs (`rule:core-classes/markdown-chunks`): a parser over one segment reads the

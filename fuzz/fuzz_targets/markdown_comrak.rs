@@ -184,6 +184,13 @@ fuzz_target!(|data: &[u8]| {
     if text.as_bytes().windows(2).any(|w| w[0] == b'\\' && matches!(w[1], b'"' | b'\'' | b')')) {
         return;
     }
+    // A CDATA section ends at the first `]]>`. cmark's pattern, which comrak
+    // 0.59 copies, reads `]]` and one more character as content, so in
+    // `<![CDATA[x]]]>z` it reads past the end and writes text. A document with
+    // a CDATA start and `]]]` is not compared.
+    if text.contains("<![CDATA[") && text.contains("]]]") {
+        return;
+    }
     // A processing instruction ends at the first `?>`. comrak 0.59's scanner
     // reads `?` and the character after it as a pair, so `<?a??>` does not end
     // at `?>` and is text. A document with `??>` is not compared.
