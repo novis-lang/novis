@@ -1177,7 +1177,8 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
                         }
                     }
                     if count > 0 {
-                        if can_open {
+                        let refused = can_close && self.inline_stack.refused;
+                        if can_open && !refused {
                             self.inline_stack.push(InlineEl {
                                 start: cur_ix,
                                 run_length,
@@ -1715,7 +1716,10 @@ struct InlineStack {
     // a `~` delimiter will never match with any element
     // in the stack with index smaller than
     // `lower_bounds[InlineStack::TILDE_ONE]`.
-    lower_bounds: [usize; 10],
+    lower_bounds: [usize; 12],
+    // Novis: whether the last `find_match` was a `~` closer whose nearest `~`
+    // opener has the other length. Such a closer is text, as in cmark-gfm.
+    refused: bool,
 }
 
 impl InlineStack {
@@ -1725,18 +1729,20 @@ impl InlineStack {
     const UNDERSCORE_NOT_BOTH: usize = 0;
     const ASTERISK_NOT_BOTH: usize = 1;
     const ASTERISK_BASE: usize = 2;
-    /// `~` and `~~` match only a run of their own length, so each has its
-    /// own bound. One shared bound let a `~~` closer with no opener move the
+    /// A `~` closer has one bound for each length and for whether it can also
+    /// open, as cmark-gfm keys its openers' bottom. What it may match depends
+    /// on both. One shared bound let a `~~` closer with no opener move the
     /// bound past a `~` opener, and `A~w~~A~w~` lost its strikethrough.
-    const TILDE_ONE: usize = 5;
+    const TILDE_BASE: usize = 5;
     const UNDERSCORE_BASE: usize = 6;
-    const TILDE_TWO: usize = 9;
+    const TILDE_REST: usize = 9;
 
-    fn tilde_bound(run_length: usize) -> usize {
-        if run_length == 1 {
-            InlineStack::TILDE_ONE
-        } else {
-            InlineStack::TILDE_TWO
+    fn tilde_bound(run_length: usize, both: bool) -> usize {
+        match (run_length, both) {
+            (1, false) => InlineStack::TILDE_BASE,
+            (_, false) => InlineStack::TILDE_REST,
+            (1, true) => InlineStack::TILDE_REST + 1,
+            (_, true) => InlineStack::TILDE_REST + 2,
         }
     }
 
@@ -1750,7 +1756,7 @@ impl InlineStack {
                 };
             }
         }
-        self.lower_bounds = [0; 10];
+        self.lower_bounds = [0; 12];
     }
 
     fn get_lowerbound(&self, c: u8, count: usize, both: bool) -> usize {
@@ -1775,7 +1781,7 @@ impl InlineStack {
                 )
             }
         } else {
-            self.lower_bounds[InlineStack::tilde_bound(count)]
+            self.lower_bounds[InlineStack::tilde_bound(count, both)]
         }
     }
 
@@ -1791,7 +1797,7 @@ impl InlineStack {
                 self.lower_bounds[InlineStack::ASTERISK_NOT_BOTH] = new_bound;
             }
         } else {
-            self.lower_bounds[InlineStack::tilde_bound(count)] = new_bound;
+            self.lower_bounds[InlineStack::tilde_bound(count, both)] = new_bound;
         }
     }
 
@@ -1813,6 +1819,25 @@ impl InlineStack {
         both: bool,
     ) -> Option<InlineEl> {
         let lowerbound = min(self.stack.len(), self.get_lowerbound(c, run_length, both));
+        // Novis: a `~` closer matches the nearest `~` opener the rule of three
+        // allows, or none, as in cmark-gfm. An opener of the other length
+        // stops the search: it stays on the stack, and the closer is text. The
+        // published 0.13.6 looked past it.
+        self.refused = false;
+        if c == b'~' {
+            let nearest = self.stack[lowerbound..].iter().rposition(|el| {
+                el.c == b'~'
+                    && (!both && !el.both
+                        || (run_length + el.run_length) % 3 != 0
+                        || run_length % 3 == 0)
+            });
+            if let Some(at) = nearest {
+                if self.stack[lowerbound + at].run_length != run_length {
+                    self.refused = true;
+                    return None;
+                }
+            }
+        }
         let res = self.stack[lowerbound..]
             .iter()
             .cloned()
@@ -1852,7 +1877,10 @@ impl InlineStack {
 
     fn push(&mut self, el: InlineEl) {
         if el.c == b'~' {
-            self.trim_lower_bound(InlineStack::tilde_bound(el.run_length));
+            let rest = InlineStack::TILDE_REST;
+            for ix in [InlineStack::TILDE_BASE, rest, rest + 1, rest + 2] {
+                self.trim_lower_bound(ix);
+            }
         }
         self.stack.push(el)
     }

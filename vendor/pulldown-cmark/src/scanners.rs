@@ -405,11 +405,13 @@ impl<'a> LineStart<'a> {
             *self = save;
             return None;
         }
+        // Novis: the end of the document ends the line as a line feed does.
+        // The published 0.13.6 read `- [x]` at the very end as text.
         if !self
             .bytes
             .get(self.ix)
             .map(|&b| is_ascii_whitespace(b))
-            .unwrap_or(false)
+            .unwrap_or(true)
         {
             *self = save;
             return None;
@@ -679,12 +681,30 @@ pub(crate) fn scan_table_head(data: &[u8]) -> (usize, Vec<Alignment>) {
     if spaces > 3 || i == data.len() {
         return (0, vec![]);
     }
+    // Novis: each cell is GFM's: spaces or tabs, an optional `:`, one or more
+    // `-`, an optional `:`, and spaces or tabs. The published 0.13.6 took a
+    // space or a colon anywhere in a cell, so `:-:-` and `- -` were cells.
+    #[derive(Clone, Copy, PartialEq)]
+    enum Cell {
+        Before,
+        LeftColon,
+        Hyphens,
+        RightColon,
+        After,
+    }
+    fn alignment(left: bool, right: bool) -> Alignment {
+        match (left, right) {
+            (true, true) => Alignment::Center,
+            (true, false) => Alignment::Left,
+            (false, true) => Alignment::Right,
+            (false, false) => Alignment::None,
+        }
+    }
     let mut cols = vec![];
-    let mut active_col = Alignment::None;
-    let mut start_col = true;
+    let mut cell = Cell::Before;
+    let mut left = false;
+    let mut right = false;
     let mut found_pipe = false;
-    let mut found_hyphen = false;
-    let mut found_hyphen_in_col = false;
     if data[i] == b'|' {
         i += 1;
         found_pipe = true;
@@ -695,47 +715,40 @@ pub(crate) fn scan_table_head(data: &[u8]) -> (usize, Vec<Alignment>) {
             i += n;
             break;
         }
-        match *c {
-            b' ' => (),
-            b':' => {
-                active_col = match (start_col, active_col) {
-                    (true, Alignment::None) => Alignment::Left,
-                    (false, Alignment::Left) => Alignment::Center,
-                    (false, Alignment::None) => Alignment::Right,
-                    _ => active_col,
-                };
-                start_col = false;
+        cell = match (*c, cell) {
+            (b' ' | b'\t', Cell::Before) => Cell::Before,
+            (b' ' | b'\t', Cell::Hyphens | Cell::RightColon | Cell::After) => Cell::After,
+            (b':', Cell::Before) => {
+                left = true;
+                Cell::LeftColon
             }
-            b'-' => {
-                start_col = false;
-                found_hyphen = true;
-                found_hyphen_in_col = true;
+            (b':', Cell::Hyphens) => {
+                right = true;
+                Cell::RightColon
             }
-            b'|' => {
-                start_col = true;
+            (b'-', Cell::Before | Cell::LeftColon | Cell::Hyphens) => Cell::Hyphens,
+            (b'|', Cell::Hyphens | Cell::RightColon | Cell::After) => {
                 found_pipe = true;
-                cols.push(active_col);
-                active_col = Alignment::None;
-                if !found_hyphen_in_col {
-                    // It isn't a table head if it has back-to-back pipes.
-                    return (0, vec![]);
-                }
-                found_hyphen_in_col = false;
+                cols.push(alignment(left, right));
+                left = false;
+                right = false;
+                Cell::Before
             }
-            _ => {
-                // It isn't a table head if it has characters outside the allowed set.
-                return (0, vec![]);
-            }
-        }
+            // It isn't a table head if a cell is anything else, or if it has
+            // back-to-back pipes.
+            _ => return (0, vec![]),
+        };
         i += 1;
     }
 
-    if !start_col {
-        cols.push(active_col);
+    match cell {
+        Cell::Before => {}
+        Cell::Hyphens | Cell::RightColon | Cell::After => cols.push(alignment(left, right)),
+        Cell::LeftColon => return (0, vec![]),
     }
-    if !found_pipe || !found_hyphen {
-        // It isn't a table head if it doesn't have a least one pipe or hyphen.
-        // It's a list, a header, or a thematic break.
+    // A row with no pipe is one cell. With no colon it is a setext heading's
+    // underline, which comes first, as in cmark-gfm.
+    if cols.is_empty() || !found_pipe && !left && !right {
         return (0, vec![]);
     }
 

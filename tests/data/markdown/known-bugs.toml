@@ -3514,6 +3514,65 @@ direction = "to-html"
 input = "A~w~~A~w~~"
 html = "<p>A<del>w~~A</del>w~~</p>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. The 0.13.6 inline pass lets a `~~` closer
+# look past a nearer `~` opener. cmark-gfm matches the nearest `~` opener the rule of three allows, or
+# none, and a closer of the other length is text. A `~~` after an escaped `\~` could always close,
+# where GFM reads the `~` before it as punctuation.
+[[bug]]
+id = "pulldown-cmark-tilde-nearest-opener"
+library = "pulldown-cmark"
+source = "https://docs.rs/crate/pulldown-cmark/0.13.6/source/src/parse.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "a ~~b ~c~~ d~\n\n~~:~::~:\n\nx\\~~~a x\\~~~b"
+html = "<p>a ~~b <del>c~~ d</del></p>\n<p>~~:<del>::</del>:</p>\n<p>x~~~a x~~~b</p>\n"
+
+# Found by the `markdown_comrak` differential fuzz target. The 0.13.6 block pass reads a list item with
+# nothing after its task marker as one that starts with a blank line, so a lazy continuation line
+# ends the list. In CommonMark `[ ]` is a paragraph, and the next line continues it.
+[[bug]]
+id = "pulldown-cmark-empty-task-item-laziness"
+library = "pulldown-cmark"
+source = "https://docs.rs/crate/pulldown-cmark/0.13.6/source/src/firstpass.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "- [ ] \nfoo"
+html = "<ul>\n<li><input disabled=\"\" type=\"checkbox\"> \nfoo</li>\n</ul>\n"
+
+# Found by the `markdown_comrak` differential fuzz target. The 0.13.6 task marker scan needs a byte
+# after `]`, so a task item at the very end of the document, with no line ending, is text.
+[[bug]]
+id = "pulldown-cmark-task-marker-at-end"
+library = "pulldown-cmark"
+source = "https://docs.rs/crate/pulldown-cmark/0.13.6/source/src/scanners.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "- [x]"
+html = "<ul>\n<li><input checked=\"\" disabled=\"\" type=\"checkbox\"> </li>\n</ul>\n"
+
+# Found by the `markdown_comrak` differential fuzz target. The 0.13.6 table scan needs a pipe in the
+# header row and in the delimiter row. GFM needs only as many header cells as the delimiter row has,
+# so `a` over `-|` and over `-:` is a table. `a` over `---` is a setext heading, which comes first.
+[[bug]]
+id = "pulldown-cmark-table-header-without-pipe"
+library = "pulldown-cmark"
+source = "https://docs.rs/crate/pulldown-cmark/0.13.6/source/src/firstpass.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "a\n-|\nb\n\nc\n-:\n\nd\n---"
+html = "<table>\n<thead>\n<tr>\n<th>a</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>b</td>\n</tr>\n</tbody>\n</table>\n<table>\n<thead>\n<tr>\n<th align=\"right\">c</th>\n</tr>\n</thead>\n</table>\n<h2>d</h2>\n"
+
+# Found by the `markdown_comrak` differential fuzz target. The 0.13.6 delimiter-row scan takes a colon or
+# a space anywhere in a cell. GFM allows a colon only at a cell's start or end, so `:-:-` is not a cell.
+[[bug]]
+id = "pulldown-cmark-table-delimiter-cell"
+library = "pulldown-cmark"
+source = "https://docs.rs/crate/pulldown-cmark/0.13.6/source/src/scanners.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "|a|\n|:-:-|\n\n|b|\n|- -|"
+html = "<p>|a|\n|:-:-|</p>\n<p>|b|\n|- -|</p>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"

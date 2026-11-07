@@ -153,17 +153,14 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                             end: start_ix + line_start.bytes_scanned(),
                             body: ItemBody::TaskListMarker(is_checked),
                         });
+                    // Novis: the marker starts a paragraph even when nothing
+                    // follows it on its line, as `[ ]` is one in CommonMark, so a
+                    // lazy continuation line joins it. The published 0.13.6
+                    // read such an item as one that starts with a blank line.
                     if let Some(task_list_marker) = task_list_marker {
-                        if let Some(n) = scan_blank_line(&bytes[task_list_marker.end..]) {
-                            let end = task_list_marker.end;
-                            self.tree.append(task_list_marker);
-                            self.begin_list_item = Some(end + n);
-                            return end + n;
-                        } else {
-                            line_start.scan_all_space();
-                            let ix = start_ix + line_start.bytes_scanned();
-                            return self.parse_paragraph(ix, Some(task_list_marker));
-                        }
+                        line_start.scan_all_space();
+                        let ix = start_ix + line_start.bytes_scanned();
+                        return self.parse_paragraph(ix, Some(task_list_marker));
                     }
                 }
             } else if let Some((indent, child, item)) = self
@@ -829,7 +826,9 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                         );
                     }
 
-                    if mode == TableParseMode::Scan && pipes > 0 {
+                    // Novis: a header row with no pipe is one cell, as GFM and
+                    // cmark-gfm read it. The published 0.13.6 needed a pipe.
+                    if mode == TableParseMode::Scan {
                         // check if we may be parsing a table
                         let next_line_ix = ix + eol_bytes;
                         let mut line_start = LineStart::new(&bytes[next_line_ix..]);
@@ -842,8 +841,11 @@ impl<'a, 'b> FirstPass<'a, 'b> {
 
                             if table_head_bytes > 0 {
                                 // computing header count from number of pipes
-                                let header_count =
-                                    count_header_cols(bytes, pipes, start, last_pipe_ix);
+                                let header_count = if pipes == 0 {
+                                    1
+                                } else {
+                                    count_header_cols(bytes, pipes, start, last_pipe_ix)
+                                };
 
                                 // make sure they match the number of columns we find in separator line
                                 if alignment.len() == header_count {
@@ -2019,21 +2021,18 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         ) {
             return true;
         }
-        // pulldown-cmark allows heavy tables, that have a `|` on the header row,
-        // to interrupt paragraphs.
+        // Novis: a table interrupts a paragraph wherever its header row is, as
+        // cmark-gfm reads it, so the line before a delimiter row is a header
+        // row with or without a leading `|`. The published 0.13.6 let only a
+        // header row that starts with `|` interrupt.
         //
         // ```markdown
-        // This is a table
-        // | a | b | c |
-        // |---|---|---|
-        // | d | e | f |
-        //
-        // This is not a table
+        // This is a paragraph, and a table follows it
         //  a | b | c
         // ---|---|---
         //  d | e | f
         // ```
-        if !self.options.contains(Options::ENABLE_TABLES) || !bytes.starts_with(b"|") {
+        if !self.options.contains(Options::ENABLE_TABLES) {
             return false;
         }
 
@@ -2094,7 +2093,11 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         }
 
         // computing header count from number of pipes
-        let header_count = count_header_cols(bytes, pipes, 0, last_pipe_ix);
+        let header_count = if pipes == 0 {
+            1
+        } else {
+            count_header_cols(bytes, pipes, 0, last_pipe_ix)
+        };
 
         // make sure they match the number of columns we find in separator line
         alignment.len() == header_count
@@ -2333,9 +2336,6 @@ fn delim_run_can_open(
         return true;
     }
     let prev_char = s[..ix].chars().last().unwrap();
-    if delim == b'~' && prev_char == '~' && !is_punctuation(next_char) {
-        return true;
-    }
 
     prev_char.is_whitespace()
         || is_punctuation(prev_char) && (delim != b'\'' || ![']', ')'].contains(&prev_char))
@@ -2373,11 +2373,10 @@ fn delim_run_can_close(
     }
     let delim = suffix.bytes().next().unwrap();
     // `*` and `~` can be intraword, `_` cannot.
-    // Novis: a single `~` reads as `*` does, as in `delim_run_can_open`.
+    // Novis: a single `~` reads as `*` does, as in `delim_run_can_open`. A
+    // `~` before the run, which only an escaped `\~` can be, is punctuation as
+    // in GFM. The published 0.13.6 let a run after it always close.
     if (delim == b'*' || delim == b'~') && !is_punctuation(prev_char) {
-        return true;
-    }
-    if delim == b'~' && prev_char == '~' {
         return true;
     }
 

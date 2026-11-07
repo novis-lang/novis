@@ -34,8 +34,56 @@ fn options() -> comrak::Options<'static> {
 }
 
 /// `html`'s meaning with the differences the rule chose removed.
+///
+/// - A link whose URL fails the scheme check is written as its text, where
+///   comrak writes the link and the sanitizer then removes its `href`. An `a`
+///   with no attributes is removed and its text kept. An `a` never holds
+///   another, so each `</a>` closes the last `<a` before it. An image whose
+///   URL fails is removed, where comrak's loses its `src`, so an `img` with no
+///   `src` is removed.
+/// - A tab is a space, and a paragraph starts with no space. comrak 0.59 keeps
+///   the spaces and tabs a paragraph starts with when a reference definition
+///   before them is removed. CommonMark removes them, and a browser shows both
+///   the same.
 fn normal(html: &str) -> String {
-    fuzz::html_meaning(html)
+    let mut spaced = String::with_capacity(html.len());
+    for ch in fuzz::html_meaning(html).chars() {
+        let ch = if ch == '\t' { ' ' } else { ch };
+        if !(ch == ' ' && (spaced.ends_with(' ') || spaced.ends_with("<p>"))) {
+            spaced.push(ch);
+        }
+    }
+    let meaning = spaced;
+    let mut out = String::with_capacity(meaning.len());
+    let mut bare = false;
+    let mut rest = meaning.as_str();
+    while let Some(at) = rest.find('<') {
+        out.push_str(&rest[..at]);
+        rest = &rest[at..];
+        if let Some(after) = rest.strip_prefix("<a>") {
+            bare = true;
+            rest = after;
+        } else if let Some(after) = rest.strip_prefix("</a>") {
+            if !bare {
+                out.push_str("</a>");
+            }
+            bare = false;
+            rest = after;
+        } else if let Some(end) = rest.starts_with("<img").then(|| rest.find('>')).flatten() {
+            if rest[..end].contains(" src=") {
+                out.push_str(&rest[..=end]);
+            }
+            rest = &rest[end + 1..];
+        } else {
+            if rest.starts_with("<a ") {
+                bare = false;
+            }
+            out.push('<');
+            rest = &rest[1..];
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 fuzz_target!(|data: &[u8]| {
@@ -73,6 +121,28 @@ fuzz_target!(|data: &[u8]| {
     // code span and no other: "``a `b` `c`" gives it one `code` element, and
     // CommonMark two. A document with such a run is not compared.
     if text.contains("``") {
+        return;
+    }
+    // CommonMark 0.31.2 counts only spaces and tabs as the whitespace around a
+    // link's destination, after a table's delimiter row and in other places.
+    // comrak 0.59 follows 0.29, which also counts a vertical tab and a form
+    // feed, so `[a](b\u{c})` is a link and `--\u{c}` a delimiter row. A document
+    // with either is not compared.
+    if text.contains(['\u{b}', '\u{c}']) {
+        return;
+    }
+    // When a `~` closer's nearest opener has the other length, cmark-gfm
+    // writes the closer as text and goes on. comrak 0.59 stops, and every
+    // delimiter after it in the paragraph is text. A document with a `~` run
+    // and a `~~` run is not compared.
+    let mut runs = text.split(|c| c != '~').map(str::len);
+    if runs.clone().any(|n| n == 1) && runs.any(|n| n == 2) {
+        return;
+    }
+    // A processing instruction ends at the first `?>`. comrak 0.59's scanner
+    // reads `?` and the character after it as a pair, so `<?a??>` does not end
+    // at `?>` and is text. A document with `??>` is not compared.
+    if text.contains("??>") {
         return;
     }
     // CommonMark 0.31.2 reads `<!X>` as a declaration, which is raw HTML.

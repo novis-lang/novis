@@ -1094,8 +1094,13 @@ mark, the table and code-block attributes, unused footnotes, extended autolinks 
 are ours. The patches are tabs after an ATX closing sequence and a closing fence, a vertical tab in an
 indented line, a definition-only list item, a DEL byte in a link destination, indentation inside a
 code span on continuation lines, emphasis inside a footnote label, strikethrough's `~` and `~~`, which
-open and close as `*` does in GFM and keep one lower bound each, a hard line break that only spaces make, not
-tabs, and an ATX heading whose `#` a vertical tab or form feed follows, which is text. One patch adds what
+open and close as `*` does in GFM and keep one lower bound each, a `~` closer, which matches the
+nearest `~` opener or is text, a hard line break that only spaces make, not
+tabs, an ATX heading whose `#` a vertical tab or form feed follows, which is text, a task item
+with nothing after its marker, whose next line is a lazy continuation and which may end the
+document, a table whose header row
+has no pipe, which is one cell, and a delimiter-row cell, which is GFM's: an optional colon, hyphens
+and an optional colon, between spaces. One patch adds what
 `toHtmlEach` needs ([`core-classes/markdown-chunks`](core-classes.md#core-classes-markdown-chunks)): a parser over one segment reads the
 document's reference and footnote definitions and its expansion fuel from outside its text, and
 reports where its top-level blocks start and end after the block pass alone. comrak's quadratic autolink
@@ -1153,8 +1158,9 @@ which seven of the catalogued libraries shipped.
 the other engine the choice was measured against. Each difference is triaged into our bug, fixed and
 catalogued, or a spec reading, one line in [`core-classes/markdown-to-html`](core-classes.md#core-classes-markdown-to-html). Where comrak 0.59
 departs from the spec, the differential does not compare: footnotes (written as this rule writes them),
-extended autolinks, a delimiter beside a Unicode symbol, `~` beside `*` or `_`, a declaration, and a run of two or more backticks. The target's comments
-give each case. The other two targets cover these documents.
+extended autolinks, a delimiter beside a Unicode symbol, `~` beside `*` or `_`, a `~` run beside a `~~` run, a declaration, a processing instruction that ends `??>`, a run
+of two or more backticks, and a vertical tab or form feed, which 0.29 counted as whitespace. The target's
+comments give each case. The other two targets cover these documents.
 
 **Memory:** `toHtml` holds the document, its output tree and its reference and footnote definitions,
 all attributed to the request and freed with it. `toHtmlEach` and `Live` hold less, as
