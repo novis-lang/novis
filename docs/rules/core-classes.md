@@ -878,6 +878,15 @@ unwrapped otherwise, because `html`, `head` and `body` are elements the algorith
 fragment. An attribute the list does not grant is not written, and a `href` or `src` naming a scheme
 outside the ones that fetch is not written either.
 
+**A document that fostered a node or lost a wrapper is rebuilt twice.** Foster parenting moves content
+out of a table into the element around it, and so builds nesting no source builds:
+`<ul><li>a<table><tr><li>b` puts one `li` inside another, and a second parse of the answer closes the
+first. Unwrapping an element the list does not hold, such as an `applet` between two `li`, does the
+same. So when the parse fostered a node, or the rebuild unwrapped an element other than `html`,
+`head` and `body`, the answer is parsed and rebuilt once more, up to three passes in all. A document
+with neither costs one pass. One with either costs a second parse of an answer no larger than itself,
+and the extra latency is spent on the mutation-XSS property below.
+
 **A relative reference never names a host.** A URL value that starts with two of `/` and `\`, once tab,
 line feed and carriage return are removed as a browser removes them, is scheme-relative: `//host`, and
 `\\host`, `/\host` and `\/host` because a browser reads a backslash there as a slash. It is not written.
@@ -1025,7 +1034,11 @@ not applied, because raw HTML goes through the rebuild below and the filter's ta
 Extended autolinks are read as cmark-gfm reads them, where comrak differs: the period of `www.` counts
 as the domain's period, and a host may hold any character outside ASCII. They are always on, so the
 five CommonMark examples that write a bare URL or email address as text (602, 606, 608, 611 and 612)
-write it as a link, as GitHub does.
+write it as a link, as GitHub does. A loose task item's box is written right after `<li>`, in front of
+its first paragraph, as cmark-gfm writes it. Raw HTML in an image's description is its source text in
+the `alt`, as cmark writes it. An HTML block of type 7 cannot interrupt a paragraph, and that holds for
+a lazy continuation line too, as in CommonMark 0.31.2 and cmark. cmark-gfm and comrak start the block
+there. That is a CommonMark construct and not a GFM one, so the CommonMark reading wins.
 
 **Footnotes are written at the end**, after an `hr`, as an `ol` in the order they are first referenced.
 A definition nothing references is not written. Each reference is a `sup` holding a link to its note,
@@ -1033,7 +1046,9 @@ and each note ends with a link back to its first reference.
 
 **Raw HTML is rebuilt, never stripped and never passed through.** A document's raw HTML is parsed with
 the rest of its output by the WHATWG algorithm and rebuilt through [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize)'s
-list. A document with no raw HTML skips the rebuild, because the renderer writes only elements and
+list. Before that parse, the output's text has each `"` written as `&quot;`, as cmark writes it, so a
+raw attribute value that does not close runs to the end of the document, as a browser reads cmark's
+output. A document with no raw HTML skips the rebuild, because the renderer writes only elements and
 attributes on that list. `sanitizing_the_output_again_changes_nothing` is the property that makes the
 skip safe.
 
@@ -1090,22 +1105,51 @@ the 670 enabled GFM examples and the 441 to-html entries of the known-bug catalo
 | A 6.5 MB document | 111 ms | 367 ms |
 
 Every pulldown-cmark failure is written in our layer or is a small patch. NUL, a leading byte-order
-mark, the table and code-block attributes, unused footnotes, extended autolinks and the output budget
-are ours. The patches are tabs after an ATX closing sequence and a closing fence, a vertical tab in an
+mark, the table and code-block attributes, a code block's language, which is the first word of its
+info string once that is decoded and then trimmed as cmark does, unused footnotes, extended autolinks and the output budget
+are ours, and so is an angle autolink inside a link's text, which is written as its text: cmark and
+pulldown-cmark write one `a` inside another, which no HTML parse builds again. A CR that an entity
+such as `&#13;` decodes to is written as LF, in text and in an attribute, since an HTML parse reads
+it so. The patches are a setext underline under a task marker with nothing after it, which panicked,
+a list that ends where a reference definition after it starts, tabs after an ATX closing sequence and a closing fence, a vertical tab in an
 indented line, a definition-only list item, a DEL byte in a link destination, indentation inside a
 code span on continuation lines, emphasis inside a footnote label, strikethrough's `~` and `~~`, which
 open and close as `*` does in GFM and keep one lower bound each, a `~` closer, which matches the
 nearest `~` opener or is text, a hard line break that only spaces make, not
-tabs, an ATX heading whose `#` a vertical tab or form feed follows, which is text, a task item
+tabs, an ATX heading whose `#` a vertical tab or form feed follows, which is text, a task marker
+with a tab between its brackets, which is text, as cmark-gfm's `[ ]` allows only a space, a task
+marker after tabs that make four or more columns, which is an indented code block, a second
+link label after an escaped `\[`, which is text, the end tag of an HTML block of types 1 to 5,
+such as `</PRE>`, which is matched in any case, a task item
 with nothing after its marker, whose next line is a lazy continuation and which may end the
-document, a table whose header row
-has no pipe, which is one cell, and a delimiter-row cell, which is GFM's: an optional colon, hyphens
-and an optional colon, between spaces. One patch adds what
+document, and which in a loose list has no paragraph when no line joins it, a table whose header row
+has no pipe, which is one cell, a delimiter-row cell, which is GFM's: an optional colon, hyphens
+and an optional colon, between spaces, and a paragraph with a delimiter row that made no table, which
+no later line turns into a table, as in cmark-gfm, a header row indented four columns or more,
+which still starts a table, a header row that would be an empty list item, which is still a header row, a lazy continuation
+line with a delimiter row after it in the paragraph's container, which is a header row there, a
+blank line that ends an HTML block of types 1 to 5 in a list item, which makes the list loose, a
+lazy `===` line in a reference definition, which is not a setext underline and so is part of it, a delimiter row that
+is a list item with text after its marker, also after up to three spaces, which starts the list, a header row that ends with `\`, whose `\` is the cell's text, a
+paragraph that a table interrupts, whose lines before the header row are plain text and define no
+reference, as in cmark-gfm, a line in a table indented four columns, which ends the table and starts
+an indented code block, a blank line indented as far as the content of an item that starts with
+a blank line, which keeps the item open as in cmark, a line in a table that starts an HTML block of type 7, which ends the
+table although it could not interrupt a paragraph, an inline comment or processing instruction that continues on a
+container's next line, which does not include that line's container marker, a closing tag with a
+line ending before its `>`, which is a tag as the spec says, a link title right after a `<…>`
+destination with no space between them, which makes no link, a CDATA section in a paragraph,
+which ends at the first `]]>` as the spec says, the entities of an autolink, which resolve as cmark resolves them, a tab, which ends an unquoted
+attribute value in raw HTML, and a tab that makes a block quote marker on a
+continuing line indented four columns, which ends the quote. One patch adds what
 `toHtmlEach` needs ([`core-classes/markdown-chunks`](core-classes.md#core-classes-markdown-chunks)): a parser over one segment reads the
 document's reference and footnote definitions and its expansion fuel from outside its text, and
 reports where its top-level blocks start and end after the block pass alone. comrak's quadratic autolink
 scan fails criterion (b), and it is three times slower. A patched engine is vendored under `vendor/`
-with an entry in `[patch.crates-io]`, as `html5ever` is.
+with an entry in `[patch.crates-io]`, as `html5ever` is. A `\` in a link title is always an escape,
+as in CommonMark 0.31.2 and in cmark since its issue 607, so `[a](/u "\")` is text. cmark-gfm and
+comrak keep the older pattern, where it is a link with the title `\`, and the published engine
+already reads it as cmark does.
 
 **Declined:**
 - **An options bag or a flavour switch.** Each option doubles what must be tested and what a reader of
@@ -1158,9 +1202,40 @@ which seven of the catalogued libraries shipped.
 the other engine the choice was measured against. Each difference is triaged into our bug, fixed and
 catalogued, or a spec reading, one line in [`core-classes/markdown-to-html`](core-classes.md#core-classes-markdown-to-html). Where comrak 0.59
 departs from the spec, the differential does not compare: footnotes (written as this rule writes them),
-extended autolinks, a delimiter beside a Unicode symbol, `~` beside `*` or `_`, a `~` run beside a `~~` run, a declaration, a processing instruction that ends `??>`, a run
-of two or more backticks, and a vertical tab or form feed, which 0.29 counted as whitespace. The target's
-comments give each case. The other two targets cover these documents.
+extended autolinks, among them an email whose `@` is an entity, which cmark-gfm reads in the
+decoded text and comrak 0.59 in the source, a delimiter beside a Unicode symbol, `~` beside `*` or `_`, a `~` run beside a `~~` run, a declaration, a definition's title with text after it on its line, which cmark now drops and comrak 0.59 keeps,
+a `\` before a link title's closing delimiter, which cmark reads as an escape since its
+issue 607 and comrak 0.59 may read as a character, a processing instruction that ends `??>`, an HTML comment
+whose text ends with `-`, which 0.29 did not allow, a CDATA section with `]]]`, which cmark's pattern reads
+past its end, `<![CDATA[` in lower case, which comrak reads as HTML and cmark as text, a `---` under a paragraph of reference definitions alone, which cmark now reads as a
+thematic break, a task marker with an inline
+right after its `]`, a task marker that starts a line with no list marker before it, which cmark-gfm's
+scan of the whole line does not read as a box and comrak 0.59 does, a destination in `<…>` that starts or ends with whitespace, which cmark trims and the spec
+keeps, a link label near 1,000 bytes,
+which the spec limits to 999 characters and cmark to 1,000 bytes, a second link label of whitespace alone, as in `[a][ ]`, which the spec reads as
+text after a shortcut reference and cmark as a collapsed reference, a lazy line that would start an HTML block of type 7 or starts with spaces inside a code span, nesting past comrak's depth of 100, a `\&` before an entity in a link
+destination, which cmark decodes and the spec and commonmark.js read as text, a run
+of two or more backticks, a `\\|`, where cmark-gfm removes the `\` in front of a table cell's `|`
+and comrak 0.59 keeps it after a pair of backslashes, a `\|` in a code span or raw HTML of a
+paragraph a table interrupts, where cmark-gfm removes the `\` and CommonMark keeps it, a `\r\n` in a code span, which comrak writes as two spaces, a blank line after a thematic break in a list item, which makes
+the list loose in current cmark and not in cmark-gfm, a `~~~` fence beside a lone `\r`,
+after which comrak drops a line that holds only the fence's indentation, and a vertical tab or form feed, which 0.29 counted as whitespace. comrak writes a `%` with no two hex
+digits after it in a URL as `%25`. cmark and this renderer write it as it is, and the target maps that
+difference away. comrak 0.59 lets references add at most 100,000 bytes and at most the document's
+length, where cmark allows at least 100,000, so the target gives comrak a longer document when a
+reference is text. A raw `<a>` tag is not compared either, since the target's mapping of a nested
+link cannot follow the parser's close of it, and for the same reason neither is an angle autolink
+beside raw HTML in a document with a link. Nor is a document where comrak writes a link inside a link,
+as it does for `[[a](u)[b]](v)`, which cmark and the spec write as `[`, the link `a` and text, or a
+link around an image whose text holds a link, as in `[![[]()[]]()]()`. The target's comments give each case. The other two targets cover these documents.
+
+**The differential is a tool run by hand, not a check.** `bun nv fuzz markdown_comrak` runs it, and
+CI's fuzz lane runs only `markdown` and `markdown_from_html`. Its triage stopped once its finds were
+cmark-gfm conformance edge cases with no security value; the security finds, two sanitizer
+fixed-point fixes, landed. So on unusual input the output may still differ from cmark-gfm's, as
+`[a]:\n-|-\n-|-` does, where cmark-gfm reads a definition and ours a paragraph. Such a difference is
+fixed when a user meets it, with a catalogue entry. In CI those open differences would turn the deep
+run red at random, which says nothing about safety.
 
 **Memory:** `toHtml` holds the document, its output tree and its reference and footnote definitions,
 all attributed to the request and freed with it. `toHtmlEach` and `Live` hold less, as
@@ -1186,8 +1261,9 @@ and the HTML of the groups joined is the HTML of the whole document. `Core\Markd
 that arrives in pieces, and a block it has finished never changes.
 
 **A block group ends only where nothing is open.** A boundary is never placed inside an open fenced
-code block, an HTML block of types 1 to 5, an unclosed raw HTML element, or a list that continues. A
-document that keeps one open, such as one huge list, becomes one larger group: correctness first.
+code block, an HTML block of types 1 to 5, an unclosed raw HTML element, or a list that continues. Nor
+is one placed before a table whose header row is indented four columns or more: that row is read as a
+header only after a paragraph, and alone it would be indented code. A document that keeps one open, such as one huge list, becomes one larger group: correctness first.
 `rendering_in_chunks_gives_the_same_html_as_the_whole_document` is the acceptance.
 
 **Raw HTML is read with a tokenizer that errs toward one group.** It keeps the elements raw HTML
@@ -1236,6 +1312,13 @@ read again and a string's capacity can be twice its length. Any other source cos
 well. `Live` costs its open block plus the definitions. All of it is attributed to the request.
 `to_html_each_holds_one_block_group_of_a_file_not_the_document` holds the bound.
 
+**A parse is asked of the memory limit before it runs.** Each parse of uncut text, to find a cut or
+to read a segment's definitions, holds a tree of a few items per line. One segment can be large: a
+run of reference definitions is one block, so many of them are one segment. So the request must
+afford the text plus 512 bytes per line first, the most a line of short definitions was measured to
+hold, or the call stops at the memory limit. A `Live` frees its state when the object is freed, so
+one never finished costs nothing after its last use.
+
 **Declined:**
 - **Re-rendering a finished `Live` block when a later reference resolves it.** A caller that appended
   the block cannot take it back, and a part that changes is a part the caller must diff.
@@ -1265,8 +1348,9 @@ every sink. A `Markup` input pays for it with a tainted result, which `toHtml` a
 are. Taking a node does not open a path back into execution, because the member returns text alone;
 `a_parsed_tree_has_no_path_back_into_execution` allows exactly that shape.
 
-**How text stays text.** `` \ ` * _ [ ] < > & | ~ `` always get a backslash, and `# - + =` and the
-`.` or `)` after a number get one at the start of a line. A backslash cannot stop a GFM extended
+**How text stays text.** `` \ ` * _ [ ] < > & | ~ `` always get a backslash, and `# - + = :` and the
+`.` or `)` after a number get one at the start of a line, where `:-` would start a table's
+delimiter row. A `!` right before a link's `[` gets one too, or the link would be an image. A backslash cannot stop a GFM extended
 autolink, since the renderer finds those after escapes are read, so a text that would autolink is cut
 with an empty comment `<!-- -->` before the `.` of `www.`, the `:` of `://` and the `@` of an address.
 The sanitizer drops the comment. Emphasis whose content starts or ends with punctuation is written as
@@ -1282,15 +1366,29 @@ bounds both the native stack and the copy each level makes of its content, which
 
 **The writing rules.**
 
-- Whitespace collapses by the CSS rules for inline and block elements.
+- Whitespace collapses by the CSS rules for inline and block elements. CSS white space is a space, a
+  tab and a line break; a form feed is a character a browser shows, so it stays in the text.
+- A `<br>` is written where a browser shows a line for it. A browser shows no line for one break
+  alone at the end of a block with content before it, so that one is dropped. Two or more there are
+  all written, so the result is the same when it is read and written again. A break between two pieces of text is a backslash at the end of the
+  line. Markdown has no syntax for a break with no text before or after it in its block, so that one
+  is `<br />`, inline HTML.
 - A GFM table is written when every cell holds only inline content and no cell uses `colspan` or
   `rowspan`. Any other table is written as sanitized HTML.
+- A `div`, and any other container with no Markdown syntax, is unwrapped: its children are written as
+  blocks of the container around it. An element with no content, such as an empty paragraph or list,
+  is written as nothing, since a browser shows nothing for it.
 - A code block's fence is one backtick longer than the longest run of backticks inside it.
 - A URL goes through the same check [`core-classes/markdown-to-html`](core-classes.md#core-classes-markdown-to-html) applies, so a link the
   sanitizer would drop is written as its text.
+- A URL is written percent-encoded as the renderer writes an `href`, so `/Straße` is `/Stra%C3%9Fe`.
+  Written as it was, it would render to the encoded `href`, and `fromHtml` run twice would differ. It
+  costs readability for a URL with a space or a non-ASCII character. Declined: decoding an `href` to
+  readable text, which changes the URL where it holds an encoded `/` or `%`.
 
 `fromHtml` run twice gives the same Markdown, and Markdown rendered to HTML and written back keeps its
-meaning. Both are tests.
+meaning. Both are tests. The second holds for Markdown with no raw HTML: raw HTML comes back as Markdown
+where Markdown has the construct, so a `div` it holds does not come back.
 
 **Large documents: the parse streams, and the tree is held whole.** The WHATWG tree builder still
 changes a top-level node after a later one has opened. Text that arrives inside a table before any
