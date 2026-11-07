@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join, relative } from "node:path";
-import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, DOCS, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, inDepthProblems, paragraphs, parseRequest, proseProblems, serveRun, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, TOOL_SECTIONS, toolsProblems, type Served, type World } from "../cmd/site.ts";
+import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, codeBlocks, codeProblems, DOCS, fenceInfo, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, inDepthProblems, paragraphs, parseRequest, proseProblems, serveRun, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, TOOL_SECTIONS, toolsProblems, type Served, type World } from "../cmd/site.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -419,6 +419,83 @@ describe("nv site --check prose", () => {
 
   test("a code span counts as one word", () => {
     expect(proseProblems(`\`${"a ".repeat(40)}\` is fine.`)).toEqual([]);
+  });
+});
+
+describe("nv site --check code", () => {
+  const PAGE = [
+    "---",
+    "title: Code",
+    "covers: []",
+    "---",
+    "",
+    "```toml",
+    "[server]",
+    "```",
+    "",
+    "<Tabs>",
+    "  <TabItem label=\"Linux\">",
+    "    ```bash",
+    "    nvs serve",
+    "    ```",
+    "  </TabItem>",
+    "</Tabs>",
+    "",
+    '```sh skip="installs a system service"',
+    "sudo nvs service install",
+    "```",
+    "",
+    "```txt skip",
+    "a tree",
+    "```",
+    "",
+    "```",
+    "no language",
+    "```",
+    "",
+    "````md",
+    "```html",
+    "<p>inner</p>",
+    "```",
+    "````",
+    "",
+    "```nvs",
+    "echo 1;",
+    "```",
+  ].join("\n");
+
+  test("a fence's language goes through the aliases, and a reason may be quoted or bare", () => {
+    expect(fenceInfo("bash")).toEqual({ lang: "sh", attrs: new Map() });
+    expect(fenceInfo(` toml fragment title="nvs.toml"`)).toEqual({ lang: "toml", attrs: new Map([["fragment", ""], ["title", "nvs.toml"]]) });
+    expect(fenceInfo(`sh skip='a "service"' x=y`).attrs).toEqual(new Map([["skip", 'a "service"'], ["x", "y"]]));
+  });
+
+  test("an indented fence keeps its body without the indent, and a longer fence holds a shorter one", () => {
+    const { blocks, problems } = codeBlocks("a.mdx", PAGE);
+    expect(problems).toEqual([]);
+    expect(blocks.map((b) => [b.line, b.lang])).toEqual([[6, "toml"], [12, "sh"], [18, "sh"], [22, "txt"], [26, ""], [30, "md"], [36, "nvs"]]);
+    expect(blocks[1]!.text).toBe("nvs serve");
+    expect(blocks[5]!.text).toBe("```html\n<p>inner</p>\n```");
+  });
+
+  test("a fence never closed is named", () => {
+    expect(codeBlocks("a.mdx", "x\n```sh\nnvs run\n").problems).toEqual([`${DOCS}/a.mdx:2: a fence that is never closed`]);
+  });
+
+  test("each block is run by its language's check, or skipped with a reason, and the rest are named", async () => {
+    site();
+    s.put(`${DOCS}/guides/code.mdx`, PAGE);
+    const ran: string[] = [];
+    const checks = { toml: (b: { text: string }) => (ran.push(b.text), b.text === "[server]" ? ["`[server]` is wrong"] : []) };
+    const at = (line: number) => `${DOCS}/guides/code.mdx:${line}`;
+    expect(await codeProblems({ root: s.root, nvs: null }, checks)).toEqual([
+      `${at(6)}: \`[server]\` is wrong`,
+      `${at(12)}: a \`sh\` block that no check runs: check it, or write skip="<why>" in its fence`,
+      `${at(22)}: \`skip\` with no reason: write skip="<why no check runs it>"`,
+      `${at(26)}: a block with no language: name it after the fence`,
+      `${at(30)}: a \`md\` block that no check runs: check it, or write skip="<why>" in its fence`,
+    ]);
+    expect(ran).toEqual(["[server]"]);
   });
 });
 

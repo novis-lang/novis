@@ -274,12 +274,20 @@
 // `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`), `tools` (see
 // `toolsProblems`), `in-depth`
 // (see `inDepthProblems`), `apps` (see `appsProblems`), `shots` (§ *A screenshot*), `roadmap` (the
-// roadmap is in step with the goal chain and the README: `lib/site-roadmap.ts`) and `prose` (the
+// roadmap is in step with the goal chain and the README: `lib/site-roadmap.ts`), `code` (§ *A code
+// block*) and `prose` (the
 // countable bounds of AGENTS.md
 // § *Text an end user reads* over every handwritten page's prose: no sentence over 25 words, no dash
 // joining two sentences, and no paragraph over six sentences). The legal pages are kept out of `prose`,
 // since their wording is the law's, and so is the text inside an `<Opinion>`, since its wording is its
 // author's.
+//
+// **A code block** is a fenced block of a handwritten page. `code` runs each one by its language's check
+// in `CODE_CHECKS`, after `CODE_ALIASES` names the language (`bash` is `sh`). A block no check can run
+// says why in its fence, ```` ```sh skip="installs a system service" ````, and a `skip` with no reason
+// fails. A block with no language, or in a language `CODE_CHECKS` does not list, fails too. An `nvs`
+// fence is `snippets`' to fail. CI does not run `code` yet: the goal `website-code-checked` adds each
+// language's check and then the part.
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -316,7 +324,7 @@ const GENERATED = ["reference/core/"];
 /** Pages whose wording is fixed by law, and which `prose` does not judge. */
 const LEGAL = ["impressum.mdx", "datenschutz.mdx"];
 
-export const PARTS = ["structure", "snippets", "stale", "questions", "reference", "syntax", "guides", "tools", "in-depth", "apps", "shots", "roadmap", "prose"] as const;
+export const PARTS = ["structure", "snippets", "stale", "questions", "reference", "syntax", "guides", "tools", "in-depth", "apps", "shots", "roadmap", "prose", "code"] as const;
 type Part = (typeof PARTS)[number];
 /** Where `--build` writes the site, which `reference` reads. */
 const DIST = "website/dist";
@@ -1712,6 +1720,104 @@ export function proseProblems(body: string): string[] {
   return problems;
 }
 
+/** One fenced block of a handwritten page, as `code` reads it. */
+export interface CodeBlock {
+  /** The page's path under `DOCS`. */
+  key: string;
+  /** The line of the opening fence, counting from the file's first line. */
+  line: number;
+  /** The fence's language after `CODE_ALIASES`, or `""` when it names none. */
+  lang: string;
+  /** The fence's attributes: `skip="why"` is `skip` → `why`, and a bare `fragment` is `fragment` → `""`. */
+  attrs: Map<string, string>;
+  /** The lines between the fences, with the opening fence's indent taken off. */
+  text: string;
+}
+
+/** What `code` passes each language's check besides the block. */
+export interface CodeContext {
+  root: string;
+  nvs: string | null;
+}
+
+/** A language's check: one problem per thing wrong with the block, with no `page:line` in front. */
+export type CodeCheck = (block: CodeBlock, ctx: CodeContext) => Promise<string[]> | string[];
+
+/** The other names a fence may give a language, and the name `CODE_CHECKS` knows it by. */
+export const CODE_ALIASES: Record<string, string> = { bash: "sh", shell: "sh", zsh: "sh", console: "sh", yml: "yaml", caddy: "caddyfile", text: "txt", plaintext: "txt", ps1: "powershell", cmd: "bat", rs: "rust", markdown: "md", docker: "dockerfile" };
+
+/** The check that runs each language's blocks. A language missing here is one no check runs yet. */
+export const CODE_CHECKS: Record<string, CodeCheck> = {};
+
+/** Languages another part owns: an `nvs` fence on a page is `snippets`' failure. */
+const CODE_ELSEWHERE = new Set(["nvs"]);
+
+/** A fence's info string as its language and attributes. A value is bare or in double or single quotes. */
+export function fenceInfo(info: string): { lang: string; attrs: Map<string, string> } {
+  const word = /^\S*/.exec(info.trim())![0];
+  const attrs = new Map<string, string>();
+  for (const m of info.trim().slice(word.length).matchAll(/([\w-]+)(?:=(?:"([^"]*)"|'([^']*)'|(\S+)))?/g)) attrs.set(m[1]!, m[2] ?? m[3] ?? m[4] ?? "");
+  const lang = word.toLowerCase();
+  return { lang: CODE_ALIASES[lang] ?? lang, attrs };
+}
+
+/**
+ * Every fenced block of one page. A fence may be indented, as one inside a `<TabItem>` is, and closes
+ * on a line of the same character at least as long. A fence never closed is one problem.
+ */
+export function codeBlocks(key: string, text: string): { blocks: CodeBlock[]; problems: string[] } {
+  const blocks: CodeBlock[] = [];
+  const lines = text.split("\n");
+  let open: { line: number; fence: string; indent: number; info: string; body: string[] } | null = null;
+  lines.forEach((raw, i) => {
+    if (open) {
+      const close = /^\s*(`{3,}|~{3,})\s*$/.exec(raw);
+      if (close && close[1]![0] === open.fence[0] && close[1]!.length >= open.fence.length) {
+        blocks.push({ key, line: open.line, ...fenceInfo(open.info), text: open.body.join("\n") });
+        open = null;
+      } else open.body.push(raw.slice(Math.min(open.indent, /^\s*/.exec(raw)![0].length)));
+      return;
+    }
+    const m = /^(\s*)(`{3,}|~{3,})(.*)$/.exec(raw);
+    if (m && !(m[2]![0] === "`" && m[3]!.includes("`"))) open = { line: i + 1, fence: m[2]!, indent: m[1]!.length, info: m[3]!, body: [] };
+  });
+  const unclosed = open as { line: number } | null;
+  return { blocks, problems: unclosed ? [`${DOCS}/${key}:${unclosed.line}: a fence that is never closed`] : [] };
+}
+
+/**
+ * `code`: every fenced block of every handwritten page is run by its language's check in `CODE_CHECKS`,
+ * or carries `skip="why"` in its fence. A `skip` with no reason, a block with no language and a
+ * language no check runs are each named as `page:line`.
+ */
+export async function codeProblems(ctx: CodeContext, checks: Record<string, CodeCheck> = CODE_CHECKS): Promise<string[]> {
+  const problems: string[] = [];
+  for (const page of pages(ctx.root)) {
+    const found = codeBlocks(page.key, page.text);
+    problems.push(...found.problems);
+    for (const block of found.blocks) {
+      const at = `${DOCS}/${block.key}:${block.line}`;
+      const skip = block.attrs.get("skip");
+      if (skip !== undefined) {
+        if (!skip.trim()) problems.push(`${at}: \`skip\` with no reason: write skip="<why no check runs it>"`);
+        continue;
+      }
+      if (CODE_ELSEWHERE.has(block.lang)) continue;
+      if (!block.lang) {
+        problems.push(`${at}: a block with no language: name it after the fence`);
+        continue;
+      }
+      const check = checks[block.lang];
+      if (!check) {
+        problems.push(`${at}: a \`${block.lang}\` block that no check runs: check it, or write skip="<why>" in its fence`);
+        continue;
+      }
+      for (const p of await check(block, ctx)) problems.push(`${at}: ${p}`);
+    }
+  }
+  return problems;
+}
+
 /** The `nvs` binary as an absolute path, since the apps and the snippets run it from other directories:
  * the one named, or the newest built (`lib/nvs-binary.ts`). */
 export function binary(explicit: string | undefined): string | null {
@@ -2058,7 +2164,8 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
           return proseProblems(p.body).map((x) => `${DOCS}/${p.key}:${Number(x.split(":")[0]) + offset}:${x.slice(x.indexOf(":") + 1)}`);
         })
         .concat(diagramProblems(ROOT, DOCS, proseProblems));
-    } else if (nvs === null) problems = ["no `nvs` binary: build one, or pass --nvs"];
+    } else if (part === "code") problems = await codeProblems({ root: ROOT, nvs });
+    else if (nvs === null) problems = ["no `nvs` binary: build one, or pass --nvs"];
     else if (part === "snippets") problems = await snippetProblems(nvs);
     else if (part === "apps") problems = await appsProblems(nvs);
     else if (part === "shots") problems = await shotsProblems(nvs);
