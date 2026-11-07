@@ -333,6 +333,20 @@ names a Markdown renderer as a sink.
     `4n`, and 32 bytes per input byte plus the budget. A from-html entry is skipped until stage 7 sets
     `FROM_HTML_BUILT`. The engine counts steps only with debug assertions (`vendor/pulldown-cmark/src/steps.rs`),
     so release pays nothing; a loop a later patch adds to the engine calls `crate::steps::add` too.
+17. **Where pulldown-cmark and cmark-gfm differ, cmark-gfm wins** (stage 9). Decision 2's flavour is
+    GFM, and cmark-gfm is its reference and what GitHub renders with. So a table's header row
+    interrupts a paragraph without a leading `|`, as cmark-gfm reads it, although upstream chose
+    otherwise on purpose. comrak is a port of cmark-gfm, but where comrak departs from it (a `~`
+    length mismatch stops all emphasis after it), the differential skips and cmark-gfm's reading is
+    built. Each such patch is a catalogue entry, so the rule's patch list and the catalogue agree.
+18. **The sanitizer parses in no-quirks mode** (stage 9, `rule:core-classes/html-sanitize`). A
+    document with no doctype parsed in quirks mode, where `<table>` does not close a `<p>`, so
+    `<p>a<table></p>` rebuilt as a `p` inside a `p` and was not a fixed point. The answer is
+    written into a page with `<!DOCTYPE html>`, so `sanitize` and `Core\Markdown`'s rebuild parse
+    as that page does (`html::parse_in_page`, html5ever's patched `never_quirks`), whatever doctype
+    the input has. `Core\Html::parse` and `fromHtml` keep quirks mode for a page with no doctype,
+    as a browser does. Declined: no-quirks everywhere, which would make `Core\Html::parse` build a
+    different tree from a browser's for such a page.
 
 ## Stages
 
@@ -583,47 +597,53 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 9 is half done, in one commit. All three targets build in WSL.
-- **Seam**: `fuzz.rs` has `markdown_groups`, `markdown_live`, `html_meaning` (attributes sorted)
-  and `MARKDOWN_ADDED_OUTPUT`, over `markdown::grouped_in` and `live_in`. The tests use them.
-- **Targets** `markdown`, `markdown_from_html`, `markdown_comrak`, with bins, `comrak` 0.59, the
-  missing `pulldown-cmark` patch row (the fuzz lock lacked it since stage 3) and `fuzz/dicts/`.
-- **`bun nv fuzz <target> --runs <n>`** runs one target in WSL. CI's `fuzz-smoke` has a leg 4.
-- **Runs**: `markdown` 20,000 clean. `markdown_from_html` not run. `markdown_comrak` stops at the
-  first difference, at about 3,400 inputs a second.
-- **Fixed, each catalogued after `pulldown-cmark-issue-1074`**: a code block at the end ends with a
-  line feed; `~` and `~~` follow `*`'s flanking; only spaces make a hard break; `#` and a vertical
-  tab is text. The rule's patch list names each.
-- **Skipped in `markdown_comrak`**, listed in `markdown-cost.md`: footnotes, extended autolinks, a
-  delimiter beside a symbol, `~` with `*` or `_`, `<!X`, and two backticks.
-- **No Rust test ran.** The engine patches may move spec examples.
-- **Sweep reds**: `env-secret-proofs` matches no check. The Miri timeouts are the tests `f13f4064`
-  skips, and `main` is 199 commits ahead of `origin`, so no nightly has the fix yet.
+Stage 9's differential triage is well along, in three commits this session (`9edd84b4`,
+`21528eff`, `912072ec`). All three targets build in WSL.
+- **A sanitizer bug, fixed** (decision 18): `sanitize('<p>a<table></p>')` was not a fixed point,
+  because a document with no doctype parsed in quirks mode. The mXSS corpus in `html.rs` and the
+  Markdown fixed-point test now hold `<p>a<table></p>` and a quirky-doctype variant.
+- **Engine fixes, each catalogued after `pulldown-cmark-heading-vertical-tab`**: `~` bounds keyed
+  by length and by whether the closer can open; a `~` closer matches the nearest `~` opener the
+  rule of three allows, or is text; no `~~` closes just because a `\~` is before it; a task item
+  with nothing after its marker is a paragraph (laziness, and the marker at the document's end);
+  a header row with no pipe; a pipe-less delimiter row with a colon; a header row interrupting a
+  paragraph without a leading `|` (decision 17); GFM's delimiter-cell grammar.
+- **Skipped in `markdown_comrak`**, listed in `markdown-cost.md`: a vertical tab or form feed
+  (0.29 whitespace); a `~` run beside a `~~` run (comrak's `insert_emph` returns `None` on a
+  length mismatch and stops all emphasis after it); `??>` (its scanner misses `?>`). Its `normal`
+  drops an attribute-less `a` and an `img` with no `src`, and reads a tab and a paragraph's
+  leading space as layout.
+- **Green, run once by name**: `--lib markdown::`, `--test markdown_known_bugs`, the mXSS test.
+- **Sweep reds**: `env-secret-proofs` has no check and no log in the tree; the driver's sweep
+  names something that does not exist here. The Miri reds are the tests `f13f4064` skips, not yet
+  pushed, so no nightly has the fix.
 
 ### Next
 
 Stage 9, the rest. Ticks are under stage 9's items. Each fuzz run is
 `bun nv fuzz <target> --runs <n>`; the crash input is printed, and stored under
-`/var/tmp/nvs-fuzz-artifacts/<target>/` in WSL.
+`/var/tmp/nvs-fuzz-artifacts/<target>/` in WSL. A probe script under `.agent-tmp/` run with
+`./target/debug/nvs run` shows our exact HTML fast; comrak's source is in WSL at
+`~/.cargo/registry/src/index.crates.io-*/comrak-0.59.0/src/parser/`.
 
-- [ ] **The next engine fix** at `vendor/pulldown-cmark/src/parse.rs:1728`: `"A~w~~A~w~~"` gives
-  comrak `A<del>w~~A</del>w~~`, and ours no `del`. `InlineStack` keeps one lower bound for every
-  `~` length (`const TILDES`, used by `get_lowerbound`/`set_lowerbound`). A `~~`
-  closer that finds no opener moves the bound past a `~` opener. Give `~` and `~~` a bound each
-  (`lower_bounds` grows to 10), add a catalogue entry, and rerun `markdown_comrak`.
-- [ ] **Triage to 1,000,000 clean runs** at `fuzz/fuzz_targets/markdown_comrak.rs:41`. Our bug: a fix and a catalogue entry, as at
-  `tests/data/markdown/known-bugs.toml:3465` (`source` may be the docs.rs source URL of the 0.13.6
-  file). comrak's bug or a 0.29 reading: a skip there and the list at
-  `docs/rules/core-classes/markdown-cost.md:28`.
+- [ ] **The open difference** at `fuzz/fuzz_targets/markdown_comrak.rs:163`:
+  `"![a<div>](gip/g.n)\"\0"` gives ours `<img alt="a" src="gip/g.n">"` and comrak a text
+  `" src="gip/g.n">"` with no `img`. Raw HTML inside an image's alt text: read comrak's
+  alt writer first. cmark writes inline HTML in alt as escaped text. If comrak breaks its own
+  attribute, it is a skip; if ours should keep `<div>` as alt text, it is an engine fix.
+- [ ] **Triage to 1,000,000 clean runs** at `fuzz/fuzz_targets/markdown_comrak.rs:41`. Our bug: a
+  fix and a catalogue entry, as at `tests/data/markdown/known-bugs.toml:3465`. comrak's bug or a
+  0.29 reading: a skip there and the list at `docs/rules/core-classes/markdown-cost.md:28`.
 - [ ] **1,000,000 runs each** of `fuzz/fuzz_targets/markdown.rs:22` and
   `fuzz/fuzz_targets/markdown_from_html.rs:18`, triaged the same way.
-- [ ] **Then run once by name** (`crates/nvs-stdlib/src/markdown/tests.rs:120`):
-  `cargo test --lib markdown::` and
-  `cargo test --test markdown_known_bugs`, since the engine patches can move spec examples. Fix
-  any red before stage 10.
+- [ ] **Then run once by name** again (`crates/nvs-stdlib/src/markdown/tests.rs:120`): `cargo test --lib markdown::`,
+  `cargo test --test markdown_known_bugs` and
+  `cargo test --lib parse_sanitize_serialise_reparse`. Fix any red before stage 10.
 
 Expected red: the floor check `proofs-gate`, since the four members owe their feature proofs until
-stage 10. Possibly red at the gate, not run this session: `registry.rs`'s
+stage 10. Possibly red at the gate, not run this session: a conformance case or PDF test that
+sanitizes `<p>` around a `<table>` with no doctype, since decision 18 changes that answer;
+`registry.rs`'s
 `a_class_with_slots_has_instance_members_and_the_reverse`, `crates/nvs-stdlib/tests/ext_world.rs`,
 and card or website checks that see the new `fromHtml` member. Stage 11 may run as a side goal.
 
@@ -641,3 +661,6 @@ and card or website checks that see the new `fromHtml` member. Stage 11 may run 
   A document with many unclosed `<p>` tags in raw HTML is then one group. That is correct, and costs
   memory only for such a document.
 - Live's `open` is checked only by the conformance case and the `markdown` fuzz target.
+- A `~` run beside a `~~` run is not compared with comrak, so cmark-gfm's reading there is checked
+  only by the catalogue entry `pulldown-cmark-tilde-nearest-opener`. A comrak release that fixes
+  its `insert_emph` lets the differential compare it again.
