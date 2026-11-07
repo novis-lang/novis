@@ -1,6 +1,7 @@
 <?nvs
 namespace Poll;
 
+use Core\Config;
 use Core\Db;
 use Core\Http\Method;
 use Core\Str;
@@ -80,10 +81,14 @@ final class AppTest
     }
 
     #[Test]
-    public function everyPageHasAStrictContentSecurityPolicy(): void
+    public function thePagesMayLoadFilesOnlyFromThisServer(): void
     {
-        var $response = Test::request(Method::Get, '/');
-        Test::assertSame($response->header('content-security-policy'), "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+        // The server adds this header to every response. `Test::request` returns only the headers
+        // that the program sets, so the test reads the setting from `nvs.toml`.
+        string $policy = Config::get('http.headers.content_security_policy') ?? '';
+        Test::assertTrue(Str::contains($policy, "default-src 'none'"));
+        Test::assertTrue(Str::contains($policy, "connect-src 'self'"));
+        Test::assertSame(Str::contains($policy, 'unsafe-inline'), false);
     }
 
     #[Test]

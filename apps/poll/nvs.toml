@@ -3,6 +3,12 @@
 [server]
 listen = ["127.0.0.1:8145"]
 
+# The browser may load scripts, styles and images only from this server, and open
+# connections only to this server. The pages have no inline script, so this strict policy works.
+# Novis adds `frame-ancestors 'none'` by itself, so no other website can show the pages in a frame.
+[http.headers]
+content_security_policy = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'"
+
 # The polls and the votes are kept in the SQLite file `poll.sqlite`, next to this file.
 # Novis creates the file when the first request opens the database.
 [db.poll]

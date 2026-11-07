@@ -64,33 +64,33 @@ nvs test .
 
 ```txt
   Poll\AppTest
-    ✓ theHomePageShowsTheForm          86.3 ms
-    ✓ aPollWithOneAnswerShowsTheProblem 85.6 ms
-    ✓ aMissingPollIsNotFound           97.1 ms
-    ✓ thePollPageShowsAButtonForEachAnswer 207.6 ms
-    ✓ aVoteGoesBackToThePollAndGivesTheBrowserAnId 177.8 ms
-    ✓ aSecondVoteFromTheSameBrowserChangesItsVote 55.2 ms
-    ✓ everyPageHasAStrictContentSecurityPolicy 48.4 ms
-    ✓ theScriptAndTheStylesAreSent     1.7 ms
-    ✓ aVoteForAnAnswerThatDoesNotExistIsNotFound 254.0 ms
-    ✓ aVoteFromAnotherSiteIsRefused    95.3 ms
+    ✓ theHomePageShowsTheForm          5.3 ms
+    ✓ aPollWithOneAnswerShowsTheProblem 5.4 ms
+    ✓ aMissingPollIsNotFound           5.4 ms
+    ✓ thePollPageShowsAButtonForEachAnswer 119.0 ms
+    ✓ aVoteGoesBackToThePollAndGivesTheBrowserAnId 78.2 ms
+    ✓ aSecondVoteFromTheSameBrowserChangesItsVote 47.6 ms
+    ✓ thePagesMayLoadFilesOnlyFromThisServer 0.1 ms
+    ✓ theScriptAndTheStylesAreSent     0.8 ms
+    ✓ aVoteForAnAnswerThatDoesNotExistIsNotFound 27.0 ms
+    ✓ aVoteFromAnotherSiteIsRefused    7.7 ms
   Poll\DraftTest
-    ✓ aQuestionAndTwoAnswersAreValid   2.1 ms
-    ✓ emptyLinesAndSpacesAreLeftOut    2.2 ms
-    ✓ aQuestionWithOnlySpacesIsNotValid 0.2 ms
-    ✓ oneAnswerIsNotEnough             0.2 ms
-    ✓ sevenAnswersAreTooMany           0.2 ms
-    ✓ aLongAnswerIsNotValid            0.5 ms
+    ✓ aQuestionAndTwoAnswersAreValid   0.0 ms
+    ✓ emptyLinesAndSpacesAreLeftOut    0.1 ms
+    ✓ aQuestionWithOnlySpacesIsNotValid 0.0 ms
+    ✓ oneAnswerIsNotEnough             0.1 ms
+    ✓ sevenAnswersAreTooMany           0.0 ms
+    ✓ aLongAnswerIsNotValid            0.0 ms
   Poll\LiveTest
-    ✓ aVoteReachesAnOpenStream         41.6 ms
+    ✓ aVoteReachesAnOpenStream         84.3 ms
   Poll\StoreTest
-    ✓ aSavedPollHasItsAnswersInOrder   4.0 ms
-    ✓ twoBrowsersCountTwice            3.0 ms
-    ✓ aSecondVoteFromTheSameBrowserChangesIt 2.8 ms
-    ✓ aVoteForAnAnswerOfAnotherPollIsNotCounted 13.7 ms
-    ✓ aMissingPollIsNull               30.2 ms
+    ✓ aSavedPollHasItsAnswersInOrder   0.9 ms
+    ✓ twoBrowsersCountTwice            1.0 ms
+    ✓ aSecondVoteFromTheSameBrowserChangesIt 1.1 ms
+    ✓ aVoteForAnAnswerOfAnotherPollIsNotCounted 0.9 ms
+    ✓ aMissingPollIsNull               0.6 ms
 
-  0 failed, 22 passed, 0 skipped, 0 flaky in 301 ms
+  0 failed, 22 passed, 0 skipped, 0 flaky in 126 ms
 ```
 
 The tests in `AppTest` and `LiveTest` save a poll in `poll.sqlite` and delete it again at the end.
@@ -102,7 +102,7 @@ checks that the new results arrive on the stream.
 
 ```txt
 poll/
-  nvs.toml             the configuration: the port, the two databases and the permission to open them
+  nvs.toml             the configuration: the port, the security policy, the two databases and the permission to open them
   public/
     index.nvs          the entry file: every request starts here
     poll.js            the browser script: opens the event stream and updates the numbers
@@ -155,9 +155,10 @@ can become HTML. A click on an answer sends the vote with `fetch`, so the page s
 sends files from `public` by itself. A server in production mode sends no file by itself, so the
 routes are needed there.
 
-`public/index.nvs` sets the header `Content-Security-Policy` on every response. The browser then
-loads scripts, styles and event streams from this website only. The pages have no inline script and
-no inline style, so this strict policy works. A script that an attacker puts into a page does not run.
+`[http.headers] content_security_policy` in `nvs.toml` sets the header `Content-Security-Policy`
+on every response, the error pages and the files too. The browser then loads scripts, styles and
+event streams from this website only. The pages have no inline script and no inline style, so this
+strict policy works. A script that an attacker puts into a page does not run.
 
 ## The routes
 
@@ -295,8 +296,8 @@ request.
   No text that a user wrote is sent to the streams.
 - **A form from another website is not accepted.** Novis checks the `Origin` header of each `POST`.
   A vote sent from another website gets the status `403`, and `Gate::refused` shows the page.
-- **The pages run only their own scripts.** The header `Content-Security-Policy` allows scripts,
-  styles and event streams from this website only.
+- **The pages run only their own scripts.** The `Content-Security-Policy` in `nvs.toml` allows
+  scripts, styles and event streams from this website only.
 - **Each browser has one vote in each poll.** A browser that deletes its cookies gets a new id and
   a new vote. A second browser does too. So this is good for a team poll, and not for an election.
   For a real vote, add a login, and use the id of the user in place of the cookie.
