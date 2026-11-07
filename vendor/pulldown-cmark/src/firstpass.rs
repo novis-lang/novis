@@ -778,20 +778,20 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                 // paragraph, so a line that cannot interrupt a paragraph, such
                 // as an empty list item, is still a header row. The published
                 // 0.13.6 ended the paragraph there and read the line as a new
-                // block, so `x\n+\n-:|` was an empty list.
-                let lazy_table = match table {
-                    Some((alignment, end)) if current_container => {
-                        return self.table_from_header(
-                            ix,
-                            ix_new,
-                            alignment,
-                            end,
-                            trailing_backslash_pos,
-                        );
-                    }
-                    table => table.is_some(),
-                };
-                if other || lazy_table {
+                // block, so `x\n+\n-:|` was an empty list. A lazy line is a
+                // header row too: `scan_table_interrupt` finds the delimiter
+                // row only in the paragraph's container, and cmark-gfm builds
+                // the table there, so `>a\nb\n>-` is a table in the quote.
+                if let Some((alignment, end)) = table {
+                    return self.table_from_header(
+                        ix,
+                        ix_new,
+                        alignment,
+                        end,
+                        trailing_backslash_pos,
+                    );
+                }
+                if other {
                     if let Some(pos) = trailing_backslash_pos {
                         self.tree.append_text(pos, pos + 1, false);
                     }
@@ -2213,7 +2213,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                     return false;
                 }
                 if self.scan_table_interrupt(&bytes[ix_new..]).is_some() {
-                    return current_container;
+                    return true;
                 }
             } else if current_container {
                 let mut header = line_start.clone();
