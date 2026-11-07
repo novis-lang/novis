@@ -361,6 +361,14 @@ names a Markdown renderer as a sink.
     where its open differences would turn the deep run red at random. `tools/nv/test/fuzz-smoke.test.ts`
     names it in `BY_HAND`. `rule:core-classes/markdown-cost` says the output on unusual input may
     differ from cmark-gfm. The stage's 1,000,000-run item covers `markdown` and `markdown_from_html`.
+21. **`markdown_from_html`'s round trip skips Markdown with raw HTML** (stage 9). Its first find
+    after the break fix was the Markdown `<ul>`: sanitized `<ul></ul>`, written back as nothing.
+    `fromHtml` unwraps a `div` and writes nothing for an empty element by design, so raw HTML can
+    never come back tag for tag, and each such shape would be a find. Readable Markdown is the
+    member's purpose, so the property narrows instead (`fuzz::markdown_has_raw_html`). Raw HTML
+    stays covered by the target's other property, `fromHtml` stable over any input.
+    `rule:core-classes/markdown-from-html` now states the unwrap and the narrowed promise. Declined:
+    writing every `div` or empty element as HTML, which fills common pages' Markdown with tags.
 
 ## Stages
 

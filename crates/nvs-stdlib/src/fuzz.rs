@@ -192,6 +192,13 @@ pub fn from_html(html: &str) -> String {
     crate::markdown::from_html_text(html).expect("no memory limit")
 }
 
+/// Whether `text` holds raw HTML, which `Core\Markdown::toHtml` passes
+/// through the sanitizer and `Core\Markdown::fromHtml` may write another way.
+#[must_use]
+pub fn markdown_has_raw_html(text: &str) -> bool {
+    crate::markdown::has_raw_html(text)
+}
+
 /// How many bytes of output a Markdown document may add beyond its own
 /// length (`rule:core-classes/markdown-cost`).
 pub const MARKDOWN_ADDED_OUTPUT: usize = crate::markdown::ADDED_OUTPUT_SLACK;

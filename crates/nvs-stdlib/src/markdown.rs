@@ -561,6 +561,13 @@ fn options() -> Options {
         | Options::ENABLE_TASKLISTS
 }
 
+/// Whether the engine reads raw HTML anywhere in `markdown`. Only the fuzz
+/// targets ask, so it parses the document once more.
+pub(crate) fn has_raw_html(markdown: &str) -> bool {
+    Parser::new_ext(&prepared(markdown), options())
+        .any(|event| matches!(event, Event::Html(_) | Event::InlineHtml(_)))
+}
+
 /// `markdown` as the engine reads it: without a leading byte-order mark, NUL
 /// as U+FFFD, and each CR LF or lone CR as LF.
 ///

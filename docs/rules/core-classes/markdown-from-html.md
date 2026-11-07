@@ -35,12 +35,16 @@ bounds both the native stack and the copy each level makes of its content, which
   it in its block, so that one is `<br />`, inline HTML.
 - A GFM table is written when every cell holds only inline content and no cell uses `colspan` or
   `rowspan`. Any other table is written as sanitized HTML.
+- A `div`, and any other container with no Markdown syntax, is unwrapped: its children are written as
+  blocks of the container around it. An element with no content, such as an empty paragraph or list,
+  is written as nothing, since a browser shows nothing for it.
 - A code block's fence is one backtick longer than the longest run of backticks inside it.
 - A URL goes through the same check `rule:core-classes/markdown-to-html` applies, so a link the
   sanitizer would drop is written as its text.
 
 `fromHtml` run twice gives the same Markdown, and Markdown rendered to HTML and written back keeps its
-meaning. Both are tests.
+meaning. Both are tests. The second holds for Markdown with no raw HTML: raw HTML comes back as Markdown
+where Markdown has the construct, so a `div` it holds does not come back.
 
 **Large documents: the parse streams, and the tree is held whole.** The WHATWG tree builder still
 changes a top-level node after a later one has opened. Text that arrives inside a table before any
