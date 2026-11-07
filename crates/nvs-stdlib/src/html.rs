@@ -1763,6 +1763,15 @@ enum Step<'a> {
 /// a member that took a flag to pick between them would be the one ambiguity
 /// that rule retired.
 pub(crate) fn source(tree: &Parsed) -> String {
+    source_with(tree, false)
+}
+
+/// [`source`], with each `"` in text also written as `&quot;` when `quoted`.
+/// `Core\Markdown` writes a tree with raw HTML this way before the rebuild
+/// parses it, as cmark writes text. A raw tag whose quoted attribute value
+/// does not close then runs to the end of the document, as a browser reads
+/// cmark's output, and a `"` in the Markdown text after it does not close it.
+pub(crate) fn source_with(tree: &Parsed, quoted: bool) -> String {
     let mut out = String::new();
     let mut work = Vec::new();
     stacked(tree, false, &mut work);
@@ -1773,7 +1782,7 @@ pub(crate) fn source(tree: &Parsed) -> String {
                 out.push_str(name);
                 out.push('>');
             }
-            Step::Write(node, literal) => written_out(node, literal, &mut out, &mut work),
+            Step::Write(node, literal) => written_out(node, literal, quoted, &mut out, &mut work),
         }
     }
     out
@@ -1792,8 +1801,14 @@ fn stacked<'a>(node: &'a Parsed, literal: bool, work: &mut Vec<Step<'a>>) {
 }
 
 /// `node` written to `out`, with whatever it leaves for later pushed onto
-/// `work`.
-fn written_out<'a>(node: &'a Parsed, literal: bool, out: &mut String, work: &mut Vec<Step<'a>>) {
+/// `work`, and each `"` in text written as `&quot;` when `quoted`.
+fn written_out<'a>(
+    node: &'a Parsed,
+    literal: bool,
+    quoted: bool,
+    out: &mut String,
+    work: &mut Vec<Step<'a>>,
+) {
     match node.kind {
         // A document inside a document is not something either parser builds;
         // if one is ever handed here it is a bag of children, which is what
@@ -1802,6 +1817,16 @@ fn written_out<'a>(node: &'a Parsed, literal: bool, out: &mut String, work: &mut
         Kind::Text => {
             if literal || node.name == RAW_SOURCE {
                 out.push_str(&node.text);
+            } else if quoted {
+                for part in node.text.split_inclusive('"') {
+                    match part.strip_suffix('"') {
+                        Some(before) => {
+                            escape_into(before, false, out);
+                            out.push_str("&quot;");
+                        }
+                        None => escape_into(part, false, out),
+                    }
+                }
             } else {
                 escape_into(&node.text, false, out);
             }

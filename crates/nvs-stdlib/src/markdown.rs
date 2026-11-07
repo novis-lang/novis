@@ -66,7 +66,7 @@ use pulldown_cmark::{Alignment, CodeBlockKind, Event, LinkType, Options, Parser,
 
 use crate::html::{
     MARKUP, MARKUP_NAME, OPEN_ELEMENTS_CAP, RAW_SOURCE, addressable, bounded, language_class,
-    markdown_id, settled, source,
+    markdown_id, settled, source_with,
 };
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -1601,7 +1601,7 @@ pub(crate) fn rendered_with(
     hooks: &mut dyn Callbacks,
 ) -> Result<String, Fault> {
     let (tree, rebuild, trusted) = tree_with(markdown, hooks)?;
-    let out = source(&tree);
+    let out = source_with(&tree, rebuild);
     if !rebuild {
         return Ok(trusted.spliced(out));
     }

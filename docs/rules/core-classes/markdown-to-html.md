@@ -40,7 +40,9 @@ and each note ends with a link back to its first reference.
 
 **Raw HTML is rebuilt, never stripped and never passed through.** A document's raw HTML is parsed with
 the rest of its output by the WHATWG algorithm and rebuilt through `rule:core-classes/html-sanitize`'s
-list. A document with no raw HTML skips the rebuild, because the renderer writes only elements and
+list. Before that parse, the output's text has each `"` written as `&quot;`, as cmark writes it, so a
+raw attribute value that does not close runs to the end of the document, as a browser reads cmark's
+output. A document with no raw HTML skips the rebuild, because the renderer writes only elements and
 attributes on that list. `sanitizing_the_output_again_changes_nothing` is the property that makes the
 skip safe.
 

@@ -40,7 +40,7 @@ use nvs_runtime::Fault;
 #[cfg(test)]
 use super::callbacks::Callbacks;
 use super::callbacks::Trusted;
-use crate::html::{settled, source};
+use crate::html::{settled, source_with};
 use crate::xml::Parsed;
 
 /// The elements whose content the HTML tokenizer reads as text up to their
@@ -380,7 +380,7 @@ impl Written {
         trusted: Trusted,
         member: &str,
     ) -> Result<String, Fault> {
-        let out = source(tree);
+        let out = source_with(tree, rebuild);
         let first = !std::mem::replace(&mut self.started, true);
         if first {
             self.doctype = leading_doctype(&out).to_owned();

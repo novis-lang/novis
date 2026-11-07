@@ -3692,6 +3692,18 @@ direction = "to-html"
 input = "x\n+\n-:|\nb"
 html = "<p>x</p>\n<table>\n<thead>\n<tr>\n<th align=\"right\">+</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align=\"right\">b</td>\n</tr>\n</tbody>\n</table>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. cmark writes a `"` in text as `&quot;`,
+# so a raw tag whose quoted attribute value does not close runs to the end of the document in a
+# browser. The renderer wrote the `"` as it is, and the sanitizer's parse closed the value there.
+[[bug]]
+id = "pulldown-cmark-quote-in-text-after-open-raw-attribute"
+library = "pulldown-cmark"
+source = "https://github.com/commonmark/cmark/blob/master/src/houdini_html_e.c"
+class = "wrong-output"
+direction = "to-html"
+input = "<?a?><x a=\"\n\nb \"c\" d"
+html = ""
+
 # Found by the `markdown_comrak` differential fuzz target. A processing instruction that continues
 # on a block quote's next line does not include that line's `>`. pulldown-cmark 0.13.6 kept the
 # `>` in the raw HTML, and the HTML parser ended the instruction there, so `?>` was text.
