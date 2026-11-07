@@ -209,15 +209,15 @@ pushed. No test is expected to go red.
 
 **Stage 4**, `wall_time` and long-lived connections, as the stage lists it.
 
-- [ ] A Rust test over a served event stream and a WebSocket under a short `wall_time`.
-  `crates/nvs-server/src/serve.rs:2539`
-- [ ] The fix, or the reason it stays, in both rule fragments, then `bun nv rules --render`.
-  `docs/rules/concurrency/a-connection-is-a-root-isolate.md:1`
-- [ ] The checklist says what bounds a connection.
-  `website/src/content/docs/guides/production/security-checklist.mdx:25`
-- [ ] The `wall_time` notes in both `deploy/production.toml` and on both app pages
-  (`website/src/content/docs/guides/example-apps/poll.mdx:278`) go once untrue. If a connection keeps
-  a bound of its own, add one `## Do and don't` line about it to `live-updates.mdx`.
+- [ ] `crates/nvs-server/src/serve.rs:2539`: a Rust test over a served event stream and a
+  WebSocket under a short `wall_time`.
+- [ ] `docs/rules/concurrency/a-connection-is-a-root-isolate.md:1`: the fix, or the reason it
+  stays, in both rule fragments, then `bun nv rules --render`.
+- [ ] `website/src/content/docs/guides/production/security-checklist.mdx:25` says what bounds a
+  connection.
+- [ ] `website/src/content/docs/guides/example-apps/poll.mdx:278`: the `wall_time` notes on both app
+  pages and in both `deploy/production.toml` go once untrue. If a connection keeps a bound of its
+  own, add one `## Do and don't` line about it to `live-updates.mdx`.
 
 ### Backlog
 
