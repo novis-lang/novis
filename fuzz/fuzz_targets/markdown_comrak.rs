@@ -69,7 +69,7 @@ fn normal(html: &str) -> String {
             }
             bare = false;
             rest = after;
-        } else if let Some(end) = rest.starts_with("<img").then(|| rest.find('>')).flatten() {
+        } else if let Some(end) = rest.starts_with("<img").then(|| tag_end(rest)).flatten() {
             if rest[..end].contains(" src=") {
                 out.push_str(&rest[..=end]);
             }
@@ -84,6 +84,19 @@ fn normal(html: &str) -> String {
     }
     out.push_str(rest);
     out
+}
+
+/// The index of the `>` that ends the tag `html` starts with. The serializer
+/// does not escape `<` or `>` in an attribute value, so a `>` between quotes is
+/// part of the value.
+fn tag_end(html: &str) -> Option<usize> {
+    let mut quoted = false;
+    html.char_indices().find_map(|(at, ch)| {
+        if ch == '"' {
+            quoted = !quoted;
+        }
+        (ch == '>' && !quoted).then_some(at)
+    })
 }
 
 fuzz_target!(|data: &[u8]| {

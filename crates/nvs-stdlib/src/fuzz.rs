@@ -265,7 +265,9 @@ pub fn html_sanitized(html: &str) -> String {
 
 /// `html` parsed and written out with every text node removed, so only its
 /// tags and their attributes are left. A search of it finds markup and never
-/// the text a document shows.
+/// the text a document shows. An attribute's value is text too, and the
+/// serializer writes its `<` and `>` as they are, so they are written as `&lt;`
+/// and `&gt;` here: `alt="<b>"` holds no `<b>` to find.
 #[must_use]
 pub fn html_tags(html: &str) -> String {
     use crate::html::{parse, source};
@@ -274,7 +276,10 @@ pub fn html_tags(html: &str) -> String {
     let mut work = vec![&mut tree];
     while let Some(node) = work.pop() {
         node.children.retain(|child| child.kind != Kind::Text);
+        for (_, value) in &mut node.attributes {
+            *value = value.replace('<', "\u{1}lt;").replace('>', "\u{1}gt;");
+        }
         work.extend(node.children.iter_mut());
     }
-    source(&tree)
+    source(&tree).replace('\u{1}', "&")
 }

@@ -1046,7 +1046,12 @@ impl<'a, 'h> Renderer<'a, 'h> {
                     }
                 }
             }
-            Event::Text(text) | Event::Code(text) | Event::InlineMath(text) => {
+            // Raw HTML in a description is its source text in the `alt`, as
+            // cmark writes it: the attribute is text, so no tag is made.
+            Event::Text(text)
+            | Event::Code(text)
+            | Event::InlineMath(text)
+            | Event::InlineHtml(text) => {
                 image.alt.push_str(&text);
             }
             Event::SoftBreak | Event::HardBreak => image.alt.push('\n'),

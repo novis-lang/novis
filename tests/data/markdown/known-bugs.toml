@@ -3573,6 +3573,18 @@ direction = "to-html"
 input = "|a|\n|:-:-|\n\n|b|\n|- -|"
 html = "<p>|a|\n|:-:-|</p>\n<p>|b|\n|- -|</p>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. pulldown-cmark gives raw HTML inside an image's
+# description as an inline HTML event, and its own writer puts that text into the `alt`, as cmark does.
+# A renderer over its events that reads only text events loses the tag's source text from the `alt`.
+[[bug]]
+id = "pulldown-cmark-raw-html-in-image-alt"
+library = "pulldown-cmark"
+source = "https://docs.rs/crate/pulldown-cmark/0.13.6/source/src/html.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "![a<div>b</div>](c.png)"
+html = "<p><img src=\"c.png\" alt=\"a<div>b</div>\"></p>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"
