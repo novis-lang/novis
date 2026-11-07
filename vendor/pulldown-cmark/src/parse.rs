@@ -1712,10 +1712,10 @@ struct InlineEl {
 struct InlineStack {
     stack: Vec<InlineEl>,
     // Lower bounds for matching indices in the stack. For example
-    // a strikethrough delimiter will never match with any element
+    // a `~` delimiter will never match with any element
     // in the stack with index smaller than
-    // `lower_bounds[InlineStack::TILDES]`.
-    lower_bounds: [usize; 9],
+    // `lower_bounds[InlineStack::TILDE_ONE]`.
+    lower_bounds: [usize; 10],
 }
 
 impl InlineStack {
@@ -1725,8 +1725,20 @@ impl InlineStack {
     const UNDERSCORE_NOT_BOTH: usize = 0;
     const ASTERISK_NOT_BOTH: usize = 1;
     const ASTERISK_BASE: usize = 2;
-    const TILDES: usize = 5;
+    /// `~` and `~~` match only a run of their own length, so each has its
+    /// own bound. One shared bound let a `~~` closer with no opener move the
+    /// bound past a `~` opener, and `A~w~~A~w~` lost its strikethrough.
+    const TILDE_ONE: usize = 5;
     const UNDERSCORE_BASE: usize = 6;
+    const TILDE_TWO: usize = 9;
+
+    fn tilde_bound(run_length: usize) -> usize {
+        if run_length == 1 {
+            InlineStack::TILDE_ONE
+        } else {
+            InlineStack::TILDE_TWO
+        }
+    }
 
     fn pop_all(&mut self, tree: &mut Tree<Item>) {
         for el in self.stack.drain(..) {
@@ -1738,7 +1750,7 @@ impl InlineStack {
                 };
             }
         }
-        self.lower_bounds = [0; 9];
+        self.lower_bounds = [0; 10];
     }
 
     fn get_lowerbound(&self, c: u8, count: usize, both: bool) -> usize {
@@ -1763,7 +1775,7 @@ impl InlineStack {
                 )
             }
         } else {
-            self.lower_bounds[InlineStack::TILDES]
+            self.lower_bounds[InlineStack::tilde_bound(count)]
         }
     }
 
@@ -1779,7 +1791,7 @@ impl InlineStack {
                 self.lower_bounds[InlineStack::ASTERISK_NOT_BOTH] = new_bound;
             }
         } else {
-            self.lower_bounds[InlineStack::TILDES] = new_bound;
+            self.lower_bounds[InlineStack::tilde_bound(count)] = new_bound;
         }
     }
 
@@ -1840,7 +1852,7 @@ impl InlineStack {
 
     fn push(&mut self, el: InlineEl) {
         if el.c == b'~' {
-            self.trim_lower_bound(InlineStack::TILDES);
+            self.trim_lower_bound(InlineStack::tilde_bound(el.run_length));
         }
         self.stack.push(el)
     }

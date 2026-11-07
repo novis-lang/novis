@@ -3503,6 +3503,17 @@ direction = "to-html"
 input = "#\u000B)\n\n#\u000Ca\n\n# b"
 html = "<p>#\u000B)</p>\n<p>#\u000Ca</p>\n<h1>b</h1>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. The 0.13.6 inline pass keeps one lower bound
+# for `~` and `~~`, so a `~~` closer with no opener moves it past a `~` opener that a later `~` closes.
+[[bug]]
+id = "pulldown-cmark-tilde-lower-bound"
+library = "pulldown-cmark"
+source = "https://docs.rs/crate/pulldown-cmark/0.13.6/source/src/parse.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "A~w~~A~w~~"
+html = "<p>A<del>w~~A</del>w~~</p>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"

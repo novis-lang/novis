@@ -97,7 +97,7 @@ mark, the table and code-block attributes, unused footnotes, extended autolinks 
 are ours. The patches are tabs after an ATX closing sequence and a closing fence, a vertical tab in an
 indented line, a definition-only list item, a DEL byte in a link destination, indentation inside a
 code span on continuation lines, emphasis inside a footnote label, strikethrough's `~` and `~~`, which
-open and close as `*` does in GFM, a hard line break that only spaces make, not
+open and close as `*` does in GFM and keep one lower bound each, a hard line break that only spaces make, not
 tabs, and an ATX heading whose `#` a vertical tab or form feed follows, which is text. One patch adds what
 `toHtmlEach` needs (`rule:core-classes/markdown-chunks`): a parser over one segment reads the
 document's reference and footnote definitions and its expansion fuel from outside its text, and
