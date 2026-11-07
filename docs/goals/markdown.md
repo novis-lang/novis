@@ -35,7 +35,7 @@ stages:
     status: done
   - id: 9
     title: "two fuzz targets, and a differential fuzz against a second engine"
-    status: open
+    status: done
     context: [fuzz/Cargo.toml]
   - id: 10
     title: "the four members carry their feature proofs"
@@ -579,12 +579,12 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
   - [x] `fuzz/fuzz_targets/markdown_comrak.rs` and `comrak` 0.59 in `fuzz/Cargo.toml` alone.
   - [x] Triaged until the user stopped it; the remaining differences are known cmark-gfm edge
     cases, not compared in CI (decision 20).
-- [ ] `markdown` and `markdown_from_html` each run 1,000,000 inputs once. Every crash becomes a
+- [x] `markdown` and `markdown_from_html` each run 1,000,000 inputs once. Every crash becomes a
   catalogue entry and a fix.
   - [x] `bun nv fuzz <target> --runs <n>` runs one target in WSL, and CI's `fuzz-smoke` has a
     fourth leg for the two targets.
   - [x] `markdown` runs 1,000,000 inputs.
-  - [ ] `markdown_from_html` runs 1,000,000 inputs.
+  - [x] `markdown_from_html` runs 1,000,000 inputs.
 
 ### 10. the four members carry their feature proofs
 
@@ -621,56 +621,50 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 9 is down to one item: `markdown_from_html` at 1,000,000 clean inputs. The comrak
-differential is stopped (decision 20), and its open find and triage items are gone with it.
-- **`markdown` ran 1,000,000 inputs clean**: 8 libFuzzer jobs of 125,000 (`-jobs=8 -workers=8`)
-  on a build of `05fc53b`, each starting from the 23,851-file corpus, so about 800,000 were new.
-  All 9 earlier crash files under `/var/tmp/nvs-fuzz-artifacts/markdown/` pass on that build.
-- **`markdown_from_html` triage**, this session's commits `b4262c7d` to `76fbb1fe`. `fromHtml`
-  fixes, each with a case in `tests.rs`'s `DOCUMENTS` or the stability test's inputs: a form feed
-  is text, not CSS white space (`css_space`); breaks are counted, and a break at a block's edge
-  is `<br />`, but one lone trailing break is dropped (`Inline::whole`, `turndown-issue-405`); the
-  `www` cut compares bytes (it panicked inside a character); a leading U+FEFF is `&#xFEFF;`; a
-  code span of one space is `` ` ``; an empty list writes nothing; the email cut takes `-_.`
-  after `@`, as `autolink.rs` does; a tight item keeps text after a nested list whose last block
-  no line can continue (`Part::open`). Check fixes in `fuzz.rs`'s `html_meaning`: tabs and CRs
-  fold, a space before `<br>` goes, and a `<br>` at an inline element's edge moves out of it
-  (`breaks_hoisted`). Decision 21: the round trip skips Markdown with raw HTML.
-- **Green, run once by name**: `--lib markdown::` (23), `--test markdown_known_bugs`,
-  `--lib parse_sanitize_serialise_reparse`.
-- Sweep reds were stale: no `env-secret-proofs` check exists, and the three Miri timeouts
-  (`request::tests::json::a_decoded_body_of_any_size_is_held_once`, two `json::tests` 8 MiB
-  tests) are all skipped under Miri by `f13f4064`, which the nightly run's `26dda36` predates.
+Stage 9 is done. Both fuzz targets ran 1,000,000 inputs clean: `markdown` on `05fc53b`, and
+`markdown_from_html` 1,036,735 inputs on `1132a082`. The comrak differential is stopped
+(decision 20).
+- **This session's `markdown_from_html` triage**, commits `9ba5124c` to `1132a082`. `fromHtml`
+  fixes, each with a case in `tests.rs`'s `DOCUMENTS` or the stability test's inputs: a `:` at a
+  line start is escaped (`:-` was a table's delimiter row); a `!` right before a link's `[` is
+  escaped (`Writer::open`); a `-` list whose item line would read `- - -` uses `+`, or `*` after a
+  `+` list (`thematic_break`); a URL is written percent-encoded as the renderer writes an `href`
+  (`destination`, `super::encoded_href`), with `\&` before an entity's text and `<…>` around one
+  with a parenthesis. That last one changes `fromHtml`'s output for any URL with a space or a
+  non-ASCII character, and `rule:core-classes/markdown-from-html` records it and its Declined.
+  Check fixes in `fuzz.rs`'s `html_meaning`: the space at a line's ends goes across inline tags,
+  and at block tags too (`line_ends_trimmed`, `LINE_EDGES`); breaks with white space between
+  them move out of an inline element (`breaks_at_edge`); white space at an inline element's edge
+  moves out of it, the end first (`breaks_hoisted`).
+- `2a0a7847` formats `fuzz.rs` and `segments.rs`, which failed CI's `cargo fmt --all --check`.
+- **Green, run once by name**: `--lib markdown::tests::` (23), `--test markdown_known_bugs`.
+- Sweep reds were stale again: no `env-secret-proofs` check exists, and the Miri jobs ran on
+  `26dda36`, which predates `f13f4064`'s Miri skips.
 
 ### Next
 
-Stage 9, the last item. `bun nv fuzz markdown_from_html --runs 1000000 > .agent-tmp/fh-long.log
-2>&1` runs it in fork mode, about 900 inputs a second, so a clean run is about 20 minutes; the
-find is in the log's `panicked` and `left:`/`right:` lines and its `0x..` input bytes. A probe
-`.agent-tmp/probe.nvs`, run with `./target/debug/nvs run`, prints Markdown → HTML → `fromHtml` →
-HTML for a list of inputs (`var $md`; a local needs `var`).
+Stage 10, by its `**Split:**` line: four writing subagents side by side, one per member, each
+held to AGENTS.md § *Text an end user reads*. Then build, and run `bun nv proofs --id` for each.
 
-- [ ] **Triage `markdown_from_html` to 1,000,000 clean inputs** (`fuzz/fuzz_targets/markdown_from_html.rs:24`).
-  First, its open find on `76fbb1fe`: the HTML `` `<br>:- `` writes `` \`\ ``, a line feed and
-  `:-`, which the reader takes as a one-column table's delimiter row, so `fromHtml` over its own
-  Markdown's HTML writes a table. Likely fix: `escape_into` (`from_html.rs`) also escapes a `:`
-  at the start of a line, as it does `-` and `=`. Finds now take minutes each. A `fromHtml` bug: a fix in `from_html.rs` and
-  a case in `DOCUMENTS` (`crates/nvs-stdlib/src/markdown/tests.rs:1069`) or the stability test's
-  inputs. Two renderings a browser draws the same: a fix to `html_meaning` in `fuzz.rs`. A
-  catalogue entry only where a listed library has the bug; the catalogue's libraries are fixed
-  by decision 3, so `fromHtml`'s own finds go into the tests.
-- [ ] Then tick stage 9 (`docs/goals/markdown.md:582`), run once by name `cargo test --lib
-  markdown::` and `cargo test --test markdown_known_bugs`, and delete `.agent-tmp/cmprobe/`, `probe.nvs`, `gfm/`, `split.ts`,
-  `fh-*.log` and the `*.patch` and `handoff.*` files. Then stage 10.
+- [ ] `toHtml`'s proofs (`docs/examples/core/Markdown/toHtml/about.md:1`). Its attack is the
+  catalogue's XSS and slow inputs (`tests/data/markdown/known-bugs.toml`).
+- [ ] `toHtmlEach`'s proofs (`docs/examples/core/Markdown/toHtmlEach/about.md:1`), bench to 1 GB.
+- [ ] `Live`'s proofs (`docs/examples/core/Markdown-Live/push/about.md:1`), one over `Core\Sse`.
+- [ ] `fromHtml`'s proofs (`docs/examples/core/Markdown/fromHtml/about.md:1`), one answering
+  `Accept: text/markdown`. A URL in its example output is percent-encoded (see State).
+- [ ] Each member's help in the binary (`crates/nvs-stdlib/src/markdown.rs:1`), and
+  `bun nv proofs --comments` over the new `.nvs` files.
 
-To replay a crash in WSL: `ASAN_OPTIONS=detect_odr_violation=0
-/var/tmp/nvs-target-wsl-fuzz/x86_64-unknown-linux-gnu/release/markdown_from_html <crash-file>`
-with a file from `/var/tmp/nvs-fuzz-artifacts/markdown_from_html/`.
+Find a feature's owed proofs with `bun nv proofs --id '<feature>'`. `.agent-tmp/crash-md/` and
+`.agent-tmp/fuzz-markdown.log` are from an earlier session's `markdown` run; delete them once
+nothing needs them.
 
 Expected red: the floor check `proofs-gate`, until stage 10. Possibly red at the gate, not run
 this session: a conformance case or PDF test that sanitizes `<p>` around a `<table>` with no
 doctype (decision 18); a case that pins a loose task list's HTML or an autolink with an entity;
 a case that pins an autolink next to a backslash escape, or a sanitized table with stray content;
+a card, website snippet or conformance case that pins `fromHtml`'s output for a URL with a space,
+`\`, `<` or a non-ASCII character, or for nested lists on one line;
 `registry.rs`'s `a_class_with_slots_has_instance_members_and_the_reverse`,
 `crates/nvs-stdlib/tests/ext_world.rs`, and card or website checks that see `fromHtml`.
 

@@ -115,6 +115,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **Format with `cargo fmt --all`, never `rustfmt <file>`.** Plain `rustfmt` does not read the
+  workspace's settings, so it rewrites lines CI's `cargo fmt --all --check` accepts. `cargo fmt
+  --all --check` is the check CI runs, and it found `fuzz.rs` and `segments.rs` unformatted after
+  sessions that ran only clippy. `until: gone tools/nv/cmd/ci.ts:cargo", "fmt`
 - **A source edited while `bun nv bench-compare` builds its image can be skipped by the next image
   build.** The image's `target` is a cache mount, and cargo judges a crate fresh by mtime. A build that
   started before the edit compiles the old source into an artifact newer than the edited file, so the
