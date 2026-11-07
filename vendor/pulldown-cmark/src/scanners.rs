@@ -383,7 +383,10 @@ impl<'a> LineStart<'a> {
         let save = self.clone();
         self.scan_space_upto(3);
 
-        if !self.scan_ch(b'[') {
+        // Novis: a tab that is only partly used means more than three columns
+        // of space, so `- \t\t[ ] a` starts an indented code block. The
+        // published 0.13.6 stepped over the tab and read a marker.
+        if self.spaces_remaining > 0 || !self.scan_ch(b'[') {
             *self = save;
             return None;
         }

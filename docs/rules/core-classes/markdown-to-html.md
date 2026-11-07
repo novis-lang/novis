@@ -107,7 +107,8 @@ code span on continuation lines, emphasis inside a footnote label, strikethrough
 open and close as `*` does in GFM and keep one lower bound each, a `~` closer, which matches the
 nearest `~` opener or is text, a hard line break that only spaces make, not
 tabs, an ATX heading whose `#` a vertical tab or form feed follows, which is text, a task marker
-with a tab between its brackets, which is text, as cmark-gfm's `[ ]` allows only a space, a second
+with a tab between its brackets, which is text, as cmark-gfm's `[ ]` allows only a space, a task
+marker after tabs that make four or more columns, which is an indented code block, a second
 link label after an escaped `\[`, which is text, the end tag of an HTML block of types 1 to 5,
 such as `</PRE>`, which is matched in any case, a task item
 with nothing after its marker, whose next line is a lazy continuation and which may end the
