@@ -150,6 +150,9 @@ const HOST_HANDLE_CLASSES: &[&CoreClass] = &[
     // `Core\Markdown::toHtmlEach`'s walk, whose first slot is the key its
     // two passes are filed under.
     &crate::markdown::GROUPS,
+    // `Core\Markdown::live`'s document, whose first slot is the key its text
+    // and definitions are filed under.
+    &crate::markdown::LIVE,
     &crate::process::HANDLE,
     &crate::script::HANDLE,
     &crate::socket::CLASS,

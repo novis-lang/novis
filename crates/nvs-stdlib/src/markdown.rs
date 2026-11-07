@@ -78,6 +78,7 @@ mod autolink;
 pub(crate) mod callbacks;
 mod each;
 mod groups;
+mod live;
 mod segments;
 
 /// `Core\Markdown`'s class card — `rule:core-api/reference-card`.
@@ -162,10 +163,192 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_markdown_to_html_each",
             doc: Some(&TO_HTML_EACH_DOC),
         },
+        CoreMethod {
+            name: "live",
+            names: &["link", "image", "heading", "code"],
+            params: &[
+                CALLBACK_PARAMS[0],
+                CALLBACK_PARAMS[1],
+                CALLBACK_PARAMS[2],
+                CALLBACK_PARAMS[3],
+            ],
+            defaults: &[Const::Null, Const::Null, Const::Null, Const::Null],
+            return_ty: CoreTy::Instance(LIVE_NAME),
+            symbol: "nvs_core_markdown_live",
+            doc: Some(&LIVE_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Markdown\Live`'s fully-qualified name.
+pub(crate) const LIVE_NAME: &str = r"Core\Markdown\Live";
+
+/// `Core\Markdown\Update`'s fully-qualified name.
+pub(crate) const UPDATE_NAME: &str = r"Core\Markdown\Update";
+
+/// What `Core\Markdown::live` returns: a document that arrives in pieces
+/// (`rule:core-classes/markdown-chunks`). It is an object because it has a
+/// lifetime (`rule:core-api/a-lifetime-is-an-object`).
+///
+/// Its slots are the key its state is filed under, `0` once it has ended,
+/// and the four callbacks. [`live`] owns the state.
+// rank: 1047
+pub(crate) const LIVE: CoreClass = CoreClass {
+    name: LIVE_NAME,
+    doc: Some(&LIVE_CARD),
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "push",
+            names: &["piece"],
+            params: &[CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(UPDATE_NAME),
+            symbol: "nvs_core_markdown_live_push",
+            doc: Some(&LIVE_PUSH_DOC),
+        },
+        CoreMethod {
+            name: "finish",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(MARKUP_NAME),
+            symbol: "nvs_core_markdown_live_finish",
+            doc: Some(&LIVE_FINISH_DOC),
+        },
+    ],
+    slots: &["reader", "link", "image", "heading", "code"],
+    constants: &[],
+};
+
+/// What `Core\Markdown\Live::push` returns: the HTML the piece finished, and
+/// the HTML of the rest. Two members and not properties, because a `Core`
+/// instance has no property a program can read ([`CoreTy::Instance`]).
+// rank: 1048
+pub(crate) const UPDATE: CoreClass = CoreClass {
+    name: UPDATE_NAME,
+    doc: Some(&UPDATE_CARD),
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "done",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(MARKUP_NAME),
+            symbol: "nvs_core_markdown_update_done",
+            doc: Some(&UPDATE_DONE_DOC),
+        },
+        CoreMethod {
+            name: "open",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(MARKUP_NAME),
+            symbol: "nvs_core_markdown_update_open",
+            doc: Some(&UPDATE_OPEN_DOC),
+        },
+    ],
+    slots: &["done", "open"],
+    constants: &[],
+};
+
+/// `Core\Markdown\Live`'s class card — `rule:core-api/reference-card`.
+const LIVE_CARD: ClassDoc = ClassDoc {
+    short: "A Markdown document that arrives in pieces, such as the answer of a language \
+            model. Each piece gives the HTML of the blocks it finished and the HTML of the \
+            last block, which is not finished yet.",
+};
+
+/// `Core\Markdown::live`'s reference card — `rule:core-api/reference-card`.
+const LIVE_DOC: MethodDoc = MethodDoc {
+    short: "Creates a `Core\\Markdown\\Live` for a Markdown document that arrives in pieces. \
+            Call `push` with each piece and `finish` at the end.",
+    params: &[
+        ParamDoc {
+            name: "link",
+            desc: "The same `link` function as in `Core\\Markdown::toHtml`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "image",
+            desc: "The same `image` function as in `Core\\Markdown::toHtml`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "heading",
+            desc: "The same `heading` function as in `Core\\Markdown::toHtml`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "code",
+            desc: "The same `code` function as in `Core\\Markdown::toHtml`. A block that is \
+                   not finished is converted again at each `push`, so a function can run \
+                   more than once for the same block.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Markdown\\Live` with no text yet.",
+    errors: &[],
+};
+
+/// `Core\Markdown\Live::push`'s reference card — `rule:core-api/reference-card`.
+const LIVE_PUSH_DOC: MethodDoc = MethodDoc {
+    short: "Adds the next piece of the document. A piece can end anywhere, also in the \
+            middle of a line or a word.",
+    params: &[ParamDoc {
+        name: "piece",
+        desc: "The next text of the document.",
+        shape: &[],
+    }],
+    ret: "A `Core\\Markdown\\Update`. Its `done()` is the HTML of the blocks this piece \
+          finished. Add it after the HTML you already have. Its `open()` is the HTML of the \
+          rest. Show it after that, and replace it at the next `push`. A block is finished \
+          when the next block starts, and its HTML does not change after that.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`finish` was already called, or a callback threw an error.",
+    }],
+};
+
+/// `Core\Markdown\Live::finish`'s reference card — `rule:core-api/reference-card`.
+const LIVE_FINISH_DOC: MethodDoc = MethodDoc {
+    short: "Ends the document. After it, `push` and `finish` throw an error.",
+    params: &[],
+    ret: "A `Core\\Html\\Markup` with the HTML of the last blocks and the footnotes. Add it \
+          after the `done()` parts, and remove the last `open()` part. A link that uses a \
+          definition from a later piece is written as text.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`finish` was already called, or a callback threw an error.",
+    }],
+};
+
+/// `Core\Markdown\Update`'s class card — `rule:core-api/reference-card`.
+const UPDATE_CARD: ClassDoc = ClassDoc {
+    short: "What `Core\\Markdown\\Live::push` returns: the HTML of the finished blocks, and \
+            the HTML of the rest of the text.",
+};
+
+/// `Core\Markdown\Update::done`'s reference card — `rule:core-api/reference-card`.
+const UPDATE_DONE_DOC: MethodDoc = MethodDoc {
+    short: "The HTML of the blocks the piece finished. It is empty when the piece finished \
+            no block.",
+    params: &[],
+    ret: "A `Core\\Html\\Markup`. Add it after the HTML you already have.",
+    errors: &[],
+};
+
+/// `Core\Markdown\Update::open`'s reference card — `rule:core-api/reference-card`.
+const UPDATE_OPEN_DOC: MethodDoc = MethodDoc {
+    short: "The HTML of the text that is not in a finished block yet, as if the document \
+            ended after this piece.",
+    params: &[],
+    ret: "A `Core\\Html\\Markup`. Replace the `open()` part of the last `push` with it.",
+    errors: &[],
 };
 
 /// `Core\Markdown\Groups`' fully-qualified name.
@@ -311,6 +494,17 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         GROUPS_ITERATE_SYMBOL => (each::nvs_core_markdown_groups_iterate as *const ()).cast(),
         GROUPS_ADVANCE_SYMBOL => (each::nvs_core_markdown_groups_advance as *const ()).cast(),
         GROUPS_CURRENT_SYMBOL => (each::nvs_core_markdown_groups_current as *const ()).cast(),
+        "nvs_core_markdown_live" => (live::nvs_core_markdown_live as *const ()).cast(),
+        "nvs_core_markdown_live_push" => (live::nvs_core_markdown_live_push as *const ()).cast(),
+        "nvs_core_markdown_live_finish" => {
+            (live::nvs_core_markdown_live_finish as *const ()).cast()
+        }
+        "nvs_core_markdown_update_done" => {
+            (live::nvs_core_markdown_update_done as *const ()).cast()
+        }
+        "nvs_core_markdown_update_open" => {
+            (live::nvs_core_markdown_update_open as *const ()).cast()
+        }
         _ => return None,
     })
 }
@@ -1152,6 +1346,19 @@ impl<'a, 'h> Renderer<'a, 'h> {
         let rebuild = self.raw || self.deepest + 2 >= OPEN_ELEMENTS_CAP;
         self.raw = false;
         self.deepest = 1;
+        (tree, rebuild, std::mem::take(&mut self.trusted))
+    }
+
+    /// The tree with every open block closed and no footnotes, for text that
+    /// has not ended yet: whether it must be rebuilt, and the `code` results
+    /// its tokens name.
+    fn unfinished(mut self) -> (Parsed, bool, Trusted) {
+        self.flush();
+        while self.stack.len() > 1 {
+            self.close();
+        }
+        let rebuild = self.raw || self.deepest + 2 >= OPEN_ELEMENTS_CAP;
+        let tree = self.stack.pop().expect("the document node");
         (tree, rebuild, std::mem::take(&mut self.trusted))
     }
 

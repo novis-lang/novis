@@ -28,12 +28,24 @@ inline content. The second renders each segment with the whole document's defini
 its own, and with one expansion fuel for the whole document. `rendering_in_chunks_gives_the_same_html_as_the_whole_document`
 also reads every input 1 byte and 7 bytes at a time, which cuts a segment wherever one can be cut.
 
-**`Live`** takes `push(string $piece)`, which returns an object with `done: Core\Html\Markup` (the
-blocks that are finished, to append) and `open: Core\Html\Markup` (the unfinished last block, to
-replace). `finish(): Core\Html\Markup` closes the document. A block is rendered as soon as it is
-closed, so a reference defined after a finished block does not change that block. The `done` parts
-and `finish()` joined are the whole document's HTML for a document with no forward reference, and
-`live_never_changes_a_part_it_already_finished` holds for every document.
+**`Live`** is `Core\Markdown::live(...callbacks): Core\Markdown\Live`. Its `push(string $piece)`
+returns a `Core\Markdown\Update`, whose `done(): Core\Html\Markup` is the groups that piece finished
+(to append) and whose `open(): Core\Html\Markup` is the rest rendered as if the text ended there (to
+replace). They are members, not properties, because a `Core` instance has no property a program can
+read. `finish(): Core\Html\Markup` closes the document, and a `push` or `finish` after it throws a
+`RuntimeError`. A block is rendered as soon as the next block's first line is complete, so a reference
+defined after a finished block does not change that block: Live has no first pass, and learns a
+segment's definitions only after rendering it. The `done` parts and `finish()` joined are the whole
+document's HTML for a document with no forward reference, and
+`live_never_changes_a_part_it_already_finished` holds for every document. A callback runs again for a
+block each time `open` renders it.
+
+Live's segments cut at **every piece that completes a line**, not once the text doubles, so a block is
+finished as soon as it can be. That parse costs the text not yet finished, which is the same order as
+rendering `open` from it, which every `push` does anyway. One block pushed in many pieces therefore
+costs work in the square of its length. That is the price of an `open` part after every piece, and
+the program, which chose the pieces, pays it. A segment adds its own length to the added-output budget
+and the reference fuel when it is rendered, since the document's length is not known up front.
 
 **Memory:** a file costs one segment, its groups' HTML, and its reference and footnote definitions. A
 segment is at most four reads of 64 KiB past its last block, because the text doubles before it is

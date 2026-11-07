@@ -17,6 +17,12 @@
 //! that did not cut. So one block as large as the document costs work linear
 //! in its length, and memory of one read past it.
 //!
+//! **`Core\Markdown\Live` reads it at every line end** instead
+//! ([`Segments::live`]), so a block is given out as soon as the next one
+//! starts. Each piece that ends a line costs a parse of the text not yet
+//! given out, which is the same order of work as rendering that text as the
+//! open block, which Live does after every piece anyway.
+//!
 //! # Why a segment reads as the whole document does
 //!
 //! A top-level block's parse depends only on its own lines, once the block
@@ -66,6 +72,9 @@ pub(super) struct Segments {
     offset: usize,
     /// Whether the last piece has been read.
     ended: bool,
+    /// Whether it reads the text at every new line end, not once it has
+    /// doubled.
+    eager: bool,
 }
 
 /// Where the bytes stop being UTF-8, counted from the document's start.
@@ -73,6 +82,21 @@ pub(super) struct Segments {
 pub(super) struct NotText(pub(super) usize);
 
 impl Segments {
+    /// Segments that cut at every line end that completes a block, for text
+    /// a program shows as it arrives.
+    pub(super) fn live() -> Self {
+        Self {
+            eager: true,
+            ..Self::default()
+        }
+    }
+
+    /// The text read and not yet given out, its last line perhaps not
+    /// complete.
+    pub(super) fn unread(&self) -> &str {
+        &self.buffer
+    }
+
     /// Adds `piece`, the next bytes of the document.
     ///
     /// # Errors
@@ -151,7 +175,14 @@ impl Segments {
         if self.ended {
             return (!self.buffer.is_empty()).then(|| std::mem::take(&mut self.buffer));
         }
-        if self.buffer.len() < self.parsed_at.saturating_mul(2).max(1) {
+        let due = if self.eager {
+            // A line completed since the last read.
+            let read = self.parsed_at.min(self.buffer.len());
+            self.buffer.as_bytes()[read..].contains(&b'\n')
+        } else {
+            self.buffer.len() >= self.parsed_at.saturating_mul(2).max(1)
+        };
+        if !due {
             return None;
         }
         let Some(cut) = self.cut() else {
@@ -234,9 +265,29 @@ pub(super) struct Walk {
     written: Written,
     ready: VecDeque<String>,
     member: &'static str,
+    /// For a walk over text that arrives ([`Self::live`]), the text of the
+    /// group rendered and not yet ended, which [`Self::open`] renders again.
+    /// `None` for a walk over a whole source.
+    pending: Option<String>,
 }
 
 impl Walk {
+    /// A walk over text that arrives in pieces, whose length is not known.
+    /// Each segment adds its own length to the budget and the fuel
+    /// ([`Self::segment`]), and its definitions once it is rendered.
+    pub(super) fn live(member: &'static str) -> Self {
+        let mut outside = Outside::default();
+        outside.allow(0);
+        Self {
+            state: Some(State::new(ADDED_OUTPUT_SLACK)),
+            outside,
+            written: Written::default(),
+            ready: VecDeque::new(),
+            member,
+            pending: Some(String::new()),
+        }
+    }
+
     /// A walk over a document of `len` prepared bytes, whose definitions
     /// are `outside`.
     pub(super) fn new(outside: Outside, len: usize, member: &'static str) -> Self {
@@ -246,6 +297,7 @@ impl Walk {
             written: Written::default(),
             ready: VecDeque::new(),
             member,
+            pending: None,
         }
     }
 
@@ -271,14 +323,22 @@ impl Walk {
         segment: &str,
         hooks: &mut dyn Callbacks,
     ) -> Result<(), Fault> {
-        let state = self.state.take().ok_or_else(ended)?;
+        let mut state = self.state.take().ok_or_else(ended)?;
+        if self.pending.is_some() {
+            state.budget = state.budget.saturating_add(segment.len());
+            self.outside
+                .set_fuel(self.outside.fuel().saturating_add(segment.len()));
+        }
         let mut renderer = Renderer {
             text: segment,
             hooks,
             state,
         };
+        // Where the last group that ended in this segment ends.
+        let mut ended_at = None;
         let parser = Parser::new_with_outside(segment, options(), &self.outside);
         for (event, range) in parser.into_offset_iter() {
+            let end = range.end;
             renderer.event(event, range);
             if let Some(fault) = renderer.fault.take() {
                 return Err(fault);
@@ -287,10 +347,72 @@ impl Walk {
                 let (tree, rebuild, trusted) = renderer.take_group();
                 let html = self.written.group(&tree, rebuild, trusted, self.member)?;
                 self.ready.push_back(html);
+                ended_at = Some(end);
             }
         }
+        let open = renderer.stack.len() > 1 || !renderer.stack[0].children.is_empty();
         self.state = Some(renderer.state);
+        if let Some(pending) = &mut self.pending {
+            if ended_at.is_some() || !open {
+                pending.clear();
+            }
+            if open {
+                let from = ended_at.unwrap_or(0).min(segment.len());
+                pending.push_str(segment.get(from..).unwrap_or(segment));
+            }
+            // A later segment reads this one's definitions. One already
+            // defined keeps its first definition, as in the whole document.
+            self.outside.add(&Parser::new_ext(segment, options()));
+        }
         Ok(())
+    }
+
+    /// The HTML of `rest`, the text after the last segment, as it would be
+    /// if the document ended there. The group rendered and not yet ended is
+    /// rendered again in front of it. Nothing the walk holds changes, so the
+    /// next segment renders as if this had not run.
+    ///
+    /// # Errors
+    ///
+    /// The first failing callback's fault, and `Written::group`'s.
+    pub(super) fn open(&self, rest: &str, hooks: &mut dyn Callbacks) -> Result<String, Fault> {
+        let walked = self.state.as_ref().ok_or_else(ended)?;
+        let pending = self.pending.as_deref().unwrap_or("");
+        if pending.is_empty() && rest.trim().is_empty() {
+            return Ok(String::new());
+        }
+        let text = format!("{pending}{rest}");
+        let mut state = State::new(walked.budget.saturating_add(text.len()));
+        if text.contains("[^") {
+            // A footnote referenced before keeps its number.
+            state.numbers.clone_from(&walked.numbers);
+            state.order.clone_from(&walked.order);
+        }
+        let fuel = self.outside.fuel();
+        self.outside.set_fuel(fuel.saturating_add(text.len()));
+        let mut renderer = Renderer {
+            text: &text,
+            hooks,
+            state,
+        };
+        let mut failed = None;
+        for (event, range) in
+            Parser::new_with_outside(&text, options(), &self.outside).into_offset_iter()
+        {
+            renderer.event(event, range);
+            if let Some(fault) = renderer.fault.take() {
+                failed = Some(fault);
+                break;
+            }
+        }
+        self.outside.set_fuel(fuel);
+        if let Some(fault) = failed {
+            return Err(fault);
+        }
+        let (tree, rebuild, trusted) = renderer.unfinished();
+        self.written
+            .clone()
+            .group(&tree, rebuild, trusted, self.member)
     }
 
     /// Ends the document: the last group and the footnotes.

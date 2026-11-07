@@ -104,6 +104,7 @@ const REFUSED: &[(&str, &str)] = &[
     ("Core\\Json\\Elements", READER),
     ("Core\\Json\\Pieces", READER),
     ("Core\\Markdown\\Groups", READER),
+    ("Core\\Markdown\\Live", READER),
     ("Core\\Test\\Response", REQUEST),
     ("Core\\Test\\SentRequest", REQUEST),
     (

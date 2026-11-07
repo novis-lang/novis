@@ -1,0 +1,64 @@
+--TEST--
+`Core\Markdown\Live` gives the blocks each piece finished and the open rest, the finished parts and `finish()` join to `toHtml`'s HTML, a definition that arrives after a finished block leaves that block as text, and a push after `finish()` throws a `RuntimeError` — `rule:core-classes/markdown-chunks`
+--FILE--
+<?nvs
+// covers: Core\Markdown::live, Core\Markdown\Live::push, Core\Markdown\Live::finish, Core\Markdown\Update::done, Core\Markdown\Update::open
+string $doc = "# Notes\n\nSee [the guide](/guide).\n\n- one\n- two\n";
+Core\Markdown\Live $live = Core\Markdown::live(link: fn (string $url): ?string => "https://example.com" . $url);
+string $page = "";
+array<string> $pieces = ["# No", "tes\n\nSee [the gu", "ide](/guide).\n\n- one\n", "- two\n"];
+foreach ($pieces as string $piece) {
+    Core\Markdown\Update $update = $live->push($piece);
+    string $done = Core\Html::toSource($update->done(), "the case prints each part");
+    $page = $page . $done;
+    echo "done: ", $done, "|\n";
+    echo "open: ", Core\Html::toSource($update->open(), "the case prints each part"), "|\n";
+}
+string $rest = Core\Html::toSource($live->finish(), "the case prints the rest");
+echo "finish: ", $rest, "|\n";
+string $whole = Core\Html::toSource(
+    Core\Markdown::toHtml($doc, link: fn (string $url): ?string => "https://example.com" . $url),
+    "the case compares the whole",
+);
+echo $page . $rest == $whole ? "same as toHtml\n" : "different from toHtml\n";
+
+// The paragraph is finished before the definition of `[the guide]` arrives.
+Core\Markdown\Live $late = Core\Markdown::live();
+$late->push("Read [the guide].\n\n");
+echo Core\Html::toSource($late->push("More.\n\n[the guide]: /guide\n")->done(), "the case prints a part");
+echo Core\Html::toSource($late->finish(), "the case prints the rest");
+try {
+    $late->push("more");
+} catch (RuntimeError $ended) {
+    echo $ended->message, "\n";
+}
+--EXPECT--
+done: |
+open: <h1>No</h1>
+|
+done: |
+open: <h1>Notes</h1>
+<p>See [the gu</p>
+|
+done: <h1>Notes</h1>
+<p>See <a href="https://example.com/guide">the guide</a>.</p>
+|
+open: <ul>
+<li>one</li>
+</ul>
+|
+done: |
+open: <ul>
+<li>one</li>
+<li>two</li>
+</ul>
+|
+finish: <ul>
+<li>one</li>
+<li>two</li>
+</ul>
+|
+same as toHtml
+<p>Read [the guide].</p>
+<p>More.</p>
+Core\Markdown\Live::push(): this document has ended, because `finish()` was called or a callback threw an error. Create a new one with `Core\Markdown::live()`.

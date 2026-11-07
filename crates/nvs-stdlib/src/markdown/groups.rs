@@ -357,7 +357,7 @@ fn tag(text: &str, from: usize) -> Option<(String, usize, bool)> {
 
 /// How each group's tree is written: the first as `toHtml` writes a whole
 /// document, each later one behind the first one's doctype.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(super) struct Written {
     /// Whether a group has been written.
     started: bool,

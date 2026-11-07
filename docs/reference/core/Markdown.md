@@ -85,3 +85,50 @@ part: <ul>
 <li>two</li>
 </ul>
 ```
+
+## Converting text that arrives in pieces
+
+`Core\Markdown::live` creates a `Core\Markdown\Live` for a document that arrives in pieces, such as the
+answer of a language model. Call `push` with each piece. A piece can end anywhere, also in the middle
+of a word. `push` returns a `Core\Markdown\Update` with two parts:
+
+- `done()` is the HTML of the blocks that this piece finished. Add it after the HTML you already have.
+  A block is finished when the first line of the next block is complete. Its HTML never changes after
+  that.
+- `open()` is the HTML of the rest of the text, as if the document ended there. Show it after the
+  finished blocks, and replace it at the next `push`.
+
+Call `finish` at the end. It returns the HTML of the last blocks and the footnotes. The `done()` parts
+and the `finish()` result joined together are the same HTML that `toHtml` returns for the whole text.
+There is one exception. A link can only use a definition that arrived before its block was finished.
+Otherwise the link is written as text.
+
+`live` takes the same four functions as `toHtml`. The `open()` part is converted again at each `push`,
+so a function can run more than once for the same block.
+
+```nvs
+<?nvs
+Core\Markdown\Live $live = Core\Markdown::live();
+array<string> $pieces = ["# Ans", "wer\n\nThe first ", "step.\n\n- one\n"];
+foreach ($pieces as string $piece) {
+    Core\Markdown\Update $update = $live->push($piece);
+    echo "done: ", $update->done(), "open: ", $update->open(), "\n";
+}
+echo "finish: ", $live->finish();
+```
+```output
+done: open: <h1>Ans</h1>
+
+done: open: <h1>Answer</h1>
+<p>The first</p>
+
+done: <h1>Answer</h1>
+<p>The first step.</p>
+open: <ul>
+<li>one</li>
+</ul>
+
+finish: <ul>
+<li>one</li>
+</ul>
+```

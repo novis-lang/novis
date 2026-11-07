@@ -2197,6 +2197,18 @@ impl Outside {
         }
     }
 
+    /// The bytes the references may still add.
+    pub fn fuel(&self) -> usize {
+        self.fuel.get()
+    }
+
+    /// Sets the bytes the references may still add. A document read as it
+    /// arrives grows its fuel by each segment's length, and a render that
+    /// must not spend any puts the fuel back afterwards.
+    pub fn set_fuel(&self, fuel: usize) {
+        self.fuel.set(fuel);
+    }
+
     /// The bytes it holds, for a memory account.
     pub fn bytes(&self) -> usize {
         let labels: usize = self.refs.keys().map(|label| label.len()).sum();

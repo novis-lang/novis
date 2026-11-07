@@ -799,6 +799,121 @@ fn an_unclosed_raw_html_element_keeps_its_blocks_in_one_group() {
     );
 }
 
+/// `markdown` pushed into a `Core\Markdown\Live` `piece` bytes at a time,
+/// moved on to a character boundary: the `done` part of each push, and what
+/// `finish()` returns.
+fn live_in(markdown: &str, piece: usize) -> (Vec<String>, String) {
+    let mut text = live::Text::new();
+    let mut done = Vec::new();
+    let mut at = 0;
+    while at < markdown.len() {
+        let mut end = at.saturating_add(piece.max(1)).min(markdown.len());
+        while !markdown.is_char_boundary(end) {
+            end += 1;
+        }
+        let (finished, _open) = text
+            .push(&markdown[at..end], &mut NoCallbacks)
+            .expect("no limit in a test");
+        done.push(finished);
+        at = end;
+    }
+    let rest = text.finish(&mut NoCallbacks).expect("no limit in a test");
+    (done, rest)
+}
+
+/// `rule:core-classes/markdown-chunks`' Live: over a document with no
+/// reference used before its definition, the `done` parts of every push and
+/// `finish()` joined are the HTML `toHtml` gives for the whole document,
+/// whatever size the pieces are.
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "reads the spec files, which Miri's isolation does not allow"
+)]
+fn live_done_parts_and_finish_join_to_the_whole_document_html() {
+    // A definition can be used only once it has arrived, so the corpus is
+    // every spec example with no definition, and documents that define
+    // before they use.
+    let mut inputs: Vec<(String, String)> = examples("commonmark-0.31.2.txt")
+        .into_iter()
+        .map(|example| (format!("commonmark {}", example.number), example.markdown))
+        .chain(
+            examples("gfm-0.29.txt")
+                .into_iter()
+                .map(|example| (format!("gfm {}", example.number), example.markdown)),
+        )
+        .filter(|(_, markdown)| !markdown.contains("]:"))
+        .collect();
+    inputs.extend(
+        [
+            "[x]: /u \"t\"\n[^n]: a note\n\n# Title\n\nSee [x] and [y][x].[^n]\n\n- one\n- two\n\n  more\n\n```rust\nfn main() {}\n```\n\n| a | b |\n|---|:-:|\n| 1 | 2 |\n\nend\r\nline\r\n",
+            "<div>\n\n# a\n\npara\n\n</div>\n\nafter <span>x\n\ny</span>\n\n> quote\n> more\n\n1. a\n2. b\n",
+            "Setext\n======\n\n    indented\n    code\n\n* * *\n\n<!-- a\n\nb -->\n\nlast é 漢字 line",
+            "- [ ] task\n- [x] done\n\n~~gone~~ www.example.com and https://example.com/a?b\n",
+        ]
+        .map(|text| ("inline".to_owned(), text.to_owned())),
+    );
+    let mut report = Vec::new();
+    let mut finished_early = 0;
+    for (id, markdown) in &inputs {
+        let whole = rendered(markdown, "a test").expect("no limit in a test");
+        for piece in 1..=markdown.len().max(1) {
+            let (done, rest) = live_in(markdown, piece);
+            finished_early += usize::from(done.iter().any(|part| !part.is_empty()));
+            let joined = done.concat() + &rest;
+            if joined != whole {
+                report.push(format!(
+                    "{id} piece {piece} {markdown:?}\n  whole {whole:?}\n  live  {joined:?}"
+                ));
+                break;
+            }
+        }
+    }
+    assert!(
+        report.is_empty(),
+        "{} input(s):\n{}",
+        report.len(),
+        report.join("\n")
+    );
+    assert!(
+        finished_early > 1000,
+        "only {finished_early} reads finished a part before `finish()`"
+    );
+}
+
+/// `rule:core-classes/markdown-chunks`' Live: a finished part never changes.
+/// A reference defined after it stays text there, though the whole document
+/// links it, and every piece size gives the same parts.
+#[test]
+fn live_never_changes_a_part_it_already_finished() {
+    for markdown in [
+        "Read [the guide].\n\nMore text.\n\n[the guide]: /guide\n",
+        "a[^1] and [x][]\n\n# b\n\n[^1]: late note\n\n[x]: /late\n",
+        "[x]: /first\n\n[x]\n\n[x]: /second\n\n[x]\n",
+    ] {
+        let whole = rendered(markdown, "a test").expect("no limit in a test");
+        let (first, first_rest) = live_in(markdown, markdown.len());
+        let first = first.concat() + &first_rest;
+        for piece in 1..=markdown.len() {
+            let (done, rest) = live_in(markdown, piece);
+            assert_eq!(
+                done.concat() + &rest,
+                first,
+                "piece {piece} of {markdown:?}"
+            );
+        }
+        if markdown.starts_with("[x]:") {
+            assert_eq!(first, whole, "the first definition wins in both");
+        } else {
+            assert_ne!(first, whole, "{markdown:?} has a forward reference");
+            assert!(
+                first.contains("<p>Read [the guide].</p>") || first.contains("<p>a[^1] and [x][]</p>"),
+                "a part finished before the definition keeps it as text: {first}"
+            );
+        }
+    }
+}
+
 /// `rule:core-classes/markdown-chunks`' memory: `toHtmlEach` over a
 /// `Core\IO\File` reads the file twice and holds a few reads, one group and
 /// the definitions at any point, however long the file is. A reference

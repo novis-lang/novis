@@ -8,7 +8,8 @@ runtime-computed string.
 - `Core\Markdown::toHtml(string $markdown, ...callbacks): Core\Html\Markup` renders a whole document.
 - `Core\Markdown::toHtmlEach(Core\Bytes::Source|Core\Bytes::Chunks $markdown, ...callbacks):
   iterable<Core\Html\Markup>` renders one block group at a time (`rule:core-classes/markdown-chunks`).
-- `Core\Markdown\Live` renders text that arrives in pieces. It is an object because it has a lifetime
+- `Core\Markdown::live(...callbacks): Core\Markdown\Live` renders text that arrives in pieces
+  (`rule:core-classes/markdown-chunks`). It is an object because it has a lifetime
   (`rule:core-api/a-lifetime-is-an-object`).
 - `Core\Markdown::fromHtml(string|Core\Html\Markup|Core\Xml\Node $html): string` writes Markdown
   (`rule:core-classes/markdown-from-html`).

@@ -25,7 +25,7 @@ stages:
     context: [crates/nvs-stdlib/src/byte_source.rs]
   - id: 6
     title: "Core\\Markdown\\Live renders text that arrives in pieces"
-    status: open
+    status: done
   - id: 7
     title: "Core\\Markdown::fromHtml writes Markdown from HTML"
     status: open
@@ -174,6 +174,12 @@ names a Markdown renderer as a sink.
      returns an object with `done: Markup` (blocks that are finished; append them) and `open: Markup`
      (the unfinished last block; replace it). `finish(): Markup` closes the document. It is an object
      because it has a lifetime (`rule:core-api/a-lifetime-is-an-object`).
+     **Built (stage 6) as** `Core\Markdown::live(...callbacks): Core\Markdown\Live`, whose `push`
+     returns a `Core\Markdown\Update` with members `done()` and `open()`. A `Core` instance has no
+     property a program can read and a `Core` member cannot return a shape, so the two parts are
+     members; a static factory creates the object, as `Core\Hash::stream` does. `open` is everything
+     not yet in a finished group, rendered as if the text ended there, so it may hold a raw-HTML group
+     still open as well as the last block.
    - `Core\Markdown::fromHtml(string|Core\Html\Markup|Core\Xml\Node $html): string` writes Markdown.
    - No member takes an options bag. Stage 2 writes these names into the rules. A rename the rule
      review forces is allowed, and it is recorded there.
@@ -479,10 +485,15 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
 
 ### 6. Core\Markdown\Live renders text that arrives in pieces
 
-- [ ] `Core\Markdown\Live` with `push` and `finish` (decision 1), built on the stage-5 splitter.
+- [x] `Core\Markdown\Live` with `push` and `finish` (decision 1), built on the stage-5 splitter.
   `crates/nvs-stdlib/src/markdown.rs:1`
-- [ ] The two tests of the `live` check, over every piece size from one byte up.
+  - [x] `Segments::live` cuts at every line end, and `Walk::live` grows its budget and fuel per segment.
+  - [x] `Walk::open` renders the unfinished text with a fresh state and puts the fuel back.
+  - [x] `live.rs`: `Text`, the filed state, and the five helpers, registered on the closed lists.
+  - [x] A reference section and a conformance case.
+- [x] The two tests of the `live` check, over every piece size from one byte up.
   `crates/nvs-stdlib/src/markdown.rs:1`
+  - [x] Both tests pass, and `looper check --name live` is green.
 
 ### 7. Core\Markdown::fromHtml writes Markdown from HTML
 
@@ -542,51 +553,49 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 5 is done, in four commits, and its `chunks` check is green.
-- **The member** is `crates/nvs-stdlib/src/markdown/each.rs`. `Core\Markdown::toHtmlEach` files a
-  `Walk` on the request and returns a `Core\Markdown\Groups` (`markdown.rs`, `GROUPS`), whose slots
-  are the key, the source, the last group and the four callbacks. The first `advance()` runs
-  `first_pass` (`each.rs`): a seekable file and a `bytes` value are read again with the new
-  `ByteSource::restart` (`crates/nvs-stdlib/src/byte_source.rs`, beside `prefix`); every other source
-  is copied whole under `budget::affords` and read from the copy. `Rendering::next` renders segments
-  until `segments::Walk::pop` has a group, with `Callables` built per segment, and checks
-  `affords(2 × segment)` before each. A failure or the end drops the walk and clears every slot.
-- **The closed lists** it joined: `classes.rs`, `instance.rs` (dispatch roster and
-  `HOST_HANDLE_CLASSES`), `registry.rs` (`ITERABLES`, `HANDLES`) and `tests/ext_world.rs`'s `REFUSED`.
-- **The memory test** (`markdown/tests.rs`, `to_html_each_holds_one_block_group_of_a_file_not_the_document`)
-  now calls the member over a real file and asserts the file is read again, not copied. It passes.
-- **The reference page** has a *Converting a large document one part at a time* section, its example
-  run on the debug binary. The conformance case
-  `tests/conformance/core/markdown-to-html-each-reads-a-file-and-bytes-one-block-group-at-a-time.nvst`
-  passes.
-- **Stale sweep reds, a sixth time**: no `env-secret-proofs` check exists; `f13f4064` postdates run `42201104003`.
+Stage 6 is done, in one commit, and its `live` check is green.
+- **The object** is `crates/nvs-stdlib/src/markdown/live.rs`. `Core\Markdown::live` files a `Held`
+  on the request and returns a `Core\Markdown\Live` (`markdown.rs`, `LIVE`: the key and the four
+  callbacks). `push` returns a `Core\Markdown\Update` (`UPDATE`, two `Markup` slots read by `done()`
+  and `open()`); decision 1 records why they are members. `with_text` takes the state out, checks
+  `affords(2 × (unread + piece))`, and ends the object on `finish` or any error; a later call throws
+  a `RuntimeError`.
+- **The splitter** (`markdown/segments.rs`): `Segments::live` parses at every new line end.
+  `Walk::live` starts with the slack budget and 100 KB of fuel, and each segment adds its length to
+  both (`Outside::fuel`/`set_fuel`, a new vendored pair beside `Outside::bytes`). After a segment it
+  learns the segment's definitions and keeps the text of a group still open in `pending`.
+  `Walk::open` renders `pending + unread` with a fresh `State` (footnote numbers copied when the text
+  has `[^`), puts the fuel back, and writes through a clone of `Written`. `Renderer::unfinished`
+  closes the tree without footnotes.
+- **The rule** `rule:core-classes/markdown-chunks` now states the built shape and the eager cut's
+  cost: one block pushed in many pieces costs work in the square of its length.
+- **Docs and case**: a reference section, its example run on the debug binary, and the passing
+  `tests/conformance/core/markdown-live-gives-each-finished-block-once-and-the-open-rest.nvst`.
+- **Stale sweep reds, a seventh time**: the `env-secret-proofs` log does not exist, and nightly run
+  `42201104003` built `26dda36`, an ancestor of the Miri fix `f13f4064`.
 
 ### Next
 
-Stage 6: `Core\Markdown\Live`. Write its checkpoints under stage 6's items first.
+Stage 7: `Core\Markdown::fromHtml`. Write its checkpoints under stage 7's items first.
 
-- [ ] **The object** (`crates/nvs-stdlib/src/markdown/each.rs:1` is its model, decision 1):
-  `push(string $piece)` returns `{done: Markup, open: Markup}`, and `finish(): Markup`. A class with
-  instance members and slots, filed on the request like `GROUPS`.
-  - `done`: push the piece into a `segments::Segments`, and render every segment `next()` gives
-    through a `segments::Walk`, joining what `pop()` gives. Live has no first pass, so the walk's
-    `Outside` starts empty and gains each segment's definitions after the segment is rendered
-    (`Outside::add`, `vendor/pulldown-cmark/src/parse.rs:2159`). A reference defined later never
-    changes a finished block (decision 7).
-  - `open`: the text not yet cut, rendered alone with no state change. `State`
-    (`crates/nvs-stdlib/src/markdown.rs:505`) is not `Clone`; either derive it or render the open
-    text with a fresh `State` and the current `Outside`. Prefer the fresh state, since the open block
-    is one top-level block.
-  - `Segments::next` waits for the text to double before it cuts again, which suits a whole file but
-    leaves `done` empty for long. Live needs a cut at every complete block: add a mode to `Segments`
-    that parses on every push that ends a line, and say what it costs (work per push is the open text).
-  - `finish()` calls `segments.end()`, renders the rest and `walk.finish`, and returns the joined HTML.
-- [ ] The two `live` tests (`crates/nvs-stdlib/src/markdown/tests.rs:802`), over every piece size
-  from one byte up, beside the `chunks` tests.
-- [ ] A section (`docs/reference/core/Markdown.md:56`) and a conformance case, as stage 5 did.
+- [ ] **The converter** over `crates/nvs-stdlib/src/xml.rs:1`'s tree (decision 8): input is a
+  `string`, a `Core\Html\Markup` or a `Core\Xml\Node`. Parse with `crate::html::parse`
+  (`crates/nvs-stdlib/src/html.rs:1627`); keep or drop each element by the
+  sanitizer's list `ELEMENTS` (`crates/nvs-stdlib/src/html.rs:1867`), dropping a raw-text element's content. Walk the
+  `crate::xml::Parsed` tree, escape every text node, collapse whitespace by the CSS rules, and write
+  a GFM table only when every cell is inline with no `colspan`/`rowspan`, else sanitized HTML
+  (`rebuilt`, `html.rs:2161`). A fence is one backtick longer than the longest run inside.
+- [ ] **The member** on `CLASS` (`crates/nvs-stdlib/src/markdown.rs:114`; `fromHtml`, returning
+  `string`; a tainted input gives a tainted result), and its symbol in `address`.
+- [ ] **The catalogue**: set `FROM_HTML_BUILT` (`crates/nvs-stdlib/tests/markdown_known_bugs.rs:45`)
+  to `true`, and every from-html entry passes.
+- [ ] **The five `from-html` tests**, beside the `live` tests (`crates/nvs-stdlib/src/markdown/tests.rs:802`).
 
-Expected red: the floor check `proofs-gate`, since `Core\Markdown::toHtml` and now `toHtmlEach` owe
-their feature proofs until stage 10 writes them. Stages 7 and 8 may run as a side goal (decision 12).
+Expected red: the floor check `proofs-gate`, since `toHtml`, `toHtmlEach` and now `live` owe their
+feature proofs until stage 10 writes them. Possibly red at the gate, not run this session:
+`registry.rs`'s `a_class_with_slots_has_instance_members_and_the_reverse` and
+`crates/nvs-stdlib/tests/ext_world.rs`, which see the two new classes; `Core\Markdown\Update` is not on
+`REFUSED`, on the model of `Core\Html\Markup`. Stage 11 may run as a side goal (decision 12).
 
 ### Backlog
 
@@ -601,3 +610,5 @@ their feature proofs until stage 10 writes them. Stages 7 and 8 may run as a sid
 - `groups::Balance` keeps a group open after `<p>` and other elements the parser closes on its own.
   A document with many unclosed `<p>` tags in raw HTML is then one group. That is correct, and costs
   memory only for such a document.
+- Live's `open` is not checked by a test beyond the conformance case. A property that `open` is a
+  sanitize fixed point after every push would cover it, and stage 9's fuzz target can assert it.
