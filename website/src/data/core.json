@@ -13331,6 +13331,22 @@
           "url": "/reference/core/html/sanitize/"
         },
         {
+          "name": "Core\\Markdown::toHtml",
+          "url": "/reference/core/markdown/tohtml/"
+        },
+        {
+          "name": "Core\\Markdown\\Live::finish",
+          "url": "/reference/core/markdown-live/finish/"
+        },
+        {
+          "name": "Core\\Markdown\\Update::done",
+          "url": "/reference/core/markdown-update/done/"
+        },
+        {
+          "name": "Core\\Markdown\\Update::open",
+          "url": "/reference/core/markdown-update/open/"
+        },
+        {
           "name": "Core\\Out::capture",
           "url": "/reference/core/out/capture/"
         }
@@ -23739,6 +23755,516 @@
         }
       ],
       "returnedBy": []
+    },
+    {
+      "id": "Markdown",
+      "name": "Core\\Markdown",
+      "summary": "Converts Markdown to HTML that is safe to put into a page. It reads CommonMark with tables, task lists, strikethrough, autolinks and footnotes. `toHtmlEach` converts a large document one part at a time.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Markdown.toHtml",
+          "name": "toHtml",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "toHtml(string $markdown, ?callable(string): ?string $link = null, ?callable(string): ?string $image = null, ?callable(int, string): ?string $heading = null, ?callable(string, string): ?Core\\Html\\Markup $code = null): Core\\Html\\Markup",
+          "params": [
+            {
+              "kind": "param",
+              "name": "markdown",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "link",
+              "type": "?callable(string): ?string",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "image",
+              "type": "?callable(string): ?string",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "heading",
+              "type": "?callable(int, string): ?string",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "code",
+              "type": "?callable(string, string): ?Core\\Html\\Markup",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Html\\Markup",
+          "doc": {
+            "shortHtml": "Converts the Markdown document <code>$markdown</code> to HTML. The result is safe to write into a page, even when the document comes from a user.",
+            "params": [
+              {
+                "name": "markdown",
+                "descHtml": "The Markdown document. Any text is a valid document."
+              },
+              {
+                "name": "link",
+                "descHtml": "A function that gets each link's URL and returns the URL to write. If it returns <code>null</code>, the link is removed and its text stays. The URL it returns is checked like a URL in the document."
+              },
+              {
+                "name": "image",
+                "descHtml": "A function that gets each image's URL and returns the URL to write. If it returns <code>null</code>, the image is removed. The URL it returns is checked like a URL in the document."
+              },
+              {
+                "name": "heading",
+                "descHtml": "A function that gets each heading's level and text and returns its <code>id</code>. The <code>id</code> is written after <code>md-</code>, so <code>intro</code> gives <code>md-intro</code>. If it returns <code>null</code>, or an <code>id</code> with a space, the heading has no <code>id</code>."
+              },
+              {
+                "name": "code",
+                "descHtml": "A function that gets the language and the text of each fenced code block that names a language. The <code>Core\\Html\\Markup</code> it returns replaces the block, exactly as it is. If it returns <code>null</code>, the block is written as usual. Use it for syntax highlighting, math or diagrams."
+              }
+            ],
+            "returnHtml": "A <code>Core\\Html\\Markup</code> with the document's HTML. HTML inside the document is cleaned the same way <code>Core\\Html::sanitize</code> cleans it. A link with an unsafe URL, such as <code>javascript:</code>, is written as plain text. An image with an unsafe URL is removed. If a callback throws an error, the conversion stops and your code gets that error."
+          },
+          "slug": "tohtml",
+          "url": "/reference/core/markdown/tohtml/",
+          "examples": "core/Markdown/toHtml"
+        },
+        {
+          "id": "Markdown.toHtmlEach",
+          "name": "toHtmlEach",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "toHtmlEach(Core\\Bytes::Source|Core\\Bytes::Chunks $markdown, ?callable(string): ?string $link = null, ?callable(string): ?string $image = null, ?callable(int, string): ?string $heading = null, ?callable(string, string): ?Core\\Html\\Markup $code = null): Core\\Markdown\\Groups",
+          "params": [
+            {
+              "kind": "param",
+              "name": "markdown",
+              "type": "Core\\Bytes::Source|Core\\Bytes::Chunks",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "link",
+              "type": "?callable(string): ?string",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "image",
+              "type": "?callable(string): ?string",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "heading",
+              "type": "?callable(int, string): ?string",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "code",
+              "type": "?callable(string, string): ?Core\\Html\\Markup",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Markdown\\Groups",
+          "doc": {
+            "shortHtml": "Converts the Markdown document <code>$markdown</code> to HTML one part at a time. Each part has one or more whole blocks, such as a paragraph or a list. Use it for a document that is too large to keep in memory.",
+            "params": [
+              {
+                "name": "markdown",
+                "descHtml": "The Markdown document: a <code>bytes</code> value, an open file, an upload part, a request body stream, or a list of <code>bytes</code> chunks. The bytes must be UTF-8. A file is read twice, and only one part is in memory at a time. Every other source is kept in memory until the loop ends."
+              },
+              {
+                "name": "link",
+                "descHtml": "The same <code>link:</code> function as in <code>Core\\Markdown::toHtml</code>. It runs before the loop receives the part with the link."
+              },
+              {
+                "name": "image",
+                "descHtml": "The same <code>image</code> function as in <code>Core\\Markdown::toHtml</code>."
+              },
+              {
+                "name": "heading",
+                "descHtml": "The same <code>heading</code> function as in <code>Core\\Markdown::toHtml</code>."
+              },
+              {
+                "name": "code",
+                "descHtml": "The same <code>code</code> function as in <code>Core\\Markdown::toHtml</code>."
+              }
+            ],
+            "returnHtml": "A <code>Core\\Markdown\\Groups</code> that a <code>foreach</code> loop reads. Each part is a <code>Core\\Html\\Markup</code>. The parts joined together are the same HTML that <code>Core\\Markdown::toHtml</code> returns for the whole document. Nothing is read until the loop starts.",
+            "errors": [
+              {
+                "error": "ParseError",
+                "descHtml": "The document is not valid UTF-8. The message gives the position of the first wrong byte. The loop throws it when it reaches that byte."
+              }
+            ]
+          },
+          "slug": "tohtmleach",
+          "url": "/reference/core/markdown/tohtmleach/",
+          "examples": "core/Markdown/toHtmlEach"
+        },
+        {
+          "id": "Markdown.live",
+          "name": "live",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "live(?callable(string): ?string $link = null, ?callable(string): ?string $image = null, ?callable(int, string): ?string $heading = null, ?callable(string, string): ?Core\\Html\\Markup $code = null): Core\\Markdown\\Live",
+          "params": [
+            {
+              "kind": "param",
+              "name": "link",
+              "type": "?callable(string): ?string",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "image",
+              "type": "?callable(string): ?string",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "heading",
+              "type": "?callable(int, string): ?string",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "code",
+              "type": "?callable(string, string): ?Core\\Html\\Markup",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Markdown\\Live",
+          "doc": {
+            "shortHtml": "Creates a <code>Core\\Markdown\\Live</code> for a Markdown document that arrives in pieces. Call <code>push</code> with each piece and <code>finish</code> at the end.",
+            "params": [
+              {
+                "name": "link",
+                "descHtml": "The same <code>link:</code> function as in <code>Core\\Markdown::toHtml</code>."
+              },
+              {
+                "name": "image",
+                "descHtml": "The same <code>image</code> function as in <code>Core\\Markdown::toHtml</code>."
+              },
+              {
+                "name": "heading",
+                "descHtml": "The same <code>heading</code> function as in <code>Core\\Markdown::toHtml</code>."
+              },
+              {
+                "name": "code",
+                "descHtml": "The same <code>code</code> function as in <code>Core\\Markdown::toHtml</code>. A block that is not finished is converted again at each <code>push</code>, so a function can run more than once for the same block."
+              }
+            ],
+            "returnHtml": "A <code>Core\\Markdown\\Live</code> with no text yet."
+          },
+          "slug": "live",
+          "url": "/reference/core/markdown/live/",
+          "examples": "core/Markdown/live"
+        },
+        {
+          "id": "Markdown.fromHtml",
+          "name": "fromHtml",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fromHtml(string|Core\\Html\\Markup|Core\\Xml\\Node $html): tainted string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "html",
+              "type": "string|Core\\Html\\Markup|Core\\Xml\\Node",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "tainted string",
+          "doc": {
+            "shortHtml": "Converts HTML to Markdown. Text in the HTML stays text, so it never becomes Markdown syntax.",
+            "params": [
+              {
+                "name": "html",
+                "descHtml": "The HTML. It can be a string, a <code>Core\\Html\\Markup</code>, or a node from <code>Core\\Html::parse</code>. Pass a node to convert only that part of a page. Elements are kept or removed as <code>Core\\Html::sanitize</code> keeps or removes them."
+              }
+            ],
+            "returnHtml": "The Markdown, as a <code>tainted</code> string. A table that Markdown cannot write, such as one with <code>colspan</code>, is written as HTML. A link with an unsafe URL is written as its text."
+          },
+          "slug": "fromhtml",
+          "url": "/reference/core/markdown/fromhtml/",
+          "examples": "core/Markdown/fromHtml"
+        }
+      ],
+      "slug": "markdown",
+      "url": "/reference/core/markdown/",
+      "summaryBlocks": [
+        {
+          "html": "<p>Converts Markdown to HTML that is safe to put into a page. It reads CommonMark with tables, task lists, strikethrough, autolinks and footnotes. <code>toHtmlEach</code> converts a large document one part at a time.</p>\n<p><code>Core\\Markdown::toHtml</code> converts a Markdown document to HTML. It reads CommonMark with the GitHub extensions: tables, task lists, strikethrough, autolinks and footnotes. The result is a <code>Core\\Html\\Markup</code>, so you can write it into a page without escaping it again.</p>\n<p>The result is safe even when a user wrote the document. HTML inside the document is cleaned the same way <code>Core\\Html::sanitize</code> cleans it. A link with an unsafe URL, such as <code>javascript:</code>, is written as plain text. An image with an unsafe URL is removed. Any text is a valid document, so the document itself never causes an error.</p>"
+        },
+        {
+          "code": "<?nvs\nstring $text = \"# Notes\\n\\nSome *text*, a [link](https://example.com) and www.example.com.\\n\\n[bad](javascript:alert(1)) <img src=x onerror=alert(1)>\\n\";\necho Core\\Markdown::toHtml($text);",
+          "lang": "nvs"
+        },
+        {
+          "code": "<h1>Notes</h1>\n<p>Some <em>text</em>, a <a href=\"https://example.com\">link</a> and <a href=\"http://www.example.com\">www.example.com</a>.</p>\n<p>bad <img src=\"x\"></p>",
+          "lang": "output"
+        },
+        {
+          "html": "<p>## Changing links, images, headings and code blocks</p>\n<p><code>toHtml</code> takes four optional functions, which you pass by name:</p>\n<ul><li><code>link</code> gets each link's URL and returns the URL to write. If it returns <code>null</code>, the link is removed and its text stays.</li><li><code>image</code> gets each image's URL and returns the URL to write. If it returns <code>null</code>, the image is removed.</li><li><code>heading</code> gets each heading's level and text, and returns its <code>id</code>. The <code>id</code> is written after <code>md-</code>, so <code>intro</code> gives <code>md-intro</code>.</li><li><code>code</code> gets the language and the text of each fenced code block that names a language. The <code>Core\\Html\\Markup</code> it returns replaces the block. If it returns <code>null</code>, the block is written as usual.</li></ul>\n<p>A URL a function returns is checked like a URL in the document, so <code>javascript:</code> is still not written. The <code>Markup</code> that <code>code</code> returns is written exactly as it is. Use <code>code</code> for syntax highlighting, math or diagrams. If one of the functions throws an error, <code>toHtml</code> stops and your code gets that error.</p>"
+        },
+        {
+          "code": "<?nvs\nstring $text = \"## Install\\n\\nSee [the guide](/guide).\\n\\n```shell\\nnvs run app.nvs\\n```\\n\";\necho Core\\Markdown::toHtml(\n    $text,\n    link: fn(string $url): ?string => 'https://example.com' . $url,\n    heading: fn(int $level, string $text): ?string => Core\\Str::lower($text),\n    code: fn(string $language, string $code): ?Core\\Html\\Markup =>\n        Core\\Html::escape('Run: ' . Core\\Str::trim($code)),\n);",
+          "lang": "nvs"
+        },
+        {
+          "code": "<h2 id=\"md-install\">Install</h2>\n<p>See <a href=\"https://example.com/guide\">the guide</a>.</p>\nRun: nvs run app.nvs",
+          "lang": "output"
+        },
+        {
+          "html": "<p>## Converting a large document one part at a time</p>\n<p><code>Core\\Markdown::toHtmlEach</code> converts a document in parts. Each part is a <code>Core\\Html\\Markup</code> with one or more whole blocks, such as a paragraph, a heading or a list. A <code>foreach</code> loop reads the parts. The parts joined together are the same HTML that <code>toHtml</code> returns for the whole document.</p>\n<p>The document can be a <code>bytes</code> value, an open file, an upload part, a request body stream, or a list of <code>bytes</code> chunks. A file is read twice. The first read finds the link definitions, because a link can use a definition from the end of the file. Only one part is in memory at a time, so a file of any size works. Every other source is kept in memory until the loop ends.</p>\n<p><code>toHtmlEach</code> takes the same four functions as <code>toHtml</code>. Each one runs before the loop receives its part. If the bytes are not valid UTF-8, the loop throws a <code>ParseError</code> when it reaches them.</p>"
+        },
+        {
+          "code": "<?nvs\nbytes $text = \"See [the guide][g].\\n\\n- one\\n- two\\n\\n[g]: /guide\\n\" as bytes;\nforeach (Core\\Markdown::toHtmlEach($text) as Core\\Html\\Markup $part) {\n    echo 'part: ', $part;\n}",
+          "lang": "nvs"
+        },
+        {
+          "code": "part: <p>See <a href=\"/guide\">the guide</a>.</p>\npart: <ul>\n<li>one</li>\n<li>two</li>\n</ul>",
+          "lang": "output"
+        },
+        {
+          "html": "<p>## Converting text that arrives in pieces</p>\n<p><code>Core\\Markdown::live</code> creates a <code>Core\\Markdown\\Live</code> for a document that arrives in pieces, such as the answer of a language model. Call <code>push</code> with each piece. A piece can end anywhere, also in the middle of a word. <code>push</code> returns a <code>Core\\Markdown\\Update</code> with two parts:</p>\n<ul><li><code>done()</code> is the HTML of the blocks that this piece finished. Add it after the HTML you already have. A block is finished when the first line of the next block is complete. Its HTML never changes after that.</li><li><code>open()</code> is the HTML of the rest of the text, as if the document ended there. Show it after the finished blocks, and replace it at the next <code>push</code>.</li></ul>\n<p>Call <code>finish</code> at the end. It returns the HTML of the last blocks and the footnotes. The <code>done()</code> parts and the <code>finish()</code> result joined together are the same HTML that <code>toHtml</code> returns for the whole text. There is one exception. A link can only use a definition that arrived before its block was finished. Otherwise the link is written as text.</p>\n<p><code>live</code> takes the same four functions as <code>toHtml</code>. The <code>open()</code> part is converted again at each <code>push</code>, so a function can run more than once for the same block.</p>"
+        },
+        {
+          "code": "<?nvs\nCore\\Markdown\\Live $live = Core\\Markdown::live();\narray<string> $pieces = ['# Ans', \"wer\\n\\nThe first \", \"step.\\n\\n- one\\n\"];\nforeach ($pieces as string $piece) {\n    Core\\Markdown\\Update $update = $live->push($piece);\n    echo 'done: ', $update->done(), 'open: ', $update->open(), \"\\n\";\n}\necho 'finish: ', $live->finish();",
+          "lang": "nvs"
+        },
+        {
+          "code": "done: open: <h1>Ans</h1>\n\ndone: open: <h1>Answer</h1>\n<p>The first</p>\n\ndone: <h1>Answer</h1>\n<p>The first step.</p>\nopen: <ul>\n<li>one</li>\n</ul>\n\nfinish: <ul>\n<li>one</li>\n</ul>",
+          "lang": "output"
+        },
+        {
+          "html": "<p>## Converting HTML to Markdown</p>\n<p><code>Core\\Markdown::fromHtml</code> converts HTML to Markdown. It takes a string, a <code>Core\\Html\\Markup</code> or a <code>Core\\Xml\\Node</code> that <code>Core\\Html::parse</code> returned. The result is a <code>tainted string</code>, because the HTML can come from a user.</p>\n<p>The HTML is cleaned the same way <code>Core\\Html::sanitize</code> cleans it, so a <code>&lt;script&gt;</code> and its text are removed. Text in the HTML stays text. A character such as <code>#</code> or <code>*</code> gets a backslash, so it is not read as Markdown syntax. A table that Markdown cannot write, such as one with <code>colspan</code>, stays HTML.</p>"
+        },
+        {
+          "code": "<?nvs\necho Core\\Markdown::fromHtml(\"<h2>Notes</h2><p>Read <a href=\\\"/guide\\\">the <em>guide</em></a>.</p><ul><li>one</li><li>two</li></ul>\");\necho \"--\\n\";\necho Core\\Markdown::fromHtml('<p># not a heading, *not* emphasis</p><script>alert(1)</script>');",
+          "lang": "nvs"
+        },
+        {
+          "code": "## Notes\n\nRead [the *guide*](/guide).\n\n- one\n- two\n--\n\\# not a heading, \\*not\\* emphasis",
+          "lang": "output"
+        },
+        {
+          "html": "<p><code>fromHtml</code> reads the whole document into memory, as <code>Core\\Html::parse</code> does. To convert one part of a page, such as its article, parse the page and pass that element.</p>"
+        }
+      ],
+      "returnedBy": []
+    },
+    {
+      "id": "Markdown.Groups",
+      "name": "Core\\Markdown\\Groups",
+      "summary": "The HTML of a Markdown document, one part at a time, while a `foreach` loop runs. Each part is a `Core\\Html\\Markup` with one or more whole blocks. The parts joined together are the HTML of the whole document.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "members": [],
+      "slug": "markdown-groups",
+      "url": "/reference/core/markdown-groups/",
+      "summaryBlocks": [
+        {
+          "html": "<p>The HTML of a Markdown document, one part at a time, while a <code>foreach</code> loop runs. Each part is a <code>Core\\Html\\Markup</code> with one or more whole blocks. The parts joined together are the HTML of the whole document.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Markdown::toHtmlEach",
+          "url": "/reference/core/markdown/tohtmleach/"
+        }
+      ]
+    },
+    {
+      "id": "Markdown.Live",
+      "name": "Core\\Markdown\\Live",
+      "summary": "A Markdown document that arrives in pieces, such as the answer of a language model. Each piece gives the HTML of the blocks it finished and the HTML of the last block, which is not finished yet.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Markdown.Live.push",
+          "name": "push",
+          "static": false,
+          "receiver": "live",
+          "generics": null,
+          "signature": "push(string $piece): Core\\Markdown\\Update",
+          "params": [
+            {
+              "kind": "param",
+              "name": "piece",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Markdown\\Update",
+          "doc": {
+            "shortHtml": "Adds the next piece of the document. A piece can end anywhere, also in the middle of a line or a word.",
+            "params": [
+              {
+                "name": "piece",
+                "descHtml": "The next text of the document."
+              }
+            ],
+            "returnHtml": "A <code>Core\\Markdown\\Update</code>. Its <code>done()</code> is the HTML of the blocks this piece finished. Add it after the HTML you already have. Its <code>open()</code> is the HTML of the rest. Show it after that, and replace it at the next <code>push</code>. A block is finished when the next block starts, and its HTML does not change after that.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>finish</code> was already called, or a callback threw an error. A callback that calls <code>push</code> or <code>finish</code> on the same object also gets this error."
+              }
+            ]
+          },
+          "slug": "push",
+          "url": "/reference/core/markdown-live/push/",
+          "examples": "core/Markdown-Live/push"
+        },
+        {
+          "id": "Markdown.Live.finish",
+          "name": "finish",
+          "static": false,
+          "receiver": "live",
+          "generics": null,
+          "signature": "finish(): Core\\Html\\Markup",
+          "params": [],
+          "options": [],
+          "returnType": "Core\\Html\\Markup",
+          "doc": {
+            "shortHtml": "Ends the document. After it, <code>push</code> and <code>finish</code> throw an error.",
+            "returnHtml": "A <code>Core\\Html\\Markup</code> with the HTML of the last blocks and the footnotes. Add it after the <code>done()</code> parts, and remove the last <code>open()</code> part. A link that uses a definition from a later block is written as text.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>finish</code> was already called, or a callback threw an error. A callback that calls <code>push</code> or <code>finish</code> on the same object also gets this error."
+              }
+            ]
+          },
+          "slug": "finish",
+          "url": "/reference/core/markdown-live/finish/",
+          "examples": "core/Markdown-Live/finish"
+        }
+      ],
+      "slug": "markdown-live",
+      "url": "/reference/core/markdown-live/",
+      "summaryBlocks": [
+        {
+          "html": "<p>A Markdown document that arrives in pieces, such as the answer of a language model. Each piece gives the HTML of the blocks it finished and the HTML of the last block, which is not finished yet.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Markdown::live",
+          "url": "/reference/core/markdown/live/"
+        }
+      ]
+    },
+    {
+      "id": "Markdown.Update",
+      "name": "Core\\Markdown\\Update",
+      "summary": "What `Core\\Markdown\\Live::push` returns: the HTML of the finished blocks, and the HTML of the rest of the text.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Markdown.Update.done",
+          "name": "done",
+          "static": false,
+          "receiver": "update",
+          "generics": null,
+          "signature": "done(): Core\\Html\\Markup",
+          "params": [],
+          "options": [],
+          "returnType": "Core\\Html\\Markup",
+          "doc": {
+            "shortHtml": "The HTML of the blocks the piece finished. It is empty when the piece finished no block.",
+            "returnHtml": "A <code>Core\\Html\\Markup</code>. Add it after the HTML you already have."
+          },
+          "slug": "done",
+          "url": "/reference/core/markdown-update/done/",
+          "examples": "core/Markdown-Update/done"
+        },
+        {
+          "id": "Markdown.Update.open",
+          "name": "open",
+          "static": false,
+          "receiver": "update",
+          "generics": null,
+          "signature": "open(): Core\\Html\\Markup",
+          "params": [],
+          "options": [],
+          "returnType": "Core\\Html\\Markup",
+          "doc": {
+            "shortHtml": "The HTML of the text that is not in a finished block yet, as if the document ended after this piece.",
+            "returnHtml": "A <code>Core\\Html\\Markup</code>. Replace the <code>open()</code> part of the last <code>push</code> with it."
+          },
+          "slug": "open",
+          "url": "/reference/core/markdown-update/open/",
+          "examples": "core/Markdown-Update/open"
+        }
+      ],
+      "slug": "markdown-update",
+      "url": "/reference/core/markdown-update/",
+      "summaryBlocks": [
+        {
+          "html": "<p>What <code>Core\\Markdown\\Live::push</code> returns: the HTML of the finished blocks, and the HTML of the rest of the text.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Markdown\\Live::push",
+          "url": "/reference/core/markdown-live/push/"
+        }
+      ]
     },
     {
       "id": "Math",

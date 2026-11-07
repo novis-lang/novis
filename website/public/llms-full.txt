@@ -163,6 +163,10 @@ Conventions the whole file uses:
 | [`Core\Signature`](#core-core-signature) |  |
 | [`Core\Html`](#core-core-html) | HTML as a page writes it — the ``html`…` `` template, `Core\Html\Markup`, escaping, sanitizing and parsing |
 | [`Core\Html\Markup`](#core-core-html-markup) | HTML that is already safe to print. Html templates and `Core\Html` methods return it, and `Core\Response::html` takes it |
+| [`Core\Markdown`](#core-core-markdown) | Markdown to HTML that is safe to put into a page — CommonMark with tables, task lists, strikethrough, autolinks and footnotes |
+| [`Core\Markdown\Groups`](#core-core-markdown-groups) |  |
+| [`Core\Markdown\Live`](#core-core-markdown-live) |  |
+| [`Core\Markdown\Update`](#core-core-markdown-update) |  |
 | [`Core\Xml`](#core-core-xml) |  |
 | [`Core\Xml\Node`](#core-core-xml-node) |  |
 | [`Core\Xml\Reader`](#core-core-xml-reader) |  |
@@ -46711,6 +46715,331 @@ echo Core\Str::length($source), "\n";
 
 | Member | Signature |
 |---|---|
+
+<a id="core-core-markdown"></a>
+### `Core\Markdown`
+
+Keywords: markdown, commonmark, gfm, github flavored markdown, readme, render, to html, comments, user content, xss, toHtml, toHtmlEach, live, fromHtml
+
+`Core\Markdown::toHtml` converts a Markdown document to HTML. It reads CommonMark with the GitHub
+extensions: tables, task lists, strikethrough, autolinks and footnotes. The result is a
+`Core\Html\Markup`, so you can write it into a page without escaping it again.
+
+The result is safe even when a user wrote the document. HTML inside the document is cleaned the same
+way `Core\Html::sanitize` cleans it. A link with an unsafe URL, such as `javascript:`, is written as
+plain text. An image with an unsafe URL is removed. Any text is a valid document, so the document
+itself never causes an error.
+
+```nvs
+<?nvs
+string $text = "# Notes\n\nSome *text*, a [link](https://example.com) and www.example.com.\n\n[bad](javascript:alert(1)) <img src=x onerror=alert(1)>\n";
+echo Core\Markdown::toHtml($text);
+```
+```output
+<h1>Notes</h1>
+<p>Some <em>text</em>, a <a href="https://example.com">link</a> and <a href="http://www.example.com">www.example.com</a>.</p>
+<p>bad <img src="x"></p>
+```
+
+##### Changing links, images, headings and code blocks
+
+`toHtml` takes four optional functions, which you pass by name:
+
+- `link` gets each link's URL and returns the URL to write. If it returns `null`, the link is removed
+  and its text stays.
+- `image` gets each image's URL and returns the URL to write. If it returns `null`, the image is
+  removed.
+- `heading` gets each heading's level and text, and returns its `id`. The `id` is written after `md-`,
+  so `intro` gives `md-intro`.
+- `code` gets the language and the text of each fenced code block that names a language. The
+  `Core\Html\Markup` it returns replaces the block. If it returns `null`, the block is written as usual.
+
+A URL a function returns is checked like a URL in the document, so `javascript:` is still not written.
+The `Markup` that `code` returns is written exactly as it is. Use `code` for syntax highlighting, math
+or diagrams. If one of the functions throws an error, `toHtml` stops and your code gets that error.
+
+```nvs
+<?nvs
+string $text = "## Install\n\nSee [the guide](/guide).\n\n```shell\nnvs run app.nvs\n```\n";
+echo Core\Markdown::toHtml(
+    $text,
+    link: fn(string $url): ?string => 'https://example.com' . $url,
+    heading: fn(int $level, string $text): ?string => Core\Str::lower($text),
+    code: fn(string $language, string $code): ?Core\Html\Markup =>
+        Core\Html::escape('Run: ' . Core\Str::trim($code)),
+);
+```
+```output
+<h2 id="md-install">Install</h2>
+<p>See <a href="https://example.com/guide">the guide</a>.</p>
+Run: nvs run app.nvs
+```
+
+##### Converting a large document one part at a time
+
+`Core\Markdown::toHtmlEach` converts a document in parts. Each part is a `Core\Html\Markup` with one
+or more whole blocks, such as a paragraph, a heading or a list. A `foreach` loop reads the parts. The
+parts joined together are the same HTML that `toHtml` returns for the whole document.
+
+The document can be a `bytes` value, an open file, an upload part, a request body stream, or a list
+of `bytes` chunks. A file is read twice. The first read finds the link definitions, because a link
+can use a definition from the end of the file. Only one part is in memory at a time, so a file of any
+size works. Every other source is kept in memory until the loop ends.
+
+`toHtmlEach` takes the same four functions as `toHtml`. Each one runs before the loop receives its part.
+If the bytes are not valid UTF-8, the loop throws a `ParseError` when it reaches them.
+
+```nvs
+<?nvs
+bytes $text = "See [the guide][g].\n\n- one\n- two\n\n[g]: /guide\n" as bytes;
+foreach (Core\Markdown::toHtmlEach($text) as Core\Html\Markup $part) {
+    echo 'part: ', $part;
+}
+```
+```output
+part: <p>See <a href="/guide">the guide</a>.</p>
+part: <ul>
+<li>one</li>
+<li>two</li>
+</ul>
+```
+
+##### Converting text that arrives in pieces
+
+`Core\Markdown::live` creates a `Core\Markdown\Live` for a document that arrives in pieces, such as the
+answer of a language model. Call `push` with each piece. A piece can end anywhere, also in the middle
+of a word. `push` returns a `Core\Markdown\Update` with two parts:
+
+- `done()` is the HTML of the blocks that this piece finished. Add it after the HTML you already have.
+  A block is finished when the first line of the next block is complete. Its HTML never changes after
+  that.
+- `open()` is the HTML of the rest of the text, as if the document ended there. Show it after the
+  finished blocks, and replace it at the next `push`.
+
+Call `finish` at the end. It returns the HTML of the last blocks and the footnotes. The `done()` parts
+and the `finish()` result joined together are the same HTML that `toHtml` returns for the whole text.
+There is one exception. A link can only use a definition that arrived before its block was finished.
+Otherwise the link is written as text.
+
+`live` takes the same four functions as `toHtml`. The `open()` part is converted again at each `push`,
+so a function can run more than once for the same block.
+
+```nvs
+<?nvs
+Core\Markdown\Live $live = Core\Markdown::live();
+array<string> $pieces = ['# Ans', "wer\n\nThe first ", "step.\n\n- one\n"];
+foreach ($pieces as string $piece) {
+    Core\Markdown\Update $update = $live->push($piece);
+    echo 'done: ', $update->done(), 'open: ', $update->open(), "\n";
+}
+echo 'finish: ', $live->finish();
+```
+```output
+done: open: <h1>Ans</h1>
+
+done: open: <h1>Answer</h1>
+<p>The first</p>
+
+done: <h1>Answer</h1>
+<p>The first step.</p>
+open: <ul>
+<li>one</li>
+</ul>
+
+finish: <ul>
+<li>one</li>
+</ul>
+```
+
+##### Converting HTML to Markdown
+
+`Core\Markdown::fromHtml` converts HTML to Markdown. It takes a string, a `Core\Html\Markup` or a
+`Core\Xml\Node` that `Core\Html::parse` returned. The result is a `tainted string`, because the HTML
+can come from a user.
+
+The HTML is cleaned the same way `Core\Html::sanitize` cleans it, so a `<script>` and its text are
+removed. Text in the HTML stays text. A character such as `#` or `*` gets a backslash, so it is not
+read as Markdown syntax. A table that Markdown cannot write, such as one with `colspan`, stays HTML.
+
+```nvs
+<?nvs
+echo Core\Markdown::fromHtml("<h2>Notes</h2><p>Read <a href=\"/guide\">the <em>guide</em></a>.</p><ul><li>one</li><li>two</li></ul>");
+echo "--\n";
+echo Core\Markdown::fromHtml('<p># not a heading, *not* emphasis</p><script>alert(1)</script>');
+```
+```output
+##### Notes
+
+Read [the *guide*](/guide).
+
+- one
+- two
+--
+\# not a heading, \*not\* emphasis
+```
+
+`fromHtml` reads the whole document into memory, as `Core\Html::parse` does. To convert one part of a
+page, such as its article, parse the page and pass that element.
+
+| Member | Signature |
+|---|---|
+| [`Core\Markdown::toHtml`](#core-core-markdown-tohtml) | `toHtml(string $markdown, ?callable(string): ?string $link = null, ?callable(string): ?string $image = null, ?callable(int, string): ?string $heading = null, ?callable(string, string): ?Core\Html\Markup $code = null): Core\Html\Markup` |
+| [`Core\Markdown::toHtmlEach`](#core-core-markdown-tohtmleach) | `toHtmlEach(Core\Bytes::Source\|Core\Bytes::Chunks $markdown, ?callable(string): ?string $link = null, ?callable(string): ?string $image = null, ?callable(int, string): ?string $heading = null, ?callable(string, string): ?Core\Html\Markup $code = null): Core\Markdown\Groups` |
+| [`Core\Markdown::live`](#core-core-markdown-live) | `live(?callable(string): ?string $link = null, ?callable(string): ?string $image = null, ?callable(int, string): ?string $heading = null, ?callable(string, string): ?Core\Html\Markup $code = null): Core\Markdown\Live` |
+| [`Core\Markdown::fromHtml`](#core-core-markdown-fromhtml) | `fromHtml(string\|Core\Html\Markup\|Core\Xml\Node $html): tainted string` |
+
+<a id="core-core-markdown-tohtml"></a>
+#### `Core\Markdown::toHtml`
+
+```nvs skip
+Core\Markdown::toHtml(string $markdown, ?callable(string): ?string $link = null, ?callable(string): ?string $image = null, ?callable(int, string): ?string $heading = null, ?callable(string, string): ?Core\Html\Markup $code = null): Core\Html\Markup
+```
+
+Converts the Markdown document `$markdown` to HTML. The result is safe to write into a page, even when the document comes from a user.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$markdown` | `string` (launder) | The Markdown document. Any text is a valid document. |
+| `$link` | `?callable(string): ?string` (default `null`) | A function that gets each link's URL and returns the URL to write. If it returns `null`, the link is removed and its text stays. The URL it returns is checked like a URL in the document. |
+| `$image` | `?callable(string): ?string` (default `null`) | A function that gets each image's URL and returns the URL to write. If it returns `null`, the image is removed. The URL it returns is checked like a URL in the document. |
+| `$heading` | `?callable(int, string): ?string` (default `null`) | A function that gets each heading's level and text and returns its `id`. The `id` is written after `md-`, so `intro` gives `md-intro`. If it returns `null`, or an `id` with a space, the heading has no `id`. |
+| `$code` | `?callable(string, string): ?Core\Html\Markup` (default `null`) | A function that gets the language and the text of each fenced code block that names a language. The `Core\Html\Markup` it returns replaces the block, exactly as it is. If it returns `null`, the block is written as usual. Use it for syntax highlighting, math or diagrams. |
+
+**Returns** `Core\Html\Markup` — A `Core\Html\Markup` with the document's HTML. HTML inside the document is cleaned the same way `Core\Html::sanitize` cleans it. A link with an unsafe URL, such as `javascript:`, is written as plain text. An image with an unsafe URL is removed. If a callback throws an error, the conversion stops and your code gets that error.
+
+<a id="core-core-markdown-tohtmleach"></a>
+#### `Core\Markdown::toHtmlEach`
+
+```nvs skip
+Core\Markdown::toHtmlEach(Core\Bytes::Source|Core\Bytes::Chunks $markdown, ?callable(string): ?string $link = null, ?callable(string): ?string $image = null, ?callable(int, string): ?string $heading = null, ?callable(string, string): ?Core\Html\Markup $code = null): Core\Markdown\Groups
+```
+
+Converts the Markdown document `$markdown` to HTML one part at a time. Each part has one or more whole blocks, such as a paragraph or a list. Use it for a document that is too large to keep in memory.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$markdown` | `Core\Bytes::Source\|Core\Bytes::Chunks` | The Markdown document: a `bytes` value, an open file, an upload part, a request body stream, or a list of `bytes` chunks. The bytes must be UTF-8. A file is read twice, and only one part is in memory at a time. Every other source is kept in memory until the loop ends. |
+| `$link` | `?callable(string): ?string` (default `null`) | The same `link:` function as in `Core\Markdown::toHtml`. It runs before the loop receives the part with the link. |
+| `$image` | `?callable(string): ?string` (default `null`) | The same `image` function as in `Core\Markdown::toHtml`. |
+| `$heading` | `?callable(int, string): ?string` (default `null`) | The same `heading` function as in `Core\Markdown::toHtml`. |
+| `$code` | `?callable(string, string): ?Core\Html\Markup` (default `null`) | The same `code` function as in `Core\Markdown::toHtml`. |
+
+**Returns** `Core\Markdown\Groups` — A `Core\Markdown\Groups` that a `foreach` loop reads. Each part is a `Core\Html\Markup`. The parts joined together are the same HTML that `Core\Markdown::toHtml` returns for the whole document. Nothing is read until the loop starts.
+
+**Throws** `ParseError` — The document is not valid UTF-8. The message gives the position of the first wrong byte. The loop throws it when it reaches that byte.
+
+<a id="core-core-markdown-live"></a>
+#### `Core\Markdown::live`
+
+```nvs skip
+Core\Markdown::live(?callable(string): ?string $link = null, ?callable(string): ?string $image = null, ?callable(int, string): ?string $heading = null, ?callable(string, string): ?Core\Html\Markup $code = null): Core\Markdown\Live
+```
+
+Creates a `Core\Markdown\Live` for a Markdown document that arrives in pieces. Call `push` with each piece and `finish` at the end.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$link` | `?callable(string): ?string` (default `null`) | The same `link:` function as in `Core\Markdown::toHtml`. |
+| `$image` | `?callable(string): ?string` (default `null`) | The same `image` function as in `Core\Markdown::toHtml`. |
+| `$heading` | `?callable(int, string): ?string` (default `null`) | The same `heading` function as in `Core\Markdown::toHtml`. |
+| `$code` | `?callable(string, string): ?Core\Html\Markup` (default `null`) | The same `code` function as in `Core\Markdown::toHtml`. A block that is not finished is converted again at each `push`, so a function can run more than once for the same block. |
+
+**Returns** `Core\Markdown\Live` — A `Core\Markdown\Live` with no text yet.
+
+<a id="core-core-markdown-fromhtml"></a>
+#### `Core\Markdown::fromHtml`
+
+```nvs skip
+Core\Markdown::fromHtml(string|Core\Html\Markup|Core\Xml\Node $html): tainted string
+```
+
+Converts HTML to Markdown. Text in the HTML stays text, so it never becomes Markdown syntax.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$html` | `string\|Core\Html\Markup\|Core\Xml\Node` (neutral) | The HTML. It can be a string, a `Core\Html\Markup`, or a node from `Core\Html::parse`. Pass a node to convert only that part of a page. Elements are kept or removed as `Core\Html::sanitize` keeps or removes them. |
+
+**Returns** `tainted string` — The Markdown, as a `tainted` string. A table that Markdown cannot write, such as one with `colspan`, is written as HTML. A link with an unsafe URL is written as its text.
+
+<a id="core-core-markdown-groups"></a>
+### `Core\Markdown\Groups`
+
+Keywords:
+
+| Member | Signature |
+|---|---|
+
+<a id="core-core-markdown-live"></a>
+### `Core\Markdown\Live`
+
+Keywords: push, finish
+
+| Member | Signature |
+|---|---|
+| [`Core\Markdown\Live->push`](#core-core-markdown-live-push) | `push(string $piece): Core\Markdown\Update` |
+| [`Core\Markdown\Live->finish`](#core-core-markdown-live-finish) | `finish(): Core\Html\Markup` |
+
+<a id="core-core-markdown-live-push"></a>
+#### `Core\Markdown\Live->push`
+
+```nvs skip
+$live->push(string $piece): Core\Markdown\Update
+```
+
+Adds the next piece of the document. A piece can end anywhere, also in the middle of a line or a word.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$piece` | `string` (launder) | The next text of the document. |
+
+**Returns** `Core\Markdown\Update` — A `Core\Markdown\Update`. Its `done()` is the HTML of the blocks this piece finished. Add it after the HTML you already have. Its `open()` is the HTML of the rest. Show it after that, and replace it at the next `push`. A block is finished when the next block starts, and its HTML does not change after that.
+
+**Throws** `RuntimeError` — `finish` was already called, or a callback threw an error. A callback that calls `push` or `finish` on the same object also gets this error.
+
+<a id="core-core-markdown-live-finish"></a>
+#### `Core\Markdown\Live->finish`
+
+```nvs skip
+$live->finish(): Core\Html\Markup
+```
+
+Ends the document. After it, `push` and `finish` throw an error.
+
+**Returns** `Core\Html\Markup` — A `Core\Html\Markup` with the HTML of the last blocks and the footnotes. Add it after the `done()` parts, and remove the last `open()` part. A link that uses a definition from a later block is written as text.
+
+**Throws** `RuntimeError` — `finish` was already called, or a callback threw an error. A callback that calls `push` or `finish` on the same object also gets this error.
+
+<a id="core-core-markdown-update"></a>
+### `Core\Markdown\Update`
+
+Keywords: done, open
+
+| Member | Signature |
+|---|---|
+| [`Core\Markdown\Update->done`](#core-core-markdown-update-done) | `done(): Core\Html\Markup` |
+| [`Core\Markdown\Update->open`](#core-core-markdown-update-open) | `open(): Core\Html\Markup` |
+
+<a id="core-core-markdown-update-done"></a>
+#### `Core\Markdown\Update->done`
+
+```nvs skip
+$update->done(): Core\Html\Markup
+```
+
+The HTML of the blocks the piece finished. It is empty when the piece finished no block.
+
+**Returns** `Core\Html\Markup` — A `Core\Html\Markup`. Add it after the HTML you already have.
+
+<a id="core-core-markdown-update-open"></a>
+#### `Core\Markdown\Update->open`
+
+```nvs skip
+$update->open(): Core\Html\Markup
+```
+
+The HTML of the text that is not in a finished block yet, as if the document ended after this piece.
+
+**Returns** `Core\Html\Markup` — A `Core\Html\Markup`. Replace the `open()` part of the last `push` with it.
 
 <a id="core-core-xml"></a>
 ### `Core\Xml`

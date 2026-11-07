@@ -1,10 +1,13 @@
 {
   "title": "`Core\\Markdown` renders one block group at a time, or as text arrives, and gives the whole document's HTML",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/markdown-to-html",
     "core-classes/json-whole-and-stream"
   ],
-  "guardedBy": [],
-  "goal": "markdown"
+  "guardedBy": [
+    "crates/nvs-stdlib/src/markdown/tests.rs",
+    "tests/conformance/core/markdown-to-html-each-reads-a-file-and-bytes-one-block-group-at-a-time.nvst",
+    "tests/conformance/core/markdown-live-gives-each-finished-block-once-and-the-open-rest.nvst"
+  ]
 }

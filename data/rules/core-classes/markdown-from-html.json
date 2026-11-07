@@ -1,10 +1,13 @@
 {
   "title": "`Core\\Markdown::fromHtml` escapes every text node, so HTML text never becomes Markdown syntax",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/markdown-to-html",
     "core-classes/html-sanitize"
   ],
-  "guardedBy": [],
-  "goal": "markdown"
+  "guardedBy": [
+    "crates/nvs-stdlib/src/markdown/tests.rs",
+    "tests/conformance/core/markdown-from-html-writes-markdown-from-a-string-markup-and-a-node.nvst",
+    "tests/hostile/core/Markdown/fromHtml/01-text-that-tries-to-become-markdown.nvs"
+  ]
 }

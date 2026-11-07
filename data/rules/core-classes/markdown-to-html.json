@@ -1,6 +1,6 @@
 {
   "title": "`Core\\Markdown` reads CommonMark with GFM and writes HTML only through the sanitizer's list",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/html-sanitize",
     "core-classes/markdown-cost",
@@ -8,7 +8,8 @@
     "core-classes/markdown-from-html"
   ],
   "guardedBy": [
-    "tests/data/markdown/known-bugs.toml"
-  ],
-  "goal": "markdown"
+    "tests/data/markdown/known-bugs.toml",
+    "crates/nvs-stdlib/src/markdown/tests.rs",
+    "tests/conformance/core/markdown-to-html-calls-each-callback-a-program-passes.nvst"
+  ]
 }

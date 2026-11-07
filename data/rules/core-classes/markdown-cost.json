@@ -1,12 +1,13 @@
 {
   "title": "`Core\\Markdown`'s work is linear, its nesting and its added output are bounded, and no input fails",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/markdown-to-html",
     "core-classes/html-parsing"
   ],
   "guardedBy": [
-    "tests/data/markdown/known-bugs.toml"
-  ],
-  "goal": "markdown"
+    "tests/data/markdown/known-bugs.toml",
+    "crates/nvs-stdlib/src/markdown/tests.rs",
+    "crates/nvs-stdlib/tests/markdown_known_bugs.rs"
+  ]
 }

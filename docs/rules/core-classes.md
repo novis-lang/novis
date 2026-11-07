@@ -3,8 +3,6 @@
 
 # The Core classes
 
-*4 of 124 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="core-classes-cli-arguments"></a>
 
 ## `Core\Cli::arguments` is how a program reads the words it was started with, at every depth
@@ -1000,7 +998,7 @@ separate fragment has no kind here and a program looks for them under the elemen
 
 <a id="core-classes-markdown-to-html"></a>
 
-## `Core\Markdown` reads CommonMark with GFM and writes HTML only through the sanitizer's list  *(designed — owned by goal markdown)*
+## `Core\Markdown` reads CommonMark with GFM and writes HTML only through the sanitizer's list
 
 `rule:core-classes/markdown-to-html`
 
@@ -1167,7 +1165,7 @@ already reads it as cmark does.
 
 <a id="core-classes-markdown-cost"></a>
 
-## `Core\Markdown`'s work is linear, its nesting and its added output are bounded, and no input fails  *(designed — owned by goal markdown)*
+## `Core\Markdown`'s work is linear, its nesting and its added output are bounded, and no input fails
 
 `rule:core-classes/markdown-cost`
 
@@ -1252,7 +1250,7 @@ all attributed to the request and freed with it. `toHtmlEach` and `Live` hold le
 
 <a id="core-classes-markdown-chunks"></a>
 
-## `Core\Markdown` renders one block group at a time, or as text arrives, and gives the whole document's HTML  *(designed — owned by goal markdown)*
+## `Core\Markdown` renders one block group at a time, or as text arrives, and gives the whole document's HTML
 
 `rule:core-classes/markdown-chunks`
 
@@ -1331,7 +1329,7 @@ one never finished costs nothing after its last use.
 
 <a id="core-classes-markdown-from-html"></a>
 
-## `Core\Markdown::fromHtml` escapes every text node, so HTML text never becomes Markdown syntax  *(designed — owned by goal markdown)*
+## `Core\Markdown::fromHtml` escapes every text node, so HTML text never becomes Markdown syntax
 
 `rule:core-classes/markdown-from-html`
 
