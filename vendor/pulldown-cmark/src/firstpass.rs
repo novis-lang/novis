@@ -1413,7 +1413,14 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                 break;
             }
 
-            if self.text[line_start_ix..ix].contains(html_end_tag) {
+            // Novis: the end tag is matched in any case, as cmark's pattern
+            // is, so `</PRE>` ends a `<pre>` block. The published 0.13.6
+            // matched it in lower case alone.
+            let tag = html_end_tag.as_bytes();
+            if bytes[line_start_ix..ix]
+                .windows(tag.len())
+                .any(|window| window.eq_ignore_ascii_case(tag))
+            {
                 end_ix = ix;
                 break;
             }

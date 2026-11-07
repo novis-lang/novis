@@ -3585,6 +3585,18 @@ direction = "to-html"
 input = "[a]: /u\n\n[]\\[a] [b]\\[a]"
 html = "<p>[][a] [b][a]</p>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. The 0.13.6 scan ends an HTML block of
+# types 1 to 5 only at an end tag in lower case, so `</PRE>` left the block open to the end of the
+# document. cmark's end pattern is matched in any case.
+[[bug]]
+id = "pulldown-cmark-html-block-end-tag-case"
+library = "pulldown-cmark"
+source = "https://docs.rs/crate/pulldown-cmark/0.13.6/source/src/firstpass.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "<pre>a</PRE>\n*x*"
+html = "<pre>a</pre>\n<p><em>x</em></p>\n"
+
 # Found by the `markdown_comrak` differential fuzz target. The 0.13.6 table scan needs a pipe in the
 # header row and in the delimiter row. GFM needs only as many header cells as the delimiter row has,
 # so `a` over `-|` and over `-:` is a table. `a` over `---` is a setext heading, which comes first.
