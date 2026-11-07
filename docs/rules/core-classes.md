@@ -1040,7 +1040,9 @@ there. That is a CommonMark construct and not a GFM one, so the CommonMark readi
 
 **Footnotes are written at the end**, after an `hr`, as an `ol` in the order they are first referenced.
 A definition nothing references is not written. Each reference is a `sup` holding a link to its note,
-and each note ends with a link back to its first reference.
+and each note ends with a link back to its first reference. A reference to a label no definition has
+is written as its source text, so `[^a\_b]` keeps its backslash; no other engine has been compared
+on this.
 
 **Raw HTML is rebuilt, never stripped and never passed through.** A document's raw HTML is parsed with
 the rest of its output by the WHATWG algorithm and rebuilt through [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize)'s
@@ -1201,7 +1203,9 @@ the other engine the choice was measured against. Each difference is triaged int
 catalogued, or a spec reading, one line in [`core-classes/markdown-to-html`](core-classes.md#core-classes-markdown-to-html). Where comrak 0.59
 departs from the spec, the differential does not compare: footnotes (written as this rule writes them),
 extended autolinks, among them an email whose `@` is an entity, which cmark-gfm reads in the
-decoded text and comrak 0.59 in the source, a delimiter beside a Unicode symbol, `~` beside `*` or `_`, a `~` run beside a `~~` run, a declaration, a definition's title with text after it on its line, which cmark now drops and comrak 0.59 keeps,
+decoded text and comrak 0.59 in the source, and an escape inside a `www.` or URL autolink's path, which
+cmark-gfm keeps in the link as `\` and the character and this renderer ends the link before, since only a
+scan of the source would match it, a delimiter beside a Unicode symbol, `~` beside `*` or `_`, a `~` run beside a `~~` run, a declaration, a definition's title with text after it on its line, which cmark now drops and comrak 0.59 keeps,
 a `\` before a link title's closing delimiter, which cmark reads as an escape since its
 issue 607 and comrak 0.59 may read as a character, a processing instruction that ends `??>`, an HTML comment
 whose text ends with `-`, which 0.29 did not allow, a CDATA section with `]]]`, which cmark's pattern reads
@@ -1268,7 +1272,9 @@ header only after a paragraph, and alone it would be indented code. A document t
 opened, and an end tag closes only the innermost one it names. A comment, a raw-text element or a tag
 left unfinished when Markdown output follows ends every later boundary. A group after the first is
 rebuilt behind the first group's leading doctype and a `<body>` tag, with its leading whitespace kept,
-so the parser reads it in the mode and place the whole document's parse did.
+so the parser reads it in the mode and place the whole document's parse did. The tokenizer keeps a
+group open after a `<p>` and every other element the parser closes on its own, so a document with
+many unclosed `<p>` tags in raw HTML is one group: correct, and costing that document its whole text.
 
 **References may be defined after their first use.** A `Core\IO\File` is read twice: once to collect
 the reference definitions, once to render. Every other source is read once and held whole under the
@@ -1357,7 +1363,9 @@ its tags, because `*` there is not read as emphasis.
 **What Markdown cannot write** — a table outside GFM's shape, `dl`, `figure`, and an `ol` whose start
 has more than nine digits — is written as its sanitized HTML on one line, with each line feed as
 `&#10;`, so CommonMark reads it as one HTML block that no blank line ends early. An inline element
-with no Markdown syntax, such as `sup`, is its tags around Markdown content.
+with no Markdown syntax, such as `sup`, is its tags around Markdown content. An `<a>` nested in an
+`<a>`, which the parser closes into links with no text, is written as `[](/x)`, where any other empty
+element writes nothing.
 
 **Depth.** The walk follows 128 levels of elements, and past that writes an element's text alone. It
 bounds both the native stack and the copy each level makes of its content, which keeps work linear.
