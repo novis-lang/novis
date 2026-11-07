@@ -31,8 +31,9 @@ catalogued, or a spec reading, one line in `rule:core-classes/markdown-to-html`.
 departs from the spec, the differential does not compare: footnotes (written as this rule writes them),
 extended autolinks, a delimiter beside a Unicode symbol, `~` beside `*` or `_`, a `~` run beside a `~~` run, a declaration, a processing instruction that ends `??>`, a task marker with an inline
 right after its `]`, a lazy line that would start an HTML block of type 7 or starts with spaces inside a code span, nesting past comrak's depth of 100, a run
-of two or more backticks, and a vertical tab or form feed, which 0.29 counted as whitespace. The target's
-comments give each case. The other two targets cover these documents.
+of two or more backticks, and a vertical tab or form feed, which 0.29 counted as whitespace. comrak writes a `%` with no two hex
+digits after it in a URL as `%25`. cmark and this renderer write it as it is, and the target maps that
+difference away. The target's comments give each case. The other two targets cover these documents.
 
 **Memory:** `toHtml` holds the document, its output tree and its reference and footnote definitions,
 all attributed to the request and freed with it. `toHtmlEach` and `Live` hold less, as

@@ -37,7 +37,7 @@ fn options() -> comrak::Options<'static> {
 ///
 /// - A link whose URL fails the scheme check is written as its text, where
 ///   comrak writes the link and the sanitizer then removes its `href`. An `a`
-///   with no attributes is removed and its text kept. An `a` never holds
+///   with no `href` is removed, with its `title`, and its text kept. An `a` never holds
 ///   another, so each `</a>` closes the last `<a` before it. An image whose
 ///   URL fails is removed, where comrak's loses its `src`, so an `img` with no
 ///   `src` is removed.
@@ -47,6 +47,7 @@ fn options() -> comrak::Options<'static> {
 ///   the same. A space between two tags is removed, as `html_meaning` does: in
 ///   `> \t<div>` comrak keeps the tab in front of the HTML block and ours
 ///   writes the spaces it stands for.
+/// - A `%` with no two hex digits after it is `%25` (`lone_percent_encoded`).
 fn normal(html: &str) -> String {
     let mut spaced = String::with_capacity(html.len());
     for ch in fuzz::html_meaning(html).chars() {
@@ -76,15 +77,36 @@ fn normal(html: &str) -> String {
                 out.push_str(&rest[..=end]);
             }
             rest = &rest[end + 1..];
-        } else {
-            if rest.starts_with("<a ") {
-                bare = false;
+        } else if let Some(end) = rest.starts_with("<a ").then(|| tag_end(rest)).flatten() {
+            bare = !rest[..end].contains(" href=");
+            if !bare {
+                out.push_str(&rest[..=end]);
             }
+            rest = &rest[end + 1..];
+        } else {
             out.push('<');
             rest = &rest[1..];
         }
     }
     out.push_str(rest);
+    lone_percent_encoded(&out)
+}
+
+/// `html` with each `%` not followed by two hex digits written as `%25`.
+/// cmark writes such a `%` in a URL as it is, and so does ours. comrak 0.59
+/// encodes it, so `[a](%u)` gives it `href="%25u"`. Text is the same on both
+/// sides, so the whole document is mapped.
+fn lone_percent_encoded(html: &str) -> String {
+    let bytes = html.as_bytes();
+    let mut out = String::with_capacity(html.len());
+    for (at, ch) in html.char_indices() {
+        let hex = |i: usize| bytes.get(i).is_some_and(u8::is_ascii_hexdigit);
+        if ch == '%' && !(hex(at + 1) && hex(at + 2)) {
+            out.push_str("%25");
+        } else {
+            out.push(ch);
+        }
+    }
     out
 }
 
