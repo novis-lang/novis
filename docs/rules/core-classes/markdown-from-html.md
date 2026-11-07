@@ -28,7 +28,11 @@ bounds both the native stack and the copy each level makes of its content, which
 
 **The writing rules.**
 
-- Whitespace collapses by the CSS rules for inline and block elements.
+- Whitespace collapses by the CSS rules for inline and block elements. CSS white space is a space, a
+  tab and a line break; a form feed is a character a browser shows, so it stays in the text.
+- Every `<br>` is written, because a browser shows each one. A break between two pieces of text is a
+  backslash at the end of the line. Markdown has no syntax for a break with no text before or after
+  it in its block, so that one is `<br />`, inline HTML.
 - A GFM table is written when every cell holds only inline content and no cell uses `colspan` or
   `rowspan`. Any other table is written as sanitized HTML.
 - A code block's fence is one backtick longer than the longest run of backticks inside it.

@@ -1088,6 +1088,11 @@ const DOCUMENTS: &[&str] = &[
     // code span. The `markdown_from_html` fuzz target found the first.
     "\u{C}t\n",
     "a `\u{C}` b\n",
+    // A browser shows every break, so each one comes back. The first was
+    // found by the `markdown_from_html` fuzz target.
+    "<br>\n",
+    "a<br>\n\n<br>b\n\n# <br>c<br>\n",
+    "a<br><br>b and *c<br><br>*d\n",
 ];
 
 #[test]

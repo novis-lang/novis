@@ -273,9 +273,9 @@ impl Writer {
         let mut inline = Inline::new(Place::Paragraph, false);
         inline.task = self.task;
         inline.nodes(nodes.iter().copied(), depth);
-        let piece = inline.finish();
-        if !piece.text.is_empty() {
-            self.push(parts, Part::Paragraph, piece.text);
+        let text = inline.whole();
+        if !text.is_empty() {
+            self.push(parts, Part::Paragraph, text);
         }
     }
 
@@ -302,11 +302,11 @@ impl Writer {
                 let level = usize::from(node.name.as_bytes()[1] - b'0');
                 let mut inline = Inline::new(Place::Heading, false);
                 inline.nodes(children.iter().copied(), depth);
-                let piece = inline.finish();
+                let inner = inline.whole();
                 let mut text = "#".repeat(level);
-                if !piece.text.is_empty() {
+                if !inner.is_empty() {
                     text.push(' ');
-                    text.push_str(&piece.text);
+                    text.push_str(&inner);
                 }
                 self.push(parts, Part::Heading, text);
             }
@@ -498,9 +498,8 @@ fn gfm_table(node: &Parsed, depth: usize) -> Result<Option<String>, Fault> {
         for cell in cells {
             let mut inline = Inline::new(Place::Cell, false);
             inline.nodes(cell.children.iter(), depth);
-            let piece = inline.finish();
             out.push(' ');
-            out.push_str(&piece.text);
+            out.push_str(&inline.whole());
             out.push_str(" |");
         }
         out
@@ -744,23 +743,25 @@ enum Place {
     Cell,
 }
 
-/// The Markdown of one element's inline content, and the whitespace and
-/// breaks at its two ends. The parent writes those outside the element's
-/// own syntax, where Markdown reads them.
+/// The Markdown of one element's inline content, and the whitespace and the
+/// number of breaks at its two ends. The parent writes those outside the
+/// element's own syntax, where Markdown reads them.
 struct Piece {
     text: String,
     lead: bool,
-    lead_break: bool,
+    lead_break: usize,
     trail: bool,
-    trail_break: bool,
+    trail_break: usize,
 }
 
 /// Inline content being written.
 ///
 /// Whitespace collapses as CSS collapses it in an inline context: a run of
 /// spaces, tabs and line feeds is one space, and none is written at the start
-/// or the end. A space and a break are held until the next text arrives, so
-/// neither ends up at the end of a line.
+/// or the end. A space and the breaks are held until the next text arrives,
+/// so neither ends up at the end of a line. A browser shows each break, so
+/// each one is written; breaks with no text before or after them in the
+/// block are written as `<br />`, since Markdown has no syntax for them.
 struct Inline {
     place: Place,
     out: String,
@@ -768,9 +769,11 @@ struct Inline {
     /// sees the text the renderer will see.
     run: String,
     space: bool,
-    brk: bool,
+    /// The breaks held until text follows them.
+    brk: usize,
     lead: bool,
-    lead_break: bool,
+    /// The breaks before the first text.
+    lead_break: usize,
     /// Inside a link's text, where the renderer reads no autolink.
     link: bool,
     /// Whether a checkbox here is a task list item's marker.
@@ -784,9 +787,9 @@ impl Inline {
             out: String::new(),
             run: String::new(),
             space: false,
-            brk: false,
+            brk: 0,
             lead: false,
-            lead_break: false,
+            lead_break: 0,
             link,
             task: false,
         }
@@ -801,19 +804,22 @@ impl Inline {
         !self.out.is_empty() || !self.run.is_empty()
     }
 
-    /// Writes the space or the break held before the content that comes next.
+    /// Writes the space or the breaks held before the content that comes next.
     fn settle(&mut self) {
-        if self.brk {
-            self.brk = false;
+        if self.brk > 0 {
+            let breaks = std::mem::take(&mut self.brk);
             self.space = false;
             if self.started() {
                 self.flush();
-                self.out.push_str(match self.place {
+                let one = match self.place {
                     Place::Paragraph => "\\\n",
                     Place::Heading | Place::Cell => "<br />",
-                });
+                };
+                for _ in 0..breaks {
+                    self.out.push_str(one);
+                }
             } else {
-                self.lead_break = true;
+                self.lead_break += breaks;
             }
         } else if self.space {
             self.space = false;
@@ -831,7 +837,7 @@ impl Inline {
         work(text.len());
         for ch in text.chars() {
             if css_space(ch) {
-                if !self.brk {
+                if self.brk == 0 {
                     self.space = true;
                 }
             } else {
@@ -848,10 +854,12 @@ impl Inline {
         self.out.push_str(markup);
     }
 
-    /// A line break, held until text follows it.
-    fn hard_break(&mut self) {
-        self.brk = true;
-        self.space = false;
+    /// `count` line breaks, held until text follows them.
+    fn hard_breaks(&mut self, count: usize) {
+        if count > 0 {
+            self.brk += count;
+            self.space = false;
+        }
     }
 
     /// Escapes the held text onto the output.
@@ -881,11 +889,22 @@ impl Inline {
         }
     }
 
+    /// The whole content of a paragraph, heading or cell, with the breaks at
+    /// its two ends written as `<br />`. Its spaces at the ends are dropped,
+    /// as a browser drops them.
+    fn whole(self) -> String {
+        let piece = self.finish();
+        let mut text = "<br />".repeat(piece.lead_break);
+        text.push_str(&piece.text);
+        text.push_str(&"<br />".repeat(piece.trail_break));
+        text
+    }
+
     /// Writes a child's piece, with `open` and `close` around its text.
     fn wrap(&mut self, piece: &Piece, open: &str, close: &str) {
-        if piece.lead_break {
-            self.hard_break();
-        } else if piece.lead && !self.brk {
+        if piece.lead_break > 0 {
+            self.hard_breaks(piece.lead_break);
+        } else if piece.lead && self.brk == 0 {
             self.space = true;
         }
         if !piece.text.is_empty() {
@@ -896,9 +915,9 @@ impl Inline {
             self.out.push_str(&piece.text);
             self.out.push_str(close);
         }
-        if piece.trail_break {
-            self.hard_break();
-        } else if piece.trail && !self.brk {
+        if piece.trail_break > 0 {
+            self.hard_breaks(piece.trail_break);
+        } else if piece.trail && self.brk == 0 {
             self.space = true;
         }
     }
@@ -920,7 +939,7 @@ impl Inline {
 
     fn element(&mut self, node: &Parsed, depth: usize) {
         match node.name.as_str() {
-            "br" => self.hard_break(),
+            "br" => self.hard_breaks(1),
             "wbr" => {}
             "a" => self.link(node, depth),
             "img" => self.image(node),
@@ -943,11 +962,11 @@ impl Inline {
             }
             "span" if node.attributes.is_empty() => self.nodes(&node.children, depth),
             name if is_block(name) => {
-                if !self.brk {
+                if self.brk == 0 {
                     self.space = true;
                 }
                 self.nodes(&node.children, depth);
-                if !self.brk {
+                if self.brk == 0 {
                     self.space = true;
                 }
             }
@@ -970,9 +989,9 @@ impl Inline {
         let word = |ch: Option<char>| ch.is_some_and(char::is_alphanumeric);
         // The held space goes out first, so the check below reads what is
         // right before the delimiter.
-        if piece.lead_break {
-            self.hard_break();
-        } else if piece.lead && !self.brk {
+        if piece.lead_break > 0 {
+            self.hard_breaks(piece.lead_break);
+        } else if piece.lead && self.brk == 0 {
             self.space = true;
         }
         if !piece.text.is_empty() {
@@ -985,7 +1004,7 @@ impl Inline {
         let bare = Piece {
             text: piece.text,
             lead: false,
-            lead_break: false,
+            lead_break: 0,
             trail: piece.trail,
             trail_break: piece.trail_break,
         };
@@ -1016,15 +1035,15 @@ impl Inline {
         if piece.text.is_empty() {
             // `wrap` writes nothing for an empty text, and an empty link is
             // still a link.
-            if piece.lead_break {
-                self.hard_break();
-            } else if piece.lead && !self.brk {
+            if piece.lead_break > 0 {
+                self.hard_breaks(piece.lead_break);
+            } else if piece.lead && self.brk == 0 {
                 self.space = true;
             }
             self.markup("[");
             self.out.push_str(&close);
             piece.lead = false;
-            piece.lead_break = false;
+            piece.lead_break = 0;
             self.wrap(&piece, "", "");
             return;
         }
@@ -1073,7 +1092,7 @@ impl Inline {
             code.push(' ');
         }
         if code.chars().all(|ch| ch == ' ') {
-            if !code.is_empty() && !self.brk {
+            if !code.is_empty() && self.brk == 0 {
                 self.space = true;
             }
             return;
