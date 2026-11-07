@@ -202,13 +202,16 @@ fn attribute<'a>(node: &'a Parsed, name: &str) -> Option<&'a str> {
         .map(|(_, value)| value.as_str())
 }
 
-/// Whether `node` is a text node of HTML whitespace alone.
+/// Whether `ch` is white space CSS collapses: a space, a tab or a line break.
+/// A form feed is HTML whitespace but not CSS white space; a browser shows it
+/// as a character, and Markdown keeps it in a paragraph, so it is text here.
+fn css_space(ch: char) -> bool {
+    matches!(ch, ' ' | '\t' | '\n' | '\r')
+}
+
+/// Whether `node` is a text node of CSS white space alone.
 fn blank(node: &Parsed) -> bool {
-    node.kind == Kind::Text
-        && node
-            .text
-            .chars()
-            .all(|ch| matches!(ch, ' ' | '\t' | '\n' | '\r' | '\u{C}'))
+    node.kind == Kind::Text && node.text.chars().all(css_space)
 }
 
 /// The walk's state across blocks.
@@ -827,7 +830,7 @@ impl Inline {
     fn text(&mut self, text: &str) {
         work(text.len());
         for ch in text.chars() {
-            if matches!(ch, ' ' | '\t' | '\n' | '\r' | '\u{C}') {
+            if css_space(ch) {
                 if !self.brk {
                     self.space = true;
                 }
@@ -1056,7 +1059,7 @@ impl Inline {
         let mut code = String::with_capacity(raw.len());
         let mut space = false;
         for ch in raw.chars() {
-            if matches!(ch, ' ' | '\t' | '\n' | '\r' | '\u{C}') {
+            if css_space(ch) {
                 space = true;
             } else {
                 if space {
@@ -1069,7 +1072,7 @@ impl Inline {
         if space {
             code.push(' ');
         }
-        if code.trim().is_empty() {
+        if code.chars().all(|ch| ch == ' ') {
             if !code.is_empty() && !self.brk {
                 self.space = true;
             }

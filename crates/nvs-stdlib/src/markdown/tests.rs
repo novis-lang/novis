@@ -1084,6 +1084,10 @@ const DOCUMENTS: &[&str] = &[
     "- a\n\n  ```\n  code\n  ```\n- b\n",
     "### *a* `b` [c](/d)\n",
     "*a*b and a**b**c and *.a* and **(b)**\n",
+    // A form feed is not CSS white space, so it stays in the text and in a
+    // code span. The `markdown_from_html` fuzz target found the first.
+    "\u{C}t\n",
+    "a `\u{C}` b\n",
 ];
 
 #[test]
