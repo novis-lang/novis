@@ -1,0 +1,60 @@
+--TEST--
+`Core\Markdown::toHtmlEach` gives a document's HTML one block group at a time from a file and from a `bytes` value, the groups join to `toHtml`'s HTML, a reference defined at the end resolves in the first group, and bytes that are not UTF-8 throw a `ParseError` — `rule:core-classes/markdown-chunks`
+--FILE--
+<?nvs
+// covers: Core\Markdown::toHtmlEach
+string $doc = "See [the guide][g].\n\n# Notes\n\n- one\n- two\n\nLast.\n\n[g]: /guide\n";
+
+Core\IO\File $out = Core\IO::open("notes.md", Core\IO::FileMode::Write);
+$out->write($doc);
+$out->close();
+
+// A file is read twice. The first read finds `[g]`, so the first group has the link.
+Core\IO\File $in = Core\IO::open("notes.md", Core\IO::FileMode::Read);
+string $joined = "";
+foreach (Core\Markdown::toHtmlEach($in) as Core\Html\Markup $group) {
+    string $html = Core\Html::toSource($group, "the case prints each group");
+    echo "group: ", $html;
+    $joined = $joined . $html;
+}
+$in->close();
+string $whole = Core\Html::toSource(Core\Markdown::toHtml($doc), "the case compares the whole");
+echo $joined == $whole ? "same as toHtml\n" : "different from toHtml\n";
+
+// A `bytes` value gives the same groups, and the callbacks run for each one.
+int $groups = 0;
+foreach (Core\Markdown::toHtmlEach(
+    $doc as bytes,
+    link: fn (string $url): ?string => "https://example.com" . $url,
+) as Core\Html\Markup $group) {
+    $groups = $groups + 1;
+    if ($groups == 1) {
+        echo Core\Html::toSource($group, "the case prints the first group");
+    }
+}
+echo "groups: ", $groups, "\n";
+
+// The third byte is FF, which never appears in UTF-8.
+try {
+    foreach (Core\Markdown::toHtmlEach(Core\Bytes::pack('CCC', 0x61, 0x0A, 0xFF)) as Core\Html\Markup $group) {
+        echo "not reached\n";
+    }
+} catch (ParseError $notText) {
+    echo $notText->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+group: <p>See <a href="/guide">the guide</a>.</p>
+group: <h1>Notes</h1>
+group: <ul>
+<li>one</li>
+<li>two</li>
+</ul>
+group: <p>Last.</p>
+same as toHtml
+<p>See <a href="https://example.com/guide">the guide</a>.</p>
+groups: 4
+Core\Markdown::toHtmlEach: byte 2 of the document is not valid UTF-8

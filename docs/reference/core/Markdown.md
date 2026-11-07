@@ -56,3 +56,32 @@ echo Core\Markdown::toHtml(
 <p>See <a href="https://example.com/guide">the guide</a>.</p>
 Run: nvs run app.nvs
 ```
+
+## Converting a large document one part at a time
+
+`Core\Markdown::toHtmlEach` converts a document in parts. Each part is a `Core\Html\Markup` with one
+or more whole blocks, such as a paragraph, a heading or a list. A `foreach` loop reads the parts. The
+parts joined together are the same HTML that `toHtml` returns for the whole document.
+
+The document can be a `bytes` value, an open file, an upload part, a request body stream, or a list
+of `bytes` chunks. A file is read twice. The first read finds the link definitions, because a link
+can use a definition from the end of the file. Only one part is in memory at a time, so a file of any
+size works. Every other source is kept in memory until the loop ends.
+
+`toHtmlEach` takes the same four functions as `toHtml`. Each one runs when the loop reaches its part.
+If the bytes are not valid UTF-8, the loop throws a `ParseError` when it reaches them.
+
+```nvs
+<?nvs
+bytes $text = "See [the guide][g].\n\n- one\n- two\n\n[g]: /guide\n" as bytes;
+foreach (Core\Markdown::toHtmlEach($text) as Core\Html\Markup $part) {
+    echo "part: ", $part;
+}
+```
+```output
+part: <p>See <a href="/guide">the guide</a>.</p>
+part: <ul>
+<li>one</li>
+<li>two</li>
+</ul>
+```
