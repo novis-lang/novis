@@ -234,7 +234,8 @@ pub fn markdown_url_allowed(url: &str) -> bool {
 }
 
 /// `html` sanitized, with each element's attributes in order of name, each run
-/// of spaces and line feeds as one space, and none between two tags. Two
+/// of CSS white space (spaces, tabs and line breaks) as one space, and none
+/// between two tags. Two
 /// renderings that differ only in how they lay out their whitespace and
 /// attributes give the same string. The sanitized answer is the one
 /// [`html_sanitized`] gives, which a second parse builds again, so an `li`
@@ -251,7 +252,11 @@ pub fn html_meaning(html: &str) -> String {
     let sanitized = source(&tree);
     let mut out = String::with_capacity(sanitized.len());
     for ch in sanitized.chars() {
-        let ch = if ch == '\n' { ' ' } else { ch };
+        let ch = if matches!(ch, '\t' | '\n' | '\r') {
+            ' '
+        } else {
+            ch
+        };
         if !(ch == ' ' && out.ends_with(' ')) {
             out.push(ch);
         }
