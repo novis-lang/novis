@@ -225,8 +225,8 @@ pub fn markdown_live(text: &str, piece: usize) -> (Vec<(String, String)>, String
 /// attributes give the same string.
 #[must_use]
 pub fn html_meaning(html: &str) -> String {
-    use crate::html::{parse, rebuilt, source};
-    let mut tree = rebuilt(&parse(html));
+    use crate::html::{parse_in_page, rebuilt, source};
+    let mut tree = rebuilt(&parse_in_page(html));
     let mut work = vec![&mut tree];
     while let Some(node) = work.pop() {
         node.attributes.sort();
@@ -259,8 +259,8 @@ pub fn markdown_counting_steps(text: &str) -> (String, Option<u64>) {
 /// `html` parsed and rebuilt as `Core\Html::sanitize` does it, and written out.
 #[must_use]
 pub fn html_sanitized(html: &str) -> String {
-    use crate::html::{parse, rebuilt, source};
-    source(&rebuilt(&parse(html)))
+    use crate::html::{parse_in_page, rebuilt, source};
+    source(&rebuilt(&parse_in_page(html)))
 }
 
 /// `html` parsed and written out with every text node removed, so only its

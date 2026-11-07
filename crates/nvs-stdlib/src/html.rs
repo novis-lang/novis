@@ -1374,8 +1374,9 @@ impl TreeSink for Sink {
         x == y
     }
 
-    /// Discarded: quirks mode changes how a *renderer* lays a document out and
-    /// changes nothing about the tree, and this member answers a tree.
+    /// Discarded: the tree builder keeps the mode itself, and it is the one
+    /// reader. Quirks mode changes one thing about the tree: `<table>` does not
+    /// close an open `<p>`. [`parse_in_page`] is the parse that never enters it.
     fn set_quirks_mode(&self, _mode: QuirksMode) {}
 
     fn add_attrs_if_missing(&self, target: &usize, attrs: Vec<Attribute>) {
@@ -1597,6 +1598,20 @@ fn options() -> html5ever::ParseOpts {
     opts
 }
 
+/// `document` parsed as a page with `<!DOCTYPE html>` parses it: in no-quirks
+/// mode, whatever doctype the document has or lacks. The sanitizer reads its
+/// input with this, because its answer is written into such a page.
+///
+/// [`parse`] keeps quirks mode for a document with no doctype, as a browser
+/// does for a whole page. The two differ in one rule: in quirks mode `<table>`
+/// does not close an open `<p>`. The sanitizer's answer is then a `p` inside a
+/// `p`, and sanitizing it again changes it.
+pub(crate) fn parse_in_page(document: &str) -> Parsed {
+    let mut opts = options();
+    opts.tree_builder.never_quirks = true;
+    html5ever::parse_document(Sink::new(), opts).one(document)
+}
+
 /// The payload [`Sink::push`] unwinds with when the request cannot afford one
 /// more node. `resume_unwind` runs no panic hook, so nothing is printed.
 struct OverLimit;
@@ -1613,7 +1628,23 @@ struct OverLimit;
 /// A [`Fault::Fatal`] naming `member` when the tree would pass the limit.
 /// [`nvs_runtime::run_helper`] reports the breach in its place.
 pub(crate) fn bounded(document: &str, member: &str) -> Result<Parsed, Fault> {
-    std::panic::catch_unwind(AssertUnwindSafe(|| parse(document))).map_err(|payload| {
+    caught(|| parse(document), member)
+}
+
+/// [`parse_in_page`], stopped at the request's memory limit as [`bounded`]
+/// stops [`parse`].
+///
+/// # Errors
+///
+/// A [`Fault::Fatal`] naming `member` when the tree would pass the limit.
+pub(crate) fn bounded_in_page(document: &str, member: &str) -> Result<Parsed, Fault> {
+    caught(|| parse_in_page(document), member)
+}
+
+/// `parsing`'s tree, or the fault naming `member` when it stopped at the
+/// request's memory limit.
+fn caught(parsing: impl FnOnce() -> Parsed, member: &str) -> Result<Parsed, Fault> {
+    std::panic::catch_unwind(AssertUnwindSafe(parsing)).map_err(|payload| {
         if payload.is::<OverLimit>() {
             Fault::fatal(format!(
                 "{member}: the document's tree is larger than the request's memory limit allows"
@@ -2262,7 +2293,7 @@ nvs_runtime::nvs_helper! {
     /// been bypassed was.
     fn nvs_core_html_sanitize(_ctx, args: [1]) {
         let document = text(&args[0], r"`Core\Html::sanitize`'s `$document`")?;
-        let out = source(&rebuilt(&bounded(document, r"Core\Html::sanitize")?));
+        let out = source(&rebuilt(&bounded_in_page(document, r"Core\Html::sanitize")?));
         Ok(crate::instance::build(
             &MARKUP,
             [Value::text(&out)],
@@ -3324,11 +3355,11 @@ mod tests {
         );
     }
 
-    /// `source(&rebuilt(&parse(document)))`, and the same once more, which
+    /// `source(&rebuilt(&parse_in_page(document)))`, and the same once more, which
     /// must be unchanged for every document the five value tests below read.
     fn sanitized_twice(document: &str) -> String {
-        let once = source(&rebuilt(&parse(document)));
-        let twice = source(&rebuilt(&parse(&once)));
+        let once = source(&rebuilt(&parse_in_page(document)));
+        let twice = source(&rebuilt(&parse_in_page(&once)));
         assert_eq!(
             once, twice,
             "a value-checked attribute keeps the rebuild a fixed point"
@@ -3471,6 +3502,8 @@ mod tests {
             "<p>a\u{a0}b &amp;lt;img src=x onerror=alert(1)&amp;gt;</p>",
             "<pre>\n\nkept</pre>",
             "<textarea><p>&lt;/textarea&gt;&lt;img src=x onerror=alert(1)&gt;</p>",
+            "<p>a<table></p>",
+            "<!DOCTYPE x><p>a<table></p>",
         ];
 
         // The wrapper `Core\Html::parse` puts round any fragment at all, which
@@ -3478,7 +3511,7 @@ mod tests {
         // in the answer itself.
         const WRAPPER: &[&str] = &["html", "head", "body"];
 
-        let cleaned = |document: &str| source(&rebuilt(&parse(document)));
+        let cleaned = |document: &str| source(&rebuilt(&parse_in_page(document)));
 
         // What failed rather than what printed: a crate the language server
         // links may write to neither stream, so the detail a counting test owes
@@ -3497,7 +3530,7 @@ mod tests {
                 mutating.push(format!("{payload:?}: {once:?} then {twice:?}"));
             }
 
-            let reparsed = parse(&once);
+            let reparsed = parse_in_page(&once);
             let mut escapes = vec![&reparsed];
             let mut stray = Vec::new();
             while let Some(node) = escapes.pop() {
@@ -3645,7 +3678,7 @@ mod tests {
 
         for (document, want) in CASES {
             assert_eq!(
-                &source(&rebuilt(&parse(document))),
+                &source(&rebuilt(&parse_in_page(document))),
                 want,
                 "sanitizing {document:?}"
             );
@@ -3683,7 +3716,7 @@ mod tests {
         for value in DROPPED {
             let document = format!("<a href=\"{value}\">x</a><img src=\"{value}\">");
             assert_eq!(
-                source(&rebuilt(&parse(&document))),
+                source(&rebuilt(&parse_in_page(&document))),
                 "<a>x</a><img>",
                 "sanitizing {document:?}"
             );
@@ -3693,7 +3726,7 @@ mod tests {
         for value in KEPT {
             let document = format!("<a href=\"{value}\">x</a>");
             assert_eq!(
-                source(&rebuilt(&parse(&document))),
+                source(&rebuilt(&parse_in_page(&document))),
                 document,
                 "sanitizing {document:?}"
             );

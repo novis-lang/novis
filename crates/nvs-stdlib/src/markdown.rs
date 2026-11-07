@@ -65,8 +65,8 @@ use nvs_runtime::{Fault, Value};
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, LinkType, Options, Parser, Tag, TagEnd};
 
 use crate::html::{
-    MARKUP, MARKUP_NAME, OPEN_ELEMENTS_CAP, RAW_SOURCE, addressable, bounded, language_class,
-    markdown_id, rebuilt, source,
+    MARKUP, MARKUP_NAME, OPEN_ELEMENTS_CAP, RAW_SOURCE, addressable, bounded, bounded_in_page,
+    language_class, markdown_id, rebuilt, source,
 };
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -1521,7 +1521,7 @@ pub(crate) fn rendered_with(
         return Ok(trusted.spliced(out));
     }
     drop(tree);
-    Ok(trusted.spliced(source(&rebuilt(&bounded(&out, member)?))))
+    Ok(trusted.spliced(source(&rebuilt(&bounded_in_page(&out, member)?))))
 }
 
 nvs_runtime::nvs_helper! {

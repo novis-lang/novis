@@ -78,6 +78,17 @@ pub struct TreeBuilderOpts {
     /// Every scope check walks that stack, so a cap bounds the work any one
     /// token can cost.
     pub max_open_elements: Option<usize>,
+
+    // Novis: a document that never leaves no-quirks mode.
+    /// Keep the document in no-quirks mode whatever its doctype says, or when
+    /// it has none. Default: `false`.
+    ///
+    /// A fragment written into a page with `<!DOCTYPE html>` is parsed in
+    /// no-quirks mode, so a sanitizer that reads it in quirks mode approves a
+    /// different tree from the one the page builds. In quirks mode `<table>`
+    /// does not close an open `<p>`, and `<p>a<table></p>` builds a `p` inside
+    /// a `p`, which no serialization can bring back.
+    pub never_quirks: bool,
 }
 
 impl Default for TreeBuilderOpts {
@@ -89,6 +100,7 @@ impl Default for TreeBuilderOpts {
             drop_doctype: false,
             quirks_mode: NoQuirks,
             max_open_elements: None,
+            never_quirks: false,
         }
     }
 }
@@ -680,6 +692,7 @@ where
     }
 
     fn set_quirks_mode(&self, mode: QuirksMode) {
+        let mode = if self.opts.never_quirks { NoQuirks } else { mode };
         self.quirks_mode.set(mode);
         self.sink.set_quirks_mode(mode);
     }

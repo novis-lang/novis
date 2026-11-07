@@ -866,7 +866,11 @@ sanitizer wearing a type — it would claim a guarantee it cannot establish, bec
 dangerous" is a list an attacker gets to extend.
 
 **The rebuild is three steps and only the middle one holds a policy.** The document is parsed by the
-WHATWG algorithm, which cannot fail; a new tree is built from a closed list of elements, each with the
+WHATWG algorithm, which cannot fail, in no-quirks mode whatever doctype it has or lacks, because its
+answer is written into a page with `<!DOCTYPE html>`. In quirks mode `<table>` does not close an open
+`<p>`, so `<p>a<table></p>` would rebuild as a `p` inside a `p`, which no parse builds again.
+`Core\Html::parse` keeps quirks mode for a document with no doctype, as a browser does for a page. A
+new tree is built from a closed list of elements, each with the
 attributes it may carry; and that tree is written back out under the serialization rules of the door it
 came through. An element the list does not hold contributes no tag — dropped with its content when its
 content model is raw text, since a `<script>`'s character data is neither markup nor prose, and
@@ -1001,7 +1005,8 @@ runtime-computed string.
 - `Core\Markdown::toHtml(string $markdown, ...callbacks): Core\Html\Markup` renders a whole document.
 - `Core\Markdown::toHtmlEach(Core\Bytes::Source|Core\Bytes::Chunks $markdown, ...callbacks):
   iterable<Core\Html\Markup>` renders one block group at a time ([`core-classes/markdown-chunks`](core-classes.md#core-classes-markdown-chunks)).
-- `Core\Markdown\Live` renders text that arrives in pieces. It is an object because it has a lifetime
+- `Core\Markdown::live(...callbacks): Core\Markdown\Live` renders text that arrives in pieces
+  ([`core-classes/markdown-chunks`](core-classes.md#core-classes-markdown-chunks)). It is an object because it has a lifetime
   ([`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object)).
 - `Core\Markdown::fromHtml(string|Core\Html\Markup|Core\Xml\Node $html): string` writes Markdown
   ([`core-classes/markdown-from-html`](core-classes.md#core-classes-markdown-from-html)).
@@ -1013,8 +1018,18 @@ job, as `Core\Json::decode` and `decodeEach` are ([`core-classes/json-whole-and-
 Front matter, math and admonitions are not parsed, so CommonMark's own reading of them is the output,
 and a fenced block with a language reaches the `code` callback. Where GFM 0.29's spec text and
 CommonMark 0.31.2 disagree, 0.31.2 wins: nine of GFM's emphasis examples predate 0.31.2's delimiter
-rule, and the GFM spec test takes CommonMark's output for those nine. GFM's tag filter is not applied,
-because raw HTML goes through the rebuild below and the filter's tags never survive it.
+rule, and the GFM spec test takes CommonMark's output for those nine. That rule counts a Unicode
+symbol beside a delimiter as punctuation, and U+FFFD, which replaces NUL, is one. Its declaration,
+`<!` and a letter, needs no whitespace after the name. GFM's tag filter is
+not applied, because raw HTML goes through the rebuild below and the filter's tags never survive it.
+Extended autolinks are read as cmark-gfm reads them, where comrak differs: the period of `www.` counts
+as the domain's period, and a host may hold any character outside ASCII. They are always on, so the
+five CommonMark examples that write a bare URL or email address as text (602, 606, 608, 611 and 612)
+write it as a link, as GitHub does.
+
+**Footnotes are written at the end**, after an `hr`, as an `ol` in the order they are first referenced.
+A definition nothing references is not written. Each reference is a `sup` holding a link to its note,
+and each note ends with a link back to its first reference.
 
 **Raw HTML is rebuilt, never stripped and never passed through.** A document's raw HTML is parsed with
 the rest of its output by the WHATWG algorithm and rebuilt through [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize)'s
@@ -1048,6 +1063,19 @@ an attribute value is escaped by the same code, and a heading's text cannot beco
   the default. A `Markup` is trusted by its type, so the result is used as it is. This is the one door
   for syntax highlighting, math and diagrams.
 
+`link` sees every link, the extended autolinks too, with an email autolink's `mailto:`. A heading's
+text is its character data, with no markup. `code` sees a fenced block that names a language, with the
+language written as its class would be and the block's text. A callback that throws ends the render,
+and the error reaches the caller.
+
+**A `code` result is not rebuilt.** A rebuild would remove what the program wrote, such as a
+highlighter's `style`, so the renderer writes a token in the block's place: a random 128-bit prefix
+drawn for each render, which a document cannot write, and the fragment's index. The rebuild a
+document's raw HTML takes runs over the token, and each fragment is written where its token is
+afterwards. So `sanitizing_the_output_again_changes_nothing` holds for what the document wrote, and a
+`code` result is outside it, as `Markup + Markup` is. **Declined:** rebuilding the result, which takes
+away the one door this callback is for.
+
 **The engine is `pulldown-cmark`.** It was measured against `comrak` over the 652 CommonMark examples,
 the 670 enabled GFM examples and the 441 to-html entries of the known-bug catalogue
 (`tests/data/markdown/known-bugs.toml`), in decision order:
@@ -1065,7 +1093,12 @@ Every pulldown-cmark failure is written in our layer or is a small patch. NUL, a
 mark, the table and code-block attributes, unused footnotes, extended autolinks and the output budget
 are ours. The patches are tabs after an ATX closing sequence and a closing fence, a vertical tab in an
 indented line, a definition-only list item, a DEL byte in a link destination, indentation inside a
-code span on continuation lines, and emphasis inside a footnote label. comrak's quadratic autolink
+code span on continuation lines, emphasis inside a footnote label, strikethrough's `~` and `~~`, which
+open and close as `*` does in GFM and keep one lower bound each, a hard line break that only spaces make, not
+tabs, and an ATX heading whose `#` a vertical tab or form feed follows, which is text. One patch adds what
+`toHtmlEach` needs ([`core-classes/markdown-chunks`](core-classes.md#core-classes-markdown-chunks)): a parser over one segment reads the
+document's reference and footnote definitions and its expansion fuel from outside its text, and
+reports where its top-level blocks start and end after the block pass alone. comrak's quadratic autolink
 scan fails criterion (b), and it is three times slower. A patched engine is vendored under `vendor/`
 with an entry in `[patch.crates-io]`, as `html5ever` is.
 
@@ -1096,7 +1129,12 @@ a property of the parse, so no input is refused and no parse fails: Markdown has
 **Work is linear.** Every catalogued slow input of every library in the known-bug catalogue is a test
 that counts work steps, as `parsed_counting_steps` does for HTML, and fails when the steps grow faster
 than the input. There is no timing in the test and no timeout in the member, so a slow input is a bug
-found in the tree, not a request cut off in production.
+found in the tree, not a request cut off in production. A step is one pass of a loop in the engine, one
+byte one of its scanning primitives reads, and one byte of HTML written; the vendored engine counts its
+own in a build with debug assertions, and a release build compiles the count away. Each input renders
+at `n` and `4n` repeats, and the steps at `4n` must be more than at `n` and at most five times as many.
+A count that misses the loop an input grows is the one way this test can pass a slow input, so a
+loop added to the engine by a patch counts its steps too.
 
 **Nesting deeper than 512 flattens exactly as [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing) flattens it.** It is the
 same bound and not a new one: the output passes through, or must equal, the WHATWG parse, and a tree
@@ -1113,7 +1151,10 @@ which seven of the catalogued libraries shipped.
 
 **A panic is a bug.** The fuzz targets run the parse and the renderer, and a differential fuzz runs
 the other engine the choice was measured against. Each difference is triaged into our bug, fixed and
-catalogued, or a spec reading, one line in [`core-classes/markdown-to-html`](core-classes.md#core-classes-markdown-to-html).
+catalogued, or a spec reading, one line in [`core-classes/markdown-to-html`](core-classes.md#core-classes-markdown-to-html). Where comrak 0.59
+departs from the spec, the differential does not compare: footnotes (written as this rule writes them),
+extended autolinks, a delimiter beside a Unicode symbol, `~` beside `*` or `_`, a declaration, and a run of two or more backticks. The target's comments
+give each case. The other two targets cover these documents.
 
 **Memory:** `toHtml` holds the document, its output tree and its reference and footnote definitions,
 all attributed to the request and freed with it. `toHtmlEach` and `Live` hold less, as
@@ -1143,22 +1184,51 @@ code block, an HTML block of types 1 to 5, an unclosed raw HTML element, or a li
 document that keeps one open, such as one huge list, becomes one larger group: correctness first.
 `rendering_in_chunks_gives_the_same_html_as_the_whole_document` is the acceptance.
 
+**Raw HTML is read with a tokenizer that errs toward one group.** It keeps the elements raw HTML
+opened, and an end tag closes only the innermost one it names. A comment, a raw-text element or a tag
+left unfinished when Markdown output follows ends every later boundary. A group after the first is
+rebuilt behind the first group's leading doctype and a `<body>` tag, with its leading whitespace kept,
+so the parser reads it in the mode and place the whole document's parse did.
+
 **References may be defined after their first use.** A `Core\IO\File` is read twice: once to collect
 the reference definitions, once to render. Every other source is read once and held whole under the
 request's memory cap, as a random read of an upload part already is. Footnotes are written at the end,
 so their definitions are held until then. The source is read through the one byte source every such
 member uses ([`core-api/a-member-takes-the-source-the-program-holds`](core-api.md#core-api-a-member-takes-the-source-the-program-holds)).
 
-**`Live`** takes `push(string $piece)`, which returns an object with `done: Core\Html\Markup` (the
-blocks that are finished, to append) and `open: Core\Html\Markup` (the unfinished last block, to
-replace). `finish(): Core\Html\Markup` closes the document. A block is rendered as soon as it is
-closed, so a reference defined after a finished block does not change that block. The `done` parts
-and `finish()` joined are the whole document's HTML for a document with no forward reference, and
-`live_never_changes_a_part_it_already_finished` holds for every document.
+**The engine reads the document in segments, and both passes cut the same ones.** A segment is a run
+of whole top-level blocks: the text read so far is cut after its second-to-last block, at the next
+line start, so the last block and a reference definition after the block before it can still grow.
+Only complete lines are read, and the text is read again only once it has doubled, so one block as
+long as the document costs linear work. The first pass reads each segment's definitions without its
+inline content. The second renders each segment with the whole document's definitions, which win over
+its own, and with one expansion fuel for the whole document. `rendering_in_chunks_gives_the_same_html_as_the_whole_document`
+also reads every input 1 byte and 7 bytes at a time, which cuts a segment wherever one can be cut.
 
-**Memory:** a file costs one block group plus its reference and footnote definitions. Any other source
-costs the document. `Live` costs its open block plus the definitions. All of it is attributed to the
-request.
+**`Live`** is `Core\Markdown::live(...callbacks): Core\Markdown\Live`. Its `push(string $piece)`
+returns a `Core\Markdown\Update`, whose `done(): Core\Html\Markup` is the groups that piece finished
+(to append) and whose `open(): Core\Html\Markup` is the rest rendered as if the text ended there (to
+replace). They are members, not properties, because a `Core` instance has no property a program can
+read. `finish(): Core\Html\Markup` closes the document, and a `push` or `finish` after it throws a
+`RuntimeError`. A block is rendered as soon as the next block's first line is complete, so a reference
+defined after a finished block does not change that block: Live has no first pass, and learns a
+segment's definitions only after rendering it. The `done` parts and `finish()` joined are the whole
+document's HTML for a document with no forward reference, and
+`live_never_changes_a_part_it_already_finished` holds for every document. A callback runs again for a
+block each time `open` renders it.
+
+Live's segments cut at **every piece that completes a line**, not once the text doubles, so a block is
+finished as soon as it can be. That parse costs the text not yet finished, which is the same order as
+rendering `open` from it, which every `push` does anyway. One block pushed in many pieces therefore
+costs work in the square of its length. That is the price of an `open` part after every piece, and
+the program, which chose the pieces, pays it. A segment adds its own length to the added-output budget
+and the reference fuel when it is rendered, since the document's length is not known up front.
+
+**Memory:** a file costs one segment, its groups' HTML, and its reference and footnote definitions. A
+segment is at most four reads of 64 KiB past its last block, because the text doubles before it is
+read again and a string's capacity can be twice its length. Any other source costs the document as
+well. `Live` costs its open block plus the definitions. All of it is attributed to the request.
+`to_html_each_holds_one_block_group_of_a_file_not_the_document` holds the bound.
 
 **Declined:**
 - **Re-rendering a finished `Live` block when a later reference resolves it.** A caller that appended
@@ -1181,7 +1251,28 @@ text node is escaped, and a construct Markdown cannot express is written as sani
 
 **Input** is a string or a `Core\Html\Markup`, parsed by `Core\Html::parse`, or a `Core\Xml\Node`
 already parsed. Elements are kept or dropped by [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize)'s list, so a
-`<script>`'s text never appears. A tainted input gives a tainted result.
+`<script>`'s text never appears: the converter walks the sanitizer's rebuilt tree.
+
+**The result is always `tainted string`.** A node's text is tainted, and a member cannot make its
+result's mark follow one arm of a union, so a plain result from a node would launder that text for
+every sink. A `Markup` input pays for it with a tainted result, which `toHtml` and `echo` take as they
+are. Taking a node does not open a path back into execution, because the member returns text alone;
+`a_parsed_tree_has_no_path_back_into_execution` allows exactly that shape.
+
+**How text stays text.** `` \ ` * _ [ ] < > & | ~ `` always get a backslash, and `# - + =` and the
+`.` or `)` after a number get one at the start of a line. A backslash cannot stop a GFM extended
+autolink, since the renderer finds those after escapes are read, so a text that would autolink is cut
+with an empty comment `<!-- -->` before the `.` of `www.`, the `:` of `://` and the `@` of an address.
+The sanitizer drops the comment. Emphasis whose content starts or ends with punctuation is written as
+its tags, because `*` there is not read as emphasis.
+
+**What Markdown cannot write** — a table outside GFM's shape, `dl`, `figure`, and an `ol` whose start
+has more than nine digits — is written as its sanitized HTML on one line, with each line feed as
+`&#10;`, so CommonMark reads it as one HTML block that no blank line ends early. An inline element
+with no Markdown syntax, such as `sup`, is its tags around Markdown content.
+
+**Depth.** The walk follows 128 levels of elements, and past that writes an element's text alone. It
+bounds both the native stack and the copy each level makes of its content, which keeps work linear.
 
 **The writing rules.**
 
@@ -1195,9 +1286,16 @@ already parsed. Elements are kept or dropped by [`core-classes/html-sanitize`](c
 `fromHtml` run twice gives the same Markdown, and Markdown rendered to HTML and written back keeps its
 meaning. Both are tests.
 
-**Large documents.** A document is read as a stream when the tree builder can no longer change an
-element once it is closed; the streamed result equals the result over the whole tree. Where the
-builder can still change a closed element, `fromHtml` holds the tree, and this rule says why.
+**Large documents: the parse streams, and the tree is held whole.** The WHATWG tree builder still
+changes a top-level node after a later one has opened. Text that arrives inside a table before any
+cell is fostered in front of the table, and joins the text node there: `a<table>b` is the text `ab`
+and a table. A writer that wrote each finished top-level subtree would have written `a` alone. The
+Markdown writer carries state across blocks too, since a list after a list changes its marker. And
+streaming would buy only memory: every input is already whole in memory, a string, a `Markup` or a
+node, and the result is one string, so the tree is the only thing it saves. Memory is the last
+priority and the walk's simplicity is above it, so `fromHtml` holds the tree. What does stream is the
+read: the parser takes a document in pieces, and the Markdown is the whole tree's for every cut,
+which `from_html_streamed_gives_the_same_markdown_as_the_whole_tree` pins.
 
 **Memory:** the document's tree, as `Core\Html::parse`'s is, and the Markdown it writes, attributed to
 the request.
@@ -1208,6 +1306,8 @@ the request.
 - **Writing raw HTML that the sanitizer would not keep.** The Markdown is read again later, by a
   renderer that may not rebuild it.
 - **Options for the Markdown style.** One style is one thing to test, and `toHtml` reads every style.
+- **Writing each top-level subtree as the parser closes it.** The builder can still change a closed
+  node (*Large documents*), so its output would differ from the whole tree's, to save memory alone.
 
 <sub>See also [`core-classes/markdown-to-html`](core-classes.md#core-classes-markdown-to-html), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize).</sub>
 

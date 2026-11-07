@@ -3,7 +3,7 @@
 //! `tests/data/markdown/spec/`.
 
 use super::*;
-use crate::html::parse;
+use crate::html::{parse, parse_in_page};
 
 /// One spec example: its number, counted from 1 over every example in its
 /// file, the extensions its header names, its Markdown and its HTML.
@@ -63,7 +63,7 @@ fn examples(name: &str) -> Vec<Example> {
 /// `"` in text as the same character, `<br />` and `<br>` as the same tag,
 /// and drops what the sanitizer drops from the spec's own raw HTML.
 fn normal(html: &str) -> String {
-    source(&rebuilt(&parse(html)))
+    source(&rebuilt(&parse_in_page(html)))
 }
 
 /// `html` under [`normal`], and then as the rule writes a URL that fails:
@@ -72,7 +72,7 @@ fn normal(html: &str) -> String {
 /// The spec writes a link with any scheme, and the sanitizer drops the
 /// `href` of one it refuses. The renderer writes that link as its text.
 fn spec_normal(html: &str) -> String {
-    let mut tree = rebuilt(&parse(html));
+    let mut tree = rebuilt(&parse_in_page(html));
     let mut work = vec![&mut tree];
     while let Some(node) = work.pop() {
         let has = |node: &Parsed, name: &str| node.attributes.iter().any(|(n, _)| n == name);
@@ -250,6 +250,10 @@ fn sanitizing_the_output_again_changes_nothing() {
             "\u{FEFF}# heading",
             "- [ ] open\n- [x] done\n",
             "| a | b |\n|:-|-:|\n| 1 |\n",
+            // Raw `<table>` in a paragraph: in quirks mode the sanitizer's
+            // answer would be a `p` inside a `p`.
+            "a<table>",
+            "<!DOCTYPE x>\n\na<table>",
         ]
         .map(str::to_owned),
     );

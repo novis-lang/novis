@@ -40,7 +40,7 @@ use nvs_runtime::Fault;
 #[cfg(test)]
 use super::callbacks::Callbacks;
 use super::callbacks::Trusted;
-use crate::html::{bounded, rebuilt, rebuilt_in_body, source};
+use crate::html::{bounded_in_page, rebuilt, rebuilt_in_body, source};
 use crate::xml::Parsed;
 
 /// The elements whose content the HTML tokenizer reads as text up to their
@@ -389,10 +389,10 @@ impl Written {
             return Ok(trusted.spliced(out));
         }
         let rewritten = if first {
-            source(&rebuilt(&bounded(&out, member)?))
+            source(&rebuilt(&bounded_in_page(&out, member)?))
         } else {
             let behind = format!("{}<body>{out}", self.doctype);
-            source(&rebuilt_in_body(&bounded(&behind, member)?))
+            source(&rebuilt_in_body(&bounded_in_page(&behind, member)?))
         };
         Ok(trusted.spliced(rewritten))
     }

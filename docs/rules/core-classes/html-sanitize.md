@@ -7,7 +7,11 @@ sanitizer wearing a type — it would claim a guarantee it cannot establish, bec
 dangerous" is a list an attacker gets to extend.
 
 **The rebuild is three steps and only the middle one holds a policy.** The document is parsed by the
-WHATWG algorithm, which cannot fail; a new tree is built from a closed list of elements, each with the
+WHATWG algorithm, which cannot fail, in no-quirks mode whatever doctype it has or lacks, because its
+answer is written into a page with `<!DOCTYPE html>`. In quirks mode `<table>` does not close an open
+`<p>`, so `<p>a<table></p>` would rebuild as a `p` inside a `p`, which no parse builds again.
+`Core\Html::parse` keeps quirks mode for a document with no doctype, as a browser does for a page. A
+new tree is built from a closed list of elements, each with the
 attributes it may carry; and that tree is written back out under the serialization rules of the door it
 came through. An element the list does not hold contributes no tag — dropped with its content when its
 content model is raw text, since a `<script>`'s character data is neither markup nor prose, and
