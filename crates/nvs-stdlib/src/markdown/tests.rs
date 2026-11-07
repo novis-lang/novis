@@ -1117,6 +1117,10 @@ const DOCUMENTS: &[&str] = &[
     // A link whose text starts with a line feed, at the start of a
     // paragraph. A browser drops the space at the start of the line.
     "[\n\"]()b<\n",
+    // Lists that each start an item. The `markdown_from_html` fuzz target
+    // found that `fromHtml` wrote them as `- - -`, a thematic break.
+    "*   -  *\n",
+    "- a\n\n  -\n    -\n      - b\n",
     "- a\n  - # h\n  b\n- c\n",
 ];
 
@@ -1165,6 +1169,9 @@ fn from_html_twice_gives_the_same_markdown() {
             // `markdown_from_html` fuzz target found that it was read as a
             // table's delimiter row.
             "`<br>:-",
+            // Two lists in a row that would each start with `- - -`.
+            "<ul><li><ul><li><ul><li></li></ul></li></ul></li></ul>\
+             <ul><li><ul><li><ul><li></li></ul></li></ul></li></ul>",
         ]
         .map(str::to_owned),
     );

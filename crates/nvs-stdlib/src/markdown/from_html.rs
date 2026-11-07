@@ -116,7 +116,7 @@ enum Part {
     Fence,
     Rule,
     Quote,
-    /// A list, with its marker character: `-` or `*`, `.` or `)`. `first` is
+    /// A list, with its marker character: `-`, `*` or `+`, `.` or `)`. `first` is
     /// whether an ordered list starts at 1, the one ordered list that may
     /// interrupt a paragraph. `open` is whether its last item ends in a block
     /// that the next line could continue.
@@ -134,7 +134,7 @@ impl Part {
     fn interrupts(self) -> bool {
         match self {
             Self::Heading | Self::Fence | Self::Rule | Self::Quote => true,
-            Self::List { marker, first, .. } => matches!(marker, '-' | '*') || first,
+            Self::List { marker, first, .. } => matches!(marker, '-' | '*' | '+') || first,
             Self::Paragraph | Self::Table | Self::Html => false,
         }
     }
@@ -362,7 +362,9 @@ impl Writer {
     ///
     /// A list right after another list of the same kind changes its marker,
     /// `-` to `*` or `.` to `)`, because Markdown joins two lists with the
-    /// same marker into one. A child that is not an `li`, such as a list
+    /// same marker into one. A `-` list whose item would start with a line
+    /// such as `- - -`, a thematic break, uses `+`, or `*` after a `+` list.
+    /// A child that is not an `li`, such as a list
     /// written straight inside a list, goes into the item before it.
     fn list(
         &mut self,
@@ -388,7 +390,7 @@ impl Writer {
             0
         };
         let after = parts.last().map(|(part, _)| *part);
-        let marker = match (ordered, after) {
+        let mut marker = match (ordered, after) {
             (false, Some(Part::List { marker: '-', .. })) => '*',
             (false, _) => '-',
             (true, Some(Part::List { marker: '.', .. })) => ')',
@@ -414,15 +416,32 @@ impl Writer {
                 .any(|child| child.kind == Kind::Element && child.name == "p")
         });
 
-        let mut written = Vec::with_capacity(items.len());
+        let mut contents = Vec::with_capacity(items.len());
         let mut open = false;
-        for (number, item) in (start..).zip(&items) {
+        for item in &items {
             let mut inner = Vec::new();
             self.task = true;
             self.collect(item, depth, &mut inner)?;
             self.task = false;
             open = inner.last().is_some_and(|(part, _)| part.open());
-            let content = joined(&inner, !loose)?;
+            contents.push(joined(&inner, !loose)?);
+        }
+        // An item that starts with a list writes its markers on one line, and
+        // `- - -` is a thematic break. A `+` never makes one.
+        if marker == '-'
+            && contents.iter().any(|content| {
+                thematic_break(&format!("- {}", content.lines().next().unwrap_or("")))
+            })
+        {
+            marker = if matches!(after, Some(Part::List { marker: '+', .. })) {
+                '*'
+            } else {
+                '+'
+            };
+        }
+
+        let mut written = Vec::with_capacity(items.len());
+        for (number, content) in (start..).zip(contents) {
             // Only the first number is read, so a later one past nine digits
             // repeats the first.
             let number = if number > 999_999_999 { start } else { number };
@@ -1218,6 +1237,19 @@ fn quoted_title(title: &str, out: &mut String) {
     out.push('"');
 }
 
+/// Whether `line` is a thematic break: three or more of one of `-`, `*` and
+/// `_`, with only spaces and tabs between them.
+fn thematic_break(line: &str) -> bool {
+    let mut marks = line.chars().filter(|ch| !matches!(ch, ' ' | '\t'));
+    let Some(mark) = marks.next() else {
+        return false;
+    };
+    matches!(mark, '-' | '*' | '_')
+        && marks
+            .try_fold(1, |count, ch| (ch == mark).then_some(count + 1))
+            .is_some_and(|count| count >= 3)
+}
+
 /// Whether `ch` may stand right before the `@` of an email autolink.
 fn local_part(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || matches!(ch, '.' | '+' | '-' | '_')
@@ -1249,12 +1281,9 @@ fn escape_into(text: &str, line_start: bool, heading: bool, cut: bool, out: &mut
                 && previous.is_some_and(|before| before.is_ascii_alphanumeric());
             let email = ch == '@'
                 && previous.is_some_and(local_part)
-                && text[at + 1..]
-                    .chars()
-                    .next()
-                    .is_some_and(|after| {
-                        after.is_ascii_alphanumeric() || matches!(after, '-' | '_' | '.')
-                    });
+                && text[at + 1..].chars().next().is_some_and(|after| {
+                    after.is_ascii_alphanumeric() || matches!(after, '-' | '_' | '.')
+                });
             if www || scheme || email {
                 out.push_str(CUT);
             }
