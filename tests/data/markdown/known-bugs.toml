@@ -3989,6 +3989,17 @@ direction = "to-html"
 input = "a&#13;b&#13;&#10;[c](/u \"t&#13;\")"
 html = "<p>a\nb\n<a href=\"/u\" title=\"t\n\">c</a></p>\n"
 
+# Found by the `markdown` fuzz target. A task marker with spaces after it and nothing else, under a
+# setext underline, made pulldown-cmark 0.13.6 slice its heading from past its end, and it panicked.
+[[bug]]
+id = "pulldown-cmark-task-marker-setext-panic"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/blob/master/pulldown-cmark/src/firstpass.rs"
+class = "crash"
+direction = "to-html"
+input = "- [ ]  \n  -"
+html = "<ul>\n<li>\n<h2><input disabled=\"\" type=\"checkbox\"> </h2>\n</li>\n</ul>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"

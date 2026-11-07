@@ -104,7 +104,8 @@ info string once that is decoded and then trimmed as cmark does, unused footnote
 are ours, and so is an angle autolink inside a link's text, which is written as its text: cmark and
 pulldown-cmark write one `a` inside another, which no HTML parse builds again. A CR that an entity
 such as `&#13;` decodes to is written as LF, in text and in an attribute, since an HTML parse reads
-it so. The patches are tabs after an ATX closing sequence and a closing fence, a vertical tab in an
+it so. The patches are a setext underline under a task marker with nothing after it, which panicked,
+a list that ends where a reference definition after it starts, tabs after an ATX closing sequence and a closing fence, a vertical tab in an
 indented line, a definition-only list item, a DEL byte in a link destination, indentation inside a
 code span on continuation lines, emphasis inside a footnote label, strikethrough's `~` and `~~`, which
 open and close as `*` does in GFM and keep one lower bound each, a `~` closer, which matches the

@@ -855,11 +855,15 @@ impl<'a, 'b> FirstPass<'a, 'b> {
 
         if let Some(cur_ix) = self.tree.cur() {
             let parent_ix = self.tree.peek_up().unwrap();
-            let header_start = self.tree[parent_ix].item.start;
             // Note that `self.tree[parent_ix].item.end` might be zero at this point.
             // Use the end position of the current node (i.e. the last known child
             // of the parent) instead.
             let header_end = self.tree[cur_ix].item.end;
+            // Novis: a paragraph whose only child is a task marker starts after
+            // the spaces that follow the marker, past the marker's end, as in
+            // `- [ ]  \n  -`. The published 0.13.6 sliced from that start to the
+            // end and panicked.
+            let header_start = self.tree[parent_ix].item.start.min(header_end);
 
             // extract the trailing attribute block
             let (content_end, attrs_) =
