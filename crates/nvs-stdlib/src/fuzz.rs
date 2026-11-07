@@ -236,8 +236,9 @@ pub fn markdown_url_allowed(url: &str) -> bool {
 /// `html` sanitized, with each element's attributes in order of name, each run
 /// of CSS white space (spaces, tabs and line breaks) as one space, and none
 /// between two tags. A `<br>` at either end of an inline element is moved out
-/// of it, and an inline element other than a link left empty is dropped,
-/// since a browser draws both the same. The space at either end of a line
+/// of it, and so is white space at either end of one. An inline element other
+/// than a link left empty is dropped, since a browser draws all of these the
+/// same. The space at either end of a line
 /// goes, as CSS drops it, also where inline tags stand between it and the
 /// `<br>` or block tag. Two renderings that differ only in how
 /// they lay out their whitespace, attributes and breaks give the same string.
@@ -372,18 +373,30 @@ fn breaks_at_edge<'a>(nodes: impl Iterator<Item = &'a crate::xml::Parsed>) -> us
     for (at, node) in nodes.enumerate() {
         if node.kind == Kind::Element && node.name == "br" {
             count = at + 1;
-        } else if !(node.kind == Kind::Text && node.text.chars().all(|ch| ch.is_ascii_whitespace()))
-        {
+        } else if !(node.kind == Kind::Text && node.text.chars().all(css_space)) {
             break;
         }
     }
     count
 }
 
+/// Whether `ch` is CSS white space. A form feed is not, as `fromHtml` reads it.
+fn css_space(ch: char) -> bool {
+    matches!(ch, ' ' | '\t' | '\n' | '\r')
+}
+
+/// A text node of one space.
+fn space() -> crate::xml::Parsed {
+    let mut node = crate::xml::Parsed::new(crate::xml::Kind::Text);
+    node.text.push(' ');
+    node
+}
+
 /// Moves each `<br>` at either end of an inline element in `node` out of the
-/// element, with the white space between two of them, children first, and drops an inline element other than a link
-/// left empty. The tree is at most 512 elements deep, which bounds the
-/// recursion.
+/// element, with the white space between two of them, children first. White
+/// space at either end of an inline element moves out of it as one space, and
+/// an inline element other than a link left empty is dropped. The tree is at
+/// most 512 elements deep, which bounds the recursion.
 fn breaks_hoisted(node: &mut crate::xml::Parsed) {
     use crate::xml::Kind;
     for child in &mut node.children {
@@ -397,11 +410,28 @@ fn breaks_hoisted(node: &mut crate::xml::Parsed) {
         }
         let lead = breaks_at_edge(child.children.iter());
         out.extend(child.children.drain(..lead));
+        if let Some(first) = child.children.first_mut()
+            && first.kind == Kind::Text
+            && first.text.starts_with(css_space)
+        {
+            first.text = first.text.trim_start_matches(css_space).to_owned();
+            out.push(space());
+        }
         let trail = breaks_at_edge(child.children.iter().rev());
-        let after: Vec<_> = child
+        let mut after: Vec<_> = child
             .children
             .drain(child.children.len() - trail..)
             .collect();
+        if let Some(last) = child.children.last_mut()
+            && last.kind == Kind::Text
+            && last.text.ends_with(css_space)
+        {
+            last.text = last.text.trim_end_matches(css_space).to_owned();
+            after.insert(0, space());
+        }
+        child
+            .children
+            .retain(|node| node.kind != Kind::Text || !node.text.is_empty());
         if !child.children.is_empty() || child.name == "a" {
             out.push(child);
         }
