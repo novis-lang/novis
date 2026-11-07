@@ -651,8 +651,10 @@ find is in the log's `panicked` and `left:`/`right:` lines and its `0x..` input 
 HTML for a list of inputs (`var $md`; a local needs `var`).
 
 - [ ] **Triage `markdown_from_html` to 1,000,000 clean inputs** (`fuzz/fuzz_targets/markdown_from_html.rs:24`).
-  A run was going on `76fbb1fe` when this session ended; read `.agent-tmp/fh-long.log` first,
-  or start it again. Finds now take minutes each. A `fromHtml` bug: a fix in `from_html.rs` and
+  First, its open find on `76fbb1fe`: the HTML `` `<br>:- `` writes `` \`\ ``, a line feed and
+  `:-`, which the reader takes as a one-column table's delimiter row, so `fromHtml` over its own
+  Markdown's HTML writes a table. Likely fix: `escape_into` (`from_html.rs`) also escapes a `:`
+  at the start of a line, as it does `-` and `=`. Finds now take minutes each. A `fromHtml` bug: a fix in `from_html.rs` and
   a case in `DOCUMENTS` (`crates/nvs-stdlib/src/markdown/tests.rs:1069`) or the stability test's
   inputs. Two renderings a browser draws the same: a fix to `html_meaning` in `fuzz.rs`. A
   catalogue entry only where a listed library has the bug; the catalogue's libraries are fixed
