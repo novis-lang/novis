@@ -29,7 +29,8 @@ which seven of the catalogued libraries shipped.
 the other engine the choice was measured against. Each difference is triaged into our bug, fixed and
 catalogued, or a spec reading, one line in `rule:core-classes/markdown-to-html`. Where comrak 0.59
 departs from the spec, the differential does not compare: footnotes (written as this rule writes them),
-extended autolinks, a delimiter beside a Unicode symbol, `~` beside `*` or `_`, a `~` run beside a `~~` run, a declaration, a definition's title with text after it on its line, which cmark now drops and comrak 0.59 keeps,
+extended autolinks, among them an email whose `@` is an entity, which cmark-gfm reads in the
+decoded text and comrak 0.59 in the source, a delimiter beside a Unicode symbol, `~` beside `*` or `_`, a `~` run beside a `~~` run, a declaration, a definition's title with text after it on its line, which cmark now drops and comrak 0.59 keeps,
 a `\` before a link title's closing delimiter, which cmark reads as an escape since its
 issue 607 and comrak 0.59 may read as a character, a processing instruction that ends `??>`, an HTML comment
 whose text ends with `-`, which 0.29 did not allow, a CDATA section with `]]]`, which cmark's pattern reads
