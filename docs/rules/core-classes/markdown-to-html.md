@@ -116,7 +116,8 @@ which still starts a table, a header row that would be an empty list item, which
 is a list item with text after its marker, which starts the list, a header row that ends with `\`, whose `\` is the cell's text, a
 paragraph that a table interrupts, whose lines before the header row are plain text and define no
 reference, as in cmark-gfm, a line in a table indented four columns, which ends the table and starts
-an indented code block, a line in a table that starts an HTML block of type 7, which ends the
+an indented code block, a blank line indented as far as the content of an item that starts with
+a blank line, which keeps the item open as in cmark, a line in a table that starts an HTML block of type 7, which ends the
 table although it could not interrupt a paragraph, an inline comment or processing instruction that continues on a
 container's next line, which does not include that line's container marker, a CDATA section in a paragraph,
 which ends at the first `]]>` as the spec says, the entities of an autolink, which resolve as cmark resolves them, a tab, which ends an unquoted

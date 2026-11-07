@@ -5,7 +5,7 @@ use std::cmp::max;
 use std::ops::Range;
 
 use crate::parse::{
-    scan_containers, Allocations, FootnoteDef, HeadingAttributes, Item, ItemBody, LinkDef,
+    scan_containers, scan_containers_upto, Allocations, FootnoteDef, HeadingAttributes, Item, ItemBody, LinkDef,
     LINK_MAX_NESTED_PARENS,
 };
 use crate::strings::CowStr;
@@ -99,6 +99,24 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         for _ in i..self.tree.spine_len() {
             crate::steps::add(1);
             self.pop(start_ix);
+        }
+        // Novis: a blank line indented less than the content of an item that
+        // has had nothing in it ends the item, as in cmark, and one indented
+        // that far keeps it open, so `-\n  \n  a` is one item with `a`. The
+        // published 0.13.6 ended it at any blank line.
+        if self.begin_list_item.is_some()
+            && i == self.tree.spine_len()
+            && scan_blank_line(&bytes[start_ix + line_start.bytes_scanned()..]).is_some()
+        {
+            if let Some(ItemBody::ListItem(indent)) =
+                self.tree.peek_up().map(|ix| self.tree[ix].item.body.clone())
+            {
+                let mut probe = LineStart::new(&bytes[start_ix..]);
+                scan_containers_upto(&self.tree, &mut probe, self.options, false, i - 1);
+                if !probe.scan_space(indent) {
+                    self.pop(start_ix);
+                }
+            }
         }
 
         if self.options.contains(Options::ENABLE_OLD_FOOTNOTES) {
@@ -289,7 +307,14 @@ impl<'a, 'b> FirstPass<'a, 'b> {
             if let Some(node_ix) = self.tree.peek_up() {
                 match &mut self.tree[node_ix].item.body {
                     ItemBody::BlockQuote(..) => (),
-                    ItemBody::ListItem(indent) | ItemBody::DefinitionListDefinition(indent)
+                    // Novis: a blank line that reaches an empty item's content
+                    // keeps the item open (`scan_containers` ends it otherwise),
+                    // so the next line may give it a block, as in cmark.
+                    ItemBody::ListItem(_) if self.begin_list_item.is_some() => {
+                        self.last_line_blank = true;
+                        self.begin_list_item = None;
+                    }
+                    ItemBody::DefinitionListDefinition(indent)
                         if self.begin_list_item.is_some() =>
                     {
                         self.last_line_blank = true;

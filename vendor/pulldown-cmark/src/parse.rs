@@ -1627,10 +1627,25 @@ pub(crate) fn scan_containers(
     options: Options,
     update_flags: bool,
 ) -> usize {
+    scan_containers_upto(tree, line_start, options, update_flags, usize::MAX)
+}
+
+/// Novis: [`scan_containers`] over the first `limit` containers of the spine
+/// alone, so a caller can measure the indentation the last one is given.
+pub(crate) fn scan_containers_upto(
+    tree: &Tree<Item>,
+    line_start: &mut LineStart<'_>,
+    options: Options,
+    update_flags: bool,
+    limit: usize,
+) -> usize {
     let mut i = 0;
     let mut spine_iter = tree.walk_spine();
     for &node_ix in &mut spine_iter {
         crate::steps::add(1);
+        if i == limit {
+            break;
+        }
         match tree[node_ix].item.body {
             // This fix is lifted, almost verbatim,
             // from https://github.com/commonmark/cmark/pull/520/changes

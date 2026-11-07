@@ -3799,6 +3799,18 @@ direction = "to-html"
 input = "a\n-|\nc\n    d"
 html = "<table>\n<thead>\n<tr>\n<th>a</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>c</td>\n</tr>\n</tbody>\n</table>\n<pre><code>d\n</code></pre>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. cmark keeps an item that starts with a
+# blank line open across a blank line indented as far as its content, so the next line is in the
+# item. pulldown-cmark 0.13.6 ended the item at any blank line.
+[[bug]]
+id = "pulldown-cmark-indented-blank-keeps-empty-item"
+library = "pulldown-cmark"
+source = "https://github.com/commonmark/cmark/blob/master/src/blocks.c"
+class = "wrong-output"
+direction = "to-html"
+input = "-\n  \n  a\n-\n\n  b"
+html = "<ul>\n<li>a</li>\n<li></li>\n</ul>\n<p>b</p>\n"
+
 # Found by the `markdown_comrak` differential fuzz target. An HTML block of type 7 cannot interrupt
 # a paragraph, but a table is not a paragraph, so cmark-gfm ends the table at a line that starts one.
 # pulldown-cmark 0.13.6 read the line as a row.
