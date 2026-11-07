@@ -910,6 +910,25 @@ impl<'a, 'h> Renderer<'a, 'h> {
         }
     }
 
+    /// Whether the open element is an empty `p` that a loose task item's box
+    /// was moved in front of: its `li` ends with the `input` and `" \n"`.
+    fn boxed_and_empty(&self) -> bool {
+        let [.., item, paragraph] = self.stack.as_slice() else {
+            return false;
+        };
+        let [.., input, after] = item.children.as_slice() else {
+            return false;
+        };
+        paragraph.name == "p"
+            && paragraph.children.is_empty()
+            && item.name == "li"
+            && input.kind == Kind::Element
+            && input.name == "input"
+            && after.kind == Kind::Text
+            && after.name.is_empty()
+            && after.text == " \n"
+    }
+
     /// An element with no content, such as `br`, `hr` or `img`.
     fn void(&mut self, name: &str, attributes: Vec<(String, String)>) {
         self.open(name, attributes);
@@ -1307,6 +1326,15 @@ impl<'a, 'h> Renderer<'a, 'h> {
                 }
                 self.close();
                 self.write("\n");
+            }
+            TagEnd::Paragraph if self.boxed_and_empty() => {
+                // A loose task item's box was moved in front of this
+                // paragraph, and nothing followed it. cmark-gfm opens no
+                // paragraph there, so `<li>`, the box and a space are the
+                // whole item.
+                self.stack.pop();
+                let after_box = self.top().children.last_mut().expect("the box is there");
+                after_box.text.pop();
             }
             TagEnd::Paragraph | TagEnd::Item | TagEnd::TableRow => {
                 self.close();

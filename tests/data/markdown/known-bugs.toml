@@ -3692,6 +3692,18 @@ direction = "to-html"
 input = "x\n+\n-:|\nb"
 html = "<p>x</p>\n<table>\n<thead>\n<tr>\n<th align=\"right\">+</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align=\"right\">b</td>\n</tr>\n</tbody>\n</table>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. cmark-gfm reads a task marker before a
+# paragraph opens, so a loose item with nothing after its marker has no paragraph. pulldown-cmark
+# 0.13.6 started one there, and an empty `p` was written after the box.
+[[bug]]
+id = "pulldown-cmark-empty-loose-task-item"
+library = "pulldown-cmark"
+source = "https://github.com/github/cmark-gfm/blob/master/extensions/tasklist.c"
+class = "wrong-output"
+direction = "to-html"
+input = "- a\n\n- [ ] "
+html = "<ul>\n<li>\n<p>a</p>\n</li>\n<li><input disabled=\"\" type=\"checkbox\"> </li>\n</ul>\n"
+
 # Found by the `markdown_comrak` differential fuzz target. A CDATA section ends at `]]>`, so
 # `<![CDATA[]>` is text. pulldown-cmark 0.13.6 ended it at one `]` and wrote it as raw HTML.
 [[bug]]

@@ -41,7 +41,8 @@ fn options() -> comrak::Options<'static> {
 ///   another, so each `</a>` closes the last `<a` before it. An image whose
 ///   URL fails is removed, where comrak's loses its `src`, so an `img` with no
 ///   `src` is removed.
-/// - A tab is a space, and a paragraph starts with no space. comrak 0.59 keeps
+/// - A tab is a space, and a paragraph or a tight list item starts with no
+///   space. comrak 0.59 keeps
 ///   the spaces and tabs a paragraph starts with when a reference definition
 ///   before them is removed. CommonMark removes them, and a browser shows both
 ///   the same. A space between two tags is removed, as `html_meaning` does: in
@@ -49,7 +50,7 @@ fn options() -> comrak::Options<'static> {
 ///   writes the spaces it stands for.
 /// - A `%` with no two hex digits after it is `%25` (`lone_percent_encoded`).
 fn normal(html: &str) -> String {
-    let meaning = fuzz::html_meaning(html);
+    let meaning = fuzz::html_meaning(&unnested(html));
     let mut out = String::with_capacity(meaning.len());
     let mut bare = false;
     let mut rest = meaning.as_str();
@@ -87,11 +88,46 @@ fn normal(html: &str) -> String {
     let mut spaced = String::with_capacity(out.len());
     for ch in out.chars() {
         let ch = if ch == '\t' { ' ' } else { ch };
-        if !(ch == ' ' && (spaced.ends_with(' ') || spaced.ends_with("<p>"))) {
+        let opened = spaced.ends_with("<p>") || spaced.ends_with("<li>");
+        if !(ch == ' ' && (spaced.ends_with(' ') || opened)) {
             spaced.push(ch);
         }
     }
     lone_percent_encoded(&spaced.replace("> <", "><"))
+}
+
+/// `html` with each `a` inside another `a` removed, and its text kept. An
+/// autolink inside a link's text whose URL fails the scheme check is text in
+/// ours. comrak writes it as a nested `a`, and the HTML parser then closes the
+/// outer link there. Both sides are mapped, so a nested link that both write
+/// is removed from both.
+fn unnested(html: &str) -> String {
+    let mut out = String::with_capacity(html.len());
+    let mut depth = 0usize;
+    let mut rest = html;
+    while let Some(at) = rest.find('<') {
+        out.push_str(&rest[..at]);
+        rest = &rest[at..];
+        let open = rest.starts_with("<a ") || rest.starts_with("<a>");
+        if let Some(end) = open.then(|| tag_end(rest)).flatten() {
+            if depth == 0 {
+                out.push_str(&rest[..=end]);
+            }
+            depth += 1;
+            rest = &rest[end + 1..];
+        } else if let Some(after) = rest.strip_prefix("</a>") {
+            if depth <= 1 {
+                out.push_str("</a>");
+            }
+            depth = depth.saturating_sub(1);
+            rest = after;
+        } else {
+            out.push('<');
+            rest = &rest[1..];
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 /// `html` with each `%` not followed by two hex digits written as `%25`.
@@ -241,9 +277,10 @@ fuzz_target!(|data: &[u8]| {
     // in a code span: `>a \`\n \`c` gives it `<code>  </code>`. On a line its
     // container continues, it removes them, as CommonMark does. A document
     // with a code span and an indented line in such a paragraph is not compared.
+    // A `\r\n` ends one line, so it is split first.
     let mut contained = false;
     let code = text.contains('`');
-    for line in text.split(['\n', '\r']) {
+    for line in text.split("\r\n").flat_map(|line| line.split(['\n', '\r'])) {
         let start = line.trim_start_matches([' ', '\t']);
         let marker = start.starts_with(['>', '-', '+', '*'])
             || start.trim_start_matches(|c: char| c.is_ascii_digit()).starts_with(['.', ')']);

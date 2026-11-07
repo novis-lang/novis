@@ -105,7 +105,7 @@ open and close as `*` does in GFM and keep one lower bound each, a `~` closer, w
 nearest `~` opener or is text, a hard line break that only spaces make, not
 tabs, an ATX heading whose `#` a vertical tab or form feed follows, which is text, a task item
 with nothing after its marker, whose next line is a lazy continuation and which may end the
-document, a table whose header row
+document, and which in a loose list has no paragraph when no line joins it, a table whose header row
 has no pipe, which is one cell, a delimiter-row cell, which is GFM's: an optional colon, hyphens
 and an optional colon, between spaces, and a paragraph with a delimiter row that made no table, which
 no later line turns into a table, as in cmark-gfm, a header row indented four columns or more,
