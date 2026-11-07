@@ -36,18 +36,25 @@ issue 607 and comrak 0.59 may read as a character, a processing instruction that
 whose text ends with `-`, which 0.29 did not allow, a CDATA section with `]]]`, which cmark's pattern reads
 past its end, `<![CDATA[` in lower case, which comrak reads as HTML and cmark as text, a `---` under a paragraph of reference definitions alone, which cmark now reads as a
 thematic break, a task marker with an inline
-right after its `]`, a second link label of whitespace alone, as in `[a][ ]`, which the spec reads as
+right after its `]`, a task marker that starts a line with no list marker before it, which cmark-gfm's
+scan of the whole line does not read as a box and comrak 0.59 does, a destination in `<…>` that starts or ends with whitespace, which cmark trims and the spec
+keeps, a link label near 1,000 bytes,
+which the spec limits to 999 characters and cmark to 1,000 bytes, a second link label of whitespace alone, as in `[a][ ]`, which the spec reads as
 text after a shortcut reference and cmark as a collapsed reference, a lazy line that would start an HTML block of type 7 or starts with spaces inside a code span, nesting past comrak's depth of 100, a `\&` before an entity in a link
 destination, which cmark decodes and the spec and commonmark.js read as text, a run
 of two or more backticks, a `\\|`, where cmark-gfm removes the `\` in front of a table cell's `|`
-and comrak 0.59 keeps it after a pair of backslashes, a `\r\n` in a code span, which comrak writes as two spaces, and a vertical tab or form feed, which 0.29 counted as whitespace. comrak writes a `%` with no two hex
+and comrak 0.59 keeps it after a pair of backslashes, a `\|` in a code span or raw HTML of a
+paragraph a table interrupts, where cmark-gfm removes the `\` and CommonMark keeps it, a `\r\n` in a code span, which comrak writes as two spaces, a blank line after a thematic break in a list item, which makes
+the list loose in current cmark and not in cmark-gfm, a `~~~` fence beside a lone `\r`,
+after which comrak drops a line that holds only the fence's indentation, and a vertical tab or form feed, which 0.29 counted as whitespace. comrak writes a `%` with no two hex
 digits after it in a URL as `%25`. cmark and this renderer write it as it is, and the target maps that
 difference away. comrak 0.59 lets references add at most 100,000 bytes and at most the document's
 length, where cmark allows at least 100,000, so the target gives comrak a longer document when a
 reference is text. A raw `<a>` tag is not compared either, since the target's mapping of a nested
 link cannot follow the parser's close of it, and for the same reason neither is an angle autolink
 beside raw HTML in a document with a link. Nor is a document where comrak writes a link inside a link,
-as it does for `[[a](u)[b]](v)`, which cmark and the spec write as `[`, the link `a` and text. The target's comments give each case. The other two targets cover these documents.
+as it does for `[[a](u)[b]](v)`, which cmark and the spec write as `[`, the link `a` and text, or a
+link around an image whose text holds a link, as in `[![[]()[]]()]()`. The target's comments give each case. The other two targets cover these documents.
 
 **Memory:** `toHtml` holds the document, its output tree and its reference and footnote definitions,
 all attributed to the request and freed with it. `toHtmlEach` and `Live` hold less, as

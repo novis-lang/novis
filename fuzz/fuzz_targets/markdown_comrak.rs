@@ -323,6 +323,14 @@ fuzz_target!(|data: &[u8]| {
     if text.contains("\\\\|") {
         return;
     }
+    // When a table interrupts a paragraph, cmark-gfm removes the `\` in front
+    // of every `|` in the paragraph's lines before the header row, and comrak
+    // 0.59 copies it. In a code span or raw HTML the `\` is a character, as
+    // CommonMark and cmark read it, so ours keeps it. A document with `\|` and
+    // a backtick or a `<` is not compared.
+    if text.contains("\\|") && text.contains(['`', '<']) {
+        return;
+    }
     // An escaped `&` is a plain character, so `\&amp;` in a link destination
     // is the text `&amp;`, as commonmark.js reads it. cmark and comrak 0.59
     // decode entities before backslash escapes, so they read `&`. A document
@@ -345,11 +353,20 @@ fuzz_target!(|data: &[u8]| {
     // reads the definition again with no title. comrak 0.59 copies cmark's
     // older code, which keeps the title: `[a]: /u\n't'x` gives `a` the title
     // `t`. A document with `]:` and a line with a title delimiter that does
-    // not end with one is not compared.
+    // not end with one is not compared. Nor is one with a delimiter inside a
+    // line, as in `'a't'`, where the title may end before the line does. A
+    // title opened on an earlier line may also end at the first character of
+    // `''`, so a line with no `]:` that starts with a delimiter and has two
+    // is not compared either.
     let delimiter = |c: char| matches!(c, '"' | '\'' | '(' | ')');
     if text.contains("]:")
         && text.split(['\n', '\r']).any(|line| {
-            line.contains(delimiter) && !line.trim_end().ends_with(delimiter)
+            let line = line.trim();
+            let mut inner = line.chars();
+            inner.next();
+            inner.next_back();
+            let reopened = !line.contains("]:") && line.starts_with(delimiter) && line.matches(delimiter).count() >= 2;
+            (line.contains(delimiter) && !line.ends_with(delimiter)) || inner.as_str().contains(delimiter) || reopened
         })
     {
         return;
@@ -366,6 +383,14 @@ fuzz_target!(|data: &[u8]| {
     // the span keeps a space that CommonMark strips. A document with a
     // backtick and `\r\n` is not compared.
     if text.contains('`') && text.contains("\r\n") {
+        return;
+    }
+    // A lone `\r` ends a line. When it ends a fence's opening line, comrak
+    // 0.59 drops the next line if only the fence's indentation is on it, so
+    // ` ~~~\r \nx` gives it `x` and CommonMark an empty line and `x`. A
+    // document with `~~~` and a `\r` with no `\n` after it is not compared.
+    let lone = text.bytes().zip(text.bytes().skip(1).chain([0])).any(|(a, b)| a == b'\r' && b != b'\n');
+    if text.contains("~~~") && lone {
         return;
     }
     // A CDATA section ends at the first `]]>`. cmark's pattern, which comrak
@@ -403,6 +428,59 @@ fuzz_target!(|data: &[u8]| {
     }) {
         return;
     }
+    // CommonMark 0.31.2 allows a link label of at most 999 characters. cmark
+    // and comrak 0.59 allow 1,000 bytes, so a label of 1,000 ASCII characters,
+    // or of 600 `é`, is read differently. A document with a `[`, then 999
+    // bytes with no bracket, once NUL is U+FFFD, is not compared.
+    let wide = text.replace('\0', "\u{FFFD}");
+    if wide.split('[').skip(1).any(|after| after.find(['[', ']']).unwrap_or(after.len()) >= 999) {
+        return;
+    }
+    // A destination in `<…>` is the characters between them, as CommonMark
+    // 0.31.2 and commonmark.js read it. cmark trims it, and comrak 0.59
+    // copies it, so `[a]: < h>` gives it `h` and ours ` h`. A document with
+    // such a destination that starts or ends with whitespace is not compared.
+    let angled = |at: usize| {
+        let rest = text[at..].trim_start_matches(['(', ':', ' ', '\t', '\n', '\r']);
+        let Some(inside) = rest.strip_prefix('<') else {
+            return false;
+        };
+        let end = inside.find(['>', '\n', '\r']).unwrap_or(inside.len());
+        inside[..end].starts_with([' ', '\t']) || inside[..end].ends_with([' ', '\t'])
+    };
+    if text.match_indices(']').any(|(at, _)| angled(at + 1)) {
+        return;
+    }
+    // cmark-gfm's task marker scan reads the whole line, so the marker must
+    // follow a list marker on that line. comrak 0.59 looks at the item's first
+    // paragraph, so in `-\n  [ ] a` the box counts for it and not for
+    // cmark-gfm. A document with a line that starts with a task marker after
+    // spaces, tabs and `>` alone is not compared.
+    if text.split(['\n', '\r']).any(|line| {
+        let start = line.trim_start_matches([' ', '\t', '>']).as_bytes();
+        start.len() >= 3 && start[0] == b'[' && matches!(start[1], b' ' | b'x' | b'X') && start[2] == b']'
+    }) {
+        return;
+    }
+    // A blank line after a thematic break in a list item makes the list loose
+    // in current cmark, which marks the container's last child. cmark-gfm
+    // forked before that, and comrak 0.59 keeps `- ***\n\n  a` tight. A
+    // document with an indented line or one after a list marker that may be a
+    // thematic break, and a blank line after it, is not compared.
+    let lines: Vec<&str> = text.split("\r\n").flat_map(|line| line.split(['\n', '\r'])).collect();
+    let rule_in_item = |line: &str| {
+        let bytes = line.as_bytes();
+        let contained = bytes.first().is_some_and(|b| b" \t".contains(b))
+            || (bytes.len() > 1 && b"-*+".contains(&bytes[0]) && b" \t".contains(&bytes[1]))
+            || line.trim_start_matches(|c: char| c.is_ascii_digit()).starts_with(['.', ')']);
+        let marks = |mark: char| line.matches(mark).count() >= 3;
+        contained
+            && line.chars().all(|c| " \t>-*_+.)0123456789".contains(c))
+            && (marks('*') || marks('-') || marks('_'))
+    };
+    if lines.windows(2).any(|pair| rule_in_item(pair[0]) && pair[1].trim().is_empty()) {
+        return;
+    }
     // comrak 0.59 opens no container past a depth of 100, and the rule's bound
     // is 512. A line whose container markers and indentation could reach 100
     // is not compared.
@@ -418,20 +496,32 @@ fuzz_target!(|data: &[u8]| {
     // in a code span: `>a \`\n \`c` gives it `<code>  </code>`. On a line its
     // container continues, it removes them, as CommonMark does. A document
     // with a code span and an indented line in such a paragraph is not compared.
+    // The spaces also stop a definition, so `>[a]:u\n [a]:u` gives it a
+    // paragraph, and a document with `]:` is treated the same way.
     // A `\r\n` ends one line, so it is split first. A line with fewer `>`
     // markers than the line before it, as `><r>` after `>>5`, is lazy too.
+    // A blank line ends the paragraph, and the container goes on until an
+    // unindented line with no marker: in `*\n\t\n\tquo\n<s>` the item holds
+    // `quo`, and `<s>` is lazy.
     let mut contained = false;
     let mut depth = 0;
-    let code = text.contains('`');
+    let mut blank = false;
+    let code = text.contains('`') || text.contains("]:");
     for line in text.split("\r\n").flat_map(|line| line.split(['\n', '\r'])) {
         let start = line.trim_start_matches([' ', '\t']);
         let marker = start.starts_with(['>', '-', '+', '*'])
             || start.trim_start_matches(|c: char| c.is_ascii_digit()).starts_with(['.', ')']);
         let quoted = start.trim_start_matches(['>', ' ', '\t']);
         let quotes = start.len() - quoted.len() - start[..start.len() - quoted.len()].matches([' ', '\t']).count();
+        let after_blank = std::mem::replace(&mut blank, start.is_empty());
         if start.is_empty() {
-            contained = false;
-            depth = 0;
+            continue;
+        }
+        if after_blank && !marker {
+            if start.len() == line.len() {
+                contained = false;
+                depth = 0;
+            }
         } else if contained && quotes < depth && quoted.starts_with('<') {
             return;
         } else if marker {
@@ -460,10 +550,40 @@ fuzz_target!(|data: &[u8]| {
     // A link cannot hold a link, so once a link forms, cmark deactivates every
     // `[` before it. comrak 0.59 opens the outer link again after a later `[b]`
     // that is not a link, so `[[a](u)[b]](v)` gives it an `a` inside an `a`.
-    // A document with a raw `<a` tag is not compared (above), so with no raw
-    // `</a` in it either, only that can nest an `a`, and such a document is
+    // A document with a raw `<a` tag is not compared (above), so only that can
+    // nest an `a`, and such a document is not compared. A raw `</a>` closes an
+    // `a` and cannot nest one, so it does not change this.
+    if unnested(&raw) != raw {
+        return;
+    }
+    // The same happens when the inner link is in an image's text:
+    // `[![[]()[]]()]()` gives comrak an `img` inside an `a`, which `unnested`
+    // keeps. A document with a `[` and then a `![` whose text has a `](` is
     // not compared.
-    if !lower.contains("</a") && unnested(&raw) != raw {
+    let image_link = |at: usize| {
+        let rest = &bytes[at + 1..];
+        let mut depth = 0;
+        let mut escaped = false;
+        for (i, &b) in rest.iter().enumerate() {
+            if escaped {
+                escaped = false;
+            } else if b == b'\\' {
+                escaped = true;
+            } else if b == b'[' {
+                depth += 1;
+            } else if b == b']' {
+                if depth >= 2 && rest.get(i + 1) == Some(&b'(') {
+                    return true;
+                }
+                depth -= 1;
+                if depth == 0 {
+                    return false;
+                }
+            }
+        }
+        false
+    };
+    if text.match_indices("![").any(|(at, _)| text[..at].contains('[') && image_link(at)) {
         return;
     }
     let mut theirs = normal(&raw);
