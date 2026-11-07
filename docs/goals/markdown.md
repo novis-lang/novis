@@ -604,25 +604,21 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 9's differential triage goes on. This session landed eight commits (`9378a955` to `f82f4a47`):
-- **Reverted, by decision 19**: the last session's inline-title patch (`1374059662`) followed
-  cmark-gfm's old title pattern. cmark fixed it in issue 607: a `\` in a title is always an escape,
-  so `[a](/u "\")` is text, as the spec says. Catalogue `cmark-issue-607-inline-title` pins it, and
-  the old `cmark-reg-607-unterminated-title` already pinned the refdef form. So the old *Next*
-  item "a reference definition's title" is dropped: pulldown-cmark 0.13.6 was right.
-- **Ours, fixed and catalogued**: a delimiter row that is a `-` list item with text (`a\n- |`)
-  starts the list; an inline CDATA section ends at the first `]]>`; a line indented four columns
-  ends a table; a loose task item with nothing after its box has no `p`; a `\` ending a header
-  row is cell text; a fence's language is read after its info string is decoded and trimmed.
-- **comrak's readings, skipped in the target and listed in `markdown-cost`**: a `\` before a
-  title's closing delimiter, CDATA with `]]]`, `---` under a paragraph of definitions alone
-  (current cmark reads a thematic break), `<![CDATA[` in another case.
-- **The target's `normal`**: spaces collapse after a removed `a`; a nested `a` is removed on both
-  sides; `<li>` is mapped like `<p>`; `\r\n` is one line ending in the lazy-line skip; comrak's
-  `href`/`src` go through `fuzz::markdown_url_allowed` (it also checks the percent-decoded URL).
-  `fuzz::html_meaning` now starts from `html_sanitized`'s settled answer.
+Stage 9's differential triage goes on. This session landed five commits (`97224a30` to `ba230dcc`):
+- **Ours, fixed and catalogued**: a paragraph that a table interrupts defines no reference
+  (`table_in_paragraph` in `firstpass.rs`, a look-ahead before the refdef loop; matches comrak on
+  every form in the old *Next* item); an inline comment or processing instruction across a
+  container's lines drops each line's marker (`without_container_prefixes` in `parse.rs`); text
+  before the rebuild writes `"` as `&quot;` (`html::source_with`), so an open raw attribute runs
+  to the end as in a browser over cmark's output.
+- **comrak's readings, skipped in the target and listed in `markdown-cost`**: the reference
+  expansion limit (comrak swaps cmark's `max` for `min`; the target pads comrak's input on a
+  difference), `[a][ ]`, a definition title with text after it, `<!-- --->`, a link nested after
+  `[b]`, a raw `<a>` tag, `\r\n` in a code span, `\&` before an entity, an angle autolink beside
+  raw HTML in a document with a link. `normal` removes a failing `a` before `html_meaning` (`unlinked`).
 - **Green, run once by name**: `--lib markdown::` (23), `--test markdown_known_bugs`. Sweep reds:
-  `env-secret-proofs` exists nowhere in the tree (stale); Miri's are what unpushed `f13f4064` skips.
+  `env-secret-proofs` exists nowhere in the tree and `looper check` does not know it (stale);
+  the three Miri shards time out on the 8 MiB JSON tests that unpushed `f13f4064` skips.
 
 ### Next
 
@@ -635,17 +631,13 @@ run with `./target/debug/nvs run` shows our HTML (`<?nvs` first, `foreach ([...]
 is read with `gh api repos/<commonmark/cmark|github/cmark-gfm>/contents/<path> --jq .content |
 base64 -d`. Decision 19: for a CommonMark construct, read *current cmark*, not cmark-gfm.
 
-- [ ] **A definition in a paragraph that a table interrupts** (`vendor/pulldown-cmark/src/firstpass.rs:381`,
-  the current crash `[\x10]:\n|-`). cmark-gfm makes the line before a delimiter row a header row from the
-  paragraph's raw text, and writes every line before it as a plain paragraph whose definitions
-  are never read: `[a]: /u\n|-` is a table with header `[a]: /u`, and `[a]: /u\nx\n|-\n\n[a]`
-  gives `<p>[a]: /u</p>`, a table `x` and `<p>[a]</p>`. Ours reads definitions first, at
-  `vendor/pulldown-cmark/src/firstpass.rs:381` (`parse_refdef_total` at `:1894`). A fix must look
-  ahead over the paragraph the definitions start. If a table starts anywhere in that paragraph,
-  no definition at its start is read. The work stays linear, and decision 7's first pass over a
-  file must agree. A wrapper that only stopped the definition at the header line was tried and
-  reverted: it still read the definitions before that line.
-- [ ] **Triage to 1,000,000 clean runs** of `markdown_comrak` (`fuzz/fuzz_targets/markdown_comrak.rs:183`).
+- [ ] **An HTML block of type 7 ends a table** (`vendor/pulldown-cmark/src/firstpass.rs:583`,
+  `parse_table_row`; the current crash ends `|-\n\\<tr><t\n<t>`). cmark-gfm checks a table's
+  continuation first and then opens new blocks, and type 7 may start there because a table is
+  not a paragraph. So a body row `<t>` ends the table and is an HTML block; ours writes it as a
+  row. Check the other block starts in that loop the same way (the four-column one is done). A
+  fix and a catalogue entry, and a rule line beside "a line in a table indented four columns".
+- [ ] **Triage to 1,000,000 clean runs** of `markdown_comrak` (`fuzz/fuzz_targets/markdown_comrak.rs:213`).
   Our bug: a fix and a catalogue entry. comrak's bug or an older reading: a skip in the target
   and the list at `docs/rules/core-classes/markdown-cost.md:30`.
 - [ ] **1,000,000 runs each** of `fuzz/fuzz_targets/markdown.rs:22` and
