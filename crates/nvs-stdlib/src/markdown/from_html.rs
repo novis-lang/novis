@@ -1096,10 +1096,13 @@ impl Inline {
         if space {
             code.push(' ');
         }
-        if code.chars().all(|ch| ch == ' ') {
-            if !code.is_empty() && self.brk == 0 {
-                self.space = true;
-            }
+        // Markdown has no empty code span, and one of spaces alone is read as
+        // it is, without the space at each end taken off.
+        if code.is_empty() {
+            return;
+        }
+        if code == " " {
+            self.markup("` `");
             return;
         }
         let mut longest = 0;
