@@ -6,7 +6,7 @@ context: [apps/chat/README.md, apps/poll/README.md, website/src/content/docs/gui
 stages:
   - id: 1
     title: "both apps land with one production setup, and the website's app check is green over them"
-    status: open
+    status: done
     context: [tools/nv/cmd/site.ts, website/src/content/docs/guides/production/reverse-proxy.mdx]
   - id: 2
     title: "a browser test drives chat.js and poll.js in Chromium against the served apps"
@@ -73,8 +73,8 @@ says which of the two features to pick.
    inline script or style is added to either app. One line of configuration covers every response,
    error pages and static files too, where a `Response::setHeader` covers only the responses the
    program writes. The test reads the setting with `Core\Config::get`, because `Test::request`
-   returns only the headers the program sets (`apps/chat/src/AppTest.nvs:87`). Poll sets its policy
-   with `setHeader` in `apps/poll/public/index.nvs` and moves to this.
+   returns only the headers the program sets (`apps/chat/src/AppTest.nvs:87`). Both apps set the
+   same policy line.
 4. **Identity:** chat keeps the visitor's name in `Core\Session`, read by the upgrade request, and
    passes only the name and the room to the connection through `args:`. Poll gives each browser a
    long-lived voter id, and a second vote from the same browser moves that vote. A login is the
@@ -83,12 +83,9 @@ says which of the two features to pick.
    a `uint` route parameter), and the published value carries no secret.
 6. **`deploy/` is one shape in both apps:** `deploy/Caddyfile`, `deploy/nginx.conf` and
    `deploy/production.toml`, which holds only what production changes and is passed after the base:
-   `nvs serve public/index.nvs --config nvs.toml --config deploy/production.toml`. This is poll's
-   shape. Chat's `production.toml` is two `[[include]]` lines over `deploy/server.toml`, because an
-   included file overrides the file that includes it (`nvs config dump --origin` shows it). That is
-   three files to read where two flags do, so chat's `server.toml` becomes its `production.toml`, and
-   its page, README and `nvs service install` line follow. Each page's `## Deploy it` walks through
-   exactly these files.
+   `nvs serve public/index.nvs --config nvs.toml --config deploy/production.toml`. Two flags are
+   read where an `[[include]]` chain needs a third file, and production narrows `[capabilities.db]`
+   to the app's own database. Each page's `## Deploy it` walks through exactly these files.
 7. **Topics stay in one process.** Neither app adds a broker. Each page says that several machines
    need a message queue in application code (`rule:core-classes/topic`).
 8. **Tests:** unit tests use the in-memory `scratch` database; a live test (`#[Test(server: true)]`)
@@ -111,18 +108,18 @@ says which of the two features to pick.
 **Does:** reconciles the two `deploy/` folders, runs the website's checks over both apps, and commits
 the apps with their pages.
 
-- [ ] Make `apps/chat/deploy/` and `apps/poll/deploy/` the same shape (decision 6), and each page's
+- [x] Make `apps/chat/deploy/` and `apps/poll/deploy/` the same shape (decision 6), and each page's
   `## Deploy it` match its files. `apps/chat/deploy/production.toml:1`, `apps/poll/deploy/production.toml:1`
-- [ ] Move poll's policy to `[http.headers]`, and its test to `Core\Config::get` (decision 3).
+- [x] Move poll's policy to `[http.headers]`, and its test to `Core\Config::get` (decision 3).
   `apps/poll/public/index.nvs:1`
-- [ ] `bun nv site --check apps --nvs target/release/nvs.exe` is green; it runs `nvs test .` and
+- [x] `bun nv site --check apps --nvs target/release/nvs.exe` is green; it runs `nvs test .` and
   serves `/` for every app. `tools/nv/cmd/site.ts:1913`
-- [ ] `bun nv site --check structure guides prose stale` and `bun nv proofs --comments` over every
+- [x] `bun nv site --check structure guides prose stale` and `bun nv proofs --comments` over every
   `.nvs`, `.mdx`, `.toml`, `.conf` and `Caddyfile` of both apps are green.
   `website/src/content/docs/guides/example-apps/chat.mdx:1`
-- [ ] Each page's `## Run the tests` block is the real output of `nvs test .`.
+- [x] Each page's `## Run the tests` block is the real output of `nvs test .`.
   `website/src/content/docs/guides/example-apps/poll.mdx:66`
-- [ ] Commit the apps, the two pages, the index, the sidebar and `website/src/lib/apps.ts`.
+- [x] Commit the apps, the two pages, the index, the sidebar and `website/src/lib/apps.ts`.
   `website/src/content/docs/guides/example-apps/index.mdx:1`
 
 ### 2. a browser test drives chat.js and poll.js in Chromium against the served apps
@@ -185,21 +182,30 @@ records the decision in those rules. The safe default: `wall_time` bounds the re
 
 ### State
 
-Both apps and their pages are committed with production setups: a session (chat), one vote per
-browser (poll), a strict CSP, and `deploy/` with Caddy, nginx and production settings. Each passes
-`nvs test .` with 22 tests, real WebSocket and event-stream tests among them, and `bun nv site
---check apps` passes for both. The two apps still differ in where
-the CSP is set and in the shape of `deploy/` (decisions 3 and 6).
+Stage 1 is done (`c9797093`, `082b8053`). Both apps set one strict CSP in `nvs.toml`
+`[http.headers]`, and both `deploy/` folders are `Caddyfile`, `nginx.conf` and a `production.toml`
+passed after `nvs.toml` with a second `--config`; `nvs config check` accepts chat's pair. `bun nv
+site --check apps`, `structure guides prose stale` and `proofs --comments` over both apps are
+green, and each page shows the real `nvs test .` output (22 tests each).
+
+Sweep reds: `env-secret-proofs` is defined nowhere (`looper check --name` finds no such check), a
+stale service-side entry. The nightly Miri reds in `nvs-stdlib` are the 8 MiB JSON ladder tests
+that `f13f4064` skips under Miri; it is committed and not yet pushed. No test is expected to go red.
 
 ### Next
 
-**Stage 1**, over `apps/chat/`, `apps/poll/` and the two pages; no gate.
+**Stage 2**, a new `tools/nv/test/realtime-browser.test.ts`; stages 3 and 4 touch disjoint files
+and may run beside it (decision 10).
 
-- [ ] Chat's `deploy/` takes decision 6's shape. `apps/chat/deploy/production.toml:1`
-- [ ] Poll's policy takes decision 3's place. `apps/poll/public/index.nvs:1`
-- [ ] `bun nv site --check apps` and the prose and website checks. `tools/nv/cmd/site.ts:1913`
-- [ ] The real test output on each page. `website/src/content/docs/guides/example-apps/chat.mdx:1`
-- [ ] Commit. `website/src/content/docs/guides/example-apps/poll.mdx:1`
+- [ ] Read the shared driver and the registry suite it copies. `tools/nv/test/chromium.ts:1`,
+  `tools/nv/test/registry-browser.test.ts:1`
+- [ ] `apps/chat/public/chat.js:1` Chat: two contexts, a line in one shows once in the other, `<b>`
+  shows as text, the speed notice.
+- [ ] Chat: reconnect after a server restart, each history line once. `apps/chat/public/chat.js:1`
+- [ ] `apps/poll/public/poll.js:1` Poll: a vote in one page moves the bar in the other; a second
+  vote keeps the total.
+- [ ] `tools/nv/cmd/ci-changes.ts:181` No console error or CSP violation; CI's `browser` job and
+  `ci-changes.ts`, then one run by name with `NV_BROWSER=1`.
 
 ### Backlog
 
