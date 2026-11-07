@@ -707,7 +707,37 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                 }
                 // first check for non-empty lists, then for other interrupts
                 let suffix = &self.text[ix_new..];
-                if self.scan_paragraph_interrupt(suffix, current_container, tree_position) {
+                let other = scan_paragraph_interrupt_no_table(
+                    suffix,
+                    current_container,
+                    self.options.contains(Options::ENABLE_FOOTNOTES),
+                    self.options.contains(Options::ENABLE_DEFINITION_LIST),
+                    &self.tree,
+                    tree_position,
+                );
+                let table = if other {
+                    None
+                } else {
+                    self.scan_table_interrupt(&bytes[ix_new..])
+                };
+                // Novis: cmark-gfm takes a table's header row from the
+                // paragraph, so a line that cannot interrupt a paragraph, such
+                // as an empty list item, is still a header row. The published
+                // 0.13.6 ended the paragraph there and read the line as a new
+                // block, so `x\n+\n-:|` was an empty list.
+                let lazy_table = match table {
+                    Some((alignment, end)) if current_container => {
+                        return self.table_from_header(
+                            ix,
+                            ix_new,
+                            alignment,
+                            end,
+                            trailing_backslash_pos,
+                        );
+                    }
+                    table => table.is_some(),
+                };
+                if other || lazy_table {
                     if let Some(pos) = trailing_backslash_pos {
                         self.tree.append_text(pos, pos + 1, false);
                     }
@@ -732,23 +762,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                 if let Some((alignment, end)) =
                     filled.then(|| self.scan_table_interrupt(row)).flatten()
                 {
-                    if let Some(pos) = trailing_backslash_pos {
-                        self.tree.append_text(pos, pos + 1, false);
-                    }
-                    self.table_visited = false;
-                    self.pop(ix);
-                    let table_cols = alignment.len();
-                    let alignment_ix = self.allocs.allocate_alignment(alignment);
-                    self.tree.append(Item {
-                        start: ix_new,
-                        end: 0, // set by `parse_table`
-                        body: ItemBody::Table(alignment_ix),
-                    });
-                    self.tree.push();
-                    if let Some(after) = self.parse_table(table_cols, ix_new, ix_new + end) {
-                        return after;
-                    }
-                    return ix;
+                    return self.table_from_header(ix, ix_new, alignment, end, trailing_backslash_pos);
                 }
             }
             line_start.scan_all_space();
@@ -2061,6 +2075,33 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         } else {
             None
         }
+    }
+
+    /// Novis: the paragraph open at `ix` ended, and the table whose header
+    /// row starts at `ix_new` started, with `alignment` from its delimiter row,
+    /// which ends `end` bytes after `ix_new`. Gives where parsing goes on.
+    fn table_from_header(
+        &mut self,
+        ix: usize,
+        ix_new: usize,
+        alignment: Vec<crate::Alignment>,
+        end: usize,
+        trailing_backslash_pos: Option<usize>,
+    ) -> usize {
+        if let Some(pos) = trailing_backslash_pos {
+            self.tree.append_text(pos, pos + 1, false);
+        }
+        self.table_visited = false;
+        self.pop(ix);
+        let table_cols = alignment.len();
+        let alignment_ix = self.allocs.allocate_alignment(alignment);
+        self.tree.append(Item {
+            start: ix_new,
+            end: 0, // set by `parse_table`
+            body: ItemBody::Table(alignment_ix),
+        });
+        self.tree.push();
+        self.parse_table(table_cols, ix_new, ix_new + end).unwrap_or(ix)
     }
 
     /// Checks whether we should break a paragraph on the given input.

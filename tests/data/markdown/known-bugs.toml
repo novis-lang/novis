@@ -3669,6 +3669,18 @@ direction = "to-html"
 input = "a https:/\\/example.com b\n\na www\\.example.com b"
 html = "<p>a https://example.com b</p>\n<p>a www.example.com b</p>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. cmark-gfm takes a table's header row from the
+# paragraph, so a line that cannot interrupt a paragraph, such as an empty list item, is still a header
+# row. The 0.13.6 block pass ended the paragraph there and read the line as a new block, an empty list.
+[[bug]]
+id = "pulldown-cmark-header-row-that-is-an-empty-item"
+library = "pulldown-cmark"
+source = "https://github.com/github/cmark-gfm/blob/master/extensions/table.c"
+class = "wrong-output"
+direction = "to-html"
+input = "x\n+\n-:|\nb"
+html = "<p>x</p>\n<table>\n<thead>\n<tr>\n<th align=\"right\">+</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align=\"right\">b</td>\n</tr>\n</tbody>\n</table>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"

@@ -325,25 +325,23 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
     /// the inline pass changes the tree it walks.
     pub fn block_ranges(&self) -> Vec<Range<usize>> {
         let mut ranges: Vec<Range<usize>> = Vec::new();
+        let mut paragraph = false;
         let mut at = self.tree.cur();
         while let Some(ix) = at {
             crate::steps::add(1);
             let item = &self.tree[ix].item;
-            // A table whose header row is indented four columns or more
-            // started inside the paragraph before it, and read alone it
-            // would be indented code, so the two are one range.
-            let inside = matches!(item.body, ItemBody::Table(_)) && {
-                let line = &self.text.as_bytes()[..item.start];
-                let indent = line
-                    .iter()
-                    .rev()
-                    .take_while(|&&b| b == b' ' || b == b'\t')
-                    .count();
-                let columns = line[item.start - indent..].iter().fold(0usize, |column, &b| {
-                    if b == b'\t' { column + 4 - column % 4 } else { column + 1 }
+            // A table with no blank line between it and the paragraph before
+            // it started inside that paragraph, and its header row read alone
+            // may be another block: indented code when it is indented four
+            // columns or more, or an empty list item such as `+`. So the two
+            // are one range.
+            let inside = paragraph
+                && matches!(item.body, ItemBody::Table(_))
+                && ranges.last().is_some_and(|last| {
+                    let between = &self.text.as_bytes()[last.end.min(item.start)..item.start];
+                    between.iter().filter(|&&b| b == b'\n').count() <= 1
                 });
-                columns >= 4
-            };
+            paragraph = matches!(item.body, ItemBody::Paragraph);
             match ranges.last_mut() {
                 Some(last) if inside => last.end = item.end,
                 _ => ranges.push(item.start..item.end),
