@@ -259,6 +259,12 @@ fuzz_target!(|data: &[u8]| {
     if text.contains("<![CDATA[") && text.contains("]]]") {
         return;
     }
+    // `<![CDATA[` starts an HTML block or a CDATA section only in capitals,
+    // as in cmark. comrak 0.59 reads it in any case, so `<![CDAtA[` is HTML
+    // for it. A document with another case of it is not compared.
+    if lower.matches("<![cdata[").count() != text.matches("<![CDATA[").count() {
+        return;
+    }
     // A processing instruction ends at the first `?>`. comrak 0.59's scanner
     // reads `?` and the character after it as a pair, so `<?a??>` does not end
     // at `?>` and is text. A document with `??>` is not compared.
