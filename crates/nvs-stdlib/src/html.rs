@@ -1896,6 +1896,9 @@ fn escape_into(text: &str, attribute: bool, out: &mut String) {
             // indistinguishable from a space in source, and a round trip that
             // wrote it raw would turn it into one.
             '\u{A0}' => out.push_str("&nbsp;"),
+            // A parse reads a raw CR as LF, so a CR that came from `&#13;`
+            // is written as that reference, or a round trip would change it.
+            '\r' => out.push_str("&#13;"),
             '"' if attribute => out.push_str("&quot;"),
             '<' if !attribute => out.push_str("&lt;"),
             '>' if !attribute => out.push_str("&gt;"),
@@ -3593,6 +3596,7 @@ mod tests {
             "<table><td background=\"javascript:alert(1)\">x",
             "<b><noembed></b><img src=x onerror=alert(1)></noembed>",
             "<p>a\u{a0}b &amp;lt;img src=x onerror=alert(1)&amp;gt;</p>",
+            "<pre>a&#13;\nb</pre><p title=\"&#xd;\">c&#13;</p>",
             "<pre>\n\nkept</pre>",
             "<textarea><p>&lt;/textarea&gt;&lt;img src=x onerror=alert(1)&gt;</p>",
             "<p>a<table></p>",
