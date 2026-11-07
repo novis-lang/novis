@@ -1,0 +1,10 @@
+<?nvs
+// Shows how a short piece of HTML becomes Markdown, and how its text stays text.
+
+string $comment = '<p>Use <b>2 * 3</b> or [see the docs](/help).</p>'
+    . '<p># This is not a heading.</p>'
+    . '<script>alert("hi")</script>';
+
+// `<b>` becomes `**`. The `*`, `[`, `]` and `#` in the text get a backslash,
+// so they show as the characters they are. The `<script>` element and its text are deleted.
+echo Core\Markdown::fromHtml($comment);

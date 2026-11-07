@@ -1,0 +1,74 @@
+<?nvs
+// Attack: HTML text tries to become a Markdown link, an image or a script, and huge inputs try to make
+// the conversion slow. The text should stay text, and every step should finish quickly.
+
+class Check
+{
+    // Converts the HTML to Markdown, and then the Markdown back to HTML.
+    // Prints the unsafe tags and links found in that HTML. Each line should end with "none".
+    public static function render(string $label, string $html): void
+    {
+        tainted string $markdown = Core\Markdown::fromHtml($html);
+        string $page = Core\Str::lower(
+            Core\Html::toSource(Core\Markdown::toHtml($markdown), 'searching the result for unsafe tags'),
+        );
+        array<string> $unsafe = [
+            '<script', '<style', '<iframe', '<img src="x', '<img src="https', 'href="javascript',
+            'href=" javascript', 'src="javascript', 'href="data',
+        ];
+        array<string> $found = [];
+        foreach ($unsafe as string $piece) {
+            if (Core\Str::contains($page, $piece)) {
+                $found[] = $piece;
+            }
+        }
+        echo $label, ': ', Core\Str::length($markdown), ' characters, unsafe: ',
+            Core\Arr::count($found) == 0 ? 'none' : Core\Str::join($found, ' '), "\n";
+    }
+}
+
+// 1. Text written as a Markdown link, a Markdown image and HTML tags.
+Check::render('text', '<p>[click](javascript:alert(1)) ![x](https://example.com/a.png) '
+    . '&lt;script&gt;alert(1)&lt;/script&gt; &lt;img src=x onerror=alert(1)&gt;</p>');
+
+// 2. Text that becomes a link if one character is not escaped: a `!` before a link,
+// a link split over two elements, and a link definition at the start of a line.
+Check::render('split', '<p>!<a href="/a">x</a> <b>[</b>y<i>](javascript:alert(1))</i></p>'
+    . '<p>[r]: javascript:alert(1)</p><p>[r]</p>');
+
+// 3. Elements and URLs that are not safe: a script, a style, a frame and unsafe links.
+Check::render('elements', '<p>a</p><script>alert("x")</script><style>p{color:red}</style>'
+    . '<iframe src="javascript:alert(1)"></iframe><a href="javascript:alert(1)">x</a>'
+    . '<a href="data:text/html,&lt;script&gt;alert(1)&lt;/script&gt;">y</a>'
+    . '<img src="javascript:alert(1)" alt="z"><a href=" JaVaScRiPt:alert(1)">w</a>');
+
+// 4. An unsafe link and a script tag as text, in a table that Markdown cannot write.
+Check::render('table', '<table><tr><td colspan="2"><a href="javascript:alert(1)">x</a>'
+    . '&lt;script&gt;alert(1)&lt;/script&gt;</td></tr><tr><td>|</td><td>`</td></tr></table>');
+
+// 5. One hundred thousand nested elements. The conversion stops going deeper after
+// a fixed depth and writes only the text, so this should finish quickly.
+string $open = Core\Str::repeat('<div><b><a href="/x">', 100000);
+Check::render('nested', $open . '[x](javascript:alert(1))');
+
+// 6. A code block with a run of 100000 backticks, and inline code with many runs of
+// different lengths. The fence must be longer than every run inside.
+string $ticks = Core\Str::repeat('`', 100000);
+Check::render('code block', '<pre><code>' . $ticks . "\n&lt;script&gt;</code></pre>");
+string $runs = '';
+uint $n = 1;
+while ($n <= 1000) {
+    $runs = $runs . Core\Str::repeat('`', $n) . ' ';
+    $n = $n + 1;
+}
+Check::render('inline code', '<p><code>' . $runs . '&lt;script&gt;</code></p>');
+
+// 7. Inputs that made other HTML to Markdown converters slow, each made very long.
+Check::render('pre in quote', '<blockquote><pre>a' . Core\Str::repeat("\n", 100000) . 'b</pre>!</blockquote>');
+Check::render('paragraphs', '<div>' . Core\Str::repeat('<p>a</p>', 100000) . '</div>');
+Check::render('images', Core\Str::repeat("<img src=\"1\" />\n", 100000));
+Check::render('break in code', '<p>x<code><br>' . Core\Str::repeat('a', 100000) . '</code></p>');
+Check::render('spaces', '<ol><li> first text' . Core\Str::repeat(' ', 100000) . 'some text</li></ol>');
+
+// 8. Web and mail addresses as text. A Markdown reader turns these into links by itself.
+Check::render('addresses', '<p>' . Core\Str::repeat('www.example.com a@example.com http://example.com ', 10000) . '</p>');

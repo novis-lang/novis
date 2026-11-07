@@ -1,0 +1,18 @@
+<?nvs
+// Shows how a server returns a page as Markdown to a client that sends `Accept: text/markdown`.
+
+Core\Html\Markup $page = html`<article>
+    <h1>Returns</h1>
+    <p>You can return an item within <strong>30 days</strong>.</p>
+    <p>Read the <a href="/help/returns/policy">return policy</a>.</p>
+</article>`;
+
+// An AI agent or a command-line tool often sends `Accept: text/markdown`.
+// A browser sends `text/html`, so it gets the HTML page.
+tainted string $accept = Core\Request::header('Accept') ?? '';
+if (Core\Str::contains($accept, 'text/markdown')) {
+    tainted string $markdown = Core\Markdown::fromHtml($page);
+    Core\Response::bytes($markdown as bytes, 'text/markdown; charset=utf-8');
+} else {
+    Core\Response::html($page);
+}

@@ -1,0 +1,9 @@
+--METHOD--
+GET
+--PATH--
+/help/returns
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+accept: text/markdown, text/html;q=0.5
