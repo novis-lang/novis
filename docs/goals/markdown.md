@@ -347,6 +347,13 @@ names a Markdown renderer as a sink.
     the input has. `Core\Html::parse` and `fromHtml` keep quirks mode for a page with no doctype,
     as a browser does. Declined: no-quirks everywhere, which would make `Core\Html::parse` build a
     different tree from a browser's for such a page.
+19. **Decision 17 covers GFM's constructs; for a CommonMark one, CommonMark 0.31.2 and cmark win**
+    (stage 9). cmark-gfm forked cmark before cmark stopped a lazy continuation line from starting an
+    HTML block of type 7, so `>a\n<t>` ends its block quote, and comrak copies that. CommonMark's
+    spec says type 7 cannot interrupt a paragraph, and decision 2's flavour is CommonMark plus GFM's
+    extensions. So ours keeps `<t>` in the paragraph, and the differential skips such a document.
+    A loose task item's box is GFM's, so it follows cmark-gfm: right after `<li>`, in front of the
+    first paragraph, and `fromHtml` reads it back into that paragraph.
 
 ## Stages
 

@@ -28,7 +28,11 @@ not applied, because raw HTML goes through the rebuild below and the filter's ta
 Extended autolinks are read as cmark-gfm reads them, where comrak differs: the period of `www.` counts
 as the domain's period, and a host may hold any character outside ASCII. They are always on, so the
 five CommonMark examples that write a bare URL or email address as text (602, 606, 608, 611 and 612)
-write it as a link, as GitHub does.
+write it as a link, as GitHub does. A loose task item's box is written right after `<li>`, in front of
+its first paragraph, as cmark-gfm writes it. Raw HTML in an image's description is its source text in
+the `alt`, as cmark writes it. An HTML block of type 7 cannot interrupt a paragraph, and that holds for
+a lazy continuation line too, as in CommonMark 0.31.2 and cmark. cmark-gfm and comrak start the block
+there. That is a CommonMark construct and not a GFM one, so the CommonMark reading wins.
 
 **Footnotes are written at the end**, after an `hr`, as an `ol` in the order they are first referenced.
 A definition nothing references is not written. Each reference is a `sup` holding a link to its note,

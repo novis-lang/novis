@@ -3585,6 +3585,18 @@ direction = "to-html"
 input = "![a<div>b</div>](c.png)"
 html = "<p><img src=\"c.png\" alt=\"a<div>b</div>\"></p>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. pulldown-cmark 0.13.6 gives a loose task item's
+# marker inside its first paragraph, so the box is written inside the `p`. cmark-gfm's tasklist extension
+# writes it right after `<li>`, in front of the paragraph.
+[[bug]]
+id = "pulldown-cmark-loose-task-marker"
+library = "pulldown-cmark"
+source = "https://github.com/github/cmark-gfm/blob/master/extensions/tasklist.c"
+class = "wrong-output"
+direction = "to-html"
+input = "- [ ] a\n\n  b"
+html = "<ul>\n<li><input disabled=\"\" type=\"checkbox\"> \n<p>a</p>\n<p>b</p>\n</li>\n</ul>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"

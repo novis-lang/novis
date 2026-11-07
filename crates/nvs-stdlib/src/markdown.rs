@@ -1021,8 +1021,29 @@ impl<'a, 'h> Renderer<'a, 'h> {
                 }
                 attributes.push(("disabled".to_owned(), String::new()));
                 attributes.push(("type".to_owned(), "checkbox".to_owned()));
-                self.void("input", attributes);
-                self.write(" ");
+                // In a loose item the marker starts the item's first
+                // paragraph. cmark-gfm writes the box right after `<li>`, in
+                // front of that paragraph, so the empty `p` is put back after it.
+                let below = self.stack.len().checked_sub(2).map(|at| &self.stack[at]);
+                let top = self.stack.last();
+                let loose = top.is_some_and(|p| p.name == "p" && p.children.is_empty())
+                    && below.is_some_and(|li| li.name == "li");
+                if loose {
+                    let paragraph = self.stack.pop().expect("it is open");
+                    let item = self.top();
+                    if item.children.last().is_some_and(|last| {
+                        last.kind == Kind::Text && last.name.is_empty() && last.text == "\n"
+                    }) {
+                        item.children.pop();
+                    }
+                    self.void("input", attributes);
+                    self.write(" \n");
+                    self.stack.push(paragraph);
+                    self.line_start = false;
+                } else {
+                    self.void("input", attributes);
+                    self.write(" ");
+                }
             }
         }
     }

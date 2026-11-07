@@ -164,6 +164,33 @@ fuzz_target!(|data: &[u8]| {
     if text.as_bytes().windows(3).any(|w| w.starts_with(b"<!") && w[2].is_ascii_alphabetic()) {
         return;
     }
+    // cmark-gfm needs whitespace after a task marker's `]`. comrak 0.59 looks
+    // only at the item's first text node, so in `- [x]*a*` the `*` ends that
+    // node and the marker counts. A document with a marker followed by a
+    // character that starts an inline is not compared.
+    let inline = |b: u8| b"!*_<`[&\\~]".contains(&b);
+    if text.as_bytes().windows(4).any(|w| {
+        w[0] == b'[' && matches!(w[1], b' ' | b'x' | b'X') && w[2] == b']' && inline(w[3])
+    }) {
+        return;
+    }
+    // An HTML block of type 7 cannot interrupt a paragraph, and CommonMark
+    // 0.31.2 and cmark hold that for a lazy continuation line too. cmark-gfm
+    // and comrak 0.59 do not, so `>a\n<t>` ends their block quote. A document
+    // with a `<` line in a paragraph a container started is not compared.
+    let mut contained = false;
+    for line in text.split(['\n', '\r']) {
+        let start = line.trim_start_matches([' ', '\t']);
+        let marker = start.starts_with(['>', '-', '+', '*'])
+            || start.trim_start_matches(|c: char| c.is_ascii_digit()).starts_with(['.', ')']);
+        if start.is_empty() {
+            contained = false;
+        } else if marker {
+            contained = true;
+        } else if contained && start.starts_with('<') {
+            return;
+        }
+    }
     // The end of a document ends its last line as a line feed does, so comrak
     // gets the text with one. comrak 0.59 reads `1.` with no line ending after
     // it as text, where CommonMark reads an empty list item. And CommonMark

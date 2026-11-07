@@ -229,7 +229,21 @@ impl Writer {
     ) -> Result<(), Fault> {
         let mut run: Vec<&Parsed> = Vec::new();
         for node in nodes {
-            if node.kind == Kind::Element && is_block(&node.name) {
+            // A loose task item's box is written in front of its first
+            // paragraph, as cmark-gfm writes it. The box starts that paragraph.
+            let boxed = self.task
+                && node.kind == Kind::Element
+                && node.name == "p"
+                && depth < DEPTH
+                && run.iter().any(|node| node.name == "input")
+                && run
+                    .iter()
+                    .all(|node| blank(node) || (node.kind == Kind::Element && node.name == "input"));
+            if boxed {
+                run.extend(node.children.iter());
+                self.paragraph(&run, depth + 1, parts);
+                run.clear();
+            } else if node.kind == Kind::Element && is_block(&node.name) {
                 self.paragraph(&run, depth, parts);
                 run.clear();
                 self.block(node, depth + 1, parts)?;

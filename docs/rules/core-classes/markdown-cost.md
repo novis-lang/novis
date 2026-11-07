@@ -29,7 +29,8 @@ which seven of the catalogued libraries shipped.
 the other engine the choice was measured against. Each difference is triaged into our bug, fixed and
 catalogued, or a spec reading, one line in `rule:core-classes/markdown-to-html`. Where comrak 0.59
 departs from the spec, the differential does not compare: footnotes (written as this rule writes them),
-extended autolinks, a delimiter beside a Unicode symbol, `~` beside `*` or `_`, a `~` run beside a `~~` run, a declaration, a processing instruction that ends `??>`, a run
+extended autolinks, a delimiter beside a Unicode symbol, `~` beside `*` or `_`, a `~` run beside a `~~` run, a declaration, a processing instruction that ends `??>`, a task marker with an inline
+right after its `]`, a lazy line that would start an HTML block of type 7, a run
 of two or more backticks, and a vertical tab or form feed, which 0.29 counted as whitespace. The target's
 comments give each case. The other two targets cover these documents.
 
