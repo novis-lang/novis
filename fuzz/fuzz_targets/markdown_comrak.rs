@@ -258,8 +258,18 @@ fuzz_target!(|data: &[u8]| {
     // When a `~` closer's nearest opener has the other length, cmark-gfm
     // writes the closer as text and goes on. comrak 0.59 stops, and every
     // delimiter after it in the paragraph is text. A document with a `~` run
-    // and a `~~` run is not compared.
-    let mut runs = text.split(|c| c != '~').map(str::len);
+    // and a `~~` run is not compared. An escaped `~` is text, so `\~~` is a
+    // run of one.
+    let mut escaped = false;
+    let unescaped: String = text
+        .chars()
+        .map(|c| {
+            let out = if escaped { ' ' } else { c };
+            escaped = !escaped && c == '\\';
+            out
+        })
+        .collect();
+    let mut runs = unescaped.split(|c| c != '~').map(str::len);
     if runs.clone().any(|n| n == 1) && runs.any(|n| n == 2) {
         return;
     }
@@ -442,9 +452,10 @@ fuzz_target!(|data: &[u8]| {
     // A link cannot hold a link, so once a link forms, cmark deactivates every
     // `[` before it. comrak 0.59 opens the outer link again after a later `[b]`
     // that is not a link, so `[[a](u)[b]](v)` gives it an `a` inside an `a`.
-    // With no tag in the document, only that can nest an `a`, and such a
-    // document is not compared. A `<` that starts no tag is text.
-    if tags.is_empty() && unnested(&raw) != raw {
+    // A document with a raw `<a` tag is not compared (above), so with no raw
+    // `</a` in it either, only that can nest an `a`, and such a document is
+    // not compared.
+    if !lower.contains("</a") && unnested(&raw) != raw {
         return;
     }
     let mut theirs = normal(&raw);
