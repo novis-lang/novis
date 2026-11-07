@@ -77,13 +77,13 @@ fn spec_normal(html: &str) -> String {
     while let Some(node) = work.pop() {
         let has = |node: &Parsed, name: &str| node.attributes.iter().any(|(n, _)| n == name);
         let mut children = Vec::with_capacity(node.children.len());
-        for child in std::mem::take(&mut node.children) {
+        for mut child in std::mem::take(&mut node.children) {
             let element = child.kind == Kind::Element;
             if element && child.name == "img" && !has(&child, "src") {
                 continue;
             }
             if element && child.name == "a" && !has(&child, "href") {
-                children.extend(child.children);
+                children.append(&mut child.children);
             } else {
                 children.push(child);
             }
@@ -1336,4 +1336,20 @@ fn from_html_streamed_gives_the_same_markdown_as_the_whole_tree() {
     // `a` once the table opened would write two paragraphs.
     let fostered = crate::fuzz::from_html("a<table>b");
     assert!(fostered.starts_with("ab\n\n"), "{fostered:?}");
+}
+
+/// The renderer's tree is as deep as the document until the rebuild flattens
+/// it, so freeing it must not recurse. The thread has the 1 MiB stack of the
+/// binary's main thread on Windows, where 4,000 levels overflowed.
+#[test]
+#[cfg_attr(miri, ignore = "renders 20,000 levels, which Miri takes minutes for")]
+fn a_list_nested_far_past_512_renders_on_a_small_stack() {
+    let markdown = format!("{}a", "- ".repeat(20_000));
+    let out = std::thread::Builder::new()
+        .stack_size(1 << 20)
+        .spawn(move || rendered(&markdown, "a test").expect("no limit in a test"))
+        .expect("a thread")
+        .join()
+        .expect("no stack overflow");
+    assert!(depth(&parse(&out)) <= OPEN_ELEMENTS_CAP);
 }

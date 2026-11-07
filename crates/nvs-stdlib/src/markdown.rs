@@ -925,9 +925,9 @@ impl<'a, 'h> Renderer<'a, 'h> {
 
     /// The innermost open node closed into its parent.
     fn close(&mut self) {
-        let node = self.stack.pop().expect("an end event follows its start");
+        let mut node = self.stack.pop().expect("an end event follows its start");
         if node.kind == Kind::Document {
-            self.top().children.extend(node.children);
+            self.top().children.append(&mut node.children);
         } else {
             self.top().children.push(node);
             self.line_start = false;

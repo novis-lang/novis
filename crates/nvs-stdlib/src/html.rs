@@ -2276,12 +2276,12 @@ fn rebuilt_noting(tree: &Parsed) -> (Parsed, bool) {
             }
             continue;
         }
-        let (_, built) = stack.pop().expect("the frame just read to its end");
+        let (_, mut built) = stack.pop().expect("the frame just read to its end");
         let Some(parent) = stack.last_mut() else {
             return (built, unwrapped);
         };
         if built.kind == Kind::Document {
-            parent.1.children.extend(built.children);
+            parent.1.children.append(&mut built.children);
         } else {
             parent.1.children.push(built);
         }

@@ -1218,6 +1218,24 @@ pub(crate) struct Parsed {
     pub(crate) children: Vec<Parsed>,
 }
 
+/// Frees a tree with a loop. The compiler's own drop recurses once per level,
+/// and `Core\Markdown`'s renderer builds a tree as deep as its input before the
+/// rebuild flattens it, so a few kilobytes of `- - - …` would overflow the
+/// stack. A tree whose children have no children costs one check; a deeper one
+/// moves its nodes onto one `Vec`, which holds at most the tree's node count
+/// for as long as the drop runs.
+impl Drop for Parsed {
+    fn drop(&mut self) {
+        if self.children.iter().all(|child| child.children.is_empty()) {
+            return;
+        }
+        let mut pending = std::mem::take(&mut self.children);
+        while let Some(mut node) = pending.pop() {
+            pending.append(&mut node.children);
+        }
+    }
+}
+
 impl Parsed {
     /// An empty node of `kind` — every field is filled by the reader that
     /// produced it, and the ones a kind does not use stay empty.
@@ -2399,9 +2417,9 @@ pub(crate) fn instance_of(node: Parsed, inherited: &[(String, Value)]) -> Value 
 }
 
 /// One node with its children already built, as the [`NODE`] instance.
-fn built(node: Parsed, namespace: Value, children: NvsArray) -> Value {
+fn built(mut node: Parsed, namespace: Value, children: NvsArray) -> Value {
     let mut attributes = NvsArray::new();
-    for (name, value) in node.attributes {
+    for (name, value) in std::mem::take(&mut node.attributes) {
         attributes.set(NvsStr::new(name.as_bytes()), Value::text(&value));
     }
     crate::instance::build(
