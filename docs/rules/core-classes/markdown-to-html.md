@@ -36,7 +36,9 @@ there. That is a CommonMark construct and not a GFM one, so the CommonMark readi
 
 **Footnotes are written at the end**, after an `hr`, as an `ol` in the order they are first referenced.
 A definition nothing references is not written. Each reference is a `sup` holding a link to its note,
-and each note ends with a link back to its first reference.
+and each note ends with a link back to its first reference. A reference to a label no definition has
+is written as its source text, so `[^a\_b]` keeps its backslash; no other engine has been compared
+on this.
 
 **Raw HTML is rebuilt, never stripped and never passed through.** A document's raw HTML is parsed with
 the rest of its output by the WHATWG algorithm and rebuilt through `rule:core-classes/html-sanitize`'s

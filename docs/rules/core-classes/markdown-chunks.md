@@ -12,7 +12,9 @@ header only after a paragraph, and alone it would be indented code. A document t
 opened, and an end tag closes only the innermost one it names. A comment, a raw-text element or a tag
 left unfinished when Markdown output follows ends every later boundary. A group after the first is
 rebuilt behind the first group's leading doctype and a `<body>` tag, with its leading whitespace kept,
-so the parser reads it in the mode and place the whole document's parse did.
+so the parser reads it in the mode and place the whole document's parse did. The tokenizer keeps a
+group open after a `<p>` and every other element the parser closes on its own, so a document with
+many unclosed `<p>` tags in raw HTML is one group: correct, and costing that document its whole text.
 
 **References may be defined after their first use.** A `Core\IO\File` is read twice: once to collect
 the reference definitions, once to render. Every other source is read once and held whole under the

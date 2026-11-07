@@ -5,7 +5,7 @@ summary: "Reached when Core\\Markdown converts Markdown to HTML whole, in chunks
 context: [crates/nvs-stdlib/src/html.rs, docs/rules/core-classes/html-sanitize.md, docs/rules/core-classes/html-parsing.md]
 stages:
   - id: 1
-    title: "the known-bug catalogue and the spec examples are in the tree"
+    title: the known-bug catalogue and the spec examples are in the tree
     status: done
     context: [tests/hostile/README.md]
   - id: 2
@@ -31,100 +31,76 @@ stages:
     status: done
     context: [crates/nvs-stdlib/src/xml.rs]
   - id: 8
-    title: "fromHtml reads a large document without holding the whole tree"
+    title: fromHtml reads a large document without holding the whole tree
     status: done
   - id: 9
     title: "two fuzz targets, and a differential fuzz against a second engine"
     status: done
     context: [fuzz/Cargo.toml]
   - id: 10
-    title: "the four members carry their feature proofs"
+    title: the four members carry their feature proofs
     status: done
     context: [benches/members/README.md, docs/rules/testing/feature-proofs.md, docs/agent/prose.md]
   - id: 11
-    title: "the extension guide shows a crate Core does not ship"
+    title: the extension guide shows a crate Core does not ship
     status: done
     context: [website/guides/highlight-extension/README.md, website/src/content/docs/guides/extensions/rust.mdx]
   - id: 12
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: catalogue
     stage: 1
-    name: the known-bug catalogue covers every library decision 3 lists, and every entry is complete
+    name: "the known-bug catalogue covers every library decision 3 lists, and every entry is complete"
     run: [cargo, test, --test, markdown_known_bugs]
+    tests: [the_catalogue_covers_every_library_the_goal_lists, every_catalogue_entry_has_a_source_a_class_an_input_and_an_expectation]
     timeout: 1800
-    tests:
-      - the_catalogue_covers_every_library_the_goal_lists
-      - every_catalogue_entry_has_a_source_a_class_an_input_and_an_expectation
   - id: to-html
     stage: 3
-    name: every spec example and every catalogued bug renders as expected, the output is a sanitize fixed point, and work is linear
+    name: "every spec example and every catalogued bug renders as expected, the output is a sanitize fixed point, and work is linear"
     run: [cargo, test, --lib, "markdown::"]
+    tests: [every_commonmark_spec_example_renders_as_the_spec_says, every_gfm_spec_example_renders_as_the_spec_says, sanitizing_the_output_again_changes_nothing, work_grows_linearly_over_every_catalogued_slow_input, nesting_past_512_flattens_as_the_html_parser_does, added_output_past_its_budget_renders_as_source_text]
     timeout: 1800
-    tests:
-      - every_commonmark_spec_example_renders_as_the_spec_says
-      - every_gfm_spec_example_renders_as_the_spec_says
-      - sanitizing_the_output_again_changes_nothing
-      - work_grows_linearly_over_every_catalogued_slow_input
-      - nesting_past_512_flattens_as_the_html_parser_does
-      - added_output_past_its_budget_renders_as_source_text
   - id: known-bugs
     stage: 3
     name: every catalogued bug of another library is a passing test here
     run: [cargo, test, --test, markdown_known_bugs]
+    tests: [every_known_bug_renders_as_the_catalogue_expects]
     timeout: 1800
-    tests:
-      - every_known_bug_renders_as_the_catalogue_expects
   - id: callbacks
     stage: 4
-    name: a callback changes what it is given, and its result passes the same checks as the document
+    name: "a callback changes what it is given, and its result passes the same checks as the document"
     run: [cargo, test, --lib, "markdown::"]
+    tests: [a_link_callback_cannot_produce_a_javascript_url, an_image_callback_returning_null_removes_the_image, a_heading_callback_sets_the_id, a_code_callback_replaces_a_fenced_block]
     timeout: 1800
-    tests:
-      - a_link_callback_cannot_produce_a_javascript_url
-      - an_image_callback_returning_null_removes_the_image
-      - a_heading_callback_sets_the_id
-      - a_code_callback_replaces_a_fenced_block
   - id: chunks
     stage: 5
-    name: rendering in chunks gives the same HTML as the whole document, and a file costs one chunk
+    name: "rendering in chunks gives the same HTML as the whole document, and a file costs one chunk"
     run: [cargo, test, --lib, "markdown::"]
+    tests: [rendering_in_chunks_gives_the_same_html_as_the_whole_document, to_html_each_holds_one_block_group_of_a_file_not_the_document, an_unclosed_raw_html_element_keeps_its_blocks_in_one_group]
     timeout: 1800
-    tests:
-      - rendering_in_chunks_gives_the_same_html_as_the_whole_document
-      - to_html_each_holds_one_block_group_of_a_file_not_the_document
-      - an_unclosed_raw_html_element_keeps_its_blocks_in_one_group
   - id: live
     stage: 6
-    name: what Live finished plus finish() is the whole document's HTML
+    name: "what Live finished plus finish() is the whole document's HTML"
     run: [cargo, test, --lib, "markdown::"]
+    tests: [live_done_parts_and_finish_join_to_the_whole_document_html, live_never_changes_a_part_it_already_finished]
     timeout: 1800
-    tests:
-      - live_done_parts_and_finish_join_to_the_whole_document_html
-      - live_never_changes_a_part_it_already_finished
   - id: from-html
     stage: 7
-    name: HTML text never becomes Markdown syntax, and the round trips keep the meaning
+    name: "HTML text never becomes Markdown syntax, and the round trips keep the meaning"
     run: [cargo, test, --lib, "markdown::"]
+    tests: [from_html_text_never_becomes_markdown_syntax, markdown_to_html_to_markdown_keeps_the_meaning, from_html_twice_gives_the_same_markdown, a_table_markdown_cannot_hold_is_written_as_sanitized_html, a_code_block_with_backticks_gets_a_longer_fence]
     timeout: 1800
-    tests:
-      - from_html_text_never_becomes_markdown_syntax
-      - markdown_to_html_to_markdown_keeps_the_meaning
-      - from_html_twice_gives_the_same_markdown
-      - a_table_markdown_cannot_hold_is_written_as_sanitized_html
-      - a_code_block_with_backticks_gets_a_longer_fence
   - id: from-html-stream
     stage: 8
     name: fromHtml over a large document gives the same Markdown as over the whole tree
     run: [cargo, test, --lib, "markdown::"]
+    tests: [from_html_streamed_gives_the_same_markdown_as_the_whole_tree]
     timeout: 1800
-    tests:
-      - from_html_streamed_gives_the_same_markdown_as_the_whole_tree
   - id: guide
     stage: 11
-    name: the extension guide's project builds and its tests pass
+    name: "the extension guide's project builds and its tests pass"
     run: [bun, nv, ext-templates, --example]
     timeout: 1800
 ---
@@ -660,84 +636,30 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stages 1 to 11 are done, and stage 12's three items are ticked: `looper verify` is green over
-the whole goal (23 of 23 steps). The fixes are three commits:
-- `3a409d8d0e`: `bun nv links` reads a source file's links only in its comments, because link
-  syntax in code is Markdown test data, and skips `vendor/`. `site.test.ts`'s guides test lists
-  the `walkthroughs` section.
-- `c56acc428e`: the rosters name the new members: the launderer list, the tainted answers,
-  ext's `REFUSED` (`Update`), and `Live` and `Update` off the handle list. Six new conformance
-  cases lift seven members to the floor of three. The tests reach their data through
-  `nvs_repo::path`. The capability scan skips a file declared as `#[cfg(test)] mod name;`
-  (`test_module_files` in `crates/nvs-stdlib/tests/capability.rs`). The corpus is formatted,
-  and the `toHtmlEach` card says a function runs before the loop receives its part.
-- `8c1f097fec`: the four `markdown-*` rule records are `shipped`, and `core.json` and
-  `llms-full.txt` are rendered, so the guide's `/reference/core/markdown/tohtml/` link resolves.
+The goal is reached, and this session claims `DONE`. All 12 stages are done. `looper verify` was
+green over the whole goal (23 of 23), and `bun nv ci --check` is green on every check. The last
+session's two reds are fixed:
+- `2bc5b2e644`: `registry-readme` is in the roadmap's Markdown theme.
+- `b9a3d7b97c`: 27 pages have fresh, stamped search questions (Markdown, walkthroughs, PDF, JSON,
+  home, guides, Rust guide), and `/guides/` names the Rust guide's highlighter.
+- `2ffccd6a1d`: 129 perf figures across 21 classes are measured again.
 
-Goal-end gates: `bun nv verify --doc` and `bun nv owners --closes markdown` are green.
-`bun nv ci --check` is red on two checks, listed under *Next*.
+The sweep's reds were stale: no `env-secret-proofs` check exists, and the three Miri timeouts
+(`request::tests::json::a_decoded_body_of_any_size_is_held_once` and two in `json::tests`) have
+`cfg_attr(miri, ignore)` in `d2a3a8e63d`, which is not on origin yet. Run 42359979484 ran on origin's
+`26dda36`.
 
-The sweep's reds were stale: no `env-secret-proofs` check exists (`looper check --name` finds
-none), and the three Miri tests have `cfg_attr(miri, ignore = ...)` on main. Run 42359979484
-was on `26dda36`.
+The backlog moved to its homes: autolink escapes into `rule:core-classes/markdown-cost`, an undefined
+footnote label into `markdown-to-html`, the raw-HTML `<p>` group into `markdown-chunks`, a nested `<a>`
+into `markdown-from-html`, and three traps into the playbook. The candidates for later goals are in
+this commit's message.
 
 ### Next
 
-The goal is not reached until `bun nv ci --check` is green. Two checks are red:
-
-1. **Feature proofs:** `bun nv proofs --gate --limit 0 --nvs target/debug/nvs.exe` names 129
-   features with a stale perf record. They are `Core\IO`, `Core\Xml`, `Core\Compress`,
-   `Core\Mime` and `Core\Zip`, because their source files changed since they were last measured
-   (`byte-sources`, and the `xml.rs` test line in `c56acc428e`). Re-measure one group at a time
-   with `bun nv proofs --record-perf --group <g>`, and commit each group.
-2. **Website stale guard** (`bun nv site --check ... questions roadmap`):
-   - Questions are stale on 11 pages: `/reference/core/json/decodeeach/`, `/encodeeach/`, six
-     `novis-pdf-*` pages, `/guides/extensions/rust/`, `/guides/` and `/`. Questions are owed on 4:
-     `/guides/walkthroughs/`, `.../after-response/`, `.../page-now/` and
-     `/in-depth/walkthrough-parts/`. Reread each page, then write four to six questions, then
-     stamp them with `MSYS_NO_PATHCONV=1 bun nv site --questions --stamp <url>`. Then run
-     `bun nv site --check questions` once.
-   - `website/src/data/roadmap.json`: `registry-readme` is on the chain and in no theme. Add it
-     to a theme, or to `internal`.
-   The walkthrough, PDF and roadmap entries come from other goals, but this goal's end check
-   needs them green. Split the questions across writing subagents by page.
-
-Then `bun nv ci --check` once more. When it is green, delete the goal's file (first move any
-decision only its prose holds into a rule), and run `bun nv relink --build`.
+Nothing for this goal. Once the driver retires it, `after_retire` runs `bun nv relink --build`.
 
 ### Backlog
 
-- `tests/conformance/core/a-full-channel-suspends-the-sender-rather-than-growing.nvst` printed
-  `waits=6` against 7 once, in a full run where the machine was out of page file (os error 1455
-  on six other cases). It passed alone six times. A count of waits depends on scheduling, so it
-  may flake on a loaded CI runner.
-- `fn (string $url): ?string => throw new RuntimeError(...)` fails with E0401 "expected
-  `string|null`, found `never`". A `never` body likely should fit any return type. This is a
-  type checker question for another goal.
-- `bun nv nvs-fmt` exits 1 because `packages/rest/` is in no tree of
-  `tools/data/nvs-fmt-corpus.txt`. This goal did not add that package.
-- cmark-gfm reads a `www.` or URL autolink's whole text in the source, so an escape inside its
-  path stays in the link as `\` and the character. Ours ends the link before the escape
-  (`crates/nvs-stdlib/src/markdown/autolink.rs`, `unescaped`). Only a scan of the source would
-  match it, and the differential skips autolinks.
-- Front matter (`---` YAML at the top) is common in content sites. Once `Core` reads YAML, a member
-  that returns it is a candidate for a later goal.
-- AST editing (decision 1) is out of scope for this goal.
-- `Core\Sse::send` cannot send a `Core\Html\Markup` and throws on an empty payload, so the Sse
-  example sends `Core\Html::toSource` inside JSON. A `Markup` payload is a candidate for `Core\Sse`.
-- `fromHtml` writes an `<a>` nested in an `<a>` as empty links, `[](/x)`, where an empty element
-  writes nothing elsewhere.
-- `tests/hostile/core/Markdown/fromHtml/01-text-that-tries-to-become-markdown.nvs` takes about
-  7 s on the debug binary, against the 10 s default. The proof binary runs it well under.
-- A second growing part for a catalogue entry (`close`, written n times before `suffix`) would turn
-  the approximated two-part exploits back into the originals: cmark's CVE-2023-24824 and
-  CVE-2023-22483, md4c's issue 172, and comrak's GHSA-j7hq-qg5v-47jq, which was left out.
-- The footnote patch writes an undefined label as its source text, so `[^a\_b]` keeps its
-  backslash. The differential skips footnotes, so nothing has compared this with another engine.
-- `groups::Balance` keeps a group open after `<p>` and other elements the parser closes on its own.
-  A document with many unclosed `<p>` tags in raw HTML is then one group. That is correct, and costs
-  memory only for such a document.
-- Live's `open` is checked only by the conformance case and the `markdown` fuzz target.
-- A `~` run beside a `~~` run is not compared with comrak, so cmark-gfm's reading there is checked
-  only by the catalogue entry `pulldown-cmark-tilde-nearest-opener`. A comrak release that fixes
-  its `insert_emph` lets the differential compare it again.
+- Later goals: front matter once `Core` reads YAML (`rule:core-classes/markdown-to-html`), a `Markup`
+  payload for `Core\Sse::send`, and a second growing part for the catalogue
+  (`tests/data/markdown/known-bugs.toml`).

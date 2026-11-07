@@ -22,7 +22,9 @@ its tags, because `*` there is not read as emphasis.
 **What Markdown cannot write** — a table outside GFM's shape, `dl`, `figure`, and an `ol` whose start
 has more than nine digits — is written as its sanitized HTML on one line, with each line feed as
 `&#10;`, so CommonMark reads it as one HTML block that no blank line ends early. An inline element
-with no Markdown syntax, such as `sup`, is its tags around Markdown content.
+with no Markdown syntax, such as `sup`, is its tags around Markdown content. An `<a>` nested in an
+`<a>`, which the parser closes into links with no text, is written as `[](/x)`, where any other empty
+element writes nothing.
 
 **Depth.** The walk follows 128 levels of elements, and past that writes an element's text alone. It
 bounds both the native stack and the copy each level makes of its content, which keeps work linear.
