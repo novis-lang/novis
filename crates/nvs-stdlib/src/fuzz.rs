@@ -364,13 +364,28 @@ const INLINE: [&str; 14] = [
     "a", "em", "i", "strong", "b", "del", "s", "sup", "sub", "kbd", "mark", "ins", "u", "span",
 ];
 
+/// How many of `nodes`, from the first, are `<br>`s and the white space
+/// between them, up to and with the last `<br>` of that run.
+fn breaks_at_edge<'a>(nodes: impl Iterator<Item = &'a crate::xml::Parsed>) -> usize {
+    use crate::xml::Kind;
+    let mut count = 0;
+    for (at, node) in nodes.enumerate() {
+        if node.kind == Kind::Element && node.name == "br" {
+            count = at + 1;
+        } else if !(node.kind == Kind::Text && node.text.chars().all(|ch| ch.is_ascii_whitespace()))
+        {
+            break;
+        }
+    }
+    count
+}
+
 /// Moves each `<br>` at either end of an inline element in `node` out of the
-/// element, children first, and drops an inline element other than a link
+/// element, with the white space between two of them, children first, and drops an inline element other than a link
 /// left empty. The tree is at most 512 elements deep, which bounds the
 /// recursion.
 fn breaks_hoisted(node: &mut crate::xml::Parsed) {
     use crate::xml::Kind;
-    let br = |node: &crate::xml::Parsed| node.kind == Kind::Element && node.name == "br";
     for child in &mut node.children {
         breaks_hoisted(child);
     }
@@ -380,14 +395,9 @@ fn breaks_hoisted(node: &mut crate::xml::Parsed) {
             out.push(child);
             continue;
         }
-        let lead = child.children.iter().take_while(|node| br(node)).count();
+        let lead = breaks_at_edge(child.children.iter());
         out.extend(child.children.drain(..lead));
-        let trail = child
-            .children
-            .iter()
-            .rev()
-            .take_while(|node| br(node))
-            .count();
+        let trail = breaks_at_edge(child.children.iter().rev());
         let after: Vec<_> = child
             .children
             .drain(child.children.len() - trail..)

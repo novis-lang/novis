@@ -1096,6 +1096,8 @@ const DOCUMENTS: &[&str] = &[
     // A break inside struck text, followed by a line feed. A browser drops
     // the space at the start of the next line.
     "[~\\\n[~\\\n",
+    // Two breaks at the start of emphasis, with a line feed between them.
+    "*\\\n\\\n<**\n",
     // A `.` three bytes after the start of a character. The
     // `markdown_from_html` fuzz target found that it panicked.
     "> \u{FFFD}!.\n",
