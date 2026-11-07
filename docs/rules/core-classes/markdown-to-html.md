@@ -106,8 +106,9 @@ nearest `~` opener or is text, a hard line break that only spaces make, not
 tabs, an ATX heading whose `#` a vertical tab or form feed follows, which is text, a task item
 with nothing after its marker, whose next line is a lazy continuation and which may end the
 document, a table whose header row
-has no pipe, which is one cell, and a delimiter-row cell, which is GFM's: an optional colon, hyphens
-and an optional colon, between spaces. One patch adds what
+has no pipe, which is one cell, a delimiter-row cell, which is GFM's: an optional colon, hyphens
+and an optional colon, between spaces, and a paragraph with a delimiter row that made no table, which
+no later line turns into a table, as in cmark-gfm. One patch adds what
 `toHtmlEach` needs (`rule:core-classes/markdown-chunks`): a parser over one segment reads the
 document's reference and footnote definitions and its expansion fuel from outside its text, and
 reports where its top-level blocks start and end after the block pass alone. comrak's quadratic autolink

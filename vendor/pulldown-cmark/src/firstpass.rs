@@ -39,6 +39,7 @@ pub(crate) fn run_first_pass(text: &str, options: Options) -> (Tree<Item>, Alloc
         lookup_table,
         brace_context_next: 0,
         brace_context_stack: Vec::new(),
+        table_visited: false,
     };
     first_pass.run()
 }
@@ -66,6 +67,9 @@ struct FirstPass<'a, 'b> {
     /// Math environment brace nesting.
     brace_context_stack: Vec<u8>,
     brace_context_next: usize,
+    /// Novis: whether a line of the open paragraph was a delimiter row that
+    /// made no table, after which no table interrupts it, as in cmark-gfm.
+    table_visited: bool,
 }
 
 impl<'a, 'b> FirstPass<'a, 'b> {
@@ -625,6 +629,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
 
         let bytes = self.text.as_bytes();
         let mut ix = start_ix;
+        self.table_visited = false;
         loop {
             crate::steps::add(1);
             let scan_mode = if self.options.contains(Options::ENABLE_TABLES) && ix == start_ix {
@@ -683,6 +688,23 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                         return ix_setext;
                     }
                 }
+                // Novis: cmark-gfm tries a table once for each delimiter row
+                // in a paragraph. A row that made no table with the line
+                // before it marks the paragraph, and no later line of it
+                // starts a table. The published 0.13.6 tried every line.
+                //
+                // ```markdown
+                // |
+                // :-:|
+                // a|
+                // :-:|
+                // ```
+                if current_container
+                    && self.options.contains(Options::ENABLE_TABLES)
+                    && scan_table_head(&bytes[ix_new..]).0 > 0
+                {
+                    self.table_visited = true;
+                }
                 // first check for non-empty lists, then for other interrupts
                 let suffix = &self.text[ix_new..];
                 if self.scan_paragraph_interrupt(suffix, current_container, tree_position) {
@@ -705,6 +727,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
             }
         }
 
+        self.table_visited = false;
         self.pop(ix);
         ix
     }
@@ -2032,7 +2055,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         // ---|---|---
         //  d | e | f
         // ```
-        if !self.options.contains(Options::ENABLE_TABLES) {
+        if !self.options.contains(Options::ENABLE_TABLES) || self.table_visited {
             return false;
         }
 
