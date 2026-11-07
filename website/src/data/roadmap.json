@@ -4,9 +4,10 @@
   "themes": [
     {
       "title": "Markdown",
-      "text": "`Core\\Markdown` converts Markdown to HTML, and HTML to Markdown. It converts a whole document, or a document in pieces while it arrives. Every example of the CommonMark and GitHub Flavored Markdown specifications passes. The time it needs grows in step with the size of the input.",
+      "text": "`Core\\Markdown` converts Markdown to HTML, and HTML to Markdown. It converts a whole document, or a document in pieces while it arrives. Every example of the CommonMark and GitHub Flavored Markdown specifications passes. The time it needs grows in step with the size of the input. The package registry uses it to show the readme of each package version on its page.",
       "goals": [
-        "markdown"
+        "markdown",
+        "registry-readme"
       ]
     },
     {
