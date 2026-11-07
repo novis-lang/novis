@@ -252,6 +252,13 @@ const CHECK_TYPES: &str = "NOVIS_CHECK_TYPES";
 /// each process a `.nvst` case starts (`rule:testing/probes-on-is-a-tested-configuration`).
 const PROBES: &str = "NOVIS_PROBES";
 
+/// The variable that makes this process parse its command line and exit 0, running nothing. It
+/// works on presence. A command line clap does not accept still exits with clap's error, so a
+/// website check (`bun nv site --check code`) can test each `nvs` line a page shows without
+/// installing a service or starting a server. It is read after the bundle footer, so a bundled
+/// application's own arguments are never parsed as `nvs`'s.
+const PARSE_ONLY: &str = "NOVIS_PARSE_ONLY";
+
 /// The environment variables `nvs` reads, which `nvs --help` lists below the options.
 const ENVIRONMENT: &str = "\
 Environment:
@@ -264,6 +271,7 @@ Environment:
                        bug in Novis. Reads and writes no compiled artifact.
   NOVIS_PROBES         Run every debug probe of a program, and record nothing.
                        `nvs test --probes` sets it for the programs a `.nvst` case runs.
+  NOVIS_PARSE_ONLY     Check the command line and exit with 0 if it is valid. Nothing runs.
   NVS_UPDATE_URL       The address `nvs update-check` reads the latest release from. The default
                        is the GitHub Releases API of the Novis repository.
   NVS_TELEMETRY_URL    The address telemetry is uploaded to. If it is not set, nothing is uploaded.
@@ -783,6 +791,10 @@ fn main() -> ExitCode {
         telemetry::unparsed(data_flag().as_deref());
         error.exit()
     });
+    // Before anything the command does: no elevation, no data folder, no telemetry.
+    if std::env::var_os(PARSE_ONLY).is_some() {
+        return ExitCode::SUCCESS;
+    }
 
     // Unreachable: `arg_required_else_help` makes a bare `nvs` print help.
     let Some(command) = cli.command else {
