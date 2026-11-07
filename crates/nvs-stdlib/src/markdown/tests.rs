@@ -1088,10 +1088,10 @@ const DOCUMENTS: &[&str] = &[
     // code span. The `markdown_from_html` fuzz target found the first.
     "\u{C}t\n",
     "a `\u{C}` b\n",
-    // A browser shows every break, so each one comes back. The first was
-    // found by the `markdown_from_html` fuzz target.
+    // A break a browser shows comes back. The first was found by the
+    // `markdown_from_html` fuzz target.
     "<br>\n",
-    "a<br>\n\n<br>b\n\n# <br>c<br>\n",
+    "<br>b\n\n# <br>c\n",
     "a<br><br>b and *c<br><br>*d\n",
     // A `.` three bytes after the start of a character. The
     // `markdown_from_html` fuzz target found that it panicked.
@@ -1140,6 +1140,11 @@ fn from_html_twice_gives_the_same_markdown() {
             // An empty list writes nothing. The `markdown_from_html` fuzz
             // target found that it added blank lines.
             "a<ul></ul><ol>\n</ol>",
+            // One break alone at the end of a block with text is dropped.
+            "<p>a<br></p><p>b<br><br></p><h2>c<br></h2>",
+            // Text a Markdown reader would read as an email autolink. The
+            // `markdown_from_html` fuzz target found the first.
+            "<p>w@.wft and a@-b.c and d@_e.f</p>",
         ]
         .map(str::to_owned),
     );

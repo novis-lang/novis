@@ -899,12 +899,20 @@ impl Inline {
 
     /// The whole content of a paragraph, heading or cell, with the breaks at
     /// its two ends written as `<br />`. Its spaces at the ends are dropped,
-    /// as a browser drops them.
+    /// as a browser drops them. A browser shows no line for one break alone
+    /// at the end of a block with content before it, so that break is
+    /// dropped. Two or more show a line, and all are written, so the
+    /// Markdown's own HTML gives the same Markdown again.
     fn whole(self) -> String {
         let piece = self.finish();
         let mut text = "<br />".repeat(piece.lead_break);
         text.push_str(&piece.text);
-        text.push_str(&"<br />".repeat(piece.trail_break));
+        let trail = if text.is_empty() || piece.trail_break != 1 {
+            piece.trail_break
+        } else {
+            0
+        };
+        text.push_str(&"<br />".repeat(trail));
         text
     }
 
@@ -1210,7 +1218,9 @@ fn escape_into(text: &str, line_start: bool, heading: bool, cut: bool, out: &mut
                 && text[at + 1..]
                     .chars()
                     .next()
-                    .is_some_and(|after| after.is_ascii_alphanumeric());
+                    .is_some_and(|after| {
+                        after.is_ascii_alphanumeric() || matches!(after, '-' | '_' | '.')
+                    });
             if www || scheme || email {
                 out.push_str(CUT);
             }
