@@ -3,13 +3,13 @@
 
 Core\Markdown\Live $live = Core\Markdown::live();
 // The blank line alone does not finish the first paragraph. The complete line after it does.
-array<string> $pieces = ["Our shop is open ", "from 9 to 18.\n", "\n", "Closed on Sundays.\n"];
+array<string> $pieces = ['Our shop is open ', "from 9 to 18.\n", "\n", "Closed on Sundays.\n"];
 
 foreach ($pieces as string $piece) {
-    string $done = Core\Html::toSource($live->push($piece)->done(), "the example prints the HTML");
+    string $done = Core\Html::toSource($live->push($piece)->done(), 'the example prints the HTML');
     // An empty `done` means that this piece finished no block.
-    echo "piece ", Core\Json::encode($piece), " -> done: ", $done == "" ? "(empty)\n" : $done;
+    echo 'piece ', Core\Json::encode($piece), ' -> done: ', $done == '' ? "(empty)\n" : $done;
 }
 
 // The last paragraph is not finished yet. `finish` returns it.
-echo "finish: ", $live->finish();
+echo 'finish: ', $live->finish();

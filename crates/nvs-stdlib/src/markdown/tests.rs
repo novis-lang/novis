@@ -16,11 +16,8 @@ struct Example {
 
 /// Every example of the spec file `name`, with `→` read as a tab.
 fn examples(name: &str) -> Vec<Example> {
-    let path = format!(
-        "{}/../../tests/data/markdown/spec/{name}",
-        env!("CARGO_MANIFEST_DIR")
-    );
-    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
+    let path = nvs_repo::path(&format!("tests/data/markdown/spec/{name}"));
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     let fence = "`".repeat(32);
     let mut out = Vec::new();
     let mut lines = text.lines();
@@ -364,10 +361,9 @@ fn added_output_past_its_budget_renders_as_source_text() {
 /// Every `work = "linear"` entry of the known-bug catalogue whose direction
 /// is `direction`, as its id and its input with `repeat` written `n` times.
 fn slow_inputs(n: usize, direction: &str) -> Vec<(String, String)> {
-    let path = format!(
-        "{}/../../tests/data/markdown/known-bugs.toml",
-        env!("CARGO_MANIFEST_DIR")
-    );
+    let path = nvs_repo::path("tests/data/markdown/known-bugs.toml")
+        .display()
+        .to_string();
     let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
     let catalogue: toml::Table = toml::from_str(&text).unwrap_or_else(|e| panic!("{path}: {e}"));
     let field = |bug: &toml::Table, key: &str| {
@@ -456,7 +452,10 @@ fn a_run_of_unclosed_raw_tags_costs_linear_work() {
     let mut balance = groups::Balance::default();
     balance.feed(&"<svg><math>".repeat(N));
     balance.feed(&"</math></svg>".repeat(N));
-    assert!(balance.closed(), "every foreign element it opened is closed");
+    assert!(
+        balance.closed(),
+        "every foreign element it opened is closed"
+    );
 }
 
 type UrlHook = Box<dyn Fn(&str) -> Answer>;
@@ -715,10 +714,9 @@ fn grouped_in(markdown: &str, piece: usize) -> Vec<String> {
 /// Every to-html entry of the known-bug catalogue, as its id and its input
 /// with `repeat` written `n` times.
 fn catalogue_inputs(n: usize) -> Vec<(String, String)> {
-    let path = format!(
-        "{}/../../tests/data/markdown/known-bugs.toml",
-        env!("CARGO_MANIFEST_DIR")
-    );
+    let path = nvs_repo::path("tests/data/markdown/known-bugs.toml")
+        .display()
+        .to_string();
     let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
     let catalogue: toml::Table = toml::from_str(&text).unwrap_or_else(|e| panic!("{path}: {e}"));
     let field = |bug: &toml::Table, key: &str| {

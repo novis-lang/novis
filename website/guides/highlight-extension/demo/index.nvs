@@ -12,7 +12,7 @@ tainted string $text = Core\Request::post('text') ?? "# Rust\n\n```rust\n// Add 
 
 // `Markdown::toHtml` calls `Code::toHtml` for each code block that names a language.
 // If `Code::toHtml` returns `null`, the block is written as plain text.
-Markup $preview = Markdown::toHtml($text, code: fn (string $language, string $code): ?Markup => Code::toHtml($language, $code));
+Markup $preview = Markdown::toHtml($text, code: fn(string $language, string $code): ?Markup => Code::toHtml($language, $code));
 
 // The colors of each kind of token.
 Markup $styles = Code::styles();

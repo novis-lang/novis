@@ -16,7 +16,7 @@ Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 int $number = 0;
 foreach (Core\Markdown::toHtmlEach($file) as Core\Html\Markup $part) {
     $number = $number + 1;
-    echo "part ", $number, ":\n";
+    echo 'part ', $number, ":\n";
     echo $part;
 }
 $file->close();

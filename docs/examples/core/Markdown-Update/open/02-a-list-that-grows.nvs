@@ -2,10 +2,10 @@
 // Shows how `open` returns the whole list again each time a piece of it arrives.
 
 Core\Markdown\Live $live = Core\Markdown::live();
-array<string> $pieces = ["- milk\n", "- eg", "gs\n", "- bread\n"];
+array<string> $pieces = ["- milk\n", '- eg', "gs\n", "- bread\n"];
 
 foreach ($pieces as string $piece) {
-    echo "after ", Core\Json::encode($piece), ":\n";
+    echo 'after ', Core\Json::encode($piece), ":\n";
     // The list is not finished yet, so all of it is in `open`.
     echo $live->push($piece)->open();
 }

@@ -7,7 +7,7 @@ array<string> $pieces = ["```sh\n", "cd shop\n", "\n", "make\n", "```\n", "Then 
 
 int $step = 1;
 foreach ($pieces as string $piece) {
-    string $done = Core\Html::toSource($live->push($piece)->done(), "the example prints the HTML");
-    echo $step, ". done: ", $done == "" ? "(empty)\n" : $done;
+    string $done = Core\Html::toSource($live->push($piece)->done(), 'the example prints the HTML');
+    echo $step, '. done: ', $done == '' ? "(empty)\n" : $done;
     $step = $step + 1;
 }

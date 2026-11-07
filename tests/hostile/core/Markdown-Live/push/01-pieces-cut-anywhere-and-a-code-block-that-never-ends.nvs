@@ -30,7 +30,7 @@ class Inside
 // 1. A `<script>` tag and a `javascript:` link, each cut in half. No piece may give a script or a
 // `javascript:` address.
 Core\Markdown\Live $tags = Core\Markdown::live();
-array<string> $cut = ["<scr", "ipt>alert(1)</scr", "ipt>\n\nSee <a hr", "ef=\"javas", "cript:alert(1)\">this</a>\n"];
+array<string> $cut = ['<scr', 'ipt>alert(1)</scr', "ipt>\n\nSee <a hr", "ef=\"javas", "cript:alert(1)\">this</a>\n"];
 string $seen = '';
 foreach ($cut as string $piece) {
     Core\Markdown\Update $update = $tags->push($piece);
@@ -43,7 +43,7 @@ echo 'cut tags: ', $unsafe ? 'unsafe' : 'safe', "\n";
 
 // 2. An accent and a skin tone each arrive in their own piece. The finished text has both.
 Core\Markdown\Live $marks = Core\Markdown::live();
-$marks->push("Cafe");
+$marks->push('Cafe');
 $marks->push("\u{301} 👋");
 $marks->push("🏽\n");
 string $joined = Core\Html::toSource($marks->finish(), 'the attack reads the HTML');
@@ -64,7 +64,7 @@ echo 'one character at a time: ', $same ? 'same' : 'different', "\n";
 
 // 4. A `link` function calls `push` on the same text. That call throws an error, and the function
 // catches it. The outer `push` still works.
-Core\Markdown\Live $self = Core\Markdown::live(link: fn (string $url): ?string => Inside::link($url));
+Core\Markdown\Live $self = Core\Markdown::live(link: fn(string $url): ?string => Inside::link($url));
 Inside::$live = $self;
 $self->push("See [the page](/page).\n\n");
 string $after = Core\Html::toSource($self->finish(), 'the attack reads the HTML');

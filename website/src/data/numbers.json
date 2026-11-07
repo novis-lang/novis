@@ -3,10 +3,10 @@
   "attacks": 1600,
   "languageTests": 3200,
   "rustTests": 8600,
-  "examples": 4500,
+  "examples": 4600,
   "benchmarks": 1700,
   "editorTests": 580,
   "crates": 21,
   "cratesWithoutUnsafe": 14,
-  "fuzzTargets": 15
+  "fuzzTargets": 18
 }

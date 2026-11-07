@@ -13,8 +13,15 @@ class Check
             Core\Html::toSource(Core\Markdown::toHtml($markdown), 'searching the result for unsafe tags'),
         );
         array<string> $unsafe = [
-            '<script', '<style', '<iframe', '<img src="x', '<img src="https', 'href="javascript',
-            'href=" javascript', 'src="javascript', 'href="data',
+            '<script',
+            '<style',
+            '<iframe',
+            '<img src="x',
+            '<img src="https',
+            'href="javascript',
+            'href=" javascript',
+            'src="javascript',
+            'href="data',
         ];
         array<string> $found = [];
         foreach ($unsafe as string $piece) {
@@ -28,23 +35,35 @@ class Check
 }
 
 // 1. Text written as a Markdown link, a Markdown image and HTML tags.
-Check::render('text', '<p>[click](javascript:alert(1)) ![x](https://example.com/a.png) '
-    . '&lt;script&gt;alert(1)&lt;/script&gt; &lt;img src=x onerror=alert(1)&gt;</p>');
+Check::render(
+    'text',
+    '<p>[click](javascript:alert(1)) ![x](https://example.com/a.png) '
+        . '&lt;script&gt;alert(1)&lt;/script&gt; &lt;img src=x onerror=alert(1)&gt;</p>',
+);
 
 // 2. Text that becomes a link if one character is not escaped: a `!` before a link,
 // a link split over two elements, and a link definition at the start of a line.
-Check::render('split', '<p>!<a href="/a">x</a> <b>[</b>y<i>](javascript:alert(1))</i></p>'
-    . '<p>[r]: javascript:alert(1)</p><p>[r]</p>');
+Check::render(
+    'split',
+    '<p>!<a href="/a">x</a> <b>[</b>y<i>](javascript:alert(1))</i></p>'
+        . '<p>[r]: javascript:alert(1)</p><p>[r]</p>',
+);
 
 // 3. Elements and URLs that are not safe: a script, a style, a frame and unsafe links.
-Check::render('elements', '<p>a</p><script>alert("x")</script><style>p{color:red}</style>'
-    . '<iframe src="javascript:alert(1)"></iframe><a href="javascript:alert(1)">x</a>'
-    . '<a href="data:text/html,&lt;script&gt;alert(1)&lt;/script&gt;">y</a>'
-    . '<img src="javascript:alert(1)" alt="z"><a href=" JaVaScRiPt:alert(1)">w</a>');
+Check::render(
+    'elements',
+    '<p>a</p><script>alert("x")</script><style>p{color:red}</style>'
+        . '<iframe src="javascript:alert(1)"></iframe><a href="javascript:alert(1)">x</a>'
+        . '<a href="data:text/html,&lt;script&gt;alert(1)&lt;/script&gt;">y</a>'
+        . '<img src="javascript:alert(1)" alt="z"><a href=" JaVaScRiPt:alert(1)">w</a>',
+);
 
 // 4. An unsafe link and a script tag as text, in a table that Markdown cannot write.
-Check::render('table', '<table><tr><td colspan="2"><a href="javascript:alert(1)">x</a>'
-    . '&lt;script&gt;alert(1)&lt;/script&gt;</td></tr><tr><td>|</td><td>`</td></tr></table>');
+Check::render(
+    'table',
+    '<table><tr><td colspan="2"><a href="javascript:alert(1)">x</a>'
+        . '&lt;script&gt;alert(1)&lt;/script&gt;</td></tr><tr><td>|</td><td>`</td></tr></table>',
+);
 
 // 5. One hundred thousand nested elements. The conversion stops going deeper after
 // a fixed depth and writes only the text, so this should finish quickly.

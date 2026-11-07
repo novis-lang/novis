@@ -45,10 +45,10 @@ or diagrams. If one of the functions throws an error, `toHtml` stops and your co
 string $text = "## Install\n\nSee [the guide](/guide).\n\n```shell\nnvs run app.nvs\n```\n";
 echo Core\Markdown::toHtml(
     $text,
-    link: fn (string $url): ?string => "https://example.com" . $url,
-    heading: fn (int $level, string $text): ?string => Core\Str::lower($text),
-    code: fn (string $language, string $code): ?Core\Html\Markup =>
-        Core\Html::escape("Run: " . Core\Str::trim($code)),
+    link: fn(string $url): ?string => 'https://example.com' . $url,
+    heading: fn(int $level, string $text): ?string => Core\Str::lower($text),
+    code: fn(string $language, string $code): ?Core\Html\Markup =>
+        Core\Html::escape('Run: ' . Core\Str::trim($code)),
 );
 ```
 ```output
@@ -68,14 +68,14 @@ of `bytes` chunks. A file is read twice. The first read finds the link definitio
 can use a definition from the end of the file. Only one part is in memory at a time, so a file of any
 size works. Every other source is kept in memory until the loop ends.
 
-`toHtmlEach` takes the same four functions as `toHtml`. Each one runs when the loop reaches its part.
+`toHtmlEach` takes the same four functions as `toHtml`. Each one runs before the loop receives its part.
 If the bytes are not valid UTF-8, the loop throws a `ParseError` when it reaches them.
 
 ```nvs
 <?nvs
 bytes $text = "See [the guide][g].\n\n- one\n- two\n\n[g]: /guide\n" as bytes;
 foreach (Core\Markdown::toHtmlEach($text) as Core\Html\Markup $part) {
-    echo "part: ", $part;
+    echo 'part: ', $part;
 }
 ```
 ```output
@@ -109,12 +109,12 @@ so a function can run more than once for the same block.
 ```nvs
 <?nvs
 Core\Markdown\Live $live = Core\Markdown::live();
-array<string> $pieces = ["# Ans", "wer\n\nThe first ", "step.\n\n- one\n"];
+array<string> $pieces = ['# Ans', "wer\n\nThe first ", "step.\n\n- one\n"];
 foreach ($pieces as string $piece) {
     Core\Markdown\Update $update = $live->push($piece);
-    echo "done: ", $update->done(), "open: ", $update->open(), "\n";
+    echo 'done: ', $update->done(), 'open: ', $update->open(), "\n";
 }
-echo "finish: ", $live->finish();
+echo 'finish: ', $live->finish();
 ```
 ```output
 done: open: <h1>Ans</h1>
@@ -147,7 +147,7 @@ read as Markdown syntax. A table that Markdown cannot write, such as one with `c
 <?nvs
 echo Core\Markdown::fromHtml("<h2>Notes</h2><p>Read <a href=\"/guide\">the <em>guide</em></a>.</p><ul><li>one</li><li>two</li></ul>");
 echo "--\n";
-echo Core\Markdown::fromHtml("<p># not a heading, *not* emphasis</p><script>alert(1)</script>");
+echo Core\Markdown::fromHtml('<p># not a heading, *not* emphasis</p><script>alert(1)</script>');
 ```
 ```output
 ## Notes

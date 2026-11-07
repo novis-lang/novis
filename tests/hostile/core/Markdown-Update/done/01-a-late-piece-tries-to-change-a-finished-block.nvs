@@ -7,9 +7,9 @@ class Feed
     // Pushes the first pieces and returns what `done` returned for them.
     public static function start(Core\Markdown\Live $live, array<string> $pieces): string
     {
-        string $finished = "";
+        string $finished = '';
         foreach ($pieces as string $piece) {
-            $finished = $finished . Core\Html::toSource($live->push($piece)->done(), "the attack compares the HTML");
+            $finished = $finished . Core\Html::toSource($live->push($piece)->done(), 'the attack compares the HTML');
         }
         return $finished;
     }
@@ -17,19 +17,19 @@ class Feed
     // Pushes the late pieces and returns every part that came after them, `finish` included.
     public static function rest(Core\Markdown\Live $live, array<string> $pieces): string
     {
-        string $later = "";
+        string $later = '';
         foreach ($pieces as string $piece) {
             Core\Markdown\Update $update = $live->push($piece);
-            $later = $later . Core\Html::toSource($update->done(), "the attack compares the HTML");
+            $later = $later . Core\Html::toSource($update->done(), 'the attack compares the HTML');
         }
-        return $later . Core\Html::toSource($live->finish(), "the attack compares the HTML");
+        return $later . Core\Html::toSource($live->finish(), 'the attack compares the HTML');
     }
 
     // Prints the finished HTML, and whether a later part contains the finished text again.
     public static function report(string $step, string $finished, string $later, string $text): void
     {
-        echo $step, ": ", $finished;
-        echo $step, ": ", Core\Str::contains($later, $text) ? "sent again\n" : "not sent again\n";
+        echo $step, ': ', $finished;
+        echo $step, ': ', Core\Str::contains($later, $text) ? "sent again\n" : "not sent again\n";
     }
 }
 
@@ -37,25 +37,25 @@ class Feed
 // The link in the finished paragraph stays plain text.
 Core\Markdown\Live $one = Core\Markdown::live();
 string $finished = Feed::start($one, ["Read the [manual].\n\n", "Then call us.\n"]);
-Feed::report("step 1", $finished, Feed::rest($one, ["\n[manual]: https://example.com/manual\n"]), "manual");
+Feed::report('step 1', $finished, Feed::rest($one, ["\n[manual]: https://example.com/manual\n"]), 'manual');
 
 // 2. A footnote definition arrives after the paragraph that uses it is finished.
 Core\Markdown\Live $two = Core\Markdown::live();
 $finished = Feed::start($two, ["Prices include tax[^1].\n\n", "Shipping is free.\n"]);
-Feed::report("step 2", $finished, Feed::rest($two, ["\n[^1]: Tax is 20 percent.\n"]), "Prices");
+Feed::report('step 2', $finished, Feed::rest($two, ["\n[^1]: Tax is 20 percent.\n"]), 'Prices');
 
 // 3. Another ``` line arrives after a code block is closed and finished.
 // It starts a new code block, and the finished one keeps its content.
 Core\Markdown\Live $three = Core\Markdown::live();
 $finished = Feed::start($three, ["```\nmake\n```\n", "Text.\n"]);
-Feed::report("step 3", $finished, Feed::rest($three, ["```\n", "make install\n"]), "<code>make\n");
+Feed::report('step 3', $finished, Feed::rest($three, ["```\n", "make install\n"]), "<code>make\n");
 
 // 4. A `===` line arrives after a finished paragraph. Only the open paragraph can become a heading.
 Core\Markdown\Live $four = Core\Markdown::live();
 $finished = Feed::start($four, ["Intro.\n\n", "Title\n"]);
-Feed::report("step 4", $finished, Feed::rest($four, ["===\n", "More.\n"]), "Intro.");
+Feed::report('step 4', $finished, Feed::rest($four, ["===\n", "More.\n"]), 'Intro.');
 
 // 5. An end tag `</div>` arrives with no open `<div>` before it.
 Core\Markdown\Live $five = Core\Markdown::live();
 $finished = Feed::start($five, ["<div>\n\nBox.\n\n</div>\n\n", "After.\n"]);
-Feed::report("step 5", $finished, Feed::rest($five, ["</div>\n", "</div>\n\n", "Last.\n"]), "Box.");
+Feed::report('step 5', $finished, Feed::rest($five, ["</div>\n", "</div>\n\n", "Last.\n"]), 'Box.');

@@ -1,0 +1,26 @@
+--TEST--
+`Core\Markdown::fromHtml` collapses whitespace, unwraps a `div`, escapes a number at the start of a line and inline syntax characters, writes a `javascript:` link as its text, percent-encodes a URL, and cuts a web address so it does not become a link — `rule:core-classes/markdown-from-html`
+--FILE--
+<?nvs
+// covers: Core\Markdown::fromHtml
+// Spaces, tabs and line breaks in text collapse to one space.
+echo Core\Markdown::fromHtml("<div>\n  <p>  many    spaces\n\tand a tab  </p>\n</div>");
+echo "--\n";
+// A number and a dot at the start of a line get a backslash, so the line is not a list.
+echo Core\Markdown::fromHtml("<p>1. not a list</p><p>a_b and [x] and `y`</p>");
+echo "--\n";
+// A `javascript:` link is written as its text alone.
+echo Core\Markdown::fromHtml("<p><a href=\"javascript:alert(1)\">click</a> and <a href=\"/Straße\">street</a></p>");
+echo "--\n";
+// Text that looks like a web address is cut with an empty comment, so it is not a link.
+echo Core\Markdown::fromHtml("<p>visit www.example.com today</p>");
+--EXPECT--
+many spaces and a tab
+--
+1\. not a list
+
+a\_b and \[x\] and \`y\`
+--
+click and [street](/Stra%C3%9Fe)
+--
+visit www<!-- -->.example.com today

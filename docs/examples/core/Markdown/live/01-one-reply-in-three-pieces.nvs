@@ -4,7 +4,7 @@
 Core\Markdown\Live $live = Core\Markdown::live();
 
 // The pieces end in the middle of a word, as the pieces of a model's answer often do.
-array<string> $pieces = ["## Shop", "ping list\n\n- bread\n- mi", "lk\n"];
+array<string> $pieces = ['## Shop', "ping list\n\n- bread\n- mi", "lk\n"];
 foreach ($pieces as string $piece) {
     Core\Markdown\Update $update = $live->push($piece);
     // `done()` is the HTML of the finished blocks. `open()` is the HTML of the rest.

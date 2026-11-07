@@ -1773,6 +1773,9 @@ mod tests {
                 // A value in a DN may have come from a request.
                 (r"Core\Ldap\Dn", "rdnValue", "tainted string".to_owned()),
                 (r"Core\Ldap\Dn", "toString", "tainted string".to_owned()),
+                // A parsed node's text is tainted, and the answer cannot follow
+                // one arm of its union parameter (`rule:core-classes/markdown-from-html`).
+                (r"Core\Markdown", "fromHtml", "tainted string".to_owned()),
                 (
                     r"Core\Net\Datagram\Message",
                     "payload",

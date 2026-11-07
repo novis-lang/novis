@@ -14,7 +14,7 @@ class Highlight
 }
 
 Core\Markdown\Live $live = Core\Markdown::live(
-    code: fn (string $language, string $code): ?Core\Html\Markup => Highlight::code($language, $code),
+    code: fn(string $language, string $code): ?Core\Html\Markup => Highlight::code($language, $code),
 );
 
 // The code block arrives in three pieces. Each `push` converts the open block again.
@@ -23,8 +23,8 @@ $live->push("nvs run main.nvs\n");
 // The third piece finishes the code block, so `done()` contains the box.
 echo $live->push("```\n\nThat is all.\n")->done();
 // This prints `runs: 3`.
-echo "runs: ", Highlight::$runs, "\n";
+echo 'runs: ', Highlight::$runs, "\n";
 
 // The code block is finished now, so `finish` does not run the function again.
 echo $live->finish();
-echo "runs: ", Highlight::$runs, "\n";
+echo 'runs: ', Highlight::$runs, "\n";

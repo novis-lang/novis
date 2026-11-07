@@ -33,13 +33,13 @@ class HighlightTest
     #[Test]
     public function toHtmlEscapesTheCode(): void
     {
-        Test::assertSame(Html::toSource(Code::toHtml('txt', '<b>') ?? html``,'comparing the HTML'), '<pre class="hl"><code>&lt;b&gt;</code></pre>');
+        Test::assertSame(Html::toSource(Code::toHtml('txt', '<b>') ?? html``, 'comparing the HTML'), '<pre class="hl"><code>&lt;b&gt;</code></pre>');
     }
 
     #[Test]
     public function markdownUsesItForACodeBlock(): void
     {
-        Markup $html = Markdown::toHtml("```rust\nlet x = 1;\n```", code: fn (string $language, string $code): ?Markup => Code::toHtml($language, $code));
+        Markup $html = Markdown::toHtml("```rust\nlet x = 1;\n```", code: fn(string $language, string $code): ?Markup => Code::toHtml($language, $code));
         string $want = '<pre class="hl"><code><span class="hl-keyword">let</span> x <span class="hl-keyword">=</span> <span class="hl-number">1</span>;'
             . "\n</code></pre>\n";
         Test::assertSame(Html::toSource($html, 'comparing the HTML'), $want);

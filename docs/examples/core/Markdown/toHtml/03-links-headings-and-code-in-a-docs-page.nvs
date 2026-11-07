@@ -33,7 +33,7 @@ class Docs
 
 echo Core\Markdown::toHtml(
     $page,
-    link: fn (string $url): ?string => Docs::link($url),
-    heading: fn (int $level, string $text): ?string => Docs::heading($level, $text),
-    code: fn (string $language, string $code): ?Core\Html\Markup => Docs::code($language, $code),
+    link: fn(string $url): ?string => Docs::link($url),
+    heading: fn(int $level, string $text): ?string => Docs::heading($level, $text),
+    code: fn(string $language, string $code): ?Core\Html\Markup => Docs::code($language, $code),
 );

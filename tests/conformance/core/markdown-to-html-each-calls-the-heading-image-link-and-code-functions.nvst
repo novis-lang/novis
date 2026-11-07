@@ -1,0 +1,38 @@
+--TEST--
+`Core\Markdown::toHtmlEach` calls the `heading`, `image`, `link` and `code` functions a program passes, once for each heading, and a `link` function that returns `null` keeps only the link's text — `rule:core-classes/markdown-chunks`
+--FILE--
+<?nvs
+// covers: Core\Markdown::toHtmlEach
+class Seen
+{
+    public static int $headings = 0;
+
+    // Gives each heading the id `part-1`, `part-2` and so on.
+    public static function heading(int $level, string $text): ?string
+    {
+        Seen::$headings = Seen::$headings + 1;
+        return "part-" . Seen::$headings;
+    }
+}
+
+string $doc = "# One\n\nFirst text.\n\n# Two\n\n![logo](logo.png) [home](/home)\n\n```sh\nls\n```\n";
+foreach (Core\Markdown::toHtmlEach(
+    $doc as bytes,
+    heading: fn (int $level, string $text): ?string => Seen::heading($level, $text),
+    image: fn (string $url): ?string => "https://cdn.example.com/" . $url,
+    // A link function that returns `null` removes the link and keeps its text.
+    link: fn (string $url): ?string => null,
+    code: fn (string $language, string $code): ?Core\Html\Markup =>
+        Core\Html::escape("[" . $language . "] " . Core\Str::trim($code)),
+) as Core\Html\Markup $group) {
+    echo "group: ", Core\Html::toSource($group, "the case prints each group");
+}
+// The heading function runs once for each heading.
+echo "headings: ", Seen::$headings, "\n";
+--EXPECT--
+group: <h1 id="md-part-1">One</h1>
+group: <p>First text.</p>
+group: <h1 id="md-part-2">Two</h1>
+group: <p><img src="https://cdn.example.com/logo.png" alt="logo"> home</p>
+group: [sh] ls
+headings: 2

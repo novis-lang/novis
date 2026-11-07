@@ -2,15 +2,15 @@
 // Shows how a chat page shows an answer while it arrives: the finished part, then the open part.
 
 Core\Markdown\Live $live = Core\Markdown::live();
-array<string> $pieces = ["Sure! Run `npm ", "install`.\n\nThen st", "art the server.\n"];
+array<string> $pieces = ['Sure! Run `npm ', "install`.\n\nThen st", "art the server.\n"];
 
 // `$finished` grows with every `done` part. `$open` is replaced by every new `open` part.
-Core\Html\Markup $finished = "" as Core\Html\Markup;
-Core\Html\Markup $open = "" as Core\Html\Markup;
+Core\Html\Markup $finished = '' as Core\Html\Markup;
+Core\Html\Markup $open = '' as Core\Html\Markup;
 
 foreach ($pieces as string $piece) {
     Core\Markdown\Update $update = $live->push($piece);
     $finished = $finished + $update->done();
     $open = $update->open();
-    echo "--- the screen after ", Core\Json::encode($piece), "\n", $finished + $open;
+    echo '--- the screen after ', Core\Json::encode($piece), "\n", $finished + $open;
 }

@@ -38,24 +38,24 @@ try {
 }
 
 // 3. Texts that end inside a code block, a list, an HTML tag, a table and a `**` that is never closed.
-Check::same('open code block', ["```php\necho 1;\n", "echo 2;"]);
+Check::same('open code block', ["```php\necho 1;\n", 'echo 2;']);
 Check::same('open list', ["- one\n- tw", "o\n  - three"]);
-Check::same('open tag', ["<div>\n\nText", " inside <b>bold"]);
+Check::same('open tag', ["<div>\n\nText", ' inside <b>bold']);
 Check::same('open table', ["| a | b |\n|---|", "---|\n| 1 |"]);
-Check::same('open bold', ["Some **bold", " text"]);
+Check::same('open bold', ['Some **bold', ' text']);
 
 // 4. Five thousand footnotes, each defined before it is used. `finish` writes all of them at the end.
 string $notes = '';
 string $text = '';
 uint $i = 0;
 while ($i < 5000) {
-    $notes = $notes . "[^n" . $i . "]: Note " . $i . ".\n\n";
-    $text = $text . "Fact " . $i . ".[^n" . $i . "]\n\n";
+    $notes = $notes . '[^n' . $i . ']: Note ' . $i . ".\n\n";
+    $text = $text . 'Fact ' . $i . '.[^n' . $i . "]\n\n";
     $i = $i + 1;
 }
 Check::same('many footnotes', [$notes, $text]);
 
 // 5. A text with a link that has no address, finished without its definition. The link is plain text.
 Core\Markdown\Live $missing = Core\Markdown::live();
-$missing->push("See [the guide].");
+$missing->push('See [the guide].');
 echo 'missing address: ', $missing->finish();

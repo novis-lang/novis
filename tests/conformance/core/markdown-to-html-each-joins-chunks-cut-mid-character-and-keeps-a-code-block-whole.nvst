@@ -1,0 +1,33 @@
+--TEST--
+`Core\Markdown::toHtmlEach` reads a list of `bytes` chunks that cut a line and a two-byte character apart, keeps a code block with blank lines as one group, and the groups join to `toHtml`'s HTML — `rule:core-classes/markdown-chunks`
+--FILE--
+<?nvs
+// covers: Core\Markdown::toHtmlEach
+// The chunks cut a line in two, and cut the two bytes of `é` apart.
+array<bytes> $chunks = [
+    "# Caf" as bytes,
+    Core\Bytes::pack('C', 0xC3),
+    Core\Bytes::pack('C', 0xA9),
+    "\n\nA para" as bytes,
+    "graph.\n\n```text\nline one\n\n\nline two\n```\n\nEnd.\n" as bytes,
+];
+// The code block has blank lines, but it stays one group.
+string $joined = "";
+foreach (Core\Markdown::toHtmlEach($chunks) as Core\Html\Markup $group) {
+    string $html = Core\Html::toSource($group, "the case prints each group");
+    echo "group: ", $html;
+    $joined = $joined . $html;
+}
+string $doc = "# Café\n\nA paragraph.\n\n```text\nline one\n\n\nline two\n```\n\nEnd.\n";
+string $whole = Core\Html::toSource(Core\Markdown::toHtml($doc), "the case compares the whole");
+echo $joined == $whole ? "same as toHtml\n" : "different from toHtml\n";
+--EXPECT--
+group: <h1>Café</h1>
+group: <p>A paragraph.</p>
+group: <pre><code class="language-text">line one
+
+
+line two
+</code></pre>
+group: <p>End.</p>
+same as toHtml

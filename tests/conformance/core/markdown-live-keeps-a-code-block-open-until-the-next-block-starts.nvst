@@ -1,0 +1,57 @@
+--TEST--
+`Core\Markdown\Live` keeps a code block in `open()` across pieces and after its closing fence, gives it in `done()` once the next block's first line is complete, and calls the `code` function again at each `push` while the block is open but not at `finish()` — `rule:core-classes/markdown-chunks`
+--FILE--
+<?nvs
+// covers: Core\Markdown::live, Core\Markdown\Live::push, Core\Markdown\Live::finish, Core\Markdown\Update::done, Core\Markdown\Update::open
+class Box
+{
+    public static int $runs = 0;
+
+    // Shows the language and the code as text.
+    public static function code(string $language, string $code): ?Core\Html\Markup
+    {
+        Box::$runs = Box::$runs + 1;
+        return Core\Html::escape("[" . $language . "] " . Core\Str::trim($code));
+    }
+}
+
+Core\Markdown\Live $live = Core\Markdown::live(
+    code: fn (string $language, string $code): ?Core\Html\Markup => Box::code($language, $code),
+    heading: fn (int $level, string $text): ?string => "step",
+);
+// The closing fence arrives in two pieces.
+array<string> $pieces = ["## Run\n\n```sh\ncd app\n", "nvs run\n", "``", "`\n", "Done.\n"];
+foreach ($pieces as string $piece) {
+    Core\Markdown\Update $update = $live->push($piece);
+    echo "done: ", Core\Html::toSource($update->done(), "the case prints each part"), "|\n";
+    echo "open: ", Core\Html::toSource($update->open(), "the case prints each part"), "|\n";
+}
+echo "finish: ", Core\Html::toSource($live->finish(), "the case prints the rest"), "|\n";
+// The code function ran at each of the five pushes.
+echo "code runs: ", Box::$runs, "\n";
+--EXPECT--
+done: <h2 id="md-step">Run</h2>
+|
+open: [sh] cd app
+|
+done: |
+open: [sh] cd app
+nvs run
+|
+done: |
+open: [sh] cd app
+nvs run
+``
+|
+done: |
+open: [sh] cd app
+nvs run
+|
+done: [sh] cd app
+nvs run
+|
+open: <p>Done.</p>
+|
+finish: <p>Done.</p>
+|
+code runs: 5

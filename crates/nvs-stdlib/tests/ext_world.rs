@@ -105,6 +105,10 @@ const REFUSED: &[(&str, &str)] = &[
     ("Core\\Json\\Pieces", READER),
     ("Core\\Markdown\\Groups", READER),
     ("Core\\Markdown\\Live", READER),
+    (
+        "Core\\Markdown\\Update",
+        "It contains HTML the host trusts as safe, and a guest that returned one would make untrusted text trusted.",
+    ),
     ("Core\\Test\\Response", REQUEST),
     ("Core\\Test\\SentRequest", REQUEST),
     (

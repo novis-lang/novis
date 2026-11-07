@@ -2,7 +2,7 @@
 // Shows a server that sends a language model's answer to the browser as HTML while the model writes it.
 
 // A real program reads these pieces from the model's API.
-array<string> $pieces = ["Three ste", "ps:\n\n1. Pick a size\n2. Pay", "\n\nThe parcel ships **today**.\n"];
+array<string> $pieces = ['Three ste', "ps:\n\n1. Pick a size\n2. Pay", "\n\nThe parcel ships **today**.\n"];
 
 Core\Sse $sse = Core\Sse::stream();
 Core\Markdown\Live $live = Core\Markdown::live();

@@ -6727,8 +6727,6 @@ mod tests {
             crate::json::ELEMENTS_NAME,
             crate::json::PIECES_NAME,
             crate::markdown::GROUPS_NAME,
-            crate::markdown::LIVE_NAME,
-            crate::markdown::UPDATE_NAME,
             crate::http::TARGET_NAME,
             crate::http::IDENTITY_NAME,
             crate::http::PART_NAME,

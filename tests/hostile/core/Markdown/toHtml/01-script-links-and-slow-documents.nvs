@@ -9,7 +9,7 @@ class Check
     // A URL in plain text is safe, so only the attribute values are checked.
     public static function report(string $label, Core\Html\Markup $html): void
     {
-        string $text = Core\Str::lower(Core\Html::toSource($html, "the attack looks for a script in the HTML"));
+        string $text = Core\Str::lower(Core\Html::toSource($html, 'the attack looks for a script in the HTML'));
         bool $unsafe = Core\Str::contains($text, '<script')
             || Core\Str::contains($text, '<iframe')
             || Core\Str::contains($text, '="javascript:')
@@ -54,8 +54,8 @@ foreach ($raw as string $doc) {
 // 3. A callback returns a script URL for every link and image. It is checked like a URL in the document.
 Check::report('callback', Core\Markdown::toHtml(
     "[a](/home) ![b](/cat.png)\n",
-    link: fn (string $url): ?string => 'javascript:alert(1)',
-    image: fn (string $url): ?string => 'data:text/html,x',
+    link: fn(string $url): ?string => 'javascript:alert(1)',
+    image: fn(string $url): ?string => 'data:text/html,x',
 ));
 
 // 4. Documents of about 400 KB that are slow in other Markdown converters.
@@ -71,11 +71,11 @@ array<string> $slow = [
 ];
 foreach ($slow as string $doc) {
     Core\Html\Markup $html = Core\Markdown::toHtml($doc);
-    echo 'slow: ', Core\Str::length(Core\Html::toSource($html, "the attack prints the size of the HTML")), " characters\n";
+    echo 'slow: ', Core\Str::length(Core\Html::toSource($html, 'the attack prints the size of the HTML')), " characters\n";
 }
 
 // 5. Many uses of one long link reference. The HTML may grow only a little past the document.
 string $blowup = '[x]: /' . Core\Str::repeat('u', 10000) . "\n\n" . Core\Str::repeat('[x] ', 50000);
 Core\Html\Markup $big = Core\Markdown::toHtml($blowup);
 echo 'document: ', Core\Str::length($blowup), " characters\n";
-echo 'references: ', Core\Str::length(Core\Html::toSource($big, "the attack prints the size of the HTML")), " characters\n";
+echo 'references: ', Core\Str::length(Core\Html::toSource($big, 'the attack prints the size of the HTML')), " characters\n";

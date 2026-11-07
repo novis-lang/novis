@@ -289,7 +289,7 @@ const LIVE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "link",
-            desc: "The same `link` function as in `Core\\Markdown::toHtml`.",
+            desc: "The same `link:` function as in `Core\\Markdown::toHtml`.",
             shape: &[],
         },
         ParamDoc {
@@ -426,8 +426,8 @@ const TO_HTML_EACH_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "link",
-            desc: "The same `link` function as in `Core\\Markdown::toHtml`. It runs when the \
-                   loop reaches the part with the link.",
+            desc: "The same `link:` function as in `Core\\Markdown::toHtml`. It runs before the \
+                   loop receives the part with the link.",
             shape: &[],
         },
         ParamDoc {

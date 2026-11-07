@@ -6,7 +6,7 @@ string $post = "# Release notes\n\nVersion 2 is **faster**.\n\n- New search\n- D
 array<string> $pieces = Core\Str::chunk($post, 10);
 
 Core\Markdown\Live $live = Core\Markdown::live();
-Core\Html\Markup $page = "" as Core\Html\Markup;
+Core\Html\Markup $page = '' as Core\Html\Markup;
 foreach ($pieces as string $piece) {
     // A finished block never changes, so it is added once and kept.
     $page = $page + $live->push($piece)->done();
@@ -15,5 +15,5 @@ $page = $page + $live->finish();
 echo $page;
 
 // The page is the same HTML that `Core\Markdown::toHtml` returns for the whole post. This prints `true`.
-string $whole = Core\Html::toSource(Core\Markdown::toHtml($post), "the example compares the HTML");
-echo Core\Html::toSource($page, "the example compares the HTML") == $whole ? "true" : "false", "\n";
+string $whole = Core\Html::toSource(Core\Markdown::toHtml($post), 'the example compares the HTML');
+echo Core\Html::toSource($page, 'the example compares the HTML') == $whole ? 'true' : 'false', "\n";

@@ -20,7 +20,7 @@ class Evil
 }
 
 // 1. A `link` function that throws. `push` throws the same error, and the text is closed.
-Core\Markdown\Live $broken = Core\Markdown::live(link: fn (string $url): ?string => Evil::link($url));
+Core\Markdown\Live $broken = Core\Markdown::live(link: fn(string $url): ?string => Evil::link($url));
 Core\Markdown\Live $other = Core\Markdown::live();
 try {
     $broken->push("Open [the page](/page).\n\nNext.\n");
@@ -50,8 +50,8 @@ echo 'other text: ', $other->finish();
 // 4. A heading id with a quote and a script tag, and a `javascript:` address. Both must be escaped
 // or removed, so the HTML has no new attribute and no link.
 Core\Markdown\Live $values = Core\Markdown::live(
-    heading: fn (int $level, string $text): ?string => "\" onclick=\"alert(1)",
-    link: fn (string $url): ?string => 'javascript:alert(1)',
+    heading: fn(int $level, string $text): ?string => "\" onclick=\"alert(1)",
+    link: fn(string $url): ?string => 'javascript:alert(1)',
 );
 $values->push("# Title\n\n[click](/here)\n");
 string $html = Core\Html::toSource($values->finish(), 'the attack reads the HTML');
@@ -60,11 +60,11 @@ echo 'bad values: ', $unsafe ? 'unsafe' : 'safe', "\n";
 
 // 5. A code block that stays open for 1,000 pieces. The `code` function runs again for each piece,
 // and the program must still end.
-Core\Markdown\Live $code = Core\Markdown::live(code: fn (string $language, string $code): ?Core\Html\Markup => Evil::code($language, $code));
+Core\Markdown\Live $code = Core\Markdown::live(code: fn(string $language, string $code): ?Core\Html\Markup => Evil::code($language, $code));
 $code->push("```sh\n");
 uint $i = 0;
 while ($i < 1000) {
-    $code->push("echo " . $i . "\n");
+    $code->push('echo ' . $i . "\n");
     $i = $i + 1;
 }
 $code->push("```\n");
@@ -78,7 +78,7 @@ string $long = Core\Str::repeat('word ', 2000);
 $i = 0;
 while ($i < 3000) {
     Core\Markdown\Live $one = Core\Markdown::live();
-    $one->push("# Note " . $i . "\n\n" . $long);
+    $one->push('# Note ' . $i . "\n\n" . $long);
     $one->finish();
     $i = $i + 1;
 }
@@ -89,7 +89,7 @@ echo 'finished texts: ', $i, "\n";
 $i = 0;
 while ($i < 20000) {
     Core\Markdown\Live $left = Core\Markdown::live();
-    $left->push("# Draft " . $i . "\n\n" . $long);
+    $left->push('# Draft ' . $i . "\n\n" . $long);
     $i = $i + 1;
 }
 echo 'texts left open: ', $i, "\n";

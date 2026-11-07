@@ -1,0 +1,69 @@
+--TEST--
+`Core\Markdown\Live` returns empty HTML for `finish()` with nothing pushed and for an empty piece, cleans a raw HTML block, writes footnotes at `finish()`, and ends the document when a function throws an error — `rule:core-classes/markdown-chunks`
+--FILE--
+<?nvs
+// covers: Core\Markdown::live, Core\Markdown\Live::push, Core\Markdown\Live::finish, Core\Markdown\Update::done, Core\Markdown\Update::open
+class Guard
+{
+    // Throws an error for every link.
+    public static function link(string $url): ?string
+    {
+        throw new RuntimeError("no links here");
+    }
+}
+
+// `finish` with nothing pushed returns empty HTML.
+Core\Markdown\Live $empty = Core\Markdown::live();
+echo "empty: ", Core\Html::toSource($empty->finish(), "the case prints the rest"), "|\n";
+
+// A push of an empty string finishes nothing and shows nothing.
+Core\Markdown\Live $live = Core\Markdown::live();
+Core\Markdown\Update $first = $live->push("");
+echo "done: ", Core\Html::toSource($first->done(), "the case prints a part"), "|\n";
+echo "open: ", Core\Html::toSource($first->open(), "the case prints a part"), "|\n";
+
+// A raw HTML block is cleaned. The script is removed.
+Core\Markdown\Update $second = $live->push("<div class=\"note\">\nSee the note.<script>alert(1)</script>\n</div>\n\n");
+echo "done: ", Core\Html::toSource($second->done(), "the case prints a part"), "|\n";
+echo "open: ", Core\Html::toSource($second->open(), "the case prints a part"), "|\n";
+
+// The footnote is defined before its use. `finish` writes the footnote text at the end.
+Core\Markdown\Update $third = $live->push("[^n]: The note.\n\nText[^n].\n");
+echo "done: ", Core\Html::toSource($third->done(), "the case prints a part"), "|\n";
+echo "finish: ", Core\Html::toSource($live->finish(), "the case prints the rest"), "|\n";
+
+// A function that throws an error ends the document.
+Core\Markdown\Live $broken = Core\Markdown::live(link: fn (string $url): ?string => Guard::link($url));
+try {
+    $broken->push("[a](/a)\n\nnext\n");
+} catch (RuntimeError $failed) {
+    echo $failed->message, "\n";
+}
+try {
+    $broken->finish();
+} catch (RuntimeError $ended) {
+    echo $ended->message, "\n";
+}
+--EXPECT--
+empty: |
+done: |
+open: |
+done: |
+open: <div>
+See the note.
+</div>
+|
+done: <div>
+See the note.
+</div>
+|
+finish: <p>Text<sup><a href="#md-fn-1" id="md-fnref-1">1</a></sup>.</p>
+<hr>
+<ol>
+<li id="md-fn-1">
+<p>The note.</p>
+ <a href="#md-fnref-1">↩</a></li>
+</ol>
+|
+no links here
+Core\Markdown\Live::finish(): this document has ended, because `finish()` was called or a callback threw an error. Create a new one with `Core\Markdown::live()`.

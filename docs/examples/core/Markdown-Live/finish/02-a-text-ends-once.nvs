@@ -2,12 +2,12 @@
 // Shows that the object is closed after `finish`, and how to start the next text.
 
 Core\Markdown\Live $live = Core\Markdown::live();
-$live->push("First answer.");
+$live->push('First answer.');
 echo $live->finish();
 
 // The text has ended, so another `push` throws a `RuntimeError`. So does a second `finish`.
 try {
-    $live->push("More text.");
+    $live->push('More text.');
 } catch (RuntimeError $e) {
     echo "push: closed\n";
 }
@@ -19,5 +19,5 @@ try {
 
 // For the next text, create a new object.
 $live = Core\Markdown::live();
-$live->push("Second answer.");
+$live->push('Second answer.');
 echo $live->finish();

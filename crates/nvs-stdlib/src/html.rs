@@ -3023,6 +3023,10 @@ mod tests {
             // `rule:core-classes/markdown-to-html`: it rebuilds through the
             // same list as `sanitize`, for the same sink.
             (r"Core\Markdown::toHtml", true),
+            // It answers `Core\Markdown\Update`, which no sink takes. Both
+            // conditions hold, and they are met one step later: the Update's
+            // `done` and `open` each answer the carrier.
+            (r"Core\Markdown\Live::push", false),
             (r"Core\Path::fromCwd", false),
             (r"Core\Regex::quote", false),
             (r"Core\Taint::assertTrusted", false),

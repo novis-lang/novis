@@ -13,11 +13,11 @@ class Reply
     }
 }
 
-Core\Markdown\Live $live = Core\Markdown::live(link: fn (string $url): ?string => Reply::link($url));
+Core\Markdown\Live $live = Core\Markdown::live(link: fn(string $url): ?string => Reply::link($url));
 
 // The model sends its answer in small pieces.
 array<string> $pieces = [
-    "To reset your password, open the [help pa",
+    'To reset your password, open the [help pa',
     "ge](https://help.example.com/password).\n\n",
     "Do not use [this site](https://login.example.net) for it.\n",
 ];

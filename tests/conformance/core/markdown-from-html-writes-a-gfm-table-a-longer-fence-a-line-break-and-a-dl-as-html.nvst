@@ -1,0 +1,31 @@
+--TEST--
+`Core\Markdown::fromHtml` writes a table of plain cells as a GFM table, gives a code block with three backticks a fence of four, writes a `<br>` between text as a backslash, and writes a `dl` as HTML on one line — `rule:core-classes/markdown-from-html`
+--FILE--
+<?nvs
+// covers: Core\Markdown::fromHtml
+// A table with only plain cells and no colspan is written as a GFM table.
+echo Core\Markdown::fromHtml("<table><thead><tr><th>Name</th><th>Price</th></tr></thead><tbody><tr><td><b>Tea</b></td><td>3</td></tr><tr><td>Cake</td><td>5</td></tr></tbody></table>");
+echo "--\n";
+// The code has a run of three backticks, so the fence has four.
+echo Core\Markdown::fromHtml("<pre><code class=\"language-md\">Use ```\nto start code.\n</code></pre>");
+echo "--\n";
+// A break between two pieces of text is a backslash at the end of the line.
+echo Core\Markdown::fromHtml("<p>first line<br>second line</p>");
+echo "--\n";
+// A description list has no Markdown syntax, so it stays HTML on one line.
+echo Core\Markdown::fromHtml("<dl><dt>Tea</dt><dd>hot</dd></dl>");
+--EXPECT--
+| Name | Price |
+| --- | --- |
+| **Tea** | 3 |
+| Cake | 5 |
+--
+````md
+Use ```
+to start code.
+````
+--
+first line\
+second line
+--
+<dl><dt>Tea</dt><dd>hot</dd></dl>

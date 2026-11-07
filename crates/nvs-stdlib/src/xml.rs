@@ -6591,7 +6591,7 @@ mod tests {
             "the large file is many chunks long"
         );
         assert!(
-            large <= small + isize::try_from(chunk).unwrap_or(isize::MAX),
+            large <= small || large.abs_diff(small) <= chunk,
             "a walk holds one window, so a file ten times larger costs it about the same: \
              {small} bytes against {large}"
         );

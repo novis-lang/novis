@@ -374,7 +374,12 @@ fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
         "std::env::current_dir",
     ];
     let src = package().join("src");
-    for file in sources(&src) {
+    let files = sources(&src);
+    let test_files = test_module_files(&files);
+    for file in files {
+        if test_files.contains(&file) {
+            continue;
+        }
         let text = std::fs::read_to_string(&file).expect("a source file this crate compiled");
 
         // The rule is about what a `Core` member can do at run time, and a `#[cfg(test)]` module is
@@ -382,8 +387,9 @@ fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
         // exchange against a listener they open themselves, which is the only way to test a
         // transport at all. So the scan stops at the test module: a `#[cfg(test)]` whose next line
         // opens a `mod`. One on a single field or block hides nothing and is scanned like the code
-        // around it, and so does one on a `mod name;` declaration: that module's code is in a file
-        // of its own, which this loop scans whole. The scan asserts there is at most one test
+        // around it, and so does one on a `mod name;` declaration. That module's code is in a file
+        // of its own, which [`test_module_files`] names and the loop above skips whole, for the
+        // same reason: `crate::markdown`'s cases read the spec files. The scan asserts there is at most one test
         // module per file, since a second one higher up would hide everything under it rather than
         // just the tests.
         let lines: Vec<&str> = text.lines().collect();
@@ -920,6 +926,39 @@ fn sources(dir: &Path) -> Vec<PathBuf> {
             found.extend(sources(&path));
         } else if path.extension().is_some_and(|ext| ext == "rs") {
             found.push(path);
+        }
+    }
+    found
+}
+
+/// The files among `files` that hold a test module declared as `#[cfg(test)]` and then
+/// `mod name;`, which only a test build compiles. `a.rs` declares `a/name.rs`, and `lib.rs` or
+/// `mod.rs` declares `name.rs` beside it, or `name/mod.rs` in either case. A file such a module
+/// declares in turn is still scanned.
+fn test_module_files(files: &[PathBuf]) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    for file in files {
+        let text = std::fs::read_to_string(file).expect("a source file this crate compiled");
+        let lines: Vec<&str> = text.lines().collect();
+        for pair in lines.windows(2) {
+            if pair[0].trim_start() != "#[cfg(test)]" {
+                continue;
+            }
+            let next = pair[1].trim();
+            let next = next.strip_prefix("pub(crate) ").unwrap_or(next);
+            let next = next.strip_prefix("pub ").unwrap_or(next);
+            let Some(name) = next.strip_prefix("mod ").and_then(|n| n.strip_suffix(';')) else {
+                continue;
+            };
+            let stem = file.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            let dir = file.parent().expect("a source file has a directory");
+            let base = if stem == "lib" || stem == "mod" {
+                dir.to_path_buf()
+            } else {
+                dir.join(stem)
+            };
+            found.push(base.join(format!("{name}.rs")));
+            found.push(base.join(name).join("mod.rs"));
         }
     }
     found
