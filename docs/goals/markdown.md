@@ -652,51 +652,70 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### 12. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 11 are done. Stage 11 made the extension guide a syntax highlighter on `syntect`
-(decision 22) in `website/guides/highlight-extension/`; the guide check
-`bun nv ext-templates --example` is green on the debug binary. The folder moved file by file:
-a whole-folder `git mv` was refused with "Permission denied", most likely VS Code's language
-server watching it.
-- The eight Markdown features owe nothing in `bun nv proofs --id` (stage 10).
-- The sweep reds were stale: run 42359979484 is on `26dda36`. Its three timed-out Miri tests
-  (`json::tests::a_response_document_of_any_size_peaks_at_its_size_plus_one_chunk`,
-  `allocations_per_document_byte_do_not_grow_with_the_document`, `request::tests::json::
-  a_decoded_body_of_any_size_is_held_once`) each have a `cfg_attr(miri, ignore)` on main. No
-  `env-secret-proofs` check or log exists.
-- `bun nv rules --render` also wrote fragments earlier stages never rendered into
-  `docs/rules/core-classes.md`; that is its own commit.
+Stages 1 to 11 are done, and stage 12's three items are ticked: `looper verify` is green over
+the whole goal (23 of 23 steps). The fixes are three commits:
+- `3a409d8d0e`: `bun nv links` reads a source file's links only in its comments, because link
+  syntax in code is Markdown test data, and skips `vendor/`. `site.test.ts`'s guides test lists
+  the `walkthroughs` section.
+- `c56acc428e`: the rosters name the new members: the launderer list, the tainted answers,
+  ext's `REFUSED` (`Update`), and `Live` and `Update` off the handle list. Six new conformance
+  cases lift seven members to the floor of three. The tests reach their data through
+  `nvs_repo::path`. The capability scan skips a file declared as `#[cfg(test)] mod name;`
+  (`test_module_files` in `crates/nvs-stdlib/tests/capability.rs`). The corpus is formatted,
+  and the `toHtmlEach` card says a function runs before the loop receives its part.
+- `8c1f097fec`: the four `markdown-*` rule records are `shipped`, and `core.json` and
+  `llms-full.txt` are rendered, so the guide's `/reference/core/markdown/tohtml/` link resolves.
+
+Goal-end gates: `bun nv verify --doc` and `bun nv owners --closes markdown` are green.
+`bun nv ci --check` is red on two checks, listed under *Next*.
+
+The sweep's reds were stale: no `env-secret-proofs` check exists (`looper check --name` finds
+none), and the three Miri tests have `cfg_attr(miri, ignore = ...)` on main. Run 42359979484
+was on `26dda36`.
 
 ### Next
 
-Stage 12, the gate: `looper verify` in the background, then the goal-end gates of AGENTS.md
-§ *In the loop* (`bun nv verify --doc`, `bun nv owners --closes markdown`, `bun nv ci --check`).
-`website/src/data/core.json` has no `Core\Markdown` yet, so the guide's link
-`/reference/core/markdown/tohtml/` is broken until `bun nv render --website` runs on a binary
-built from the tree. `bun nv scaling --budget --write` exits 1 on twelve
-`benches/members/novis/Spreadsheet-*` benches this goal did not touch.
+The goal is not reached until `bun nv ci --check` is green. Two checks are red:
 
-Possibly red at the gate, not run this session: `tools/nv/test/ext-templates.test.ts` (it now
-names `highlight.wasm` and `highlighter.nvsx`); a runtime test that counts a `ClassDesc`'s fields
-or debug-prints one; a Live test that expects the old `lost its state` fatal; a `toHtmlEach` or
-Live test under a low memory limit with a large single block, which the per-line cost now refuses
-sooner; a conformance case or PDF test that sanitizes `<p>` around a `<table>` with no
-doctype (decision 18); a case that pins a loose task list's HTML or an autolink with an entity;
-a case that pins an autolink next to a backslash escape, or a sanitized table with stray content;
-a card, website snippet or conformance case that pins `fromHtml`'s output for a URL with a space,
-`\`, `<` or a non-ASCII character, or for nested lists on one line;
-`registry.rs`'s `a_class_with_slots_has_instance_members_and_the_reverse`,
-`crates/nvs-stdlib/tests/ext_world.rs`, and card or website checks that see `fromHtml`.
+1. **Feature proofs:** `bun nv proofs --gate --limit 0 --nvs target/debug/nvs.exe` names 129
+   features with a stale perf record. They are `Core\IO`, `Core\Xml`, `Core\Compress`,
+   `Core\Mime` and `Core\Zip`, because their source files changed since they were last measured
+   (`byte-sources`, and the `xml.rs` test line in `c56acc428e`). Re-measure one group at a time
+   with `bun nv proofs --record-perf --group <g>`, and commit each group.
+2. **Website stale guard** (`bun nv site --check ... questions roadmap`):
+   - Questions are stale on 11 pages: `/reference/core/json/decodeeach/`, `/encodeeach/`, six
+     `novis-pdf-*` pages, `/guides/extensions/rust/`, `/guides/` and `/`. Questions are owed on 4:
+     `/guides/walkthroughs/`, `.../after-response/`, `.../page-now/` and
+     `/in-depth/walkthrough-parts/`. Reread each page, then write four to six questions, then
+     stamp them with `MSYS_NO_PATHCONV=1 bun nv site --questions --stamp <url>`. Then run
+     `bun nv site --check questions` once.
+   - `website/src/data/roadmap.json`: `registry-readme` is on the chain and in no theme. Add it
+     to a theme, or to `internal`.
+   The walkthrough, PDF and roadmap entries come from other goals, but this goal's end check
+   needs them green. Split the questions across writing subagents by page.
+
+Then `bun nv ci --check` once more. When it is green, delete the goal's file (first move any
+decision only its prose holds into a rule), and run `bun nv relink --build`.
 
 ### Backlog
 
+- `tests/conformance/core/a-full-channel-suspends-the-sender-rather-than-growing.nvst` printed
+  `waits=6` against 7 once, in a full run where the machine was out of page file (os error 1455
+  on six other cases). It passed alone six times. A count of waits depends on scheduling, so it
+  may flake on a loaded CI runner.
+- `fn (string $url): ?string => throw new RuntimeError(...)` fails with E0401 "expected
+  `string|null`, found `never`". A `never` body likely should fit any return type. This is a
+  type checker question for another goal.
+- `bun nv nvs-fmt` exits 1 because `packages/rest/` is in no tree of
+  `tools/data/nvs-fmt-corpus.txt`. This goal did not add that package.
 - cmark-gfm reads a `www.` or URL autolink's whole text in the source, so an escape inside its
   path stays in the link as `\` and the character. Ours ends the link before the escape
   (`crates/nvs-stdlib/src/markdown/autolink.rs`, `unescaped`). Only a scan of the source would
