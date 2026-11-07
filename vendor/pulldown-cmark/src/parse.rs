@@ -1607,7 +1607,11 @@ pub(crate) fn scan_containers(
             ItemBody::BlockQuote(..) => {
                 let save = line_start.clone();
                 let _ = line_start.scan_space(3);
-                if !line_start.scan_blockquote_marker() {
+                // Novis: a marker is indented three columns at most, so a tab
+                // that three columns of space leave part of is a fourth, and
+                // `>\n\t>a` is a code block. The published 0.13.6 read the
+                // `>` after that tab as the marker.
+                if line_start.remaining_space() > 0 || !line_start.scan_blockquote_marker() {
                     *line_start = save;
                     break;
                 }

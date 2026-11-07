@@ -3609,6 +3609,18 @@ direction = "to-html"
 input = "|\n:-:|\na|\n:-:|\nb\n\n|\na|\n:-:|\nc"
 html = "<p>|\n:-:|\na|\n:-:|\nb</p>\n<p>|</p>\n<table>\n<thead>\n<tr>\n<th align=\"center\">a</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align=\"center\">c</td>\n</tr>\n</tbody>\n</table>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. A block quote marker is indented three columns
+# at most. On a line that continues a block quote, the 0.13.6 container scan took three columns of a
+# tab and then read the `>` after it as the marker, so a tab-indented `>` continued the quote.
+[[bug]]
+id = "pulldown-cmark-tab-before-blockquote-marker"
+library = "pulldown-cmark"
+source = "https://docs.rs/crate/pulldown-cmark/0.13.6/source/src/parse.rs"
+class = "wrong-output"
+direction = "to-html"
+input = ">\n\t>a\n\n>x\n\t>b"
+html = "<blockquote>\n</blockquote>\n<pre><code>&gt;a\n</code></pre>\n<blockquote>\n<p>x\n&gt;b</p>\n</blockquote>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"

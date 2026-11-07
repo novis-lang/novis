@@ -44,7 +44,9 @@ fn options() -> comrak::Options<'static> {
 /// - A tab is a space, and a paragraph starts with no space. comrak 0.59 keeps
 ///   the spaces and tabs a paragraph starts with when a reference definition
 ///   before them is removed. CommonMark removes them, and a browser shows both
-///   the same.
+///   the same. A space between two tags is removed, as `html_meaning` does: in
+///   `> \t<div>` comrak keeps the tab in front of the HTML block and ours
+///   writes the spaces it stands for.
 fn normal(html: &str) -> String {
     let mut spaced = String::with_capacity(html.len());
     for ch in fuzz::html_meaning(html).chars() {
@@ -53,7 +55,7 @@ fn normal(html: &str) -> String {
             spaced.push(ch);
         }
     }
-    let meaning = spaced;
+    let meaning = spaced.replace("> <", "><");
     let mut out = String::with_capacity(meaning.len());
     let mut bare = false;
     let mut rest = meaning.as_str();
@@ -172,6 +174,13 @@ fuzz_target!(|data: &[u8]| {
     if text.as_bytes().windows(4).any(|w| {
         w[0] == b'[' && matches!(w[1], b' ' | b'x' | b'X') && w[2] == b']' && inline(w[3])
     }) {
+        return;
+    }
+    // comrak 0.59 opens no container past a depth of 100, and the rule's bound
+    // is 512. A line whose container markers and indentation could reach 100
+    // is not compared.
+    let lead = |line: &str| line.bytes().take_while(|b| b" \t>-+*.)0123456789".contains(b)).count();
+    if text.split(['\n', '\r']).any(|line| lead(line) >= 100) {
         return;
     }
     // An HTML block of type 7 cannot interrupt a paragraph, and CommonMark
