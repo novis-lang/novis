@@ -236,9 +236,9 @@ impl Writer {
                 && node.name == "p"
                 && depth < DEPTH
                 && run.iter().any(|node| node.name == "input")
-                && run
-                    .iter()
-                    .all(|node| blank(node) || (node.kind == Kind::Element && node.name == "input"));
+                && run.iter().all(|node| {
+                    blank(node) || (node.kind == Kind::Element && node.name == "input")
+                });
             if boxed {
                 run.extend(node.children.iter());
                 self.paragraph(&run, depth + 1, parts);

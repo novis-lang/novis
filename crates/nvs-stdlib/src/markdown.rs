@@ -65,8 +65,8 @@ use nvs_runtime::{Fault, Value};
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, LinkType, Options, Parser, Tag, TagEnd};
 
 use crate::html::{
-    MARKUP, MARKUP_NAME, OPEN_ELEMENTS_CAP, RAW_SOURCE, addressable, bounded,
-    language_class, markdown_id, settled, source,
+    MARKUP, MARKUP_NAME, OPEN_ELEMENTS_CAP, RAW_SOURCE, addressable, bounded, language_class,
+    markdown_id, settled, source,
 };
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -1146,7 +1146,11 @@ impl<'a, 'h> Renderer<'a, 'h> {
                 self.open("pre", Vec::new());
                 let mut attributes = Vec::new();
                 if let CodeBlockKind::Fenced(info) = kind {
-                    let word = info.split([' ', '\t']).next().unwrap_or("");
+                    // cmark trims the info string after it decodes its
+                    // entities, so `&#32;D` names the language `D`, and its
+                    // first word ends at any of cmark's whitespace.
+                    let space = |c: char| matches!(c, ' ' | '\t' | '\n' | '\u{b}' | '\u{c}' | '\r');
+                    let word = info.trim_matches(space).split(space).next().unwrap_or("");
                     let language = word.strip_prefix("language-").unwrap_or(word);
                     let class = format!("language-{language}");
                     if language_class(&class) {

@@ -219,6 +219,13 @@ pub fn markdown_live(text: &str, piece: usize) -> (Vec<(String, String)>, String
     crate::markdown::live_in(text, piece).expect("no memory limit")
 }
 
+/// Whether `Core\Markdown` writes `url` into a link or an image: the
+/// sanitizer's check over the URL as it is and over it percent-decoded.
+#[must_use]
+pub fn markdown_url_allowed(url: &str) -> bool {
+    crate::markdown::url_allowed(url)
+}
+
 /// `html` sanitized, with each element's attributes in order of name, each run
 /// of spaces and line feeds as one space, and none between two tags. Two
 /// renderings that differ only in how they lay out their whitespace and

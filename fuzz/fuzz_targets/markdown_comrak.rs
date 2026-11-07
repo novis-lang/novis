@@ -40,7 +40,8 @@ fn options() -> comrak::Options<'static> {
 ///   with no `href` is removed, with its `title`, and its text kept. An `a` never holds
 ///   another, so each `</a>` closes the last `<a` before it. An image whose
 ///   URL fails is removed, where comrak's loses its `src`, so an `img` with no
-///   `src` is removed.
+///   `src` is removed. A URL that fails only percent-decoded (`allowed`) fails
+///   too.
 /// - A tab is a space, and a paragraph or a tight list item starts with no
 ///   space. comrak 0.59 keeps
 ///   the spaces and tabs a paragraph starts with when a reference definition
@@ -67,12 +68,12 @@ fn normal(html: &str) -> String {
             bare = false;
             rest = after;
         } else if let Some(end) = rest.starts_with("<img").then(|| tag_end(rest)).flatten() {
-            if rest[..end].contains(" src=") {
+            if allowed(&rest[..end], "src") {
                 out.push_str(&rest[..=end]);
             }
             rest = &rest[end + 1..];
         } else if let Some(end) = rest.starts_with("<a ").then(|| tag_end(rest)).flatten() {
-            bare = !rest[..end].contains(" href=");
+            bare = !allowed(&rest[..end], "href");
             if !bare {
                 out.push_str(&rest[..=end]);
             }
@@ -94,6 +95,24 @@ fn normal(html: &str) -> String {
         }
     }
     lone_percent_encoded(&spaced.replace("> <", "><"))
+}
+
+/// Whether the start tag `tag` has the attribute `name` with a URL that
+/// `Core\Markdown` writes. The sanitizer reads a URL as a browser does, and the
+/// renderer also checks it percent-decoded, so `%5C%5C/x` passes the first and
+/// fails the second. Ours writes no URL that fails, so the check maps only
+/// comrak's.
+fn allowed(tag: &str, name: &str) -> bool {
+    let Some(at) = tag.find(&format!(" {name}=\"")) else {
+        return false;
+    };
+    let value = &tag[at + name.len() + 3..];
+    let value = &value[..value.find('"').unwrap_or(value.len())];
+    let url = value
+        .replace("&quot;", "\"")
+        .replace("&nbsp;", "\u{a0}")
+        .replace("&amp;", "&");
+    fuzz::markdown_url_allowed(&url)
 }
 
 /// `html` with each `a` inside another `a` removed, and its text kept. An

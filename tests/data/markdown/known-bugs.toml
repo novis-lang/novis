@@ -3692,6 +3692,18 @@ direction = "to-html"
 input = "x\n+\n-:|\nb"
 html = "<p>x</p>\n<table>\n<thead>\n<tr>\n<th align=\"right\">+</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align=\"right\">b</td>\n</tr>\n</tbody>\n</table>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. cmark decodes a fence's info string and
+# then trims it, so `&#32;D` names the language `D`. pulldown-cmark 0.13.6 trims first, and the
+# first word was empty.
+[[bug]]
+id = "pulldown-cmark-info-string-trimmed-after-entities"
+library = "pulldown-cmark"
+source = "https://github.com/commonmark/cmark/blob/master/src/blocks.c"
+class = "wrong-output"
+direction = "to-html"
+input = "~~~&#32;D\n+\n~~~"
+html = "<pre><code class=\"language-D\">+\n</code></pre>\n"
+
 # Found by the `markdown_comrak` differential fuzz target. A `\` at the end of a header row is the
 # cell's text, so cmark-gfm starts the table. pulldown-cmark 0.13.6 read a hard break first and
 # found no table.
