@@ -6,7 +6,6 @@
       "title": "Example apps and checked examples",
       "text": "The chat app uses WebSockets, and the poll app uses server-sent events. You can start a real project from either one. Every block of code on this website is run by a test, or it says why it is not. Each page shows the `nvs.toml` settings that its examples run with.",
       "goals": [
-        "realtime-example-apps",
         "website-code-checked",
         "example-config-shown"
       ]
