@@ -577,6 +577,12 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         if !current_container {
             return None;
         }
+        // Novis: a line indented four columns or more starts an indented code
+        // block, which a table cannot hold, so it ends the table, as in
+        // cmark-gfm. The published 0.13.6 read it as a row.
+        if line_start.clone().scan_space(4) {
+            return None;
+        }
         line_start.scan_all_space();
         ix += line_start.bytes_scanned();
         if scan_paragraph_interrupt_no_table(
