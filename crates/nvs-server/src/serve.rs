@@ -2542,6 +2542,9 @@ where
             // reading half is what this connection answers with, so neither can
             // be handed anywhere before both exist.
             let (events, body) = Answer::stream(&bounds);
+            // A fresh tree first, so the request's `wall_time` does not end the
+            // stream (`nvs_runtime::Ctx::reroot_for_a_connection`).
+            ctx.borrow_mut().reroot_for_a_connection();
             match Isolate::new(program, args, Output::Capture)
                 .narrowed_by(narrowing)
                 .over_event_stream(events)
@@ -2799,6 +2802,10 @@ fn after_the_drive(
             // reach and a peer that has read a `101` would not understand a
             // status. The socket closes with `peer` instead, which is the only
             // honest answer left.
+            //
+            // A fresh tree first, so the request's `wall_time` does not end the
+            // connection (`nvs_runtime::Ctx::reroot_for_a_connection`).
+            ctx.borrow_mut().reroot_for_a_connection();
             if let Ok(running) = Isolate::new(program, args, Output::Capture)
                 .narrowed_by(narrowing)
                 .over_socket(Box::new(peer))
@@ -4903,6 +4910,21 @@ pub(crate) mod tests {
     where
         H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
     {
+        upgrade_once_serving(wide_open(), waits, handler, path, door)
+    }
+
+    /// [`upgrade_once_under`] over `serving`, for a case about what the
+    /// configuration does to a connection, such as a `[limits]` key.
+    fn upgrade_once_serving<H>(
+        serving: Serving,
+        waits: Waits,
+        handler: impl FnOnce() -> Rc<H> + 'static,
+        path: &'static str,
+        door: Door,
+    ) -> String
+    where
+        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+    {
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
             .expect("the OS refused a port");
         let addr = listener
@@ -4928,7 +4950,7 @@ pub(crate) mod tests {
                 &mut listener,
                 &handler(),
                 waits,
-                &wide_open(),
+                &serving,
                 &Draining::detached(),
                 |_note| {},
                 until_the_loop_is_ended(),
@@ -4937,6 +4959,53 @@ pub(crate) mod tests {
         });
         nvs_host::run_until_idle(&mut sched).expect("the loop failed");
         client.join().expect("the client thread panicked")
+    }
+
+    /// `rule:concurrency/a-connection-is-a-root-isolate`: **a request's
+    /// `[limits] wall_time` does not bound the connection it upgraded**, on
+    /// either door.
+    ///
+    /// The connection reports the wall deadline its waits are bounded by
+    /// ([`Ctx::wall_bound`]), which is what `Core\Socket::receive`, a topic
+    /// wait and `Core\Time::sleep` read. It was the upgrading request's
+    /// deadline once, and every event stream under a `wall_time` closed at it
+    /// and reconnected. Beside it the connection reports the `wall_time` its
+    /// configuration states, so the case cannot pass on a fixture whose
+    /// setting never arrived.
+    #[test]
+    fn a_requests_wall_time_does_not_bound_the_connection_it_upgraded() {
+        fn say_the_wall_bound(conn: &mut Ctx) -> String {
+            let written = conn
+                .config()
+                .and_then(|config| config.get("wall_time"))
+                .unwrap_or_default();
+            format!("wall_time {written}, bound {}", conn.wall_bound().is_some())
+        }
+
+        for door in [Door::Socket, Door::Sse] {
+            let said = Rc::new(RefCell::new(Vec::new()));
+            let handler_said = Rc::clone(&said);
+            upgrade_once_serving(
+                booted_on("[limits]\nwall_time = \"60s\"\n"),
+                Waits::default(),
+                move || upgrade_leaving(door, String::new(), handler_said, say_the_wall_bound),
+                "/live",
+                door,
+            );
+            let said = said.borrow();
+            let connection = said
+                .iter()
+                .find(|line| line.starts_with("connection "))
+                .unwrap_or_else(|| panic!("the connection isolate did not run: {said:?}"));
+            assert!(
+                connection.contains("wall_time 60s"),
+                "the connection was not configured with the request's `wall_time`: {said:?}"
+            );
+            assert!(
+                connection.ends_with("bound false"),
+                "the request's `wall_time` bounds the connection it upgraded: {said:?}"
+            );
+        }
     }
 
     /// `rule:concurrency/a-connection-is-a-root-isolate`'s

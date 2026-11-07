@@ -99,6 +99,8 @@ The proxy must also send the `Host` header unchanged. Each example app has a `de
 - Do subscribe to the topic first, then send the current data. Then no update is lost in between.
 - Do set a small `memory` limit in `limits:`. A connection needs much less than a page.
 - Do set `trusted_proxies` when your server runs behind a proxy.
+- Do set `wall_time` for your requests. It does not close a connection. `[server.connection]
+  max_lifetime` closes a connection after one day.
 - Don't put user input in a topic name.
 - Don't publish a value that contains a secret. `publish` throws a `LogicError` for it.
 

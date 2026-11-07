@@ -255,9 +255,10 @@ your computer and on the server.
 5. Copy `deploy/Caddyfile` or `deploy/nginx.conf` to your proxy, and write your own host name in
    place of `chat.example.com`.
 
-`production.toml` sets no `wall_time`. That limit also applies to every WebSocket connection, so it
-would close each chat after that time. The memory limit, the size limit of a message and the
-5 minutes without a message bound each connection.
+`production.toml` sets `wall_time` to 30 seconds. This limit ends a request that runs too long. It
+does not close a WebSocket connection, which stays open after its request ends. The memory limit,
+the size limit of a message and the 5 minutes without a message bound each connection.
+`[server.connection] max_lifetime` closes a connection after one day.
 
 ### The proxy
 

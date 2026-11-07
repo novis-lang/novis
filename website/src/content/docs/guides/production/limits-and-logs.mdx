@@ -28,6 +28,15 @@ cpu_time = "60s"
 A request that goes over a limit stops, and the other requests keep running.
 [Limits](/guides/how-to-use/limits/) explains each key.
 
+A WebSocket or an event stream stays open after the request that opened it ends. `wall_time` ends
+that request, and it does not close the connection. `memory` and `cpu_time` apply to the connection
+too. `[server.connection] max_lifetime` closes a connection after one day by default:
+
+```toml
+[server.connection]
+max_lifetime = "12h"
+```
+
 ## Limits for the server
 
 The `[server]` block limits the whole server:

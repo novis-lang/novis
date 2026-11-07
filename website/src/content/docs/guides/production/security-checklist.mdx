@@ -24,6 +24,9 @@ explains it.
   [Reference: secrets from files](/reference/config/secrets-from-files/)
 - `[limits]` sets `memory` and `wall_time`, and `[limits.hard]` sets a maximum.
   [Limits and logs](/guides/production/limits-and-logs/)
+- You know what closes a WebSocket or an event stream. `wall_time` does not close it.
+  `[server.connection] max_lifetime` does, after one day by default.
+  [Limits and logs](/guides/production/limits-and-logs/)
 
 ## The files
 

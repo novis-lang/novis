@@ -33,10 +33,11 @@ connect = ["chat"]
 
 # A request and a WebSocket connection may each use at most 32 MB of memory.
 # `App::socket` gives each connection a lower limit of 8 MB.
-# This file sets no `wall_time`. That limit also applies to a WebSocket connection,
-# so it would close every chat after that time.
+# A request may run for at most 30 seconds. This also ends the request that opens a WebSocket.
+# The connection stays open. `[server.connection] max_lifetime` closes it after one day.
 [limits]
 memory = "32M"
+wall_time = "30s"
 
 # No program may raise its memory limit above 64 MB.
 [limits.hard]

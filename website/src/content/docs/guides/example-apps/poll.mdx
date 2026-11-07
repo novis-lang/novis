@@ -275,8 +275,9 @@ https://poll.example.com` with each vote. Novis compares it with the scheme and 
 request. Without `trusted_proxies`, Novis does not read `X-Forwarded-Proto`, so it sees `http`. The
 two do not match, and every vote gets the status `403`.
 
-`production.toml` sets no `wall_time`. That limit also closes every event stream when it is reached.
-The browser then connects again, so a stream would end and start again all the time.
+`production.toml` sets `wall_time` to 30 seconds. This limit ends a request that runs too long. It
+does not close an event stream, which stays open after its request ends. `[server.connection]
+max_lifetime` closes a stream after one day, and the browser then connects again.
 
 With HTTP/1.1, a browser opens at most six connections to one host. Each open poll page uses one of
 them. Through HTTP/2, all pages share one connection, so a visitor can open many polls at once. Both

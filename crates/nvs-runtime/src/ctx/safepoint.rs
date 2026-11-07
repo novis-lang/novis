@@ -260,6 +260,29 @@ impl Ctx {
         self.publish_wall_time();
     }
 
+    /// [`Self::reroot`] for the upgraded connection this context starts next,
+    /// whose tree states no `[limits] wall_time`.
+    ///
+    /// `rule:concurrency/a-connection-is-a-root-isolate`: `wall_time` bounds
+    /// the request that upgraded, and that request has ended by now. A
+    /// connection that kept its tree would end at that request's deadline, so
+    /// every event stream under a `wall_time` would close and reconnect over
+    /// and over. What ends a connection instead is
+    /// `rule:concurrency/connection-bounds-are-finite`'s lifetime, and its
+    /// `memory` and `cpu_time` still apply, the CPU ceiling from a fresh count.
+    ///
+    /// A request this connection frames later reroots again and publishes its
+    /// own `wall_time` ([`Self::reroot`], then the configuration it runs under).
+    ///
+    /// **What it spends:** what [`Self::reroot`] does, once per upgrade.
+    pub fn reroot_for_a_connection(&mut self) {
+        self.reroot();
+        // A fresh tree, so nothing watches its `wall_time` yet and no wake is owed.
+        self.tree
+            .wall_time
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+    }
+
     /// Marks this connection's context as between requests: the place its last
     /// request held has gone back, and the next request has not started.
     ///

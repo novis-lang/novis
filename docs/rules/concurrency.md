@@ -927,6 +927,14 @@ a connection is a root, sees only what its arguments copied in, and ends when th
 timeout fires or a budget is exceeded. A fatal error inside one tears down the connection and nothing
 wider ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)), and the peer is told with a defined close code.
 
+**`wall_time` bounds the request that upgrades, and never the connection.** The connection starts a
+limit tree of its own, so `memory` and `cpu_time` apply to it from a fresh count, and its tree states
+no wall deadline. What ends it in time is [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite)'s lifetime,
+which every deployment has and no `upgrade` can remove. A connection that kept the request's deadline
+closed at it: every event stream under a `wall_time` ended and reconnected, and an operator who
+followed the security checklist broke every live page. An application cannot exempt one door either,
+because `limits:` on an upgrade only narrows.
+
 - **Memory:** each open connection holds an arena and a task stack for as long as the peer keeps it
   open, idle or not. Memory scales with concurrent connections and not with the request rate, so a
   connection-heavy deployment is sized for its connections, and ten thousand idle connections cost ten
@@ -936,6 +944,9 @@ wider ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)), and th
 - **A connection as a suspended request.** A request's budget, teardown and observability all assume
   it ends, and a request held open for hours would keep its session and cookies for the life of the
   socket, which is what ending the upgrading request prevents.
+- **The request's `wall_time` as a connection's bound too.** A request's time budget is sized for a
+  request, in seconds, and a connection lives for minutes or hours, so one number cannot be right for
+  both; the lifetime is the bound sized for a connection.
 - **A dedicated connection worker pool outside the request path.** It is a second execution model,
   with its own scheduling, isolation and security review, bought for connection counts the audience
   does not have.
@@ -1222,6 +1233,11 @@ other side, is a value any of those keys has: both are refused while the file is
 listener exists. A connection is framed inside the bounds of the snapshot published when it is
 accepted, so a reload reaches the next connection, and a connection already open keeps what it was
 accepted under.
+
+**The lifetime is the time bound a connection has, and `[limits] wall_time` is not one.** The
+`wall_time` of the request that upgraded ends that request and never the connection
+([`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate)), so the security checklist's `wall_time` and a
+live page work together. A connection's tree still keeps `memory` and `cpu_time`.
 
 Each bound ends in a **defined close** rather than a reset, and the connection's own loop takes it:
 `receive()` answers `null` and the peer is told which bound it met. A connection that exceeds its
