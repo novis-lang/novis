@@ -43,8 +43,8 @@ stages:
     context: [benches/members/README.md, docs/rules/testing/feature-proofs.md, docs/agent/prose.md]
   - id: 11
     title: "the extension guide shows a crate Core does not ship"
-    status: open
-    context: [website/guides/markdown-extension/README.md, website/src/content/docs/guides/extensions/rust.mdx]
+    status: done
+    context: [website/guides/highlight-extension/README.md, website/src/content/docs/guides/extensions/rust.mdx]
   - id: 12
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -369,6 +369,16 @@ names a Markdown renderer as a sink.
     stays covered by the target's other property, `fromHtml` stable over any input.
     `rule:core-classes/markdown-from-html` now states the unwrap and the narrowed promise. Declined:
     writing every `div` or empty element as HTML, which fills common pages' Markdown with tags.
+22. **The guide's highlighter returns tokens, and Novis writes the HTML** (stage 11). `syntect`
+    builds for `wasm32-wasip2` with `default-syntaxes` and `regex-fancy`, so decision 10's crate
+    stands. The Rust returns `{text, kind}` tokens with a closed set of kinds, and
+    `Example\Highlight\Code` writes `<span class="hl-KIND">` with `html` templates, the colours in a
+    `<style>` it returns. A template escapes an attribute hole for HTML and not for CSS
+    (`rule:core-classes/html-template`'s Declined list), so a `style` hole would teach readers the
+    hazard. Declined: the Rust writing HTML, which a reader would then have to sanitize, and
+    `sanitize` keeps no `class` on a `span`. `syntect`'s `parsing` feature needs `bincode` 1,
+    unmaintained (RUSTSEC-2025-0141, not vulnerable), so `deny.toml` ignores it with a reason: only
+    the guide reaches it, it decodes syntect's built-in grammars, and the guide is not shipped.
 
 ## Stages
 
@@ -625,11 +635,20 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### 11. the extension guide shows a crate Core does not ship
 
-- [ ] The guide's project becomes the highlighter of decision 10. `website/guides/markdown-extension/src/lib.rs:1`
-- [ ] The guide's page explains the new project and links `Core\Markdown`.
+- [x] The guide's project becomes the highlighter of decision 10. `website/guides/highlight-extension/src/lib.rs:1`
+  - [x] `syntect` builds for `wasm32-wasip2` (decision 22), and `tokens` and `languages` export.
+  - [x] `nvs/Code.nvs` writes the tokens with `html` templates, and `styles` gives the colours.
+  - [x] `tests/HighlightTest.nvs` passes 5 of 5, one through `Core\Markdown::toHtml`'s `code`.
+  - [x] `bun nv ext-templates --example` prints `built, verified, tested and called`.
+- [x] The guide's page explains the new project and links `Core\Markdown`.
   `website/src/content/docs/guides/extensions/rust.mdx:1`
-- [ ] The folder is renamed to match the new example, and every link to it is updated.
-  `website/guides/markdown-extension/README.md:1`
+  - [x] Steps 1 to 9 name the new files, and Step 9's demo passes `Code::toHtml` to `code`.
+  - [x] `bun nv proofs --comments` passes the three `.nvs` files.
+- [x] The folder is renamed to match the new example, and every link to it is updated.
+  `website/guides/highlight-extension/README.md:1`
+  - [x] `website/guides/highlight-extension/`, with CI, `ci-changes.ts`, `ext-templates.ts`, the
+    website's loader and README, and `rule:packaging/a-dependency-move-proves-two-things`.
+  - [x] `cargo deny ... check advisories` on the guide is ok.
 
 ### 12. the goal is verified once, and every failure is fixed
 
@@ -641,32 +660,31 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 10 is done. The eight features (`toHtml`, `toHtmlEach`, `fromHtml`, `live`, `Live::push`,
-`Live::finish`, `Update::done`, `Update::open`) each owe nothing in `bun nv proofs --id`.
-- **Green, on the proof binary**: `bun nv proofs --run --only <the eight> --no-perf` gives 24
-  examples ok, 11 attacks ok, no gaps; `--overshoot` is green, and `toHtmlEach`'s flood attack
-  peaks at 0.33x its limit.
-- **The four attack bugs are fixed.** `dbe3ab8b`: `ClassDesc` has a `free` hook that `dismantle`
-  runs (a runtime change, one word per class and one branch per object freed), and
-  `instance::FREES_STATE` sets it for `Live`, so an abandoned `Live` frees its state; a callback
-  re-entering its own `Live` throws a `RuntimeError`. `4bec7d46`: `groups::Balance` counts open
-  `svg`/`math` instead of scanning the stack (test `a_run_of_unclosed_raw_tags_costs_linear_work`,
-  green by name; the catalogue holds only other libraries' bugs, so no entry). `e576e370`:
-  `segments::parse_cost` (text plus 512 bytes a line) is asked of the limit before every parse of
-  uncut text, in `cut`, `definitions` and Live; `rule:core-classes/markdown-chunks` says so.
-- Perf: eight records in `data/perf/members.ndjson`, their shares in `bench-budget.json`, and
-  `members.md` rendered. `bun nv scaling --budget --write` exits 1 on twelve
-  `benches/members/novis/Spreadsheet-*` benches over budget, which this goal did not touch.
-- Sweep reds were stale again: run 42359979484 is on `26dda36`, before `f13f4064`'s Miri skips, and
-  no `env-secret-proofs` check or log exists.
+Stages 1 to 11 are done. Stage 11 made the extension guide a syntax highlighter on `syntect`
+(decision 22) in `website/guides/highlight-extension/`; the guide check
+`bun nv ext-templates --example` is green on the debug binary. The folder moved file by file:
+a whole-folder `git mv` was refused with "Permission denied", most likely VS Code's language
+server watching it.
+- The eight Markdown features owe nothing in `bun nv proofs --id` (stage 10).
+- The sweep reds were stale: run 42359979484 is on `26dda36`. Its three timed-out Miri tests
+  (`json::tests::a_response_document_of_any_size_peaks_at_its_size_plus_one_chunk`,
+  `allocations_per_document_byte_do_not_grow_with_the_document`, `request::tests::json::
+  a_decoded_body_of_any_size_is_held_once`) each have a `cfg_attr(miri, ignore)` on main. No
+  `env-secret-proofs` check or log exists.
+- `bun nv rules --render` also wrote fragments earlier stages never rendered into
+  `docs/rules/core-classes.md`; that is its own commit.
 
 ### Next
 
-Stage 11, the extension guide (decision 10): its checkpoints go under its items first. It touches
-only `website/guides/markdown-extension/` and `website/src/content/docs/guides/extensions/rust.mdx`.
-Then stage 12, the gate.
+Stage 12, the gate: `looper verify` in the background, then the goal-end gates of AGENTS.md
+§ *In the loop* (`bun nv verify --doc`, `bun nv owners --closes markdown`, `bun nv ci --check`).
+`website/src/data/core.json` has no `Core\Markdown` yet, so the guide's link
+`/reference/core/markdown/tohtml/` is broken until `bun nv render --website` runs on a binary
+built from the tree. `bun nv scaling --budget --write` exits 1 on twelve
+`benches/members/novis/Spreadsheet-*` benches this goal did not touch.
 
-Possibly red at the gate, not run this session: a runtime test that counts a `ClassDesc`'s fields
+Possibly red at the gate, not run this session: `tools/nv/test/ext-templates.test.ts` (it now
+names `highlight.wasm` and `highlighter.nvsx`); a runtime test that counts a `ClassDesc`'s fields
 or debug-prints one; a Live test that expects the old `lost its state` fatal; a `toHtmlEach` or
 Live test under a low memory limit with a large single block, which the per-line cost now refuses
 sooner; a conformance case or PDF test that sanitizes `<p>` around a `<table>` with no

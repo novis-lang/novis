@@ -1,10 +1,10 @@
 // `bun nv ext-templates`: the two `nvs ext new` templates, each written, built, loaded, tested and
-// called, as an extension author would, and the Markdown example the website's extension guide
+// called, as an extension author would, and the syntax highlighter the website's extension guide
 // walks through.
 //
 //     bun nv ext-templates --lang rust      the Rust template
 //     bun nv ext-templates --lang c         the C template, which needs wasi-sdk and wit-bindgen
-//     bun nv ext-templates --example        the example under `website/guides/markdown-extension/`
+//     bun nv ext-templates --example        the example under `website/guides/highlight-extension/`
 //     bun nv ext-templates                  all three
 //
 // For each language this writes the template with `nvs ext new` under `.agent-tmp/ext-templates/`,
@@ -47,14 +47,16 @@ const PROGRAM = '<?nvs\nuse Example\\Greeting;\n\necho Greeting::hello("Ada"), "
 const PRINTS = "Hello, Ada!";
 
 /** The example the website's guide walks through, repository-relative. */
-export const EXAMPLE = "website/guides/markdown-extension";
+export const EXAMPLE = "website/guides/highlight-extension";
 /** The file `nvs ext build` writes for the example: its class's last name, lower-cased. */
-const EXAMPLE_NVSX = "parser.nvsx";
-/** The program the example leg runs beside the demo page, and what it prints. It calls the class
- * the package carries, which calls both of the component's functions. */
+const EXAMPLE_NVSX = "highlighter.nvsx";
+/** The program the example leg runs beside the demo page, and what it prints. It passes the class
+ * the package carries to `Core\Markdown::toHtml`'s `code` callback, as the demo page does. */
 const EXAMPLE_PROGRAM =
-  '<?nvs\nuse Example\\Markdown\\Document;\n\necho Document::outline("# Tea\\n## Green"), Document::render("**strong**");\n';
-const EXAMPLE_PRINTS = "<ul><li>Tea</li><li>Green</li></ul><p><strong>strong</strong></p>";
+  '<?nvs\nuse Core\\Html\\Markup;\nuse Example\\Highlight\\Code;\n\n' +
+  'echo Core\\Markdown::toHtml("```rust\\nlet x = 1;\\n```", code: fn (string $language, string $code): ?Markup => Code::toHtml($language, $code));\n';
+const EXAMPLE_PRINTS =
+  '<pre class="hl"><code><span class="hl-keyword">let</span> x <span class="hl-keyword">=</span> <span class="hl-number">1</span>;\n</code></pre>';
 
 // A cold Rust build compiles `wit-bindgen` and its dependencies first.
 const BUILD_TIMEOUT_MS = 15 * 60_000;
@@ -71,7 +73,7 @@ function help(): string {
     "",
     "options:",
     "  --lang {rust,c}  one template",
-    "  --example        the Markdown example under website/guides/markdown-extension/",
+    "  --example        the syntax highlighter under website/guides/highlight-extension/",
     "",
     "Without an option, both templates and the example.",
     "",
@@ -154,7 +156,7 @@ export function exampleOwns(path: string): boolean {
 /** Every step of the guide's example, in `scratch`, which is empty when this starts. */
 async function exampleLeg(nvs: string, scratch: string): Promise<void> {
   const source = join(ROOT, EXAMPLE);
-  const project = join(scratch, "markdown-extension");
+  const project = join(scratch, "highlight-extension");
   cpSync(source, project, { recursive: true, filter: (from) => exampleOwns(relative(source, from)) });
   const fresh = join(scratch, "fresh");
   await step([nvs, "ext", "new", "--lang", "rust", fresh], scratch);
@@ -210,7 +212,7 @@ export async function run(args: string[]): Promise<number> {
   const nvs = process.env.NVS_BIN || covwsNvs();
   let failed = false;
   for (const lang of legs) {
-    const name = lang === "example" ? "markdown example" : `${lang} template`;
+    const name = lang === "example" ? "highlighter example" : `${lang} template`;
     if (lang === "c") {
       const missing = cToolsMissing(process.env);
       if (missing.length > 0) {

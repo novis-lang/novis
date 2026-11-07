@@ -1,0 +1,17 @@
+# The manifest of this extension. `nvs ext build` reads it.
+class = "Example\\Highlight\\Highlighter"
+interface = "example:highlight/api"
+# The wasm file that `cargo build --release --target wasm32-wasip2` writes.
+module = "target/wasm32-wasip2/release/highlight.wasm"
+# The folder of the Novis classes that are packed with the extension.
+source = "nvs"
+
+# One `[[methods]]` table for each function in the `api` interface.
+# The signature is written in Novis.
+[[methods]]
+signature = "tokens(string $language, string $code): ?array<{text: string, kind: string}>"
+help = "Splits `code` into tokens with the grammar of `language`. Returns `null` when there is no grammar for `language`."
+
+[[methods]]
+signature = "languages(): array<string>"
+help = "Returns the name of every language the extension has a grammar for."

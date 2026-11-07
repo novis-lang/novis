@@ -1,0 +1,29 @@
+<?nvs
+// A page with a form. You write Markdown in the box, and the page shows it as HTML.
+// Each code block that names a language gets colors.
+// Start it with `nvs serve index.nvs` in this folder, after you build the extension.
+
+use Core\Html\Markup;
+use Core\Markdown;
+use Example\Highlight\Code;
+
+// The text that the form sent. The first time, there is no form, so the page uses an example.
+tainted string $text = Core\Request::post('text') ?? "# Rust\n\n```rust\n// Add two numbers.\nfn add(a: i64, b: i64) -> i64 {\n    a + b\n}\n```";
+
+// `Markdown::toHtml` calls `Code::toHtml` for each code block that names a language.
+// If `Code::toHtml` returns `null`, the block is written as plain text.
+Markup $preview = Markdown::toHtml($text, code: fn (string $language, string $code): ?Markup => Code::toHtml($language, $code));
+
+// The colors of each kind of token.
+Markup $styles = Code::styles();
+
+echo html`<!doctype html>
+<title>Markdown preview</title>
+{$styles}
+<form method="post">
+  <textarea name="text" rows="10" cols="60">{$text}</textarea>
+  <button>Show</button>
+</form>
+<h2>Preview</h2>
+{$preview}
+`;

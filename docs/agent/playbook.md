@@ -35,6 +35,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `crates/nvs-stdlib/src/xml.rs`) and `every_text_position_is_tainted` (`xml.rs`). Check a new
   variant with `cargo clippy --all-targets` before the first test run. See `crates/nvs-stdlib/src/registry.rs`.
   `until: gone crates/nvs-stdlib/src/xml.rs:fn every_text_position_is_tainted`
+- **`git mv` of a whole folder fails with "Permission denied" on Windows while an editor watches it.**
+  The user's VS Code language server can hold the directory. Move each tracked file with
+  `git mv <file> <new path>` into folders you create, then delete the old folder once it is empty.
+  See `tools/nv/cmd/ext-templates.ts`.
 - **Git Bash on Windows rewrites a leading-slash argument into a path under its own install.**
   `bun nv site --questions --stamp /reference/core/json/` arrives as `C:/Program Files/Git/reference/...`
   and answers "no built page has this URL". Prefix the call with `MSYS_NO_PATHCONV=1`. See `tools/nv/cmd/site.ts`.

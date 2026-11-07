@@ -1,0 +1,47 @@
+<?nvs
+// Tests for the extension. `nvs ext test` runs them with the built `.nvsx` loaded.
+
+use Core\Html;
+use Core\Html\Markup;
+use Core\Markdown;
+use Core\Test;
+use Example\Highlight\Code;
+use Example\Highlight\Highlighter;
+
+class HighlightTest
+{
+    #[Test]
+    public function tokensSplitsCodeByKind(): void
+    {
+        array<{ text: string, kind: string }> $tokens = Highlighter::tokens('rust', 'let x = 1;') ?? [];
+        Test::assertSame($tokens[0]->text, 'let');
+        Test::assertSame($tokens[0]->kind, 'keyword');
+    }
+
+    #[Test]
+    public function anUnknownLanguageReturnsNull(): void
+    {
+        Test::assertNull(Highlighter::tokens('no-such-language', 'x'));
+    }
+
+    #[Test]
+    public function languagesListsRust(): void
+    {
+        Test::assertContains(Highlighter::languages(), 'Rust');
+    }
+
+    #[Test]
+    public function toHtmlEscapesTheCode(): void
+    {
+        Test::assertSame(Html::toSource(Code::toHtml('txt', '<b>') ?? html``,'comparing the HTML'), '<pre class="hl"><code>&lt;b&gt;</code></pre>');
+    }
+
+    #[Test]
+    public function markdownUsesItForACodeBlock(): void
+    {
+        Markup $html = Markdown::toHtml("```rust\nlet x = 1;\n```", code: fn (string $language, string $code): ?Markup => Code::toHtml($language, $code));
+        string $want = '<pre class="hl"><code><span class="hl-keyword">let</span> x <span class="hl-keyword">=</span> <span class="hl-number">1</span>;'
+            . "\n</code></pre>\n";
+        Test::assertSame(Html::toSource($html, 'comparing the HTML'), $want);
+    }
+}

@@ -45,8 +45,8 @@ test("the ext lane covers every file of the guide's example, and the leg copies 
   expect(owned).toContain(`${EXAMPLE}/demo/index.nvs`);
   const uncovered = owned.filter((path) => !lanesFor({ ext: LANES.ext! }, [path])[0]![1]);
   expect(uncovered).toEqual([]);
-  expect(exampleOwns("target/wasm32-wasip2/release/markdown.wasm")).toBe(false);
-  expect(exampleOwns("parser.nvsx")).toBe(false);
+  expect(exampleOwns("target/wasm32-wasip2/release/highlight.wasm")).toBe(false);
+  expect(exampleOwns("highlighter.nvsx")).toBe(false);
   expect(exampleOwns("demo/nvs.toml")).toBe(false);
   expect(exampleOwns("src/lib.rs")).toBe(true);
 });

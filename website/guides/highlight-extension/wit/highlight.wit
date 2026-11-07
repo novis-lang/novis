@@ -1,0 +1,28 @@
+package example:highlight;
+
+/// The functions a Novis program can call. Each one returns a `result`: the
+/// value, or an `error` that the program gets as an exception.
+interface api {
+    use nvs:ext/types@1.0.0.{error};
+
+    /// One piece of the code: its text, and what kind of text it is, such as
+    /// `keyword` or `comment`. The kind is empty for plain text.
+    record token {
+        text: string,
+        kind: string,
+    }
+
+    /// Splits `code` into tokens with the grammar of `language`. Returns
+    /// `none` when the extension has no grammar for `language`.
+    tokens: func(language: string, code: string) -> result<option<list<token>>, error>;
+
+    /// Returns the name of every language the extension has a grammar for.
+    languages: func() -> result<list<string>, error>;
+}
+
+/// What this project builds: the `nvs:ext` world, plus the functions above.
+/// The files under `deps/` define that world. Do not change them.
+world highlight {
+    include nvs:ext/extension@1.0.0;
+    export api;
+}

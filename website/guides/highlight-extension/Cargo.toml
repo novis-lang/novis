@@ -1,5 +1,5 @@
 [package]
-name = "markdown"
+name = "highlight"
 version = "0.1.0"
 edition = "2024"
 publish = false
@@ -10,8 +10,10 @@ crate-type = ["cdylib"]
 
 [dependencies]
 wit-bindgen = "0.63"
-# The Markdown parser. Its `html` feature writes the HTML.
-pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+# The syntax highlighter. `default-syntaxes` contains the grammars of many
+# languages. `regex-fancy` uses a regex library written in Rust, which builds
+# for WebAssembly.
+syntect = { version = "5.3", default-features = false, features = ["default-syntaxes", "regex-fancy"] }
 
 [profile.release]
 opt-level = "s"

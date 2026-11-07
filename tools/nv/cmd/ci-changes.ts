@@ -58,7 +58,7 @@ const USAGE = "usage: nv ci-changes [-h] [--base BASE] [--since-green] [--full] 
  * (`rule:packaging/a-dependency-move-proves-two-things`). */
 export const LOCKFILE_DIRS = [
   "extensions/image", "extensions/intl", "extensions/pdf", "extensions/spreadsheet",
-  "fuzz", "tools/covwrap", "tools/nv-scan", "website/guides/markdown-extension",
+  "fuzz", "tools/covwrap", "tools/nv-scan", "website/guides/highlight-extension",
 ];
 
 // The code the binary is compiled from outside `crates/`: the patched crates under `vendor/`, and the
@@ -129,7 +129,7 @@ export const LANES: Record<string, string[]> = {
   // libwebp's prebuilt library with the tool that rebuilds it. Gates `ext-templates` and `webp-lib`.
   ext: [
     "crates/nvs-ext/", "crates/nvs-cli/src/ext.rs", "crates/nvs-cli/src/ext/", "crates/nvs-cli/templates/ext/",
-    "wit/nvs-ext/", "website/guides/markdown-extension/", "tools/nv/cmd/ext-templates.ts", "rust-toolchain.toml",
+    "wit/nvs-ext/", "website/guides/highlight-extension/", "tools/nv/cmd/ext-templates.ts", "rust-toolchain.toml",
     CI_WORKFLOW, "extensions/image/libwebp/", "tools/nv/cmd/webp-lib.ts",
   ],
   // The VS Code client, and every crate with it: the protocol suite spawns the real `nvs lsp` and the
