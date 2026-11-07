@@ -9,6 +9,12 @@
 // `fuzz/seeds/<target>/` (`parse`'s for `ast`) and its dictionary from `fuzz/dicts/<target>.dict`
 // (`markdown`'s for `markdown_comrak`) when it has one.
 //
+// The target runs in libFuzzer's fork mode, on half the distro's cores but no more jobs than it has free
+// GiB (`JOBS`), so a run takes about its time on one core divided by the jobs. `-runs`
+// and `-max_total_time` bound the whole run, not each job. Fork mode would skip an input that times out
+// or runs out of memory, so `-ignore_timeouts=0 -ignore_ooms=0` stop on one as a single process does.
+// A crash stops every job and prints the failing job's log.
+//
 // The sync runs `git clean -ffdx` in the copy, so nothing the run keeps lives there. The build goes to
 // `FUZZ_TARGET`, the corpus a run grows to `CORPUS/<target>/`, and a crash's input to
 // `ARTIFACTS/<target>/`, all on the distro's own disk. The corpus carries over from one run to the next.
@@ -17,7 +23,8 @@
 //
 // Windows only, since on Linux `cargo +nightly fuzz run` is the same run. It exits 2 on a usage error or
 // when the copy cannot be synced. What it spends: the first run builds the fuzz workspace into
-// `FUZZ_TARGET`, which takes minutes cold, and the corpus grows with each run.
+// `FUZZ_TARGET`, which takes minutes cold, the corpus grows with each run, and each job holds up to
+// libFuzzer's 2 GiB `-rss_limit_mb`, which is why the free memory caps the jobs.
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -37,6 +44,13 @@ const FUZZ_TARGET = "/var/tmp/nvs-target-wsl-fuzz";
 const CORPUS = "/var/tmp/nvs-fuzz-corpus";
 /** Each target's crash inputs. */
 const ARTIFACTS = "/var/tmp/nvs-fuzz-artifacts";
+/**
+ * The `bash` that sets `j` to the fork mode's job count: half the cores, at most one per GiB the
+ * distro has free, and at least one.
+ */
+const JOBS =
+  "j=$(( $(nproc) / 2 )); m=$(( $(awk '/^MemAvailable:/ {print $2}' /proc/meminfo) / 1048576 )); " +
+  "[ \"$m\" -lt \"$j\" ] && j=$m; [ \"$j\" -lt 1 ] && j=1; echo \"fuzz: $j job(s)\"; ";
 /** A cold build and the longest run asked for. */
 const TIMEOUT_MS = 4 * 60 * 60 * 1000;
 
@@ -55,10 +69,11 @@ export function fuzzLine(mirror: string, target: string, limit: string, seeds: s
   const corpus = `${CORPUS}/${target}`;
   const artifacts = `${ARTIFACTS}/${target}/`;
   const dirs = [corpus, ...(seeds === "" ? [] : [seeds])].map(q).join(" ");
-  const flags = [limit, `-artifact_prefix=${artifacts}`, ...(dict === "" ? [] : [`-dict=${dict}`])].map(q).join(" ");
+  const fixed = [limit, "-ignore_timeouts=0", "-ignore_ooms=0", `-artifact_prefix=${artifacts}`];
+  const flags = [...fixed, ...(dict === "" ? [] : [`-dict=${dict}`])].map(q).join(" ");
   return (
-    `mkdir -p ${q(corpus)} ${q(artifacts)} && cd ${q(mirror)} && ` +
-    `cargo +nightly fuzz run --target-dir ${q(FUZZ_TARGET)} ${q(target)} ${dirs} -- ${flags}`
+    `${JOBS}mkdir -p ${q(corpus)} ${q(artifacts)} && cd ${q(mirror)} && ` +
+    `cargo +nightly fuzz run --target-dir ${q(FUZZ_TARGET)} ${q(target)} ${dirs} -- -fork="$j" ${flags}`
   );
 }
 

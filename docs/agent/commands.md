@@ -736,7 +736,8 @@ again on the next call, so a target directory in `/tmp` is gone after any idle g
 pays a cold build. Nothing ages `/var/tmp` out: Ubuntu ships its `q /var/tmp` line commented out.
 
 **`bun nv fuzz <target> --runs <n>` (or `--seconds <n>`) runs one target from Windows.** It syncs the
-same copy of the tree and runs the target there with its seeds and dictionary, as CI does. The build, the
+same copy of the tree and runs the target there with its seeds and dictionary, as CI does, in libFuzzer's
+fork mode on half the cores (fewer when memory is short). `--runs` counts inputs over all jobs. The build, the
 corpus and a crash's input stay on the distro's disk, under `/var/tmp/nvs-target-wsl-fuzz`,
 `/var/tmp/nvs-fuzz-corpus/<target>` and `/var/tmp/nvs-fuzz-artifacts/<target>`, because each sync
 cleans the copy. `tools/nv/cmd/fuzz.ts`'s header is the rest.
