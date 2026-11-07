@@ -3692,6 +3692,19 @@ direction = "to-html"
 input = "x\n+\n-:|\nb"
 html = "<p>x</p>\n<table>\n<thead>\n<tr>\n<th align=\"right\">+</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align=\"right\">b</td>\n</tr>\n</tbody>\n</table>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. cmark-gfm takes a table's header row
+# from a paragraph's text before it reads the paragraph's reference definitions, so the lines
+# before the header row are a plain paragraph and define nothing. pulldown-cmark 0.13.6 read the
+# definitions first, and here the delimiter row was the definition's destination.
+[[bug]]
+id = "pulldown-cmark-table-before-paragraph-definitions"
+library = "pulldown-cmark"
+source = "https://github.com/github/cmark-gfm/blob/master/extensions/table.c"
+class = "wrong-output"
+direction = "to-html"
+input = "[a]: /u\nx\n|-\n\n[b]:\n|-\n\n[a] [b]"
+html = "<p>[a]: /u</p>\n<table>\n<thead>\n<tr>\n<th>x</th>\n</tr>\n</thead>\n</table>\n<table>\n<thead>\n<tr>\n<th>[b]:</th>\n</tr>\n</thead>\n</table>\n<p>[a] [b]</p>\n"
+
 # Found by the `markdown_comrak` differential fuzz target. cmark decodes a fence's info string and
 # then trims it, so `&#32;D` names the language `D`. pulldown-cmark 0.13.6 trims first, and the
 # first word was empty.

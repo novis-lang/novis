@@ -378,6 +378,22 @@ impl<'a, 'b> FirstPass<'a, 'b> {
             return self.parse_fenced_code_block(ix, indent, fence_ch, n);
         }
 
+        // Novis: cmark-gfm reads a paragraph's definitions once the paragraph
+        // closes, and a table that starts in it takes its header row from the
+        // paragraph's text first. So the lines before the header row are a
+        // plain paragraph, and no definition among them is read. The
+        // published 0.13.6 read the definitions first, and a delimiter row
+        // could be a definition's destination.
+        //
+        // ```markdown
+        // [a]: /u
+        // x
+        // |-
+        // ```
+        if bytes[ix] == b'[' && self.table_in_paragraph(ix) {
+            return self.parse_paragraph(ix, None);
+        }
+
         // parse refdef
         while let Some((bytecount, label, link_def)) =
             self.parse_refdef_total(start_ix + line_start.bytes_scanned())
@@ -2113,6 +2129,78 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         });
         self.tree.push();
         self.parse_table(table_cols, ix_new, ix_new + end).unwrap_or(ix)
+    }
+
+    /// Novis: whether [`Self::parse_paragraph`] would start a table in the
+    /// paragraph whose first line starts at `start`. It reads the lines as
+    /// that loop does, and changes nothing. It stops where the paragraph ends,
+    /// so a line is read once here and once by the parse that follows.
+    fn table_in_paragraph(&mut self, start: usize) -> bool {
+        if !self.options.contains(Options::ENABLE_TABLES) {
+            return false;
+        }
+        let visited = std::mem::replace(&mut self.table_visited, false);
+        let found = self.table_in_paragraph_from(start);
+        self.table_visited = visited;
+        found
+    }
+
+    /// [`Self::table_in_paragraph`]'s loop, with `self.table_visited` clear
+    /// when it starts.
+    fn table_in_paragraph_from(&mut self, start: usize) -> bool {
+        let bytes = self.text.as_bytes();
+        if self.scan_table_interrupt(&bytes[start..]).is_some() {
+            return true;
+        }
+        let mut ix = start;
+        loop {
+            crate::steps::add(1);
+            ix += scan_nextline(&bytes[ix..]);
+            if ix >= bytes.len() {
+                return false;
+            }
+            let mut line_start = LineStart::new(&bytes[ix..]);
+            let tree_position = scan_containers(&self.tree, &mut line_start, self.options, false);
+            let current_container = tree_position == self.tree.spine_len();
+            if !line_start.scan_space(4) {
+                let ix_new = ix + line_start.bytes_scanned();
+                if current_container && scan_setext_heading(&bytes[ix_new..]).is_some() {
+                    return false;
+                }
+                if current_container && scan_table_head(&bytes[ix_new..]).0 > 0 {
+                    self.table_visited = true;
+                }
+                if scan_paragraph_interrupt_no_table(
+                    &self.text[ix_new..],
+                    current_container,
+                    self.options.contains(Options::ENABLE_FOOTNOTES),
+                    self.options.contains(Options::ENABLE_DEFINITION_LIST),
+                    &self.tree,
+                    tree_position,
+                ) {
+                    return false;
+                }
+                if self.scan_table_interrupt(&bytes[ix_new..]).is_some() {
+                    return current_container;
+                }
+            } else if current_container {
+                let mut header = line_start.clone();
+                header.scan_all_space();
+                let row = &bytes[ix + header.bytes_scanned()..];
+                let cell = row.get(usize::from(row.first() == Some(&b'|'))..).unwrap_or_default();
+                let filled = cell
+                    .iter()
+                    .find(|&&b| b != b' ' && b != b'\t')
+                    .is_some_and(|&b| b != b'\n' && b != b'\r');
+                if filled && self.scan_table_interrupt(row).is_some() {
+                    return true;
+                }
+            }
+            line_start.scan_all_space();
+            if line_start.is_at_eol() {
+                return false;
+            }
+        }
     }
 
     /// Checks whether we should break a paragraph on the given input.
