@@ -18,8 +18,8 @@ stages:
     context: [website/src/content/docs/guides/how-to-use/index.mdx, website/astro.config.ts]
   - id: 4
     title: "a request's wall_time no longer ends a WebSocket or an event stream it upgraded"
-    status: open
-    context: [docs/rules/concurrency/a-connection-is-a-root-isolate.md, docs/rules/http-server/connection-bounds-are-finite.md, website/src/content/docs/guides/production/security-checklist.mdx]
+    status: done
+    context: [docs/rules/concurrency/a-connection-is-a-root-isolate.md, docs/rules/concurrency/connection-bounds-are-finite.md, website/src/content/docs/guides/production/security-checklist.mdx]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -100,6 +100,12 @@ says which of the two features to pick.
 11. **A policy that names its own `frame-ancestors`** sets `[http.headers] frame_ancestors = false`
     (`crates/nvs-server/src/secure.rs:46`), or Novis appends a second one. Both apps leave
     `frame-ancestors` out of their policy and use the one Novis adds.
+12. **`wall_time` bounds the request that upgrades, and never the connection** (stage 4). Each door
+    starts its connection isolate in a fresh limit tree with no wall deadline
+    (`Ctx::reroot_for_a_connection`, `crates/nvs-runtime/src/ctx/safepoint.rs`). `memory` and
+    `cpu_time` still apply, the CPU from a fresh count, and `[server.connection] max_lifetime` (one
+    day by default) is the time bound. Both rule fragments record it. Both apps' `production.toml`
+    set `wall_time = "30s"`, which follows the security checklist.
 
 ## Stages
 
@@ -158,18 +164,18 @@ Found on 2026-11-05: with `[limits] wall_time = "2s"`, `curl -N /polls/1/events`
 seconds, and every `EventSource` reconnects over and over. The security checklist tells operators to
 set `wall_time`, and `limits:` on an upgrade only narrows, so an app cannot exempt its streams. A
 connection already has its own finite bounds, `[server.connection] idle_timeout` and `max_lifetime`
-(the rule this goal writes, `http-server/connection-bounds-are-finite`), and is a root isolate with its own budget
+(`rule:concurrency/connection-bounds-are-finite`), and is a root isolate with its own budget
 (`rule:concurrency/a-connection-is-a-root-isolate`). The session decides by the priority ordering and
 records the decision in those rules. The safe default: `wall_time` bounds the request that upgrades,
 `max_lifetime` bounds the connection, and `memory` and CPU time apply to both.
 
-- [ ] Reproduce it with a Rust test over a served event stream and a WebSocket under a short
+- [x] Reproduce it with a Rust test over a served event stream and a WebSocket under a short
   `wall_time`. `crates/nvs-server/src/serve.rs:2539`
-- [ ] Fix it, or record why it stays, in both rule fragments, and run `bun nv rules --render`.
+- [x] Fix it, or record why it stays, in both rule fragments, and run `bun nv rules --render`.
   `docs/rules/concurrency/a-connection-is-a-root-isolate.md:1`
-- [ ] Make the checklist say what bounds a connection.
+- [x] Make the checklist say what bounds a connection.
   `website/src/content/docs/guides/production/security-checklist.mdx:25`
-- [ ] Remove the note in each app's `deploy/production.toml` that explains why it sets no `wall_time`,
+- [x] Remove the note in each app's `deploy/production.toml` that explains why it sets no `wall_time`,
   once the fix makes the note untrue. `apps/poll/deploy/production.toml:1`
 
 ### 5. the goal is verified once, and every failure is fixed
@@ -182,44 +188,45 @@ records the decision in those rules. The safe default: `wall_time` bounds the re
 
 ### State
 
-Stages 1 and 2 are done. Stage 2 is `tools/nv/test/realtime-browser.test.ts`: a copy of each app
-under `.agent-tmp/`, served by `nvs serve` on a free port with its own data folder, and five tests
-in Chromium. Chat: a line shows once in another context and `<b>` stays text; the sixth line in ten
-seconds shows the speed notice; after a server stop and a start on the same address the page
-reconnects and shows each line once. Poll: a vote moves the other page's bar, and a second vote from
-the same browser moves it and keeps the total at 1. Every page fails its test on a console error,
-an exception or a CSP violation, and one test injects an inline script to prove such a violation is
-logged and seen. It ran green once by name with `NV_BROWSER=1` (5 pass, about 4 s). CI's `browser`
-job runs it after the registry suite, and `apps/chat/`, `apps/poll/` and the suite gate `browser` in
-`tools/nv/cmd/ci-changes.ts`.
+Stages 1 to 4 are done. Stage 2's suite is `tools/nv/test/realtime-browser.test.ts` (five tests
+in Chromium, run in CI's `browser` job). Stage 3's page is
+`website/src/content/docs/guides/how-to-use/live-updates.mdx`.
 
-Stage 3 is done. `website/src/content/docs/guides/how-to-use/live-updates.mdx` has a table that
-compares an event stream and a WebSocket, the upgrade model, topics, one process, the `Origin` check
-(on a WebSocket and on a `POST`, not on the event stream's `GET`; `crates/nvs-server/src/route.rs:55`)
-and `trusted_proxies`. It is in the sidebar, the how-to-use index and both app pages' `## Read more`,
-with five stamped questions in `website/src/data/questions.json`. `bun nv site --check structure
-guides prose questions` and `bun nv proofs --comments` are green over it. The page says nothing about
-`wall_time`, so stage 4 decides what it says.
+Stage 4 is `b1ce9fe6` (decision 12). An upgraded connection ran in the upgrading request's limit
+tree, so it ended at that request's wall deadline. Both doors in `crates/nvs-server/src/serve.rs`
+now call `Ctx::reroot_for_a_connection` before they start the connection isolate. The served case
+`a_requests_wall_time_does_not_bound_the_connection_it_upgraded` covers both doors under
+`wall_time = "60s"`. It ran green once by name, and red with the fix disabled. By hand, poll under
+`wall_time = "2s"` kept `/polls/1/events` open for curl's full 5 s. Both rule fragments, the
+checklist, the limits page, `live-updates.mdx`'s `## Do and don't`, both app pages and both
+`deploy/production.toml` (now `wall_time = "30s"`) say what closes a connection.
+`bun nv site --check structure guides prose apps`, `bun nv proofs --comments` over the changed files,
+`nvs config check` over both production configs, clippy and rustfmt are green.
 
 Sweep reds: `env-secret-proofs` is defined nowhere in the tree and has no log, a stale service-side
 entry. The nightly Miri reds in `nvs-stdlib` are fixed by `f13f4064`, which is in `main` and not yet
-pushed. No test is expected to go red.
+pushed. No test is expected to go red; a served case that reads a connection's `wall_bound` or a
+tree's CPU count across an upgrade is where one would.
 
 ### Next
 
-**Stage 4**, `wall_time` and long-lived connections, as the stage lists it.
+**Stage 5**, the gate.
 
-- [ ] `crates/nvs-server/src/serve.rs:2539`: a Rust test over a served event stream and a
-  WebSocket under a short `wall_time`.
-- [ ] `docs/rules/concurrency/a-connection-is-a-root-isolate.md:1`: the fix, or the reason it
-  stays, in both rule fragments, then `bun nv rules --render`.
-- [ ] `website/src/content/docs/guides/production/security-checklist.mdx:25` says what bounds a
-  connection.
-- [ ] `website/src/content/docs/guides/example-apps/poll.mdx:278`: the `wall_time` notes on both app
-  pages and in both `deploy/production.toml` go once untrue. If a connection keeps a bound of its
-  own, add one `## Do and don't` line about it to `live-updates.mdx`.
+- [ ] `crates/nvs-runtime/src/ctx/safepoint.rs:278`: start `looper verify` with
+  `run_in_background` and end the turn to wait. It covers `nvs-runtime`, `nvs-server` and the apps.
+- [ ] `crates/nvs-server/src/serve.rs:4976`: fix every failure in one pass, then run it once more.
+- [ ] `docs/rules/concurrency/a-connection-is-a-root-isolate.md:19`: the goal-end gates,
+  `bun nv verify --doc`, `bun nv owners --closes realtime-example-apps` and `bun nv ci --check`.
+  Before the file is deleted, check that each decision lives in a rule, an app or a page.
+- [ ] `tools/nv/test/realtime-browser.test.ts:1`: the acceptance checks `apps-check` and
+  `realtime-browser` (`looper check --name <text>`).
 
 ### Backlog
+
+- A connection's `cpu_time` counts over its whole life from the upgrade. Poll's production
+  `cpu_time = "5s"` may end a busy event stream after many hours of events. Check whether the
+  watchdog charges an unwatched connection isolate at all (`crates/nvs-host/src/watchdog.rs:1348`)
+  and whether a connection wants a per-message budget instead.
 
 - Whether `connect-src 'self'` allows `wss:` to the same host in every supported browser. CSP Level 3
   says it does. Stage 2's Chromium test shows `ws:` over `http:` only (`apps/chat/nvs.toml:14`).
