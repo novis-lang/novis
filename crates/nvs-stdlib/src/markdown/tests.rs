@@ -1105,6 +1105,10 @@ const DOCUMENTS: &[&str] = &[
     // A break at the start of emphasis is written in front of it. The
     // `markdown_from_html` fuzz target found it.
     "*\\\n*ww**\n",
+    // Text after a nested list whose last item no line can continue stays in
+    // a tight item. The `markdown_from_html` fuzz target found the first.
+    "- *\n  *>\n",
+    "- a\n  - # h\n  b\n- c\n",
 ];
 
 #[test]

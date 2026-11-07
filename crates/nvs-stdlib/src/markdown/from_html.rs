@@ -118,10 +118,12 @@ enum Part {
     Quote,
     /// A list, with its marker character: `-` or `*`, `.` or `)`. `first` is
     /// whether an ordered list starts at 1, the one ordered list that may
-    /// interrupt a paragraph.
+    /// interrupt a paragraph. `open` is whether its last item ends in a block
+    /// that the next line could continue.
     List {
         marker: char,
         first: bool,
+        open: bool,
     },
     Table,
     Html,
@@ -132,8 +134,19 @@ impl Part {
     fn interrupts(self) -> bool {
         match self {
             Self::Heading | Self::Fence | Self::Rule | Self::Quote => true,
-            Self::List { marker, first } => matches!(marker, '-' | '*') || first,
+            Self::List { marker, first, .. } => matches!(marker, '-' | '*') || first,
             Self::Paragraph | Self::Table | Self::Html => false,
+        }
+    }
+
+    /// Whether the next line could continue this block: a paragraph's lazy
+    /// line, a table's row or an HTML block's line, or one of them at the end
+    /// of a quote or a list.
+    fn open(self) -> bool {
+        match self {
+            Self::Paragraph | Self::Quote | Self::Table | Self::Html => true,
+            Self::List { open, .. } => open,
+            Self::Heading | Self::Fence | Self::Rule => false,
         }
     }
 }
@@ -141,7 +154,9 @@ impl Part {
 /// `parts` joined into one container's Markdown. A loose container puts a
 /// blank line between every two blocks. A tight one, a list item of a tight
 /// list, puts a line feed where the second block cannot be read as part of
-/// the first, and a blank line elsewhere.
+/// the first, and a blank line elsewhere. After a list whose last block is
+/// closed, a paragraph, heading, fence, rule or quote on the next line ends
+/// the list, so it gets a line feed.
 fn joined(parts: &[(Part, String)], tight: bool) -> Result<String, Fault> {
     let total = parts.iter().map(|(_, text)| text.len() + 2).sum::<usize>();
     work(total + parts.len());
@@ -154,6 +169,10 @@ fn joined(parts: &[(Part, String)], tight: bool) -> Result<String, Fault> {
                 && match before {
                     Part::Heading | Part::Fence | Part::Rule => true,
                     Part::Paragraph => part.interrupts(),
+                    Part::List { open: false, .. } => matches!(
+                        part,
+                        Part::Paragraph | Part::Heading | Part::Fence | Part::Rule | Part::Quote
+                    ),
                     _ => false,
                 };
             out.push_str(if line { "\n" } else { "\n\n" });
@@ -396,11 +415,13 @@ impl Writer {
         });
 
         let mut written = Vec::with_capacity(items.len());
+        let mut open = false;
         for (number, item) in (start..).zip(&items) {
             let mut inner = Vec::new();
             self.task = true;
             self.collect(item, depth, &mut inner)?;
             self.task = false;
+            open = inner.last().is_some_and(|(part, _)| part.open());
             let content = joined(&inner, !loose)?;
             // Only the first number is read, so a later one past nine digits
             // repeats the first.
@@ -424,6 +445,7 @@ impl Writer {
             Part::List {
                 marker,
                 first: start == 1,
+                open,
             },
             text,
         );
