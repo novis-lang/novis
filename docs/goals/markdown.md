@@ -563,17 +563,17 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
 
 ### 9. two fuzz targets, and a differential fuzz against a second engine
 
-- [ ] A `markdown` target. It asserts no panic, a sanitize fixed point, chunked output equal to the
+- [x] A `markdown` target. It asserts no panic, a sanitize fixed point, chunked output equal to the
   whole, and the added-output budget. `fuzz/Cargo.toml:124`
   - [x] `fuzz.rs` gains `markdown_groups`, `markdown_live`, `html_meaning` and
     `MARKDOWN_ADDED_OUTPUT`; the tests' `meaning` and `live_in` use them.
   - [x] `fuzz/fuzz_targets/markdown.rs`, its `[[bin]]`, the `pulldown-cmark` patch row and
     `fuzz/dicts/markdown.dict`.
   - [x] It builds in WSL and runs clean for a first short run (20,000 inputs).
-- [ ] A `markdown_from_html` target. It asserts no panic, an idempotent result, and that the
+- [x] A `markdown_from_html` target. It asserts no panic, an idempotent result, and that the
   Markdown → HTML → Markdown round trip keeps the meaning. `fuzz/Cargo.toml:124`
   - [x] `fuzz/fuzz_targets/markdown_from_html.rs`, its `[[bin]]` and its dictionary.
-  - [ ] It builds in WSL and runs clean for a first short run.
+  - [x] It builds in WSL and runs clean for a first short run.
 - [x] The differential target against the other candidate (decision 9). Each difference becomes a
   catalogue entry or a line in the rule. `fuzz/Cargo.toml:124`
   - [x] `fuzz/fuzz_targets/markdown_comrak.rs` and `comrak` 0.59 in `fuzz/Cargo.toml` alone.
@@ -583,7 +583,7 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
   catalogue entry and a fix.
   - [x] `bun nv fuzz <target> --runs <n>` runs one target in WSL, and CI's `fuzz-smoke` has a
     fourth leg for the two targets.
-  - [ ] `markdown` runs 1,000,000 inputs.
+  - [x] `markdown` runs 1,000,000 inputs.
   - [ ] `markdown_from_html` runs 1,000,000 inputs.
 
 ### 10. the four members carry their feature proofs
@@ -621,58 +621,49 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 9's differential triage goes on. Each 600,000-run pass now gets far before its first find.
-This session landed five commits (`d963408a` to the skips commit):
-- **Ours, fixed and catalogued** (each a `pulldown-cmark-*` entry and a line in the rule's patch
-  list): `[\t]` is not a task marker (`scan_task_list_marker`, only a space, as cmark-gfm's
-  pattern); a task marker after tabs worth four columns is code (the same scan fails inside a
-  partly used tab); a second link label after `\[` is text (`scan_reference` needs the label to
-  start where the `]` ends); an HTML block's end tag such as `</PRE>` is matched in any case
-  (`parse_html_block_type_1_to_5`).
-- **Readings, skipped** (each a comment in the target and a line in `markdown-cost`): a task
-  marker on a line with no list marker (cmark-gfm scans the whole line); a label near 1,000 bytes
-  (spec: 999 characters); `\|` in a code span or raw HTML of a paragraph a table interrupts
-  (cmark-gfm's `insert_paragraph_before`); a `~~~` fence beside a lone `\r`; a blank line after a
-  thematic break in an item (current cmark marks the last child, `blocks.c:1176`); a `<…>`
-  destination with whitespace at either end (cmark trims, the spec keeps). Widened: the lazy type
-  7 skip follows a container across blank lines; the nested-link skip ignores raw `</a>` and also
-  covers a link in an image's text; the title skip covers a title closing early on a `''` line;
-  the lazy-indent skip covers a document with `]:`.
-- **Green, run once by name**: `--lib markdown::` (23), `--test markdown_known_bugs`, and a clean
-  600,000-run `markdown_comrak` pass. A 1,000,000-run pass after it found one more (*Next*). Sweep
-  reds are stale: no `env-secret-proofs` check exists, and the unpushed `f13f4064` is the Miri fix.
+Stage 9 is down to one item: `markdown_from_html` at 1,000,000 clean inputs. The comrak
+differential is stopped (decision 20), and its open find and triage items are gone with it.
+- **`markdown` ran 1,000,000 inputs clean**: 8 libFuzzer jobs of 125,000 (`-jobs=8 -workers=8`)
+  on a build of `05fc53b`, each starting from the 23,851-file corpus, so about 800,000 were new.
+  All 9 earlier crash files under `/var/tmp/nvs-fuzz-artifacts/markdown/` pass on that build.
+- **`markdown_from_html` triage**, this session's commits `b4262c7d` to `76fbb1fe`. `fromHtml`
+  fixes, each with a case in `tests.rs`'s `DOCUMENTS` or the stability test's inputs: a form feed
+  is text, not CSS white space (`css_space`); breaks are counted, and a break at a block's edge
+  is `<br />`, but one lone trailing break is dropped (`Inline::whole`, `turndown-issue-405`); the
+  `www` cut compares bytes (it panicked inside a character); a leading U+FEFF is `&#xFEFF;`; a
+  code span of one space is `` ` ``; an empty list writes nothing; the email cut takes `-_.`
+  after `@`, as `autolink.rs` does; a tight item keeps text after a nested list whose last block
+  no line can continue (`Part::open`). Check fixes in `fuzz.rs`'s `html_meaning`: tabs and CRs
+  fold, a space before `<br>` goes, and a `<br>` at an inline element's edge moves out of it
+  (`breaks_hoisted`). Decision 21: the round trip skips Markdown with raw HTML.
+- **Green, run once by name**: `--lib markdown::` (23), `--test markdown_known_bugs`,
+  `--lib parse_sanitize_serialise_reparse`.
+- Sweep reds were stale: no `env-secret-proofs` check exists, and the three Miri timeouts
+  (`request::tests::json::a_decoded_body_of_any_size_is_held_once`, two `json::tests` 8 MiB
+  tests) are all skipped under Miri by `f13f4064`, which the nightly run's `26dda36` predates.
 
 ### Next
 
-Stage 9, the rest. Each fuzz run is `bun nv fuzz <target> --runs <n>`. A probe under `.agent-tmp/`
-run with `./target/debug/nvs run` shows our HTML (`<?nvs` first, `foreach ([...] as var $t)`).
-`.agent-tmp/cmprobe/` is a scratch crate that prints comrak's raw HTML: in WSL,
-`cd /mnt/e/mwl/.agent-tmp/cmprobe && cargo run -q --offline --target-dir /var/tmp/cmprobe -- "<md>"`
-(`\n`, `\t`, `\0` are expanded, and so are the tokens `BS` `\`, `DQ` `"`, `SQ` `'`, `CR` and
-`CT` U+0010, because shell quoting through WSL eats backslashes). cmark's and cmark-gfm's source
-is read with `gh api repos/<commonmark/cmark|github/cmark-gfm>/contents/<path> --jq .content |
-base64 -d`. Decision 19: for a CommonMark construct, read *current cmark*, not cmark-gfm.
+Stage 9, the last item. `bun nv fuzz markdown_from_html --runs 1000000 > .agent-tmp/fh-long.log
+2>&1` runs it in fork mode, about 900 inputs a second, so a clean run is about 20 minutes; the
+find is in the log's `panicked` and `left:`/`right:` lines and its `0x..` input bytes. A probe
+`.agent-tmp/probe.nvs`, run with `./target/debug/nvs run`, prints Markdown → HTML → `fromHtml` →
+HTML for a list of inputs (`var $md`; a local needs `var`).
 
-- [ ] **First, the open find** (`vendor/pulldown-cmark/src/firstpass.rs:494`) of the 1,000,000-run pass: `[a]:\n-|-\n-|-`. comrak gives
-  `<p>-|-</p>`: a definition on lines 1 and 2, then a paragraph. Ours gives `<p>[a]: -|- -|-</p>`,
-  with no definition and no table. Likely ours: line 3 reads as a delimiter row under line 2, and
-  the patch for a paragraph a table interrupts (`docs/rules/core-classes/markdown-to-html.md:100`)
-  stops the definition. Read cmark-gfm's `table.c` `try_opening_table_header`, which runs after
-  the paragraph's definitions are resolved, then fix it or skip it.
-- [ ] **Triage to 1,000,000 clean runs** of `markdown_comrak` (`fuzz/fuzz_targets/markdown_comrak.rs:213`).
-  The last 600,000-run pass was clean. Run it at `--runs 1000000` and minimize each crash first. Most finds are now one line of input.
-  Our bug: a fix and a catalogue entry. comrak's bug or an older reading: a skip in the target
-  and the list at `docs/rules/core-classes/markdown-cost.md:30`.
-- [ ] **1,000,000 runs each** of `fuzz/fuzz_targets/markdown.rs:22` and
-  `fuzz/fuzz_targets/markdown_from_html.rs:18`, triaged the same way.
-- [ ] **Then run once by name** (`crates/nvs-stdlib/src/markdown/tests.rs:120`): `cargo test --lib markdown::`, `cargo test --test
-  markdown_known_bugs` and `cargo test --lib parse_sanitize_serialise_reparse`.
-- [ ] Delete `.agent-tmp/cmprobe/` (`.agent-tmp/cmprobe/src/main.rs:1`), `probe.nvs`, `gfm/`,
-  `split.ts` and the `*.patch` and `handoff.*` files once stage 9 is done.
+- [ ] **Triage `markdown_from_html` to 1,000,000 clean inputs** (`fuzz/fuzz_targets/markdown_from_html.rs:24`).
+  A run was going on `76fbb1fe` when this session ended; read `.agent-tmp/fh-long.log` first,
+  or start it again. Finds now take minutes each. A `fromHtml` bug: a fix in `from_html.rs` and
+  a case in `DOCUMENTS` (`crates/nvs-stdlib/src/markdown/tests.rs:1069`) or the stability test's
+  inputs. Two renderings a browser draws the same: a fix to `html_meaning` in `fuzz.rs`. A
+  catalogue entry only where a listed library has the bug; the catalogue's libraries are fixed
+  by decision 3, so `fromHtml`'s own finds go into the tests.
+- [ ] Then tick stage 9 (`docs/goals/markdown.md:582`), run once by name `cargo test --lib
+  markdown::` and `cargo test --test markdown_known_bugs`, and delete `.agent-tmp/cmprobe/`, `probe.nvs`, `gfm/`, `split.ts`,
+  `fh-*.log` and the `*.patch` and `handoff.*` files. Then stage 10.
 
 To replay a crash in WSL: `ASAN_OPTIONS=detect_odr_violation=0
-/var/tmp/nvs-target-wsl-fuzz/x86_64-unknown-linux-gnu/release/markdown_comrak <crash-file>`, and
-add `-minimize_crash=1 -runs=30000 -exact_artifact_path=/var/tmp/min-crash` to shrink it.
+/var/tmp/nvs-target-wsl-fuzz/x86_64-unknown-linux-gnu/release/markdown_from_html <crash-file>`
+with a file from `/var/tmp/nvs-fuzz-artifacts/markdown_from_html/`.
 
 Expected red: the floor check `proofs-gate`, until stage 10. Possibly red at the gate, not run
 this session: a conformance case or PDF test that sanitizes `<p>` around a `<table>` with no
