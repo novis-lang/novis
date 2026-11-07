@@ -239,7 +239,7 @@ pub fn markdown_url_allowed(url: &str) -> bool {
 /// of it, and an inline element other than a link left empty is dropped,
 /// since a browser draws both the same. The space at either end of a line
 /// goes, as CSS drops it, also where inline tags stand between it and the
-/// `<br>`. Two renderings that differ only in how
+/// `<br>` or block tag. Two renderings that differ only in how
 /// they lay out their whitespace, attributes and breaks give the same string.
 /// The sanitized answer is the one
 /// [`html_sanitized`] gives, which a second parse builds again, so an `li`
@@ -278,18 +278,26 @@ fn tag_name(piece: &str) -> Option<&str> {
     Some(&inner[..end])
 }
 
-/// Whether `pieces`, walked in their order, reach a `<br>` across the tags of
-/// inline elements alone.
+/// The elements whose tags start or end a line. `pre` is not one, because a
+/// browser keeps the white space in it.
+const LINE_EDGES: [&str; 21] = [
+    "br", "p", "div", "li", "ul", "ol", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "table",
+    "tr", "td", "th", "dl", "dt", "dd", "hr",
+];
+
+/// Whether `pieces`, walked in their order, reach the edge of a line across
+/// the tags of inline elements alone.
 fn reaches_break<'a>(mut pieces: impl Iterator<Item = &'a &'a str>) -> bool {
     pieces
         .find(|piece| tag_name(piece).is_none_or(|name| !INLINE.contains(&name)))
         .and_then(|piece| tag_name(piece))
-        == Some("br")
+        .is_some_and(|name| LINE_EDGES.contains(&name))
 }
 
 /// `html` with the space at either end of a line removed. A line ends at a
-/// `<br>`, and CSS drops the white space at either end of a line, also where
-/// an inline element's tag stands between the space and the `<br>`. `html` is
+/// `<br>` or a tag in [`LINE_EDGES`], and CSS drops the white space at either
+/// end of a line, also where an inline element's tag stands between the space
+/// and that tag. `html` is
 /// [`source`](crate::html::source)'s output with each run of white space one
 /// space, so a `<` outside an attribute's quotes always starts a tag.
 fn line_ends_trimmed(html: &str) -> String {

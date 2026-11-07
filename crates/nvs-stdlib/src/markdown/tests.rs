@@ -1114,6 +1114,9 @@ const DOCUMENTS: &[&str] = &[
     // A `!` right before a link. The `markdown_from_html` fuzz target found
     // that it made the link an image.
     "!o@example.com and \\![a](/b) and ![c](/d)\\![e](/f)\n",
+    // A link whose text starts with a line feed, at the start of a
+    // paragraph. A browser drops the space at the start of the line.
+    "[\n\"]()b<\n",
     "- a\n  - # h\n  b\n- c\n",
 ];
 
