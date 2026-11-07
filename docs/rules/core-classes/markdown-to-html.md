@@ -119,7 +119,8 @@ reference, as in cmark-gfm, a line in a table indented four columns, which ends 
 an indented code block, a blank line indented as far as the content of an item that starts with
 a blank line, which keeps the item open as in cmark, a line in a table that starts an HTML block of type 7, which ends the
 table although it could not interrupt a paragraph, an inline comment or processing instruction that continues on a
-container's next line, which does not include that line's container marker, a CDATA section in a paragraph,
+container's next line, which does not include that line's container marker, a closing tag with a
+line ending before its `>`, which is a tag as the spec says, a CDATA section in a paragraph,
 which ends at the first `]]>` as the spec says, the entities of an autolink, which resolve as cmark resolves them, a tab, which ends an unquoted
 attribute value in raw HTML, and a tab that makes a block quote marker on a
 continuing line indented four columns, which ends the quote. One patch adds what

@@ -3799,6 +3799,18 @@ direction = "to-html"
 input = "a\n-|\nc\n    d"
 html = "<table>\n<thead>\n<tr>\n<th>a</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>c</td>\n</tr>\n</tbody>\n</table>\n<pre><code>d\n</code></pre>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. CommonMark lets a closing tag have spaces,
+# tabs and one line ending before its `>`. pulldown-cmark 0.13.6 allowed no line ending there, so
+# the tag was text.
+[[bug]]
+id = "pulldown-cmark-closing-tag-across-lines"
+library = "pulldown-cmark"
+source = "https://spec.commonmark.org/0.31.2/#closing-tag"
+class = "wrong-output"
+direction = "to-html"
+input = "a<b>c</b\n\t>d"
+html = "<p>a<b>c</b>d</p>\n"
+
 # Found by the `markdown_comrak` differential fuzz target. cmark keeps an item that starts with a
 # blank line open across a blank line indented as far as its content, so the next line is in the
 # item. pulldown-cmark 0.13.6 ended the item at any blank line.

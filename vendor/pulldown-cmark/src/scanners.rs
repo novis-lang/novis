@@ -1399,6 +1399,24 @@ pub(crate) fn scan_html_block_inner(
             }
             i = scan_attribute(data, i, newline_handler, &mut buffer, &mut last_buf_index)?;
         }
+    } else {
+        // Novis: a closing tag's name may be followed by spaces, tabs and up
+        // to one line ending, as CommonMark 0.31.2 says, so `</a\n\t>` is a
+        // tag. The published 0.13.6 allowed no line ending there.
+        i += scan_whitespace_no_nl(&data[i..]);
+        if let Some(eol_bytes) = scan_eol(&data[i..]) {
+            if eol_bytes == 0 {
+                return None;
+            }
+            let handler = newline_handler?;
+            i += eol_bytes;
+            let skipped_bytes = handler(&data[i..]);
+            if skipped_bytes > 0 {
+                buffer.extend(&data[last_buf_index..i]);
+                i += skipped_bytes;
+                last_buf_index = i;
+            }
+        }
     }
 
     i += scan_whitespace_no_nl(&data[i..]);
