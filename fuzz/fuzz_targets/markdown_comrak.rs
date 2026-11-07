@@ -49,14 +49,7 @@ fn options() -> comrak::Options<'static> {
 ///   writes the spaces it stands for.
 /// - A `%` with no two hex digits after it is `%25` (`lone_percent_encoded`).
 fn normal(html: &str) -> String {
-    let mut spaced = String::with_capacity(html.len());
-    for ch in fuzz::html_meaning(html).chars() {
-        let ch = if ch == '\t' { ' ' } else { ch };
-        if !(ch == ' ' && (spaced.ends_with(' ') || spaced.ends_with("<p>"))) {
-            spaced.push(ch);
-        }
-    }
-    let meaning = spaced.replace("> <", "><");
+    let meaning = fuzz::html_meaning(html);
     let mut out = String::with_capacity(meaning.len());
     let mut bare = false;
     let mut rest = meaning.as_str();
@@ -89,7 +82,16 @@ fn normal(html: &str) -> String {
         }
     }
     out.push_str(rest);
-    lone_percent_encoded(&out)
+    // Spaces collapse once the tags are removed, so the text on both sides
+    // of a removed `a` joins as a browser shows it.
+    let mut spaced = String::with_capacity(out.len());
+    for ch in out.chars() {
+        let ch = if ch == '\t' { ' ' } else { ch };
+        if !(ch == ' ' && (spaced.ends_with(' ') || spaced.ends_with("<p>"))) {
+            spaced.push(ch);
+        }
+    }
+    lone_percent_encoded(&spaced.replace("> <", "><"))
 }
 
 /// `html` with each `%` not followed by two hex digits written as `%25`.
@@ -182,6 +184,17 @@ fuzz_target!(|data: &[u8]| {
     // `[a](/u "\")` is a link for it, and text for cmark. A document with a
     // `\` before a title's closing delimiter is not compared.
     if text.as_bytes().windows(2).any(|w| w[0] == b'\\' && matches!(w[1], b'"' | b'\'' | b')')) {
+        return;
+    }
+    // When a paragraph is only reference definitions, a `---` under it is a
+    // thematic break in cmark and CommonMark's reference parser. comrak 0.59
+    // copies cmark-gfm's older code, which writes it as text. A document with
+    // `]:` and a line of `-` alone is not compared.
+    let dashes = |line: &str| {
+        let line = line.trim();
+        !line.is_empty() && line.bytes().all(|b| b == b'-')
+    };
+    if text.contains("]:") && text.split(['\n', '\r']).any(dashes) {
         return;
     }
     // A CDATA section ends at the first `]]>`. cmark's pattern, which comrak
