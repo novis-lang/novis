@@ -1111,6 +1111,9 @@ const DOCUMENTS: &[&str] = &[
     // Text after a nested list whose last item no line can continue stays in
     // a tight item. The `markdown_from_html` fuzz target found the first.
     "- *\n  *>\n",
+    // A `!` right before a link. The `markdown_from_html` fuzz target found
+    // that it made the link an image.
+    "!o@example.com and \\![a](/b) and ![c](/d)\\![e](/f)\n",
     "- a\n  - # h\n  b\n- c\n",
 ];
 

@@ -13,7 +13,7 @@ are. Taking a node does not open a path back into execution, because the member 
 
 **How text stays text.** `` \ ` * _ [ ] < > & | ~ `` always get a backslash, and `# - + = :` and the
 `.` or `)` after a number get one at the start of a line, where `:-` would start a table's
-delimiter row. A backslash cannot stop a GFM extended
+delimiter row. A `!` right before a link's `[` gets one too, or the link would be an image. A backslash cannot stop a GFM extended
 autolink, since the renderer finds those after escapes are read, so a text that would autolink is cut
 with an empty comment `<!-- -->` before the `.` of `www.`, the `:` of `://` and the `@` of an address.
 The sanitizer drops the comment. Emphasis whose content starts or ends with punctuation is written as

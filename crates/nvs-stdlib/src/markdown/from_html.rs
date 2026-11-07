@@ -881,7 +881,18 @@ impl Inline {
     fn markup(&mut self, markup: &str) {
         self.settle();
         self.flush();
-        self.out.push_str(markup);
+        self.open(markup);
+    }
+
+    /// Writes `open`, the start of an element's Markdown, onto the output. A
+    /// `!` right before a link's `[` would make the link an image, so it gets
+    /// a backslash.
+    fn open(&mut self, open: &str) {
+        if open.starts_with('[') && self.out.ends_with('!') {
+            self.out.pop();
+            self.out.push_str("\\!");
+        }
+        self.out.push_str(open);
     }
 
     /// `count` line breaks, held until text follows them.
@@ -949,7 +960,7 @@ impl Inline {
             work(piece.text.len());
             self.settle();
             self.flush();
-            self.out.push_str(open);
+            self.open(open);
             self.out.push_str(&piece.text);
             self.out.push_str(close);
         }
