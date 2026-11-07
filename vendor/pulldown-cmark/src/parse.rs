@@ -1302,9 +1302,16 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
         let dest = unescape(dest, self.tree.is_in_table());
         ix += dest_length;
 
+        let after_dest = ix;
         scan_separator(&mut ix);
 
-        let title = if let Some((bytes_scanned, t)) = self.scan_link_title(underlying, ix, node) {
+        // Novis: a title must be separated from the destination by spaces,
+        // tabs or a line ending, as CommonMark 0.31.2 says, so `[a](<b>(c))`
+        // is not a link. The published 0.13.6 read `(c)` as its title.
+        let title = if let Some((bytes_scanned, t)) = (ix > after_dest)
+            .then(|| self.scan_link_title(underlying, ix, node))
+            .flatten()
+        {
             ix += bytes_scanned;
             scan_separator(&mut ix);
             t

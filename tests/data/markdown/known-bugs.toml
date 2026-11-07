@@ -3799,6 +3799,18 @@ direction = "to-html"
 input = "a\n-|\nc\n    d"
 html = "<table>\n<thead>\n<tr>\n<th>a</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>c</td>\n</tr>\n</tbody>\n</table>\n<pre><code>d\n</code></pre>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. A link title must be separated from the
+# destination by spaces or tabs, so `[a](<b>(c))` is not a link. pulldown-cmark 0.13.6 read `(c)`
+# as the title of a link to `b`.
+[[bug]]
+id = "pulldown-cmark-title-right-after-destination"
+library = "pulldown-cmark"
+source = "https://spec.commonmark.org/0.31.2/#inline-link"
+class = "wrong-output"
+direction = "to-html"
+input = "[a](<x>(c)) [d](<x> (e))"
+html = "<p>[a]((c)) <a href=\"x\" title=\"e\">d</a></p>\n"
+
 # Found by the `markdown_comrak` differential fuzz target. CommonMark lets a closing tag have spaces,
 # tabs and one line ending before its `>`. pulldown-cmark 0.13.6 allowed no line ending there, so
 # the tag was text.
