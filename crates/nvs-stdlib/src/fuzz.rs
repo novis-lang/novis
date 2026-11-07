@@ -261,7 +261,12 @@ pub fn html_meaning(html: &str) -> String {
             out.push(ch);
         }
     }
-    out.trim().replace("> <", "><").replace("<br> ", "<br>")
+    // A line ends at a `<br>`, and CSS drops the white space at either end of
+    // a line.
+    out.trim()
+        .replace("> <", "><")
+        .replace("<br> ", "<br>")
+        .replace(" <br>", "<br>")
 }
 
 /// [`markdown`]'s HTML, and the work it cost: the engine's steps
