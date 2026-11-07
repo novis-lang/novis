@@ -611,6 +611,14 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         ) {
             return None;
         }
+        // Novis: an HTML block of type 7 cannot interrupt a paragraph, but a
+        // table is not a paragraph, so a line that starts one ends the table,
+        // as in cmark-gfm. The published 0.13.6 read it as a row.
+        if self.text.as_bytes()[ix..].starts_with(b"<")
+            && scan_html_type_7(&self.text.as_bytes()[ix..]).is_some()
+        {
+            return None;
+        }
 
         let (ix, row_ix) = self.parse_table_row_inner(ix, row_cells, missing_empty_cells)?;
         Some((ix, row_ix))

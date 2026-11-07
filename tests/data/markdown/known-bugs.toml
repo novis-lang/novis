@@ -3799,6 +3799,18 @@ direction = "to-html"
 input = "a\n-|\nc\n    d"
 html = "<table>\n<thead>\n<tr>\n<th>a</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>c</td>\n</tr>\n</tbody>\n</table>\n<pre><code>d\n</code></pre>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. An HTML block of type 7 cannot interrupt
+# a paragraph, but a table is not a paragraph, so cmark-gfm ends the table at a line that starts one.
+# pulldown-cmark 0.13.6 read the line as a row.
+[[bug]]
+id = "pulldown-cmark-html-block-ends-table"
+library = "pulldown-cmark"
+source = "https://github.com/github/cmark-gfm/blob/master/extensions/table.c"
+class = "wrong-output"
+direction = "to-html"
+input = "a\n-|\nc\n<b>\nd"
+html = "<table>\n<thead>\n<tr>\n<th>a</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>c</td>\n</tr>\n</tbody>\n</table>\n<b>\nd\n</b>"
+
 # Found by the `markdown_comrak` differential fuzz target. cmark-gfm tries every core block before
 # a table, so a delimiter row that is a list item with text after its marker starts the list.
 # pulldown-cmark 0.13.6 started a table.
