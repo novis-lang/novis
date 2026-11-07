@@ -764,6 +764,10 @@ struct State {
     /// Text read since the last other event, which [`autolink::spans`]
     /// reads as one run.
     pending: String,
+    /// Where the source of the last text added to [`State::pending`] ends.
+    pending_end: Option<usize>,
+    /// Where each backslash-escaped character in [`State::pending`] starts.
+    escapes: Vec<usize>,
     /// The links open around the text being read.
     links: usize,
     /// Whether the text being read is a code block's.
@@ -800,6 +804,8 @@ impl State {
             numbers: HashMap::new(),
             order: Vec::new(),
             pending: String::new(),
+            pending_end: None,
+            escapes: Vec::new(),
             links: 0,
             code: false,
             depth: 0,
@@ -850,8 +856,9 @@ impl<'a, 'h> Renderer<'a, 'h> {
             return;
         }
         let text = std::mem::take(&mut self.pending);
+        let escapes = std::mem::take(&mut self.escapes);
         let mut done = 0;
-        for span in autolink::spans(&text) {
+        for span in autolink::spans(&text, &escapes) {
             self.write(&text[done..span.range.start]);
             let shown = &text[span.range.clone()];
             if let Some(href) = self.link_url(span.url) {
@@ -995,7 +1002,27 @@ impl<'a, 'h> Renderer<'a, 'h> {
             Event::Start(tag) => self.start(tag, range),
             Event::End(tag) => self.end(tag),
             Event::Text(text) if self.code || self.links > 0 => self.write(&text),
-            Event::Text(text) => self.pending.push_str(&text),
+            Event::Text(text) => {
+                // [`autolink::spans`] needs to know where an escaped
+                // character is. The engine gives one either as a piece whose
+                // source is `\` and the character, or as the first character
+                // of a piece that starts after a `\` it read.
+                let whole = self
+                    .text
+                    .get(range.clone())
+                    .is_some_and(|source| source.starts_with('\\') && source != &*text);
+                let after_backslash = self.pending_end != Some(range.start)
+                    && range
+                        .start
+                        .checked_sub(1)
+                        .is_some_and(|at| self.text.as_bytes().get(at) == Some(&b'\\'));
+                if whole || after_backslash {
+                    let at = self.pending.len();
+                    self.escapes.push(at);
+                }
+                self.pending.push_str(&text);
+                self.pending_end = Some(range.end);
+            }
             Event::Code(text) => {
                 self.open("code", Vec::new());
                 self.write(&text);

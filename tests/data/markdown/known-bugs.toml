@@ -3657,6 +3657,18 @@ direction = "to-html"
 input = "x <span a=b\t.>0"
 html = "<p>x &lt;span a=b\t.&gt;0</p>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. cmark-gfm reads a `www.` or URL autolink in
+# the source, where an escaped character is still `\` and the character. The extended autolinks written
+# over pulldown-cmark's text events read the text after its escapes, so `https:/\/example.com` was a link.
+[[bug]]
+id = "pulldown-cmark-autolink-across-an-escape"
+library = "pulldown-cmark"
+source = "https://github.com/github/cmark-gfm/blob/master/extensions/autolink.c"
+class = "wrong-output"
+direction = "to-html"
+input = "a https:/\\/example.com b\n\na www\\.example.com b"
+html = "<p>a https://example.com b</p>\n<p>a www.example.com b</p>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"

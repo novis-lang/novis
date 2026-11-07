@@ -25,8 +25,19 @@ pub(super) struct Span {
 const SCHEMES: &[&str] = &["http://", "https://", "ftp://"];
 
 /// Every extended autolink in `text`, in order and not overlapping.
-pub(super) fn spans(text: &str) -> Vec<Span> {
+///
+/// `escapes` is where each backslash-escaped character of `text` starts, in
+/// order. cmark-gfm reads a `www.` or URL autolink in the source, where an
+/// escaped character is still `\` and the character. So such a link does not
+/// start where its `www.` or scheme holds one, and it ends before one
+/// ([`unescaped`]). An email autolink is read in the text, as cmark-gfm
+/// reads it, so `<foo\+@bar.example.com>` links `foo+@bar.example.com`.
+pub(super) fn spans(text: &str, escapes: &[usize]) -> Vec<Span> {
     let bytes = text.as_bytes();
+    let escaped_in = |range: Range<usize>| {
+        let first = escapes.partition_point(|&at| at < range.start);
+        escapes.get(first).is_some_and(|&at| at < range.end)
+    };
     let mut out = Vec::new();
     let mut done = 0;
     let mut at = 0;
@@ -37,13 +48,15 @@ pub(super) fn spans(text: &str) -> Vec<Span> {
         } else if text[at..].starts_with("www.")
             && before
                 .is_none_or(|b| b.is_ascii_whitespace() || matches!(b, b'*' | b'_' | b'~' | b'('))
+            && !escaped_in(at..at + "www.".len())
         {
-            www(text, at)
+            unescaped(text, escapes, at, |text| www(text, at))
         } else if before.is_none_or(|b| !b.is_ascii_alphanumeric()) {
             SCHEMES
                 .iter()
                 .find(|scheme| text[at..].starts_with(*scheme))
-                .and_then(|scheme| url(text, at, scheme.len()))
+                .filter(|scheme| !escaped_in(at..at + scheme.len()))
+                .and_then(|scheme| unescaped(text, escapes, at, |text| url(text, at, scheme.len())))
         } else {
             None
         };
@@ -57,6 +70,22 @@ pub(super) fn spans(text: &str) -> Vec<Span> {
         }
     }
     out
+}
+
+/// The span `find` reads in `text`, or, when that span holds an escaped
+/// character after `start`, the span it reads in `text` up to that character.
+fn unescaped(
+    text: &str,
+    escapes: &[usize],
+    start: usize,
+    find: impl Fn(&str) -> Option<Span>,
+) -> Option<Span> {
+    let span = find(text)?;
+    let first = escapes.partition_point(|&at| at <= start);
+    match escapes.get(first) {
+        Some(&at) if at < span.range.end => find(&text[..at]),
+        _ => Some(span),
+    }
 }
 
 /// Whether `byte` may appear in a domain: a letter, a digit, `-`, `_` or
