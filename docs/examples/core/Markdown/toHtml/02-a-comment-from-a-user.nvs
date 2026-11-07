@@ -1,0 +1,10 @@
+<?nvs
+// Shows that HTML and links in a user's comment cannot run a script in your page.
+
+string $comment = "Great post! <script>steal(document.cookie)</script>\n\n"
+    . "<b onclick=\"steal()\">Click me</b> or visit [my site](javascript:steal()).\n\n"
+    . "My [real site](https://example.com) is here.\n";
+
+// The `<script>` element is removed. The `<b>` element stays, but without `onclick`.
+// The `javascript:` link is written as plain text. The `https` link stays a link.
+echo Core\Markdown::toHtml($comment);

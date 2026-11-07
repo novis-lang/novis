@@ -1,0 +1,28 @@
+<?nvs
+// Measures converting a short Markdown comment to HTML, as a forum does before it shows a post.
+// bench: iterations 256
+// bench: complexity linear
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $posts = [
+            "Thanks, this **works** now. See [the docs](https://example.com/docs).\n",
+            "# Steps\n\n1. Install it\n2. Run `nvs run app.nvs`\n",
+            "> Quoted text\n\nI agree. <b>Really</b>.\n",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(
+                Core\Html::toSource(Core\Markdown::toHtml($posts[($i % 3) as int]), 'measuring the HTML of the post'),
+            );
+            $i = $i + 1;
+        }
+        // The total depends on every post converted, so no round can be left out.
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1,0 +1,5 @@
+<h1 id="md-install">Install</h1>
+<p>See the <a href="https://docs.example.com/guide/setup">setup guide</a> and the old notes.</p>
+<h2 id="md-first-run">First run</h2>
+<div class="label">shell</div><pre>nvs run app.nvs
+</pre>

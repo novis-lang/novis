@@ -1,0 +1,21 @@
+<?nvs
+// Measures `Core\Markdown::toHtml` on one post, at growing post lengths.
+// bench: start 16
+// bench: max 256
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $post = Core\Str::repeat("Thanks, this **works**. See [the docs](https://example.com/docs).\n\n", $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Html::toSource(Core\Markdown::toHtml($post), 'measuring the HTML of the post'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(16), "\n";

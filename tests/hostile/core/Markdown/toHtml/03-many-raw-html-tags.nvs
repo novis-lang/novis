@@ -1,0 +1,12 @@
+<?nvs
+// Attack: a document of about 1 MB is one long run of HTML tags that are never closed.
+// The time to convert it should grow in step with its length, so it should finish quickly.
+// proof: gap nvs-stdlib/markdown-raw-tag-runs-cost-quadratic-time
+
+// 1. 400,000 `<a>` tags in one paragraph. A link inside a link is not allowed, so each one closes the one before.
+string $links = Core\Str::repeat('<a>', 400000);
+echo 'links: ', Core\Str::length(Core\Html::toSource(Core\Markdown::toHtml($links), "the attack prints the size of the HTML")), " characters\n";
+
+// 2. 200,000 `<div>` tags, each one inside the one before.
+string $blocks = Core\Str::repeat('<div>', 200000);
+echo 'blocks: ', Core\Str::length(Core\Html::toSource(Core\Markdown::toHtml($blocks), "the attack prints the size of the HTML")), " characters\n";

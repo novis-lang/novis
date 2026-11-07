@@ -1,0 +1,39 @@
+<?nvs
+// Shows how to change links, heading ids and code blocks while a docs page is converted.
+
+string $page = "# Install\n\n"
+    . "See the [setup guide](/guide/setup) and the [old notes](/old/notes).\n\n"
+    . "## First run\n\n"
+    . "```shell\nnvs run app.nvs\n```\n";
+
+class Docs
+{
+    // Each link gets the site's address in front. A link to `/old/` is removed and its text stays.
+    public static function link(string $url): ?string
+    {
+        if (Core\Str::startsWith($url, '/old/')) {
+            return null;
+        }
+        return 'https://docs.example.com' . $url;
+    }
+
+    // Each heading gets an `id` from its text. `toHtml` writes `md-` in front of it.
+    public static function heading(int $level, string $text): ?string
+    {
+        return Core\Str::replace(Core\Str::lower($text), ' ', '-');
+    }
+
+    // Each code block that names a language gets a label with the language above it.
+    // The HTML template escapes `$language` and `$code`.
+    public static function code(string $language, string $code): ?Core\Html\Markup
+    {
+        return html`<div class="label">{$language}</div><pre>{$code}</pre>`;
+    }
+}
+
+echo Core\Markdown::toHtml(
+    $page,
+    link: fn (string $url): ?string => Docs::link($url),
+    heading: fn (int $level, string $text): ?string => Docs::heading($level, $text),
+    code: fn (string $language, string $code): ?Core\Html\Markup => Docs::code($language, $code),
+);

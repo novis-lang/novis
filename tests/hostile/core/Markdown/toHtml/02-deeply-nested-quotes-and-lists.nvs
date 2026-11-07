@@ -1,0 +1,16 @@
+<?nvs
+// Attack: a short document nests block quotes and lists thousands of levels deep.
+// The conversion should flatten the deep levels and finish. The program must not crash.
+
+uint $depth = 500;
+while ($depth <= 100000) {
+    // 1. Block quotes inside block quotes, written as `> > > ... a`.
+    string $quotes = Core\Str::repeat('> ', $depth) . 'a';
+    echo 'quotes ', $depth, ': ', Core\Str::length(Core\Html::toSource(Core\Markdown::toHtml($quotes), "the attack prints the size of the HTML")), " characters\n";
+
+    // 2. List items inside list items, written as `- - - ... a`.
+    string $items = Core\Str::repeat('- ', $depth) . 'a';
+    echo 'lists ', $depth, ': ', Core\Str::length(Core\Html::toSource(Core\Markdown::toHtml($items), "the attack prints the size of the HTML")), " characters\n";
+
+    $depth = $depth * 2;
+}

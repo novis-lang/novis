@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to convert a short Markdown post to HTML.
+
+string $post = "# Opening hours\n\n"
+    . "We are open **every day** from 9 to 18.\n\n"
+    . "- Coffee\n"
+    . "- Cake\n\n"
+    . "Read the [full menu](/menu).\n";
+
+// `toHtml` returns a `Core\Html\Markup`. You can print it or write it into a page as it is.
+Core\Html\Markup $html = Core\Markdown::toHtml($post);
+echo $html;
