@@ -19,6 +19,15 @@ request's memory cap, as a random read of an upload part already is. Footnotes a
 so their definitions are held until then. The source is read through the one byte source every such
 member uses (`rule:core-api/a-member-takes-the-source-the-program-holds`).
 
+**The engine reads the document in segments, and both passes cut the same ones.** A segment is a run
+of whole top-level blocks: the text read so far is cut after its second-to-last block, at the next
+line start, so the last block and a reference definition after the block before it can still grow.
+Only complete lines are read, and the text is read again only once it has doubled, so one block as
+long as the document costs linear work. The first pass reads each segment's definitions without its
+inline content. The second renders each segment with the whole document's definitions, which win over
+its own, and with one expansion fuel for the whole document. `rendering_in_chunks_gives_the_same_html_as_the_whole_document`
+also reads every input 1 byte and 7 bytes at a time, which cuts a segment wherever one can be cut.
+
 **`Live`** takes `push(string $piece)`, which returns an object with `done: Core\Html\Markup` (the
 blocks that are finished, to append) and `open: Core\Html\Markup` (the unfinished last block, to
 replace). `finish(): Core\Html\Markup` closes the document. A block is rendered as soon as it is
@@ -26,9 +35,11 @@ closed, so a reference defined after a finished block does not change that block
 and `finish()` joined are the whole document's HTML for a document with no forward reference, and
 `live_never_changes_a_part_it_already_finished` holds for every document.
 
-**Memory:** a file costs one block group plus its reference and footnote definitions. Any other source
-costs the document. `Live` costs its open block plus the definitions. All of it is attributed to the
-request.
+**Memory:** a file costs one segment, its groups' HTML, and its reference and footnote definitions. A
+segment is at most four reads of 64 KiB past its last block, because the text doubles before it is
+read again and a string's capacity can be twice its length. Any other source costs the document as
+well. `Live` costs its open block plus the definitions. All of it is attributed to the request.
+`to_html_each_holds_one_block_group_of_a_file_not_the_document` holds the bound.
 
 **Declined:**
 - **Re-rendering a finished `Live` block when a later reference resolves it.** A caller that appended

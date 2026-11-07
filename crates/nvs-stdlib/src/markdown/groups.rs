@@ -4,13 +4,15 @@
 //!
 //! # One walk, cut where nothing is open
 //!
-//! The engine reads the document once, and one [`Renderer`] walks its events,
-//! as it does for `toHtml`. After each event it asks
-//! [`Renderer::group_ends`], and where that holds it takes the tree built so
-//! far out as a group. Everything that spans groups stays in the renderer's
-//! state: the added-output budget, the footnote numbers and definitions, and
-//! whether the last thing written ends a line. So a group is the slice of the
-//! whole tree that lies between two cuts, and footnotes are the last group.
+//! The engine reads the document in segments ([`super::segments`]), and one
+//! renderer state walks the events of each in turn, as `toHtml`'s walks the
+//! whole document's. After each event the walk asks
+//! [`Renderer::group_ends`](super::Renderer::group_ends), and where that
+//! holds it takes the tree built so far out as a group. Everything that spans
+//! groups stays in the renderer's state: the added-output budget, the
+//! footnote numbers and definitions, and whether the last thing written ends
+//! a line. So a group is the slice of the whole tree that lies between two
+//! cuts, and footnotes are the last group.
 //!
 //! # Raw HTML decides where a cut may go
 //!
@@ -34,10 +36,8 @@
 //! the raw HTML tokenizer's open element names, and the first group's doctype.
 
 use nvs_runtime::Fault;
-use pulldown_cmark::Parser;
 
 use super::callbacks::{Callbacks, Trusted};
-use super::{Renderer, options, prepared};
 use crate::html::{bounded, rebuilt, rebuilt_in_body, source};
 use crate::xml::Parsed;
 
@@ -427,26 +427,13 @@ fn leading_doctype(source: &str) -> &str {
 /// [`super::rendered_with`]'s.
 pub(super) fn grouped_with(
     markdown: &str,
-    member: &str,
+    member: &'static str,
     hooks: &mut dyn Callbacks,
 ) -> Result<Vec<String>, Fault> {
-    let text = prepared(markdown);
-    let mut renderer = Renderer::new(&text, hooks);
-    let mut written = Written::default();
-    let mut out = Vec::new();
-    for (event, range) in Parser::new_ext(&text, options()).into_offset_iter() {
-        renderer.event(event, range);
-        if let Some(fault) = renderer.fault.take() {
-            return Err(fault);
-        }
-        if renderer.group_ends() {
-            let (tree, rebuild, trusted) = renderer.take_group();
-            out.push(written.group(&tree, rebuild, trusted, member)?);
-        }
-    }
-    let (tree, rebuild, trusted) = renderer.finish();
-    if !tree.children.is_empty() {
-        out.push(written.group(&tree, rebuild, trusted, member)?);
-    }
-    Ok(out)
+    super::segments::grouped_in(
+        markdown.as_bytes(),
+        crate::byte_source::READ_CHUNK,
+        member,
+        hooks,
+    )
 }

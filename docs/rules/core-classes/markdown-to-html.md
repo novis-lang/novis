@@ -91,7 +91,10 @@ Every pulldown-cmark failure is written in our layer or is a small patch. NUL, a
 mark, the table and code-block attributes, unused footnotes, extended autolinks and the output budget
 are ours. The patches are tabs after an ATX closing sequence and a closing fence, a vertical tab in an
 indented line, a definition-only list item, a DEL byte in a link destination, indentation inside a
-code span on continuation lines, and emphasis inside a footnote label. comrak's quadratic autolink
+code span on continuation lines, and emphasis inside a footnote label. One patch adds what
+`toHtmlEach` needs (`rule:core-classes/markdown-chunks`): a parser over one segment reads the
+document's reference and footnote definitions and its expansion fuel from outside its text, and
+reports where its top-level blocks start and end after the block pass alone. comrak's quadratic autolink
 scan fails criterion (b), and it is three times slower. A patched engine is vendored under `vendor/`
 with an entry in `[patch.crates-io]`, as `html5ever` is.
 

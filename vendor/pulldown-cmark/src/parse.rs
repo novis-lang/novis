@@ -222,6 +222,9 @@ pub struct Parser<'input, F = DefaultBrokenLinkCallback> {
     // To prevent this, track how much it's expanded and limit it.
     link_ref_expansion_limit: usize,
 
+    // Novis: the definitions read outside `text`, which win over its own.
+    outside: Option<&'input Outside>,
+
     // used by inline passes. store them here for reuse
     inline_stack: InlineStack,
     link_stack: LinkStack,
@@ -267,6 +270,19 @@ impl<'input> Parser<'input, DefaultBrokenLinkCallback> {
     pub fn new_ext(text: &'input str, options: Options) -> Self {
         Self::new_with_broken_link_callback(text, options, None)
     }
+
+    /// Novis: a parser over `text`, one segment of a document, that reads the
+    /// whole document's definitions from `outside`.
+    ///
+    /// A reference label is looked up in `outside` before `text`'s own
+    /// definitions, so the document's first definition wins wherever it is.
+    /// A footnote reference is a reference when `outside` or `text` defines
+    /// its label. The expansion fuel is `outside`'s, shared by every segment.
+    pub fn new_with_outside(text: &'input str, options: Options, outside: &'input Outside) -> Self {
+        let mut parser = Self::new_ext(text, options);
+        parser.outside = Some(outside);
+        parser
+    }
 }
 
 impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
@@ -298,8 +314,42 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
             html_scan_guard,
             // always allow 100KiB
             link_ref_expansion_limit: text.len().max(100_000),
+            outside: None,
             code_delims: CodeDelims::new(),
             math_delims: MathDelims::new(),
+        }
+    }
+
+    /// Novis: where each top-level block of the text starts and ends, in
+    /// order, read from the first pass alone. Call it before the first event:
+    /// the inline pass changes the tree it walks.
+    pub fn block_ranges(&self) -> Vec<Range<usize>> {
+        let mut ranges = Vec::new();
+        let mut at = self.tree.cur();
+        while let Some(ix) = at {
+            crate::steps::add(1);
+            let item = &self.tree[ix].item;
+            ranges.push(item.start..item.end);
+            at = self.tree[ix].next;
+        }
+        ranges
+    }
+
+    /// Novis: the footnote labels the text defines.
+    pub fn footnote_labels(&self) -> impl Iterator<Item = &str> {
+        self.allocs.footdefs.0.keys().map(|label| label.as_ref())
+    }
+
+    /// The expansion fuel left: `outside`'s when there is one.
+    fn fuel(&self) -> usize {
+        self.outside
+            .map_or(self.link_ref_expansion_limit, |outside| outside.fuel.get())
+    }
+
+    fn set_fuel(&mut self, fuel: usize) {
+        match self.outside {
+            Some(outside) => outside.fuel.set(fuel),
+            None => self.link_ref_expansion_limit = fuel,
         }
     }
 
@@ -334,11 +384,17 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
         span: Range<usize>,
         link_type: LinkType,
     ) -> Option<(LinkType, CowStr<'input>, CowStr<'input>)> {
-        if self.link_ref_expansion_limit == 0 {
+        if self.fuel() == 0 {
             return None;
         }
 
-        let (link_type, url, title) = self
+        let outside = self.outside.and_then(|outside| {
+            let at = *outside.refs.get(&UniCase::new(link_label.as_ref().into()))?;
+            let (url, title) = &outside.defs[at];
+            Some((link_type, CowStr::Borrowed(url.as_str()), CowStr::Borrowed(title.as_str())))
+        });
+        let (link_type, url, title) = outside
+            .or_else(|| self
             .allocs
             .refdefs
             .get(link_label.as_ref())
@@ -368,14 +424,12 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
                     }
                     None => None,
                 }
-            })?;
+            }))?;
 
         // Limit expansion from link references.
         // This isn't a problem for footnotes, because multiple references to the same one
         // reuse the same node, but links/images get their HREF/SRC copied.
-        self.link_ref_expansion_limit = self
-            .link_ref_expansion_limit
-            .saturating_sub(url.len() + title.len());
+        self.set_fuel(self.fuel().saturating_sub(url.len() + title.len()));
 
         Some((link_type, url, title))
     }
@@ -789,7 +843,15 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
                                 {
                                     def.use_count += 1;
                                 }
+                                // Novis: a label defined outside the text is
+                                // a reference too.
+                                let outside = self.outside.is_some_and(|outside| {
+                                    outside.notes.contains(&UniCase::new(
+                                        self.allocs.cows[footref.0].as_ref().into(),
+                                    ))
+                                });
                                 if !self.options.has_gfm_footnotes()
+                                    || outside
                                     || self.allocs.footdefs.contains(&self.allocs.cows[footref.0])
                                 {
                                     // If this came from a MaybeImage, then the `!` prefix
@@ -2086,6 +2148,62 @@ pub struct RefDefs<'input>(pub(crate) HashMap<LinkLabel<'input>, LinkDef<'input>
 /// Keeps track of the footnote definitions defined in the document.
 #[derive(Clone, Default, Debug)]
 pub struct FootnoteDefs<'input>(pub(crate) HashMap<FootnoteLabel<'input>, FootnoteDef>);
+
+/// Novis: the definitions of a whole document read in segments, which a
+/// [`Parser`] over one segment reads first ([`Parser::new_with_outside`]).
+///
+/// It owns its strings, so it outlives each segment's text. What it spends is
+/// every reference definition's label, URL and title, and every footnote
+/// label, which is what a document read twice must keep between its passes.
+#[derive(Debug, Default)]
+pub struct Outside {
+    /// Each label's index in `defs`. An index and not the strings, so a
+    /// lookup with a borrowed label gives strings that live as long as `self`.
+    refs: HashMap<UniCase<CowStr<'static>>, usize>,
+    /// Each definition's URL and title.
+    defs: Vec<(String, String)>,
+    notes: std::collections::HashSet<UniCase<CowStr<'static>>>,
+    fuel: Cell<usize>,
+}
+
+impl Outside {
+    /// Sets the bytes the references may add at their uses: the whole
+    /// document's length or 100 KiB, whichever is more, as a parser over the
+    /// whole document allows. Until it is called, a reference adds nothing.
+    pub fn allow(&mut self, document_len: usize) {
+        self.fuel.set(document_len.max(100_000));
+    }
+
+    /// Adds the definitions `parser`'s text holds. A label already defined
+    /// keeps its first definition, so segments are added in document order.
+    /// Call it before the first event.
+    pub fn add<F>(&mut self, parser: &Parser<'_, F>) {
+        for (label, def) in parser.allocs.refdefs.0.iter() {
+            crate::steps::add(1);
+            let label: CowStr<'static> = label.as_ref().to_owned().into();
+            if let std::collections::hash_map::Entry::Vacant(entry) =
+                self.refs.entry(UniCase::new(label))
+            {
+                entry.insert(self.defs.len());
+                let title = def.title.as_ref().map_or("", |title| title.as_ref());
+                self.defs
+                    .push((def.dest.as_ref().to_owned(), title.to_owned()));
+            }
+        }
+        for label in parser.allocs.footdefs.0.keys() {
+            crate::steps::add(1);
+            let label: CowStr<'static> = label.as_ref().to_owned().into();
+            self.notes.insert(UniCase::new(label));
+        }
+    }
+
+    /// The bytes it holds, for a memory account.
+    pub fn bytes(&self) -> usize {
+        let labels: usize = self.refs.keys().map(|label| label.len()).sum();
+        let defs: usize = self.defs.iter().map(|(url, title)| url.len() + title.len()).sum();
+        labels + defs + self.notes.iter().map(|label| label.len()).sum::<usize>()
+    }
+}
 
 impl<'input, 'b, 's> RefDefs<'input>
 where

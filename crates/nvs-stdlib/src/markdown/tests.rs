@@ -670,9 +670,15 @@ fn a_code_callback_replaces_a_fenced_block() {
     assert!(!out.contains('\u{E000}'), "no token is left: {out}");
 }
 
-/// `markdown` written one block group at a time.
+/// `markdown` written one block group at a time, read in one piece.
 fn grouped(markdown: &str) -> Vec<String> {
     groups::grouped_with(markdown, "a test", &mut NoCallbacks).expect("no limit in a test")
+}
+
+/// `markdown` written one block group at a time, read `piece` bytes at a time.
+fn grouped_in(markdown: &str, piece: usize) -> Vec<String> {
+    segments::grouped_in(markdown.as_bytes(), piece, "a test", &mut NoCallbacks)
+        .expect("no limit in a test")
 }
 
 /// Every to-html entry of the known-bug catalogue, as its id and its input
@@ -731,16 +737,33 @@ fn rendering_in_chunks_gives_the_same_html_as_the_whole_document() {
         ]
         .map(|text| ("inline".to_owned(), text.to_owned())),
     );
+    // Each spec file whole is one more document, with forward references
+    // and footnotes across many segments.
+    for file in ["commonmark-0.31.2.txt", "gfm-0.29.txt"] {
+        let joined: Vec<String> = examples(file).into_iter().map(|e| e.markdown).collect();
+        inputs.push((format!("{file} joined"), joined.join("\n")));
+    }
     let mut split = 0;
     let report: Vec<String> = inputs
         .iter()
-        .filter_map(|(id, markdown)| {
+        .flat_map(|(id, markdown)| {
             let whole = rendered(markdown, "a test").expect("no limit in a test");
             let groups = grouped(markdown);
             split += usize::from(groups.len() > 1);
-            let joined = groups.concat();
-            (joined != whole)
-                .then(|| format!("{id} {markdown:?}\n  whole  {whole:?}\n  groups {groups:?}"))
+            // A piece of 1 byte cuts a segment wherever one can be cut, and
+            // 7 bytes splits UTF-8 sequences and CR LF pairs elsewhere.
+            [groups, grouped_in(markdown, 1), grouped_in(markdown, 7)]
+                .into_iter()
+                .enumerate()
+                .filter_map(move |(read, groups)| {
+                    let joined = groups.concat();
+                    (joined != whole).then(|| {
+                        format!(
+                            "{id} read {read} {markdown:?}\n  whole  {whole:?}\n  groups {groups:?}"
+                        )
+                    })
+                })
+                .collect::<Vec<_>>()
         })
         .collect();
     assert!(
@@ -773,5 +796,53 @@ fn an_unclosed_raw_html_element_keeps_its_blocks_in_one_group() {
         groups.len(),
         3,
         "a document with no raw HTML ends a group at each block: {groups:?}"
+    );
+}
+
+/// `rule:core-classes/markdown-chunks`' memory: a document read forward in
+/// reads, as a file is, holds a few reads, one group and the definitions at
+/// any point, however long it is. A reference defined at the end still
+/// resolves in the first group.
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "renders 64 reads of text twice, which Miri takes minutes for; the walk is safe Rust"
+)]
+fn to_html_each_holds_one_block_group_of_a_file_not_the_document() {
+    use crate::byte_source::READ_CHUNK;
+    let paragraph = format!("{}[x]\n\n", "word ".repeat(40));
+    let count = 64 * READ_CHUNK / paragraph.len();
+    let mut markdown = paragraph.repeat(count);
+    markdown.push_str("[x]: /target\n");
+    let read = || segments::feed_bytes(markdown.as_bytes(), READ_CHUNK, "a test");
+    let (outside, len) = segments::definitions(&mut read()).expect("text");
+    let mut walk = segments::Walk::new(outside, len, "a test");
+    let mut source = segments::Segments::default();
+    let mut feed = read();
+    let (mut most, mut groups, mut first) = (0, 0, String::new());
+    while let Some(segment) = segments::next_segment(&mut source, &mut feed).expect("text") {
+        walk.segment(&segment, &mut NoCallbacks)
+            .expect("no callbacks");
+        most = most.max(source.held() + segment.capacity() + walk.held());
+        while let Some(group) = walk.pop() {
+            groups += 1;
+            if first.is_empty() {
+                first = group;
+            }
+        }
+    }
+    assert!(groups >= count, "{groups} groups of {count} paragraphs");
+    assert!(
+        first.contains("<a href=\"/target\">x</a>"),
+        "the reference resolves before its definition is read: {first}"
+    );
+    // The text is parsed again only once it has doubled, and a string's
+    // capacity can be twice its length, so a segment is up to four reads.
+    // The groups it writes are about as long again.
+    let bound = 8 * READ_CHUNK;
+    assert!(
+        most <= bound,
+        "held {most} bytes of a {} byte document, past {bound}",
+        markdown.len()
     );
 }

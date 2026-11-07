@@ -97,7 +97,8 @@ mod tree;
 use std::fmt::Display;
 
 pub use crate::parse::{
-    BrokenLink, BrokenLinkCallback, DefaultBrokenLinkCallback, OffsetIter, Parser, RefDefs,
+    BrokenLink, BrokenLinkCallback, DefaultBrokenLinkCallback, OffsetIter, Outside, Parser,
+    RefDefs,
 };
 pub use crate::strings::{CowStr, InlineStr};
 pub use crate::utils::*;

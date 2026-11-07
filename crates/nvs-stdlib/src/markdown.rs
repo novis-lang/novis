@@ -75,6 +75,14 @@ pub(crate) mod callbacks;
     )
 )]
 mod groups;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the tests call it until `toHtmlEach` is registered"
+    )
+)]
+mod segments;
 
 /// `Core\Markdown`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
