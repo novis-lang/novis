@@ -488,12 +488,21 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
 
                     if let Some((ix, uri, link_type)) = autolink {
                         let node = scan_nodes_to_ix(&self.tree, next, ix);
-                        let text_node = self.tree.create_node(Item {
-                            start: self.tree[cur_ix].item.start + 1,
-                            end: ix - 1,
-                            body: ItemBody::Text {
+                        // Novis: entities in an autolink resolve, as cmark
+                        // reads them (`scanners::resolve_entities`).
+                        let start = self.tree[cur_ix].item.start + 1;
+                        let shown = resolve_entities(block_text[start..ix - 1].into());
+                        let body = match shown {
+                            CowStr::Borrowed(_) => ItemBody::Text {
                                 backslash_escaped: false,
                             },
+                            shown => ItemBody::SynthesizeText(self.allocs.allocate_cow(shown)),
+                        };
+                        let uri = resolve_entities(uri);
+                        let text_node = self.tree.create_node(Item {
+                            start,
+                            end: ix - 1,
+                            body,
                         });
                         let link_ix =
                             self.allocs

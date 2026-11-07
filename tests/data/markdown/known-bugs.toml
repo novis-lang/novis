@@ -3633,6 +3633,18 @@ direction = "to-html"
 input = "x\n      a|b\n-|-\nc"
 html = "<p>x</p>\n<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>c</td>\n<td></td>\n</tr>\n</tbody>\n</table>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. cmark resolves the entities in an autolink's
+# text and destination and keeps its backslashes. pulldown-cmark 0.13.6 resolved neither, so `&amp;`
+# in an autolink was written as `&amp;amp;`.
+[[bug]]
+id = "pulldown-cmark-autolink-entities"
+library = "pulldown-cmark"
+source = "https://github.com/commonmark/cmark/blob/master/src/inlines.c"
+class = "wrong-output"
+direction = "to-html"
+input = "<https://example.com/a&amp;b>\n\n<https://example.com/\\[&#64;>"
+html = "<p><a href=\"https://example.com/a&amp;b\">https://example.com/a&amp;b</a></p>\n<p><a href=\"https://example.com/%5C%5B@\">https://example.com/\\[@</a></p>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"

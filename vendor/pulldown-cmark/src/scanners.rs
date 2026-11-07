@@ -1203,6 +1203,34 @@ fn scan_attribute_value(
     Some(i)
 }
 
+/// Novis: `input` with its entities resolved and its backslashes kept, as cmark
+/// reads an autolink's text and destination. The published 0.13.6 resolved
+/// neither, so `<dvi:&#64;>` linked to `dvi:&#64;`.
+pub(crate) fn resolve_entities(input: CowStr<'_>) -> CowStr<'_> {
+    let bytes = input.as_bytes();
+    let mut result = String::new();
+    let mut mark = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        crate::steps::add(1);
+        if bytes[i] == b'&' {
+            if let (n, Some(value)) = scan_entity(&bytes[i..]) {
+                result.push_str(&input[mark..i]);
+                result.push_str(&value);
+                i += n;
+                mark = i;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    if mark == 0 {
+        return input;
+    }
+    result.push_str(&input[mark..]);
+    result.into()
+}
+
 // Remove backslash escapes and resolve entities
 pub(crate) fn unescape<'a, I: Into<CowStr<'a>>>(input: I, is_in_table: bool) -> CowStr<'a> {
     let input = input.into();

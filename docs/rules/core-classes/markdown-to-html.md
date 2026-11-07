@@ -109,7 +109,7 @@ document, a table whose header row
 has no pipe, which is one cell, a delimiter-row cell, which is GFM's: an optional colon, hyphens
 and an optional colon, between spaces, and a paragraph with a delimiter row that made no table, which
 no later line turns into a table, as in cmark-gfm, a header row indented four columns or more,
-which still starts a table, and a tab that makes a block quote marker on a
+which still starts a table, the entities of an autolink, which resolve as cmark resolves them, and a tab that makes a block quote marker on a
 continuing line indented four columns, which ends the quote. One patch adds what
 `toHtmlEach` needs (`rule:core-classes/markdown-chunks`): a parser over one segment reads the
 document's reference and footnote definitions and its expansion fuel from outside its text, and
