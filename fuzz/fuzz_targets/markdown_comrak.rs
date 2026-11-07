@@ -306,6 +306,13 @@ fuzz_target!(|data: &[u8]| {
     if text.contains('[') && tags.iter().any(|&at| autolink(at)) && tags.iter().any(|&at| !autolink(at)) {
         return;
     }
+    // In a table cell, cmark-gfm removes the `\` in front of every `|` before
+    // the cell's inline parse, so `\\\\|b` gives `\|b`. comrak 0.59 steps over
+    // `\\` pairs first and keeps that `\`, which gives `\\|b`. A document with
+    // `\\|` is not compared.
+    if text.contains("\\\\|") {
+        return;
+    }
     // An escaped `&` is a plain character, so `\&amp;` in a link destination
     // is the text `&amp;`, as commonmark.js reads it. cmark and comrak 0.59
     // decode entities before backslash escapes, so they read `&`. A document
