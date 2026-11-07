@@ -130,9 +130,9 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **Markdown.** *Working on it now.* `Core\Markdown` converts Markdown to HTML, and HTML to Markdown. It converts a whole document, or a document in pieces while it arrives. Every example of the CommonMark and GitHub Flavored Markdown specifications passes. The time it needs grows in step with the size of the input. The package registry uses it to show the readme of each package version on its page.
-2. **Example apps and checked examples.** The chat app uses WebSockets, and the poll app uses server-sent events. You can start a real project from either one. Every block of code on this website is run by a test, or it says why it is not. Each page shows the `nvs.toml` settings that its examples run with.
-3. **JSON in web pages, and queue jobs.** `Core\Json::encode` escapes `<`, `>`, `&` and `'` in the text it writes. So you can put its output inside an HTML page or a `<script>` tag. A queue job's id has a string form, and a later request can find the job with it. A guessed or changed id finds no job. `Core\Response::stream` sends the pieces that `Core\Json::encodeEach` gives.
+1. **Example apps and checked examples.** *Working on it now.* The chat app uses WebSockets, and the poll app uses server-sent events. You can start a real project from either one. Every block of code on this website is run by a test, or it says why it is not. Each page shows the `nvs.toml` settings that its examples run with.
+2. **JSON in web pages, and queue jobs.** `Core\Json::encode` escapes `<`, `>`, `&` and `'` in the text it writes. So you can put its output inside an HTML page or a `<script>` tag. A queue job's id has a string form, and a later request can find the job with it. A guessed or changed id finds no job. `Core\Response::stream` sends the pieces that `Core\Json::encodeEach` gives.
+3. **Markdown.** `Core\Markdown` converts Markdown to HTML, and HTML to Markdown. It converts a whole document, or a document in pieces while it arrives. Every example of the CommonMark and GitHub Flavored Markdown specifications passes. The time it needs grows in step with the size of the input. The package registry uses it to show the readme of each package version on its page.
 <!-- roadmap:end -->
 
 ## Contributing

@@ -159,11 +159,11 @@
   },
   "/guides/example-apps/chat/": {
     "feature": "guides/example-apps/chat.mdx",
-    "hash": "6c1d79148ec7529c",
+    "hash": "44adf999f46d9941",
     "questions": [
       "Example chat app with rooms over WebSockets",
       "How do I send messages from the server to every browser in a room?",
-      "Do I need a separate WebSocket server next to Novis?",
+      "Which production settings close a WebSocket connection?",
       "Stop another website from opening a WebSocket with my visitor's cookies",
       "Limit how fast a visitor can send chat messages",
       "Configure nginx or Caddy to forward WebSocket connections"
@@ -195,12 +195,12 @@
   },
   "/guides/example-apps/poll/": {
     "feature": "guides/example-apps/poll.mdx",
-    "hash": "301db06ddf2a156a",
+    "hash": "b68ee81506fd6ded",
     "questions": [
       "Example live poll app with server-sent events",
       "Show new votes on every open page without a reload",
       "How do I use EventSource with a Novis server?",
-      "Send updates to every open page when the database changes",
+      "Does wall_time close an event stream in production?",
       "Make voting work without JavaScript",
       "Keep an event stream open behind nginx or Caddy"
     ]
@@ -287,13 +287,14 @@
   },
   "/guides/how-to-use/live-updates/": {
     "feature": "guides/how-to-use/live-updates.mdx",
-    "hash": "ba3973f8897b7cfc",
+    "hash": "74e8b8d79aea1c18",
     "questions": [
       "Should I use server-sent events or a WebSocket?",
       "Send live updates to every open page of my app",
       "Why does every WebSocket get 403 behind nginx or Caddy?",
       "Do topics work when my app runs on several servers?",
-      "Stop another website from opening a WebSocket to my server"
+      "Stop another website from opening a WebSocket to my server",
+      "How long does a WebSocket or an event stream stay open?"
     ]
   },
   "/guides/how-to-use/project-layout/": {
@@ -351,12 +352,12 @@
   },
   "/guides/production/limits-and-logs/": {
     "feature": "guides/production/limits-and-logs.mdx",
-    "hash": "4265749ae9bd762c",
+    "hash": "c67bea7669623b54",
     "questions": [
       "Which limits and log settings does a production server need?",
       "How do I stop log files from growing too large?",
       "Change settings without restarting the server",
-      "Which settings need a server restart to apply?",
+      "Set the longest time a WebSocket or event stream stays open",
       "Get a warning when a request uses most of its memory",
       "Stop slow clients from keeping a connection open forever"
     ]
@@ -387,11 +388,11 @@
   },
   "/guides/production/security-checklist/": {
     "feature": "guides/production/security-checklist.mdx",
-    "hash": "2dd3d508cfe33ff6",
+    "hash": "620638dc4f081e59",
     "questions": [
       "What should I check before my server goes live?",
       "Security checklist for deploying a Novis web app",
-      "How do I make my production server secure?",
+      "Can I set wall_time on a server with WebSockets or event streams?",
       "Common security mistakes before the first request",
       "What can my server read and connect to without a config file?",
       "Where should I keep secret files so web requests cannot read them?"
