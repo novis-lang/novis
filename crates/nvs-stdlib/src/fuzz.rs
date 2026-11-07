@@ -410,24 +410,26 @@ fn breaks_hoisted(node: &mut crate::xml::Parsed) {
         }
         let lead = breaks_at_edge(child.children.iter());
         out.extend(child.children.drain(..lead));
-        if let Some(first) = child.children.first_mut()
-            && first.kind == Kind::Text
-            && first.text.starts_with(css_space)
-        {
-            first.text = first.text.trim_start_matches(css_space).to_owned();
-            out.push(space());
-        }
         let trail = breaks_at_edge(child.children.iter().rev());
         let mut after: Vec<_> = child
             .children
             .drain(child.children.len() - trail..)
             .collect();
+        // The end goes first, so text of white space alone moves after the
+        // element, where `fromHtml` writes it.
         if let Some(last) = child.children.last_mut()
             && last.kind == Kind::Text
             && last.text.ends_with(css_space)
         {
             last.text = last.text.trim_end_matches(css_space).to_owned();
             after.insert(0, space());
+        }
+        if let Some(first) = child.children.first_mut()
+            && first.kind == Kind::Text
+            && first.text.starts_with(css_space)
+        {
+            first.text = first.text.trim_start_matches(css_space).to_owned();
+            out.push(space());
         }
         child
             .children

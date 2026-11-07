@@ -1101,6 +1101,8 @@ const DOCUMENTS: &[&str] = &[
     // A link whose text ends with a space. `fromHtml` writes the space after
     // the link.
     "[\n\u{5} ](p=)b+\n",
+    // A link whose text is a line feed alone.
+    "a~[\n](+)\u{7}b\n",
     // A `.` three bytes after the start of a character. The
     // `markdown_from_html` fuzz target found that it panicked.
     "> \u{FFFD}!.\n",
