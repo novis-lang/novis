@@ -140,6 +140,7 @@ impl Segments {
     }
 
     /// How many bytes it holds.
+    #[cfg(test)]
     pub(super) fn held(&self) -> usize {
         self.buffer.capacity() + self.partial.capacity()
     }
@@ -255,6 +256,7 @@ impl Walk {
 
     /// The bytes it holds past the renderer's tree: the definitions and the
     /// groups not yet given out.
+    #[cfg(test)]
     pub(super) fn held(&self) -> usize {
         self.outside.bytes() + self.ready.iter().map(String::capacity).sum::<usize>()
     }
@@ -319,6 +321,7 @@ fn ended() -> Fault {
 }
 
 /// A feed over `bytes`, `piece` bytes at a time, from its start.
+#[cfg(test)]
 pub(super) fn feed_bytes<'b>(
     bytes: &'b [u8],
     piece: usize,
@@ -354,6 +357,7 @@ pub(super) fn not_text(member: &str, NotText(offset): NotText) -> Fault {
 /// # Errors
 ///
 /// [`Walk::segment`]'s.
+#[cfg(test)]
 pub(super) fn grouped_in(
     markdown: &[u8],
     piece: usize,

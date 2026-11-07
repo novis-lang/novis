@@ -147,6 +147,9 @@ const HOST_HANDLE_CLASSES: &[&CoreClass] = &[
     // or writer is filed under.
     &crate::json::ELEMENTS,
     &crate::json::PIECES,
+    // `Core\Markdown::toHtmlEach`'s walk, whose first slot is the key its
+    // two passes are filed under.
+    &crate::markdown::GROUPS,
     &crate::process::HANDLE,
     &crate::script::HANDLE,
     &crate::socket::CLASS,
@@ -353,6 +356,16 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
             (sequence::ITERATE, crate::json::PIECES_ITERATE_SYMBOL),
             (sequence::ADVANCE, crate::json::PIECES_ADVANCE_SYMBOL),
             (sequence::CURRENT, crate::json::PIECES_CURRENT_SYMBOL),
+        ],
+    ),
+    // `Core\Markdown::toHtmlEach`'s walk, for the same reason: a block group
+    // is written by the `advance` that returns it.
+    (
+        crate::markdown::GROUPS_NAME,
+        &[
+            (sequence::ITERATE, crate::markdown::GROUPS_ITERATE_SYMBOL),
+            (sequence::ADVANCE, crate::markdown::GROUPS_ADVANCE_SYMBOL),
+            (sequence::CURRENT, crate::markdown::GROUPS_CURRENT_SYMBOL),
         ],
     ),
     // A streamed reply's three framings, which carry all three names for the

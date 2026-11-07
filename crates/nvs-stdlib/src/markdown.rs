@@ -46,6 +46,13 @@
 //!   a heading's `id` and replace a fenced block. A URL a callback returns
 //!   passes [`url_allowed`] too, and an `id` passes the sanitizer's test.
 //!
+//! # One block group at a time
+//!
+//! `Core\Markdown::toHtmlEach` renders a document of any size in groups
+//! (`rule:core-classes/markdown-chunks`). [`segments`] cuts the text into
+//! runs of whole top-level blocks, [`groups`] writes each group alone, and
+//! [`each`] is the walk a `foreach` reads, filed on the request.
+//!
 //! **What it spends:** the prepared text when it differs from the input, the
 //! output tree, the footnote definitions until the end, and the answer's
 //! source. A document with raw HTML also holds its parse and its rebuild.
@@ -61,34 +68,45 @@ use crate::html::{
     MARKUP, MARKUP_NAME, OPEN_ELEMENTS_CAP, RAW_SOURCE, addressable, bounded, language_class,
     markdown_id, rebuilt, source,
 };
-use crate::registry::{ClassDoc, Const, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 use crate::xml::{Kind, Parsed};
 use callbacks::{Answer, Callables, Callbacks, NoCallbacks, Trusted, given};
 
 mod autolink;
 pub(crate) mod callbacks;
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the tests call it until `toHtmlEach` is registered"
-    )
-)]
+mod each;
 mod groups;
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the tests call it until `toHtmlEach` is registered"
-    )
-)]
 mod segments;
 
 /// `Core\Markdown`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Converts Markdown to HTML that is safe to put into a page. It reads CommonMark \
-            with tables, task lists, strikethrough, autolinks and footnotes.",
+            with tables, task lists, strikethrough, autolinks and footnotes. `toHtmlEach` \
+            converts a large document one part at a time.",
 };
+
+/// The parameter types of the four callbacks, in order: `link`, `image`,
+/// `heading` and `code`. Both members take them.
+const CALLBACK_PARAMS: [CoreTy; 4] = [
+    CoreTy::Nullable(&CoreTy::CallableSig(
+        &[CoreTy::Str],
+        &CoreTy::Nullable(&CoreTy::Str),
+    )),
+    CoreTy::Nullable(&CoreTy::CallableSig(
+        &[CoreTy::Str],
+        &CoreTy::Nullable(&CoreTy::Str),
+    )),
+    CoreTy::Nullable(&CoreTy::CallableSig(
+        &[CoreTy::Int, CoreTy::Str],
+        &CoreTy::Nullable(&CoreTy::Str),
+    )),
+    CoreTy::Nullable(&CoreTy::CallableSig(
+        &[CoreTy::Str, CoreTy::Str],
+        &CoreTy::Nullable(&CoreTy::Instance(MARKUP_NAME)),
+    )),
+];
 
 /// `rule:core-classes/markdown-to-html`'s class: the renderer, and the members
 /// later stages of the `markdown` goal add beside it.
@@ -96,36 +114,143 @@ const CARD: ClassDoc = ClassDoc {
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Markdown",
     doc: Some(&CARD),
-    methods: &[CoreMethod {
-        name: "toHtml",
-        names: &["markdown", "link", "image", "heading", "code"],
-        params: &[
-            CoreTy::Text(Qual::Launder),
-            CoreTy::Nullable(&CoreTy::CallableSig(
-                &[CoreTy::Str],
-                &CoreTy::Nullable(&CoreTy::Str),
-            )),
-            CoreTy::Nullable(&CoreTy::CallableSig(
-                &[CoreTy::Str],
-                &CoreTy::Nullable(&CoreTy::Str),
-            )),
-            CoreTy::Nullable(&CoreTy::CallableSig(
-                &[CoreTy::Int, CoreTy::Str],
-                &CoreTy::Nullable(&CoreTy::Str),
-            )),
-            CoreTy::Nullable(&CoreTy::CallableSig(
-                &[CoreTy::Str, CoreTy::Str],
-                &CoreTy::Nullable(&CoreTy::Instance(MARKUP_NAME)),
-            )),
-        ],
-        defaults: &[Const::Null, Const::Null, Const::Null, Const::Null],
-        return_ty: CoreTy::Instance(MARKUP_NAME),
-        symbol: "nvs_core_markdown_to_html",
-        doc: Some(&TO_HTML_DOC),
-    }],
+    methods: &[
+        CoreMethod {
+            name: "toHtml",
+            names: &["markdown", "link", "image", "heading", "code"],
+            params: &[
+                CoreTy::Text(Qual::Launder),
+                CALLBACK_PARAMS[0],
+                CALLBACK_PARAMS[1],
+                CALLBACK_PARAMS[2],
+                CALLBACK_PARAMS[3],
+            ],
+            defaults: &[Const::Null, Const::Null, Const::Null, Const::Null],
+            return_ty: CoreTy::Instance(MARKUP_NAME),
+            symbol: "nvs_core_markdown_to_html",
+            doc: Some(&TO_HTML_DOC),
+        },
+        CoreMethod {
+            name: "toHtmlEach",
+            names: &["markdown", "link", "image", "heading", "code"],
+            // The forward source `Core\Json::decodeEach` and `Core\Csv::rows`
+            // take. The bytes arm is `tainted bytes`, so a plain `bytes`
+            // widens to it. Each group is a `Markup`, as `toHtml`'s answer is.
+            params: &[
+                CoreTy::Union(&[
+                    CoreTy::Alias(
+                        r"Core\Bytes::Source",
+                        &CoreTy::Union(&[
+                            CoreTy::TaintedBytes,
+                            CoreTy::Instance(crate::io::FILE_NAME),
+                            CoreTy::Instance(crate::request::PART_NAME),
+                            CoreTy::Instance(crate::request::BODY_STREAM_NAME),
+                        ]),
+                    ),
+                    CoreTy::Alias(
+                        r"Core\Bytes::Chunks",
+                        &CoreTy::Iterated(&CoreTy::TaintedBytes),
+                    ),
+                ]),
+                CALLBACK_PARAMS[0],
+                CALLBACK_PARAMS[1],
+                CALLBACK_PARAMS[2],
+                CALLBACK_PARAMS[3],
+            ],
+            defaults: &[Const::Null, Const::Null, Const::Null, Const::Null],
+            return_ty: CoreTy::Instance(GROUPS_NAME),
+            symbol: "nvs_core_markdown_to_html_each",
+            doc: Some(&TO_HTML_EACH_DOC),
+        },
+    ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Markdown\Groups`' fully-qualified name.
+pub(crate) const GROUPS_NAME: &str = r"Core\Markdown\Groups";
+
+/// The symbols behind [`GROUPS`]' `iterate()`, `advance()` and `current()`,
+/// reached by name through [`crate::instance`]'s dispatch roster, as
+/// `Core\Json\Elements`' are.
+pub(crate) const GROUPS_ITERATE_SYMBOL: &str = "nvs_core_markdown_groups_iterate";
+/// See [`GROUPS_ITERATE_SYMBOL`].
+pub(crate) const GROUPS_ADVANCE_SYMBOL: &str = "nvs_core_markdown_groups_advance";
+/// See [`GROUPS_ITERATE_SYMBOL`].
+pub(crate) const GROUPS_CURRENT_SYMBOL: &str = "nvs_core_markdown_groups_current";
+
+/// What `Core\Markdown::toHtmlEach` returns: the document's HTML, one block
+/// group per `advance()`. It is its own iterator, as `Core\Json\Elements` is,
+/// because a group does not exist until the walk has read that far.
+///
+/// Its slots are the key the walk is filed under, `0` once it has ended, the
+/// source, the group the last `advance()` wrote, and the four callbacks.
+/// [`each`] owns the walk.
+// rank: 1046
+pub(crate) const GROUPS: CoreClass = CoreClass {
+    name: GROUPS_NAME,
+    doc: Some(&GROUPS_CARD),
+    methods: &[],
+    instance: &[],
+    slots: &[
+        "reader", "source", "group", "link", "image", "heading", "code",
+    ],
+    constants: &[],
+};
+
+/// `Core\Markdown\Groups`' class card — `rule:core-api/reference-card`.
+const GROUPS_CARD: ClassDoc = ClassDoc {
+    short: "The HTML of a Markdown document, one part at a time, while a `foreach` loop \
+            runs. Each part is a `Core\\Html\\Markup` with one or more whole blocks. The \
+            parts joined together are the HTML of the whole document.",
+};
+
+/// `Core\Markdown::toHtmlEach`'s reference card — `rule:core-api/reference-card`.
+const TO_HTML_EACH_DOC: MethodDoc = MethodDoc {
+    short: "Converts the Markdown document `$markdown` to HTML one part at a time. Each part \
+            has one or more whole blocks, such as a paragraph or a list. Use it for a \
+            document that is too large to keep in memory.",
+    params: &[
+        ParamDoc {
+            name: "markdown",
+            desc: "The Markdown document: a `bytes` value, an open file, an upload part, a \
+                   request body stream, or a list of `bytes` chunks. The bytes must be UTF-8. \
+                   A file is read twice, and only one part is in memory at a time. Every \
+                   other source is kept in memory until the loop ends.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "link",
+            desc: "The same `link` function as in `Core\\Markdown::toHtml`. It runs when the \
+                   loop reaches the part with the link.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "image",
+            desc: "The same `image` function as in `Core\\Markdown::toHtml`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "heading",
+            desc: "The same `heading` function as in `Core\\Markdown::toHtml`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "code",
+            desc: "The same `code` function as in `Core\\Markdown::toHtml`.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Markdown\\Groups` that a `foreach` loop reads. Each part is a \
+          `Core\\Html\\Markup`. The parts joined together are the same HTML that \
+          `Core\\Markdown::toHtml` returns for the whole document. Nothing is read until \
+          the loop starts.",
+    errors: &[ErrorDoc {
+        error: "ParseError",
+        desc: "The document is not valid UTF-8. The message gives the position of the first \
+               wrong byte. The loop throws it when it reaches that byte.",
+    }],
 };
 
 const TO_HTML_DOC: MethodDoc = MethodDoc {
@@ -180,6 +305,12 @@ const TO_HTML_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_markdown_to_html" => (nvs_core_markdown_to_html as *const ()).cast(),
+        "nvs_core_markdown_to_html_each" => {
+            (each::nvs_core_markdown_to_html_each as *const ()).cast()
+        }
+        GROUPS_ITERATE_SYMBOL => (each::nvs_core_markdown_groups_iterate as *const ()).cast(),
+        GROUPS_ADVANCE_SYMBOL => (each::nvs_core_markdown_groups_advance as *const ()).cast(),
+        GROUPS_CURRENT_SYMBOL => (each::nvs_core_markdown_groups_current as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1004,13 +1135,6 @@ impl<'a, 'h> Renderer<'a, 'h> {
     /// (`rule:core-classes/markdown-chunks`): every block it opened is
     /// closed, it is not inside a footnote definition, its raw HTML leaves
     /// nothing open, and it has written something.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the tests call it until `toHtmlEach` is registered"
-        )
-    )]
     fn group_ends(&self) -> bool {
         self.depth == 0
             && self.stack.len() == 1
@@ -1023,13 +1147,6 @@ impl<'a, 'h> Renderer<'a, 'h> {
 
     /// The group [`Self::group_ends`] found, taken out of the tree: its
     /// nodes, whether it must be rebuilt, and the `code` results it names.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the tests call it until `toHtmlEach` is registered"
-        )
-    )]
     fn take_group(&mut self) -> (Parsed, bool, Trusted) {
         let tree = std::mem::replace(&mut self.stack[0], Parsed::new(Kind::Document));
         let rebuild = self.raw || self.deepest + 2 >= OPEN_ELEMENTS_CAP;

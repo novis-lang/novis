@@ -799,37 +799,55 @@ fn an_unclosed_raw_html_element_keeps_its_blocks_in_one_group() {
     );
 }
 
-/// `rule:core-classes/markdown-chunks`' memory: a document read forward in
-/// reads, as a file is, holds a few reads, one group and the definitions at
-/// any point, however long it is. A reference defined at the end still
-/// resolves in the first group.
+/// `rule:core-classes/markdown-chunks`' memory: `toHtmlEach` over a
+/// `Core\IO\File` reads the file twice and holds a few reads, one group and
+/// the definitions at any point, however long the file is. A reference
+/// defined at the end still resolves in the first group.
 #[test]
 #[cfg_attr(
     miri,
-    ignore = "renders 64 reads of text twice, which Miri takes minutes for; the walk is safe Rust"
+    ignore = "renders 64 reads of a file twice, which Miri takes minutes for and cannot open"
 )]
 fn to_html_each_holds_one_block_group_of_a_file_not_the_document() {
     use crate::byte_source::READ_CHUNK;
+    use nvs_runtime::{Ctx, OutputSink};
     let paragraph = format!("{}[x]\n\n", "word ".repeat(40));
     let count = 64 * READ_CHUNK / paragraph.len();
     let mut markdown = paragraph.repeat(count);
     markdown.push_str("[x]: /target\n");
-    let read = || segments::feed_bytes(markdown.as_bytes(), READ_CHUNK, "a test");
-    let (outside, len) = segments::definitions(&mut read()).expect("text");
-    let mut walk = segments::Walk::new(outside, len, "a test");
-    let mut source = segments::Segments::default();
-    let mut feed = read();
+    let dir = nvs_repo::scratch("markdown-each");
+    let path = dir.join("long.md");
+    std::fs::write(&path, &markdown).expect("the case writes its file");
+
+    let mut ctx = Ctx::new(OutputSink::Sink);
+    let file = std::fs::File::open(&path).expect("the case opens its file");
+    let key = ctx.hold_open_file(file);
+    let handle = crate::io::file_handle(
+        key,
+        Value::text("long.md"),
+        nvs_runtime::capability::Access::Read,
+    );
+    let null = Value::null();
+    let groups_value = nvs_runtime::call(
+        each::nvs_core_markdown_to_html_each,
+        &mut ctx,
+        &[handle, null, null, null, null],
+    )
+    .expect("an open file is a source");
     let (mut most, mut groups, mut first) = (0, 0, String::new());
-    while let Some(segment) = segments::next_segment(&mut source, &mut feed).expect("text") {
-        walk.segment(&segment, &mut NoCallbacks)
-            .expect("no callbacks");
-        most = most.max(source.held() + segment.capacity() + walk.held());
-        while let Some(group) = walk.pop() {
-            groups += 1;
-            if first.is_empty() {
-                first = group;
-            }
+    while let Some(group) = each::advanced(&mut ctx, groups_value).expect("the file reads") {
+        let (held, rereads) = each::held_by(&mut ctx, groups_value).expect("the walk is open");
+        assert!(rereads, "a file is read again, not held whole");
+        most = most.max(held);
+        groups += 1;
+        if first.is_empty() {
+            first = group;
         }
+    }
+    #[expect(unsafe_code, reason = "the case owns the one reference of each value it built")]
+    unsafe {
+        groups_value.release();
+        handle.release();
     }
     assert!(groups >= count, "{groups} groups of {count} paragraphs");
     assert!(

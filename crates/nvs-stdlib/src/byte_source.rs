@@ -350,6 +350,43 @@ impl ByteSource {
         Ok(lent.map(|lent| Chunk { lent }))
     }
 
+    /// Starts the forward read again at the first byte, and returns whether it
+    /// could. A file that can seek and a `bytes` value can be read again,
+    /// because their bytes are still there. A part, a body stream, a walk of
+    /// chunks and a file that cannot seek are read once, so this returns
+    /// `false` and changes nothing.
+    ///
+    /// A member that reads its source twice, such as
+    /// `Core\Markdown::toHtmlEach`, keeps a second read cheap with this: it
+    /// costs no memory, where holding the source whole costs its length.
+    pub(crate) fn restart(&mut self) -> bool {
+        let restarted = match &mut self.kind {
+            Kind::File(file) if file.seekable => {
+                // The next forward read moves the file to its start again.
+                file.started = false;
+                true
+            }
+            Kind::Bytes { at } => {
+                *at = 0;
+                true
+            }
+            Kind::File(_) | Kind::Chunks { .. } | Kind::Part { .. } | Kind::Stream { .. } => false,
+        };
+        if restarted {
+            self.ended = false;
+        }
+        restarted
+    }
+
+    /// Whether [`Self::restart`] would start the read again.
+    pub(crate) fn can_restart(&self) -> bool {
+        match &self.kind {
+            Kind::File(file) => file.seekable,
+            Kind::Bytes { .. } => true,
+            Kind::Chunks { .. } | Kind::Part { .. } | Kind::Stream { .. } => false,
+        }
+    }
+
     /// The first `max` bytes, or fewer where the source is shorter. Nothing
     /// is consumed: a later forward read still starts at the first byte.
     ///

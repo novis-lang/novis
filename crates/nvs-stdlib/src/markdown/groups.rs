@@ -37,7 +37,9 @@
 
 use nvs_runtime::Fault;
 
-use super::callbacks::{Callbacks, Trusted};
+#[cfg(test)]
+use super::callbacks::Callbacks;
+use super::callbacks::Trusted;
 use crate::html::{bounded, rebuilt, rebuilt_in_body, source};
 use crate::xml::Parsed;
 
@@ -425,6 +427,7 @@ fn leading_doctype(source: &str) -> &str {
 /// # Errors
 ///
 /// [`super::rendered_with`]'s.
+#[cfg(test)]
 pub(super) fn grouped_with(
     markdown: &str,
     member: &'static str,

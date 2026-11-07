@@ -3683,6 +3683,11 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // `tainted` for the reason `Core\Json::encode`'s `mixed` answer is.
     (crate::json::ELEMENTS_NAME, &CoreTy::Var("T")),
     (crate::json::PIECES_NAME, &CoreTy::TaintedBytes),
+    // `Core\Markdown::toHtmlEach`'s walk yields each block group's HTML.
+    (
+        crate::markdown::GROUPS_NAME,
+        &CoreTy::Instance(crate::html::MARKUP_NAME),
+    ),
 ];
 
 /// The element type `class`'s `Iterable<T>` is fixed at, or `None` when it is
@@ -6721,6 +6726,7 @@ mod tests {
             crate::csv::ROWS_NAME,
             crate::json::ELEMENTS_NAME,
             crate::json::PIECES_NAME,
+            crate::markdown::GROUPS_NAME,
             crate::http::TARGET_NAME,
             crate::http::IDENTITY_NAME,
             crate::http::PART_NAME,
