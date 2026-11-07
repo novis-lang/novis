@@ -1336,32 +1336,12 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
         let mut title = String::new();
         let mut mark = start_ix + 1;
         let mut i = start_ix + 1;
-        // Novis: cmark reads the longest title its pattern allows, and a `\`
-        // may be a character of its own. So a closing delimiter with a `\`
-        // before it may end the title, and the title ends at the last such
-        // delimiter when no later one ends it. `[](/ "\")` has the title `\`.
-        // The published 0.13.6 read `\"` as an escape only, and found no
-        // title. Each such end is the title's length so far, the mark, and
-        // where its text ends and its delimiter is, so recording one copies
-        // nothing.
-        let mut soft: Option<(usize, usize, usize, usize)> = None;
-        let fallback = |title: &mut String, soft: Option<(usize, usize, usize, usize)>| {
-            let (len, mark, end, at) = soft?;
-            title.truncate(len);
-            title.push_str(&text[mark..end]);
-            Some((at - start_ix + 1, CowStr::from(std::mem::take(title))))
-        };
 
         while i < bytes.len() {
             crate::steps::add(1);
             let c = bytes[i];
 
             if c == close {
-                if i > start_ix + 1 && bytes[i - 1] == b'\\' {
-                    soft = Some((title.len(), mark, i, i));
-                    i += 1;
-                    continue;
-                }
                 let cow = if mark == 1 {
                     (i - start_ix + 1, text[mark..i].into())
                 } else {
@@ -1372,7 +1352,7 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
                 return Some(cow);
             }
             if c == open {
-                return fallback(&mut title, soft);
+                return None;
             }
 
             if c == b'\n' || c == b'\r' {
@@ -1408,9 +1388,6 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
                 mark = i;
             }
             if c == b'\\' && i + 1 < bytes.len() && is_ascii_punctuation(bytes[i + 1]) {
-                if bytes[i + 1] == close {
-                    soft = Some((title.len(), mark, i + 1, i + 1));
-                }
                 title.push_str(&text[mark..i]);
                 i += 1;
                 mark = i;
@@ -1419,7 +1396,7 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
             i += 1;
         }
 
-        fallback(&mut title, soft)
+        None
     }
 
     fn make_math_span(&mut self, open: TreeIndex, mut close: TreeIndex) {

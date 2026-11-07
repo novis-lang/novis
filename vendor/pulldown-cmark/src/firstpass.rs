@@ -913,7 +913,9 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                             let (table_head_bytes, alignment) =
                                 scan_table_head(&bytes[table_head_ix..]);
 
-                            if table_head_bytes > 0 {
+                            if table_head_bytes > 0
+                                && !delimiter_row_is_list_item(&bytes[table_head_ix..])
+                            {
                                 // computing header count from number of pipes
                                 let header_count = if pipes == 0 {
                                     1
@@ -2196,7 +2198,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         let table_head_ix = next_line_ix + line_start.bytes_scanned();
         let (table_head_bytes, alignment) = scan_table_head(&bytes[table_head_ix..]);
 
-        if table_head_bytes == 0 {
+        if table_head_bytes == 0 || delimiter_row_is_list_item(&bytes[table_head_ix..]) {
             return None;
         }
 
@@ -2277,6 +2279,16 @@ fn count_header_cols(
 ///
 /// Use `FirstPass::scan_paragraph_interrupt` in any context that allows
 /// tables to interrupt the paragraph.
+/// Novis: whether `bytes`, a line that reads as a table's delimiter row, is a
+/// list item that interrupts a paragraph. cmark-gfm tries every core block
+/// before a table, so `a\n- |` is a paragraph and a list. A delimiter row has
+/// only `|`, `-`, `:` and whitespace, and a `-` list item with text after its
+/// marker is the one such block that interrupts a paragraph; `---` is a setext
+/// underline. The published 0.13.6 started a table.
+fn delimiter_row_is_list_item(bytes: &[u8]) -> bool {
+    scan_listitem(bytes).is_some_and(|(ix, ..)| scan_blank_line(&bytes[ix..]).is_none())
+}
+
 fn scan_paragraph_interrupt_no_table(
     text: &str,
     current_container: bool,

@@ -362,6 +362,17 @@ direction = "to-html"
 input = "[f]: z \"\\\"\n\n[f]\n"
 html = "<p>[f]: z &quot;&quot;</p>\n<p>[f]</p>\n"
 
+# The same issue in an inline link: `\"` is an escape and never ends the title, so the link is text.
+# cmark-gfm and comrak keep the pattern from before the fix and read the title `\`.
+[[bug]]
+id = "cmark-issue-607-inline-title"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/issues/607"
+class = "wrong-output"
+direction = "to-html"
+input = "[a](/u \"\\\")"
+html = "<p>[a](/u &quot;&quot;)</p>\n"
+
 [[bug]]
 id = "cmark-reg-608-empty-item-then-break"
 library = "cmark"
@@ -3681,17 +3692,17 @@ direction = "to-html"
 input = "x\n+\n-:|\nb"
 html = "<p>x</p>\n<table>\n<thead>\n<tr>\n<th align=\"right\">+</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align=\"right\">b</td>\n</tr>\n</tbody>\n</table>\n"
 
-# Found by the `markdown_comrak` differential fuzz target. cmark reads the longest link title its
-# pattern allows, and a `\` may be a character of its own, so `"\"` is the title `\`. pulldown-cmark
-# 0.13.6 read `\"` as an escape only, found no closing quote, and wrote the link as text.
+# Found by the `markdown_comrak` differential fuzz target. cmark-gfm tries every core block before
+# a table, so a delimiter row that is a list item with text after its marker starts the list.
+# pulldown-cmark 0.13.6 started a table.
 [[bug]]
-id = "pulldown-cmark-backslash-before-title-quote"
+id = "pulldown-cmark-delimiter-row-list-item"
 library = "pulldown-cmark"
-source = "https://github.com/commonmark/cmark/blob/master/src/scanners.re"
+source = "https://github.com/github/cmark-gfm/blob/master/src/blocks.c"
 class = "wrong-output"
 direction = "to-html"
-input = "[a](/u \"\\\")"
-html = "<p><a href=\"/u\" title=\"\\\">a</a></p>\n"
+input = "a\n- \t|"
+html = "<p>a</p>\n<ul>\n<li>|</li>\n</ul>\n"
 
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"

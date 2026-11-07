@@ -109,15 +109,18 @@ document, a table whose header row
 has no pipe, which is one cell, a delimiter-row cell, which is GFM's: an optional colon, hyphens
 and an optional colon, between spaces, and a paragraph with a delimiter row that made no table, which
 no later line turns into a table, as in cmark-gfm, a header row indented four columns or more,
-which still starts a table, a header row that would be an empty list item, which is still a header row, an inline link's title,
-which is the longest cmark's pattern allows, so `"\"` is the title `\`, the entities of an autolink, which resolve as cmark resolves them, a tab, which ends an unquoted
+which still starts a table, a header row that would be an empty list item, which is still a header row, a delimiter row that
+is a list item with text after its marker, which starts the list, the entities of an autolink, which resolve as cmark resolves them, a tab, which ends an unquoted
 attribute value in raw HTML, and a tab that makes a block quote marker on a
 continuing line indented four columns, which ends the quote. One patch adds what
 `toHtmlEach` needs (`rule:core-classes/markdown-chunks`): a parser over one segment reads the
 document's reference and footnote definitions and its expansion fuel from outside its text, and
 reports where its top-level blocks start and end after the block pass alone. comrak's quadratic autolink
 scan fails criterion (b), and it is three times slower. A patched engine is vendored under `vendor/`
-with an entry in `[patch.crates-io]`, as `html5ever` is.
+with an entry in `[patch.crates-io]`, as `html5ever` is. A `\` in a link title is always an escape,
+as in CommonMark 0.31.2 and in cmark since its issue 607, so `[a](/u "\")` is text. cmark-gfm and
+comrak keep the older pattern, where it is a link with the title `\`, and the published engine
+already reads it as cmark does.
 
 **Declined:**
 - **An options bag or a flavour switch.** Each option doubles what must be tested and what a reader of

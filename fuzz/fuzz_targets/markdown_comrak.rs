@@ -176,6 +176,14 @@ fuzz_target!(|data: &[u8]| {
     if runs.clone().any(|n| n == 1) && runs.any(|n| n == 2) {
         return;
     }
+    // cmark (issue 607) reads a `\` in a link title as an escape, so `\"`
+    // never ends the title. comrak 0.59 follows cmark-gfm's older pattern,
+    // where a `\` may be a character of its own and the longest title wins:
+    // `[a](/u "\")` is a link for it, and text for cmark. A document with a
+    // `\` before a title's closing delimiter is not compared.
+    if text.as_bytes().windows(2).any(|w| w[0] == b'\\' && matches!(w[1], b'"' | b'\'' | b')')) {
+        return;
+    }
     // A processing instruction ends at the first `?>`. comrak 0.59's scanner
     // reads `?` and the character after it as a pair, so `<?a??>` does not end
     // at `?>` and is text. A document with `??>` is not compared.
