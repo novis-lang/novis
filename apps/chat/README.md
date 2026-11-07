@@ -12,12 +12,12 @@ nvs test .                   # runs the tests
 
 In a clone of the repository, `bun nv app chat` starts the app from any folder.
 
-On a production server, start it with the files in `deploy`:
+The folder `deploy` has the production settings and the proxy files for Caddy and nginx. On a
+server, start the app with both configuration files:
 
 ```sh
-nvs serve public/index.nvs --config deploy/production.toml
+nvs serve public/index.nvs --config nvs.toml --config deploy/production.toml
 ```
 
-`deploy/Caddyfile` and `deploy/nginx.conf` are the configuration of the reverse proxy.
-
-The page [Example apps: Chat](https://novis-lang.org/guides/example-apps/chat/) explains each file.
+The page [Example apps: Chat](https://novis-lang.org/guides/example-apps/chat/) explains each file
+and each step of the deploy.

@@ -69,33 +69,33 @@ nvs test .
 
 ```txt
   Chat\AppTest
-    ✓ theHomePageShowsTheForm          2.3 ms
-    ✓ joiningWithoutANameShowsTheProblem 1.5 ms
-    ✓ joiningStartsASessionAndOpensTheRoom 11.1 ms
-    ✓ theRoomPageHasTheAddressOfItsSocket 2.6 ms
-    ✓ aVisitorWithoutASessionGoesToTheForm 0.7 ms
-    ✓ anUnknownRoomIsNotFound          4.4 ms
-    ✓ aPageRequestToTheSocketGets426   10.4 ms
-    ✓ theScriptAndTheStylesAreSent     1.1 ms
+    ✓ theHomePageShowsTheForm          0.6 ms
+    ✓ joiningWithoutANameShowsTheProblem 0.4 ms
+    ✓ joiningStartsASessionAndOpensTheRoom 9.3 ms
+    ✓ theRoomPageHasTheAddressOfItsSocket 56.1 ms
+    ✓ aVisitorWithoutASessionGoesToTheForm 0.4 ms
+    ✓ anUnknownRoomIsNotFound          3.0 ms
+    ✓ aPageRequestToTheSocketGets426   40.7 ms
+    ✓ theScriptAndTheStylesAreSent     0.6 ms
     ✓ thePagesMayLoadFilesOnlyFromThisServer 0.1 ms
   Chat\CheckTest
-    ✓ aShortNameIsValid                0.3 ms
-    ✓ anEmptyOrLongNameIsNotValid      0.2 ms
-    ✓ onlyTheListedRoomsExist          0.2 ms
-    ✓ aChatLineMustHaveText            0.3 ms
-    ✓ theLimiterAllowsFiveLinesInTenSeconds 0.3 ms
+    ✓ aShortNameIsValid                0.1 ms
+    ✓ anEmptyOrLongNameIsNotValid      0.1 ms
+    ✓ onlyTheListedRoomsExist          0.1 ms
+    ✓ aChatLineMustHaveText            0.2 ms
+    ✓ theLimiterAllowsFiveLinesInTenSeconds 0.1 ms
   Chat\HistoryTest
-    ✓ theNewestLinesComeInTheOrderTheyWereWritten 4.7 ms
-    ✓ eachRoomHasItsOwnLines           4.0 ms
-    ✓ aRoomKeepsItsNewest100Lines      33.9 ms
+    ✓ theNewestLinesComeInTheOrderTheyWereWritten 1.4 ms
+    ✓ eachRoomHasItsOwnLines           1.3 ms
+    ✓ aRoomKeepsItsNewest100Lines      7.1 ms
   Chat\LiveTest
-    ✓ twoVisitorsTalkInOneRoom         151.7 ms
-    ✓ aNewVisitorGetsTheHistory        130.3 ms
-    ✓ aWrongMessageGetsAProblemOnlyForItsSender 31.3 ms
-    ✓ aVisitorWhoSendsTooFastMustWait  82.2 ms
-    ✓ aSocketFromAnotherWebsiteIsNotAllowed 7.3 ms
+    ✓ twoVisitorsTalkInOneRoom         59.3 ms
+    ✓ aNewVisitorGetsTheHistory        34.3 ms
+    ✓ aWrongMessageGetsAProblemOnlyForItsSender 16.4 ms
+    ✓ aVisitorWhoSendsTooFastMustWait  28.7 ms
+    ✓ aSocketFromAnotherWebsiteIsNotAllowed 62.4 ms
 
-  0 failed, 22 passed, 0 skipped, 0 flaky in 165 ms
+  0 failed, 22 passed, 0 skipped, 0 flaky in 128 ms
 ```
 
 The tests in `LiveTest` open real WebSocket connections. `#[Test(server: true)]` starts a server
@@ -108,8 +108,7 @@ Each test joins first, and sends the session cookie with its WebSocket request.
 chat/
   nvs.toml             the configuration: the port, the limits of a connection, the security policy and the databases
   deploy/
-    production.toml    the configuration for a production server: reads nvs.toml and then server.toml
-    server.toml        the settings that change in production
+    production.toml    the settings for a server on the internet
     Caddyfile          the configuration of Caddy, if Caddy is your proxy
     nginx.conf         the configuration of nginx, if nginx is your proxy
   public/
@@ -225,13 +224,23 @@ The script connects again and gets the history of the room.
 
 ## Deploy it
 
-The folder `deploy` has everything a production server needs. On a Linux server, these steps put
+The folder `deploy` has the files for a server on the internet. On a Linux server, these steps put
 the app at `https://chat.example.com`.
+
+| File | What it does |
+|---|---|
+| `deploy/production.toml` | Changes the settings of `nvs.toml` for production: production mode, `trusted_proxies`, the database outside the folder of the code, and the limits. |
+| `deploy/Caddyfile` | The proxy for Caddy. Caddy also gets the certificate. |
+| `deploy/nginx.conf` | The proxy for nginx. |
+
+Novis reads both configuration files when you name each with `--config`. It reads them in that order,
+so each setting in `production.toml` replaces the one in `nvs.toml`. So `nvs.toml` stays the same on
+your computer and on the server.
 
 1. Copy the folder `chat` to the server, for example to `/srv/chat`. Only an administrator should
    be able to change the files in it.
-2. Read `deploy/server.toml`. It sets production mode, the address of the server, the address of
-   the proxy, the memory limits and the path of the database. On Linux, a Unix socket is better
+2. Read `deploy/production.toml`. It sets production mode, the address of the server, the address
+   of the proxy, the memory limits and the path of the database. On Linux, a Unix socket is better
    than a port. The comments in the file show the two lines for it.
 3. Create the account `chat` and the folder `/var/lib/chat`, and let only that account write to the
    folder. The database is kept there.
@@ -240,17 +249,13 @@ the app at `https://chat.example.com`.
    [Run as a service](/guides/production/run-as-a-service/) explains each part of this command:
 
    ```sh
-   nvs service install --account chat chat -- serve /srv/chat/public/index.nvs --config /srv/chat/deploy/production.toml
+   nvs service install chat --account chat -- serve /srv/chat/public/index.nvs --config /srv/chat/nvs.toml --config /srv/chat/deploy/production.toml
    ```
 
 5. Copy `deploy/Caddyfile` or `deploy/nginx.conf` to your proxy, and write your own host name in
    place of `chat.example.com`.
 
-`deploy/production.toml` reads `../nvs.toml` first and then `server.toml`. When two files set
-the same setting, the later file wins. So `nvs.toml` stays the same on your computer and on the
-server, and `server.toml` has only the settings that change.
-
-`server.toml` sets no `wall_time`. That limit also applies to every WebSocket connection, so it
+`production.toml` sets no `wall_time`. That limit also applies to every WebSocket connection, so it
 would close each chat after that time. The memory limit, the size limit of a message and the
 5 minutes without a message bound each connection.
 
@@ -312,7 +317,7 @@ must also send the `Host` header unchanged. Both proxy files do this.
    under `src/`, and the `autoload` line and `Chat\Gate` in `public/index.nvs`.
 3. In `nvs.toml`, rename the database `chat` and its file. Change the name in
    `[capabilities.db]` and in the call to `Core\Db::connect` in `src/History.nvs`.
-4. Change the port in `nvs.toml` and `deploy/server.toml`, and the host name and the port in the
+4. Change the port in `nvs.toml` and `deploy/production.toml`, and the host name and the port in the
    two proxy files.
 5. Use the same pattern for each live part of your app. An ordinary request checks who the visitor
    is and calls `Socket::upgrade`. The connection joins its topics, and one loop handles every message.
