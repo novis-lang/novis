@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a file of 128 MiB opens a code block and never closes it, so the whole file is one part.
+// The memory limit is 32 MiB, so the program should stop while it reads that part.
+// hostile: timeout-ms 60000
+// hostile: ends-early 4 FATAL
+
+class Upload
+{
+    // This generator gives `$count` pieces of 1 MiB. Each piece has 16,384 short paragraphs.
+    // With `$fence` set to `true`, the file starts with a code block that never closes.
+    public static function lines(uint $count, bool $fence): Iterator<bytes>
+    {
+        if ($fence) {
+            yield "```text\n" as bytes;
+        }
+        bytes $piece = Core\Str::repeat(Core\Str::repeat('x', 62) . "\n\n", 16384) as bytes;
+        uint $sent = 0;
+        while ($sent < $count) {
+            yield $piece;
+            $sent = $sent + 1;
+        }
+    }
+
+    // Writes the file and returns its path.
+    public static function write(string $name, uint $count, bool $fence): string
+    {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), $name);
+        Core\IO::writeStream($path, Upload::lines($count, $fence), { overwrite: true });
+        return $path;
+    }
+
+    // Converts the file part by part and returns how many parts it has.
+    public static function parts(string $path): uint
+    {
+        uint $parts = 0;
+        Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+        foreach (Core\Markdown::toHtmlEach($file) as Core\Html\Markup $part) {
+            $parts = $parts + 1;
+        }
+        $file->close();
+        Core\IO::remove($path);
+        return $parts;
+    }
+}
+
+// 1. Lowers the memory limit to `32M`.
+echo 'limit lowered: ', Core\Config::set('limits.memory', '32M') ? 'yes' : 'no', "\n";
+
+// 2. Converts a file of 64 MiB with many short paragraphs. Only one part is in memory at a time, so this fits.
+echo '2 parts: ', Upload::parts(Upload::write('many-paragraphs.md', 64, false)), "\n";
+
+// 3. Converts a file of 1 MiB that is one open code block. It is one part, and it fits.
+echo '3 parts: ', Upload::parts(Upload::write('small-open-block.md', 1, true)), "\n";
+
+// 4. Converts a file of 128 MiB that is one open code block. The program stops with `FATAL` here.
+echo "step 4\n";
+echo '4 parts: ', Upload::parts(Upload::write('huge-open-block.md', 128, true)), "\n";

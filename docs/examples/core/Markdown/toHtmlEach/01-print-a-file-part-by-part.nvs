@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to convert a Markdown file to HTML one part at a time.
+
+// The program writes a small file first, so that it has one to read.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'changes.md');
+Core\IO::write(
+    $path,
+    "# Version 2.1\n\nSearch is faster now.\n\n## Fixed\n\n"
+        . "- Dates in March were shown as April.\n- Long names were cut off.\n",
+);
+
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+
+// Each part is a `Core\Html\Markup` with one or more whole blocks.
+// The list is one part, because a list is never cut in two.
+int $number = 0;
+foreach (Core\Markdown::toHtmlEach($file) as Core\Html\Markup $part) {
+    $number = $number + 1;
+    echo "part ", $number, ":\n";
+    echo $part;
+}
+$file->close();

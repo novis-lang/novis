@@ -1,0 +1,8 @@
+<!doctype html>
+<title>Install</title>
+<h1>Install</h1>
+<p>Download the archive for your system and unpack it.</p>
+<pre><code class="language-sh">tar -xzf shop-2.1.tar.gz
+</code></pre>
+<h2>Check the version</h2>
+<p>Run <code>shop --version</code>. It prints <code>2.1</code>.</p>

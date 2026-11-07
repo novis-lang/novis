@@ -1,0 +1,76 @@
+<?nvs
+// Attack: a file has many links whose URLs are defined at its end, or many definitions.
+// The HTML must not grow far past the file, and too many definitions should stop the program at its memory limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early 3 FATAL
+// proof: gap nvs-stdlib/markdown-each-definitions-pass-the-memory-limit
+
+class Upload
+{
+    // This generator gives `$count` pieces of 1,024 short paragraphs, each with one link.
+    // The last line defines the URL of every link, with 4,000 characters.
+    public static function links(uint $count): Iterator<bytes>
+    {
+        bytes $piece = Core\Str::repeat("See [the page][r].\n\n", 1024) as bytes;
+        uint $sent = 0;
+        while ($sent < $count) {
+            yield $piece;
+            $sent = $sent + 1;
+        }
+        yield ('[r]: https://example.com/' . Core\Str::repeat('a', 4000) . "\n") as bytes;
+    }
+
+    // This generator gives one link and then `$count` pieces of 1,024 definitions.
+    public static function definitions(uint $count): Iterator<bytes>
+    {
+        yield "See [the page][d1].\n\n" as bytes;
+        uint $sent = 0;
+        while ($sent < $count) {
+            string $piece = '';
+            uint $i = 0;
+            while ($i < 1024) {
+                $piece = $piece . '[d' . (($sent * 1024 + $i) as string) . "]: /p\n";
+                $i = $i + 1;
+            }
+            yield $piece as bytes;
+            $sent = $sent + 1;
+        }
+    }
+
+    // Writes the file and returns its path.
+    public static function write(string $name, Iterator<bytes> $pieces): string
+    {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), $name);
+        Core\IO::writeStream($path, $pieces, { overwrite: true });
+        return $path;
+    }
+}
+
+// 1. Lowers the memory limit to `32M`.
+echo 'limit lowered: ', Core\Config::set('limits.memory', '32M') ? 'yes' : 'no', "\n";
+
+// 2. Converts 262,144 links to one URL of 4,000 characters. The file is about 5 MB.
+// If every link had the URL, the HTML would be about 1 GB. After a fixed amount, the links are written as plain text.
+string $path = Upload::write('many-links.md', Upload::links(256));
+uint $parts = 0;
+uint $size = 0;
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+foreach (Core\Markdown::toHtmlEach($file) as Core\Html\Markup $part) {
+    $parts = $parts + 1;
+    $size = $size + Core\Str::length(Core\Html::toSource($part, 'the attack counts the HTML'));
+}
+$file->close();
+Core\IO::remove($path);
+echo '2 parts: ', $parts, ', characters of HTML: ', $size, "\n";
+
+// 3. Converts a file with 524,288 definitions. Every definition is kept in memory,
+// so the program stops with `FATAL` here.
+echo "step 3\n";
+$path = Upload::write('many-definitions.md', Upload::definitions(512));
+$file = Core\IO::open($path, Core\IO::FileMode::Read);
+foreach (Core\Markdown::toHtmlEach($file) as Core\Html\Markup $part) {
+    echo Core\Html::toSource($part, 'the attack prints the one link');
+}
+$file->close();
+Core\IO::remove($path);
+echo "3 the file was converted\n";

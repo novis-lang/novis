@@ -1,0 +1,11 @@
+part 1:
+<h1>Version 2.1</h1>
+part 2:
+<p>Search is faster now.</p>
+part 3:
+<h2>Fixed</h2>
+part 4:
+<ul>
+<li>Dates in March were shown as April.</li>
+<li>Long names were cut off.</li>
+</ul>

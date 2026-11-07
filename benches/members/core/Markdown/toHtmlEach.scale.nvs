@@ -1,0 +1,49 @@
+<?nvs
+// Measures converting one Markdown file to HTML part by part, at growing file sizes in bytes.
+// bench: start 1048576
+// bench: max 1073741824
+
+class Document
+{
+    // One section is a heading, a paragraph and a list, 128 bytes in all. The generator
+    // gives the file in pieces of 512 sections, so the whole document is never in memory.
+    public static function pieces(uint $size): Iterator<bytes>
+    {
+        string $section = "## Order 1042\n\nShipped to *Graz* on [Monday](https://example.com/orders).\n\n"
+            . "- 2 large white cups\n- 1 bag of coffee beans, 250 g\n\n";
+        bytes $piece = Core\Str::repeat($section, 512) as bytes;
+        uint $count = Core\Math::intDiv($size as int, 128) as uint;
+        uint $full = Core\Math::intDiv($count as int, 512) as uint;
+        uint $i = 0;
+        while ($i < $full) {
+            yield $piece;
+            $i = $i + 1;
+        }
+        yield Core\Str::repeat($section, $count % 512) as bytes;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), 'to-html-each-scale.md');
+        Core\IO::writeStream($path, Document::pieces($size), { overwrite: true });
+
+        uint $parts = 0;
+        Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+        foreach (Core\Markdown::toHtmlEach($file) as Core\Html\Markup $part) {
+            $parts = $parts + 1;
+        }
+        $file->close();
+        Core\IO::remove($path);
+
+        // The memory used must not grow with the file.
+        if (Core\Budget::memoryPeak() > 4194304) {
+            throw new RuntimeError('toHtmlEach used more than 4 MiB');
+        }
+        return $parts;
+    }
+}
+
+echo Bench::run(1048576), "\n";

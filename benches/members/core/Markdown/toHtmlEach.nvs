@@ -1,0 +1,43 @@
+<?nvs
+// Measures converting a short Markdown file to HTML part by part, as a site does for each help page it serves.
+// bench: iterations 256
+// bench: complexity linear
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        string $dir = Core\IO::temporaryDir();
+        array<string> $paths = [
+            Core\Path::join($dir, 'to-html-each-a.md'),
+            Core\Path::join($dir, 'to-html-each-b.md'),
+            Core\Path::join($dir, 'to-html-each-c.md'),
+        ];
+        Core\IO::write($paths[0], "Your order **1042** was shipped today.\n");
+        Core\IO::write(
+            $paths[1],
+            "# Returns\n\nSend the parcel back within *30 days*.\n\n- Keep the receipt.\n- Use the label.\n\nSee [the policy][p].\n\n[p]: https://example.com/returns\n",
+        );
+        Core\IO::write(
+            $paths[2],
+            "## Opening hours\n\n| Day | Hours |\n|---|---|\n| Monday | 9 to 17 |\n\n> Closed on holidays.\n\n```text\nshop --hours\n```\n",
+        );
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The file of every round is chosen by the parts read so far, so
+            // the loop cannot be left out.
+            int $which = ($total % 3) as int;
+            Core\IO\File $file = Core\IO::open($paths[$which], Core\IO::FileMode::Read);
+            foreach (Core\Markdown::toHtmlEach($file) as Core\Html\Markup $part) {
+                $total = $total + 1;
+            }
+            $file->close();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

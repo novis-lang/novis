@@ -1,0 +1,19 @@
+<?nvs
+// Shows that a link in the first part can use a definition from the last line of the file.
+
+// `[the install guide][install]` is a link. Its URL is on the last line of the file.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'readme.md');
+Core\IO::write(
+    $path,
+    "Read [the install guide][install] before you start.\n\n"
+        . "# Usage\n\nRun the program with no arguments.\n\n"
+        . "[install]: https://example.com/install\n",
+);
+
+// The loop reads the file twice. The first read finds the definition,
+// so the first part already has the link.
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+foreach (Core\Markdown::toHtmlEach($file) as Core\Html\Markup $part) {
+    echo $part;
+}
+$file->close();

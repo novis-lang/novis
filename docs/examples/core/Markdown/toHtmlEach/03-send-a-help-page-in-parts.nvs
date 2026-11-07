@@ -1,0 +1,13 @@
+<?nvs
+// Shows a help page that is sent to the browser one part at a time.
+
+Core\Response\Stream $page = Core\Response::stream('text/html; charset=utf-8');
+$page->write("<!doctype html>\n<title>Install</title>\n");
+
+// `pages/install.md` is next to this program. The response gets each part
+// as soon as it is converted, so only one part is in memory at a time.
+Core\IO\File $file = Core\IO::open(Core\Path::thisDir('pages/install.md'), Core\IO::FileMode::Read);
+foreach (Core\Markdown::toHtmlEach($file) as Core\Html\Markup $part) {
+    $page->write(Core\Html::toSource($part, 'the stream sends text'));
+}
+$file->close();

@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/help/install
+--HEADERS--
+host: example.com
