@@ -356,9 +356,9 @@ fn added_output_past_its_budget_renders_as_source_text() {
     );
 }
 
-/// Every `work = "linear"` to-html entry of the known-bug catalogue, as its
-/// id and its input with `repeat` written `n` times.
-fn slow_inputs(n: usize) -> Vec<(String, String)> {
+/// Every `work = "linear"` entry of the known-bug catalogue whose direction
+/// is `direction`, as its id and its input with `repeat` written `n` times.
+fn slow_inputs(n: usize, direction: &str) -> Vec<(String, String)> {
     let path = format!(
         "{}/../../tests/data/markdown/known-bugs.toml",
         env!("CARGO_MANIFEST_DIR")
@@ -376,7 +376,7 @@ fn slow_inputs(n: usize) -> Vec<(String, String)> {
         .expect("`bug` is an array of tables")
         .iter()
         .filter_map(toml::Value::as_table)
-        .filter(|bug| field(bug, "work") == "linear" && field(bug, "direction") == "to-html")
+        .filter(|bug| field(bug, "work") == "linear" && field(bug, "direction") == direction)
         .map(|bug| {
             let text =
                 field(bug, "input") + &field(bug, "repeat").repeat(n) + &field(bug, "suffix");
@@ -406,8 +406,8 @@ fn work_grows_linearly_over_every_catalogued_slow_input() {
             .1
             .expect("a build with debug assertions counts steps")
     };
-    let short = slow_inputs(N);
-    let long = slow_inputs(4 * N);
+    let short = slow_inputs(N, "to-html");
+    let long = slow_inputs(4 * N, "to-html");
     assert!(short.len() > 100, "the catalogue has its slow entries");
     let report: Vec<String> = short
         .iter()
@@ -978,4 +978,255 @@ fn to_html_each_holds_one_block_group_of_a_file_not_the_document() {
         "held {most} bytes of a {} byte document, past {bound}",
         markdown.len()
     );
+}
+
+/// `html` sanitized, with each run of spaces and line feeds as one space and
+/// none between two tags, so two renderings that differ only in how they lay
+/// out their whitespace compare equal.
+fn meaning(html: &str) -> String {
+    let sanitized = crate::fuzz::html_sanitized(html);
+    let mut out = String::with_capacity(sanitized.len());
+    for ch in sanitized.chars() {
+        let ch = if ch == '\n' { ' ' } else { ch };
+        if !(ch == ' ' && out.ends_with(' ')) {
+            out.push(ch);
+        }
+    }
+    out.trim().replace("> <", "><").replace("<br> ", "<br>")
+}
+
+/// `text` as HTML text.
+fn html_text(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+/// Texts that are Markdown syntax where they stand, each one at the start of
+/// a line.
+const SYNTAX: &[&str] = &[
+    "# a",
+    "## a ##",
+    "- a",
+    "+ a",
+    "* a",
+    "1. a",
+    "1984) a",
+    "> a",
+    ">a",
+    "*a*",
+    "**a**",
+    "_a_",
+    "~~a~~",
+    "`a`",
+    "```",
+    "~~~",
+    "---",
+    "***",
+    "===",
+    "[a](https://example.com)",
+    "![a](https://example.com/a.png)",
+    "[a]: https://example.com",
+    "[^1]",
+    "<b>a</b>",
+    "<!-- a -->",
+    "&amp; &copy; &#65;",
+    "\\*a\\*",
+    "| a | b |",
+    "www.example.com",
+    "https://example.com/a",
+    "a@example.com",
+    "see http://a@example.com",
+    "[ ] a",
+    "a \\",
+];
+
+#[test]
+fn from_html_text_never_becomes_markdown_syntax() {
+    for text in SYNTAX {
+        let body = html_text(text);
+        for (html, want) in [
+            (format!("<p>{body}</p>"), format!("<p>{body}</p>")),
+            (format!("<h2>{body}</h2>"), format!("<h2>{body}</h2>")),
+            (
+                format!("<blockquote>{body}</blockquote>"),
+                format!("<blockquote><p>{body}</p></blockquote>"),
+            ),
+            (
+                format!("<ul><li>{body}</li></ul>"),
+                format!("<ul><li>{body}</li></ul>"),
+            ),
+            (
+                format!("<table><tr><th>{body}</th></tr></table>"),
+                format!("<table><thead><tr><th>{body}</th></tr></thead></table>"),
+            ),
+            (
+                format!("<p>x<br>{body}</p>"),
+                format!("<p>x<br>{body}</p>"),
+            ),
+            (
+                format!("<p><em>{body}</em></p>"),
+                format!("<p><em>{body}</em></p>"),
+            ),
+        ] {
+            let written = crate::fuzz::from_html(&html);
+            let rendered = crate::fuzz::markdown(&written);
+            assert_eq!(
+                meaning(&rendered),
+                meaning(&want),
+                "{html:?} wrote {written:?}"
+            );
+        }
+    }
+}
+
+/// Markdown documents whose HTML `fromHtml` writes back.
+const DOCUMENTS: &[&str] = &[
+    "# Title\n\nSome *emphasis*, **strong** and ~~struck~~ text.\n",
+    "A [link](https://example.com/a \"its title\") and an ![image](/a.png \"t\").\n",
+    "Code `a` and ``a ` b`` and ` `` `.\n",
+    "```rust\nfn main() {}\n```\n\n```\n````\n```\n",
+    "- one\n- two\n  - nested\n  - again\n- three\n",
+    "3. three\n4. four\n\n- a\n\n- b\n",
+    "- [ ] open\n- [x] done\n",
+    "> quoted\n>\n> - a list\n> - in it\n",
+    "| a | b | c |\n| :- | :-: | -: |\n| 1 | 2 | 3 |\n",
+    "a\\\nb\n\n***\n\nc\n",
+    "Visit www.example.com or https://example.com/x, or mail a@example.com.\n",
+    "x<sup>2</sup> and H<sub>2</sub>O and <kbd>Ctrl</kbd>.\n",
+    "1. a\n\n   b\n2. c\n",
+    "> > deep\n> > quote\n",
+    "- a\n\n  ```\n  code\n  ```\n- b\n",
+    "### *a* `b` [c](/d)\n",
+    "*a*b and a**b**c and *.a* and **(b)**\n",
+];
+
+#[test]
+fn markdown_to_html_to_markdown_keeps_the_meaning() {
+    for document in DOCUMENTS {
+        let html = crate::fuzz::markdown(document);
+        let written = crate::fuzz::from_html(&html);
+        let again = crate::fuzz::markdown(&written);
+        assert_eq!(
+            meaning(&again),
+            meaning(&html),
+            "{document:?} rendered {html:?}, wrote {written:?}"
+        );
+    }
+}
+
+#[test]
+fn from_html_twice_gives_the_same_markdown() {
+    let mut inputs: Vec<String> = DOCUMENTS
+        .iter()
+        .map(|document| crate::fuzz::markdown(document))
+        .collect();
+    inputs.extend(SYNTAX.iter().map(|text| format!("<p>{}</p>", html_text(text))));
+    inputs.extend(
+        [
+            "<div><span>a</span> <b> b </b>c<br><br>d</div>",
+            "<ol start=\"7\"><li><p>a</p></li><li>b</li></ol><ol><li>c</li></ol>",
+            "<table><tr><td colspan=\"2\">a\n\nb</td></tr></table>",
+            "<dl><dt>a</dt><dd>b</dd></dl>",
+            "<pre>a\n\n  b</pre><p>x</p>",
+            "<p><a href=\"javascript:x\">a</a> <img src=\"data:x\" alt=\"b\"></p>",
+        ]
+        .map(str::to_owned),
+    );
+    for html in &inputs {
+        let first = crate::fuzz::from_html(html);
+        let second = crate::fuzz::from_html(&crate::fuzz::markdown(&first));
+        assert_eq!(second, first, "{html:?}");
+    }
+}
+
+#[test]
+fn a_table_markdown_cannot_hold_is_written_as_sanitized_html() {
+    let gfm = crate::fuzz::from_html("<table><tr><th>a</th></tr><tr><td>b</td></tr></table>");
+    assert_eq!(gfm, "| a |\n| --- |\n| b |\n");
+
+    for html in [
+        "<table><tr><th colspan=\"2\">a</th></tr><tr><td>b</td><td onclick=\"x()\">c</td></tr></table>",
+        "<table><tr><th>a</th></tr><tr><td rowspan=\"2\">b</td></tr></table>",
+        "<table><tr><th>a</th></tr><tr><td><p>b</p><p>c</p></td></tr></table>",
+        "<table><caption>t</caption><tr><th>a</th></tr></table>",
+        "<table><tr><td>no header</td></tr></table>",
+        "<table><tr><th>a</th></tr><tr><td>b</td><td>c</td></tr></table>",
+    ] {
+        let written = crate::fuzz::from_html(html);
+        assert!(written.starts_with("<table>"), "{html:?} wrote {written:?}");
+        assert_eq!(written.lines().count(), 1, "one HTML block: {written:?}");
+        assert!(!written.contains("onclick"), "{written:?}");
+        assert_eq!(
+            meaning(&crate::fuzz::markdown(&written)),
+            meaning(html),
+            "{html:?} wrote {written:?}"
+        );
+    }
+}
+
+#[test]
+fn a_code_block_with_backticks_gets_a_longer_fence() {
+    let code = "a ``` b\n````` c\n";
+    let html = format!("<pre><code class=\"language-sh\">{code}</code></pre>");
+    let written = crate::fuzz::from_html(&html);
+    assert!(written.starts_with("``````sh\n"), "{written:?}");
+    assert!(written.ends_with("\n``````\n"), "{written:?}");
+    assert_eq!(
+        meaning(&crate::fuzz::markdown(&written)),
+        meaning(&html),
+        "{written:?}"
+    );
+
+    let span = crate::fuzz::from_html("<p><code>``a`</code></p>");
+    assert_eq!(span, "``` ``a` ```\n");
+}
+
+/// `fromHtml`'s own linear work, over every catalogued slow from-html input:
+/// the bytes its walk reads and copies (`from_html::WORK`), at `n` and `4n`.
+/// The bound is five times, as for `toHtml`. The parse's own work is
+/// `Core\Html::parse`'s, and its tests bound it.
+#[test]
+#[cfg_attr(miri, ignore = "documents of thousands of nodes")]
+fn from_html_work_grows_linearly_over_every_catalogued_slow_input() {
+    const N: usize = 1000;
+    let work = |html: &str| {
+        let before = from_html::WORK.with(std::cell::Cell::get);
+        let _ = crate::fuzz::from_html(html);
+        from_html::WORK.with(std::cell::Cell::get) - before
+    };
+    let short = slow_inputs(N, "from-html");
+    let long = slow_inputs(4 * N, "from-html");
+    assert!(short.len() >= 10, "the catalogue has its slow entries");
+    let report: Vec<String> = short
+        .iter()
+        .zip(&long)
+        .filter_map(|((id, short), (_, long))| {
+            let (small, large) = (work(short), work(long));
+            (large <= small || large > 5 * small)
+                .then(|| format!("{id}: {small} bytes of work at n = {N}, {large} at 4n"))
+        })
+        .collect();
+    assert!(
+        report.is_empty(),
+        "{} entries grow faster than their input:\n{}",
+        report.len(),
+        report.join("\n")
+    );
+}
+
+#[test]
+fn from_html_reads_a_node_a_program_already_holds() {
+    use nvs_runtime::{Ctx, OutputSink};
+    let mut ctx = Ctx::new(OutputSink::Sink);
+    let tree = crate::html::parse("<p>a</p><div><script>x()</script><p><em>b</em></p></div>");
+    let node = crate::xml::instance_of(tree, &[]);
+    let written = nvs_runtime::call(nvs_core_markdown_from_html, &mut ctx, &[node])
+        .expect("a node converts");
+    assert_eq!(written.as_text(), Some("a\n\n*b*\n"));
+    #[expect(unsafe_code, reason = "the case owns the one reference of each value it built")]
+    unsafe {
+        written.release();
+        node.release();
+    }
 }

@@ -3,7 +3,28 @@ text node is escaped, and a construct Markdown cannot express is written as sani
 
 **Input** is a string or a `Core\Html\Markup`, parsed by `Core\Html::parse`, or a `Core\Xml\Node`
 already parsed. Elements are kept or dropped by `rule:core-classes/html-sanitize`'s list, so a
-`<script>`'s text never appears. A tainted input gives a tainted result.
+`<script>`'s text never appears: the converter walks the sanitizer's rebuilt tree.
+
+**The result is always `tainted string`.** A node's text is tainted, and a member cannot make its
+result's mark follow one arm of a union, so a plain result from a node would launder that text for
+every sink. A `Markup` input pays for it with a tainted result, which `toHtml` and `echo` take as they
+are. Taking a node does not open a path back into execution, because the member returns text alone;
+`a_parsed_tree_has_no_path_back_into_execution` allows exactly that shape.
+
+**How text stays text.** `` \ ` * _ [ ] < > & | ~ `` always get a backslash, and `# - + =` and the
+`.` or `)` after a number get one at the start of a line. A backslash cannot stop a GFM extended
+autolink, since the renderer finds those after escapes are read, so a text that would autolink is cut
+with an empty comment `<!-- -->` before the `.` of `www.`, the `:` of `://` and the `@` of an address.
+The sanitizer drops the comment. Emphasis whose content starts or ends with punctuation is written as
+its tags, because `*` there is not read as emphasis.
+
+**What Markdown cannot write** — a table outside GFM's shape, `dl`, `figure`, and an `ol` whose start
+has more than nine digits — is written as its sanitized HTML on one line, with each line feed as
+`&#10;`, so CommonMark reads it as one HTML block that no blank line ends early. An inline element
+with no Markdown syntax, such as `sup`, is its tags around Markdown content.
+
+**Depth.** The walk follows 128 levels of elements, and past that writes an element's text alone. It
+bounds both the native stack and the copy each level makes of its content, which keeps work linear.
 
 **The writing rules.**
 

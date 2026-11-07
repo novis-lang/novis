@@ -77,6 +77,7 @@ use callbacks::{Answer, Callables, Callbacks, NoCallbacks, Trusted, given};
 mod autolink;
 pub(crate) mod callbacks;
 mod each;
+mod from_html;
 mod groups;
 mod live;
 mod segments;
@@ -176,6 +177,22 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(LIVE_NAME),
             symbol: "nvs_core_markdown_live",
             doc: Some(&LIVE_DOC),
+        },
+        CoreMethod {
+            name: "fromHtml",
+            names: &["html"],
+            // The answer is `tainted` whatever the argument is. A node's text
+            // is tainted, and a `string` answer from it would launder that
+            // text for every sink (`rule:core-classes/markdown-from-html`).
+            params: &[CoreTy::Union(&[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Instance(MARKUP_NAME),
+                CoreTy::Instance(crate::xml::NODE_NAME),
+            ])],
+            defaults: &[],
+            return_ty: CoreTy::TaintedStr,
+            symbol: "nvs_core_markdown_from_html",
+            doc: Some(&FROM_HTML_DOC),
         },
     ],
     instance: &[],
@@ -483,10 +500,27 @@ const TO_HTML_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+const FROM_HTML_DOC: MethodDoc = MethodDoc {
+    short: "Converts HTML to Markdown. Text in the HTML stays text, so it never becomes \
+            Markdown syntax.",
+    params: &[ParamDoc {
+        name: "html",
+        desc: "The HTML. It can be a string, a `Core\\Html\\Markup`, or a node from \
+               `Core\\Html::parse`. Pass a node to convert only that part of a page. \
+               Elements are kept or removed as `Core\\Html::sanitize` keeps or removes them.",
+        shape: &[],
+    }],
+    ret: "The Markdown, as a `tainted` string. A table that Markdown cannot write, such as \
+          one with `colspan`, is written as HTML. A link with an unsafe URL is written as its \
+          text.",
+    errors: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
+        "nvs_core_markdown_from_html" => (nvs_core_markdown_from_html as *const ()).cast(),
         "nvs_core_markdown_to_html" => (nvs_core_markdown_to_html as *const ()).cast(),
         "nvs_core_markdown_to_html_each" => {
             (each::nvs_core_markdown_to_html_each as *const ()).cast()
@@ -1509,6 +1543,42 @@ nvs_runtime::nvs_helper! {
         };
         let out = rendered_with(markdown, r"Core\Markdown::toHtml", &mut hooks)?;
         Ok(crate::instance::build(&MARKUP, [Value::text(&out)]))
+    }
+}
+
+/// `html`, an HTML document, as `Core\Markdown::fromHtml` writes it.
+///
+/// # Errors
+///
+/// The memory limit's `FATAL`.
+pub(crate) fn from_html_text(html: &str) -> Result<String, Fault> {
+    from_html::markdown(bounded(html, from_html::MEMBER)?)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Markdown::fromHtml(string|Core\Html\Markup|Core\Xml\Node $html):
+    /// tainted string` — `rule:core-classes/markdown-from-html`'s converter.
+    ///
+    /// A string or a `Markup` is parsed by the WHATWG algorithm, and a node is
+    /// copied out of the tree it is in. [`from_html::markdown`] does the rest.
+    fn nvs_core_markdown_from_html(_ctx, args: [1]) {
+        let tree = if let Some(html) = args[0].as_text() {
+            bounded(html, from_html::MEMBER)?
+        } else if crate::instance::is_instance(args[0], &MARKUP) {
+            let held = crate::html::markup_slot(args[0], from_html::MEMBER)?;
+            let html = held.as_text().ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{}: a `Core\\Html\\Markup` held tag {}",
+                    from_html::MEMBER,
+                    held.tag_byte()
+                ))
+            })?;
+            bounded(html, from_html::MEMBER)?
+        } else {
+            crate::xml::parsed_of(args[0], from_html::MEMBER)?
+        };
+        let out = from_html::markdown(tree)?;
+        Ok(Value::text(&out))
     }
 }
 

@@ -31,18 +31,18 @@
 //! - **`work = "linear"`** is rendered here once, and its bound is
 //!   `work_grows_linearly_over_every_catalogued_slow_input` in the crate's
 //!   own tests, which can count the engine's steps.
-//! - **A `from-html` entry** waits for `Core\Markdown::fromHtml`, which the
-//!   `markdown` goal's stage 7 builds. Until then [`FROM_HTML_BUILT`] is
-//!   `false` and such an entry is skipped.
+//! - **A `from-html` entry** runs `Core\Markdown::fromHtml`. Its `markdown`
+//!   is the exact Markdown and its `markdown_lacks` strings never appear in
+//!   it. Its `html` is what that Markdown renders back to, compared after
+//!   both are sanitized, so a legitimate escaping style does not fail it. Its
+//!   `work` bound is
+//!   `from_html_work_grows_linearly_over_every_catalogued_slow_input` in the
+//!   crate's own tests.
 
 use std::collections::BTreeSet;
 
-use nvs_stdlib::fuzz::{html_sanitized, html_tags, markdown};
+use nvs_stdlib::fuzz::{from_html, html_sanitized, html_tags, markdown};
 use serde::Deserialize;
-
-/// Whether `Core\Markdown::fromHtml` exists. Stage 7 of the `markdown` goal
-/// sets it and writes the from-html arm of [`outcome`].
-const FROM_HTML_BUILT: bool = false;
 
 /// The `n` a bound over `repeat` renders at, and then at four times it.
 const N: usize = 1000;
@@ -272,11 +272,7 @@ fn every_catalogue_entry_has_a_source_a_class_an_input_and_an_expectation() {
 /// Whether `bug` renders as the catalogue expects, and what went wrong if not.
 fn outcome(bug: &Bug) -> Result<(), String> {
     if bug.direction == "from-html" {
-        return if FROM_HTML_BUILT {
-            Err("the from-html arm is not written".to_owned())
-        } else {
-            Ok(())
-        };
+        return from_html_outcome(bug);
     }
     if bug.output.is_some() {
         let (short, long) = (bug.text(N), bug.text(4 * N));
@@ -305,6 +301,34 @@ fn outcome(bug: &Bug) -> Result<(), String> {
     for lack in bug.html_lacks.iter().flatten() {
         if tags.contains(lack.as_str()) {
             return Err(format!("{lack:?} is in the tags of {html:?}"));
+        }
+    }
+    Ok(())
+}
+
+/// [`outcome`] for an entry whose input is HTML: the Markdown
+/// `Core\Markdown::fromHtml` writes, and the HTML that Markdown renders back
+/// to.
+fn from_html_outcome(bug: &Bug) -> Result<(), String> {
+    if bug.work.is_some() {
+        from_html(&bug.text(N));
+        return Ok(());
+    }
+    let written = from_html(&bug.text(1));
+    for lack in bug.markdown_lacks.iter().flatten() {
+        if written.contains(lack.as_str()) {
+            return Err(format!("{lack:?} is in {written:?}"));
+        }
+    }
+    if let Some(want) = &bug.markdown
+        && written != *want
+    {
+        return Err(format!("writes {written:?}, want {want:?}"));
+    }
+    if let Some(want) = &bug.html {
+        let (got, want) = (html_sanitized(&markdown(&written)), html_sanitized(want));
+        if got != want {
+            return Err(format!("{written:?} renders {got:?}, want {want:?}"));
         }
     }
     Ok(())

@@ -1,0 +1,36 @@
+--TEST--
+`Core\Markdown::fromHtml` writes Markdown from a string, a `Core\Html\Markup` and a parsed node, escapes text so it stays text, drops a script, writes a table Markdown cannot hold as HTML, and returns a tainted string — `rule:core-classes/markdown-from-html`
+--FILE--
+<?nvs
+// covers: Core\Markdown::fromHtml
+echo Core\Markdown::fromHtml("<h2>Notes</h2><p>Read <a href=\"/guide\">the <em>guide</em></a>.</p><ul><li>one</li><li>two</li></ul>");
+echo "--\n";
+echo Core\Markdown::fromHtml("<p># not a heading, *not* emphasis</p><script>alert(1)</script>");
+echo "--\n";
+echo Core\Markdown::fromHtml("<table><tr><th colspan=\"2\">a</th></tr><tr><td>b</td><td>c</td></tr></table>");
+echo "--\n";
+Core\Html\Markup $markup = Core\Markdown::toHtml("```php\necho 1;\n```\n");
+echo Core\Markdown::fromHtml($markup);
+echo "--\n";
+Core\Xml\Node $page = Core\Html::parse("<nav>menu</nav><article><p>Only <b>this</b>.</p></article>");
+// The document holds `html`, which holds `head` and `body`. The `article` is the second element in `body`.
+Core\Xml\Node $article = $page->children()[0]->children()[1]->children()[1];
+tainted string $markdown = Core\Markdown::fromHtml($article);
+echo $markdown;
+--EXPECT--
+## Notes
+
+Read [the *guide*](/guide).
+
+- one
+- two
+--
+\# not a heading, \*not\* emphasis
+--
+<table><tbody><tr><th colspan="2">a</th></tr><tr><td>b</td><td>c</td></tr></tbody></table>
+--
+```php
+echo 1;
+```
+--
+Only **this**.

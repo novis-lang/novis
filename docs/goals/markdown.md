@@ -28,7 +28,7 @@ stages:
     status: done
   - id: 7
     title: "Core\\Markdown::fromHtml writes Markdown from HTML"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/xml.rs]
   - id: 8
     title: "fromHtml reads a large document without holding the whole tree"
@@ -268,7 +268,10 @@ names a Markdown renderer as a sink.
    - A code block's fence is one backtick longer than the longest run of backticks inside it.
    - Choosing the main content of a page (dropping nav, footer, ads) is not done. The program passes the
      element it wants.
-   - A tainted input gives a tainted result.
+   - A tainted input gives a tainted result. **Built (stage 7) as** a result that is always
+     `tainted string`: a node's text is tainted and a result's mark cannot follow one union arm, so a
+     plain result would launder a node's text. The xml sweep test now allows a member that takes a
+     node and returns a `tainted string` alone, since text runs nowhere.
    - Stage 8 streams a large document. Its acceptance is that the streamed result equals the result
      over the whole tree. If the tree builder can still change an element after it is closed, stage 8
      records why and `fromHtml` keeps holding the tree. Its memory is then the document, as
@@ -497,10 +500,13 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
 
 ### 7. Core\Markdown::fromHtml writes Markdown from HTML
 
-- [ ] `crates/nvs-stdlib/src/markdown/from_html.rs` over the tree `Core\Html::parse` builds, by
+- [x] `crates/nvs-stdlib/src/markdown/from_html.rs` over the tree `Core\Html::parse` builds, by
   decision 8. `crates/nvs-stdlib/src/xml.rs:1`
-- [ ] The converter's catalogue entries pass. `crates/nvs-stdlib/tests/markdown_known_bugs.rs:1`
-- [ ] The five tests of the `from-html` check. `crates/nvs-stdlib/src/markdown/from_html.rs:1`
+  - [x] the walk over the sanitizer's rebuilt tree, with escaping and the autolink cut
+  - [x] `Core\Markdown::fromHtml` on `CLASS`, its symbol, and `xml::parsed_of` for a node
+  - [x] the rule, a reference-free conformance case
+- [x] The converter's catalogue entries pass. `crates/nvs-stdlib/tests/markdown_known_bugs.rs:1`
+- [x] The five tests of the `from-html` check. `crates/nvs-stdlib/src/markdown/from_html.rs:1`
 
 ### 8. fromHtml reads a large document without holding the whole tree
 
@@ -553,49 +559,46 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 6 is done, in one commit, and its `live` check is green.
-- **The object** is `crates/nvs-stdlib/src/markdown/live.rs`. `Core\Markdown::live` files a `Held`
-  on the request and returns a `Core\Markdown\Live` (`markdown.rs`, `LIVE`: the key and the four
-  callbacks). `push` returns a `Core\Markdown\Update` (`UPDATE`, two `Markup` slots read by `done()`
-  and `open()`); decision 1 records why they are members. `with_text` takes the state out, checks
-  `affords(2 × (unread + piece))`, and ends the object on `finish` or any error; a later call throws
-  a `RuntimeError`.
-- **The splitter** (`markdown/segments.rs`): `Segments::live` parses at every new line end.
-  `Walk::live` starts with the slack budget and 100 KB of fuel, and each segment adds its length to
-  both (`Outside::fuel`/`set_fuel`, a new vendored pair beside `Outside::bytes`). After a segment it
-  learns the segment's definitions and keeps the text of a group still open in `pending`.
-  `Walk::open` renders `pending + unread` with a fresh `State` (footnote numbers copied when the text
-  has `[^`), puts the fuel back, and writes through a clone of `Written`. `Renderer::unfinished`
-  closes the tree without footnotes.
-- **The rule** `rule:core-classes/markdown-chunks` now states the built shape and the eager cut's
-  cost: one block pushed in many pieces costs work in the square of its length.
-- **Docs and case**: a reference section, its example run on the debug binary, and the passing
-  `tests/conformance/core/markdown-live-gives-each-finished-block-once-and-the-open-rest.nvst`.
-- **Stale sweep reds, a seventh time**: the `env-secret-proofs` log does not exist, and nightly run
-  `42201104003` built `26dda36`, an ancestor of the Miri fix `f13f4064`.
+Stage 7 is done, in one commit. The `from-html` check's five tests, the catalogue (every from-html
+entry) and the xml sweep test pass, each run once by name.
+- **The converter** is `crates/nvs-stdlib/src/markdown/from_html.rs`. `markdown(tree)` wraps a
+  non-document node, runs `html::rebuilt`, and `Writer::collect` walks the result into
+  `(Part, String)` blocks that `joined` puts together. `Part` decides when a tight list item may use
+  one line feed. `Inline` collapses whitespace, holds a space or break until text follows, and
+  `escape_into` escapes and cuts autolinks with `<!-- -->`. Tables go through `gfm_table` or
+  `html_block` (one line, `&#10;`). `DEPTH = 128`. `WORK` counts bytes for the linear-work test.
+- **The member** `fromHtml` on `CLASS` returns `tainted string` always (decision 8 records why);
+  `nvs_core_markdown_from_html` reads a string, a `Markup`, or a node through the new
+  `crate::xml::parsed_of`. `a_parsed_tree_has_no_path_back_into_execution` now skips a member
+  returning `TaintedStr`.
+- **Tests** beside the live tests (`markdown/tests.rs:1045` on): the five, plus
+  `from_html_work_grows_linearly_over_every_catalogued_slow_input` and
+  `from_html_reads_a_node_a_program_already_holds`. `slow_inputs` takes a direction. The catalogue
+  test's `from_html_outcome` replaces `FROM_HTML_BUILT`. `nvs_stdlib::fuzz::from_html` is new.
+- **Rule and case**: `rule:core-classes/markdown-from-html` states the built shape, and
+  `tests/conformance/core/markdown-from-html-writes-markdown-from-a-string-markup-and-a-node.nvst`
+  passes on the debug binary (`bun nv try` needs `NVS_BIN=target/debug/nvs.exe`).
+- **Stale sweep reds**: no `env-secret-proofs` check exists; nightly `42201104003` predates `f13f4064`.
 
 ### Next
 
-Stage 7: `Core\Markdown::fromHtml`. Write its checkpoints under stage 7's items first.
+Stage 8: stream `fromHtml` over a large document, or record why the tree builder prevents it.
+Write its checkpoints under stage 8's items first.
 
-- [ ] **The converter** over `crates/nvs-stdlib/src/xml.rs:1`'s tree (decision 8): input is a
-  `string`, a `Core\Html\Markup` or a `Core\Xml\Node`. Parse with `crate::html::parse`
-  (`crates/nvs-stdlib/src/html.rs:1627`); keep or drop each element by the
-  sanitizer's list `ELEMENTS` (`crates/nvs-stdlib/src/html.rs:1867`), dropping a raw-text element's content. Walk the
-  `crate::xml::Parsed` tree, escape every text node, collapse whitespace by the CSS rules, and write
-  a GFM table only when every cell is inline with no `colspan`/`rowspan`, else sanitized HTML
-  (`rebuilt`, `html.rs:2161`). A fence is one backtick longer than the longest run inside.
-- [ ] **The member** on `CLASS` (`crates/nvs-stdlib/src/markdown.rs:114`; `fromHtml`, returning
-  `string`; a tainted input gives a tainted result), and its symbol in `address`.
-- [ ] **The catalogue**: set `FROM_HTML_BUILT` (`crates/nvs-stdlib/tests/markdown_known_bugs.rs:45`)
-  to `true`, and every from-html entry passes.
-- [ ] **The five `from-html` tests**, beside the `live` tests (`crates/nvs-stdlib/src/markdown/tests.rs:802`).
+- [ ] **Decide streaming** at `crates/nvs-stdlib/src/markdown/from_html.rs:78`: can html5ever's
+  tree builder still change a closed top-level element (adoption agency, foster parenting, `</p>`)?
+  The sink is `crate::html::Sink`, and `from_html::markdown` takes a whole `Parsed`. If streaming is
+  unsafe, record why in the rule and decision 8 and keep the tree; the test then checks that the
+  per-body-child conversion equals the whole.
+- [ ] **The test** at `crates/nvs-stdlib/src/markdown/tests.rs:1045`:
+  `from_html_streamed_gives_the_same_markdown_as_the_whole_tree`, beside the from-html tests.
+- [ ] **A reference section** at `docs/reference/core/Markdown.md:89`, after the Live section, with
+  the conformance case's first example; run it with `NVS_BIN`.
 
-Expected red: the floor check `proofs-gate`, since `toHtml`, `toHtmlEach` and now `live` owe their
-feature proofs until stage 10 writes them. Possibly red at the gate, not run this session:
-`registry.rs`'s `a_class_with_slots_has_instance_members_and_the_reverse` and
-`crates/nvs-stdlib/tests/ext_world.rs`, which see the two new classes; `Core\Markdown\Update` is not on
-`REFUSED`, on the model of `Core\Html\Markup`. Stage 11 may run as a side goal (decision 12).
+Expected red: the floor check `proofs-gate`, since the four members owe their feature proofs until
+stage 10. Possibly red at the gate, not run this session: `registry.rs`'s
+`a_class_with_slots_has_instance_members_and_the_reverse`, `crates/nvs-stdlib/tests/ext_world.rs`,
+and card or website checks that see the new `fromHtml` member. Stage 11 may run as a side goal.
 
 ### Backlog
 

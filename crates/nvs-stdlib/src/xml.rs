@@ -3040,6 +3040,105 @@ fn afford_writing(out: &str, capacity: usize, more: usize) -> Result<(), Fault> 
     nvs_runtime::affordable(Some(grown.saturating_add(more)), "Core\\Xml\\Node::source").map(drop)
 }
 
+/// One node's subtree as the Rust tree a parse builds, so a member that reads
+/// a document can read a node a program already holds. `Core\Markdown::fromHtml`
+/// is the one caller.
+///
+/// **Iterative**, for [`source`]'s reason: the stack is on the heap. It asks
+/// the request's budget once per node, as the parse does, so a copy of a tree
+/// near the limit stops at the limit's `FATAL`.
+///
+/// What it spends: the copy, which is the subtree's size, plus one entry per
+/// node on the path from `node` to where the walk is, and that entry's
+/// children still to read. The caller drops it before it returns.
+///
+/// # Errors
+///
+/// A `Fault::fatal` for a value that is not a node or a slot this module did
+/// not write, and the memory limit's `FATAL`.
+pub(crate) fn parsed_of(node: Value, member: &str) -> Result<Parsed, Fault> {
+    let mut stack: Vec<(Parsed, Vec<Value>)> = Vec::new();
+    let mut next = Some(node);
+    loop {
+        if let Some(node) = next.take() {
+            let receiver = crate::instance::receiver(node, &NODE, member)?;
+            let held = crate::instance::slot(receiver, KIND_SLOT);
+            let kind = held
+                .as_int()
+                .and_then(|ordinal| Kind::ALL.into_iter().find(|kind| kind.ordinal() == ordinal))
+                .ok_or_else(|| wrong_slot(&NODE, member, KIND_SLOT, held))?;
+            let named = crate::instance::slot(receiver, NAME_SLOT);
+            let name = named
+                .as_text()
+                .ok_or_else(|| wrong_slot(&NODE, member, NAME_SLOT, named))?;
+            let carries = crate::instance::slot(receiver, TEXT_SLOT);
+            let text = carries
+                .as_text()
+                .ok_or_else(|| wrong_slot(&NODE, member, TEXT_SLOT, carries))?;
+            let mut built = Parsed::new(kind);
+            built.name.push_str(name);
+            built.text.push_str(text);
+            let attributes = crate::instance::slot(receiver, ATTRIBUTES_SLOT);
+            let pairs = attributes
+                .array_ptr()
+                .ok_or_else(|| wrong_slot(&NODE, member, ATTRIBUTES_SLOT, attributes))?;
+            let pairs = crate::arr::borrowed(pairs);
+            let mut from = 0usize;
+            while let Some(at) = pairs.next_slot(from) {
+                from = at + 1;
+                let key = pairs
+                    .key_at(at)
+                    .ok_or_else(|| wrong_slot(&NODE, member, ATTRIBUTES_SLOT, attributes))?;
+                let attribute = std::str::from_utf8(key.as_bytes())
+                    .map_err(|_| wrong_slot(&NODE, member, ATTRIBUTES_SLOT, attributes))?;
+                let held = pairs
+                    .value_at(at)
+                    .expect("next_slot only names live entries");
+                let value = held
+                    .as_text()
+                    .ok_or_else(|| wrong_slot(&NODE, member, ATTRIBUTES_SLOT, held))?;
+                built
+                    .attributes
+                    .push((attribute.to_owned(), value.to_owned()));
+            }
+            let listed = crate::instance::slot(receiver, CHILDREN_SLOT);
+            let list = listed
+                .array_ptr()
+                .ok_or_else(|| wrong_slot(&NODE, member, CHILDREN_SLOT, listed))?;
+            let list = crate::arr::borrowed(list);
+            let mut children = Vec::new();
+            let mut from = 0usize;
+            while let Some(at) = list.next_slot(from) {
+                from = at + 1;
+                children.push(list.value_at(at).expect("next_slot only names live entries"));
+            }
+            children.reverse();
+            nvs_runtime::affordable(
+                Some(
+                    name.len()
+                        + text.len()
+                        + std::mem::size_of::<Parsed>()
+                        + children.len() * std::mem::size_of::<Value>(),
+                ),
+                member,
+            )?;
+            stack.push((built, children));
+        }
+        let top = stack
+            .last_mut()
+            .expect("a node was pushed above or is still open");
+        if let Some(child) = top.1.pop() {
+            next = Some(child);
+            continue;
+        }
+        let (done, _) = stack.pop().expect("the frame just read to its end");
+        match stack.last_mut() {
+            Some(parent) => parent.0.children.push(done),
+            None => return Ok(done),
+        }
+    }
+}
+
 /// One node's subtree as the document text a parse reads this same tree back
 /// out of.
 ///
@@ -4540,9 +4639,11 @@ mod tests {
     /// for the AST — the same property, shown the same three ways, because the
     /// two trees are the same kind of thing.
     ///
-    /// 1. **No member anywhere in `Core` accepts a node or the class.** The
-    ///    sweep is over the whole registry, because a door that ran a tree
-    ///    would be declared next to whatever ran it rather than here.
+    /// 1. **No member anywhere in `Core` accepts a node or the class**, but
+    ///    one that returns a `tainted string` and nothing else: text it
+    ///    wrote from the tree, which runs nowhere. The sweep is over the
+    ///    whole registry, because a door that ran a tree would be declared
+    ///    next to whatever ran it rather than here.
     /// 2. **A walk reaches nothing but the tree.** Every member a node has
     ///    answers a node, its text or its kind, so no amount of walking
     ///    produces a value of another class.
@@ -4553,6 +4654,12 @@ mod tests {
     fn a_parsed_tree_has_no_path_back_into_execution() {
         for class in CLASSES {
             for member in class.members() {
+                // A member that reads a node and returns text alone, such as
+                // `Core\Markdown::fromHtml`, gives a program nothing it could
+                // run.
+                if matches!(member.return_ty, CoreTy::TaintedStr) {
+                    continue;
+                }
                 for param in member.params {
                     assert!(
                         !mentions(param, NODE_NAME) && !mentions(param, NAME),

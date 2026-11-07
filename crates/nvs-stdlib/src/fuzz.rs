@@ -182,6 +182,16 @@ pub fn markdown(text: &str) -> String {
     crate::markdown::rendered(text, r"Core\Markdown::toHtml").expect("no memory limit")
 }
 
+/// `html` written as Markdown, as `Core\Markdown::fromHtml` writes it.
+///
+/// # Panics
+///
+/// Never outside a request: only a request's memory limit stops it.
+#[must_use]
+pub fn from_html(html: &str) -> String {
+    crate::markdown::from_html_text(html).expect("no memory limit")
+}
+
 /// [`markdown`]'s HTML, and the work it cost: the engine's steps
 /// (`pulldown_cmark::steps`) plus one per byte of HTML written. The count is
 /// `None` in a build without debug assertions, which counts nothing.
