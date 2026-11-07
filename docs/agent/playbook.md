@@ -328,3 +328,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   copy. See `apps/registry/src/Gate.nvs`. `until: gone apps/registry/src/Gate.nvs:Core\Session::start`
 
 ## Divergences
+
+- **For a CommonMark construct, check current cmark's source before you patch the engine to
+  match comrak.** comrak copies cmark-gfm, which forked cmark before several fixes. A link title's
+  `\"` (cmark issue 607) and `---` under a paragraph of definitions alone are two of them. One
+  patch followed comrak there, and the next session reverted it. Read
+  `gh api repos/commonmark/cmark/contents/src/<file> --jq .content | base64 -d`, and use
+  cmark-gfm only for a GFM construct (decisions 17 and 19 in `docs/goals/markdown.md`).
+  `until: gone fuzz/fuzz_targets/markdown_comrak.rs`

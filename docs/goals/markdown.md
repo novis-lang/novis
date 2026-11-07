@@ -604,24 +604,25 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 9's differential triage goes on. This session landed six commits (`62e63198` to `35edf51d`):
-- **A sanitizer bug, fixed (`62e63198`)**: foster parenting built an `li` inside an `li`
-  (`<ul><li>a<table><tr><li>b`), and so did unwrapping a special element such as `applet`, so
-  `sanitize` was not a fixed point. `html::settled` parses and rebuilds such an answer again (at
-  most 3 passes), and every sanitizing caller (`sanitize`, `rendered_with`, `groups.rs`,
-  `fuzz::html_sanitized`) goes through it. `bounded_in_page` is gone. The rule `html-sanitize`
-  says so, and the mXSS corpus test has three new cases.
-- **Ours, fixed and catalogued** after `pulldown-cmark-autolink-entities`: a tab ends an unquoted
-  attribute value; an escape inside `www.` or a scheme stops an extended autolink (email autolinks
-  still join across escapes, as spec example 606 needs); a header row that would be an empty list
-  item (`x\n+\n-:|`) starts a table, and `block_ranges` now joins every table to the paragraph it
-  interrupted; an inline link's title is the longest cmark reads (`[a](/u "\")` has title `\`).
-- **Mapped in `normal`, not bugs**: comrak writes a lone `%` in a URL as `%25` (cmark keeps it as
-  it is, so the old handoff's reading was wrong); an `a` with no `href` is removed with its title.
-- **Green, run once by name after the last commit**: `--lib markdown::` (23),
-  `--test markdown_known_bugs` and `--lib parse_sanitize_serialise_reparse`.
-- **Sweep reds**: `env-secret-proofs` is defined nowhere in the tree or `.looper/` (a stale
-  service-side entry). The Miri reds are the tests `f13f4064` skips, which is not yet pushed.
+Stage 9's differential triage goes on. This session landed eight commits (`9378a955` to `f82f4a47`):
+- **Reverted, by decision 19**: the last session's inline-title patch (`1374059662`) followed
+  cmark-gfm's old title pattern. cmark fixed it in issue 607: a `\` in a title is always an escape,
+  so `[a](/u "\")` is text, as the spec says. Catalogue `cmark-issue-607-inline-title` pins it, and
+  the old `cmark-reg-607-unterminated-title` already pinned the refdef form. So the old *Next*
+  item "a reference definition's title" is dropped: pulldown-cmark 0.13.6 was right.
+- **Ours, fixed and catalogued**: a delimiter row that is a `-` list item with text (`a\n- |`)
+  starts the list; an inline CDATA section ends at the first `]]>`; a line indented four columns
+  ends a table; a loose task item with nothing after its box has no `p`; a `\` ending a header
+  row is cell text; a fence's language is read after its info string is decoded and trimmed.
+- **comrak's readings, skipped in the target and listed in `markdown-cost`**: a `\` before a
+  title's closing delimiter, CDATA with `]]]`, `---` under a paragraph of definitions alone
+  (current cmark reads a thematic break), `<![CDATA[` in another case.
+- **The target's `normal`**: spaces collapse after a removed `a`; a nested `a` is removed on both
+  sides; `<li>` is mapped like `<p>`; `\r\n` is one line ending in the lazy-line skip; comrak's
+  `href`/`src` go through `fuzz::markdown_url_allowed` (it also checks the percent-decoded URL).
+  `fuzz::html_meaning` now starts from `html_sanitized`'s settled answer.
+- **Green, run once by name**: `--lib markdown::` (23), `--test markdown_known_bugs`. Sweep reds:
+  `env-secret-proofs` exists nowhere in the tree (stale); Miri's are what unpushed `f13f4064` skips.
 
 ### Next
 
@@ -629,16 +630,24 @@ Stage 9, the rest. Each fuzz run is `bun nv fuzz <target> --runs <n>`. A probe u
 run with `./target/debug/nvs run` shows our HTML (`<?nvs` first, `foreach ([...] as var $t)`).
 `.agent-tmp/cmprobe/` is a scratch crate that prints comrak's raw HTML: in WSL,
 `cd /mnt/e/mwl/.agent-tmp/cmprobe && cargo run -q --offline --target-dir /var/tmp/cmprobe -- "<md>"`
-(`\n`, `\t`, `\0` are expanded). cmark-gfm's source is read with
-`gh api repos/github/cmark-gfm/contents/<path> --jq .content | base64 -d`.
+(`\n`, `\t`, `\0` are expanded, and so are the tokens `BS` `\`, `DQ` `"`, `SQ` `'`, `CR` and
+`CT` U+0010, because shell quoting through WSL eats backslashes). cmark's and cmark-gfm's source
+is read with `gh api repos/<commonmark/cmark|github/cmark-gfm>/contents/<path> --jq .content |
+base64 -d`. Decision 19: for a CommonMark construct, read *current cmark*, not cmark-gfm.
 
-- [ ] **A reference definition's title** (`vendor/pulldown-cmark/src/firstpass.rs:1931`,
-  `scan_refdef_title`) still reads `\"` as an escape only. Give it the longest-match fallback that
-  `scan_link_title` (`vendor/pulldown-cmark/src/parse.rs:1323`) now has, without copying the line
-  buffer at each soft end; check `[x]: /u "a\\" b"\n\n[x]` against comrak; catalogue it.
-- [ ] **Triage to 1,000,000 clean runs** of `markdown_comrak` (`fuzz/fuzz_targets/markdown_comrak.rs:41`). Our bug: a fix and a catalogue
-  entry. comrak's bug or a 0.29 reading: a skip in the target and the list at
-  `docs/rules/core-classes/markdown-cost.md:32`.
+- [ ] **A definition in a paragraph that a table interrupts** (`vendor/pulldown-cmark/src/firstpass.rs:381`,
+  the current crash `[\x10]:\n|-`). cmark-gfm makes the line before a delimiter row a header row from the
+  paragraph's raw text, and writes every line before it as a plain paragraph whose definitions
+  are never read: `[a]: /u\n|-` is a table with header `[a]: /u`, and `[a]: /u\nx\n|-\n\n[a]`
+  gives `<p>[a]: /u</p>`, a table `x` and `<p>[a]</p>`. Ours reads definitions first, at
+  `vendor/pulldown-cmark/src/firstpass.rs:381` (`parse_refdef_total` at `:1894`). A fix must look
+  ahead over the paragraph the definitions start. If a table starts anywhere in that paragraph,
+  no definition at its start is read. The work stays linear, and decision 7's first pass over a
+  file must agree. A wrapper that only stopped the definition at the header line was tried and
+  reverted: it still read the definitions before that line.
+- [ ] **Triage to 1,000,000 clean runs** of `markdown_comrak` (`fuzz/fuzz_targets/markdown_comrak.rs:183`).
+  Our bug: a fix and a catalogue entry. comrak's bug or an older reading: a skip in the target
+  and the list at `docs/rules/core-classes/markdown-cost.md:30`.
 - [ ] **1,000,000 runs each** of `fuzz/fuzz_targets/markdown.rs:22` and
   `fuzz/fuzz_targets/markdown_from_html.rs:18`, triaged the same way.
 - [ ] **Then run once by name** (`crates/nvs-stdlib/src/markdown/tests.rs:120`): `cargo test --lib markdown::`, `cargo test --test
