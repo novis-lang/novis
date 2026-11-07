@@ -15,7 +15,7 @@ the message `Hello`. The `<` and `>` in the name are shown as text, not as HTML.
 
 Start the server with `nvs serve form-handler.nvs`. Then send a form with this command:
 
-```sh
+```sh skip="sends a request to a running server with curl"
 curl -d "name=Ada&email=ada@example.com&message=Hello" http://127.0.0.1:8000/contact
 ```
 

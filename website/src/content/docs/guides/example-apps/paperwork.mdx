@@ -54,7 +54,7 @@ Each tab shows one file of the app. These are the same files that you download b
 [Install Novis](/install/) first. Then download only the folder `apps/paperwork` of the Novis
 repository. A sparse clone (a clone that checks out only the folders you name) does this:
 
-```sh
+```sh skip="clones the repository with git"
 git clone --depth 1 --filter=blob:none --sparse https://github.com/novis-lang/novis.git
 cd novis
 git sparse-checkout set apps/paperwork

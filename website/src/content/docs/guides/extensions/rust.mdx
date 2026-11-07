@@ -32,7 +32,7 @@ The [last section](#get-the-finished-project) shows how to download it.
 - Rust, installed with [rustup](https://rustup.rs/).
 - The Rust target `wasm32-wasip2`. It compiles Rust to WebAssembly:
 
-```sh
+```sh skip="installs a Rust target with rustup"
 rustup target add wasm32-wasip2
 ```
 
@@ -59,7 +59,7 @@ The folder `highlight` now has these files:
 The template is the class `Example\Greeting` with one method, `hello`. You can build and test it
 now to check that your tools work:
 
-```sh
+```sh skip="builds with cargo, which bun nv ext-templates --example runs"
 cargo build --release --target wasm32-wasip2
 nvs ext build
 nvs ext test
@@ -186,7 +186,7 @@ extension is `tainted`, every string in the result is `tainted` too. The templat
 
 ## Step 7: Build the extension
 
-```sh
+```sh skip="builds with cargo, which bun nv ext-templates --example runs"
 cargo build --release --target wasm32-wasip2
 nvs ext build
 ```
@@ -306,7 +306,7 @@ allows that folder with `grants = { read = [...] }`. Then the extension reads th
 Download only the folder `website/guides/highlight-extension` of the Novis repository. A sparse clone
 (a clone that checks out only the folders you name) does this:
 
-```sh
+```sh skip="clones the repository with git"
 git clone --depth 1 --filter=blob:none --sparse https://github.com/novis-lang/novis.git
 cd novis
 git sparse-checkout set website/guides/highlight-extension

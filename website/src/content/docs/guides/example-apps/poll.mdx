@@ -35,7 +35,7 @@ Each tab shows one file of the app. These are the same files that you download b
 [Install Novis](/install/) first. Then download only the folder `apps/poll` of the Novis
 repository. A sparse clone (a clone that checks out only the folders you name) does this:
 
-```sh
+```sh skip="clones the repository with git"
 git clone --depth 1 --filter=blob:none --sparse https://github.com/novis-lang/novis.git
 cd novis
 git sparse-checkout set apps/poll
@@ -174,7 +174,7 @@ strict policy works. A script that an attacker puts into a page does not run.
 
 You can read the stream with `curl` while the server runs. `-N` prints each event as it arrives:
 
-```sh
+```sh skip="reads a running server's event stream with curl"
 curl -N http://127.0.0.1:8145/polls/1/events
 ```
 
@@ -234,7 +234,7 @@ so each setting in `production.toml` replaces the one in `nvs.toml`.
 2. Create the account of the service and its folders. `/run` is empty after each boot, so
    `tmpfiles.d` creates the folder of the socket again at every boot:
 
-   ```sh
+   ```sh skip="creates a system user and folders as root"
    useradd --system --no-create-home poll
    mkdir -p /var/lib/poll /var/log/poll
    chown poll:poll /var/lib/poll /var/log/poll
@@ -259,7 +259,7 @@ so each setting in `production.toml` replaces the one in `nvs.toml`.
 5. Add the account of the proxy to the group `poll`, so the proxy may open the socket. Then copy the
    configuration of your proxy and restart it:
 
-   ```sh
+   ```sh skip="changes system groups and proxy files as root"
    usermod -aG poll caddy                          # for Caddy
    cp /srv/poll/deploy/Caddyfile /etc/caddy/Caddyfile
    usermod -aG poll www-data                       # for nginx on Debian and Ubuntu

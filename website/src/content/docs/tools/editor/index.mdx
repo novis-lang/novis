@@ -147,7 +147,7 @@ You need [Node.js](https://nodejs.org/) and the Novis source code from [Install 
 
 1. Build the extension:
 
-   ```sh
+   ```sh skip="builds the VS Code extension with npm"
    cd editors/vscode
    npm ci
    npm run package
@@ -157,7 +157,7 @@ You need [Node.js](https://nodejs.org/) and the Novis source code from [Install 
 
 2. Install it:
 
-   ```sh
+   ```sh skip="installs an extension into VS Code"
    code --install-extension nvs.vsix
    ```
 

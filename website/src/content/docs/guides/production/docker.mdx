@@ -156,7 +156,7 @@ older one, such as Ubuntu 22.04. A binary built on a newer system does not start
 
 Build the image and run it:
 
-```sh
+```sh skip="builds and runs a Docker image"
 docker build -t shop .
 docker run -p 8000:8000 shop
 ```
@@ -270,7 +270,7 @@ The folder is inside the container. When you remove the container, the compile c
 and the next container compiles every program again. With `read_only: true`, `nvs` cannot write to
 the folder at all. To keep the cache, mount a volume on the data folder:
 
-```sh
+```sh skip="runs a Docker image"
 docker run -p 8000:8000 -v shop-data:/usr/local/bin/.nvsdata shop
 ```
 

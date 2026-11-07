@@ -52,7 +52,7 @@ socket_mode = "0660"
 With `0660`, the account of the server and the members of its group may connect. Add the account of
 the proxy to that group. On Debian and Ubuntu, nginx runs as `www-data`. Caddy runs as `caddy`:
 
-```sh
+```sh skip="changes system groups as root"
 usermod -aG shop www-data   # for nginx
 usermod -aG shop caddy      # for Caddy
 ```

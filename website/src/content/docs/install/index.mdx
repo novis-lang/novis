@@ -114,14 +114,14 @@ compiler.
 
 1. Get the source code:
 
-   ```sh
+   ```sh skip="clones the repository with git"
    git clone https://github.com/novis-lang/novis.git novis
    cd novis
    ```
 
 2. Build `nvs`. This takes several minutes the first time.
 
-   ```sh
+   ```sh skip="builds Novis with cargo"
    cargo build --release -p nvs-cli
    ```
 
@@ -154,12 +154,12 @@ compiler.
    Variables**.
    </TabItem>
    <TabItem label="Linux">
-   ```sh
+   ```sh skip="copies a file into a system folder as root"
    sudo install -m 0755 target/release/nvs /usr/local/bin/nvs
    ```
    </TabItem>
    <TabItem label="macOS">
-   ```sh
+   ```sh skip="copies a file into a system folder as root"
    sudo install -m 0755 target/release/nvs /usr/local/bin/nvs
    ```
    </TabItem>

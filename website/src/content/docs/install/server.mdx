@@ -264,28 +264,28 @@ Run these commands in a Command Prompt that you started with **Run as administra
 
 1. Create the folders:
 
-   ```bat
+   ```bat skip="creates folders on a Windows server"
    mkdir D:\srv\novis\config D:\srv\novis\cache D:\srv\novis\logs
    ```
 
 2. Remove the right of `Authenticated Users` to change the binary folder. The other folders get
    the same permissions. `Users` can still read and run `nvs`.
 
-   ```bat
+   ```bat skip="changes Windows folder permissions"
    icacls D:\srv\novis /inheritance:d
    icacls D:\srv\novis /remove:g *S-1-5-11
    ```
 
 3. Make the configuration private. Only administrators and the accounts you add can read it.
 
-   ```bat
+   ```bat skip="changes Windows folder permissions"
    icacls D:\srv\novis\config /inheritance:d
    icacls D:\srv\novis\config /remove:g *S-1-5-32-545
    ```
 
 4. Give the account that runs `nvs` the right to read `config`, and to change `cache` and `logs`:
 
-   ```bat
+   ```bat skip="changes Windows folder permissions"
    icacls D:\srv\novis\config /grant svc-novis:(OI)(CI)RX
    icacls D:\srv\novis\cache /grant svc-novis:(OI)(CI)M
    icacls D:\srv\novis\logs /grant svc-novis:(OI)(CI)M
@@ -304,7 +304,7 @@ administrator**. In a normal prompt, `nvs init` can report `Access is denied` (`
 <TabItem label="Linux and macOS">
 Replace `novis` with the account that runs `nvs`.
 
-```sh
+```sh skip="creates system folders as root"
 sudo install -d -o root  -g root  -m 0755 /opt/novis
 sudo install    -o root  -g root  -m 0755 nvs /opt/novis/nvs
 sudo install -d -o root  -g novis -m 0750 /opt/novis/config

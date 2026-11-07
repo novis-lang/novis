@@ -29,7 +29,7 @@ Each tab shows one file of the app. These are the same files that you download b
 [Install Novis](/install/) first. Then download only the folder `apps/notes` of the Novis
 repository. A sparse clone (a clone that checks out only the folders you name) does this:
 
-```sh
+```sh skip="clones the repository with git"
 git clone --depth 1 --filter=blob:none --sparse https://github.com/novis-lang/novis.git
 cd novis
 git sparse-checkout set apps/notes
@@ -141,7 +141,7 @@ A note with the title `<b>Milk</b>` shows those characters as text.
 
 Try the API with `curl` while the server runs:
 
-```sh
+```sh skip="sends requests to a running server with curl"
 curl -H "content-type: application/json" -d '{"title": "Milk", "body": "Buy two"}' http://127.0.0.1:8142/api/notes
 curl http://127.0.0.1:8142/api/notes
 ```

@@ -288,7 +288,10 @@
 // fails. A block with no language, or in a language `CODE_CHECKS` does not list, fails too. An `nvs`
 // fence is `snippets`' to fail. A `toml` block is read by `nvs config check` (`tomlProblems`), and a
 // `json` or `yaml` block is parsed. `fragment` says a block is part of a file: a `toml` one names its
-// table, `fragment="limits"`, and a bare one on `json` is the members of an object. CI does not run
+// table, `fragment="limits"`, and a bare one on `json` is the members of an object. In a `sh`, `bat` or
+// `powershell` block, each `nvs` line is parsed by `nvs` under `NOVIS_PARSE_ONLY`, and each `bun nv`
+// line must name one of its commands (`shellProblems`). Any other program makes the block one that
+// carries `skip="..."`. CI does not run
 // `code` yet: the goal `website-code-checked` adds each language's check and then the part.
 
 import { createHash } from "node:crypto";
@@ -1819,8 +1822,92 @@ export function yamlProblems(block: CodeBlock): string[] {
   }
 }
 
+/** The character that continues a command line on the next one, per shell. */
+const CONTINUATION: Record<string, string> = { sh: "\\", bat: "^", powershell: "`" };
+
+/** One command line as its words. Quotes group a word and are taken off; nothing is expanded. */
+export function shellWords(line: string): string[] {
+  const words: string[] = [];
+  for (const m of line.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)) words.push(m[1] ?? m[2] ?? m[3]!);
+  return words;
+}
+
+/**
+ * The commands of a `sh`, `bat` or `powershell` block, each as its words, with its line in the block.
+ * A line ending in the shell's continuation character joins the next one. A block whose lines start
+ * with `$ ` or `> ` is a terminal session: only those lines are commands, and the rest is output. A
+ * comment (`#`, `REM`, `::`) and a blank line are nothing. `&&`, `||`, `;` and `|` split one line into
+ * several commands. A redirect (`> file`, `2>&1`) is dropped. A leading `VAR=value` is an environment
+ * setting and is dropped, and so is `sudo`.
+ */
+export function shellCommands(block: CodeBlock): { line: number; words: string[] }[] {
+  const cont = CONTINUATION[block.lang] ?? "\\";
+  const raw = block.text.split("\n");
+  const session = raw.some((l) => /^\s*[$>] /.test(l));
+  const out: { line: number; words: string[] }[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const first = i;
+    let line = raw[i]!;
+    if (session) {
+      const m = /^\s*[$>] (.*)$/.exec(line);
+      if (!m) continue;
+      line = m[1]!;
+    }
+    while (line.trimEnd().endsWith(cont) && i + 1 < raw.length) line = `${line.trimEnd().slice(0, -1)} ${raw[++i]!.trim()}`;
+    line = line.trim();
+    if (!line || line.startsWith("#") || /^(rem\b|::|@rem\b)/i.test(line)) continue;
+    for (const part of line.split(/\s(?:&&|\|\||;|\|)\s/)) {
+      const words: string[] = [];
+      const all = shellWords(part);
+      for (let w = 0; w < all.length; w++) {
+        if (/^\d?>{1,2}$|^<$/.test(all[w]!)) w++;
+        else if (!/^\d?>{1,2}\S|^<\S|^\d>&\d$/.test(all[w]!)) words.push(all[w]!);
+      }
+      while (words.length && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0]!) || words[0] === "sudo")) words.shift();
+      if (words.length) out.push({ line: first + 1, words });
+    }
+  }
+  return out;
+}
+
+/** The program name a command runs, without a folder or `.exe`: `./target/release/nvs.exe` is `nvs`. */
+const programName = (word: string): string => word.replace(/\\/g, "/").split("/").pop()!.replace(/\.exe$/i, "").toLowerCase();
+
+/** Commands that change only where the next one runs, which a parse does not depend on. */
+const SHELL_NEUTRAL = new Set(["cd", "pushd", "popd"]);
+
+/**
+ * `sh`, `bat` and `powershell`: every command in the block is `nvs` or `bun nv`, or `cd`. An `nvs` line
+ * is parsed by `nvs` itself under `NOVIS_PARSE_ONLY`, which exits 0 once the arguments are valid and runs
+ * nothing. A `bun nv` line must name a command `tools/nv/main.ts` has. Any other program (`git`,
+ * `systemctl`, `curl`) is not run, so a block with one says why in `skip="..."`.
+ */
+export async function shellProblems(block: CodeBlock, ctx: CodeContext): Promise<string[]> {
+  const problems: string[] = [];
+  const others = new Set<string>();
+  const nv = readFileSync(join(ctx.root, "tools", "nv", "main.ts"), "utf8");
+  for (const { line, words } of shellCommands(block)) {
+    const program = programName(words[0]!);
+    if (SHELL_NEUTRAL.has(program)) continue;
+    if (program === "nvs") {
+      if (!ctx.nvs) return ["no built `nvs` to parse its command lines: build it, or name it with --nvs"];
+      const r = await runProc([ctx.nvs, ...words.slice(1)], { cwd: ctx.root, timeoutMs: SNIPPET_MS, env: { NO_COLOR: "1", NOVIS_PARSE_ONLY: "1" } });
+      if (r.code !== 0) problems.push(`line ${line}: \`nvs\` does not accept \`${words.join(" ")}\`:\n${`${r.stderr}\n${r.stdout}`.trim()}`);
+      continue;
+    }
+    if (program === "bun" && words[1] === "nv") {
+      const name = words[2];
+      if (!name || !new RegExp(`^\\s*"?${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"?: \\(\\) => import`, "m").test(nv)) problems.push(`line ${line}: \`bun nv\` has no command \`${name ?? ""}\``);
+      continue;
+    }
+    others.add(`\`${words[0]}\``);
+  }
+  if (others.size) problems.push(`${[...others].join(", ")} ${others.size === 1 ? "is" : "are"} not \`nvs\` or \`bun nv\`, so no check runs ${others.size === 1 ? "it" : "them"}: write skip="<why>" in the fence`);
+  return problems;
+}
+
 /** The check that runs each language's blocks. A language missing here is one no check runs yet. */
-export const CODE_CHECKS: Record<string, CodeCheck> = { toml: tomlProblems, json: jsonProblems, yaml: yamlProblems };
+export const CODE_CHECKS: Record<string, CodeCheck> = { toml: tomlProblems, json: jsonProblems, yaml: yamlProblems, sh: shellProblems, bat: shellProblems, powershell: shellProblems };
 
 /** Languages another part owns: an `nvs` fence on a page is `snippets`' failure. */
 const CODE_ELSEWHERE = new Set(["nvs"]);

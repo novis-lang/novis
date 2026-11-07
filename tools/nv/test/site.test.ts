@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join, relative } from "node:path";
-import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, codeBlocks, codeProblems, DOCS, fenceInfo, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, jsonProblems, inDepthProblems, paragraphs, parseRequest, proseProblems, serveRun, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, TOOL_SECTIONS, tomlProblems, toolsProblems, yamlProblems, type Served, type World } from "../cmd/site.ts";
+import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, codeBlocks, codeProblems, DOCS, fenceInfo, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, jsonProblems, inDepthProblems, paragraphs, parseRequest, proseProblems, serveRun, shellCommands, shellProblems, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, TOOL_SECTIONS, tomlProblems, toolsProblems, yamlProblems, type Served, type World } from "../cmd/site.ts";
 import { ROOT } from "../lib/paths.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
@@ -522,6 +522,22 @@ describe("nv site --check code", () => {
     expect(wrong).toContain("unknown field `bogus`");
     expect(await tomlProblems(block("toml", `memory = "64M"`, [["fragment", "limits"]]), ctx)).toEqual([]);
     expect(await tomlProblems(block("toml", `memory = "64M"`, [["fragment", ""]]), ctx)).toEqual(['`fragment` with no table: write fragment="<table>", the header the block sits under']);
+  });
+
+  test("a shell block's commands join continuations, split on && and |, and drop redirects, settings and sudo", () => {
+    const words = (lang: string, text: string) => shellCommands(block(lang, text)).map((c) => [c.line, c.words.join(" ")]);
+    expect(words("sh", `# set up\nNO_COLOR=1 sudo nvs serve \\\n  --port 8000\ncd app && nvs build --openapi shop.nvs > out.json 2>&1 | less`)).toEqual([[2, "nvs serve --port 8000"], [4, "cd app"], [4, "nvs build --openapi shop.nvs"], [4, "less"]]);
+    expect(words("sh", `$ nvs test\nok 3 tests\n$ nvs run "a b.nvs"`)).toEqual([[1, "nvs test"], [3, "nvs run a b.nvs"]]);
+    expect(words("bat", `REM a comment\nnvs.exe serve ^\n  app.nvs`)).toEqual([[2, "nvs.exe serve app.nvs"]]);
+  });
+
+  test.skipIf(!NVS)("a shell block's nvs lines are parsed by nvs, a bun nv line names a command, and any other program is named", async () => {
+    const ctx = { root: ROOT, nvs: NVS };
+    expect(await shellProblems(block("sh", "cd app\nnvs serve app.nvs --port 8000\nbun nv bench-compare"), ctx)).toEqual([]);
+    const [bad] = await shellProblems(block("sh", "nvs serve --no-such-flag"), ctx);
+    expect(bad).toStartWith("line 1: `nvs` does not accept `nvs serve --no-such-flag`:");
+    expect(await shellProblems(block("sh", "bun nv no-such-command"), ctx)).toEqual(["line 1: `bun nv` has no command `no-such-command`"]);
+    expect(await shellProblems(block("sh", "git clone x\ncurl y\ngit pull"), ctx)).toEqual(['`git`, `curl` are not `nvs` or `bun nv`, so no check runs them: write skip="<why>" in the fence']);
   });
 });
 
