@@ -237,7 +237,9 @@ pub fn markdown_url_allowed(url: &str) -> bool {
 /// of CSS white space (spaces, tabs and line breaks) as one space, and none
 /// between two tags. A `<br>` at either end of an inline element is moved out
 /// of it, and an inline element other than a link left empty is dropped,
-/// since a browser draws both the same. Two renderings that differ only in how
+/// since a browser draws both the same. The space at either end of a line
+/// goes, as CSS drops it, also where inline tags stand between it and the
+/// `<br>`. Two renderings that differ only in how
 /// they lay out their whitespace, attributes and breaks give the same string.
 /// The sanitized answer is the one
 /// [`html_sanitized`] gives, which a second parse builds again, so an `li`
@@ -264,12 +266,70 @@ pub fn html_meaning(html: &str) -> String {
             out.push(ch);
         }
     }
-    // A line ends at a `<br>`, and CSS drops the white space at either end of
-    // a line.
-    out.trim()
-        .replace("> <", "><")
-        .replace("<br> ", "<br>")
-        .replace(" <br>", "<br>")
+    line_ends_trimmed(&out.trim().replace("> <", "><"))
+}
+
+/// The name of the tag `piece` is, or `None` when it is text.
+fn tag_name(piece: &str) -> Option<&str> {
+    let inner = piece.strip_prefix('<')?.trim_start_matches('/');
+    let end = inner
+        .find(|ch: char| !ch.is_ascii_alphanumeric())
+        .unwrap_or(inner.len());
+    Some(&inner[..end])
+}
+
+/// Whether `pieces`, walked in their order, reach a `<br>` across the tags of
+/// inline elements alone.
+fn reaches_break<'a>(mut pieces: impl Iterator<Item = &'a &'a str>) -> bool {
+    pieces
+        .find(|piece| tag_name(piece).is_none_or(|name| !INLINE.contains(&name)))
+        .and_then(|piece| tag_name(piece))
+        == Some("br")
+}
+
+/// `html` with the space at either end of a line removed. A line ends at a
+/// `<br>`, and CSS drops the white space at either end of a line, also where
+/// an inline element's tag stands between the space and the `<br>`. `html` is
+/// [`source`](crate::html::source)'s output with each run of white space one
+/// space, so a `<` outside an attribute's quotes always starts a tag.
+fn line_ends_trimmed(html: &str) -> String {
+    // Each piece is a tag or the text between two tags.
+    let mut pieces: Vec<&str> = Vec::new();
+    let mut start = 0;
+    let mut quoted = false;
+    for (at, ch) in html.char_indices() {
+        match ch {
+            '<' if !quoted && at > start => {
+                pieces.push(&html[start..at]);
+                start = at;
+            }
+            '"' if html[start..].starts_with('<') => quoted = !quoted,
+            '>' if !quoted && html[start..].starts_with('<') => {
+                pieces.push(&html[start..=at]);
+                start = at + 1;
+            }
+            _ => {}
+        }
+    }
+    if start < html.len() {
+        pieces.push(&html[start..]);
+    }
+    let mut out = String::with_capacity(html.len());
+    for (at, piece) in pieces.iter().enumerate() {
+        if piece.starts_with('<') {
+            out.push_str(piece);
+            continue;
+        }
+        let mut text: &str = piece;
+        if reaches_break(pieces[..at].iter().rev()) {
+            text = text.trim_start_matches(' ');
+        }
+        if reaches_break(pieces[at + 1..].iter()) {
+            text = text.trim_end_matches(' ');
+        }
+        out.push_str(text);
+    }
+    out
 }
 
 /// The inline elements [`breaks_hoisted`] moves a `<br>` out of.

@@ -1093,6 +1093,9 @@ const DOCUMENTS: &[&str] = &[
     "<br>\n",
     "<br>b\n\n# <br>c\n",
     "a<br><br>b and *c<br><br>*d\n",
+    // A break inside struck text, followed by a line feed. A browser drops
+    // the space at the start of the next line.
+    "[~\\\n[~\\\n",
     // A `.` three bytes after the start of a character. The
     // `markdown_from_html` fuzz target found that it panicked.
     "> \u{FFFD}!.\n",
