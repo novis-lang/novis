@@ -3823,6 +3823,17 @@ direction = "to-html"
 input = "-\n  \n  a\n-\n\n  b"
 html = "<ul>\n<li>a</li>\n<li></li>\n</ul>\n<p>b</p>\n"
 
+# Found by the `markdown_comrak` differential fuzz target, after the entry above. A blank line that
+# is not indented still ends such an item when it comes after an indented one, as in cmark-gfm.
+[[bug]]
+id = "pulldown-cmark-second-blank-ends-empty-item"
+library = "pulldown-cmark"
+source = "https://github.com/github/cmark-gfm/blob/master/src/blocks.c"
+class = "wrong-output"
+direction = "to-html"
+input = "-\n  \n\n  a"
+html = "<ul>\n<li></li>\n</ul>\n<p>a</p>\n"
+
 # Found by the `markdown_comrak` differential fuzz target. An HTML block of type 7 cannot interrupt
 # a paragraph, but a table is not a paragraph, so cmark-gfm ends the table at a line that starts one.
 # pulldown-cmark 0.13.6 read the line as a row.

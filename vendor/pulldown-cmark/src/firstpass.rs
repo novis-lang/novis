@@ -103,7 +103,9 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         // Novis: a blank line indented less than the content of an item that
         // has had nothing in it ends the item, as in cmark, and one indented
         // that far keeps it open, so `-\n  \n  a` is one item with `a`. The
-        // published 0.13.6 ended it at any blank line.
+        // published 0.13.6 ended it at any blank line. This runs on every such
+        // line, also when `scan_containers` takes its shortcut for a second
+        // blank line, so `-\n  \n\n  a` ends the item as cmark-gfm does.
         if self.begin_list_item.is_some()
             && i == self.tree.spine_len()
             && scan_blank_line(&bytes[start_ix + line_start.bytes_scanned()..]).is_some()
@@ -115,6 +117,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                 scan_containers_upto(&self.tree, &mut probe, self.options, false, i - 1);
                 if !probe.scan_space(indent) {
                     self.pop(start_ix);
+                    self.begin_list_item = None;
                 }
             }
         }
@@ -307,13 +310,9 @@ impl<'a, 'b> FirstPass<'a, 'b> {
             if let Some(node_ix) = self.tree.peek_up() {
                 match &mut self.tree[node_ix].item.body {
                     ItemBody::BlockQuote(..) => (),
-                    // Novis: a blank line that reaches an empty item's content
-                    // keeps the item open (`scan_containers` ends it otherwise),
-                    // so the next line may give it a block, as in cmark.
-                    ItemBody::ListItem(_) if self.begin_list_item.is_some() => {
-                        self.last_line_blank = true;
-                        self.begin_list_item = None;
-                    }
+                    // Novis: an empty list item that is still open here was
+                    // given its indentation by this blank line, so it stays
+                    // open (`parse_block` ends it otherwise).
                     ItemBody::DefinitionListDefinition(indent)
                         if self.begin_list_item.is_some() =>
                     {
@@ -1716,10 +1715,10 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         if let Some(begin_list_item) = self.begin_list_item {
             if self.last_line_blank {
                 // A list item can begin with at most one blank line.
+                // Novis: `parse_block` ends an empty list item at the blank line
+                // itself, so only a definition is ended here.
                 if let Some(node_ix) = self.tree.peek_up() {
-                    if let ItemBody::ListItem(_) | ItemBody::DefinitionListDefinition(_) =
-                        self.tree[node_ix].item.body
-                    {
+                    if let ItemBody::DefinitionListDefinition(_) = self.tree[node_ix].item.body {
                         self.pop(begin_list_item);
                     }
                 }
