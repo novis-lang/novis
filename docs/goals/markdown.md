@@ -529,11 +529,24 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
 
 - [ ] A `markdown` target. It asserts no panic, a sanitize fixed point, chunked output equal to the
   whole, and the added-output budget. `fuzz/Cargo.toml:124`
+  - [x] `fuzz.rs` gains `markdown_groups`, `markdown_live`, `html_meaning` and
+    `MARKDOWN_ADDED_OUTPUT`; the tests' `meaning` and `live_in` use them.
+  - [x] `fuzz/fuzz_targets/markdown.rs`, its `[[bin]]`, the `pulldown-cmark` patch row and
+    `fuzz/dicts/markdown.dict`.
+  - [x] It builds in WSL and runs clean for a first short run (20,000 inputs).
 - [ ] A `markdown_from_html` target. It asserts no panic, an idempotent result, and that the
   Markdown → HTML → Markdown round trip keeps the meaning. `fuzz/Cargo.toml:124`
+  - [x] `fuzz/fuzz_targets/markdown_from_html.rs`, its `[[bin]]` and its dictionary.
+  - [ ] It builds in WSL and runs clean for a first short run.
 - [ ] The differential target against the other candidate (decision 9). Each difference becomes a
   catalogue entry or a line in the rule. `fuzz/Cargo.toml:124`
+  - [x] `fuzz/fuzz_targets/markdown_comrak.rs` and `comrak` 0.59 in `fuzz/Cargo.toml` alone.
+  - [ ] Each difference it finds is triaged into a fix and a catalogue entry, or a rule line and
+    a case in its `normal`.
 - [ ] Each target runs 1,000,000 inputs once. Every crash becomes a catalogue entry and a fix.
+  - [x] `bun nv fuzz <target> --runs <n>` runs one target in WSL, and CI's `fuzz-smoke` has a
+    fourth leg for the three targets.
+  - [ ] `markdown`, `markdown_from_html` and `markdown_comrak` each run 1,000,000 inputs.
 
 ### 10. the four members carry their feature proofs
 
@@ -570,39 +583,44 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stages 7 and 8 are done. Stage 8 kept the tree (decision 8 records why), in one commit.
-- **The converter** is `crates/nvs-stdlib/src/markdown/from_html.rs`. `markdown(tree)` wraps a
-  non-document node, runs `html::rebuilt`, and `Writer::collect` walks the result into
-  `(Part, String)` blocks that `joined` puts together. `DEPTH = 128`. `WORK` counts bytes for the
-  linear-work test. Its module doc now says why the tree is held.
-- **Stage 8's test** is `from_html_streamed_gives_the_same_markdown_as_the_whole_tree`, the last test
-  in `markdown/tests.rs`, over `crate::html::parsed_in_pieces` (test-only, `html.rs`, after `parse`).
-  It passes, run once by name. It also pins `a<table>b` writing `ab` first: the reason in the rule.
-- **Reference**: `docs/reference/core/Markdown.md` ends with *Converting HTML to Markdown*.
-  `NVS_BIN="$PWD/target/debug/nvs.exe" bun nv reference --only Markdown` holds 5 of 5. A relative
-  `NVS_BIN` fails with `ENOENT`.
-- **Clippy fix**: `markdown_known_bugs.rs:314` dropped `from_html`'s `#[must_use]` result, which the
-  stage 7 commit left red under `cargo clippy --all-targets`. It is `let _ =` now.
-- **Stale sweep reds**: no `env-secret-proofs` check exists anywhere in the tree. Nightly
-  `42201104003` ran at `26dda366`, before the Miri fix `f13f4064`. The next nightly is the evidence.
+Stage 9 is half done, in one commit. All three targets build in WSL.
+- **Seam**: `fuzz.rs` has `markdown_groups`, `markdown_live`, `html_meaning` (attributes sorted)
+  and `MARKDOWN_ADDED_OUTPUT`, over `markdown::grouped_in` and `live_in`. The tests use them.
+- **Targets** `markdown`, `markdown_from_html`, `markdown_comrak`, with bins, `comrak` 0.59, the
+  missing `pulldown-cmark` patch row (the fuzz lock lacked it since stage 3) and `fuzz/dicts/`.
+- **`bun nv fuzz <target> --runs <n>`** runs one target in WSL. CI's `fuzz-smoke` has a leg 4.
+- **Runs**: `markdown` 20,000 clean. `markdown_from_html` not run. `markdown_comrak` stops at the
+  first difference, at about 3,400 inputs a second.
+- **Fixed, each catalogued after `pulldown-cmark-issue-1074`**: a code block at the end ends with a
+  line feed; `~` and `~~` follow `*`'s flanking; only spaces make a hard break; `#` and a vertical
+  tab is text. The rule's patch list names each.
+- **Skipped in `markdown_comrak`**, listed in `markdown-cost.md`: footnotes, extended autolinks, a
+  delimiter beside a symbol, `~` with `*` or `_`, `<!X`, and two backticks.
+- **No Rust test ran.** The engine patches may move spec examples.
+- **Sweep reds**: `env-secret-proofs` matches no check. The Miri timeouts are the tests `f13f4064`
+  skips, and `main` is 199 commits ahead of `origin`, so no nightly has the fix yet.
 
 ### Next
 
-Stage 9: the fuzz targets. Write its checkpoints under stage 9's items first. The fuzz crate is a
-workspace of its own (`fuzz/Cargo.toml:14`), and libFuzzer does not run on Windows, so the targets
-run in WSL (`bun nv linux-test` or a nightly toolchain there).
+Stage 9, the rest. Ticks are under stage 9's items. Each fuzz run is
+`bun nv fuzz <target> --runs <n>`; the crash input is printed, and stored under
+`/var/tmp/nvs-fuzz-artifacts/<target>/` in WSL.
 
-- [ ] **`markdown` target**: a `[[bin]]` after `xml` at `fuzz/Cargo.toml:123`, and
-  `fuzz/fuzz_targets/markdown.rs` on the model of `fuzz/fuzz_targets/xml.rs`. It asserts a
-  sanitize fixed point (`nvs_stdlib::fuzz::html_sanitized`, `crates/nvs-stdlib/src/fuzz.rs:210`),
-  chunked equal to whole, and the added-output budget. A chunked entry in `fuzz.rs` is needed beside
-  `markdown` at `fuzz.rs:181`. The backlog's Live `open` fixed point fits here too.
-- [ ] **`markdown_from_html` target**: idempotent (`fuzz::from_html`, `fuzz.rs:191`) and the round
-  trip keeps the meaning; `meaning` lives in `markdown/tests.rs` and moves into `fuzz.rs` to be shared.
-- [ ] **Differential target** against `comrak` (decision 9), a dependency at `fuzz/Cargo.toml:16`
-  only. Each difference is our bug (fix and a catalogue entry) or a line in the rule.
-- [ ] **One million inputs per target**, once, from `fuzz/Cargo.toml:1`. A run that cannot happen
-  here (no WSL nightly) is named in the handoff with the command, and stage 10 goes ahead.
+- [ ] **The next engine fix** at `vendor/pulldown-cmark/src/parse.rs:1728`: `"A~w~~A~w~~"` gives
+  comrak `A<del>w~~A</del>w~~`, and ours no `del`. `InlineStack` keeps one lower bound for every
+  `~` length (`const TILDES`, used by `get_lowerbound`/`set_lowerbound`). A `~~`
+  closer that finds no opener moves the bound past a `~` opener. Give `~` and `~~` a bound each
+  (`lower_bounds` grows to 10), add a catalogue entry, and rerun `markdown_comrak`.
+- [ ] **Triage to 1,000,000 clean runs** at `fuzz/fuzz_targets/markdown_comrak.rs:41`. Our bug: a fix and a catalogue entry, as at
+  `tests/data/markdown/known-bugs.toml:3465` (`source` may be the docs.rs source URL of the 0.13.6
+  file). comrak's bug or a 0.29 reading: a skip there and the list at
+  `docs/rules/core-classes/markdown-cost.md:28`.
+- [ ] **1,000,000 runs each** of `fuzz/fuzz_targets/markdown.rs:22` and
+  `fuzz/fuzz_targets/markdown_from_html.rs:18`, triaged the same way.
+- [ ] **Then run once by name** (`crates/nvs-stdlib/src/markdown/tests.rs:120`):
+  `cargo test --lib markdown::` and
+  `cargo test --test markdown_known_bugs`, since the engine patches can move spec examples. Fix
+  any red before stage 10.
 
 Expected red: the floor check `proofs-gate`, since the four members owe their feature proofs until
 stage 10. Possibly red at the gate, not run this session: `registry.rs`'s
@@ -618,9 +636,8 @@ and card or website checks that see the new `fromHtml` member. Stage 11 may run 
   the approximated two-part exploits back into the originals: cmark's CVE-2023-24824 and
   CVE-2023-22483, md4c's issue 172, and comrak's GHSA-j7hq-qg5v-47jq, which was left out.
 - The footnote patch writes an undefined label as its source text, so `[^a\_b]` keeps its
-  backslash. Stage 9's differential fuzz triages what cmark-gfm writes there.
+  backslash. The differential skips footnotes, so nothing has compared this with another engine.
 - `groups::Balance` keeps a group open after `<p>` and other elements the parser closes on its own.
   A document with many unclosed `<p>` tags in raw HTML is then one group. That is correct, and costs
   memory only for such a document.
-- Live's `open` is not checked by a test beyond the conformance case. A property that `open` is a
-  sanitize fixed point after every push would cover it, and stage 9's fuzz target can assert it.
+- Live's `open` is checked only by the conformance case and the `markdown` fuzz target.

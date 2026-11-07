@@ -640,6 +640,7 @@ bun nv debt                                           # pays the floor debt: the
 
 bun nv valgrind --nvs <binary> [<file>...]            # every examples/ program under memcheck, on Linux: CI's nightly `valgrind` job
 bun nv linux-test --test <name> [<filter>]            # one filtered cargo test on a Linux build, inside WSL
+bun nv fuzz <target> --runs <n> | --seconds <n>       # one fuzz target on a Linux build, inside WSL
 bun nv services --up [--goal <slug>]                  # Docker preflight, then the goal's services up and healthy
 bun nv suite <tree>... [--case <path>]... [--min-passing <n>] [--full]   # judge one case tree, with a pass floor
 bun nv benches [--owed]                               # the bench turn by hand
@@ -734,7 +735,13 @@ every file it opens.
 again on the next call, so a target directory in `/tmp` is gone after any idle gap and the leg silently
 pays a cold build. Nothing ages `/var/tmp` out: Ubuntu ships its `q /var/tmp` line commented out.
 
-From the repo root (not `fuzz/` itself — cargo-fuzz expects the parent directory):
+**`bun nv fuzz <target> --runs <n>` (or `--seconds <n>`) runs one target from Windows.** It syncs the
+same copy of the tree and runs the target there with its seeds and dictionary, as CI does. The build, the
+corpus and a crash's input stay on the distro's disk, under `/var/tmp/nvs-target-wsl-fuzz`,
+`/var/tmp/nvs-fuzz-corpus/<target>` and `/var/tmp/nvs-fuzz-artifacts/<target>`, because each sync
+cleans the copy. `tools/nv/cmd/fuzz.ts`'s header is the rest.
+
+Inside the distro, from the repo root (not `fuzz/` itself — cargo-fuzz expects the parent directory):
 `cargo +nightly fuzz run lex -- -max_total_time=300`, and `parse` likewise.
 
 `ast` — `Core\Ast::parse`'s own door, `nvs_syntax::walk::of_source`, asserting that every production the

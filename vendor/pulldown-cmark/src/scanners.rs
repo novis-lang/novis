@@ -642,7 +642,13 @@ pub(crate) fn scan_hrule(bytes: &[u8]) -> Result<usize, usize> {
 /// Returns number of bytes in prefix and level.
 pub(crate) fn scan_atx_heading(data: &[u8]) -> Option<HeadingLevel> {
     let level = scan_ch_repeat(data, b'#');
-    if data.get(level).copied().map_or(true, is_ascii_whitespace) {
+    // Novis: the opening sequence is followed by a space, a tab or the end of
+    // the line, and a vertical tab or a form feed is none of them.
+    if data
+        .get(level)
+        .copied()
+        .map_or(true, |c| matches!(c, b' ' | b'\t' | b'\n' | b'\r'))
+    {
         HeadingLevel::try_from(level).ok()
     } else {
         None

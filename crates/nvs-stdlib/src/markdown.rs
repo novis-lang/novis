@@ -1266,6 +1266,14 @@ impl<'a, 'h> Renderer<'a, 'h> {
             }
             TagEnd::CodeBlock => {
                 self.code = false;
+                // Every line of a code block ends with a line feed, the last
+                // one too when the document ends without one.
+                let unended = self.top().children.last().is_some_and(|last| {
+                    last.kind == Kind::Text && last.name.is_empty() && !last.text.ends_with('\n')
+                });
+                if unended {
+                    self.write("\n");
+                }
                 let replaced = match self.language.take() {
                     Some(language) => {
                         let mut code = String::new();
@@ -1580,6 +1588,47 @@ nvs_runtime::nvs_helper! {
         let out = from_html::markdown(tree)?;
         Ok(Value::text(&out))
     }
+}
+
+/// `markdown` written one block group at a time and read `piece` bytes at a
+/// time, as `Core\Markdown::toHtmlEach` writes a file.
+///
+/// # Errors
+///
+/// Bytes that are not UTF-8, and the memory limit's `FATAL`.
+pub(crate) fn grouped_in(markdown: &[u8], piece: usize) -> Result<Vec<String>, Fault> {
+    segments::grouped_in(
+        markdown,
+        piece,
+        r"Core\Markdown::toHtmlEach",
+        &mut NoCallbacks,
+    )
+}
+
+/// `markdown` pushed into a `Core\Markdown\Live` `piece` bytes at a time,
+/// each piece moved on to a character boundary: the `done` and `open` parts
+/// of each push, and what `finish()` returns.
+///
+/// # Errors
+///
+/// The memory limit's `FATAL`.
+pub(crate) fn live_in(
+    markdown: &str,
+    piece: usize,
+) -> Result<(Vec<(String, String)>, String), Fault> {
+    let mut text = live::Text::new();
+    let mut parts = Vec::new();
+    let mut at = 0;
+    while at < markdown.len() {
+        let mut end = at.saturating_add(piece.max(1)).min(markdown.len());
+        while !markdown.is_char_boundary(end) {
+            end += 1;
+        }
+        parts.push(text.push(&markdown[at..end], &mut NoCallbacks)?);
+        at = end;
+    }
+    let rest = text.finish(&mut NoCallbacks)?;
+    Ok((parts, rest))
 }
 
 #[cfg(test)]

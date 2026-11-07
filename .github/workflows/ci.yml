@@ -1434,11 +1434,11 @@ jobs:
   # every previous night found is coverage that accumulates.
   # `rule:testing/the-deep-lane`.
   #
-  # Three legs of five targets each, run one after another, and one Rust cache for all three. A leg
-  # per target took fifteen concurrent job slots and saved fifteen copies of
+  # Four legs of at most five targets each, run one after another, and one Rust cache for all four. A
+  # leg per target took fifteen concurrent job slots and saved fifteen copies of
   # the same `fuzz` build, 307 MB each, into the repository's cache, where they evicted the
-  # `test` legs' caches and sent the Windows leg into a cold 43-minute build. A leg is 25 minutes
-  # of fuzzing on top of its build. Only the first leg saves the cache the three restore.
+  # `test` legs' caches and sent the Windows leg into a cold 43-minute build. A leg is at most 25
+  # minutes of fuzzing on top of its build. Only the first leg saves the cache the four restore.
   # ---------------------------------------------------------------------------
   fuzz-smoke:
     name: fuzz smoke / ${{ join(matrix.targets, ', ') }}
@@ -1453,6 +1453,7 @@ jobs:
           - { leg: 1, targets: [ast, cookie, decompress, image_path, json] }
           - { leg: 2, targets: [lex, multipart, parse, prefix, regex] }
           - { leg: 3, targets: [reply_head, request_head, serialize, uri, xml] }
+          - { leg: 4, targets: [markdown, markdown_comrak, markdown_from_html] }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
@@ -1482,6 +1483,7 @@ jobs:
       #
       # A target whose inputs need bytes a seed file cannot keep, as `request_head` needs CRLF under
       # an LF checkout, has a libFuzzer dictionary in `fuzz/dicts/<target>.dict` instead.
+      # `markdown_comrak` reads `markdown`'s, because both take one Markdown document.
       #
       # A target that fails does not stop the leg: every target gets its 300s, and the leg fails at
       # the end with an error naming each target that failed.
@@ -1497,6 +1499,7 @@ jobs:
               cp "$seeds"/* "fuzz/corpus/$target/"
             fi
             dict=fuzz/dicts/$target.dict
+            if [ "$target" = markdown_comrak ]; then dict=fuzz/dicts/markdown.dict; fi
             if [ -f "$dict" ]; then dict="-dict=$dict"; else dict=; fi
             cargo +nightly fuzz run "$target" -- $dict -max_total_time=300 || failed="$failed $target"
             echo "::endgroup::"

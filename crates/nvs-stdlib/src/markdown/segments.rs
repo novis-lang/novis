@@ -443,7 +443,6 @@ fn ended() -> Fault {
 }
 
 /// A feed over `bytes`, `piece` bytes at a time, from its start.
-#[cfg(test)]
 pub(super) fn feed_bytes<'b>(
     bytes: &'b [u8],
     piece: usize,
@@ -479,7 +478,6 @@ pub(super) fn not_text(member: &str, NotText(offset): NotText) -> Fault {
 /// # Errors
 ///
 /// [`Walk::segment`]'s.
-#[cfg(test)]
 pub(super) fn grouped_in(
     markdown: &[u8],
     piece: usize,

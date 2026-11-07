@@ -27,7 +27,10 @@ which seven of the catalogued libraries shipped.
 
 **A panic is a bug.** The fuzz targets run the parse and the renderer, and a differential fuzz runs
 the other engine the choice was measured against. Each difference is triaged into our bug, fixed and
-catalogued, or a spec reading, one line in `rule:core-classes/markdown-to-html`.
+catalogued, or a spec reading, one line in `rule:core-classes/markdown-to-html`. Where comrak 0.59
+departs from the spec, the differential does not compare: footnotes (written as this rule writes them),
+extended autolinks, a delimiter beside a Unicode symbol, `~` beside `*` or `_`, a declaration, and a run of two or more backticks. The target's comments
+give each case. The other two targets cover these documents.
 
 **Memory:** `toHtml` holds the document, its output tree and its reference and footnote definitions,
 all attributed to the request and freed with it. `toHtmlEach` and `Live` hold less, as

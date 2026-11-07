@@ -14,6 +14,9 @@ cargo-fuzz = true
 [workspace]
 
 [dependencies]
+# The other Markdown engine `rule:core-classes/markdown-to-html` measured, for
+# the `markdown_comrak` differential target alone. BSD-2-Clause.
+comrak = { version = "0.59", default-features = false }
 httparse = "1"
 libfuzzer-sys = "0.4"
 nvs-diagnostics = { path = "../crates/nvs-diagnostics" }
@@ -60,6 +63,27 @@ bench = false
 [[bin]]
 name = "lex"
 path = "fuzz_targets/lex.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "markdown"
+path = "fuzz_targets/markdown.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "markdown_comrak"
+path = "fuzz_targets/markdown_comrak.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "markdown_from_html"
+path = "fuzz_targets/markdown_from_html.rs"
 test = false
 doc = false
 bench = false
@@ -132,7 +156,8 @@ debug = 1
 
 # A separate workspace reads no `[patch]` table but its own, so the root one's
 # rows are repeated here. Without them `nvs-stdlib` builds against the published
-# `html5ever`, which does not have the fields `crates/nvs-stdlib/src/html.rs`
-# sets. `crates/nvs-runtime/tests/manifest_policy.rs` checks the two agree.
+# `html5ever` and `pulldown-cmark`, which do not have the fields and the step
+# counter `crates/nvs-stdlib/src/html.rs` and `markdown.rs` use. `crates/nvs-runtime/tests/manifest_policy.rs` checks the two agree.
 [patch.crates-io]
 html5ever = { path = "../vendor/html5ever" }
+pulldown-cmark = { path = "../vendor/pulldown-cmark" }

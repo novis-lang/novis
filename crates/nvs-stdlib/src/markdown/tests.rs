@@ -799,26 +799,11 @@ fn an_unclosed_raw_html_element_keeps_its_blocks_in_one_group() {
     );
 }
 
-/// `markdown` pushed into a `Core\Markdown\Live` `piece` bytes at a time,
-/// moved on to a character boundary: the `done` part of each push, and what
-/// `finish()` returns.
+/// `markdown` pushed into a `Core\Markdown\Live` `piece` bytes at a time:
+/// the `done` part of each push, and what `finish()` returns.
 fn live_in(markdown: &str, piece: usize) -> (Vec<String>, String) {
-    let mut text = live::Text::new();
-    let mut done = Vec::new();
-    let mut at = 0;
-    while at < markdown.len() {
-        let mut end = at.saturating_add(piece.max(1)).min(markdown.len());
-        while !markdown.is_char_boundary(end) {
-            end += 1;
-        }
-        let (finished, _open) = text
-            .push(&markdown[at..end], &mut NoCallbacks)
-            .expect("no limit in a test");
-        done.push(finished);
-        at = end;
-    }
-    let rest = text.finish(&mut NoCallbacks).expect("no limit in a test");
-    (done, rest)
+    let (parts, rest) = crate::fuzz::markdown_live(markdown, piece);
+    (parts.into_iter().map(|(done, _open)| done).collect(), rest)
 }
 
 /// `rule:core-classes/markdown-chunks`' Live: over a document with no
@@ -984,20 +969,7 @@ fn to_html_each_holds_one_block_group_of_a_file_not_the_document() {
     );
 }
 
-/// `html` sanitized, with each run of spaces and line feeds as one space and
-/// none between two tags, so two renderings that differ only in how they lay
-/// out their whitespace compare equal.
-fn meaning(html: &str) -> String {
-    let sanitized = crate::fuzz::html_sanitized(html);
-    let mut out = String::with_capacity(sanitized.len());
-    for ch in sanitized.chars() {
-        let ch = if ch == '\n' { ' ' } else { ch };
-        if !(ch == ' ' && out.ends_with(' ')) {
-            out.push(ch);
-        }
-    }
-    out.trim().replace("> <", "><").replace("<br> ", "<br>")
-}
+use crate::fuzz::html_meaning as meaning;
 
 /// `text` as HTML text.
 fn html_text(text: &str) -> String {

@@ -21,10 +21,14 @@ job, as `Core\Json::decode` and `decodeEach` are (`rule:core-classes/json-whole-
 Front matter, math and admonitions are not parsed, so CommonMark's own reading of them is the output,
 and a fenced block with a language reaches the `code` callback. Where GFM 0.29's spec text and
 CommonMark 0.31.2 disagree, 0.31.2 wins: nine of GFM's emphasis examples predate 0.31.2's delimiter
-rule, and the GFM spec test takes CommonMark's output for those nine. GFM's tag filter is not applied,
-because raw HTML goes through the rebuild below and the filter's tags never survive it. Extended
-autolinks are always on, so the five CommonMark examples that write a bare URL or email address as text
-(602, 606, 608, 611 and 612) write it as a link, as GitHub does.
+rule, and the GFM spec test takes CommonMark's output for those nine. That rule counts a Unicode
+symbol beside a delimiter as punctuation, and U+FFFD, which replaces NUL, is one. Its declaration,
+`<!` and a letter, needs no whitespace after the name. GFM's tag filter is
+not applied, because raw HTML goes through the rebuild below and the filter's tags never survive it.
+Extended autolinks are read as cmark-gfm reads them, where comrak differs: the period of `www.` counts
+as the domain's period, and a host may hold any character outside ASCII. They are always on, so the
+five CommonMark examples that write a bare URL or email address as text (602, 606, 608, 611 and 612)
+write it as a link, as GitHub does.
 
 **Footnotes are written at the end**, after an `hr`, as an `ol` in the order they are first referenced.
 A definition nothing references is not written. Each reference is a `sup` holding a link to its note,
@@ -92,7 +96,9 @@ Every pulldown-cmark failure is written in our layer or is a small patch. NUL, a
 mark, the table and code-block attributes, unused footnotes, extended autolinks and the output budget
 are ours. The patches are tabs after an ATX closing sequence and a closing fence, a vertical tab in an
 indented line, a definition-only list item, a DEL byte in a link destination, indentation inside a
-code span on continuation lines, and emphasis inside a footnote label. One patch adds what
+code span on continuation lines, emphasis inside a footnote label, strikethrough's `~` and `~~`, which
+open and close as `*` does in GFM, a hard line break that only spaces make, not
+tabs, and an ATX heading whose `#` a vertical tab or form feed follows, which is text. One patch adds what
 `toHtmlEach` needs (`rule:core-classes/markdown-chunks`): a parser over one segment reads the
 document's reference and footnote definitions and its expansion fuel from outside its text, and
 reports where its top-level blocks start and end after the block pass alone. comrak's quadratic autolink

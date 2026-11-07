@@ -192,6 +192,57 @@ pub fn from_html(html: &str) -> String {
     crate::markdown::from_html_text(html).expect("no memory limit")
 }
 
+/// How many bytes of output a Markdown document may add beyond its own
+/// length (`rule:core-classes/markdown-cost`).
+pub const MARKDOWN_ADDED_OUTPUT: usize = crate::markdown::ADDED_OUTPUT_SLACK;
+
+/// `text` rendered as `Core\Markdown::toHtmlEach` renders a file read
+/// `piece` bytes at a time: one HTML string per block group.
+///
+/// # Panics
+///
+/// Never outside a request: `text` is UTF-8, and only a request's memory
+/// limit stops a render.
+#[must_use]
+pub fn markdown_groups(text: &str, piece: usize) -> Vec<String> {
+    crate::markdown::grouped_in(text.as_bytes(), piece).expect("UTF-8 and no memory limit")
+}
+
+/// `text` pushed into a `Core\Markdown\Live` `piece` bytes at a time: each
+/// push's finished part and open part, and what `finish()` returns.
+///
+/// # Panics
+///
+/// Never outside a request: only a request's memory limit stops a render.
+#[must_use]
+pub fn markdown_live(text: &str, piece: usize) -> (Vec<(String, String)>, String) {
+    crate::markdown::live_in(text, piece).expect("no memory limit")
+}
+
+/// `html` sanitized, with each element's attributes in order of name, each run
+/// of spaces and line feeds as one space, and none between two tags. Two
+/// renderings that differ only in how they lay out their whitespace and
+/// attributes give the same string.
+#[must_use]
+pub fn html_meaning(html: &str) -> String {
+    use crate::html::{parse, rebuilt, source};
+    let mut tree = rebuilt(&parse(html));
+    let mut work = vec![&mut tree];
+    while let Some(node) = work.pop() {
+        node.attributes.sort();
+        work.extend(node.children.iter_mut());
+    }
+    let sanitized = source(&tree);
+    let mut out = String::with_capacity(sanitized.len());
+    for ch in sanitized.chars() {
+        let ch = if ch == '\n' { ' ' } else { ch };
+        if !(ch == ' ' && out.ends_with(' ')) {
+            out.push(ch);
+        }
+    }
+    out.trim().replace("> <", "><").replace("<br> ", "<br>")
+}
+
 /// [`markdown`]'s HTML, and the work it cost: the engine's steps
 /// (`pulldown_cmark::steps`) plus one per byte of HTML written. The count is
 /// `None` in a build without debug assertions, which counts nothing.

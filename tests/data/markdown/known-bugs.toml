@@ -3459,6 +3459,50 @@ direction = "to-html"
 input = "[a](javascript:alert(1))"
 html_lacks = ["javascript:"]
 
+# Found by the `markdown_comrak` differential fuzz target. The 0.13.6 HTML writer closes a code block
+# whose last line has no line ending without writing one, where CommonMark ends every line with one.
+[[bug]]
+id = "pulldown-cmark-code-block-at-end"
+library = "pulldown-cmark"
+source = "https://docs.rs/crate/pulldown-cmark/0.13.6/source/src/html.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "\t||"
+html = "<pre><code>||\n</code></pre>\n"
+
+# Found by the `markdown_comrak` differential fuzz target: a single `~` inside a word does not open
+# or close strikethrough, and a `~~` opens where it is not left-flanking. GFM reads both as `*`.
+[[bug]]
+id = "pulldown-cmark-issue-1078"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/1078"
+class = "wrong-output"
+direction = "to-html"
+input = "j~o~ and a~o~b and 'a~~#~~"
+html = "<p>j<del>o</del> and a<del>o</del>b and 'a~~#~~</p>\n"
+
+# Found by the `markdown_comrak` differential fuzz target. The 0.13.6 inline pass counts tabs as well
+# as spaces before a line ending, so two tabs make a hard line break, where the spec needs two spaces.
+[[bug]]
+id = "pulldown-cmark-tab-hard-break"
+library = "pulldown-cmark"
+source = "https://docs.rs/crate/pulldown-cmark/0.13.6/source/src/firstpass.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "a\t\t\nb \t\nc\t  \nd"
+html = "<p>a\nb\nc<br>\nd</p>\n"
+
+# Found by the `markdown_comrak` differential fuzz target. The 0.13.6 heading scan takes a vertical
+# tab or a form feed after `#` as the space an ATX heading needs.
+[[bug]]
+id = "pulldown-cmark-heading-vertical-tab"
+library = "pulldown-cmark"
+source = "https://docs.rs/crate/pulldown-cmark/0.13.6/source/src/scanners.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "#\u000B)\n\n#\u000Ca\n\n# b"
+html = "<p>#\u000B)</p>\n<p>#\u000Ca</p>\n<h1>b</h1>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"

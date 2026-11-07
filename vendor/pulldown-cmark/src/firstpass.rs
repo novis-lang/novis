@@ -864,7 +864,10 @@ impl<'a, 'b> FirstPass<'a, 'b> {
 
                     let trailing_whitespace =
                         scan_rev_while(&bytes[..ix], is_ascii_whitespace_no_nl);
-                    if trailing_whitespace >= 2 {
+                    // Novis: a hard break is two or more spaces before the
+                    // line ending, as the spec says, and a tab is not one.
+                    let trailing_spaces = scan_rev_while(&bytes[..ix], |c| c == b' ');
+                    if trailing_spaces >= 2 {
                         i -= trailing_whitespace;
                         self.tree.append_text(begin_text, i, backslash_escaped);
                         backslash_escaped = false;
@@ -2323,11 +2326,10 @@ fn delim_run_can_open(
         }
     }
     let delim = suffix.bytes().next().unwrap();
-    // `*` and `~~` can be intraword, `_` and `~` cannot
-    if delim == b'*' && !is_punctuation(next_char) {
-        return true;
-    }
-    if delim == b'~' && run_len > 1 {
+    // `*` and `~` can be intraword, `_` cannot.
+    // Novis: a run of `~` of either length opens as `*` does, as GFM and
+    // upstream issue 1078 read it. Upstream let any `~~` open.
+    if (delim == b'*' || delim == b'~') && !is_punctuation(next_char) {
         return true;
     }
     let prev_char = s[..ix].chars().last().unwrap();
@@ -2370,8 +2372,9 @@ fn delim_run_can_close(
         }
     }
     let delim = suffix.bytes().next().unwrap();
-    // `*` and `~~` can be intraword, `_` and `~` cannot
-    if (delim == b'*' || (delim == b'~' && run_len > 1)) && !is_punctuation(prev_char) {
+    // `*` and `~` can be intraword, `_` cannot.
+    // Novis: a single `~` reads as `*` does, as in `delim_run_can_open`.
+    if (delim == b'*' || delim == b'~') && !is_punctuation(prev_char) {
         return true;
     }
     if delim == b'~' && prev_char == '~' {

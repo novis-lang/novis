@@ -42,6 +42,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   disk: () => import("./cmd/disk.ts"),
   "exe-icons": () => import("./cmd/exe-icons.ts"),
   "ext-templates": () => import("./cmd/ext-templates.ts"),
+  fuzz: () => import("./cmd/fuzz.ts"),
   gaps: () => import("./cmd/gaps.ts"),
   garden: () => import("./cmd/garden.ts"),
   "gen-attribution": () => import("./cmd/gen-attribution.ts"),
