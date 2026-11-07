@@ -3,7 +3,7 @@
 //! `tests/data/markdown/spec/`.
 
 use super::*;
-use crate::html::{parse, parse_in_page};
+use crate::html::{parse, parse_in_page, rebuilt};
 
 /// One spec example: its number, counted from 1 over every example in its
 /// file, the extensions its header names, its Markdown and its HTML.

@@ -259,8 +259,7 @@ pub fn markdown_counting_steps(text: &str) -> (String, Option<u64>) {
 /// `html` parsed and rebuilt as `Core\Html::sanitize` does it, and written out.
 #[must_use]
 pub fn html_sanitized(html: &str) -> String {
-    use crate::html::{parse_in_page, rebuilt, source};
-    source(&rebuilt(&parse_in_page(html)))
+    crate::html::settled(html, None, "html_sanitized").expect("no memory limit outside a request")
 }
 
 /// `html` parsed and written out with every text node removed, so only its

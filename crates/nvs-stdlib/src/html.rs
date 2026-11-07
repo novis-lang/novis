@@ -157,9 +157,10 @@
 //! breaks Arabic and Hebrew.
 
 use std::borrow::Cow;
-use std::cell::{Ref, RefCell};
+use std::cell::{Cell, Ref, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
+use std::rc::Rc;
 
 use html5ever::tendril::{StrTendril, TendrilSink};
 use html5ever::tree_builder::{ElementFlags, NodeOrText, QuirksMode, TreeSink};
@@ -1124,6 +1125,10 @@ struct Sink {
     /// what keeps each repeat in proportion to its own attributes rather than
     /// to every attribute the element already has.
     attribute_names: RefCell<HashMap<usize, HashSet<String>>>,
+    /// Whether the builder has foster-parented a node: moved content written
+    /// inside a table to just before it. [`settled`] reads it after the parse,
+    /// which consumes the sink, so it is shared.
+    fostered: Rc<Cell<bool>>,
 }
 
 impl Sink {
@@ -1133,6 +1138,7 @@ impl Sink {
         Self {
             nodes: RefCell::new(vec![Node::new(Kind::Document)]),
             attribute_names: RefCell::new(HashMap::new()),
+            fostered: Rc::new(Cell::new(false)),
         }
     }
 
@@ -1338,6 +1344,7 @@ impl TreeSink for Sink {
         prev_element: &usize,
         child: NodeOrText<usize>,
     ) {
+        self.fostered.set(true);
         if self.nodes.borrow()[*element].parent.is_some() {
             self.append_before_sibling(element, child);
         } else {
@@ -1607,9 +1614,17 @@ fn options() -> html5ever::ParseOpts {
 /// does not close an open `<p>`. The sanitizer's answer is then a `p` inside a
 /// `p`, and sanitizing it again changes it.
 pub(crate) fn parse_in_page(document: &str) -> Parsed {
+    parsed_in_page_noting(document).0
+}
+
+/// [`parse_in_page`]'s tree, and whether the parse foster-parented a node.
+fn parsed_in_page_noting(document: &str) -> (Parsed, bool) {
     let mut opts = options();
     opts.tree_builder.never_quirks = true;
-    html5ever::parse_document(Sink::new(), opts).one(document)
+    let sink = Sink::new();
+    let fostered = Rc::clone(&sink.fostered);
+    let tree = html5ever::parse_document(sink, opts).one(document);
+    (tree, fostered.get())
 }
 
 /// The payload [`Sink::push`] unwinds with when the request cannot afford one
@@ -1631,19 +1646,9 @@ pub(crate) fn bounded(document: &str, member: &str) -> Result<Parsed, Fault> {
     caught(|| parse(document), member)
 }
 
-/// [`parse_in_page`], stopped at the request's memory limit as [`bounded`]
-/// stops [`parse`].
-///
-/// # Errors
-///
-/// A [`Fault::Fatal`] naming `member` when the tree would pass the limit.
-pub(crate) fn bounded_in_page(document: &str, member: &str) -> Result<Parsed, Fault> {
-    caught(|| parse_in_page(document), member)
-}
-
 /// `parsing`'s tree, or the fault naming `member` when it stopped at the
 /// request's memory limit.
-fn caught(parsing: impl FnOnce() -> Parsed, member: &str) -> Result<Parsed, Fault> {
+fn caught<T>(parsing: impl FnOnce() -> T, member: &str) -> Result<T, Fault> {
     std::panic::catch_unwind(AssertUnwindSafe(parsing)).map_err(|payload| {
         if payload.is::<OverLimit>() {
             Fault::fatal(format!(
@@ -2210,6 +2215,14 @@ pub(crate) fn rebuilt(tree: &Parsed) -> Parsed {
 /// whitespace it starts with is kept. `Core\Markdown::toHtmlEach` rebuilds
 /// each block group after the first with it.
 pub(crate) fn rebuilt_in_body(tree: &Parsed) -> Parsed {
+    rebuilt_noting(tree).0
+}
+
+/// [`rebuilt_in_body`]'s tree, and whether it unwrapped an element other
+/// than `html`, `head` and `body`, which the parse inserts around every
+/// document.
+fn rebuilt_noting(tree: &Parsed) -> (Parsed, bool) {
+    let mut unwrapped = false;
     let mut stack = vec![(tree.children.iter(), Parsed::new(Kind::Document))];
     loop {
         let next = stack
@@ -2226,19 +2239,74 @@ pub(crate) fn rebuilt_in_body(tree: &Parsed) -> Parsed {
                     .1
                     .children
                     .push(built),
-                Verdict::Opened(built) => stack.push((node.children.iter(), built)),
+                Verdict::Opened(built) => {
+                    unwrapped |= node.kind == Kind::Element
+                        && built.kind == Kind::Document
+                        && !matches!(node.name.as_str(), "html" | "head" | "body");
+                    stack.push((node.children.iter(), built));
+                }
             }
             continue;
         }
         let (_, built) = stack.pop().expect("the frame just read to its end");
         let Some(parent) = stack.last_mut() else {
-            return built;
+            return (built, unwrapped);
         };
         if built.kind == Kind::Document {
             parent.1.children.extend(built.children);
         } else {
             parent.1.children.push(built);
         }
+    }
+}
+
+/// How many times [`settled`] parses and rebuilds a document at most. The
+/// second pass parses an answer whose tables hold only what a table may hold,
+/// so it fosters nothing, and the third is there in case it does.
+const SETTLING_PASSES: usize = 3;
+
+/// `document` parsed by [`parse_in_page`], rebuilt and written out, as
+/// `Core\Html::sanitize` answers it, stopped at the request's memory limit.
+///
+/// **One pass is not always a fixed point.** Foster parenting builds nesting
+/// that no source builds: `<ul><li>a<table><tr><li>` puts the second `li`
+/// inside the first, and written out, a second parse closes the first `li`
+/// there. Unwrapping an element the list does not hold, such as a `center`
+/// between two `li`, does the same. So a parse that fostered a node, or a
+/// rebuild that unwrapped one, has its answer parsed and rebuilt again. A
+/// document with neither pays for one pass. One that has either pays for a
+/// second parse of its answer, which is no larger than the document.
+///
+/// With `head`, `document` continues one written before it: each pass parses
+/// `head`, `<body>` and the text, and the whitespace the text starts with is
+/// kept. `Core\Markdown::toHtmlEach` rebuilds each block group after the
+/// first this way.
+///
+/// # Errors
+///
+/// A [`Fault::Fatal`] naming `member` when a tree would pass the limit.
+pub(crate) fn settled(document: &str, head: Option<&str>, member: &str) -> Result<String, Fault> {
+    let mut text = match head {
+        Some(head) => format!("{head}<body>{document}"),
+        None => document.to_owned(),
+    };
+    let mut pass = 1;
+    loop {
+        let (tree, fostered) = caught(|| parsed_in_page_noting(&text), member)?;
+        let (mut built, unwrapped) = rebuilt_noting(&tree);
+        drop(tree);
+        if head.is_none() {
+            without_leading_whitespace(&mut built);
+        }
+        let out = source(&built);
+        if !(fostered || unwrapped) || pass == SETTLING_PASSES {
+            return Ok(out);
+        }
+        pass += 1;
+        text = match head {
+            Some(head) => format!("{head}<body>{out}"),
+            None => out,
+        };
     }
 }
 
@@ -2293,7 +2361,7 @@ nvs_runtime::nvs_helper! {
     /// been bypassed was.
     fn nvs_core_html_sanitize(_ctx, args: [1]) {
         let document = text(&args[0], r"`Core\Html::sanitize`'s `$document`")?;
-        let out = source(&rebuilt(&bounded_in_page(document, r"Core\Html::sanitize")?));
+        let out = settled(document, None, r"Core\Html::sanitize")?;
         Ok(crate::instance::build(
             &MARKUP,
             [Value::text(&out)],
@@ -3504,6 +3572,9 @@ mod tests {
             "<textarea><p>&lt;/textarea&gt;&lt;img src=x onerror=alert(1)&gt;</p>",
             "<p>a<table></p>",
             "<!DOCTYPE x><p>a<table></p>",
+            "<ul><li>a<table><tr><li>b</table>c",
+            "<ul><li>a<applet><li>b",
+            "<ul><li>a<table><tr><template>x</template><li>b",
         ];
 
         // The wrapper `Core\Html::parse` puts round any fragment at all, which
@@ -3511,7 +3582,7 @@ mod tests {
         // in the answer itself.
         const WRAPPER: &[&str] = &["html", "head", "body"];
 
-        let cleaned = |document: &str| source(&rebuilt(&parse_in_page(document)));
+        let cleaned = |document: &str| settled(document, None, "the corpus").expect("no limit");
 
         // What failed rather than what printed: a crate the language server
         // links may write to neither stream, so the detail a counting test owes
