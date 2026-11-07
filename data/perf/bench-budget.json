@@ -1,5 +1,5 @@
 {
-  "total": 331554335,
+  "total": 331568722,
   "benches": {
     "benches/members/core/Arr/all.nvs": 1542,
     "benches/members/core/Arr/any.nvs": 1542,
@@ -494,6 +494,14 @@
     "benches/members/core/Ldap/open.nvs": 100006,
     "benches/members/core/Log/write.nvs": 1286,
     "benches/members/core/Mail/send.nvs": 1542,
+    "benches/members/core/Markdown-Live/finish.nvs": 1286,
+    "benches/members/core/Markdown-Live/push.nvs": 1031,
+    "benches/members/core/Markdown-Update/done.nvs": 3080,
+    "benches/members/core/Markdown-Update/open.nvs": 3079,
+    "benches/members/core/Markdown/fromHtml.nvs": 1030,
+    "benches/members/core/Markdown/live.nvs": 1029,
+    "benches/members/core/Markdown/toHtml.nvs": 774,
+    "benches/members/core/Markdown/toHtmlEach.nvs": 3078,
     "benches/members/core/Math/abs.nvs": 3078,
     "benches/members/core/Math/acos.nvs": 1029,
     "benches/members/core/Math/acosh.nvs": 773,

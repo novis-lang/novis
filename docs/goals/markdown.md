@@ -39,7 +39,7 @@ stages:
     context: [fuzz/Cargo.toml]
   - id: 10
     title: "the four members carry their feature proofs"
-    status: open
+    status: done
     context: [benches/members/README.md, docs/rules/testing/feature-proofs.md, docs/agent/prose.md]
   - id: 11
     title: "the extension guide shows a crate Core does not ship"
@@ -602,25 +602,26 @@ end, then runs `bun nv proofs --id` for each member.
 - [x] `fromHtml`'s proofs. One example answers `Accept: text/markdown` with a page as Markdown.
   `docs/examples/core/Markdown/fromHtml/about.md:1`
 - [x] Each member's help in the binary, and `bun nv proofs --comments` over the new `.nvs` files.
-- [ ] Each of the eight benches has a measured record. `data/perf/members.ndjson:1`
-  - [ ] `cargo build --release`, then `bun nv proofs --record-perf --id '<feature>'` for each.
-  - [ ] `bun nv scaling --budget --write` stores each new bench's share.
-  - [ ] `bun nv proofs --id` for each of the eight owes nothing.
-- [ ] A run of unclosed raw tags costs linear time. `data/gaps/nvs-stdlib/markdown-raw-tag-runs-cost-quadratic-time.json:1`
-  - [ ] Find the step that rescans per tag (`'<div>' x 120,000` takes 5.7 s).
-  - [ ] Make it linear, and add a `work = "linear"` catalogue entry for `<a>` and `<div>`.
-  - [ ] Delete the gap record and the marker in `tests/hostile/core/Markdown/toHtml/03-many-raw-html-tags.nvs`.
-- [ ] `toHtmlEach`'s first read stays under the memory limit. `data/gaps/nvs-stdlib/markdown-each-definitions-pass-the-memory-limit.json:1`
-  - [ ] Bound one segment's first-read parse (`segments::definitions`, `crates/nvs-stdlib/src/markdown/segments.rs:280`).
-  - [ ] Delete the gap record and the marker in `tests/hostile/core/Markdown/toHtmlEach/02-a-flood-of-links-defined-at-the-end.nvs`.
-- [ ] A callback that calls `push` or `finish` on its own `Live` throws a `RuntimeError`.
-  `crates/nvs-stdlib/src/markdown/live.rs:190`
-  - [ ] Today it ends the program with `FATAL: internal error: … lost its state`.
-  - [ ] A step in `tests/hostile/core/Markdown-Live/push/` that catches it.
-- [ ] A `Live` dropped without `finish` frees its state. `crates/nvs-stdlib/src/markdown/live.rs:231`
-  - [ ] Today the state stays on the request until it ends, so 20,000 abandoned objects reach a 16M
-    limit that `Core\Hash::stream` does not. Free it when the object is freed.
-  - [ ] A step in `tests/hostile/core/Markdown/live/` that abandons many objects under a low limit.
+- [x] Each of the eight benches has a measured record. `data/perf/members.ndjson:1`
+  - [x] `cargo build --release`, then `bun nv proofs --record-perf --id '<feature>'` for each.
+  - [x] `bun nv scaling --budget --write` stores each new bench's share.
+  - [x] `bun nv proofs --id` for each of the eight owes nothing.
+- [x] A run of unclosed raw tags costs linear time. `crates/nvs-stdlib/src/markdown/groups.rs:1`
+  - [x] Find the step that rescans per tag: `groups::Balance::started` scanned the open stack for
+    `svg` or `math`.
+  - [x] Make it linear. The bug is ours, and the catalogue holds only other libraries' published
+    bugs, so its test is `a_run_of_unclosed_raw_tags_costs_linear_work` (green by name).
+  - [x] Delete the gap record and the marker in `tests/hostile/core/Markdown/toHtml/03-many-raw-html-tags.nvs`.
+- [x] `toHtmlEach`'s first read stays under the memory limit. `crates/nvs-stdlib/src/markdown/segments.rs:1`
+  - [x] Bound each parse of uncut text (`segments::parse_cost`, in `cut`, `definitions` and Live).
+  - [x] Delete the gap record and the marker in `tests/hostile/core/Markdown/toHtmlEach/02-a-flood-of-links-defined-at-the-end.nvs`.
+- [x] A callback that calls `push` or `finish` on its own `Live` throws a `RuntimeError`.
+  `crates/nvs-stdlib/src/markdown/live.rs:1`
+  - [x] It ended the program with `FATAL: internal error: … lost its state`.
+  - [x] A step in `tests/hostile/core/Markdown-Live/push/` that catches it.
+- [x] A `Live` dropped without `finish` frees its state. `crates/nvs-stdlib/src/markdown/live.rs:1`
+  - [x] `ClassDesc`'s `free` hook, run by `dismantle`; `instance::FREES_STATE` sets it for `Live`.
+  - [x] A step in `tests/hostile/core/Markdown/live/` that abandons 20,000 objects under 16M.
 
 ### 11. the extension guide shows a crate Core does not ship
 
@@ -640,36 +641,35 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 10's proofs are written. The member is eight features in `bun nv proofs`: `toHtml`,
-`toHtmlEach`, `fromHtml`, `live`, `Live::push`, `Live::finish`, `Update::done`, `Update::open`.
-Each has `about.md`, three examples, a bench, an attack, and a Rust test with its `covers:` marker
-(`66bb002d`). Their help was already in the binary. Commits `a35fee2d` to `d7e3b0dc` hold the
-proofs.
+Stage 10 is done. The eight features (`toHtml`, `toHtmlEach`, `fromHtml`, `live`, `Live::push`,
+`Live::finish`, `Update::done`, `Update::open`) each owe nothing in `bun nv proofs --id`.
 - **Green, on the proof binary**: `bun nv proofs --run --only <the eight> --no-perf` gives 24
-  examples ok, 9 attacks ok, 2 known gaps. `bun nv proofs --comments` was clean over every file.
-  Each feature still owes only `perf stale`, until its record is measured.
-- **The attacks found bugs.** Two are fixed: `2c6c6ed6` frees `xml::Parsed` with a loop, since
-  Markdown's unflattened tree overflowed Windows's 1 MiB main stack at 4,000 `- ` (test
-  `a_list_nested_far_past_512_renders_on_a_small_stack`, green by name). `73a87a8d` makes
-  `toHtmlEach`'s feed ask the memory limit before each piece. Two are gap records with markers
-  (`data/gaps/nvs-stdlib/`). Two in Live have no attack yet. Stage 10's open items list all four.
-- Sweep reds were stale: no `env-secret-proofs` check exists, and the Miri jobs ran on `26dda36`,
-  which predates `f13f4064`'s Miri skips.
+  examples ok, 11 attacks ok, no gaps; `--overshoot` is green, and `toHtmlEach`'s flood attack
+  peaks at 0.33x its limit.
+- **The four attack bugs are fixed.** `dbe3ab8b`: `ClassDesc` has a `free` hook that `dismantle`
+  runs (a runtime change, one word per class and one branch per object freed), and
+  `instance::FREES_STATE` sets it for `Live`, so an abandoned `Live` frees its state; a callback
+  re-entering its own `Live` throws a `RuntimeError`. `4bec7d46`: `groups::Balance` counts open
+  `svg`/`math` instead of scanning the stack (test `a_run_of_unclosed_raw_tags_costs_linear_work`,
+  green by name; the catalogue holds only other libraries' bugs, so no entry). `e576e370`:
+  `segments::parse_cost` (text plus 512 bytes a line) is asked of the limit before every parse of
+  uncut text, in `cut`, `definitions` and Live; `rule:core-classes/markdown-chunks` says so.
+- Perf: eight records in `data/perf/members.ndjson`, their shares in `bench-budget.json`, and
+  `members.md` rendered. `bun nv scaling --budget --write` exits 1 on twelve
+  `benches/members/novis/Spreadsheet-*` benches over budget, which this goal did not touch.
+- Sweep reds were stale again: run 42359979484 is on `26dda36`, before `f13f4064`'s Miri skips, and
+  no `env-secret-proofs` check or log exists.
 
 ### Next
 
-The rest of stage 10, in this order: the two Live bugs (`crates/nvs-stdlib/src/markdown/live.rs:190`
-and `:231`), the raw-tag time (gap `markdown-raw-tag-runs-cost-quadratic-time`), the first read's
-memory (gap `markdown-each-definitions-pass-the-memory-limit`, `segments.rs:280`), then the perf
-records (`cargo build --release`, `bun nv proofs --record-perf`, `bun nv scaling --budget --write`).
-Each item's checkpoints are under it in stage 10. A fix removes its gap record and marker, since a
-marked case that passes fails the sweep.
+Stage 11, the extension guide (decision 10): its checkpoints go under its items first. It touches
+only `website/guides/markdown-extension/` and `website/src/content/docs/guides/extensions/rust.mdx`.
+Then stage 12, the gate.
 
-`.agent-tmp/crash-md/` and `.agent-tmp/fuzz-markdown.log` are from an earlier session's `markdown`
-run; delete them once nothing needs them.
-
-Expected red: the floor check `proofs-gate`, until the perf records exist. Possibly red at the
-gate, not run this session: a conformance case or PDF test that sanitizes `<p>` around a `<table>` with no
+Possibly red at the gate, not run this session: a runtime test that counts a `ClassDesc`'s fields
+or debug-prints one; a Live test that expects the old `lost its state` fatal; a `toHtmlEach` or
+Live test under a low memory limit with a large single block, which the per-line cost now refuses
+sooner; a conformance case or PDF test that sanitizes `<p>` around a `<table>` with no
 doctype (decision 18); a case that pins a loose task list's HTML or an autolink with an entity;
 a case that pins an autolink next to a backslash escape, or a sanitized table with stray content;
 a card, website snippet or conformance case that pins `fromHtml`'s output for a URL with a space,
@@ -686,10 +686,6 @@ a card, website snippet or conformance case that pins `fromHtml`'s output for a 
 - Front matter (`---` YAML at the top) is common in content sites. Once `Core` reads YAML, a member
   that returns it is a candidate for a later goal.
 - AST editing (decision 1) is out of scope for this goal.
-- `Live::finish`'s card (`crates/nvs-stdlib/src/markdown.rs:339`) says a definition from a later
-  piece leaves its link as text. A definition in a later *block* of the same piece does too,
-  because a block is finished once the next block's first line is complete. The card should say
-  "a later block".
 - `Core\Sse::send` cannot send a `Core\Html\Markup` and throws on an empty payload, so the Sse
   example sends `Core\Html::toSource` inside JSON. A `Markup` payload is a candidate for `Core\Sse`.
 - `fromHtml` writes an `<a>` nested in an `<a>` as empty links, `[](/x)`, where an empty element
