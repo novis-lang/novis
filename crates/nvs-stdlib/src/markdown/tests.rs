@@ -741,6 +741,9 @@ fn rendering_in_chunks_gives_the_same_html_as_the_whole_document() {
             // Two declarations the rebuild drops: the group after them is
             // still the start of the page, so its whitespace is dropped.
             "<!x\n>\n <!y\n>\n\na\n",
+            // The list's range reaches into the line of the second `*`, which
+            // continues the paragraph the definition starts.
+            "*\n[a]: /u\n  *\n\nb\n",
         ]
         .map(|text| ("inline".to_owned(), text.to_owned())),
     );

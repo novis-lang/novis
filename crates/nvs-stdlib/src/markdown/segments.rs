@@ -196,21 +196,30 @@ impl Segments {
 
     /// Where the buffer's complete lines can be cut: after the second-to-last
     /// top-level block they hold, at the next line start.
+    ///
+    /// A cut is only ever at a line start. A block can start inside a line
+    /// that the block before it reaches into: in `*\n[a]: /u\n  *`, the list's
+    /// range runs over the reference definition up to the second `*`, which
+    /// continues the paragraph the definition starts. Two such blocks are one
+    /// for the cut, so it moves to the pair before them.
     fn cut(&self) -> Option<usize> {
         let complete = self.buffer.rfind('\n')? + 1;
         let lines = &self.buffer[..complete];
+        let at_line_start = |at: usize| at == 0 || lines.as_bytes()[at - 1] == b'\n';
         let blocks = Parser::new_ext(lines, options()).block_ranges();
-        let [.., before, last] = &blocks[..] else {
-            return None;
-        };
-        let end = before.end;
-        let line_start = if end == 0 || lines.as_bytes()[end - 1] == b'\n' {
-            end
-        } else {
-            lines[end..].find('\n').map_or(complete, |at| end + at + 1)
-        };
-        let cut = line_start.min(last.start);
-        (cut > 0).then_some(cut)
+        blocks.windows(2).rev().find_map(|pair| {
+            let [before, next] = pair else {
+                return None;
+            };
+            let end = before.end;
+            let line_start = if at_line_start(end) {
+                end
+            } else {
+                lines[end..].find('\n').map_or(complete, |at| end + at + 1)
+            };
+            let cut = line_start.min(next.start);
+            (cut > 0 && at_line_start(cut)).then_some(cut)
+        })
     }
 }
 
