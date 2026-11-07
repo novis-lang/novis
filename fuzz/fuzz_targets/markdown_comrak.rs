@@ -290,6 +290,29 @@ fuzz_target!(|data: &[u8]| {
     if lower.as_bytes().windows(3).any(|w| w[0] == b'<' && w[1] == b'a' && b" \t\r\n/>".contains(&w[2])) {
         return;
     }
+    // A link whose text has raw HTML is rebuilt from its source in ours, and
+    // an autolink in that text then closes the link, as a browser reads
+    // cmark's output. `unnested` removes the autolink from comrak's output
+    // instead. A document with `[`, an angle autolink and another tag is not
+    // compared.
+    let bytes = text.as_bytes();
+    let autolink = |at: usize| {
+        let scheme = bytes[at + 1..].iter().take_while(|b| b.is_ascii_alphanumeric() || b"+.-".contains(b)).count();
+        bytes[at + 1].is_ascii_alphabetic() && (2..=32).contains(&scheme) && bytes.get(at + 1 + scheme) == Some(&b':')
+    };
+    let tags: Vec<usize> = (0..bytes.len().saturating_sub(1))
+        .filter(|&at| bytes[at] == b'<' && (bytes[at + 1].is_ascii_alphabetic() || b"/!?".contains(&bytes[at + 1])))
+        .collect();
+    if text.contains('[') && tags.iter().any(|&at| autolink(at)) && tags.iter().any(|&at| !autolink(at)) {
+        return;
+    }
+    // An escaped `&` is a plain character, so `\&amp;` in a link destination
+    // is the text `&amp;`, as commonmark.js reads it. cmark and comrak 0.59
+    // decode entities before backslash escapes, so they read `&`. A document
+    // with `\&` is not compared.
+    if text.contains("\\&") {
+        return;
+    }
     // A link label needs a character that is not whitespace, so in `[a][ ]`
     // the `[ ]` is text after a shortcut reference. cmark trims the second
     // label and reads an empty one as a collapsed reference, and comrak 0.59
@@ -319,6 +342,13 @@ fuzz_target!(|data: &[u8]| {
     // comment cannot end with `-`, and writes it as text. A document with a
     // comment start and `--->` is not compared.
     if text.contains("<!--") && text.contains("--->") {
+        return;
+    }
+    // A line ending in a code span is one space, and cmark writes `\r\n` as
+    // one. comrak 0.59 writes a space for the `\r` and one for the `\n`, so
+    // the span keeps a space that CommonMark strips. A document with a
+    // backtick and `\r\n` is not compared.
+    if text.contains('`') && text.contains("\r\n") {
         return;
     }
     // A CDATA section ends at the first `]]>`. cmark's pattern, which comrak
