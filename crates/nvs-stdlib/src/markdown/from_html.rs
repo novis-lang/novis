@@ -96,6 +96,11 @@ pub(super) fn markdown(tree: Parsed) -> Result<String, Fault> {
     let mut parts = Vec::new();
     writer.collect(&nodes, 0, &mut parts)?;
     let mut out = joined(&parts, false)?;
+    // A Markdown reader drops a byte-order mark at the start of the document,
+    // so text that starts with U+FEFF writes it as an entity.
+    if out.starts_with('\u{FEFF}') {
+        out.replace_range(..'\u{FEFF}'.len_utf8(), "&#xFEFF;");
+    }
     if !out.is_empty() {
         out.push('\n');
     }

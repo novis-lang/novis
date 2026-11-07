@@ -1096,6 +1096,9 @@ const DOCUMENTS: &[&str] = &[
     // A `.` three bytes after the start of a character. The
     // `markdown_from_html` fuzz target found that it panicked.
     "> \u{FFFD}!.\n",
+    // Text that starts with U+FEFF. The `markdown_from_html` fuzz target found
+    // that it was lost.
+    "&#xFEFF;a\n",
 ];
 
 #[test]
