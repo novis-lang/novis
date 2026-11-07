@@ -50,4 +50,12 @@ describe("a per-file memo", () => {
       { line: 1, raw: "docs/b.md", kind: "relative" },
     ]);
   });
+
+  test("a source file's link syntax in code is data, and only its comments' links are read", () => {
+    const rs = '"[a](/home) [b](//evil.example)"\nlet x = 1; // see [c](/docs/c.md)\n * [d](/docs/d.md)\n';
+    expect(linksIn(rs, true)).toEqual([
+      { line: 2, raw: "/docs/c.md", from: "root", target: "docs/c.md" },
+      { line: 3, raw: "/docs/d.md", from: "root", target: "docs/d.md" },
+    ]);
+  });
 });

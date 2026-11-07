@@ -11,7 +11,9 @@
 //   so its links are relative (`../agent/conventions.md`).
 // - A source file (`.rs`, `.nvs`, `.nvst`) is rendered by nothing, so its links are absolute from the
 //   repository root (`/docs/agent/conventions.md`). Two shapes there are not paths and are skipped: a
-//   rustdoc intra-doc link has no `/`, and a link to a rustdoc page ends in `.html`.
+//   rustdoc intra-doc link has no `/`, and a link to a rustdoc page ends in `.html`. Only a comment's
+//   links are read, because link syntax in code is data, such as the Markdown a `Core\Markdown` test
+//   renders. A link is in a comment when its line opens with `//`, `/*` or `*`, or a `//` comes first.
 // - A `.py` file is read for bare path mentions only, anchored at a top-level directory. A link in a
 //   tool is usually text it emits into a generated page, and resolves from that page, not from here.
 //
@@ -30,6 +32,7 @@
 // A link inside a code span or a markdown fence is an example, not a link. A fragment is checked as
 // far as its file. A file announcing `GENERATED FILE` in its first lines is skipped: the website's
 // rulebook pages rewrite every citation into a site route, and their sources are checked instead.
+// A file under `vendor/` is not read: it is upstream's text, kept as upstream wrote it.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, extname, join, resolve, sep } from "node:path";
@@ -65,6 +68,10 @@ const MENTION_SKIPS = ["check-links:retired", "check-links:written", "check-link
 
 const CODE_SPAN_RE = /`[^`]*`/g;
 const FENCE_RE = /^\s*(```|~~~)/;
+/** A source line that is a comment from its start: `//`, `/*`, or a block comment's `*` line. */
+const COMMENT_LINE_RE = /^\s*(?:\/\/|\/\*|\*)/;
+/** The vendored crates, whose files keep upstream's own links. */
+const VENDOR_DIR = "vendor/";
 const GENERATED_MARKER = "GENERATED FILE";
 const GENERATED_HEAD_LINES = 15;
 
@@ -173,8 +180,12 @@ export function linksIn(text: string, source: boolean): Link[] {
     }
     if (fenced) return;
     const spans = [...line.matchAll(CODE_SPAN_RE)].map((m) => [m.index!, m.index! + m[0].length] as const);
+    // In a source file, where the comment starts: a link before it is code.
+    const comment = !source || COMMENT_LINE_RE.test(line) ? 0 : line.indexOf("//");
+    if (comment < 0) return;
     for (const m of line.matchAll(LINK_RE)) {
       const at = m.index!;
+      if (at < comment) continue;
       if (spans.some(([start, end]) => start <= at && at < end)) continue;
       const raw = m[1]!;
       if (SKIP_SCHEMES.some((s) => raw.startsWith(s))) continue;
@@ -247,7 +258,7 @@ export async function trackedFiles(paths: string[]): Promise<string[]> {
     walk(ROOT, files);
   }
   const exts = [...DOC_EXTS, ...SOURCE_EXTS, ...MENTION_EXTS];
-  files = files.filter((f) => exts.includes(extname(f)));
+  files = files.filter((f) => exts.includes(extname(f)) && !rel(f).startsWith(VENDOR_DIR));
   if (paths.length === 0) return files;
   const prefixes = paths.map((p) => resolve(ROOT, p));
   return files.filter((f) => prefixes.some((pre) => f.startsWith(pre)));
