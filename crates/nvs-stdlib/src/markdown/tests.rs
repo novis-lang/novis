@@ -1093,6 +1093,9 @@ const DOCUMENTS: &[&str] = &[
     "<br>\n",
     "a<br>\n\n<br>b\n\n# <br>c<br>\n",
     "a<br><br>b and *c<br><br>*d\n",
+    // A `.` three bytes after the start of a character. The
+    // `markdown_from_html` fuzz target found that it panicked.
+    "> \u{FFFD}!.\n",
 ];
 
 #[test]

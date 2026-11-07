@@ -1190,7 +1190,7 @@ fn escape_into(text: &str, line_start: bool, heading: bool, cut: bool, out: &mut
     let mut previous: Option<char> = None;
     for (at, ch) in text.char_indices() {
         if cut {
-            let www = ch == '.' && at >= 3 && &text[at - 3..at] == "www";
+            let www = ch == '.' && bytes[..at].ends_with(b"www");
             let scheme = ch == ':'
                 && text[at..].starts_with("://")
                 && previous.is_some_and(|before| before.is_ascii_alphanumeric());
