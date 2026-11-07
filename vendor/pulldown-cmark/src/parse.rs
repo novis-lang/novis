@@ -1565,15 +1565,11 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
     fn scan_inline_html(&mut self, bytes: &[u8], ix: usize) -> Option<(Vec<u8>, usize)> {
         let c = *bytes.get(ix)?;
         if c == b'!' {
-            Some((
-                vec![],
-                scan_inline_html_comment(bytes, ix + 1, &mut self.html_scan_guard)?,
-            ))
+            let end = scan_inline_html_comment(bytes, ix + 1, &mut self.html_scan_guard)?;
+            Some((self.without_container_prefixes(bytes, ix - 1, end), end))
         } else if c == b'?' {
-            Some((
-                vec![],
-                scan_inline_html_processing(bytes, ix + 1, &mut self.html_scan_guard)?,
-            ))
+            let end = scan_inline_html_processing(bytes, ix + 1, &mut self.html_scan_guard)?;
+            Some((self.without_container_prefixes(bytes, ix - 1, end), end))
         } else {
             let (span, i) = scan_html_block_inner(
                 // Subtract 1 to include the < character
@@ -1582,6 +1578,38 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
             )?;
             Some((span, i + ix - 1))
         }
+    }
+
+    /// Novis: the inline comment, processing instruction, declaration or CDATA
+    /// section `bytes[start..end]`, with the container prefixes of each line
+    /// after the first removed, as [`scan_html_block_inner`] removes them from
+    /// a tag. Empty when nothing is removed, so the HTML is the source slice.
+    /// The published 0.13.6 kept the prefixes, and a block quote's `>` ended a
+    /// processing instruction when the HTML was parsed.
+    ///
+    /// ```markdown
+    /// > a <?
+    /// > b ?>
+    /// ```
+    fn without_container_prefixes(&self, bytes: &[u8], start: usize, end: usize) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        let mut copied = start;
+        let mut i = start;
+        while let Some(at) = bytes[i..end].iter().position(|&b| b == b'\n' || b == b'\r') {
+            crate::steps::add(at + 1);
+            i += at;
+            i += scan_eol(&bytes[i..]).unwrap_or(1);
+            let skipped = skip_container_prefixes(&self.tree, &bytes[i..], self.options).min(end - i);
+            if skipped > 0 {
+                buffer.extend_from_slice(&bytes[copied..i]);
+                copied = i + skipped;
+            }
+            i += skipped;
+        }
+        if !buffer.is_empty() {
+            buffer.extend_from_slice(&bytes[copied..end]);
+        }
+        buffer
     }
 
     /// Consumes the event iterator and produces an iterator that produces

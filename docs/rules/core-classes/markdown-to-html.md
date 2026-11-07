@@ -114,7 +114,8 @@ which still starts a table, a header row that would be an empty list item, which
 is a list item with text after its marker, which starts the list, a header row that ends with `\`, whose `\` is the cell's text, a
 paragraph that a table interrupts, whose lines before the header row are plain text and define no
 reference, as in cmark-gfm, a line in a table indented four columns, which ends the table and starts
-an indented code block, a CDATA section in a paragraph,
+an indented code block, an inline comment or processing instruction that continues on a
+container's next line, which does not include that line's container marker, a CDATA section in a paragraph,
 which ends at the first `]]>` as the spec says, the entities of an autolink, which resolve as cmark resolves them, a tab, which ends an unquoted
 attribute value in raw HTML, and a tab that makes a block quote marker on a
 continuing line indented four columns, which ends the quote. One patch adds what

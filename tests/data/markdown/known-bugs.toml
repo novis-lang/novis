@@ -3692,6 +3692,18 @@ direction = "to-html"
 input = "x\n+\n-:|\nb"
 html = "<p>x</p>\n<table>\n<thead>\n<tr>\n<th align=\"right\">+</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align=\"right\">b</td>\n</tr>\n</tbody>\n</table>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. A processing instruction that continues
+# on a block quote's next line does not include that line's `>`. pulldown-cmark 0.13.6 kept the
+# `>` in the raw HTML, and the HTML parser ended the instruction there, so `?>` was text.
+[[bug]]
+id = "pulldown-cmark-inline-processing-instruction-container-prefix"
+library = "pulldown-cmark"
+source = "https://spec.commonmark.org/0.31.2/#raw-html"
+class = "wrong-output"
+direction = "to-html"
+input = "> a <?\n> b ?>c"
+html = "<blockquote>\n<p>a c</p>\n</blockquote>\n"
+
 # Found by the `markdown_comrak` differential fuzz target. cmark-gfm takes a table's header row
 # from a paragraph's text before it reads the paragraph's reference definitions, so the lines
 # before the header row are a plain paragraph and define nothing. pulldown-cmark 0.13.6 read the
