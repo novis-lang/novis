@@ -387,6 +387,9 @@ impl Writer {
                 items.push(vec![child]);
             }
         }
+        if items.is_empty() {
+            return Ok(());
+        }
         let loose = items.iter().any(|item| {
             item.iter()
                 .any(|child| child.kind == Kind::Element && child.name == "p")

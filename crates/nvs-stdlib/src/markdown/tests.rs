@@ -1137,6 +1137,9 @@ fn from_html_twice_gives_the_same_markdown() {
             "<dl><dt>a</dt><dd>b</dd></dl>",
             "<pre>a\n\n  b</pre><p>x</p>",
             "<p><a href=\"javascript:x\">a</a> <img src=\"data:x\" alt=\"b\"></p>",
+            // An empty list writes nothing. The `markdown_from_html` fuzz
+            // target found that it added blank lines.
+            "a<ul></ul><ol>\n</ol>",
         ]
         .map(str::to_owned),
     );
