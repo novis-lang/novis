@@ -173,3 +173,11 @@ are checked; this goal covers the rest of what the website shows.
 
 - The `Core` reference cards' prose examples outside `docs/examples/`, if any exist, are listed by
   stage 1 too (`tools/nv/renderers/website-core.ts:1`).
+- From `realtime-example-apps`: a connection's `cpu_time` counts from the upgrade for its whole life,
+  so poll's production `cpu_time = "5s"` may end a busy event stream after hours. Check whether the
+  watchdog charges an unwatched connection isolate (`crates/nvs-host/src/watchdog.rs:1348`) and
+  whether a connection wants a per-message budget (`rule:concurrency/a-connection-is-a-root-isolate`).
+- From `realtime-example-apps`: whether `connect-src 'self'` allows `wss:` to the same host in every
+  supported browser. The Chromium test covers `ws:` over `http:` only (`apps/chat/nvs.toml:14`).
+- From `realtime-example-apps`: a screenshot of each app on its page, once `bun nv site --shoot` has
+  an app shot (`tools/nv/cmd/site.ts:200`).

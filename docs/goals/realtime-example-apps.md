@@ -22,7 +22,7 @@ stages:
     context: [docs/rules/concurrency/a-connection-is-a-root-isolate.md, docs/rules/concurrency/connection-bounds-are-finite.md, website/src/content/docs/guides/production/security-checklist.mdx]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: apps-check
@@ -180,56 +180,42 @@ records the decision in those rules. The safe default: `wall_time` bounds the re
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
+**The goal is reached.** Stage 5's `looper verify` was green on its first run, so no second run was
+owed. The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes` (no gap) and
+`bun nv ci --check`. `ci --check` was red twice at first. Five pages' search questions were stale after
+stage 4, and the roadmap listed Markdown before goals earlier on the chain. Both are fixed in
+`c6c3ee0d`. The acceptance checks `apps-check` and `realtime-browser` are green. Every standing decision
+is recorded in an app, a page, a rule or a test. The backlog moved to `website-code-checked`.
+
 Stages 1 to 4 are done. Stage 2's suite is `tools/nv/test/realtime-browser.test.ts` (five tests
 in Chromium, run in CI's `browser` job). Stage 3's page is
 `website/src/content/docs/guides/how-to-use/live-updates.mdx`.
 
-Stage 4 is `b1ce9fe6` (decision 12). An upgraded connection ran in the upgrading request's limit
-tree, so it ended at that request's wall deadline. Both doors in `crates/nvs-server/src/serve.rs`
-now call `Ctx::reroot_for_a_connection` before they start the connection isolate. The served case
-`a_requests_wall_time_does_not_bound_the_connection_it_upgraded` covers both doors under
-`wall_time = "60s"`. It ran green once by name, and red with the fix disabled. By hand, poll under
-`wall_time = "2s"` kept `/polls/1/events` open for curl's full 5 s. Both rule fragments, the
-checklist, the limits page, `live-updates.mdx`'s `## Do and don't`, both app pages and both
-`deploy/production.toml` (now `wall_time = "30s"`) say what closes a connection.
-`bun nv site --check structure guides prose apps`, `bun nv proofs --comments` over the changed files,
-`nvs config check` over both production configs, clippy and rustfmt are green.
+Stage 4 is `b1ce9fe6` (decision 12): both doors in `crates/nvs-server/src/serve.rs` call
+`Ctx::reroot_for_a_connection`, and the served case
+`a_requests_wall_time_does_not_bound_the_connection_it_upgraded` covers both.
 
 Sweep reds: `env-secret-proofs` is defined nowhere in the tree and has no log, a stale service-side
 entry. The nightly Miri reds in `nvs-stdlib` are fixed by `f13f4064`, which is in `main` and not yet
-pushed. No test is expected to go red; a served case that reads a connection's `wall_bound` or a
-tree's CPU count across an upgrade is where one would.
+pushed. No test is expected to go red.
 
 ### Next
 
-**Stage 5**, the gate.
+Nothing. The driver retires the goal, and `website-code-checked` is next on the chain.
 
-- [ ] `crates/nvs-runtime/src/ctx/safepoint.rs:278`: start `looper verify` with
-  `run_in_background` and end the turn to wait. It covers `nvs-runtime`, `nvs-server` and the apps.
-- [ ] `crates/nvs-server/src/serve.rs:4976`: fix every failure in one pass, then run it once more.
-- [ ] `docs/rules/concurrency/a-connection-is-a-root-isolate.md:19`: the goal-end gates,
-  `bun nv verify --doc`, `bun nv owners --closes realtime-example-apps` and `bun nv ci --check`.
-  Before the file is deleted, check that each decision lives in a rule, an app or a page.
-- [ ] `tools/nv/test/realtime-browser.test.ts:1`: the acceptance checks `apps-check` and
-  `realtime-browser` (`looper check --name <text>`).
+- [x] `crates/nvs-runtime/src/ctx/safepoint.rs:278`: `looper verify` ran, and it was green.
+- [x] `crates/nvs-server/src/serve.rs:4976`: no failure to fix.
+- [x] `docs/rules/concurrency/a-connection-is-a-root-isolate.md:19`: the goal-end gates are green.
+- [x] `tools/nv/test/realtime-browser.test.ts:1`: `apps-check` and `realtime-browser` are green.
 
 ### Backlog
 
-- A connection's `cpu_time` counts over its whole life from the upgrade. Poll's production
-  `cpu_time = "5s"` may end a busy event stream after many hours of events. Check whether the
-  watchdog charges an unwatched connection isolate at all (`crates/nvs-host/src/watchdog.rs:1348`)
-  and whether a connection wants a per-message budget instead.
-
-- Whether `connect-src 'self'` allows `wss:` to the same host in every supported browser. CSP Level 3
-  says it does. Stage 2's Chromium test shows `ws:` over `http:` only (`apps/chat/nvs.toml:14`).
-
-- A screenshot of each app on its page, if `bun nv site --shoot` grows an app shot that is not the
-  debug viewer (`tools/nv/cmd/site.ts:200`).
+Moved to `docs/goals/website-code-checked.md` § *Backlog*.
