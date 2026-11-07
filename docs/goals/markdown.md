@@ -593,15 +593,34 @@ because their proof directories are disjoint. Each writes `about.md`, three exam
 growth, and one attack, held to AGENTS.md § *Text an end user reads*. The session builds once they all
 end, then runs `bun nv proofs --id` for each member.
 
-- [ ] `toHtml`'s proofs. Its attack is the catalogue's XSS and slow inputs.
+- [x] `toHtml`'s proofs. Its attack is the catalogue's XSS and slow inputs.
   `docs/examples/core/Markdown/toHtml/about.md:1`
-- [ ] `toHtmlEach`'s proofs. Its bench grows the input to 1 GB and shows flat memory for a file.
+- [x] `toHtmlEach`'s proofs. Its bench grows the input to 1 GB and shows flat memory for a file.
   `docs/examples/core/Markdown/toHtmlEach/about.md:1`
-- [ ] `Live`'s proofs. One example streams model output to a page over `Core\Sse`.
+- [x] `Live`'s proofs. One example streams model output to a page over `Core\Sse`.
   `docs/examples/core/Markdown-Live/push/about.md:1`
-- [ ] `fromHtml`'s proofs. One example answers `Accept: text/markdown` with a page as Markdown.
+- [x] `fromHtml`'s proofs. One example answers `Accept: text/markdown` with a page as Markdown.
   `docs/examples/core/Markdown/fromHtml/about.md:1`
-- [ ] Each member's help in the binary, and `bun nv proofs --comments` over the new `.nvs` files.
+- [x] Each member's help in the binary, and `bun nv proofs --comments` over the new `.nvs` files.
+- [ ] Each of the eight benches has a measured record. `data/perf/members.ndjson:1`
+  - [ ] `cargo build --release`, then `bun nv proofs --record-perf --id '<feature>'` for each.
+  - [ ] `bun nv scaling --budget --write` stores each new bench's share.
+  - [ ] `bun nv proofs --id` for each of the eight owes nothing.
+- [ ] A run of unclosed raw tags costs linear time. `data/gaps/nvs-stdlib/markdown-raw-tag-runs-cost-quadratic-time.json:1`
+  - [ ] Find the step that rescans per tag (`'<div>' x 120,000` takes 5.7 s).
+  - [ ] Make it linear, and add a `work = "linear"` catalogue entry for `<a>` and `<div>`.
+  - [ ] Delete the gap record and the marker in `tests/hostile/core/Markdown/toHtml/03-many-raw-html-tags.nvs`.
+- [ ] `toHtmlEach`'s first read stays under the memory limit. `data/gaps/nvs-stdlib/markdown-each-definitions-pass-the-memory-limit.json:1`
+  - [ ] Bound one segment's first-read parse (`segments::definitions`, `crates/nvs-stdlib/src/markdown/segments.rs:280`).
+  - [ ] Delete the gap record and the marker in `tests/hostile/core/Markdown/toHtmlEach/02-a-flood-of-links-defined-at-the-end.nvs`.
+- [ ] A callback that calls `push` or `finish` on its own `Live` throws a `RuntimeError`.
+  `crates/nvs-stdlib/src/markdown/live.rs:190`
+  - [ ] Today it ends the program with `FATAL: internal error: … lost its state`.
+  - [ ] A step in `tests/hostile/core/Markdown-Live/push/` that catches it.
+- [ ] A `Live` dropped without `finish` frees its state. `crates/nvs-stdlib/src/markdown/live.rs:231`
+  - [ ] Today the state stays on the request until it ends, so 20,000 abandoned objects reach a 16M
+    limit that `Core\Hash::stream` does not. Free it when the object is freed.
+  - [ ] A step in `tests/hostile/core/Markdown/live/` that abandons many objects under a low limit.
 
 ### 11. the extension guide shows a crate Core does not ship
 
@@ -621,46 +640,36 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 9 is done. Both fuzz targets ran 1,000,000 inputs clean: `markdown` on `05fc53b`, and
-`markdown_from_html` 1,036,735 inputs on `1132a082`. The comrak differential is stopped
-(decision 20).
-- **This session's `markdown_from_html` triage**, commits `9ba5124c` to `1132a082`. `fromHtml`
-  fixes, each with a case in `tests.rs`'s `DOCUMENTS` or the stability test's inputs: a `:` at a
-  line start is escaped (`:-` was a table's delimiter row); a `!` right before a link's `[` is
-  escaped (`Writer::open`); a `-` list whose item line would read `- - -` uses `+`, or `*` after a
-  `+` list (`thematic_break`); a URL is written percent-encoded as the renderer writes an `href`
-  (`destination`, `super::encoded_href`), with `\&` before an entity's text and `<…>` around one
-  with a parenthesis. That last one changes `fromHtml`'s output for any URL with a space or a
-  non-ASCII character, and `rule:core-classes/markdown-from-html` records it and its Declined.
-  Check fixes in `fuzz.rs`'s `html_meaning`: the space at a line's ends goes across inline tags,
-  and at block tags too (`line_ends_trimmed`, `LINE_EDGES`); breaks with white space between
-  them move out of an inline element (`breaks_at_edge`); white space at an inline element's edge
-  moves out of it, the end first (`breaks_hoisted`).
-- `2a0a7847` formats `fuzz.rs` and `segments.rs`, which failed CI's `cargo fmt --all --check`.
-- **Green, run once by name**: `--lib markdown::tests::` (23), `--test markdown_known_bugs`.
-- Sweep reds were stale again: no `env-secret-proofs` check exists, and the Miri jobs ran on
-  `26dda36`, which predates `f13f4064`'s Miri skips.
+Stage 10's proofs are written. The member is eight features in `bun nv proofs`: `toHtml`,
+`toHtmlEach`, `fromHtml`, `live`, `Live::push`, `Live::finish`, `Update::done`, `Update::open`.
+Each has `about.md`, three examples, a bench, an attack, and a Rust test with its `covers:` marker
+(`66bb002d`). Their help was already in the binary. Commits `a35fee2d` to `d7e3b0dc` hold the
+proofs.
+- **Green, on the proof binary**: `bun nv proofs --run --only <the eight> --no-perf` gives 24
+  examples ok, 9 attacks ok, 2 known gaps. `bun nv proofs --comments` was clean over every file.
+  Each feature still owes only `perf stale`, until its record is measured.
+- **The attacks found bugs.** Two are fixed: `2c6c6ed6` frees `xml::Parsed` with a loop, since
+  Markdown's unflattened tree overflowed Windows's 1 MiB main stack at 4,000 `- ` (test
+  `a_list_nested_far_past_512_renders_on_a_small_stack`, green by name). `73a87a8d` makes
+  `toHtmlEach`'s feed ask the memory limit before each piece. Two are gap records with markers
+  (`data/gaps/nvs-stdlib/`). Two in Live have no attack yet. Stage 10's open items list all four.
+- Sweep reds were stale: no `env-secret-proofs` check exists, and the Miri jobs ran on `26dda36`,
+  which predates `f13f4064`'s Miri skips.
 
 ### Next
 
-Stage 10, by its `**Split:**` line: four writing subagents side by side, one per member, each
-held to AGENTS.md § *Text an end user reads*. Then build, and run `bun nv proofs --id` for each.
+The rest of stage 10, in this order: the two Live bugs (`crates/nvs-stdlib/src/markdown/live.rs:190`
+and `:231`), the raw-tag time (gap `markdown-raw-tag-runs-cost-quadratic-time`), the first read's
+memory (gap `markdown-each-definitions-pass-the-memory-limit`, `segments.rs:280`), then the perf
+records (`cargo build --release`, `bun nv proofs --record-perf`, `bun nv scaling --budget --write`).
+Each item's checkpoints are under it in stage 10. A fix removes its gap record and marker, since a
+marked case that passes fails the sweep.
 
-- [ ] `toHtml`'s proofs (`docs/examples/core/Markdown/toHtml/about.md:1`). Its attack is the
-  catalogue's XSS and slow inputs (`tests/data/markdown/known-bugs.toml`).
-- [ ] `toHtmlEach`'s proofs (`docs/examples/core/Markdown/toHtmlEach/about.md:1`), bench to 1 GB.
-- [ ] `Live`'s proofs (`docs/examples/core/Markdown-Live/push/about.md:1`), one over `Core\Sse`.
-- [ ] `fromHtml`'s proofs (`docs/examples/core/Markdown/fromHtml/about.md:1`), one answering
-  `Accept: text/markdown`. A URL in its example output is percent-encoded (see State).
-- [ ] Each member's help in the binary (`crates/nvs-stdlib/src/markdown.rs:1`), and
-  `bun nv proofs --comments` over the new `.nvs` files.
+`.agent-tmp/crash-md/` and `.agent-tmp/fuzz-markdown.log` are from an earlier session's `markdown`
+run; delete them once nothing needs them.
 
-Find a feature's owed proofs with `bun nv proofs --id '<feature>'`. `.agent-tmp/crash-md/` and
-`.agent-tmp/fuzz-markdown.log` are from an earlier session's `markdown` run; delete them once
-nothing needs them.
-
-Expected red: the floor check `proofs-gate`, until stage 10. Possibly red at the gate, not run
-this session: a conformance case or PDF test that sanitizes `<p>` around a `<table>` with no
+Expected red: the floor check `proofs-gate`, until the perf records exist. Possibly red at the
+gate, not run this session: a conformance case or PDF test that sanitizes `<p>` around a `<table>` with no
 doctype (decision 18); a case that pins a loose task list's HTML or an autolink with an entity;
 a case that pins an autolink next to a backslash escape, or a sanitized table with stray content;
 a card, website snippet or conformance case that pins `fromHtml`'s output for a URL with a space,
@@ -677,6 +686,16 @@ a card, website snippet or conformance case that pins `fromHtml`'s output for a 
 - Front matter (`---` YAML at the top) is common in content sites. Once `Core` reads YAML, a member
   that returns it is a candidate for a later goal.
 - AST editing (decision 1) is out of scope for this goal.
+- `Live::finish`'s card (`crates/nvs-stdlib/src/markdown.rs:339`) says a definition from a later
+  piece leaves its link as text. A definition in a later *block* of the same piece does too,
+  because a block is finished once the next block's first line is complete. The card should say
+  "a later block".
+- `Core\Sse::send` cannot send a `Core\Html\Markup` and throws on an empty payload, so the Sse
+  example sends `Core\Html::toSource` inside JSON. A `Markup` payload is a candidate for `Core\Sse`.
+- `fromHtml` writes an `<a>` nested in an `<a>` as empty links, `[](/x)`, where an empty element
+  writes nothing elsewhere.
+- `tests/hostile/core/Markdown/fromHtml/01-text-that-tries-to-become-markdown.nvs` takes about
+  7 s on the debug binary, against the 10 s default. The proof binary runs it well under.
 - A second growing part for a catalogue entry (`close`, written n times before `suffix`) would turn
   the approximated two-part exploits back into the originals: cmark's CVE-2023-24824 and
   CVE-2023-22483, md4c's issue 172, and comrak's GHSA-j7hq-qg5v-47jq, which was left out.
