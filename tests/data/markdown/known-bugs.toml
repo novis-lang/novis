@@ -3645,6 +3645,18 @@ direction = "to-html"
 input = "<https://example.com/a&amp;b>\n\n<https://example.com/\\[&#64;>"
 html = "<p><a href=\"https://example.com/a&amp;b\">https://example.com/a&amp;b</a></p>\n<p><a href=\"https://example.com/%5C%5B@\">https://example.com/\\[@</a></p>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. CommonMark's unquoted attribute value holds no
+# space, tab or line ending. pulldown-cmark 0.13.6 took a tab into the value, so `<span a=b\t.>`, whose
+# `.` cannot start an attribute name, was read as a tag.
+[[bug]]
+id = "pulldown-cmark-tab-in-unquoted-attribute-value"
+library = "pulldown-cmark"
+source = "https://spec.commonmark.org/0.31.2/#unquoted-attribute-value"
+class = "wrong-output"
+direction = "to-html"
+input = "x <span a=b\t.>0"
+html = "<p>x &lt;span a=b\t.&gt;0</p>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"

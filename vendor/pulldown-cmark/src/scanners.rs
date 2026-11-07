@@ -456,10 +456,13 @@ fn is_digit(c: u8) -> bool {
     c.is_ascii_digit()
 }
 
+/// Novis: CommonMark's unquoted attribute value has no space, tab or line
+/// ending. The published 0.13.6 took a tab into the value, so `<a b=c\t.>`
+/// was read as a tag.
 fn is_valid_unquoted_attr_value_char(c: u8) -> bool {
     !matches!(
         c,
-        b'\'' | b'"' | b' ' | b'=' | b'>' | b'<' | b'`' | b'\n' | b'\r'
+        b'\'' | b'"' | b' ' | b'\t' | b'=' | b'>' | b'<' | b'`' | b'\n' | b'\r'
     )
 }
 
