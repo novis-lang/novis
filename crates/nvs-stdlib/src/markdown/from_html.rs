@@ -1194,31 +1194,41 @@ impl Inline {
     }
 }
 
-/// A link destination: as it is when it has no space, parenthesis, `<`, `>`
-/// or `\`, and otherwise in `<` and `>`, which may hold spaces and
-/// parentheses. There, `<`, `>` and `\` get a backslash, and a line feed is
-/// removed, as a browser removes it from a URL.
+/// A link destination, percent-encoded as the renderer writes an `href`
+/// ([`super::encoded_href`]), so the Markdown renders to the same `href` and
+/// `fromHtml` over that HTML writes the same destination. A tab, line feed and
+/// carriage return are removed first, as a browser removes them from a URL.
+/// An `&` that would start an entity gets a backslash. A destination that is
+/// empty or has a parenthesis is written in `<` and `>`, where the encoding
+/// leaves no `<`, `>` or `\` to escape.
 fn destination(url: &str, out: &mut String) {
-    if !url.is_empty()
-        && !url.contains(|ch: char| {
-            ch.is_ascii_whitespace() || ch.is_control() || "()<>\\".contains(ch)
-        })
-    {
-        out.push_str(url);
-        return;
+    let url: String = url
+        .chars()
+        .filter(|ch| !matches!(ch, '\t' | '\n' | '\r'))
+        .collect();
+    let encoded = super::encoded_href(&url);
+    let angled = encoded.is_empty() || encoded.contains(['(', ')']);
+    if angled {
+        out.push('<');
     }
-    out.push('<');
-    for ch in url.chars() {
-        match ch {
-            '<' | '>' | '\\' => {
-                out.push('\\');
-                out.push(ch);
-            }
-            '\n' | '\r' => {}
-            _ => out.push(ch),
+    for (at, ch) in encoded.char_indices() {
+        if ch == '&' && entity_follows(&encoded[at + 1..]) {
+            out.push('\\');
         }
+        out.push(ch);
     }
-    out.push('>');
+    if angled {
+        out.push('>');
+    }
+}
+
+/// Whether `rest`, the text after an `&`, starts like an entity: letters,
+/// digits or `#`, then `;`.
+fn entity_follows(rest: &str) -> bool {
+    let name = rest
+        .find(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '#'))
+        .unwrap_or(rest.len());
+    name > 0 && rest[name..].starts_with(';')
 }
 
 /// A link title in double quotes, after a space.

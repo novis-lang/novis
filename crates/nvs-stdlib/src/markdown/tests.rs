@@ -1174,6 +1174,11 @@ fn from_html_twice_gives_the_same_markdown() {
             // `markdown_from_html` fuzz target found that it was read as a
             // table's delimiter row.
             "`<br>:-",
+            // URLs the renderer percent-encodes, and one with an entity's text.
+            // The `markdown_from_html` fuzz target found the first.
+            "<a href=\"<t\"></a><a href=\"/Straße\">a</a><a href=\"a b\">b</a>\
+             <a href=\"a\\b\">c</a><a href=\"a&amp;amp;b\">d</a><a href=\"a(b\">e</a>\
+             <img src=\"x y\" alt=\"f\">",
             // Two lists in a row that would each start with `- - -`.
             "<ul><li><ul><li><ul><li></li></ul></li></ul></li></ul>\
              <ul><li><ul><li><ul><li></li></ul></li></ul></li></ul>",

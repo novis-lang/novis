@@ -44,6 +44,10 @@ bounds both the native stack and the copy each level makes of its content, which
 - A code block's fence is one backtick longer than the longest run of backticks inside it.
 - A URL goes through the same check `rule:core-classes/markdown-to-html` applies, so a link the
   sanitizer would drop is written as its text.
+- A URL is written percent-encoded as the renderer writes an `href`, so `/Straße` is `/Stra%C3%9Fe`.
+  Written as it was, it would render to the encoded `href`, and `fromHtml` run twice would differ. It
+  costs readability for a URL with a space or a non-ASCII character. Declined: decoding an `href` to
+  readable text, which changes the URL where it holds an encoded `/` or `%`.
 
 `fromHtml` run twice gives the same Markdown, and Markdown rendered to HTML and written back keeps its
 meaning. Both are tests. The second holds for Markdown with no raw HTML: raw HTML comes back as Markdown
