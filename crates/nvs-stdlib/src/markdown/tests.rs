@@ -745,6 +745,7 @@ fn rendering_in_chunks_gives_the_same_html_as_the_whole_document() {
             // continues the paragraph the definition starts.
             "*\n[a]: /u\n  *\n\nb\n",
             ">\n*\n[a]: /u\n*\nl\n\nb\n",
+            "*\n[a]: /u\nx\nb |\n-:|\n\n[a]\n",
         ]
         .map(|text| ("inline".to_owned(), text.to_owned())),
     );

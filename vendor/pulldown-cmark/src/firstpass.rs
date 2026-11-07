@@ -423,6 +423,11 @@ impl<'a, 'b> FirstPass<'a, 'b> {
             self.parse_refdef_total(start_ix + line_start.bytes_scanned())
         {
             crate::steps::add(1);
+            // Novis: a list the definition follows ends where the definition
+            // starts. The published 0.13.6 ended it after the definitions, so
+            // the list's range ran over them (`Parser::blocks`), and a segment
+            // cut there split them from the paragraph they start.
+            self.finish_list(start_ix);
             self.allocs.refdefs.0.entry(label).or_insert(link_def);
             let container_start = start_ix + line_start.bytes_scanned();
             let mut ix = container_start + bytecount;
