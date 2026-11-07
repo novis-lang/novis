@@ -235,15 +235,18 @@ pub fn markdown_url_allowed(url: &str) -> bool {
 
 /// `html` sanitized, with each element's attributes in order of name, each run
 /// of CSS white space (spaces, tabs and line breaks) as one space, and none
-/// between two tags. Two
-/// renderings that differ only in how they lay out their whitespace and
-/// attributes give the same string. The sanitized answer is the one
+/// between two tags. A `<br>` at either end of an inline element is moved out
+/// of it, and an inline element other than a link left empty is dropped,
+/// since a browser draws both the same. Two renderings that differ only in how
+/// they lay out their whitespace, attributes and breaks give the same string.
+/// The sanitized answer is the one
 /// [`html_sanitized`] gives, which a second parse builds again, so an `li`
 /// that foster parenting moved into another is compared where it ends up.
 #[must_use]
 pub fn html_meaning(html: &str) -> String {
     use crate::html::{parse_in_page, rebuilt, source};
     let mut tree = rebuilt(&parse_in_page(&html_sanitized(html)));
+    breaks_hoisted(&mut tree);
     let mut work = vec![&mut tree];
     while let Some(node) = work.pop() {
         node.attributes.sort();
@@ -267,6 +270,39 @@ pub fn html_meaning(html: &str) -> String {
         .replace("> <", "><")
         .replace("<br> ", "<br>")
         .replace(" <br>", "<br>")
+}
+
+/// The inline elements [`breaks_hoisted`] moves a `<br>` out of.
+const INLINE: [&str; 14] = [
+    "a", "em", "i", "strong", "b", "del", "s", "sup", "sub", "kbd", "mark", "ins", "u", "span",
+];
+
+/// Moves each `<br>` at either end of an inline element in `node` out of the
+/// element, children first, and drops an inline element other than a link
+/// left empty. The tree is at most 512 elements deep, which bounds the
+/// recursion.
+fn breaks_hoisted(node: &mut crate::xml::Parsed) {
+    use crate::xml::Kind;
+    let br = |node: &crate::xml::Parsed| node.kind == Kind::Element && node.name == "br";
+    for child in &mut node.children {
+        breaks_hoisted(child);
+    }
+    let mut out = Vec::with_capacity(node.children.len());
+    for mut child in std::mem::take(&mut node.children) {
+        if child.kind != Kind::Element || !INLINE.contains(&child.name.as_str()) {
+            out.push(child);
+            continue;
+        }
+        let lead = child.children.iter().take_while(|node| br(node)).count();
+        out.extend(child.children.drain(..lead));
+        let trail = child.children.iter().rev().take_while(|node| br(node)).count();
+        let after: Vec<_> = child.children.drain(child.children.len() - trail..).collect();
+        if !child.children.is_empty() || child.name == "a" {
+            out.push(child);
+        }
+        out.extend(after);
+    }
+    node.children = out;
 }
 
 /// [`markdown`]'s HTML, and the work it cost: the engine's steps

@@ -1102,6 +1102,9 @@ const DOCUMENTS: &[&str] = &[
     // A code span of one space. The `markdown_from_html` fuzz target found
     // that it was written as a plain space.
     "a ` ` b `\n` c\n",
+    // A break at the start of emphasis is written in front of it. The
+    // `markdown_from_html` fuzz target found it.
+    "*\\\n*ww**\n",
 ];
 
 #[test]
