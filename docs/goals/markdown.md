@@ -636,7 +636,7 @@ run with `./target/debug/nvs run` shows our HTML (`<?nvs` first, `foreach ([...]
 is read with `gh api repos/<commonmark/cmark|github/cmark-gfm>/contents/<path> --jq .content |
 base64 -d`. Decision 19: for a CommonMark construct, read *current cmark*, not cmark-gfm.
 
-- [ ] **First, the open find** of the 1,000,000-run pass: `[a]:\n-|-\n-|-`. comrak gives
+- [ ] **First, the open find** (`vendor/pulldown-cmark/src/firstpass.rs:494`) of the 1,000,000-run pass: `[a]:\n-|-\n-|-`. comrak gives
   `<p>-|-</p>`: a definition on lines 1 and 2, then a paragraph. Ours gives `<p>[a]: -|- -|-</p>`,
   with no definition and no table. Likely ours: line 3 reads as a delimiter row under line 2, and
   the patch for a paragraph a table interrupts (`docs/rules/core-classes/markdown-to-html.md:100`)
