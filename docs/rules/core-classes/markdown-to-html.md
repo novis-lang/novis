@@ -106,7 +106,8 @@ indented line, a definition-only list item, a DEL byte in a link destination, in
 code span on continuation lines, emphasis inside a footnote label, strikethrough's `~` and `~~`, which
 open and close as `*` does in GFM and keep one lower bound each, a `~` closer, which matches the
 nearest `~` opener or is text, a hard line break that only spaces make, not
-tabs, an ATX heading whose `#` a vertical tab or form feed follows, which is text, a task item
+tabs, an ATX heading whose `#` a vertical tab or form feed follows, which is text, a task marker
+with a tab between its brackets, which is text, as cmark-gfm's `[ ]` allows only a space, a task item
 with nothing after its marker, whose next line is a lazy continuation and which may end the
 document, and which in a loose list has no paragraph when no line joins it, a table whose header row
 has no pipe, which is one cell, a delimiter-row cell, which is GFM's: an optional colon, hyphens

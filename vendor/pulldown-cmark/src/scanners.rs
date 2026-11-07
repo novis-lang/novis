@@ -388,7 +388,9 @@ impl<'a> LineStart<'a> {
             return None;
         }
         let is_checked = match self.bytes.get(self.ix) {
-            Some(&c) if is_ascii_whitespace_no_nl(c) => {
+            // Novis: only a space, as in cmark-gfm's `[ ]`, so `[\t]` is text.
+            // The published 0.13.6 took any whitespace but a line ending.
+            Some(b' ') => {
                 self.ix += 1;
                 false
             }
