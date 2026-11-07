@@ -604,24 +604,24 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 9's differential triage goes on. This session landed six commits (`0a46b9b9` to `b3f755d4`),
-each catalogued after `pulldown-cmark-table-delimiter-cell` in `known-bugs.toml`:
-- **Ours, fixed**: raw HTML in an image's description is its source text in the `alt`; a loose
-  task item's box sits right after `<li>`, in front of the first paragraph, and `fromHtml` reads it
-  back into that paragraph; a paragraph whose delimiter row made no table never becomes one
-  (cmark-gfm's `TABLE_VISITED`); a tab-indented `>` does not continue a block quote; a header row
-  indented 4+ columns still starts a table, and `block_ranges` joins that table to the paragraph
-  before it so chunks still equal the whole; an autolink's entities resolve as cmark resolves them.
-- **Decision 19**: for a CommonMark construct, CommonMark 0.31.2 and cmark win over cmark-gfm.
-- **Skipped in `markdown_comrak`**, added to the list in `markdown-cost.md`: a task marker with an
-  inline right after its `]`; a lazy line that would start an HTML block of type 7, or that starts
-  with spaces when the document has a code span; nesting past comrak's `MAX_LIST_DEPTH` of 100.
-  `normal` now scans an `<img` tag up to its `>` outside quotes, and drops a space between two
-  tags. `fuzz::html_tags` writes `<`/`>` in an attribute value as entities.
-- **Green, run once by name after the last commit**: `--lib markdown::` (23) and
-  `--test markdown_known_bugs`.
-- **Sweep reds**: `env-secret-proofs` has no check and no log in the tree. The Miri reds are the
-  tests `f13f4064` skips, which is not yet pushed.
+Stage 9's differential triage goes on. This session landed six commits (`62e63198` to `35edf51d`):
+- **A sanitizer bug, fixed (`62e63198`)**: foster parenting built an `li` inside an `li`
+  (`<ul><li>a<table><tr><li>b`), and so did unwrapping a special element such as `applet`, so
+  `sanitize` was not a fixed point. `html::settled` parses and rebuilds such an answer again (at
+  most 3 passes), and every sanitizing caller (`sanitize`, `rendered_with`, `groups.rs`,
+  `fuzz::html_sanitized`) goes through it. `bounded_in_page` is gone. The rule `html-sanitize`
+  says so, and the mXSS corpus test has three new cases.
+- **Ours, fixed and catalogued** after `pulldown-cmark-autolink-entities`: a tab ends an unquoted
+  attribute value; an escape inside `www.` or a scheme stops an extended autolink (email autolinks
+  still join across escapes, as spec example 606 needs); a header row that would be an empty list
+  item (`x\n+\n-:|`) starts a table, and `block_ranges` now joins every table to the paragraph it
+  interrupted; an inline link's title is the longest cmark reads (`[a](/u "\")` has title `\`).
+- **Mapped in `normal`, not bugs**: comrak writes a lone `%` in a URL as `%25` (cmark keeps it as
+  it is, so the old handoff's reading was wrong); an `a` with no `href` is removed with its title.
+- **Green, run once by name after the last commit**: `--lib markdown::` (23),
+  `--test markdown_known_bugs` and `--lib parse_sanitize_serialise_reparse`.
+- **Sweep reds**: `env-secret-proofs` is defined nowhere in the tree or `.looper/` (a stale
+  service-side entry). The Miri reds are the tests `f13f4064` skips, which is not yet pushed.
 
 ### Next
 
@@ -632,11 +632,10 @@ run with `./target/debug/nvs run` shows our HTML (`<?nvs` first, `foreach ([...]
 (`\n`, `\t`, `\0` are expanded). cmark-gfm's source is read with
 `gh api repos/github/cmark-gfm/contents/<path> --jq .content | base64 -d`.
 
-- [ ] **The open difference** at `fuzz/fuzz_targets/markdown_comrak.rs:217`:
-  `"![a](\\[a]()/%u))"` gives ours `src="%5Ba%5D()/%u"` and comrak `src="%5Ba%5D()/%25u"`. A `%`
-  not followed by two hex digits: cmark percent-encodes it as `%25`. Find our URL normalizer
-  (`crates/nvs-stdlib/src/markdown.rs`, the href/src writer) and encode a lone `%` as cmark does;
-  catalogue it.
+- [ ] **A reference definition's title** (`vendor/pulldown-cmark/src/firstpass.rs:1931`,
+  `scan_refdef_title`) still reads `\"` as an escape only. Give it the longest-match fallback that
+  `scan_link_title` (`vendor/pulldown-cmark/src/parse.rs:1323`) now has, without copying the line
+  buffer at each soft end; check `[x]: /u "a\\" b"\n\n[x]` against comrak; catalogue it.
 - [ ] **Triage to 1,000,000 clean runs** of `markdown_comrak` (`fuzz/fuzz_targets/markdown_comrak.rs:41`). Our bug: a fix and a catalogue
   entry. comrak's bug or a 0.29 reading: a skip in the target and the list at
   `docs/rules/core-classes/markdown-cost.md:32`.
@@ -644,17 +643,26 @@ run with `./target/debug/nvs run` shows our HTML (`<?nvs` first, `foreach ([...]
   `fuzz/fuzz_targets/markdown_from_html.rs:18`, triaged the same way.
 - [ ] **Then run once by name** (`crates/nvs-stdlib/src/markdown/tests.rs:120`): `cargo test --lib markdown::`, `cargo test --test
   markdown_known_bugs` and `cargo test --lib parse_sanitize_serialise_reparse`.
-- [ ] Delete `.agent-tmp/cmprobe/` (`.agent-tmp/cmprobe/src/main.rs:1`), `probe.nvs` and the `*.patch` and `handoff.*` files once stage 9
-  is done.
+- [ ] Delete `.agent-tmp/cmprobe/` (`.agent-tmp/cmprobe/src/main.rs:1`), `probe.nvs`, `gfm/`,
+  `split.ts` and the `*.patch` and `handoff.*` files once stage 9 is done.
+
+To replay a crash in WSL: `ASAN_OPTIONS=detect_odr_violation=0
+/var/tmp/nvs-target-wsl-fuzz/x86_64-unknown-linux-gnu/release/markdown_comrak <crash-file>`, and
+add `-minimize_crash=1 -runs=30000 -exact_artifact_path=/var/tmp/min-crash` to shrink it.
 
 Expected red: the floor check `proofs-gate`, until stage 10. Possibly red at the gate, not run
 this session: a conformance case or PDF test that sanitizes `<p>` around a `<table>` with no
 doctype (decision 18); a case that pins a loose task list's HTML or an autolink with an entity;
+a case that pins an autolink next to a backslash escape, or a sanitized table with stray content;
 `registry.rs`'s `a_class_with_slots_has_instance_members_and_the_reverse`,
 `crates/nvs-stdlib/tests/ext_world.rs`, and card or website checks that see `fromHtml`.
 
 ### Backlog
 
+- cmark-gfm reads a `www.` or URL autolink's whole text in the source, so an escape inside its
+  path stays in the link as `\` and the character. Ours ends the link before the escape
+  (`crates/nvs-stdlib/src/markdown/autolink.rs`, `unescaped`). Only a scan of the source would
+  match it, and the differential skips autolinks.
 - Front matter (`---` YAML at the top) is common in content sites. Once `Core` reads YAML, a member
   that returns it is a candidate for a later goal.
 - AST editing (decision 1) is out of scope for this goal.
