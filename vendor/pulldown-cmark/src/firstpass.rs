@@ -1402,6 +1402,13 @@ impl<'a, 'b> FirstPass<'a, 'b> {
             let mut line_start = LineStart::new(&bytes[ix..]);
             let n_containers = scan_containers(&self.tree, &mut line_start, self.options, false);
             if n_containers < self.tree.spine_len() {
+                // Novis: a blank line in the block is still a blank line, so
+                // when it is the block's last, a list item that ends here is
+                // separated from the next by it and the list is loose, as in
+                // cmark. The published 0.13.6 kept `* <?\n\n* D` tight.
+                if line_start_ix > start_ix && scan_blank_line(&bytes[line_start_ix..ix]).is_some() {
+                    self.last_line_blank = true;
+                }
                 end_ix = ix;
                 break;
             }

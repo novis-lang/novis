@@ -114,6 +114,7 @@ and an optional colon, between spaces, and a paragraph with a delimiter row that
 no later line turns into a table, as in cmark-gfm, a header row indented four columns or more,
 which still starts a table, a header row that would be an empty list item, which is still a header row, a lazy continuation
 line with a delimiter row after it in the paragraph's container, which is a header row there, a
+blank line that ends an HTML block of types 1 to 5 in a list item, which makes the list loose, a
 lazy `===` line in a reference definition, which is not a setext underline and so is part of it, a delimiter row that
 is a list item with text after its marker, which starts the list, a header row that ends with `\`, whose `\` is the cell's text, a
 paragraph that a table interrupts, whose lines before the header row are plain text and define no
