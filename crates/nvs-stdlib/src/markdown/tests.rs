@@ -738,6 +738,9 @@ fn rendering_in_chunks_gives_the_same_html_as_the_whole_document() {
             "<!DOCTYPE html>\n<p>a\n\n# b\n\n<table><tr><td>c</td></tr></table>\n",
             "# a\n\n  <!-- c -->\n\n<p>x <table>\n\n- b\n- c\n\n<script>\n\nd\n</script>\n\ne\n",
             "x <span a=\"1>2\">y\n\nz</span>\n\nw <!-- open\n\nq -->\n\nend\n",
+            // Two declarations the rebuild drops: the group after them is
+            // still the start of the page, so its whitespace is dropped.
+            "<!x\n>\n <!y\n>\n\na\n",
         ]
         .map(|text| ("inline".to_owned(), text.to_owned())),
     );

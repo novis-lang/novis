@@ -30,7 +30,10 @@
 //! first group fixed the quirks mode. [`Written`] parses each later group
 //! behind the first group's leading doctype and a `<body>` tag, so the parser
 //! is in the same mode, and rebuilds it with
-//! [`crate::html::rebuilt_in_body`], which keeps its leading whitespace.
+//! [`crate::html::rebuilt_in_body`], which keeps its leading whitespace. A
+//! group the rebuild leaves empty, such as a lone declaration, does not count
+//! as the first: the whole parse drops whitespace up to its first element, so
+//! the group after it is written as the document's start.
 //!
 //! **What it spends:** past `toHtml`'s own state, one group's tree and source,
 //! the raw HTML tokenizer's open element names, and the first group's doctype.
@@ -355,14 +358,15 @@ fn tag(text: &str, from: usize) -> Option<(String, usize, bool)> {
     None
 }
 
-/// How each group's tree is written: the first as `toHtml` writes a whole
-/// document, each later one behind the first one's doctype.
+/// How each group's tree is written: up to the first one that writes
+/// anything, as `toHtml` writes a whole document, and each later one behind
+/// the first doctype.
 #[derive(Clone, Default)]
 pub(super) struct Written {
-    /// Whether a group has been written.
+    /// Whether a group has written any HTML.
     started: bool,
-    /// The doctype the first group's source starts with, after whitespace
-    /// and comments, or nothing.
+    /// The first doctype a group's source starts with, after whitespace and
+    /// comments, before any group wrote HTML, or nothing.
     doctype: String,
 }
 
@@ -381,15 +385,21 @@ impl Written {
         member: &str,
     ) -> Result<String, Fault> {
         let out = source_with(tree, rebuild);
-        let first = !std::mem::replace(&mut self.started, true);
-        if first {
-            self.doctype = leading_doctype(&out).to_owned();
+        let first = !self.started;
+        if first && self.doctype.is_empty() {
+            leading_doctype(&out).clone_into(&mut self.doctype);
         }
-        if !rebuild {
-            return Ok(trusted.spliced(out));
-        }
-        let head = (!first).then_some(self.doctype.as_str());
-        Ok(trusted.spliced(settled(&out, head, member)?))
+        let html = if rebuild {
+            let head = (!first).then_some(self.doctype.as_str());
+            trusted.spliced(settled(&out, head, member)?)
+        } else {
+            trusted.spliced(out)
+        };
+        // A group the rebuild left empty, such as a lone comment, wrote
+        // nothing, so the next group still starts the page. The whole
+        // document's parse drops the whitespace that follows such a group.
+        self.started |= !html.is_empty();
+        Ok(html)
     }
 }
 

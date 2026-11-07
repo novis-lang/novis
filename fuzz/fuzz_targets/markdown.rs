@@ -7,7 +7,8 @@
 //!   budget, as the known-bug catalogue's `output = "bounded"` entries say;
 //! - `toHtmlEach`'s groups, read in pieces of the first byte's size, join to
 //!   the whole document's HTML;
-//! - every `open` part `Core\Markdown\Live` gives is a sanitize fixed point, and
+//! - every `open` part `Core\Markdown\Live` gives is a sanitize fixed point but
+//!   for the whitespace it starts with, and
 //!   over a document with no reference definition the `done` parts and
 //!   `finish()` join to the whole document's HTML.
 //!
@@ -39,8 +40,12 @@ fuzz_target!(|data: &[u8]| {
     assert_eq!(fuzz::markdown_groups(text, piece).concat(), html, "groups in pieces of {piece}");
 
     let (parts, rest) = fuzz::markdown_live(text, piece);
+    // An open part after a finished one is the middle of a page, and keeps the
+    // whitespace it starts with. Sanitized alone it is a document's start, where
+    // the parse drops that whitespace, so only the rest is compared.
     for (_, open) in &parts {
-        assert_eq!(&fuzz::html_sanitized(open), open, "Live's open part sanitized again");
+        let kept = open.trim_start_matches(['\t', '\n', '\u{C}', '\r', ' ']);
+        assert_eq!(fuzz::html_sanitized(open), kept, "Live's open part sanitized again");
     }
     // A definition changes only what comes after it in Live, so the parts join
     // to the whole document only where there is none.
