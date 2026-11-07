@@ -69,6 +69,13 @@ impl Input {
         holder: Value,
         segments: &mut Segments,
     ) -> Result<bool, Fault> {
+        // Adding a piece can double the text not yet cut, so the request must
+        // afford that text again first. In the first pass this is also where
+        // the definitions read since the last piece are counted: a balance
+        // already past the limit affords nothing.
+        if !nvs_runtime::budget::affords(segments.len()) {
+            return Err(over_memory(ctx));
+        }
         let piece = match self {
             Self::Source(source) => match source.next_chunk(ctx, holder)? {
                 Some(chunk) => {

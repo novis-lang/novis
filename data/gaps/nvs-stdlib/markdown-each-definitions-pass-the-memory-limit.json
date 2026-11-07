@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/markdown/each.rs",
+  "title": "Core\\Markdown::toHtmlEach holds far more than the memory limit while it reads a file of many definitions.",
+  "text": "The first read parses each segment and keeps its definitions with no memory check. A 7.5 MB file of 524,288 `[dN]: /p` lines held 214 MB inside one call under a 32 MiB limit. Consecutive definitions form one segment, and the parser's tree for it is about 28 times its text. `each.rs`'s feed now asks the budget before each piece, which stops an open block, but not one large segment. Closing it bounds the first read's parse per segment (a cut between definitions, or an estimate the request must afford before the parse) and counts `Outside::bytes` against the limit.",
+  "goal": "markdown"
+}

@@ -175,6 +175,11 @@ impl Segments {
         self.buffer.capacity() + self.partial.capacity()
     }
 
+    /// How many bytes of text it has read and not yet cut.
+    pub(super) fn len(&self) -> usize {
+        self.buffer.len() + self.partial.len()
+    }
+
     /// The next segment, or `None` when more text is needed or, once the
     /// document has ended, when every segment has been given out.
     pub(super) fn next(&mut self) -> Option<String> {

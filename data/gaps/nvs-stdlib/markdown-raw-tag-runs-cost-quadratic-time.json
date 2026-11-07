@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/markdown.rs",
+  "title": "Core\\Markdown::toHtml takes quadratic time over a long run of raw HTML tags that never close.",
+  "text": "`Core\\Str::repeat('<a>', n)` or `'<div>'` costs time in the square of n: 120,000 `<div>` tags take 5.7 s, while `Core\\Html::sanitize` over the same text is linear. `rule:core-classes/markdown-cost` promises linear work. Closing it finds the step that rescans the open raw elements per tag (the raw-HTML splice, `groups::Balance`, or the rebuild's passes), makes it linear, and adds a catalogue entry with `work = \"linear\"` for both inputs.",
+  "goal": "markdown"
+}
