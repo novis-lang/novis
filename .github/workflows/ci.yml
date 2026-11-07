@@ -722,7 +722,8 @@ jobs:
   # native `<template for>` and once without (`rule:core-classes/html-later`),
   # and a website replay's player
   # (`rule:testing/a-replay-plays-what-the-language-server-returned`), and the registry's pages
-  # with a virtual passkey (`rule:packaging/the-registry-is-a-novis-program`).
+  # with a virtual passkey (`rule:packaging/the-registry-is-a-novis-program`), and the chat and
+  # poll apps' scripts under their own `Content-Security-Policy`.
   # Linux only: what is tested is the browser's parser and DOM, not the host.
   # The browser is the headless shell the locked Playwright release pins, put
   # in `node_modules` and downloaded by Node, because Bun's fetch fails the
@@ -774,6 +775,11 @@ jobs:
           NV_BROWSER: "1"
           NVS_BIN: target/debug/nvs
         run: bun test tools/nv/test/registry-browser.test.ts
+      - name: The chat and the poll in Chromium
+        env:
+          NV_BROWSER: "1"
+          NVS_BIN: target/debug/nvs
+        run: bun test tools/nv/test/realtime-browser.test.ts
 
   # ---------------------------------------------------------------------------
   # Separated because it pulls in Wasmtime, which is minutes of build time that

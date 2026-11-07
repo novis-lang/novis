@@ -10,7 +10,7 @@ stages:
     context: [tools/nv/cmd/site.ts, website/src/content/docs/guides/production/reverse-proxy.mdx]
   - id: 2
     title: "a browser test drives chat.js and poll.js in Chromium against the served apps"
-    status: open
+    status: done
     context: [tools/nv/test/registry-browser.test.ts, tools/nv/test/chromium.ts, tools/nv/cmd/ci-changes.ts]
   - id: 3
     title: "a guide page says when to use a WebSocket and when an event stream, and links both apps"
@@ -126,15 +126,15 @@ the apps with their pages.
 
 **Does:** proves the browser half of both apps in a real browser, under the apps' own CSP.
 
-- [ ] Chat: two browser contexts join the lobby; a line sent in one appears once in the other; a
+- [x] Chat: two browser contexts join the lobby; a line sent in one appears once in the other; a
   line with `<b>` shows as text; a line sent too fast shows the `problem` notice.
   `tools/nv/test/realtime-browser.test.ts:1`
-- [ ] Chat: the server is stopped and started again; the page reconnects by itself, and the history
+- [x] Chat: the server is stopped and started again; the page reconnects by itself, and the history
   shows each line once (the `id` check in `apps/chat/public/chat.js:1`).
-- [ ] Poll: two pages of one poll; a vote in one moves the bar in the other; a second vote from the
+- [x] Poll: two pages of one poll; a vote in one moves the bar in the other; a second vote from the
   same browser moves its vote and the total stays the same. `apps/poll/public/poll.js:1`
-- [ ] Neither page logs a console error or a CSP violation. `tools/nv/test/chromium.ts:1`
-- [ ] Add the suite to CI's `browser` job and the paths to `browser` in
+- [x] Neither page logs a console error or a CSP violation. `tools/nv/test/chromium.ts:1`
+- [x] Add the suite to CI's `browser` job and the paths to `browser` in
   `tools/nv/cmd/ci-changes.ts:181`, and run it once by name with `NV_BROWSER=1`.
 
 ### 3. a guide page says when to use a WebSocket and when an event stream, and links both apps
@@ -182,35 +182,39 @@ records the decision in those rules. The safe default: `wall_time` bounds the re
 
 ### State
 
-Stage 1 is done (`c9797093`, `082b8053`). Both apps set one strict CSP in `nvs.toml`
-`[http.headers]`, and both `deploy/` folders are `Caddyfile`, `nginx.conf` and a `production.toml`
-passed after `nvs.toml` with a second `--config`; `nvs config check` accepts chat's pair. `bun nv
-site --check apps`, `structure guides prose stale` and `proofs --comments` over both apps are
-green, and each page shows the real `nvs test .` output (22 tests each).
+Stages 1 and 2 are done. Stage 2 is `tools/nv/test/realtime-browser.test.ts`: a copy of each app
+under `.agent-tmp/`, served by `nvs serve` on a free port with its own data folder, and five tests
+in Chromium. Chat: a line shows once in another context and `<b>` stays text; the sixth line in ten
+seconds shows the speed notice; after a server stop and a start on the same address the page
+reconnects and shows each line once. Poll: a vote moves the other page's bar, and a second vote from
+the same browser moves it and keeps the total at 1. Every page fails its test on a console error,
+an exception or a CSP violation, and one test injects an inline script to prove such a violation is
+logged and seen. It ran green once by name with `NV_BROWSER=1` (5 pass, about 4 s). CI's `browser`
+job runs it after the registry suite, and `apps/chat/`, `apps/poll/` and the suite gate `browser` in
+`tools/nv/cmd/ci-changes.ts`.
 
-Sweep reds: `env-secret-proofs` is defined nowhere (`looper check --name` finds no such check), a
-stale service-side entry. The nightly Miri reds in `nvs-stdlib` are the 8 MiB JSON ladder tests
-that `f13f4064` skips under Miri; it is committed and not yet pushed. No test is expected to go red.
+Sweep reds: `env-secret-proofs` is defined nowhere and has no log, a stale service-side entry. The
+nightly Miri reds in `nvs-stdlib` are fixed by `f13f4064`, which is in `main` and not yet pushed. No
+test is expected to go red.
 
 ### Next
 
-**Stage 2**, a new `tools/nv/test/realtime-browser.test.ts`; stages 3 and 4 touch disjoint files
-and may run beside it (decision 10).
+**Stage 3**, a new guide page; stage 4 touches disjoint files and may run beside it (decision 10).
 
-- [ ] Read the shared driver and the registry suite it copies. `tools/nv/test/chromium.ts:1`,
-  `tools/nv/test/registry-browser.test.ts:1`
-- [ ] `apps/chat/public/chat.js:1` Chat: two contexts, a line in one shows once in the other, `<b>`
-  shows as text, the speed notice.
-- [ ] Chat: reconnect after a server restart, each history line once. `apps/chat/public/chat.js:1`
-- [ ] `apps/poll/public/poll.js:1` Poll: a vote in one page moves the bar in the other; a second
-  vote keeps the total.
-- [ ] `tools/nv/cmd/ci-changes.ts:181` No console error or CSP violation; CI's `browser` job and
-  `ci-changes.ts`, then one run by name with `NV_BROWSER=1`.
+- [ ] `website/src/content/docs/guides/how-to-use/live-updates.mdx:1`: event stream when only the
+  server sends, WebSocket when both sides send; the shared model; the `Origin` check and
+  `trusted_proxies`; links to both apps and the three `Core` methods. Prose per AGENTS.md.
+- [ ] Sidebar entry in `website/astro.config.ts:1` and a link in
+  `website/src/content/docs/guides/how-to-use/index.mdx:1`.
+- [ ] `## Read more` link on `website/src/content/docs/guides/example-apps/chat.mdx:1` and
+  `website/src/content/docs/guides/example-apps/poll.mdx:1`.
+- [ ] `tools/nv/cmd/site.ts:1` `bun nv site --check structure guides prose` and `bun nv proofs
+  --comments` over the page.
 
 ### Backlog
 
-- Whether `connect-src 'self'` allows `wss:` to the same host in every supported browser; CSP Level 3
-  says it does, and stage 2's Chromium test shows it for Chromium (`apps/chat/nvs.toml:14`).
+- Whether `connect-src 'self'` allows `wss:` to the same host in every supported browser. CSP Level 3
+  says it does. Stage 2's Chromium test shows `ws:` over `http:` only (`apps/chat/nvs.toml:14`).
 
 - A screenshot of each app on its page, if `bun nv site --shoot` grows an app shot that is not the
   debug viewer (`tools/nv/cmd/site.ts:200`).
