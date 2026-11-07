@@ -21,7 +21,7 @@ stages:
     status: done
   - id: 5
     title: "Core\\Markdown::toHtmlEach renders a document of any size one block group at a time"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/byte_source.rs]
   - id: 6
     title: "Core\\Markdown\\Live renders text that arrives in pieces"
@@ -463,19 +463,19 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
   - [x] `group_ends` and `take_group` cut the one walk at each top-level end where nothing is open.
   - [x] `groups::Balance` reads raw HTML and keeps a group open while an element it opened is open.
   - [x] `groups::Written` rebuilds a later group behind the first group's doctype and `<body>`.
-- [ ] `toHtmlEach` over a source: a file read twice, any other source held whole.
+- [x] `toHtmlEach` over a source: a file read twice, any other source held whole.
   `crates/nvs-stdlib/src/byte_source.rs:1`
   - [x] An engine patch: a `Parser` takes the definitions read outside its text, and they win.
   - [x] A file is read in segments cut before each segment's last top-level block, twice.
-  - [ ] The walk is filed on the request, as `decodeEach`'s is, with its class and its row.
-  - [ ] The conformance case and the reference page's section.
-- [ ] The three tests of the `chunks` check. The equality test runs over every spec example and every
+  - [x] The walk is filed on the request, as `decodeEach`'s is, with its class and its row.
+  - [x] The conformance case and the reference page's section.
+- [x] The three tests of the `chunks` check. The equality test runs over every spec example and every
   catalogue entry. `crates/nvs-stdlib/src/markdown.rs:1`
   - [x] `rendering_in_chunks_gives_the_same_html_as_the_whole_document` passes.
   - [x] `an_unclosed_raw_html_element_keeps_its_blocks_in_one_group` passes.
   - [x] `to_html_each_holds_one_block_group_of_a_file_not_the_document` passes, over bytes read as a
     file is.
-  - [ ] It reads a real `Core\IO\File` through `ByteSource` once the member exists.
+  - [x] It reads a real `Core\IO\File` through `ByteSource` once the member exists.
 
 ### 6. Core\Markdown\Live renders text that arrives in pieces
 
@@ -542,53 +542,51 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 5's splitter and segments are in, in two commits. Only the member over a source is left.
-- **The engine patch** (`vendor/pulldown-cmark/src/parse.rs:2159`, `Outside`). `Outside::add` takes a
-  segment parser's definitions, first one winning, and `allow(len)` sets the whole document's fuel.
-  `Parser::new_with_outside` (`:281`) looks a label up in `Outside` before its own, treats a footnote
-  label `Outside` holds as defined, and spends `Outside`'s fuel. `Parser::block_ranges` (`:326`) gives
-  the top-level blocks after the block pass. The engine paragraph of `markdown-to-html` records it.
-- **Segments** (`crates/nvs-stdlib/src/markdown/segments.rs`). `Segments::push` prepares text as
-  `prepared` does, across reads, and returns `NotText(offset)` for invalid UTF-8. `Segments::next`
-  (`:149`) cuts complete lines after the second-to-last block, and parses again only once the text has
-  doubled. `definitions` (`:215`) is pass 1. `Walk` (`:229`) is pass 2: it keeps the renderer's
-  `State`, the `Outside` and the groups not yet given out, and `segment` and `finish` fill them.
-  A `Feed` closure pushes the next piece into a `Segments` and returns `false` once it ended it.
-- **`groups::grouped_with` now runs the segmented walk** over the text in `READ_CHUNK` pieces, so
-  `toHtmlEach` has one code path for every source. Both run only from tests yet, under
-  `expect(dead_code)` in `crates/nvs-stdlib/src/markdown.rs`.
-- **All three `chunks` tests pass**, each run once by name. The equality test now also reads every
-  input 1 and 7 bytes at a time, and adds each spec file joined into one document. The memory test
-  reads bytes as a file is read. It bounds held memory at eight reads, because the doubling and a
-  string's capacity allow four reads per segment. `markdown-chunks`' *Memory* says so.
-- **Stale sweep reds, a fifth time**: no `env-secret-proofs` check exists; `f13f4064` postdates run `42201104003`.
+Stage 5 is done, in four commits, and its `chunks` check is green.
+- **The member** is `crates/nvs-stdlib/src/markdown/each.rs`. `Core\Markdown::toHtmlEach` files a
+  `Walk` on the request and returns a `Core\Markdown\Groups` (`markdown.rs`, `GROUPS`), whose slots
+  are the key, the source, the last group and the four callbacks. The first `advance()` runs
+  `first_pass` (`each.rs`): a seekable file and a `bytes` value are read again with the new
+  `ByteSource::restart` (`crates/nvs-stdlib/src/byte_source.rs`, beside `prefix`); every other source
+  is copied whole under `budget::affords` and read from the copy. `Rendering::next` renders segments
+  until `segments::Walk::pop` has a group, with `Callables` built per segment, and checks
+  `affords(2 × segment)` before each. A failure or the end drops the walk and clears every slot.
+- **The closed lists** it joined: `classes.rs`, `instance.rs` (dispatch roster and
+  `HOST_HANDLE_CLASSES`), `registry.rs` (`ITERABLES`, `HANDLES`) and `tests/ext_world.rs`'s `REFUSED`.
+- **The memory test** (`markdown/tests.rs`, `to_html_each_holds_one_block_group_of_a_file_not_the_document`)
+  now calls the member over a real file and asserts the file is read again, not copied. It passes.
+- **The reference page** has a *Converting a large document one part at a time* section, its example
+  run on the debug binary. The conformance case
+  `tests/conformance/core/markdown-to-html-each-reads-a-file-and-bytes-one-block-group-at-a-time.nvst`
+  passes.
+- **Stale sweep reds, a sixth time**: no `env-secret-proofs` check exists; `f13f4064` postdates run `42201104003`.
 
 ### Next
 
-The rest of stage 5: the member. Its checkpoints are under item 2.
+Stage 6: `Core\Markdown\Live`. Write its checkpoints under stage 6's items first.
 
-- [ ] **The member**, on `Core\Json::decodeEach`'s model (`crates/nvs-stdlib/src/json/each.rs:697`,
-  its row at `crates/nvs-stdlib/src/json.rs:460`). `Core\Markdown::toHtmlEach(Core\Bytes::Source|
-  Core\Bytes::Chunks $markdown, ...the four callbacks): iterable<Core\Html\Markup>`, with a new class
-  for the walk. A new class trips three closed lists (the playbook's *A new `Core` class* bullet).
-  - The walk files a `segments::Walk`, a pass-2 `Segments` and the source. Each `advance()` gives
-    `walk.pop()`, and otherwise pulls the next segment through a `Feed` over the source and renders
-    it, running the callbacks inside `advance()`. After the last segment it calls `walk.finish`.
-  - A file (`crates/nvs-stdlib/src/byte_source.rs:81`) is read forward twice: pass 1 runs
-    `segments::definitions` over it in the first `advance()`, then the source starts again at 0.
-    Check whether `ByteSource` can restart a forward read; if not, add that. Every other source is
-    read whole into `bytes` in pass 1 and fed from there in pass 2 (`segments::feed_bytes`).
-  - Invalid UTF-8 throws `ParseError` through `segments::not_text`, as `Core\Csv::rows` does.
-  - Charge `Segments::held` and `Walk::held` to the request's budget before each segment, as
-    `decodeEach` checks `budget::affords`.
-  - Then drop both `expect(dead_code)` attributes in `crates/nvs-stdlib/src/markdown.rs`.
-- [ ] `crates/nvs-stdlib/src/markdown/tests.rs:811` is the memory test. Point it at the member's
-  file feed, keeping its bound.
-- [ ] `docs/reference/core/Markdown.md:1` gets a section, and a conformance case reads a file and a
-  `bytes` value. The method's `MethodDoc` follows AGENTS.md § *Text an end user reads*.
+- [ ] **The object** (`crates/nvs-stdlib/src/markdown/each.rs:1` is its model, decision 1):
+  `push(string $piece)` returns `{done: Markup, open: Markup}`, and `finish(): Markup`. A class with
+  instance members and slots, filed on the request like `GROUPS`.
+  - `done`: push the piece into a `segments::Segments`, and render every segment `next()` gives
+    through a `segments::Walk`, joining what `pop()` gives. Live has no first pass, so the walk's
+    `Outside` starts empty and gains each segment's definitions after the segment is rendered
+    (`Outside::add`, `vendor/pulldown-cmark/src/parse.rs:2159`). A reference defined later never
+    changes a finished block (decision 7).
+  - `open`: the text not yet cut, rendered alone with no state change. `State`
+    (`crates/nvs-stdlib/src/markdown.rs:505`) is not `Clone`; either derive it or render the open
+    text with a fresh `State` and the current `Outside`. Prefer the fresh state, since the open block
+    is one top-level block.
+  - `Segments::next` waits for the text to double before it cuts again, which suits a whole file but
+    leaves `done` empty for long. Live needs a cut at every complete block: add a mode to `Segments`
+    that parses on every push that ends a line, and say what it costs (work per push is the open text).
+  - `finish()` calls `segments.end()`, renders the rest and `walk.finish`, and returns the joined HTML.
+- [ ] The two `live` tests (`crates/nvs-stdlib/src/markdown/tests.rs:802`), over every piece size
+  from one byte up, beside the `chunks` tests.
+- [ ] A section (`docs/reference/core/Markdown.md:56`) and a conformance case, as stage 5 did.
 
-Expected red: the floor check `proofs-gate`, since `Core\Markdown::toHtml` owes its feature proofs
-until stage 10 writes them. Stages 7 and 8 may run as a side goal (decision 12).
+Expected red: the floor check `proofs-gate`, since `Core\Markdown::toHtml` and now `toHtmlEach` owe
+their feature proofs until stage 10 writes them. Stages 7 and 8 may run as a side goal (decision 12).
 
 ### Backlog
 
