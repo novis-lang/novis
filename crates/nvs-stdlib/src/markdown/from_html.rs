@@ -1215,8 +1215,9 @@ fn local_part(ch: char) -> bool {
 /// `text` escaped onto `out`, so that no character of it is read as Markdown.
 ///
 /// `\`, `` ` ``, `*`, `_`, `[`, `]`, `<`, `>`, `&`, `|` and `~` always get a
-/// backslash. At the start of a line `#`, `-`, `+` and `=` do too, and so
-/// does the `.` or `)` after a number. In a heading every `#` does. Where
+/// backslash. At the start of a line `#`, `-`, `+`, `=` and `:` do too, and
+/// so does the `.` or `)` after a number. A `:` there would start a table's
+/// delimiter row, such as `:-`. In a heading every `#` does. Where
 /// `cut` is set, a text that would be an autolink is cut by [`CUT`].
 fn escape_into(text: &str, line_start: bool, heading: bool, cut: bool, out: &mut String) {
     work(text.len());
@@ -1251,7 +1252,7 @@ fn escape_into(text: &str, line_start: bool, heading: bool, cut: bool, out: &mut
             ch,
             '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '>' | '&' | '|' | '~'
         ) || (heading && ch == '#')
-            || (at == 0 && line_start && matches!(ch, '#' | '-' | '+' | '='))
+            || (at == 0 && line_start && matches!(ch, '#' | '-' | '+' | '=' | ':'))
             || numbered == Some(at);
         if escaped {
             out.push('\\');

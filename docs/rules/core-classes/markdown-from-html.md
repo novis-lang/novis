@@ -11,8 +11,9 @@ every sink. A `Markup` input pays for it with a tainted result, which `toHtml` a
 are. Taking a node does not open a path back into execution, because the member returns text alone;
 `a_parsed_tree_has_no_path_back_into_execution` allows exactly that shape.
 
-**How text stays text.** `` \ ` * _ [ ] < > & | ~ `` always get a backslash, and `# - + =` and the
-`.` or `)` after a number get one at the start of a line. A backslash cannot stop a GFM extended
+**How text stays text.** `` \ ` * _ [ ] < > & | ~ `` always get a backslash, and `# - + = :` and the
+`.` or `)` after a number get one at the start of a line, where `:-` would start a table's
+delimiter row. A backslash cannot stop a GFM extended
 autolink, since the renderer finds those after escapes are read, so a text that would autolink is cut
 with an empty comment `<!-- -->` before the `.` of `www.`, the `:` of `://` and the `@` of an address.
 The sanitizer drops the comment. Emphasis whose content starts or ends with punctuation is written as

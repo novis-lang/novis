@@ -1152,6 +1152,10 @@ fn from_html_twice_gives_the_same_markdown() {
             // Text a Markdown reader would read as an email autolink. The
             // `markdown_from_html` fuzz target found the first.
             "<p>w@.wft and a@-b.c and d@_e.f</p>",
+            // A line that starts with `:-` after a break. The
+            // `markdown_from_html` fuzz target found that it was read as a
+            // table's delimiter row.
+            "`<br>:-",
         ]
         .map(str::to_owned),
     );
