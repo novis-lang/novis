@@ -1,0 +1,13 @@
+<?nvs
+// Shows that a code block is finished only after its closing ``` line and the next line.
+
+Core\Markdown\Live $live = Core\Markdown::live();
+// The blank line inside the code block does not finish it.
+array<string> $pieces = ["```sh\n", "cd shop\n", "\n", "make\n", "```\n", "Then open the browser.\n"];
+
+int $step = 1;
+foreach ($pieces as string $piece) {
+    string $done = Core\Html::toSource($live->push($piece)->done(), "the example prints the HTML");
+    echo $step, ". done: ", $done == "" ? "(empty)\n" : $done;
+    $step = $step + 1;
+}

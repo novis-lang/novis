@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a program sends one block that never ends, in many small pieces, and reads `open` after each one.
+// Each piece should cost work for the open block only. The program must stop at its memory limit.
+// hostile: ends-early 4 FATAL
+// hostile: timeout-ms 30000
+
+class Feed
+{
+    // Pushes `$count` copies of `$piece` and returns the length of the last `open` part.
+    public static function many(Core\Markdown\Live $live, string $piece, uint $count): uint
+    {
+        uint $length = 0;
+        uint $i = 0;
+        while ($i < $count) {
+            $length = Core\Str::length(Core\Html::toSource($live->push($piece)->open(), "the attack measures the HTML"));
+            $i = $i + 1;
+        }
+        return $length;
+    }
+}
+
+// 1. One paragraph of 20,000 characters, sent 10 characters at a time.
+// Every `open` part has the whole paragraph so far.
+Core\Markdown\Live $paragraph = Core\Markdown::live();
+echo "step 1: ", Feed::many($paragraph, "word word ", 2000), " characters open\n";
+
+// 2. A code block that is never closed, sent one line at a time.
+Core\Markdown\Live $code = Core\Markdown::live();
+$code->push("```\n");
+echo "step 2: ", Feed::many($code, "echo 1;\n", 2000), " characters open\n";
+
+// 3. Thousands of `[` that never close, three at a time.
+// They stay text, and each `open` part has all of them.
+Core\Markdown\Live $brackets = Core\Markdown::live();
+echo "step 3: ", Feed::many($brackets, "[[[", 2000), " characters open\n";
+
+// 4. Lowers the memory limit to `16M` and sends a code block that never ends, 64 KB at a time.
+// The open block grows with every piece, so this step ends the program at its memory limit.
+Core\Config::set('memory', '16M');
+echo "step 4\n";
+Core\Markdown\Live $endless = Core\Markdown::live();
+$endless->push("```\n");
+Feed::many($endless, Core\Str::repeat("x", 65535) . "\n", 1000000);

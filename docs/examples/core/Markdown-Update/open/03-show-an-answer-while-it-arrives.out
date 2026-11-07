@@ -1,0 +1,8 @@
+--- the screen after "Sure! Run `npm "
+<p>Sure! Run `npm</p>
+--- the screen after "install`.\n\nThen st"
+<p>Sure! Run <code>npm install</code>.</p>
+<p>Then st</p>
+--- the screen after "art the server.\n"
+<p>Sure! Run <code>npm install</code>.</p>
+<p>Then start the server.</p>

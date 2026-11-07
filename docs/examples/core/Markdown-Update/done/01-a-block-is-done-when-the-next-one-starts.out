@@ -1,0 +1,5 @@
+piece "Our shop is open " -> done: (empty)
+piece "from 9 to 18.\n" -> done: (empty)
+piece "\n" -> done: (empty)
+piece "Closed on Sundays.\n" -> done: <p>Our shop is open from 9 to 18.</p>
+finish: <p>Closed on Sundays.</p>

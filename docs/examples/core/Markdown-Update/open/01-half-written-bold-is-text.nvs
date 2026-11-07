@@ -1,0 +1,10 @@
+<?nvs
+// Shows that `open` renders the text as if it ended after the last piece.
+
+Core\Markdown\Live $live = Core\Markdown::live();
+
+// The closing `**` has not arrived yet, so the stars are shown as text.
+echo $live->push("Please read this **very")->open();
+
+// Now the bold text is complete. `open` returns the paragraph again, with `<strong>`.
+echo $live->push(" carefully** before you pay.")->open();

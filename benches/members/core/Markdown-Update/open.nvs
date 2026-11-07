@@ -1,0 +1,32 @@
+<?nvs
+// Measures reading the open part of a piece, as a chat page does before it shows the text still being written.
+// bench: iterations 1024
+// bench: calls 3
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // Three pieces, pushed once before the loop. Each one leaves a different block open.
+        Core\Markdown\Live $live = Core\Markdown::live();
+        array<Core\Markdown\Update> $updates = [
+            $live->push("# Answer\n"),
+            $live->push("Run `npm install` first.\n"),
+            $live->push("- then build\n"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The update read in each round is chosen by the round before, so no round can be left out.
+            $total = $total + Core\Str::length(
+                Core\Html::toSource($updates[(($total + $i) % 3) as int]->open(), 'measuring the open part'),
+            );
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";
