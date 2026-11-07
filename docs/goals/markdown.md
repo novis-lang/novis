@@ -604,55 +604,54 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 9's differential triage is well along, in three commits this session (`9edd84b4`,
-`21528eff`, `912072ec`). All three targets build in WSL.
-- **A sanitizer bug, fixed** (decision 18): `sanitize('<p>a<table></p>')` was not a fixed point,
-  because a document with no doctype parsed in quirks mode. The mXSS corpus in `html.rs` and the
-  Markdown fixed-point test now hold `<p>a<table></p>` and a quirky-doctype variant.
-- **Engine fixes, each catalogued after `pulldown-cmark-heading-vertical-tab`**: `~` bounds keyed
-  by length and by whether the closer can open; a `~` closer matches the nearest `~` opener the
-  rule of three allows, or is text; no `~~` closes just because a `\~` is before it; a task item
-  with nothing after its marker is a paragraph (laziness, and the marker at the document's end);
-  a header row with no pipe; a pipe-less delimiter row with a colon; a header row interrupting a
-  paragraph without a leading `|` (decision 17); GFM's delimiter-cell grammar.
-- **Skipped in `markdown_comrak`**, listed in `markdown-cost.md`: a vertical tab or form feed
-  (0.29 whitespace); a `~` run beside a `~~` run (comrak's `insert_emph` returns `None` on a
-  length mismatch and stops all emphasis after it); `??>` (its scanner misses `?>`). Its `normal`
-  drops an attribute-less `a` and an `img` with no `src`, and reads a tab and a paragraph's
-  leading space as layout.
-- **Green, run once by name**: `--lib markdown::`, `--test markdown_known_bugs`, the mXSS test.
-- **Sweep reds**: `env-secret-proofs` has no check and no log in the tree; the driver's sweep
-  names something that does not exist here. The Miri reds are the tests `f13f4064` skips, not yet
-  pushed, so no nightly has the fix.
+Stage 9's differential triage goes on. This session landed six commits (`0a46b9b9` to `b3f755d4`),
+each catalogued after `pulldown-cmark-table-delimiter-cell` in `known-bugs.toml`:
+- **Ours, fixed**: raw HTML in an image's description is its source text in the `alt`; a loose
+  task item's box sits right after `<li>`, in front of the first paragraph, and `fromHtml` reads it
+  back into that paragraph; a paragraph whose delimiter row made no table never becomes one
+  (cmark-gfm's `TABLE_VISITED`); a tab-indented `>` does not continue a block quote; a header row
+  indented 4+ columns still starts a table, and `block_ranges` joins that table to the paragraph
+  before it so chunks still equal the whole; an autolink's entities resolve as cmark resolves them.
+- **Decision 19**: for a CommonMark construct, CommonMark 0.31.2 and cmark win over cmark-gfm.
+- **Skipped in `markdown_comrak`**, added to the list in `markdown-cost.md`: a task marker with an
+  inline right after its `]`; a lazy line that would start an HTML block of type 7, or that starts
+  with spaces when the document has a code span; nesting past comrak's `MAX_LIST_DEPTH` of 100.
+  `normal` now scans an `<img` tag up to its `>` outside quotes, and drops a space between two
+  tags. `fuzz::html_tags` writes `<`/`>` in an attribute value as entities.
+- **Green, run once by name after the last commit**: `--lib markdown::` (23) and
+  `--test markdown_known_bugs`.
+- **Sweep reds**: `env-secret-proofs` has no check and no log in the tree. The Miri reds are the
+  tests `f13f4064` skips, which is not yet pushed.
 
 ### Next
 
-Stage 9, the rest. Ticks are under stage 9's items. Each fuzz run is
-`bun nv fuzz <target> --runs <n>`; the crash input is printed, and stored under
-`/var/tmp/nvs-fuzz-artifacts/<target>/` in WSL. A probe script under `.agent-tmp/` run with
-`./target/debug/nvs run` shows our exact HTML fast; comrak's source is in WSL at
-`~/.cargo/registry/src/index.crates.io-*/comrak-0.59.0/src/parser/`.
+Stage 9, the rest. Each fuzz run is `bun nv fuzz <target> --runs <n>`. A probe under `.agent-tmp/`
+run with `./target/debug/nvs run` shows our HTML (`<?nvs` first, `foreach ([...] as var $t)`).
+`.agent-tmp/cmprobe/` is a scratch crate that prints comrak's raw HTML: in WSL,
+`cd /mnt/e/mwl/.agent-tmp/cmprobe && cargo run -q --offline --target-dir /var/tmp/cmprobe -- "<md>"`
+(`\n`, `\t`, `\0` are expanded). cmark-gfm's source is read with
+`gh api repos/github/cmark-gfm/contents/<path> --jq .content | base64 -d`.
 
-- [ ] **The open difference** at `fuzz/fuzz_targets/markdown_comrak.rs:163`:
-  `"![a<div>](gip/g.n)\"\0"` gives ours `<img alt="a" src="gip/g.n">"` and comrak a text
-  `" src="gip/g.n">"` with no `img`. Raw HTML inside an image's alt text: read comrak's
-  alt writer first. cmark writes inline HTML in alt as escaped text. If comrak breaks its own
-  attribute, it is a skip; if ours should keep `<div>` as alt text, it is an engine fix.
-- [ ] **Triage to 1,000,000 clean runs** at `fuzz/fuzz_targets/markdown_comrak.rs:41`. Our bug: a
-  fix and a catalogue entry, as at `tests/data/markdown/known-bugs.toml:3465`. comrak's bug or a
-  0.29 reading: a skip there and the list at `docs/rules/core-classes/markdown-cost.md:28`.
+- [ ] **The open difference** at `fuzz/fuzz_targets/markdown_comrak.rs:217`:
+  `"![a](\\[a]()/%u))"` gives ours `src="%5Ba%5D()/%u"` and comrak `src="%5Ba%5D()/%25u"`. A `%`
+  not followed by two hex digits: cmark percent-encodes it as `%25`. Find our URL normalizer
+  (`crates/nvs-stdlib/src/markdown.rs`, the href/src writer) and encode a lone `%` as cmark does;
+  catalogue it.
+- [ ] **Triage to 1,000,000 clean runs** of `markdown_comrak` (`fuzz/fuzz_targets/markdown_comrak.rs:41`). Our bug: a fix and a catalogue
+  entry. comrak's bug or a 0.29 reading: a skip in the target and the list at
+  `docs/rules/core-classes/markdown-cost.md:32`.
 - [ ] **1,000,000 runs each** of `fuzz/fuzz_targets/markdown.rs:22` and
   `fuzz/fuzz_targets/markdown_from_html.rs:18`, triaged the same way.
-- [ ] **Then run once by name** again (`crates/nvs-stdlib/src/markdown/tests.rs:120`): `cargo test --lib markdown::`,
-  `cargo test --test markdown_known_bugs` and
-  `cargo test --lib parse_sanitize_serialise_reparse`. Fix any red before stage 10.
+- [ ] **Then run once by name** (`crates/nvs-stdlib/src/markdown/tests.rs:120`): `cargo test --lib markdown::`, `cargo test --test
+  markdown_known_bugs` and `cargo test --lib parse_sanitize_serialise_reparse`.
+- [ ] Delete `.agent-tmp/cmprobe/` (`.agent-tmp/cmprobe/src/main.rs:1`), `probe.nvs` and the `*.patch` and `handoff.*` files once stage 9
+  is done.
 
-Expected red: the floor check `proofs-gate`, since the four members owe their feature proofs until
-stage 10. Possibly red at the gate, not run this session: a conformance case or PDF test that
-sanitizes `<p>` around a `<table>` with no doctype, since decision 18 changes that answer;
-`registry.rs`'s
-`a_class_with_slots_has_instance_members_and_the_reverse`, `crates/nvs-stdlib/tests/ext_world.rs`,
-and card or website checks that see the new `fromHtml` member. Stage 11 may run as a side goal.
+Expected red: the floor check `proofs-gate`, until stage 10. Possibly red at the gate, not run
+this session: a conformance case or PDF test that sanitizes `<p>` around a `<table>` with no
+doctype (decision 18); a case that pins a loose task list's HTML or an autolink with an entity;
+`registry.rs`'s `a_class_with_slots_has_instance_members_and_the_reverse`,
+`crates/nvs-stdlib/tests/ext_world.rs`, and card or website checks that see `fromHtml`.
 
 ### Backlog
 
