@@ -354,6 +354,13 @@ names a Markdown renderer as a sink.
     extensions. So ours keeps `<t>` in the paragraph, and the differential skips such a document.
     A loose task item's box is GFM's, so it follows cmark-gfm: right after `<li>`, in front of the
     first paragraph, and `fromHtml` reads it back into that paragraph.
+20. **The comrak differential's triage is stopped, and CI does not run it** (stage 9, the user's
+    call, 2026-11-07). Its remaining finds were cmark-gfm conformance edge cases with no security
+    value; its security finds, the two sanitizer fixed-point fixes, landed. `markdown_comrak` stays
+    in the tree, run by hand with `bun nv fuzz markdown_comrak`, and leaves CI's `fuzz-smoke` leg 4,
+    where its open differences would turn the deep run red at random. `tools/nv/test/fuzz-smoke.test.ts`
+    names it in `BY_HAND`. `rule:core-classes/markdown-cost` says the output on unusual input may
+    differ from cmark-gfm. The stage's 1,000,000-run item covers `markdown` and `markdown_from_html`.
 
 ## Stages
 
@@ -559,15 +566,17 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
   Markdown → HTML → Markdown round trip keeps the meaning. `fuzz/Cargo.toml:124`
   - [x] `fuzz/fuzz_targets/markdown_from_html.rs`, its `[[bin]]` and its dictionary.
   - [ ] It builds in WSL and runs clean for a first short run.
-- [ ] The differential target against the other candidate (decision 9). Each difference becomes a
+- [x] The differential target against the other candidate (decision 9). Each difference becomes a
   catalogue entry or a line in the rule. `fuzz/Cargo.toml:124`
   - [x] `fuzz/fuzz_targets/markdown_comrak.rs` and `comrak` 0.59 in `fuzz/Cargo.toml` alone.
-  - [ ] Each difference it finds is triaged into a fix and a catalogue entry, or a rule line and
-    a case in its `normal`.
-- [ ] Each target runs 1,000,000 inputs once. Every crash becomes a catalogue entry and a fix.
+  - [x] Triaged until the user stopped it; the remaining differences are known cmark-gfm edge
+    cases, not compared in CI (decision 20).
+- [ ] `markdown` and `markdown_from_html` each run 1,000,000 inputs once. Every crash becomes a
+  catalogue entry and a fix.
   - [x] `bun nv fuzz <target> --runs <n>` runs one target in WSL, and CI's `fuzz-smoke` has a
-    fourth leg for the three targets.
-  - [ ] `markdown`, `markdown_from_html` and `markdown_comrak` each run 1,000,000 inputs.
+    fourth leg for the two targets.
+  - [ ] `markdown` runs 1,000,000 inputs.
+  - [ ] `markdown_from_html` runs 1,000,000 inputs.
 
 ### 10. the four members carry their feature proofs
 

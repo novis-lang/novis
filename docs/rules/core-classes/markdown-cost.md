@@ -56,6 +56,14 @@ beside raw HTML in a document with a link. Nor is a document where comrak writes
 as it does for `[[a](u)[b]](v)`, which cmark and the spec write as `[`, the link `a` and text, or a
 link around an image whose text holds a link, as in `[![[]()[]]()]()`. The target's comments give each case. The other two targets cover these documents.
 
+**The differential is a tool run by hand, not a check.** `bun nv fuzz markdown_comrak` runs it, and
+CI's fuzz lane runs only `markdown` and `markdown_from_html`. Its triage stopped once its finds were
+cmark-gfm conformance edge cases with no security value; the security finds, two sanitizer
+fixed-point fixes, landed. So on unusual input the output may still differ from cmark-gfm's, as
+`[a]:\n-|-\n-|-` does, where cmark-gfm reads a definition and ours a paragraph. Such a difference is
+fixed when a user meets it, with a catalogue entry. In CI those open differences would turn the deep
+run red at random, which says nothing about safety.
+
 **Memory:** `toHtml` holds the document, its output tree and its reference and footnote definitions,
 all attributed to the request and freed with it. `toHtmlEach` and `Live` hold less, as
 `rule:core-classes/markdown-chunks` says. The added-output budget is one counter per parse.
