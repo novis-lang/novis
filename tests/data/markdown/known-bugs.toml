@@ -3692,6 +3692,18 @@ direction = "to-html"
 input = "x\n+\n-:|\nb"
 html = "<p>x</p>\n<table>\n<thead>\n<tr>\n<th align=\"right\">+</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align=\"right\">b</td>\n</tr>\n</tbody>\n</table>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. A `\` at the end of a header row is the
+# cell's text, so cmark-gfm starts the table. pulldown-cmark 0.13.6 read a hard break first and
+# found no table.
+[[bug]]
+id = "pulldown-cmark-backslash-ends-header-row"
+library = "pulldown-cmark"
+source = "https://github.com/github/cmark-gfm/blob/master/extensions/table.c"
+class = "wrong-output"
+direction = "to-html"
+input = "x\\\n-|\nb"
+html = "<table>\n<thead>\n<tr>\n<th>x\\</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>b</td>\n</tr>\n</tbody>\n</table>\n"
+
 # Found by the `markdown_comrak` differential fuzz target. cmark-gfm reads a task marker before a
 # paragraph opens, so a loose item with nothing after its marker has no paragraph. pulldown-cmark
 # 0.13.6 started one there, and an empty `p` was written after the box.

@@ -891,23 +891,11 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                     let eol_bytes = scan_eol(&bytes[ix..]).unwrap();
 
                     let end_ix = ix + eol_bytes;
-                    let trailing_backslashes = scan_rev_while(&bytes[..ix], |b| b == b'\\');
-                    if trailing_backslashes % 2 == 1 && end_ix < bytes_len {
-                        i -= 1;
-                        self.tree.append_text(begin_text, i, backslash_escaped);
-                        backslash_escaped = false;
-                        return LoopInstruction::BreakAtWith(
-                            end_ix,
-                            Some(Item {
-                                start: i,
-                                end: end_ix,
-                                body: ItemBody::HardBreak(true),
-                            }),
-                        );
-                    }
-
                     // Novis: a header row with no pipe is one cell, as GFM and
                     // cmark-gfm read it. The published 0.13.6 needed a pipe.
+                    // A `\` that ends a header row is the cell's text, so the
+                    // table is found before a hard break is. The published
+                    // 0.13.6 read the break first and found no table.
                     if mode == TableParseMode::Scan {
                         // check if we may be parsing a table
                         let next_line_ix = ix + eol_bytes;
@@ -944,6 +932,21 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                                 }
                             }
                         }
+                    }
+
+                    let trailing_backslashes = scan_rev_while(&bytes[..ix], |b| b == b'\\');
+                    if trailing_backslashes % 2 == 1 && end_ix < bytes_len {
+                        i -= 1;
+                        self.tree.append_text(begin_text, i, backslash_escaped);
+                        backslash_escaped = false;
+                        return LoopInstruction::BreakAtWith(
+                            end_ix,
+                            Some(Item {
+                                start: i,
+                                end: end_ix,
+                                body: ItemBody::HardBreak(true),
+                            }),
+                        );
                     }
 
                     let trailing_whitespace =
