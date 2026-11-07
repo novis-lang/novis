@@ -78,6 +78,10 @@ enum Inside {
 pub(super) struct Balance {
     /// The names of the elements opened and not yet closed, innermost last.
     open: Vec<String>,
+    /// How many of [`Self::open`] are `svg` or `math`. A start tag reads it,
+    /// so a run of tags that never close costs linear time, not a scan of
+    /// [`Self::open`] per tag.
+    foreign: usize,
     /// The text not read yet: an unfinished tag, or the end of an unfinished
     /// comment or raw-text element.
     tail: String,
@@ -183,6 +187,9 @@ impl Balance {
                             at += len;
                             if self.open.last() == Some(&name) {
                                 self.open.pop();
+                                if is_foreign(&name) {
+                                    self.foreign -= 1;
+                                }
                             }
                         }
                     }
@@ -198,11 +205,10 @@ impl Balance {
     /// implied end tags, so this keeps a group open longer than needed, and
     /// never shorter.
     fn started(&mut self, name: String, self_closing: bool) {
-        let foreign = self.open.iter().any(|open| open == "svg" || open == "math");
         if VOID.contains(&name.as_str()) || VOID_MORE.contains(&name.as_str()) {
             return;
         }
-        if self_closing && (foreign || name == "svg" || name == "math") {
+        if self_closing && (self.foreign > 0 || is_foreign(&name)) {
             return;
         }
         if name == "plaintext" {
@@ -212,8 +218,16 @@ impl Balance {
         if RAW_TEXT.contains(&name.as_str()) {
             self.inside = Inside::RawText(name.clone());
         }
+        if is_foreign(&name) {
+            self.foreign += 1;
+        }
         self.open.push(name);
     }
+}
+
+/// Whether `name` starts foreign content, where `/>` closes any element.
+fn is_foreign(name: &str) -> bool {
+    name == "svg" || name == "math"
 }
 
 /// The index of `at` moved back so that at most `keep` bytes of `text`

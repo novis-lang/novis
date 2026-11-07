@@ -433,6 +433,32 @@ fn work_grows_linearly_over_every_catalogued_slow_input() {
     );
 }
 
+/// A run of raw tags that never close is our own find, not another
+/// library's, so it is here and not in the catalogue. `groups::Balance` once
+/// scanned its open elements per start tag, which made 120,000 `<div>` take
+/// seconds. The steps count the engine and the output; the open stack itself
+/// is held linear by `Balance` reading a count of its foreign elements.
+#[test]
+fn a_run_of_unclosed_raw_tags_costs_linear_work() {
+    const N: usize = 1000;
+    let steps = |text: &str| {
+        crate::fuzz::markdown_counting_steps(text)
+            .1
+            .expect("a build with debug assertions counts steps")
+    };
+    for tag in ["<a>", "<div>", "<p><span>", "<svg>"] {
+        let (small, large) = (steps(&tag.repeat(N)), steps(&tag.repeat(4 * N)));
+        assert!(
+            large > small && large <= 5 * small,
+            "{tag}: {small} steps at n = {N}, {large} at 4n"
+        );
+    }
+    let mut balance = groups::Balance::default();
+    balance.feed(&"<svg><math>".repeat(N));
+    balance.feed(&"</math></svg>".repeat(N));
+    assert!(balance.closed(), "every foreign element it opened is closed");
+}
+
 type UrlHook = Box<dyn Fn(&str) -> Answer>;
 type HeadingHook = Box<dyn Fn(usize, &str) -> Answer>;
 type CodeHook = Box<dyn Fn(&str, &str) -> Answer>;
