@@ -29,14 +29,21 @@ which seven of the catalogued libraries shipped.
 the other engine the choice was measured against. Each difference is triaged into our bug, fixed and
 catalogued, or a spec reading, one line in `rule:core-classes/markdown-to-html`. Where comrak 0.59
 departs from the spec, the differential does not compare: footnotes (written as this rule writes them),
-extended autolinks, a delimiter beside a Unicode symbol, `~` beside `*` or `_`, a `~` run beside a `~~` run, a declaration, a `\` before a link title's closing delimiter, which cmark reads as an escape since its
-issue 607 and comrak 0.59 may read as a character, a processing instruction that ends `??>`, a CDATA section with `]]]`, which cmark's pattern reads
+extended autolinks, a delimiter beside a Unicode symbol, `~` beside `*` or `_`, a `~` run beside a `~~` run, a declaration, a definition's title with text after it on its line, which cmark now drops and comrak 0.59 keeps,
+a `\` before a link title's closing delimiter, which cmark reads as an escape since its
+issue 607 and comrak 0.59 may read as a character, a processing instruction that ends `??>`, an HTML comment
+whose text ends with `-`, which 0.29 did not allow, a CDATA section with `]]]`, which cmark's pattern reads
 past its end, `<![CDATA[` in lower case, which comrak reads as HTML and cmark as text, a `---` under a paragraph of reference definitions alone, which cmark now reads as a
 thematic break, a task marker with an inline
-right after its `]`, a lazy line that would start an HTML block of type 7 or starts with spaces inside a code span, nesting past comrak's depth of 100, a run
+right after its `]`, a second link label of whitespace alone, as in `[a][ ]`, which the spec reads as
+text after a shortcut reference and cmark as a collapsed reference, a lazy line that would start an HTML block of type 7 or starts with spaces inside a code span, nesting past comrak's depth of 100, a run
 of two or more backticks, and a vertical tab or form feed, which 0.29 counted as whitespace. comrak writes a `%` with no two hex
 digits after it in a URL as `%25`. cmark and this renderer write it as it is, and the target maps that
-difference away. The target's comments give each case. The other two targets cover these documents.
+difference away. comrak 0.59 lets references add at most 100,000 bytes and at most the document's
+length, where cmark allows at least 100,000, so the target gives comrak a longer document when a
+reference is text. A raw `<a>` tag is not compared either, since the target's mapping of a nested
+link cannot follow the parser's close of it. Nor is a document where comrak writes a link inside a link,
+as it does for `[[a](u)[b]](v)`, which cmark and the spec write as `[`, the link `a` and text. The target's comments give each case. The other two targets cover these documents.
 
 **Memory:** `toHtml` holds the document, its output tree and its reference and footnote definitions,
 all attributed to the request and freed with it. `toHtmlEach` and `Live` hold less, as

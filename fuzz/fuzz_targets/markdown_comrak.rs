@@ -51,7 +51,7 @@ fn options() -> comrak::Options<'static> {
 ///   writes the spaces it stands for.
 /// - A `%` with no two hex digits after it is `%25` (`lone_percent_encoded`).
 fn normal(html: &str) -> String {
-    let meaning = fuzz::html_meaning(&unnested(html));
+    let meaning = fuzz::html_meaning(&unlinked(&unnested(html)));
     let mut out = String::with_capacity(meaning.len());
     let mut bare = false;
     let mut rest = meaning.as_str();
@@ -139,6 +139,36 @@ fn unnested(html: &str) -> String {
                 out.push_str("</a>");
             }
             depth = depth.saturating_sub(1);
+            rest = after;
+        } else {
+            out.push('<');
+            rest = &rest[1..];
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// `html` with each `a` whose `href` fails the check removed, and its text
+/// kept. This runs before `html_meaning`, which removes a space between two
+/// tags. In `*b*  <x:y>`, ours writes the spaces in front of the autolink's
+/// text, and comrak writes them between `</em>` and the `a`. `html` has no
+/// `a` inside another (`unnested`).
+fn unlinked(html: &str) -> String {
+    let mut out = String::with_capacity(html.len());
+    let mut removed = false;
+    let mut rest = html;
+    while let Some(at) = rest.find('<') {
+        out.push_str(&rest[..at]);
+        rest = &rest[at..];
+        if let Some(end) = rest.starts_with("<a ").then(|| tag_end(rest)).flatten() {
+            removed = !allowed(&rest[..end], "href");
+            if !removed {
+                out.push_str(&rest[..=end]);
+            }
+            rest = &rest[end + 1..];
+        } else if let Some(after) = rest.strip_prefix("</a>").filter(|_| removed) {
+            removed = false;
             rest = after;
         } else {
             out.push('<');
@@ -252,6 +282,45 @@ fuzz_target!(|data: &[u8]| {
     if text.contains("]:") && text.split(['\n', '\r']).any(dashes) {
         return;
     }
+    // `unnested` removes an `a` inside another `a`. A raw `<a>` tag in the
+    // document opens an `a` that comrak writes as it is, and a link after it
+    // is then nested and removed. Ours is already parsed, and the parser
+    // closes the raw `a` where the link opens, so the link stays. A document
+    // with a raw `<a` tag is not compared.
+    if lower.as_bytes().windows(3).any(|w| w[0] == b'<' && w[1] == b'a' && b" \t\r\n/>".contains(&w[2])) {
+        return;
+    }
+    // A link label needs a character that is not whitespace, so in `[a][ ]`
+    // the `[ ]` is text after a shortcut reference. cmark trims the second
+    // label and reads an empty one as a collapsed reference, and comrak 0.59
+    // copies it. A document with `][` and only whitespace before the next `]`
+    // is not compared.
+    if text.match_indices("][").any(|(at, _)| {
+        let rest = &text[at + 2..];
+        rest.find(']').is_some_and(|end| end > 0 && rest[..end].trim().is_empty())
+    }) {
+        return;
+    }
+    // A definition's title must end its line. When text follows it, cmark
+    // reads the definition again with no title. comrak 0.59 copies cmark's
+    // older code, which keeps the title: `[a]: /u\n't'x` gives `a` the title
+    // `t`. A document with `]:` and a line with a title delimiter that does
+    // not end with one is not compared.
+    let delimiter = |c: char| matches!(c, '"' | '\'' | '(' | ')');
+    if text.contains("]:")
+        && text.split(['\n', '\r']).any(|line| {
+            line.contains(delimiter) && !line.trim_end().ends_with(delimiter)
+        })
+    {
+        return;
+    }
+    // CommonMark 0.31.2 ends an HTML comment at the first `-->`, so
+    // `<!-- --->` is a comment. comrak 0.59 follows 0.29, where the text of a
+    // comment cannot end with `-`, and writes it as text. A document with a
+    // comment start and `--->` is not compared.
+    if text.contains("<!--") && text.contains("--->") {
+        return;
+    }
     // A CDATA section ends at the first `]]>`. cmark's pattern, which comrak
     // 0.59 copies, reads `]]` and one more character as content, so in
     // `<![CDATA[x]]]>z` it reads past the end and writes text. A document with
@@ -325,6 +394,28 @@ fuzz_target!(|data: &[u8]| {
     let replaced = text.replace('\0', "\u{FFFD}");
     let ended = if replaced.ends_with('\n') { replaced } else { replaced + "\n" };
     let ours = normal(&fuzz::markdown(text));
-    let theirs = normal(&comrak::markdown_to_html(&ended, &options()));
+    let raw = comrak::markdown_to_html(&ended, &options());
+    // A link cannot hold a link, so once a link forms, cmark deactivates every
+    // `[` before it. comrak 0.59 opens the outer link again after a later `[b]`
+    // that is not a link, so `[[a](u)[b]](v)` gives it an `a` inside an `a`.
+    // With no `<` in the document, only that can nest an `a`, and such a
+    // document is not compared.
+    if !text.contains('<') && unnested(&raw) != raw {
+        return;
+    }
+    let mut theirs = normal(&raw);
+    // cmark lets references add the document's length in bytes, and at least
+    // 100,000. comrak 0.59 swaps `max` for `min`, so it allows the length and
+    // at most 100,000, and a third use of a long URL in a short document is
+    // text. On a difference in a document with a definition, comrak gets the
+    // text again after a comment line that makes the document 100,000 bytes
+    // long, and the comment is removed from its HTML.
+    if ours != theirs && text.contains("]:") && !text.starts_with('\u{feff}') {
+        let comment = format!("<!--{}-->\n", "x".repeat(100_000));
+        let padded = comrak::markdown_to_html(&format!("{comment}{ended}"), &options());
+        if let Some(html) = padded.strip_prefix(comment.as_str()) {
+            theirs = normal(html);
+        }
+    }
     assert_eq!(ours, theirs, "{text:?}");
 });
