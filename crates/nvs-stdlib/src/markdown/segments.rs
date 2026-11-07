@@ -6,12 +6,14 @@
 //!
 //! [`Segments`] keeps the text read and not yet given out. It reads the
 //! complete lines of it with the engine's first pass alone
-//! ([`pulldown_cmark::Parser::block_ranges`]), and cuts after the
+//! ([`pulldown_cmark::Parser::blocks`]), and cuts after the
 //! second-to-last top-level block, at the next line start. The last block may
 //! still grow, and so may a reference definition after the block before it,
 //! whose title can go on over the next lines, so both stay in the next
 //! segment. A line is read only once it is complete, because its last bytes
-//! can change what block it starts.
+//! can change what block it starts. A cut is kept only where the text after
+//! it, read alone, has the blocks it has in the whole, which costs a second
+//! parse of that text for each of at most two cuts tried.
 //!
 //! **The text is read again only once it has doubled** since the last read
 //! that did not cut. So one block as large as the document costs work linear
@@ -46,6 +48,10 @@ use pulldown_cmark::{Outside, Parser};
 use super::callbacks::Callbacks;
 use super::groups::Written;
 use super::{ADDED_OUTPUT_SLACK, Renderer, State, options};
+
+/// How many cuts [`Segments`] tries from the end of the text it read, each
+/// with a second parse of the text after it.
+const TRIED_CUTS: usize = 2;
 
 /// One read of the document: it adds the next bytes to `segments`, or ends
 /// them, and returns whether it added any.
@@ -197,28 +203,37 @@ impl Segments {
     /// Where the buffer's complete lines can be cut: after the second-to-last
     /// top-level block they hold, at the next line start.
     ///
-    /// A cut is only ever at a line start. A block can start inside a line
-    /// that the block before it reaches into: in `*\n[a]: /u\n  *`, the list's
-    /// range runs over the reference definition up to the second `*`, which
-    /// continues the paragraph the definition starts. Two such blocks are one
-    /// for the cut, so it moves to the pair before them.
+    /// A cut is kept only where the text after it, read alone, has the same
+    /// blocks as it has in the whole. A block's range can run over a reference
+    /// definition that starts the paragraph after it: in `*\n[a]: /u\n*`, the
+    /// list's range ends at the second `*`, which continues that paragraph,
+    /// and read alone it is a list. Such a cut moves to the pair before. Only
+    /// [`TRIED_CUTS`] pairs are tried, so the work stays linear; when none
+    /// holds, the text is read again once it has grown.
     fn cut(&self) -> Option<usize> {
         let complete = self.buffer.rfind('\n')? + 1;
         let lines = &self.buffer[..complete];
         let at_line_start = |at: usize| at == 0 || lines.as_bytes()[at - 1] == b'\n';
-        let blocks = Parser::new_ext(lines, options()).block_ranges();
-        blocks.windows(2).rev().find_map(|pair| {
-            let [before, next] = pair else {
-                return None;
-            };
+        let blocks = Parser::new_ext(lines, options()).blocks();
+        let pairs = blocks.len().saturating_sub(1);
+        (pairs.saturating_sub(TRIED_CUTS)..pairs).rev().find_map(|at| {
+            let (before, after) = (&blocks[at].0, &blocks[at + 1..]);
             let end = before.end;
             let line_start = if at_line_start(end) {
                 end
             } else {
                 lines[end..].find('\n').map_or(complete, |at| end + at + 1)
             };
-            let cut = line_start.min(next.start);
-            (cut > 0 && at_line_start(cut)).then_some(cut)
+            let cut = line_start.min(after[0].0.start);
+            if cut == 0 || !at_line_start(cut) {
+                return None;
+            }
+            let alone = Parser::new_ext(&lines[cut..], options()).blocks();
+            let same = alone.len() == after.len()
+                && alone.iter().zip(after).all(|((read, kind), (whole, its))| {
+                    kind == its && read.start + cut == whole.start && read.end + cut == whole.end
+                });
+            same.then_some(cut)
         })
     }
 }

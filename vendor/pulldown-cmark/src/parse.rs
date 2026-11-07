@@ -321,10 +321,12 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
     }
 
     /// Novis: where each top-level block of the text starts and ends, in
-    /// order, read from the first pass alone. Call it before the first event:
-    /// the inline pass changes the tree it walks.
-    pub fn block_ranges(&self) -> Vec<Range<usize>> {
-        let mut ranges: Vec<Range<usize>> = Vec::new();
+    /// order, read from the first pass alone, each with a number for the kind
+    /// of block it is, so two reads can be compared: the same number is the
+    /// same kind. Call it before the first event: the inline pass changes the
+    /// tree it walks.
+    pub fn blocks(&self) -> Vec<(Range<usize>, u8)> {
+        let mut ranges: Vec<(Range<usize>, u8)> = Vec::new();
         let mut paragraph = false;
         let mut at = self.tree.cur();
         while let Some(ix) = at {
@@ -337,14 +339,27 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
             // are one range.
             let inside = paragraph
                 && matches!(item.body, ItemBody::Table(_))
-                && ranges.last().is_some_and(|last| {
+                && ranges.last().is_some_and(|(last, _)| {
                     let between = &self.text.as_bytes()[last.end.min(item.start)..item.start];
                     between.iter().filter(|&&b| b == b'\n').count() <= 1
                 });
             paragraph = matches!(item.body, ItemBody::Paragraph);
+            let kind = match item.body {
+                ItemBody::Paragraph | ItemBody::TightParagraph => 1,
+                ItemBody::Rule => 2,
+                ItemBody::Heading(..) => 3,
+                ItemBody::FencedCodeBlock(_) => 4,
+                ItemBody::IndentCodeBlock => 5,
+                ItemBody::HtmlBlock => 6,
+                ItemBody::BlockQuote(_) => 7,
+                ItemBody::List(..) => 8,
+                ItemBody::FootnoteDefinition(_) => 9,
+                ItemBody::Table(_) => 10,
+                _ => 0,
+            };
             match ranges.last_mut() {
-                Some(last) if inside => last.end = item.end,
-                _ => ranges.push(item.start..item.end),
+                Some((last, _)) if inside => last.end = item.end,
+                _ => ranges.push((item.start..item.end, kind)),
             }
             at = self.tree[ix].next;
         }
