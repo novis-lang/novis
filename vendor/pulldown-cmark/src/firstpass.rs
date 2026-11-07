@@ -1975,8 +1975,11 @@ impl<'a, 'b> FirstPass<'a, 'b> {
             let current_container = tree_position == self.tree.spine_len();
             if !line_start.scan_space(4) {
                 let suffix = &self.text[i + line_start.bytes_scanned()..];
+                // Novis: a lazy line is never a setext underline, so
+                // `>[a]:\n===` defines `a` as cmark reads it. The published
+                // 0.13.6 ended the definition at any `===` line.
                 if self.scan_paragraph_interrupt(suffix, current_container, tree_position)
-                    || scan_setext_heading(suffix.as_bytes()).is_some()
+                    || (current_container && scan_setext_heading(suffix.as_bytes()).is_some())
                 {
                     return None;
                 }
@@ -2036,8 +2039,10 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                     let current_container = tree_position == self.tree.spine_len();
                     if !line_start.scan_space(4) {
                         let suffix = &text[bytecount + line_start.bytes_scanned()..];
+                        // Novis: a lazy line is never a setext underline.
                         if self.scan_paragraph_interrupt(suffix, current_container, tree_position)
-                            || scan_setext_heading(suffix.as_bytes()).is_some()
+                            || (current_container
+                                && scan_setext_heading(suffix.as_bytes()).is_some())
                         {
                             return None;
                         }

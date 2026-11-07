@@ -3799,6 +3799,18 @@ direction = "to-html"
 input = "a\n-|\nc\n    d"
 html = "<table>\n<thead>\n<tr>\n<th>a</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>c</td>\n</tr>\n</tbody>\n</table>\n<pre><code>d\n</code></pre>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. A lazy continuation line is never a setext
+# underline, so in a block quote `===` on a lazy line is a definition's destination, as in cmark.
+# pulldown-cmark 0.13.6 ended the definition there and left the lines as a paragraph.
+[[bug]]
+id = "pulldown-cmark-lazy-equals-in-definition"
+library = "pulldown-cmark"
+source = "https://github.com/commonmark/cmark/blob/master/src/blocks.c"
+class = "wrong-output"
+direction = "to-html"
+input = ">[a]:\n===\n\n[a]"
+html = "<blockquote>\n</blockquote>\n<p><a href=\"===\">a</a></p>\n"
+
 # Found by the `markdown_comrak` differential fuzz target. A lazy continuation line joins the
 # paragraph in a block quote, so a delimiter row in the quote after it makes it a header row, as in
 # cmark-gfm. pulldown-cmark 0.13.6 ended the quote at the lazy line.
