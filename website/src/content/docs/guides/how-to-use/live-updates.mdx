@@ -1,0 +1,107 @@
+---
+title: Live updates
+covers: []
+description: When to use an event stream and when to use a WebSocket, how both work in Novis, and what to set up behind a proxy.
+---
+
+A live page shows new data without a reload. Novis has two ways to send it: an event stream and a
+WebSocket. Both run in the same server as your pages, so you need no second server and no library.
+
+## Choose one
+
+Use an **event stream** when only the server sends. Examples are live results, notifications, a
+progress bar or a dashboard. The browser reads it with `EventSource`. The browser sends its own
+data with ordinary requests, such as a form or `fetch`.
+
+Use a **WebSocket** when both sides send all the time. Examples are a chat, a shared editor or a
+game. The browser opens it with `new WebSocket(...)`, and both sides can send a message at any time.
+
+| | Event stream | WebSocket |
+|---|---|---|
+| Who sends | the server | the browser and the server |
+| In the browser | `EventSource` | `new WebSocket(...)` |
+| In Novis | `Core\Sse::upgrade` | `Core\Socket::upgrade` |
+| When the connection breaks | the browser connects again by itself | your script connects again |
+| Example app | [Poll](/guides/example-apps/poll/) | [Chat](/guides/example-apps/chat/) |
+
+If you are not sure, start with an event stream. It is a normal HTTP response, so every proxy can
+pass it on. The browser also connects again without code from you.
+
+## How both work
+
+The two work the same way in Novis:
+
+1. A normal request arrives. It checks the visitor, like every other request.
+2. The request calls `Core\Sse::upgrade` or `Core\Socket::upgrade` and names a static method, such
+   as `Results::run`.
+3. The request ends, and the method starts. It runs in its own isolate. An isolate is a separate copy
+   of the program that shares no memory with the request.
+4. `args:` copies values from the request into the method, such as the id of a poll.
+5. `limits:` gives the connection its own limits, such as `{ memory: "8M" }`.
+
+The poll app opens its stream with this line:
+`Sse::upgrade(Results::run, args: ['id' => $id], limits: { memory: '8M' })`.
+
+## Send to many connections with a topic
+
+A topic is a name that connections subscribe to. `Core\Topic::subscribe` adds the connection to a
+topic. `Core\Topic::publish` sends a value to every connection on that topic.
+
+Any script can publish. In the poll app, the request that saves a vote publishes the new results.
+In the chat app, the connection that gets a line publishes it to the room.
+
+Each connection reads the next message with `receive()` in a loop. `receive()` returns `null` when
+the browser closes the page, and then the loop ends.
+
+Three things are good to know:
+
+- Each subscriber gets its own copy of the value.
+- `publish` does not wait for a subscriber. A subscriber with too many unread messages is skipped,
+  and its connection is closed.
+- A topic name cannot contain `tainted` input. Build it from values your program checked, such as a
+  room from your own list or a number from the route.
+
+## Topics work inside one process
+
+All connections and all requests that publish must reach the same `nvs serve`. If you run your app
+on several machines, send each update to the other machines in your own code. A message queue such
+as Redis or NATS can do this.
+
+## Another website cannot open a WebSocket
+
+A browser sends the cookies of your visitor with a WebSocket request, even from another website. So
+Novis checks the `Origin` header of every WebSocket request. A request from another website gets
+the status `403`, before your program runs.
+
+An event stream only sends data. The request that changes data, such as a vote, is a `POST`, and
+Novis checks the `Origin` header of each `POST` too.
+
+## Behind a proxy
+
+Most servers run behind a proxy such as Caddy or nginx. The proxy ends HTTPS, so the request reaches
+Novis over plain HTTP. The browser still sends `Origin: https://example.com`.
+
+Novis reads `X-Forwarded-Proto: https` only from an address in `trusted_proxies`. Without that
+setting, the scheme does not match the `Origin` header. Then every WebSocket and every `POST` gets
+the status `403`.
+
+```toml
+[server]
+trusted_proxies = ["127.0.0.1"]
+```
+
+The proxy must also send the `Host` header unchanged. Each example app has a `deploy` folder with a
+`Caddyfile` and an `nginx.conf` that do this.
+
+## Do and don't
+
+- Do use an event stream when only the server sends.
+- Do subscribe to the topic first, then send the current data. Then no update is lost in between.
+- Do set a small `memory` limit in `limits:`. A connection needs much less than a page.
+- Do set `trusted_proxies` when your server runs behind a proxy.
+- Don't put user input in a topic name.
+- Don't publish a value that contains a secret. `publish` throws a `LogicError` for it.
+
+Read more in [`Core\Sse::upgrade`](/reference/core/sse/upgrade/),
+[`Core\Socket::upgrade`](/reference/core/socket/upgrade/) and
+[`Core\Topic::publish`](/reference/core/topic/publish/).

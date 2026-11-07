@@ -14,7 +14,7 @@ stages:
     context: [tools/nv/test/registry-browser.test.ts, tools/nv/test/chromium.ts, tools/nv/cmd/ci-changes.ts]
   - id: 3
     title: "a guide page says when to use a WebSocket and when an event stream, and links both apps"
-    status: open
+    status: done
     context: [website/src/content/docs/guides/how-to-use/index.mdx, website/astro.config.ts]
   - id: 4
     title: "a request's wall_time no longer ends a WebSocket or an event stream it upgraded"
@@ -141,13 +141,13 @@ the apps with their pages.
 
 **Does:** gives the reader the choice before the code.
 
-- [ ] `website/src/content/docs/guides/how-to-use/live-updates.mdx:1`: when the server only sends
+- [x] `website/src/content/docs/guides/how-to-use/live-updates.mdx:1`: when the server only sends
   (event stream) and when both sides send (WebSocket); the shared model (the upgrade starts an
   isolate, `args:`, topics, a slow subscriber is closed, one process); the `Origin` check and
   `trusted_proxies` behind a proxy; links to both apps and to `Core\Socket::upgrade`,
   `Core\Sse::upgrade` and `Core\Topic::publish`. Prose per AGENTS.md § *Text an end user reads*.
-- [ ] Add it to the `how-to-use` sidebar group in `website/astro.config.ts:1` and its index.
-- [ ] Link it from the two app pages' `## Read more`.
+- [x] Add it to the `how-to-use` sidebar group in `website/astro.config.ts:1` and its index.
+- [x] Link it from the two app pages' `## Read more`.
 
 ### 4. a request's wall_time no longer ends a WebSocket or an event stream it upgraded
 
@@ -193,23 +193,31 @@ logged and seen. It ran green once by name with `NV_BROWSER=1` (5 pass, about 4 
 job runs it after the registry suite, and `apps/chat/`, `apps/poll/` and the suite gate `browser` in
 `tools/nv/cmd/ci-changes.ts`.
 
-Sweep reds: `env-secret-proofs` is defined nowhere and has no log, a stale service-side entry. The
-nightly Miri reds in `nvs-stdlib` are fixed by `f13f4064`, which is in `main` and not yet pushed. No
-test is expected to go red.
+Stage 3 is done. `website/src/content/docs/guides/how-to-use/live-updates.mdx` has a table that
+compares an event stream and a WebSocket, the upgrade model, topics, one process, the `Origin` check
+(on a WebSocket and on a `POST`, not on the event stream's `GET`; `crates/nvs-server/src/route.rs:55`)
+and `trusted_proxies`. It is in the sidebar, the how-to-use index and both app pages' `## Read more`,
+with five stamped questions in `website/src/data/questions.json`. `bun nv site --check structure
+guides prose questions` and `bun nv proofs --comments` are green over it. The page says nothing about
+`wall_time`, so stage 4 decides what it says.
+
+Sweep reds: `env-secret-proofs` is defined nowhere in the tree and has no log, a stale service-side
+entry. The nightly Miri reds in `nvs-stdlib` are fixed by `f13f4064`, which is in `main` and not yet
+pushed. No test is expected to go red.
 
 ### Next
 
-**Stage 3**, a new guide page; stage 4 touches disjoint files and may run beside it (decision 10).
+**Stage 4**, `wall_time` and long-lived connections, as the stage lists it.
 
-- [ ] `website/src/content/docs/guides/how-to-use/live-updates.mdx:1`: event stream when only the
-  server sends, WebSocket when both sides send; the shared model; the `Origin` check and
-  `trusted_proxies`; links to both apps and the three `Core` methods. Prose per AGENTS.md.
-- [ ] Sidebar entry in `website/astro.config.ts:1` and a link in
-  `website/src/content/docs/guides/how-to-use/index.mdx:1`.
-- [ ] `## Read more` link on `website/src/content/docs/guides/example-apps/chat.mdx:1` and
-  `website/src/content/docs/guides/example-apps/poll.mdx:1`.
-- [ ] `tools/nv/cmd/site.ts:1` `bun nv site --check structure guides prose` and `bun nv proofs
-  --comments` over the page.
+- [ ] A Rust test over a served event stream and a WebSocket under a short `wall_time`.
+  `crates/nvs-server/src/serve.rs:2539`
+- [ ] The fix, or the reason it stays, in both rule fragments, then `bun nv rules --render`.
+  `docs/rules/concurrency/a-connection-is-a-root-isolate.md:1`
+- [ ] The checklist says what bounds a connection.
+  `website/src/content/docs/guides/production/security-checklist.mdx:25`
+- [ ] The `wall_time` notes in both `deploy/production.toml` and on both app pages
+  (`website/src/content/docs/guides/example-apps/poll.mdx:278`) go once untrue. If a connection keeps
+  a bound of its own, add one `## Do and don't` line about it to `live-updates.mdx`.
 
 ### Backlog
 

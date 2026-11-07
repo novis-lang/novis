@@ -445,6 +445,11 @@ export default defineConfig({
                   link: '/guides/how-to-use/limits/',
                   attrs: { 'data-subtext': 'Memory and time limits for each request' },
                 },
+                {
+                  label: 'Live updates',
+                  link: '/guides/how-to-use/live-updates/',
+                  attrs: { 'data-subtext': 'Event streams, WebSockets and topics' },
+                },
               ],
             },
             {

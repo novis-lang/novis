@@ -159,7 +159,7 @@
   },
   "/guides/example-apps/chat/": {
     "feature": "guides/example-apps/chat.mdx",
-    "hash": "c62d37080ca304c9",
+    "hash": "6c1d79148ec7529c",
     "questions": [
       "Example chat app with rooms over WebSockets",
       "How do I send messages from the server to every browser in a room?",
@@ -195,7 +195,7 @@
   },
   "/guides/example-apps/poll/": {
     "feature": "guides/example-apps/poll.mdx",
-    "hash": "6421e9a5744b1831",
+    "hash": "301db06ddf2a156a",
     "questions": [
       "Example live poll app with server-sent events",
       "Show new votes on every open page without a reload",
@@ -231,7 +231,7 @@
   },
   "/guides/how-to-use/": {
     "feature": "guides/how-to-use/index.mdx",
-    "hash": "187d511016497921",
+    "hash": "e17809090cbdf0b3",
     "questions": [
       "How do the parts of a Novis application fit together?",
       "Good habits for building a Novis web application",
@@ -283,6 +283,17 @@
       "What are the default memory and time limits of a request?",
       "Why does raising a limit in my code return false?",
       "How many requests can run at the same time with my memory?"
+    ]
+  },
+  "/guides/how-to-use/live-updates/": {
+    "feature": "guides/how-to-use/live-updates.mdx",
+    "hash": "ba3973f8897b7cfc",
+    "questions": [
+      "Should I use server-sent events or a WebSocket?",
+      "Send live updates to every open page of my app",
+      "Why does every WebSocket get 403 behind nginx or Caddy?",
+      "Do topics work when my app runs on several servers?",
+      "Stop another website from opening a WebSocket to my server"
     ]
   },
   "/guides/how-to-use/project-layout/": {
