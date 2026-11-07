@@ -6,7 +6,7 @@ context: [tools/nv/cmd/site.ts, tools/nv/cmd/reference.ts, website/README.md, .g
 stages:
   - id: 1
     title: "every code block of the website is listed with what checks it, and the code part exists"
-    status: open
+    status: done
   - id: 2
     title: "every TOML, JSON and YAML block is parsed by the tool that reads it"
     status: open
@@ -95,6 +95,12 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
    on the page, never marked `skip`.
 7. **Lanes:** stage 1 first. Stages 2, 3 and 4 add one language each to the `code` part and touch
    different pages, so they may run as side goals once stage 1 is committed. Stage 5 is last.
+8. **The other languages:** a `bat` or `powershell` block is a command line, so stage 3 checks it
+   the way it checks `sh`: each `nvs` line is parsed, and a block with any other command gets
+   `skip="..."`. Stage 4 checks the `rust` block as a copy of the extension example's file
+   (decision 3). It checks the `md` block, which shows a README, the same way, or marks it. A new
+   language is added to `CODE_CHECKS` under its own name. `CODE_ALIASES` maps the other names a
+   fence may use (`bash` is `sh`, `yml` is `yaml`, `caddy` is `caddyfile`).
 
 ## Stages
 
@@ -105,11 +111,11 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
 **Split:** a `reader` subagent lists every fenced block of every hand-written page and every file of
 `apps/*/deploy/`, as `page:line language meta`, with the check that runs it today or `none`.
 
-- [ ] The list, written into this goal's `### Next` as the work of stages 2 to 4.
+- [x] The list, written into this goal's `### Next` as the work of stages 2 to 4.
   `website/src/content/docs/guides/production/reverse-proxy.mdx:1`
-- [ ] `site --check code` exists, reads each fence's language and meta, fails on a `skip` with no
+- [x] `site --check code` exists, reads each fence's language and meta, fails on a `skip` with no
   reason, and names every block no check runs. It is not yet in CI. `tools/nv/cmd/site.ts:318`
-- [ ] A Bun test for the part over a fixture page with each kind of fence. `tools/nv/test/site.test.ts:1`
+- [x] A Bun test for the part over a fixture page with each kind of fence. `tools/nv/test/site.test.ts:1`
 
 ### 2. every TOML, JSON and YAML block is parsed by the tool that reads it
 
@@ -157,22 +163,67 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
 
 ### State
 
-Written by the interactive session of 2026-11-05. Nothing of it is built. The `apps` part already
-runs in CI and in `bun nv ci --check` (`b2864a13e1`), so every example app's tests and stored files
-are checked; this goal covers the rest of what the website shows.
+Stage 1 is done (`eccf3367c3`). `bun nv site --check code` exists and is not in CI. It reads every
+fenced block of every handwritten page, and today it fails on 144 blocks because `CODE_CHECKS`
+(`tools/nv/cmd/site.ts`, search `export const CODE_CHECKS`) is still empty. Each later stage
+registers one language's check there as a `CodeCheck`. A check gets the block (its text, language
+and attributes such as `fragment`) and `{ root, nvs }`, and returns its problems without `page:line`.
+The part's four tests pass (`bun test tools/nv/test/site.test.ts -t "check code"`). No page has an
+`nvs` fence. No `about.md` or `details.md` under `docs/examples/` has a fence of any kind, so the
+`Core` cards add no blocks. No test is expected to go red.
 
 ### Next
 
-**Stage 1**, over `tools/nv/cmd/site.ts` and the hand-written pages; no gate.
+Stages 2, 3 and 4 are lanes over different pages (decision 7), and any of them may go next. Stage
+4's gate is open: `apps/chat/deploy/` has `Caddyfile`, `nginx.conf` and `production.toml`, and no
+`server.toml`. Each list below is `page line, ...` under `website/src/content/docs/`, which is what
+`site --check code` names now.
 
-- [ ] The list of every block. `website/src/content/docs/guides/production/reverse-proxy.mdx:1`
-- [ ] The `code` part, not in CI yet. `tools/nv/cmd/site.ts:318`
-- [ ] Its Bun test. `tools/nv/test/site.test.ts:1`
+**Stage 2: `toml` (36), `json` (4) and `yaml` (2).** `tools/nv/cmd/site.ts` (`CODE_CHECKS`)
+- `toml`: `guides/how-to-use/configuration.mdx` 41, 86, 102, 114, 134, 150, 177, 187;
+  `guides/production/reverse-proxy.mdx` 39, 46, 79, 93, 410, 477; `guides/production/limits-and-logs.mdx`
+  16, 35, 44, 61; `guides/how-to-use/limits.mdx` 28, 38, 55; `guides/production/docker.mdx` 196, 288,
+  332; `guides/cookbook/page-db-rows.mdx` 15; `guides/cookbook/schedule-job.mdx` 15;
+  `guides/cookbook/upload-file.mdx` 16; `guides/extensions/rust.mdx` 248;
+  `guides/how-to-use/live-updates.mdx` 88; `guides/production/run-as-a-service.mdx` 96;
+  `guides/simple-programs/scheduled-job.mdx` 16; `install/server.mdx` 183; `tools/cli/index.mdx` 67;
+  `tools/debug-viewer/index.mdx` 20; `tools/editor/index.mdx` 99; `tools/profiler/index.mdx` 75.
+- `json`: `syntax/attributes/routes.mdx` 63; `tools/debugger/index.mdx` 20; `tools/editor/index.mdx`
+  202, 222.
+- `yaml`: `guides/production/docker.mdx` 208, 300.
+
+**Stage 3: `sh` (66), `bat` (5), `powershell` (1) and `txt` (23).** `crates/nvs-cli/src/main.rs:1`
+- `sh`: `guides/example-apps/chat.mdx` 42, 51, 64, 251; `guides/example-apps/notes.mdx` 32, 41, 50,
+  144; `guides/example-apps/paperwork.mdx` 57, 66, 81; `guides/example-apps/poll.mdx` 38, 47, 59, 177,
+  237, 247, 254, 262; `guides/extensions/rust.mdx` 35, 43, 62, 189, 209, 243, 257, 309;
+  `guides/how-to-use/configuration.mdx` 120; `guides/production/docker.mdx` 159, 182, 273;
+  `guides/production/reverse-proxy.mdx` 55; `guides/production/run-as-a-service.mdx` 15, 42, 116;
+  `guides/simple-programs/form-handler.mdx` 18; `guides/simple-programs/json-api.mdx` 19;
+  `guides/tour/10-web-app.mdx` 15; `in-depth/compare.mdx` 293; `install/hello-world.mdx` 16, 37;
+  `install/index.mdx` 55, 117, 124, 137, 142, 157, 162; `install/server.mdx` 30, 132, 151, 174, 307,
+  333; `licenses.mdx` 27; `syntax/start-here.mdx` 15; `tools/api-document/index.mdx` 41;
+  `tools/cli/index.mdx` 12, 81, 93, 108; `tools/editor/index.mdx` 150, 160;
+  `tools/formatter/index.mdx` 24, 30; `tools/test-runner/index.mdx` 61.
+- `bat`: `install/server.mdx` 23, 267, 274, 281, 288. `powershell`: `install/index.mdx` 132.
+- `txt`: test runner output at `guides/example-apps/chat.mdx` 70, `notes.mdx` 56, `paperwork.mdx` 88,
+  `poll.mdx` 65, `guides/extensions/rust.mdx` 213, `guides/tour/08-tests.mdx` 16 and
+  `guides/why-novis/tests-in-code.mdx` 16. File trees at `guides/example-apps/chat.mdx` 107,
+  `notes.mdx` 80, `paperwork.mdx` 117, `poll.mdx` 103 and `guides/how-to-use/project-layout.mdx` 9,
+  54. A diagnostic at `guides/tour/01-methods-and-types.mdx` 20 and
+  `guides/why-novis/no-null-surprises.mdx` 18. Program output at `install/hello-world.mdx` 41,
+  `guides/example-apps/poll.mdx` 183 (an event stream) and `install/server.mdx` 50, 61, 143. Path
+  lists at `install/server.mdx` 111, 119. LCOV at `tools/test-runner/coverage.mdx` 26.
+
+**Stage 4: `nginx` (2), `caddyfile` (2), `dockerfile` (1), `rust` (1), `md` (1) and the six deploy
+files.** `tools/nv/cmd/pdf-validate.ts:1`
+- `guides/production/reverse-proxy.mdx` nginx 121, 431 and caddyfile 281, 460;
+  `guides/production/docker.mdx` dockerfile 137; `guides/extensions/rust.mdx` rust 140 and md 263 (a
+  four-backtick fence around an `html` one).
+- `apps/chat/deploy/` and `apps/poll/deploy/`: each has `Caddyfile`, `nginx.conf` and
+  `production.toml`, which the `apps` part checks (decision 4).
 
 ### Backlog
 
-- The `Core` reference cards' prose examples outside `docs/examples/`, if any exist, are listed by
-  stage 1 too (`tools/nv/renderers/website-core.ts:1`).
 - From `realtime-example-apps`: a connection's `cpu_time` counts from the upgrade for its whole life,
   so poll's production `cpu_time = "5s"` may end a busy event stream after hours. Check whether the
   watchdog charges an unwatched connection isolate (`crates/nvs-host/src/watchdog.rs:1348`) and
