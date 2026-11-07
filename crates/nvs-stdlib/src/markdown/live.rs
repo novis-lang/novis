@@ -184,11 +184,10 @@ fn with_text<T>(
     }
     let callbacks: [Value; 4] =
         std::array::from_fn(|at| crate::instance::slot(receiver, CALLBACKS_AT + at));
-    let mut text = held_at(ctx, key)?.text.take().ok_or_else(|| {
-        Fault::fatal(format!(
-            "internal error: a `{LIVE_NAME}` lost its state"
-        ))
-    })?;
+    let mut text = held_at(ctx, key)?
+        .text
+        .take()
+        .ok_or_else(|| Fault::fatal(format!("internal error: a `{LIVE_NAME}` lost its state")))?;
     // The tree and the HTML of the text rendered are each about as long as
     // the text, so the request must afford both first.
     let need = text.unread().saturating_add(needed).saturating_mul(2);

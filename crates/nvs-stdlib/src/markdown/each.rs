@@ -442,15 +442,14 @@ pub(super) fn held_by(ctx: &mut nvs_runtime::Ctx, groups: Value) -> Option<(usiz
 
 /// One `advance()` of `groups`, and the group it wrote.
 #[cfg(test)]
-pub(super) fn advanced(
-    ctx: &mut nvs_runtime::Ctx,
-    groups: Value,
-) -> Result<Option<String>, Fault> {
+pub(super) fn advanced(ctx: &mut nvs_runtime::Ctx, groups: Value) -> Result<Option<String>, Fault> {
     if !step(ctx, groups)?.as_bool().unwrap_or(false) {
         return Ok(None);
     }
     let receiver = crate::instance::receiver(groups, &GROUPS, "a test")?;
     let group = crate::instance::slot(receiver, GROUP_AT);
     let markup = crate::instance::receiver(group, &MARKUP, "a test")?;
-    Ok(crate::instance::slot(markup, 0).as_text().map(str::to_owned))
+    Ok(crate::instance::slot(markup, 0)
+        .as_text()
+        .map(str::to_owned))
 }

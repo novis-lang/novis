@@ -38,6 +38,12 @@
 //! into its parent's, so an element nested `d` deep is copied `d` times.
 //! [`DEPTH`] bounds `d`, which keeps the work linear and the native stack
 //! small: past it, an element's text is written and its markup is not.
+//!
+//! The tree is held whole, not written one top-level subtree at a time: the
+//! tree builder still changes a node after a later one opens (text fostered
+//! in front of a table joins the text before it), and every input is already
+//! whole in memory, so streaming would save only the tree
+//! (`rule:core-classes/markdown-from-html`'s *Large documents*).
 
 use nvs_runtime::Fault;
 
@@ -108,7 +114,10 @@ enum Part {
     /// A list, with its marker character: `-` or `*`, `.` or `)`. `first` is
     /// whether an ordered list starts at 1, the one ordered list that may
     /// interrupt a paragraph.
-    List { marker: char, first: bool },
+    List {
+        marker: char,
+        first: bool,
+    },
     Table,
     Html,
 }
@@ -129,10 +138,7 @@ impl Part {
 /// list, puts a line feed where the second block cannot be read as part of
 /// the first, and a blank line elsewhere.
 fn joined(parts: &[(Part, String)], tight: bool) -> Result<String, Fault> {
-    let total = parts
-        .iter()
-        .map(|(_, text)| text.len() + 2)
-        .sum::<usize>();
+    let total = parts.iter().map(|(_, text)| text.len() + 2).sum::<usize>();
     work(total + parts.len());
     nvs_runtime::affordable(Some(total), MEMBER)?;
     let mut out = String::with_capacity(total);
@@ -406,96 +412,99 @@ impl Writer {
 /// every row, one alignment per column, and inline content in each cell. A
 /// `caption`, a `tfoot`, a `colspan` or a `rowspan` has no place in it.
 fn gfm_table(node: &Parsed, depth: usize) -> Result<Option<String>, Fault> {
-        let mut header: Option<&Parsed> = None;
-        let mut body: Vec<&Parsed> = Vec::new();
-        for child in &node.children {
-            if blank(child) {
-                continue;
-            }
-            if child.kind != Kind::Element {
-                return Ok(None);
-            }
-            match child.name.as_str() {
-                "thead" => {
-                    let rows: Vec<&Parsed> =
-                        child.children.iter().filter(|row| !blank(row)).collect();
-                    if header.is_some() || !body.is_empty() || rows.len() != 1 {
-                        return Ok(None);
-                    }
-                    header = Some(rows[0]);
+    let mut header: Option<&Parsed> = None;
+    let mut body: Vec<&Parsed> = Vec::new();
+    for child in &node.children {
+        if blank(child) {
+            continue;
+        }
+        if child.kind != Kind::Element {
+            return Ok(None);
+        }
+        match child.name.as_str() {
+            "thead" => {
+                let rows: Vec<&Parsed> = child.children.iter().filter(|row| !blank(row)).collect();
+                if header.is_some() || !body.is_empty() || rows.len() != 1 {
+                    return Ok(None);
                 }
-                "tbody" => {
-                    for row in &child.children {
-                        if !blank(row) {
-                            body.push(row);
-                        }
+                header = Some(rows[0]);
+            }
+            "tbody" => {
+                for row in &child.children {
+                    if !blank(row) {
+                        body.push(row);
                     }
                 }
-                "tr" => body.push(child),
-                "colgroup" => {}
-                _ => return Ok(None),
             }
+            "tr" => body.push(child),
+            "colgroup" => {}
+            _ => return Ok(None),
         }
-        let header = match header {
-            Some(row) => row,
-            None if !body.is_empty() => body.remove(0),
-            None => return Ok(None),
-        };
-        let Some(heads) = cells(header, "th") else {
+    }
+    let header = match header {
+        Some(row) => row,
+        None if !body.is_empty() => body.remove(0),
+        None => return Ok(None),
+    };
+    let Some(heads) = cells(header, "th") else {
+        return Ok(None);
+    };
+    if heads.is_empty() {
+        return Ok(None);
+    }
+    let aligns: Vec<Option<&str>> = heads.iter().map(|cell| attribute(cell, "align")).collect();
+    let mut rows = Vec::with_capacity(body.len());
+    for row in &body {
+        let Some(row) = cells(row, "td") else {
             return Ok(None);
         };
-        if heads.is_empty() {
+        if row.len() != heads.len()
+            || row
+                .iter()
+                .zip(&aligns)
+                .any(|(cell, align)| attribute(cell, "align") != *align)
+        {
             return Ok(None);
         }
-        let aligns: Vec<Option<&str>> = heads.iter().map(|cell| attribute(cell, "align")).collect();
-        let mut rows = Vec::with_capacity(body.len());
-        for row in &body {
-            let Some(row) = cells(row, "td") else {
-                return Ok(None);
-            };
-            if row.len() != heads.len()
-                || row
-                    .iter()
-                    .zip(&aligns)
-                    .any(|(cell, align)| attribute(cell, "align") != *align)
-            {
-                return Ok(None);
-            }
-            rows.push(row);
-        }
-        if heads.iter().chain(rows.iter().flatten()).any(|cell| !gfm_cell(cell)) {
-            return Ok(None);
-        }
+        rows.push(row);
+    }
+    if heads
+        .iter()
+        .chain(rows.iter().flatten())
+        .any(|cell| !gfm_cell(cell))
+    {
+        return Ok(None);
+    }
 
-        let line = |cells: &[&Parsed]| {
-            let mut out = String::from("|");
-            for cell in cells {
-                let mut inline = Inline::new(Place::Cell, false);
-                inline.nodes(cell.children.iter(), depth);
-                let piece = inline.finish();
-                out.push(' ');
-                out.push_str(&piece.text);
-                out.push_str(" |");
-            }
-            out
-        };
-        let mut lines = vec![line(&heads)];
-        let mut rule = String::from("|");
-        for align in &aligns {
-            rule.push_str(match *align {
-                Some("left") => " :--- |",
-                Some("center") => " :---: |",
-                Some("right") => " ---: |",
-                _ => " --- |",
-            });
+    let line = |cells: &[&Parsed]| {
+        let mut out = String::from("|");
+        for cell in cells {
+            let mut inline = Inline::new(Place::Cell, false);
+            inline.nodes(cell.children.iter(), depth);
+            let piece = inline.finish();
+            out.push(' ');
+            out.push_str(&piece.text);
+            out.push_str(" |");
         }
-        lines.push(rule);
-        for row in &rows {
-            lines.push(line(row));
-        }
-        let total = lines.iter().map(|line| line.len() + 1).sum::<usize>();
-        nvs_runtime::affordable(Some(total), MEMBER)?;
-        Ok(Some(lines.join("\n")))
+        out
+    };
+    let mut lines = vec![line(&heads)];
+    let mut rule = String::from("|");
+    for align in &aligns {
+        rule.push_str(match *align {
+            Some("left") => " :--- |",
+            Some("center") => " :---: |",
+            Some("right") => " ---: |",
+            _ => " --- |",
+        });
+    }
+    lines.push(rule);
+    for row in &rows {
+        lines.push(line(row));
+    }
+    let total = lines.iter().map(|line| line.len() + 1).sum::<usize>();
+    nvs_runtime::affordable(Some(total), MEMBER)?;
+    Ok(Some(lines.join("\n")))
 }
 
 /// `row`'s cells when every one is a `name` element, or `None`.
@@ -523,7 +532,8 @@ fn gfm_cell(cell: &Parsed) -> bool {
     if attribute(cell, "colspan").is_some() || attribute(cell, "rowspan").is_some() {
         return false;
     }
-    let mut stack: Vec<(&Parsed, bool)> = cell.children.iter().map(|child| (child, false)).collect();
+    let mut stack: Vec<(&Parsed, bool)> =
+        cell.children.iter().map(|child| (child, false)).collect();
     while let Some((node, in_code)) = stack.pop() {
         match node.kind {
             Kind::Text if in_code && node.text.contains('|') => return false,
@@ -578,10 +588,7 @@ fn fenced(node: &Parsed) -> String {
         }
     }
     let fence = "`".repeat((longest + 1).max(3));
-    let mut elements = node
-        .children
-        .iter()
-        .filter(|child| !blank(child));
+    let mut elements = node.children.iter().filter(|child| !blank(child));
     let language = match (elements.next(), elements.next()) {
         (Some(only), None) if only.kind == Kind::Element && only.name == "code" => {
             attribute(only, "class").and_then(|class| class.strip_prefix("language-"))

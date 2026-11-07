@@ -311,7 +311,7 @@ fn outcome(bug: &Bug) -> Result<(), String> {
 /// to.
 fn from_html_outcome(bug: &Bug) -> Result<(), String> {
     if bug.work.is_some() {
-        from_html(&bug.text(N));
+        let _ = from_html(&bug.text(N));
         return Ok(());
     }
     let written = from_html(&bug.text(1));

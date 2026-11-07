@@ -3110,7 +3110,10 @@ pub(crate) fn parsed_of(node: Value, member: &str) -> Result<Parsed, Fault> {
             let mut from = 0usize;
             while let Some(at) = list.next_slot(from) {
                 from = at + 1;
-                children.push(list.value_at(at).expect("next_slot only names live entries"));
+                children.push(
+                    list.value_at(at)
+                        .expect("next_slot only names live entries"),
+                );
             }
             children.reverse();
             nvs_runtime::affordable(

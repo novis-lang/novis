@@ -32,7 +32,7 @@ stages:
     context: [crates/nvs-stdlib/src/xml.rs]
   - id: 8
     title: "fromHtml reads a large document without holding the whole tree"
-    status: open
+    status: done
   - id: 9
     title: "two fuzz targets, and a differential fuzz against a second engine"
     status: open
@@ -275,7 +275,13 @@ names a Markdown renderer as a sink.
    - Stage 8 streams a large document. Its acceptance is that the streamed result equals the result
      over the whole tree. If the tree builder can still change an element after it is closed, stage 8
      records why and `fromHtml` keeps holding the tree. Its memory is then the document, as
-     `Core\Html::parse`'s is.
+     `Core\Html::parse`'s is. **Decided (stage 8): the tree is held.** The builder fosters text in
+     front of a table and joins it to the text node there, so `a<table>b` changes the closed `a`
+     into `ab`. The writer carries state across blocks (a list after a list changes its marker). And
+     every input is already whole in memory and the result is one string, so streaming saves only the
+     tree: memory, the last priority, bought with simplicity. The parse takes the document in pieces,
+     and the test checks every cut gives the whole tree's Markdown. The rule's *Large documents*
+     holds this, and its Declined list names per-subtree writing.
 9. **Test data.** The CommonMark and GFM spec examples are vendored as `tests/data/markdown/spec/`
    with their licence file (CC-BY-SA 4.0). They are test data and are not compiled into the binary.
    The differential fuzz in stage 9 runs the other candidate from decision 4 as a dependency of the
@@ -510,9 +516,14 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
 
 ### 8. fromHtml reads a large document without holding the whole tree
 
-- [ ] Stream the parse and write each finished top-level subtree, or record why the tree builder
+- [x] Stream the parse and write each finished top-level subtree, or record why the tree builder
   prevents it (decision 8). `crates/nvs-stdlib/src/markdown/from_html.rs:1`
-- [ ] The test of the `from-html-stream` check. `crates/nvs-stdlib/src/markdown/from_html.rs:1`
+  - [x] the case: fostered text joins the closed text node before a table
+  - [x] the rule's *Large documents* and Declined, the module doc, decision 8
+  - [x] a reference section on `fromHtml`, run with `NVS_BIN`
+- [x] The test of the `from-html-stream` check. `crates/nvs-stdlib/src/markdown/from_html.rs:1`
+  - [x] `html::parsed_in_pieces`, a test-only parse fed one piece at a time
+  - [x] the test over a large document at four cut sizes, run once by name
 
 ### 9. two fuzz targets, and a differential fuzz against a second engine
 
@@ -559,41 +570,39 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 7 is done, in one commit. The `from-html` check's five tests, the catalogue (every from-html
-entry) and the xml sweep test pass, each run once by name.
+Stages 7 and 8 are done. Stage 8 kept the tree (decision 8 records why), in one commit.
 - **The converter** is `crates/nvs-stdlib/src/markdown/from_html.rs`. `markdown(tree)` wraps a
   non-document node, runs `html::rebuilt`, and `Writer::collect` walks the result into
-  `(Part, String)` blocks that `joined` puts together. `Part` decides when a tight list item may use
-  one line feed. `Inline` collapses whitespace, holds a space or break until text follows, and
-  `escape_into` escapes and cuts autolinks with `<!-- -->`. Tables go through `gfm_table` or
-  `html_block` (one line, `&#10;`). `DEPTH = 128`. `WORK` counts bytes for the linear-work test.
-- **The member** `fromHtml` on `CLASS` returns `tainted string` always (decision 8 records why);
-  `nvs_core_markdown_from_html` reads a string, a `Markup`, or a node through the new
-  `crate::xml::parsed_of`. `a_parsed_tree_has_no_path_back_into_execution` now skips a member
-  returning `TaintedStr`.
-- **Tests** beside the live tests (`markdown/tests.rs:1045` on): the five, plus
-  `from_html_work_grows_linearly_over_every_catalogued_slow_input` and
-  `from_html_reads_a_node_a_program_already_holds`. `slow_inputs` takes a direction. The catalogue
-  test's `from_html_outcome` replaces `FROM_HTML_BUILT`. `nvs_stdlib::fuzz::from_html` is new.
-- **Rule and case**: `rule:core-classes/markdown-from-html` states the built shape, and
-  `tests/conformance/core/markdown-from-html-writes-markdown-from-a-string-markup-and-a-node.nvst`
-  passes on the debug binary (`bun nv try` needs `NVS_BIN=target/debug/nvs.exe`).
-- **Stale sweep reds**: no `env-secret-proofs` check exists; nightly `42201104003` predates `f13f4064`.
+  `(Part, String)` blocks that `joined` puts together. `DEPTH = 128`. `WORK` counts bytes for the
+  linear-work test. Its module doc now says why the tree is held.
+- **Stage 8's test** is `from_html_streamed_gives_the_same_markdown_as_the_whole_tree`, the last test
+  in `markdown/tests.rs`, over `crate::html::parsed_in_pieces` (test-only, `html.rs`, after `parse`).
+  It passes, run once by name. It also pins `a<table>b` writing `ab` first: the reason in the rule.
+- **Reference**: `docs/reference/core/Markdown.md` ends with *Converting HTML to Markdown*.
+  `NVS_BIN="$PWD/target/debug/nvs.exe" bun nv reference --only Markdown` holds 5 of 5. A relative
+  `NVS_BIN` fails with `ENOENT`.
+- **Clippy fix**: `markdown_known_bugs.rs:314` dropped `from_html`'s `#[must_use]` result, which the
+  stage 7 commit left red under `cargo clippy --all-targets`. It is `let _ =` now.
+- **Stale sweep reds**: no `env-secret-proofs` check exists anywhere in the tree. Nightly
+  `42201104003` ran at `26dda366`, before the Miri fix `f13f4064`. The next nightly is the evidence.
 
 ### Next
 
-Stage 8: stream `fromHtml` over a large document, or record why the tree builder prevents it.
-Write its checkpoints under stage 8's items first.
+Stage 9: the fuzz targets. Write its checkpoints under stage 9's items first. The fuzz crate is a
+workspace of its own (`fuzz/Cargo.toml:14`), and libFuzzer does not run on Windows, so the targets
+run in WSL (`bun nv linux-test` or a nightly toolchain there).
 
-- [ ] **Decide streaming** at `crates/nvs-stdlib/src/markdown/from_html.rs:78`: can html5ever's
-  tree builder still change a closed top-level element (adoption agency, foster parenting, `</p>`)?
-  The sink is `crate::html::Sink`, and `from_html::markdown` takes a whole `Parsed`. If streaming is
-  unsafe, record why in the rule and decision 8 and keep the tree; the test then checks that the
-  per-body-child conversion equals the whole.
-- [ ] **The test** at `crates/nvs-stdlib/src/markdown/tests.rs:1045`:
-  `from_html_streamed_gives_the_same_markdown_as_the_whole_tree`, beside the from-html tests.
-- [ ] **A reference section** at `docs/reference/core/Markdown.md:89`, after the Live section, with
-  the conformance case's first example; run it with `NVS_BIN`.
+- [ ] **`markdown` target**: a `[[bin]]` after `xml` at `fuzz/Cargo.toml:123`, and
+  `fuzz/fuzz_targets/markdown.rs` on the model of `fuzz/fuzz_targets/xml.rs`. It asserts a
+  sanitize fixed point (`nvs_stdlib::fuzz::html_sanitized`, `crates/nvs-stdlib/src/fuzz.rs:210`),
+  chunked equal to whole, and the added-output budget. A chunked entry in `fuzz.rs` is needed beside
+  `markdown` at `fuzz.rs:181`. The backlog's Live `open` fixed point fits here too.
+- [ ] **`markdown_from_html` target**: idempotent (`fuzz::from_html`, `fuzz.rs:191`) and the round
+  trip keeps the meaning; `meaning` lives in `markdown/tests.rs` and moves into `fuzz.rs` to be shared.
+- [ ] **Differential target** against `comrak` (decision 9), a dependency at `fuzz/Cargo.toml:16`
+  only. Each difference is our bug (fix and a catalogue entry) or a line in the rule.
+- [ ] **One million inputs per target**, once, from `fuzz/Cargo.toml:1`. A run that cannot happen
+  here (no WSL nightly) is named in the handoff with the command, and stage 10 goes ahead.
 
 Expected red: the floor check `proofs-gate`, since the four members owe their feature proofs until
 stage 10. Possibly red at the gate, not run this session: `registry.rs`'s

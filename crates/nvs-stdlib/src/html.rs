@@ -1579,6 +1579,17 @@ pub(crate) fn parse(document: &str) -> Parsed {
     html5ever::parse_document(Sink::new(), options()).one(document)
 }
 
+/// `pieces`, joined, parsed as [`parse`] parses them, with the tokenizer
+/// given one piece at a time.
+#[cfg(test)]
+pub(crate) fn parsed_in_pieces<'a>(pieces: impl IntoIterator<Item = &'a str>) -> Parsed {
+    let mut parser = html5ever::parse_document(Sink::new(), options());
+    for piece in pieces {
+        parser.process(StrTendril::from_slice(piece));
+    }
+    parser.finish()
+}
+
 /// The options [`parse`] runs `html5ever` with.
 fn options() -> html5ever::ParseOpts {
     let mut opts = html5ever::ParseOpts::default();

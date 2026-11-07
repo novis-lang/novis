@@ -38,9 +38,16 @@ bounds both the native stack and the copy each level makes of its content, which
 `fromHtml` run twice gives the same Markdown, and Markdown rendered to HTML and written back keeps its
 meaning. Both are tests.
 
-**Large documents.** A document is read as a stream when the tree builder can no longer change an
-element once it is closed; the streamed result equals the result over the whole tree. Where the
-builder can still change a closed element, `fromHtml` holds the tree, and this rule says why.
+**Large documents: the parse streams, and the tree is held whole.** The WHATWG tree builder still
+changes a top-level node after a later one has opened. Text that arrives inside a table before any
+cell is fostered in front of the table, and joins the text node there: `a<table>b` is the text `ab`
+and a table. A writer that wrote each finished top-level subtree would have written `a` alone. The
+Markdown writer carries state across blocks too, since a list after a list changes its marker. And
+streaming would buy only memory: every input is already whole in memory, a string, a `Markup` or a
+node, and the result is one string, so the tree is the only thing it saves. Memory is the last
+priority and the walk's simplicity is above it, so `fromHtml` holds the tree. What does stream is the
+read: the parser takes a document in pieces, and the Markdown is the whole tree's for every cut,
+which `from_html_streamed_gives_the_same_markdown_as_the_whole_tree` pins.
 
 **Memory:** the document's tree, as `Core\Html::parse`'s is, and the Markdown it writes, attributed to
 the request.
@@ -51,3 +58,5 @@ the request.
 - **Writing raw HTML that the sanitizer would not keep.** The Markdown is read again later, by a
   renderer that may not rebuild it.
 - **Options for the Markdown style.** One style is one thing to test, and `toHtml` reads every style.
+- **Writing each top-level subtree as the parser closes it.** The builder can still change a closed
+  node (*Large documents*), so its output would differ from the whole tree's, to save memory alone.

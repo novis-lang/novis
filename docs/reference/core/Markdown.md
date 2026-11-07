@@ -132,3 +132,33 @@ finish: <ul>
 <li>one</li>
 </ul>
 ```
+
+## Converting HTML to Markdown
+
+`Core\Markdown::fromHtml` converts HTML to Markdown. It takes a string, a `Core\Html\Markup` or a
+`Core\Xml\Node` that `Core\Html::parse` returned. The result is a `tainted string`, because the HTML
+can come from a user.
+
+The HTML is cleaned the same way `Core\Html::sanitize` cleans it, so a `<script>` and its text are
+removed. Text in the HTML stays text. A character such as `#` or `*` gets a backslash, so it is not
+read as Markdown syntax. A table that Markdown cannot write, such as one with `colspan`, stays HTML.
+
+```nvs
+<?nvs
+echo Core\Markdown::fromHtml("<h2>Notes</h2><p>Read <a href=\"/guide\">the <em>guide</em></a>.</p><ul><li>one</li><li>two</li></ul>");
+echo "--\n";
+echo Core\Markdown::fromHtml("<p># not a heading, *not* emphasis</p><script>alert(1)</script>");
+```
+```output
+## Notes
+
+Read [the *guide*](/guide).
+
+- one
+- two
+--
+\# not a heading, \*not\* emphasis
+```
+
+`fromHtml` reads the whole document into memory, as `Core\Html::parse` does. To convert one part of a
+page, such as its article, parse the page and pass that element.

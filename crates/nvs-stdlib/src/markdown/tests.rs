@@ -907,7 +907,8 @@ fn live_never_changes_a_part_it_already_finished() {
         } else {
             assert_ne!(first, whole, "{markdown:?} has a forward reference");
             assert!(
-                first.contains("<p>Read [the guide].</p>") || first.contains("<p>a[^1] and [x][]</p>"),
+                first.contains("<p>Read [the guide].</p>")
+                    || first.contains("<p>a[^1] and [x][]</p>"),
                 "a part finished before the definition keeps it as text: {first}"
             );
         }
@@ -959,7 +960,10 @@ fn to_html_each_holds_one_block_group_of_a_file_not_the_document() {
             first = group;
         }
     }
-    #[expect(unsafe_code, reason = "the case owns the one reference of each value it built")]
+    #[expect(
+        unsafe_code,
+        reason = "the case owns the one reference of each value it built"
+    )]
     unsafe {
         groups_value.release();
         handle.release();
@@ -1060,10 +1064,7 @@ fn from_html_text_never_becomes_markdown_syntax() {
                 format!("<table><tr><th>{body}</th></tr></table>"),
                 format!("<table><thead><tr><th>{body}</th></tr></thead></table>"),
             ),
-            (
-                format!("<p>x<br>{body}</p>"),
-                format!("<p>x<br>{body}</p>"),
-            ),
+            (format!("<p>x<br>{body}</p>"), format!("<p>x<br>{body}</p>")),
             (
                 format!("<p><em>{body}</em></p>"),
                 format!("<p><em>{body}</em></p>"),
@@ -1121,7 +1122,11 @@ fn from_html_twice_gives_the_same_markdown() {
         .iter()
         .map(|document| crate::fuzz::markdown(document))
         .collect();
-    inputs.extend(SYNTAX.iter().map(|text| format!("<p>{}</p>", html_text(text))));
+    inputs.extend(
+        SYNTAX
+            .iter()
+            .map(|text| format!("<p>{}</p>", html_text(text))),
+    );
     inputs.extend(
         [
             "<div><span>a</span> <b> b </b>c<br><br>d</div>",
@@ -1221,12 +1226,61 @@ fn from_html_reads_a_node_a_program_already_holds() {
     let mut ctx = Ctx::new(OutputSink::Sink);
     let tree = crate::html::parse("<p>a</p><div><script>x()</script><p><em>b</em></p></div>");
     let node = crate::xml::instance_of(tree, &[]);
-    let written = nvs_runtime::call(nvs_core_markdown_from_html, &mut ctx, &[node])
-        .expect("a node converts");
+    let written =
+        nvs_runtime::call(nvs_core_markdown_from_html, &mut ctx, &[node]).expect("a node converts");
     assert_eq!(written.as_text(), Some("a\n\n*b*\n"));
-    #[expect(unsafe_code, reason = "the case owns the one reference of each value it built")]
+    #[expect(
+        unsafe_code,
+        reason = "the case owns the one reference of each value it built"
+    )]
     unsafe {
         written.release();
         node.release();
     }
+}
+
+/// `text` cut into pieces of about `size` bytes, each ending on a character.
+fn pieces(text: &str, size: usize) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut start = 0;
+    while start < text.len() {
+        let mut end = (start + size).min(text.len());
+        while !text.is_char_boundary(end) {
+            end += 1;
+        }
+        out.push(&text[start..end]);
+        start = end;
+    }
+    out
+}
+
+/// `rule:core-classes/markdown-from-html` keeps the whole tree, because the
+/// tree builder still changes a top-level node after a later one opened. So
+/// what streams is the read: the parser takes the document one piece at a
+/// time, and the Markdown is the whole tree's for every cut.
+#[test]
+#[cfg_attr(miri, ignore = "a document of thousands of nodes, parsed once per cut")]
+fn from_html_streamed_gives_the_same_markdown_as_the_whole_tree() {
+    let block = "<h2 id=\"x\">Größe &amp; <em>Maß</em></h2>\
+        <p>a <a href=\"/b\">link</a> and <code>`c`</code>, www.example.com</p>\
+        <ul><li>one</li><li><p>two</p><ul><li>[ ] three</li></ul></li></ul>\
+        <ul><li>a list right after a list</li></ul>\
+        <ol start=\"3\"><li>x</li></ol>\
+        text before a table<table>fostered<tr><th>h</th></tr><tr><td>d</td></tr></table>\
+        <pre>let a = `b`;\n\n  c</pre><blockquote><p>q</p><hr></blockquote>\
+        <dl><dt>t</dt><dd>d</dd></dl><b>open <p>misnested</b> text</p>\
+        <script>x()</script>\u{1F600} <!-- c --> tail\n";
+    let html = block.repeat(200);
+    let whole = from_html::markdown(parse(&html)).expect("the document converts");
+    assert!(whole.len() > 50_000, "the document is large");
+    for size in [1, 3, 64, 4096] {
+        let streamed = from_html::markdown(crate::html::parsed_in_pieces(pieces(&html, size)))
+            .expect("the document converts");
+        assert_eq!(streamed, whole, "pieces of {size} bytes");
+    }
+    // Why the tree is kept: `b` arrives after `<table>` opened, and the
+    // builder joins it to the text node before the table. A writer that wrote
+    // `a` once the table opened would write two paragraphs.
+    let fostered = crate::fuzz::from_html("a<table>b");
+    assert!(fostered.starts_with("ab\n\n"), "{fostered:?}");
 }
