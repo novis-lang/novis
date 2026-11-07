@@ -604,26 +604,26 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 9's differential triage goes on. This session landed twelve commits (`0b3ca4b9` to `44b08ac5`):
+Stage 9's differential triage goes on. Each 600,000-run pass now gets far before its first find.
+This session landed five commits (`d963408a` to the skips commit):
 - **Ours, fixed and catalogued** (each a `pulldown-cmark-*` entry and a line in the rule's patch
-  list): a line that starts an HTML block of type 7 ends a table (`parse_table_row`; the other
-  block starts in that loop already go through `scan_paragraph_interrupt_no_table`); an indented
-  blank line keeps an empty list item open, and an unindented one after it still ends it
-  (`parse_block`'s probe over `scan_containers_upto`; `finish_empty_list_item` now ends only a
-  definition). Current cmark keeps the item open on that second line through its shortcut for
-  repeated blank lines. Ours follows cmark-gfm and the spec there, because cmark's comment says
-  the shortcut changes nothing. Also fixed: a closing tag with a line ending before `>`
-  (`scan_html_block_inner`); a title right after a `<…>` destination makes no link
-  (`scan_inline_link`); a lazy line before a delimiter row is a header row in the paragraph's
-  container (`lazy_table` is gone); a lazy `===` is part of a definition (`scan_refdef_space`,
-  `scan_refdef_title`); a blank line that ends an HTML block of types 1 to 5 loosens its list; a
-  delimiter row after up to three spaces may be a list item.
-- **comrak's readings, skipped**: `\\|` and an email whose `@` is an entity (both in
-  `markdown-cost`). Three skips widened: a nested link (no raw `</a`), `~`/`~~` after escapes, and
-  a type 7 lazy line with fewer `>`.
+  list): `[\t]` is not a task marker (`scan_task_list_marker`, only a space, as cmark-gfm's
+  pattern); a task marker after tabs worth four columns is code (the same scan fails inside a
+  partly used tab); a second link label after `\[` is text (`scan_reference` needs the label to
+  start where the `]` ends); an HTML block's end tag such as `</PRE>` is matched in any case
+  (`parse_html_block_type_1_to_5`).
+- **Readings, skipped** (each a comment in the target and a line in `markdown-cost`): a task
+  marker on a line with no list marker (cmark-gfm scans the whole line); a label near 1,000 bytes
+  (spec: 999 characters); `\|` in a code span or raw HTML of a paragraph a table interrupts
+  (cmark-gfm's `insert_paragraph_before`); a `~~~` fence beside a lone `\r`; a blank line after a
+  thematic break in an item (current cmark marks the last child, `blocks.c:1176`); a `<…>`
+  destination with whitespace at either end (cmark trims, the spec keeps). Widened: the lazy type
+  7 skip follows a container across blank lines; the nested-link skip ignores raw `</a>` and also
+  covers a link in an image's text; the title skip covers a title closing early on a `''` line;
+  the lazy-indent skip covers a document with `]:`.
 - **Green, run once by name**: `--lib markdown::` (23), `--test markdown_known_bugs`, and a clean
-  23,786-run `markdown_comrak` pass. Sweep reds are stale: `env-secret-proofs` is not in the tree,
-  and the unpushed `f13f4064` skips the Miri shards' 8 MiB JSON tests.
+  600,000-run `markdown_comrak` pass. A 1,000,000-run pass after it found one more (*Next*). Sweep
+  reds are stale: no `env-secret-proofs` check exists, and the unpushed `f13f4064` is the Miri fix.
 
 ### Next
 
@@ -636,8 +636,14 @@ run with `./target/debug/nvs run` shows our HTML (`<?nvs` first, `foreach ([...]
 is read with `gh api repos/<commonmark/cmark|github/cmark-gfm>/contents/<path> --jq .content |
 base64 -d`. Decision 19: for a CommonMark construct, read *current cmark*, not cmark-gfm.
 
+- [ ] **First, the open find** of the 1,000,000-run pass: `[a]:\n-|-\n-|-`. comrak gives
+  `<p>-|-</p>`: a definition on lines 1 and 2, then a paragraph. Ours gives `<p>[a]: -|- -|-</p>`,
+  with no definition and no table. Likely ours: line 3 reads as a delimiter row under line 2, and
+  the patch for a paragraph a table interrupts (`docs/rules/core-classes/markdown-to-html.md:100`)
+  stops the definition. Read cmark-gfm's `table.c` `try_opening_table_header`, which runs after
+  the paragraph's definitions are resolved, then fix it or skip it.
 - [ ] **Triage to 1,000,000 clean runs** of `markdown_comrak` (`fuzz/fuzz_targets/markdown_comrak.rs:213`).
-  Run it at `--runs 600000` and minimize each crash first. Most finds are now one line of input.
+  The last 600,000-run pass was clean. Run it at `--runs 1000000` and minimize each crash first. Most finds are now one line of input.
   Our bug: a fix and a catalogue entry. comrak's bug or an older reading: a skip in the target
   and the list at `docs/rules/core-classes/markdown-cost.md:30`.
 - [ ] **1,000,000 runs each** of `fuzz/fuzz_targets/markdown.rs:22` and
