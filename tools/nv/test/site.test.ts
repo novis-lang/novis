@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join, relative } from "node:path";
-import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, codeBlocks, codeProblems, DOCS, fenceInfo, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, inDepthProblems, paragraphs, parseRequest, proseProblems, serveRun, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, TOOL_SECTIONS, toolsProblems, type Served, type World } from "../cmd/site.ts";
+import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, codeBlocks, codeProblems, DOCS, fenceInfo, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, jsonProblems, inDepthProblems, paragraphs, parseRequest, proseProblems, serveRun, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, TOOL_SECTIONS, tomlProblems, toolsProblems, yamlProblems, type Served, type World } from "../cmd/site.ts";
+import { ROOT } from "../lib/paths.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -496,6 +497,31 @@ describe("nv site --check code", () => {
       `${at(30)}: a \`md\` block that no check runs: check it, or write skip="<why>" in its fence`,
     ]);
     expect(ran).toEqual(["[server]"]);
+  });
+
+  const block = (lang: string, text: string, attrs: [string, string][] = []) => ({ key: "guides/code.mdx", line: 6, lang, attrs: new Map(attrs), text });
+
+  test("a json block parses whole, and a fragment parses as the members of an object", () => {
+    expect(jsonProblems(block("json", `{"a": [1, 2]}`))).toEqual([]);
+    expect(jsonProblems(block("json", `"a": 1`))[0]).toStartWith("not JSON: ");
+    expect(jsonProblems(block("json", `"a": 1`, [["fragment", ""]]))).toEqual([]);
+  });
+
+  test("a yaml block parses, and a broken one is named", () => {
+    expect(yamlProblems(block("yaml", "services:\n  app:\n    image: novis\n"))).toEqual([]);
+    expect(yamlProblems(block("yaml", "a: [1, 2\n"))[0]).toStartWith("not YAML: ");
+  });
+
+  const NVS = binary(undefined);
+  test.skipIf(!NVS)("a toml block is read by nvs config check, and a file it names that is not on this machine gets a stub", async () => {
+    const ctx = { root: ROOT, nvs: NVS };
+    const named = `[secrets]\napi_key_file = "/run/secrets/api_key"\n\n[[app]]\nentry = "jobs/nightly.nvs"\n\n[app.limits]\nmemory = "64M"`;
+    expect(await tomlProblems(block("toml", named), ctx)).toEqual([]);
+    const [wrong] = await tomlProblems(block("toml", `[server]\nbogus = 1`), ctx);
+    expect(wrong).toContain("`nvs config check` fails:");
+    expect(wrong).toContain("unknown field `bogus`");
+    expect(await tomlProblems(block("toml", `memory = "64M"`, [["fragment", "limits"]]), ctx)).toEqual([]);
+    expect(await tomlProblems(block("toml", `memory = "64M"`, [["fragment", ""]]), ctx)).toEqual(['`fragment` with no table: write fragment="<table>", the header the block sits under']);
   });
 });
 

@@ -17839,7 +17839,7 @@
   },
   "/syntax/attributes/routes/": {
     "feature": "syntax/attributes/routes.mdx",
-    "hash": "8fcb31fd369f92a7",
+    "hash": "ab79baed79ebf97d",
     "questions": [
       "How do I map a URL path to a method in my web app?",
       "Declare a route with a placeholder like /users/{id}",
@@ -18574,7 +18574,7 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "a7fc050f7472a4cf",
+    "hash": "269521e5bf1c4496",
     "questions": [
       "Install the Novis extension from the Marketplace, Open VSX or a .vsix file",
       "Rename a method in every file of my project at once",

@@ -286,8 +286,10 @@
 // in `CODE_CHECKS`, after `CODE_ALIASES` names the language (`bash` is `sh`). A block no check can run
 // says why in its fence, ```` ```sh skip="installs a system service" ````, and a `skip` with no reason
 // fails. A block with no language, or in a language `CODE_CHECKS` does not list, fails too. An `nvs`
-// fence is `snippets`' to fail. CI does not run `code` yet: the goal `website-code-checked` adds each
-// language's check and then the part.
+// fence is `snippets`' to fail. A `toml` block is read by `nvs config check` (`tomlProblems`), and a
+// `json` or `yaml` block is parsed. `fragment` says a block is part of a file: a `toml` one names its
+// table, `fragment="limits"`, and a bare one on `json` is the members of an object. CI does not run
+// `code` yet: the goal `website-code-checked` adds each language's check and then the part.
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -1746,8 +1748,79 @@ export type CodeCheck = (block: CodeBlock, ctx: CodeContext) => Promise<string[]
 /** The other names a fence may give a language, and the name `CODE_CHECKS` knows it by. */
 export const CODE_ALIASES: Record<string, string> = { bash: "sh", shell: "sh", zsh: "sh", console: "sh", yml: "yaml", caddy: "caddyfile", text: "txt", plaintext: "txt", ps1: "powershell", cmd: "bat", rs: "rust", markdown: "md", docker: "dockerfile" };
 
+/** The start of the scratch folder's name that each `toml` block is written into and checked from. */
+const TOML_SCRATCH = join(ROOT, ".agent-tmp", `site-code-toml-${process.pid}`);
+
+/** How many files one `toml` block may name that the checking machine does not have. */
+const TOML_STUBS = 8;
+
+/** A path with `\` as `/` and no drive letter, so a block's `/run/x` and Windows' `E:\run\x` compare equal. */
+const slashed = (p: string): string => p.replace(/\\/g, "/").replace(/^[A-Za-z]:/, "");
+
+/**
+ * `toml`: the block is a whole `nvs.toml`, written to a scratch file and read by `nvs config check`.
+ * `fragment="<table>"` says the block is the body of that table, and it is checked under its header.
+ * `config check` stops at the first file a block names that it cannot read (`E0605`), such as
+ * `/run/secrets/api_key` or an `[[app]]` entry. Each one gets a stub file of one line and the check
+ * runs again, so every other key is still judged. A relative path's stub is made in the scratch
+ * folder, and an absolute path is moved under it first, since the check writes nothing outside the
+ * repository. A missing file is never a failure of the block.
+ */
+export async function tomlProblems(block: CodeBlock, ctx: CodeContext): Promise<string[]> {
+  if (!ctx.nvs) return ["no built `nvs` to run `nvs config check`: build it, or name it with --nvs"];
+  const table = block.attrs.get("fragment");
+  if (table === "") return ['`fragment` with no table: write fragment="<table>", the header the block sits under'];
+  const dir = `${TOML_SCRATCH}-${block.key.replace(/[\\/.]/g, "-")}-${block.line}`;
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  try {
+    let text = table === undefined ? block.text : `[${table}]\n${block.text}`;
+    for (let round = 0; round <= TOML_STUBS; round++) {
+      writeFileSync(join(dir, "nvs.toml"), `${text}\n`);
+      const r = await runProc([ctx.nvs, "config", "check", "--no-init", "nvs.toml"], { cwd: dir, timeoutMs: SNIPPET_MS, env: { NO_COLOR: "1", NOVIS_NO_INIT: "1" } });
+      if (r.code === 0) return [];
+      const out = `${r.stderr}\n${r.stdout}`;
+      const missing = /error\[E0605\]: cannot read `([^`]+)`/.exec(out)?.[1];
+      if (!missing || round === TOML_STUBS) return [`\`nvs config check\` fails:\n${out.trim().split("\n").filter((l) => !l.startsWith("To read what")).join("\n")}`];
+      let stub = missing;
+      if (!slashed(resolve(missing)).startsWith(slashed(dir))) {
+        const literal = [...text.matchAll(/"([^"\n]+)"|'([^'\n]+)'/g)].map((m) => m[1] ?? m[2]!).find((s) => slashed(s) === slashed(missing));
+        if (!literal) return [`\`nvs config check\` cannot read \`${missing}\`, and the block names no such path`];
+        stub = join(dir, "abs", slashed(literal));
+        text = text.split(literal).join(slashed(stub));
+      }
+      mkdirSync(dirname(stub), { recursive: true });
+      writeFileSync(stub, stub.endsWith(".nvs") ? "" : "stub\n");
+    }
+    return [];
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** `json`: the block parses as JSON. A bare `fragment` says it is the members of an object, such as
+ * one setting of VS Code's `settings.json`, and it parses inside `{` and `}`. */
+export function jsonProblems(block: CodeBlock): string[] {
+  try {
+    JSON.parse(block.attrs.has("fragment") ? `{${block.text}}` : block.text);
+    return [];
+  } catch (e) {
+    return [`not JSON: ${(e as Error).message}`];
+  }
+}
+
+/** `yaml`: the block parses with `Bun.YAML.parse`. */
+export function yamlProblems(block: CodeBlock): string[] {
+  try {
+    Bun.YAML.parse(block.text);
+    return [];
+  } catch (e) {
+    return [`not YAML: ${(e as Error).message}`];
+  }
+}
+
 /** The check that runs each language's blocks. A language missing here is one no check runs yet. */
-export const CODE_CHECKS: Record<string, CodeCheck> = {};
+export const CODE_CHECKS: Record<string, CodeCheck> = { toml: tomlProblems, json: jsonProblems, yaml: yamlProblems };
 
 /** Languages another part owns: an `nvs` fence on a page is `snippets`' failure. */
 const CODE_ELSEWHERE = new Set(["nvs"]);
