@@ -1,6 +1,7 @@
 <?nvs
 // Attack: a program passes `link`, `heading` and `code` functions that throw an error or return
 // dangerous values. The error must close only its own text, and every value must be made safe.
+// Texts that are never finished must not fill the memory.
 
 class Evil
 {
@@ -82,3 +83,13 @@ while ($i < 3000) {
     $i = $i + 1;
 }
 echo 'finished texts: ', $i, "\n";
+
+// 7. Twenty thousand texts that are pushed and never finished. Each text is freed with its
+// variable, so memory stays flat under the same limit.
+$i = 0;
+while ($i < 20000) {
+    Core\Markdown\Live $left = Core\Markdown::live();
+    $left->push("# Draft " . $i . "\n\n" . $long);
+    $i = $i + 1;
+}
+echo 'texts left open: ', $i, "\n";

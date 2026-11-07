@@ -82,6 +82,8 @@ mod groups;
 mod live;
 mod segments;
 
+pub(crate) use live::free as free_live;
+
 /// `Core\Markdown`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Converts Markdown to HTML that is safe to put into a page. It reads CommonMark \
@@ -327,7 +329,8 @@ const LIVE_PUSH_DOC: MethodDoc = MethodDoc {
           when the next block starts, and its HTML does not change after that.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`finish` was already called, or a callback threw an error.",
+        desc: "`finish` was already called, or a callback threw an error. A callback that \
+               calls `push` or `finish` on the same object also gets this error.",
     }],
 };
 
@@ -337,10 +340,11 @@ const LIVE_FINISH_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "A `Core\\Html\\Markup` with the HTML of the last blocks and the footnotes. Add it \
           after the `done()` parts, and remove the last `open()` part. A link that uses a \
-          definition from a later piece is written as text.",
+          definition from a later block is written as text.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`finish` was already called, or a callback threw an error.",
+        desc: "`finish` was already called, or a callback threw an error. A callback that \
+               calls `push` or `finish` on the same object also gets this error.",
     }],
 };
 

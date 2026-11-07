@@ -653,7 +653,24 @@ pub struct ClassDesc {
     /// reachable only as one of those `Core` instances. **Cost:** one `bool`
     /// per class, once per process, not per instance.
     holds_host_handle: bool,
+    /// What frees the state an instance of this class keeps in its context's
+    /// tables, run by [`dismantle`] when the instance dies; `None` for every
+    /// class but the `Core` ones whose state is native and filed on the
+    /// request, such as `Core\Markdown\Live`'s.
+    ///
+    /// Without it, such state lives until the request ends however early the
+    /// program dropped the object, so a loop that abandons objects grows the
+    /// request by one state each. `nvs_stdlib::instance` writes it through
+    /// [`ClassTable::set_free`]. **Cost:** one word per class, once per
+    /// process, and one load and branch per object freed.
+    free: Option<FreeState>,
 }
+
+/// A [`ClassDesc::free`] hook. It is handed the dying object, borrowed at
+/// count zero, and frees what a key in one of its slots names in the context's
+/// tables. It must not retain or release the object, and must not reach
+/// compiled code: it runs inside a release.
+pub type FreeState = fn(&mut Ctx, Value);
 
 /// One row of a [`ClassDesc`]'s method table: a name, the compiled address it
 /// answers with, and the **declared shape** a caller holding only tagged
@@ -2209,6 +2226,7 @@ impl ClassTable {
             is_callable: false,
             is_responder: false,
             holds_host_handle: false,
+            free: None,
         }));
         id
     }
@@ -2267,6 +2285,21 @@ impl ClassTable {
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.holds_host_handle = true;
+    }
+
+    /// Fills in `id`'s [`ClassDesc::free`] hook, on
+    /// [`ClassTable::set_host_handle`]'s terms: `nvs_stdlib::instance` is the
+    /// one caller.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_free(&mut self, id: ClassId, free: FreeState) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.free = Some(free);
     }
 
     /// Fills in `id`'s per-slot declared tags — see [`ClassDesc::field_tags`].
@@ -4186,6 +4219,13 @@ pub unsafe fn release_graph(root: *mut ObjHeader) {
 /// `finally` left to run. The object is unlinked only after that read, which
 /// is why the list never loses a member something still holds.
 ///
+/// # A `Core` object frees the state filed for it
+///
+/// A class with a [`ClassDesc::free`] hook runs it before the field sweep,
+/// while the slot that holds its key is still there. It reaches the context
+/// the way the unwind does, so with no compiled frame running it does not
+/// run, and the state goes with the context.
+///
 /// # Safety
 ///
 /// `ptr` must refer to an Novis object allocation whose reference count reached
@@ -4216,6 +4256,10 @@ pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::releas
         // the links go, because the stamp is what says whose list this was.
         #[cfg(debug_assertions)]
         assert_linked_where_it_says(ptr);
+        if let Some(free) = (*class).free {
+            let object = Value::from_obj_ptr(ptr);
+            crate::ctx::with_current(|ctx| free(ctx, object));
+        }
         unlink(ptr);
         let field_count = (*class).fields.len();
         for index in 0..field_count {

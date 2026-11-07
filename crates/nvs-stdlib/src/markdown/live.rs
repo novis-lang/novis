@@ -30,7 +30,11 @@
 //! that ends a line parses that text, and each `push` renders it once more, so
 //! one block pushed in many pieces costs work in the square of its length.
 //! That is the price of showing the open block after every piece. Every byte
-//! is attributed to the request.
+//! is attributed to the request. The state is freed by `finish()`, by a
+//! callback's error, or when the program frees the object ([`free`]), so a
+//! loop that abandons documents holds one at a time. A callback that calls
+//! `push` or `finish()` on its own document gets a `RuntimeError`, because
+//! the state is out of its slot while it renders.
 
 use nvs_runtime::{Fault, Tag, Value};
 
@@ -184,10 +188,14 @@ fn with_text<T>(
     }
     let callbacks: [Value; 4] =
         std::array::from_fn(|at| crate::instance::slot(receiver, CALLBACKS_AT + at));
-    let mut text = held_at(ctx, key)?
-        .text
-        .take()
-        .ok_or_else(|| Fault::fatal(format!("internal error: a `{LIVE_NAME}` lost its state")))?;
+    // The state is out of its slot only while a `push` or `finish()` of this
+    // object runs, so a callback of that call has called this one.
+    let mut text = held_at(ctx, key)?.text.take().ok_or_else(|| {
+        Fault::thrown(format!(
+            "{LIVE_NAME}::{member}(): a callback of this document called `{member}` on the \
+             same document. Its callbacks cannot change it while it renders."
+        ))
+    })?;
     // The tree and the HTML of the text rendered are each about as long as
     // the text, so the request must afford both first.
     let need = text.unread().saturating_add(needed).saturating_mul(2);
@@ -219,6 +227,22 @@ fn with_text<T>(
         held_at(ctx, key)?.text = Some(text);
     }
     result
+}
+
+/// The object's `free` hook (`crate::instance`'s `FREES_STATE`): drops the
+/// state of a document the program let go of without `finish()`.
+///
+/// Its key is `0` once the document has ended, and then nothing is filed.
+/// While a `push` runs, the caller holds the object, so this never runs then.
+pub(crate) fn free(ctx: &mut nvs_runtime::Ctx, object: Value) {
+    let Some(receiver) = object.obj_ptr() else {
+        return;
+    };
+    if let Some(key) = crate::instance::slot(receiver, READER_AT).as_uint()
+        && key != 0
+    {
+        drop(ctx.take_open_reader(key));
+    }
 }
 
 nvs_runtime::nvs_helper! {

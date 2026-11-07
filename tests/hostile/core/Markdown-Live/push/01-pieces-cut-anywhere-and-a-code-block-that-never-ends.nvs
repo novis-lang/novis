@@ -1,9 +1,31 @@
 <?nvs
 // Attack: a program pushes pieces that cut a tag or a character in half, and pushes a long text one
 // character at a time. The HTML must stay safe and correct, and the time must grow only with the text.
-// A code block that is never closed must stop the program at its memory limit.
-// hostile: ends-early 4 FATAL
+// A `link` function calls `push` on its own text. A code block that is never closed must stop the
+// program at its memory limit.
+// hostile: ends-early 5 FATAL
 // hostile: timeout-ms 30000
+
+class Inside
+{
+    public static ?Core\Markdown\Live $live = null;
+    public static string $result = 'not called';
+
+    // Calls `push` on the text that is being converted. The call throws a `RuntimeError`.
+    public static function link(string $url): ?string
+    {
+        var $live = Inside::$live;
+        if ($live != null) {
+            try {
+                $live->push("More text.\n");
+                Inside::$result = 'accepted';
+            } catch (RuntimeError $e) {
+                Inside::$result = 'error';
+            }
+        }
+        return $url;
+    }
+}
 
 // 1. A `<script>` tag and a `javascript:` link, each cut in half. No piece may give a script or a
 // `javascript:` address.
@@ -40,9 +62,19 @@ bool $same = Core\Html::toSource($page, 'the attack compares the HTML')
     == Core\Html::toSource(Core\Markdown::toHtml($doc), 'the attack compares the HTML');
 echo 'one character at a time: ', $same ? 'same' : 'different', "\n";
 
-// 4. A code block that never ends, under a memory limit of 8 MB. The open block grows with each
+// 4. A `link` function calls `push` on the same text. That call throws an error, and the function
+// catches it. The outer `push` still works.
+Core\Markdown\Live $self = Core\Markdown::live(link: fn (string $url): ?string => Inside::link($url));
+Inside::$live = $self;
+$self->push("See [the page](/page).\n\n");
+string $after = Core\Html::toSource($self->finish(), 'the attack reads the HTML');
+Inside::$live = null;
+echo 'push from its own function: ', Inside::$result, "\n";
+echo 'text after it: ', Core\Str::contains($after, 'More text') ? 'changed' : 'unchanged', "\n";
+
+// 5. A code block that never ends, under a memory limit of 8 MB. The open block grows with each
 // piece, so this step ends the program at its memory limit.
-echo "step 4\n";
+echo "step 5\n";
 Core\Config::set('memory', '8M');
 Core\Markdown\Live $fence = Core\Markdown::live();
 $fence->push("```text\n");

@@ -179,6 +179,16 @@ const HOST_HANDLE_CLASSES: &[&CoreClass] = &[
     &crate::ldap::CHANGES_SET,
 ];
 
+/// Every `Core` class whose instance frees its filed state when it dies — the
+/// roster behind `nvs_runtime::ClassDesc`'s `free` hook.
+///
+/// **A class belongs here when its state is the object's alone and nothing
+/// else can reach it once the object is gone.** A walk whose key moves to
+/// another object, or a connection a later `Core\Db` call finds again, does
+/// not belong. Every class here is a [`HOST_HANDLE_CLASSES`] entry too.
+const FREES_STATE: &[(&CoreClass, nvs_runtime::FreeState)] =
+    &[(&crate::markdown::LIVE, crate::markdown::free_live)];
+
 /// Every member compiled code reaches on a `Core` instance **by name** — one
 /// row per class, `(member, symbol)`.
 ///
@@ -626,6 +636,12 @@ fn descriptors() -> &'static Descriptors {
             let ids: Vec<_> = found.ids_named(held.name).collect();
             for id in ids {
                 found.table.set_host_handle(id);
+            }
+        }
+        for (class, free) in FREES_STATE {
+            let ids: Vec<_> = found.ids_named(class.name).collect();
+            for id in ids {
+                found.table.set_free(id, *free);
             }
         }
         Box::leak(Box::new(found))
