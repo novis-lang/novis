@@ -281,8 +281,27 @@ fn tag_name(piece: &str) -> Option<&str> {
 /// The elements whose tags start or end a line. `pre` is not one, because a
 /// browser keeps the white space in it.
 const LINE_EDGES: [&str; 21] = [
-    "br", "p", "div", "li", "ul", "ol", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "table",
-    "tr", "td", "th", "dl", "dt", "dd", "hr",
+    "br",
+    "p",
+    "div",
+    "li",
+    "ul",
+    "ol",
+    "blockquote",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "table",
+    "tr",
+    "td",
+    "th",
+    "dl",
+    "dt",
+    "dd",
+    "hr",
 ];
 
 /// Whether `pieces`, walked in their order, reach the edge of a line across
@@ -363,8 +382,16 @@ fn breaks_hoisted(node: &mut crate::xml::Parsed) {
         }
         let lead = child.children.iter().take_while(|node| br(node)).count();
         out.extend(child.children.drain(..lead));
-        let trail = child.children.iter().rev().take_while(|node| br(node)).count();
-        let after: Vec<_> = child.children.drain(child.children.len() - trail..).collect();
+        let trail = child
+            .children
+            .iter()
+            .rev()
+            .take_while(|node| br(node))
+            .count();
+        let after: Vec<_> = child
+            .children
+            .drain(child.children.len() - trail..)
+            .collect();
         if !child.children.is_empty() || child.name == "a" {
             out.push(child);
         }

@@ -216,25 +216,29 @@ impl Segments {
         let at_line_start = |at: usize| at == 0 || lines.as_bytes()[at - 1] == b'\n';
         let blocks = Parser::new_ext(lines, options()).blocks();
         let pairs = blocks.len().saturating_sub(1);
-        (pairs.saturating_sub(TRIED_CUTS)..pairs).rev().find_map(|at| {
-            let (before, after) = (&blocks[at].0, &blocks[at + 1..]);
-            let end = before.end;
-            let line_start = if at_line_start(end) {
-                end
-            } else {
-                lines[end..].find('\n').map_or(complete, |at| end + at + 1)
-            };
-            let cut = line_start.min(after[0].0.start);
-            if cut == 0 || !at_line_start(cut) {
-                return None;
-            }
-            let alone = Parser::new_ext(&lines[cut..], options()).blocks();
-            let same = alone.len() == after.len()
-                && alone.iter().zip(after).all(|((read, kind), (whole, its))| {
-                    kind == its && read.start + cut == whole.start && read.end + cut == whole.end
-                });
-            same.then_some(cut)
-        })
+        (pairs.saturating_sub(TRIED_CUTS)..pairs)
+            .rev()
+            .find_map(|at| {
+                let (before, after) = (&blocks[at].0, &blocks[at + 1..]);
+                let end = before.end;
+                let line_start = if at_line_start(end) {
+                    end
+                } else {
+                    lines[end..].find('\n').map_or(complete, |at| end + at + 1)
+                };
+                let cut = line_start.min(after[0].0.start);
+                if cut == 0 || !at_line_start(cut) {
+                    return None;
+                }
+                let alone = Parser::new_ext(&lines[cut..], options()).blocks();
+                let same = alone.len() == after.len()
+                    && alone.iter().zip(after).all(|((read, kind), (whole, its))| {
+                        kind == its
+                            && read.start + cut == whole.start
+                            && read.end + cut == whole.end
+                    });
+                same.then_some(cut)
+            })
     }
 }
 
