@@ -3681,6 +3681,18 @@ direction = "to-html"
 input = "x\n+\n-:|\nb"
 html = "<p>x</p>\n<table>\n<thead>\n<tr>\n<th align=\"right\">+</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align=\"right\">b</td>\n</tr>\n</tbody>\n</table>\n"
 
+# Found by the `markdown_comrak` differential fuzz target. cmark reads the longest link title its
+# pattern allows, and a `\` may be a character of its own, so `"\"` is the title `\`. pulldown-cmark
+# 0.13.6 read `\"` as an escape only, found no closing quote, and wrote the link as text.
+[[bug]]
+id = "pulldown-cmark-backslash-before-title-quote"
+library = "pulldown-cmark"
+source = "https://github.com/commonmark/cmark/blob/master/src/scanners.re"
+class = "wrong-output"
+direction = "to-html"
+input = "[a](/u \"\\\")"
+html = "<p><a href=\"/u\" title=\"\\\">a</a></p>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"
