@@ -229,6 +229,7 @@ fn every_gfm_spec_example_renders_as_the_spec_says() {
     );
 }
 
+// covers: Core\Markdown::toHtml
 #[test]
 #[cfg_attr(
     miri,
@@ -716,6 +717,7 @@ fn catalogue_inputs(n: usize) -> Vec<(String, String)> {
 
 /// `rule:core-classes/markdown-chunks`' acceptance: the groups of every spec
 /// example and every catalogued input join to the whole document's HTML.
+// covers: Core\Markdown::toHtmlEach
 #[test]
 #[cfg_attr(
     miri,
@@ -881,6 +883,7 @@ fn live_done_parts_and_finish_join_to_the_whole_document_html() {
 /// `rule:core-classes/markdown-chunks`' Live: a finished part never changes.
 /// A reference defined after it stays text there, though the whole document
 /// links it, and every piece size gives the same parts.
+// covers: Core\Markdown::live, Core\Markdown\Live::push, Core\Markdown\Live::finish, Core\Markdown\Update::done, Core\Markdown\Update::open
 #[test]
 fn live_never_changes_a_part_it_already_finished() {
     for markdown in [
@@ -1029,6 +1032,7 @@ const SYNTAX: &[&str] = &[
     "a \\",
 ];
 
+// covers: Core\Markdown::fromHtml
 #[test]
 fn from_html_text_never_becomes_markdown_syntax() {
     for text in SYNTAX {
