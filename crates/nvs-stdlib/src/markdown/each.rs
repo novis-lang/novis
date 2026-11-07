@@ -72,8 +72,9 @@ impl Input {
         // Adding a piece can double the text not yet cut, so the request must
         // afford that text again first. In the first pass this is also where
         // the definitions read since the last piece are counted: a balance
-        // already past the limit affords nothing.
-        if !nvs_runtime::budget::affords(segments.len()) {
+        // already past the limit affords nothing. A text whose parse the
+        // request could not afford is not cut, so reading more cannot help.
+        if segments.over() || !nvs_runtime::budget::affords(segments.len()) {
             return Err(over_memory(ctx));
         }
         let piece = match self {
@@ -213,9 +214,12 @@ fn first_pass(
         }
         Input::Held { bytes, at: 0 }
     };
-    let (outside, len): (Outside, usize) = {
+    let read = {
         let mut feed = |segments: &mut Segments| input.feed(ctx, holder, segments);
         segments::definitions(&mut feed)?
+    };
+    let Some((outside, len)): Option<(Outside, usize)> = read else {
+        return Err(over_memory(ctx));
     };
     input.restart();
     Ok(Rendering {

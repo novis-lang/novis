@@ -3,7 +3,6 @@
 // The HTML must not grow far past the file, and too many definitions should stop the program at its memory limit.
 // hostile: timeout-ms 60000
 // hostile: ends-early 3 FATAL
-// proof: gap nvs-stdlib/markdown-each-definitions-pass-the-memory-limit
 
 class Upload
 {

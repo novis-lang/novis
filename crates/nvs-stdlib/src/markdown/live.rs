@@ -68,9 +68,11 @@ impl Text {
         }
     }
 
-    /// The bytes of text it holds that a `push` renders again.
+    /// The bytes a `push` may hold to parse and render again the text it
+    /// holds: the parse, and the HTML, which is about as long as the text.
     fn unread(&self) -> usize {
-        self.segments.unread().len()
+        let unread = self.segments.unread();
+        segments::parse_cost(unread).saturating_add(unread.len())
     }
 
     /// Adds `piece`, and returns the groups it finished, joined, and the HTML
@@ -196,10 +198,10 @@ fn with_text<T>(
              same document. Its callbacks cannot change it while it renders."
         ))
     })?;
-    // The tree and the HTML of the text rendered are each about as long as
-    // the text, so the request must afford both first.
-    let need = text.unread().saturating_add(needed).saturating_mul(2);
-    let result = if nvs_runtime::budget::affords(need) {
+    // The parse and the HTML of the text rendered again, and of what `needed`
+    // adds, so the request must afford both first.
+    let need = text.unread().saturating_add(needed);
+    let worked = nvs_runtime::budget::affords(need).then(|| {
         let [link, image, heading, code] = callbacks.map(given);
         let mut hooks = Callables {
             ctx,
@@ -209,6 +211,12 @@ fn with_text<T>(
             code,
         };
         work(&mut text, &mut hooks)
+    });
+    // A text the request could not afford to parse for a cut is not cut.
+    let result = if let Some(result) = worked
+        && !text.segments.over()
+    {
+        result
     } else {
         Err(ctx.memory_breach().unwrap_or_else(|| {
             Fault::fatal(format!(
@@ -285,7 +293,8 @@ nvs_runtime::nvs_helper! {
                 args[1].tag_byte()
             )));
         };
-        let (done, open) = with_text(ctx, args[0], "push", piece.len(), false, |text, hooks| {
+        let needed = segments::parse_cost(piece).saturating_add(piece.len());
+        let (done, open) = with_text(ctx, args[0], "push", needed, false, |text, hooks| {
             text.push(piece, hooks)
         })?;
         Ok(crate::instance::build(

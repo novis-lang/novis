@@ -54,6 +54,13 @@ read again and a string's capacity can be twice its length. Any other source cos
 well. `Live` costs its open block plus the definitions. All of it is attributed to the request.
 `to_html_each_holds_one_block_group_of_a_file_not_the_document` holds the bound.
 
+**A parse is asked of the memory limit before it runs.** Each parse of uncut text, to find a cut or
+to read a segment's definitions, holds a tree of a few items per line. One segment can be large: a
+run of reference definitions is one block, so many of them are one segment. So the request must
+afford the text plus 512 bytes per line first, the most a line of short definitions was measured to
+hold, or the call stops at the memory limit. A `Live` frees its state when the object is freed, so
+one never finished costs nothing after its last use.
+
 **Declined:**
 - **Re-rendering a finished `Live` block when a later reference resolves it.** A caller that appended
   the block cannot take it back, and a part that changes is a part the caller must diff.

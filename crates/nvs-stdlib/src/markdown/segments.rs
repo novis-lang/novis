@@ -81,6 +81,18 @@ pub(super) struct Segments {
     /// Whether it reads the text at every new line end, not once it has
     /// doubled.
     eager: bool,
+    /// Whether the request could not afford to parse the text to find a cut
+    /// ([`parse_cost`]). The text is then not read, and the caller stops.
+    over: bool,
+}
+
+/// The bytes a parse of `text` may hold: the text, and [`PARSE_PER_LINE`]
+/// for each line.
+pub(super) fn parse_cost(text: &str) -> usize {
+    let lines = text.bytes().filter(|&byte| byte == b'\n').count() + 1;
+    lines
+        .saturating_mul(PARSE_PER_LINE)
+        .saturating_add(text.len())
 }
 
 /// Where the bytes stop being UTF-8, counted from the document's start.
@@ -180,6 +192,12 @@ impl Segments {
         self.buffer.len() + self.partial.len()
     }
 
+    /// Whether the request could not afford the parse that finds the next
+    /// cut, so no segment comes before the memory limit is raised.
+    pub(super) fn over(&self) -> bool {
+        self.over
+    }
+
     /// The next segment, or `None` when more text is needed or, once the
     /// document has ended, when every segment has been given out.
     pub(super) fn next(&mut self) -> Option<String> {
@@ -194,6 +212,10 @@ impl Segments {
             self.buffer.len() >= self.parsed_at.saturating_mul(2).max(1)
         };
         if !due {
+            return None;
+        }
+        if !nvs_runtime::budget::affords(parse_cost(&self.buffer)) {
+            self.over = true;
             return None;
         }
         let Some(cut) = self.cut() else {
@@ -271,22 +293,37 @@ pub(super) fn next_segment(
     }
 }
 
+/// How many bytes the first pass may hold per line of one segment, beside its
+/// text. The parser's block pass writes a few tree items per line, and a
+/// reference definition adds its map entry and the copy [`Outside`] keeps.
+/// A segment of short definitions, one per line, is the densest shape found:
+/// 524,288 of them held about 400 bytes each.
+const PARSE_PER_LINE: usize = 512;
+
 /// The first pass: every definition of the document `feed` gives, read from
 /// each segment's first pass alone, with the fuel the whole document allows.
+/// `None` when the request cannot afford the parse of one segment.
+///
+/// A segment is parsed whole, so the request must afford its
+/// [`parse_cost`] first. The definitions kept are counted by the feed, which
+/// asks the limit before each piece.
 ///
 /// # Errors
 ///
 /// `feed`'s.
-pub(super) fn definitions(feed: &mut Feed<'_>) -> Result<(Outside, usize), Fault> {
+pub(super) fn definitions(feed: &mut Feed<'_>) -> Result<Option<(Outside, usize)>, Fault> {
     let mut segments = Segments::default();
     let mut outside = Outside::default();
     let mut len = 0usize;
     while let Some(segment) = next_segment(&mut segments, feed)? {
+        if !nvs_runtime::budget::affords(parse_cost(&segment)) {
+            return Ok(None);
+        }
         len = len.saturating_add(segment.len());
         outside.add(&Parser::new_ext(&segment, options()));
     }
     outside.allow(len);
-    Ok((outside, len))
+    Ok(Some((outside, len)))
 }
 
 /// The second pass: the renderer's state between segments, and the groups
@@ -517,7 +554,8 @@ pub(super) fn grouped_in(
     member: &'static str,
     hooks: &mut dyn Callbacks,
 ) -> Result<Vec<String>, Fault> {
-    let (outside, len) = definitions(&mut feed_bytes(markdown, piece, member))?;
+    let (outside, len) = definitions(&mut feed_bytes(markdown, piece, member))?
+        .ok_or_else(|| Fault::fatal(format!("{member}: the document does not fit in memory")))?;
     let mut walk = Walk::new(outside, len, member);
     let mut segments = Segments::default();
     let mut feed = feed_bytes(markdown, piece, member);
