@@ -9,7 +9,7 @@ stages:
     status: done
   - id: 2
     title: "every TOML, JSON and YAML block is parsed by the tool that reads it"
-    status: open
+    status: done
   - id: 3
     title: "every shell and output block is a run, a parsed nvs command, or marked with its reason"
     status: open
@@ -101,6 +101,16 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
    (decision 3). It checks the `md` block, which shows a README, the same way, or marks it. A new
    language is added to `CODE_CHECKS` under its own name. `CODE_ALIASES` maps the other names a
    fence may use (`bash` is `sh`, `yml` is `yaml`, `caddy` is `caddyfile`).
+9. **A file a `toml` block names that the checking machine does not have** gets a stub, and the
+   block is checked again (`tomlProblems`). `nvs config check` stops at the first `E0605` and hides
+   every other error, so tolerating the error would leave the rest of the block unchecked. Adding a
+   flag to the CLI that skips file reads would weaken the command for everybody, and the fix is only
+   needed here. A relative path's stub goes in the block's scratch folder. An absolute path, such as
+   `/run/secrets/api_key`, is first rewritten under that folder, because nothing writes outside the
+   repository. A stub has one line, since an empty secret file is its own error (`E0608`).
+   `fragment` is per language: `fragment="<table>"` on `toml` puts the block under that header, and
+   a bare `fragment` on `json` parses it inside `{ }`, for a VS Code setting or one OpenAPI path.
+   No `toml` page block needs `fragment` today.
 
 ## Stages
 
@@ -119,10 +129,10 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
 
 ### 2. every TOML, JSON and YAML block is parsed by the tool that reads it
 
-- [ ] The `toml` check with `nvs config check`, and `fragment` for a partial block (decision 3).
+- [x] The `toml` check with `nvs config check`, and `fragment` for a partial block (decision 3).
   `tools/nv/cmd/site.ts:318`
-- [ ] The `json` and `yaml` checks. `tools/nv/cmd/site.ts:318`
-- [ ] Every block the checks name is corrected on its page.
+- [x] The `json` and `yaml` checks. `tools/nv/cmd/site.ts:318`
+- [x] Every block the checks name is corrected on its page.
   `website/src/content/docs/guides/how-to-use/configuration.mdx:1`
 
 ### 3. every shell and output block is a run, a parsed nvs command, or marked with its reason
@@ -163,34 +173,25 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
 
 ### State
 
-Stage 1 is done (`eccf3367c3`). `bun nv site --check code` exists and is not in CI. It reads every
-fenced block of every handwritten page, and today it fails on 144 blocks because `CODE_CHECKS`
-(`tools/nv/cmd/site.ts`, search `export const CODE_CHECKS`) is still empty. Each later stage
-registers one language's check there as a `CodeCheck`. A check gets the block (its text, language
-and attributes such as `fragment`) and `{ root, nvs }`, and returns its problems without `page:line`.
-The part's four tests pass (`bun test tools/nv/test/site.test.ts -t "check code"`). No page has an
-`nvs` fence. No `about.md` or `details.md` under `docs/examples/` has a fence of any kind, so the
-`Core` cards add no blocks. No test is expected to go red.
+Stages 1 and 2 are done. `bun nv site --check code` exists and is not in CI. `CODE_CHECKS`
+(`tools/nv/cmd/site.ts`, search `export const CODE_CHECKS`) has `toml` (`tomlProblems`, which runs
+`nvs config check` and stubs missing files, decision 9), `json` and `yaml`. All 42 of those blocks
+pass. Three `json` blocks are now `json fragment` (`syntax/attributes/routes.mdx` 63,
+`tools/editor/index.mdx` 202, 222). The part fails on the 102 blocks of stages 3 and 4. A check gets
+the block (its text, language and attributes) and `{ root, nvs }`, and returns its problems without
+`page:line`. The part's seven tests pass (`bun test tools/nv/test/site.test.ts -t "check code"`);
+the `toml` one is skipped where no `nvs` is built. The sweep's reds were stale: no
+`env-secret-proofs` check exists, and nightly run 42359979484 built `26dda36627`, before
+`f13f40646a` skipped its three timed-out JSON tests under Miri. No test is expected to go red.
 
 ### Next
 
-Stages 2, 3 and 4 are lanes over different pages (decision 7), and any of them may go next. Stage
-4's gate is open: `apps/chat/deploy/` has `Caddyfile`, `nginx.conf` and `production.toml`, and no
-`server.toml`. Each list below is `page line, ...` under `website/src/content/docs/`, which is what
-`site --check code` names now.
-
-**Stage 2: `toml` (36), `json` (4) and `yaml` (2).** `tools/nv/cmd/site.ts` (`CODE_CHECKS`)
-- `toml`: `guides/how-to-use/configuration.mdx` 41, 86, 102, 114, 134, 150, 177, 187;
-  `guides/production/reverse-proxy.mdx` 39, 46, 79, 93, 410, 477; `guides/production/limits-and-logs.mdx`
-  16, 35, 44, 61; `guides/how-to-use/limits.mdx` 28, 38, 55; `guides/production/docker.mdx` 196, 288,
-  332; `guides/cookbook/page-db-rows.mdx` 15; `guides/cookbook/schedule-job.mdx` 15;
-  `guides/cookbook/upload-file.mdx` 16; `guides/extensions/rust.mdx` 248;
-  `guides/how-to-use/live-updates.mdx` 88; `guides/production/run-as-a-service.mdx` 96;
-  `guides/simple-programs/scheduled-job.mdx` 16; `install/server.mdx` 183; `tools/cli/index.mdx` 67;
-  `tools/debug-viewer/index.mdx` 20; `tools/editor/index.mdx` 99; `tools/profiler/index.mdx` 75.
-- `json`: `syntax/attributes/routes.mdx` 63; `tools/debugger/index.mdx` 20; `tools/editor/index.mdx`
-  202, 222.
-- `yaml`: `guides/production/docker.mdx` 208, 300.
+Stages 3 and 4 are lanes over different pages (decision 7), and either may go next. Stage 3 is the
+larger one, and its first item, the argument parse without a run, is Rust in `nvs-cli`. Stage 4's
+gate is open: `apps/chat/deploy/` has `Caddyfile`, `nginx.conf` and `production.toml`, and no
+`server.toml`. The apps part's `deploy/production.toml` check can reuse `tomlProblems`' stub loop
+for `/var/lib/<app>/` paths (decision 4). Each list below is `page line, ...` under
+`website/src/content/docs/`, which is what `site --check code` names now.
 
 **Stage 3: `sh` (66), `bat` (5), `powershell` (1) and `txt` (23).** `crates/nvs-cli/src/main.rs:1`
 - `sh`: `guides/example-apps/chat.mdx` 42, 51, 64, 251; `guides/example-apps/notes.mdx` 32, 41, 50,
