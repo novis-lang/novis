@@ -101,7 +101,8 @@ the 670 enabled GFM examples and the 441 to-html entries of the known-bug catalo
 Every pulldown-cmark failure is written in our layer or is a small patch. NUL, a leading byte-order
 mark, the table and code-block attributes, a code block's language, which is the first word of its
 info string once that is decoded and then trimmed as cmark does, unused footnotes, extended autolinks and the output budget
-are ours. The patches are tabs after an ATX closing sequence and a closing fence, a vertical tab in an
+are ours, and so is an angle autolink inside a link's text, which is written as its text: cmark and
+pulldown-cmark write one `a` inside another, which no HTML parse builds again. The patches are tabs after an ATX closing sequence and a closing fence, a vertical tab in an
 indented line, a definition-only list item, a DEL byte in a link destination, indentation inside a
 code span on continuation lines, emphasis inside a footnote label, strikethrough's `~` and `~~`, which
 open and close as `*` does in GFM and keep one lower bound each, a `~` closer, which matches the

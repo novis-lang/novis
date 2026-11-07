@@ -1234,6 +1234,15 @@ impl<'a, 'h> Renderer<'a, 'h> {
                     return;
                 }
                 self.links += 1;
+                // An angle autolink inside a link's text is written as its
+                // text, as an extended one is. A link inside a link is HTML
+                // no parse builds again, so the output would not be a
+                // sanitize fixed point.
+                let autolink = matches!(link_type, LinkType::Autolink | LinkType::Email);
+                if autolink && self.links > 1 {
+                    self.open_transparent();
+                    return;
+                }
                 let url = if link_type == LinkType::Email {
                     format!("mailto:{dest_url}")
                 } else {

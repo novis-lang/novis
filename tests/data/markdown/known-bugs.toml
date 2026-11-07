@@ -3965,6 +3965,18 @@ direction = "to-html"
 input = "a\n - |\nb"
 html = "<p>a</p>\n<ul>\n<li>|\nb</li>\n</ul>\n"
 
+# Found by the `markdown` fuzz target. An angle autolink binds tighter than a link, so it may sit in
+# a link's text, and pulldown-cmark 0.13.6 and cmark both write one `a` inside another. No HTML
+# parse builds that again, so the output was not a sanitize fixed point. The autolink is its text.
+[[bug]]
+id = "pulldown-cmark-autolink-inside-link"
+library = "pulldown-cmark"
+source = "https://spec.commonmark.org/0.31.2/#links"
+class = "wrong-output"
+direction = "to-html"
+input = "[a<b@example.com>c<http://d>](/u)"
+html = "<p><a href=\"/u\">ab@example.comchttp://d</a></p>\n"
+
 [[bug]]
 id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
 library = "comrak"
