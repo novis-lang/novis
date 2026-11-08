@@ -1163,12 +1163,19 @@ mod tests {
         let (mut source, holder) =
             ByteSource::from_arg(&mut ctx, value, "Test::read").expect("an open file is a source");
 
+        // The limit and the peak count from here, so they measure the read
+        // alone. Building the handle, the context's first object, takes about
+        // 156 KiB whatever READ_CHUNK is: more than this whole bound under
+        // Miri's 2 KiB chunk, and nothing the read itself holds.
+        ctx.rebase_memory();
         ctx.set_memory_limit(limit);
         let failed = source.range(&mut ctx, holder, 0, size as u64);
         let peak = ctx.memory_peak();
         ctx.clear_memory_ceiling();
         let fault = failed.expect_err("the read is past the limit");
         assert!(format!("{fault:?}").contains("memory limit"), "{fault:?}");
+        // The read holds at most the limit and one piece past it, and growing
+        // its buffer briefly holds the old and the new copy together.
         assert!(
             peak < 3 * limit,
             "the read stopped at the limit: peak {peak}"
