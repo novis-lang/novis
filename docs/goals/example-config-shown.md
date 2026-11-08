@@ -26,7 +26,7 @@ stages:
     context: [docs/examples/core/Net/connect/nvs.toml]
   - id: 6
     title: "a test fails when the root nvs.toml configures an example, and the rule is written"
-    status: open
+    status: done
     context: [docs/rules/testing/examples-live-in-the-repository.md, tools/nv/cmd/site.ts]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
@@ -222,14 +222,14 @@ configuration ones.
 
 ### 6. a test fails when the root nvs.toml configures an example, and the rule is written
 
-- [ ] The test of decision 5, with a fixture string for each kind of failure and one that passes.
+- [x] The test of decision 5, with a fixture string for each kind of failure and one that passes.
   `tools/nv/test/root-config-names-no-example.test.ts:1`
-- [ ] The new rule `testing/an-example-carries-its-own-configuration`, and its chapter rendered.
+- [x] The new rule `testing/an-example-carries-its-own-configuration`, and its chapter rendered.
   `docs/rules/testing/an-example-carries-its-own-configuration.md:1`
-- [ ] `docs/examples/README.md` § *A grant the examples need* cites the rule and says the website
+- [x] `docs/examples/README.md` § *A grant the examples need* cites the rule and says the website
   shows the file on every page. `docs/examples/README.md:248`
-- [ ] The root `nvs.toml`'s header says what the file configures now. `nvs.toml:1`
-- [ ] The runner's doc comment says what is true now. `tools/nv/proofs/run.ts:588`
+- [x] The root `nvs.toml`'s header says what the file configures now. `nvs.toml:1`
+- [x] The runner's doc comment says what is true now. `tools/nv/proofs/run.ts:588`
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -241,39 +241,38 @@ configuration ones.
 
 ### State
 
-Stages 1 to 5 are done. The root `nvs.toml` names nothing under `docs/examples/` or
-`website/snippets/`: a grep for either path in it is empty. Stage 5 wrote 39 files: 14 Core
-directories (`Http/allowUrl`, nine `Http-Client`, two `Http-Part`, `Mail/send`, `Cap/has`) and 25
-configuration directories, every one that prints a value the root writes, including the `queue-*`,
-`limits`, `limits-hard` and `include` ones. `deferred-deadline`, `http-client-socket` and
-`queue-visibility` print only built-in defaults and have no file.
+Stages 1 to 6 are done. Stages 2 to 5 moved every example's configuration out of the root
+`nvs.toml` into the example's own directory, and the website shows that file above the examples.
 
-- The root keeps every configuration table (`[limits]`, `[log]`, `[cache.*]`, `[debug]`,
-  `[deferred]`, `[http.client]`, `[queue]`, `[mail.shop]`) by decision 4: the attacks under
-  `tests/hostile/config/` and `examples/` read them. Their comments now name those readers.
-- `Mail/send` grants `mail.send` to all three examples: example 02 is refused before the grant is
-  checked, so one file covers them. `Cap/has` writes `write = []` at the top and an `[[app]]` for
-  example 02's `read = ["data"]`.
-- `config/app` and `config/capabilities` had their header comments rewritten to point at the file
-  beside them, since the page shows it.
-- Every moved Core group and the 28 configuration examples ran with every `.out` unchanged. A
-  configuration feature's `--only` id is `directive:<key>` (`directive:limits.hard`).
+Stage 6 landed:
+- `tools/nv/test/root-config-names-no-example.test.ts`: it parses the root file and fails on an
+  `[[app]]` whose `root` or `entry` is under either tree. It also fails on any raw line, comments
+  included, that names either tree, with `/`, `\` or a TOML-escaped `\\`. Five fixture strings
+  cover each failure and a pass, including `docs/examples-old`, which is another tree. All 6 pass.
+  No command was added. Stage 7's verify confirms it is collected as an `nvtest:` unit like the
+  other files under `tools/nv/test/`.
+- The rule `testing/an-example-carries-its-own-configuration`, with its JSON in
+  `data/rules/testing/` and its place in `data/rules/testing.json`. It was rendered, and
+  `bun nv rules --check` is clean.
+- The README section, the root header (which names neither tree) and `spawnProof`'s doc cite it.
 
-The sweep's `env-secret-proofs` red and the three nightly Miri failures are stale, checked again:
-no such check or log exists, and that nightly ran on 26dda36627, before this goal's work.
+The sweep's reds are stale. No `env-secret-proofs` check exists. The three nightly Miri timeouts,
+two growth tests in `json::tests` and one in `request::tests::json`, ran on 26dda36627, and each
+carries `#[cfg_attr(miri, ignore = …)]` on HEAD.
 
 No test is expected to go red.
 
 ### Next
 
-**Stage 6**, the test and the rule. The root already passes the check, so the test is green on its
-first run, and its fixture strings prove it fails.
+**Stage 7**, the gate. Start `looper verify` with `run_in_background`, fix every failure in one
+pass, and run it once more. Then the goal-end gates of AGENTS.md § *In the loop*:
+`bun nv verify --doc`, `bun nv owners --closes example-config-shown`, `bun nv ci --check`. The
+acceptance check is `bun test tools/nv/test/root-config-names-no-example.test.ts`.
 
-- [ ] The test of decision 5 and its fixtures. `tools/nv/test/root-config-names-no-example.test.ts:1`
-- [ ] The rule of decision 7, chapter rendered. `docs/rules/testing/examples-live-in-the-repository.md:1`
-- [ ] `docs/examples/README.md` § *A grant the examples need* cites it. `docs/examples/README.md:248`
-- [ ] The root header says what the file configures now. `nvs.toml:1`
-- [ ] The runner's doc comment is current. `tools/nv/proofs/run.ts:588`
+- [ ] `looper verify` over the whole goal. `docs/goals/example-config-shown.md:236`
+- [ ] The goal-end gates, each red fixed. `docs/examples/README.md:249`
+- [ ] Each decision only this file holds is moved before it is deleted. `website/src/components/FeatureExamples.astro:1`
+  Decisions 2, 6 and 7 are already in the rule, and decision 1 in that component's doc.
 
 ### Backlog
 
