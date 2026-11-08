@@ -130,8 +130,7 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **JSON in web pages, and queue jobs.** *Working on it now.* `Core\Json::encode` escapes `<`, `>`, `&` and `'` in the text it writes. So you can put its output inside an HTML page or a `<script>` tag. A queue job's id has a string form, and a later request can find the job with it. A guessed or changed id finds no job. `Core\Response::stream` sends the pieces that `Core\Json::encodeEach` gives.
-2. **Markdown.** `Core\Markdown` converts Markdown to HTML, and HTML to Markdown. It converts a whole document, or a document in pieces while it arrives. Every example of the CommonMark and GitHub Flavored Markdown specifications passes. The time it needs grows in step with the size of the input. The package registry uses it to show the readme of each package version on its page.
+1. **Markdown.** *Working on it now.* `Core\Markdown` converts Markdown to HTML, and HTML to Markdown. It converts a whole document, or a document in pieces while it arrives. Every example of the CommonMark and GitHub Flavored Markdown specifications passes. The time it needs grows in step with the size of the input. The package registry uses it to show the readme of each package version on its page.
 <!-- roadmap:end -->
 
 ## Contributing

@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "JSON in web pages, and queue jobs",
-      "text": "`Core\\Json::encode` escapes `<`, `>`, `&` and `'` in the text it writes. So you can put its output inside an HTML page or a `<script>` tag. A queue job's id has a string form, and a later request can find the job with it. A guessed or changed id finds no job. `Core\\Response::stream` sends the pieces that `Core\\Json::encodeEach` gives.",
-      "goals": [
-        "queue-id-and-json-stream"
-      ]
-    },
-    {
       "title": "Markdown",
       "text": "`Core\\Markdown` converts Markdown to HTML, and HTML to Markdown. It converts a whole document, or a document in pieces while it arrives. Every example of the CommonMark and GitHub Flavored Markdown specifications passes. The time it needs grows in step with the size of the input. The package registry uses it to show the readme of each package version on its page.",
       "goals": [
