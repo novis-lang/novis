@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Example apps and checked examples",
-      "text": "The chat app uses WebSockets, and the poll app uses server-sent events. You can start a real project from either one. Every block of code on this website is run by a test, or it says why it is not. Each page shows the `nvs.toml` settings that its examples run with.",
-      "goals": [
-        "example-config-shown"
-      ]
-    },
-    {
       "title": "JSON in web pages, and queue jobs",
       "text": "`Core\\Json::encode` escapes `<`, `>`, `&` and `'` in the text it writes. So you can put its output inside an HTML page or a `<script>` tag. A queue job's id has a string form, and a later request can find the job with it. A guessed or changed id finds no job. `Core\\Response::stream` sends the pieces that `Core\\Json::encodeEach` gives.",
       "goals": [
