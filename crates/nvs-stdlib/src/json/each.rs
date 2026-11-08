@@ -921,6 +921,10 @@ mod tests {
     /// document to one sixty times its size.
     // covers: Core\Json::decodeEach
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the walk's coroutine stack maps a guard page, which Miri does not emulate"
+    )]
     fn decode_each_holds_one_element_at_a_time() {
         let mut ctx = Ctx::new(OutputSink::Sink);
         let text = r#"[{"a":[1]},{"a":[2]},{"a":[3]}]"#;
@@ -950,6 +954,10 @@ mod tests {
     /// `~1` and `~0` decoded, and `''` is the document itself.
     // covers: Core\Json::decodeEach
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the walk's coroutine stack maps a guard page, which Miri does not emulate"
+    )]
     fn decode_each_reads_the_array_its_pointer_names() {
         let text = r#"{"a":{"items":[0]},"list":[[1],[2,3,4]],"a/b":{"~":[5,6]},"items":[]}"#;
         assert_eq!(ints(text, "/list/1", false), [2, 3, 4]);
@@ -987,6 +995,10 @@ mod tests {
     /// off the path is still held to the depth bound and the syntax.
     // covers: Core\Json::decodeEach
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the walk's coroutine stack maps a guard page, which Miri does not emulate"
+    )]
     fn decode_each_skips_a_value_outside_the_pointer_without_building_it() {
         let plain = peak_of_walk(&document(100, 0));
         let skipping = peak_of_walk(&document(100, 50_000));
@@ -1020,6 +1032,10 @@ mod tests {
     /// kept either, and a broken one still fails.
     // covers: Core\Json::decodeEach
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the walk's coroutine stack maps a guard page, which Miri does not emulate"
+    )]
     fn decode_each_does_not_keep_a_skipped_string() {
         let items = (0..100)
             .map(|at| at.to_string())
@@ -1057,6 +1073,10 @@ mod tests {
     /// walk has ended. Text after the document fails the same way.
     // covers: Core\Json::decodeEach
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the walk's coroutine stack maps a guard page, which Miri does not emulate"
+    )]
     fn decode_each_throws_where_a_failure_is_found_after_yielded_elements() {
         let mut ctx = Ctx::new(OutputSink::Sink);
         for (text, given) in [("[1,2,3,}", 3), (r#"{"items":[1,2]} x"#, 2)] {
@@ -1088,6 +1108,10 @@ mod tests {
     /// allowed, and a pointer is refused.
     // covers: Core\Json::decodeEach
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the walk's coroutine stack maps a guard page, which Miri does not emulate"
+    )]
     fn decode_each_reads_json_lines() {
         assert_eq!(ints("1\n2\n\n3\n", "", true), [1, 2, 3]);
         assert_eq!(ints("4", "", true), [4]);
