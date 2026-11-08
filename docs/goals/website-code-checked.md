@@ -18,7 +18,7 @@ stages:
     status: done
   - id: 5
     title: "the code part runs in CI and in bun nv ci --check, and its rule is written"
-    status: open
+    status: done
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -133,6 +133,10 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
     its lines must be a run of that file's lines. The `md` block is text the reader types into the
     demo page, so it is `skip`. `nvs config check nvs.toml deploy/production.toml` accepts
     `/var/lib/<app>/` paths, so decision 4's stub is not needed.
+12. **The proxy checks run inside CI's website stale guard step, not in a step of their own.** The
+    `code` and `apps` parts call `bun nv proxy-validate` themselves, and print why they pass where
+    Docker runs no Linux containers, so a second Linux step beside veraPDF would run the same checks
+    twice. The step's job has a 90-minute limit, so Caddy's one-minute plugin build fits.
 
 ## Stages
 
@@ -190,10 +194,10 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
 
 ### 5. the code part runs in CI and in bun nv ci --check, and its rule is written
 
-- [ ] `code` in CI's website stale guard step, and the proxy validation in a Linux step beside
-  veraPDF. `.github/workflows/ci.yml:625`
-- [ ] `code` in `PRE_PUSH`'s stale guard. `tools/nv/cmd/ci.ts:240`
-- [ ] The rule `testing/every-code-block-on-the-website-is-checked`, rendered, and named in
+- [x] `code` in CI's website stale guard step, and the proxy validation in a Linux step beside
+  veraPDF (decision 12). `.github/workflows/ci.yml:625`
+- [x] `code` in `PRE_PUSH`'s stale guard. `tools/nv/cmd/ci.ts:240`
+- [x] The rule `testing/every-code-block-on-the-website-is-checked`, rendered, and named in
   `website/README.md`'s table of who owns which file. `docs/rules/testing/in-process-request.md:1`
 
 ### 6. the goal is verified once, and every failure is fixed
@@ -206,25 +210,28 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
 
 ### State
 
-Stages 1 to 4 are done. `bun nv site --check code` is green here (Docker with Linux containers),
-and `bun nv site --check apps` is green with the new `deploy/` checks (`deployProblems`).
-`bun nv proxy-validate` (`tools/nv/cmd/proxy-validate.ts`) runs `nginx -t`, `caddy validate` and
-`docker build --check` in pinned images (decision 11). `CODE_CHECKS` now also has `nginx`,
-`caddyfile`, `dockerfile` (`proxyProblems`) and `rust` (`copyProblems`). Its tests pass:
-`bun test tools/nv/test/proxy-validate.test.ts` and the `rust block` test in `site.test.ts`.
-`apps` is already in CI's website stale guard and `PRE_PUSH`, so its Linux leg now pulls nginx
-and Caddy. The sweep's reds were stale again: no `env-secret-proofs` check or log exists, and
-nightly run 42359979484 is the run the last two handoffs named. No test is expected to go red.
+Stages 1 to 5 are done. CI's website stale guard (`.github/workflows/ci.yml`, search `Website stale
+guard`) and `PRE_PUSH`'s (`tools/nv/cmd/ci.ts`, search `website stale guard`) now run `code`. The
+proxy checks stay inside that step (decision 12). The rule
+`testing/every-code-block-on-the-website-is-checked` is written
+(`docs/rules/testing/every-code-block-on-the-website-is-checked.md`, record under `data/rules/`),
+rendered, and named in `website/README.md`'s ownership table. `bun nv rules --check` and
+`bun nv render --check` are green. `site --check code` was last run green by the stage 4 session.
+No page changed since, so this session did not run it.
+
+The sweep's reds were stale. No `env-secret-proofs` check or log exists. Nightly runs 42201104003
+and 42359979484 failed `miri units (nvs-stdlib 9/11/12)` on three 8 MiB JSON tests that time out at
+300 s. Commit `f13f40646a` already skips them under Miri, but both nightlies ran commit
+`26dda36627`, which is older. The next nightly on the pushed tree should be green. No test is
+expected to go red.
 
 ### Next
 
-Stage 5. Add `code` to CI's website stale guard (`.github/workflows/ci.yml:629`) and to
-`PRE_PUSH`'s stale guard (`tools/nv/cmd/ci.ts:240`). On Windows and macOS the proxy blocks print
-their skip line and pass. The first Caddyfile builds Caddy with `caddy-ratelimit`, about a minute
-per CI run, so check that the step's timeout leaves room. Remove the "CI does not run `code` yet"
-sentence from the head comment of `tools/nv/cmd/site.ts` (search `CI does not run`). Write the rule
-`testing/every-code-block-on-the-website-is-checked` from decisions 1, 3, 9, 10 and 11, render it,
-and name it in `website/README.md`'s ownership table. Then stage 6.
+Stage 6, the gate. Start `looper verify` with `run_in_background`, and fix every failure in one
+pass. Then run the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes
+website-code-checked` and `bun nv ci --check`. `ci --check` now runs `site --check code`, so it
+pulls the nginx and Caddy images and builds the plugin Caddy image once. Move decisions 2, 7, 8 and
+12 into a module doc or the rule before the goal file is deleted, if no home has them yet.
 
 ### Backlog
 
