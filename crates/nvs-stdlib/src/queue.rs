@@ -213,6 +213,45 @@ pub fn migration(driver: nvs_db::Driver) -> Vec<Migration> {
 /// spelling for four dialects, so the tightest backend's limit is the value's limit.
 const KEY_WIDTH: u32 = 255;
 
+/// How wide the `token` column of both queue tables is: a job's sixteen random bytes as 32
+/// lower-case hex digits ([`fresh_token`]).
+///
+/// **Text and not binary.** Every other value the queue binds goes out as text on all four send
+/// paths, and a binary parameter is spelled differently on each one. Hex has one written form per
+/// byte string, so a case-insensitive collation still compares two tokens exactly.
+const TOKEN_WIDTH: u32 = 32;
+
+/// How many random bytes a job's token is drawn from.
+pub const TOKEN_BYTES: usize = 16;
+
+/// A new job's token: [`TOKEN_BYTES`] bytes from [`crate::random::draw`], as [`TOKEN_WIDTH`]
+/// lower-case hex digits.
+///
+/// **The token is what makes a `Queue\Id` hard to guess** (`rule:concurrency/queue-four-members`).
+/// `status`, `cancel` and `delete` match a row on its id, its queue and this value in one
+/// statement, so an id with a changed or guessed token finds no row. A `#[Test(seed: …)]`
+/// reproduces it with every other draw the test made.
+fn fresh_token(ctx: &mut nvs_runtime::Ctx) -> String {
+    use rand::Rng as _;
+    let mut raw = [0_u8; TOKEN_BYTES];
+    crate::random::draw(ctx, |rng| rng.fill_bytes(&mut raw));
+    token_text(&raw)
+}
+
+/// `raw` as the text the `token` column stores: [`TOKEN_WIDTH`] lower-case hex digits.
+///
+/// `pub` so `crates/nvs-stdlib/tests/queue_sqlite.rs` writes the column's own form.
+#[must_use]
+pub fn token_text(raw: &[u8; TOKEN_BYTES]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(2 * TOKEN_BYTES);
+    for byte in raw {
+        out.push(char::from(DIGITS[usize::from(byte >> 4)]));
+        out.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
+    }
+    out
+}
+
 /// `rule:core-classes/queue-storage-is-a-table`'s two tables as one [`nvs_db::Schema`] value, which
 /// is the one home for what the queue's tables are.
 ///
@@ -341,6 +380,9 @@ pub fn schema() -> nvs_db::Schema {
         max: Some(KEY_WIDTH),
     };
     let long = || ScalarType::Text { max: None };
+    let token = || ScalarType::Text {
+        max: Some(TOKEN_WIDTH),
+    };
 
     let jobs = Table::new(
         JOBS_TABLE,
@@ -375,6 +417,11 @@ pub fn schema() -> nvs_db::Schema {
             // `rule:concurrency/foreign-connection-enqueue-is-counted` is why, [`COUNTS_POSTGRES`]
             // counts it, and no claim reads it.
             named("non_transactional", ScalarType::Int(IntWidth::Small)).null(),
+            // The job's random token, written once by `push` and matched by `status`, `cancel`
+            // and `delete` beside the id and the queue. Nullable so a live queue converges onto
+            // it, and a null never equals a token, so a row written before the column matches no
+            // `Queue\Id`.
+            named("token", token()).null(),
         ],
     )
     .and_then(|table| table.primary_key(&["id"]))
@@ -401,6 +448,8 @@ pub fn schema() -> nvs_db::Schema {
             named("created_at", big()),
             named("failed_at", big()),
             named("errors", long()),
+            // Moved with the row, so a dead-lettered job's `Queue\Id` still reads `Dead`.
+            named("token", token()).null(),
         ],
     )
     .and_then(|table| table.primary_key(&["id"]))
@@ -533,16 +582,17 @@ pub fn schema_shortfall(live: &nvs_db::Schema) -> Vec<String> {
 /// had** — that constant's doc owns where the two part, and [`Split`]'s owns what a backend that
 /// cannot answer in one statement does instead.
 pub const INSERT_POSTGRES: &str = "with existing as (\
-     select id from nvs_jobs where dedupe_pending = $1::text limit 1\
+     select id, token from nvs_jobs where dedupe_pending = $1::text limit 1\
  ), inserted as (\
      insert into nvs_jobs \
      (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-      dedupe_pending, created_at, tag, grants, limits, non_transactional) \
+      dedupe_pending, created_at, tag, grants, limits, non_transactional, token) \
      select $2::text, $3::text, $4::text, $5::smallint, 0, $6::int, $7::bigint, $8::bigint, \
-            $1::text, $1::text, $9::bigint, $10::text, $11::text, $12::text, $13::smallint \
+            $1::text, $1::text, $9::bigint, $10::text, $11::text, $12::text, $13::smallint, \
+            $14::text \
      where not exists (select 1 from existing) \
-     returning id\
- ) select id from inserted union all select id from existing limit 1";
+     returning id, token\
+ ) select id, token from inserted union all select id, token from existing limit 1";
 
 /// `rule:concurrency/claiming-is-one-statement`'s claim, as the one statement that finds a job and marks it in the same moment.
 ///
@@ -746,12 +796,12 @@ pub const RETRY_POSTGRES: &str = "update nvs_jobs set state = 0, run_at = $3::bi
 pub const DEAD_LETTER_POSTGRES: &str = "with moved as (\
      delete from nvs_jobs where id = $1::bigint and claimed_at = $2::bigint \
      returning id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, tag, \
-     dedupe_key, created_at\
+     dedupe_key, created_at, token\
  ) insert into nvs_dead_jobs \
  (id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, tag, dedupe_key, \
- created_at, failed_at, errors) \
+ created_at, failed_at, errors, token) \
  select id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, tag, dedupe_key, \
- created_at, $3::bigint, $4::text from moved";
+ created_at, $3::bigint, $4::text, token from moved";
 
 /// A statement one backend spells as two, and the pair a caller runs inside **one transaction**.
 ///
@@ -822,11 +872,11 @@ pub struct Split {
 /// merely two round trips saved: `dedupe_pending = null` is a range scan here where
 /// [`INSERT_POSTGRES`]'s `existing` arm is an empty CTE.
 pub const INSERT_MYSQL: Split = Split {
-    first: "select id from nvs_jobs where dedupe_pending = ? limit 1 for update",
+    first: "select id, token from nvs_jobs where dedupe_pending = ? limit 1 for update",
     then: "insert into nvs_jobs \
            (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-           dedupe_pending, created_at, tag, grants, limits, non_transactional) \
-           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+           dedupe_pending, created_at, tag, grants, limits, non_transactional, token) \
+           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 };
 
 /// [`INSERT_MYSQL`] on the backend with one writer, which is that pair with the locking clause
@@ -850,11 +900,11 @@ pub const INSERT_MYSQL: Split = Split {
 /// and cannot be named twice, and a deduped push answers the pending job's id from [`Split::first`]
 /// with [`Split::then`] never running at all.
 pub const INSERT_SQLITE: Split = Split {
-    first: "select id from nvs_jobs where dedupe_pending = ? limit 1",
+    first: "select id, token from nvs_jobs where dedupe_pending = ? limit 1",
     then: "insert into nvs_jobs \
            (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-           dedupe_pending, created_at, tag, grants, limits, non_transactional) \
-           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+           dedupe_pending, created_at, tag, grants, limits, non_transactional, token) \
+           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 };
 
 /// The same enqueue in T-SQL, as a [`Split`] for [`INSERT_MYSQL`]'s reason and one of its own.
@@ -878,14 +928,15 @@ pub const INSERT_SQLITE: Split = Split {
 /// the column table types as a number is cast where it is written — the same job
 /// [`INSERT_POSTGRES`]'s `::` casts do.
 pub const INSERT_SQLSERVER: Split = Split {
-    first: "select top 1 id from nvs_jobs with (updlock, holdlock) where dedupe_pending = @p1",
+    first: "select top 1 id, token from nvs_jobs with (updlock, holdlock) \
+            where dedupe_pending = @p1",
     then: "insert into nvs_jobs \
            (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-           dedupe_pending, created_at, tag, grants, limits, non_transactional) \
-           output inserted.id \
+           dedupe_pending, created_at, tag, grants, limits, non_transactional, token) \
+           output inserted.id, inserted.token \
            values (@p1, @p2, @p3, cast(@p4 as smallint), 0, cast(@p5 as int), \
            cast(@p6 as bigint), cast(@p7 as bigint), @p8, @p9, cast(@p10 as bigint), @p11, \
-           @p12, @p13, cast(@p14 as smallint))",
+           @p12, @p13, cast(@p14 as smallint), @p15)",
 };
 
 /// [`CLAIM_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
@@ -1033,9 +1084,9 @@ pub const CLAIM_SQLSERVER: &str = "with due as (\
 pub const DEAD_LETTER_MYSQL: Split = Split {
     first: "insert into nvs_dead_jobs \
             (id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, tag, \
-            dedupe_key, created_at, failed_at, errors) \
+            dedupe_key, created_at, failed_at, errors, token) \
             select id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, tag, \
-            dedupe_key, created_at, ?, ? from nvs_jobs \
+            dedupe_key, created_at, ?, ?, token from nvs_jobs \
             where id = ? and claimed_at = ?",
     then: "delete from nvs_jobs where id = ? and claimed_at = ?",
 };
@@ -1069,9 +1120,9 @@ pub const DEAD_LETTER_SQLITE: Split = DEAD_LETTER_MYSQL;
 pub const DEAD_LETTER_SQLSERVER: Split = Split {
     first: "insert into nvs_dead_jobs \
             (id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, tag, \
-            dedupe_key, created_at, failed_at, errors) \
+            dedupe_key, created_at, failed_at, errors, token) \
             select id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, tag, \
-            dedupe_key, created_at, cast(@p1 as bigint), @p2 from nvs_jobs \
+            dedupe_key, created_at, cast(@p1 as bigint), @p2, token from nvs_jobs \
             where id = cast(@p3 as bigint) and claimed_at = cast(@p4 as bigint)",
     then: "delete from nvs_jobs where id = cast(@p1 as bigint) \
            and claimed_at = cast(@p2 as bigint)",
@@ -1329,10 +1380,10 @@ fn jitter(id: i64, attempts: i64) -> u64 {
 /// caller — but `crates/nvs-stdlib/tests/queue.rs` sends both spellings to a real server, and a
 /// statement no server has ever parsed is exactly what that target exists to catch.
 pub const STATUS_POSTGRES: &str = "select state from nvs_jobs \
-    where id = $1::bigint and queue = $2::text \
+    where id = $1::bigint and queue = $2::text and token = $3::text \
     union all \
     select 3 from nvs_dead_jobs \
-    where id = $1::bigint and queue = $2::text \
+    where id = $1::bigint and queue = $2::text and token = $3::text \
     limit 1";
 
 /// [`STATUS_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged for [`INSERT_MYSQL`]'s
@@ -1348,10 +1399,10 @@ pub const STATUS_POSTGRES: &str = "select state from nvs_jobs \
 /// not two more arguments for a caller to get wrong. [`counted_row`] is where that pair is doubled,
 /// once, rather than in each of the two members that send it.
 pub const STATUS_MYSQL: &str = "select state from nvs_jobs \
-    where id = ? and queue = ? \
+    where id = ? and queue = ? and token = ? \
     union all \
     select 3 from nvs_dead_jobs \
-    where id = ? and queue = ? \
+    where id = ? and queue = ? and token = ? \
     limit 1";
 
 /// [`STATUS_MYSQL`], which SQLite runs unchanged — a `union all` of two `select`s under one `limit`,
@@ -1374,10 +1425,10 @@ pub const STATUS_SQLITE: &str = STATUS_MYSQL;
 /// what names the column both arms are read as.
 pub const STATUS_SQLSERVER: &str = "select top 1 state from (\
      select state from nvs_jobs \
-     where id = cast(@p1 as bigint) and queue = @p2 \
+     where id = cast(@p1 as bigint) and queue = @p2 and token = @p3 \
      union all \
      select 3 from nvs_dead_jobs \
-     where id = cast(@p1 as bigint) and queue = @p2\
+     where id = cast(@p1 as bigint) and queue = @p2 and token = @p3\
  ) as found";
 
 /// `rule:concurrency/queue-four-members`'s `cancel`, as one conditional update.
@@ -1398,7 +1449,7 @@ pub const STATUS_SQLSERVER: &str = "select top 1 state from (\
 /// [`SUCCEEDED_POSTGRES`], so leaving the column set would hold a key against a job nothing will
 /// ever run.
 const CANCEL_POSTGRES: &str = "update nvs_jobs set state = 4, dedupe_pending = null \
-    where id = $1::bigint and queue = $2::text and state = 0 \
+    where id = $1::bigint and queue = $2::text and token = $3::text and state = 0 \
     returning id";
 
 /// [`CANCEL_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
@@ -1410,7 +1461,7 @@ const CANCEL_POSTGRES: &str = "update nvs_jobs set state = 4, dedupe_pending = n
 /// answers `returning` for an `insert` and a `delete` and not for an `update`, so this is the text
 /// both drivers run rather than a MySQL-only concession.
 pub const CANCEL_MYSQL: &str = "update nvs_jobs set state = 4, dedupe_pending = null \
-    where id = ? and queue = ? and state = 0";
+    where id = ? and queue = ? and token = ? and state = 0";
 
 /// [`CANCEL_MYSQL`], which SQLite runs unchanged — one conditional `update` whose `and state = 0`
 /// carries the whole of the member's semantics. [`DEAD_LETTER_SQLITE`] owns why an alias and not a
@@ -1430,7 +1481,7 @@ pub const CANCEL_SQLITE: &str = CANCEL_MYSQL;
 /// has an `output` clause to answer with and does not use it, because what the member owes is
 /// whether one row moved and every dialect but the first already answers that with a count.
 pub const CANCEL_SQLSERVER: &str = "update nvs_jobs set state = 4, dedupe_pending = null \
-    where id = cast(@p1 as bigint) and queue = @p2 and state = 0";
+    where id = cast(@p1 as bigint) and queue = @p2 and token = @p3 and state = 0";
 
 /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `delete`, as one statement over both
 /// of the queue's tables.
@@ -1465,11 +1516,11 @@ pub const CANCEL_SQLSERVER: &str = "update nvs_jobs set state = 4, dedupe_pendin
 /// statement no server has ever parsed is exactly what that target exists to catch.
 pub const DELETE_POSTGRES: &str = "with gone as (\
      delete from nvs_jobs \
-     where id = $1::bigint and queue = $2::text and state <> 1 \
+     where id = $1::bigint and queue = $2::text and token = $3::text and state <> 1 \
      returning id\
  ), buried as (\
      delete from nvs_dead_jobs \
-     where id = $1::bigint and queue = $2::text \
+     where id = $1::bigint and queue = $2::text and token = $3::text \
      returning id\
  ) select id from gone union all select id from buried limit 1";
 
@@ -1500,9 +1551,10 @@ pub const DELETE_POSTGRES: &str = "with gone as (\
 /// naming the pair once in the derived table and reading `r.jid` afterwards is what a `$1` does on
 /// the other dialect.
 pub const DELETE_MYSQL: &str = "delete j, d \
-    from (select ? as jid, ? as qname) r \
-    left join nvs_jobs j on j.id = r.jid and j.queue = r.qname and j.state <> 1 \
-    left join nvs_dead_jobs d on d.id = r.jid and d.queue = r.qname";
+    from (select ? as jid, ? as qname, ? as tok) r \
+    left join nvs_jobs j on j.id = r.jid and j.queue = r.qname and j.token = r.tok \
+        and j.state <> 1 \
+    left join nvs_dead_jobs d on d.id = r.jid and d.queue = r.qname and d.token = r.tok";
 
 /// [`DELETE_POSTGRES`] on SQLite, which is the one member here with no single-statement shape: two
 /// deletes, one per table, inside stage 2's transaction.
@@ -1537,8 +1589,8 @@ pub const DELETE_MYSQL: &str = "delete j, d \
 /// the queue twice — two statements, two positions each, which is what a dialect binding by position
 /// costs a member that reads both tables.
 pub const DELETE_SQLITE: Split = Split {
-    first: "delete from nvs_jobs where id = ? and queue = ? and state <> 1",
-    then: "delete from nvs_dead_jobs where id = ? and queue = ?",
+    first: "delete from nvs_jobs where id = ? and queue = ? and token = ? and state <> 1",
+    then: "delete from nvs_dead_jobs where id = ? and queue = ? and token = ?",
 };
 
 /// The same receipt-shaped delete in T-SQL, as the pair [`DELETE_SQLITE`] is: a CTE cannot delete
@@ -1546,8 +1598,10 @@ pub const DELETE_SQLITE: Split = Split {
 /// left is one statement per table inside one transaction. Both halves bind the same two values,
 /// and the arm over the dead-letter table names no ordinal at all for [`DELETE_SQLITE`]'s reason.
 pub const DELETE_SQLSERVER: Split = Split {
-    first: "delete from nvs_jobs where id = cast(@p1 as bigint) and queue = @p2 and state <> 1",
-    then: "delete from nvs_dead_jobs where id = cast(@p1 as bigint) and queue = @p2",
+    first: "delete from nvs_jobs where id = cast(@p1 as bigint) and queue = @p2 \
+            and token = @p3 and state <> 1",
+    then: "delete from nvs_dead_jobs where id = cast(@p1 as bigint) and queue = @p2 \
+           and token = @p3",
 };
 
 /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `purge` over [`JOBS_TABLE`]: the
@@ -1934,6 +1988,14 @@ const ID_AT: usize = 0;
 
 /// [`ID_QUEUE_SLOT`]'s.
 const ID_QUEUE_AT: usize = 1;
+
+/// Its third: the job's random token, as [`fresh_token`] wrote it into the row. `status`, `cancel`
+/// and `delete` match the row on it beside the id and the queue, so a changed or guessed one finds
+/// no job. Empty for a job written before the column, which matches no row.
+const ID_TOKEN_SLOT: &str = "token";
+
+/// [`ID_TOKEN_SLOT`]'s.
+const ID_TOKEN_AT: usize = 2;
 
 /// A [`STATS`]'s first slot: how many of the queue's jobs are waiting for a worker.
 ///
@@ -2687,7 +2749,7 @@ pub(crate) const ID: CoreClass = CoreClass {
     doc: Some(&ID_CARD),
     methods: &[],
     instance: &[],
-    slots: &[ID_SLOT, ID_QUEUE_SLOT],
+    slots: &[ID_SLOT, ID_QUEUE_SLOT, ID_TOKEN_SLOT],
     constants: &[],
 };
 
@@ -3376,7 +3438,7 @@ fn configured_queue(
 /// are written by [`nvs_core_queue_push`] and by nothing else, so either is a paste error in this
 /// crate rather than anything a program can produce — `Core\Db`'s `connection_of` states the same
 /// reading of the identical pair.
-fn job_of(value: Value, member: &str) -> Result<(u64, String), Fault> {
+fn job_of(value: Value, member: &str) -> Result<(u64, String, String), Fault> {
     let held = value.obj_ptr().ok_or_else(|| {
         Fault::fatal(format!(
             "{member}: expected a `{ID_NAME}`, got tag {}",
@@ -3399,7 +3461,15 @@ fn job_of(value: Value, member: &str) -> Result<(u64, String), Fault> {
             ))
         })?
         .to_owned();
-    Ok((id, queue))
+    let token = crate::instance::slot(held, ID_TOKEN_AT)
+        .as_text()
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{member}: expected text in the `{ID_TOKEN_SLOT}` slot of a `{ID_NAME}`"
+            ))
+        })?
+        .to_owned();
+    Ok((id, queue, token))
 }
 
 /// Whether `Core\Queue`'s four members run over a driver at all, which is this module's roster and
@@ -3563,6 +3633,9 @@ nvs_runtime::nvs_helper! {
         // where what it wrote would widen it instead.
         let granted = grants_of(ctx, args)?;
         let limited = limits_of(ctx, args)?;
+        // Drawn before the connection, like every other value the row gets. A push that finds a
+        // pending job under its `key` returns that job's token instead, and this one is dropped.
+        let token = fresh_token(ctx);
 
         // Shared, and that is `rule:concurrency/enqueue-commits-with-your-write` rather than an
         // economy: `{ shared: false }` would open a second connection, outside whatever
@@ -3597,6 +3670,7 @@ nvs_runtime::nvs_helper! {
         let created = now.to_string().into_bytes();
         let granting = granted.as_deref().map(str::as_bytes);
         let limiting = limited.as_deref().map(str::as_bytes);
+        let tokened = token.as_bytes();
 
         let block = configured.connection.clone();
         // `rule:observability/a-query-is-a-trace-event`'s event belongs to a *statement*, not to `Core\Db`, so this one files it
@@ -3608,7 +3682,7 @@ nvs_runtime::nvs_helper! {
         // [`INSERT_MYSQL`]'s slots, which [`INSERT_SQLSERVER`] takes unchanged: the two texts write
         // the same columns in the same order, so the array is one binding rather than one per
         // dialect that happens to agree.
-        let framed_order: [Option<&[u8]>; 14] = [
+        let framed_order: [Option<&[u8]>; 15] = [
             Some(queued),
             Some(scripted),
             payloaded,
@@ -3625,10 +3699,11 @@ nvs_runtime::nvs_helper! {
             granting,
             limiting,
             committed_alone,
+            Some(tokened),
         ];
-        let id = match queue_connection(ctx, handle, PUSH)? {
+        let (id, pending_token) = match queue_connection(ctx, handle, PUSH)? {
             Queued::Postgres(postgres) => {
-                let bound: [Option<&[u8]>; 13] = [
+                let bound: [Option<&[u8]>; 14] = [
                     dedupe,
                     Some(queued),
                     Some(scripted),
@@ -3642,6 +3717,7 @@ nvs_runtime::nvs_helper! {
                     granting,
                     limiting,
                     committed_alone,
+                    Some(tokened),
                 ];
                 push_in_one(postgres, &bound, &block, &mut spans)?
             }
@@ -3675,15 +3751,19 @@ nvs_runtime::nvs_helper! {
                     } else {
                         nvs_db::SqliteValue::Null
                     },
+                    sqlite_text(Some(&token)),
                 ];
                 push_in_sqlite(sqlite, key.as_deref(), values, &block, &mut spans)?
             }
         };
         spans.file(ctx);
         announce(ctx, handle)?;
+        // A dedupe hit returns the pending job's token with its id. A row written before the
+        // column has none, and its `Queue\Id` then matches nothing.
+        let token = pending_token.unwrap_or(token);
         Ok(crate::instance::build(
             &ID,
-            [Value::uint(id), Value::text(&queue)],
+            [Value::uint(id), Value::text(&queue), Value::text(&token)],
         ))
     }
 }
@@ -3754,7 +3834,7 @@ fn push_in_one(
     bound: &[Option<&[u8]>],
     block: &str,
     spans: &mut Spans,
-) -> Result<u64, Fault> {
+) -> Result<(u64, Option<String>), Fault> {
     let mut answered = postgres
         .query(INSERT_POSTGRES, bound)
         .map_err(|refused| insert_refused(block, &refused))?;
@@ -3762,16 +3842,21 @@ fn push_in_one(
     // Every row is read before the id is asked for, exactly as `Core\Db\Connection::execute`
     // does it: the connection has to be back at a message boundary before this returns, or the
     // next statement on it — the caller's own, inside the same transaction — meets a busy one.
-    while answered
-        .next_row()
-        .map_err(|refused| {
-            Fault::thrown_as(
-                ThrownClass::Io,
-                format!("{PUSH}: reading the id back from `{JOBS_TABLE}` failed: {refused}"),
-            )
-        })?
-        .is_some()
-    {}
+    // The first row's `token` is the inserted job's or the pending one's, and a pending row
+    // written before the column has none.
+    let reading_failed = |refused: &dyn std::fmt::Display| {
+        Fault::thrown_as(
+            ThrownClass::Io,
+            format!("{PUSH}: reading the id back from `{JOBS_TABLE}` failed: {refused}"),
+        )
+    };
+    let mut token: Option<String> = None;
+    while let Some(row) = answered.next_row().map_err(|refused| reading_failed(&refused))? {
+        if token.is_none() {
+            let held = row.column(1).map_err(|refused| reading_failed(&refused))?;
+            token = Some(String::from_utf8_lossy(held.unwrap_or_default()).into_owned());
+        }
+    }
     // `rule:core-classes/db-statement-members`'s `lastId`, which on PostgreSQL is what the `returning` clause handed back —
     // so the decoding is the driver's and this member parses nothing.
     let last = answered.last_id();
@@ -3780,11 +3865,12 @@ fn push_in_one(
     // a `PgRows` holds `ctx` until it is dropped. Taken before the id is judged: a statement
     // the server ran is one a trace should show, whatever this member then makes of it.
     spans.note(answered.span());
-    last.ok_or_else(|| {
+    let id = last.ok_or_else(|| {
         Fault::fatal(format!(
             "{PUSH}: the insert into `{JOBS_TABLE}` answered no id at all"
         ))
-    })
+    })?;
+    Ok((id, token))
 }
 
 /// [`INSERT_MYSQL`]: the same enqueue as the pair one transaction runs, and the id it answers with.
@@ -3819,9 +3905,9 @@ fn push_in_two(
     bound: &[Option<&[u8]>],
     block: &str,
     spans: &mut Spans,
-) -> Result<u64, Fault> {
+) -> Result<(u64, Option<String>), Fault> {
     let Some(key) = dedupe else {
-        return inserted(&mut framed, bound, block, spans);
+        return Ok((inserted(&mut framed, bound, block, spans)?, None));
     };
     let opened = framed
         .begin(None, false)
@@ -3871,7 +3957,7 @@ fn push_in_tds(
     bound: &[Option<&[u8]>],
     block: &str,
     spans: &mut Spans,
-) -> Result<u64, Fault> {
+) -> Result<(u64, Option<String>), Fault> {
     let Some(key) = dedupe else {
         return tds_inserted(tds, bound, block, spans);
     };
@@ -3915,7 +4001,7 @@ fn tds_inserted(
     bound: &[Option<&[u8]>],
     block: &str,
     spans: &mut Spans,
-) -> Result<u64, Fault> {
+) -> Result<(u64, Option<String>), Fault> {
     tds_id(tds, INSERT_SQLSERVER.then, bound, block, spans)?.ok_or_else(|| {
         Fault::fatal(format!(
             "{PUSH}: the insert into `{JOBS_TABLE}` answered no `output inserted.id` row at all"
@@ -3923,8 +4009,8 @@ fn tds_inserted(
     })
 }
 
-/// The first row's first column as the identity [`schema`] declares it, or `None` for a statement
-/// that answered no row.
+/// The first row's `id` and `token` columns, or `None` for a statement that answered no row. A
+/// null `token` reads as the empty string, which matches no row.
 ///
 /// One reader for both halves of [`INSERT_SQLSERVER`], because both ask the same question of the
 /// same column: the dedupe read answers the pending job's id and the insert answers the new one's,
@@ -3940,7 +4026,7 @@ fn tds_id(
     bound: &[Option<&[u8]>],
     block: &str,
     spans: &mut Spans,
-) -> Result<Option<u64>, Fault> {
+) -> Result<Option<(u64, Option<String>)>, Fault> {
     let mut answered = tds
         .query(sql, bound)
         .map_err(|refused| insert_refused(block, &refused))?;
@@ -3949,7 +4035,7 @@ fn tds_id(
     // column it arrived under, and the definitions are lent out of a shared borrow while the rows
     // are read out of a mutable one.
     let described: Vec<nvs_db::tds::TdsColumn> = answered.columns().to_vec();
-    let mut first: Option<u64> = None;
+    let mut first: Option<(u64, Option<String>)> = None;
     while let Some(row) = answered
         .next_row()
         .map_err(|refused| insert_refused(block, &refused))?
@@ -3973,7 +4059,7 @@ fn tds_id(
         })?;
         let scalar =
             nvs_db::tds::scalar(column, body).map_err(|refused| insert_refused(block, &refused))?;
-        first = match scalar {
+        let id = match scalar {
             nvs_db::tds::TdsScalar::Int(id) => u64::try_from(id).ok(),
             other => {
                 return Err(Fault::fatal(format!(
@@ -3981,6 +4067,18 @@ fn tds_id(
                 )));
             }
         };
+        let token = match (described.get(1), row.column(1)) {
+            (Some(column), Some(body)) => {
+                match nvs_db::tds::scalar(column, body)
+                    .map_err(|refused| insert_refused(block, &refused))?
+                {
+                    nvs_db::tds::TdsScalar::Text(text) => Some(text.into_owned()),
+                    _ => Some(String::new()),
+                }
+            }
+            _ => Some(String::new()),
+        };
+        first = id.map(|id| (id, token));
     }
     spans.note(answered.span());
     Ok(first)
@@ -4006,9 +4104,9 @@ fn push_in_sqlite(
     values: Vec<nvs_db::SqliteValue>,
     block: &str,
     spans: &mut Spans,
-) -> Result<u64, Fault> {
+) -> Result<(u64, Option<String>), Fault> {
     let Some(key) = dedupe else {
-        return sqlite_inserted(sqlite, values, block, spans);
+        return Ok((sqlite_inserted(sqlite, values, block, spans)?, None));
     };
     let refused = |failed: &dyn std::fmt::Display| insert_refused(block, failed);
     sqlite_opened(sqlite, block, &refused, spans)?;
@@ -4072,7 +4170,7 @@ fn sqlite_deduped(
     values: Vec<nvs_db::SqliteValue>,
     block: &str,
     spans: &mut Spans,
-) -> Result<u64, Fault> {
+) -> Result<(u64, Option<String>), Fault> {
     // Scoped, because `nvs_db::SqliteRows` borrows the connection until it is dropped and the
     // insert below is the second statement of this transaction.
     let pending = {
@@ -4083,7 +4181,7 @@ fn sqlite_deduped(
                 vec![nvs_db::SqliteValue::Text(key.to_owned())],
             )
             .map_err(|refused| insert_refused(block, &refused))?;
-        let mut pending: Option<u64> = None;
+        let mut pending: Option<(u64, Option<String>)> = None;
         while let Some(row) = answered.next_row() {
             span.row();
             if pending.is_some() {
@@ -4095,7 +4193,13 @@ fn sqlite_deduped(
                      this module's own schema is what declares it one"
                 )));
             };
-            pending = u64::try_from(*id).ok();
+            // A pending row written before the column has no token, and reads as one that
+            // matches nothing.
+            let token = match row.get(1) {
+                Some(nvs_db::SqliteValue::Text(token)) => token.clone(),
+                _ => String::new(),
+            };
+            pending = u64::try_from(*id).ok().map(|id| (id, Some(token)));
         }
         span.finished(None);
         spans.named(block, span);
@@ -4104,7 +4208,7 @@ fn sqlite_deduped(
     if let Some(already) = pending {
         return Ok(already);
     }
-    sqlite_inserted(sqlite, values, block, spans)
+    Ok((sqlite_inserted(sqlite, values, block, spans)?, None))
 }
 
 /// [`INSERT_SQLITE`]'s insert, and the id the connection reports for it.
@@ -4154,7 +4258,7 @@ fn deduped(
     bound: &[Option<&[u8]>],
     block: &str,
     spans: &mut Spans,
-) -> Result<u64, Fault> {
+) -> Result<(u64, Option<String>), Fault> {
     let reading: [Option<&[u8]>; 1] = [Some(key)];
     let mut answered = framed
         .query(INSERT_MYSQL.first, &reading)
@@ -4164,7 +4268,7 @@ fn deduped(
     // definition it arrived under, and the definitions are lent out of a shared borrow while the
     // rows are read out of a mutable one.
     let columns = answered.columns().to_vec();
-    let mut pending: Option<u64> = None;
+    let mut pending: Option<(u64, Option<String>)> = None;
     while let Some(row) = answered
         .next_row()
         .map_err(|refused| insert_refused(block, &refused))?
@@ -4181,7 +4285,7 @@ fn deduped(
         })?;
         let scalar = nvs_db::mysql::scalar(&columns[0], body)
             .map_err(|refused| insert_refused(block, &refused))?;
-        pending = match scalar {
+        let id = match scalar {
             nvs_db::MySqlScalar::Int(id) => u64::try_from(id).ok(),
             nvs_db::MySqlScalar::UInt(id) => Some(id),
             other => {
@@ -4190,14 +4294,29 @@ fn deduped(
                 )));
             }
         };
+        // A pending row written before the column has no token, and reads as one that matches
+        // nothing.
+        let token = match (columns.get(1), row.value(1)) {
+            (Some(column), Some(body)) => {
+                match nvs_db::mysql::scalar(column, body)
+                    .map_err(|refused| insert_refused(block, &refused))?
+                {
+                    nvs_db::MySqlScalar::Text(text) => text.to_owned(),
+                    nvs_db::MySqlScalar::Bytes(raw) => String::from_utf8_lossy(raw).into_owned(),
+                    _ => String::new(),
+                }
+            }
+            _ => String::new(),
+        };
+        pending = id.map(|id| (id, Some(token)));
     }
     spans.note(answered.span());
     drop(answered);
     // [`INSERT_POSTGRES`]'s trailing `union all` moved into the caller: a pending job under this
     // key is the answer, and the insert stands down rather than being refused by the index.
     match pending {
-        Some(id) => Ok(id),
-        None => inserted(framed, bound, block, spans),
+        Some(found) => Ok(found),
+        None => Ok((inserted(framed, bound, block, spans)?, None)),
     }
 }
 
@@ -4727,14 +4846,15 @@ nvs_runtime::nvs_helper! {
     /// other direction — a `status` inside a transaction on that connection sees that
     /// transaction's own enqueues, because it is the same connection and not a second one.
     fn nvs_core_queue_status(ctx, args: [1]) {
-        let (id, queue) = job_of(args[0], STATUS_OF)?;
+        let (id, queue, token) = job_of(args[0], STATUS_OF)?;
         let block = configured_queue(ctx, STATUS_OF)?.connection;
         // Shared, for `push`'s reason: reading a job's state on a second connection would be
         // reading it from outside whatever transaction the request has open on the first.
         let handle = crate::db::open_named(ctx, &block, true, None, STATUS_OF)?;
-        let sending: [Option<Vec<u8>>; 2] = [
+        let sending: [Option<Vec<u8>>; 3] = [
             Some(id.to_string().into_bytes()),
             Some(queue.clone().into_bytes()),
+            Some(token.clone().into_bytes()),
         ];
         let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
         let twice: Vec<Option<&[u8]>> = bound.iter().chain(bound.iter()).copied().collect();
@@ -4767,8 +4887,10 @@ nvs_runtime::nvs_helper! {
                     vec![
                         sqlite_id(id),
                         sqlite_text(Some(&queue)),
+                        sqlite_text(Some(&token)),
                         sqlite_id(id),
                         sqlite_text(Some(&queue)),
+                        sqlite_text(Some(&token)),
                     ],
                 )
             },
@@ -4843,15 +4965,16 @@ nvs_runtime::nvs_helper! {
     /// with it if that transaction rolls back, exactly as an enqueue commits with it
     /// (`rule:concurrency/enqueue-commits-with-your-write`).
     fn nvs_core_queue_cancel(ctx, args: [1]) {
-        let (id, queue) = job_of(args[0], CANCEL_OF)?;
+        let (id, queue, token) = job_of(args[0], CANCEL_OF)?;
         let block = configured_queue(ctx, CANCEL_OF)?.connection;
         // Shared, for `push`'s reason: cancelling on a second connection would be cancelling from
         // outside whatever transaction the request has open on the first, and a rolled-back
         // request would have taken a job out of the queue anyway.
         let handle = crate::db::open_named(ctx, &block, true, None, CANCEL_OF)?;
-        let sending: [Option<Vec<u8>>; 2] = [
+        let sending: [Option<Vec<u8>>; 3] = [
             Some(id.to_string().into_bytes()),
             Some(queue.clone().into_bytes()),
+            Some(token.clone().into_bytes()),
         ];
         let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
         let refused_by_server = |refused: &dyn std::fmt::Display| {
@@ -4874,7 +4997,16 @@ nvs_runtime::nvs_helper! {
             (CANCEL_POSTGRES, &bound),
             (CANCEL_MYSQL, &bound),
             (Tds::One(CANCEL_SQLSERVER), &bound),
-            &|| Sent::One(CANCEL_SQLITE, vec![sqlite_id(id), sqlite_text(Some(&queue))]),
+            &|| {
+                Sent::One(
+                    CANCEL_SQLITE,
+                    vec![
+                        sqlite_id(id),
+                        sqlite_text(Some(&queue)),
+                        sqlite_text(Some(&token)),
+                    ],
+                )
+            },
             0,
             &block,
             &refused_by_server,
@@ -4920,7 +5052,7 @@ nvs_runtime::nvs_helper! {
     /// with it if that transaction rolls back, exactly as an enqueue commits with it
     /// (`rule:concurrency/enqueue-commits-with-your-write`).
     fn nvs_core_queue_delete(ctx, args: [1]) {
-        let (id, queue) = job_of(args[0], DELETE_OF)?;
+        let (id, queue, token) = job_of(args[0], DELETE_OF)?;
         nvs_runtime::capability::require(
             ctx,
             nvs_config::Cap::QueuePurge,
@@ -4932,9 +5064,10 @@ nvs_runtime::nvs_helper! {
         // outside whatever transaction the request has open on the first, and a rolled-back
         // request would have destroyed the row anyway.
         let handle = crate::db::open_named(ctx, &block, true, None, DELETE_OF)?;
-        let sending: [Option<Vec<u8>>; 2] = [
+        let sending: [Option<Vec<u8>>; 3] = [
             Some(id.to_string().into_bytes()),
             Some(queue.clone().into_bytes()),
+            Some(token.clone().into_bytes()),
         ];
         let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
         let refused_by_server = |refused: &dyn std::fmt::Display| {
@@ -4965,7 +5098,11 @@ nvs_runtime::nvs_helper! {
             // receipt for itself because a `?` is a position: the two counts add up to the same
             // `bool` a single statement answers with.
             &|| {
-                let receipt = vec![sqlite_id(id), sqlite_text(Some(&queue))];
+                let receipt = vec![
+                    sqlite_id(id),
+                    sqlite_text(Some(&queue)),
+                    sqlite_text(Some(&token)),
+                ];
                 Sent::Pair(DELETE_SQLITE, receipt.clone(), receipt)
             },
             0,

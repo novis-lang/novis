@@ -60,6 +60,14 @@ const DEADLINE: Duration = Duration::from_secs(10);
 /// the column are one representation rather than two.
 const PENDING: &[u8] = b"0";
 
+/// The token every push in this file writes into a job's `token` column, as 32 lower-case hex
+/// digits the way `Core\Queue::push` draws one.
+///
+/// **One value for every job**, because no case here tells two jobs apart by token: each one is
+/// addressed by its id and queue, and [`status`], [`cancel`] and [`delete`] send this same value
+/// as the third column those statements match.
+const TOKEN: &[u8] = b"00112233445566778899aabbccddeeff";
+
 /// The driver this process is testing, and the server the harness published for
 /// it.
 ///
@@ -742,6 +750,8 @@ fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
                 // `non_transactional`, null on every push but one made while a
                 // transaction was open on a connection other than the queue's.
                 None,
+                // The job's token, which `status`, `cancel` and `delete` match.
+                Some(TOKEN),
             ],
         );
     }
@@ -768,6 +778,8 @@ fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
         None,
         None,
         None,
+        // The job's token, last after them for the same reason.
+        Some(TOKEN),
     ];
     if conn.driver() == Driver::SqlServer {
         // A statement whose `output` clause answers a row is read the way every
@@ -827,6 +839,8 @@ fn push_keyed(conn: &mut Conn, queue: &str, at: i64, key: &str) -> io::Result<St
         None,
         None,
         None,
+        // The job's token, as `push` sends it.
+        Some(TOKEN),
     ];
     let Dialect::Framed(mut framed) = conn.dialect() else {
         unreachable!("this pair is `INSERT_MYSQL`, and only the framed dialect runs it")
@@ -893,6 +907,8 @@ fn push_marked(
             None,
             None,
             None,
+            // The job's token, as `push` sends it.
+            Some(TOKEN),
         ],
     )
 }
@@ -1030,9 +1046,12 @@ fn roster(conn: &mut Conn, now: i64, cutoff: i64) -> Vec<String> {
 
 /// `status` for one job, or `None` where neither of the queue's two tables holds it.
 ///
-/// **The framed arm binds the pair twice, and that is the statement's whole
+/// The job is matched by its id, its queue and [`TOKEN`], the token every push
+/// in this file writes.
+///
+/// **The framed arm binds the triple twice, and that is the statement's whole
 /// difference.** `$1` may be named as often as a statement likes and a `?` may
-/// not, so [`queue::STATUS_MYSQL`] carries four placeholders for the two values
+/// not, so [`queue::STATUS_MYSQL`] carries six placeholders for the three values
 /// [`queue::STATUS_POSTGRES`] binds. `counted_row` is where the member doubles
 /// them once rather than at each of the two call sites; this doubles them here,
 /// in the same order, so the wrong-queue read below is asked of the doubling a
@@ -1040,11 +1059,21 @@ fn roster(conn: &mut Conn, now: i64, cutoff: i64) -> Vec<String> {
 fn status(conn: &mut Conn, id: &str, queue: &str) -> Option<String> {
     let (id, queue) = (id.as_bytes(), queue.as_bytes());
     let (sql, bound) = if conn.driver() == Driver::Postgres {
-        (queue::STATUS_POSTGRES, vec![Some(id), Some(queue)])
+        (
+            queue::STATUS_POSTGRES,
+            vec![Some(id), Some(queue), Some(TOKEN)],
+        )
     } else {
         (
             queue::STATUS_MYSQL,
-            vec![Some(id), Some(queue), Some(id), Some(queue)],
+            vec![
+                Some(id),
+                Some(queue),
+                Some(TOKEN),
+                Some(id),
+                Some(queue),
+                Some(TOKEN),
+            ],
         )
     };
     let mut found = rows(conn, sql, &bound);
@@ -1064,7 +1093,7 @@ fn cancel(conn: &mut Conn, id: &str, queue: &str) -> u64 {
     apply(
         conn,
         queue::CANCEL_MYSQL,
-        &[Some(id.as_bytes()), Some(queue.as_bytes())],
+        &[Some(id.as_bytes()), Some(queue.as_bytes()), Some(TOKEN)],
     )
 }
 
@@ -1079,14 +1108,14 @@ fn cancel(conn: &mut Conn, id: &str, queue: &str) -> u64 {
 /// [`delete_answers_false_for_a_claimed_job_and_true_for_a_pending_one`], which
 /// is where that half is asserted.
 ///
-/// **Two placeholders and not four**, unlike [`status`]: the pair is named once
-/// in the derived table the multi-table delete is driven from, and that
-/// constant's doc owns why.
+/// **Three placeholders and not six**, unlike [`status`]: the id, the queue and
+/// [`TOKEN`] are named once in the derived table the multi-table delete is
+/// driven from, and that constant's doc owns why.
 fn delete(conn: &mut Conn, id: &str, queue: &str) -> u64 {
     apply(
         conn,
         queue::DELETE_MYSQL,
-        &[Some(id.as_bytes()), Some(queue.as_bytes())],
+        &[Some(id.as_bytes()), Some(queue.as_bytes()), Some(TOKEN)],
     )
 }
 
@@ -2094,7 +2123,7 @@ fn delete_answers_false_for_a_claimed_job_and_true_for_a_pending_one() {
     let refused = rows(
         &mut conn,
         queue::DELETE_POSTGRES,
-        &[Some(held.as_bytes()), name],
+        &[Some(held.as_bytes()), name, Some(TOKEN)],
     );
     assert!(
         refused.is_empty(),
@@ -2109,7 +2138,7 @@ fn delete_answers_false_for_a_claimed_job_and_true_for_a_pending_one() {
     let removed = rows(
         &mut conn,
         queue::DELETE_POSTGRES,
-        &[Some(waiting.as_bytes()), name],
+        &[Some(waiting.as_bytes()), name, Some(TOKEN)],
     );
     assert_eq!(
         removed.len(),
@@ -2880,9 +2909,9 @@ fn roster_bounds(server: &Leg, queue: &str) {
 /// Here it must bind to the whole union: the first arm is tried first and the
 /// `limit 1` takes it.
 ///
-/// **The four placeholders are the second claim, and the wrong-queue read is
-/// what asks it.** The framed spelling binds `(id, queue)` twice where
-/// PostgreSQL names `$1` and `$2` again, so a doubling that transposed the pair
+/// **The six placeholders are the second claim, and the wrong-queue read is
+/// what asks it.** The framed spelling binds `(id, queue, token)` twice where
+/// PostgreSQL names `$1`, `$2` and `$3` again, so a doubling that transposed the pair
 /// would still answer `Pending` for a job asked about by its own id — and would
 /// answer it for *any* queue. A read naming the right id and the wrong queue is
 /// the assertion that separates those, and it is made against both arms, since

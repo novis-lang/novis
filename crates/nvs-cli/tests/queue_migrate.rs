@@ -147,3 +147,90 @@ fn queue_migrate_creates_both_tables_and_a_second_run_changes_nothing() {
         "the second run changed what the database has"
     );
 }
+
+/// Runs each of `statements` on the SQLite file at `path`, and returns how many rows the last one
+/// gave.
+fn on_sqlite_file(path: &Path, statements: &[&str]) -> usize {
+    let database = nvs_config::tree::Database {
+        driver: Some(String::from("sqlite")),
+        path: Some(path.display().to_string()),
+        ..nvs_config::tree::Database::default()
+    };
+    let target = nvs_db::SqliteTarget::resolve(&database).expect("the block resolves to a path");
+    let conn = nvs_db::sqlite::open(&target).expect("the scratch database opens");
+    let mut given = 0;
+    for sql in statements {
+        let mut answered = conn
+            .query(sql, Vec::new())
+            .unwrap_or_else(|refused| panic!("`{sql}` runs: {refused}"));
+        given = 0;
+        while answered.next_row().is_some() {
+            given += 1;
+        }
+    }
+    given
+}
+
+/// A queue built before the `token` column existed gets it from `nvs queue migrate`, in both
+/// tables, and the rows already there keep a null token. The case builds the tables, drops the
+/// column, and migrates again. It runs on a SQLite file of its own, so a shared server is never
+/// changed.
+// covers: tools:cli/nvs-queue-migrate
+#[test]
+fn migrate_adds_the_token_column_to_an_existing_jobs_table() {
+    let dir = scratch("queue-migrate-token");
+    let Some((_, true)) = block(&dir) else {
+        return;
+    };
+    let file = dir.join("jobs.db");
+    std::fs::write(
+        dir.join("nvs.toml"),
+        format!(
+            "[db.jobs]\ndriver = \"sqlite\"\npath = {}\n\n[queue]\nconnection = \"jobs\"\n",
+            quoted(&file.display().to_string())
+        ),
+    )
+    .unwrap();
+    let migrate = || {
+        let run = nvs(&dir, &["queue", "migrate", "nvs.toml"]);
+        let said = String::from_utf8_lossy(&run.stdout).into_owned();
+        assert_eq!(
+            run.status.code(),
+            Some(0),
+            "{said}{}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        said
+    };
+    migrate();
+    let _ = on_sqlite_file(
+        &file,
+        &[
+            "alter table nvs_jobs drop column token",
+            "alter table nvs_dead_jobs drop column token",
+            "insert into nvs_jobs (queue, script, state, attempts, max_attempts, backoff_ms, \
+             run_at, created_at) values ('mail', '/app/jobs/send.nvs', 0, 0, 3, 1000, 1, 1)",
+        ],
+    );
+
+    let said = migrate();
+    for table in ["nvs_jobs", "nvs_dead_jobs"] {
+        assert!(
+            said.contains(&format!("add column {table}.token: applied")),
+            "the run adds `{table}.token`:\n{said}"
+        );
+    }
+    assert_eq!(
+        on_sqlite_file(
+            &file,
+            &["select id from nvs_jobs where token is null and queue = 'mail'"],
+        ),
+        1,
+        "the row written before the column keeps a null token"
+    );
+    let again = migrate();
+    assert!(
+        again.contains("applied 0 step(s)"),
+        "a run after the column arrived runs nothing:\n{again}"
+    );
+}

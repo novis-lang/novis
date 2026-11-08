@@ -21,6 +21,14 @@ that outlives any one backend: such a column cannot be added to a table that alr
 it would be a schema no existing deployment could converge to, while a nullable one arrives as a
 `Safe` step.
 
+**Both tables carry a nullable `token` column**, the job's 16 random bytes as 32 lower-case hex
+characters (`rule:concurrency/queue-four-members`). Text and not binary, because every value the
+queue binds goes out as text on all four drivers, and hex has one written form per byte string, so a
+case-insensitive collation still compares two tokens exactly. Nullable for `dedupe_pending`'s reason:
+`nvs queue migrate` adds it to a live queue as a `Safe` step. A null never equals a token, so a row
+written before the column matches no `Queue\Id`. The dead-letter move copies it, so a buried job's Id
+still reads `Dead`.
+
 DDL is an injection sink and a privileged act, so **the runtime never issues it implicitly**, not at
 boot and not from a request; applying the plan takes `db.schema` like any other DDL
 (`rule:core-classes/schema-apply-capability`). A server whose queue database is behind that schema

@@ -115,6 +115,33 @@ fn int(cell: &SqliteValue) -> i64 {
     }
 }
 
+/// A token no other job in this process has, in the column's own form.
+///
+/// A counter and not a random draw, so a failing case names the same token on every run.
+fn fresh_token() -> String {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    let drawn = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let mut raw = [0_u8; queue::TOKEN_BYTES];
+    raw[..8].copy_from_slice(&drawn.to_be_bytes());
+    raw[8..].copy_from_slice(&std::process::id().to_be_bytes().repeat(2));
+    queue::token_text(&raw)
+}
+
+/// The token of job `id`, from whichever of the queue's two tables holds it, or the empty
+/// string for a job in neither. The empty string matches no row.
+fn stored_token(conn: &SqliteConn, id: i64) -> String {
+    let read = rows(
+        conn,
+        "select token from nvs_jobs where id = ? \
+         union all select token from nvs_dead_jobs where id = ?",
+        vec![SqliteValue::Int(id), SqliteValue::Int(id)],
+    );
+    match read.first().map(|row| &row[0]) {
+        Some(SqliteValue::Text(token)) => token.clone(),
+        _ => String::new(),
+    }
+}
+
 /// One pending job on [`QUEUE`], due at `run_at`, with `attempts` already spent.
 ///
 /// The insert is this file's own rather than [`queue::INSERT_MYSQL`]'s, because
@@ -142,8 +169,8 @@ fn push_on(
         conn,
         "insert into nvs_jobs \
          (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, claimed_at, \
-         dedupe_key, dedupe_pending, created_at, tag) \
-         values (?, ?, ?, ?, ?, 3, 250, ?, ?, null, null, ?, null)",
+         dedupe_key, dedupe_pending, created_at, tag, token) \
+         values (?, ?, ?, ?, ?, 3, 250, ?, ?, null, null, ?, null, ?)",
         vec![
             SqliteValue::Text(String::from(queue)),
             SqliteValue::Text(String::from("jobs/send.nvs")),
@@ -153,6 +180,7 @@ fn push_on(
             SqliteValue::Int(run_at),
             claimed_at.map_or(SqliteValue::Null, SqliteValue::Int),
             SqliteValue::Int(run_at),
+            SqliteValue::Text(fresh_token()),
         ],
     );
 
@@ -332,6 +360,18 @@ fn push_in_two_flagged(
     run_at: i64,
     non_transactional: SqliteValue,
 ) -> (i64, bool) {
+    let (id, deduped, _) = push_in_two_tokened(conn, key, run_at, non_transactional);
+    (id, deduped)
+}
+
+/// [`push_in_two_flagged`], with the token it returns: the new job's, or the pending job's on a
+/// dedupe hit, as `INSERT_SQLITE.first` reads it.
+fn push_in_two_tokened(
+    conn: &SqliteConn,
+    key: Option<&str>,
+    run_at: i64,
+    non_transactional: SqliteValue,
+) -> (i64, bool, String) {
     conn.begin_immediate().expect("the write lock, up front");
 
     if let Some(key) = key {
@@ -342,11 +382,16 @@ fn push_in_two_flagged(
         );
         if let Some(job) = pending.first() {
             let already = int(&job[0]);
+            let token = match &job[1] {
+                SqliteValue::Text(token) => token.clone(),
+                other => panic!("a pending job's token is text and read {other:?}"),
+            };
             conn.commit()
                 .expect("the deduped push's transaction closes");
-            return (already, true);
+            return (already, true, token);
         }
     }
+    let token = fresh_token();
 
     let dedupe = key.map_or(SqliteValue::Null, |key| {
         SqliteValue::Text(String::from(key))
@@ -372,6 +417,7 @@ fn push_in_two_flagged(
             SqliteValue::Null,
             SqliteValue::Null,
             non_transactional,
+            SqliteValue::Text(token.clone()),
         ],
     );
 
@@ -382,7 +428,7 @@ fn push_in_two_flagged(
     );
     let id = int(&landed.first().expect("the insert landed a row")[0]);
     conn.commit().expect("the push's transaction closes");
-    (id, false)
+    (id, false, token)
 }
 
 /// `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`'s guarantee on
@@ -522,14 +568,22 @@ fn dead_letter(conn: &SqliteConn, id: i64, lease: i64) {
 /// `STATUS_SQLITE`'s answer for one receipt, or `None` when no row in either
 /// table carries it.
 fn status(conn: &SqliteConn, id: i64) -> Option<i64> {
+    let token = stored_token(conn, id);
+    status_as(conn, id, &token)
+}
+
+/// [`status`] with the token the caller names.
+fn status_as(conn: &SqliteConn, id: i64, token: &str) -> Option<i64> {
     let read = rows(
         conn,
         queue::STATUS_SQLITE,
         vec![
             SqliteValue::Int(id),
             SqliteValue::Text(String::from(QUEUE)),
+            SqliteValue::Text(String::from(token)),
             SqliteValue::Int(id),
             SqliteValue::Text(String::from(QUEUE)),
+            SqliteValue::Text(String::from(token)),
         ],
     );
     read.first().map(|row| int(&row[0]))
@@ -577,10 +631,20 @@ fn a_sqlite_status_reads_the_live_state_and_then_the_dead_letter_ordinal() {
 /// `CANCEL_SQLITE`'s answer for one receipt: the affected count, which is what
 /// this backend has in place of a `returning` row.
 fn cancel(conn: &SqliteConn, id: i64) -> u64 {
+    let token = stored_token(conn, id);
+    cancel_as(conn, id, &token)
+}
+
+/// [`cancel`] with the token the caller names.
+fn cancel_as(conn: &SqliteConn, id: i64, token: &str) -> u64 {
     affected(
         conn,
         queue::CANCEL_SQLITE,
-        vec![SqliteValue::Int(id), SqliteValue::Text(String::from(QUEUE))],
+        vec![
+            SqliteValue::Int(id),
+            SqliteValue::Text(String::from(QUEUE)),
+            SqliteValue::Text(String::from(token)),
+        ],
     )
 }
 
@@ -923,8 +987,18 @@ fn sqlite_dead_lettered_counts_the_buried_rows_of_one_queue_and_nothing_live() {
 /// `Split` here that is not keyed on its first statement's row — the constant's
 /// own doc owns why, and why the transaction is still what the pair means.
 fn delete_in_two(conn: &SqliteConn, id: i64) -> bool {
+    let token = stored_token(conn, id);
+    delete_in_two_as(conn, id, &token)
+}
+
+/// [`delete_in_two`] with the token the caller names.
+fn delete_in_two_as(conn: &SqliteConn, id: i64, token: &str) -> bool {
     conn.begin_immediate().expect("the write lock, up front");
-    let receipt = vec![SqliteValue::Int(id), SqliteValue::Text(String::from(QUEUE))];
+    let receipt = vec![
+        SqliteValue::Int(id),
+        SqliteValue::Text(String::from(QUEUE)),
+        SqliteValue::Text(String::from(token)),
+    ];
     let gone = affected(conn, queue::DELETE_SQLITE.first, receipt.clone());
     let buried = affected(conn, queue::DELETE_SQLITE.then, receipt);
     conn.commit().expect("the removal's transaction closes");
@@ -1650,4 +1724,124 @@ fn a_sqlite_worker_that_overran_its_visibility_window_reports_nothing() {
         1,
         "and the worker that does hold the lease reports exactly once"
     );
+}
+
+/// A pushed row has a token of sixteen bytes in the column's own form, in both of the queue's
+/// tables' schemas, and each push gets its own.
+// covers: Core\Queue::push
+#[test]
+fn a_pushed_row_carries_a_sixteen_byte_token() {
+    let schema = queue::schema();
+    for table in ["nvs_jobs", "nvs_dead_jobs"] {
+        assert!(
+            schema.tables().iter().any(|held| {
+                held.name().as_str() == table
+                    && held
+                        .columns()
+                        .iter()
+                        .any(|column| column.name().as_str() == "token")
+            }),
+            "`{table}` declares a `token` column"
+        );
+    }
+    let raw: [u8; queue::TOKEN_BYTES] = std::array::from_fn(|at| u8::try_from(at * 17).unwrap());
+    let written = queue::token_text(&raw);
+    assert_eq!(written.len(), 2 * queue::TOKEN_BYTES);
+    assert!(
+        written
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)),
+        "a token is lower-case hex: {written}"
+    );
+    let decoded: Vec<u8> = written
+        .as_bytes()
+        .chunks(2)
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect();
+    assert_eq!(decoded, raw, "the hex is the sixteen bytes and nothing else");
+
+    let (worker, reader) = two_connections("nvs-stdlib-queue-token-written");
+    let (first, _, first_token) = push_in_two_tokened(&worker, None, NOW, SqliteValue::Null);
+    let (second, _, second_token) = push_in_two_tokened(&worker, None, NOW, SqliteValue::Null);
+    assert_eq!(stored_token(&reader, first), first_token);
+    assert_eq!(stored_token(&reader, second), second_token);
+    assert_ne!(first_token, second_token, "each push writes its own token");
+}
+
+/// A push whose key finds a pending job returns that job's token with its id, so the `Queue\Id`
+/// it builds names the job that is really there.
+// covers: Core\Queue::push
+#[test]
+fn a_dedupe_hit_returns_the_pending_jobs_token() {
+    let (worker, other) = two_connections("nvs-stdlib-queue-token-dedupe");
+    let (pending, deduped, token) =
+        push_in_two_tokened(&worker, Some("welcome-7"), NOW, SqliteValue::Null);
+    assert!(!deduped);
+    let (again, deduped, again_token) =
+        push_in_two_tokened(&other, Some("welcome-7"), NOW, SqliteValue::Null);
+    assert!(deduped, "the second push of the key finds the first job");
+    assert_eq!(again, pending);
+    assert_eq!(again_token, token, "the hit returns the pending job's own token");
+    assert_eq!(status_as(&other, again, &again_token), Some(0));
+}
+
+/// `status` with the right id and queue and another token finds no job, in either table.
+// covers: Core\Queue::status
+#[test]
+fn status_with_another_token_finds_no_job() {
+    let (worker, reader) = two_connections("nvs-stdlib-queue-token-status");
+    let pushed = push(&worker, NOW, 0, 0, None);
+    let token = stored_token(&reader, pushed);
+    assert_eq!(status_as(&reader, pushed, &token), Some(0));
+    for wrong in [fresh_token(), String::new(), token.to_uppercase()] {
+        assert_eq!(
+            status_as(&reader, pushed, &wrong),
+            None,
+            "a token the job was not given finds nothing: {wrong:?}"
+        );
+    }
+}
+
+/// `cancel` and `delete` with another token change nothing, and the right token still works.
+// covers: Core\Queue::cancel
+// covers: Core\Queue::delete
+#[test]
+fn cancel_and_delete_with_another_token_change_nothing() {
+    let (worker, reader) = two_connections("nvs-stdlib-queue-token-cancel");
+    let pushed = push(&worker, NOW, 0, 0, None);
+    let token = stored_token(&reader, pushed);
+    let wrong = fresh_token();
+
+    assert_eq!(cancel_as(&reader, pushed, &wrong), 0);
+    assert!(!delete_in_two_as(&reader, pushed, &wrong));
+    assert_eq!(status_as(&reader, pushed, &token), Some(0), "the job is still pending");
+
+    assert_eq!(cancel_as(&reader, pushed, &token), 1);
+    assert!(delete_in_two_as(&reader, pushed, &token));
+    assert_eq!(status_as(&reader, pushed, &token), None, "the right token removed it");
+}
+
+/// The dead-letter move copies the token, so the job's id still reads `Dead` afterwards.
+// covers: Core\Queue::status
+#[test]
+fn a_dead_lettered_job_keeps_its_token() {
+    let (worker, reader) = two_connections("nvs-stdlib-queue-token-dead");
+    let pushed = push(&worker, NOW, 0, 0, None);
+    let token = stored_token(&reader, pushed);
+    let claimed = claim(&worker, NOW, NOW).expect("the pushed job is due");
+    assert_eq!(int(&claimed[0]), pushed);
+    dead_letter(&worker, pushed, NOW);
+
+    let buried = rows(
+        &reader,
+        "select token from nvs_dead_jobs where id = ?",
+        vec![SqliteValue::Int(pushed)],
+    );
+    assert_eq!(
+        buried.first().map(|row| row[0].clone()),
+        Some(SqliteValue::Text(token.clone())),
+        "the dead-letter row has the job's token"
+    );
+    assert_eq!(status_as(&reader, pushed, &token), Some(3));
+    assert_eq!(status_as(&reader, pushed, &fresh_token()), None);
 }
