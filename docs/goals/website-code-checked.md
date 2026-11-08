@@ -21,7 +21,7 @@ stages:
     status: done
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: code-part
@@ -202,36 +202,32 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done. CI's website stale guard (`.github/workflows/ci.yml`, search `Website stale
-guard`) and `PRE_PUSH`'s (`tools/nv/cmd/ci.ts`, search `website stale guard`) now run `code`. The
-proxy checks stay inside that step (decision 12). The rule
-`testing/every-code-block-on-the-website-is-checked` is written
-(`docs/rules/testing/every-code-block-on-the-website-is-checked.md`, record under `data/rules/`),
-rendered, and named in `website/README.md`'s ownership table. `bun nv rules --check` and
-`bun nv render --check` are green. `site --check code` was last run green by the stage 4 session.
-No page changed since, so this session did not run it.
+Every stage is done, and the goal is reached. `looper verify` failed once, because
+`docs/rules/testing.md` was stale after decision 12 went into the rule's Declined list. It was
+re-rendered, and the second run is green. `bun nv verify --doc` is green. `bun nv owners --closes
+website-code-checked` names no gap. `bun nv ci --check` was red on `site questions`: 19 pages
+that earlier stages gave fence meta (`skip=`, `run=`, `fragment`, `plugins=`) were stale. Their
+questions already matched each page, so they were stamped, and `ci --check` is green, `site code`
+included.
 
-The sweep's reds were stale. No `env-secret-proofs` check or log exists. Nightly runs 42201104003
-and 42359979484 failed `miri units (nvs-stdlib 9/11/12)` on three 8 MiB JSON tests that time out at
-300 s. Commit `f13f40646a` already skips them under Miri, but both nightlies ran commit
-`26dda36627`, which is older. The next nightly on the pushed tree should be green. No test is
+Decision 2 and decision 8 live in `tools/nv/cmd/site.ts`'s header (§ *A code block*) and in the
+rule. Decision 12 is now in the rule's Declined list. Decision 7 only ordered this goal's stages.
+
+The sweep's reds were stale. No `env-secret-proofs` check or log exists. The nightly Miri reds ran
+a commit older than `f13f40646a`, which skips the three 8 MiB JSON tests under Miri. No test is
 expected to go red.
 
 ### Next
 
-Stage 6, the gate. Start `looper verify` with `run_in_background`, and fix every failure in one
-pass. Then run the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes
-website-code-checked` and `bun nv ci --check`. `ci --check` now runs `site --check code`, so it
-pulls the nginx and Caddy images and builds the plugin Caddy image once. Move decisions 2, 7, 8 and
-12 into a module doc or the rule before the goal file is deleted, if no home has them yet.
+Nothing in this goal. The driver runs the `code-part` acceptance check and retires the goal.
 
 ### Backlog
 
