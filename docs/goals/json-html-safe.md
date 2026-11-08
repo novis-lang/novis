@@ -14,7 +14,7 @@ stages:
     context: [docs/examples/README.md, tests/hostile/README.md, docs/rules/testing/feature-proofs.md]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: json-html-escape
@@ -99,42 +99,30 @@ change is safe when it lands.
 
 ### 3. the goal is verified once, and every failure is fixed
 
-- [ ] `bun nv affected --run`, every failure fixed in one pass, then once more.
-- [ ] The goal-end gates of AGENTS.md § *In the loop*.
+- [x] `bun nv affected --run`, every failure fixed in one pass, then once more.
+- [x] The goal-end gates of AGENTS.md § *In the loop*.
 
 ## Handoff
 
 ### State
 
-Stages 1 and 2 are done. `HtmlSafe` (`crates/nvs-stdlib/src/json.rs`) escapes the six in every
-writer of a program's values, and the rule names the three outside it. In stage 2, a search of every expectation (`.nvst`
-`--EXPECT--`/`--EXPECTF--`, `.out`, `.lspt`) under `tests/`, `docs/examples/`, `apps/`, `website/snippets/` and `benches/members/` for a JSON string
-holding one of the six found three that the encoder writes, now updated:
-`docs/examples/core/Markdown-Live/push/03-stream-a-model-answer-to-the-browser.out` (`Core\Sse`),
-`docs/examples/core/Html/toSource/03-html-for-a-page-that-updates-itself.out` and
-`tests/conformance/core/json-encode-writes-the-slash-unescaped-and-indents-two-spaces.nvst`. The other
-hits are outside the encoder and stay: the `<script>` frame name in log lines, the test report's
-`reason` (`nvs`'s own output), a raw file in `response-send-file-...`, and an HTML tree dump. The two
-examples pass under `bun nv proofs --run`. `Json.md` and the `encode` about page say it, and the
-website data is rendered again. The attack is
-`tests/hostile/core/Json/encode/02-a-value-that-ends-the-script.nvs` and passes. `encode`'s bench
-now encodes a name with an apostrophe in one round of three, and both benches are measured again:
-neither feature owes a proof.
+Every stage is done, and the goal is reached. Stage 3: `bun nv affected --run` was green at the
+first run (23 of 23, 8650 tests, 166 conformance cases, `encode`'s bench), so no Rust test froze the
+old escapes. `json-html-escape` passes, `bun nv verify --doc` resolves every link, and
+`bun nv owners --closes json-html-safe` names no gap. `bun nv ci --check` was red twice and is green:
+`decode`, `decodeAs`, `isValid` and `decodeEach` owed their perf records because `json.rs` changed,
+and are measured again, each at or below its last record. The questions of five pages whose text
+changed (`encode`, `encodeEach`, `Core\Json\Pieces`, `Html::toSource`, `Markdown\Live::push`) are
+reread, the three JSON pages each have a question about HTML safety, and all five are stamped.
+The rule holds decisions 1, 2, 3 and 6, and `json.rs`'s module doc holds 4 and 5.
 
-`encode`'s result is `tainted` when its input is, by `rule:security/taint-propagation`, so the attack
-reaches `Core\Response\Stream::write` through `Core\Taint::assertTrusted`. Decision 1 declined adding
-taint, not removing what propagation gives.
-
-The sweep's reds are stale, checked again: no `env-secret-proofs` check is defined, and nightly run
-42359979484 ran on 26dda36627, before the Miri ignores landed.
+The sweep's reds are stale: no `env-secret-proofs` check log exists, and nightly run 42359979484
+ran on 26dda36627, before the Miri ignores landed.
 
 ### Next
 
-Stage 3, the gate: `bun nv affected --run`, fix every failure in one pass, then once more; then the
-goal-end gates of AGENTS.md § *In the loop*. Expected red: a Rust test in `crates/*/tests/` that
-freezes JSON from `Core\Response::json`, `Core\Sse`, `Core\Queue`, `Core\Jwt` or `Core\Http\Client`
-with `<`, `>`, `&` or `'` in a string. This session searched only the `.nvst`, `.out` and `.lspt`
-expectations. `crates/nvs-stdlib/src/json.rs`, `tests/hostile/core/Json/encode/`
+Nothing: the driver retires the goal, and `queue-id-and-json-stream` is next on the chain. No test
+is expected red.
 
 ### Backlog
 
