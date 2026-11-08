@@ -21,6 +21,11 @@ use nvs_stdlib::registry::{CLASSES, CoreMethod, CoreTy, Qual};
 const ALLOWED: &[(&str, &str, &str)] = &[
     (r"Core\Json", "encode", "rule:security/taint-propagation"),
     (
+        r"Core\Json",
+        "encodeEach",
+        "rule:security/taint-propagation",
+    ),
+    (
         r"Core\Serialize",
         "encode",
         "rule:security/taint-propagation",
