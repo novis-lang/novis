@@ -291,7 +291,9 @@
 // table, `fragment="limits"`, and a bare one on `json` is the members of an object. In a `sh`, `bat` or
 // `powershell` block, each `nvs` line is parsed by `nvs` under `NOVIS_PARSE_ONLY`, and each `bun nv`
 // line must name one of its commands (`shellProblems`). Any other program makes the block one that
-// carries `skip="..."`. CI does not run
+// carries `skip="..."`. A `txt` block is output: `run="nvs ..."` names the command that prints it and
+// `cwd="<folder>"` where it runs, and each line of the block must be a line it prints, in order
+// (`outputProblems`). CI does not run
 // `code` yet: the goal `website-code-checked` adds each language's check and then the part.
 
 import { createHash } from "node:crypto";
@@ -306,7 +308,7 @@ import { type LspPart, lspFrame, lspMessages, lspTalk } from "../lib/lsp.ts";
 import { rel, ROOT } from "../lib/paths.ts";
 import { parseDap, recordDap } from "../lib/dap-replay.ts";
 import { parseReplay, recordReplay } from "../lib/replay.ts";
-import { recordTerm, sameTerm, TERM, TERM_OUT } from "../lib/term.ts";
+import { mask, recordTerm, sameTerm, TERM, TERM_OUT } from "../lib/term.ts";
 import { canShoot, recordShot, SHOT, SHOT_OUT, SHOT_PNG, shotFixture, shotPng } from "../lib/shoot.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
@@ -1906,8 +1908,38 @@ export async function shellProblems(block: CodeBlock, ctx: CodeContext): Promise
   return problems;
 }
 
+/** A line of output as `txt` compares it: masked as a `.term.out` is, with each run of spaces as one. */
+const outputLine = (line: string): string => mask(line).trim().replace(/\s+/g, " ");
+
+/**
+ * `txt`: the block is output that `run="nvs ..."` prints. The check runs that command with `NO_COLOR=1`
+ * from `cwd="<folder>"`, a path from the repository root, or from the root itself. Each line of the
+ * block must be a line of what it printed, standard output then standard error, in the same order. So
+ * a page may show part of the output. Both sides are masked as a `.term.out` is (`lib/term.ts`), so a
+ * duration or a port may differ. The exit code is not compared, since a page may show an error. A file
+ * tree or a line a reader cannot reproduce carries `skip="..."` instead.
+ */
+export async function outputProblems(block: CodeBlock, ctx: CodeContext): Promise<string[]> {
+  const run = block.attrs.get("run");
+  if (run === undefined) return ['output that no command makes: write run="nvs ..." with the command that prints it, or skip="<why>"'];
+  const words = shellWords(run);
+  if (programName(words[0] ?? "") !== "nvs") return [`run="${run}" is not an \`nvs\` command`];
+  if (!ctx.nvs) return ["no built `nvs` to run the command: build it, or name it with --nvs"];
+  const cwd = join(ctx.root, block.attrs.get("cwd") ?? ".");
+  if (!existsSync(cwd)) return [`cwd="${block.attrs.get("cwd")}" is not a folder of the repository`];
+  const r = await runProc([ctx.nvs, ...words.slice(1)], { cwd, timeoutMs: SNIPPET_MS, env: { NO_COLOR: "1", NOVIS_NO_INIT: "1" } });
+  const printed = `${r.stdout}\n${r.stderr}`.split("\n").map(outputLine);
+  let at = 0;
+  for (const line of block.text.split("\n").map(outputLine).filter(Boolean)) {
+    const found = printed.indexOf(line, at);
+    if (found < 0) return [`\`${run}\` does not print the line \`${line}\` here. It prints:\n${`${r.stdout}\n${r.stderr}`.trim()}`];
+    at = found + 1;
+  }
+  return [];
+}
+
 /** The check that runs each language's blocks. A language missing here is one no check runs yet. */
-export const CODE_CHECKS: Record<string, CodeCheck> = { toml: tomlProblems, json: jsonProblems, yaml: yamlProblems, sh: shellProblems, bat: shellProblems, powershell: shellProblems };
+export const CODE_CHECKS: Record<string, CodeCheck> = { toml: tomlProblems, json: jsonProblems, yaml: yamlProblems, sh: shellProblems, bat: shellProblems, powershell: shellProblems, txt: outputProblems };
 
 /** Languages another part owns: an `nvs` fence on a page is `snippets`' failure. */
 const CODE_ELSEWHERE = new Set(["nvs"]);

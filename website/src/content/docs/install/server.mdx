@@ -47,7 +47,7 @@ and for a folder above one of them.
 `nvs init` creates the data folder with its subfolders `cache`, `tmp`, `lsp` and `logs`. Then it
 writes the project file `nvs.toml` into the current folder. It prints one line for each path:
 
-```txt
+```txt skip="output with the paths of one server"
 created the data folder `D:\srv\novis\.nvsdata`
 created the project file `D:\srv\shop\nvs.toml`
 ```
@@ -58,7 +58,7 @@ You can run it again. It then creates nothing and overwrites nothing. It prints 
 `nvs init` also checks the folder it writes into. `nvs serve` makes the same check later. If
 another account can change the folder, `nvs init` asks:
 
-```txt
+```txt skip="a question that needs a folder other accounts can change"
 Restrict `D:\srv\shop` so only you and administrators can change it? [Y/n]
 ```
 
@@ -108,7 +108,7 @@ With the data folder, a server needs only one folder of its own:
 
 <Tabs syncKey="os">
 <TabItem label="Windows">
-```txt
+```txt skip="a list of paths"
 D:\srv\novis\nvs.exe
 D:\srv\novis\.nvsdata\nvs.toml
 D:\srv\novis\.nvsdata\cache\
@@ -116,7 +116,7 @@ D:\srv\novis\.nvsdata\logs\
 ```
 </TabItem>
 <TabItem label="Linux and macOS">
-```txt
+```txt skip="a list of paths"
 /opt/novis/nvs
 /opt/novis/.nvsdata/nvs.toml
 /opt/novis/.nvsdata/cache/
@@ -140,7 +140,7 @@ data folder is then not read.
 
 If `nvs` cannot create or use the data folder, it prints one warning and keeps running:
 
-```txt
+```txt skip="a warning that needs a data folder Novis cannot use"
 warning: Novis cannot use its data folder `/usr/local/bin/.nvsdata`: ...
 ```
 

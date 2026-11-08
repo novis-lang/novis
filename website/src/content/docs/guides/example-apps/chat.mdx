@@ -67,7 +67,7 @@ nvs test .
 
 `nvs test .` reads every `.nvs` file in the folder as one program and runs each `#[Test]` method:
 
-```txt
+```txt run="nvs test ." cwd="apps/chat"
   Chat\AppTest
     ✓ theHomePageShowsTheForm          0.6 ms
     ✓ joiningWithoutANameShowsTheProblem 0.4 ms
@@ -104,7 +104,7 @@ Each test joins first, and sends the session cookie with its WebSocket request.
 
 ## What each file does
 
-```txt
+```txt skip="a file tree"
 chat/
   nvs.toml             the configuration: the port, the limits of a connection, the security policy and the databases
   deploy/

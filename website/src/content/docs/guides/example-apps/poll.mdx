@@ -62,7 +62,7 @@ nvs test .
 
 `nvs test .` reads every `.nvs` file in the folder as one program and runs each `#[Test]` method:
 
-```txt
+```txt run="nvs test ." cwd="apps/poll"
   Poll\AppTest
     ✓ theHomePageShowsTheForm          5.3 ms
     ✓ aPollWithOneAnswerShowsTheProblem 5.4 ms
@@ -100,7 +100,7 @@ checks that the new results arrive on the stream.
 
 ## What each file does
 
-```txt
+```txt skip="a file tree"
 poll/
   nvs.toml             the configuration: the port, the security policy, the two databases and the permission to open them
   public/
@@ -180,7 +180,7 @@ curl -N http://127.0.0.1:8145/polls/1/events
 
 Vote in the browser, and a new `results` event appears in the terminal:
 
-```txt
+```txt skip="events from a running server"
 retry: 2238
 
 event: results

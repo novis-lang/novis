@@ -85,7 +85,7 @@ nvs test .
 `nvs test .` reads every `.nvs` file in the folder as one program and runs each `#[Test]` method.
 The tests open each finished PDF file with `Novis\Pdf\Reader` and check the text on its pages:
 
-```txt
+```txt run="nvs test ." cwd="apps/paperwork"
   Paperwork\AppTest
     ✓ theHomePageLinksEachDocument     0.7 ms
     ✓ eachDocumentIsSentAsAPdf         589.4 ms
@@ -114,7 +114,7 @@ The tests open each finished PDF file with `Novis\Pdf\Reader` and check the text
 
 ## What each file does
 
-```txt
+```txt skip="a file tree"
 paperwork/
   nvs.toml             the configuration: the port, and the app may read its logo and no other file
   assets/

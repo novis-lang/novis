@@ -53,7 +53,7 @@ nvs test .
 
 `nvs test .` reads every `.nvs` file in the folder as one program and runs each `#[Test]` method:
 
-```txt
+```txt run="nvs test ." cwd="apps/notes"
   Notes\AppTest
     ✓ theHomePageShowsTheForm          12.4 ms
     ✓ aFormWithNoTitleShowsTheProblem  0.5 ms
@@ -77,7 +77,7 @@ nvs test .
 
 ## What each file does
 
-```txt
+```txt skip="a file tree"
 notes/
   nvs.toml             the configuration: the port, the two databases and the permission to open them
   public/

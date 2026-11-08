@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join, relative } from "node:path";
-import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, codeBlocks, codeProblems, DOCS, fenceInfo, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, jsonProblems, inDepthProblems, paragraphs, parseRequest, proseProblems, serveRun, shellCommands, shellProblems, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, TOOL_SECTIONS, tomlProblems, toolsProblems, yamlProblems, type Served, type World } from "../cmd/site.ts";
+import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, codeBlocks, codeProblems, DOCS, fenceInfo, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, jsonProblems, inDepthProblems, outputProblems, paragraphs, parseRequest, proseProblems, serveRun, shellCommands, shellProblems, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, TOOL_SECTIONS, tomlProblems, toolsProblems, yamlProblems, type Served, type World } from "../cmd/site.ts";
 import { ROOT } from "../lib/paths.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
@@ -538,6 +538,16 @@ describe("nv site --check code", () => {
     expect(bad).toStartWith("line 1: `nvs` does not accept `nvs serve --no-such-flag`:");
     expect(await shellProblems(block("sh", "bun nv no-such-command"), ctx)).toEqual(["line 1: `bun nv` has no command `no-such-command`"]);
     expect(await shellProblems(block("sh", "git clone x\ncurl y\ngit pull"), ctx)).toEqual(['`git`, `curl` are not `nvs` or `bun nv`, so no check runs them: write skip="<why>" in the fence']);
+  });
+
+  test.skipIf(!NVS)("a txt block is lines its run prints, in order, with durations masked", async () => {
+    const ctx = { root: ROOT, nvs: NVS };
+    const run: [string, string][] = [["run", "nvs test tests-in-code.nvs"], ["cwd", "website/snippets/guides/why-novis"]];
+    expect(await outputProblems(block("txt", "  CartTest\n    ✓ multipliesPriceByCount   9.9 ms", run), ctx)).toEqual([]);
+    const [wrong] = await outputProblems(block("txt", "  CartTest\n    ✓ addsTax   0.1 ms", run), ctx);
+    expect(wrong).toStartWith("`nvs test tests-in-code.nvs` does not print the line `✓ addsTax <duration>` here.");
+    expect(await outputProblems(block("txt", "Hello"), ctx)).toEqual(['output that no command makes: write run="nvs ..." with the command that prints it, or skip="<why>"']);
+    expect(await outputProblems(block("txt", "Hello", [["run", "echo Hello"]]), ctx)).toEqual(['run="echo Hello" is not an `nvs` command']);
   });
 });
 
