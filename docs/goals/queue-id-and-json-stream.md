@@ -17,7 +17,7 @@ stages:
     status: done
   - id: 4
     title: "Core\\Queue\\Id has toString, parse and tryParse"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/uuid.rs, docs/rules/expressions/try-parse.md, docs/rules/classes/stringable.md, docs/rules/security/tainted-qualifier.md]
   - id: 5
     title: "the three Id members carry their feature proofs, and an attack sends a forged and another user's id"
@@ -197,6 +197,13 @@ expected `string|bytes`, found `tainted bytes`). `Core\Json::encode` returns a p
     string's 22 base64url characters to 16 bytes and writes them through `token_text` before any
     statement runs. A dedupe hit on a row written before the column returns an empty token, which
     matches no row.
+15. **The longest Id is computed from 1,020 bytes of queue name, not 255**, which refines decision 4.
+    `KEY_WIDTH` counts characters (`varchar(255)` under `utf8mb4`), so a queue name the column
+    admits can take four bytes a character. `ID_TEXT_MAX` is 20 + 1 + 22 + 1 + 1,360 = 1,404, and
+    `id_string_uses_only_url_safe_characters` holds it to the `queue` column of `schema()`. Each part
+    has one written form: the row number has no sign and no leading zero, and the base64url decoder
+    refuses trailing bits. An Id whose token slot is empty (a row written before the column) renders
+    sixteen zero bytes, and its string reads back as an Id that finds no job, as the empty token did.
 
 ## Stages
 
@@ -265,14 +272,14 @@ tree, side by side. None builds.
 
 **Does:** decisions 1, 4 and 5.
 
-- [ ] The three rows, with `Text(Qual::Neutral)` on `parse` and `tryParse`, and `toString` marking the
+- [x] The three rows, with `Text(Qual::Neutral)` on `parse` and `tryParse`, and `toString` marking the
   class as one that renders. `crates/nvs-stdlib/src/queue.rs:2747`
-- [ ] The format, its longest length as a constant, and `parse`'s checks in order: length, characters,
+- [x] The format, its longest length as a constant, and `parse`'s checks in order: length, characters,
   the three parts. `crates/nvs-stdlib/src/queue.rs:3441`
-- [ ] The class card and the three member cards; the class card loses "It has no methods of its own".
+- [x] The class card and the three member cards; the class card loses "It has no methods of its own".
   `crates/nvs-stdlib/src/queue.rs:2757`
-- [ ] The five tests of the `queue-id-string` check. `crates/nvs-stdlib/src/queue.rs:5606`
-- [ ] Conformance cases: a string round-trips through a later `status`; a `tainted` string compiles
+- [x] The five tests of the `queue-id-string` check. `crates/nvs-stdlib/src/queue.rs:5606`
+- [x] Conformance cases: a string round-trips through a later `status`; a `tainted` string compiles
   into `parse`; a changed token reads as a deleted job.
   `tests/conformance/core/queue-an-id-read-back-from-its-string-reads-the-same-job.nvst:1`
 
@@ -305,35 +312,41 @@ for the bench and the attack. Their files are disjoint. None builds.
 
 ### State
 
-Stages 1 to 3 are done. Stage 2 gave both tables a nullable `token` column (decision 14: 32
-lower-case hex characters), written by `push`, matched by `status`, `cancel` and `delete`, and held in
-the Id's third slot `ID_TOKEN_SLOT`. Stage 3 added `token text` as the last column of both tables in
-all 76 files that create them by hand (examples, conformance, hostile, benches, `benches/scaling/`,
-`docs/reference/core/Queue-Id.md`), and rerendered `website/src/data/core.json` and
-`website/public/llms-full.txt`, which were also stale from stage 1. `bun nv proofs --run` over
-`Core\Queue` and `Core\Queue\Stats` and all 34 `tests/conformance/core/queue-*.nvst` cases are green.
-The benches were not run. `tests/db/queue-sqlite.db` is gitignored and built by `nvs queue migrate`,
-which adds the column.
+Stages 1 to 4 are done. Stage 4 gave `Core\Queue\Id` `parse` and `tryParse` (statics, taking
+`Text(Qual::Neutral)`) and the instance member `toString`, with their cards
+(`crates/nvs-stdlib/src/queue.rs:2746`). `id_text` writes `<row>.<token>.<queue>` and `read_id` is
+the one parse, checking length, characters, then the three parts (`queue.rs:3573`, `queue.rs:3610`);
+`ID_TEXT_MAX` is 1,404 (decision 15). The five `queue-id-string` tests pass
+(`cargo test --lib queue::tests::id_`), and the three new conformance cases pass under
+`target/debug/nvs.exe test` (`queue-an-id-read-back-from-its-string-reads-the-same-job`,
+`queue-a-tainted-string-compiles-into-id-parse`, `queue-a-changed-token-reads-as-a-deleted-job`).
+Interpolation and `as string` render an Id. `website/src/data/core.json` and
+`website/public/llms-full.txt` are rerendered with the three members.
 
-The sweep's reds are stale, as the last two sessions found: no `env-secret-proofs` check is defined,
-and nightly run 42359979484 ran on 26dda36627, before the Miri ignores in f13f40646a.
+The sweep's reds are stale, as the last three sessions found: no `env-secret-proofs` check is
+defined, and nightly run 42359979484 ran on 26dda36627, before the Miri ignores in f13f40646a.
 
 ### Next
 
-**Stage 4**, the Id's three members, in one session.
+**Stage 5**, the feature proofs, split as its `**Split:**` line says. Model each member's folder on
+`docs/examples/core/Uuid/parse/`, and set the examples up as `docs/examples/core/Queue/push/nvs.toml`
+does (decision 9).
 
-- [ ] The rows on `ID` (`methods`, `instance` both empty today). `crates/nvs-stdlib/src/queue.rs:2747`
-- [ ] The format and `parse`, beside the slot reader `job_of`. `crates/nvs-stdlib/src/queue.rs:3441`;
-  the token's hex form is `token_text`, `crates/nvs-stdlib/src/queue.rs:245`.
-- [ ] The class card, which still says "It has no methods of its own". `crates/nvs-stdlib/src/queue.rs:2757`
-- [ ] The five `queue-id-string` tests in the test module. `crates/nvs-stdlib/src/queue.rs:5606`
-- [ ] Stage 4's three conformance cases, in the case list. `tests/conformance/core/queue-push-answers-an-id-and-not-a-number.nvst:1`
+- [ ] `toString`'s about page and examples. `docs/examples/core/Queue-Id/toString/about.md:1`
+- [ ] `parse`'s, with the owner check over a `.nvsr` request. `docs/examples/core/Queue-Id/parse/about.md:1`
+- [ ] `tryParse`'s. `docs/examples/core/Queue-Id/tryParse/about.md:1`
+- [ ] The attack of decision 10. `tests/hostile/core/Queue-Id/parse/01-a-job-id-the-client-changed.nvs:1`
+- [ ] The bench, `parse.nvs` beside its `.scale.nvs`. `benches/members/core/Queue-Id/parse.nvs:1`
+- [ ] The reference page, naming each member in code. `docs/reference/core/Queue-Id.md:8`
+
+The Rust tests are owed nothing: the five `id_*` tests and the three conformance cases carry
+`// covers:` lines or are credited by their calls.
 
 Expected red, for stage 6: unit tests in `crates/nvs-stdlib/src/queue.rs` and
 `crates/nvs-cli/src/worker.rs` that compare statement texts, column lists or placeholder counts, since
 only stage 2's new tests ran; the server suite `crates/nvs-stdlib/tests/queue.rs` under `bun nv
-db-matrix --all`; and the three `image-*` conformance cases.
-`docs/reference/core/Queue-Id.md:8` still says an Id cannot be printed, which is stage 5's.
+db-matrix --all`; the three `image-*` conformance cases; and any registry snapshot or roster test
+that counts `Core` members or expects `Core\Queue\Id` to have none.
 
 ### Backlog
 
