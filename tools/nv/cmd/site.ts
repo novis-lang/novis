@@ -293,7 +293,11 @@
 // line must name one of its commands (`shellProblems`). Any other program makes the block one that
 // carries `skip="..."`. A `txt` block is output: `run="nvs ..."` names the command that prints it and
 // `cwd="<folder>"` where it runs, and each line of the block must be a line it prints, in order
-// (`outputProblems`). CI does not run
+// (`outputProblems`). An `nginx`, `caddyfile` or `dockerfile` block is checked by `nginx -t`,
+// `caddy validate` or `docker build --check` in a pinned image, on a host whose Docker runs Linux
+// containers (`proxyProblems`, `bun nv proxy-validate`). A Caddyfile that needs a plugin names it
+// with `plugins="<module>"`. A `rust` block names the file it is copied from, `copy="<path>"`, and its
+// lines must be a run of that file's lines (`copyProblems`). CI does not run
 // `code` yet: the goal `website-code-checked` adds each language's check and then the part.
 
 import { createHash } from "node:crypto";
@@ -317,6 +321,7 @@ import { diagramProblems } from "../lib/site-diagrams.ts";
 import { pruneRetired, roadmapProblems, writeRoadmap } from "../lib/site-roadmap.ts";
 import { commentProblems } from "../proofs/collect.ts";
 import { dockerAbsent, servicesFor } from "../proofs/run.ts";
+import { kindOf, type ProxyKind, validate } from "./proxy-validate.ts";
 import { ABOUT, EXAMPLES, examplesDir, introFile, memberPath, metaJson, roster, RosterError, type Entry, type Meta } from "../proofs/roster.ts";
 import { DATA_FILE, renderWebsiteCore } from "../renderers/website-core.ts";
 import { REFERENCE_FILE, type Page as RefPage } from "../renderers/website-reference.ts";
@@ -1938,8 +1943,57 @@ export async function outputProblems(block: CodeBlock, ctx: CodeContext): Promis
   return [];
 }
 
+/** Why the proxy checks did not run on this machine, said once per process. */
+let proxySkipSaid = false;
+
+/**
+ * `nginx`, `caddyfile` and `dockerfile`: the block is checked by `nginx -t`, `caddy validate` or
+ * `docker build --check` in its pinned image (`proxy-validate.ts`). A Caddyfile that needs a plugin
+ * names it with `plugins="<module> ..."`. Where Docker runs no Linux containers, nothing is checked and
+ * the reason is printed once, so only the Linux leg judges these blocks.
+ */
+export async function proxyProblems(block: CodeBlock): Promise<string[]> {
+  const plugins = (block.attrs.get("plugins") ?? "").split(/\s+/).filter(Boolean);
+  const v = await validate(block.lang as ProxyKind, block.text, plugins);
+  if ("skipped" in v) {
+    if (!proxySkipSaid) console.log(`site code: the nginx, Caddyfile and Dockerfile blocks are not checked here: ${v.skipped}`);
+    proxySkipSaid = true;
+    return [];
+  }
+  return v.problems;
+}
+
+/**
+ * `rust`: the block is a copy of part of a file the repository builds, named by `copy="<path>"` from the
+ * root. Its lines must be a run of that file's lines, compared without their indent, so the page may show
+ * one function of a file.
+ */
+export function copyProblems(block: CodeBlock, ctx: CodeContext): string[] {
+  const copy = block.attrs.get("copy");
+  if (!copy) return ['a copy of no file: write copy="<path>" with the file the block is part of, or skip="<why>"'];
+  const path = join(ctx.root, copy);
+  if (!existsSync(path)) return [`copy="${copy}" is not a file of the repository`];
+  const want = block.text.split("\n").map((l) => l.trim());
+  while (want.length && !want.at(-1)) want.pop();
+  const have = readFileSync(path, "utf8").replace(/\r\n/g, "\n").split("\n").map((l) => l.trim());
+  for (let i = 0; i + want.length <= have.length; i++) if (want.every((l, j) => have[i + j] === l)) return [];
+  return [`the block is not a run of lines of \`${copy}\`: copy it from that file again`];
+}
+
 /** The check that runs each language's blocks. A language missing here is one no check runs yet. */
-export const CODE_CHECKS: Record<string, CodeCheck> = { toml: tomlProblems, json: jsonProblems, yaml: yamlProblems, sh: shellProblems, bat: shellProblems, powershell: shellProblems, txt: outputProblems };
+export const CODE_CHECKS: Record<string, CodeCheck> = {
+  toml: tomlProblems,
+  json: jsonProblems,
+  yaml: yamlProblems,
+  sh: shellProblems,
+  bat: shellProblems,
+  powershell: shellProblems,
+  txt: outputProblems,
+  nginx: proxyProblems,
+  caddyfile: proxyProblems,
+  dockerfile: proxyProblems,
+  rust: copyProblems,
+};
 
 /** Languages another part owns: an `nvs` fence on a page is `snippets`' failure. */
 const CODE_ELSEWHERE = new Set(["nvs"]);
@@ -2254,10 +2308,45 @@ async function getFile(port: number, file: string): Promise<{ status: number; bo
 
 const serveFailed = (app: string, why: string) => `${app}: \`nvs serve public/index.nvs\` did not answer \`GET /\` with 200: ${why}`;
 
+/** The folder of an app with the files it is deployed with. */
+export const DEPLOY = "deploy";
+
+/**
+ * The problems of an app's `deploy/` folder. `production.toml` is read over `nvs.toml` by
+ * `nvs config check`, in the app's folder, as the server reads the two. Every other file is a
+ * proxy's or Docker's, judged by its name (`kindOf`), and is checked by that tool in its pinned image.
+ * Where Docker runs no Linux containers, the proxy files are not checked, as a page's blocks are not.
+ */
+export async function deployProblems(nvs: string, app: string, root: string = ROOT): Promise<string[]> {
+  const dir = join(root, app, DEPLOY);
+  if (!existsSync(dir)) return [];
+  const problems: string[] = [];
+  for (const file of readdirSync(dir).sort(comparePaths)) {
+    const at = `${app}/${DEPLOY}/${file}`;
+    if (file.endsWith(".toml")) {
+      const r = await runProc([nvs, "config", "check", "--no-init", "nvs.toml", `${DEPLOY}/${file}`], { cwd: join(root, app), timeoutMs: SNIPPET_MS, env: { NO_COLOR: "1", NOVIS_NO_INIT: "1" } });
+      if (r.code !== 0) problems.push(`${at}: \`nvs config check nvs.toml ${DEPLOY}/${file}\` fails:\n${`${r.stderr}\n${r.stdout}`.trim()}`);
+      continue;
+    }
+    const kind = kindOf(file);
+    if (kind === "nginx" && !file.endsWith(".conf")) {
+      problems.push(`${at}: no check reads this file: a deploy file is a \`.toml\`, a \`.conf\` for nginx, a \`Caddyfile\` or a \`Dockerfile\``);
+      continue;
+    }
+    const v = await validate(kind, readFileSync(join(dir, file), "utf8"));
+    if ("skipped" in v) {
+      if (!proxySkipSaid) console.log(`site apps: the proxy files under ${DEPLOY}/ are not checked here: ${v.skipped}`);
+      proxySkipSaid = true;
+    } else for (const p of v.problems) problems.push(`${at}: ${p}`);
+  }
+  return problems;
+}
+
 /**
  * The `apps` part: every app under `APPS` passes `nvs test .`, `nvs serve public/index.nvs` answers
  * `GET /` with a `200` within `BOOT_MS`, and each of its copies is what the server returns now
- * (`appFileProblem`). Both run in the app's own directory, as its page tells a reader to.
+ * (`appFileProblem`). Both run in the app's own directory, as its page tells a reader to. Its
+ * `deploy/` folder passes `deployProblems` first.
  */
 export async function appsProblems(nvs: string, root: string = ROOT): Promise<string[]> {
   const problems: string[] = [];
@@ -2265,8 +2354,9 @@ export async function appsProblems(nvs: string, root: string = ROOT): Promise<st
   if (dirs.length === 0) return [`${APPS}/: no app`];
   for (const dir of dirs) {
     const app = `${APPS}/${dir}`;
+    problems.push(...(await deployProblems(nvs, app, root)));
     await inApp(root, app, async (cwd) => {
-      const test = await runProc([nvs, "test", "."], { cwd, timeoutMs: 10 * 60_000, env: { NOVIS_NO_INIT: "1" } });
+      const test =await runProc([nvs, "test", "."], { cwd, timeoutMs: 10 * 60_000, env: { NOVIS_NO_INIT: "1" } });
       if (test.code !== 0) {
         const tail = (test.stdout + test.stderr).trim().split("\n").slice(-15);
         problems.push(`${app}: \`nvs test .\` exited ${test.code}`, ...tail.map((l) => `  ${l}`));

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join, relative } from "node:path";
-import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, codeBlocks, codeProblems, DOCS, fenceInfo, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, jsonProblems, inDepthProblems, outputProblems, paragraphs, parseRequest, proseProblems, serveRun, shellCommands, shellProblems, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, TOOL_SECTIONS, tomlProblems, toolsProblems, yamlProblems, type Served, type World } from "../cmd/site.ts";
+import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, codeBlocks, codeProblems, copyProblems, DOCS, fenceInfo, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, jsonProblems, inDepthProblems, outputProblems, paragraphs, parseRequest, proseProblems, serveRun, shellCommands, shellProblems, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, TOOL_SECTIONS, tomlProblems, toolsProblems, yamlProblems, type Served, type World } from "../cmd/site.ts";
 import { ROOT } from "../lib/paths.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
@@ -548,6 +548,15 @@ describe("nv site --check code", () => {
     expect(wrong).toStartWith("`nvs test tests-in-code.nvs` does not print the line `✓ addsTax <duration>` here.");
     expect(await outputProblems(block("txt", "Hello"), ctx)).toEqual(['output that no command makes: write run="nvs ..." with the command that prints it, or skip="<why>"']);
     expect(await outputProblems(block("txt", "Hello", [["run", "echo Hello"]]), ctx)).toEqual(['run="echo Hello" is not an `nvs` command']);
+  });
+
+  test("a rust block is a run of the lines of the file it is copied from, whatever their indent", () => {
+    const ctx = { root: ROOT, nvs: null };
+    const copy: [string, string][] = [["copy", "crates/nvs-cli/templates/ext/rust/src/lib.rs"]];
+    expect(copyProblems(block("rust", "fn reverse(data: &Bytes) -> Result<Bytes, Error> {\n    let mut bytes = read_all(data);\n    bytes.reverse();\n", copy), ctx)).toEqual([]);
+    expect(copyProblems(block("rust", "fn reverse(data: &Bytes) -> Result<Bytes, Error> {\n    bytes.reverse();", copy), ctx)).toEqual(["the block is not a run of lines of `crates/nvs-cli/templates/ext/rust/src/lib.rs`: copy it from that file again"]);
+    expect(copyProblems(block("rust", "fn x() {}"), ctx)).toEqual(['a copy of no file: write copy="<path>" with the file the block is part of, or skip="<why>"']);
+    expect(copyProblems(block("rust", "fn x() {}", [["copy", "no/such.rs"]]), ctx)).toEqual(['copy="no/such.rs" is not a file of the repository']);
   });
 });
 

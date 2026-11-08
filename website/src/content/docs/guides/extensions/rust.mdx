@@ -137,7 +137,7 @@ They are in the template's `src/lib.rs` from Step 1.
 `read_all` reads a `bytes` parameter into a `Vec<u8>`. `bytes_from` returns a `Vec<u8>` as a new
 `Bytes`. In Rust, `Bytes` is `nvs::ext::types::Bytes`. The template's `reverse` uses both:
 
-```rust
+```rust copy="crates/nvs-cli/templates/ext/rust/src/lib.rs"
 fn reverse(data: &Bytes) -> Result<Bytes, Error> {
     let mut bytes = read_all(data);
     bytes.reverse();
@@ -260,7 +260,7 @@ nvs serve index.nvs
 
 Open `http://127.0.0.1:8000/` and click **Show**. Try some code that looks like HTML, too:
 
-````md
+````md skip="text the reader types into the demo page"
 ```html
 <script>alert(1)</script>
 ```
