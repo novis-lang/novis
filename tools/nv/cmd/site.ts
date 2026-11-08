@@ -297,8 +297,8 @@
 // `caddy validate` or `docker build --check` in a pinned image, on a host whose Docker runs Linux
 // containers (`proxyProblems`, `bun nv proxy-validate`). A Caddyfile that needs a plugin names it
 // with `plugins="<module>"`. A `rust` block names the file it is copied from, `copy="<path>"`, and its
-// lines must be a run of that file's lines (`copyProblems`). CI does not run
-// `code` yet: the goal `website-code-checked` adds each language's check and then the part.
+// lines must be a run of that file's lines (`copyProblems`). CI's website stale guard and
+// `bun nv ci --check` run `code` (`rule:testing/every-code-block-on-the-website-is-checked`).
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";

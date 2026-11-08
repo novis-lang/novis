@@ -1,0 +1,16 @@
+{
+  "title": "Every code block on a hand-written website page, and every example app's `deploy/` folder, is run by a check or carries `skip` with its reason, and `bun nv site --check code` fails on one that is neither",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/website-pages-are-stamped",
+    "testing/a-terminal-block-shows-what-nvs-printed",
+    "testing/examples-live-in-the-repository"
+  ],
+  "guardedBy": [
+    "tools/nv/cmd/site.ts",
+    "tools/nv/cmd/proxy-validate.ts",
+    "tools/nv/test/site.test.ts",
+    "tools/nv/test/proxy-validate.test.ts",
+    "crates/nvs-cli/src/main.rs"
+  ]
+}
