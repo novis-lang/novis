@@ -12,7 +12,7 @@ stages:
     status: done
   - id: 3
     title: "every shell and output block is a run, a parsed nvs command, or marked with its reason"
-    status: open
+    status: done
   - id: 4
     title: "every nginx, Caddy and Dockerfile block, and every app's deploy/ folder, passes its own validator"
     status: open
@@ -111,6 +111,16 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
    `fragment` is per language: `fragment="<table>"` on `toml` puts the block under that header, and
    a bare `fragment` on `json` parses it inside `{ }`, for a VS Code setting or one OpenAPI path.
    No `toml` page block needs `fragment` today.
+10. **How a shell and an output block are checked.** `NOVIS_PARSE_ONLY` (`crates/nvs-cli/src/main.rs`)
+    makes `nvs` exit 0 once clap accepts its arguments, before elevation, the data folder and
+    telemetry, and it is in `nvs --help`'s environment list. A `bun nv` line is checked against the
+    command table in `tools/nv/main.ts`, which cannot be imported without running. A `skip` skips the
+    whole block, so a block that mixes `cargo` and `nvs` lines checks neither: splitting it on the page
+    would cost the reader a step for one parse. A `txt` block is checked in place with
+    `run="nvs ..."` and `cwd`, rather than turned into a `<Terminal>`: a `.term`'s fixture is a copy,
+    and the apps and snippets the output comes from would then have two homes. Its lines must appear
+    in the output in order, so a page may show an excerpt, and an error the reader makes by changing
+    a program is `skip`.
 
 ## Stages
 
@@ -137,11 +147,17 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
 
 ### 3. every shell and output block is a run, a parsed nvs command, or marked with its reason
 
-- [ ] The argument parse without a run for `nvs` and `bun nv` lines (decision 3).
+- [x] The argument parse without a run for `nvs` and `bun nv` lines (decision 3).
   `crates/nvs-cli/src/main.rs:1`
-- [ ] The `sh` check over it, and each `sh` block made a `<Terminal>` or marked.
+  - [x] `NOVIS_PARSE_ONLY` in `main`, after the parse, and in the help's environment list.
+  - [x] A `bun nv` line names a command of `tools/nv/main.ts`.
+- [x] The `sh` check over it, and each `sh` block made a `<Terminal>` or marked.
   `website/src/content/docs/guides/production/run-as-a-service.mdx:1`
-- [ ] Each `txt` block made the `.out` of a run or marked. `website/src/content/docs/guides/example-apps/notes.mdx:58`
+  - [x] `shellCommands` and `shellProblems`, for `sh`, `bat` and `powershell`, with tests.
+  - [x] The 28 blocks with other programs carry `skip="..."`.
+- [x] Each `txt` block made the `.out` of a run or marked. `website/src/content/docs/guides/example-apps/notes.mdx:58`
+  - [x] `outputProblems` with `run` and `cwd` (decision 10), with a test.
+  - [x] Seven blocks run, and the trees, path lists and one-server output carry `skip="..."`.
 
 ### 4. every nginx, Caddy and Dockerfile block, and every app's deploy/ folder, passes its own validator
 
@@ -173,50 +189,23 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
 
 ### State
 
-Stages 1 and 2 are done. `bun nv site --check code` exists and is not in CI. `CODE_CHECKS`
-(`tools/nv/cmd/site.ts`, search `export const CODE_CHECKS`) has `toml` (`tomlProblems`, which runs
-`nvs config check` and stubs missing files, decision 9), `json` and `yaml`. All 42 of those blocks
-pass. Three `json` blocks are now `json fragment` (`syntax/attributes/routes.mdx` 63,
-`tools/editor/index.mdx` 202, 222). The part fails on the 102 blocks of stages 3 and 4. A check gets
-the block (its text, language and attributes) and `{ root, nvs }`, and returns its problems without
-`page:line`. The part's seven tests pass (`bun test tools/nv/test/site.test.ts -t "check code"`);
-the `toml` one is skipped where no `nvs` is built. The sweep's reds were stale: no
-`env-secret-proofs` check exists, and nightly run 42359979484 built `26dda36627`, before
-`f13f40646a` skipped its three timed-out JSON tests under Miri. No test is expected to go red.
+Stages 1, 2 and 3 are done. `bun nv site --check code` exists and is not in CI, and it fails only
+on the 7 page blocks of stage 4. `CODE_CHECKS` (`tools/nv/cmd/site.ts`, search
+`export const CODE_CHECKS`) has `toml`, `json`, `yaml`, `sh`, `bat`, `powershell` (`shellProblems`)
+and `txt` (`outputProblems`). `nvs` lines are parsed under `NOVIS_PARSE_ONLY`, and a `txt` block
+is checked by its `run="nvs ..."` and `cwd` (decision 10). 28 shell blocks and 16 `txt` blocks carry
+`skip="..."`. The part's ten tests pass (`bun test tools/nv/test/site.test.ts -t "check code"`).
+The sweep's reds were stale again: no `env-secret-proofs` check or log exists, and nightly run
+42359979484 is the same run the last handoff named. No test is expected to go red.
 
 ### Next
 
-Stages 3 and 4 are lanes over different pages (decision 7), and either may go next. Stage 3 is the
-larger one, and its first item, the argument parse without a run, is Rust in `nvs-cli`. Stage 4's
-gate is open: `apps/chat/deploy/` has `Caddyfile`, `nginx.conf` and `production.toml`, and no
-`server.toml`. The apps part's `deploy/production.toml` check can reuse `tomlProblems`' stub loop
-for `/var/lib/<app>/` paths (decision 4). Each list below is `page line, ...` under
-`website/src/content/docs/`, which is what `site --check code` names now.
-
-**Stage 3: `sh` (66), `bat` (5), `powershell` (1) and `txt` (23).** `crates/nvs-cli/src/main.rs:1`
-- `sh`: `guides/example-apps/chat.mdx` 42, 51, 64, 251; `guides/example-apps/notes.mdx` 32, 41, 50,
-  144; `guides/example-apps/paperwork.mdx` 57, 66, 81; `guides/example-apps/poll.mdx` 38, 47, 59, 177,
-  237, 247, 254, 262; `guides/extensions/rust.mdx` 35, 43, 62, 189, 209, 243, 257, 309;
-  `guides/how-to-use/configuration.mdx` 120; `guides/production/docker.mdx` 159, 182, 273;
-  `guides/production/reverse-proxy.mdx` 55; `guides/production/run-as-a-service.mdx` 15, 42, 116;
-  `guides/simple-programs/form-handler.mdx` 18; `guides/simple-programs/json-api.mdx` 19;
-  `guides/tour/10-web-app.mdx` 15; `in-depth/compare.mdx` 293; `install/hello-world.mdx` 16, 37;
-  `install/index.mdx` 55, 117, 124, 137, 142, 157, 162; `install/server.mdx` 30, 132, 151, 174, 307,
-  333; `licenses.mdx` 27; `syntax/start-here.mdx` 15; `tools/api-document/index.mdx` 41;
-  `tools/cli/index.mdx` 12, 81, 93, 108; `tools/editor/index.mdx` 150, 160;
-  `tools/formatter/index.mdx` 24, 30; `tools/test-runner/index.mdx` 61.
-- `bat`: `install/server.mdx` 23, 267, 274, 281, 288. `powershell`: `install/index.mdx` 132.
-- `txt`: test runner output at `guides/example-apps/chat.mdx` 70, `notes.mdx` 56, `paperwork.mdx` 88,
-  `poll.mdx` 65, `guides/extensions/rust.mdx` 213, `guides/tour/08-tests.mdx` 16 and
-  `guides/why-novis/tests-in-code.mdx` 16. File trees at `guides/example-apps/chat.mdx` 107,
-  `notes.mdx` 80, `paperwork.mdx` 117, `poll.mdx` 103 and `guides/how-to-use/project-layout.mdx` 9,
-  54. A diagnostic at `guides/tour/01-methods-and-types.mdx` 20 and
-  `guides/why-novis/no-null-surprises.mdx` 18. Program output at `install/hello-world.mdx` 41,
-  `guides/example-apps/poll.mdx` 183 (an event stream) and `install/server.mdx` 50, 61, 143. Path
-  lists at `install/server.mdx` 111, 119. LCOV at `tools/test-runner/coverage.mdx` 26.
-
-**Stage 4: `nginx` (2), `caddyfile` (2), `dockerfile` (1), `rust` (1), `md` (1) and the six deploy
-files.** `tools/nv/cmd/pdf-validate.ts:1`
+Stage 4. Its gate is open: `apps/chat/deploy/` has `Caddyfile`, `nginx.conf` and
+`production.toml`, and no `server.toml`. Write the proxy validator on the model of
+`tools/nv/cmd/pdf-validate.ts:1` (decision 3), then add `nginx`, `caddyfile` and `dockerfile` to
+`CODE_CHECKS`, the `rust` and `md` checks as copies of the extension example's files, and the
+`apps` part's `deploy/` checks. The `deploy/production.toml` check can reuse `tomlProblems`' stub
+loop for `/var/lib/<app>/` paths (decision 4). The 7 blocks, under `website/src/content/docs/`:
 - `guides/production/reverse-proxy.mdx` nginx 121, 431 and caddyfile 281, 460;
   `guides/production/docker.mdx` dockerfile 137; `guides/extensions/rust.mdx` rust 140 and md 263 (a
   four-backtick fence around an `html` one).
