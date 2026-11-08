@@ -1,6 +1,0 @@
-{
-  "module": "apps/registry/src/PackagePage.nvs",
-  "title": "A package page shows its readme as plain text, not rendered from Markdown.",
-  "text": "`rule:packaging/search-sorts-by-the-readers-choice` declines a rendered readme until `Core\\Markdown` exists. Closing it renders each version's readme once when the registry builds it, stores the result, and shows it on the package page, with links rewritten to the build's commit.",
-  "goal": "registry-readme"
-}

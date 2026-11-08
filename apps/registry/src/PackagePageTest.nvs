@@ -153,19 +153,33 @@ final class PackagePageTest
         );
     }
 
-    // The readme is shown as text, so a `<script>` tag in it is escaped.
+    // The readme is shown as the HTML stored with the release. Relative links and images point at
+    // the commit of the build, headings have anchors, and a `<script>` tag is not written.
     #[Test(at: '2026-06-15T12:00:00Z')]
-    public function theReadmeIsEscaped(): void
+    public function theReadmeIsShownAsHtml(): void
     {
         var $db = PackagePageTest::database();
         int $now = PackagePageTest::now();
         string $key = PackagePageTest::package($db, 'Acme\\Http', $now - 10 * PackagePageTest::DAY);
         PackagePageTest::release($db, $key, '0.0.1', $now - 10 * PackagePageTest::DAY);
-        $db->execute('update releases set readme = ? where package = ? and version = ?', ['Hello <script>alert(1)</script>', $key, '0.0.1']);
+        string $commit = Str::repeat('ab', 20);
+        string $readme = "# Getting Started\n\nRead the [guide](docs/guide.md#install), the [notes](#getting-started) "
+            . "and the [site](https://other.example.org/).\n\n![logo](../logo.png)\n\n[outside](../../../x.md)\n\n"
+            . "## Getting Started\n\n<script>alert(1)</script>\n";
+        string $html = Readme::render($readme, 'https://example.com/acme/http.git', 'packages/http', $commit);
+        $db->execute('update releases set readme = ?, readme_html = ? where package = ? and version = ?', [$readme, $html, $key, '0.0.1']);
 
         string $page = PackagePageTest::packagePage($db, $now, $key);
-        PackagePageTest::has($page, '<h2>Readme</h2><pre>Hello &lt;script&gt;alert(1)&lt;/script&gt;</pre>');
+        PackagePageTest::has($page, '<h2>Readme</h2><div class="readme">');
+        PackagePageTest::has($page, 'id="md-getting-started"');
+        PackagePageTest::has($page, 'id="md-getting-started-1"');
+        PackagePageTest::has($page, 'href="https://example.com/acme/http/blob/' . $commit . '/packages/http/docs/guide.md#install"');
+        PackagePageTest::has($page, 'href="#md-getting-started"');
+        PackagePageTest::has($page, 'href="https://other.example.org/"');
+        PackagePageTest::has($page, 'src="https://example.com/acme/http/raw/' . $commit . '/packages/logo.png"');
+        Test::assertTrue(!Str::contains($page, 'x.md'));
         Test::assertTrue(!Str::contains($page, '<script>'));
+        Test::assertTrue(!Str::contains($page, '# Getting Started'));
     }
 
     // An owner sees the forms that change the package, and the form that releases each waiting version.

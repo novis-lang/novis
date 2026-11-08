@@ -42,7 +42,19 @@ The release row keeps each of them, so a page never opens an archive or runs `nv
 from the log has them null, and its page says so. The release row's `declarations` is both the public
 API size the ranking reads and the denominator of doc-comment coverage, so one count serves both facts.
 
-The readme is escaped and shown as plain text. The account page (`apps/registry/src/AccountPage.nvs`)
+**The readme is rendered once per version, when the release is saved**, by `Core\Markdown::toHtml`
+(`rule:core-classes/markdown-to-html`) in `Readme::render` (`apps/registry/src/Readme.nvs`), and the
+HTML is stored beside the text in `releases.readme_html`. A relative link points at the repository's
+file at the commit of the build, through the `/blob/` path, and a relative image at its bytes, through
+`/raw/`: the paths GitHub and GitLab serve. A link to another host keeps its URL, and a path that leaves
+the repository writes its text alone. A heading's anchor is `md-` and a slug of its text, with `-1`,
+`-2` on a repeat, and a `#slug` link is rewritten to `#md-slug`. A page view parses no Markdown: it
+rebuilds the stored HTML through `Core\Html::sanitize`, which leaves a Markdown answer unchanged, so a
+row changed outside the registry still cannot write a script into the page. That costs one HTML parse
+of at most a few times the readme's 64 KiB cap per view, and one stored copy per version. A database
+made before the column renders each stored readme once when the column is added.
+
+The account page (`apps/registry/src/AccountPage.nvs`)
 needs any sign-in, a recovery code too: a visitor who lost a passkey must see the account to add one
 and to revoke its tokens, the page changes nothing, and every change it leads to keeps its own passkey
 check. A webhook is shown by its host alone, because its path can carry the receiver's secret.
@@ -58,11 +70,10 @@ the only per-address data, and both are deleted when the day ends.
 - **Storing addresses to count downloads.** An address is personal data, and a daily salt counts
   unique fetches as well.
 - **A `summary` key in `package.toml`.** It grows the manifest for a fact the readme already carries.
-- **A rendered markdown readme, for now.** `Core\Markdown` (`rule:core-classes/markdown-to-html`)
-  removes the injection half of the reason. What is still missing is the page's half: the readme is
-  rendered once per version when `nvs registry build` reads it, and stored, so no page view parses it.
-  Its relative links and images are rewritten to the commit it was built from through the `link` and
-  `image` callbacks, and its heading anchors through `heading`. The `registry-readme` goal owns it.
+- **Rendering the readme on each page view.** It parses the same Markdown on every request; the
+  stored HTML is rendered once per version.
+- **Showing the stored HTML without a rebuild.** `Core\Html\Markup` has no constructor from a stored
+  string, and a row written outside the registry would reach the page unchecked.
 - **A cached score table.** The facts are computed per request in one query, O(packages matched); a
   cache waits until a few thousand packages make that cost measurable.
 - **A separate search service.** SQLite's full-text index covers a few thousand packages.

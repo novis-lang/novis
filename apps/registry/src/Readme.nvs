@@ -1,0 +1,106 @@
+<?nvs
+namespace Registry;
+
+use Core\Arr;
+use Core\Html;
+use Core\Html\Markup;
+use Core\Markdown;
+use Core\Regex;
+use Core\Str;
+
+// The readme of a release as HTML (`rule:packaging/search-sorts-by-the-readers-choice`).
+// `render` runs once, when the registry saves the release, and the HTML is stored beside the text.
+// A relative link points at the file in the repository at the commit of the build, and a relative
+// image at the file's bytes there. A link to another host keeps its address. Each heading has an
+// `id` of `md-` and a slug of its text, and a link such as `#install` is rewritten to `#md-install`.
+// The addresses use the `/blob/` and `/raw/` paths that GitHub and GitLab serve.
+// `show` rebuilds the stored HTML through `Html::sanitize`, so a page view parses no Markdown, and a
+// row changed outside the registry still cannot write a script into the page.
+// Cost: one stored copy of the HTML per release, at most a few times the readme's 64 KiB cap,
+// and one HTML parse of it per page view.
+final class Readme
+{
+    private string $repository;
+    private string $directory;
+    private string $commit;
+    private array<int> $seen = [];
+
+    private function constructor(string $repository, string $directory, string $commit)
+    {
+        $this->repository = Regex::replace($repository, '\.git$', '');
+        $this->directory = $directory;
+        $this->commit = $commit;
+    }
+
+    // The HTML of the readme `$markdown` of the release built from `$commit` of `$directory` in
+    // `$repository`, as the text to store, or `''` when the readme is empty.
+    public static function render(string $markdown, string $repository, string $directory, string $commit): string
+    {
+        if (Str::trim($markdown) == '') {
+            return '';
+        }
+        var $readme = new Readme($repository, $directory, $commit);
+        Markup $html = Markdown::toHtml(
+            $markdown,
+            link: fn(string $url): ?string => $readme->address($url, 'blob'),
+            image: fn(string $url): ?string => $readme->address($url, 'raw'),
+            heading: fn(int $level, string $text): ?string => $readme->anchor($text),
+        );
+        return Html::toSource($html, 'the rendered readme is stored with its release');
+    }
+
+    // The stored HTML of a readme as markup for the page.
+    public static function show(tainted string $stored): Markup
+    {
+        return Html::sanitize($stored);
+    }
+
+    // The slug of a heading's text, such as `getting-started` for `Getting Started!`.
+    // A second heading with the same slug gets `-1`, the third `-2`, and so on.
+    public function anchor(string $text): ?string
+    {
+        string $slug = Readme::slug($text);
+        int $count = $this->seen[$slug] ?? 0;
+        $this->seen[$slug] = $count + 1;
+        return $count == 0 ? $slug : $slug . '-' . $count;
+    }
+
+    // Letters, digits, `-` and `_` of the text in lower case, with each space as `-`.
+    public static function slug(string $text): string
+    {
+        string $kept = Regex::replace(Str::lower(Str::trim($text)), '[^\p{L}\p{N}\s_-]', '');
+        return Regex::replace($kept, '\s', '-');
+    }
+
+    // The address a link or an image of the readme points at. `$kind` is `blob` for a page of the
+    // file and `raw` for its bytes. An address with a scheme or a host is returned as it is.
+    // `null` is returned for a path that leaves the repository, so the link writes its text alone.
+    public function address(string $url, string $kind): ?string
+    {
+        if ($url == '' || Regex::matches($url, '^[A-Za-z][A-Za-z0-9+.-]*:') || Str::startsWith($url, '//')) {
+            return $url;
+        }
+        if (Str::startsWith($url, '#')) {
+            return '#md-' . Str::slice($url, 1);
+        }
+        string $path = Regex::replace($url, '[?#][\s\S]*$', '');
+        string $rest = Regex::replace($url, '^[^?#]*', '');
+        string $start = Str::startsWith($path, '/') || $this->directory == '' ? '' : $this->directory;
+        array<string> $pieces = [];
+        foreach (Str::split($start . '/' . $path, '/') as string $piece) {
+            if ($piece == '' || $piece == '.') {
+                continue;
+            }
+            if ($piece == '..') {
+                if (Arr::count($pieces) == 0) {
+                    return null;
+                }
+                $pieces = Arr::withoutLast($pieces);
+                continue;
+            }
+            $pieces[] = $piece;
+        }
+        string $base = $this->repository . '/' . $kind . '/' . $this->commit;
+        return Arr::count($pieces) == 0 ? $base . $rest : $base . '/' . Str::join($pieces, '/') . $rest;
+    }
+}

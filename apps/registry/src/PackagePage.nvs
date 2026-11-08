@@ -20,7 +20,8 @@ use Core\Uri;
 // An owner also sees the forms that change the package: unlist, retract, an advisory and a move to
 // another repository, and on the page of a waiting version the form that releases it.
 // Every form calls the route any other client calls, and the route checks the owner again.
-// A text a publisher wrote, such as the readme, is escaped and shown as plain text.
+// A text a publisher wrote is escaped and shown as plain text. The readme is the HTML
+// `Readme::render` stored with the release, rebuilt by `Readme::show`, so no page view parses Markdown.
 // Cost: a few queries per page, each over the rows of one package or one vendor.
 final class PackagePage
 {
@@ -531,14 +532,15 @@ final class PackagePage
 <table><tr><th>File</th><th>Hosts</th><th>Size</th><th>SHA-256</th><th>License</th></tr>{$items}</table>`;
     }
 
-    // The readme of a release, as plain text.
+    // The readme of a release, as the HTML stored with it.
     private static function readme(Row $row): Markup
     {
-        tainted string $text = PackagePage::raw($row, 'readme');
-        if ($text == '') {
+        tainted string $stored = PackagePage::raw($row, 'readme_html');
+        if ($stored == '') {
             return html``;
         }
-        return html`<h2>Readme</h2><pre>{$text}</pre>`;
+        var $body = Readme::show($stored);
+        return html`<h2>Readme</h2><div class="readme">{$body}</div>`;
     }
 
     // The host of an address, such as `files.example.com`, or the whole text when it is not an address.

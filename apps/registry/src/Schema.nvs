@@ -3,6 +3,7 @@ namespace Registry;
 
 use Core\Db;
 use Core\Db\Connection;
+use Core\Db\Row;
 use Core\Db\Transaction;
 
 // The tables of the registry. `open` creates each table that does not exist yet.
@@ -91,9 +92,10 @@ final class Schema
         // `changes` is the build's JSON list of API changes from the version before, `files` is
         // the JSON list of each file and its size, `external` is the JSON list of the files the
         // package downloads from other hosts, `readme` is the text of the readme (at most 64 KiB),
-        // and `supersedes` is the package this one replaces. Each of these columns is null when
-        // the release came back from the log, because the log does not have them.
-        // Cost: the readme and the two lists, once per release.
+        // `readme_html` is that readme as HTML, which `Readme::render` wrote when the release was
+        // saved, and `supersedes` is the package this one replaces. Each of these columns is null
+        // when the release came back from the log, because the log does not have them.
+        // Cost: the readme, its HTML and the two lists, once per release.
         $db->execute(
             'create table if not exists releases ('
                 . 'package text not null references packages (key), version text not null, '
@@ -103,7 +105,7 @@ final class Schema
                 . 'archive text not null, api text not null, published_at integer not null, pending_until integer, '
                 . 'dependencies text not null, capabilities text not null, log integer, '
                 . 'declarations integer, documented integer, '
-                . 'changes text, files text, external text, readme text, supersedes text, '
+                . 'changes text, files text, external text, readme text, readme_html text, supersedes text, '
                 . 'primary key (package, version))',
             [],
         );
@@ -115,11 +117,15 @@ final class Schema
             'files' => 'text',
             'external' => 'text',
             'readme' => 'text',
+            'readme_html' => 'text',
             'supersedes' => 'text',
         ];
         foreach ($added as string $column => string $type) {
             if ($db->query('select 1 from pragma_table_info(?) where name = ?', ['releases', $column])->count() == 0) {
                 $db->execute('alter table releases add column ' . $column . ' ' . $type, []);
+                if ($column == 'readme_html') {
+                    Schema::renderReadmes($db);
+                }
             }
         }
         // What changed about a release after it was published. Each column is null until it happens.
@@ -225,5 +231,26 @@ final class Schema
         $db->execute('create index if not exists notices_of_account on notices (account, id)', []);
         $db->execute('create index if not exists notices_unsent on notices (sent_at)', []);
         $db->execute('create index if not exists releases_pending on releases (pending_until)', []);
+    }
+
+    // Writes `readme_html` for each release that has a readme, once, when the column is added.
+    // Cost: one render of each stored readme, once for the whole database.
+    private static function renderReadmes(Connection|Transaction $db): void
+    {
+        var $rows = $db->query('select package, version, repository, directory, git_commit, readme from releases where readme is not null', []);
+        foreach ($rows as Row $row) {
+            string $html = Readme::render(
+                Schema::trusted($row->string('readme') ?? ''),
+                Schema::trusted($row->string('repository') ?? ''),
+                Schema::trusted($row->string('directory') ?? ''),
+                Schema::trusted($row->string('git_commit') ?? ''),
+            );
+            $db->execute('update releases set readme_html = ? where package = ? and version = ?', [$html, $row->string('package'), $row->string('version')]);
+        }
+    }
+
+    private static function trusted(tainted string $value): string
+    {
+        return Core\Taint::assertTrusted($value, 'the registry wrote this text');
     }
 }
