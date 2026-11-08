@@ -5153,10 +5153,8 @@ nvs_runtime::nvs_helper! {
             .and_then(|read| read.first().copied())
             .ok_or_else(|| {
                 Fault::thrown(format!(
-                    "{STATUS_OF}: no job {id} is in the `{queue}` queue on `[db.{block}]`, in \
-                     either `{JOBS_TABLE}` or `{DEAD_TABLE}` — a receipt this deployment issued \
-                     names a row in one of them, so this one was issued by another deployment or \
-                     its row was deleted"
+                    "{STATUS_OF}: no job {id} is in the `{queue}` queue on `[db.{block}]`. The \
+                     job was deleted, or the id is not one that `push` returned on this database"
                 ))
             })?
             .ok_or_else(|| {
