@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-render/src/html.rs, crates/nvs-runtime/src/string.rs, docs/rules/core-classes/html-auto-escape.md]
   - id: 4
     title: "a Core instance finds its descriptor and checks its receiver without a name lookup"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/instance.rs, crates/nvs-stdlib/src/html.rs]
   - id: 5
     title: "the changed features are measured again, and the comparison's cases are recorded again"
@@ -117,11 +117,13 @@ instructions.
    when a lead byte appeared. `escape_into` writes in one pass. `escape` stays built on the two, so
    the bytes written are exactly today's (`rule:core-classes/html-auto-escape`).
 5. **A `Core` descriptor is found by the class's address.** The `&'static CoreClass` a helper passes
-   is the key: a table sorted by address, built once beside `DESCRIPTORS`, or a cell per class if the
-   session finds that simpler. `receiver` first compares the object's class word with that
-   descriptor, and falls back to today's rows only for the AST productions that share
-   `Core\Ast\Node`. A failed check still throws the same `Fault` with the same text. Memory: one
-   address pair per `Core` class with instances, for the process.
+   is the key of a thread-local cache of 64 entries, filled on a miss from today's lookup by name.
+   A table built once cannot work: a `Core` class is a `const`, so each codegen unit may keep its own
+   copy at its own address, and no table lists every copy. `descriptor`, `build`, `receiver` and
+   `is_instance` take a `&'static CoreClass`, so no other class is ever at a key's address.
+   `receiver` first compares the object's class word with that descriptor, and falls back to
+   today's rows only for the AST productions that share `Core\Ast\Node`. A failed check still
+   throws the same `Fault` with the same text. Memory: 1 KiB per thread, fixed and never allocated.
 6. **Out of scope:** the isolate per request, the CPU-limit clock read, the watchdog publication, the
    accounting allocator, a `Markup` rope and `Core\Html::join` (declined before, for the security
    priority and for simplicity). An item that finds one of them cheaper than it looks writes a gap
@@ -188,12 +190,12 @@ macOS.
 **Does:** takes the name hash out of every `Core` construction and the name compare out of every
 receiver check.
 
-- [ ] Find the descriptor by the class's address under decision 5.
+- [x] Find the descriptor by the class's address under decision 5.
   `crates/nvs-stdlib/src/instance.rs:689` `crates/nvs-stdlib/src/instance.rs:784`
   `crates/nvs-stdlib/src/instance.rs:476`
-- [ ] Compare the class word first in `receiver` and `is_instance`, falling back to the rows only for
+- [x] Compare the class word first in `receiver` and `is_instance`, falling back to the rows only for
   AST productions. `crates/nvs-stdlib/src/instance.rs:986` `crates/nvs-stdlib/src/instance.rs:759`
-- [ ] Write `every_core_class_with_instances_finds_its_descriptor_by_address`: it walks
+- [x] Write `every_core_class_with_instances_finds_its_descriptor_by_address`: it walks
   `registry::CLASSES` and `INTERNAL_CLASSES`, and for each class with instances the address lookup
   returns what `Descriptors::find(name)` returns. `crates/nvs-stdlib/src/instance.rs:660`
 
@@ -231,20 +233,26 @@ test's bound is 0 reads that answer `WouldBlock` per request on Unix and 1 on Wi
 `one-read-per-request` pass on Windows and in WSL. macOS is untested until CI runs: if a macOS runner
 shows a lost wake, decision 1's fallback applies. *Why*'s figures are from `81a279ca7a`.
 
-The last sweep's items were already settled. `env-secret-proofs` is a check from a retired goal, and
-`looper check` finds no check by that name. The three nightly Miri failures were on `26dda3662`, and the
-three tests that timed out are ignored under Miri on `main`.
+Stage 4 is done. `descriptor` reads a thread-local cache keyed by the class's address and looks up
+by name only on a miss (decision 5, amended: a table built once misses the per-unit copies of a
+`const` class). `receiver` compares the class word first. Every helper that passes a class now takes
+`&'static CoreClass`. `every_core_class_with_instances_finds_its_descriptor_by_address` passes.
+
+The last sweep's items were already settled. `env-secret-proofs` is a check from a retired goal with
+no log on disk. The nightly run `42468563179` ran on `81a279ca7a`, which is older than `c2b8671f2`,
+the commit `ci-green` recorded green.
 
 ### Next
 
-Stage 4, then stages 2 and 3 in order, since both edit `crates/nvs-runtime/src/string.rs`.
+Stage 2, then stage 3, in order, since both edit `crates/nvs-runtime/src/string.rs`.
 
-- `crates/nvs-stdlib/src/instance.rs:689` — `descriptor`, today a lookup by name.
-- `crates/nvs-stdlib/src/instance.rs:535` — `DESCRIPTORS`, beside which the address table goes.
-- `crates/nvs-stdlib/src/instance.rs:986` — `receiver`, and `is_instance` at `:759`.
+- `crates/nvs-runtime/src/placeholder.rs:149` and `:174` — `IntPlaceholder::digits` and `len`.
+- `crates/nvs-runtime/src/helpers.rs:69` — `write_decimal`, decision 2's writer.
+- `crates/nvs-runtime/src/string.rs:1678` — `Piece::Int`'s measure.
+- `crates/nvs-ir/src/lower/expr.rs:2437` — `FormatPiece::Argument`, lowered under decision 3.
 
-Expected red until stage 4 lands: `every_core_class_with_instances_finds_its_descriptor_by_address`,
-which does not exist yet.
+Expected red until stage 2 lands: `every_integer_placeholder_writes_what_the_formatter_writes` and
+`a_bare_integer_placeholder_joins_as_an_integer_part`, which do not exist yet.
 
 ### Backlog
 
