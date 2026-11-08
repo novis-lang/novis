@@ -6,7 +6,7 @@ context: [apps/registry/src/PackagePage.nvs, crates/nvs-cli/src/package/build.rs
 stages:
   - id: 1
     title: "the readme is rendered once per version, stored, and shown on the package page"
-    status: open
+    status: done
     context: [apps/registry/src/Builder.nvs, docs/rules/core-classes/markdown-to-html.md]
   - id: 2
     title: "the goal is verified once, and every failure is fixed"
@@ -33,16 +33,28 @@ half. What is left is the page's work, and this goal does it.
    and `image` callbacks to the repository's file at the commit the version was built from. A link
    to another host keeps its URL.
 3. **Heading anchors** come from the `heading` callback, as a slug of the heading's text.
+4. **A page view rebuilds the stored HTML through `Core\Html::sanitize`.** `Markup` has no other
+   constructor from a stored string, and the rebuild keeps a row changed outside the registry from
+   writing a script (security over latency). It costs one HTML parse per view, and no Markdown parse.
+5. **The file addresses use `/blob/<commit>/` and `/raw/<commit>/`**, which GitHub and GitLab serve.
+   A trailing `.git` on the repository is dropped. A path that leaves the repository gives `null`, so
+   the link writes its text alone. A `#slug` link becomes `#md-slug`.
+6. **A database made before `readme_html` renders each stored readme once**, when `Schema` adds the
+   column (`Schema::renderReadmes`).
 
 ## Stages
 
 ### 1. the readme is rendered once per version, stored, and shown on the package page
 
-- [ ] The render at build time, with the three callbacks. `apps/registry/src/Builder.nvs:1`
-- [ ] The package page shows the stored HTML. `apps/registry/src/PackagePage.nvs:1`
-- [ ] The Declined entry is removed, and the rule says how the readme is shown.
+- [x] The render at build time, with the three callbacks. `apps/registry/src/Builder.nvs:1`
+  - [x] `Readme::render` with `link`, `image` and `heading`. `apps/registry/src/Readme.nvs`
+  - [x] `Publish::record` stores `readme_html`, and `Schema` adds and fills the column.
+- [x] The package page shows the stored HTML. `apps/registry/src/PackagePage.nvs:1`
+  - [x] `PackagePage::readme` shows `Readme::show` of `readme_html`.
+  - [x] `PackagePageTest::theReadmeIsShownAsHtml` replaces `theReadmeIsEscaped`, and passes.
+- [x] The Declined entry is removed, and the rule says how the readme is shown.
   `docs/rules/packaging/search-sorts-by-the-readers-choice.md:61`
-- [ ] The gap `data/gaps/registry/readme-is-shown-as-text.json` is deleted.
+- [x] The gap `data/gaps/registry/readme-is-shown-as-text.json` is deleted.
 
 ### 2. the goal is verified once, and every failure is fixed
 
@@ -53,12 +65,23 @@ half. What is left is the page's work, and this goal does it.
 
 ### State
 
-Written by the `markdown` goal's stage 2, which owes this page's readme a renderer. Nothing is built
-yet, and it waits for `markdown` to ship `Core\Markdown::toHtml`.
+Stage 1 is done. `apps/registry/src/Readme.nvs` renders the readme once in `Publish::record`, into
+the new column `releases.readme_html`, and `PackagePage::readme` shows it through `Readme::show`
+(standing decisions 4 to 6). The rule
+`docs/rules/packaging/search-sorts-by-the-readers-choice.md` says how the readme is shown and
+declines the two other ways, and the gap is deleted.
+
+The sweep's reds were stale again: no `env-secret-proofs` check is defined, and nightly run
+42359979484 ran on 26dda36627, before the Miri ignores in f13f40646a.
+
+Run from `apps/registry` with `nvs test src --filter PublishTest`, the publish tests fail with "the
+program wrote no body" on the tree without this change too. Their real runner is `bun nv verify`'s
+app suite, so judge them there.
 
 ### Next
 
-Stage 1, from its first item, once `markdown` is reached.
+Stage 2: `bun nv affected --run`, then the goal-end gates. Expect no test red beyond the app suite's
+`PackagePageTest` and `PublishTest` (`apps/registry/src/`), which this change touches.
 
 ### Backlog
 
