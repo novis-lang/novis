@@ -6,7 +6,7 @@ context: [benches/compare/cases/html-page/main.nvs, benches/compare/profile.sh, 
 stages:
   - id: 1
     title: "a short read leaves the readiness bit clear, so a keep-alive request makes one read"
-    status: open
+    status: done
     context: [crates/nvs-host/src/net.rs, crates/nvs-host/src/counts.rs, docs/rules/concurrency/try-the-syscall-then-park.md]
   - id: 2
     title: "integers join a string as digits written on the stack, never through Rust's formatter or a string of their own"
@@ -139,17 +139,17 @@ instructions.
 **Does:** removes the `recvfrom` that answers `EAGAIN` after every keep-alive request on Linux and
 macOS.
 
-- [ ] Set `quiet` after a short read under decision 1, and rewrite `quiet`'s doc as a whole.
+- [x] Set `quiet` after a short read under decision 1, and rewrite `quiet`'s doc as a whole.
   `rule:concurrency/try-the-syscall-then-park` `crates/nvs-host/src/net.rs:1548`
   `crates/nvs-host/src/net.rs:203`
-- [ ] Add the paragraph to the rule fragment: what a short read means on each reactor, why Windows is
+- [x] Add the paragraph to the rule fragment: what a short read means on each reactor, why Windows is
   left out, and what it spends (nothing). `docs/rules/concurrency/try-the-syscall-then-park.md:1`
-- [ ] Lower `WOULD_BLOCK_READS_PER_REQUEST` to 0 under `cfg(unix)` and keep 1 on Windows, and rewrite
+- [x] Lower `WOULD_BLOCK_READS_PER_REQUEST` to 0 under `cfg(unix)` and keep 1 on Windows, and rewrite
   the test's doc. `crates/nvs-server/src/serve.rs:10634`
-- [ ] Write `a_short_read_parks_the_next_read_on_edge_triggered_platforms` beside `poll_read`'s
+- [x] Write `a_short_read_parks_the_next_read_on_edge_triggered_platforms` beside `poll_read`'s
   tests. It runs on every platform and asserts that platform's count: no `WouldBlock` read after a
   short read on Unix, one on Windows. `crates/nvs-host/src/net.rs:1548`
-- [ ] Run the `one-read-per-request` check here and in WSL with `bun nv linux-test`, since the change
+- [x] Run the `one-read-per-request` check here and in WSL with `bun nv linux-test`, since the change
   is a socket path (AGENTS.md § *The rules only this project has*).
 
 ### 2. integers join a string as digits written on the stack, never through Rust's formatter or a string of their own
@@ -225,20 +225,32 @@ receiver check.
 
 ### State
 
-Nothing is built yet. *Why*'s figures are from `81a279ca7a`.
+Stage 1 is done in `649760357a`. On Unix a short read in `poll_read` sets `quiet` when the stream is
+registered for reading under the running task (`quiet_after_a_short_read`). The keep-alive count
+test's bound is 0 reads that answer `WouldBlock` per request on Unix and 1 on Windows. Both tests of
+`one-read-per-request` pass on Windows and in WSL. macOS is untested until CI runs: if a macOS runner
+shows a lost wake, decision 1's fallback applies. *Why*'s figures are from `81a279ca7a`.
+
+The last sweep's items were already settled. `env-secret-proofs` is a check from a retired goal, and
+`looper check` finds no check by that name. The three nightly Miri failures were on `26dda3662`, and the
+three tests that timed out are ignored under Miri on `main`.
 
 ### Next
 
-Stage 1, then stage 4. Each is one session and shares no file with the others. Then stages 2 and 3 in
-order, since both edit `crates/nvs-runtime/src/string.rs`.
+Stage 4, then stages 2 and 3 in order, since both edit `crates/nvs-runtime/src/string.rs`.
 
-- `crates/nvs-host/src/net.rs:1548` — the short read in `poll_read`.
-- `crates/nvs-server/src/serve.rs:10634` — the count test whose bound drops to 0 on Unix.
+- `crates/nvs-stdlib/src/instance.rs:689` — `descriptor`, today a lookup by name.
+- `crates/nvs-stdlib/src/instance.rs:535` — `DESCRIPTORS`, beside which the address table goes.
+- `crates/nvs-stdlib/src/instance.rs:986` — `receiver`, and `is_instance` at `:759`.
 
-Expected red until stage 1 lands: `a_short_read_parks_the_next_read_on_edge_triggered_platforms`, which
-does not exist yet.
+Expected red until stage 4 lands: `every_core_class_with_instances_finds_its_descriptor_by_address`,
+which does not exist yet.
 
 ### Backlog
+
+- `crates/nvs-host/src/reactor.rs:19` and `:956`, and `rule:concurrency/the-parking-contract`'s rule 1,
+  call the poller level-triggered. mio is edge-triggered on epoll and kqueue. `net.rs` no longer says
+  so, and those three can be reworded in a slice of their own.
 
 - A `Uint` string part, and a `.` join lowered to parts when it has an integer operand. Both were left
   by `strings-in-place`'s decision 11, and decision 3 here leaves them again.
