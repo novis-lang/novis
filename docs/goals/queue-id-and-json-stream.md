@@ -14,7 +14,7 @@ stages:
     context: [docs/rules/core-classes/queue-storage-is-a-table.md, docs/rules/core-classes/schema-converges.md, crates/nvs-cli/src/worker.rs, crates/nvs-cli/src/queue.rs, crates/nvs-stdlib/tests/queue_sqlite.rs, crates/nvs-cli/tests/queue_migrate.rs]
   - id: 3
     title: "every queue table the tree creates by hand has the token column"
-    status: open
+    status: done
   - id: 4
     title: "Core\\Queue\\Id has toString, parse and tryParse"
     status: open
@@ -256,9 +256,9 @@ the queue tables by hand fails on insert until stage 3; the handoff names them.
 `benches/scaling/`, and `docs/reference/core/Queue-Id.md`). Writing subagents add the column, one per
 tree, side by side. None builds.
 
-- [ ] The list. `docs/reference/core/Queue-Id.md:38`
-- [ ] Each file's two `create table` statements gain `token`, in the type SQLite takes for it.
-- [ ] `bun nv proofs --run --group 'Core\Queue'` and `--group 'Core\Queue\Stats'`, and the queue
+- [x] The list. `docs/reference/core/Queue-Id.md:38`
+- [x] Each file's two `create table` statements gain `token`, in the type SQLite takes for it.
+- [x] `bun nv proofs --run --group 'Core\Queue'` and `--group 'Core\Queue\Stats'`, and the queue
   conformance cases by name, run once; every `.out` is unchanged.
 
 ### 4. Core\Queue\Id has toString, parse and tryParse
@@ -266,12 +266,12 @@ tree, side by side. None builds.
 **Does:** decisions 1, 4 and 5.
 
 - [ ] The three rows, with `Text(Qual::Neutral)` on `parse` and `tryParse`, and `toString` marking the
-  class as one that renders. `crates/nvs-stdlib/src/queue.rs:2686`
+  class as one that renders. `crates/nvs-stdlib/src/queue.rs:2747`
 - [ ] The format, its longest length as a constant, and `parse`'s checks in order: length, characters,
-  the three parts. `crates/nvs-stdlib/src/queue.rs:1926`
+  the three parts. `crates/nvs-stdlib/src/queue.rs:3441`
 - [ ] The class card and the three member cards; the class card loses "It has no methods of its own".
-  `crates/nvs-stdlib/src/queue.rs:2695`
-- [ ] The five tests of the `queue-id-string` check. `crates/nvs-stdlib/src/queue.rs:5468`
+  `crates/nvs-stdlib/src/queue.rs:2757`
+- [ ] The five tests of the `queue-id-string` check. `crates/nvs-stdlib/src/queue.rs:5606`
 - [ ] Conformance cases: a string round-trips through a later `status`; a `tainted` string compiles
   into `parse`; a changed token reads as a deleted job.
   `tests/conformance/core/queue-an-id-read-back-from-its-string-reads-the-same-job.nvst:1`
@@ -305,30 +305,35 @@ for the bench and the attack. Their files are disjoint. None builds.
 
 ### State
 
-Stage 2 is done. Both tables have a nullable `token` column (decision 14: 32 lower-case hex
-characters, text). `push` draws it through `crate::random::draw` (`fresh_token`), every insert writes
-it, a dedupe hit returns the pending job's, `status`, `cancel` and `delete` match it in all four
-dialects, the dead-letter move copies it, and `Core\Queue\Id` has a third slot `token`. The five
-`queue-token` tests and `migrate_adds_the_token_column_to_an_existing_jobs_table` pass. The server
-suite `crates/nvs-stdlib/tests/queue.rs` binds one fixed `TOKEN` everywhere; it was not run, since
-only `bun nv db-matrix` runs it. Run `bun nv db-matrix --all` in stage 6. Both rules state the token.
+Stages 1 to 3 are done. Stage 2 gave both tables a nullable `token` column (decision 14: 32
+lower-case hex characters), written by `push`, matched by `status`, `cancel` and `delete`, and held in
+the Id's third slot `ID_TOKEN_SLOT`. Stage 3 added `token text` as the last column of both tables in
+all 76 files that create them by hand (examples, conformance, hostile, benches, `benches/scaling/`,
+`docs/reference/core/Queue-Id.md`), and rerendered `website/src/data/core.json` and
+`website/public/llms-full.txt`, which were also stale from stage 1. `bun nv proofs --run` over
+`Core\Queue` and `Core\Queue\Stats` and all 34 `tests/conformance/core/queue-*.nvst` cases are green.
+The benches were not run. `tests/db/queue-sqlite.db` is gitignored and built by `nvs queue migrate`,
+which adds the column.
 
-The sweep's reds are stale, as last session found: no `env-secret-proofs` check is defined, and
-nightly run 42359979484 ran on 26dda36627, before the Miri ignores in f13f40646a.
+The sweep's reds are stale, as the last two sessions found: no `env-secret-proofs` check is defined,
+and nightly run 42359979484 ran on 26dda36627, before the Miri ignores in f13f40646a.
 
 ### Next
 
-**Stage 3**, the hand-made tables, by its `**Split:**` line.
+**Stage 4**, the Id's three members, in one session.
 
-- [ ] The list of hand-made queue tables, starting at `docs/reference/core/Queue-Id.md:38`.
-- [ ] Each gains `token text` in both tables, last, as `crates/nvs-stdlib/src/queue.rs:424` declares it.
-- [ ] The queue proofs and conformance cases run once, as `docs/goals/queue-id-and-json-stream.md:261` says.
+- [ ] The rows on `ID` (`methods`, `instance` both empty today). `crates/nvs-stdlib/src/queue.rs:2747`
+- [ ] The format and `parse`, beside the slot reader `job_of`. `crates/nvs-stdlib/src/queue.rs:3441`;
+  the token's hex form is `token_text`, `crates/nvs-stdlib/src/queue.rs:245`.
+- [ ] The class card, which still says "It has no methods of its own". `crates/nvs-stdlib/src/queue.rs:2757`
+- [ ] The five `queue-id-string` tests in the test module. `crates/nvs-stdlib/src/queue.rs:5606`
+- [ ] Stage 4's three conformance cases, in the case list. `tests/conformance/core/queue-push-answers-an-id-and-not-a-number.nvst:1`
 
-Expected red until stage 3 lands: every example, conformance case, attack and bench that creates the
-queue tables by hand, with "no such column: token" on push. Also possibly red, for stage 6: unit tests
-in `crates/nvs-stdlib/src/queue.rs` and `crates/nvs-cli/src/worker.rs` that compare statement texts,
-column lists or placeholder counts, since only the new tests ran. The three `image-*` conformance
-cases are still stage 6's.
+Expected red, for stage 6: unit tests in `crates/nvs-stdlib/src/queue.rs` and
+`crates/nvs-cli/src/worker.rs` that compare statement texts, column lists or placeholder counts, since
+only stage 2's new tests ran; the server suite `crates/nvs-stdlib/tests/queue.rs` under `bun nv
+db-matrix --all`; and the three `image-*` conformance cases.
+`docs/reference/core/Queue-Id.md:8` still says an Id cannot be printed, which is stage 5's.
 
 ### Backlog
 
