@@ -15,7 +15,7 @@ stages:
     status: done
   - id: 4
     title: "every nginx, Caddy and Dockerfile block, and every app's deploy/ folder, passes its own validator"
-    status: open
+    status: done
   - id: 5
     title: "the code part runs in CI and in bun nv ci --check, and its rule is written"
     status: open
@@ -121,6 +121,18 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
     and the apps and snippets the output comes from would then have two homes. Its lines must appear
     in the output in order, so a page may show an excerpt, and an error the reader makes by changing
     a program is `skip`.
+11. **How the proxy, Docker, `rust` and `md` blocks are checked.** `bun nv proxy-validate`
+    (`tools/nv/cmd/proxy-validate.ts`) is the one validator, for the `code` part, the `apps` part and
+    a person. The text reaches the container on standard input, so nothing is mounted. A Caddyfile
+    that needs a plugin says so with `plugins="<module>"`. Each plugin is pinned in `CADDY_PLUGINS`,
+    and Caddy is built with it by `xcaddy` into a local image tagged by its Dockerfile's hash. That is
+    a build of about a minute, once per machine, and it keeps the page's real `rate_limit` block
+    checked. Removing the block from the page would cost the reader the login limit. Where Docker runs
+    no Linux containers, the proxy checks print why once and pass, as `pdf-validate` does, so the
+    Linux leg is the one that judges them. A `rust` block names its source with `copy="<path>"`, and
+    its lines must be a run of that file's lines. The `md` block is text the reader types into the
+    demo page, so it is `skip`. `nvs config check nvs.toml deploy/production.toml` accepts
+    `/var/lib/<app>/` paths, so decision 4's stub is not needed.
 
 ## Stages
 
@@ -163,11 +175,16 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
 
 **Gate:** `apps/chat/deploy/server.toml` is gone (decision 5).
 
-- [ ] A command that validates nginx and Caddy files in their pinned images, on the model of
+- [x] A command that validates nginx and Caddy files in their pinned images, on the model of
   `tools/nv/cmd/pdf-validate.ts:1`, used by the `code` part on Linux.
-- [ ] The pages' `nginx`, `caddyfile` and `dockerfile` blocks pass, corrected where they fail.
+  - [x] `bun nv proxy-validate` with `nginx -t`, `caddy validate` and `docker build --check`.
+  - [x] Caddy plugins pinned and built once per machine (decision 11).
+  - [x] Its Bun test, which starts no Docker.
+- [x] The pages' `nginx`, `caddyfile` and `dockerfile` blocks pass, corrected where they fail.
   `website/src/content/docs/guides/production/reverse-proxy.mdx:1`
-- [ ] The `apps` part runs `nvs config check` over each `deploy/production.toml`, and the proxy
+  - [x] `proxyProblems` and `copyProblems` in `CODE_CHECKS`.
+  - [x] The Caddyfile names its plugin, the `rust` block its file, and the `md` block is `skip`.
+- [x] The `apps` part runs `nvs config check` over each `deploy/production.toml`, and the proxy
   validators over each `deploy/Caddyfile` and `deploy/nginx.conf` (decision 4).
   `tools/nv/cmd/site.ts:1913`
 
@@ -189,30 +206,32 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
 
 ### State
 
-Stages 1, 2 and 3 are done. `bun nv site --check code` exists and is not in CI, and it fails only
-on the 7 page blocks of stage 4. `CODE_CHECKS` (`tools/nv/cmd/site.ts`, search
-`export const CODE_CHECKS`) has `toml`, `json`, `yaml`, `sh`, `bat`, `powershell` (`shellProblems`)
-and `txt` (`outputProblems`). `nvs` lines are parsed under `NOVIS_PARSE_ONLY`, and a `txt` block
-is checked by its `run="nvs ..."` and `cwd` (decision 10). 28 shell blocks and 16 `txt` blocks carry
-`skip="..."`. The part's ten tests pass (`bun test tools/nv/test/site.test.ts -t "check code"`).
-The sweep's reds were stale again: no `env-secret-proofs` check or log exists, and nightly run
-42359979484 is the same run the last handoff named. No test is expected to go red.
+Stages 1 to 4 are done. `bun nv site --check code` is green here (Docker with Linux containers),
+and `bun nv site --check apps` is green with the new `deploy/` checks (`deployProblems`).
+`bun nv proxy-validate` (`tools/nv/cmd/proxy-validate.ts`) runs `nginx -t`, `caddy validate` and
+`docker build --check` in pinned images (decision 11). `CODE_CHECKS` now also has `nginx`,
+`caddyfile`, `dockerfile` (`proxyProblems`) and `rust` (`copyProblems`). Its tests pass:
+`bun test tools/nv/test/proxy-validate.test.ts` and the `rust block` test in `site.test.ts`.
+`apps` is already in CI's website stale guard and `PRE_PUSH`, so its Linux leg now pulls nginx
+and Caddy. The sweep's reds were stale again: no `env-secret-proofs` check or log exists, and
+nightly run 42359979484 is the run the last two handoffs named. No test is expected to go red.
 
 ### Next
 
-Stage 4. Its gate is open: `apps/chat/deploy/` has `Caddyfile`, `nginx.conf` and
-`production.toml`, and no `server.toml`. Write the proxy validator on the model of
-`tools/nv/cmd/pdf-validate.ts:1` (decision 3), then add `nginx`, `caddyfile` and `dockerfile` to
-`CODE_CHECKS`, the `rust` and `md` checks as copies of the extension example's files, and the
-`apps` part's `deploy/` checks. The `deploy/production.toml` check can reuse `tomlProblems`' stub
-loop for `/var/lib/<app>/` paths (decision 4). The 7 blocks, under `website/src/content/docs/`:
-- `guides/production/reverse-proxy.mdx` nginx 121, 431 and caddyfile 281, 460;
-  `guides/production/docker.mdx` dockerfile 137; `guides/extensions/rust.mdx` rust 140 and md 263 (a
-  four-backtick fence around an `html` one).
-- `apps/chat/deploy/` and `apps/poll/deploy/`: each has `Caddyfile`, `nginx.conf` and
-  `production.toml`, which the `apps` part checks (decision 4).
+Stage 5. Add `code` to CI's website stale guard (`.github/workflows/ci.yml:629`) and to
+`PRE_PUSH`'s stale guard (`tools/nv/cmd/ci.ts:240`). On Windows and macOS the proxy blocks print
+their skip line and pass. The first Caddyfile builds Caddy with `caddy-ratelimit`, about a minute
+per CI run, so check that the step's timeout leaves room. Remove the "CI does not run `code` yet"
+sentence from the head comment of `tools/nv/cmd/site.ts` (search `CI does not run`). Write the rule
+`testing/every-code-block-on-the-website-is-checked` from decisions 1, 3, 9, 10 and 11, render it,
+and name it in `website/README.md`'s ownership table. Then stage 6.
 
 ### Backlog
+
+- `bun nv site --check apps` left `apps/notes/notes.sqlite-shm` and `notes.sqlite-wal` behind once,
+  beside an ignored `notes.sqlite` from an older run. `inApp` (`tools/nv/cmd/site.ts`, search
+  `async function inApp`) should delete them. Find out whether `filesUnder` skips ignored files, or
+  whether a process still holds them when the cleanup runs on Windows.
 
 - From `realtime-example-apps`: a connection's `cpu_time` counts from the upgrade for its whole life,
   so poll's production `cpu_time = "5s"` may end a busy event stream after hours. Check whether the
