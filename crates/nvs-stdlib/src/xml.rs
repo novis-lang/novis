@@ -6535,6 +6535,10 @@ mod tests {
     /// file.
     // covers: Core\Xml::reader
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "walks files of forty fixed `READ_CHUNK`s, too slow for Miri"
+    )]
     fn xml_reader_over_a_file_holds_one_window() {
         /// The most a walk over a file of `items` items holds at once, and
         /// the file's size.
