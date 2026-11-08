@@ -6,7 +6,7 @@ context: [website/src/lib/feature.ts, website/src/components/FeatureExamples.ast
 stages:
   - id: 1
     title: "Core, type and language pages show the nvs.toml their examples run with"
-    status: open
+    status: done
     context: ["website/src/pages/reference/[area]/[...slug].astro", "website/src/pages/reference/core/[...slug].astro", tools/nv/renderers/lang-chapters.ts]
   - id: 2
     title: "the Db examples' configuration moves into their own directories: connections, transactions and plans"
@@ -145,14 +145,14 @@ configures anything under `docs/examples/`, so it cannot come back.
 
 **Does:** decision 1 and 2 on the website. No example changes.
 
-- [ ] The glob covers every area. `website/src/lib/feature.ts:39`
-- [ ] `FeatureExamples` shows the feature's file once, above the first example, with its sentence.
+- [x] The glob covers every area. `website/src/lib/feature.ts:39`
+- [x] `FeatureExamples` shows the feature's file once, above the first example, with its sentence.
   `website/src/components/FeatureExamples.astro:1`
-- [ ] The `[area]` page's two `nvs.toml` renders are deleted, and its conditions read decision 1's.
+- [x] The `[area]` page's two `nvs.toml` renders are deleted, and its conditions read decision 1's.
   `website/src/pages/reference/[area]/[...slug].astro:89`
-- [ ] The Core member page's `examples` section is present when the member has a file.
+- [x] The Core member page's `examples` section is present when the member has a file.
   `website/src/pages/reference/core/[...slug].astro:64`
-- [ ] `bun nv site --check` passes, and the built pages of `Core\Queue::push`, `Core\Net::connect`
+- [x] `bun nv site --check` passes, and the built pages of `Core\Queue::push`, `Core\Net::connect`
   and `docs/examples/config/ext` each show their file once. `website/src/lib/feature.ts:146`
 
 ### 2. the Db examples' configuration moves into their own directories: connections, transactions and plans
@@ -241,17 +241,28 @@ configuration ones.
 
 ### State
 
-Written by the interactive session of 2026-11-06. Nothing of it is built. The counts in *Why* are from
-`grep -E '^(root|entry) = "' nvs.toml` on that day; stages 2 to 5 recount before they start.
+Stage 1 is done. `FeatureExamples` shows a feature's `nvs.toml` once, above its first example, after
+the sentence "The examples below run with this configuration file." It does this for every area, and
+it is the only place that renders the file. `site --check` was red on two Core classes with no
+members and no introduction. Those were `Core\IO\StdinStream` (goal `byte-sources`) and
+`Core\Markdown\Groups` (goal `markdown`). Both introductions are now written under
+`docs/reference/core/`, and the check is green on a fresh build. `site --check` reads
+`website/dist` and does not build it, so run `bun nv site --build` first. The sweep's
+`env-secret-proofs` red and the three nightly Miri timeouts are stale. No check of that name exists.
+The nightly ran on 26dda36627, before f13f40646a skipped those 8 MiB tests under Miri. The counts in
+*Why* are from 2026-11-06, and stages 2 to 5 recount before they start.
+
+No test is expected to go red. Stage 7's `site` leg covers the change.
 
 ### Next
 
-**Stage 1**, over `website/src/`; no gate. It may run beside stage 2.
+**Stage 2**, as its `**Split:**` line says: an `Explore` list first, then one writing subagent per
+class, and the session edits the root alone.
 
-- [ ] The glob. `website/src/lib/feature.ts:39`
-- [ ] `FeatureExamples` shows the file. `website/src/components/FeatureExamples.astro:1`
-- [ ] The Core pages and the `[area]` pages. `website/src/components/ClassOverview.astro:141`,
-  `website/src/pages/reference/[area]/[...slug].astro:89`
+- [ ] The list. `nvs.toml:1584`
+- [ ] Each directory's `nvs.toml`, by decision 3. `docs/examples/core/Db-Connection/execute/nvs.toml:1`
+- [ ] Their blocks deleted from the root, and the root tables decision 4 frees. `nvs.toml:1584`
+- [ ] The seven classes run, every `.out` unchanged. `tools/nv/proofs/run.ts:1`
 
 ### Backlog
 
