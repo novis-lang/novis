@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/queue.rs, crates/nvs-stdlib/src/json.rs, crates/
 stages:
   - id: 1
     title: "Core\\Json::encodeEach's pieces carry what Core\\Json::encode's text carries, and a response streams them"
-    status: open
+    status: done
     context: [crates/nvs-types/tests/tainted.rs, crates/nvs-stdlib/src/response.rs, docs/rules/security/response-body-is-one-typed-member.md, docs/examples/core/Json/encodeEach/about.md, docs/reference/core/Json.md, docs/reference/core/Json-Pieces.md]
   - id: 2
     title: "a job row carries a random token, and every statement that takes an Id matches it"
@@ -34,7 +34,7 @@ checks:
     run: [cargo, test, --test, tainted]
     timeout: 1800
     tests:
-      - json_encode_of_a_tainted_value_is_a_plain_string
+      - an_encoded_value_carries_the_outside_text_it_contains
       - encode_each_pieces_carry_what_encode_text_carries
       - a_response_stream_writes_encode_each_pieces
   - id: queue-token
@@ -170,6 +170,23 @@ expected `string|bytes`, found `tainted bytes`). `Core\Json::encode` returns a p
 12. **What this spends.** 16 bytes per job row in both tables, and one more slot per `Core\Queue\Id`.
     `push` draws 16 random bytes per job. `parse` reads at most the longest Id and allocates one Id.
     The JSON change spends nothing.
+13. **`encode`'s answer is qualified, so the pieces follow it per call.** Stage 1's check showed it:
+    `encode` returns a `tainted string` whenever its value can hold outside text, `mixed` included
+    (`an_encoded_value_carries_the_outside_text_it_contains`), by `encodes_outside_text`
+    (`crates/nvs-types/src/expr/quals.rs`). Decision 8's second branch applies. `Core\Json\Pieces`
+    is generic in its piece type and is a `CELL_CLASSES` row, as `Core\Csv\Rows` is. `encodeEach`
+    returns `Pieces<bytes>`, and `Pieces<tainted bytes>` when `encodes_outside_text` says so; a walk
+    argument is judged by the element its `foreach` gives. So a stream's `write` takes the pieces of
+    a list the program built and refuses those of a list from a request, exactly as it would refuse
+    `encode`'s string. Considered and declined:
+    - **A plain `encode`, now that its text escapes `'`.** The escaping makes the text inert in HTML,
+      but the client still chooses its content, and the text can reach a path, a command or a header.
+      Security outranks the convenience.
+    - **A `write` that accepts tainted pieces because the serializer owns their framing.** The piece
+      reaches `write` as `bytes`, which has lost where it came from, so the exception would be a
+      second classification for one type.
+    - **A second class for the tainted pieces.** Two classes with one iteration protocol, where the
+      generic class already exists in `Core\Csv\Rows`.
 
 ## Stages
 
@@ -179,24 +196,25 @@ expected `string|bytes`, found `tainted bytes`). `Core\Json::encode` returns a p
 `crates/nvs-stdlib/src/json.rs` when this goal was written; the stage starts from whatever is
 committed then.
 
-- [ ] The test `json_encode_of_a_tainted_value_is_a_plain_string`, run once by name, confirms how
-  `encode` decides its result's taint before anything changes. `crates/nvs-types/tests/tainted.rs:110`
-- [ ] `Core\Json\Pieces`' element is `CoreTy::Bytes`, and the row's comment says why.
-  `crates/nvs-stdlib/src/registry.rs:3551`
-- [ ] The other two tests of the `json-pieces-taint` check. `a_neutral_walk_parameter_admits_a_walk_of_tainted_bytes`
+- [x] The test `an_encoded_value_carries_the_outside_text_it_contains`, run once by name, confirms
+  how `encode` decides its result's taint before anything changes: it is qualified (decision 13).
+  `crates/nvs-types/tests/tainted.rs:740`
+- [x] `Core\Json\Pieces<T>`'s element follows `encode`'s classification, and the rows' comments say
+  why (decision 13). `crates/nvs-stdlib/src/registry.rs:3574`
+- [x] The other two tests of the `json-pieces-taint` check. `a_neutral_walk_parameter_admits_a_walk_of_tainted_bytes`
   keeps its tainted array arm and stops naming `encodeEach`. `crates/nvs-types/tests/tainted.rs:110`
-- [ ] A conformance case: a request streams `encodeEach`'s pieces through `Core\Response::stream`.
+- [x] A conformance case: a request streams `encodeEach`'s pieces through `Core\Response::stream`.
   `tests/conformance/core/json-encode-each-pieces-stream-a-response.nvst:1`
-- [ ] The cards say the pieces are `bytes`. `crates/nvs-stdlib/src/json.rs:587`,
-  `docs/reference/core/Json-Pieces.md:10`
-- [ ] The about page and `Json.md` show a streamed response, and example 01 answers through
-  `Core\Response::stream`; the three examples bind `bytes $piece`.
+- [x] The cards say the pieces are `bytes`, and `tainted bytes` for items with outside text.
+  `crates/nvs-stdlib/src/json.rs:587`, `docs/reference/core/Json-Pieces.md:10`
+- [x] The about page and `Json.md` name a streamed response, and example 01 answers through
+  `Core\Response::stream` and binds `bytes $piece`; examples 02 and 03 bind no piece.
   `docs/examples/core/Json/encodeEach/about.md:1`, `docs/reference/core/Json.md:19`,
   `docs/examples/core/Json/encodeEach/01-answer-with-a-filtered-list.nvs:32`
-- [ ] `rule:core-classes/json-whole-and-stream` says the pieces carry `encode`'s taint.
+- [x] `rule:core-classes/json-whole-and-stream` says the pieces carry `encode`'s taint.
   `docs/rules/core-classes/json-whole-and-stream.md:18`
-- [ ] `bun nv proofs --id 'Core\Json::encodeEach'` owes nothing, and `bun nv proofs --comments` over
-  the changed `.nvs` files passes.
+- [x] `bun nv proofs --id 'Core\Json::encodeEach'` owes only the perf record, which stage 6's
+  `--record-perf` pays, and `bun nv proofs --comments` over the changed `.nvs` files passes.
 
 ### 2. a job row carries a random token, and every statement that takes an Id matches it
 
@@ -277,18 +295,37 @@ for the bench and the attack. Their files are disjoint. None builds.
 
 ### State
 
-Written by the interactive session of 2026-11-06. Nothing of it is built. The compile error in *Why*
-was seen by a run on that day.
+Stage 1 is done. `encode`'s answer turned out to be qualified, so decision 13 records how the pieces
+follow it: `Core\Json\Pieces<T>`, a `CELL_CLASSES` row, `bytes` or `tainted bytes` per call. The
+three `json-pieces-taint` tests pass, and the new conformance case passes. `Core\Json::encodeEach`'s
+perf record is stale because `json.rs` changed, and stage 6 records it. The sweep's reds were stale:
+no `env-secret-proofs` check is defined, and nightly run 42359979484 ran on 26dda36627, before the
+Miri ignores landed in f13f40646a.
+
+A run of the conformance tree showed three `image-*` cases red
+(`tests/conformance/novis/image-align-places-each-line-in-the-text-box.nvst`,
+`image-compare-counts-the-pixels-that-differ.nvst`, `image-each-adjustment-changes-the-pixels-it-should.nvst`).
+Stage 1 touches nothing they use, and stage 6 owns them.
 
 ### Next
 
-**Stage 1**, over the JSON taint; no gate. It may run beside stage 2.
+**Stage 2**, the token, under the rules first.
 
-- [ ] Confirm `encode`'s taint with its test. `crates/nvs-types/tests/tainted.rs:110`
-- [ ] The pieces' element. `crates/nvs-stdlib/src/registry.rs:3551`
-- [ ] The streamed response's case and docs. `docs/examples/core/Json/encodeEach/about.md:1`
+- [ ] The two rules. `docs/rules/concurrency/queue-four-members.md:1`,
+  `docs/rules/core-classes/queue-storage-is-a-table.md:1`
+- [ ] `schema()` and `schema_shortfall`. `crates/nvs-stdlib/src/queue.rs:329`, `crates/nvs-stdlib/src/queue.rs:435`
+- [ ] The insert, the matching statements and the slot. `crates/nvs-stdlib/src/queue.rs:535`,
+  `crates/nvs-stdlib/src/queue.rs:1331`, `crates/nvs-stdlib/src/queue.rs:1926`
+- [ ] The dead-letter move and the checks' tests. `crates/nvs-cli/src/worker.rs:1557`,
+  `crates/nvs-stdlib/tests/queue_sqlite.rs:1`
+
+Expected red after stage 2: every test and example that creates the queue tables by hand, until
+stage 3.
 
 ### Backlog
 
 - The JSON API guide could show a streamed response beside its file export.
   `website/snippets/guides/simple-programs/json-api/large-lists.nvs:29`
+- A list read from a request cannot be streamed as JSON through `Core\Response::stream`, because its
+  pieces are tainted (decision 13). `Core\Response::json` sends it whole. A streamed JSON response
+  member that accepts tainted items, as `json` does, is the user's call.
