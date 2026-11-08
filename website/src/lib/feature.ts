@@ -36,7 +36,7 @@ const abouts = import.meta.glob('../../../docs/examples/{core,novis,types,config
 const details = import.meta.glob('../../../docs/examples/lang/**/details.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const sources = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools,lang}/**/*.{nvs,cmd}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const outputs = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools,lang}/**/*.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-const tomls = import.meta.glob('../../../docs/examples/{config,tools}/**/nvs.toml', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const tomls = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools,lang}/**/nvs.toml', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 
 /** Anything with a directory under `docs/examples/`: a class member, a type, a configuration key, a CLI section, a language feature. */
 export interface Feature {

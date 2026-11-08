@@ -4,11 +4,13 @@
  * place from `docs/examples/` by `examplesFor` in src/lib/feature.ts. With a
  * `heading`, the examples sit under an `h2` of that text. Without one, they
  * sit under the caller's own `h2`. Each example's title is an `h3`. A
- * command-line example shows as a shell block. A page renders this only when
- * the feature has an example.
+ * command-line example shows as a shell block. The feature's `nvs.toml`, when
+ * it has one, shows once above the first example, whole and as it is on disk
+ * (`configFor`), so no page renders it a second time. A page renders this
+ * only when the feature has an example or an `nvs.toml`.
  */
 import { Code } from '@astrojs/starlight/components'
-import { examplesFor, type Feature } from '~/lib/feature'
+import { configFor, examplesFor, type Feature } from '~/lib/feature'
 
 interface Props {
   feature: Feature
@@ -17,11 +19,18 @@ interface Props {
 }
 
 const { feature, heading, id } = Astro.props
+const config = configFor(feature)
 const examples = examplesFor(feature)
 ---
 
 <section class="method-examples">
   {heading && <h2 id={id}>{heading}</h2>}
+  {config && (
+    <div class="method-example-config">
+      <p>The examples below run with this configuration file.</p>
+      <Code code={config} lang="toml" title="nvs.toml" />
+    </div>
+  )}
   {examples.map((ex) => (
     <div class="method-example">
       <h3>{ex.title}</h3>

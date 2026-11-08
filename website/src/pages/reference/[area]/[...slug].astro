@@ -10,7 +10,6 @@
  */
 import type { GetStaticPaths } from 'astro'
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro'
-import { Code } from '@astrojs/starlight/components'
 import FeatureExamples from '~/components/FeatureExamples.astro'
 import SeeAlso from '~/components/SeeAlso.astro'
 import { aboutFor, configFor, examplesFor, inlineHtml, type About } from '~/lib/feature'
@@ -89,8 +88,7 @@ if (page) {
         {(introConfig || introExamples) && (
           <>
             <h2 id="examples">Examples</h2>
-            {introConfig && <Code code={introConfig} lang="toml" title="nvs.toml" />}
-            {introExamples && page.intro && <FeatureExamples feature={page.intro} />}
+            {page.intro && <FeatureExamples feature={page.intro} />}
           </>
         )}
         {keys.map((k) => (
@@ -100,8 +98,7 @@ if (page) {
             </h2>
             {k.about && k.about.blocks.map((html) => <Fragment set:html={html} />)}
             {k.notes.map((html) => <p set:html={html} />)}
-            {k.config && <Code code={k.config} lang="toml" title="nvs.toml" />}
-            {k.examples && <FeatureExamples feature={k.feature} />}
+            {(k.config || k.examples) && <FeatureExamples feature={k.feature} />}
           </section>
         ))}
         {related.length > 0 && <SeeAlso ids={related} />}

@@ -19,7 +19,7 @@ import MethodChangelog from '~/components/MethodChangelog.astro'
 import MethodExamples from '~/components/MethodExamples.astro'
 import SeeAlso from '~/components/SeeAlso.astro'
 import { classes, type CoreClass, type CoreMember } from '~/lib/core'
-import { aboutFor, changesFor, examplesFor } from '~/lib/feature'
+import { aboutFor, changesFor, configFor, examplesFor } from '~/lib/feature'
 import { examplesShowing } from '~/lib/example-apps'
 
 export const getStaticPaths = (() =>
@@ -61,7 +61,7 @@ if (member) {
     returns: section('return-value', 'Return value', true),
     errors: section('errors', 'Errors', (member.doc?.errors ?? []).length > 0),
     changes: section('changelog', 'Changelog', changesFor(member.id).length > 0),
-    examples: section('examples', 'Examples', examplesFor(member).length > 0),
+    examples: section('examples', 'Examples', configFor(member) !== null || examplesFor(member).length > 0),
     related: section('related', 'Related', related.length > 0),
   }
 }
