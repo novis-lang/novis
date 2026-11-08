@@ -2099,7 +2099,12 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// A [`Fault::fatal`] for a receiver that is not an object — unreachable from
 /// source, since an instance member's receiver is typed and `E0401` refuses a
 /// call on anything else.
-fn slot_of(args: &[Value], class: &'static CoreClass, index: usize, member: &str) -> Result<Value, Fault> {
+fn slot_of(
+    args: &[Value],
+    class: &'static CoreClass,
+    index: usize,
+    member: &str,
+) -> Result<Value, Fault> {
     let receiver = crate::instance::receiver(args[0], class, member)?;
     let held = crate::instance::slot(receiver, index);
     #[expect(

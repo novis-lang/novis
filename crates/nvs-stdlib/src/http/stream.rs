@@ -652,7 +652,12 @@ fn event_walk(body: Value) -> Value {
 ///
 /// [`line_from`]'s and [`EventScan::next`]'s caps, and
 /// [`transport::Incoming::pull`]'s two bounds and its `IOError`.
-fn step(ctx: &mut Ctx, value: Value, class: &'static CoreClass, framing: Framing) -> Result<Value, Fault> {
+fn step(
+    ctx: &mut Ctx,
+    value: Value,
+    class: &'static CoreClass,
+    framing: Framing,
+) -> Result<Value, Fault> {
     let receiver = crate::instance::receiver(value, class, nvs_runtime::sequence::ADVANCE)?;
     let Some(key) = crate::instance::slot(receiver, READER_BODY_AT).as_uint() else {
         // The body ended, the reader went with it and the key was cleared:

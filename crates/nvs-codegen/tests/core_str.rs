@@ -378,11 +378,12 @@ fn allocations_of_run(source: &str) -> usize {
     nvs_runtime::budget::allocations() - before
 }
 
-/// A lowered `%d` call allocates twice: the integer's text and the joined
-/// result. The count is the difference between two loop lengths, so the
-/// script's own fixed cost cancels out.
+/// A lowered `%d` call allocates once: the joined result. The integer's digits
+/// are written into it, with no string of their own. The count is the
+/// difference between two loop lengths, so the script's own fixed cost cancels
+/// out.
 #[test]
-fn a_lowered_format_allocates_the_integer_text_and_the_result() {
+fn a_lowered_format_allocates_only_the_result() {
     let looped = |count: usize| {
         format!(
             "<?nvs
@@ -397,5 +398,5 @@ echo $s;
         )
     };
     let spent = allocations_of_run(&looped(40)) - allocations_of_run(&looped(4));
-    assert_eq!(spent, 36 * 2, "36 more calls made {spent} more allocations");
+    assert_eq!(spent, 36, "36 more calls made {spent} more allocations");
 }
