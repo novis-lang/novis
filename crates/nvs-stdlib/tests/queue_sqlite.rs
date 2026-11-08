@@ -1758,7 +1758,10 @@ fn a_pushed_row_carries_a_sixteen_byte_token() {
         .chunks(2)
         .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
         .collect();
-    assert_eq!(decoded, raw, "the hex is the sixteen bytes and nothing else");
+    assert_eq!(
+        decoded, raw,
+        "the hex is the sixteen bytes and nothing else"
+    );
 
     let (worker, reader) = two_connections("nvs-stdlib-queue-token-written");
     let (first, _, first_token) = push_in_two_tokened(&worker, None, NOW, SqliteValue::Null);
@@ -1781,7 +1784,10 @@ fn a_dedupe_hit_returns_the_pending_jobs_token() {
         push_in_two_tokened(&other, Some("welcome-7"), NOW, SqliteValue::Null);
     assert!(deduped, "the second push of the key finds the first job");
     assert_eq!(again, pending);
-    assert_eq!(again_token, token, "the hit returns the pending job's own token");
+    assert_eq!(
+        again_token, token,
+        "the hit returns the pending job's own token"
+    );
     assert_eq!(status_as(&other, again, &again_token), Some(0));
 }
 
@@ -1814,11 +1820,19 @@ fn cancel_and_delete_with_another_token_change_nothing() {
 
     assert_eq!(cancel_as(&reader, pushed, &wrong), 0);
     assert!(!delete_in_two_as(&reader, pushed, &wrong));
-    assert_eq!(status_as(&reader, pushed, &token), Some(0), "the job is still pending");
+    assert_eq!(
+        status_as(&reader, pushed, &token),
+        Some(0),
+        "the job is still pending"
+    );
 
     assert_eq!(cancel_as(&reader, pushed, &token), 1);
     assert!(delete_in_two_as(&reader, pushed, &token));
-    assert_eq!(status_as(&reader, pushed, &token), None, "the right token removed it");
+    assert_eq!(
+        status_as(&reader, pushed, &token),
+        None,
+        "the right token removed it"
+    );
 }
 
 /// The dead-letter move copies the token, so the job's id still reads `Dead` afterwards.

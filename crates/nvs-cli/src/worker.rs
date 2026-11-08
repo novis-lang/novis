@@ -2488,8 +2488,8 @@ mod tests {
     /// shapes, so this asserts the agreement rather than the presence of a word: a `tag` added to
     /// the insert list and not to the `select` beside it shifts every value after it into the wrong
     /// column, and the server takes it — the columns on either side of it are text as well. The
-    /// trailing pair is what the move itself adds, and it is named, so a list that grew a fourth
-    /// value fails here too.
+    /// pair before the last column is what the move itself adds, and it is named, so a list that
+    /// grew another value fails here too. The last column is the token, carried as it is.
     #[test]
     fn a_dead_letter_move_carries_the_tag_across_with_the_rest_of_the_row() {
         for (dialect, statement, from) in [
@@ -2506,11 +2506,17 @@ mod tests {
                 .1
                 .split_once(") select ")
                 .expect("it writes what it just read");
-            let columns = answered(columns);
-            let carried = answered(
+            let mut columns = answered(columns);
+            let mut carried = answered(
                 rest.split_once(&format!(" from {from}"))
                     .expect("the read names where the row is coming from")
                     .0,
+            );
+            // The token is the last column on both sides, so a dead-lettered job's Id still finds it.
+            assert_eq!(
+                (columns.pop(), carried.pop()),
+                (Some("token"), Some("token")),
+                "{dialect}: the move does not carry the token across as its last column"
             );
             assert_eq!(
                 columns.len(),
@@ -2534,7 +2540,7 @@ mod tests {
                 "{dialect}: the move adds something other than when it failed and what it threw"
             );
             if dialect == "postgres" {
-                let removed = answered(
+                let mut removed = answered(
                     statement
                         .split_once("returning ")
                         .expect("PostgreSQL's move reads the row out of its own delete")
@@ -2542,6 +2548,11 @@ mod tests {
                         .split_once(") insert into")
                         .expect("the delete's list ends where the insert begins")
                         .0,
+                );
+                assert_eq!(
+                    removed.pop(),
+                    Some("token"),
+                    "the delete does not answer the token last"
                 );
                 assert_eq!(
                     removed,

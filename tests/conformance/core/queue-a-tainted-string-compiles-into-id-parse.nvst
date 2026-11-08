@@ -7,7 +7,7 @@ use Core\Queue\Id;
 // A job id arrives from a client, so it is `tainted`. Both members accept it.
 // Neither one opens a connection, so this case needs no queue.
 tainted string $fromClient = "12.ABEiM0RVZneImaq7zN3u_w.cmVjZWlwdHM";
-Id $id = Id::parse($fromClient);
+Id $id = Core\Queue\Id::parse($fromClient);
 
 // The Id has no text a program can read except `toString`, which is built only
 // from checked parts. So it is a plain `string`.
@@ -16,9 +16,9 @@ echo $plain, "\n";
 
 // A string that is not an Id gives `null` from `tryParse` and an error from `parse`.
 tainted string $wrong = "12.not-a-token.cmVjZWlwdHM";
-echo "tried ", Id::tryParse($wrong) == null ? "null" : "an id", "\n";
+echo "tried ", Core\Queue\Id::tryParse($wrong) == null ? "null" : "an id", "\n";
 try {
-    Id::parse($wrong);
+    Core\Queue\Id::parse($wrong);
     echo "parsed\n";
 } catch (RuntimeError $refused) {
     echo "refused: ", $refused->message, "\n";

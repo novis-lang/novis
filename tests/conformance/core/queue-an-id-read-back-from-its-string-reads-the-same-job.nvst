@@ -62,10 +62,10 @@ echo "converted ", ($pushed as string) == $text ? "same" : "different", "\n";
 
 // A later request has only the string. `parse` gives an Id for the same job, and
 // `tryParse` gives the same one.
-Id $back = Id::parse($text);
+Id $back = Core\Queue\Id::parse($text);
 echo "string ", $back->toString() == $text ? "same" : "different", "\n";
 echo "status ", Queue::status($back) == Queue::State::Pending ? "pending" : "not pending", "\n";
-?Id $tried = Id::tryParse($text);
+?Id $tried = Core\Queue\Id::tryParse($text);
 echo "tried ", $tried?->toString() == $text ? "same" : "different", "\n";
 
 // Cancelling through the parsed Id cancels the job the first Id names.

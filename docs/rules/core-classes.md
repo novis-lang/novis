@@ -1559,9 +1559,15 @@ refusal and the same escapes that keep the text safe inside an HTML page
   reads as `content()` does, `Core\Request::bodyStream()`, or any walk of `bytes` chunks. Each is read
   through the one byte source every such member uses
   ([`core-api/a-member-takes-the-source-the-program-holds`](core-api.md#core-api-a-member-takes-the-source-the-program-holds)).
-- `Core\Json::encodeEach(Iterable<mixed> $items, { lines?: bool }): Iterable<bytes>` pulls one item at a
-  time and gives the array's text in pieces of up to 64 KiB, brackets and commas included.
+- `Core\Json::encodeEach(Iterable<mixed> $items, { lines?: bool }): Core\Json\Pieces<bytes>` pulls one
+  item at a time and gives the array's text in pieces of up to 64 KiB, brackets and commas included.
   `{ lines: true }` writes one value per line and no brackets.
+- The pieces carry the taint `encode`'s text carries for the same items: `Pieces<tainted bytes>` when
+  an item can hold outside text, judged as `encode`'s argument is, and a walk by the element it gives.
+  So a stream's `write`, a sink, takes the pieces of a list the program built and refuses those of a
+  list from a request. Declined: a `write` that accepts tainted pieces because the serializer owns
+  their framing. Escaping keeps the text inert in HTML, and the client still chooses its content, so
+  the pieces stay as tainted as `encode`'s string.
 - A request body is read with `Core\Json::decodeEach<T>(Core\Request::bodyStream(), '/items')`, so there
   is no `Core\Request::jsonEach`. A response writes `encodeEach`'s pieces to `Core\Response::stream` or
   `Core\IO::writeStream`, so there is no response member either.
@@ -3346,6 +3352,14 @@ alternative — a `not null` column with a generated token per released row — 
 that outlives any one backend: such a column cannot be added to a table that already holds rows, so
 it would be a schema no existing deployment could converge to, while a nullable one arrives as a
 `Safe` step.
+
+**Both tables carry a nullable `token` column**, the job's 16 random bytes as 32 lower-case hex
+characters ([`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members)). Text and not binary, because every value the
+queue binds goes out as text on all four drivers, and hex has one written form per byte string, so a
+case-insensitive collation still compares two tokens exactly. Nullable for `dedupe_pending`'s reason:
+`nvs queue migrate` adds it to a live queue as a `Safe` step. A null never equals a token, so a row
+written before the column matches no `Queue\Id`. The dead-letter move copies it, so a buried job's Id
+still reads `Dead`.
 
 DDL is an injection sink and a privileged act, so **the runtime never issues it implicitly**, not at
 boot and not from a request; applying the plan takes `db.schema` like any other DDL

@@ -1430,6 +1430,22 @@ five are what is waiting, what a worker holds and what the jobs still in the que
 then how deep the dead-letter table is and what the jobs in it attempted before they were buried:
 every attempt is in exactly one of the two sums, because a job's attempts move with its row.
 
+**A `Queue\Id` is the row number, the queue and a random token.** `push` draws 16 bytes from the
+operating system's secure generator for each job and writes them into the row, and the Id carries
+them. `status`, `cancel` and `delete` match the row on all three in one statement, so a changed or
+guessed Id finds no job, and the answer is the one a deleted job gets. The Id has a string form that
+a later request parses back, so a program can hand it to a client. **Who may use an Id is the app's
+check**: the app stores the string beside its own record of who started the job, and looks it up by
+the string and the signed-in user before it calls `status` or `cancel`. The token makes a guessed Id
+useless; it does not say whose job it is. What it spends: 32 bytes of text per row in each table,
+and one more slot per Id.
+
+Declined: row numbers as the whole Id, because they count up and one missed ownership check exposes
+every job; a signature under a configured key, because a leaked key forges every Id and rotating it
+breaks every Id already handed out; a hash of the token in the row, because a deduped `push` must
+return the pending job's Id and so needs the token back; and an `owner` option on `push`, because the
+owner is a fact only the app knows.
+
 The shape is [`core-api/shape-rules`](core-api.md#core-api-shape-rules) throughout: subject first, one trailing options shape,
 nothing mutates, failure throws, absence is `?T`. `push`'s options are the job's own — its queue, its
 earliest run time, its attempt ceiling, its backoff base, a dedupe `key` that admits at most one

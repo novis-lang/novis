@@ -1313,9 +1313,7 @@ pub(crate) fn encodes_outside_text(
     // of an encoder, and every argument after the template of a formatter,
     // which a positional call places at its own index.
     let walked: fn(usize) -> bool = match (qname.to_string().as_str(), member) {
-        (r"Core\Json" | r"Core\Serialize", "encode") | (r"Core\Json", "encodeEach") => {
-            |at| at == 0
-        }
+        (r"Core\Json" | r"Core\Serialize", "encode") | (r"Core\Json", "encodeEach") => |at| at == 0,
         (r"Core\Str", "format") | (r"Core\Bytes", "pack") => |at| at >= 1,
         _ => return false,
     };

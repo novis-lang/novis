@@ -1,0 +1,41 @@
+--TEST--
+Each part of a `Core\Queue\Id`'s string has one written form: `parse` throws and `tryParse` gives `null` on any other, and `toString` writes a parsed string back exactly — `rule:concurrency/queue-four-members`, `rule:expressions/try-parse`
+--FILE--
+<?nvs
+// A real token and the queue name `receipts`, both in base64url. Nothing here
+// opens a connection, so this case needs no queue.
+var $token = 'ABEiM0RVZneImaq7zN3u_w';
+var $receipts = 'cmVjZWlwdHM';
+
+// Row 0 and a queue name with a space are both valid. The string reads back exactly.
+foreach (['0.' . $token . '.' . $receipts, '7.' . $token . '.bXkgcXVldWU'] as var $good) {
+    echo Core\Queue\Id::parse($good)->toString() == $good ? 'same' : 'different', "\n";
+}
+
+// Each string below breaks one part. `parse` names that part, and `tryParse` gives `null`.
+var $bad = [
+    '',
+    '012.' . $token . '.' . $receipts,
+    '12.' . $token,
+    '12.' . $token . '.' . $receipts . '.extra',
+    '12.' . $token . '.' . '_w',
+    '12.' . $token . '.' . $receipts . ' ',
+];
+foreach ($bad as var $text) {
+    echo Core\Queue\Id::tryParse($text) == null ? 'null' : 'an id', ' / ';
+    try {
+        Core\Queue\Id::parse($text);
+        echo "parsed\n";
+    } catch (RuntimeError $refused) {
+        echo $refused->message, "\n";
+    }
+}
+--EXPECT--
+same
+same
+null / Core\Queue\Id::parse(): the string is not a job id, because it does not have three parts joined by dots. A job id is the string that `toString` writes
+null / Core\Queue\Id::parse(): the string is not a job id, because its first part is not a row number. A job id is the string that `toString` writes
+null / Core\Queue\Id::parse(): the string is not a job id, because it does not have three parts joined by dots. A job id is the string that `toString` writes
+null / Core\Queue\Id::parse(): the string is not a job id, because it does not have three parts joined by dots. A job id is the string that `toString` writes
+null / Core\Queue\Id::parse(): the string is not a job id, because its third part is not a queue name. A job id is the string that `toString` writes
+null / Core\Queue\Id::parse(): the string is not a job id, because it has a character that no job id has. A job id is the string that `toString` writes

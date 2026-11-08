@@ -855,7 +855,10 @@ fn a_response_stream_writes_encode_each_pieces() {
              $out->write($piece);\n\
          }\n",
     );
-    assert!(tainted.has_errors(), "a tainted piece is not a chunk a stream writes");
+    assert!(
+        tainted.has_errors(),
+        "a tainted piece is not a chunk a stream writes"
+    );
 }
 
 #[test]

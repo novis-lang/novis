@@ -5006,8 +5006,8 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(
             implementors,
-            vec![crate::uuid::NAME],
-            "`Core\\Uuid` is the whole roster today"
+            vec![crate::uuid::NAME, crate::queue::ID_NAME],
+            "`Core\\Uuid` and `Core\\Queue\\Id` are the whole roster today"
         );
 
         assert!(
@@ -6748,7 +6748,6 @@ mod tests {
             crate::cli::STYLE_NAME,
             crate::db::IN_LIST_NAME,
             crate::db::STREAM_NAME,
-            crate::queue::ID_NAME,
             crate::request::FILES_NAME,
             crate::request::PART_CONTENT_NAME,
             crate::jwe::KEY_NAME,

@@ -4096,7 +4096,10 @@ fn push_in_one(
         )
     };
     let mut token: Option<String> = None;
-    while let Some(row) = answered.next_row().map_err(|refused| reading_failed(&refused))? {
+    while let Some(row) = answered
+        .next_row()
+        .map_err(|refused| reading_failed(&refused))?
+    {
         if token.is_none() {
             let held = row.column(1).map_err(|refused| reading_failed(&refused))?;
             token = Some(String::from_utf8_lossy(held.unwrap_or_default()).into_owned());
@@ -7375,8 +7378,9 @@ mod tests {
             ("sqlserver", INSERT_SQLSERVER.then),
         ] {
             assert!(
-                insert.contains("limits, non_transactional)"),
-                "{dialect}: the insert writes `non_transactional` as its last column"
+                insert.contains("limits, non_transactional, token)"),
+                "{dialect}: the insert writes `non_transactional` after the narrowing, and only the \
+                 token after it"
             );
         }
         for (dialect, counts) in [
@@ -7882,22 +7886,23 @@ mod tests {
         for (dialect, sql) in [("mysql", INSERT_MYSQL.then), ("sqlite", INSERT_SQLITE.then)] {
             assert_eq!(
                 sql.matches('?').count(),
-                14,
+                15,
                 "{dialect}: the enqueue binds one value per column it names"
             );
         }
-        // The pair is followed by `non_transactional`, the one value bound after it.
+        // The pair is followed by `non_transactional` and the token, the two values bound after it.
         assert!(
             INSERT_POSTGRES.contains("$11::text, $12::text, $13::smallint")
-                && !INSERT_POSTGRES.contains("$14"),
-            "PostgreSQL binds the pair just before its last numbered value"
+                && INSERT_POSTGRES.contains("$14::text")
+                && !INSERT_POSTGRES.contains("$15"),
+            "PostgreSQL binds the pair just before its last two numbered values"
         );
         assert!(
             INSERT_SQLSERVER
                 .then
-                .contains("@p12, @p13, cast(@p14 as smallint)")
-                && !INSERT_SQLSERVER.then.contains("@p15"),
-            "T-SQL binds the pair just before its last numbered value"
+                .contains("@p12, @p13, cast(@p14 as smallint), @p15)")
+                && !INSERT_SQLSERVER.then.contains("@p16"),
+            "T-SQL binds the pair just before its last two numbered values"
         );
 
         assert_eq!(
@@ -8273,8 +8278,8 @@ mod tests {
     /// One token's hex text, as [`super::token_text`] writes a fresh one.
     fn some_token() -> String {
         super::token_text(&[
-            0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee,
-            0xff,
+            0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd,
+            0xee, 0xff,
         ])
     }
 
@@ -8312,8 +8317,15 @@ mod tests {
             &"\u{10FFFF}".repeat(super::QUEUE_NAME_BYTES / 4),
             &super::token_text(&[0xff; super::TOKEN_BYTES]),
         );
-        assert_eq!(longest.len(), super::ID_TEXT_MAX, "the bound is the longest Id");
-        for text in [longest.as_str(), &super::id_text(9, "\u{fbff}\u{3fe}", &some_token())] {
+        assert_eq!(
+            longest.len(),
+            super::ID_TEXT_MAX,
+            "the bound is the longest Id"
+        );
+        for text in [
+            longest.as_str(),
+            &super::id_text(9, "\u{fbff}\u{3fe}", &some_token()),
+        ] {
             assert!(
                 text.bytes()
                     .all(|byte| byte.is_ascii_alphanumeric() || b"._-".contains(&byte)),
@@ -8344,7 +8356,10 @@ mod tests {
         let over = "1".repeat(super::ID_TEXT_MAX + 1);
         assert_eq!(super::read_id(&over), Err("it is longer than any job id"));
         let million = "!".repeat(1_000_000);
-        assert_eq!(super::read_id(&million), Err("it is longer than any job id"));
+        assert_eq!(
+            super::read_id(&million),
+            Err("it is longer than any job id")
+        );
     }
 
     /// A real Id is a bearer value, so the message for each kind of bad string quotes none of it.
