@@ -11,7 +11,7 @@ hover
 Core\Json::encode(mixed $value, { pretty?: bool, escapeUnicode?: bool } $options): string
 ```
 
-Converts `$value` to JSON text. It can be a scalar, an array, an anonymous object or an instance of a class with `#[Json\Derive]`. The text is on one line unless `pretty` is set.
+Converts `$value` to JSON text. It can be a scalar, an array, an anonymous object or an instance of a class with `#[Json\Derive]`. The text is on one line unless `pretty` is set. In every string, `<`, `>`, `&`, `'`, U+2028 and U+2029 are written as `\u` escapes, so the text is safe inside an HTML page.
 
 **Parameters**
 

@@ -1,0 +1,12 @@
+{
+  "title": "JSON text Novis writes escapes the characters that end HTML markup or a script line",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/json-whole-and-stream",
+    "security/response-body-is-one-typed-member"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/json.rs",
+    "crates/nvs-stdlib/src/json/pieces.rs"
+  ]
+}

@@ -2,8 +2,9 @@
 document, so its size is bounded by the request's memory. `decodeEach<T>` and `encodeEach` read and
 write one element of an array, or one line of JSON Lines, at a time, so their memory is O(one element)
 at any document size. Each element goes through exactly the decoder and encoder the whole document
-does: the same types, the same checks, the same messages, the same taint and the same `secret`
-refusal. A program picks the shape that fits how much of the document it needs at once.
+does: the same types, the same checks, the same messages, the same taint, the same `secret`
+refusal and the same escapes that keep the text safe inside an HTML page
+(`rule:security/json-text-is-safe-inside-html`). A program picks the shape that fits how much of the document it needs at once.
 
 **The two members, and no other door.**
 

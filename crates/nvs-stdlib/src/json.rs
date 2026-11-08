@@ -45,6 +45,16 @@
 //! **What it spends:** one extra `String` the size of the document, on the
 //! `{ escapeUnicode: true }` path only — an option a call has to ask for.
 //!
+//! # Every string is safe inside an HTML page, and that one is a formatter
+//!
+//! `rule:security/json-text-is-safe-inside-html` escapes `<`, `>`, `&`, `'`,
+//! U+2028 and U+2029 in every string and key, with no option. That one *is* a
+//! [`Formatter`], `HtmlSafe`, because it changes only how a string fragment is
+//! written, and every string goes through [`Sink::scalar`]'s compact
+//! serializer whatever profile the structure has. So the pretty profile,
+//! `escapeUnicode`, `encodeEach` and every other writer of a program's values
+//! in this crate escape the same six by one override.
+//!
 //! # The refusals
 //!
 //! Each is `rule:core-api/shape-rules` R4
@@ -597,7 +607,8 @@ pub(crate) const PIECES: CoreClass = CoreClass {
 /// `Core\Json\Pieces`' class card — `rule:core-api/reference-card`.
 const PIECES_CARD: ClassDoc = ClassDoc {
     short: "The text of a JSON document in pieces of `bytes`, written one at a time while a \
-            `foreach` loop runs. The whole document is never in memory at once.",
+            `foreach` loop runs. The whole document is never in memory at once. The text is \
+            escaped as `Core\\Json::encode` escapes it, so it is safe inside an HTML page.",
 };
 
 /// `Core\Json::decodeEach`'s reference card — `rule:core-api/reference-card`.
@@ -657,8 +668,9 @@ const DECODE_EACH_DOC: MethodDoc = MethodDoc {
 /// `Core\Json::encodeEach`'s reference card — `rule:core-api/reference-card`.
 const ENCODE_EACH_DOC: MethodDoc = MethodDoc {
     short: "Writes a JSON array in pieces, in a `foreach` loop. It takes the next item from \
-            `$items` only when it needs it, and encodes each item as `encode` does. You can write \
-            the pieces to a file with `Core\\IO::writeStream`.",
+            `$items` only when it needs it, and encodes each item as `encode` does. So the text \
+            is safe inside an HTML page. You can write the pieces to a file with \
+            `Core\\IO::writeStream`.",
     params: &[
         ParamDoc {
             name: "items",
@@ -698,7 +710,8 @@ const ENCODE_EACH_DOC: MethodDoc = MethodDoc {
 const ENCODE_DOC: MethodDoc = MethodDoc {
     short: "Converts `$value` to JSON text. It can be a scalar, an array, an anonymous object \
             or an instance of a class with `#[Json\\Derive]`. The text is on one line unless \
-            `pretty` is set.",
+            `pretty` is set. In every string, `<`, `>`, `&`, `'`, U+2028 and U+2029 are written as `\\u` escapes, \
+            so the text is safe inside an HTML page.",
     params: &[
         ParamDoc {
             name: "value",
@@ -1128,7 +1141,10 @@ impl<F: Formatter> Sink<F> {
     /// Whatever the crate refuses to write, which for the tags reaching here is
     /// nothing.
     fn scalar<T: Serialize + ?Sized>(&mut self, value: &T) -> Result<(), serde_json::Error> {
-        serde_json::to_writer(&mut self.out, value)
+        value.serialize(&mut serde_json::Serializer::with_formatter(
+            &mut self.out,
+            HtmlSafe,
+        ))
     }
 
     fn open_array(&mut self) {
@@ -1179,6 +1195,56 @@ impl<F: Formatter> Sink<F> {
     }
 }
 
+/// The compact formatter, with `<`, `>`, `&`, `'`, U+2028 and U+2029 written as
+/// `\u` escapes in every string and key — `rule:security/json-text-is-safe-inside-html`.
+///
+/// [`Sink::scalar`] is the one place a string is written, and its scalars have
+/// no punctuation, so the pretty profile and `encodeEach`'s pieces escape the
+/// same characters through this alone. `serde_json` already gives a fragment
+/// only the bytes it does not escape itself, and splits it only at an ASCII
+/// byte, so a three-byte U+2028 is never cut in two.
+///
+/// **What it spends:** five bytes more per escaped character, and one compare
+/// per byte of each string beside the crate's own escape lookup.
+#[derive(Clone, Copy)]
+struct HtmlSafe;
+
+impl Formatter for HtmlSafe {
+    fn write_string_fragment<W>(&mut self, writer: &mut W, fragment: &str) -> std::io::Result<()>
+    where
+        W: ?Sized + std::io::Write,
+    {
+        let bytes = fragment.as_bytes();
+        let mut written = 0;
+        let mut at = 0;
+        while at < bytes.len() {
+            let (escape, width): (&[u8], usize) = match bytes[at] {
+                b'<' => (b"\\u003c", 1),
+                b'>' => (b"\\u003e", 1),
+                b'&' => (b"\\u0026", 1),
+                b'\'' => (b"\\u0027", 1),
+                0xE2 if bytes.get(at + 1) == Some(&0x80) => match bytes.get(at + 2) {
+                    Some(0xA8) => (b"\\u2028", 3),
+                    Some(0xA9) => (b"\\u2029", 3),
+                    _ => {
+                        at += 1;
+                        continue;
+                    }
+                },
+                _ => {
+                    at += 1;
+                    continue;
+                }
+            };
+            writer.write_all(&bytes[written..at])?;
+            writer.write_all(escape)?;
+            at += width;
+            written = at;
+        }
+        writer.write_all(&bytes[written..])
+    }
+}
+
 /// The walk's own stack, on the heap.
 ///
 /// Empty at the document and never longer than [`DEPTH_CEILING_FRAMES`],
@@ -1218,11 +1284,10 @@ impl<'a> Encodable<'a> {
     ///
     /// A constructor rather than public fields because a document is the only
     /// thing this may be: a caller outside this module has no business starting
-    /// a walk part-way down, and [`crate::log`] — the second writer of a JSON
-    /// value in this crate, and the reason this type is `pub(crate)` at all —
-    /// writes a `fields` bag that is a document exactly as `Core\Json::encode`'s
-    /// argument is. One encoder, so a `float` or a nested array cannot be
-    /// spelled two ways depending on which member wrote it.
+    /// a walk part-way down. Every member that writes a program's value as JSON
+    /// reaches this through [`written`], [`document`] or [`written_chunks`].
+    /// One encoder, so a `float` or a nested array cannot be written two ways
+    /// depending on which member wrote it.
     pub(crate) fn document(walk: &'a Reentry, value: Value) -> Self {
         Self { value, walk }
     }
@@ -6588,6 +6653,98 @@ pub(crate) mod tests {
                     .expect("the encoder writes UTF-8")
             })
             .map_err(|why| why.to_string())
+    }
+
+    /// `text` decoded and encoded again, with the decoded value released.
+    fn reencoded(text: &str) -> String {
+        let value = decoded(text, DEFAULT_MAX_DEPTH_U32).expect("the document decodes");
+        let written = encoded(value).expect("a decoded value encodes");
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+        written
+    }
+
+    /// `<`, `>` and `&` are `\u` escapes in a value and in a key, so a string
+    /// cannot close a `<script>` element or start an entity.
+    // covers: Core\Json::encode
+    #[test]
+    fn encode_escapes_angle_brackets_and_ampersand_in_strings_and_keys() {
+        assert_eq!(
+            reencoded(r#"{"<a&b>":"</script><b>&amp;"}"#),
+            "{\"\\u003ca\\u0026b\\u003e\":\"\\u003c/script\\u003e\\u003cb\\u003e\\u0026amp;\"}"
+        );
+        assert_eq!(reencoded(r#"["plain",1]"#), r#"["plain",1]"#);
+    }
+
+    /// U+2028 and U+2029 end a line in JavaScript before ES2019, so each is a
+    /// `\u` escape, and a character beside them that only shares a lead byte
+    /// is written as it is.
+    // covers: Core\Json::encode
+    #[test]
+    fn encode_escapes_the_two_javascript_line_separators() {
+        assert_eq!(
+            reencoded("[\"a\u{2028}b\u{2029}c\"]"),
+            "[\"a\\u2028b\\u2029c\"]"
+        );
+        assert_eq!(
+            reencoded("[\"\u{2026}\u{20ac}\"]"),
+            "[\"\u{2026}\u{20ac}\"]"
+        );
+    }
+
+    /// `'` is a `\u` escape, so a value cannot end a single-quoted attribute.
+    // covers: Core\Json::encode
+    #[test]
+    fn encode_escapes_the_apostrophe_for_a_single_quoted_attribute() {
+        assert_eq!(
+            reencoded(r#"{"it's":"' onmouseover='x"}"#),
+            "{\"it\\u0027s\":\"\\u0027 onmouseover=\\u0027x\"}"
+        );
+    }
+
+    /// Any JSON reader gives back the characters the escapes stand for.
+    // covers: Core\Json::encode
+    #[test]
+    fn an_escaped_text_decodes_to_the_value_it_was_made_from() {
+        let original = "{\"k<'>\":\"</script>&'\u{2028}\u{2029}\\\"\"}";
+        let written = reencoded(original);
+        assert!(
+            !written.contains(['<', '>', '&', '\'', '\u{2028}', '\u{2029}']),
+            "{written}"
+        );
+        let read: serde_json::Value = serde_json::from_str(&written).expect("valid JSON");
+        let expected: serde_json::Value = serde_json::from_str(original).expect("valid JSON");
+        assert_eq!(read, expected);
+        assert_eq!(reencoded(&written), written, "the escaped text is stable");
+    }
+
+    /// The pretty profile and `escapeUnicode` write the same six escapes.
+    // covers: Core\Json::encode
+    #[test]
+    fn pretty_and_escape_unicode_output_escape_the_same_characters() {
+        let text = "{\"<k>\":[\"&'\u{2028}\u{2029}\u{e9}\"]}";
+        let value = decoded(text, DEFAULT_MAX_DEPTH_U32).expect("the document decodes");
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let walk = Reentry::new(&mut ctx);
+        let pretty = Encodable::document(&walk, value)
+            .written(PrettyFormatter::new())
+            .map(|out| String::from_utf8(out.joined().unwrap_or_default()).expect("UTF-8"))
+            .expect("the value encodes");
+        assert_eq!(
+            pretty,
+            "{\n  \"\\u003ck\\u003e\": [\n    \"\\u0026\\u0027\\u2028\\u2029\u{e9}\"\n  ]\n}"
+        );
+        let compact = encoded(value).expect("the value encodes");
+        assert_eq!(
+            escape_non_ascii(&compact),
+            "{\"\\u003ck\\u003e\":[\"\\u0026\\u0027\\u2028\\u2029\\u00e9\"]}"
+        );
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
     }
 
     /// A class whose slots are `fields`, each carrying a `mixed` wire key of

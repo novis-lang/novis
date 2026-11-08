@@ -410,6 +410,25 @@ mod tests {
         assert!(all_pieces(list([]), true).is_empty(), "no item is no line");
     }
 
+    /// Each piece escapes `<`, `>`, `&`, `'`, U+2028 and U+2029 as `encode`
+    /// does, in an array and in JSON Lines.
+    // covers: Core\Json::encodeEach
+    #[test]
+    fn encode_each_pieces_escape_what_encode_escapes() {
+        let item = || Value::text("</script>&'\u{2028}\u{2029}");
+        let escaped = "\"\\u003c/script\\u003e\\u0026\\u0027\\u2028\\u2029\"";
+        let joined = all_pieces(list([item(), item()]), false).concat();
+        assert_eq!(
+            String::from_utf8(joined).expect("UTF-8"),
+            format!("[{escaped},{escaped}]")
+        );
+        let joined = all_pieces(list([item()]), true).concat();
+        assert_eq!(
+            String::from_utf8(joined).expect("UTF-8"),
+            format!("{escaped}\n")
+        );
+    }
+
     /// An instance with a `secret` property is refused with `encode`'s class
     /// and reason, and the walk ends there.
     // covers: Core\Json::encodeEach
