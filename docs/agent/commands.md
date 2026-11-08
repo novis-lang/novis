@@ -670,8 +670,8 @@ and builds nothing in a side loop's lane (`tools/nv/cmd/relink.ts`). Last comes 
 which rebuilds `editors/vscode/nvs.vsix` when the extension changed since its last build, under the same
 side-lane rule (`tools/nv/cmd/vsix.ts`). The goal `release-green` is the one side goal that runs in the
 root, added with `looper loop add --side release-green --in-root`. It is never reached: a person starts
-its loop, which runs every CI job this machine can run, fixes what fails, pushes, and proves the push
-with one `Release` dry run, fixing and repeating until that run is green. Then it stops itself. It is the
+its loop, which runs every CI job this machine can run, fixes what fails, pushes, and fixes and pushes
+again until that push's CI run is green. Then it stops itself. It is the
 one session that drives CI while it runs, and no other session pushes or cancels a run then. The push starts the runs, and the command cancels each run a
 newer one replaces, so each workflow has one run going on `main` (`rule:testing/one-run-on-main`).
 `tools/nv/cmd/ci.ts` is the command's procedure.
