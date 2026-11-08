@@ -128,8 +128,12 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `c2b8671f2`, pushed by this loop. Its CI and Website runs are going, unwatched,
-because the session reached its context ceiling. The pushes of this session fixed:
+`origin/main` is at `c2b8671f2`, and its CI (run `42474271538`) and Website runs are green. Its
+`test / windows-x86_64 (tests 2/3)` job first failed in `cargo build` when the hosted runner lost
+contact with the server, with no log. One `bun nv ci --rerun` made it green. The only unpushed
+commits on `main` are this goal's handoff notes, which start no run.
+
+The pushes of the session before fixed:
 
 - `fb1eea7c2`: `taint_signatures` names `Core\Json::encodeEach` in `ALLOWED` as an encoder.
 - `81a279ca7`: `queue_sqlite`'s test token always has a letter, so its upper case differs.
@@ -144,19 +148,16 @@ because the session reached its context ceiling. The pushes of this session fixe
   file handle's fixed 156 KiB no longer counts against the 2 KiB-chunk limit under Miri.
 - `955182f9e`: the roadmap shows `request-and-page-speed`, which the stale guard refused.
 
-The nightly deep lane of `81a279ca7` (run `42468563179`) found the fuzz and Miri reds. Its `test`,
-`supply chain` and `ext templates` jobs, and the push runs' `test` jobs, failed downloading from
-GitHub releases (HTTP 504, not on githubstatus.com). From the workstation those downloads returned
-200 again later. The Miri sizes in `c2b8671f2` are estimated, at about 18 s per HTML parse under
-Miri. Only the next nightly run proves them.
+The Miri sizes in `c2b8671f2` are estimated, at about 18 s per HTML parse under Miri. Only the
+next nightly run proves them.
 
 ### Next
 
 **Stage 1, the cycle.**
 
-- [ ] Read the runs on `c2b8671f2` (`tools/nv/cmd/ci.ts:1`), then watch with `bun nv ci --watch`.
-  A `test` job red at its `cargo-nextest` or Redis step on a 504 is a
-  download failure: `bun nv ci --rerun` once its run has ended.
+- [ ] Watch for the next push with `bun nv ci --watch --next` (`tools/nv/cmd/ci.ts:1`).
+  A `test` job red at its `cargo-nextest` or Redis step on a 504, or with "the hosted runner lost
+  communication" in its annotations, is not the code: `bun nv ci --rerun` once its run has ended.
 - [ ] Read the next nightly's Miri jobs (`crates/nvs-stdlib/src/markdown/tests.rs:927`).
   `miri units (nvs-stdlib N/12)` and `fuzz smoke` show the fixes. A Miri TIMEOUT still there
   shrinks that test under `cfg!(miri)` further. The live test is the nearest to the limit.
