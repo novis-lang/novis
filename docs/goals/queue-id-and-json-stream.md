@@ -303,7 +303,7 @@ for the bench and the attack. Their files are disjoint. None builds.
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] `bun nv proofs --record-perf` over the members whose figures are stale.
+- [x] `bun nv proofs --record-perf` over the members whose figures are stale.
 - [ ] Run `looper verify` over the whole goal.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
 - [ ] Run `looper verify` once more, and it is green.
@@ -325,11 +325,14 @@ ends its example with the owner check; `NVS_BIN=<abs path> bun nv reference --on
 The sweep's reds are stale, as the last four sessions found: no `env-secret-proofs` check is
 defined, and nightly run 42359979484 ran on 26dda36627, before the Miri ignores in f13f40646a.
 
+Stage 6 has begun. `bun nv proofs --record-perf` appended 18 fresh records for the queue and JSON
+members (b84382ec2f), and the first `looper verify` over the whole goal is running.
+
 ### Next
 
-**Stage 6**, the gate. `bun nv proofs --record-perf` first, over any Id or queue figure it calls
-stale; then `looper verify` in the background, one fix pass, and `looper verify` again; then the
-goal-end gates of AGENTS.md § *In the loop*. `docs/goals/queue-id-and-json-stream.md:304`
+**Stage 6**, the gate. Read the first `looper verify` report, fix every failure it names in one
+pass, and run `looper verify` again; then the goal-end gates of AGENTS.md § *In the loop*.
+`docs/goals/queue-id-and-json-stream.md:307`
 
 `bun nv scaling --budget --write` exits 1 on many benches outside this goal that are over their share
 (`novis/Spreadsheet-*` among them); it still wrote the three new shares. Check whether CI's budget job
