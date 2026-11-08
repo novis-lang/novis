@@ -10,7 +10,7 @@ stages:
     context: ["website/src/pages/reference/[area]/[...slug].astro", "website/src/pages/reference/core/[...slug].astro", tools/nv/renderers/lang-chapters.ts]
   - id: 2
     title: "the Db examples' configuration moves into their own directories: connections, transactions and plans"
-    status: open
+    status: done
     context: [docs/examples/core/Db-Row/instant/nvs.toml, docs/examples/core/Queue/push/nvs.toml]
   - id: 3
     title: "the Db examples' configuration moves into their own directories: rows, schemas and Db errors"
@@ -165,10 +165,10 @@ The session alone edits the root `nvs.toml` and runs the examples.
 The directories: `Db` (1), `Db-Connection` (11), `Db-Transaction` (8), `Db-Write` (3), `Db-Column` (3),
 `Db-Plan` (1) and `Db-Plan-Step` (4), all under `docs/examples/core/`.
 
-- [ ] The list. `nvs.toml:1584`
-- [ ] Each directory's `nvs.toml`, by decision 3. `docs/examples/core/Db-Connection/execute/nvs.toml:1`
-- [ ] Their blocks deleted from the root, and the root tables decision 4 frees. `nvs.toml:1584`
-- [ ] `bun nv proofs --run --group` over the seven classes, every `.out` unchanged.
+- [x] The list. `nvs.toml:1584`
+- [x] Each directory's `nvs.toml`, by decision 3. `docs/examples/core/Db-Connection/execute/nvs.toml:1`
+- [x] Their blocks deleted from the root, and the root tables decision 4 frees. `nvs.toml:1584`
+- [x] `bun nv proofs --run --group` over the seven classes, every `.out` unchanged.
 
 ### 3. the Db examples' configuration moves into their own directories: rows, schemas and Db errors
 

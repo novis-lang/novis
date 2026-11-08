@@ -552,24 +552,6 @@ open = true
 # and no other, which is what makes its twenty thousand refusals evidence that the grant is asked
 # per name rather than once.
 [[app]]
-entry = "docs/examples/core/Db/connect/01-open-the-database-an-operator-named.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db/connect/02-wait-only-as-long-as-a-page-can.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db/connect/03-every-function-asks-for-the-database.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db/connect/01-names-a-program-chose.nvs"
 
 [app.capabilities.db]
@@ -980,24 +962,6 @@ cleartext = ["127.0.0.1"]
 # `Core\Db\Column`'s proof programs, granted the same way and for the same reason: a description is
 # read off a statement, so every one of these opens `[db.notes]` by name and asks for nothing else.
 [[app]]
-entry = "docs/examples/core/Db-Column/name/01-print-the-headings-of-a-query.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Column/name/02-the-alias-becomes-the-label.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Column/name/03-print-a-query-you-did-not-write.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Column/name/01-labels-a-statement-chose.nvs"
 
 [app.capabilities.db]
@@ -1010,24 +974,6 @@ entry = "benches/members/core/Db-Column/name.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Column/type/01-see-what-each-column-holds.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Column/type/02-a-column-the-query-works-out.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Column/type/03-line-up-the-numbers-in-a-report.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Column/type/01-declared-types-a-schema-chose.nvs"
 
 [app.capabilities.db]
@@ -1035,24 +981,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Column/type.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Column/nullable/01-ask-whether-a-column-may-be-empty.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Column/nullable/02-print-a-record-without-its-empty-fields.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Column/nullable/03-count-the-missing-values-in-a-table.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1074,24 +1002,6 @@ connect = ["notes"]
 # hostile case opens and releases that one name tens of thousands of times, so the grant it holds
 # is the same single name every other program here holds.
 [[app]]
-entry = "docs/examples/core/Db-Connection/close/01-give-the-connection-back-when-the-work-is-done.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/close/02-a-second-close-does-nothing.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/close/03-free-the-connection-before-the-slow-step.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Connection/close/01-closed-again-and-again-and-used-after.nvs"
 
 [app.capabilities.db]
@@ -1099,24 +1009,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Connection/close.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/driver/01-see-which-database-you-are-connected-to.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/driver/02-write-the-statement-the-database-understands.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/driver/03-stop-on-a-database-the-program-does-not-support.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1134,24 +1026,6 @@ entry = "benches/members/core/Db-Connection/driver.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Connection/execute/01-write-a-row-and-see-what-happened.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/execute/02-change-many-rows-with-one-statement.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/execute/03-name-the-values-of-a-long-statement.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Connection/execute/01-values-that-try-to-become-the-statement.nvs"
 
 [app.capabilities.db]
@@ -1159,24 +1033,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Connection/execute.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/executeMany/01-write-many-rows-with-one-statement.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/executeMany/02-give-each-row-its-own-new-value.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/executeMany/03-import-a-list-of-records.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1194,24 +1050,6 @@ entry = "benches/members/core/Db-Connection/executeMany.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Connection/isOpen/01-ask-whether-the-connection-is-still-open.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/isOpen/02-the-one-question-a-closed-connection-answers.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/isOpen/03-write-the-last-row-only-if-the-database-is-there.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Connection/isOpen/01-asked-a-million-times-and-through-a-flood-of-connections.nvs"
 
 [app.capabilities.db]
@@ -1219,24 +1057,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Connection/isOpen.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/query/01-read-the-rows-one-at-a-time.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/query/02-read-a-result-without-a-loop.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/query/03-build-a-report-from-named-values.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1272,24 +1092,6 @@ entry = "benches/members/core/Db-Connection/query.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Connection/queryAs/01-read-the-rows-as-objects-of-your-own-class.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/queryAs/02-let-the-class-build-itself-from-a-row.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/queryAs/03-pass-typed-rows-to-the-rest-of-the-program.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Connection/queryAs/01-rows-that-do-not-fit-the-class-and-a-flood-of-objects.nvs"
 
 [app.capabilities.db]
@@ -1297,24 +1099,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Connection/queryAs.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/serverVersion/01-read-the-version-the-database-reported.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/serverVersion/02-see-what-the-database-can-do.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/serverVersion/03-record-the-version-a-change-was-made-on.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1332,24 +1116,6 @@ entry = "benches/members/core/Db-Connection/serverVersion.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Connection/stream/01-read-a-large-table-one-row-at-a-time.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/stream/02-take-only-the-first-rows-with-limit.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/stream/03-total-a-table-without-holding-it.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Connection/stream/01-walks-that-are-never-finished-and-a-result-with-no-end.nvs"
 
 [app.capabilities.db]
@@ -1362,24 +1128,6 @@ entry = "benches/members/core/Db-Connection/stream.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Connection/streamAs/01-walk-a-large-table-as-objects.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/streamAs/02-hand-a-typed-walk-to-the-rest-of-the-program.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/streamAs/03-report-on-a-table-larger-than-memory.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Connection/streamAs/01-ten-thousand-walks-and-a-row-that-does-not-fit.nvs"
 
 [app.capabilities.db]
@@ -1387,24 +1135,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Connection/streamAs.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/transaction/01-do-both-writes-or-neither.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/transaction/02-give-up-on-the-work.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Connection/transaction/03-keep-the-import-when-one-row-is-bad.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1423,27 +1153,8 @@ connect = ["notes"]
 
 # `Core\Db\Plan`'s programs plan a schema against `[db.notes]`, which is the in-memory block no
 # other fixture writes to, so every one of them starts from an empty database. Planning is an
-# ordinary read and needs only `db.connect`; the one program that also *applies* its plan holds
-# `db.schema` for the same name, because issuing DDL is the separate deny-by-default grant.
-[[app]]
-entry = "docs/examples/core/Db-Plan/steps/01-see-what-a-schema-would-change.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Plan/steps/02-tell-that-the-database-is-up-to-date.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-schema = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Plan/steps/03-stop-a-deployment-before-a-risky-step.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
+# ordinary read and needs only `db.connect`. None of these applies its plan, so none holds
+# `db.schema`, the separate deny-by-default grant that issuing DDL takes.
 [[app]]
 entry = "tests/hostile/core/Db-Plan/steps/01-a-plan-of-thousands-of-steps-read-ten-million-times.nvs"
 
@@ -1452,25 +1163,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Plan/steps.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Plan-Step/grade/01-read-what-each-step-can-cost.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Plan-Step/grade/02-decide-whether-a-deployment-may-run-on-its-own.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-schema = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Plan-Step/grade/03-hold-the-risky-steps-for-a-maintenance-window.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1488,25 +1180,6 @@ entry = "benches/members/core/Db-Plan-Step/grade.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Plan-Step/isRefused/01-see-which-steps-a-plan-will-not-run.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Plan-Step/isRefused/02-delete-a-table-the-schema-no-longer-names.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Plan-Step/isRefused/03-warn-an-operator-about-what-a-release-left-behind.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-schema = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Plan-Step/isRefused/01-thousands-of-reports-and-one-flag-read-forever.nvs"
 
 [app.capabilities.db]
@@ -1519,24 +1192,6 @@ entry = "benches/members/core/Db-Plan-Step/isRefused.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Plan-Step/reason/01-see-why-a-plan-has-the-step-it-has.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Plan-Step/reason/02-tell-a-person-why-the-deployment-stopped.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Plan-Step/reason/03-write-the-release-notes-for-an-approval.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Plan-Step/reason/01-every-reason-read-forever-and-joined-into-one-string.nvs"
 
 [app.capabilities.db]
@@ -1544,24 +1199,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Plan-Step/reason.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Plan-Step/sql/01-read-the-statement-a-step-is.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Plan-Step/sql/02-run-one-step-yourself.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Plan-Step/sql/03-write-the-plan-out-for-a-review.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -2268,24 +1905,6 @@ schema = ["notes"]
 # connection this grant already covers, and `rule:classes/no-traits`'s delegation gives the two
 # receivers one statement path rather than a grant of its own.
 [[app]]
-entry = "docs/examples/core/Db-Transaction/execute/01-write-a-row-inside-a-transaction.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/execute/02-give-up-on-a-write.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/execute/03-save-an-order-with-its-lines.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Transaction/execute/01-a-write-after-the-work-is-over-and-writes-without-end.nvs"
 
 [app.capabilities.db]
@@ -2293,24 +1912,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Transaction/execute.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/executeMany/01-write-many-rows-inside-a-transaction.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/executeMany/02-all-of-the-batch-or-none-of-it.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/executeMany/03-import-a-list-of-records-under-one-row.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -2328,24 +1929,6 @@ entry = "benches/members/core/Db-Transaction/executeMany.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Transaction/query/01-read-what-the-transaction-just-wrote.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/query/02-write-while-you-read-the-rows.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/query/03-let-a-read-decide-whether-to-keep-the-work.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Transaction/query/01-a-read-after-the-work-is-over-and-reads-without-end.nvs"
 
 [app.capabilities.db]
@@ -2353,24 +1936,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Transaction/query.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/queryAs/01-read-what-the-transaction-wrote-as-objects.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/queryAs/02-build-each-object-from-several-columns.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/queryAs/03-claim-a-batch-of-jobs.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -2388,24 +1953,6 @@ entry = "benches/members/core/Db-Transaction/queryAs.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Transaction/stream/01-read-the-transactions-own-rows-one-at-a-time.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/stream/02-collect-the-rows-then-write-them.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/stream/03-total-a-large-table-and-store-the-result.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Transaction/stream/01-a-walk-after-the-work-is-over-and-walks-that-are-never-finished.nvs"
 
 [app.capabilities.db]
@@ -2413,24 +1960,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Transaction/stream.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/streamAs/01-read-the-transactions-own-rows-as-objects.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/streamAs/02-build-each-object-from-several-columns.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/streamAs/03-remind-every-overdue-invoice.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -2448,24 +1977,6 @@ entry = "benches/members/core/Db-Transaction/streamAs.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Transaction/rollBack/01-give-up-when-a-check-fails.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/rollBack/02-give-up-from-inside-a-function.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/rollBack/03-move-money-between-two-accounts.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Transaction/rollBack/01-a-million-reasons-and-one-nobody-can-print.nvs"
 
 [app.capabilities.db]
@@ -2473,24 +1984,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Transaction/rollBack.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/transaction/01-undo-one-step-and-keep-the-rest.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/transaction/02-let-a-function-open-its-own-transaction.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Transaction/transaction/03-keep-the-order-when-the-coupon-fails.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -2511,24 +2004,6 @@ connect = ["notes"]
 # open `[db.notes]` by name and ask for nothing else: the write is reached through a connection this
 # grant already covers, and a count is read off the statement rather than out of the database.
 [[app]]
-entry = "docs/examples/core/Db-Write/affected/01-count-the-rows-an-update-changed.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Write/affected/02-find-out-that-nothing-matched.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Write/affected/03-let-one-worker-take-the-job.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Write/affected/01-a-count-kept-after-everything-that-made-it-is-gone.nvs"
 
 [app.capabilities.db]
@@ -2541,24 +2016,6 @@ entry = "benches/members/core/Db-Write/affected.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Write/changed/01-read-the-count-the-server-reported.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Write/changed/02-tell-no-count-apart-from-no-rows.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Write/changed/03-add-up-what-a-clean-up-removed.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Write/changed/01-a-count-that-may-be-nothing-at-all.nvs"
 
 [app.capabilities.db]
@@ -2566,24 +2023,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Write/changed.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Write/lastId/01-read-the-key-of-a-new-row.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Write/lastId/02-a-statement-that-inserted-nothing.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Write/lastId/03-write-the-lines-that-belong-to-an-order.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -2744,12 +2183,12 @@ acquire = "500ms"
 driver = "sqlite"
 path = ":memory:"
 
-# `Core\Db::connect`'s proof programs, and the whole reason a fifth block exists: every other
-# `[db.<name>]` here either names a server `tests/db/compose.yaml` starts, or is `[db.schema]`
-# above, whose fixture counts the tables of its own database exactly. The five programs under
-# `docs/examples/core/Db/connect/`, `tests/hostile/core/Db/connect/` and `benches/members/` each
-# create the tables they read, so they need a block nothing else writes to — and `:memory:` gives
-# every run of the acceptance sweep the same empty database with no container behind it.
+# The block the `Core\Db` attacks and benches open, and the whole reason a fifth block exists: every
+# other `[db.<name>]` here either names a server `tests/db/compose.yaml` starts, or is `[db.schema]`
+# above, whose fixture counts the tables of its own database exactly. The programs under
+# `tests/hostile/core/Db*/` and `benches/members/core/Db*/` each create the tables they read, so they
+# need a block nothing else writes to — and `:memory:` gives every run of the acceptance sweep the same
+# empty database with no container behind it. An example carries its own copy of this block.
 [db.notes]
 driver = "sqlite"
 path = ":memory:"
