@@ -16,8 +16,8 @@
 //! the gap would have nothing to be recorded against. When readiness comes back
 //! the reactor calls [`Scheduler::wake`], and that is a **hint**: the task
 //! re-tries its syscall and parks again on another `WouldBlock`. A woken id
-//! that names no parked task is ordinary, not a fault — a level-triggered
-//! report of a socket another read already drained, or a wake racing a task
+//! that names no parked task is ordinary, not a fault — an event queued for
+//! bytes another read already drained, or a wake racing a task
 //! that ended — so [`Scheduler::wake`] answering `false` is a normal outcome
 //! here and is counted, not raised.
 //!
@@ -953,7 +953,7 @@ pub fn wake_this_task() -> Option<RemoteWake> {
 ///
 /// It returns with `RunReport::parked` non-zero in exactly one case: a blocking
 /// poll came back having woken nothing, which means the readiness it collected
-/// belongs to no parked task. Continuing would spin on a level-triggered report
+/// belongs to no parked task. Continuing would poll again for readiness
 /// nobody owns, so the report says the state instead and the caller decides.
 ///
 /// # Errors

@@ -5,8 +5,8 @@ otherwise get backwards.
    id, and only afterwards parks. The reverse order is a lost wakeup: readiness arriving in the gap
    has nothing registered to record it against.
 2. **A wake is a hint, not a promise.** A woken task re-tries its syscall and parks again on another
-   `WouldBlock`. Spurious wakes are ordinary — a level-triggered poller reports a socket another read
-   already drained, and a wake can race a task that finished — so waking an unknown id answers
+   `WouldBlock`. Spurious wakes are ordinary — an event can be queued for bytes another read already
+   drained, and a wake can race a task that finished — so waking an unknown id answers
    `false` rather than raising a fault.
 3. **Deregister when the task ends.** Every registration under that id is dropped when the task is
    retired. A registration that outlives its request is the growth with total traffic that
