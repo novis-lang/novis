@@ -1,0 +1,45 @@
+<?nvs
+// Shows how to check a job id from a query parameter before the program cancels the job.
+use Core\Queue;
+use Core\Queue\Id;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    non_transactional smallint, token text, constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+$db->execute($jobs, []);
+
+class Exports
+{
+    // Returns the response for a request such as /exports/cancel?job=<id>.
+    // `$job` is `null` when the query has no `job` parameter.
+    public static function cancel(?tainted string $job): string
+    {
+        // `?? ''` replaces a missing parameter with an empty string.
+        // `Id::tryParse` returns `null` for it, and for any string in the wrong form.
+        ?Id $id = Id::tryParse($job ?? '');
+        if ($id == null) {
+            return '400 the job id is missing or not valid';
+        }
+        return Queue::cancel($id) ? '200 cancelled' : '409 the job is no longer waiting';
+    }
+}
+
+var $export = Queue::push('jobs/export-orders.nvs', { queue: 'exports' });
+string $text = $export->toString();
+
+// This prints 400 the job id is missing or not valid, two times.
+echo Exports::cancel(null), "\n";
+echo Exports::cancel('../../etc/passwd'), "\n";
+
+// The first call cancels the job and prints 200 cancelled.
+// The job is not waiting anymore, so the second call prints 409 the job is no longer waiting.
+echo Exports::cancel($text), "\n";
+echo Exports::cancel($text), "\n";

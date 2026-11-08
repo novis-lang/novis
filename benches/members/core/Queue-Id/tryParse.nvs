@@ -1,0 +1,32 @@
+<?nvs
+// Checks whether a string is a job id, as a page does with the id it gets in a URL.
+// bench: iterations 256
+// bench: complexity constant
+use Core\Queue\Id;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $texts = [
+            '42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw',
+            'order-1042',
+            '90817.Zm9vYmFyYmF6cXV4cXV1eA.bWFpbA',
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?Id $id = Id::tryParse($texts[($total % 3) as int]);
+            if ($id == null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $total = $total + ($i % 5);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

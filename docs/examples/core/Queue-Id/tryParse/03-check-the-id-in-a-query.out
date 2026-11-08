@@ -1,0 +1,4 @@
+400 the job id is missing or not valid
+400 the job id is missing or not valid
+200 cancelled
+409 the job is no longer waiting

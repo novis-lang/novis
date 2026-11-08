@@ -1,0 +1,44 @@
+<?nvs
+// Shows a request that sends a job id and the state of its job to the browser as JSON.
+use Core\Db\Row;
+use Core\Queue;
+use Core\Queue\Id;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    non_transactional smallint, token text, constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+$db->execute($jobs, []);
+$db->execute('create table exports (job text primary key, user_id integer not null)', []);
+
+// An earlier request started an export for user 7 and saved its id.
+var $job = Queue::push('jobs/export.nvs', { queue: 'exports', args: ['table' => 'orders'] });
+$db->execute('insert into exports (job, user_id) values (?, ?)', [$job->toString(), 7]);
+
+// In a real program, the session gives the signed-in user.
+int $user = 7;
+
+// The browser sends the id back in the query. Here the token was changed.
+?Id $asked = Id::tryParse(Core\Request::query('job') ?? '');
+if ($asked == null) {
+    Core\Response::json(['error' => 'not a job id']);
+} else {
+    // The program checks its own table before it reads the state of the job.
+    // No row has this id, so the state stays `unknown`.
+    string $state = 'unknown';
+    string $sql = 'select job from exports where job = ? and user_id = ?';
+    foreach ($db->query($sql, [$asked->toString(), $user]) as Row $row) {
+        $state = Queue::status($asked) == Queue::State::Pending ? 'waiting' : 'started';
+    }
+
+    // `toString` gives the id as JSON can send it, with no escaping.
+    // This sends `{"job":"1.AAAAAAAAAAAAAAAAAAAAAA.ZXhwb3J0cw","state":"unknown"}`.
+    Core\Response::json(['job' => $asked->toString(), 'state' => $state]);
+}

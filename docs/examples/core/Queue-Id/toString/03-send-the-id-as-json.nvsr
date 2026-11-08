@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/exports/status
+--QUERY--
+job=1.AAAAAAAAAAAAAAAAAAAAAA.ZXhwb3J0cw
+--HEADERS--
+host: example.com

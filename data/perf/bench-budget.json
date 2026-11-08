@@ -1,5 +1,5 @@
 {
-  "total": 331568722,
+  "total": 331572324,
   "benches": {
     "benches/members/core/Arr/all.nvs": 1542,
     "benches/members/core/Arr/any.nvs": 1542,
@@ -625,6 +625,9 @@
     "benches/members/core/Program/id.nvs": 773,
     "benches/members/core/Program/implementing.nvs": 773,
     "benches/members/core/Program/implementingWith.nvs": 2309,
+    "benches/members/core/Queue-Id/parse.nvs": 1030,
+    "benches/members/core/Queue-Id/toString.nvs": 774,
+    "benches/members/core/Queue-Id/tryParse.nvs": 1798,
     "benches/members/core/Queue-Stats/attempts.nvs": 3086,
     "benches/members/core/Queue-Stats/claimed.nvs": 3098,
     "benches/members/core/Queue-Stats/deadAttempts.nvs": 3083,

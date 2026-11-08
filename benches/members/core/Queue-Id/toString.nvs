@@ -1,0 +1,26 @@
+<?nvs
+// Gets the string of a job id, as a program does before it sends the id to a client in a URL or JSON.
+// bench: iterations 256
+// bench: complexity constant
+use Core\Queue\Id;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Id> $ids = [
+            Id::parse('1.AAAAAAAAAAAAAAAAAAAAAA.cmVjZWlwdHM'),
+            Id::parse('42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw'),
+            Id::parse('90817.Zm9vYmFyYmF6cXV4cXV1eA.bWFpbA'),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($ids[($total % 3) as int]->toString()) + ($i % 5);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

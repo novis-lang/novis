@@ -1,0 +1,64 @@
+<?nvs
+// Shows a request that reads the status of an export job, but only for the user who started it.
+use Core\Db\Connection;
+use Core\Queue;
+use Core\Queue\Id;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    non_transactional smallint, token text, constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+$db->execute($jobs, []);
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null primary key, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255), dedupe_key varchar(255),
+    created_at bigint not null, failed_at bigint not null, errors text not null, token text)
+SQL;
+$db->execute($dead, []);
+
+// Anybody who has the string of a job id can use it. So the app saves the string
+// together with the user who started the job.
+$db->execute('create table exports (job text not null, user_id text not null)', []);
+array<string> $owners = ['alice', 'bob'];
+foreach ($owners as string $owner) {
+    var $id = Queue::push('jobs/export.nvs', { queue: 'exports' });
+    $db->execute('insert into exports (job, user_id) values (?, ?)', [$id->toString(), $owner]);
+}
+
+class Exports
+{
+    // Returns the status of the job, or `not found` when this user did not start it.
+    public static function status(Connection $db, tainted string $job, tainted string $user): string
+    {
+        var $rows = $db->query('select job from exports where job = ? and user_id = ?', [$job, $user]);
+        foreach ($rows as Core\Db\Row $row) {
+            // The row exists, so this user started the job. Only now does the code read the Id.
+            Id $id = Id::parse($job);
+            return Queue::status($id) == Queue::State::Pending ? 'pending' : 'not pending';
+        }
+        return 'not found';
+    }
+}
+
+// The `x-user` header replaces the signed-in user of a real app. Here it is `bob`.
+tainted string $user = Core\Request::header('x-user') ?? '';
+
+// A real client sends the string of a job id in the URL. The token in it is random,
+// so this example reads the two saved strings instead.
+array<tainted string> $saved = [];
+foreach ($db->query('select job from exports order by user_id', []) as Core\Db\Row $row) {
+    $saved[] = $row->string('job') ?? '';
+}
+
+// Bob asks about the job of Alice, then about his own job.
+// This prints `alice's job: not found`, then `bob's job: pending`.
+echo "alice's job: ", Exports::status($db, $saved[0], $user), "\n";
+echo "bob's job: ", Exports::status($db, $saved[1], $user), "\n";

@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a client sends strings that look a little like a job id, or not at all.
+// `tryParse` should return `null` for each string that is not a real id, and the program must not crash.
+use Core\Queue\Id;
+
+class Check
+{
+    // Prints whether `tryParse` returns an id or `null` for the string `$text`.
+    public static function text(string $step, string $text): void
+    {
+        ?Id $id = Id::tryParse($text);
+        echo $step, ': ', $id == null ? 'null' : 'an id', "\n";
+    }
+}
+
+string $token = 'AAAAAAAAAAAAAAAAAAAAAA';
+
+// 1. An empty string.
+Check::text('1', '');
+
+// 2. Only dots, as in a path to the parent directory.
+Check::text('2', '..');
+
+// 3. Many dots between the parts.
+Check::text('3', '1..' . $token . '..cmVjZWlwdHM');
+
+// 4. A string of ten thousand dots.
+Check::text('4', Core\Str::repeat('.', 10000));
+
+// 5. A string of a million characters.
+Check::text('5', Core\Str::repeat('1', 1000000));
+
+// 6. Letters outside ASCII in the place of the token.
+Check::text('6', '1.ÄÖÜäöüßÄÖÜäöüßÄÖÜäöü.cmVjZWlwdHM');
+
+// 7. A NUL character after a real id.
+Check::text('7', "1." . $token . ".cmVjZWlwdHM\0");
+
+// 8. A row number larger than the largest `uint`.
+Check::text('8', '18446744073709551616.' . $token . '.cmVjZWlwdHM');
+
+// 9. A negative row number.
+Check::text('9', '-1.' . $token . '.cmVjZWlwdHM');
+
+// 10. A token that is one character too long.
+Check::text('10', '1.' . $token . 'A.cmVjZWlwdHM');
+
+// 11. A queue name with `=` padding, which `toString` never writes.
+Check::text('11', '1.' . $token . '.cmVjZWlwdHM=');
+
+// 12. A real id, which returns an id.
+Check::text('12', '1.' . $token . '.cmVjZWlwdHM');

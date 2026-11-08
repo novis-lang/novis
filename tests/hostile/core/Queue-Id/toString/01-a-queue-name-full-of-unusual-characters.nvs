@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a job is pushed to a queue whose name is very long or has characters a URL does not allow.
+// The string of every id should still have only letters, digits, `.`, `-` and `_`, and parse back to the same id.
+use Core\Queue;
+use Core\Queue\Id;
+
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    non_transactional smallint, token text, constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, token text, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+class Check
+{
+    // Pushes a job to the queue `$queue` and prints whether its string is safe in a URL.
+    public static function queue(string $step, string $queue): void
+    {
+        try {
+            var $job = Queue::push('jobs/a.nvs', { queue: $queue });
+            string $text = $job->toString();
+            bool $safe = Core\Regex::matches($text, '^[A-Za-z0-9._-]+$');
+            bool $same = Id::parse($text)->toString() == $text;
+            echo $step, ': length ', Core\Str::length($text), $safe ? ' safe' : ' NOT SAFE';
+            echo $same ? ' same' : ' DIFFERENT', "\n";
+        } catch (Throwable $e) {
+            echo $step, ": push threw an error\n";
+        }
+    }
+}
+
+// 1. A queue name that looks like a path to another directory.
+Check::queue('1', '../../etc/passwd');
+
+// 2. A queue name with HTML and a script in it.
+Check::queue('2', '<script>alert(1)</script>');
+
+// 3. A queue name with the characters a URL uses to separate its parts.
+Check::queue('3', 'a b&c=d?e#f/g%20+h;i');
+
+// 4. A queue name with quotes, a backslash, a new line and a NUL character.
+Check::queue('4', "q'\"\\\n\0end");
+
+// 5. A queue name of 255 characters that each take two bytes.
+Check::queue('5', Core\Str::repeat('é', 255));
+
+// 6. A queue name of 255 emoji, which each take four bytes.
+Check::queue('6', Core\Str::repeat("\u{1F600}", 255));
+
+// 7. A queue name of 100000 characters. Push may throw an error, which is caught.
+Check::queue('7', Core\Str::repeat('x', 100000));

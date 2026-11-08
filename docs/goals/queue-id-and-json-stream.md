@@ -21,7 +21,7 @@ stages:
     context: [crates/nvs-stdlib/src/uuid.rs, docs/rules/expressions/try-parse.md, docs/rules/classes/stringable.md, docs/rules/security/tainted-qualifier.md]
   - id: 5
     title: "the three Id members carry their feature proofs, and an attack sends a forged and another user's id"
-    status: open
+    status: done
     context: [docs/examples/README.md, tests/hostile/README.md, benches/members/README.md, docs/rules/testing/feature-proofs.md, docs/reference/core/Queue-Id.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -288,17 +288,17 @@ tree, side by side. None builds.
 **Split:** one writing subagent per member for the about page and three examples, side by side; one
 for the bench and the attack. Their files are disjoint. None builds.
 
-- [ ] `Core\Queue\Id::toString`: about page and three examples, one of which sends the id to the
+- [x] `Core\Queue\Id::toString`: about page and three examples, one of which sends the id to the
   browser as JSON. `docs/examples/core/Queue-Id/toString/about.md:1`
-- [ ] `Core\Queue\Id::parse`: about page and three examples, one of which shows decision 6's owner
+- [x] `Core\Queue\Id::parse`: about page and three examples, one of which shows decision 6's owner
   check over a `.nvsr` request. `docs/examples/core/Queue-Id/parse/about.md:1`
-- [ ] `Core\Queue\Id::tryParse`: about page and three examples. `docs/examples/core/Queue-Id/tryParse/about.md:1`
-- [ ] The attack of decision 10. `tests/hostile/core/Queue-Id/parse/01-a-job-id-the-client-changed.nvs:1`
-- [ ] A bench for `parse` with its growth, constant in the string's length past the bound, and its
+- [x] `Core\Queue\Id::tryParse`: about page and three examples. `docs/examples/core/Queue-Id/tryParse/about.md:1`
+- [x] The attack of decision 10. `tests/hostile/core/Queue-Id/parse/01-a-job-id-the-client-changed.nvs:1`
+- [x] A bench for `parse` with its growth, constant in the string's length past the bound, and its
   share with `bun nv scaling --budget --write`. `benches/members/core/Queue-Id/parse.scale.nvs:1`
-- [ ] `docs/reference/core/Queue-Id.md` shows the string form and the owner check, and no longer says
+- [x] `docs/reference/core/Queue-Id.md` shows the string form and the owner check, and no longer says
   an Id cannot be printed. `docs/reference/core/Queue-Id.md:1`
-- [ ] `bun nv proofs --id` owes nothing for each of the three, and `bun nv proofs --comments` over every
+- [x] `bun nv proofs --id` owes nothing for each of the three, and `bun nv proofs --comments` over every
   new `.nvs` passes; each line it names is written again.
 
 ### 6. the goal is verified once, and every failure is fixed
@@ -312,35 +312,28 @@ for the bench and the attack. Their files are disjoint. None builds.
 
 ### State
 
-Stages 1 to 4 are done. Stage 4 gave `Core\Queue\Id` `parse` and `tryParse` (statics, taking
-`Text(Qual::Neutral)`) and the instance member `toString`, with their cards
-(`crates/nvs-stdlib/src/queue.rs:2746`). `id_text` writes `<row>.<token>.<queue>` and `read_id` is
-the one parse, checking length, characters, then the three parts (`queue.rs:3573`, `queue.rs:3610`);
-`ID_TEXT_MAX` is 1,404 (decision 15). The five `queue-id-string` tests pass
-(`cargo test --lib queue::tests::id_`), and the three new conformance cases pass under
-`target/debug/nvs.exe test` (`queue-an-id-read-back-from-its-string-reads-the-same-job`,
-`queue-a-tainted-string-compiles-into-id-parse`, `queue-a-changed-token-reads-as-a-deleted-job`).
-Interpolation and `as string` render an Id. `website/src/data/core.json` and
-`website/public/llms-full.txt` are rerendered with the three members.
+Stages 1 to 5 are done. `bun nv proofs --id` prints `complete.` for each of `Core\Queue\Id::toString`,
+`parse` and `tryParse`: about pages and three examples each under `docs/examples/core/Queue-Id/`, one
+attack each under `tests/hostile/core/Queue-Id/` (decision 10's five steps in
+`parse/01-a-job-id-the-client-changed.nvs`), and benches under `benches/members/core/Queue-Id/` with
+`parse.scale.nvs` reading flat. Their perf is recorded in `data/perf/members.ndjson` and their shares
+in `data/perf/bench-budget.json`. `docs/reference/core/Queue-Id.md` describes the string form and
+ends its example with the owner check; `NVS_BIN=<abs path> bun nv reference --only Queue-Id` holds.
+`status`'s missing-job message no longer says "receipt" and has no dash (`queue.rs:5156`), and
+`queue-delete-and-purge-answer-the-same-way-on-sqlite.nvst` and `parse/02`'s `.out` carry the new text.
 
-The sweep's reds are stale, as the last three sessions found: no `env-secret-proofs` check is
+The sweep's reds are stale, as the last four sessions found: no `env-secret-proofs` check is
 defined, and nightly run 42359979484 ran on 26dda36627, before the Miri ignores in f13f40646a.
 
 ### Next
 
-**Stage 5**, the feature proofs, split as its `**Split:**` line says. Model each member's folder on
-`docs/examples/core/Uuid/parse/`, and set the examples up as `docs/examples/core/Queue/push/nvs.toml`
-does (decision 9).
+**Stage 6**, the gate. `bun nv proofs --record-perf` first, over any Id or queue figure it calls
+stale; then `looper verify` in the background, one fix pass, and `looper verify` again; then the
+goal-end gates of AGENTS.md § *In the loop*. `docs/goals/queue-id-and-json-stream.md:304`
 
-- [ ] `toString`'s about page and examples. `docs/examples/core/Queue-Id/toString/about.md:1`
-- [ ] `parse`'s, with the owner check over a `.nvsr` request. `docs/examples/core/Queue-Id/parse/about.md:1`
-- [ ] `tryParse`'s. `docs/examples/core/Queue-Id/tryParse/about.md:1`
-- [ ] The attack of decision 10. `tests/hostile/core/Queue-Id/parse/01-a-job-id-the-client-changed.nvs:1`
-- [ ] The bench, `parse.nvs` beside its `.scale.nvs`. `benches/members/core/Queue-Id/parse.nvs:1`
-- [ ] The reference page, naming each member in code. `docs/reference/core/Queue-Id.md:8`
-
-The Rust tests are owed nothing: the five `id_*` tests and the three conformance cases carry
-`// covers:` lines or are credited by their calls.
+`bun nv scaling --budget --write` exits 1 on many benches outside this goal that are over their share
+(`novis/Spreadsheet-*` among them); it still wrote the three new shares. Check whether CI's budget job
+reads that as red before the goal ends.
 
 Expected red, for stage 6: unit tests in `crates/nvs-stdlib/src/queue.rs` and
 `crates/nvs-cli/src/worker.rs` that compare statement texts, column lists or placeholder counts, since
@@ -357,3 +350,8 @@ that counts `Core` members or expects `Core\Queue\Id` to have none.
   member that accepts tainted items, as `json` does, is the user's call.
 - `crates/nvs-stdlib/tests/queue.rs`'s `status` helper sends `STATUS_MYSQL` to every driver but
   PostgreSQL, SQL Server included; no SQL Server case calls it today.
+- `==` between an Id and `Core\Queue\Id::parse($id->toString())` is `false`, since an Id compares by
+  identity. Whether two Ids of one job should be equal is the user's call.
+- `exit(0)` in one branch does not narrow a nullable variable in the code after it.
+- The release binary ran Id benches only after `--record-perf` rebuilt it. `target/release/nvs.exe`
+  predates the `status` message change.

@@ -4,8 +4,19 @@ keywords: job id, queue job, background job, job state, job status, cancel a job
 ---
 
 `Core\Queue\Id` identifies one background job and the queue that the job is in. `Core\Queue::push`
-returns it. You pass it to `Core\Queue::status`, `Core\Queue::cancel` and `Core\Queue::delete`. An
-`Id` has no methods, and it cannot be printed or converted to a `string`.
+returns it. You pass it to `Core\Queue::status`, `Core\Queue::cancel` and `Core\Queue::delete`.
+
+`$id->toString()` gives the id as a string. `echo`, string interpolation and `as string` give the same
+string. It has only letters, digits, `.`, `-` and `_`, so you can put it in a URL, a cookie or JSON
+as it is. In a later request, `Core\Queue\Id::parse($text)` reads the string back into an `Id`. It
+throws a `RuntimeError` when the text is not a job id. `Core\Queue\Id::tryParse($text)` returns
+`null` instead.
+
+The string contains a random part. If somebody changes or guesses the string, it finds no job:
+`status` throws a `RuntimeError`, as for a deleted job, and `cancel` returns `false`. The string does
+not say who started the job. Your app checks that. Save the string together with the user who
+started the job. In a later request, look up the string and the signed-in user together. Call
+`status` or `cancel` only when you find a row. The example below ends with this check.
 
 When you call `push` with a `key`, and a pending job already has that key, `push` adds no job. It
 returns an `Id` for the pending job, so `status`, `cancel` and `delete` work on that job.
@@ -60,10 +71,28 @@ echo Queue::status($first) == Queue::State::Cancelled ? 'cancelled' : 'not cance
 
 // The job is not waiting any more, so `cancel` returns `false`.
 echo Queue::cancel($first) ? 'cancelled' : 'not cancelled', "\n";
+
+// Save the job's string together with the user who started it.
+$db->execute('create table exports (job text not null, user_id integer not null)', []);
+string $text = $first->toString();
+$db->execute('insert into exports (job, user_id) values (?, ?)', [$text, 42]);
+
+// A later request finds the job only for the user who started it.
+foreach ([42, 7] as var $userId) {
+    var $row = $db->query('select job from exports where job = ? and user_id = ?', [$text, $userId])->first();
+    if ($row == null) {
+        echo "user ", $userId, ": no such job\n";
+    } else {
+        Core\Queue\Id $id = Core\Queue\Id::parse($text);
+        echo "user ", $userId, ": ", Queue::status($id) == Queue::State::Cancelled ? 'cancelled' : 'other', "\n";
+    }
+}
 ```
 ```output
 pending
 cancelled
 cancelled
 not cancelled
+user 42: cancelled
+user 7: no such job
 ```

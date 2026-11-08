@@ -1,0 +1,4 @@
+error: Core\Queue\Id::parse(): the string is not a job id, because it has a character that no job id has. A job id is the string that `toString` writes
+cancelled: no
+status: Core\Queue::status: no job 2 is in the `reports` queue on `[db.jobs]`. The job was deleted, or the id is not one that `push` returned on this database
+waiting: yes

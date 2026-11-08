@@ -1,0 +1,33 @@
+<?nvs
+// Shows how to put the id of a new job in a link.
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    non_transactional smallint, token text, constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+$db->execute($jobs, []);
+
+var $job = Queue::push('jobs/export.nvs', { queue: 'exports', args: ['table' => 'orders'] });
+
+// `toString` returns the id with a random token in it. This prints it as `1.<token>.ZXhwb3J0cw`.
+// The last part is the queue name `exports`, in an encoded form.
+string $text = $job->toString();
+array<string> $parts = Core\Str::split($text, '.');
+echo $parts[0], '.<token>.', $parts[2], "\n";
+
+// The string contains no character that a URL must escape.
+// `Core\Uri::encodeComponent` returns it unchanged, so this prints `unchanged`.
+echo Core\Uri::encodeComponent($text) == $text ? 'unchanged' : 'changed', "\n";
+
+// An id in a string with `"$job"` gives the same text as `toString`.
+// This prints `same`.
+string $link = "/exports/status?job=$job";
+echo $link == '/exports/status?job=' . $text ? 'same' : 'different', "\n";

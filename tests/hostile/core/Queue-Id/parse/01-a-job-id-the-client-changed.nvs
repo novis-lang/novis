@@ -1,0 +1,84 @@
+<?nvs
+// Attack: a client changes the job id it got from the server, or sends the id of another user's job.
+// No changed id should find a job, and the app's own check should stop the other user's id.
+use Core\Queue;
+use Core\Queue\Id;
+
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    non_transactional smallint, token text, constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, token text, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+// The app saves the string of each job id with the user who started the job.
+$db->execute('create table exports (job text not null, owner text not null)', []);
+
+class App
+{
+    // Returns the id only when the signed-in user started the job. Otherwise it returns `null`.
+    public static function find(Core\Db\Connection $db, string $text, string $user): ?Id
+    {
+        var $rows = $db->query('select job from exports where job = ? and owner = ?', [$text, $user]);
+        if ($rows->count() == 0) {
+            return null;
+        }
+        return Id::parse($text);
+    }
+
+    // Prints what `status` and `cancel` do with the id.
+    public static function check(string $step, Id $job): void
+    {
+        try {
+            Queue::status($job);
+            echo $step, ": status found a job\n";
+        } catch (RuntimeError $missing) {
+            echo $step, ": status found no job\n";
+        }
+        echo $step, ': cancel ', Queue::cancel($job) ? 'yes' : 'no', "\n";
+    }
+}
+
+// Alice starts job 1 and Bob starts job 2. Both jobs are in the `exports` queue.
+var $alice = Queue::push('jobs/export.nvs', { queue: 'exports' });
+var $bob = Queue::push('jobs/export.nvs', { queue: 'exports' });
+$db->execute('insert into exports (job, owner) values (?, ?)', [$alice->toString(), 'alice']);
+$db->execute('insert into exports (job, owner) values (?, ?)', [$bob->toString(), 'bob']);
+array<string> $parts = Core\Str::split($alice->toString(), '.');
+
+// 1. Alice changes the token in her own id.
+App::check('1', Id::parse(Core\Str::join([$parts[0], 'AAAAAAAAAAAAAAAAAAAAAA', $parts[2]], '.')));
+
+// 2. Alice changes the row number in her id to the row of Bob's job.
+App::check('2', Id::parse(Core\Str::join(['2', $parts[1], $parts[2]], '.')));
+
+// 3. Alice changes the queue name in her id to `mail`.
+App::check('3', Id::parse(Core\Str::join([$parts[0], $parts[1], 'bWFpbA'], '.')));
+
+// 4. A client sends a string of a million characters. The error is caught, so step 5 still runs.
+try {
+    Id::parse(Core\Str::repeat('1', 1000000));
+    echo "4: parsed\n";
+} catch (RuntimeError $e) {
+    echo "4: parse threw an error\n";
+}
+
+// 5. Alice sends the real id of Bob's job. The app's check finds no job for Alice.
+?Id $found = App::find($db, $bob->toString(), 'alice');
+echo '5: ', $found == null ? 'not allowed' : 'allowed', "\n";
+
+// Alice's own id still works.
+?Id $own = App::find($db, $alice->toString(), 'alice');
+echo 'own: ', $own == null ? 'not allowed' : 'allowed', "\n";

@@ -1,0 +1,7 @@
+--METHOD--
+GET
+--PATH--
+/exports/status
+--HEADERS--
+host: example.com
+x-user: bob

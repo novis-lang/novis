@@ -1,0 +1,50 @@
+<?nvs
+// Shows what happens when the string is not a job id, and when somebody changed it.
+use Core\Queue;
+use Core\Queue\Id;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    non_transactional smallint, token text, constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+$db->execute($jobs, []);
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null primary key, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255), dedupe_key varchar(255),
+    created_at bigint not null, failed_at bigint not null, errors text not null, token text)
+SQL;
+$db->execute($dead, []);
+
+// This string is not in the form that `toString` writes, so `parse` throws a `RuntimeError`.
+// The message does not repeat the string.
+try {
+    Id::parse('report/42');
+} catch (RuntimeError $e) {
+    echo 'error: ', $e->message, "\n";
+}
+
+// The string of a job id is the row number, a random token and the queue, with dots between.
+// This code changes the row number from 1 to 2. The string is still in the right form.
+var $pushed = Queue::push('jobs/build-report.nvs', { queue: 'reports' });
+array<string> $parts = Core\Str::split($pushed->toString(), '.');
+Id $changed = Id::parse('2.' . $parts[1] . '.' . $parts[2]);
+
+// No job has this row number and this token. `Queue::cancel` returns `false`,
+// and `Queue::status` throws a `RuntimeError`.
+echo 'cancelled: ', Queue::cancel($changed) ? 'yes' : 'no', "\n";
+try {
+    Queue::status($changed);
+} catch (RuntimeError $e) {
+    echo 'status: ', $e->message, "\n";
+}
+
+// The job itself is not changed. This prints `waiting: yes`.
+echo 'waiting: ', Queue::status($pushed) == Queue::State::Pending ? 'yes' : 'no', "\n";

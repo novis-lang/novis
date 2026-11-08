@@ -1,0 +1,35 @@
+<?nvs
+// Measures `Core\Queue\Id::parse` on strings that are too long to be a job id, at growing lengths.
+// It shows that a longer string does not make `parse` slower.
+// bench: start 2048
+// bench: max 65536
+// bench: rounds 64
+use Core\Queue\Id;
+
+class Bench
+{
+    public static function run(uint $size, uint $rounds): uint
+    {
+        // Every string is longer than the longest job id, so `parse` throws an error for each one.
+        array<string> $texts = [
+            Core\Str::repeat('1', $size),
+            Core\Str::repeat('A', $size),
+            Core\Str::repeat('.', $size),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            try {
+                Id::parse($texts[($total % 3) as int]);
+                $total = $total + 2;
+            } catch (RuntimeError $e) {
+                $total = $total + 1;
+            }
+            $total = $total + ($i % 5);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048, 64), "\n";

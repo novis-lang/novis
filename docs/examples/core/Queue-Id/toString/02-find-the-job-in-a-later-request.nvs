@@ -1,0 +1,66 @@
+<?nvs
+// Shows how to save the id of a job beside its user, and find the job again later.
+use Core\Db\Row;
+use Core\Queue;
+use Core\Queue\Id;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    non_transactional smallint, token text, constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, token text, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+// The program has its own table. It saves who started each export.
+$db->execute('create table exports (job text primary key, user_id integer not null)', []);
+
+class Exports
+{
+    // Returns the job for this string, if this user started it. Otherwise it returns `null`.
+    public static function find(Core\Db\Connection $db, string $text, int $user): ?Id
+    {
+        string $sql = 'select job from exports where job = ? and user_id = ?';
+        foreach ($db->query($sql, [$text, $user]) as Row $row) {
+            return Id::parse($row->string('job') ?? '');
+        }
+        return null;
+    }
+}
+
+// User 7 starts an export. `toString` gives the string that the program saves.
+var $job = Queue::push('jobs/export.nvs', { queue: 'exports', args: ['table' => 'orders'] });
+string $text = $job->toString();
+$db->execute('insert into exports (job, user_id) values (?, ?)', [$text, 7]);
+
+// In a later request, user 7 sends the string back. The job is found, and this prints `Pending`.
+?Id $mine = Exports::find($db, $text, 7);
+echo $mine != null && Queue::status($mine) == Queue::State::Pending ? 'Pending' : 'not found', "\n";
+
+// User 8 sends the same string. The program saved it for user 7, so this prints `not found`.
+?Id $other = Exports::find($db, $text, 8);
+echo $other == null ? 'not found' : 'found', "\n";
+
+// A string with a changed token finds no job. `Queue::status` throws a `RuntimeError`,
+// so this prints `no such job`.
+array<string> $parts = Core\Str::split($text, '.');
+var $guess = Id::parse($parts[0] . '.AAAAAAAAAAAAAAAAAAAAAA.' . $parts[2]);
+try {
+    Queue::status($guess);
+    echo 'found', "\n";
+} catch (RuntimeError $e) {
+    echo 'no such job', "\n";
+}

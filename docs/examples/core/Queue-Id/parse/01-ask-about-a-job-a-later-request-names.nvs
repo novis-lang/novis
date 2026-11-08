@@ -1,0 +1,37 @@
+<?nvs
+// Shows how a program reads a job id back from its string, then checks and cancels the job.
+use Core\Queue;
+use Core\Queue\Id;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    non_transactional smallint, token text, constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+$db->execute($jobs, []);
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null primary key, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255), dedupe_key varchar(255),
+    created_at bigint not null, failed_at bigint not null, errors text not null, token text)
+SQL;
+$db->execute($dead, []);
+
+// `toString` gives the string that a program sends to the client or saves.
+var $pushed = Queue::push('jobs/build-report.nvs', { queue: 'reports' });
+string $text = $pushed->toString();
+
+// A later request has only the string. `Id::parse` reads it and returns an Id for the same job.
+Id $id = Id::parse($text);
+
+// No worker runs here, so the job is still waiting. This prints `waiting: yes`.
+echo 'waiting: ', Queue::status($id) == Queue::State::Pending ? 'yes' : 'no', "\n";
+
+// `Queue::cancel` with the new Id cancels the job. This prints `cancelled: yes`.
+echo 'cancelled: ', Queue::cancel($id) ? 'yes' : 'no', "\n";
