@@ -1261,6 +1261,10 @@ fn from_html_twice_gives_the_same_markdown() {
             // fuzz target found the first.
             "**<a href=\"/u\" title=\"\"t>>*",
             "<img src=\"/i.png\" alt=\"x\" title=\"\">",
+            // A checkbox outside a task list item, which writes nothing, at
+            // the end of a block. The fuzz target found the first.
+            "#  <input type=\"checkbox\" disabled checked>     \u{0}\u{0}\u{0}\u{0}\u{0} ",
+            "<p>a <input type=\"checkbox\"> </p>",
         ]
         .map(str::to_owned),
     );

@@ -1047,9 +1047,11 @@ impl Inline {
             "strong" | "b" => self.emphasis(node, depth, "**"),
             "del" | "s" => self.emphasis(node, depth, "~~"),
             "code" => self.code(node),
+            // An input that is not a task marker writes nothing, so it leaves
+            // the space held before it for the text after it.
             "input" => {
-                self.settle();
                 if self.task && !self.started() {
+                    self.settle();
                     self.task = false;
                     let mark = if attribute(node, "checked").is_some() {
                         "[x]"
