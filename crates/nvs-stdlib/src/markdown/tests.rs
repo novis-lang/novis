@@ -1157,6 +1157,13 @@ const DOCUMENTS: &[&str] = &[
     "*   -  *\n",
     "- a\n\n  -\n    -\n      - b\n",
     "- a\n  - # h\n  b\n- c\n",
+    // Emphasis inside emphasis, with letters on both sides of the inner one.
+    // The `markdown_from_html` fuzz target found that `fromHtml` wrote
+    // `*E*EE*E*`, which reads as two separate emphases.
+    "__E*EE*E_*zz<b_*zz<b\n<",
+    "*a*b*c*d*",
+    "**a**b**c**d**",
+    "~~a~~b~~c~~d~~",
 ];
 
 #[test]

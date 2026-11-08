@@ -28,7 +28,9 @@
 //! line to end it early. An inline element Markdown has no syntax for, such
 //! as `<sup>`, is written as its start tag, its content as Markdown, and its
 //! end tag. Emphasis whose content starts or ends with punctuation is written
-//! as its tags too, because `*` there is not read as emphasis.
+//! as its tags too, because `*` there is not read as emphasis. So is emphasis
+//! whose content has its own delimiter between two letters, as `<em>` in
+//! `<em>a<em>b</em>c</em>`: `*a*b*c*` reads as two emphases side by side.
 //!
 //! # What this spends
 //!
@@ -1068,7 +1070,8 @@ impl Inline {
         }
         let plain = word(piece.text.chars().next())
             && word(piece.text.chars().next_back())
-            && !self.out.ends_with(['*', '~', '_']);
+            && !self.out.ends_with(['*', '~', '_'])
+            && !inside_word(&piece.text, delimiter.as_bytes()[0]);
         let bare = Piece {
             text: piece.text,
             lead: false,
@@ -1245,6 +1248,32 @@ fn quoted_title(title: &str, out: &mut String) {
         }
     }
     out.push('"');
+}
+
+/// Whether `text` has a run of `mark` with a word character on each side,
+/// as in `a*b`. Such a run can both open and close emphasis, so it could pair
+/// with the delimiter written around `text`: `*a*b*c*` reads as two
+/// emphases, not one around another. A character that is not whitespace and
+/// not ASCII punctuation counts as a word character, which is conservative
+/// for Unicode punctuation and symbols: they only cost the element its tags.
+fn inside_word(text: &str, mark: u8) -> bool {
+    let joins =
+        |ch: Option<char>| ch.is_some_and(|ch| !ch.is_whitespace() && !ch.is_ascii_punctuation());
+    let bytes = text.as_bytes();
+    let mut at = 0;
+    while let Some(found) = bytes[at..].iter().position(|&byte| byte == mark) {
+        let start = at + found;
+        let end = start
+            + bytes[start..]
+                .iter()
+                .take_while(|&&byte| byte == mark)
+                .count();
+        if joins(text[..start].chars().next_back()) && joins(text[end..].chars().next()) {
+            return true;
+        }
+        at = end;
+    }
+    false
 }
 
 /// Whether `line` is a thematic break: three or more of one of `-`, `*` and
