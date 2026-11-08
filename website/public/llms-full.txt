@@ -68,7 +68,7 @@ Conventions the whole file uses:
 | [`Core\Path`](#core-core-path) | path text taken apart and put together — basename, extension, join, normalize, relative paths — without touching the filesystem |
 | [`Core\IO`](#core-core-io) | whole-file read and write on paths the configuration has granted |
 | [`Core\IO\Lines`](#core-core-io-lines) | the lines of a text file, which `Core\IO::lines` returns. You read them with a `foreach` loop |
-| [`Core\IO\StdinStream`](#core-core-io-stdinstream) |  |
+| [`Core\IO\StdinStream`](#core-core-io-stdinstream) | the program's standard input, read in pieces. `Core\IO::stdinStream` returns it. You read it with a `foreach` loop |
 | [`Core\IO\Walk`](#core-core-io-walk) | every file and folder under a folder, which `Core\IO::walk` returns. You read the paths with a `foreach` loop |
 | [`Core\IO\File`](#core-core-io-file) |  |
 | [`Core\IO\Metadata`](#core-core-io-metadata) |  |
@@ -164,7 +164,7 @@ Conventions the whole file uses:
 | [`Core\Html`](#core-core-html) | HTML as a page writes it — the ``html`…` `` template, `Core\Html\Markup`, escaping, sanitizing and parsing |
 | [`Core\Html\Markup`](#core-core-html-markup) | HTML that is already safe to print. Html templates and `Core\Html` methods return it, and `Core\Response::html` takes it |
 | [`Core\Markdown`](#core-core-markdown) | Markdown to HTML that is safe to put into a page — CommonMark with tables, task lists, strikethrough, autolinks and footnotes |
-| [`Core\Markdown\Groups`](#core-core-markdown-groups) |  |
+| [`Core\Markdown\Groups`](#core-core-markdown-groups) | the HTML of a Markdown document, one part at a time. `Core\Markdown::toHtmlEach` returns it. You read it with a `foreach` loop |
 | [`Core\Markdown\Live`](#core-core-markdown-live) |  |
 | [`Core\Markdown\Update`](#core-core-markdown-update) |  |
 | [`Core\Xml`](#core-core-xml) |  |
@@ -36148,7 +36148,25 @@ echo "\n";
 <a id="core-core-io-stdinstream"></a>
 ### `Core\IO\StdinStream`
 
-Keywords:
+Keywords: read stdin, standard input, stdin in chunks, pipe input, large input, binary input, checksum of input,
+
+`Core\IO\StdinStream` is the program's standard input, read in pieces. `Core\IO::stdinStream`
+returns it. The class has no methods. You read it with a `foreach` loop.
+
+Each item is the next piece of the input, up to 64 KiB, as `tainted bytes`. The loop ends when the
+input ends. Only one piece is in memory at a time, so a very large input works too. The bytes are
+not changed, so input that is not UTF-8 text gives no error. The input can be read only once.
+
+`Core\Hash::of` accepts a `Core\IO\StdinStream`, so one call computes a checksum of the whole input.
+
+```nvs skip
+<?nvs
+uint $total = 0;
+foreach (Core\IO::stdinStream() as tainted bytes $piece) {
+    $total = $total + Core\Bytes::length($piece);
+}
+echo 'bytes: ', $total, "\n";
+```
 
 | Member | Signature |
 |---|---|
@@ -46964,7 +46982,33 @@ Converts HTML to Markdown. Text in the HTML stays text, so it never becomes Mark
 <a id="core-core-markdown-groups"></a>
 ### `Core\Markdown\Groups`
 
-Keywords:
+Keywords: markdown to html in parts, large markdown file, stream markdown, markdown chunks, low memory,
+
+`Core\Markdown\Groups` contains the HTML of a Markdown document, one part at a time.
+`Core\Markdown::toHtmlEach` returns it. The class has no methods. You read it with a `foreach` loop.
+
+Each item is a `Core\Html\Markup` with one or more whole blocks, such as a heading, a paragraph or a
+list. A block is never cut in two. The parts joined together are the same HTML that
+`Core\Markdown::toHtml` returns for the whole document.
+
+```nvs
+<?nvs
+bytes $markdown = "# Notes\n\nFirst line.\n\n- one\n- two\n" as bytes;
+foreach (Core\Markdown::toHtmlEach($markdown) as Core\Html\Markup $part) {
+    echo "part:\n", $part;
+}
+```
+```output
+part:
+<h1>Notes</h1>
+part:
+<p>First line.</p>
+part:
+<ul>
+<li>one</li>
+<li>two</li>
+</ul>
+```
 
 | Member | Signature |
 |---|---|

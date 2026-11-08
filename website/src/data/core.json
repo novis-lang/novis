@@ -18456,7 +18456,11 @@
       "url": "/reference/core/io-stdinstream/",
       "summaryBlocks": [
         {
-          "html": "<p>The program's standard input, read in pieces. <code>Core\\IO::stdinStream</code> returns it. Use it in a <code>foreach</code> loop to get each piece as <code>tainted</code> bytes.</p>"
+          "html": "<p>The program's standard input, read in pieces. <code>Core\\IO::stdinStream</code> returns it. Use it in a <code>foreach</code> loop to get each piece as <code>tainted</code> bytes.</p>\n<p><code>Core\\IO\\StdinStream</code> is the program's standard input, read in pieces. <code>Core\\IO::stdinStream</code> returns it. The class has no methods. You read it with a <code>foreach</code> loop.</p>\n<p>Each item is the next piece of the input, up to 64 KiB, as <code>tainted bytes</code>. The loop ends when the input ends. Only one piece is in memory at a time, so a very large input works too. The bytes are not changed, so input that is not UTF-8 text gives no error. The input can be read only once.</p>\n<p><code>Core\\Hash::of</code> accepts a <code>Core\\IO\\StdinStream</code>, so one call computes a checksum of the whole input.</p>"
+        },
+        {
+          "code": "<?nvs\nuint $total = 0;\nforeach (Core\\IO::stdinStream() as tainted bytes $piece) {\n    $total = $total + Core\\Bytes::length($piece);\n}\necho 'bytes: ', $total, \"\\n\";",
+          "lang": "nvs"
         }
       ],
       "returnedBy": [
@@ -24111,7 +24115,15 @@
       "url": "/reference/core/markdown-groups/",
       "summaryBlocks": [
         {
-          "html": "<p>The HTML of a Markdown document, one part at a time, while a <code>foreach</code> loop runs. Each part is a <code>Core\\Html\\Markup</code> with one or more whole blocks. The parts joined together are the HTML of the whole document.</p>"
+          "html": "<p>The HTML of a Markdown document, one part at a time, while a <code>foreach</code> loop runs. Each part is a <code>Core\\Html\\Markup</code> with one or more whole blocks. The parts joined together are the HTML of the whole document.</p>\n<p><code>Core\\Markdown\\Groups</code> contains the HTML of a Markdown document, one part at a time. <code>Core\\Markdown::toHtmlEach</code> returns it. The class has no methods. You read it with a <code>foreach</code> loop.</p>\n<p>Each item is a <code>Core\\Html\\Markup</code> with one or more whole blocks, such as a heading, a paragraph or a list. A block is never cut in two. The parts joined together are the same HTML that <code>Core\\Markdown::toHtml</code> returns for the whole document.</p>"
+        },
+        {
+          "code": "<?nvs\nbytes $markdown = \"# Notes\\n\\nFirst line.\\n\\n- one\\n- two\\n\" as bytes;\nforeach (Core\\Markdown::toHtmlEach($markdown) as Core\\Html\\Markup $part) {\n    echo \"part:\\n\", $part;\n}",
+          "lang": "nvs"
+        },
+        {
+          "code": "part:\n<h1>Notes</h1>\npart:\n<p>First line.</p>\npart:\n<ul>\n<li>one</li>\n<li>two</li>\n</ul>",
+          "lang": "output"
         }
       ],
       "returnedBy": [
