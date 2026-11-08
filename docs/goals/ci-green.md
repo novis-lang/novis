@@ -1,13 +1,13 @@
 ---
 looper: 1
 title: GitHub CI stays green on main
-summary: "Never reached: a loop in the project root watches the CI and Website runs of every push to main, fixes each failure the moment a job reports it, commits, pushes, and watches again until the runs are green, then waits for the next push."
-context: [tools/nv/cmd/ci.ts, .github/workflows/ci.yml, .github/workflows/pages.yml, looper.toml]
+summary: "Never reached: a loop in the project root watches every GitHub Actions run on main and every run a published release starts (CI, Website, Dev build, Release and Promote release images), fixes each failure the moment a job reports it, commits, pushes, and watches again until the runs are green, then waits for the next run."
+context: [tools/nv/cmd/ci.ts, .github/workflows/ci.yml, .github/workflows/pages.yml, .github/workflows/dev-build.yml, .github/workflows/release.yml, .github/workflows/release-promote.yml, looper.toml]
 stages:
   - id: 1
-    title: the newest CI and Website runs on main are green
+    title: the newest run of every workflow and trigger is green
     status: open
-    context: [tools/nv/cmd/ci.ts, .github/workflows/ci.yml, .github/workflows/pages.yml]
+    context: [tools/nv/cmd/ci.ts, .github/workflows/ci.yml, .github/workflows/pages.yml, .github/workflows/dev-build.yml, .github/workflows/release.yml, .github/workflows/release-promote.yml]
 checks: []
 ---
 
@@ -16,7 +16,8 @@ checks: []
 ## Why
 
 The loop commits to `main` all day, and CI is the only place the whole matrix runs: three operating
-systems, Miri, the fuzzers, the cost guards, the proofs and the website. A failure found an hour after
+systems, Miri, the fuzzers, the cost guards, the proofs, the website, the release builds and the
+images. A failure found an hour after
 its push costs a cold cache and a stack of commits to bisect. A failure found the minute its job
 reports it costs one fix, and a fix pushed at once is checked by CI within the hour, not at the next
 goal end.
@@ -53,10 +54,27 @@ loop did not write) is not fixed here: write the handoff, and the next session p
 loop has committed that file.
 
 **`bun nv ci` is the only way the session talks to GitHub.** `--push` pushes, and the push starts the
-CI and Website runs and cancels the runs it replaces. Never start or cancel a run by hand.
+CI, Website and Dev build runs and cancels the runs it replaces. Never start or cancel a run by hand.
 `--watch` waits for the first failed job and prints its step and the end of its log. `--status` lists
 every failed job of the newest runs. `--rerun` reruns the failed jobs. Their module doc is
 `tools/nv/cmd/ci.ts`.
+
+**Every red run is this goal's, whatever workflow it is.** `--watch` and `--status` judge the newest
+run of each workflow that starts runs of its own: `CI`, `Website`, `Dev build`, `Release` and
+`Promote release images`, which runs on a release's tag. Each trigger is judged on its own, so a red
+nightly `CI` run stays red after a green push run, and the `Dev build` run CI's end starts is judged
+apart from the push's. A test holds the list to `.github/workflows/`, so a new workflow is watched
+from its first commit.
+
+**A red `Release` dry run is proved fixed by another dry run.** Nothing but a person or this goal starts
+one. Once its fixes are pushed and the push's runs are green, and no `release.yml` run is going, run
+`bun nv ci --dispatch dry-run` and watch it. It is the one run this goal starts. What it costs: its
+`verify` job is a full `ci.yml` run unless one is green on that commit already, and its `build` legs
+take macOS runners from the push runs for about an hour. A red job of a real `Release` run or of a
+`Promote release images` run is fixed the same way, but this goal never dispatches, approves,
+publishes or reruns either: each publishes something. Name the run in the handoff and in the status
+line, `CONTINUE <the fix>, pushed in <sha>; <run URL> needs a person's rerun`. `--rerun` passes them
+over.
 
 **CI is this goal's gate, not `looper verify`.** A fix is checked locally by the one thing that failed:
 `cargo build`, then the failing test by name (`cargo test --test <name> <filter>`), or
@@ -91,7 +109,7 @@ loop only.
 
 ## Stages
 
-### 1. the newest CI and Website runs on main are green
+### 1. the newest run of every workflow and trigger is green
 
 Every session runs this cycle until CI is green or the context reaches 120k:
 
@@ -103,7 +121,9 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 2. **Watch:** `bun nv ci --watch` with `run_in_background` and a timeout of 7200000, then end your turn.
    Its exit code starts your next turn. Pass `--past <job>` for each red already handed to the main
    loop, never for a job this goal's own commit fixes. Pass `--next` when the newest runs already
-   ended and were seen, or right after your push, so the watch waits for the push's runs.
+   ended and were seen, or right after your push, so the watch waits for the push's runs. `--next`
+   passes over only the runs whose verdict a watch or `--status` printed before, so a run that ended
+   unseen between two sessions still ends the watch.
    - **0, green:** write the handoff and the status line `CONTINUE CI green on <sha>`, and stop. The
      next session's watch, with `--next`, waits for the next push.
    - **1, a job failed, or a push was refused:** go to step 3.
@@ -130,36 +150,29 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 `origin/main` is at `04e4562dc`, and its CI (run `42498924010`) and Website (run `42498924097`)
 runs are green with no rerun. That push carried the main loop's retired `request-and-page-speed`
-goal. The only unpushed commits on `main` are this goal's handoff notes, which start no run.
+goal.
 
-The pushes of an earlier session fixed:
-
-- `fb1eea7c2`: `taint_signatures` names `Core\Json::encodeEach` in `ALLOWED` as an encoder.
-- `81a279ca7`: `queue_sqlite`'s test token always has a letter, so its upper case differs.
-- `9f43defc6`: the `markdown_from_html` fuzz crash. `fromHtml` writes an emphasis element whose
-  text holds its own delimiter between two word characters as tags
-  (`crates/nvs-stdlib/src/markdown/from_html.rs`, `inside_word`).
-- `fc679e3ce`, `5fab84c21`: the `decodeEach` tests and the escaped-text JSON round trip are skipped
-  under Miri, which cannot map a corosensei stack's `PROT_NONE` guard page.
-- `a3f614a26`, `c2b8671f2`: the stdlib tests that passed Miri's 300 s limit (Markdown, compress,
-  `json::pieces`, the XML file reader) run a smaller input under Miri, or are skipped there.
-- `f53e2f1ba`: `byte_source`'s range-read limit test rebases the memory count before the read, so a
-  file handle's fixed 156 KiB no longer counts against the 2 KiB-chunk limit under Miri.
-- `955182f9e`: the roadmap shows `request-and-page-speed`, which the stale guard refused.
-
-The Miri sizes in `c2b8671f2` are estimated, at about 18 s per HTML parse under Miri. Only the
-next nightly run proves them.
+**A `Release` dry run of `04e4562dc` is red, and no session has seen it:** run `42507163492`, which
+a person started. `--watch` read only `CI` and `Website` until `bun nv ci` began watching every
+workflow. Its red jobs are `verify / fuzz smoke / markdown, markdown_from_html`,
+`verify / miri units (nvs-runtime 1/2)`, `verify / miri units (nvs-stdlib 3/12)` and
+`verify / miri units (nvs-stdlib 4/12)`. So the `markdown_from_html` fix `9f43defc6`
+(`inside_word` in `from_html.rs`) and the Miri sizes of `a3f614a26` and `c2b8671f2` (about 18 s per
+HTML parse under Miri) did not hold. The nightly `CI` run `42468563179` on `81a279ca7` is red too, and
+now counts apart from the push runs after it.
 
 ### Next
 
 **Stage 1, the cycle.**
 
-- [ ] Watch for the next push with `bun nv ci --watch --next` (`tools/nv/cmd/ci.ts:1`).
+- [ ] Fix the red `Release` dry run `42507163492` (`crates/nvs-stdlib/src/markdown/tests.rs:927`).
+  `bun nv ci --watch` with no `--next` reports it first, with each failed job's log under
+  `.agent-tmp/ci/`. Fix the fuzz crash (`crates/nvs-stdlib/src/markdown/from_html.rs`) and the Miri
+  jobs, a Miri TIMEOUT by shrinking that test under `cfg!(miri)` further. Push, watch the push's
+  runs, then prove it with `bun nv ci --dispatch dry-run`, as § *Standing decisions* says.
+- [ ] Then watch for the next run with `bun nv ci --watch --next` (`tools/nv/cmd/ci.ts:1`).
   A `test` job red at its `cargo-nextest` or Redis step on a 504, or with "the hosted runner lost
   communication" in its annotations, is not the code: `bun nv ci --rerun` once its run has ended.
-- [ ] Read the next nightly's Miri jobs (`crates/nvs-stdlib/src/markdown/tests.rs:927`).
-  `miri units (nvs-stdlib N/12)` and `fuzz smoke` show the fixes. A Miri TIMEOUT still there
-  shrinks that test under `cfg!(miri)` further. The live test is the nearest to the limit.
 
 ### Backlog
 
