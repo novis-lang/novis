@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/json/pieces.rs, d
 stages:
   - id: 1
     title: "the encoder escapes the six characters as it writes each string, and the rule says why"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/response.rs, crates/nvs-stdlib/src/jwt.rs, docs/rules/security/response-body-is-one-typed-member.md]
   - id: 2
     title: "every test, example and page that shows encoded JSON with those characters is updated, and an attack pins it"
@@ -75,14 +75,14 @@ change is safe when it lands.
 
 ### 1. the encoder escapes the six characters as it writes each string, and the rule says why
 
-- [ ] The new rule `security/json-text-is-safe-inside-html`, with decisions 1 to 3 and the Declined
+- [x] The new rule `security/json-text-is-safe-inside-html`, with decisions 1 to 3 and the Declined
   list, and `rule:core-classes/json-whole-and-stream` cites it.
   `docs/rules/core-classes/json-whole-and-stream.md:1`
-- [ ] The formatter wrapper of decision 4, used by every `Sink`. `crates/nvs-stdlib/src/json.rs:1106`
-- [ ] Every other JSON writer of decision 5 found and routed, or named in the rule.
+- [x] The formatter wrapper of decision 4, used by every `Sink`. `crates/nvs-stdlib/src/json.rs:1106`
+- [x] Every other JSON writer of decision 5 found and routed, or named in the rule.
   `crates/nvs-stdlib/src/jwt.rs:1`
-- [ ] The six tests of the `json-html-escape` check, each run once by name.
-- [ ] The cards of `encode`, `encodeEach` and `Core\Json\Pieces` say the output is safe inside HTML.
+- [x] The six tests of the `json-html-escape` check, each run once by name.
+- [x] The cards of `encode`, `encodeEach` and `Core\Json\Pieces` say the output is safe inside HTML.
   `crates/nvs-stdlib/src/json.rs:587`
 
 ### 2. every test, example and page that shows encoded JSON with those characters is updated, and an attack pins it
@@ -106,11 +106,32 @@ change is safe when it lands.
 
 ### State
 
-Written 2026-11-06 from a review of `queue-id-and-json-stream`'s Backlog. Nothing is built yet.
+Stage 1 is done. `HtmlSafe` (`crates/nvs-stdlib/src/json.rs`, after `impl Sink`) is a `Formatter`
+that overrides `write_string_fragment` alone. `Sink::scalar` serializes every string and key through
+it, and the structure keeps its own compact or pretty formatter. So `encode`, pretty,
+`escapeUnicode`, `encodeEach` and every member that reaches `written`, `document` or
+`written_chunks` escape the six: `Core\Response::json`, `Core\Http\Client`'s `json`, `Core\Sse`,
+`Core\Queue`'s args, `Core\Jwt`'s claims and `Core\Test`. The rule
+`security/json-text-is-safe-inside-html` names the three writers outside it: the JWT header
+(base64url), log lines (`nvs_render::json`, not the encoder), and `nvs`'s own JSON output. The six
+tests of `json-html-escape` pass, run once by name. The cards and
+`tests/lsp/hover/a-core-members-options-and-errors-are-in-its-card.lspt` carry the new `encode` text.
+
+The sweep's reds were stale, checked this session: no `env-secret-proofs` check is defined, and the
+three nightly Miri timeouts ran on 26dda36627 and each test has `cfg_attr(miri, ignore)` on HEAD.
+
+Expected red until stage 2: every `.out`, `.nvst` and `.lspt` that freezes `encode`'s output with
+`<`, `>`, `&` or `'` in a string, and `website/src/data/core.json` and `website/public/llms-full.txt`,
+which the website render writes from the cards.
 
 ### Next
 
-Stage 1, from its first item.
+Stage 2, from its first item. Find the frozen outputs with a search for `Core\Json::encode`,
+`encodeEach`, `Response::json` and `Core\Sse` in `tests/conformance/`, `tests/lsp/`, `docs/examples/`
+and `tests/hostile/`, and pick the expectations whose strings hold `<`, `>`, `&` or `'`. The apostrophe
+is the common one. Decision 6's bench cost goes to the `Core\Json::encode` bench in stage 2's proofs
+item. `docs/reference/core/Json.md:6`, `docs/examples/core/Json/encode/about.md:1`,
+`tests/hostile/core/Json/encode/`
 
 ### Backlog
 

@@ -30,6 +30,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   for `bun nv splice` or a scratch script that holds `"\\\n"` arrives as `"\n"`, so a JS string
   loses its escaped backslash and a test fails for a reason the code does not have. Write any text
   with a doubled backslash with the Edit or Write tool. See `tools/nv/test/site.test.ts`.
+- **The Edit tool turns a single backslash, `u` and four hex digits into the character they name.**
+  A Rust raw string `r#"..."#` that should hold the six-byte escape for `<` gets a literal `<`, so
+  the test compares the output against itself and fails. Write such an expected value as an ordinary
+  string with a doubled backslash, such as `"\\u003c"`, which the tool leaves alone, and grep the
+  line after the edit. See `crates/nvs-stdlib/src/json/pieces.rs`.
 - **On Windows a pipe is a file to `Metadata::is_file`, and a seek on it succeeds and moves
   nothing.** A "can this seek" check written as `meta.is_file()` passes on Linux and reads a pipe's
   later bytes as its start on Windows. Ask `nvs_runtime::os::can_seek`, which reads `GetFileType`.
