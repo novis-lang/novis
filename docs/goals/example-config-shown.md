@@ -30,7 +30,7 @@ stages:
     context: [docs/rules/testing/examples-live-in-the-repository.md, tools/nv/cmd/site.ts]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: root-config-names-no-example
@@ -233,46 +233,43 @@ configuration ones.
 
 ### 7. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done. Stages 2 to 5 moved every example's configuration out of the root
-`nvs.toml` into the example's own directory, and the website shows that file above the examples.
+The goal is reached. Every stage is done, and the gate is green.
 
-Stage 6 landed:
-- `tools/nv/test/root-config-names-no-example.test.ts`: it parses the root file and fails on an
-  `[[app]]` whose `root` or `entry` is under either tree. It also fails on any raw line, comments
-  included, that names either tree, with `/`, `\` or a TOML-escaped `\\`. Five fixture strings
-  cover each failure and a pass, including `docs/examples-old`, which is another tree. All 6 pass.
-  No command was added. Stage 7's verify confirms it is collected as an `nvtest:` unit like the
-  other files under `tools/nv/test/`.
-- The rule `testing/an-example-carries-its-own-configuration`, with its JSON in
-  `data/rules/testing/` and its place in `data/rules/testing.json`. It was rendered, and
-  `bun nv rules --check` is clean.
-- The README section, the root header (which names neither tree) and `spawnProof`'s doc cite it.
+- Stage 7: the first `looper verify` had one failure in 3258 conformance cases.
+  `tests/conformance/novis/image-a-qr-code-renders-as-svg.nvst` printed nothing, because the
+  WebAssembly engine could not reserve its table pool (`os error 1455`, the page file was full under
+  the parallel run). It passes alone with `bun nv try`, so no code changed for it, and a playbook
+  bullet records the trap. The second `looper verify` is green.
+- The goal-end gates: `bun nv verify --doc` is green, and `bun nv owners --closes` names no gap.
+  `bun nv ci --check` was red on the website stale guard: the moved `nvs.toml` files changed the
+  feature hash of two syntax pages and of 153 pages' questions. Each change was only that file, plus
+  a comment in two configuration examples pointing to it, so the stamps were taken again with no
+  question rewritten (63a9726668). `bun nv ci --check` is now green.
+- The acceptance check passes (6 pass). Decisions 1, 2, 6 and 7 live in the rule, the README and
+  `FeatureExamples.astro`'s doc; the others were this goal's own procedure.
 
-The sweep's reds are stale. No `env-secret-proofs` check exists. The three nightly Miri timeouts,
-two growth tests in `json::tests` and one in `request::tests::json`, ran on 26dda36627, and each
-carries `#[cfg_attr(miri, ignore = …)]` on HEAD.
+The sweep's reds are stale, checked again this session. No `env-secret-proofs` check is defined in
+`looper.toml`, `tools/nv` or any goal, and its log does not exist. The three nightly Miri timeouts
+(`request.rs:5899`, `json.rs:8091`, `json.rs:8132`) ran on 26dda36627, and each carries
+`#[cfg_attr(miri, ignore = …)]` on HEAD.
 
 No test is expected to go red.
 
 ### Next
 
-**Stage 7**, the gate. Start `looper verify` with `run_in_background`, fix every failure in one
-pass, and run it once more. Then the goal-end gates of AGENTS.md § *In the loop*:
-`bun nv verify --doc`, `bun nv owners --closes example-config-shown`, `bun nv ci --check`. The
-acceptance check is `bun test tools/nv/test/root-config-names-no-example.test.ts`.
+Nothing. looper retires the goal, and the next on the chain is `json-html-safe`.
 
-- [ ] `looper verify` over the whole goal. `docs/goals/example-config-shown.md:236`
-- [ ] The goal-end gates, each red fixed. `docs/examples/README.md:249`
-- [ ] Each decision only this file holds is moved before it is deleted. `website/src/components/FeatureExamples.astro:1`
-  Decisions 2, 6 and 7 are already in the rule, and decision 1 in that component's doc.
+- [x] `looper verify` over the whole goal. `docs/goals/example-config-shown.md:236`
+- [x] The goal-end gates, each red fixed. `docs/examples/README.md:249`
+- [x] Each decision only this file holds is moved before it is deleted. `website/src/components/FeatureExamples.astro:1`
 
 ### Backlog
 
