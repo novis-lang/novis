@@ -6639,14 +6639,14 @@
   },
   "/reference/core/json/encodeeach/": {
     "feature": "Core\\Json::encodeEach",
-    "hash": "1bd9849e1129c0d6",
+    "hash": "98b94cba8d595aae",
     "questions": [
       "How do I write a very long list as JSON?",
       "Export database rows to a JSON file without much memory",
       "Stream a large JSON array in a response",
+      "Can I stream a list from the request as JSON?",
       "Write JSON Lines, one value on each line",
-      "What happens when an item cannot be encoded halfway?",
-      "Stream JSON into an HTML page without breaking the markup"
+      "What happens when an item cannot be encoded halfway?"
     ]
   },
   "/reference/core/json/isvalid/": {
@@ -6671,11 +6671,11 @@
   },
   "/reference/core/json-pieces/": {
     "feature": "Core\\Json\\Pieces",
-    "hash": "7aec572b79f2fec0",
+    "hash": "2ae7ce5dc2ac7fac",
     "questions": [
       "What does Core\\Json::encodeEach return?",
-      "Loop over JSON text in pieces of bytes",
-      "Write JSON pieces to a file with writeStream",
+      "Write JSON pieces to a file or a response stream",
+      "When are JSON pieces tainted bytes?",
       "How large is each piece of JSON text?",
       "Are angle brackets escaped in each JSON piece?"
     ]
@@ -11509,17 +11509,18 @@
   },
   "/reference/core/queue/cancel/": {
     "feature": "Core\\Queue::cancel",
-    "hash": "0eb3339b0c4b6614",
+    "hash": "93f36d63702ec292",
     "questions": [
       "How do I cancel a background job before it runs?",
       "Stop a scheduled job that has not started",
       "Cancel reminders for a user who unsubscribed",
-      "Can I stop a job that a worker already started?"
+      "Can I stop a job that a worker already started?",
+      "Cancel a job with an id the browser sent back"
     ]
   },
   "/reference/core/queue/delete/": {
     "feature": "Core\\Queue::delete",
-    "hash": "202c6a0228c5f8c2",
+    "hash": "c9dbab93794c3406",
     "questions": [
       "How do I remove one job row from the database?",
       "Delete the jobs of a user who deleted their account",
@@ -11530,7 +11531,7 @@
   },
   "/reference/core/queue/purge/": {
     "feature": "Core\\Queue::purge",
-    "hash": "5143c22d36ef41a6",
+    "hash": "030944ec7b2527b2",
     "questions": [
       "How do I clean up old finished jobs?",
       "Delete many jobs from a queue at once",
@@ -11541,7 +11542,7 @@
   },
   "/reference/core/queue/push/": {
     "feature": "Core\\Queue::push",
-    "hash": "aed6da71cd8bdce5",
+    "hash": "36df34947b8ed3a9",
     "questions": [
       "How do I add a job to a background queue?",
       "Schedule a task to run later",
@@ -11553,7 +11554,7 @@
   },
   "/reference/core/queue/stats/": {
     "feature": "Core\\Queue::stats",
-    "hash": "90b1a4ff9401f764",
+    "hash": "87c600dd2cc599ed",
     "questions": [
       "How many jobs are in my queue?",
       "Check the health of a background queue",
@@ -11563,22 +11564,55 @@
   },
   "/reference/core/queue/status/": {
     "feature": "Core\\Queue::status",
-    "hash": "ecae221bec2683ec",
+    "hash": "f6defc49ded4967a",
     "questions": [
       "How do I check if a background job has finished?",
       "Is my job still waiting or running?",
       "Show the progress of a queued job to the user",
-      "Find out if a job failed for good"
+      "Find out if a job failed for good",
+      "Why does status throw an error for a job id?"
     ]
   },
   "/reference/core/queue-id/": {
     "feature": "Core\\Queue\\Id",
-    "hash": "9a2767b448e31ff1",
+    "hash": "b9cb5b68854488c9",
     "questions": [
       "What is the id that adding a job returns?",
       "Which value do I pass to cancel or check a job?",
-      "Store a job id to look up its state later",
-      "Does a queue job id have any methods?"
+      "Send a job id to the browser and read it back later",
+      "Can a user guess the id of another user's job?",
+      "Store a job id to look up its state later"
+    ]
+  },
+  "/reference/core/queue-id/parse/": {
+    "feature": "Core\\Queue\\Id::parse",
+    "hash": "e428b5a2ef45c7d1",
+    "questions": [
+      "How do I read a job id from a string?",
+      "Turn a job id from the URL back into an id",
+      "Check a background job in a later request",
+      "What happens when somebody changes a job id?",
+      "Make sure a user can only see their own job"
+    ]
+  },
+  "/reference/core/queue-id/tostring/": {
+    "feature": "Core\\Queue\\Id::toString",
+    "hash": "35cb1cf168fcb686",
+    "questions": [
+      "How do I convert a job id to a string?",
+      "Put a job id in a link or a JSON response",
+      "Does a job id need escaping in a URL?",
+      "Is a job id string safe to show to the user?"
+    ]
+  },
+  "/reference/core/queue-id/tryparse/": {
+    "feature": "Core\\Queue\\Id::tryParse",
+    "hash": "c78e0063ead1556f",
+    "questions": [
+      "How do I check if a string is a valid job id?",
+      "Get null instead of an error for a wrong job id",
+      "Validate a job id from a query parameter",
+      "Which strings are not a job id?"
     ]
   },
   "/reference/core/queue-stats/": {
@@ -11594,7 +11628,7 @@
   },
   "/reference/core/queue-stats/attempts/": {
     "feature": "Core\\Queue\\Stats::attempts",
-    "hash": "fca21f88ebeb2789",
+    "hash": "650ba01d77d74faf",
     "questions": [
       "How many times have the jobs in a queue started?",
       "Count retries in a queue",
@@ -11604,7 +11638,7 @@
   },
   "/reference/core/queue-stats/claimed/": {
     "feature": "Core\\Queue\\Stats::claimed",
-    "hash": "01485c876b2524ba",
+    "hash": "75dec107296eaf93",
     "questions": [
       "How many jobs are running right now?",
       "Are all my workers busy?",
@@ -11614,7 +11648,7 @@
   },
   "/reference/core/queue-stats/deadattempts/": {
     "feature": "Core\\Queue\\Stats::deadAttempts",
-    "hash": "d6f2853ceb959a68",
+    "hash": "975d53df7690ecbe",
     "questions": [
       "How many attempts did failed jobs use?",
       "Average retries before a job fails for good",
@@ -11624,7 +11658,7 @@
   },
   "/reference/core/queue-stats/deadlettered/": {
     "feature": "Core\\Queue\\Stats::deadLettered",
-    "hash": "95c926bbd1f91c92",
+    "hash": "e0a7f15738dd560c",
     "questions": [
       "How many jobs failed for good?",
       "Alert when background jobs fail",
@@ -11634,7 +11668,7 @@
   },
   "/reference/core/queue-stats/nontransactional/": {
     "feature": "Core\\Queue\\Stats::nonTransactional",
-    "hash": "9c2449c0fd0b3daf",
+    "hash": "4d899d0fd4f2e471",
     "questions": [
       "Jobs pushed inside a transaction of another database",
       "Does a rollback remove a job saved on a different connection?",
@@ -11645,7 +11679,7 @@
   },
   "/reference/core/queue-stats/pending/": {
     "feature": "Core\\Queue\\Stats::pending",
-    "hash": "9323c4ef997df551",
+    "hash": "a308e4a4d4c51de1",
     "questions": [
       "How many jobs are waiting for a worker?",
       "Warn when too many jobs wait in a queue",

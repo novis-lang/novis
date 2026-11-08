@@ -53453,10 +53453,10 @@ $db->execute('insert into exports (job, user_id) values (?, ?)', [$text, 42]);
 foreach ([42, 7] as var $userId) {
     var $row = $db->query('select job from exports where job = ? and user_id = ?', [$text, $userId])->first();
     if ($row == null) {
-        echo "user ", $userId, ": no such job\n";
+        echo 'user ', $userId, ": no such job\n";
     } else {
         Core\Queue\Id $id = Core\Queue\Id::parse($text);
-        echo "user ", $userId, ": ", Queue::status($id) == Queue::State::Cancelled ? 'cancelled' : 'other', "\n";
+        echo 'user ', $userId, ': ', Queue::status($id) == Queue::State::Cancelled ? 'cancelled' : 'other', "\n";
     }
 }
 ```
