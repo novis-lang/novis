@@ -723,6 +723,15 @@ describe("bun nv ci: the release", () => {
     expect(newest([cancelled, older, { ...release, id: 20 }], "tip", ["CI"]).map((r) => r.id)).toEqual([21]);
   });
 
+  test("a Release run cancelled behind another Release run of the same commit is passed over", () => {
+    const going = { ...dryRun(41, "in_progress", null), name: "Release" };
+    const second = { ...dryRun(42, "completed", "cancelled"), name: "Release" };
+    expect(newest([going, second], "tip").map((r) => r.id)).toEqual([41]);
+    // Alone, or beside a run of another commit, the cancelled run is the tip's verdict.
+    expect(newest([second], "tip").map((r) => r.id)).toEqual([42]);
+    expect(newest([{ ...going, head_sha: "old" }, second], "tip").map((r) => r.id)).toEqual([42]);
+  });
+
   test("watch release follows the newest Release run job by job, and cancels no run", async () => {
     // Without `--release`, the older Release and CI runs going beside newer ones would be cancelled.
     const w = releaseSeams("watch", (p) => ({

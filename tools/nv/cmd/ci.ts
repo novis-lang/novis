@@ -436,17 +436,29 @@ function releaseReplaced(runs: Run[], r: Run): boolean {
 const lane = (r: Run) => `${r.path ?? r.name} ${r.event}`;
 
 /**
+ * Whether `r` is a `Release` run, and `runs` has another `Release` run of its lane on its commit that was
+ * not cancelled. Such a run answers a cancelled `r`: two `Release` runs dispatched on one commit share
+ * `release.yml`'s concurrency group, and GitHub cancels the waiting one before any job starts.
+ */
+function answeredBySibling(runs: Run[], r: Run): boolean {
+  return r.name === RELEASE
+    && runs.some((x) => x.id !== r.id && lane(x) === lane(r) && x.head_sha === r.head_sha && x.conclusion !== "cancelled");
+}
+
+/**
  * The newest run of each lane, by workflow name and then event, passing over each cancelled run on a
  * commit other than `tip`, `origin/main`'s. A newer push cancels those, and its own runs may not be
  * listed yet. A cancelled push run on `tip` that a newer `Release` run of `tip` replaces is passed over
- * too: `--dispatch` cancelled it, and the `Release` run is watched. Any other cancelled run on
+ * too: `--dispatch` cancelled it, and the `Release` run is watched. So is a cancelled `Release` run on
+ * `tip` that another `Release` run of its lane on `tip` answers (`answeredBySibling`). Any other cancelled run on
  * `tip` stopped for another reason, such as a job's time limit. A lane whose newest run is older than
  * a green `workflow_dispatch` run of its workflow is left out: a dispatched run runs every job of its
  * file, so a dispatched `CI` run answers the nightly run, and a dispatched promote run answers the
  * release's. With `only`, the lanes of those workflows alone.
  */
 export function newest(runs: Run[], tip: string, only?: readonly string[]): Run[] {
-  const kept = (x: Run) => x.conclusion !== "cancelled" || (x.head_sha === tip && !releaseReplaced(runs, x));
+  const kept = (x: Run) =>
+    x.conclusion !== "cancelled" || (x.head_sha === tip && !releaseReplaced(runs, x) && !answeredBySibling(runs, x));
   const byLane = new Map<string, Run>();
   for (const r of runs.filter((x) => (only === undefined || only.includes(x.name)) && kept(x))) {
     const was = byLane.get(lane(r));
