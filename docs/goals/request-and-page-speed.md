@@ -158,11 +158,11 @@ macOS.
 
 **Does:** removes three digit strings per row and the formatter from every integer placeholder.
 
-- [ ] Rewrite `IntPlaceholder::digits` with decision 2's writer, and give `len` a counting path that
+- [x] Rewrite `IntPlaceholder::digits` with decision 2's writer, and give `len` a counting path that
   writes nothing. `rule:types/string-holes` `crates/nvs-runtime/src/placeholder.rs:149`
   `crates/nvs-runtime/src/placeholder.rs:174` `crates/nvs-runtime/src/helpers.rs:69`
-- [ ] Measure `Piece::Int` by counting digits, not by writing them. `crates/nvs-runtime/src/string.rs:1678`
-- [ ] Write `every_integer_placeholder_writes_what_the_formatter_writes`: every base, `+`, left and
+- [x] Measure `Piece::Int` by counting digits, not by writing them. `crates/nvs-runtime/src/string.rs:1678`
+- [x] Write `every_integer_placeholder_writes_what_the_formatter_writes`: every base, `+`, left and
   zero padding, width, precision, and `0`, `-1`, `i64::MIN`, `i64::MAX`, `u64::MAX`, compared with
   `format!`, for both `len` and `write`. `crates/nvs-runtime/src/placeholder.rs:245`
 - [ ] Lower `FormatPiece::Argument` over an `int` to a `PartKind::Int` part under decision 3.

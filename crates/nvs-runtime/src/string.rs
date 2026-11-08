@@ -1678,10 +1678,7 @@ impl Piece<'_> {
     fn len(&self) -> usize {
         match *self {
             Piece::Bytes(bytes) => bytes.len(),
-            Piece::Int(value) => {
-                let mut buf = [0u8; crate::helpers::DECIMAL_MAX];
-                crate::helpers::write_decimal(value < 0, value.unsigned_abs(), &mut buf).len()
-            }
+            Piece::Int(value) => crate::helpers::decimal_len(value < 0, value.unsigned_abs()),
             Piece::HtmlText(text) => nvs_render::html::escaped_len(text),
             Piece::Format(placeholder, value) => placeholder.len(value),
         }

@@ -87,6 +87,13 @@ pub(crate) fn write_decimal(
     &buf[at..]
 }
 
+/// How many bytes [`write_decimal`] writes for `magnitude`, its `-` included,
+/// counted without writing a digit.
+pub(crate) fn decimal_len(negative: bool, magnitude: u64) -> usize {
+    let digits = magnitude.checked_ilog10().map_or(1, |log| log as usize + 1);
+    digits + usize::from(negative)
+}
+
 /// `magnitude` in decimal, after a `-` when `negative`, written straight into
 /// the string it returns. One allocation per call: the digits are built on the
 /// stack by [`write_decimal`].

@@ -25,12 +25,12 @@
 //!
 //! # Memory
 //!
-//! Nothing on the heap. The digits are written into a buffer on the stack,
-//! once to measure and once to write.
-
-use std::fmt::Write as _;
+//! Nothing on the heap. Measuring counts the digits and writes none. Writing
+//! puts them into a buffer on the stack, by one loop for decimal and one for
+//! the power-of-two bases, and never through Rust's formatter.
 
 use crate::StrWriter;
+use crate::helpers::{DECIMAL_MAX, decimal_len, write_decimal};
 
 /// How an integer placeholder writes its value's digits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -141,51 +141,86 @@ impl IntPlaceholder {
     }
 
     /// `value`'s digits, with a `+` when [`Self::plus`] asks for one and cut
-    /// to [`Self::precision`], before padding.
+    /// to [`Self::precision`], before padding. They are written into the end
+    /// of `buf`, and the result is the kept part.
     #[expect(
         clippy::cast_sign_loss,
         reason = "every base but `Signed` reads the value's bits, as PHP's `printf` does"
     )]
-    fn digits(&self, value: i64, buf: &mut Digits) {
+    fn digits<'b>(&self, value: i64, buf: &'b mut [u8; DIGITS_MAX]) -> &'b [u8] {
         let bits = value as u64;
-        // A write into `Digits` fails only past `DIGITS_MAX` bytes, which no
-        // `i64` reaches in any base.
-        let _ = match self.base {
-            IntBase::Signed if self.plus && value >= 0 => write!(buf, "+{value}"),
-            IntBase::Signed => write!(buf, "{value}"),
-            IntBase::Unsigned => write!(buf, "{bits}"),
-            IntBase::LowerHex => write!(buf, "{bits:x}"),
-            IntBase::UpperHex => write!(buf, "{bits:X}"),
-            IntBase::Octal => write!(buf, "{bits:o}"),
-            IntBase::Binary => write!(buf, "{bits:b}"),
+        let start = match self.base {
+            IntBase::Signed | IntBase::Unsigned => {
+                let (negative, magnitude) = match self.base {
+                    IntBase::Signed => (value < 0, value.unsigned_abs()),
+                    _ => (false, bits),
+                };
+                let written = match <&mut [u8; DECIMAL_MAX]>::try_from(
+                    &mut buf[DIGITS_MAX - DECIMAL_MAX..],
+                ) {
+                    Ok(tail) => write_decimal(negative, magnitude, tail).len(),
+                    Err(_) => unreachable!("the tail is DECIMAL_MAX bytes long"),
+                };
+                let mut start = DIGITS_MAX - written;
+                if self.plus && self.base == IntBase::Signed && !negative {
+                    start -= 1;
+                    buf[start] = b'+';
+                }
+                start
+            }
+            IntBase::LowerHex => write_radix(bits, 4, b"0123456789abcdef", buf),
+            IntBase::UpperHex => write_radix(bits, 4, b"0123456789ABCDEF", buf),
+            IntBase::Octal => write_radix(bits, 3, b"01234567", buf),
+            IntBase::Binary => write_radix(bits, 1, b"01", buf),
         };
-        if let Some(precision) = self.precision {
-            buf.len = buf.len.min(precision);
+        let body = &buf[start..];
+        match self.precision {
+            Some(precision) => &body[..body.len().min(precision)],
+            None => body,
         }
     }
 
-    /// How many padding characters go with `body`, which is ASCII.
-    fn short(&self, body: &[u8]) -> usize {
-        self.width.saturating_sub(body.len())
+    /// How many bytes [`Self::digits`] keeps for `value`, counted without
+    /// writing a digit.
+    #[expect(
+        clippy::cast_sign_loss,
+        reason = "every base but `Signed` reads the value's bits, as PHP's `printf` does"
+    )]
+    fn digits_len(&self, value: i64) -> usize {
+        let bits = value as u64;
+        let width = u64::BITS - bits.leading_zeros();
+        let len = match self.base {
+            IntBase::Signed => {
+                let sign = value < 0 || self.plus;
+                decimal_len(false, value.unsigned_abs()) + usize::from(sign)
+            }
+            IntBase::Unsigned => decimal_len(false, bits),
+            IntBase::LowerHex | IntBase::UpperHex => radix_len(width, 4),
+            IntBase::Octal => radix_len(width, 3),
+            IntBase::Binary => radix_len(width, 1),
+        };
+        self.precision.map_or(len, |precision| len.min(precision))
+    }
+
+    /// How many padding characters go with `body_len` bytes of ASCII.
+    fn short(&self, body_len: usize) -> usize {
+        self.width.saturating_sub(body_len)
     }
 
     /// How many bytes [`Self::write`] writes for `value`.
     #[must_use]
     pub fn len(&self, value: i64) -> usize {
-        let mut buf = Digits::default();
-        self.digits(value, &mut buf);
-        let body = buf.as_bytes();
-        body.len() + self.short(body) * self.pad.len_utf8()
+        let body = self.digits_len(value);
+        body + self.short(body) * self.pad.len_utf8()
     }
 
     /// Writes `value` as this placeholder renders it.
     ///
     /// Zero padding goes after the sign: `%05d` of `-42` is `-0042`.
     pub fn write(&self, value: i64, out: &mut StrWriter<'_>) {
-        let mut buf = Digits::default();
-        self.digits(value, &mut buf);
-        let body = buf.as_bytes();
-        let short = self.short(body);
+        let mut buf = [0u8; DIGITS_MAX];
+        let body = self.digits(value, &mut buf);
+        let short = self.short(body.len());
         if short == 0 {
             out.push(body);
             return;
@@ -211,40 +246,120 @@ impl IntPlaceholder {
     }
 }
 
-/// An integer's text in a buffer on the stack.
-struct Digits {
-    bytes: [u8; DIGITS_MAX],
-    len: usize,
-}
-
-impl Default for Digits {
-    fn default() -> Self {
-        Self {
-            bytes: [0; DIGITS_MAX],
-            len: 0,
+/// `bits` in the power-of-two radix whose digits are `shift` bits wide,
+/// written into the end of `buf` from `table`. The result is where the
+/// digits start.
+fn write_radix(mut bits: u64, shift: u32, table: &[u8], buf: &mut [u8; DIGITS_MAX]) -> usize {
+    let mask = (1u64 << shift) - 1;
+    let mut at = DIGITS_MAX;
+    loop {
+        at -= 1;
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "the mask keeps at most four bits"
+        )]
+        let digit = (bits & mask) as usize;
+        buf[at] = table[digit];
+        bits >>= shift;
+        if bits == 0 {
+            return at;
         }
     }
 }
 
-impl Digits {
-    fn as_bytes(&self) -> &[u8] {
-        &self.bytes[..self.len]
-    }
-}
-
-impl std::fmt::Write for Digits {
-    fn write_str(&mut self, piece: &str) -> std::fmt::Result {
-        let end = self.len + piece.len();
-        let room = self.bytes.get_mut(self.len..end).ok_or(std::fmt::Error)?;
-        room.copy_from_slice(piece.as_bytes());
-        self.len = end;
-        Ok(())
-    }
+/// How many digits [`write_radix`] writes for a value `width` bits wide.
+fn radix_len(width: u32, shift: u32) -> usize {
+    width.div_ceil(shift).max(1) as usize
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The text `format!` gives for `value` under `placeholder`, which is
+    /// what every placeholder printed before the digit writer replaced it.
+    #[expect(clippy::cast_sign_loss, reason = "the bases read the value's bits")]
+    fn formatted(placeholder: &IntPlaceholder, value: i64) -> String {
+        let bits = value as u64;
+        let mut body = match placeholder.base {
+            IntBase::Signed if placeholder.plus && value >= 0 => format!("+{value}"),
+            IntBase::Signed => format!("{value}"),
+            IntBase::Unsigned => format!("{bits}"),
+            IntBase::LowerHex => format!("{bits:x}"),
+            IntBase::UpperHex => format!("{bits:X}"),
+            IntBase::Octal => format!("{bits:o}"),
+            IntBase::Binary => format!("{bits:b}"),
+        };
+        if let Some(precision) = placeholder.precision {
+            body.truncate(precision);
+        }
+        let short = placeholder.width.saturating_sub(body.len());
+        let pad: String = std::iter::repeat_n(placeholder.pad, short).collect();
+        if placeholder.left {
+            return body + &pad;
+        }
+        let sign = usize::from(placeholder.pad == '0' && body.starts_with(['-', '+']));
+        format!("{}{pad}{}", &body[..sign], &body[sign..])
+    }
+
+    #[test]
+    #[expect(clippy::cast_possible_wrap, reason = "`u64::MAX` is read as its bits")]
+    fn every_integer_placeholder_writes_what_the_formatter_writes() {
+        let values = [
+            0,
+            1,
+            -1,
+            7,
+            9,
+            10,
+            -10,
+            99,
+            100,
+            255,
+            256,
+            4096,
+            -4096,
+            999_999_999,
+            1_000_000_000,
+            i64::MIN,
+            i64::MIN + 1,
+            i64::MAX,
+            u64::MAX as i64,
+        ];
+        for base in IntBase::ALL {
+            for plus in [false, true] {
+                for left in [false, true] {
+                    for pad in [' ', '0', 'é'] {
+                        for width in [0, 1, 5, 25, 80] {
+                            for precision in [None, Some(0), Some(1), Some(3), Some(30)] {
+                                let placeholder = IntPlaceholder {
+                                    base,
+                                    plus,
+                                    left,
+                                    pad,
+                                    width,
+                                    precision,
+                                };
+                                for value in values {
+                                    let want = formatted(&placeholder, value);
+                                    let len = placeholder.len(value);
+                                    let got = crate::NvsStr::build(len, |out| {
+                                        placeholder.write(value, out);
+                                    });
+                                    assert_eq!(len, want.len(), "{placeholder:?} of {value}");
+                                    assert_eq!(
+                                        got.as_bytes(),
+                                        want.as_bytes(),
+                                        "{placeholder:?} of {value}"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     fn sample() -> IntPlaceholder {
         IntPlaceholder {
