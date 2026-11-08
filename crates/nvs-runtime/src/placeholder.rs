@@ -326,12 +326,22 @@ mod tests {
             i64::MAX,
             u64::MAX as i64,
         ];
+        // Miri takes past its 300 s limit over every case, so it runs a width
+        // and a precision under, at and past each value's own length.
+        let (widths, precisions): (&[usize], &[Option<usize>]) = if cfg!(miri) {
+            (&[0, 25], &[None, Some(0), Some(30)])
+        } else {
+            (
+                &[0, 1, 5, 25, 80],
+                &[None, Some(0), Some(1), Some(3), Some(30)],
+            )
+        };
         for base in IntBase::ALL {
             for plus in [false, true] {
                 for left in [false, true] {
                     for pad in [' ', '0', 'é'] {
-                        for width in [0, 1, 5, 25, 80] {
-                            for precision in [None, Some(0), Some(1), Some(3), Some(30)] {
+                        for &width in widths {
+                            for &precision in precisions {
                                 let placeholder = IntPlaceholder {
                                     base,
                                     plus,
