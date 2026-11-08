@@ -1257,6 +1257,10 @@ fn from_html_twice_gives_the_same_markdown() {
             "<ul><li>a<ul><li></li><li>b</li></ul></li></ul>",
             "<ol><li>a<ol><li></li></ol></li><li>b</li></ol>",
             "<ul><li>a<table><tr><th>x</th></tr></table></li><li>b</li></ul>",
+            // An empty `title`, which the HTML render does not write. The
+            // fuzz target found the first.
+            "**<a href=\"/u\" title=\"\"t>>*",
+            "<img src=\"/i.png\" alt=\"x\" title=\"\">",
         ]
         .map(str::to_owned),
     );

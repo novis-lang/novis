@@ -1264,8 +1264,13 @@ fn entity_follows(rest: &str) -> bool {
     name > 0 && rest[name..].starts_with(';')
 }
 
-/// A link title in double quotes, after a space.
+/// A link title in double quotes, after a space, or nothing for an empty
+/// title. The HTML render writes no `title` for an empty one, so writing `""`
+/// would not survive a second pass.
 fn quoted_title(title: &str, out: &mut String) {
+    if title.is_empty() {
+        return;
+    }
     out.push_str(" \"");
     for ch in title.chars() {
         match ch {
