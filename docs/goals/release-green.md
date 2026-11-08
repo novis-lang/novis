@@ -9,6 +9,10 @@ stages:
     status: open
     context: [tools/nv/cmd/ci.ts, tools/nv/cmd/fuzz.ts, tools/nv/cmd/linux-test.ts, .github/workflows/ci.yml]
   - id: 2
+    title: a real release publishes what its green dry run built
+    status: open
+    context: [.github/workflows/release.yml, .github/workflows/build.yml, .github/workflows/image.yml, tools/nv/cmd/release.ts]
+  - id: 3
     title: the release cycle
     status: open
     context: [tools/nv/cmd/ci.ts, .github/workflows/ci.yml, .github/workflows/release.yml]
@@ -31,9 +35,11 @@ failure it finds is fixed in one pass, and only then does a dry run go to GitHub
 still red after a green local run names a gap in the local run, and that gap is closed too.
 
 A real `Release` skips its hour-long `test` job when the same commit already has a green dry run,
-nightly or dispatched full `CI` run (`bun nv release --tested`). A green push run does not count. So
-a green dry run is also what makes the real release fast, as long as nothing is pushed between the
-two.
+nightly or dispatched full `CI` run (`bun nv release --tested`). A green push run does not count.
+Stage 2 makes it skip `build` too: the real run publishes the archives, the `.vsix` and the images
+that the green dry run of the same commit and version built. So a green dry run is the whole release
+but the writes, and the real run is the approval, the tag, the draft and the image push, as long as
+nothing is pushed between the two.
 
 This goal is never reached. A person starts its loop with `bun tools/looper/main.ts loop start
 --loop side-release-green`, and the loop stops itself once the dry run is green.
@@ -119,9 +125,29 @@ main loop's, and this goal never starts one.
 
 **The loop stops itself once the dry run is green.** The session writes the handoff, runs `bun
 tools/looper/main.ts loop stop --loop side-release-green`, and writes the status line `CONTINUE dry
-run green on <sha>; a real Release of <sha> skips its test job`. This goal never dispatches,
+run green on <sha>; a real Release of <sha> skips its test and build jobs`. This goal never dispatches,
 approves, publishes or reruns a real `Release` or `Promote release images` run: each publishes
 something, and that is a person's decision.
+
+**A real `Release` reuses the build of a green dry run of the same commit and version.** `plan` looks
+it up with `bun nv release --built "$SHA" "$VERSION" --github-output`, which is new in stage 2 and
+sets `built_run`. A run counts when it is a `release.yml` dry run, dispatched on `main`, at
+`github.sha`, green, with its `build` job green and its artifacts not expired. Its version is read
+from a `release-plan.json` artifact that every run's `plan` now uploads, with the version and the
+commit. When `built_run` is set, `build` is skipped, `publish` downloads `dist-*` from that run
+(`run-id` and the run's token, with `actions: read`), and `docker` passes it as `binaries-run`,
+which `image.yml` takes already. With no such run, the real run builds as it does now.
+- **Security:** before anything is written, `publish` checks each archive and the `.vsix` with `gh
+  attestation verify`, and each provenance must name `release.yml` and `github.sha`. The flags come
+  from the installed `gh`'s help. The `release` environment's approval stays the gate. The
+  provenance names the dry run that built the bytes, which is true.
+- **The version:** a dry run builds with the version its `plan` computed from its own `bump`
+  input. A real run with another `bump`, or after another tag, has another version, so it builds.
+- **Expiry:** `build.yml` keeps a versioned build's artifacts 7 days (`retention-days`). A real run
+  later than that builds again.
+- **What it costs:** nothing on the dry run, which builds all of it already. The real run loses
+  `build`'s macOS and Windows legs, about 20 minutes, and keeps `docker`'s packaging, which compiles
+  nothing.
 
 **Split.** `bun nv deep`'s red steps whose causes are independent go to writing subagents on the
 session's model, one after another, each told its failure, the files to touch, the `bun nv deep
@@ -130,7 +156,8 @@ session's model, one after another, each told its failure, the files to touch, t
 the runs, the push, the dispatch and the handoff.
 
 **Lanes.** This loop runs beside the main loop and every side loop, and shares the root with the main
-loop only. Stage 1 touches `tools/nv/` alone.
+loop only. Stage 1 touches `tools/nv/` alone, and stage 2 the release workflows and
+`tools/nv/cmd/release.ts`.
 
 ## Stages
 
@@ -151,9 +178,25 @@ needs (`file:line` and one line each). The session writes the code.
   valgrind) gets its install line in `docs/agent/commands.md` § *Without looper* and in the step's
   error message.
 - [ ] `bun nv selftest` is green, then one full `bun nv deep` run, with its time written into
-  § *Standing decisions*. Its red steps are stage 2's first cycle.
+  § *Standing decisions*. Its red steps are stage 3's first cycle.
 
-### 2. the release cycle
+### 2. a real release publishes what its green dry run built
+
+**Does:** the real run reuses the green dry run's build, as § *Standing decisions* says.
+
+- [ ] `.github/workflows/release.yml:124`: `plan` uploads `release-plan.json` and sets `built_run`
+  from `bun nv release --built`.
+- [ ] `.github/workflows/release.yml:247`: `build` runs only without `built_run`. `publish` reads
+  a skipped `build` as passed when `built_run` is set, downloads from that run, and verifies each
+  attestation before its first write. `docker` passes `binaries-run`.
+- [ ] `tools/nv/cmd/release.ts:1`: `--built`, and its tests in `tools/nv/test/`: a red run, a run
+  whose `build` was skipped, another commit, another version and expired artifacts each give no
+  `built_run`.
+- [ ] A dry run on a commit that already has a green dry run takes the same path: it skips `build`,
+  downloads, verifies and runs `docker`'s smoke test. Prove the stage with two `bun nv ci --dispatch
+  dry-run` runs on one commit, the second one green with `build` skipped. No real run is started.
+
+### 3. the release cycle
 
 Every session runs this cycle until the dry run is green or the context reaches 120k:
 
@@ -188,7 +231,7 @@ sweep line of a CPU-time stop in `f64caa415d`. No dry run has run on `f64caa415d
 ### Next
 
 **Stage 1.** Build `bun nv deep`, `bun nv fuzz --all` and `bun nv ci --cancel`, run `bun nv deep`
-once, then start stage 2 on its red steps.
+once. Then stage 2, then stage 3 on `bun nv deep`'s red steps.
 
 ### Backlog
 
