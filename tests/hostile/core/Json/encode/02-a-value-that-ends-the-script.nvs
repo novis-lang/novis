@@ -1,0 +1,48 @@
+<?nvs
+// Attack: values from a request try to end a `<script>` element or an HTML attribute, and the
+// program puts their JSON text into an HTML page. The page should still have one script only.
+// hostile: timeout-ms 20000
+
+// A real program reads these values from the request.
+tainted string $close = '</script><script>alert(1)</script>';
+tainted string $quote = "' onmouseover='alert(2)";
+tainted string $lines = 'a' . Core\Str::fromCodePoint(8232) . 'b' . Core\Str::fromCodePoint(8233) . 'c';
+
+// 1. A value and a key that end the script element and start a new one.
+tainted string $data = Core\Json::encode([$close => $close, 'note' => '<!-- & -->']);
+if (Core\Str::contains($data, '<') || Core\Str::contains($data, '>') || Core\Str::contains($data, '&')) {
+    throw new LogicError('the JSON text contains <, > or &');
+}
+
+// 2. A value that ends a single-quoted attribute and adds an event handler.
+tainted string $config = Core\Json::encode(['title' => $quote], { pretty: true });
+if (Core\Str::contains($config, "'")) {
+    throw new LogicError("the JSON text contains '");
+}
+
+// 3. Two characters that end a line in a JavaScript string.
+tainted string $text = Core\Json::encode([$lines]);
+if (Core\Str::contains($text, Core\Str::fromCodePoint(8232)) || Core\Str::contains($text, Core\Str::fromCodePoint(8233))) {
+    throw new LogicError('the JSON text contains a line separator');
+}
+
+// 4. The same values, written in pieces by `encodeEach`.
+array<bytes> $unsafe = ['<' as bytes, "'" as bytes, Core\Str::fromCodePoint(8232) as bytes];
+foreach (Core\Json::encodeEach([$close, $quote, $lines]) as tainted bytes $piece) {
+    foreach ($unsafe as bytes $character) {
+        if (Core\Bytes::contains($piece, $character)) {
+            throw new LogicError('a piece contains an HTML character');
+        }
+    }
+}
+
+// 5. The page puts the JSON text in a script and in an attribute, and is sent to the browser.
+string $reason = 'Core\Json::encode escapes the characters that end a script or an attribute';
+string $page = '<!doctype html><script>const data = ' . Core\Taint::assertTrusted($data, $reason) . ";</script>\n"
+    . "<div data-config='" . Core\Taint::assertTrusted($config, $reason) . "'>"
+    . Core\Taint::assertTrusted($text, $reason) . "</div>\n";
+if (Core\Str::countOf($page, '<script') != 1 || Core\Str::countOf($page, "'") != 2) {
+    throw new LogicError('the page has a second script or attribute');
+}
+Core\Response\Stream $body = Core\Response::stream('text/html; charset=utf-8');
+$body->write($page);

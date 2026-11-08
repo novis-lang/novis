@@ -7,7 +7,8 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        array<string> $names = ['Ada', 'Grace', 'Linus'];
+        // One name has an apostrophe, which is written as a six-character escape.
+        array<string> $names = ['Ada', 'Grace', "Linus O'Neil"];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
