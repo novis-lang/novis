@@ -447,8 +447,8 @@ fn work_grows_linearly_over_every_catalogued_slow_input() {
 #[test]
 fn a_run_of_unclosed_raw_tags_costs_linear_work() {
     // The steps are counted, not timed, so a short run under Miri still
-    // tells linear work from square work.
-    const N: usize = if cfg!(miri) { 50 } else { 1000 };
+    // tells linear work from square work, inside Miri's 300 s limit.
+    const N: usize = if cfg!(miri) { 8 } else { 1000 };
     let steps = |text: &str| {
         crate::fuzz::markdown_counting_steps(text)
             .1
