@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-stdlib/src/instance.rs, crates/nvs-stdlib/src/html.rs]
   - id: 5
     title: "the changed features are measured again, and the comparison's cases are recorded again"
-    status: open
+    status: done
     context: [benches/members/README.md, tools/nv/cmd/bench-compare.ts, benches/compare/README.md, website/src/content/docs/in-depth/compare.mdx]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -203,18 +203,18 @@ receiver check.
 
 **Does:** records what the goal bought, in counts, and puts it on the comparison page.
 
-- [ ] Run `bun nv proofs --gate`, then `bun nv proofs --record-perf --force --id '<feature>'` for each
+- [x] Run `bun nv proofs --gate`, then `bun nv proofs --record-perf --force --id '<feature>'` for each
   figure it names as stale. Expect at least `Core\Str::format`, `Core\Html::escape`,
   `Core\Html::join` and `lang:types/values-written-in-the-code`. `benches/members/README.md:1`
-- [ ] Where a figure's allocations dropped, lower that bench's `// bench: allocations N` line.
+- [x] Where a figure's allocations dropped, lower that bench's `// bench: allocations N` line.
   `benches/members/core/Str/format.nvs:1`
-- [ ] Run `bun nv bench-compare --profile hello` and `--profile html-page`, and put requests a
+- [x] Run `bun nv bench-compare --profile hello` and `--profile html-page`, and put requests a
   second, the `recvfrom` count and the top shares beside *Why*'s in the commit message.
   `benches/compare/profile.sh:1`
-- [ ] Record the cases from a detached worktree at HEAD under `.agent-tmp/worktrees/` with
+- [x] Record the cases from a detached worktree at HEAD under `.agent-tmp/worktrees/` with
   `bun nv bench-compare --record benches/compare.json`, copy the record back, and delete the
   worktree. `tools/nv/cmd/bench-compare.ts:1`
-- [ ] Run `bun nv render --website`, fix every figure the page's prose states by hand, and commit
+- [x] Run `bun nv render --website`, fix every figure the page's prose states by hand, and commit
   record and page together. `website/src/content/docs/in-depth/compare.mdx:1`
 
 ### 6. the goal is verified once, and every failure is fixed
@@ -227,38 +227,35 @@ receiver check.
 
 ### State
 
-Stages 1 and 4 are done in `649760357a` and `3574503695`. macOS has not run stage 1 yet: if a
+Stages 1 to 4 are done, and each one's check passed by name. macOS has not run stage 1 yet: if a
 macOS runner shows a lost wake, decision 1's fallback applies.
 
-Stage 2 is done in `f837844b20` and `670506f22d`. `IntPlaceholder::digits` writes decimal through
-`write_decimal` and the power-of-two bases through `write_radix`. `len` and `Piece::Int`'s measure
-count digits through `digits_len` and `helpers::decimal_len`. A bare `%d` over an `int` lowers
-through `interpolated_hole` as a joined hole, alone too. A `uint` under `%d` was already a `format`
-part. Both stage 2 checks pass.
+Stage 5 is done in `cde06a13e8` and `4ccbe86a79`. The proofs gate named 73 stale figures, all
+from stage 4's files (`compress.rs`, `http/stream.rs`, `net.rs`, `reflect.rs`), and they are
+recorded. The four features the stage named were recorded with `--force`. Their counts did not
+change, so no `// bench: allocations` line dropped. The profiles show `recvfrom` at 1.00 per
+request on both cases, and html-page at 11,495 requests a second against *Why*'s 9,373. The
+comparison's cases were recorded at `9c8966d84f` under load from the other loops. The page's prose
+states no case figure, so only `website/src/data/compare.json` changed.
 
-Stage 3 is done in the commit after them. `measure` is one pass that sums the bytes each reference
-adds and notes a lead byte, and walks the bidi controls only then. `write` is one pass, and it walks
-the controls at the first lead byte unless `escape` hands it the ones the measure found. `escape` is
-`measure` then `write`, so its passes are 1 for unchanged text and 2 for changed text, plus the
-predicate's 2 when a lead byte appears. `text_with_nothing_to_escape_is_scanned_once` pins those
-counts. `escaped_len_and_escape_into_agree_with_escape_on_every_byte` passes, and it also compares
-`escape` against a plain reference.
-
-The sweep's items were settled: `env-secret-proofs` has no log on disk, and nightly `42468563179`
-ran on `81a279ca7a`, older than `c2b8671f2`, which `ci-green` recorded green.
+The sweep's items are the same as the last session's: `env-secret-proofs` has no log on disk, and
+nightly `42468563179` ran on `81a279ca7a`, older than `c2b8671f25`, which is `origin/main` and was
+recorded green.
 
 ### Next
 
-Stage 5: measure again and record the comparison's cases, under decision 8.
+Stage 6: verify the goal once and fix every failure in one pass.
 
-- `benches/members/README.md:1` — `bun nv proofs --gate`, then `--record-perf --force` per stale figure.
-- `benches/members/core/Str/format.nvs:1` — lower `// bench: allocations N` where it dropped.
-- `benches/compare/profile.sh:1` — `bun nv bench-compare --profile hello` and `--profile html-page`.
-- `tools/nv/cmd/bench-compare.ts:1` — record from a detached worktree under `.agent-tmp/worktrees/`.
-- `website/src/content/docs/in-depth/compare.mdx:1` — `bun nv render --website`, then the prose figures.
+- `docs/goals/request-and-page-speed.md:220` — start `looper verify` with `run_in_background`, then
+  end the turn and wait for its report.
+- `crates/nvs-runtime/src/string.rs:1`, `crates/nvs-render/src/html.rs:1`,
+  `crates/nvs-stdlib/src/instance.rs:1`, `crates/nvs-host/src/net.rs:1` — where a failure will land.
+- Then the goal-end gates in AGENTS.md § *In the loop*: `bun nv verify --doc`,
+  `bun nv owners --closes request-and-page-speed`, `bun nv ci --check`.
 
-No test is expected red. Stages 1 to 4 ran only their own tests by name, so stage 6's verify is the
-first full run over them.
+No test is expected red. Stages 1 to 4 ran only their own tests by name, so this verify is the first
+full run over them. A conformance case that pins a `Fault` text from `receiver`, or an IR dump with a
+bare `%d`, is the likeliest place for one.
 
 ### Backlog
 
@@ -268,3 +265,6 @@ first full run over them.
 
 - A `Uint` string part, and a `.` join lowered to parts when it has an integer operand. Both were left
   by `strings-in-place`'s decision 11, and decision 3 here leaves them again.
+
+- `nvs_str_concat_parts` is 16.7% of html-page's self time after this goal, the largest Novis symbol.
+  A goal that profiles the template join is the next lever there.
