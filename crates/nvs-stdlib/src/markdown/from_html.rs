@@ -120,11 +120,14 @@ enum Part {
     Quote,
     /// A list, with its marker character: `-`, `*` or `+`, `.` or `)`. `first` is
     /// whether an ordered list starts at 1, the one ordered list that may
-    /// interrupt a paragraph. `open` is whether its last item ends in a block
-    /// that the next line could continue.
+    /// interrupt a paragraph. `empty` is whether its first item is empty: a
+    /// bare marker on the line after a paragraph continues the paragraph, and
+    /// a bare `-` makes it a setext heading. `open` is whether its last item
+    /// ends in a block that the next line could continue.
     List {
         marker: char,
         first: bool,
+        empty: bool,
         open: bool,
     },
     Table,
@@ -136,7 +139,12 @@ impl Part {
     fn interrupts(self) -> bool {
         match self {
             Self::Heading | Self::Fence | Self::Rule | Self::Quote => true,
-            Self::List { marker, first, .. } => matches!(marker, '-' | '*' | '+') || first,
+            Self::List {
+                marker,
+                first,
+                empty,
+                ..
+            } => !empty && (matches!(marker, '-' | '*' | '+') || first),
             Self::Paragraph | Self::Table | Self::Html => false,
         }
     }
@@ -167,22 +175,27 @@ fn joined(parts: &[(Part, String)], tight: bool) -> Result<String, Fault> {
     let mut previous: Option<Part> = None;
     for (part, text) in parts {
         if let Some(before) = previous {
-            let line = tight
-                && match before {
-                    Part::Heading | Part::Fence | Part::Rule => true,
-                    Part::Paragraph => part.interrupts(),
-                    Part::List { open: false, .. } => matches!(
-                        part,
-                        Part::Paragraph | Part::Heading | Part::Fence | Part::Rule | Part::Quote
-                    ),
-                    _ => false,
-                };
+            let line = tight && on_next_line(before, *part);
             out.push_str(if line { "\n" } else { "\n\n" });
         }
         out.push_str(text);
         previous = Some(*part);
     }
     Ok(out)
+}
+
+/// Whether `part` may be written on the line right after `before` in a tight
+/// container, where it cannot be read as part of `before`.
+fn on_next_line(before: Part, part: Part) -> bool {
+    match before {
+        Part::Heading | Part::Fence | Part::Rule => true,
+        Part::Paragraph => part.interrupts(),
+        Part::List { open: false, .. } => matches!(
+            part,
+            Part::Paragraph | Part::Heading | Part::Fence | Part::Rule | Part::Quote
+        ),
+        _ => false,
+    }
 }
 
 /// The elements the walk reads as blocks. Any other element is inline.
@@ -413,21 +426,37 @@ impl Writer {
         if items.is_empty() {
             return Ok(());
         }
-        let loose = items.iter().any(|item| {
+        let mut loose = items.iter().any(|item| {
             item.iter()
                 .any(|child| child.kind == Kind::Element && child.name == "p")
         });
 
-        let mut contents = Vec::with_capacity(items.len());
-        let mut open = false;
+        let mut blocks = Vec::with_capacity(items.len());
         for item in &items {
             let mut inner = Vec::new();
             self.task = true;
             self.collect(item, depth, &mut inner)?;
             self.task = false;
-            open = inner.last().is_some_and(|(part, _)| part.open());
-            contents.push(joined(&inner, !loose)?);
+            blocks.push(inner);
         }
+        // Two blocks of an item that cannot share a line get a blank line
+        // between them, and that blank line makes the whole list loose. The
+        // list is written loose, so it reads back the same.
+        loose = loose
+            || blocks.iter().any(|inner| {
+                inner
+                    .windows(2)
+                    .any(|pair| !on_next_line(pair[0].0, pair[1].0))
+            });
+        let open = blocks
+            .last()
+            .and_then(|inner| inner.last())
+            .is_some_and(|(part, _)| part.open());
+        let mut contents = Vec::with_capacity(blocks.len());
+        for inner in &blocks {
+            contents.push(joined(inner, !loose)?);
+        }
+        let empty = contents.first().is_some_and(String::is_empty);
         // An item that starts with a list writes its markers on one line, and
         // `- - -` is a thematic break. A `+` never makes one.
         if marker == '-'
@@ -466,6 +495,7 @@ impl Writer {
             Part::List {
                 marker,
                 first: start == 1,
+                empty,
                 open,
             },
             text,

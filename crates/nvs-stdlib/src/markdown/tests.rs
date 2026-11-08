@@ -1249,6 +1249,14 @@ fn from_html_twice_gives_the_same_markdown() {
             // Two lists in a row that would each start with `- - -`.
             "<ul><li><ul><li><ul><li></li></ul></li></ul></li></ul>\
              <ul><li><ul><li><ul><li></li></ul></li></ul></li></ul>",
+            // A list that starts with an empty item, after text in the same
+            // item. The `markdown_from_html` fuzz target found the first:
+            // `- a\n  -` reads as a heading.
+            "<ul><)ulmmm><ul><ul>",
+            "<ul><li>a<ul><li></li></ul></li><li>b</li></ul>",
+            "<ul><li>a<ul><li></li><li>b</li></ul></li></ul>",
+            "<ol><li>a<ol><li></li></ol></li><li>b</li></ol>",
+            "<ul><li>a<table><tr><th>x</th></tr></table></li><li>b</li></ul>",
         ]
         .map(str::to_owned),
     );
