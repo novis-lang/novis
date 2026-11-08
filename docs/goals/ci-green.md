@@ -128,36 +128,44 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `07de303b8`, pushed by this loop. Its CI and Website runs were going, unwatched,
-when the user stopped this loop: the `release-run` goal watches CI from here. The push carries:
+`origin/main` is at `c2b8671f2`, pushed by this loop. Its CI and Website runs are going, unwatched,
+because the session reached its context ceiling. The pushes of this session fixed:
 
-- `181d4045e`: the `lint` / `rustdoc links` fix for the two doc links to the test-only
-  `Shared::sweep`.
-- `07de303b8`: the likely cause of the macOS CPU overshoot. `thread_info(THREAD_BASIC_INFO)` on
-  another thread leaves out its run in progress, so a thread that never left its CPU read short.
-  A read of another thread now suspends it, reads it and resumes it, under one `SUSPENDING` lock.
-  A thread's read of itself is `clock_gettime(CLOCK_THREAD_CPUTIME_ID)`.
-  `crates/nvs-host/src/cpuclock.rs`. It is inferred from XNU's source and not run on macOS. The
-  test `cpuclock::tests::a_running_thread_read_from_another_is_charged_what_it_has_seen_itself`
-  prints its worst lag to stderr, so the macOS `test` job's log shows it. A red there, or the
-  overshoot again in `proofs / macos-aarch64`, means the suspend is not enough.
+- `fb1eea7c2`: `taint_signatures` names `Core\Json::encodeEach` in `ALLOWED` as an encoder.
+- `81a279ca7`: `queue_sqlite`'s test token always has a letter, so its upper case differs.
+- `9f43defc6`: the `markdown_from_html` fuzz crash. `fromHtml` writes an emphasis element whose
+  text holds its own delimiter between two word characters as tags
+  (`crates/nvs-stdlib/src/markdown/from_html.rs`, `inside_word`).
+- `fc679e3ce`, `5fab84c21`: the `decodeEach` tests and the escaped-text JSON round trip are skipped
+  under Miri, which cannot map a corosensei stack's `PROT_NONE` guard page.
+- `a3f614a26`, `c2b8671f2`: the stdlib tests that passed Miri's 300 s limit (Markdown, compress,
+  `json::pieces`, the XML file reader) run a smaller input under Miri, or are skipped there.
+- `f53e2f1ba`: `byte_source`'s range-read limit test rebases the memory count before the read, so a
+  file handle's fixed 156 KiB no longer counts against the 2 KiB-chunk limit under Miri.
+- `955182f9e`: the roadmap shows `request-and-page-speed`, which the stale guard refused.
 
-The overshoot it targets: on macOS arm64 alone, a CPU-limit case in `tests/hostile/` (a different
-one each push) stopped 120 to 150 ms past its limit, over the 100 ms bound. Every such case notices
-the sampler's raise within a millisecond, so the delay is in the raise itself.
+The nightly deep lane of `81a279ca7` (run `42468563179`) found the fuzz and Miri reds. Its `test`,
+`supply chain` and `ext templates` jobs, and the push runs' `test` jobs, failed downloading from
+GitHub releases (HTTP 504, not on githubstatus.com). From the workstation those downloads returned
+200 again later. The Miri sizes in `c2b8671f2` are estimated, at about 18 s per HTML parse under
+Miri. Only the next nightly run proves them.
 
 ### Next
 
 **Stage 1, the cycle.**
 
-The user stopped this loop: the `release-run` goal takes over watching CI. If this loop resumes:
-
-- [ ] Read the CI run on `07de303b8` with `bun nv ci --status`. `tools/nv/cmd/ci.ts:1`
-  Check `proofs / macos-aarch64` and the macOS `test` job's log line from the new `cpuclock` test.
-  If the overshoot is still there, the next suspect is in Backlog: a lowered limit that does not
-  wake the watchdog. Never raise `TIME_OVERSHOOT_SLACK_MS` (`tools/nv/proofs/run.ts:328`).
+- [ ] Read the runs on `c2b8671f2` (`tools/nv/cmd/ci.ts:1`), then watch with `bun nv ci --watch`.
+  A `test` job red at its `cargo-nextest` or Redis step on a 504 is a
+  download failure: `bun nv ci --rerun` once its run has ended.
+- [ ] Read the next nightly's Miri jobs (`crates/nvs-stdlib/src/markdown/tests.rs:927`).
+  `miri units (nvs-stdlib N/12)` and `fuzz smoke` show the fixes. A Miri TIMEOUT still there
+  shrinks that test under `cfg!(miri)` further. The live test is the nearest to the limit.
 
 ### Backlog
+
+- `bun nv ci --watch --past "fuzz smoke / markdown"` does not cover the job
+  `fuzz smoke / markdown, markdown_from_html`: the match takes the whole name, or a prefix ending
+  at ` / ` or ` (`. Let a prefix ending at `,` match too, in `tools/nv/cmd/ci.ts`.
 
 - `bun nv ci --check` does not run CI's `rustdoc links` step, so a broken doc link reaches CI. It
   takes about a minute once warm. Add it to `PRE_PUSH` in `tools/nv/cmd/ci.ts`.
