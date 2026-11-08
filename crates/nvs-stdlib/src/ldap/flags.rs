@@ -55,13 +55,13 @@ pub(super) fn group_type_value(bits: i64) -> Value {
 }
 
 /// The integer in slot `at` of a `class` receiver, or `None` for `null`.
-fn int_in(value: Value, class: &CoreClass, at: usize, member: &str) -> Result<Option<i64>, Fault> {
+fn int_in(value: Value, class: &'static CoreClass, at: usize, member: &str) -> Result<Option<i64>, Fault> {
     let receiver = crate::instance::receiver(value, class, member)?;
     Ok(crate::instance::slot(receiver, at).as_int())
 }
 
 /// The `bits` a `class` receiver keeps.
-fn bits_of(value: Value, class: &CoreClass, member: &str) -> Result<i64, Fault> {
+fn bits_of(value: Value, class: &'static CoreClass, member: &str) -> Result<i64, Fault> {
     int_in(value, class, FLAGS_BITS_AT, member)?.ok_or_else(|| {
         // Unreachable from source: only this module builds these classes.
         Fault::fatal(format!(
@@ -72,7 +72,7 @@ fn bits_of(value: Value, class: &CoreClass, member: &str) -> Result<i64, Fault> 
 }
 
 /// The reader named `member`: whether its bit is set.
-fn flag(args: &[Value], class: &CoreClass, flags: &[Flag], member: &str) -> Result<Value, Fault> {
+fn flag(args: &[Value], class: &'static CoreClass, flags: &[Flag], member: &str) -> Result<Value, Fault> {
     let bit = flags
         .iter()
         .find(|flag| flag.name == member)

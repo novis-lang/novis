@@ -81,7 +81,7 @@ pub(super) fn retained(value: Value) -> Value {
 }
 
 /// The `uint` key in slot `at` of a `class` receiver.
-fn key_in(value: Value, class: &CoreClass, at: usize, member: &str) -> Result<u64, Fault> {
+fn key_in(value: Value, class: &'static CoreClass, at: usize, member: &str) -> Result<u64, Fault> {
     let receiver = crate::instance::receiver(value, class, member)?;
     crate::instance::slot(receiver, at)
         .as_uint()
@@ -423,7 +423,7 @@ fn base_arg(
 fn advance_walk(
     ctx: &mut nvs_runtime::Ctx,
     walk: Value,
-    class: &CoreClass,
+    class: &'static CoreClass,
     member_for_faults: &str,
     ended: impl FnOnce(*mut ObjHeader, Vec<String>, Vec<u8>),
 ) -> Result<Value, Fault> {

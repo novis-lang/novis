@@ -1269,7 +1269,7 @@ fn within(ctx: &Ctx, args: &[Value], at: usize, member: &str) -> Result<Duration
 /// A [`Fault::fatal`] if the receiver is not one of that class's instances or
 /// its slot holds the wrong tag: the slot is written where the handle is built
 /// and nowhere else, so either is this crate disagreeing with itself.
-fn key_of(value: Value, class: &CoreClass, member: &str) -> Result<u64, Fault> {
+fn key_of(value: Value, class: &'static CoreClass, member: &str) -> Result<u64, Fault> {
     let receiver = crate::instance::receiver(value, class, member)?;
     crate::instance::slot(receiver, SOCKET_SLOT)
         .as_uint()
@@ -1289,7 +1289,7 @@ fn key_of(value: Value, class: &CoreClass, member: &str) -> Result<u64, Fault> {
 /// A `RuntimeError` and not an `IOError` for `Core\IO\File`'s reason: nothing
 /// about the socket went wrong, and the program asked a question of something
 /// it had already given up (`rule:errors/on-uncaught-throw`'s split).
-fn already_closed(class: &CoreClass, member: &str) -> Fault {
+fn already_closed(class: &'static CoreClass, member: &str) -> Fault {
     Fault::thrown(format!("{}::{member}: this handle is closed", class.name))
 }
 
@@ -1395,7 +1395,7 @@ fn waited(ctx: &mut Ctx, member: &str, err: &std::io::Error) -> Fault {
 /// The socket is filed *before* the object exists, so a failure between the two
 /// closes it by dropping it rather than stranding it in a table nothing points
 /// at — which is [`crate::io`]'s `open` making the same ordering choice.
-fn handle(ctx: &mut Ctx, class: &CoreClass, socket: Box<dyn HeldSocket>) -> Value {
+fn handle(ctx: &mut Ctx, class: &'static CoreClass, socket: Box<dyn HeldSocket>) -> Value {
     let key = ctx.hold_open_socket(socket);
     crate::instance::build(class, [Value::uint(key)])
 }

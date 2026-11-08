@@ -615,7 +615,7 @@ fn consumed(receiver: *mut nvs_runtime::ObjHeader, member: &str) -> Result<Value
 /// There is no cursor beside the key: the reader drops each element as the walk
 /// takes it ([`transport::Incoming::consume`]), so where the next one starts is
 /// where what the reader still holds starts.
-fn walk(class: &CoreClass, body: Value) -> Value {
+fn walk(class: &'static CoreClass, body: Value) -> Value {
     crate::instance::build(class, [body, Value::null()])
 }
 
@@ -652,7 +652,7 @@ fn event_walk(body: Value) -> Value {
 ///
 /// [`line_from`]'s and [`EventScan::next`]'s caps, and
 /// [`transport::Incoming::pull`]'s two bounds and its `IOError`.
-fn step(ctx: &mut Ctx, value: Value, class: &CoreClass, framing: Framing) -> Result<Value, Fault> {
+fn step(ctx: &mut Ctx, value: Value, class: &'static CoreClass, framing: Framing) -> Result<Value, Fault> {
     let receiver = crate::instance::receiver(value, class, nvs_runtime::sequence::ADVANCE)?;
     let Some(key) = crate::instance::slot(receiver, READER_BODY_AT).as_uint() else {
         // The body ended, the reader went with it and the key was cleared:
@@ -736,7 +736,7 @@ fn step(ctx: &mut Ctx, value: Value, class: &CoreClass, framing: Framing) -> Res
 fn reader_at<'a>(
     ctx: &'a mut Ctx,
     key: u64,
-    class: &CoreClass,
+    class: &'static CoreClass,
 ) -> Result<&'a mut transport::Incoming, Fault> {
     ctx.open_reader_mut(key)
         .and_then(|reader| reader.as_any_mut().downcast_mut::<transport::Incoming>())
@@ -752,7 +752,7 @@ fn reader_at<'a>(
 /// The element `current()` answers, with a reference of its own: the slot keeps
 /// its own until the next step, so a loop body that keeps an element keeps a
 /// value nothing can invalidate.
-fn current(value: Value, class: &CoreClass) -> Result<Value, Fault> {
+fn current(value: Value, class: &'static CoreClass) -> Result<Value, Fault> {
     let receiver = crate::instance::receiver(value, class, nvs_runtime::sequence::CURRENT)?;
     let held = crate::instance::slot(receiver, READER_CURRENT_AT);
     #[expect(

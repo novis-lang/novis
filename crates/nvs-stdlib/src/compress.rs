@@ -1408,7 +1408,7 @@ const MAX_RATIO_SLOT: usize = 4;
 /// one of the three a program causes.
 fn open_stream(
     value: Value,
-    class: &CoreClass,
+    class: &'static CoreClass,
     member: &str,
 ) -> Result<(*mut ObjHeader, Codec), Fault> {
     let receiver = crate::instance::receiver(value, class, member)?;
@@ -1436,7 +1436,7 @@ fn open_stream(
 /// **Retains its argument rather than copying it**, which is [`crate::hash`]'s
 /// reading and its reason: the buffer is immutable-until-copied, so holding a
 /// reference to the caller's own is both the cheap answer and the correct one.
-fn add_chunk(args: &[Value], class: &CoreClass, member: &str) -> Result<Value, Fault> {
+fn add_chunk(args: &[Value], class: &'static CoreClass, member: &str) -> Result<Value, Fault> {
     let (receiver, _) = open_stream(args[0], class, member)?;
     // Read before the retain, so a tag that reached here leaves the stream
     // exactly as it found it.
@@ -1472,7 +1472,7 @@ fn add_chunk(args: &[Value], class: &CoreClass, member: &str) -> Result<Value, F
 /// writes, which is this crate disagreeing with itself.
 fn concatenated(
     receiver: *mut ObjHeader,
-    class: &CoreClass,
+    class: &'static CoreClass,
     member: &str,
 ) -> Result<Option<Vec<u8>>, Fault> {
     let mut data = ByteWriter::new();

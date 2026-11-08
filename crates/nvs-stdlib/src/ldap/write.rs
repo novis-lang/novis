@@ -304,7 +304,7 @@ fn one_encoded(
 /// The text or bytes in slot `at` of a `class` instance.
 fn slot_bytes(
     value: Value,
-    class: &crate::registry::CoreClass,
+    class: &'static crate::registry::CoreClass,
     at: usize,
     member: &str,
 ) -> Result<Vec<u8>, Fault> {

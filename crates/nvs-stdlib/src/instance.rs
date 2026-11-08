@@ -487,20 +487,21 @@ struct Descriptors {
     /// Each name's first id, so [`Descriptors::id_of`] is one hash and one
     /// compare of the name.
     ///
-    /// Every `Core` instance built and every [`is_instance`] test finds its
-    /// descriptor by name, because a `Core` class is a `const` and has no static
-    /// to keep its descriptor in. A binary search of [`Self::by_name`] compares
-    /// the name about eight times, and each name starts with `Core\`. The map
-    /// is filled once from the binary's own names and never written again. A
-    /// name a program looks up through [`core_class_desc`] is only read against
-    /// it, so no input can grow a bucket, and the hash is `rustc_hash`'s, which
-    /// is fast and not keyed.
+    /// A `Core` class is a `const` and has no static to keep its descriptor
+    /// in, so [`descriptor`] finds one by the class's address in a thread's
+    /// cache, and by name here on that cache's miss. A binary search of
+    /// [`Self::by_name`] compares the name about eight times, and each name
+    /// starts with `Core\`. The map is filled once from the binary's own names
+    /// and never written again. A name a program looks up through
+    /// [`core_class_desc`] is only read against it, so no input can grow a
+    /// bucket, and the hash is `rustc_hash`'s, which is fast and not keyed.
     ///
-    /// Three other ways to find a descriptor are declined. An index by the
-    /// address of the name literal misses: a debug build copies each literal per
-    /// codegen unit, even for `registry::CLASSES`' own entries. A compile-time
-    /// `ClassId` changes the IR. A field on `CoreClass`, or class statics in
-    /// place of consts, edits every class literal in the crate for one pointer.
+    /// Four other ways to find a descriptor are declined. An index by the
+    /// address of the name literal, or by the class's address built once,
+    /// misses: a debug build copies each constant per codegen unit, even for
+    /// `registry::CLASSES`' own entries. A compile-time `ClassId` changes the
+    /// IR. A field on `CoreClass`, or class statics in place of consts, edits
+    /// every class literal in the crate for one pointer.
     ///
     /// **What it spends:** one entry, a name and an id, per `Core` class, for
     /// the process.
@@ -680,16 +681,65 @@ pub fn class_has_instances(name: &str) -> bool {
     registry::class(name).is_some_and(has_instances)
 }
 
-/// `class`'s descriptor.
+/// `class`'s descriptor, found by the class's address on this thread's
+/// [`FOUND`] and by its name on a miss.
+///
+/// The key is the address of the `&'static CoreClass` the caller passed. A
+/// `Core` class is a `const`, so one class can have several addresses: each
+/// codegen unit may keep its own copy. Each copy is a key of its own, and every
+/// key finds the same descriptor. That is why the address keys a cache filled
+/// on a miss and never a table built once: no table can list every copy. A
+/// `'static` borrow is what makes the key sound, because no other class is ever
+/// at that address.
+///
+/// **What it costs:** one thread-local read and one compare when the entry is
+/// there, which is every call after a thread's first for that copy of the
+/// class. A miss pays [`Descriptors::find`]'s hash of the name as before.
 ///
 /// # Panics
 ///
 /// Panics naming the class if it declares no slots — a namespace class has no
 /// instances, and asking for one is a build-time oversight in this crate.
-fn descriptor(class: &CoreClass) -> *const ClassDesc {
+fn descriptor(class: &'static CoreClass) -> *const ClassDesc {
+    let key = std::ptr::from_ref(class).addr();
+    // A class is 8-aligned, so the low three bits say nothing.
+    let at = (key >> 3) & (CACHED - 1);
+    FOUND
+        .try_with(|found| {
+            let entry = &found[at];
+            let (cached, desc) = entry.get();
+            if cached == key {
+                return desc;
+            }
+            let desc = descriptor_by_name(class);
+            entry.set((key, desc));
+            desc
+        })
+        .unwrap_or_else(|_| descriptor_by_name(class))
+}
+
+/// `class`'s descriptor, found by its name: [`descriptor`]'s path on a miss.
+fn descriptor_by_name(class: &CoreClass) -> *const ClassDesc {
     descriptors()
         .find(class.name)
         .unwrap_or_else(|| panic!("{} is not a `Core` class with instances", class.name))
+}
+
+/// How many entries each thread's [`FOUND`] has. A power of two.
+const CACHED: usize = 64;
+
+thread_local! {
+    /// The descriptors this thread found last, as `(class address, descriptor)`,
+    /// at the slot the address picks. Two classes that pick one slot take turns
+    /// in it, and the loser pays a lookup by name. An empty slot's address is
+    /// 0, which no class has.
+    ///
+    /// **What it spends:** 1 KiB per thread, for the thread's life, fixed and
+    /// never allocated. It is filled from the process's descriptors, which no
+    /// request owns, so a request that fills an entry is charged nothing.
+    static FOUND: [std::cell::Cell<(usize, *const ClassDesc)>; CACHED] = const {
+        [const { std::cell::Cell::new((0, std::ptr::null())) }; CACHED]
+    };
 }
 
 /// Every `Core` descriptor a compiled unit may relocate against, as
@@ -756,7 +806,7 @@ pub fn core_class_desc(name: &str) -> Option<*const ClassDesc> {
 /// out of a `array<mixed>` whose other elements are ordinary values. A member
 /// whose parameter is *declared* as a class needs none of this — the checker
 /// has already answered it.
-pub(crate) fn is_instance(value: Value, class: &CoreClass) -> bool {
+pub(crate) fn is_instance(value: Value, class: &'static CoreClass) -> bool {
     let Some(object) = value.obj_ptr() else {
         return false;
     };
@@ -781,7 +831,7 @@ pub(crate) fn is_instance(value: Value, class: &CoreClass) -> bool {
 /// Panics if `slots` is not exactly as long as `class.slots`: the layout is
 /// this crate's on both sides, so a mismatch is a paste error rather than
 /// anything a program can cause.
-pub(crate) fn build<const N: usize>(class: &CoreClass, slots: [Value; N]) -> Value {
+pub(crate) fn build<const N: usize>(class: &'static CoreClass, slots: [Value; N]) -> Value {
     assert_eq!(
         N,
         class.slots.len(),
@@ -974,9 +1024,10 @@ pub(crate) fn is_mixed_core_pair(left: Value, right: Value) -> bool {
 /// refuses a program's class that extends or implements a `Core` class; this
 /// check holds whatever path the checker did not see.
 ///
-/// **What it costs:** a binary search of [`receivers`] by the descriptor's
-/// address and one name comparison, on every call to a `Core` instance member.
-/// No memory per call.
+/// **What it costs:** [`descriptor`]'s cached read and one pointer compare, on
+/// every call to a `Core` instance member. Only a receiver of another class,
+/// which is a `Core\Ast\Node` member's production or a fault, pays a binary
+/// search of [`receivers`] and one name comparison. No memory per call.
 ///
 /// # Errors
 ///
@@ -985,7 +1036,7 @@ pub(crate) fn is_mixed_core_pair(left: Value, right: Value) -> bool {
 /// checked the receiver's declared type, so neither is a program's mistake.
 pub(crate) fn receiver(
     value: Value,
-    class: &CoreClass,
+    class: &'static CoreClass,
     member: &str,
 ) -> Result<*mut ObjHeader, Fault> {
     let Some(object) = value.obj_ptr() else {
@@ -1002,6 +1053,11 @@ pub(crate) fn receiver(
                   it is live for the length of this call"
     )]
     let found = unsafe { NvsObj::class_of(object) };
+    if std::ptr::eq(found, descriptor(class)) {
+        return Ok(object);
+    }
+    // A node is an instance of its production's class, and `Core\Ast\Node`'s
+    // members receive it, so only the rows can say yes here.
     let rows = receivers();
     let receives = rows
         .binary_search_by_key(&found.addr(), |(address, _)| *address)
@@ -1159,7 +1215,7 @@ pub(crate) fn slot(receiver: *mut ObjHeader, index: usize) -> Value {
 /// which compiled code cannot produce.
 pub(crate) fn read_slot(
     args: &[Value],
-    class: &CoreClass,
+    class: &'static CoreClass,
     index: usize,
     member: &str,
 ) -> Result<Value, Fault> {
@@ -1206,6 +1262,34 @@ mod tests {
             assert_eq!(desc.name(), class.name);
             assert_eq!(desc.field_count(), class.slots.len());
         }
+    }
+
+    /// The address path finds what the name finds, for every class with a
+    /// descriptor, on the miss that fills the entry and on the hit after it.
+    /// A second copy of each class at another address is a key of its own and
+    /// finds the same descriptor. There are more classes than entries, so two
+    /// classes share a slot and take turns in it, and each turn still finds
+    /// the right descriptor.
+    #[test]
+    fn every_core_class_with_instances_finds_its_descriptor_by_address() {
+        let classes: Vec<&'static CoreClass> = registry::CLASSES
+            .iter()
+            .chain(INTERNAL_CLASSES.iter().copied())
+            .chain(crate::ast::PRODUCTIONS.iter())
+            .filter(|class| has_instances(class))
+            .collect();
+        assert!(classes.len() > CACHED, "the walk must cover a shared slot");
+        // A static is its own allocation, so each is a second address of its class.
+        static DATE: CoreClass = crate::time::DATE;
+        static MARKUP: CoreClass = crate::html::MARKUP;
+        for _ in 0..2 {
+            for class in classes.iter().copied().chain([&DATE, &MARKUP]) {
+                let named = descriptors().find(class.name).expect("a descriptor");
+                assert!(std::ptr::eq(descriptor(class), named), "{}", class.name);
+                assert!(std::ptr::eq(descriptor(class), named), "{}", class.name);
+            }
+        }
+        assert!(!std::ptr::eq(&DATE, &crate::time::DATE));
     }
 
     /// The published roster and the question the checker asks are the same
@@ -1378,7 +1462,7 @@ mod tests {
 
     /// `class`'s descriptor's native renderer — the test-side spelling of the
     /// read `nvs_runtime::stringify`'s dispatch makes.
-    fn renderer_of(class: &CoreClass) -> Option<*const u8> {
+    fn renderer_of(class: &'static CoreClass) -> Option<*const u8> {
         #[expect(
             unsafe_code,
             reason = "the leaked table owns the descriptor for the whole \
@@ -1443,7 +1527,7 @@ mod tests {
 
     /// `class`'s descriptor's native comparison — the test-side spelling of
     /// the read `nvs_runtime::dispatch::call_compare_to` makes.
-    fn comparer_of(class: &CoreClass) -> Option<*const u8> {
+    fn comparer_of(class: &'static CoreClass) -> Option<*const u8> {
         #[expect(
             unsafe_code,
             reason = "the leaked table owns the descriptor for the whole \
