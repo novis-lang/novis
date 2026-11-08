@@ -14,6 +14,7 @@
 //   rustdoc intra-doc link has no `/`, and a link to a rustdoc page ends in `.html`. Only a comment's
 //   links are read, because link syntax in code is data, such as the Markdown a `Core\Markdown` test
 //   renders. A link is in a comment when its line opens with `//`, `/*` or `*`, or a `//` comes first.
+//   A `//` right after a `:` belongs to a URL, such as `https://`, and starts no comment.
 // - A `.py` file is read for bare path mentions only, anchored at a top-level directory. A link in a
 //   tool is usually text it emits into a generated page, and resolves from that page, not from here.
 //
@@ -70,6 +71,8 @@ const CODE_SPAN_RE = /`[^`]*`/g;
 const FENCE_RE = /^\s*(```|~~~)/;
 /** A source line that is a comment from its start: `//`, `/*`, or a block comment's `*` line. */
 const COMMENT_LINE_RE = /^\s*(?:\/\/|\/\*|\*)/;
+/** Where a trailing comment starts: a `//` that does not follow a `:`, as a URL's `https://` does. */
+const TRAILING_COMMENT_RE = /(?<!:)\/\//;
 /** The vendored crates, whose files keep upstream's own links. */
 const VENDOR_DIR = "vendor/";
 const GENERATED_MARKER = "GENERATED FILE";
@@ -181,7 +184,7 @@ export function linksIn(text: string, source: boolean): Link[] {
     if (fenced) return;
     const spans = [...line.matchAll(CODE_SPAN_RE)].map((m) => [m.index!, m.index! + m[0].length] as const);
     // In a source file, where the comment starts: a link before it is code.
-    const comment = !source || COMMENT_LINE_RE.test(line) ? 0 : line.indexOf("//");
+    const comment = !source || COMMENT_LINE_RE.test(line) ? 0 : line.search(TRAILING_COMMENT_RE);
     if (comment < 0) return;
     for (const m of line.matchAll(LINK_RE)) {
       const at = m.index!;

@@ -57,5 +57,7 @@ describe("a per-file memo", () => {
       { line: 2, raw: "/docs/c.md", from: "root", target: "docs/c.md" },
       { line: 3, raw: "/docs/d.md", from: "root", target: "docs/d.md" },
     ]);
+    const url = '. "the [site](https://example.org/) and ![logo](../logo.png)"\n';
+    expect(linksIn(url, true)).toEqual([]);
   });
 });
