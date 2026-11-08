@@ -1192,7 +1192,10 @@ impl Ctx {
     ///
     /// `cost` is the member's estimate on one current x86-64 core. It is not
     /// an upper bound: a slower core runs past the limit by the difference,
-    /// and the watchdog stops the request at its next poll after the call.
+    /// and the watchdog stops the request at its next poll after the call, or
+    /// the member's next check does. So a call whose real cost passes
+    /// [`crate::POLL_GAP`] on the machine running it holds its core longer
+    /// than the proofs runner allows a stop.
     /// An upper bound would refuse a normal bcrypt-12 login under a 1 s limit,
     /// and a rate learned at run time costs simplicity for no request the
     /// watchdog does not already stop. A door with no `Ctx`, such as the
@@ -1216,6 +1219,16 @@ impl Ctx {
         if cost <= left {
             return Ok(());
         }
+        // Stopped here, on the request's own thread, so no sweep is late. What
+        // ran past the limit is the checked call before this one, which held
+        // its core between two checks as a helper's batch holds it between two
+        // polls, so one [`crate::POLL_GAP`] is its bound.
+        crate::write_sweep_line(
+            "cpu",
+            std::time::Duration::ZERO,
+            std::time::Duration::ZERO,
+            1,
+        );
         self.run_limit_handler(crate::Limit::CpuTime);
         Err(crate::Fault::fatal(format!(
             "{member}: {}, and this call needs about {} ms",
