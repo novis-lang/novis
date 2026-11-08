@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/placeholder.rs, crates/nvs-runtime/src/helpers.rs, crates/nvs-runtime/src/string.rs, crates/nvs-ir/src/lower/expr.rs, docs/rules/types/string-holes.md]
   - id: 3
     title: "escaped text is scanned once to measure and once to write"
-    status: open
+    status: done
     context: [crates/nvs-render/src/html.rs, crates/nvs-runtime/src/string.rs, docs/rules/core-classes/html-auto-escape.md]
   - id: 4
     title: "a Core instance finds its descriptor and checks its receiver without a name lookup"
@@ -175,12 +175,12 @@ macOS.
 
 **Does:** halves the passes over every escaped hole.
 
-- [ ] Rebuild `escaped_len` and `escape_into` as single passes under decision 4, keeping `escape`
+- [x] Rebuild `escaped_len` and `escape_into` as single passes under decision 4, keeping `escape`
   built on them. `rule:core-classes/html-auto-escape` `crates/nvs-render/src/html.rs:184`
   `crates/nvs-render/src/html.rs:195` `crates/nvs-render/src/html.rs:209`
-- [ ] Check that `Piece::HtmlText`'s `len` and `write` call one half each and nothing else.
+- [x] Check that `Piece::HtmlText`'s `len` and `write` call one half each and nothing else.
   `crates/nvs-runtime/src/string.rs:1678` `crates/nvs-runtime/src/string.rs:1691`
-- [ ] Write `escaped_len_and_escape_into_agree_with_escape_on_every_byte`: every ASCII byte
+- [x] Write `escaped_len_and_escape_into_agree_with_escape_on_every_byte`: every ASCII byte
   alone and inside text, every bidi control terminated and open, and mixed text. Each case's
   `escaped_len` equals the length `escape_into` writes, and those bytes equal `escape`'s.
   `crates/nvs-render/src/html.rs:539`
@@ -233,10 +233,23 @@ test's bound is 0 reads that answer `WouldBlock` per request on Unix and 1 on Wi
 `one-read-per-request` pass on Windows and in WSL. macOS is untested until CI runs: if a macOS runner
 shows a lost wake, decision 1's fallback applies. *Why*'s figures are from `81a279ca7a`.
 
-Stage 4 is done. `descriptor` reads a thread-local cache keyed by the class's address and looks up
-by name only on a miss (decision 5, amended: a table built once misses the per-unit copies of a
-`const` class). `receiver` compares the class word first. Every helper that passes a class now takes
-`&'static CoreClass`. `every_core_class_with_instances_finds_its_descriptor_by_address` passes.
+Stage 4 is done in `3574503695`. `descriptor` reads a thread-local cache keyed by the class's
+address and looks up by name only on a miss (decision 5, amended). `receiver` compares the class word
+first. `every_core_class_with_instances_finds_its_descriptor_by_address` passes.
+
+Stage 2 is done in `f837844b20` and `670506f22d`. `IntPlaceholder::digits` writes decimal through
+`write_decimal` and the power-of-two bases through `write_radix`. `len` and `Piece::Int`'s measure
+count digits through `digits_len` and `helpers::decimal_len`. A bare `%d` over an `int` lowers
+through `interpolated_hole` as a joined hole, alone too. A `uint` under `%d` was already a `format`
+part. Both stage 2 checks pass.
+
+Stage 3 is done in the commit after them. `measure` is one pass that sums the bytes each reference
+adds and notes a lead byte, and walks the bidi controls only then. `write` is one pass, and it walks
+the controls at the first lead byte unless `escape` hands it the ones the measure found. `escape` is
+`measure` then `write`, so its passes are 1 for unchanged text and 2 for changed text, plus the
+predicate's 2 when a lead byte appears. `text_with_nothing_to_escape_is_scanned_once` pins those
+counts. `escaped_len_and_escape_into_agree_with_escape_on_every_byte` passes, and it also compares
+`escape` against a plain reference.
 
 The last sweep's items were already settled. `env-secret-proofs` is a check from a retired goal with
 no log on disk. The nightly run `42468563179` ran on `81a279ca7a`, which is older than `c2b8671f2`,
@@ -244,15 +257,16 @@ the commit `ci-green` recorded green.
 
 ### Next
 
-Stage 2, then stage 3, in order, since both edit `crates/nvs-runtime/src/string.rs`.
+Stage 5: measure again and record the comparison's cases, under decision 8.
 
-- `crates/nvs-runtime/src/placeholder.rs:149` and `:174` — `IntPlaceholder::digits` and `len`.
-- `crates/nvs-runtime/src/helpers.rs:69` — `write_decimal`, decision 2's writer.
-- `crates/nvs-runtime/src/string.rs:1678` — `Piece::Int`'s measure.
-- `crates/nvs-ir/src/lower/expr.rs:2437` — `FormatPiece::Argument`, lowered under decision 3.
+- `benches/members/README.md:1` — `bun nv proofs --gate`, then `--record-perf --force` per stale figure.
+- `benches/members/core/Str/format.nvs:1` — lower `// bench: allocations N` where it dropped.
+- `benches/compare/profile.sh:1` — `bun nv bench-compare --profile hello` and `--profile html-page`.
+- `tools/nv/cmd/bench-compare.ts:1` — record from a detached worktree under `.agent-tmp/worktrees/`.
+- `website/src/content/docs/in-depth/compare.mdx:1` — `bun nv render --website`, then the prose figures.
 
-Expected red until stage 2 lands: `every_integer_placeholder_writes_what_the_formatter_writes` and
-`a_bare_integer_placeholder_joins_as_an_integer_part`, which do not exist yet.
+No test is expected red. Stages 1 to 4 ran only their own tests by name, so stage 6's verify is the
+first full run over them.
 
 ### Backlog
 

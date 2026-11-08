@@ -107,18 +107,23 @@ const fn escaped(b: u8) -> Option<&'static str> {
     }
 }
 
-/// [`scan`]'s bit for a byte [`escaped`] rewrites.
-const ESCAPABLE: u8 = 1;
-/// [`scan`]'s bit for [`crate::bidi::LEAD_BYTE`].
-const LEAD: u8 = 2;
+/// [`CLASS`]'s bit for [`crate::bidi::LEAD_BYTE`]. The bits below it are how
+/// many bytes [`escaped`] adds for the byte.
+const LEAD: u8 = 0x80;
 
-/// Each byte's bits, so [`scan`] is one load and one `or` per byte.
+/// Each byte's class: the bytes its reference adds, and [`LEAD`] for a
+/// control's lead byte. Zero for every byte [`escape`] copies as it is.
 const CLASS: [u8; 256] = {
     let mut class = [0; 256];
     let mut b: u8 = 0;
     loop {
-        if escaped(b).is_some() {
-            class[b as usize] = ESCAPABLE;
+        if let Some(reference) = escaped(b) {
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "a reference is at most six bytes long"
+            )]
+            let extra = reference.len() as u8 - 1;
+            class[b as usize] = extra;
         }
         if b == u8::MAX {
             break;
@@ -129,18 +134,51 @@ const CLASS: [u8; 256] = {
     class
 };
 
-/// The bits of every byte in `bytes`, in one pass that stops once both are set.
-fn scan(bytes: &[u8]) -> u8 {
+/// What [`escape`] writes for a text, measured without writing it.
+struct Measure {
+    /// How many bytes [`escape`] writes.
+    len: usize,
+    /// Whether any byte changes. A replaced control is as long as the
+    /// replacement, so `len` alone does not say.
+    changed: bool,
+    /// The unterminated controls, as an offset and a length each. Empty, and
+    /// never allocated, unless a control's lead byte appeared.
+    cuts: Vec<(usize, usize)>,
+}
+
+/// One pass over `text` that adds up the bytes every reference adds and
+/// notes whether a control's lead byte appeared. The bidi predicate walks
+/// the text only in that case.
+fn measure(text: &str) -> Measure {
     #[cfg(test)]
     crate::passes::note();
+    let mut extra = 0;
     let mut seen = 0;
-    for &b in bytes {
-        seen |= CLASS[usize::from(b)];
-        if seen == ESCAPABLE | LEAD {
-            break;
-        }
+    for &b in text.as_bytes() {
+        let class = CLASS[usize::from(b)];
+        extra += usize::from(class & !LEAD);
+        seen |= class;
     }
-    seen
+    let cuts = match seen & LEAD {
+        0 => Vec::new(),
+        _ => unterminated(text),
+    };
+    let len = cuts.iter().fold(text.len() + extra, |len, &(_, cut)| {
+        len - cut + REPLACEMENT.len_utf8()
+    });
+    Measure {
+        len,
+        changed: extra > 0 || !cuts.is_empty(),
+        cuts,
+    }
+}
+
+/// The unterminated bidirectional controls in `text`, as an offset and a
+/// length each, in source order.
+fn unterminated(text: &str) -> Vec<(usize, usize)> {
+    let mut cuts = Vec::new();
+    crate::bidi::for_each_unterminated(text, |offset, c| cuts.push((offset, c.len_utf8())));
+    cuts
 }
 
 /// What an unterminated directional control becomes.
@@ -164,13 +202,17 @@ const REPLACEMENT: char = '\u{FFFD}';
 /// keeps it at one scan and no allocation — which is what makes a rule that
 /// cannot be switched off affordable on the request path, where latency is
 /// what it would cost.
+///
+/// Built on the two halves a join uses: [`escaped_len`]'s measure, and
+/// [`escape_into`]'s writer, given the controls the measure already found.
 #[must_use]
 pub fn escape(text: &str) -> Cow<'_, str> {
-    let Some(cuts) = changes(text) else {
+    let measure = measure(text);
+    if !measure.changed {
         return Cow::Borrowed(text);
-    };
-    let mut out = String::with_capacity(changed_len(text, &cuts));
-    write_changed(text, &cuts, &mut |piece| out.push_str(piece));
+    }
+    let mut out = String::with_capacity(measure.len);
+    write(text, Some(&measure.cuts), &mut |piece| out.push_str(piece));
     Cow::Owned(out)
 }
 
@@ -179,79 +221,61 @@ pub fn escape(text: &str) -> Cow<'_, str> {
 /// The measuring half of a join that asks for its whole result once and then
 /// writes every piece into it (`nvs_runtime`'s `nvs_str_concat_parts`).
 /// [`escape_into`] is the writing half, and the two read the one table
-/// [`escape`] reads, so the length measured is the length written.
+/// [`escape`] reads, so the length measured is the length written. One pass
+/// over `text`, and the bidi predicate's walk only when a control's lead byte
+/// appeared.
 #[must_use]
 pub fn escaped_len(text: &str) -> usize {
-    changes(text).map_or(text.len(), |cuts| changed_len(text, &cuts))
+    measure(text).len
 }
 
 /// Writes what [`escape`] answers for `text` through `push`, one run at a
-/// time, and allocates nothing for text with nothing to escape.
+/// time, in one pass, and allocates nothing for text with nothing to escape.
 ///
 /// A sink rather than a `&mut String`, because the caller that needs this
 /// writes into a buffer this crate cannot name: a runtime string already
 /// allocated at [`escaped_len`]'s size. The runs `push` is given join to
 /// exactly [`escape`]'s answer.
 pub fn escape_into(text: &str, push: &mut impl FnMut(&str)) {
-    match changes(text) {
-        None => push(text),
-        Some(cuts) => write_changed(text, &cuts, push),
-    }
+    write(text, None, push);
 }
 
-/// The unterminated bidirectional controls in `text`, as an offset and a
-/// length each, or `None` when [`escape`] changes nothing at all.
+/// Writes `text` with every escapable byte referenced and every unterminated
+/// control replaced, in one pass.
 ///
-/// One pass finds both things that can change, before anything is
-/// allocated. The bidi predicate walks the span again, so it runs only when
-/// a control's lead byte appeared. `Some` of an empty list is text with an
-/// escapable byte and no open control, and costs no allocation.
-fn changes(text: &str) -> Option<Vec<(usize, usize)>> {
-    let seen = scan(text.as_bytes());
-    let mut unterminated = Vec::new();
-    if seen & LEAD != 0 {
-        crate::bidi::for_each_unterminated(text, |offset, c| {
-            unterminated.push((offset, c.len_utf8()));
-        });
-    }
-    if seen & ESCAPABLE == 0 && unterminated.is_empty() {
-        return None;
-    }
-    Some(unterminated)
-}
-
-/// The length [`write_changed`] writes for `text` and its `cuts`.
-fn changed_len(text: &str, cuts: &[(usize, usize)]) -> usize {
-    let references: usize = text
-        .as_bytes()
-        .iter()
-        .filter_map(|&b| escaped(b))
-        .map(|reference| reference.len() - 1)
-        .sum();
-    cuts.iter().fold(text.len() + references, |len, &(_, cut)| {
-        len - cut + REPLACEMENT.len_utf8()
-    })
-}
-
-/// Writes `text` with every escapable byte referenced and every cut replaced.
-///
-/// Every byte that changes is ASCII or starts a control, so the text between
-/// two of them is pushed whole.
-fn write_changed(text: &str, cuts: &[(usize, usize)], push: &mut impl FnMut(&str)) {
+/// `cuts` is the controls when the caller already found them. With `None`,
+/// the bidi predicate walks `text` at the first lead byte, since no control
+/// starts before it. Every byte that changes is ASCII or starts a control, so
+/// the text between two of them is pushed whole.
+fn write(text: &str, cuts: Option<&[(usize, usize)]>, push: &mut impl FnMut(&str)) {
+    #[cfg(test)]
+    crate::passes::note();
     let mut replacement = [0_u8; 4];
     let replacement: &str = REPLACEMENT.encode_utf8(&mut replacement);
-    let mut cuts = cuts.iter().peekable();
+    let mut cuts = cuts.map(Cow::Borrowed);
+    let mut next = 0;
     let mut copied = 0;
     for (offset, &b) in text.as_bytes().iter().enumerate() {
-        if cuts.peek().is_some_and(|&&(cut, _)| cut == offset) {
-            let &(_, len) = cuts.next().expect("peeked");
+        let class = CLASS[usize::from(b)];
+        if class == 0 {
+            continue;
+        }
+        if class & LEAD == 0 {
+            if let Some(reference) = escaped(b) {
+                push(&text[copied..offset]);
+                push(reference);
+                copied = offset + 1;
+            }
+            continue;
+        }
+        let cuts = cuts.get_or_insert_with(|| Cow::Owned(unterminated(text)));
+        if let Some(&(cut, len)) = cuts.get(next)
+            && cut == offset
+        {
+            next += 1;
             push(&text[copied..offset]);
             push(replacement);
             copied = offset + len;
-        } else if let Some(reference) = escaped(b) {
-            push(&text[copied..offset]);
-            push(reference);
-            copied = offset + 1;
         }
     }
     push(&text[copied..]);
@@ -572,18 +596,89 @@ mod tests {
         assert_eq!(crate::passes::take(), 1, "plain text");
         assert_eq!(escape("é and ü"), "é and ü");
         assert_eq!(crate::passes::take(), 1, "text with no lead byte");
+        // Text that changes is read once to measure and once to write.
         assert_eq!(escape("a < b"), "a &lt; b");
-        assert_eq!(crate::passes::take(), 1, "text with an escape");
+        assert_eq!(crate::passes::take(), 2, "text with an escape");
+        assert_eq!(escaped_len("a < b"), 8);
+        assert_eq!(crate::passes::take(), 1, "the measure alone");
+        escape_into("a < b", &mut |_| {});
+        assert_eq!(crate::passes::take(), 1, "the write alone");
 
         // The lead byte starts the predicate's own two passes, and a balanced
-        // scope is still the borrow.
+        // scope is still the borrow. The writer reuses the controls the
+        // measure found, so the predicate walks once per call.
         let balanced = "\u{2066}user_id\u{2069}";
         assert!(matches!(escape(balanced), Cow::Borrowed(_)));
         assert_eq!(crate::passes::take(), 3, "a balanced scope");
         assert_eq!(escape("<\u{202E}>"), "&lt;\u{FFFD}&gt;");
-        assert_eq!(crate::passes::take(), 3, "an open control");
+        assert_eq!(crate::passes::take(), 4, "an open control");
+        escape_into("<\u{202E}>", &mut |_| {});
+        assert_eq!(crate::passes::take(), 3, "an open control, written alone");
         // `…` has the lead byte and is no control.
         assert_eq!(escape("wait…"), "wait…");
+    }
+
+    /// What [`escape`] writes, one character at a time: a reference for each
+    /// of the five, and the replacement for each unterminated control.
+    fn reference(text: &str) -> String {
+        let mut cuts = Vec::new();
+        crate::bidi::for_each_unterminated(text, |offset, _| cuts.push(offset));
+        let mut out = String::new();
+        for (offset, c) in text.char_indices() {
+            match u8::try_from(c).ok().and_then(escaped) {
+                _ if cuts.contains(&offset) => out.push(REPLACEMENT),
+                Some(reference) => out.push_str(reference),
+                None => out.push(c),
+            }
+        }
+        out
+    }
+
+    /// The measure, the writer and [`escape`] give the same text for every
+    /// byte that changes and every one that does not, alone and inside text,
+    /// and for every control, closed and open.
+    #[test]
+    fn escaped_len_and_escape_into_agree_with_escape_on_every_byte() {
+        let mut cases: Vec<String> = Vec::new();
+        for b in 0u8..128 {
+            let c = char::from(b);
+            cases.push(c.to_string());
+            cases.push(format!("ab{c}cd{c}"));
+        }
+        let controls = [
+            '\u{202A}', '\u{202B}', '\u{202D}', '\u{202E}', '\u{2066}', '\u{2067}', '\u{2068}',
+        ];
+        for c in controls {
+            let close = if matches!(c, '\u{2066}'..='\u{2068}') {
+                '\u{2069}'
+            } else {
+                '\u{202C}'
+            };
+            cases.push(format!("{c}"));
+            cases.push(format!("a{c}b{close}c"));
+            cases.push(format!("<{c}&{close}>{c}\"'"));
+            cases.push(format!("{close}{c}x"));
+            cases.push(format!("{c}{c}{close}<"));
+        }
+        cases.extend(
+            [
+                "",
+                "wait… & see",
+                "é < ü > ß",
+                "&amp;",
+                "\u{202C}\u{2069}",
+                "a\u{2028}b",
+            ]
+            .map(String::from),
+        );
+        for text in &cases {
+            let want = escape(text);
+            assert_eq!(want, reference(text), "{text:?}");
+            let mut written = String::new();
+            escape_into(text, &mut |run| written.push_str(run));
+            assert_eq!(escaped_len(text), want.len(), "{text:?}");
+            assert_eq!(written, want, "{text:?}");
+        }
     }
 
     /// Escaping is not idempotent, and that is the property the carrier exists
