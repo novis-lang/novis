@@ -983,7 +983,11 @@ mod tests {
             all.extend_from_slice(chunk.bytes());
         }
         assert_eq!(all, content, "the whole file, from offset 0");
-        assert_eq!(buffers.len(), 3);
+        // Miri returns short reads from a file on purpose, so it may take more
+        // chunks than a native read of the same file.
+        if !cfg!(miri) {
+            assert_eq!(buffers.len(), 3);
+        }
         assert!(
             buffers.iter().all(|at| *at == buffers[0]),
             "every chunk is lent from one buffer"
@@ -1022,7 +1026,12 @@ mod tests {
             .expect("a first chunk")
             .bytes()
             .to_vec();
-        assert_eq!(first, content, "the whole small file in one chunk");
+        // Miri returns short reads from a file on purpose, so its first chunk
+        // may be a part of the file, and the rest comes before the growth.
+        let short = cfg!(miri) && first.len() < content.len();
+        if !short {
+            assert_eq!(first, content, "the whole small file in one chunk");
+        }
         let super::Kind::File(file) = &source.kind else {
             panic!("a file source")
         };
@@ -1039,7 +1048,15 @@ mod tests {
             .and_then(|mut f| f.write_all(&extra))
             .expect("the case grows its file");
         let (rest, _) = drained(&mut ctx, &mut source, holder);
-        assert_eq!(rest, extra, "the bytes written after the first read");
+        if short {
+            assert_eq!(
+                [first, rest].concat(),
+                [content, extra].concat(),
+                "the whole file, then the bytes written after the first read"
+            );
+        } else {
+            assert_eq!(rest, extra, "the bytes written after the first read");
+        }
         drop(source);
         released(holder);
         released(value);
