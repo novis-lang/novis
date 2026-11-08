@@ -22,7 +22,7 @@ stages:
     context: [docs/examples/core/Db-Row/instant/nvs.toml]
   - id: 5
     title: "the Http, Mail, Cap and configuration examples carry their own nvs.toml"
-    status: open
+    status: done
     context: [docs/examples/core/Net/connect/nvs.toml]
   - id: 6
     title: "a test fails when the root nvs.toml configures an example, and the rule is written"
@@ -205,19 +205,19 @@ the root `nvs.toml` writes (`256M`, `512M`, `1M`, `50ms`, `64M`, `1000`, `16M`, 
 subagents then write the files side by side, one for the Core directories and one for the
 configuration ones.
 
-- [ ] The Core directories: `Http/allowUrl`; the nine member directories of `Http-Client` and the
+- [x] The Core directories: `Http/allowUrl`; the nine member directories of `Http-Client` and the
   two of `Http-Part`, which one `root` block each configures today (`nvs.toml:108`, `:133`);
   `Mail/send` and `Cap/has`. A granted path becomes relative to the file, so `Http-Part/file`'s
   `fs.read` is `["data"]`. `docs/examples/core/Http/allowUrl/nvs.toml:1`
-- [ ] `docs/examples/config/app/` and `docs/examples/config/capabilities/`, whose root blocks
+- [x] `docs/examples/config/app/` and `docs/examples/config/capabilities/`, whose root blocks
   (`nvs.toml:21`, `:359`) move with the value each prints. `docs/examples/config/app/nvs.toml:1`
-- [ ] Each configuration directory the list names, with the table it prints:
+- [x] Each configuration directory the list names, with the table it prints:
   `limits-fatal_reserve_memory` and its four siblings, `log-handler_reserve_memory` and its sibling,
   `cache-memory`, `debug-keep_temporary`, `deferred-deadline`, `deferred-max_concurrent`,
   `http-client-pool_idle`, `http-client-socket` and `http-client-tls`.
   `docs/examples/config/limits-fatal_reserve_memory/nvs.toml:1`
-- [ ] The root's blocks and comments for them deleted or rewritten, by decision 4. `nvs.toml:1`
-- [ ] `bun nv proofs --run --group` over the classes and configuration groups moved, every `.out`
+- [x] The root's blocks and comments for them deleted or rewritten, by decision 4. `nvs.toml:1`
+- [x] `bun nv proofs --run --group` over the classes and configuration groups moved, every `.out`
   unchanged.
 
 ### 6. a test fails when the root nvs.toml configures an example, and the rule is written
@@ -241,37 +241,39 @@ configuration ones.
 
 ### State
 
-Stages 1 to 4 are done. 56 Db and 72 Ldap example directories have their own `nvs.toml`, and the
-root lost 190 `[[app]]` blocks. Its `[db.notes]`, `[db.schema]`, `[ldap.corp]` and
-`[ldap.corp-accounts]` stay for the attacks, benches and `examples/schema.nvs`.
+Stages 1 to 5 are done. The root `nvs.toml` names nothing under `docs/examples/` or
+`website/snippets/`: a grep for either path in it is empty. Stage 5 wrote 39 files: 14 Core
+directories (`Http/allowUrl`, nine `Http-Client`, two `Http-Part`, `Mail/send`, `Cap/has`) and 25
+configuration directories, every one that prints a value the root writes, including the `queue-*`,
+`limits`, `limits-hard` and `include` ones. `deferred-deadline`, `http-client-socket` and
+`queue-visibility` print only built-in defaults and have no file.
 
-- A relative `[[app]] entry` in a directory's file matches its example (decision 2), as
-  `Db-Plan-Step/grade` proves. A directory whose examples need no grant has no file.
-- Uniform blocks go fastest with a Bun script under `.agent-tmp/` that writes each file from what
-  the `.nvs` opens and deletes the root blocks line by line. The comments left are rewritten by hand.
-- `--group` repeats, one value each. An enum type's `--only` id has `::`
-  (`Core\Ldap\LdapError::Kind`, `Core\Ldap::Tls`).
+- The root keeps every configuration table (`[limits]`, `[log]`, `[cache.*]`, `[debug]`,
+  `[deferred]`, `[http.client]`, `[queue]`, `[mail.shop]`) by decision 4: the attacks under
+  `tests/hostile/config/` and `examples/` read them. Their comments now name those readers.
+- `Mail/send` grants `mail.send` to all three examples: example 02 is refused before the grant is
+  checked, so one file covers them. `Cap/has` writes `write = []` at the top and an `[[app]]` for
+  example 02's `read = ["data"]`.
+- `config/app` and `config/capabilities` had their header comments rewritten to point at the file
+  beside them, since the page shows it.
+- Every moved Core group and the 28 configuration examples ran with every `.out` unchanged. A
+  configuration feature's `--only` id is `directive:<key>` (`directive:limits.hard`).
 
-The sweep's `env-secret-proofs` red and the three nightly Miri failures are stale, checked again
-this session: no such check or log exists, and that nightly ran on 26dda36627, before f13f40646a.
+The sweep's `env-secret-proofs` red and the three nightly Miri failures are stale, checked again:
+no such check or log exists, and that nightly ran on 26dda36627, before this goal's work.
 
-No test is expected to go red. 25 lines of the root still name `docs/examples/`, all of them
-stage 5's: `Http/allowUrl`, `Http-Client`, `Http-Part`, `Cap/has`, `Mail/send`, `config/app`,
-`config/capabilities` and the configuration directories its comments name.
+No test is expected to go red.
 
 ### Next
 
-**Stage 5**, the Http, Mail, Cap and configuration examples. Unlike stages 2 to 4, the blocks
-differ, so the script trick fits only the Core half. The configuration half is the risky one: each
-of those examples prints a value the root writes, so its file must write the same table, or the
-`.out` changes (decision 3). `config/app` prints `spawn = true` as arriving from the root's first
-`[[app]]` block (`nvs.toml:31`), so its own file needs an `[[app]]` that sets it.
+**Stage 6**, the test and the rule. The root already passes the check, so the test is green on its
+first run, and its fixture strings prove it fails.
 
-- [ ] The Core directories: one file each, `Http-Part/file`'s `fs.read` becomes `["data"]`. `nvs.toml:85`
-- [ ] `config/app` and `config/capabilities`, with the values they print. `nvs.toml:295`
-- [ ] The configuration directories the comments at `nvs.toml:1461`–`:1707` name, each with its table.
-- [ ] The root's blocks deleted and those comments rewritten without the path. `nvs.toml:1461`
-- [ ] Each moved group run, every `.out` unchanged. `tools/nv/proofs/run.ts:618`
+- [ ] The test of decision 5 and its fixtures. `tools/nv/test/root-config-names-no-example.test.ts:1`
+- [ ] The rule of decision 7, chapter rendered. `docs/rules/testing/examples-live-in-the-repository.md:1`
+- [ ] `docs/examples/README.md` § *A grant the examples need* cites it. `docs/examples/README.md:248`
+- [ ] The root header says what the file configures now. `nvs.toml:1`
+- [ ] The runner's doc comment is current. `tools/nv/proofs/run.ts:588`
 
 ### Backlog
 
