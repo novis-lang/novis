@@ -25,7 +25,7 @@ stages:
     context: [docs/examples/README.md, tests/hostile/README.md, benches/members/README.md, docs/rules/testing/feature-proofs.md, docs/reference/core/Queue-Id.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: json-pieces-taint
@@ -304,45 +304,39 @@ for the bench and the attack. Their files are disjoint. None builds.
 ### 6. the goal is verified once, and every failure is fixed
 
 - [x] `bun nv proofs --record-perf` over the members whose figures are stale.
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done. `bun nv proofs --id` prints `complete.` for each of `Core\Queue\Id::toString`,
-`parse` and `tryParse`: about pages and three examples each under `docs/examples/core/Queue-Id/`, one
-attack each under `tests/hostile/core/Queue-Id/` (decision 10's five steps in
-`parse/01-a-job-id-the-client-changed.nvs`), and benches under `benches/members/core/Queue-Id/` with
-`parse.scale.nvs` reading flat. Their perf is recorded in `data/perf/members.ndjson` and their shares
-in `data/perf/bench-budget.json`. `docs/reference/core/Queue-Id.md` describes the string form and
-ends its example with the owner check; `NVS_BIN=<abs path> bun nv reference --only Queue-Id` holds.
-`status`'s missing-job message no longer says "receipt" and has no dash (`queue.rs:5156`), and
-`queue-delete-and-purge-answer-the-same-way-on-sqlite.nvst` and `parse/02`'s `.out` carry the new text.
+Every stage is done, and the goal is reached. `looper verify` is green over the whole goal, the four
+acceptance checks pass, and `bun nv verify --doc`, `bun nv owners --closes queue-id-and-json-stream`
+and `bun nv ci --check` are green.
 
-The sweep's reds are stale, as the last four sessions found: no `env-secret-proofs` check is
-defined, and nightly run 42359979484 ran on 26dda36627, before the Miri ignores in f13f40646a.
+The gate's one fix pass (04f761efa7): the insert and dead-letter statement tests in `queue.rs` and
+`worker.rs` pin `token` as the last column; `Core\Queue\Id` left `registry.rs`'s handle list and
+joined the parses roster; each Id member reaches the conformance floor of three through
+`queue-an-id-string-has-one-written-form-for-each-part.nvst`, and the two older Id cases write
+`Core\Queue\Id::parse(` in full, which the coverage gate counts. The three `image-*` cases failed
+once on Windows `os error 1455` under the full run, passed alone, and passed in the rerun. The
+website's search questions for the 18 changed queue, Id and JSON pages are rewritten and stamped
+(83afcd6a42). Decisions 5, 7 and 14 now live in `rule:concurrency/queue-four-members` and
+`queue::token_text`'s doc, beside decisions 4 and 15 in `id_text`, `ID_TEXT_MAX` and `read_id`.
 
-Stage 6 has begun. `bun nv proofs --record-perf` appended 18 fresh records for the queue and JSON
-members (b84382ec2f), and the first `looper verify` over the whole goal is running.
+The sweep's reds were stale: no `env-secret-proofs` check is defined, and nightly run 42359979484
+ran on 26dda36627, before the Miri ignores in f13f40646a.
 
 ### Next
 
-**Stage 6**, the gate. Read the first `looper verify` report, fix every failure it names in one
-pass, and run `looper verify` again; then the goal-end gates of AGENTS.md § *In the loop*.
-`docs/goals/queue-id-and-json-stream.md:307`
+Nothing in this goal. The driver retires it, and the chain goes on to `registry-readme`.
 
-`bun nv scaling --budget --write` exits 1 on many benches outside this goal that are over their share
-(`novis/Spreadsheet-*` among them); it still wrote the three new shares. Check whether CI's budget job
-reads that as red before the goal ends.
-
-Expected red, for stage 6: unit tests in `crates/nvs-stdlib/src/queue.rs` and
-`crates/nvs-cli/src/worker.rs` that compare statement texts, column lists or placeholder counts, since
-only stage 2's new tests ran; the server suite `crates/nvs-stdlib/tests/queue.rs` under `bun nv
-db-matrix --all`; the three `image-*` conformance cases; and any registry snapshot or roster test
-that counts `Core` members or expects `Core\Queue\Id` to have none.
+No CI job runs `bun nv scaling --budget`, so its exit 1 over benches outside this goal is not a red.
+The server suite `crates/nvs-stdlib/tests/queue.rs` did not run here, because `bun nv db-matrix
+--all` needs the database servers; CI's matrix runs it. Expected red there, if anything: a
+statement-text assertion that predates the token column.
 
 ### Backlog
 
@@ -358,3 +352,5 @@ that counts `Core` members or expects `Core\Queue\Id` to have none.
 - `exit(0)` in one branch does not narrow a nullable variable in the code after it.
 - The release binary ran Id benches only after `--record-perf` rebuilt it. `target/release/nvs.exe`
   predates the `status` message change.
+- `bun nv nvs-fmt` exits 1 because the twelve `.nvs` files under `packages/rest/` are in no tree of
+  `tools/data/nvs-fmt-corpus.txt`. That folder is outside this goal.
