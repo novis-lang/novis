@@ -6,7 +6,6 @@
       "title": "JSON in web pages, and queue jobs",
       "text": "`Core\\Json::encode` escapes `<`, `>`, `&` and `'` in the text it writes. So you can put its output inside an HTML page or a `<script>` tag. A queue job's id has a string form, and a later request can find the job with it. A guessed or changed id finds no job. `Core\\Response::stream` sends the pieces that `Core\\Json::encodeEach` gives.",
       "goals": [
-        "json-html-safe",
         "queue-id-and-json-stream"
       ]
     },
