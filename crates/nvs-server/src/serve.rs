@@ -10622,19 +10622,22 @@ pub(crate) mod tests {
     /// serves them ([`nvs_host::counts`], which exists in debug builds only).
     ///
     /// The bounds are what the server spends today, so a change that spends
-    /// more fails here. A change that spends less lowers them. Each request makes
-    /// one read that answers `WouldBlock`, and every later read waits on the
-    /// stream's readiness bit. A connection's first read may also answer
-    /// `WouldBlock` once, when the server accepts it before the client's bytes
-    /// arrive. The case has two connections: the client's and the one that
-    /// ends the loop. The drive's wakes of itself set its flag and poke
-    /// nothing. Each connection adds one poke of its own.
+    /// more fails here. A change that spends less lowers them. On Unix a
+    /// request makes no read that answers `WouldBlock`: its read is shorter
+    /// than the buffer, which sets the stream's readiness bit, and the next
+    /// read waits on the reactor. On Windows the read after each request is
+    /// tried and answers `WouldBlock` once, because a short read there does not
+    /// show that the socket is empty. A connection's first read may also
+    /// answer `WouldBlock` once, when the server accepts it before the
+    /// client's bytes arrive. The case has two connections: the client's and
+    /// the one that ends the loop. The drive's wakes of itself set its flag
+    /// and poke nothing. Each connection adds one poke of its own.
     #[cfg(debug_assertions)]
     #[test]
     fn a_keep_alive_request_reads_and_wakes_within_its_count() {
         const REQUESTS: u64 = 20;
         const CONNECTIONS: u64 = 2;
-        const WOULD_BLOCK_READS_PER_REQUEST: u64 = 1;
+        const WOULD_BLOCK_READS_PER_REQUEST: u64 = if cfg!(unix) { 0 } else { 1 };
         const WOULD_BLOCK_READS_PER_CONNECTION: u64 = 1;
         const WAKE_POKES_PER_REQUEST: u64 = 0;
         const WAKE_POKES_PER_CONNECTION: u64 = 1;

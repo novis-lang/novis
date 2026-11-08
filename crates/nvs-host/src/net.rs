@@ -23,8 +23,9 @@
 //!
 //! The rule's last paragraph, and it is where the repeat-park cost goes. A stream that
 //! parks a second time on the same interest issues **no syscall at all**: the
-//! poller is level-triggered and the registration is still filed under this
-//! task, so it already reports what the new wait needs. Changing interest —
+//! registration is still filed under this task, and the read that parked left
+//! the socket empty, so the next readiness the poller reports is the one the
+//! new wait needs. Changing interest —
 //! a `read` after a `write` — costs one `reregister`, never a fresh `register`.
 //! What that spends, per `rule:programs/memory-priority`:
 //! one kernel registration per *stream a task is holding*, released by
@@ -201,14 +202,21 @@ pub struct NvsStream<S: Source> {
     /// lifted by the interest that filed it and by no other.
     timed: Option<Interest>,
     /// The readiness bit: the reactor's event count for the registered task,
-    /// taken when this stream's last read answered `WouldBlock`, or `None`
+    /// taken when this stream's last read left the socket empty, or `None`
     /// while the next read must try the system call.
     ///
-    /// `rule:concurrency/try-the-syscall-then-park`. While the count is still
-    /// the same, no descriptor of the task was reported ready, so
-    /// [`Self::poll_read`] files its deadline and answers `Pending` with no
-    /// read. Any event for the task, a successful read, an error and every
-    /// change of registration clear it.
+    /// `rule:concurrency/try-the-syscall-then-park`. A read leaves the socket
+    /// empty when it answers `WouldBlock`, and on Unix also when
+    /// [`Self::poll_read`] reads fewer bytes than its buffer holds while the
+    /// stream is registered for reading under the running task. The reactor
+    /// is edge-triggered there, so bytes that arrive later raise a new event.
+    /// Windows takes the count at a `WouldBlock` alone, because its readiness
+    /// is emulated and a short read does not show that the socket is empty.
+    ///
+    /// While the count is still the same, no descriptor of the task was
+    /// reported ready, so [`Self::poll_read`] files its deadline and answers
+    /// `Pending` with no read. Any event for the task, any other read, an
+    /// error and every change of registration clear it.
     quiet: Option<u32>,
     /// A flag another thread may raise to end a readable wait already in
     /// flight, or `None` for a stream nothing cuts short —
@@ -1499,8 +1507,8 @@ impl<S: Source> NvsStream<S> {
         match self.registered {
             Some((task, armed)) if task == me => {
                 if armed == interest {
-                    // The cheapest park there is: a level-triggered poller with
-                    // a live registration already reports what this wait needs.
+                    // The cheapest park there is: the live registration already
+                    // reports the readiness this wait needs.
                     return Ok(());
                 }
                 self.quiet = None;
@@ -1540,7 +1548,9 @@ impl<S: Source> NvsStream<S> {
     ///
     /// A read whose readiness bit is set skips the system call. It still files
     /// its deadline and arms as a `WouldBlock` would, so the only thing it
-    /// leaves out is the read the reactor already said would block.
+    /// leaves out is the read the reactor already said would block. On Unix a
+    /// short read sets the bit, so the read after a keep-alive request is one
+    /// of those ([`Self::quiet`] says why Windows is left out).
     ///
     /// # Errors
     ///
@@ -1558,7 +1568,13 @@ impl<S: Source> NvsStream<S> {
         loop {
             self.quiet = None;
             match self.inner.read(buf) {
-                Ok(read) => return self.answer(Interest::READABLE, Ok(read)),
+                Ok(read) => {
+                    #[cfg(unix)]
+                    if 0 < read && read < buf.len() {
+                        self.quiet = self.quiet_after_a_short_read();
+                    }
+                    return self.answer(Interest::READABLE, Ok(read));
+                }
                 Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
                 Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
                     #[cfg(debug_assertions)]
@@ -1588,6 +1604,18 @@ impl<S: Source> NvsStream<S> {
             return false;
         };
         self.registered == Some((me, Interest::READABLE)) && self.readiness_events() == Some(seen)
+    }
+
+    /// The readiness bit a short read leaves: the event count, when this
+    /// stream is registered for reading under the running task, and `None`
+    /// otherwise, which keeps the next read's system call.
+    #[cfg(unix)]
+    fn quiet_after_a_short_read(&self) -> Option<u32> {
+        let me = current_task()?;
+        if self.registered != Some((me, Interest::READABLE)) {
+            return None;
+        }
+        self.readiness_events()
     }
 
     /// The reactor's event count for the task this stream is registered under.
@@ -1981,6 +2009,77 @@ mod tests {
             got.get(),
             2,
             "the read after the reactor's event found nothing"
+        );
+    }
+
+    /// A short read sets the readiness bit on Unix, where the reactor is
+    /// edge-triggered: the read right after it answers `Pending` with no
+    /// system call, and bytes sent later still wake the task. On Windows the
+    /// read after a short read is tried, and answers `WouldBlock` once.
+    ///
+    /// The writer sends each chunk only after the task's read is armed, so
+    /// every chunk raises its own event and the counts do not depend on timing.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_short_read_parks_the_next_read_on_edge_triggered_platforms() {
+        const WOULD_BLOCK_READS_AFTER_A_SHORT_READ: u64 = if cfg!(unix) { 0 } else { 1 };
+
+        let (mut server, mut client) = connected_pair();
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let (send, chunks) = std::sync::mpsc::channel::<&'static [u8]>();
+        let writer = std::thread::spawn(move || {
+            for chunk in chunks {
+                client.write_all(chunk).expect("the write failed");
+            }
+        });
+
+        let after_short = Rc::new(Cell::new(u64::MAX));
+        let seen = Rc::clone(&after_short);
+        let got = Rc::new(RefCell::new(Vec::new()));
+        let filled = Rc::clone(&got);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            for chunk in [&b"one"[..], &b"two"[..]] {
+                let mut sent = false;
+                let read = crate::block_on(std::future::poll_fn(|_cx| {
+                    let mut buf = [0_u8; 8];
+                    match server.poll_read(&mut buf) {
+                        Poll::Ready(read) => Poll::Ready(read.map(|read| buf[..read].to_vec())),
+                        Poll::Pending => {
+                            if !sent {
+                                sent = true;
+                                send.send(chunk).expect("the writer ended early");
+                            }
+                            Poll::Pending
+                        }
+                    }
+                }))
+                .expect("the drive was cancelled")
+                .expect("the read failed");
+                filled.borrow_mut().push(read);
+                if chunk == b"one" {
+                    // The read right after the short one, with nothing sent since.
+                    let mut buf = [0_u8; 8];
+                    let before = crate::counts::Counts::now();
+                    assert!(server.poll_read(&mut buf).is_pending());
+                    seen.set(crate::counts::Counts::now().since(before).would_block_reads);
+                }
+            }
+            drop(send);
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        writer.join().expect("the writing thread panicked");
+        assert_eq!(
+            after_short.get(),
+            WOULD_BLOCK_READS_AFTER_A_SHORT_READ,
+            "the read after a short read made the wrong number of reads that answered WouldBlock"
+        );
+        assert_eq!(
+            *got.borrow(),
+            [b"one".to_vec(), b"two".to_vec()],
+            "a chunk sent after the short read did not wake the task"
         );
     }
 

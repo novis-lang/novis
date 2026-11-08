@@ -23,6 +23,18 @@ same task sets the bit too, which costs one extra failed `recv` and never a miss
 
 What it spends: four bytes per registered task in the reactor, and four per stream.
 
+**On Linux and macOS a short read clears the bit too.** A read that returns fewer bytes than its
+buffer holds, and more than none, took everything the socket had, so it is a `WouldBlock` with bytes
+attached. The bit is cleared only when the stream is registered for reading under the running task,
+which is the registration `still_quiet` checks. epoll and kqueue with `EV_CLEAR` are edge-triggered,
+so bytes that arrive after the read raise a new event and bump the count, and the next read is tried
+again. An event already queued for the bytes the read took bumps it too, which costs one failed `recv`
+and never a missed one. That removes the `recv` answering `EAGAIN` after every keep-alive request.
+Tokio does the same, and leaves Windows out for the same reason. Windows keeps the extra read: its
+readiness is emulated over AFD polls, and a short read there does not show that the socket is empty.
+A read that fills its buffer, a read of none, and a read off a core keep the syscall. It spends
+nothing: the count is the one the `WouldBlock` already takes.
+
 **Declined:**
 - **A bit set by the event for the descriptor itself.** The token would have to name the stream,
   which is a second table beside the task ids for one failed `recv` saved per shared wake.
