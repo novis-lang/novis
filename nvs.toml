@@ -252,56 +252,20 @@ entry = "examples/schema.nvs"
 connect = ["schema"]
 schema = ["schema"]
 
-# `Core\Db\DbError`'s three examples, on the same in-memory SQLite block and for the same reason
-# `examples/schema.nvs` is on it: each shows a statement the server refuses, and what they print has
-# to be the same four lines on Windows, under WSL and under valgrind. A refusal needs no server to
-# be real — a unique index is enforced by SQLite exactly as PostgreSQL enforces it — so these cost
-# the sweep no container. One entry each, because a grant is per application entry and never per
-# directory.
-[[app]]
-entry = "docs/examples/types/Db-DbError/01-a-row-that-is-already-there.nvs"
-
-[app.capabilities.db]
-connect = ["schema"]
-
-[[app]]
-entry = "docs/examples/types/Db-DbError/02-what-the-refusal-tells-you.nvs"
-
-[app.capabilities.db]
-connect = ["schema"]
-
-[[app]]
-entry = "docs/examples/types/Db-DbError/03-a-signup-that-says-what-went-wrong.nvs"
-
-[app.capabilities.db]
-connect = ["schema"]
-
-# The attack written against the same class, and the one entry here that is not an example. It makes
-# the server refuse a statement a hundred thousand times over, which is a question about what a
-# refusal keeps rather than about what a database can do — so it wants the block that needs no
-# container, exactly as the three above do.
+# The attack written against `Core\Db\DbError`, on the same in-memory SQLite block `examples/schema.nvs`
+# is on. It makes the server refuse a statement a hundred thousand times over, which is a question
+# about what a refusal keeps rather than about what a database can do. A refusal needs no server to be
+# real — a unique index is enforced by SQLite exactly as PostgreSQL enforces it — so it costs the sweep
+# no container.
 [[app]]
 entry = "tests/hostile/types/Db-DbError/01-a-flood-of-refusals-and-a-statement-too-big-to-log.nvs"
 
 [app.capabilities.db]
 connect = ["schema"]
 
-# `Core\Db\RolledBack`'s examples and attack, on the same in-memory SQLite block and for the same
-# reason its sibling's are: a transaction the program abandons is a decision the program made, so
-# every line below is answered by SQLite exactly as a server would answer it and the sweep needs no
-# container. The second example is not here because it throws the class directly and opens nothing.
-[[app]]
-entry = "docs/examples/types/Db-RolledBack/01-giving-up-on-a-batch.nvs"
-
-[app.capabilities.db]
-connect = ["schema"]
-
-[[app]]
-entry = "docs/examples/types/Db-RolledBack/03-a-checkout-that-says-why.nvs"
-
-[app.capabilities.db]
-connect = ["schema"]
-
+# `Core\Db\RolledBack`'s attack, on the same in-memory SQLite block and for the same reason its
+# sibling's is: a transaction the program abandons is a decision the program made, so SQLite answers
+# it exactly as a server would and the sweep needs no container.
 [[app]]
 entry = "tests/hostile/types/Db-RolledBack/01-a-flood-of-rollbacks-and-a-reason-too-big-to-keep.nvs"
 
@@ -1220,24 +1184,6 @@ connect = ["notes"]
 # one of them a database of its own. The readers differ only in the type they answer, so one grant
 # per program is what keeps the capability check asked rather than assumed for all of them.
 [[app]]
-entry = "docs/examples/core/Db-Row/bool/01-read-a-yes-or-no-column.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/bool/02-a-column-that-has-no-value.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/bool/03-pick-the-accounts-a-flag-is-set-on.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Row/bool/01-numbers-that-are-not-flags-and-a-million-reads.nvs"
 
 [app.capabilities.db]
@@ -1245,24 +1191,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Row/bool.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/bytes/01-read-a-picture-out-of-a-row.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/bytes/02-a-column-that-has-no-value.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/bytes/03-find-out-which-file-type-a-picture-is.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1280,24 +1208,6 @@ entry = "benches/members/core/Db-Row/bytes.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Row/date/01-read-the-day-a-task-is-due.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/date/02-a-column-that-has-no-value.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/date/03-pick-out-the-tasks-that-are-late.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Row/date/01-days-that-are-not-days-and-a-million-reads.nvs"
 
 [app.capabilities.db]
@@ -1305,24 +1215,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Row/date.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/decimal/01-read-a-price-out-of-a-row.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/decimal/02-a-column-that-has-no-value.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/decimal/03-add-up-what-an-order-costs.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1340,24 +1232,6 @@ entry = "benches/members/core/Db-Row/decimal.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Row/time/01-read-the-hour-a-shop-opens.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/time/02-a-column-that-has-no-value.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/time/03-find-the-shops-open-at-nine.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Row/time/01-clock-readings-that-are-not-readings-and-a-million-reads.nvs"
 
 [app.capabilities.db]
@@ -1365,24 +1239,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Row/time.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/uuid/01-read-the-id-of-an-order.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/uuid/02-a-column-that-has-no-value.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/uuid/03-look-up-a-row-by-the-id-a-request-carried.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1400,24 +1256,6 @@ entry = "benches/members/core/Db-Row/uuid.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Row/string/01-read-a-name-out-of-a-row.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/string/02-a-column-that-has-no-value.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/string/03-count-the-orders-of-each-status.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Row/string/01-a-column-of-every-other-type-and-a-million-reads.nvs"
 
 [app.capabilities.db]
@@ -1425,24 +1263,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Row/string.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/int/01-read-a-whole-number-out-of-a-row.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/int/02-a-column-that-has-no-value.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/int/03-check-that-an-order-fits-in-stock.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1460,24 +1280,6 @@ entry = "benches/members/core/Db-Row/int.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Row/uint/01-read-a-count-that-is-never-negative.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/uint/02-a-column-that-has-no-value.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/uint/03-add-up-what-a-folder-holds.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Row/uint/01-a-negative-column-and-a-million-reads.nvs"
 
 [app.capabilities.db]
@@ -1485,24 +1287,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Row/uint.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/float/01-read-a-measurement-out-of-a-row.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/float/02-a-column-that-has-no-value.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/float/03-pick-the-stops-inside-a-map-area.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1520,24 +1304,6 @@ entry = "benches/members/core/Db-Row/float.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Row/has/01-test-a-column-before-you-read-it.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/has/02-one-function-for-rows-of-two-tables.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/has/03-read-only-the-columns-a-request-asked-for.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Row/has/01-names-no-table-would-use-and-a-million-tests.nvs"
 
 [app.capabilities.db]
@@ -1545,24 +1311,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Row/has.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/get/01-read-a-column-without-naming-its-type.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/get/02-a-column-that-has-no-value.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/get/03-copy-rows-into-another-table.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1580,24 +1328,6 @@ entry = "benches/members/core/Db-Row/get.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Row/toArray/01-read-the-whole-row-at-once.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/toArray/02-read-a-row-whose-columns-you-do-not-know.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Row/toArray/03-answer-a-request-with-rows-as-json.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Row/toArray/01-a-row-turned-into-an-array-a-million-times.nvs"
 
 [app.capabilities.db]
@@ -1605,24 +1335,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Row/toArray.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Rows/all/01-read-every-row-at-once.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Rows/all/02-read-the-rows-more-than-once.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Rows/all/03-hand-a-whole-result-set-to-another-method.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1640,24 +1352,6 @@ entry = "benches/members/core/Db-Rows/all.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Rows/column/01-read-one-column-from-every-row.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Rows/column/02-name-the-column-by-its-position.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Rows/column/03-answer-a-request-with-one-column-as-json.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Rows/column/01-a-column-asked-for-again-and-again.nvs"
 
 [app.capabilities.db]
@@ -1665,24 +1359,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Rows/column.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Rows/columns/01-list-the-columns-a-query-answered.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Rows/columns/02-print-the-headings-when-no-rows-matched.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Rows/columns/03-write-the-first-line-of-a-csv-export.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1700,24 +1376,6 @@ entry = "benches/members/core/Db-Rows/columns.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Rows/count/01-say-how-many-rows-a-search-found.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Rows/count/02-take-another-path-when-nothing-matched.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Rows/count/03-work-out-how-many-pages-a-list-needs.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Rows/count/01-a-count-asked-for-again-and-again.nvs"
 
 [app.capabilities.db]
@@ -1725,24 +1383,6 @@ connect = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Rows/count.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Rows/first/01-read-the-one-row-a-lookup-found.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Rows/first/02-say-so-when-a-lookup-found-nothing.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Rows/first/03-read-the-first-row-as-your-own-class.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1760,24 +1400,6 @@ entry = "benches/members/core/Db-Rows/first.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Rows/value/01-read-the-number-a-count-query-answered.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Rows/value/02-the-two-times-the-value-is-null.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Rows/value/03-build-a-summary-line-from-one-value-queries.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Rows/value/01-one-value-read-again-and-again.nvs"
 
 [app.capabilities.db]
@@ -1789,35 +1411,11 @@ entry = "benches/members/core/Db-Rows/value.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
-# `Core\Db\Schema`'s programs that reach a database. Reading a schema out of an array and writing one
-# back need nothing granted at all, so that group's other programs are not written here. The grants below
-# are the split of `rule:core-classes/schema-apply-capability`: `db.connect` is the whole of what `planAgainst` needs, and the one
-# program that also applies what it planned holds `db.schema` for the same name its connection names.
-[[app]]
-entry = "docs/examples/core/Db-Schema/fromArray/03-bring-a-database-up-to-a-schema-you-read-as-json.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-schema = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Schema/planAgainst/01-see-what-a-schema-would-change.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Schema/planAgainst/02-read-the-grade-of-every-step.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Schema/planAgainst/03-check-at-start-up-that-the-database-is-up-to-date.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-
+# `Core\Db\Schema`'s attacks and benches that reach a database. Reading a schema out of an array and
+# writing one back need nothing granted at all, so those are not written here. The grants below are the
+# split of `rule:core-classes/schema-apply-capability`: `db.connect` is the whole of what `planAgainst`
+# needs, and a program that also applies what it planned holds `db.schema` for the same name its
+# connection names.
 [[app]]
 entry = "tests/hostile/core/Db-Schema/planAgainst/01-planning-the-same-database-without-end.nvs"
 
@@ -1831,27 +1429,6 @@ entry = "benches/members/core/Db-Schema/planAgainst.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "docs/examples/core/Db-Schema/applySafe/01-create-the-tables-a-new-database-needs.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-schema = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Schema/applySafe/02-a-step-that-is-not-safe.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-schema = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Schema/applySafe/03-add-a-column-to-a-table-that-has-rows.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-schema = ["notes"]
-
-[[app]]
 entry = "tests/hostile/core/Db-Schema/applySafe/01-applying-the-same-schema-without-end.nvs"
 
 [app.capabilities.db]
@@ -1860,27 +1437,6 @@ schema = ["notes"]
 
 [[app]]
 entry = "benches/members/core/Db-Schema/applySafe.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-schema = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Schema/applyIncludingRisky/01-run-a-change-that-applysafe-refuses.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-schema = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Schema/applyIncludingRisky/02-read-the-plan-before-you-run-it.nvs"
-
-[app.capabilities.db]
-connect = ["notes"]
-schema = ["notes"]
-
-[[app]]
-entry = "docs/examples/core/Db-Schema/applyIncludingRisky/03-a-table-you-never-declared-is-kept.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]

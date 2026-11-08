@@ -1,0 +1,10 @@
+# The `notes` database is kept in memory. It is deleted when the program ends.
+[db.notes]
+driver = "sqlite"
+path = ":memory:"
+
+# The programs may open the `notes` database and change its tables.
+# Changing the tables needs the `schema` permission.
+[capabilities.db]
+connect = ["notes"]
+schema = ["notes"]

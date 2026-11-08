@@ -1,0 +1,13 @@
+# The `notes` database is kept in memory. It is deleted when the program ends.
+[db.notes]
+driver = "sqlite"
+path = ":memory:"
+
+# Only the third example opens a database. It may open `notes` and change its tables.
+# Changing the tables needs the `schema` permission.
+[[app]]
+entry = "03-bring-a-database-up-to-a-schema-you-read-as-json.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]

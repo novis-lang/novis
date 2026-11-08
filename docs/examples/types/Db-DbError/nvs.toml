@@ -1,0 +1,8 @@
+# The `schema` database is kept in memory. It is deleted when the program ends.
+[db.schema]
+driver = "sqlite"
+path = ":memory:"
+
+# The program may open the `schema` database.
+[capabilities.db]
+connect = ["schema"]

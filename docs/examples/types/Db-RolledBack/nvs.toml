@@ -1,0 +1,17 @@
+# The `schema` database is kept in memory. It is deleted when the program ends.
+[db.schema]
+driver = "sqlite"
+path = ":memory:"
+
+# The second example opens no database. The other two may open the `schema` database.
+[[app]]
+entry = "01-giving-up-on-a-batch.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+
+[[app]]
+entry = "03-a-checkout-that-says-why.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
