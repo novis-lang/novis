@@ -128,12 +128,11 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `c2b8671f2`, and its CI (run `42474271538`) and Website runs are green. Its
-`test / windows-x86_64 (tests 2/3)` job first failed in `cargo build` when the hosted runner lost
-contact with the server, with no log. One `bun nv ci --rerun` made it green. The only unpushed
-commits on `main` are this goal's handoff notes, which start no run.
+`origin/main` is at `04e4562dc`, and its CI (run `42498924010`) and Website (run `42498924097`)
+runs are green with no rerun. That push carried the main loop's retired `request-and-page-speed`
+goal. The only unpushed commits on `main` are this goal's handoff notes, which start no run.
 
-The pushes of the session before fixed:
+The pushes of an earlier session fixed:
 
 - `fb1eea7c2`: `taint_signatures` names `Core\Json::encodeEach` in `ALLOWED` as an encoder.
 - `81a279ca7`: `queue_sqlite`'s test token always has a letter, so its upper case differs.
