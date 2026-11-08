@@ -1437,7 +1437,10 @@ guessed Id finds no job, and the answer is the one a deleted job gets. The Id ha
 a later request parses back, so a program can hand it to a client. **Who may use an Id is the app's
 check**: the app stores the string beside its own record of who started the job, and looks it up by
 the string and the signed-in user before it calls `status` or `cancel`. The token makes a guessed Id
-useless; it does not say whose job it is. What it spends: 32 bytes of text per row in each table,
+useless; it does not say whose job it is. `Core\Queue\Id::parse` and `tryParse` take a `tainted`
+string, since the string comes back from a client, and the Id has no text a program can read but
+`toString`, a plain `string` built from checked parts. No answer tells a forged Id from a deleted
+job: one statement serves both, so the time taken is the same too. What it spends: 32 bytes of text per row in each table,
 and one more slot per Id.
 
 Declined: row numbers as the whole Id, because they count up and one missed ownership check exposes

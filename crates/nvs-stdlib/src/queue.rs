@@ -240,6 +240,12 @@ fn fresh_token(ctx: &mut nvs_runtime::Ctx) -> String {
 
 /// `raw` as the text the `token` column stores: [`TOKEN_WIDTH`] lower-case hex digits.
 ///
+/// **Text and not a binary column**, because every value the queue binds goes out as text on all
+/// four send paths, and a binary parameter is written differently on each. Hex has one written
+/// form per byte string, so the case-insensitive default collations of MySQL and SQL Server still
+/// compare two tokens exactly, which base64url text would not. It spends 16 more bytes per row
+/// than binary would.
+///
 /// `pub` so `crates/nvs-stdlib/tests/queue_sqlite.rs` writes the column's own form.
 #[must_use]
 pub fn token_text(raw: &[u8; TOKEN_BYTES]) -> String {
