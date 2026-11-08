@@ -65,6 +65,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   page stamped with three passes `--status` and turns `bun nv ci --check`'s website stale guard red.
   Write four or more, and run `bun nv site --check questions` once after stamping. See
   `tools/nv/cmd/site.ts`. `until: gone tools/nv/cmd/site.ts:four to six`
+- **Any edit to a hand-written page makes its questions stale, even one that only adds fence meta
+  such as `skip="..."`.** The entry's hash is the whole file, so a sweep over many pages turns
+  `bun nv ci --check`'s website stale guard red at the goal's end. Run `bun nv site --check questions`
+  after such a sweep. Where the reader sees no change, stamp every page it names. See
+  `tools/nv/cmd/site.ts`. `until: gone tools/nv/cmd/site.ts:a handwritten page its key and its file`
 - **`bun nv proofs --gate --group 'Core\X'` does not reach a value class inside it, `Core\X\Y`.**
   Each class is its own group, so a goal that gated only the outer class learns at `bun nv ci
   --check` that every member of the inner one owes all its proofs. Gate both groups from the start,

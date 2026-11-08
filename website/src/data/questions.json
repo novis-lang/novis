@@ -159,7 +159,7 @@
   },
   "/guides/example-apps/chat/": {
     "feature": "guides/example-apps/chat.mdx",
-    "hash": "44adf999f46d9941",
+    "hash": "27fc7bb13dce635c",
     "questions": [
       "Example chat app with rooms over WebSockets",
       "How do I send messages from the server to every browser in a room?",
@@ -171,7 +171,7 @@
   },
   "/guides/example-apps/notes/": {
     "feature": "guides/example-apps/notes.mdx",
-    "hash": "e536ea7c70e9c10f",
+    "hash": "ab2796538bb2bffc",
     "questions": [
       "Example web app with SQLite, HTML pages and a JSON API",
       "How do I download and run the Notes example app?",
@@ -183,7 +183,7 @@
   },
   "/guides/example-apps/paperwork/": {
     "feature": "guides/example-apps/paperwork.mdx",
-    "hash": "3f417e77f937697d",
+    "hash": "fe3e8e61113d9ba7",
     "questions": [
       "Example app that makes PDF invoices, reports and tickets",
       "See a sample PDF made with Novis",
@@ -195,7 +195,7 @@
   },
   "/guides/example-apps/poll/": {
     "feature": "guides/example-apps/poll.mdx",
-    "hash": "b68ee81506fd6ded",
+    "hash": "59db8c61fdd7a22b",
     "questions": [
       "Example live poll app with server-sent events",
       "Show new votes on every open page without a reload",
@@ -219,7 +219,7 @@
   },
   "/guides/extensions/rust/": {
     "feature": "guides/extensions/rust.mdx",
-    "hash": "35056284be4ea64e",
+    "hash": "a42ca4527557c4ce",
     "questions": [
       "Step by step guide to write an extension in Rust",
       "Add syntax highlighting with a Rust library",
@@ -299,7 +299,7 @@
   },
   "/guides/how-to-use/project-layout/": {
     "feature": "guides/how-to-use/project-layout.mdx",
-    "hash": "d2207425e0d007f1",
+    "hash": "f5e9f35b7849a698",
     "questions": [
       "How should I organize the folders of a Novis web app?",
       "Where do I put the entry file, classes and tests?",
@@ -340,7 +340,7 @@
   },
   "/guides/production/docker/": {
     "feature": "guides/production/docker.mdx",
-    "hash": "5ed94d0498eb274e",
+    "hash": "1d10db5ad457b25b",
     "questions": [
       "How do I run a Novis app in a Docker container?",
       "Which tag of the official Novis image should I deploy?",
@@ -364,7 +364,7 @@
   },
   "/guides/production/reverse-proxy/": {
     "feature": "guides/production/reverse-proxy.mdx",
-    "hash": "fd1d9b332adefd40",
+    "hash": "af85ce48bc076624",
     "questions": [
       "How do I run Novis behind nginx or Caddy with HTTPS?",
       "Does Novis support HTTP/2 or HTTP/3?",
@@ -433,7 +433,7 @@
   },
   "/guides/simple-programs/form-handler/": {
     "feature": "guides/simple-programs/form-handler.mdx",
-    "hash": "0a6ba35c90e163eb",
+    "hash": "2364c85f977da07d",
     "questions": [
       "How do I handle a contact form and reply with HTML?",
       "Example of reading a POST form into an object",
@@ -444,7 +444,7 @@
   },
   "/guides/simple-programs/json-api/": {
     "feature": "guides/simple-programs/json-api.mdx",
-    "hash": "29ff0c20d0c9829c",
+    "hash": "5c93dcee14e12fca",
     "questions": [
       "Example of a JSON API in Novis",
       "How do I return one product as JSON by its id?",
@@ -523,7 +523,7 @@
   },
   "/guides/tour/01-methods-and-types/": {
     "feature": "guides/tour/01-methods-and-types.mdx",
-    "hash": "ea8bffba003fcf47",
+    "hash": "c9a018346fe4e641",
     "questions": [
       "First steps: write a method and call it",
       "Why must every function be inside a class?",
@@ -597,7 +597,7 @@
   },
   "/guides/tour/08-tests/": {
     "feature": "guides/tour/08-tests.mdx",
-    "hash": "7a3aa720a53a9889",
+    "hash": "23fab4d1f14101f8",
     "questions": [
       "Tutorial step on writing my first test",
       "Can I put tests in the same file as my code?",
@@ -691,7 +691,7 @@
   },
   "/guides/why-novis/no-null-surprises/": {
     "feature": "guides/why-novis/no-null-surprises.mdx",
-    "hash": "83e7e1ca0e109b71",
+    "hash": "9bc686af94e83011",
     "questions": [
       "Why can a normal variable never be null in Novis?",
       "How does Novis prevent null pointer errors?",
@@ -754,7 +754,7 @@
   },
   "/guides/why-novis/tests-in-code/": {
     "feature": "guides/why-novis/tests-in-code.mdx",
-    "hash": "89f427b6caca15df",
+    "hash": "5e8b60e4cfa5932f",
     "questions": [
       "Why is the test runner built into Novis?",
       "Do I need to choose and configure a test framework?",
@@ -1035,7 +1035,7 @@
   },
   "/install/": {
     "feature": "install/index.mdx",
-    "hash": "d1d45983724f4316",
+    "hash": "d024fbf3f33926fa",
     "questions": [
       "How do I install Novis?",
       "Download nvs for Windows, Linux or macOS",
@@ -1047,7 +1047,7 @@
   },
   "/install/hello-world/": {
     "feature": "install/hello-world.mdx",
-    "hash": "2a0a2900b02ca636",
+    "hash": "668539d186f14d4f",
     "questions": [
       "How do I write my first Novis program?",
       "Hello world example in Novis",
@@ -1058,7 +1058,7 @@
   },
   "/install/server/": {
     "feature": "install/server.mdx",
-    "hash": "ebac7fa6b9d94518",
+    "hash": "99746e20b2f3c977",
     "questions": [
       "How do I install Novis on a production server?",
       "Where does Novis keep its cache, logs and config files?",
@@ -18574,7 +18574,7 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "269521e5bf1c4496",
+    "hash": "d27797a34a2aaf2f",
     "questions": [
       "Install the Novis extension from the Marketplace, Open VSX or a .vsix file",
       "Rename a method in every file of my project at once",
@@ -18621,7 +18621,7 @@
   },
   "/tools/test-runner/coverage/": {
     "feature": "tools/test-runner/coverage.mdx",
-    "hash": "b1750257eee0c864",
+    "hash": "5f579c1c06a545de",
     "questions": [
       "How do I see which lines my tests do not run?",
       "Send a test coverage report to my build server",

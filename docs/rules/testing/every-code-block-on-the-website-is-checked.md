@@ -50,3 +50,6 @@ both parts.
   reader a step for one parse.
 - **Removing a Caddyfile's `rate_limit` block because it needs a plugin.** The page would lose the
   login limit it shows.
+- **A CI step of its own for the proxy checks, beside veraPDF's.** The `code` and `apps` parts call
+  `bun nv proxy-validate` themselves inside the website stale guard step, so a second step would run
+  the same checks twice. That step's job has a 90-minute limit, which the plugin build fits.
