@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: [registry-readme]
+chain: []
 floor:
   - id: floor-debt
     name: every owed or red atom is paid green
@@ -37,11 +37,7 @@ floor:
 
 # Goals
 
-The chain holds 1 goal(s). `registry-readme` is live.
-
-| # | Goal | Reached when | Stages |
-|---|---|---|---|
-| 1 | [`registry-readme`](registry-readme.md) **live** | Reached when each package version's readme is rendered once by Core\Markdown::toHtml when the registry builds it, stored with the version, and shown on the package page, with relative links and images pointing at the commit it was built from and heading anchors that work, and no page view parses Markdown. | 1 ✓ the readme is rendered once per version, stored, and shown on the package page · 2 ✓ the goal is verified once, and every failure is fixed |
+The chain is empty.
 
 Off the chain (side goals): [`ci-green`](ci-green.md).
 
