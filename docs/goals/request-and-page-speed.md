@@ -227,15 +227,8 @@ receiver check.
 
 ### State
 
-Stage 1 is done in `649760357a`. On Unix a short read in `poll_read` sets `quiet` when the stream is
-registered for reading under the running task (`quiet_after_a_short_read`). The keep-alive count
-test's bound is 0 reads that answer `WouldBlock` per request on Unix and 1 on Windows. Both tests of
-`one-read-per-request` pass on Windows and in WSL. macOS is untested until CI runs: if a macOS runner
-shows a lost wake, decision 1's fallback applies. *Why*'s figures are from `81a279ca7a`.
-
-Stage 4 is done in `3574503695`. `descriptor` reads a thread-local cache keyed by the class's
-address and looks up by name only on a miss (decision 5, amended). `receiver` compares the class word
-first. `every_core_class_with_instances_finds_its_descriptor_by_address` passes.
+Stages 1 and 4 are done in `649760357a` and `3574503695`. macOS has not run stage 1 yet: if a
+macOS runner shows a lost wake, decision 1's fallback applies.
 
 Stage 2 is done in `f837844b20` and `670506f22d`. `IntPlaceholder::digits` writes decimal through
 `write_decimal` and the power-of-two bases through `write_radix`. `len` and `Piece::Int`'s measure
@@ -251,9 +244,8 @@ predicate's 2 when a lead byte appears. `text_with_nothing_to_escape_is_scanned_
 counts. `escaped_len_and_escape_into_agree_with_escape_on_every_byte` passes, and it also compares
 `escape` against a plain reference.
 
-The last sweep's items were already settled. `env-secret-proofs` is a check from a retired goal with
-no log on disk. The nightly run `42468563179` ran on `81a279ca7a`, which is older than `c2b8671f2`,
-the commit `ci-green` recorded green.
+The sweep's items were settled: `env-secret-proofs` has no log on disk, and nightly `42468563179`
+ran on `81a279ca7a`, older than `c2b8671f2`, which `ci-green` recorded green.
 
 ### Next
 
