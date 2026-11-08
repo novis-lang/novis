@@ -1,5 +1,13 @@
 {
   "comment": "The public roadmap. `bun nv site --check roadmap` keeps it in step with the goal chain, and `bun nv site --roadmap` copies it into README.md. `internal` lists the goals that are not public work.",
   "internal": [],
-  "themes": []
+  "themes": [
+    {
+      "title": "Faster requests and pages",
+      "text": "A server answers a keep-alive request with fewer system calls. An HTML page writes whole numbers and escaped text faster. A call on a `Core` object finds its method without looking up a name.",
+      "goals": [
+        "request-and-page-speed"
+      ]
+    }
+  ]
 }
