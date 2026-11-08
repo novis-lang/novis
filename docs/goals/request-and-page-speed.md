@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-host/src/net.rs, crates/nvs-host/src/counts.rs, docs/rules/concurrency/try-the-syscall-then-park.md]
   - id: 2
     title: "integers join a string as digits written on the stack, never through Rust's formatter or a string of their own"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/placeholder.rs, crates/nvs-runtime/src/helpers.rs, crates/nvs-runtime/src/string.rs, crates/nvs-ir/src/lower/expr.rs, docs/rules/types/string-holes.md]
   - id: 3
     title: "escaped text is scanned once to measure and once to write"
@@ -165,9 +165,9 @@ macOS.
 - [x] Write `every_integer_placeholder_writes_what_the_formatter_writes`: every base, `+`, left and
   zero padding, width, precision, and `0`, `-1`, `i64::MIN`, `i64::MAX`, `u64::MAX`, compared with
   `format!`, for both `len` and `write`. `crates/nvs-runtime/src/placeholder.rs:245`
-- [ ] Lower `FormatPiece::Argument` over an `int` to a `PartKind::Int` part under decision 3.
+- [x] Lower `FormatPiece::Argument` over an `int` to a `PartKind::Int` part under decision 3.
   `crates/nvs-ir/src/lower/expr.rs:2437`
-- [ ] Write `a_bare_integer_placeholder_joins_as_an_integer_part` in the lowering tests: the IR of
+- [x] Write `a_bare_integer_placeholder_joins_as_an_integer_part` in the lowering tests: the IR of
   `Core\Str::format('Teapot %d & lid', $i)` has no `helper.int_to_string`.
   `crates/nvs-ir/src/lower/tests.rs:1`
 

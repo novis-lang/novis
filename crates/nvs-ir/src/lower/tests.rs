@@ -5110,3 +5110,20 @@ final class CartTest {
         assert!(rows(&test).iter().any(|n| n == label), "{label} has no row");
     }
 }
+
+/// A bare `%d` over an `int` joins as an integer part, so the join writes its
+/// digits and no string of digits is made, also when it is the whole template.
+#[test]
+fn a_bare_integer_placeholder_joins_as_an_integer_part() {
+    let (f, map, file) = lower_script_src(
+        "<?nvs
+int $i = 7;
+echo Core\\Str::format('Teapot %d & lid', $i);
+echo Core\\Str::format('%d', $i);
+",
+    );
+    let text = print_function(&f, map.file(file));
+    assert!(!text.contains("helper.int_to_string"), "{text}");
+    assert!(text.contains("concat v1, int v0, v2"), "{text}");
+    assert!(text.contains("= concat int v0  ;"), "{text}");
+}

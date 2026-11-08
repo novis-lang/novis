@@ -2409,8 +2409,9 @@ impl<'a> Lowering<'a> {
     /// owns when it does).
     ///
     /// The template is a constant, so it is not evaluated. Each argument is
-    /// lowered in written order and converted by [`Self::concat_operand`], as
-    /// an interpolated string converts its holes. A
+    /// lowered in written order and converted by [`Self::interpolated_hole`],
+    /// as an interpolated string converts its holes, so a bare `int` argument
+    /// is a [`PartKind::Int`] piece. A `uint` keeps its conversion. A
     /// [`nvs_types::expr_table::FormatPiece::Integer`] argument is a
     /// [`PartKind::Format`] piece, which the join writes with no string in
     /// between. A [`nvs_types::expr_table::FormatPiece::Converted`] argument
@@ -2442,8 +2443,9 @@ impl<'a> Lowering<'a> {
                             args.len()
                         )
                     });
-                    let (v, alias) = self.concat_operand(&arg.value, env, cur);
-                    (ConcatPart::str(v), alias)
+                    // An `int` is a `PartKind::Int` piece even alone, so the
+                    // join writes its digits and no string of digits is made.
+                    self.interpolated_hole(&arg.value, true, env, cur)
                 }
                 nvs_types::expr_table::FormatPiece::Integer { argument, kind } => {
                     let arg = args.get(*argument).unwrap_or_else(|| {
