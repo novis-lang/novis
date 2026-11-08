@@ -629,7 +629,7 @@ bun nv sweep [--keep-runs <n>]                        # sweeps the disk, reads n
 bun nv side --prepare --hook                          # looper's before_run: readies a side loop's lane, else nothing
 bun nv ci --push                                      # looper's after_retire: pre-push checks, pushes main, cancels the runs it replaces
 bun nv ci --check                                     # the pre-push checks alone, before a goal is claimed done
-bun nv ci --watch | --status | --rerun                # the `ci-green` goal's: waits for a failed job, lists them, reruns them
+bun nv ci --watch | --status | --rerun                # waits for a failed job, lists them, reruns them
 bun nv ci --dispatch full|dry-run                     # starts a full ci.yml run, or a dry-run Release, on main
 bun nv ci --dispatch release                          # the real Release, only under a live goal that says so (docs/release.md)
 bun nv ci --watch --release                           # watches the newest Release run, and cancels no run
@@ -668,11 +668,11 @@ merges `main` in, runs verify, pauses the other loops and fast-forwards `main`. 
 every goal end, and then `bun nv relink --build --hook`, which rebuilds `target/release/nvs` in the root
 and builds nothing in a side loop's lane (`tools/nv/cmd/relink.ts`). Last comes `bun nv vsix --hook`,
 which rebuilds `editors/vscode/nvs.vsix` when the extension changed since its last build, under the same
-side-lane rule (`tools/nv/cmd/vsix.ts`). The goal `ci-green` is the one side goal that runs in the
-root, added with `looper loop add --side ci-green --in-root`. It is never reached: its loop watches the
-runs every push starts with `bun nv ci --watch`, fixes each failure, commits, and pushes again with
-`bun nv ci --push` until they are green. It is the one session that drives CI while it runs, and no
-other session pushes or cancels a run then. The push starts the runs, and the command cancels each run a
+side-lane rule (`tools/nv/cmd/vsix.ts`). The goal `release-green` is the one side goal that runs in the
+root, added with `looper loop add --side release-green --in-root`. It is never reached: a person starts
+its loop, which runs every CI job this machine can run, fixes what fails, pushes, and proves the push
+with one `Release` dry run, fixing and repeating until that run is green. Then it stops itself. It is the
+one session that drives CI while it runs, and no other session pushes or cancels a run then. The push starts the runs, and the command cancels each run a
 newer one replaces, so each workflow has one run going on `main` (`rule:testing/one-run-on-main`).
 `tools/nv/cmd/ci.ts` is the command's procedure.
 

@@ -39,7 +39,7 @@ floor:
 
 The chain is empty.
 
-Off the chain (side goals): [`ci-green`](ci-green.md).
+Off the chain (side goals): [`release-green`](release-green.md).
 
 The floor holds 5 check(s) carried from reached goals; every goal keeps them green.
 The format is `docs/goal-format.md`.
