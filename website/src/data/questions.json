@@ -5437,7 +5437,7 @@
   },
   "/reference/core/html/tosource/": {
     "feature": "Core\\Html::toSource",
-    "hash": "11b27a5c8084eb7b",
+    "hash": "7f39a3aeeabf0d29",
     "questions": [
       "Get safe HTML back as a plain string",
       "How do I store rendered HTML in a database?",
@@ -6627,24 +6627,26 @@
   },
   "/reference/core/json/encode/": {
     "feature": "Core\\Json::encode",
-    "hash": "8c0cda578efecfd8",
+    "hash": "7d1f6fde02ecca2f",
     "questions": [
       "How do I convert an array to a JSON string?",
       "Write an object as JSON text",
       "Print JSON with indentation so it is easy to read",
       "Send a JSON response from an API",
-      "Escape non-ASCII characters in JSON output"
+      "Escape non-ASCII characters in JSON output",
+      "Is JSON text safe to put inside a script element?"
     ]
   },
   "/reference/core/json/encodeeach/": {
     "feature": "Core\\Json::encodeEach",
-    "hash": "fdcbf979e75b6886",
+    "hash": "1bd9849e1129c0d6",
     "questions": [
       "How do I write a very long list as JSON?",
       "Export database rows to a JSON file without much memory",
       "Stream a large JSON array in a response",
       "Write JSON Lines, one value on each line",
-      "What happens when an item cannot be encoded halfway?"
+      "What happens when an item cannot be encoded halfway?",
+      "Stream JSON into an HTML page without breaking the markup"
     ]
   },
   "/reference/core/json/isvalid/": {
@@ -6669,12 +6671,13 @@
   },
   "/reference/core/json-pieces/": {
     "feature": "Core\\Json\\Pieces",
-    "hash": "89f4883600577199",
+    "hash": "7aec572b79f2fec0",
     "questions": [
       "What does Core\\Json::encodeEach return?",
       "Loop over JSON text in pieces of bytes",
       "Write JSON pieces to a file with writeStream",
-      "How large is each piece of JSON text?"
+      "How large is each piece of JSON text?",
+      "Are angle brackets escaped in each JSON piece?"
     ]
   },
   "/reference/core/jwe/": {
@@ -8113,7 +8116,7 @@
   },
   "/reference/core/markdown-live/push/": {
     "feature": "Core\\Markdown\\Live::push",
-    "hash": "c5f5d3a57af61886",
+    "hash": "99dacf2745ccc690",
     "questions": [
       "Add the next chunk of streamed Markdown text",
       "Can a streamed piece end in the middle of a word?",
