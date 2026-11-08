@@ -1519,7 +1519,7 @@
   },
   "/reference/config/app/": {
     "feature": "tools:config/app-per-application-blocks",
-    "hash": "447d8cc88735737c",
+    "hash": "c2ef81bd77aeb0e5",
     "questions": [
       "How do I give one program different settings than the rest?",
       "Run several applications on one server with separate limits",
@@ -1542,7 +1542,7 @@
   },
   "/reference/config/cache/": {
     "feature": "directive:cache.shared",
-    "hash": "d380d52e02d056de",
+    "hash": "13b06e11bdeffde8",
     "questions": [
       "How do I connect the cache to a Redis server?",
       "Share cached data across every server in a deployment",
@@ -1554,7 +1554,7 @@
   },
   "/reference/config/capabilities/": {
     "feature": "tools:config/capabilities",
-    "hash": "f535a1f7875a8be1",
+    "hash": "63fdbd30b20ed916",
     "questions": [
       "How do I allow a program to read files from a folder?",
       "Why does writing a file throw a RuntimeError about a capability?",
@@ -1566,7 +1566,7 @@
   },
   "/reference/config/debug/": {
     "feature": "directive:debug.keep_temporary",
-    "hash": "37e652606d81da2b",
+    "hash": "75f6910033c08e35",
     "questions": [
       "Keep temporary files after a script fails so I can inspect them",
       "Show debug output in the browser page during development",
@@ -1578,7 +1578,7 @@
   },
   "/reference/config/deferred/": {
     "feature": "directive:deferred.max_concurrent",
-    "hash": "6a49bb69cb28d8c8",
+    "hash": "47fa98057ac53202",
     "questions": [
       "How long can background work run after the response is sent?",
       "Set a time limit for tasks that run after replying",
@@ -1633,7 +1633,7 @@
   },
   "/reference/config/http/": {
     "feature": "directive:http",
-    "hash": "a75b68e54057a205",
+    "hash": "6e5eff529bb62c03",
     "questions": [
       "How do I set security headers on every response?",
       "Allow cross-origin requests from another website",
@@ -1655,7 +1655,7 @@
   },
   "/reference/config/include/": {
     "feature": "tools:config/include-a-tree-of-files",
-    "hash": "d163ed059268045d",
+    "hash": "5330bebfb3355850",
     "questions": [
       "How do I split configuration across several files?",
       "Load every settings file from a conf.d directory",
@@ -1667,7 +1667,7 @@
   },
   "/reference/config/io/": {
     "feature": "directive:io.temp_root",
-    "hash": "72a815e48edc9d8d",
+    "hash": "e44a9a626ef0a9f2",
     "questions": [
       "Where are temporary files and directories created?",
       "Store temporary files on a faster disk",
@@ -1677,7 +1677,7 @@
   },
   "/reference/config/limits/": {
     "feature": "tools:config/limits-and-limits-hard",
-    "hash": "e937a3011458051d",
+    "hash": "7c8321925f6e9cca",
     "questions": [
       "How do I limit how much memory a request can use?",
       "Stop a slow request after a few seconds",
@@ -1689,7 +1689,7 @@
   },
   "/reference/config/log/": {
     "feature": "directive:log",
-    "hash": "a675fad20503212d",
+    "hash": "3cfe7c31f99ac840",
     "questions": [
       "How do I write log records as JSON or plain text?",
       "Turn on debug logging for one request",
@@ -1745,7 +1745,7 @@
   },
   "/reference/config/queue/": {
     "feature": "directive:queue.connection",
-    "hash": "3bb631aac619ae5d",
+    "hash": "dca3a689e174d4c4",
     "questions": [
       "How do I run background jobs?",
       "Which database stores my queued jobs?",
@@ -3176,7 +3176,7 @@
   },
   "/reference/core/cap/has/": {
     "feature": "Core\\Cap::has",
-    "hash": "36dc494e02719cd6",
+    "hash": "0a94ba53ca723326",
     "questions": [
       "How do I check if my code may write files?",
       "Is network access allowed for this program?",
@@ -4072,7 +4072,7 @@
   },
   "/reference/core/db/connect/": {
     "feature": "Core\\Db::connect",
-    "hash": "cb4730620af24d4f",
+    "hash": "d2f7249a62b4bbe2",
     "questions": [
       "How do I connect to the database named in my config?",
       "Open a database connection without a password in code",
@@ -4127,7 +4127,7 @@
   },
   "/reference/core/db-column/name/": {
     "feature": "Core\\Db\\Column::name",
-    "hash": "44b71a39ad8b6065",
+    "hash": "b4259d17ffd97b89",
     "questions": [
       "How do I get the column names of a query result?",
       "Print table headings from a SQL result",
@@ -4137,7 +4137,7 @@
   },
   "/reference/core/db-column/nullable/": {
     "feature": "Core\\Db\\Column::nullable",
-    "hash": "6c37a756e36b9dce",
+    "hash": "2a9585c59464b30c",
     "questions": [
       "How do I check if a result column can be NULL?",
       "Can this database column be empty?",
@@ -4147,7 +4147,7 @@
   },
   "/reference/core/db-column/type/": {
     "feature": "Core\\Db\\Column::type",
-    "hash": "e43f70450ad2d7b3",
+    "hash": "54d9ff5b51fe3f23",
     "questions": [
       "How do I get the data type of a result column?",
       "Is this query column an integer, text or date?",
@@ -4168,7 +4168,7 @@
   },
   "/reference/core/db-connection/close/": {
     "feature": "Core\\Db\\Connection::close",
-    "hash": "e050e59679be5a48",
+    "hash": "a1583d628bca6fe1",
     "questions": [
       "How do I close a database connection early?",
       "Give a database connection back to the pool before the request ends",
@@ -4179,7 +4179,7 @@
   },
   "/reference/core/db-connection/driver/": {
     "feature": "Core\\Db\\Connection::driver",
-    "hash": "7ec85b10382783e3",
+    "hash": "440a343327adeb2b",
     "questions": [
       "How do I find out which database system I am connected to?",
       "Check if the connection is Postgres, MySQL or SQLite",
@@ -4190,7 +4190,7 @@
   },
   "/reference/core/db-connection/execute/": {
     "feature": "Core\\Db\\Connection::execute",
-    "hash": "f09cf9649d13051a",
+    "hash": "08974de7927f4282",
     "questions": [
       "How do I insert a row into a database table?",
       "Run an update or delete statement and get the number of changed rows",
@@ -4202,7 +4202,7 @@
   },
   "/reference/core/db-connection/executemany/": {
     "feature": "Core\\Db\\Connection::executeMany",
-    "hash": "163cdd33aec0c21f",
+    "hash": "0fae534d6f7692ee",
     "questions": [
       "How do I insert many rows with one call?",
       "Run the same statement once for each set of values",
@@ -4213,7 +4213,7 @@
   },
   "/reference/core/db-connection/isopen/": {
     "feature": "Core\\Db\\Connection::isOpen",
-    "hash": "dde355df60dcbb80",
+    "hash": "b16c0f670e213aa3",
     "questions": [
       "How do I check if a database connection is still open?",
       "Was this connection already closed?",
@@ -4224,7 +4224,7 @@
   },
   "/reference/core/db-connection/query/": {
     "feature": "Core\\Db\\Connection::query",
-    "hash": "0ee27c65158e041c",
+    "hash": "114da92204a3c9bf",
     "questions": [
       "How do I run a select query and get the rows?",
       "Read rows from a database table",
@@ -4236,7 +4236,7 @@
   },
   "/reference/core/db-connection/queryas/": {
     "feature": "Core\\Db\\Connection::queryAs",
-    "hash": "92b606ffe900f93d",
+    "hash": "7fe6862251f9f5ec",
     "questions": [
       "How do I map query rows to objects of my class?",
       "Read database rows straight into typed objects",
@@ -4247,7 +4247,7 @@
   },
   "/reference/core/db-connection/serverversion/": {
     "feature": "Core\\Db\\Connection::serverVersion",
-    "hash": "1a1acc9157914c26",
+    "hash": "fe1b4643f5a030ca",
     "questions": [
       "How do I get the database server version?",
       "Which version of the database am I connected to?",
@@ -4258,7 +4258,7 @@
   },
   "/reference/core/db-connection/stream/": {
     "feature": "Core\\Db\\Connection::stream",
-    "hash": "466ac77603352305",
+    "hash": "0c768c4a5eaf5daf",
     "questions": [
       "How do I read a huge query result without running out of memory?",
       "Read rows one at a time from a large table",
@@ -4269,7 +4269,7 @@
   },
   "/reference/core/db-connection/streamas/": {
     "feature": "Core\\Db\\Connection::streamAs",
-    "hash": "e96dbbb8febbb3cf",
+    "hash": "07e5e63db720c6ff",
     "questions": [
       "How do I read a large table as objects one row at a time?",
       "Stream query results into typed objects without loading them all",
@@ -4280,7 +4280,7 @@
   },
   "/reference/core/db-connection/transaction/": {
     "feature": "Core\\Db\\Connection::transaction",
-    "hash": "a5606e738e316dd7",
+    "hash": "541dca84c25a97a6",
     "questions": [
       "How do I run several queries in a database transaction?",
       "Commit or roll back a group of database changes",
@@ -4312,7 +4312,7 @@
   },
   "/reference/core/db-plan/steps/": {
     "feature": "Core\\Db\\Plan::steps",
-    "hash": "02c244c40e311b4b",
+    "hash": "fcc07e6a42d006b1",
     "questions": [
       "How do I list each step of a migration plan?",
       "Check if the database is already up to date with the schema",
@@ -4333,7 +4333,7 @@
   },
   "/reference/core/db-plan-step/grade/": {
     "feature": "Core\\Db\\Plan\\Step::grade",
-    "hash": "81c73ac9140f4958",
+    "hash": "a51b66d19f4e6538",
     "questions": [
       "How do I tell if a migration step can lose data?",
       "Check whether a schema change will lock a table",
@@ -4344,7 +4344,7 @@
   },
   "/reference/core/db-plan-step/isrefused/": {
     "feature": "Core\\Db\\Plan\\Step::isRefused",
-    "hash": "4170ae4bcb783d24",
+    "hash": "f8b602d8addddd5e",
     "questions": [
       "Why does my migration not drop an old table?",
       "Find tables in the database that the schema does not declare",
@@ -4355,7 +4355,7 @@
   },
   "/reference/core/db-plan-step/reason/": {
     "feature": "Core\\Db\\Plan\\Step::reason",
-    "hash": "ae6d1455254ff895",
+    "hash": "21ec55bcf2156fa2",
     "questions": [
       "Why is a migration step considered risky?",
       "Get a readable explanation of a schema change",
@@ -4366,7 +4366,7 @@
   },
   "/reference/core/db-plan-step/sql/": {
     "feature": "Core\\Db\\Plan\\Step::sql",
-    "hash": "276dde3e38546858",
+    "hash": "40519502b1a81de9",
     "questions": [
       "How do I see the SQL a migration step will run?",
       "Export migration SQL for a database admin to review",
@@ -4387,7 +4387,7 @@
   },
   "/reference/core/db-row/bool/": {
     "feature": "Core\\Db\\Row::bool",
-    "hash": "9b9ca0a63be82fba",
+    "hash": "ebd223c2abbdce75",
     "questions": [
       "How do I read a boolean column from the database?",
       "Read a TINYINT(1) flag as true or false",
@@ -4397,7 +4397,7 @@
   },
   "/reference/core/db-row/bytes/": {
     "feature": "Core\\Db\\Row::bytes",
-    "hash": "94128364df12b061",
+    "hash": "226a40996562e439",
     "questions": [
       "How do I read a BLOB column?",
       "Read binary data such as an image from a database row",
@@ -4407,7 +4407,7 @@
   },
   "/reference/core/db-row/date/": {
     "feature": "Core\\Db\\Row::date",
-    "hash": "873f688b76e8b87d",
+    "hash": "21ab43c78cf3a361",
     "questions": [
       "How do I read a DATE column from the database?",
       "Get a calendar day such as a due date from a row",
@@ -4417,7 +4417,7 @@
   },
   "/reference/core/db-row/decimal/": {
     "feature": "Core\\Db\\Row::decimal",
-    "hash": "deb023fc20749679",
+    "hash": "f7cd5f678d22d4ef",
     "questions": [
       "How do I read a money column without rounding errors?",
       "Read a DECIMAL or NUMERIC column exactly",
@@ -4427,7 +4427,7 @@
   },
   "/reference/core/db-row/float/": {
     "feature": "Core\\Db\\Row::float",
-    "hash": "d5cc4c852c44c6d4",
+    "hash": "adb0679bcf121e8f",
     "questions": [
       "How do I read a FLOAT or DOUBLE column?",
       "Get a floating point number from a database row",
@@ -4437,7 +4437,7 @@
   },
   "/reference/core/db-row/get/": {
     "feature": "Core\\Db\\Row::get",
-    "hash": "3f22f0e628677c01",
+    "hash": "9470a3e5bdda0c8b",
     "questions": [
       "How do I read a column when I do not know its type?",
       "Get a raw column value from a row",
@@ -4447,7 +4447,7 @@
   },
   "/reference/core/db-row/has/": {
     "feature": "Core\\Db\\Row::has",
-    "hash": "a75ca82db51ccf3c",
+    "hash": "b03f97afd39ca76b",
     "questions": [
       "How do I check if a result row has a column?",
       "Does this row contain a column with a given name?",
@@ -4467,7 +4467,7 @@
   },
   "/reference/core/db-row/int/": {
     "feature": "Core\\Db\\Row::int",
-    "hash": "d43dbb7cc44c11e3",
+    "hash": "5f0265c8b19ba76b",
     "questions": [
       "How do I read an integer column from a row?",
       "Get a whole number such as an id or count from the database",
@@ -4477,7 +4477,7 @@
   },
   "/reference/core/db-row/string/": {
     "feature": "Core\\Db\\Row::string",
-    "hash": "26f1a2f927efe3ef",
+    "hash": "30b5d29d2777ef73",
     "questions": [
       "How do I read a text column from a database row?",
       "Get a VARCHAR or TEXT value from a query result",
@@ -4487,7 +4487,7 @@
   },
   "/reference/core/db-row/time/": {
     "feature": "Core\\Db\\Row::time",
-    "hash": "2f7b968fbec2db6e",
+    "hash": "88c7347f641d4cb7",
     "questions": [
       "How do I read a TIME column?",
       "Get a time of day such as opening hours from a row",
@@ -4497,7 +4497,7 @@
   },
   "/reference/core/db-row/toarray/": {
     "feature": "Core\\Db\\Row::toArray",
-    "hash": "d2a53a31d8e008a9",
+    "hash": "5e66685f72575dc1",
     "questions": [
       "How do I convert a database row to an array?",
       "Get all columns of a row as key value pairs",
@@ -4507,7 +4507,7 @@
   },
   "/reference/core/db-row/uint/": {
     "feature": "Core\\Db\\Row::uint",
-    "hash": "8059ca7c478ce933",
+    "hash": "2a385314760956dc",
     "questions": [
       "How do I read an UNSIGNED integer column?",
       "Read a file size or count that is never negative",
@@ -4517,7 +4517,7 @@
   },
   "/reference/core/db-row/uuid/": {
     "feature": "Core\\Db\\Row::uuid",
-    "hash": "dc8068ef08f044f7",
+    "hash": "765f5215807135ee",
     "questions": [
       "How do I read a UUID column from the database?",
       "Get a uniqueidentifier value from a row",
@@ -4537,7 +4537,7 @@
   },
   "/reference/core/db-rows/all/": {
     "feature": "Core\\Db\\Rows::all",
-    "hash": "e9cbea1561133b7a",
+    "hash": "9b528c2dfb83bccc",
     "questions": [
       "How do I get all query results as an array?",
       "Turn a result set into a list of rows",
@@ -4547,7 +4547,7 @@
   },
   "/reference/core/db-rows/column/": {
     "feature": "Core\\Db\\Rows::column",
-    "hash": "6f968e39fc21aeec",
+    "hash": "6580979826e7dd06",
     "questions": [
       "How do I get one column from every row as a list?",
       "Get a list of ids from a query",
@@ -4557,7 +4557,7 @@
   },
   "/reference/core/db-rows/columns/": {
     "feature": "Core\\Db\\Rows::columns",
-    "hash": "33a72d632ff18acf",
+    "hash": "4dd19fadb93782f8",
     "questions": [
       "How do I list every column a query result has?",
       "Read column types and nullability from a result",
@@ -4567,7 +4567,7 @@
   },
   "/reference/core/db-rows/count/": {
     "feature": "Core\\Db\\Rows::count",
-    "hash": "fb7da481dec2cd3d",
+    "hash": "1e74d3b98723d7ab",
     "questions": [
       "How do I count the rows a select returned?",
       "How many results did my search find?",
@@ -4577,7 +4577,7 @@
   },
   "/reference/core/db-rows/first/": {
     "feature": "Core\\Db\\Rows::first",
-    "hash": "93f6616d33c52e40",
+    "hash": "34511aa614c009f2",
     "questions": [
       "How do I get just the first row of a query?",
       "Fetch a single record by id",
@@ -4587,7 +4587,7 @@
   },
   "/reference/core/db-rows/value/": {
     "feature": "Core\\Db\\Rows::value",
-    "hash": "845f09a4ea624289",
+    "hash": "d8593eee43bf965a",
     "questions": [
       "How do I get a single value from a query?",
       "Read the result of select count(*)",
@@ -4607,7 +4607,7 @@
   },
   "/reference/core/db-schema/applyincludingrisky/": {
     "feature": "Core\\Db\\Schema::applyIncludingRisky",
-    "hash": "46a72901448f7148",
+    "hash": "68ca85069b21ad90",
     "questions": [
       "How do I run a migration that locks a table or rewrites data?",
       "Apply schema changes even when they are not safe",
@@ -4617,7 +4617,7 @@
   },
   "/reference/core/db-schema/applysafe/": {
     "feature": "Core\\Db\\Schema::applySafe",
-    "hash": "a42c8eaa782681c6",
+    "hash": "8d520579ea23970d",
     "questions": [
       "How do I migrate a database on deploy?",
       "Create missing tables and columns automatically",
@@ -4628,7 +4628,7 @@
   },
   "/reference/core/db-schema/fromarray/": {
     "feature": "Core\\Db\\Schema::fromArray",
-    "hash": "2a82d16f10ec8b4d",
+    "hash": "40cff0d62d337129",
     "questions": [
       "How do I define a database schema as an array?",
       "Load a schema description from JSON",
@@ -4638,7 +4638,7 @@
   },
   "/reference/core/db-schema/planagainst/": {
     "feature": "Core\\Db\\Schema::planAgainst",
-    "hash": "a89fdc56ff5e92de",
+    "hash": "2b2918ea1720c307",
     "questions": [
       "How do I see what a migration would change without running it?",
       "Compare a schema to a live database",
@@ -4680,7 +4680,7 @@
   },
   "/reference/core/db-transaction/execute/": {
     "feature": "Core\\Db\\Transaction::execute",
-    "hash": "291414ccb641e10b",
+    "hash": "200d99d15e8c7c04",
     "questions": [
       "How do I insert a row inside a transaction?",
       "Update or delete rows as part of a transaction",
@@ -4691,7 +4691,7 @@
   },
   "/reference/core/db-transaction/executemany/": {
     "feature": "Core\\Db\\Transaction::executeMany",
-    "hash": "b6c5a8e1c736addc",
+    "hash": "1c029f5f7531a94c",
     "questions": [
       "How do I insert many rows inside a transaction?",
       "Batch insert that is undone completely if one row fails",
@@ -4702,7 +4702,7 @@
   },
   "/reference/core/db-transaction/query/": {
     "feature": "Core\\Db\\Transaction::query",
-    "hash": "30a441d04a1b4148",
+    "hash": "0f614145f80531d1",
     "questions": [
       "How do I select rows inside a transaction?",
       "Read the rows I just wrote before the transaction ends",
@@ -4713,7 +4713,7 @@
   },
   "/reference/core/db-transaction/queryas/": {
     "feature": "Core\\Db\\Transaction::queryAs",
-    "hash": "4e045190f41fb8f1",
+    "hash": "dc7fde5ee72f750b",
     "questions": [
       "How do I read rows as objects inside a transaction?",
       "Load typed objects from a query in a transaction",
@@ -4723,7 +4723,7 @@
   },
   "/reference/core/db-transaction/rollback/": {
     "feature": "Core\\Db\\Transaction::rollBack",
-    "hash": "c64323fe741f4815",
+    "hash": "8e7a6c99a8df961e",
     "questions": [
       "How do I cancel a transaction and give a reason?",
       "Undo all database changes when a check fails",
@@ -4734,7 +4734,7 @@
   },
   "/reference/core/db-transaction/stream/": {
     "feature": "Core\\Db\\Transaction::stream",
-    "hash": "b670dcc0be5934ed",
+    "hash": "c8da4b3a25672a7c",
     "questions": [
       "How do I read a very large result inside a transaction?",
       "Read rows one at a time while a transaction is open",
@@ -4745,7 +4745,7 @@
   },
   "/reference/core/db-transaction/streamas/": {
     "feature": "Core\\Db\\Transaction::streamAs",
-    "hash": "9196953d04ab363e",
+    "hash": "8e6d808928c483a9",
     "questions": [
       "How do I read a large result as objects in a transaction?",
       "Build one object per row without loading every row",
@@ -4755,7 +4755,7 @@
   },
   "/reference/core/db-transaction/transaction/": {
     "feature": "Core\\Db\\Transaction::transaction",
-    "hash": "19e97d7ecc019dee",
+    "hash": "0fef1382b4d63695",
     "questions": [
       "How do I nest a transaction inside another one?",
       "Undo one step and keep the rest of the transaction",
@@ -4777,7 +4777,7 @@
   },
   "/reference/core/db-write/affected/": {
     "feature": "Core\\Db\\Write::affected",
-    "hash": "874d08959fd5aeef",
+    "hash": "c3e2fa67e86aab8b",
     "questions": [
       "How do I know if my update matched any row?",
       "Count how many rows a delete removed",
@@ -4788,7 +4788,7 @@
   },
   "/reference/core/db-write/changed/": {
     "feature": "Core\\Db\\Write::changed",
-    "hash": "0ac395d945866468",
+    "hash": "c1e28ee47444845a",
     "questions": [
       "Did the database report a row count at all?",
       "Tell apart zero changed rows and no count from the server",
@@ -4798,7 +4798,7 @@
   },
   "/reference/core/db-write/lastid/": {
     "feature": "Core\\Db\\Write::lastId",
-    "hash": "5ad0678d57c5d1ee",
+    "hash": "13d45b8516221c86",
     "questions": [
       "How do I get the auto increment id of a new row?",
       "Read the primary key after an insert",
@@ -5468,7 +5468,7 @@
   },
   "/reference/core/http/allowurl/": {
     "feature": "Core\\Http::allowUrl",
-    "hash": "ccfce14bfaad582b",
+    "hash": "d2647cf0cff30605",
     "questions": [
       "Send a request to a URL the user gave",
       "How do I protect against server-side request forgery?",
@@ -5511,7 +5511,7 @@
   },
   "/reference/core/http-client/delete/": {
     "feature": "Core\\Http\\Client::delete",
-    "hash": "48fe842576dc19b6",
+    "hash": "e4897c8efb2314d8",
     "questions": [
       "How do I send a DELETE request?",
       "Remove a record through a REST API",
@@ -5521,7 +5521,7 @@
   },
   "/reference/core/http-client/get/": {
     "feature": "Core\\Http\\Client::get",
-    "hash": "b12e2d84b149088e",
+    "hash": "7c76ff749c69b44b",
     "questions": [
       "How do I fetch a URL?",
       "Download data from an API",
@@ -5533,7 +5533,7 @@
   },
   "/reference/core/http-client/head/": {
     "feature": "Core\\Http\\Client::head",
-    "hash": "f48d8908e4f12480",
+    "hash": "83273064fadda01a",
     "questions": [
       "Check if a URL exists without downloading it",
       "How do I get the size of a remote file?",
@@ -5544,7 +5544,7 @@
   },
   "/reference/core/http-client/opensocket/": {
     "feature": "Core\\Http\\Client::openSocket",
-    "hash": "c17e415425c568a0",
+    "hash": "cdae82b7497f5b25",
     "questions": [
       "How do I connect to a WebSocket server?",
       "Receive live messages from another server",
@@ -5555,7 +5555,7 @@
   },
   "/reference/core/http-client/patch/": {
     "feature": "Core\\Http\\Client::patch",
-    "hash": "213d1902fa314efc",
+    "hash": "801139e1210d404c",
     "questions": [
       "How do I update only some fields of a record?",
       "Send a PATCH request with JSON",
@@ -5565,7 +5565,7 @@
   },
   "/reference/core/http-client/post/": {
     "feature": "Core\\Http\\Client::post",
-    "hash": "39b2564310762d4a",
+    "hash": "f9c5896ed3af36fc",
     "questions": [
       "How do I send JSON to an API?",
       "Submit form data to another server",
@@ -5577,7 +5577,7 @@
   },
   "/reference/core/http-client/put/": {
     "feature": "Core\\Http\\Client::put",
-    "hash": "70f1117d42d1e137",
+    "hash": "eaaf865b5ee14e58",
     "questions": [
       "How do I replace a whole record with an API call?",
       "Send a PUT request",
@@ -5587,7 +5587,7 @@
   },
   "/reference/core/http-client/request/": {
     "feature": "Core\\Http\\Client::request",
-    "hash": "8219bafc3b0ef799",
+    "hash": "b06c8b5dfb8dcea1",
     "questions": [
       "Send a request with a method chosen at runtime",
       "How do I send an OPTIONS request?",
@@ -5598,7 +5598,7 @@
   },
   "/reference/core/http-client/stream/": {
     "feature": "Core\\Http\\Client::stream",
-    "hash": "212a0a33fdb11315",
+    "hash": "e924e14c2a6b847d",
     "questions": [
       "Read a large response while it is still downloading",
       "How do I receive server-sent events?",
@@ -5706,7 +5706,7 @@
   },
   "/reference/core/http-part/bytes/": {
     "feature": "Core\\Http\\Part::bytes",
-    "hash": "f5081c66d3f1d271",
+    "hash": "192607378832b297",
     "questions": [
       "How do I upload data I already have in memory?",
       "Send a string as a file in a form upload",
@@ -5717,7 +5717,7 @@
   },
   "/reference/core/http-part/file/": {
     "feature": "Core\\Http\\Part::file",
-    "hash": "d54d4441b03f796e",
+    "hash": "e69622b330222661",
     "questions": [
       "How do I upload a file from disk?",
       "Send a large file as the request body",
@@ -6847,7 +6847,7 @@
   },
   "/reference/core/ldap/connect/": {
     "feature": "Core\\Ldap::connect",
-    "hash": "40ae71134ce04193",
+    "hash": "8c8554f9f9e30ffa",
     "questions": [
       "How do I open the LDAP server from the configuration?",
       "Connect to a directory without a password in the code",
@@ -6857,7 +6857,7 @@
   },
   "/reference/core/ldap/open/": {
     "feature": "Core\\Ldap::open",
-    "hash": "a07046c4a8d75b46",
+    "hash": "85a4061dab01c100",
     "questions": [
       "How do I connect to an LDAP server at a given URL?",
       "Connect to a directory that each customer sets up",
@@ -6938,7 +6938,7 @@
   },
   "/reference/core/ldap-ad-accountflags/bits/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::bits",
-    "hash": "f926522fcf4c289c",
+    "hash": "fbe0828899106445",
     "questions": [
       "Get the userAccountControl number of an account",
       "Why does a normal account have the value 512?",
@@ -6948,7 +6948,7 @@
   },
   "/reference/core/ldap-ad-accountflags/disabled/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::disabled",
-    "hash": "6f7222339fc5063b",
+    "hash": "ff43f3874fedcdec",
     "questions": [
       "How do I check if an AD account is disabled?",
       "Find out if a user can no longer log in",
@@ -6958,7 +6958,7 @@
   },
   "/reference/core/ldap-ad-accountflags/homedirectoryrequired/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::homeDirectoryRequired",
-    "hash": "54632b6ed6d4d80b",
+    "hash": "77f327c4ee59db11",
     "questions": [
       "Check if an account needs a home directory",
       "Does this user need a home folder on a server?",
@@ -6968,7 +6968,7 @@
   },
   "/reference/core/ldap-ad-accountflags/interdomaintrustaccount/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::interdomainTrustAccount",
-    "hash": "be31b1c918b755c8",
+    "hash": "1a4ac9a6e59f6949",
     "questions": [
       "Check if an account is a trust with another domain",
       "How do I find domain trust accounts?",
@@ -6978,7 +6978,7 @@
   },
   "/reference/core/ldap-ad-accountflags/lockedout/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::lockedOut",
-    "hash": "2057d2e76b1e903e",
+    "hash": "e04a78b1734b6eb2",
     "questions": [
       "How do I check if a user is locked out after wrong passwords?",
       "Find accounts locked by too many failed logins",
@@ -6988,7 +6988,7 @@
   },
   "/reference/core/ldap-ad-accountflags/mnslogonaccount/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::mnsLogonAccount",
-    "hash": "bad07622ddac14be",
+    "hash": "9b34a4665c795164",
     "questions": [
       "What is an MNS logon account?",
       "Check if a Majority Node Set cluster uses this account",
@@ -6998,7 +6998,7 @@
   },
   "/reference/core/ldap-ad-accountflags/mustchangepassword/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::mustChangePassword",
-    "hash": "27c7f6584bcc1161",
+    "hash": "4ffc43cefa67cac0",
     "questions": [
       "How do I check if a user must change the password at next login?",
       "Is pwdLastSet zero for this user?",
@@ -7008,7 +7008,7 @@
   },
   "/reference/core/ldap-ad-accountflags/nopreauthrequired/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::noPreauthRequired",
-    "hash": "1ed4c283e9266712",
+    "hash": "38bec32f47c1eb03",
     "questions": [
       "Find accounts where Kerberos pre-authentication is turned off",
       "Check if Kerberos gives a ticket without checking the password",
@@ -7018,7 +7018,7 @@
   },
   "/reference/core/ldap-ad-accountflags/normalaccount/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::normalAccount",
-    "hash": "da95c0f7592d028d",
+    "hash": "dd5148e75ee53303",
     "questions": [
       "How do I keep only accounts of people, not computers?",
       "Check if an account is an ordinary user account",
@@ -7028,7 +7028,7 @@
   },
   "/reference/core/ldap-ad-accountflags/notdelegated/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::notDelegated",
-    "hash": "4d8ac191864a9dd9",
+    "hash": "a712bdea5a9801f9",
     "questions": [
       "Check if no service may act for this user",
       "Find accounts that are protected from delegation",
@@ -7038,7 +7038,7 @@
   },
   "/reference/core/ldap-ad-accountflags/partialsecretsaccount/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::partialSecretsAccount",
-    "hash": "be69969fd123bc9d",
+    "hash": "bf7d98855eb21700",
     "questions": [
       "How do I check if an account is a read-only domain controller?",
       "Find read-only domain controllers in the directory",
@@ -7048,7 +7048,7 @@
   },
   "/reference/core/ldap-ad-accountflags/passwordexpired/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::passwordExpired",
-    "hash": "2d939f4861df4793",
+    "hash": "c72730d9034e6cf2",
     "questions": [
       "How do I check if a user's password has expired?",
       "Find users whose password is too old to log in",
@@ -7058,7 +7058,7 @@
   },
   "/reference/core/ldap-ad-accountflags/passwordneverexpires/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::passwordNeverExpires",
-    "hash": "6cb7a7a6af5bb483",
+    "hash": "f5b9d19c098046f7",
     "questions": [
       "Which flag says an account password never expires?",
       "Check if a service account password does not expire",
@@ -7068,7 +7068,7 @@
   },
   "/reference/core/ldap-ad-accountflags/passwordnotrequired/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::passwordNotRequired",
-    "hash": "dba789ccdb78ce65",
+    "hash": "37a83f3c62bccb15",
     "questions": [
       "Find accounts that may have an empty password",
       "Check if an account can log in without a password",
@@ -7078,7 +7078,7 @@
   },
   "/reference/core/ldap-ad-accountflags/reversibleencryption/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::reversibleEncryption",
-    "hash": "e665ebfbedf5a3ac",
+    "hash": "07f4b2f1e2e3d8b7",
     "questions": [
       "Check if a password is stored with reversible encryption",
       "Find accounts whose password the server can decrypt",
@@ -7088,7 +7088,7 @@
   },
   "/reference/core/ldap-ad-accountflags/script/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::script",
-    "hash": "b08dffcad4a56232",
+    "hash": "4c313bbbe9107e28",
     "questions": [
       "Check if a logon script runs for a user",
       "Does this account have a logon script?",
@@ -7098,7 +7098,7 @@
   },
   "/reference/core/ldap-ad-accountflags/servertrustaccount/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::serverTrustAccount",
-    "hash": "19141f6229170db0",
+    "hash": "ed70b1bba1e07836",
     "questions": [
       "How do I check if an account is a domain controller?",
       "Find all domain controller accounts",
@@ -7108,7 +7108,7 @@
   },
   "/reference/core/ldap-ad-accountflags/smartcardrequired/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::smartcardRequired",
-    "hash": "7d42c416b3161951",
+    "hash": "0ed06c3f5848b25e",
     "questions": [
       "Check if a user must log in with a smart card",
       "Find accounts that cannot log in with a password",
@@ -7118,7 +7118,7 @@
   },
   "/reference/core/ldap-ad-accountflags/temporaryduplicateaccount/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::temporaryDuplicateAccount",
-    "hash": "5197f9d02867eab1",
+    "hash": "d4b794eb1f355769",
     "questions": [
       "What is a temporary duplicate account?",
       "Check if an account is a local account for a user from another domain",
@@ -7128,7 +7128,7 @@
   },
   "/reference/core/ldap-ad-accountflags/trustedfordelegation/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::trustedForDelegation",
-    "hash": "19f731b045019132",
+    "hash": "afe8b6f6a8c7304d",
     "questions": [
       "Check if a service may act for any user",
       "Find accounts trusted for delegation",
@@ -7138,7 +7138,7 @@
   },
   "/reference/core/ldap-ad-accountflags/trustedtoauthfordelegation/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::trustedToAuthForDelegation",
-    "hash": "c690d321e2e493cc",
+    "hash": "10afa643785ed4ce",
     "questions": [
       "Check if a service may act for a user without the user's password",
       "Delegation when the user logged in through a web form",
@@ -7148,7 +7148,7 @@
   },
   "/reference/core/ldap-ad-accountflags/usedeskeyonly/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::useDesKeyOnly",
-    "hash": "e31ba952545714e1",
+    "hash": "ddb2bd6cfd79d1ea",
     "questions": [
       "Check if an account uses only DES keys for Kerberos",
       "Find accounts with old and unsafe DES encryption",
@@ -7158,7 +7158,7 @@
   },
   "/reference/core/ldap-ad-accountflags/with/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::with",
-    "hash": "a48da1372320e815",
+    "hash": "91c324d57bb7d3c4",
     "questions": [
       "How do I disable an account by changing its flags?",
       "Set or clear one userAccountControl flag",
@@ -7169,7 +7169,7 @@
   },
   "/reference/core/ldap-ad-accountflags/workstationtrustaccount/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::workstationTrustAccount",
-    "hash": "6ea1c488496265f2",
+    "hash": "f64ca62d7849f65f",
     "questions": [
       "How do I check if an account is a computer joined to the domain?",
       "Find computer accounts in Active Directory",
@@ -7189,7 +7189,7 @@
   },
   "/reference/core/ldap-ad-grouptype/appbasic/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::appBasic",
-    "hash": "fe5e4351c2b87f8c",
+    "hash": "92aad5e96e212cfc",
     "questions": [
       "Check if a group is an application group",
       "Authorization Manager application group",
@@ -7199,7 +7199,7 @@
   },
   "/reference/core/ldap-ad-grouptype/appquery/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::appQuery",
-    "hash": "c4b4fd6a1bfc05cb",
+    "hash": "2f48706f4a9256d1",
     "questions": [
       "Check if a group gets its users from a query",
       "Query based application group",
@@ -7209,7 +7209,7 @@
   },
   "/reference/core/ldap-ad-grouptype/bits/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::bits",
-    "hash": "3cdf4301825a398d",
+    "hash": "2c2c232172dfe03f",
     "questions": [
       "Get the groupType number of a group",
       "Why is the groupType of a security group negative?",
@@ -7219,7 +7219,7 @@
   },
   "/reference/core/ldap-ad-grouptype/domainlocal/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::domainLocal",
-    "hash": "fc7e650c922c9c31",
+    "hash": "55e28e541c17b22d",
     "questions": [
       "Check if a group is domain local",
       "Group that can only get permissions in its own domain",
@@ -7229,7 +7229,7 @@
   },
   "/reference/core/ldap-ad-grouptype/global/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::global",
-    "hash": "bd5a91dfb42ac944",
+    "hash": "d92903f23462f4d1",
     "questions": [
       "Check if a group is a global group",
       "Group with users only from its own domain",
@@ -7239,7 +7239,7 @@
   },
   "/reference/core/ldap-ad-grouptype/security/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::security",
-    "hash": "e1ed18132ba9850d",
+    "hash": "5daaff08abfcbff2",
     "questions": [
       "Check if a group is a security group or a distribution group",
       "Ignore mailing list groups when checking permissions",
@@ -7249,7 +7249,7 @@
   },
   "/reference/core/ldap-ad-grouptype/system/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::system",
-    "hash": "956b57d7d2a6f3c0",
+    "hash": "55a93d0aeb2dcc34",
     "questions": [
       "Check if Active Directory created a group itself",
       "Find built-in groups such as Administrators",
@@ -7259,7 +7259,7 @@
   },
   "/reference/core/ldap-ad-grouptype/universal/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::universal",
-    "hash": "b6ea297580eddf54",
+    "hash": "5d961540f644ff71",
     "questions": [
       "Check if a group is a universal group",
       "Group with users from any domain and permissions in any domain",
@@ -7269,7 +7269,7 @@
   },
   "/reference/core/ldap-ad-grouptype/with/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::with",
-    "hash": "9f169cff184b92b9",
+    "hash": "aedff2e2176fcc93",
     "questions": [
       "Turn a security group into a distribution group",
       "Change the scope of a group from global to universal",
@@ -7339,7 +7339,7 @@
   },
   "/reference/core/ldap-changes/cookie/": {
     "feature": "Core\\Ldap\\Changes::cookie",
-    "hash": "f60123513bee7dd7",
+    "hash": "2e2300380c90c7a2",
     "questions": [
       "How do I save the sync position for the next run?",
       "Store the DirSync cookie in a database",
@@ -7359,7 +7359,7 @@
   },
   "/reference/core/ldap-connection/add/": {
     "feature": "Core\\Ldap\\Connection::add",
-    "hash": "af54ec33d89b5e8b",
+    "hash": "80cb42f06d96cdff",
     "questions": [
       "How do I create a new entry in LDAP?",
       "Create a new group or organizational unit in the directory",
@@ -7369,7 +7369,7 @@
   },
   "/reference/core/ldap-connection/authenticate/": {
     "feature": "Core\\Ldap\\Connection::authenticate",
-    "hash": "99906726e92493a5",
+    "hash": "7c27ce3f7ed67185",
     "questions": [
       "How do I check a user's login and password against Active Directory?",
       "LDAP login form with user name and password",
@@ -7380,7 +7380,7 @@
   },
   "/reference/core/ldap-connection/changepassword/": {
     "feature": "Core\\Ldap\\Connection::changePassword",
-    "hash": "934d76811d1f4345",
+    "hash": "bca327a6393f61d1",
     "questions": [
       "Let a user change their own password in Active Directory",
       "Change my password page with old and new password",
@@ -7390,7 +7390,7 @@
   },
   "/reference/core/ldap-connection/changes/": {
     "feature": "Core\\Ldap\\Connection::changes",
-    "hash": "9ddbe18b22bf81f7",
+    "hash": "2d8cfb5711a48ded",
     "questions": [
       "How do I sync only the changed entries from Active Directory?",
       "Keep a local copy of the directory up to date",
@@ -7400,7 +7400,7 @@
   },
   "/reference/core/ldap-connection/compare/": {
     "feature": "Core\\Ldap\\Connection::compare",
-    "hash": "eeda63e8bab1d277",
+    "hash": "ab0f94ed3ce5de5c",
     "questions": [
       "Check if an entry has a value without reading it",
       "Is this person in the Sales department?",
@@ -7410,7 +7410,7 @@
   },
   "/reference/core/ldap-connection/delete/": {
     "feature": "Core\\Ldap\\Connection::delete",
-    "hash": "16d086f077f6ae34",
+    "hash": "3dcdbf6bf98c4a6c",
     "questions": [
       "How do I delete an entry from the directory?",
       "Remove a user account from LDAP",
@@ -7420,7 +7420,7 @@
   },
   "/reference/core/ldap-connection/modify/": {
     "feature": "Core\\Ldap\\Connection::modify",
-    "hash": "8025ee9bdd9a3d65",
+    "hash": "61cfe391cc1e8504",
     "questions": [
       "How do I change the attributes of an LDAP entry?",
       "Update several attributes in one request",
@@ -7430,7 +7430,7 @@
   },
   "/reference/core/ldap-connection/read/": {
     "feature": "Core\\Ldap\\Connection::read",
-    "hash": "8fa53e145ebbcd7b",
+    "hash": "f8f35f8a1fb282de",
     "questions": [
       "How do I read one entry by its DN?",
       "Get a single user from LDAP by distinguished name",
@@ -7440,7 +7440,7 @@
   },
   "/reference/core/ldap-connection/rename/": {
     "feature": "Core\\Ldap\\Connection::rename",
-    "hash": "5c8289d514ea5e01",
+    "hash": "505bb122665620c0",
     "questions": [
       "How do I rename an entry in LDAP?",
       "Move a user to another organizational unit",
@@ -7450,7 +7450,7 @@
   },
   "/reference/core/ldap-connection/search/": {
     "feature": "Core\\Ldap\\Connection::search",
-    "hash": "b56a2dd92414d504",
+    "hash": "8a34c6b4741fd7f9",
     "questions": [
       "How do I search an LDAP directory?",
       "Find a user by account name in Active Directory",
@@ -7461,7 +7461,7 @@
   },
   "/reference/core/ldap-connection/setpassword/": {
     "feature": "Core\\Ldap\\Connection::setPassword",
-    "hash": "0ea9f889b17f2573",
+    "hash": "f5f09a05acba8900",
     "questions": [
       "Reset a user's password as an administrator",
       "Set a new password without the old one",
@@ -7471,7 +7471,7 @@
   },
   "/reference/core/ldap-connection/whoami/": {
     "feature": "Core\\Ldap\\Connection::whoami",
-    "hash": "9d950ba49db3d938",
+    "hash": "336b5aac27ab5254",
     "questions": [
       "Which account is the LDAP connection logged in as?",
       "Check the login of the connection in a health check",
@@ -7581,7 +7581,7 @@
   },
   "/reference/core/ldap-entries/references/": {
     "feature": "Core\\Ldap\\Entries::references",
-    "hash": "c4e1f191236cfb23",
+    "hash": "a4c4ddf27243e9f3",
     "questions": [
       "Get referral URLs from an LDAP search",
       "Directory parts kept on other servers",
@@ -7591,7 +7591,7 @@
   },
   "/reference/core/ldap-entries/total/": {
     "feature": "Core\\Ldap\\Entries::total",
-    "hash": "c876b933082cd514",
+    "hash": "3a35285d0217ab22",
     "questions": [
       "Show page 3 of 12 for LDAP search results",
       "How many entries does a sorted search have in total?",
@@ -7611,7 +7611,7 @@
   },
   "/reference/core/ldap-entry/accountflags/": {
     "feature": "Core\\Ldap\\Entry::accountFlags",
-    "hash": "707e00a2a1057c61",
+    "hash": "125a6ed135974a16",
     "questions": [
       "Read userAccountControl of a user as flags",
       "Get account flags from a search result",
@@ -7621,7 +7621,7 @@
   },
   "/reference/core/ldap-entry/accounttype/": {
     "feature": "Core\\Ldap\\Entry::accountType",
-    "hash": "0bf3cd86744f3dec",
+    "hash": "2caf157c868bd38c",
     "questions": [
       "Tell users, computers and groups apart in Active Directory",
       "Read sAMAccountType as an enum",
@@ -7631,7 +7631,7 @@
   },
   "/reference/core/ldap-entry/bool/": {
     "feature": "Core\\Ldap\\Entry::bool",
-    "hash": "1eb5ed1fc8f0f9c4",
+    "hash": "b30d956364dfdfaa",
     "questions": [
       "Read a TRUE or FALSE attribute as a bool",
       "Read isCriticalSystemObject",
@@ -7641,7 +7641,7 @@
   },
   "/reference/core/ldap-entry/bytes/": {
     "feature": "Core\\Ldap\\Entry::bytes",
-    "hash": "44011d49ce3ac14c",
+    "hash": "cf2d9abe67e0683d",
     "questions": [
       "Read a binary LDAP attribute",
       "Get the jpegPhoto of a user",
@@ -7651,7 +7651,7 @@
   },
   "/reference/core/ldap-entry/dn/": {
     "feature": "Core\\Ldap\\Entry::dn",
-    "hash": "b505e469e0ac974e",
+    "hash": "95c21d39b9ca389d",
     "questions": [
       "Get the DN of a search result",
       "Full path of an LDAP entry",
@@ -7661,7 +7661,7 @@
   },
   "/reference/core/ldap-entry/duration/": {
     "feature": "Core\\Ldap\\Entry::duration",
-    "hash": "b11a406beed6e3de",
+    "hash": "c023c2ec1215ba68",
     "questions": [
       "Read maxPwdAge as a duration",
       "Convert lockoutDuration to minutes",
@@ -7671,7 +7671,7 @@
   },
   "/reference/core/ldap-entry/grouptype/": {
     "feature": "Core\\Ldap\\Entry::groupType",
-    "hash": "3c22dd5856b86721",
+    "hash": "ee4d79f97a625abb",
     "questions": [
       "Read the groupType of a group as flags",
       "Get the scope of a group from a search result",
@@ -7681,7 +7681,7 @@
   },
   "/reference/core/ldap-entry/has/": {
     "feature": "Core\\Ldap\\Entry::has",
-    "hash": "b4ed094710465067",
+    "hash": "853e85160650e109",
     "questions": [
       "Check if an entry has an attribute",
       "Does this user have a job title?",
@@ -7691,7 +7691,7 @@
   },
   "/reference/core/ldap-entry/instant/": {
     "feature": "Core\\Ldap\\Entry::instant",
-    "hash": "bd230b9269ec0d9f",
+    "hash": "ec02f7bf45c8b5f6",
     "questions": [
       "Read whenCreated as a date",
       "Convert pwdLastSet to a time",
@@ -7701,7 +7701,7 @@
   },
   "/reference/core/ldap-entry/int/": {
     "feature": "Core\\Ldap\\Entry::int",
-    "hash": "d752f319a0542a9d",
+    "hash": "0fce065f376e2406",
     "questions": [
       "Read a number attribute like logonCount",
       "Get minPwdLength of the domain",
@@ -7711,7 +7711,7 @@
   },
   "/reference/core/ldap-entry/isdeleted/": {
     "feature": "Core\\Ldap\\Entry::isDeleted",
-    "hash": "790a767fc0024d0b",
+    "hash": "fad7ab73bdde14c1",
     "questions": [
       "Check if an entry was deleted",
       "Find deleted accounts in Active Directory",
@@ -7721,7 +7721,7 @@
   },
   "/reference/core/ldap-entry/sid/": {
     "feature": "Core\\Ldap\\Entry::sid",
-    "hash": "5d582f305f9ad7ef",
+    "hash": "97f4dc4e7112205e",
     "questions": [
       "Read objectSid of a user",
       "Convert objectSid to S-1-5 text",
@@ -7731,7 +7731,7 @@
   },
   "/reference/core/ldap-entry/sids/": {
     "feature": "Core\\Ldap\\Entry::sids",
-    "hash": "0decaee3a2adbc63",
+    "hash": "a641965aa200959e",
     "questions": [
       "Get all security groups of a user, also nested ones",
       "Read tokenGroups as a list of SIDs",
@@ -7741,7 +7741,7 @@
   },
   "/reference/core/ldap-entry/string/": {
     "feature": "Core\\Ldap\\Entry::string",
-    "hash": "110e552837e51ca0",
+    "hash": "a87e3bec4ce0d38e",
     "questions": [
       "Read one text attribute like mail",
       "Get the email address of a user",
@@ -7751,7 +7751,7 @@
   },
   "/reference/core/ldap-entry/strings/": {
     "feature": "Core\\Ldap\\Entry::strings",
-    "hash": "75907f0b1e7c6d7a",
+    "hash": "bfec443a8252a10e",
     "questions": [
       "Read every value of an attribute with several values",
       "Get all groups a user is in",
@@ -7761,7 +7761,7 @@
   },
   "/reference/core/ldap-entry/toarray/": {
     "feature": "Core\\Ldap\\Entry::toArray",
-    "hash": "f742d15aa00f02c7",
+    "hash": "6238291d003a2533",
     "questions": [
       "Get every attribute of an entry as an array",
       "Show all fields of an LDAP entry",
@@ -7771,7 +7771,7 @@
   },
   "/reference/core/ldap-entry/uuid/": {
     "feature": "Core\\Ldap\\Entry::uuid",
-    "hash": "332fc0edd9cc6340",
+    "hash": "203b422a6a950c6a",
     "questions": [
       "Read objectGUID as a UUID",
       "Stable key for an AD entry in my database",
@@ -8013,7 +8013,7 @@
   },
   "/reference/core/mail/send/": {
     "feature": "Core\\Mail::send",
-    "hash": "852c79ffc2a40d4b",
+    "hash": "6cde907101e5b622",
     "questions": [
       "How do I send an email with an HTML body?",
       "Send one message to several recipients",
@@ -16887,7 +16887,7 @@
   },
   "/reference/types/db-dberror/": {
     "feature": "Core\\Db\\DbError",
-    "hash": "707852b6157d9179",
+    "hash": "d21be5147caec20f",
     "questions": [
       "Catch an error when a database query fails",
       "Log the SQL statement of a failed query",
@@ -16941,7 +16941,7 @@
   },
   "/reference/types/db-rolledback/": {
     "feature": "Core\\Db\\RolledBack",
-    "hash": "9306c2e62c0f6a2b",
+    "hash": "4e1afd2ee729130f",
     "questions": [
       "How do I cancel a transaction from inside it and give a reason?",
       "What error is thrown when my code rolls back a transaction?",
@@ -17096,7 +17096,7 @@
   },
   "/reference/types/ldap-connection-scope/": {
     "feature": "Core\\Ldap\\Connection::Scope",
-    "hash": "04930af0d3d3b9d4",
+    "hash": "65720f93f68964da",
     "questions": [
       "How do I search only one level below an LDAP base?",
       "Read a single LDAP entry by its base",
@@ -17106,7 +17106,7 @@
   },
   "/reference/types/ldap-entry-accounttype/": {
     "feature": "Core\\Ldap\\Entry::AccountType",
-    "hash": "b0f2377d11d16cf6",
+    "hash": "2eb1e8c3a5e772fe",
     "questions": [
       "How do I tell if an Active Directory entry is a user or a group?",
       "Check if an LDAP entry is a computer account",
@@ -17117,7 +17117,7 @@
   },
   "/reference/types/ldap-ldaperror/": {
     "feature": "Core\\Ldap\\LdapError",
-    "hash": "3c29971fe93c55cb",
+    "hash": "ae7e1b05b64e175d",
     "questions": [
       "What error does a failed LDAP login throw?",
       "How do I catch errors from a directory server?",
@@ -17128,7 +17128,7 @@
   },
   "/reference/types/ldap-ldaperror-kind/": {
     "feature": "Core\\Ldap\\LdapError::Kind",
-    "hash": "513937706fcb55ff",
+    "hash": "b41ad325b90a1d21",
     "questions": [
       "Why did my LDAP login fail?",
       "How do I detect a locked or disabled Active Directory account?",
@@ -17140,7 +17140,7 @@
   },
   "/reference/types/ldap-tls/": {
     "feature": "Core\\Ldap::Tls",
-    "hash": "49d792f7d3fcf1d8",
+    "hash": "a950a3056f18a757",
     "questions": [
       "How do I make sure my LDAP connection is encrypted?",
       "Connect to an LDAP server without TLS for testing",
