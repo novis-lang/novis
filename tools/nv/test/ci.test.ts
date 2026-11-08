@@ -9,7 +9,7 @@
 // published release, its promote run and its image.
 
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   checkLines,
@@ -20,6 +20,7 @@ import {
   DRY_RUN_TITLE,
   type GhRelease,
   type Job,
+  LISTED_APART,
   newest,
   optionalLegs,
   POLL_BUSY_MS,
@@ -31,8 +32,10 @@ import {
   REFUSED,
   replacedByRelease,
   type Run,
+  SEEN,
   tail,
   VISIBILITY_CLICK,
+  WORKFLOW_FILES,
 } from "../cmd/ci.ts";
 import { ROOT } from "../lib/paths.ts";
 
@@ -48,6 +51,12 @@ function runOf(id: number, name: string, status: string, conclusion: string | nu
 function jobOf(id: number, name: string, status: string, conclusion: string | null, failedStep = ""): Job {
   const steps = failedStep === "" ? [] : [{ name: "checkout", conclusion: "success" }, { name: failedStep, conclusion: "failure" }];
   return { id, name, status, conclusion, html_url: `https://example.com/jobs/${id}`, steps };
+}
+
+/** Writes `SEEN` under `root`, as a watch that printed the verdict of runs `ids` leaves it. */
+function seen(root: string, ...ids: number[]): void {
+  mkdirSync(join(root, ".agent-tmp", "ci"), { recursive: true });
+  writeFileSync(join(root, SEEN), `${ids.join("\n")}\n`);
 }
 
 /** A world whose runs and jobs `step` sets for each poll, counted from 0. */
@@ -82,6 +91,8 @@ function seams(name: string, world: (poll: number) => World | "fail", git: (args
       const w = world(poll);
       if (w === "fail") return { code: 1, stdout: "", stderr: "HTTP 502" };
       if (args[0] === "api" && args[1]?.includes("/actions/runs?")) return ok(w.runs);
+      // A workflow listed apart gives the same runs, on `main`: the listing keeps each run once.
+      if (args[0] === "api" && /\/workflows\/[^/]+\/runs\?/.test(args[1] ?? "")) return ok(w.runs.map((r) => ({ ...r, head_branch: "main" })));
       const jobsOf = args[1]?.match(/actions\/runs\/(\d+)\/jobs/);
       if (jobsOf) return ok(w.jobs[Number(jobsOf[1])] ?? []);
       if (args[1]?.endsWith("/annotations")) return ok("The job has exceeded the maximum execution time of 1h30m0s\n");
@@ -111,15 +122,109 @@ describe("bun nv ci --watch", () => {
     expect(w.slept).toEqual([]);
   });
 
-  test("`--next` passes over a run that had ended red, and watches the next one", async () => {
+  test("`--next` passes over a run that had ended red and was seen, and watches the next one", async () => {
     const w = seams("next", (p) => ({
       runs: p < 2 ? [runOf(17, "CI", "completed", "failure")] : [runOf(18, "CI", "in_progress", null), runOf(17, "CI", "completed", "failure")],
       jobs: { 17: [jobOf(11, "proofs", "completed", "failure", "gate")], 18: [jobOf(12, "lint", "completed", "failure", "clippy")] },
     }));
+    seen(w.s.root, 17);
     expect(await ci(["--watch", "--next"], w.s)).toBe(1);
     expect(w.slept).toEqual([POLL_IDLE_MS, POLL_IDLE_MS]);
     expect(w.said.some((l) => l.startsWith('FAILED CI / lint / step "clippy"'))).toBe(true);
     expect(w.said.some((l) => l.startsWith("FAILED CI / proofs"))).toBe(false);
+  });
+
+  test("`--next` judges a run that ended red between two watches, and a watch records what it reported", async () => {
+    // The first watch reports the red CI run. The Dev build run CI's end starts then ends red unseen.
+    const first = seams("seen", () => ({ runs: [runOf(40, "CI", "completed", "failure", "push")], jobs: { 40: [jobOf(1, "lint", "completed", "failure", "clippy")] } }));
+    expect(await ci(["--watch"], first.s)).toBe(1);
+    expect(readFileSync(join(first.s.root, SEEN), "utf8")).toBe("40\n");
+    const root = first.s.root;
+    const later = seams("seen", () => ({
+      runs: [runOf(41, "Dev build", "completed", "failure", "workflow_run"), runOf(40, "CI", "completed", "failure", "push")],
+      jobs: { 40: [jobOf(1, "lint", "completed", "failure", "clippy")], 41: [jobOf(2, "image / push", "completed", "failure", "push")] },
+    }));
+    expect(later.s.root).toBe(root);
+    expect(await ci(["--watch", "--next"], later.s)).toBe(1);
+    expect(later.said.some((l) => l.startsWith("passing over CI (push)"))).toBe(true);
+    expect(later.said.some((l) => l.startsWith('FAILED Dev build / image / push / step "push"'))).toBe(true);
+    expect(readFileSync(join(root, SEEN), "utf8")).toBe("40\n41\n");
+  });
+
+  test("every workflow's runs are watched, and each trigger is judged on its own", async () => {
+    // A green push run after a red nightly run does not hide the nightly's red.
+    const w = seams("lanes", () => ({
+      runs: [
+        runOf(52, "CI", "completed", "success", "push"),
+        runOf(51, "Website", "completed", "success", "push"),
+        runOf(50, "CI", "completed", "failure", "schedule"),
+      ],
+      jobs: { 50: [jobOf(1, "miri units (nvs-stdlib 3/12)", "completed", "failure", "miri nextest")] },
+    }));
+    expect(await ci(["--watch"], w.s)).toBe(1);
+    expect(w.said.some((l) => l.startsWith('FAILED CI / miri units (nvs-stdlib 3/12)'))).toBe(true);
+    // A red Release dry run, a red Dev build run and a red promote run each end the watch.
+    for (const [name, event, title] of [["Release", "workflow_dispatch", DRY_RUN_TITLE], ["Dev build", "push", "Dev build"], ["Promote release images", "release", "v0.0.2"]] as const) {
+      const r = seams(`lanes-${name}`, () => ({
+        runs: [runOf(61, name, "completed", "failure", event, "abc", title), runOf(60, "CI", "completed", "success", "push")],
+        jobs: { 61: [jobOf(3, "verify / fuzz smoke", "completed", "failure", "fuzz")] },
+      }));
+      expect(await ci(["--watch"], r.s)).toBe(1);
+      expect(r.said.some((l) => l.startsWith(`FAILED ${name} / verify / fuzz smoke`))).toBe(true);
+    }
+  });
+
+  test("a failed optional build leg is passed over in a Dev build run as in a Release run", async () => {
+    const leg = optionalLegs(ROOT)[0];
+    if (leg === undefined) return;
+    const w = seams("optional-dev", (p) => ({
+      runs: [runOf(70, "Dev build", p < 1 ? "in_progress" : "completed", p < 1 ? null : "failure", "push")],
+      jobs: { 70: [jobOf(1, `release binaries / ${leg.slice("build / ".length)}`, "completed", "failure", "build")] },
+    }));
+    expect(await ci(["--watch"], w.s)).toBe(4);
+    expect(w.said.some((l) => l.startsWith("  passing over FAILED Dev build / release binaries / build "))).toBe(true);
+  });
+
+  test("a run waiting on an approval is printed once and polled as idle, and only `--release` waits for it", async () => {
+    const world = (p: number) => ({
+      runs: [runOf(80, "CI", p < 1 ? "in_progress" : "completed", p < 1 ? null : "success", "push"), runOf(81, "Release", "waiting", null)],
+      jobs: { 80: [jobOf(1, "lint", p < 1 ? "in_progress" : "completed", p < 1 ? null : "success")] },
+    });
+    const w = seams("waiting", world);
+    expect(await ci(["--watch"], w.s)).toBe(0);
+    expect(w.said.filter((l) => l.startsWith("waiting on an approval: Release"))).toHaveLength(1);
+    expect(w.said.some((l) => l.startsWith("GREEN Release"))).toBe(false);
+    const rel = seams("waiting-release", (p) => ({
+      runs: [runOf(81, "Release", p < 1 ? "in_progress" : "waiting", null)],
+      jobs: { 81: [jobOf(2, "plan", "completed", "success")] },
+    }));
+    expect(await ci(["--watch", "--release", "--max-min", "2"], rel.s)).toBe(3);
+    expect(rel.slept).toEqual([POLL_BUSY_MS, POLL_IDLE_MS, POLL_IDLE_MS]);
+  });
+
+  test("the watched table names every workflow file that starts runs of its own, and lists apart each with no push", () => {
+    const dir = join(ROOT, ".github", "workflows");
+    const triggers = (f: string) =>
+      (readFileSync(join(dir, f), "utf8").replace(/\r\n/g, "\n").match(/^on:\n((?:  .*\n|#.*\n|\n)*)/m)?.[1] ?? "")
+        .split("\n")
+        .filter((l) => /^  [a-z_]+:/.test(l))
+        .map((l) => l.trim().slice(0, -1));
+    const files = readdirSync(dir).filter((f) => f.endsWith(".yml"));
+    const own = files.filter((f) => triggers(f).some((t) => t !== "workflow_call"));
+    expect(own.sort()).toEqual(Object.keys(WORKFLOW_FILES).sort());
+    expect(own.filter((f) => !triggers(f).includes("push")).sort()).toEqual([...LISTED_APART].sort());
+  });
+
+  test("a newer green dispatched run answers the older runs of every trigger of its workflow", () => {
+    const nightly = runOf(100, "CI", "completed", "failure", "schedule");
+    const push = runOf(101, "CI", "completed", "success", "push");
+    const release = runOf(102, "Promote release images", "completed", "failure", "release");
+    expect(newest([push, nightly, release], "abc").map((r) => r.id)).toEqual([101, 100, 102]);
+    const full = runOf(103, "CI", "completed", "success");
+    const promote = runOf(104, "Promote release images", "completed", "success");
+    expect(newest([promote, full, push, nightly, release], "abc").map((r) => r.id)).toEqual([103, 104]);
+    // A dispatched run still going, or one that ended red, answers nothing.
+    expect(newest([{ ...full, status: "in_progress", conclusion: null }, push, nightly], "abc").map((r) => r.id)).toEqual([101, 100, 103]);
   });
 
   test("a cancelled run on origin/main's commit is red, and its timed-out job's annotation is printed", async () => {
@@ -203,6 +308,7 @@ describe("bun nv ci --watch", () => {
     const red = () => ({ runs: [runOf(19, "CI", "completed", "failure")], jobs: { 19: [jobOf(14, "test", "completed", "failure", "nextest")] } });
     for (const flags of [["--past", "test"], ["--next"]]) {
       const w = seams(`unpushed${flags[0]}`, red, ahead(false));
+      seen(w.s.root, 19);
       expect(await ci(["--watch", ...flags], w.s)).toBe(5);
       expect(w.slept).toEqual([]);
       expect(w.said).toContain("  fff1111 test(a): the fix");
@@ -251,6 +357,23 @@ describe("bun nv ci --watch", () => {
     expect(await ci(["--watch"], w.s)).toBe(0);
     expect(w.asked.filter((a) => a[0] === "run")).toEqual([["run", "cancel", "60"]]);
     expect(w.said.some((l) => l.startsWith("watching CI (workflow_dispatch) on new"))).toBe(true);
+  });
+
+  test("`--rerun` reruns a red dry run, and never a real Release run or a promote run", async () => {
+    const w = seams("rerun", () => ({
+      runs: [
+        runOf(92, "Release", "completed", "failure", "workflow_dispatch", "abc", DRY_RUN_TITLE),
+        runOf(91, "Promote release images", "completed", "failure", "release", "abc", "v0.0.2"),
+        runOf(90, "CI", "completed", "failure", "push"),
+      ],
+      jobs: {},
+    }));
+    expect(await ci(["--rerun"], w.s)).toBe(0);
+    expect(w.asked.filter((a) => a[0] === "run")).toEqual([["run", "rerun", "90", "--failed"], ["run", "rerun", "92", "--failed"]]);
+    expect(w.said.some((l) => l.startsWith("not rerun, since a rerun publishes: Promote release images"))).toBe(true);
+    const real = seams("rerun-real", () => ({ runs: [runOf(93, "Release", "completed", "failure")], jobs: {} }));
+    expect(await ci(["--rerun"], real.s)).toBe(0);
+    expect(real.asked.filter((a) => a[0] === "run")).toEqual([]);
   });
 
   test("a `gh` that keeps failing ends the watch with exit 2, and one failure does not", async () => {
@@ -594,10 +717,10 @@ describe("bun nv ci: the release", () => {
     const cancelled = runOf(21, "CI", "completed", "cancelled", "push", "tip");
     const older = runOf(19, "CI", "completed", "success", "push", "old");
     const release = { ...dryRun(41, "in_progress", null), name: "Release" };
-    expect(newest([cancelled, older, release], "tip").map((r) => r.id)).toEqual([19]);
+    expect(newest([cancelled, older, release], "tip").map((r) => r.id)).toEqual([19, 41]);
     // Without the Release run, or with one that started before it, the cancelled run is the tip's verdict.
     expect(newest([cancelled, older], "tip").map((r) => r.id)).toEqual([21]);
-    expect(newest([cancelled, older, { ...release, id: 20 }], "tip").map((r) => r.id)).toEqual([21]);
+    expect(newest([cancelled, older, { ...release, id: 20 }], "tip", ["CI"]).map((r) => r.id)).toEqual([21]);
   });
 
   test("watch release follows the newest Release run job by job, and cancels no run", async () => {
