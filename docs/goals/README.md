@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: []
+chain: [request-and-page-speed]
 floor:
   - id: floor-debt
     name: every owed or red atom is paid green
@@ -37,7 +37,11 @@ floor:
 
 # Goals
 
-The chain is empty.
+The chain holds 1 goal(s). `request-and-page-speed` is live.
+
+| # | Goal | Reached when | Stages |
+|---|---|---|---|
+| 1 | [`request-and-page-speed`](request-and-page-speed.md) **live** | Reached when a short read parks the next read without a syscall on Linux and macOS, integer placeholders write without Rust's formatter, escaped text is scanned once to measure and once to write, and a Core instance finds its descriptor without a name lookup. | **1 a short read leaves the readiness bit clear, so a keep-alive request makes one read** · 2 integers join a string as digits written on the stack, never through Rust's formatter or a string of their own · 3 escaped text is scanned once to measure and once to write · 4 a Core instance finds its descriptor and checks its receiver without a name lookup · 5 the changed features are measured again, and the comparison's cases are recorded again · 6 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`ci-green`](ci-green.md).
 
