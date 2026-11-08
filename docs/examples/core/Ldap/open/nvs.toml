@@ -1,0 +1,3 @@
+# The program may open a directory on `127.0.0.1` only.
+[capabilities.ldap]
+open = ["127.0.0.1"]

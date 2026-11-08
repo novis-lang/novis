@@ -1,0 +1,5 @@
+# The program may open a directory on `127.0.0.1`.
+# `cleartext` also allows a connection to that host without encryption.
+[capabilities.ldap]
+open = ["127.0.0.1"]
+cleartext = ["127.0.0.1"]

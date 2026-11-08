@@ -1,0 +1,13 @@
+# These examples use the LDAP directory server on this computer at port 16636.
+# `tls_ca_file` is the certificate that the server's certificate is checked against.
+[ldap.corp]
+url = "ldaps://127.0.0.1:16636"
+base = "DC=example,DC=test"
+user = "CN=Reader,OU=Company,DC=example,DC=test"
+password = "Novis-reader-1"
+tls_ca_file = "../../../../tests/db/ca.crt"
+timeout = "5s"
+
+# The program may open the `corp` directory.
+[capabilities.ldap]
+connect = ["corp"]

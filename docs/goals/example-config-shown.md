@@ -18,7 +18,7 @@ stages:
     context: [docs/examples/core/Db-Row/instant/nvs.toml]
   - id: 4
     title: "the Ldap examples' configuration moves into their own directories"
-    status: open
+    status: done
     context: [docs/examples/core/Db-Row/instant/nvs.toml]
   - id: 5
     title: "the Http, Mail, Cap and configuration examples carry their own nvs.toml"
@@ -191,11 +191,11 @@ The directories: `Ldap` (2), `Ldap-Connection` (8), `Ldap-Entry` (2), `Ldap-Entr
 `Ldap-Entry-AccountType`, `Ldap-LdapError`, `Ldap-LdapError-Kind` and `Ldap-Tls` under
 `docs/examples/types/`.
 
-- [ ] The list. `nvs.toml:1`
-- [ ] Each directory's `nvs.toml`, by decision 3; `[ldap.corp]`'s password is the test directory's,
+- [x] The list. `nvs.toml:1`
+- [x] Each directory's `nvs.toml`, by decision 3; `[ldap.corp]`'s password is the test directory's,
   as the root writes it. `docs/examples/core/Ldap-Connection/search/nvs.toml:1`
-- [ ] Their blocks deleted from the root, and the root tables decision 4 frees. `nvs.toml:2772`
-- [ ] `bun nv proofs --run --group` over the twelve classes, every `.out` unchanged.
+- [x] Their blocks deleted from the root, and the root tables decision 4 frees. `nvs.toml:2772`
+- [x] `bun nv proofs --run --group` over the twelve classes, every `.out` unchanged.
 
 ### 5. the Http, Mail, Cap and configuration examples carry their own nvs.toml
 
@@ -241,39 +241,37 @@ configuration ones.
 
 ### State
 
-Stages 1 to 3 are done. Every Db example directory now has its own `nvs.toml`: 31 in stage 2 and
-25 in stage 3, `Db-Row/instant` already had one. The root lost 165 `[[app]]` blocks. `[db.notes]` and
-`[db.schema]` stay, because attacks, benches and `examples/schema.nvs` open them. Every group ran
-green with each `.out` unchanged. The two types have no group, so they run with
-`bun nv proofs --run --only 'Core\Db\DbError' 'Core\Db\RolledBack'`.
+Stages 1 to 4 are done. 56 Db and 72 Ldap example directories have their own `nvs.toml`, and the
+root lost 190 `[[app]]` blocks. Its `[db.notes]`, `[db.schema]`, `[ldap.corp]` and
+`[ldap.corp-accounts]` stay for the attacks, benches and `examples/schema.nvs`.
 
-Two things the next stages can reuse:
+- A relative `[[app]] entry` in a directory's file matches its example (decision 2), as
+  `Db-Plan-Step/grade` proves. A directory whose examples need no grant has no file.
+- Uniform blocks go fastest with a Bun script under `.agent-tmp/` that writes each file from what
+  the `.nvs` opens and deletes the root blocks line by line. The comments left are rewritten by hand.
+- `--group` repeats, one value each. An enum type's `--only` id has `::`
+  (`Core\Ldap\LdapError::Kind`, `Core\Ldap::Tls`).
 
-- A relative `[[app]] entry` in a directory's file matches its example. Proved by hand:
-  `Db-Plan-Step/grade/02-…` throws `needs the capability db.schema` without its block and passes
-  with it. `Db-Plan/steps`, `Db-Plan-Step/{grade,isRefused}`, `Db-Schema/fromArray` and
-  `types/Db-RolledBack` use that form, so an example that needs no grant gets none (decision 2).
-- The blocks were near-identical, so a Bun script under `.agent-tmp/` listed them with
-  `Bun.TOML.parse` and deleted them line by line. That was quicker than the split's Explore list and
-  per-class subagents. Each group comment left above an attack or bench block was then rewritten by
-  hand, so it no longer names an example.
+The sweep's `env-secret-proofs` red and the three nightly Miri failures are stale, checked again
+this session: no such check or log exists, and that nightly ran on 26dda36627, before f13f40646a.
 
-The sweep's `env-secret-proofs` red and the three nightly Miri failures are stale. No such check or
-log exists, and that nightly ran on 26dda36627, before f13f40646a.
-
-No test is expected to go red. 50 lines of the root still name `docs/examples/`.
+No test is expected to go red. 25 lines of the root still name `docs/examples/`, all of them
+stage 5's: `Http/allowUrl`, `Http-Client`, `Http-Part`, `Cap/has`, `Mail/send`, `config/app`,
+`config/capabilities` and the configuration directories its comments name.
 
 ### Next
 
-**Stage 4**, the Ldap examples. They differ from the Db ones in three ways. Some root blocks are
-`root = "docs/examples/core/Ldap-…"`, not `entry`. Two grant names are in use (`corp`,
-`corp-accounts`). Some examples print a refusal (`Ldap/connect/02-a-directory-the-operator-did-not-allow`).
-Most need `samba-ad`. Decision 8's runner starts it.
+**Stage 5**, the Http, Mail, Cap and configuration examples. Unlike stages 2 to 4, the blocks
+differ, so the script trick fits only the Core half. The configuration half is the risky one: each
+of those examples prints a value the root writes, so its file must write the same table, or the
+`.out` changes (decision 3). `config/app` prints `spawn = true` as arriving from the root's first
+`[[app]]` block (`nvs.toml:31`), so its own file needs an `[[app]]` that sets it.
 
-- [ ] The list, by directory, with grant and `root`/`entry`. `nvs.toml:557`
-- [ ] Each directory's `nvs.toml`, with `[ldap.corp]` and `[ldap.corp-accounts]` copied as the root writes them. `docs/examples/core/Ldap-Connection/search/nvs.toml:1`
-- [ ] Their blocks deleted from the root, and each comment above what is left rewritten. `nvs.toml:557`
-- [ ] The twelve groups run, types by `--only`, every `.out` unchanged. `tools/nv/proofs/run.ts:618`
+- [ ] The Core directories: one file each, `Http-Part/file`'s `fs.read` becomes `["data"]`. `nvs.toml:85`
+- [ ] `config/app` and `config/capabilities`, with the values they print. `nvs.toml:295`
+- [ ] The configuration directories the comments at `nvs.toml:1461`–`:1707` name, each with its table.
+- [ ] The root's blocks deleted and those comments rewritten without the path. `nvs.toml:1461`
+- [ ] Each moved group run, every `.out` unchanged. `tools/nv/proofs/run.ts:618`
 
 ### Backlog
 

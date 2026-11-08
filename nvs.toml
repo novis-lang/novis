@@ -549,28 +549,10 @@ entry = "tests/hostile/core/Mail/send/01-headers-hidden-in-every-field.nvs"
 [app.capabilities.mail]
 send = ["shop"]
 
-# `Core\Ldap::connect`'s and `Core\Ldap::open`'s proof programs. `connect` is granted
+# `Core\Ldap::connect`'s and `Core\Ldap::open`'s attacks and benches. `connect` is granted
 # `[ldap.corp]`, which dials a closed port. `open` is granted loopback, which a CLI run reaches with
 # no `net.internal`, so the dial is refused by the closed port and not the outbound policy. The
 # attack writes `net.internal` back, because the `tests/hostile` block writes it empty.
-[[app]]
-entry = "docs/examples/core/Ldap/connect/01-sign-in-to-the-company-directory.nvs"
-
-[app.capabilities.ldap]
-connect = ["corp"]
-
-[[app]]
-entry = "docs/examples/core/Ldap/connect/02-a-directory-the-operator-did-not-allow.nvs"
-
-[app.capabilities.ldap]
-connect = ["corp"]
-
-[[app]]
-entry = "docs/examples/core/Ldap/connect/03-a-page-that-works-without-the-directory.nvs"
-
-[app.capabilities.ldap]
-connect = ["corp"]
-
 [[app]]
 entry = "tests/hostile/core/Ldap/connect/01-names-a-program-chose.nvs"
 
@@ -582,24 +564,6 @@ entry = "benches/members/core/Ldap/connect.nvs"
 
 [app.capabilities.ldap]
 connect = ["corp"]
-
-[[app]]
-entry = "docs/examples/core/Ldap/open/01-open-a-directory-the-program-names.nvs"
-
-[app.capabilities.ldap]
-open = ["127.0.0.1"]
-
-[[app]]
-entry = "docs/examples/core/Ldap/open/02-a-host-the-operator-did-not-allow.nvs"
-
-[app.capabilities.ldap]
-open = ["127.0.0.1"]
-
-[[app]]
-entry = "docs/examples/core/Ldap/open/03-plain-text-needs-its-own-grant.nvs"
-
-[app.capabilities.ldap]
-open = ["127.0.0.1"]
 
 [[app]]
 entry = "tests/hostile/core/Ldap/open/01-settings-a-request-chose.nvs"
@@ -616,15 +580,9 @@ entry = "benches/members/core/Ldap/open.nvs"
 [app.capabilities.ldap]
 open = ["127.0.0.1"]
 
-# The proof programs of `Core\Ldap`'s classes other than `Core\Ldap` itself read the seeded
+# The attacks and benches of `Core\Ldap`'s classes other than `Core\Ldap` itself read the seeded
 # `OU=Company` through `[ldap.corp]`, so each tree of them is granted that one block and nothing
 # else.
-[[app]]
-root = "docs/examples/core/Ldap-Entry"
-
-[app.capabilities.ldap]
-connect = ["corp"]
-
 [[app]]
 root = "tests/hostile/core/Ldap-Entry"
 
@@ -633,12 +591,6 @@ connect = ["corp"]
 
 [[app]]
 root = "benches/members/core/Ldap-Entry"
-
-[app.capabilities.ldap]
-connect = ["corp"]
-
-[[app]]
-root = "docs/examples/core/Ldap-Entries"
 
 [app.capabilities.ldap]
 connect = ["corp"]
@@ -656,12 +608,6 @@ root = "benches/members/core/Ldap-Entries"
 connect = ["corp"]
 
 [[app]]
-root = "docs/examples/core/Ldap-Changes"
-
-[app.capabilities.ldap]
-connect = ["corp"]
-
-[[app]]
 root = "tests/hostile/core/Ldap-Changes"
 
 [app.capabilities.ldap]
@@ -669,12 +615,6 @@ connect = ["corp"]
 
 [[app]]
 root = "benches/members/core/Ldap-Changes"
-
-[app.capabilities.ldap]
-connect = ["corp"]
-
-[[app]]
-root = "docs/examples/core/Ldap-Ad-GroupType"
 
 [app.capabilities.ldap]
 connect = ["corp"]
@@ -692,12 +632,6 @@ root = "benches/members/core/Ldap-Ad-GroupType"
 connect = ["corp"]
 
 [[app]]
-root = "docs/examples/core/Ldap-Ad-AccountFlags"
-
-[app.capabilities.ldap]
-connect = ["corp"]
-
-[[app]]
 root = "tests/hostile/core/Ldap-Ad-AccountFlags"
 
 [app.capabilities.ldap]
@@ -705,12 +639,6 @@ connect = ["corp"]
 
 [[app]]
 root = "benches/members/core/Ldap-Ad-AccountFlags"
-
-[app.capabilities.ldap]
-connect = ["corp"]
-
-[[app]]
-root = "docs/examples/core/Ldap-Connection"
 
 [app.capabilities.ldap]
 connect = ["corp"]
@@ -727,19 +655,14 @@ root = "benches/members/core/Ldap-Connection"
 [app.capabilities.ldap]
 connect = ["corp"]
 
-# The proof programs of `setPassword`, `changePassword`, `authenticate`, `rename`, `add`, `modify`,
-# `delete` and `isDeleted` write to the directory, so they open `[ldap.corp-accounts]`, which logs in as the
-# administrator, and no other program is granted it. Each program adds its own unit and user outside `OU=Company` and deletes both again,
-# so a reader of the seed never sees them. `read`'s large-attribute attack is the one reader among them: it
+# The attacks and benches of `setPassword`, `changePassword`, `authenticate`, `rename`, `add`,
+# `modify`, `delete` and `isDeleted` write to the directory, so they open `[ldap.corp-accounts]`,
+# which logs in as the administrator, and no other program here is granted it. Each program adds its
+# own unit and user outside `OU=Company` and deletes both again, so a reader of the seed never sees
+# them. `read`'s large-attribute attack is the one reader among them: it
 # writes the large unit it then reads, and deletes it at its next run, because it ends at its memory limit.
 [[app]]
 entry = "tests/hostile/core/Ldap-Connection/read/02-an-attribute-larger-than-the-memory-limit.nvs"
-
-[app.capabilities.ldap]
-connect = ["corp-accounts"]
-
-[[app]]
-root = "docs/examples/core/Ldap-Connection/setPassword"
 
 [app.capabilities.ldap]
 connect = ["corp-accounts"]
@@ -757,12 +680,6 @@ entry = "benches/members/core/Ldap-Connection/setPassword.nvs"
 connect = ["corp-accounts"]
 
 [[app]]
-root = "docs/examples/core/Ldap-Connection/changePassword"
-
-[app.capabilities.ldap]
-connect = ["corp-accounts"]
-
-[[app]]
 root = "tests/hostile/core/Ldap-Connection/changePassword"
 
 [app.capabilities.ldap]
@@ -770,12 +687,6 @@ connect = ["corp-accounts"]
 
 [[app]]
 entry = "benches/members/core/Ldap-Connection/changePassword.nvs"
-
-[app.capabilities.ldap]
-connect = ["corp-accounts"]
-
-[[app]]
-root = "docs/examples/core/Ldap-Entry/isDeleted"
 
 [app.capabilities.ldap]
 connect = ["corp-accounts"]
@@ -793,12 +704,6 @@ entry = "benches/members/core/Ldap-Entry/isDeleted.nvs"
 connect = ["corp-accounts"]
 
 [[app]]
-root = "docs/examples/core/Ldap-Connection/rename"
-
-[app.capabilities.ldap]
-connect = ["corp-accounts"]
-
-[[app]]
 root = "tests/hostile/core/Ldap-Connection/rename"
 
 [app.capabilities.ldap]
@@ -806,12 +711,6 @@ connect = ["corp-accounts"]
 
 [[app]]
 entry = "benches/members/core/Ldap-Connection/rename.nvs"
-
-[app.capabilities.ldap]
-connect = ["corp-accounts"]
-
-[[app]]
-root = "docs/examples/core/Ldap-Connection/modify"
 
 [app.capabilities.ldap]
 connect = ["corp-accounts"]
@@ -829,12 +728,6 @@ entry = "benches/members/core/Ldap-Connection/modify.nvs"
 connect = ["corp-accounts"]
 
 [[app]]
-root = "docs/examples/core/Ldap-Connection/authenticate"
-
-[app.capabilities.ldap]
-connect = ["corp-accounts"]
-
-[[app]]
 root = "tests/hostile/core/Ldap-Connection/authenticate"
 
 [app.capabilities.ldap]
@@ -842,12 +735,6 @@ connect = ["corp-accounts"]
 
 [[app]]
 entry = "benches/members/core/Ldap-Connection/authenticate.nvs"
-
-[app.capabilities.ldap]
-connect = ["corp-accounts"]
-
-[[app]]
-root = "docs/examples/core/Ldap-Connection/add"
 
 [app.capabilities.ldap]
 connect = ["corp-accounts"]
@@ -865,12 +752,6 @@ entry = "benches/members/core/Ldap-Connection/add.nvs"
 connect = ["corp-accounts"]
 
 [[app]]
-root = "docs/examples/core/Ldap-Connection/delete"
-
-[app.capabilities.ldap]
-connect = ["corp-accounts"]
-
-[[app]]
 root = "tests/hostile/core/Ldap-Connection/delete"
 
 [app.capabilities.ldap]
@@ -882,46 +763,13 @@ entry = "benches/members/core/Ldap-Connection/delete.nvs"
 [app.capabilities.ldap]
 connect = ["corp-accounts"]
 
-# The proof programs of `Core\Ldap\LdapError` and of `Core\Ldap`'s enums read `[ldap.corp]`, and are
-# granted that one block. Their attack fails on purpose and writes nothing.
-[[app]]
-root = "docs/examples/types/Ldap-LdapError"
-
-[app.capabilities.ldap]
-connect = ["corp"]
-
+# `Core\Ldap\LdapError`'s attack reads `[ldap.corp]`, and is granted that one block. It fails on
+# purpose and writes nothing.
 [[app]]
 root = "tests/hostile/types/Ldap-LdapError"
 
 [app.capabilities.ldap]
 connect = ["corp"]
-
-[[app]]
-root = "docs/examples/types/Ldap-LdapError-Kind"
-
-[app.capabilities.ldap]
-connect = ["corp"]
-
-[[app]]
-root = "docs/examples/types/Ldap-Connection-Scope"
-
-[app.capabilities.ldap]
-connect = ["corp"]
-
-[[app]]
-root = "docs/examples/types/Ldap-Entry-AccountType"
-
-[app.capabilities.ldap]
-connect = ["corp"]
-
-# `Core\Ldap::Tls`'s example opens the test server's plain `ldap://` port on loopback, so it is granted
-# that one host for `open` and for `cleartext`. A CLI run reaches loopback with no `net.internal`.
-[[app]]
-root = "docs/examples/types/Ldap-Tls"
-
-[app.capabilities.ldap]
-open = ["127.0.0.1"]
-cleartext = ["127.0.0.1"]
 
 # `Core\Db\Column`'s proof programs, granted the same way and for the same reason: a description is
 # read off a statement, so every one of these opens `[db.notes]` by name and asks for nothing else.
@@ -1758,7 +1606,7 @@ port = 1
 from = "shop@example.com"
 timeout = "5s"
 
-# The `Core\Ldap` proof programs open this block. It reaches the `samba-ad` service of
+# The `Core\Ldap` attacks and benches open this block. It reaches the `samba-ad` service of
 # `tests/db/compose.yaml` over LDAPS and binds as the read-only `Reader` that service seeds, so a
 # program that opens it carries `// requires: samba-ad`, and the runner starts the service first.
 # `localhost` is a name the test leaf's SAN has, and `tls_ca_file` is the CA that signed it. The
@@ -1772,7 +1620,7 @@ password = "Novis-reader-1"
 tls_ca_file = "tests/db/ca.crt"
 timeout = "5s"
 
-# The `Core\Ldap\Connection` password proof programs open this block. It reaches the same `samba-ad`
+# The `Core\Ldap\Connection` attacks and benches that write open this block. It reaches the same `samba-ad`
 # service as `[ldap.corp]`, but logs in as the administrator that service seeds, because only an
 # administrator may set another account's password. The grants above give it to those programs
 # alone.
