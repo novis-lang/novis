@@ -517,7 +517,9 @@ pub const CLASS: CoreClass = CoreClass {
                 CoreTy::Options(ENCODE_EACH_OPTIONS),
             ],
             defaults: &[],
-            return_ty: CoreTy::Instance(PIECES_NAME),
+            // `bytes`, and `tainted bytes` when an item can hold outside text,
+            // as `encode`'s `string` is (`registry::CELL_CLASSES`).
+            return_ty: CoreTy::InstanceAt(PIECES_NAME, &[CoreTy::Bytes]),
             symbol: "nvs_core_json_encode_each",
             doc: Some(&ENCODE_EACH_DOC),
         },
@@ -608,7 +610,8 @@ pub(crate) const PIECES: CoreClass = CoreClass {
 const PIECES_CARD: ClassDoc = ClassDoc {
     short: "The text of a JSON document in pieces of `bytes`, written one at a time while a \
             `foreach` loop runs. The whole document is never in memory at once. The text is \
-            escaped as `Core\\Json::encode` escapes it, so it is safe inside an HTML page.",
+            escaped as `Core\\Json::encode` escapes it, so it is safe inside an HTML page. The \
+            pieces are `tainted bytes` when an item can contain tainted text.",
 };
 
 /// `Core\Json::decodeEach`'s reference card — `rule:core-api/reference-card`.
@@ -669,8 +672,8 @@ const DECODE_EACH_DOC: MethodDoc = MethodDoc {
 const ENCODE_EACH_DOC: MethodDoc = MethodDoc {
     short: "Writes a JSON array in pieces, in a `foreach` loop. It takes the next item from \
             `$items` only when it needs it, and encodes each item as `encode` does. So the text \
-            is safe inside an HTML page. You can write the pieces to a file with \
-            `Core\\IO::writeStream`.",
+            is safe inside an HTML page. You can send the pieces with \
+            `Core\\Response::stream` or write them to a file with `Core\\IO::writeStream`.",
     params: &[
         ParamDoc {
             name: "items",
@@ -686,7 +689,9 @@ const ENCODE_EACH_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "The JSON text as `bytes`, in pieces of at most 64 KiB. The first piece starts with `[` \
-          and the last piece ends with `]`. Nothing is encoded until the loop starts.",
+          and the last piece ends with `]`. Nothing is encoded until the loop starts. If an \
+          item can contain tainted text, the pieces are `tainted bytes`, as the result of \
+          `encode` is a `tainted string`.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "An item contains something that JSON cannot represent, as for `encode`. The error \

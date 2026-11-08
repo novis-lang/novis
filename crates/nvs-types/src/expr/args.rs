@@ -695,7 +695,7 @@ fn reads_any_walk(actual: TypeId, expected: TypeId, env: &mut Env<'_>) -> bool {
 
 /// The element `ty` gives a `foreach`, when it is an `Iterable<T>`, an
 /// `Iterator<T>` or a class that implements one. An array answers `None`.
-fn walk_element(ty: TypeId, env: &mut Env<'_>) -> Option<TypeId> {
+pub(crate) fn walk_element(ty: TypeId, env: &mut Env<'_>) -> Option<TypeId> {
     let Ty::Class(qname, args) = env.interner.get(ty).clone() else {
         return None;
     };

@@ -3571,6 +3571,10 @@ pub const GENERIC_CLASSES: &[(&str, &[&str])] = &[
     // `Core\Json::decodeEach<T>`'s walk, generic for the same reason as the
     // row above: each element is built into the type the call site wrote.
     (crate::json::ELEMENTS_NAME, &["T"]),
+    // `Core\Json::encodeEach`'s walk, generic in its piece type for the reason
+    // `Core\Csv\Rows` below is: `bytes`, or `tainted bytes` when the items carry
+    // outside text, as `Core\Json::encode`'s answer is (`CELL_CLASSES`).
+    (crate::json::PIECES_NAME, &["T"]),
     // `Core\Csv::rows`' walk, generic in its cell type: `string` for a file and
     // `tainted string` for request bytes, so the cells follow the source
     // (`CELL_CLASSES`).
@@ -3585,7 +3589,13 @@ pub const GENERIC_CLASSES: &[(&str, &[&str])] = &[
 /// A roster, because most generic classes hold what the program put in them,
 /// such as a `Core\ObjectSet`, and a tainted argument to a member says nothing
 /// about those.
-pub const CELL_CLASSES: &[&str] = &[crate::csv::ROWS_NAME];
+///
+/// `Core\Json\Pieces` is the second row. Its pieces are the text of the items
+/// the call walked, so they carry that text's qualifier as `encode`'s
+/// `string` does: `Core\Json::encodeEach` returns `Core\Json\Pieces<bytes>`,
+/// and `Core\Json\Pieces<tainted bytes>` when an item can hold outside text
+/// (`nvs_types::expr::quals::encodes_outside_text`).
+pub const CELL_CLASSES: &[&str] = &[crate::csv::ROWS_NAME, crate::json::PIECES_NAME];
 
 /// Whether `class` is one of [`CELL_CLASSES`].
 #[must_use]
@@ -3679,10 +3689,11 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // delimiter search in front of it, and `tainted` for the same reason.
     (crate::request::PART_CONTENT_NAME, &CoreTy::TaintedBytes),
     // `Core\Json::decodeEach<T>`'s walk yields the receiver's own `T`, as
-    // `Core\Db\Stream` does, and `encodeEach`'s yields the document's text,
-    // `tainted` for the reason `Core\Json::encode`'s `mixed` answer is.
+    // `Core\Db\Stream` does. `encodeEach`'s yields its own `T` too: the
+    // document's text as `bytes`, qualified as `Core\Json::encode`'s `string`
+    // is for the same items (`CELL_CLASSES`).
     (crate::json::ELEMENTS_NAME, &CoreTy::Var("T")),
-    (crate::json::PIECES_NAME, &CoreTy::TaintedBytes),
+    (crate::json::PIECES_NAME, &CoreTy::Var("T")),
     // `Core\Markdown::toHtmlEach`'s walk yields each block group's HTML.
     (
         crate::markdown::GROUPS_NAME,

@@ -1,0 +1,37 @@
+--TEST--
+A request streams `Core\Json::encodeEach`'s pieces through `Core\Response::stream`, and the body is the text `Core\Json::encode` writes for the same list -- `rule:core-classes/json-whole-and-stream`
+--FILE--
+<?nvs
+// covers: Core\Json::encodeEach
+// The list holds no text from outside the program, so each piece is `bytes`
+// and a stream's `write` takes it. About 100 KiB of JSON is two pieces or more.
+class Catalog
+{
+    public static function items(): array<{ id: int, name: string }>
+    {
+        array<{ id: int, name: string }> $items = [];
+        int $id = 0;
+        while ($id < 3000) {
+            $items[] = { id: $id, name: 'item number ' . ($id as string) };
+            $id = $id + 1;
+        }
+        return $items;
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    var $out = Core\Response::stream("application/json");
+    foreach (Core\Json::encodeEach(Catalog::items()) as bytes $piece) {
+        $out->write($piece);
+    }
+} else {
+    var $response = Core\Test::request(Core\Http\Method::Get, "/items");
+    echo $response->header("Content-Type") ?? "none", "\n";
+    string $body = $response->body();
+    echo "same as encode: ", $body == Core\Json::encode(Catalog::items()) ? "yes" : "no", "\n";
+    echo "longer than one piece: ", Core\Str::length($body) > 65536 ? "yes" : "no", "\n";
+}
+--EXPECT--
+application/json
+same as encode: yes
+longer than one piece: yes

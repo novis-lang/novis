@@ -1294,6 +1294,12 @@ pub(crate) fn reject_secret_encoded_argument(
 /// call is read element by element ([`written_outside_text`]), because its
 /// type is `array<mixed>` whatever it holds, and the round trip of a literal
 /// the program wrote is the common case.
+///
+/// `Core\Json::encodeEach` is `encode` one item at a time, so its pieces are
+/// judged as `encode`'s text is. Its argument is a walk, and what it encodes is
+/// the walk's element, so a generator or a `Core` walk is judged by the element
+/// its `foreach` gives. The answer taints the pieces' type argument
+/// (`nvs_stdlib::registry::CELL_CLASSES`).
 pub(crate) fn encodes_outside_text(
     qname: &QName,
     member: &str,
@@ -1307,22 +1313,32 @@ pub(crate) fn encodes_outside_text(
     // of an encoder, and every argument after the template of a formatter,
     // which a positional call places at its own index.
     let walked: fn(usize) -> bool = match (qname.to_string().as_str(), member) {
-        (r"Core\Json" | r"Core\Serialize", "encode") => |at| at == 0,
+        (r"Core\Json" | r"Core\Serialize", "encode") | (r"Core\Json", "encodeEach") => {
+            |at| at == 0
+        }
         (r"Core\Str", "format") | (r"Core\Bytes", "pack") => |at| at >= 1,
         _ => return false,
     };
+    let each = member == "encodeEach";
     let mut seen = FxHashSet::default();
     let CallArgs::List(list) = args else {
-        return arg_types
-            .iter()
-            .any(|&ty| walks_outside_text(ty, &mut seen, env));
+        return arg_types.iter().any(|&ty| {
+            let element = each.then(|| super::args::walk_element(ty, env)).flatten();
+            let ty = element.unwrap_or(ty);
+            walks_outside_text(ty, &mut seen, env)
+        });
     };
     list.iter()
         .zip(slots)
         .zip(arg_types)
         .any(|((arg, &slot), &ty)| {
-            matches!(slot, ArgSlot::Param(at) | ArgSlot::Spread(at) if walked(at))
-                && written_outside_text(&arg.value, ty, scope, &mut seen, env)
+            if !matches!(slot, ArgSlot::Param(at) | ArgSlot::Spread(at) if walked(at)) {
+                return false;
+            }
+            match each.then(|| super::args::walk_element(ty, env)).flatten() {
+                Some(element) => walks_outside_text(element, &mut seen, env),
+                None => written_outside_text(&arg.value, ty, scope, &mut seen, env),
+            }
         })
 }
 

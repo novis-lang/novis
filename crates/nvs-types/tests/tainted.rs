@@ -108,13 +108,10 @@ fn a_neutral_parameter_of_a_generic_member_admits_a_tainted_argument() {
 
 #[test]
 fn a_neutral_walk_parameter_admits_a_walk_of_tainted_bytes() {
-    // `Core\IO::writeStream` writes its chunks and returns nothing, so a walk
-    // whose class fixed `tainted bytes`, such as `encodeEach`'s pieces, passes,
-    // and so does an array of tainted chunks. The element type is still checked.
+    // `Core\IO::writeStream` writes its chunks and returns nothing, so an array
+    // of tainted chunks passes. The element type is still checked.
     let diags = check_in_method(
-        "array<mixed> $items = [1, 2];\n\
-         Core\\IO::writeStream(\"a.json\", Core\\Json::encodeEach($items));\n\
-         array<tainted bytes> $chunks = [];\n\
+        "array<tainted bytes> $chunks = [];\n\
          Core\\IO::writeStream(\"b.json\", $chunks);\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
@@ -790,6 +787,75 @@ class P {
 ",
     );
     assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn encode_each_pieces_carry_what_encode_text_carries() {
+    // `Core\Json::encodeEach` is `encode` one item at a time, so a piece is
+    // `tainted bytes` exactly where `encode`'s text of the same items is
+    // `tainted string`. A walk is judged by the element its `foreach` gives.
+    let tainted = check_src(
+        "<?nvs
+class Leaf {
+    public tainted string $name = \"\";
+}
+class P {
+    public static function sink(bytes $b): void {}
+    public static function walk(): Iterator<tainted string> { yield \"x\" as tainted string; }
+
+    public static function a(array<tainted string> $t): void { foreach (Core\\Json::encodeEach($t) as var $p) { P::sink($p); } }
+    public static function b(array<mixed> $m): void { foreach (Core\\Json::encodeEach($m) as var $p) { P::sink($p); } }
+    public static function c(array<{name: tainted string}> $s): void { foreach (Core\\Json::encodeEach($s) as var $p) { P::sink($p); } }
+    public static function d(array<Leaf> $l): void { foreach (Core\\Json::encodeEach($l) as var $p) { P::sink($p); } }
+    public static function e(): void { foreach (Core\\Json::encodeEach(P::walk()) as var $p) { P::sink($p); } }
+}
+",
+    );
+    let mismatches = tainted
+        .iter()
+        .filter(|d| d.code == Some(code::E_TYPE_MISMATCH))
+        .count();
+    assert_eq!(mismatches, 5, "{tainted:?}");
+    let plain = check_src(
+        "<?nvs
+class Clean {
+    public int $n = 0;
+    public string $label = \"\";
+}
+class P {
+    public static function sink(bytes $b): void {}
+    public static function walk(): Iterator<int> { yield 1; }
+
+    public static function a(array<int> $n): void { foreach (Core\\Json::encodeEach($n) as bytes $p) { P::sink($p); } }
+    public static function b(array<{n: int, label: string}> $s): void { foreach (Core\\Json::encodeEach($s, { lines: true }) as bytes $p) { P::sink($p); } }
+    public static function c(array<Clean> $c): void { foreach (Core\\Json::encodeEach($c) as bytes $p) { P::sink($p); } }
+    public static function d(): void { foreach (Core\\Json::encodeEach(P::walk()) as bytes $p) { P::sink($p); } }
+}
+",
+    );
+    assert!(!plain.has_errors(), "{plain:?}");
+}
+
+#[test]
+fn a_response_stream_writes_encode_each_pieces() {
+    // A stream's `write` is a sink, so it takes the pieces of items that hold
+    // no outside text, and refuses the pieces of items that do.
+    let plain = check_in_method(
+        "array<{ id: int, name: string }> $users = [{ id: 1, name: \"Ada\" }];\n\
+         var $out = Core\\Response::stream(\"application/json\");\n\
+         foreach (Core\\Json::encodeEach($users) as bytes $piece) {\n\
+             $out->write($piece);\n\
+         }\n",
+    );
+    assert!(!plain.has_errors(), "{plain:?}");
+    let tainted = check_in_method(
+        "array<tainted string> $names = [\"Ada\" as tainted string];\n\
+         var $out = Core\\Response::stream(\"application/json\");\n\
+         foreach (Core\\Json::encodeEach($names) as var $piece) {\n\
+             $out->write($piece);\n\
+         }\n",
+    );
+    assert!(tainted.has_errors(), "a tainted piece is not a chunk a stream writes");
 }
 
 #[test]

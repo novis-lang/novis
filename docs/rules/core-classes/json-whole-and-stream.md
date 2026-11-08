@@ -18,9 +18,15 @@ refusal and the same escapes that keep the text safe inside an HTML page
   reads as `content()` does, `Core\Request::bodyStream()`, or any walk of `bytes` chunks. Each is read
   through the one byte source every such member uses
   (`rule:core-api/a-member-takes-the-source-the-program-holds`).
-- `Core\Json::encodeEach(Iterable<mixed> $items, { lines?: bool }): Iterable<bytes>` pulls one item at a
-  time and gives the array's text in pieces of up to 64 KiB, brackets and commas included.
+- `Core\Json::encodeEach(Iterable<mixed> $items, { lines?: bool }): Core\Json\Pieces<bytes>` pulls one
+  item at a time and gives the array's text in pieces of up to 64 KiB, brackets and commas included.
   `{ lines: true }` writes one value per line and no brackets.
+- The pieces carry the taint `encode`'s text carries for the same items: `Pieces<tainted bytes>` when
+  an item can hold outside text, judged as `encode`'s argument is, and a walk by the element it gives.
+  So a stream's `write`, a sink, takes the pieces of a list the program built and refuses those of a
+  list from a request. Declined: a `write` that accepts tainted pieces because the serializer owns
+  their framing. Escaping keeps the text inert in HTML, and the client still chooses its content, so
+  the pieces stay as tainted as `encode`'s string.
 - A request body is read with `Core\Json::decodeEach<T>(Core\Request::bodyStream(), '/items')`, so there
   is no `Core\Request::jsonEach`. A response writes `encodeEach`'s pieces to `Core\Response::stream` or
   `Core\IO::writeStream`, so there is no response member either.

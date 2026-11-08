@@ -1,13 +1,13 @@
 <?nvs
-// Shows a request that sends a list of products and gets back the ones that are in stock.
+// Shows a request that gets back the products in stock, as a JSON array sent in pieces.
 
 #[Core\Json\Derive]
 class Product
 {
-    public tainted string $sku;
+    public string $sku;
     public int $stock;
 
-    public function constructor(tainted string $sku, int $stock)
+    public function constructor(string $sku, int $stock)
     {
         $this->sku = $sku;
         $this->stock = $stock;
@@ -16,10 +16,11 @@ class Product
 
 class Stock
 {
-    // This function reads the body one product at a time. It gives only the products in stock.
+    // This function gives the products in stock, one at a time.
     public static function available(): Iterator<Product>
     {
-        foreach (Core\Json::decodeEach<Product>(Core\Request::bodyStream()) as Product $product) {
+        array<Product> $all = [new Product('MUG-01', 12), new Product('LID-02', 0), new Product('CUP-07', 30)];
+        foreach ($all as Product $product) {
             if ($product->stock > 0) {
                 yield $product;
             }
@@ -27,9 +28,11 @@ class Stock
     }
 }
 
-// `encodeEach` writes the JSON array in pieces, so neither list is in memory as a whole.
-// This prints `[{"sku":"MUG-01","stock":12},{"sku":"CUP-07","stock":30}]`.
-foreach (Core\Json::encodeEach(Stock::available()) as tainted bytes $piece) {
-    echo $piece as string;
+// `Core\Response::stream` starts the body and sets its content type to `application/json`.
+Core\Response\Stream $out = Core\Response::stream('application/json');
+
+// The pieces are `bytes`, because no product contains text from a request.
+// This sends `[{"sku":"MUG-01","stock":12},{"sku":"CUP-07","stock":30}]`.
+foreach (Core\Json::encodeEach(Stock::available()) as bytes $piece) {
+    $out->write($piece);
 }
-echo "\n";
