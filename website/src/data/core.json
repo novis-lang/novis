@@ -35863,16 +35863,107 @@
     {
       "id": "Queue.Id",
       "name": "Core\\Queue\\Id",
-      "summary": "The id of one background job, as `Core\\Queue::push` returns it. It identifies the job and the queue the job is in. You pass it to `status`, `cancel` and `delete`. It has no methods of its own.",
+      "summary": "The id of one background job, as `Core\\Queue::push` returns it. It identifies the job and the queue the job is in. You pass it to `status`, `cancel` and `delete`. `toString` gives a string that you can send to a client. `Core\\Queue\\Id::parse` reads that string back in a later request.",
       "enums": [],
       "types": [],
       "constants": [],
-      "members": [],
+      "members": [
+        {
+          "id": "Queue.Id.parse",
+          "name": "parse",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "parse(string $s): Core\\Queue\\Id",
+          "params": [
+            {
+              "kind": "param",
+              "name": "s",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Queue\\Id",
+          "doc": {
+            "shortHtml": "Reads the string <code>$s</code> as a job id. The string must come from <code>toString</code>. A string that somebody changed or guessed gives an id that finds no job. <code>status</code> then throws an error, and <code>cancel</code> returns <code>false</code>.",
+            "params": [
+              {
+                "name": "s",
+                "descHtml": "The string to read, such as a value from the URL. It may be <code>tainted</code>."
+              }
+            ],
+            "returnHtml": "The <code>Core\\Queue\\Id</code> that the string gives. Any user who has the string can use the id. Store the string with the user who started the job. Check that user before you call <code>status</code> or <code>cancel</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$s</code> is not in the form that <code>toString</code> writes. The message does not quote <code>$s</code>."
+              }
+            ]
+          },
+          "slug": "parse",
+          "url": "/reference/core/queue-id/parse/",
+          "examples": "core/Queue-Id/parse"
+        },
+        {
+          "id": "Queue.Id.tryParse",
+          "name": "tryParse",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "tryParse(string $s): ?Core\\Queue\\Id",
+          "params": [
+            {
+              "kind": "param",
+              "name": "s",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "?Core\\Queue\\Id",
+          "doc": {
+            "shortHtml": "Reads the string <code>$s</code> as a job id, like <code>Core\\Queue\\Id::parse</code>. When the string is not in the form that <code>toString</code> writes, it returns <code>null</code>. It does not throw an error.",
+            "params": [
+              {
+                "name": "s",
+                "descHtml": "The string to read, such as a value from the URL. It may be <code>tainted</code>."
+              }
+            ],
+            "returnHtml": "The <code>Core\\Queue\\Id</code> that the string gives, or <code>null</code>. A changed or guessed string in the correct form gives an id that finds no job."
+          },
+          "slug": "tryparse",
+          "url": "/reference/core/queue-id/tryparse/",
+          "examples": "core/Queue-Id/tryParse"
+        },
+        {
+          "id": "Queue.Id.toString",
+          "name": "toString",
+          "static": false,
+          "receiver": "id",
+          "generics": null,
+          "signature": "toString(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the id as a string. You can put the string in a URL, a header, a cookie or JSON without escaping it. <code>echo $id</code> writes the same string.",
+            "returnHtml": "A string of letters, digits, <code>.</code>, <code>-</code> and <code>_</code>. <code>Core\\Queue\\Id::parse</code> reads it back as an id for the same job. Keep the string secret like a password. Anybody who has it can check or cancel the job."
+          },
+          "slug": "tostring",
+          "url": "/reference/core/queue-id/tostring/",
+          "examples": "core/Queue-Id/toString"
+        }
+      ],
       "slug": "queue-id",
       "url": "/reference/core/queue-id/",
       "summaryBlocks": [
         {
-          "html": "<p>The id of one background job, as <code>Core\\Queue::push</code> returns it. It identifies the job and the queue the job is in. You pass it to <code>status</code>, <code>cancel</code> and <code>delete</code>. It has no methods of its own.</p>\n<p><code>Core\\Queue\\Id</code> identifies one background job and the queue that the job is in. <code>Core\\Queue::push</code> returns it. You pass it to <code>Core\\Queue::status</code>, <code>Core\\Queue::cancel</code> and <code>Core\\Queue::delete</code>. An <code>Id</code> has no methods, and it cannot be printed or converted to a <code>string</code>.</p>\n<p>When you call <code>push</code> with a <code>key</code>, and a pending job already has that key, <code>push</code> adds no job. It returns an <code>Id</code> for the pending job, so <code>status</code>, <code>cancel</code> and <code>delete</code> work on that job.</p>\n<p><code>status</code> reads the state of the job from the database on every call. <code>cancel</code> returns <code>false</code> when the job is no longer waiting. After <code>delete</code> removes the job, <code>status</code> throws a <code>RuntimeError</code> for its <code>Id</code>.</p>\n<p>The example below creates the two queue tables itself, because its database is in memory. On a server, <code>nvs queue migrate</code> creates them.</p>"
+          "html": "<p>The id of one background job, as <code>Core\\Queue::push</code> returns it. It identifies the job and the queue the job is in. You pass it to <code>status</code>, <code>cancel</code> and <code>delete</code>. <code>toString</code> gives a string that you can send to a client. <code>Core\\Queue\\Id::parse</code> reads that string back in a later request.</p>\n<p><code>Core\\Queue\\Id</code> identifies one background job and the queue that the job is in. <code>Core\\Queue::push</code> returns it. You pass it to <code>Core\\Queue::status</code>, <code>Core\\Queue::cancel</code> and <code>Core\\Queue::delete</code>. An <code>Id</code> has no methods, and it cannot be printed or converted to a <code>string</code>.</p>\n<p>When you call <code>push</code> with a <code>key</code>, and a pending job already has that key, <code>push</code> adds no job. It returns an <code>Id</code> for the pending job, so <code>status</code>, <code>cancel</code> and <code>delete</code> work on that job.</p>\n<p><code>status</code> reads the state of the job from the database on every call. <code>cancel</code> returns <code>false</code> when the job is no longer waiting. After <code>delete</code> removes the job, <code>status</code> throws a <code>RuntimeError</code> for its <code>Id</code>.</p>\n<p>The example below creates the two queue tables itself, because its database is in memory. On a server, <code>nvs queue migrate</code> creates them.</p>"
         },
         {
           "code": "[db.jobs]\ndriver = \"sqlite\"\npath = \":memory:\"\n\n[capabilities.db]\nconnect = [\"jobs\"]\n\n[queue]\nconnection = \"jobs\"\nworkers = 0",

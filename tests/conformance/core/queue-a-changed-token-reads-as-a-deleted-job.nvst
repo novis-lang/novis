@@ -1,0 +1,96 @@
+--TEST--
+An Id string whose token was changed still parses, and it finds no job: `status` throws the error a deleted job gets and `cancel` returns `false` — `rule:concurrency/queue-four-members`
+--FILE--
+<?nvs
+use Core\Queue;
+use Core\Queue\Id;
+
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (
+    id integer primary key autoincrement,
+    queue varchar(255) not null,
+    script text not null,
+    args text,
+    state smallint not null,
+    attempts integer not null,
+    max_attempts integer not null,
+    backoff_ms bigint not null,
+    run_at bigint not null,
+    tag varchar(255),
+    dedupe_key varchar(255),
+    dedupe_pending varchar(255),
+    created_at bigint not null,
+    claimed_at bigint,
+    errors text,
+    grants text,
+    limits text,
+    non_transactional smallint, token text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending)
+)
+SQL;
+$db->execute($jobs, []);
+
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (
+    id bigint not null,
+    queue varchar(255) not null,
+    script text not null,
+    args text,
+    attempts integer not null,
+    max_attempts integer not null,
+    backoff_ms bigint not null,
+    run_at bigint not null,
+    tag varchar(255),
+    dedupe_key varchar(255),
+    created_at bigint not null,
+    failed_at bigint not null,
+    errors text not null, token text,
+    primary key (id)
+)
+SQL;
+$db->execute($dead, []);
+
+// The first job in the table is row 1 of the queue `receipts`. The string below
+// has that row number and that queue, and a token of sixteen zero bytes.
+var $real = Queue::push("jobs/send-receipt.nvs", {queue: "receipts"});
+Id $forged = Id::parse("1.AAAAAAAAAAAAAAAAAAAAAA.cmVjZWlwdHM");
+
+try {
+    Queue::status($forged);
+    echo "status found a job\n";
+} catch (RuntimeError $missing) {
+    echo "status: no job\n";
+}
+echo "cancel ", Queue::cancel($forged) ? "yes" : "no", "\n";
+
+// A job that was really deleted gets the same answers.
+Queue::cancel($real);
+echo "deleted ", Queue::delete($real) ? "yes" : "no", "\n";
+try {
+    Queue::status($real);
+    echo "status found a job\n";
+} catch (RuntimeError $missing) {
+    echo "status: no job\n";
+}
+echo "cancel ", Queue::cancel($real) ? "yes" : "no", "\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["jobs"]
+
+[capabilities.queue]
+purge = ["receipts"]
+
+[db.jobs]
+driver = "sqlite"
+path = "jobs.db"
+
+[queue]
+connection = "jobs"
+workers = 0
+--EXPECT--
+status: no job
+cancel no
+deleted yes
+status: no job
+cancel no

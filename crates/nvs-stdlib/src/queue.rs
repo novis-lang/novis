@@ -2730,25 +2730,54 @@ const STATS_NON_TRANSACTIONAL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `push`'s receipt (`rule:concurrency/queue-four-members`): the row `push` wrote, and the queue it
-/// is in.
+/// `push`'s receipt (`rule:concurrency/queue-four-members`): the row `push` wrote, the queue it is
+/// in, and the row's random token.
 ///
 /// A class rather than a bare `uint` because the three members that take one — `cancel`, `delete`
-/// and `status` — have to know the queue as well, and a caller holding an integer would have to
-/// carry it beside.
-/// It has no members of its own; it is a name for a pair, which is what `rule:core-api/shape-rules` gives an opaque
-/// handle.
+/// and `status` — have to know the queue and the token as well, and a caller holding an integer
+/// would have to carry them beside. [`CoreTy::Instance`](crate::registry::CoreTy::Instance)'s own
+/// rule about a `Core` instance's properties is why it is a class and not a shape.
 ///
-/// What `push` answers with — the row it wrote and the queue it is in, memberless
-/// because the two members that take one are asked *about* it rather than through
-/// it. [`CoreTy::Instance`](crate::registry::CoreTy::Instance)'s own rule about a `Core` instance's properties is why
-/// it is a class and not a shape.
+/// **Its three members are its string form and the way back** (`rule:expressions/try-parse`,
+/// `rule:classes/stringable`). `toString` makes the class one that renders, so `echo $id` and
+/// interpolation write the string; `parse` and `tryParse` read it back in a later request.
+/// [`id_text`] owns the format, and [`read_id`] is the one parse both statics run.
 // rank: 1740
 pub(crate) const ID: CoreClass = CoreClass {
     name: ID_NAME,
     doc: Some(&ID_CARD),
-    methods: &[],
-    instance: &[],
+    methods: &[
+        CoreMethod {
+            name: "parse",
+            names: &["s"],
+            // `Qual::Neutral` for `Core\Uuid::parse`'s reason: the text arrived from a client, so
+            // the parameter admits a `tainted` one, and the Id that comes back has no text a
+            // program can read.
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(ID_NAME),
+            symbol: "nvs_core_queue_id_parse",
+            doc: Some(&ID_PARSE_DOC),
+        },
+        CoreMethod {
+            name: "tryParse",
+            names: &["s"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(ID_NAME)),
+            symbol: "nvs_core_queue_id_try_parse",
+            doc: Some(&ID_TRY_PARSE_DOC),
+        },
+    ],
+    instance: &[CoreMethod {
+        name: "toString",
+        names: &[],
+        params: &[],
+        defaults: &[],
+        return_ty: CoreTy::Str,
+        symbol: "nvs_core_queue_id_to_string",
+        doc: Some(&ID_TO_STRING_DOC),
+    }],
     slots: &[ID_SLOT, ID_QUEUE_SLOT, ID_TOKEN_SLOT],
     constants: &[],
 };
@@ -2756,8 +2785,54 @@ pub(crate) const ID: CoreClass = CoreClass {
 /// `Core\Queue\Id`'s class card — `rule:core-api/reference-card`.
 const ID_CARD: ClassDoc = ClassDoc {
     short: "The id of one background job, as `Core\\Queue::push` returns it. It identifies the job \
-            and the queue the job is in. You pass it to `status`, `cancel` and `delete`. It has no \
-            methods of its own.",
+            and the queue the job is in. You pass it to `status`, `cancel` and `delete`. \
+            `toString` gives a string that you can send to a client. `Core\\Queue\\Id::parse` \
+            reads that string back in a later request.",
+};
+
+/// `Core\Queue\Id::parse`'s reference card — `rule:core-api/reference-card`.
+const ID_PARSE_DOC: MethodDoc = MethodDoc {
+    short: "Reads the string `$s` as a job id. The string must come from `toString`. A string \
+            that somebody changed or guessed gives an id that finds no job. `status` then throws \
+            an error, and `cancel` returns `false`.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The string to read, such as a value from the URL. It may be `tainted`.",
+        shape: &[],
+    }],
+    ret: "The `Core\\Queue\\Id` that the string gives. Any user who has the string can use the \
+          id. Store the string with the user who started the job. Check that user before you \
+          call `status` or `cancel`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$s` is not in the form that `toString` writes. The message does not quote `$s`.",
+    }],
+};
+
+/// `Core\Queue\Id::tryParse`'s reference card — `rule:core-api/reference-card`.
+const ID_TRY_PARSE_DOC: MethodDoc = MethodDoc {
+    short: "Reads the string `$s` as a job id, like `Core\\Queue\\Id::parse`. When the string is \
+            not in the form that `toString` writes, it returns `null`. It does not throw an \
+            error.",
+    params: &[ParamDoc {
+        name: "s",
+        desc: "The string to read, such as a value from the URL. It may be `tainted`.",
+        shape: &[],
+    }],
+    ret: "The `Core\\Queue\\Id` that the string gives, or `null`. A changed or guessed string in \
+          the correct form gives an id that finds no job.",
+    errors: &[],
+};
+
+/// `$id->toString`'s reference card — `rule:core-api/reference-card`.
+const ID_TO_STRING_DOC: MethodDoc = MethodDoc {
+    short: "Returns the id as a string. You can put the string in a URL, a header, a cookie or \
+            JSON without escaping it. `echo $id` writes the same string.",
+    params: &[],
+    ret: "A string of letters, digits, `.`, `-` and `_`. `Core\\Queue\\Id::parse` reads it back \
+          as an id for the same job. Keep the string secret like a password. Anybody who has it \
+          can check or cancel the job.",
+    errors: &[],
 };
 
 /// `stats`, as the record it answers with — `rule:concurrency/queue-four-members` and
@@ -3470,6 +3545,176 @@ fn job_of(value: Value, member: &str) -> Result<(u64, String, String), Fault> {
         })?
         .to_owned();
     Ok((id, queue, token))
+}
+
+/// How many base64url characters a token's [`TOKEN_BYTES`] take with no padding.
+const ID_TOKEN_CHARS: usize = (TOKEN_BYTES * 4).div_ceil(3);
+
+/// The most bytes a queue name can take: [`KEY_WIDTH`] characters of at most four UTF-8 bytes
+/// each, which is what the `queue` column admits on every backend.
+const QUEUE_NAME_BYTES: usize = 4 * KEY_WIDTH as usize;
+
+/// The longest string [`id_text`] writes: a `u64` in decimal, a dot, the token, a dot, and the
+/// longest queue name in base64url. [`read_id`] throws on anything longer before it decodes a
+/// byte, so a client cannot make a parse read more than this.
+const ID_TEXT_MAX: usize = 20 + 1 + ID_TOKEN_CHARS + 1 + (QUEUE_NAME_BYTES * 4).div_ceil(3);
+
+/// One `Core\Queue\Id` as the string `toString` writes (`rule:concurrency/queue-four-members`).
+///
+/// **The format is `<row number>.<token>.<queue>`, and only [`read_id`] reads it.** The row number
+/// is decimal, the token is its 16 bytes as 22 base64url characters, and the queue name is its UTF-8
+/// bytes as base64url, all with no padding. Every character is in `[A-Za-z0-9._-]`, so the string
+/// goes into a URL, a header, a cookie or JSON with no escaping, and the dots cannot be confused
+/// with anything base64url writes.
+///
+/// A token that is not 32 hex digits is a job written before the `token` column, whose slot is
+/// empty. It renders as sixteen zero bytes, and that token matches no row a `push` wrote, so the
+/// string reads back as an Id that finds no job — which is what the empty token already did.
+fn id_text(id: u64, queue: &str, token: &str) -> String {
+    use base64::Engine as _;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    let raw = token_bytes(token).unwrap_or([0; TOKEN_BYTES]);
+    format!(
+        "{id}.{}.{}",
+        URL_SAFE_NO_PAD.encode(raw),
+        URL_SAFE_NO_PAD.encode(queue.as_bytes())
+    )
+}
+
+/// The [`TOKEN_BYTES`] bytes [`token_text`] wrote as `hex`, or `None` for any other text.
+fn token_bytes(hex: &str) -> Option<[u8; TOKEN_BYTES]> {
+    let digits = hex.as_bytes();
+    if digits.len() != 2 * TOKEN_BYTES {
+        return None;
+    }
+    let nibble = |digit: u8| match digit {
+        b'0'..=b'9' => Some(digit - b'0'),
+        b'a'..=b'f' => Some(digit - b'a' + 10),
+        _ => None,
+    };
+    let mut raw = [0_u8; TOKEN_BYTES];
+    for (byte, [high, low]) in raw.iter_mut().zip(digits.as_chunks::<2>().0) {
+        *byte = (nibble(*high)? << 4) | nibble(*low)?;
+    }
+    Some(raw)
+}
+
+/// The row number, the queue and the token's hex text that one [`id_text`] string names, or the
+/// reason it names none.
+///
+/// **The checks run in order: the length, the characters, then the three parts.** The length comes
+/// first, so a string of a million characters costs one comparison. Each part has exactly one
+/// written form: the row number has no sign and no leading zero, and the base64url decoder refuses
+/// trailing bits, so two different strings never read as one Id. The reason quotes none of the
+/// string, because a real Id is a bearer value and a log should not keep it.
+fn read_id(text: &str) -> Result<(u64, String, String), &'static str> {
+    use base64::Engine as _;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    if text.len() > ID_TEXT_MAX {
+        return Err("it is longer than any job id");
+    }
+    if !text
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
+    {
+        return Err("it has a character that no job id has");
+    }
+    let mut parts = text.split('.');
+    let (Some(row), Some(token), Some(queue), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return Err("it does not have three parts joined by dots");
+    };
+    let canonical_row = !row.is_empty()
+        && row.bytes().all(|byte| byte.is_ascii_digit())
+        && (row == "0" || !row.starts_with('0'));
+    let id = canonical_row
+        .then(|| row.parse::<u64>().ok())
+        .flatten()
+        .ok_or("its first part is not a row number")?;
+    let raw: [u8; TOKEN_BYTES] = (token.len() == ID_TOKEN_CHARS)
+        .then(|| URL_SAFE_NO_PAD.decode(token).ok())
+        .flatten()
+        .and_then(|bytes| bytes.try_into().ok())
+        .ok_or("its second part is not a job token")?;
+    let queue = URL_SAFE_NO_PAD
+        .decode(queue)
+        .ok()
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .ok_or("its third part is not a queue name")?;
+    Ok((id, queue, token_text(&raw)))
+}
+
+/// The text in argument slot 0, for `parse` and `tryParse`.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for any other tag: the checker placed a `string` there, so anything else is a
+/// runtime-contract violation.
+fn id_text_arg<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
+    args[0].as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{ID_NAME}::{member} expected a `string`, got tag {}",
+            args[0].tag_byte()
+        ))
+    })
+}
+
+/// A new `Core\Queue\Id` over the three slots [`read_id`] gave.
+fn built_id((id, queue, token): (u64, String, String)) -> Value {
+    crate::instance::build(
+        &ID,
+        [Value::uint(id), Value::text(&queue), Value::text(&token)],
+    )
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Queue\Id::parse(string $s): Core\Queue\Id` — the Id [`id_text`] wrote, read back in a
+    /// later request.
+    ///
+    /// **A well-formed string is all it checks.** Whether a job has this row number, queue and
+    /// token is the statement's question, asked by `status`, `cancel` and `delete`, so a changed
+    /// or guessed string gives an Id that finds no job, exactly as a deleted job's does.
+    ///
+    /// **What it spends:** at most [`ID_TEXT_MAX`] bytes read, and one Id.
+    fn nvs_core_queue_id_parse(_ctx, args: [1]) {
+        parse_id(id_text_arg(args, "parse")?).map(built_id)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Queue\Id::tryParse(string $s): ?Core\Queue\Id` — `rule:expressions/try-parse`:
+    /// [`parse_id`] exactly, with `null` where `parse` throws.
+    fn nvs_core_queue_id_try_parse(_ctx, args: [1]) {
+        Ok(parse_id(id_text_arg(args, "tryParse")?).map_or_else(|_| Value::null(), built_id))
+    }
+}
+
+/// `parse`'s whole answer for `text`: [`read_id`]'s slots, or the `RuntimeError` it throws.
+///
+/// # Errors
+///
+/// A [`Fault::thrown`] naming the reason and quoting none of `text`.
+fn parse_id(text: &str) -> Result<(u64, String, String), Fault> {
+    read_id(text).map_err(|reason| {
+        Fault::thrown(format!(
+            "{ID_NAME}::parse(): the string is not a job id, because {reason}. A job id is the \
+             string that `toString` writes"
+        ))
+    })
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$id->toString(): string` — [`id_text`] over the receiver's three slots.
+    ///
+    /// Named `toString` so that it is the member `Stringable` declares (`rule:classes/stringable`),
+    /// which is what makes `echo $id` and interpolation render an Id.
+    ///
+    /// **What it spends:** one string of at most [`ID_TEXT_MAX`] bytes per call, nothing cached.
+    fn nvs_core_queue_id_to_string(_ctx, args: [1]) {
+        let (id, queue, token) = job_of(args[0], "Core\\Queue\\Id::toString")?;
+        Ok(Value::text(&id_text(id, &queue, &token)))
+    }
 }
 
 /// Whether `Core\Queue`'s four members run over a driver at all, which is this module's roster and
@@ -5581,6 +5826,9 @@ nvs_runtime::nvs_helper! {
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_queue_push" => (nvs_core_queue_push as *const ()).cast(),
+        "nvs_core_queue_id_parse" => (nvs_core_queue_id_parse as *const ()).cast(),
+        "nvs_core_queue_id_try_parse" => (nvs_core_queue_id_try_parse as *const ()).cast(),
+        "nvs_core_queue_id_to_string" => (nvs_core_queue_id_to_string as *const ()).cast(),
         "nvs_core_queue_status" => (nvs_core_queue_status as *const ()).cast(),
         "nvs_core_queue_cancel" => (nvs_core_queue_cancel as *const ()).cast(),
         "nvs_core_queue_delete" => (nvs_core_queue_delete as *const ()).cast(),
@@ -8022,5 +8270,136 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// One token's hex text, as [`super::token_text`] writes a fresh one.
+    fn some_token() -> String {
+        super::token_text(&[
+            0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee,
+            0xff,
+        ])
+    }
+
+    /// `rule:concurrency/queue-four-members`'s string form, read back: every slot `toString` writes
+    /// is the slot `parse` gives, for an ordinary queue, a queue name outside ASCII, the longest
+    /// row number and a queue name of the most bytes the column admits.
+    // covers: Core\Queue\Id::toString
+    // covers: Core\Queue\Id::parse
+    #[test]
+    fn id_to_string_parses_back_to_the_same_id() {
+        let token = some_token();
+        let widest = "é".repeat(super::QUEUE_NAME_BYTES / 2);
+        for (id, queue) in [
+            (1, "default"),
+            (42, "mail/ünïcode"),
+            (u64::MAX, ""),
+            (7, widest.as_str()),
+        ] {
+            let text = super::id_text(id, queue, &token);
+            assert_eq!(
+                super::read_id(&text),
+                Ok((id, queue.to_owned(), token.clone())),
+                "{text}"
+            );
+        }
+    }
+
+    /// Decision 4's character set, over the widest Id and one whose base64url uses both `-` and
+    /// `_`, and the bound [`super::ID_TEXT_MAX`] held to the `queue` column it is computed from.
+    // covers: Core\Queue\Id::toString
+    #[test]
+    fn id_string_uses_only_url_safe_characters() {
+        let longest = super::id_text(
+            u64::MAX,
+            &"\u{10FFFF}".repeat(super::QUEUE_NAME_BYTES / 4),
+            &super::token_text(&[0xff; super::TOKEN_BYTES]),
+        );
+        assert_eq!(longest.len(), super::ID_TEXT_MAX, "the bound is the longest Id");
+        for text in [longest.as_str(), &super::id_text(9, "\u{fbff}\u{3fe}", &some_token())] {
+            assert!(
+                text.bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || b"._-".contains(&byte)),
+                "{text}"
+            );
+        }
+        let queue = super::schema()
+            .tables()
+            .iter()
+            .flat_map(|table| table.columns())
+            .find(|column| column.name().as_str() == "queue")
+            .map(|column| column.ty().clone())
+            .expect("the jobs table has a `queue` column");
+        assert_eq!(
+            queue,
+            nvs_db::schema::ScalarType::Text {
+                max: Some(super::KEY_WIDTH)
+            },
+            "`ID_TEXT_MAX` is computed from `KEY_WIDTH` characters of the `queue` column"
+        );
+    }
+
+    /// The length is the first check, so a string one byte past the longest Id throws before a
+    /// character is looked at, and the reason says so.
+    // covers: Core\Queue\Id::parse
+    #[test]
+    fn id_parse_throws_on_a_string_longer_than_the_longest_id() {
+        let over = "1".repeat(super::ID_TEXT_MAX + 1);
+        assert_eq!(super::read_id(&over), Err("it is longer than any job id"));
+        let million = "!".repeat(1_000_000);
+        assert_eq!(super::read_id(&million), Err("it is longer than any job id"));
+    }
+
+    /// A real Id is a bearer value, so the message for each kind of bad string quotes none of it.
+    // covers: Core\Queue\Id::parse
+    #[test]
+    fn id_parse_message_quotes_none_of_the_string() {
+        let good = super::id_text(12, "mail", &some_token());
+        let (_, token_part) = good.split_once('.').expect("the string has dots");
+        for bad in [
+            format!("{good}#"),
+            format!("{good}.extra"),
+            format!("012.{token_part}"),
+            good.replace('.', "!"),
+            "x".repeat(super::ID_TEXT_MAX + 1),
+        ] {
+            let Err(Fault::Thrown(_, message)) = super::parse_id(&bad) else {
+                panic!("`{bad}` is not an Id, so `parse` throws");
+            };
+            assert!(!message.contains(&bad), "{message}");
+            assert!(!message.contains(token_part), "{message}");
+            assert!(!message.contains("mail"), "{message}");
+        }
+    }
+
+    /// `rule:expressions/try-parse`: `tryParse` is `parse` with the throw caught, so the two agree
+    /// on every string, and each changed part of a real Id is one `parse` throws on.
+    // covers: Core\Queue\Id::tryParse
+    #[test]
+    fn id_try_parse_returns_null_where_parse_throws() {
+        let good = super::id_text(5, "default", &some_token());
+        let parts: Vec<&str> = good.split('.').collect();
+        let cases = [
+            good.clone(),
+            String::new(),
+            format!("{}.{}", parts[0], parts[1]),
+            format!("-5.{}.{}", parts[1], parts[2]),
+            format!("5.{}A.{}", parts[1], parts[2]),
+            format!("5.{}.{}=", parts[1], parts[2]),
+            format!("18446744073709551616.{}.{}", parts[1], parts[2]),
+            format!("5.{}.{}", parts[1], "_w"),
+        ];
+        for case in &cases {
+            let parsed = super::parse_id(case);
+            let tried = super::read_id(case).ok();
+            assert_eq!(parsed.is_ok(), tried.is_some(), "{case}");
+            if let Ok(slots) = parsed {
+                assert_eq!(Some(slots), tried, "{case}");
+            }
+        }
+        assert!(super::parse_id(&cases[0]).is_ok(), "a real Id parses");
+        assert!(
+            cases[1..].iter().all(|case| super::parse_id(case).is_err()),
+            "every changed string throws"
+        );
     }
 }

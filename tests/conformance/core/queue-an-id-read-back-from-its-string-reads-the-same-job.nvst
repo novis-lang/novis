@@ -1,0 +1,93 @@
+--TEST--
+A `Core\Queue\Id` written as a string and read back with `parse` finds the same job, so a later request can ask about a job an earlier one pushed — `rule:concurrency/queue-four-members`, `rule:expressions/try-parse`, `rule:classes/stringable`
+--FILE--
+<?nvs
+use Core\Queue;
+use Core\Queue\Id;
+
+// The two tables, as `nvs queue migrate --dry-run` prints them for SQLite. The
+// `token` column is what the string carries beside the row number and the queue.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (
+    id integer primary key autoincrement,
+    queue varchar(255) not null,
+    script text not null,
+    args text,
+    state smallint not null,
+    attempts integer not null,
+    max_attempts integer not null,
+    backoff_ms bigint not null,
+    run_at bigint not null,
+    tag varchar(255),
+    dedupe_key varchar(255),
+    dedupe_pending varchar(255),
+    created_at bigint not null,
+    claimed_at bigint,
+    errors text,
+    grants text,
+    limits text,
+    non_transactional smallint, token text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending)
+)
+SQL;
+$db->execute($jobs, []);
+
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (
+    id bigint not null,
+    queue varchar(255) not null,
+    script text not null,
+    args text,
+    attempts integer not null,
+    max_attempts integer not null,
+    backoff_ms bigint not null,
+    run_at bigint not null,
+    tag varchar(255),
+    dedupe_key varchar(255),
+    created_at bigint not null,
+    failed_at bigint not null,
+    errors text not null, token text,
+    primary key (id)
+)
+SQL;
+$db->execute($dead, []);
+
+// The string is what a program sends to a client. Interpolation, `as string`
+// and `toString` write the same text.
+var $pushed = Queue::push("jobs/send-receipt.nvs", {queue: "receipts"});
+string $text = $pushed->toString();
+echo "interpolated ", "$pushed" == $text ? "same" : "different", "\n";
+echo "converted ", ($pushed as string) == $text ? "same" : "different", "\n";
+
+// A later request has only the string. `parse` gives an Id for the same job, and
+// `tryParse` gives the same one.
+Id $back = Id::parse($text);
+echo "string ", $back->toString() == $text ? "same" : "different", "\n";
+echo "status ", Queue::status($back) == Queue::State::Pending ? "pending" : "not pending", "\n";
+?Id $tried = Id::tryParse($text);
+echo "tried ", $tried?->toString() == $text ? "same" : "different", "\n";
+
+// Cancelling through the parsed Id cancels the job the first Id names.
+echo "cancelled ", Queue::cancel($back) ? "yes" : "no", "\n";
+echo "first ", Queue::status($pushed) == Queue::State::Cancelled ? "cancelled" : "not cancelled", "\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["jobs"]
+
+[db.jobs]
+driver = "sqlite"
+path = "jobs.db"
+
+# Nothing claims the job, so it stays pending until the case cancels it.
+[queue]
+connection = "jobs"
+workers = 0
+--EXPECT--
+interpolated same
+converted same
+string same
+status pending
+tried same
+cancelled yes
+first cancelled

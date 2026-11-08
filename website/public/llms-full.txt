@@ -53373,7 +53373,7 @@ Deletes the finished jobs of a queue and returns how many rows it deleted. Witho
 <a id="core-core-queue-id"></a>
 ### `Core\Queue\Id`
 
-Keywords: job id, queue job, background job, job state, job status, cancel a job, delete a job, track a job, duplicate job,
+Keywords: job id, queue job, background job, job state, job status, cancel a job, delete a job, track a job, duplicate job, parse, tryParse, toString
 
 `Core\Queue\Id` identifies one background job and the queue that the job is in. `Core\Queue::push`
 returns it. You pass it to `Core\Queue::status`, `Core\Queue::cancel` and `Core\Queue::delete`. An
@@ -53442,6 +53442,52 @@ not cancelled
 
 | Member | Signature |
 |---|---|
+| [`Core\Queue\Id::parse`](#core-core-queue-id-parse) | `parse(string $s): Core\Queue\Id` |
+| [`Core\Queue\Id::tryParse`](#core-core-queue-id-tryparse) | `tryParse(string $s): ?Core\Queue\Id` |
+| [`Core\Queue\Id->toString`](#core-core-queue-id-tostring) | `toString(): string` |
+
+<a id="core-core-queue-id-parse"></a>
+#### `Core\Queue\Id::parse`
+
+```nvs skip
+Core\Queue\Id::parse(string $s): Core\Queue\Id
+```
+
+Reads the string `$s` as a job id. The string must come from `toString`. A string that somebody changed or guessed gives an id that finds no job. `status` then throws an error, and `cancel` returns `false`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$s` | `string` (neutral) | The string to read, such as a value from the URL. It may be `tainted`. |
+
+**Returns** `Core\Queue\Id` — The `Core\Queue\Id` that the string gives. Any user who has the string can use the id. Store the string with the user who started the job. Check that user before you call `status` or `cancel`.
+
+**Throws** `RuntimeError` — `$s` is not in the form that `toString` writes. The message does not quote `$s`.
+
+<a id="core-core-queue-id-tryparse"></a>
+#### `Core\Queue\Id::tryParse`
+
+```nvs skip
+Core\Queue\Id::tryParse(string $s): ?Core\Queue\Id
+```
+
+Reads the string `$s` as a job id, like `Core\Queue\Id::parse`. When the string is not in the form that `toString` writes, it returns `null`. It does not throw an error.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$s` | `string` (neutral) | The string to read, such as a value from the URL. It may be `tainted`. |
+
+**Returns** `?Core\Queue\Id` — The `Core\Queue\Id` that the string gives, or `null`. A changed or guessed string in the correct form gives an id that finds no job.
+
+<a id="core-core-queue-id-tostring"></a>
+#### `Core\Queue\Id->toString`
+
+```nvs skip
+$id->toString(): string
+```
+
+Returns the id as a string. You can put the string in a URL, a header, a cookie or JSON without escaping it. `echo $id` writes the same string.
+
+**Returns** `string` — A string of letters, digits, `.`, `-` and `_`. `Core\Queue\Id::parse` reads it back as an id for the same job. Keep the string secret like a password. Anybody who has it can check or cancel the job.
 
 <a id="core-core-queue-stats"></a>
 ### `Core\Queue\Stats`
