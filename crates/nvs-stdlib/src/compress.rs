@@ -2532,6 +2532,10 @@ mod tests {
     /// A bomb given as a walk of small chunks stops at the ratio of the input
     /// read so far, long before the whole frame is read.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the check passes a fixed 64 KiB and reads 64 KiB at a time, so the bomb must be several hundred KiB, which Miri takes minutes to compress"
+    )]
     fn a_bomb_in_chunks_stops_at_the_running_ratio() {
         let mut ctx = Ctx::buffered();
         let zeros = vec![0_u8; 1 << 20];
@@ -2565,12 +2569,15 @@ mod tests {
     }
 
     /// `compress` of a file gives the frame it gives for the file's bytes.
+    /// Every codec reads the file the same way, and the sweeps above run each
+    /// codec under Miri, so under Miri this compresses with gzip alone.
     #[test]
     fn compress_of_a_file_equals_compress_of_its_bytes() {
         let mut ctx = Ctx::buffered();
         let text = text_of_chunks(2);
         let (_dir, file) = file_of(&mut ctx, "compress-a-file", &text);
-        for codec in EVERY {
+        let codecs: &[Codec] = if cfg!(miri) { &[Codec::Gzip] } else { &EVERY };
+        for &codec in codecs {
             let frame = nvs_runtime::call(
                 nvs_core_compress_compress,
                 &mut ctx,

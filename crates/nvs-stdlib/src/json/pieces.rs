@@ -361,6 +361,10 @@ mod tests {
     /// the pieces joined are the array `Core\Json::encode` writes.
     // covers: Core\Json::encodeEach
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "a piece is a fixed 64 KiB, so the array is 186 KiB of text, which Miri takes minutes to write"
+    )]
     fn encode_each_writes_an_array_in_pieces_of_at_most_64_kib() {
         let mut texts: Vec<String> = (0..3000).map(|at| format!("item-{at:04}")).collect();
         texts.insert(1500, "x".repeat(150 << 10));

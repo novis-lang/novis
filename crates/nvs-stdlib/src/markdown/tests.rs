@@ -289,6 +289,9 @@ fn depth(tree: &Parsed) -> usize {
 
 #[test]
 fn nesting_past_512_flattens_as_the_html_parser_does() {
+    // Each shape is six HTML parses and renders, which Miri takes about
+    // twenty seconds each for, so under Miri only the first shape runs.
+    let shapes = if cfg!(miri) { 1 } else { 3 };
     for markdown in [
         format!("{}a\n", "> ".repeat(OPEN_ELEMENTS_CAP * 2)),
         format!("{}a\n", "* ".repeat(OPEN_ELEMENTS_CAP)),
@@ -297,7 +300,10 @@ fn nesting_past_512_flattens_as_the_html_parser_does() {
             "*a **".repeat(OPEN_ELEMENTS_CAP),
             "** a*".repeat(OPEN_ELEMENTS_CAP)
         ),
-    ] {
+    ]
+    .into_iter()
+    .take(shapes)
+    {
         let (unflattened, _) = tree(&markdown);
         assert!(
             depth(&unflattened) > OPEN_ELEMENTS_CAP,
@@ -312,6 +318,10 @@ fn nesting_past_512_flattens_as_the_html_parser_does() {
 }
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "the budget is a fixed 64 KiB, so the documents are hundreds of kilobytes"
+)]
 fn added_output_past_its_budget_renders_as_source_text() {
     let url = format!("/{}", "u".repeat(1000));
     let uses = (ADDED_OUTPUT_SLACK / url.len()) * 4;
@@ -436,7 +446,9 @@ fn work_grows_linearly_over_every_catalogued_slow_input() {
 /// is held linear by `Balance` reading a count of its foreign elements.
 #[test]
 fn a_run_of_unclosed_raw_tags_costs_linear_work() {
-    const N: usize = 1000;
+    // The steps are counted, not timed, so a short run under Miri still
+    // tells linear work from square work.
+    const N: usize = if cfg!(miri) { 50 } else { 1000 };
     let steps = |text: &str| {
         crate::fuzz::markdown_counting_steps(text)
             .1
@@ -910,15 +922,21 @@ fn live_done_parts_and_finish_join_to_the_whole_document_html() {
 // covers: Core\Markdown::live, Core\Markdown\Live::push, Core\Markdown\Live::finish, Core\Markdown\Update::done, Core\Markdown\Update::open
 #[test]
 fn live_never_changes_a_part_it_already_finished() {
+    // Every finished part is an HTML render, which Miri takes about twenty
+    // seconds for. Under Miri the first document runs, in pieces of one byte.
+    let (documents, last_piece) = if cfg!(miri) { (1, 1) } else { (3, usize::MAX) };
     for markdown in [
         "Read [the guide].\n\nMore text.\n\n[the guide]: /guide\n",
         "a[^1] and [x][]\n\n# b\n\n[^1]: late note\n\n[x]: /late\n",
         "[x]: /first\n\n[x]\n\n[x]: /second\n\n[x]\n",
-    ] {
+    ]
+    .into_iter()
+    .take(documents)
+    {
         let whole = rendered(markdown, "a test").expect("no limit in a test");
         let (first, first_rest) = live_in(markdown, markdown.len());
         let first = first.concat() + &first_rest;
-        for piece in 1..=markdown.len() {
+        for piece in 1..=markdown.len().min(last_piece) {
             let (done, rest) = live_in(markdown, piece);
             assert_eq!(
                 done.concat() + &rest,
@@ -1058,6 +1076,10 @@ const SYNTAX: &[&str] = &[
 
 // covers: Core\Markdown::fromHtml
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "parses and renders over a hundred documents, which Miri takes about twenty seconds each for"
+)]
 fn from_html_text_never_becomes_markdown_syntax() {
     for text in SYNTAX {
         let body = html_text(text);
@@ -1167,6 +1189,10 @@ const DOCUMENTS: &[&str] = &[
 ];
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "parses and renders dozens of documents, which Miri takes about twenty seconds each for"
+)]
 fn markdown_to_html_to_markdown_keeps_the_meaning() {
     for document in DOCUMENTS {
         let html = crate::fuzz::markdown(document);
@@ -1181,6 +1207,10 @@ fn markdown_to_html_to_markdown_keeps_the_meaning() {
 }
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "parses and renders dozens of documents, which Miri takes about twenty seconds each for"
+)]
 fn from_html_twice_gives_the_same_markdown() {
     let mut inputs: Vec<String> = DOCUMENTS
         .iter()
@@ -1234,6 +1264,9 @@ fn a_table_markdown_cannot_hold_is_written_as_sanitized_html() {
     let gfm = crate::fuzz::from_html("<table><tr><th>a</th></tr><tr><td>b</td></tr></table>");
     assert_eq!(gfm, "| a |\n| --- |\n| b |\n");
 
+    // Each table is several HTML parses and renders, which Miri takes about
+    // twenty seconds each for, so under Miri the first two tables run.
+    let tables = if cfg!(miri) { 2 } else { usize::MAX };
     for html in [
         "<table><tr><th colspan=\"2\">a</th></tr><tr><td>b</td><td onclick=\"x()\">c</td></tr></table>",
         "<table><tr><th>a</th></tr><tr><td rowspan=\"2\">b</td></tr></table>",
@@ -1241,7 +1274,10 @@ fn a_table_markdown_cannot_hold_is_written_as_sanitized_html() {
         "<table><caption>t</caption><tr><th>a</th></tr></table>",
         "<table><tr><td>no header</td></tr></table>",
         "<table><tr><th>a</th></tr><tr><td>b</td><td>c</td></tr></table>",
-    ] {
+    ]
+    .into_iter()
+    .take(tables)
+    {
         let written = crate::fuzz::from_html(html);
         assert!(written.starts_with("<table>"), "{html:?} wrote {written:?}");
         assert_eq!(written.lines().count(), 1, "one HTML block: {written:?}");
