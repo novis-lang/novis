@@ -62,7 +62,7 @@ Conventions the whole file uses:
 | [`Core\Regex\Pattern`](#core-core-regex-pattern) | a compiled pattern carrying its flags, taken by every `Core\Regex` member in place of a pattern string |
 | [`Core\Json`](#core-core-json) | JSON text from values and values from JSON text. `encode` and `decode` work on a whole document, `decodeAs<T>` reads into a class, and `encodeEach` and `decodeEach` work on a long list |
 | [`Core\Json\Elements<T>`](#core-core-json-elements) | the elements of a JSON array, which `Core\Json::decodeEach` returns. You read them one at a time with a `foreach` loop |
-| [`Core\Json\Pieces`](#core-core-json-pieces) | the text of a JSON document in pieces, which `Core\Json::encodeEach` returns. You read them one at a time with a `foreach` loop |
+| [`Core\Json\Pieces<T>`](#core-core-json-pieces) | the text of a JSON document in pieces, which `Core\Json::encodeEach` returns. You read them one at a time with a `foreach` loop |
 | [`Core\Encoding`](#core-core-encoding) | the seam between `string` and `bytes` — charset conversion, and base64, base64url, base32 and hex spellings of a buffer |
 | [`Core\Bytes`](#core-core-bytes) | octet buffers — read, search, compare, build and lay out as a wire format with `pack`/`unpack` |
 | [`Core\Path`](#core-core-path) | path text taken apart and put together — basename, extension, join, normalize, relative paths — without touching the filesystem |
@@ -34476,7 +34476,8 @@ Each property is checked against its type. Only a property with a `?` type, such
 
 `Core\Json::encodeEach` and `Core\Json::decodeEach` work on a long list one element at a time. The
 whole document is never in memory at once. `encodeEach` returns a `Core\Json\Pieces`: the JSON text
-in pieces of bytes. `decodeEach<T>` reads an open file, an uploaded file,
+in pieces of bytes. You can send the pieces with `Core\Response::stream`. `decodeEach<T>` reads an
+open file, an uploaded file,
 `Core\Request::bodyStream()`, `bytes`, or a list or loop that gives `bytes` pieces. It returns a
 `Core\Json\Elements<T>`. You read both with a `foreach` loop. Set `lines` to `true` to write or read
 JSON Lines, with one value on each line.
@@ -34540,7 +34541,7 @@ Ben user
 | [`Core\Json::decodeAs`](#core-core-json-decodeas) | `decodeAs<T>(string $json, { maxDepth?: uint }): T` |
 | [`Core\Json::isValid`](#core-core-json-isvalid) | `isValid(string $json): bool` |
 | [`Core\Json::decodeEach`](#core-core-json-decodeeach) | `decodeEach<T>(Core\Bytes::Source\|Core\Bytes::Chunks $source, string $at = "", { lines?: bool, maxDepth?: uint }): Core\Json\Elements<T>` |
-| [`Core\Json::encodeEach`](#core-core-json-encodeeach) | `encodeEach(array<mixed>\|Iterable<mixed>\|Iterator<mixed> $items, { lines?: bool }): Core\Json\Pieces` |
+| [`Core\Json::encodeEach`](#core-core-json-encodeeach) | `encodeEach(array<mixed>\|Iterable<mixed>\|Iterator<mixed> $items, { lines?: bool }): Core\Json\Pieces<bytes>` |
 
 <a id="core-core-json-encode"></a>
 #### `Core\Json::encode`
@@ -34636,17 +34637,17 @@ Reads the elements of a JSON array one at a time, in a `foreach` loop. Each elem
 #### `Core\Json::encodeEach`
 
 ```nvs skip
-Core\Json::encodeEach(array<mixed>|Iterable<mixed>|Iterator<mixed> $items, { lines?: bool }): Core\Json\Pieces
+Core\Json::encodeEach(array<mixed>|Iterable<mixed>|Iterator<mixed> $items, { lines?: bool }): Core\Json\Pieces<bytes>
 ```
 
-Writes a JSON array in pieces, in a `foreach` loop. It takes the next item from `$items` only when it needs it, and encodes each item as `encode` does. So the text is safe inside an HTML page. You can write the pieces to a file with `Core\IO::writeStream`.
+Writes a JSON array in pieces, in a `foreach` loop. It takes the next item from `$items` only when it needs it, and encodes each item as `encode` does. So the text is safe inside an HTML page. You can send the pieces with `Core\Response::stream` or write them to a file with `Core\IO::writeStream`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$items` | `array<mixed>\|Iterable<mixed>\|Iterator<mixed>` | The values to write. It can be an array or an iterable, such as a database stream. |
 | `{ lines: … }` | `bool` (default `false`) | When `true`, it writes JSON Lines: one value on each line, with no brackets and no commas. The default is `false`. |
 
-**Returns** `Core\Json\Pieces` — The JSON text as `bytes`, in pieces of at most 64 KiB. The first piece starts with `[` and the last piece ends with `]`. Nothing is encoded until the loop starts.
+**Returns** `Core\Json\Pieces<bytes>` — The JSON text as `bytes`, in pieces of at most 64 KiB. The first piece starts with `[` and the last piece ends with `]`. Nothing is encoded until the loop starts. If an item can contain tainted text, the pieces are `tainted bytes`, as the result of `encode` is a `tainted string`.
 
 **Throws** `LogicError` — An item contains something that JSON cannot represent, as for `encode`. The error is thrown when the loop reaches that item. Your loop may already have received some pieces. Only complete pieces reach the loop, so the text of earlier items that was not yet in a piece is lost.
 
@@ -34713,7 +34714,7 @@ not valid JSON
 |---|---|
 
 <a id="core-core-json-pieces"></a>
-### `Core\Json\Pieces`
+### `Core\Json\Pieces<T>`
 
 Keywords: write large JSON, stream JSON, export JSON, JSON response, JSON Lines, NDJSON, write JSON to a file, low memory,
 
@@ -34721,9 +34722,13 @@ Keywords: write large JSON, stream JSON, export JSON, JSON response, JSON Lines,
 It takes an array or an iterable, such as the rows of a database query. The class has no methods.
 You read it with a `foreach` loop.
 
-Each item is `tainted bytes`, at most 64 KiB long. The `[`, the commas and the `]` are part of the
-pieces. With `{ lines: true }`, the text is JSON Lines: one value on each line, with no brackets. Use
+Each item is `bytes`, at most 64 KiB long. The `[`, the commas and the `]` are part of the pieces.
+With `{ lines: true }`, the text is JSON Lines: one value on each line, with no brackets. Use
 `$piece as string` when you need the text of a piece.
+
+The pieces are `tainted bytes` when an item can contain tainted text, such as a value read from a
+request. `Core\Json::encode` returns a `tainted string` for the same items. `Core\Response::stream`
+sends only pieces that are not tainted.
 
 Nothing is encoded until the loop starts. The method takes the next item only when it needs it, so
 the whole document is never in memory at once. You can read the pieces only once. After the last
@@ -34731,7 +34736,8 @@ piece, a loop gives no items.
 
 The loop throws a `LogicError` when an item cannot be written as JSON, as `Core\Json::encode` does.
 An object whose class does not have `#[Core\Json\Derive]` is one example. Your loop may already have
-received some pieces before the error. To write the pieces to a file, pass them to
+received some pieces before the error. To send the pieces as a response, pass each one to the
+`write` method of `Core\Response::stream`. To write them to a file, pass them to
 `Core\IO::writeStream`.
 
 ```nvs
@@ -53406,14 +53412,14 @@ create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) 
     max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
     tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
     created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
-    non_transactional smallint, constraint nvs_jobs_dedupe unique (dedupe_pending))
+    non_transactional smallint, token text, constraint nvs_jobs_dedupe unique (dedupe_pending))
 SQL, []);
 $db->execute(<<<'SQL'
 create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
     script text not null, args text, attempts integer not null, max_attempts integer not null,
     backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
     dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
-    errors text not null, primary key (id))
+    errors text not null, token text, primary key (id))
 SQL, []);
 
 Core\Queue\Id $first = Queue::push('jobs/send-invoice.nvs', { args: ['order' => 7], key: 'invoice-7' });

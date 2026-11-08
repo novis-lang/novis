@@ -39,7 +39,7 @@ create table nvs_jobs (
     errors text,
     grants text,
     limits text,
-    non_transactional smallint,
+    non_transactional smallint, token text,
     constraint nvs_jobs_dedupe unique (dedupe_pending)
 )
 SQL;
@@ -59,7 +59,7 @@ create table nvs_dead_jobs (
     dedupe_key varchar(255),
     created_at bigint not null,
     failed_at bigint not null,
-    errors text not null,
+    errors text not null, token text,
     primary key (id)
 )
 SQL;
