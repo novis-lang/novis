@@ -117,12 +117,15 @@ fn int(cell: &SqliteValue) -> i64 {
 
 /// A token no other job in this process has, in the column's own form.
 ///
-/// A counter and not a random draw, so a failing case names the same token on every run.
+/// A counter and not a random draw, so a failing case names the same token on every run. Its first
+/// byte is `0xab`, so the text always has a letter and its upper-case form is another token: a
+/// counter and a process id whose hex digits are all `0`-`9` would otherwise upper-case to itself.
 fn fresh_token() -> String {
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
     let drawn = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let mut raw = [0_u8; queue::TOKEN_BYTES];
     raw[..8].copy_from_slice(&drawn.to_be_bytes());
+    raw[0] = 0xab;
     raw[8..].copy_from_slice(&std::process::id().to_be_bytes().repeat(2));
     queue::token_text(&raw)
 }
