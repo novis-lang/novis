@@ -71,12 +71,19 @@ flamegraph.svg
 # Bytecode from importing a repo script under tools/
 __pycache__/
 
-# The queue `examples/queue-sqlite.nvs` runs against — the one database in this
-# repository that is a file rather than a server, named by that fixture's own
-# `examples/queue-sqlite.toml` and created by `nvs queue migrate`. It holds
-# every job that fixture ever pushed, and a checkout that has never run the
-# acceptance sweep has no reason to hold one.
-/tests/db/queue-sqlite.db
+# Every SQLite database a run writes, and the files SQLite keeps beside it: `-wal`
+# and `-shm` while a connection in WAL mode is open, `-journal` during a
+# transaction and after a crash. The apps under `apps/` and the queue fixture
+# `examples/queue-sqlite.toml` each make one on first run, and none is source.
+# A database a test needs as input is built by the test, never committed.
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
 
 # The proxied benchmark's two derived inputs (benches/proxied/README.md).
 # `.bin/nvs` is a Linux binary staged by `--nvs-bin`, and `generated/pool.conf`
