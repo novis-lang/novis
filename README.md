@@ -128,9 +128,7 @@ This section shows what comes next for Novis. There are no dates. The
 [roadmap page](https://novis-lang.org/in-depth/roadmap/) shows the same.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-The work is in the order it is planned. The order can change.
-
-1. **Markdown.** *Working on it now.* `Core\Markdown` converts Markdown to HTML, and HTML to Markdown. It converts a whole document, or a document in pieces while it arrives. Every example of the CommonMark and GitHub Flavored Markdown specifications passes. The time it needs grows in step with the size of the input. The package registry uses it to show the readme of each package version on its page.
+Nothing is planned after the current release yet.
 <!-- roadmap:end -->
 
 ## Contributing
