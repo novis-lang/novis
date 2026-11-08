@@ -6711,6 +6711,10 @@ pub(crate) mod tests {
 
     /// Any JSON reader gives back the characters the escapes stand for.
     // covers: Core\Json::encode
+    #[cfg_attr(
+        miri,
+        ignore = "the escaped text is longer than an in-place parse, and the spare stack's guard page needs `mprotect`, which Miri does not emulate"
+    )]
     #[test]
     fn an_escaped_text_decodes_to_the_value_it_was_made_from() {
         let original = "{\"k<'>\":\"</script>&'\u{2028}\u{2029}\\\"\"}";
