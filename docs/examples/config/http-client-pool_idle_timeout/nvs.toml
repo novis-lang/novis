@@ -1,0 +1,5 @@
+# Each core keeps at most 16 finished connections open.
+# A kept connection is closed after 30 seconds without use.
+[http.client]
+pool_idle = 16
+pool_idle_timeout = "30s"

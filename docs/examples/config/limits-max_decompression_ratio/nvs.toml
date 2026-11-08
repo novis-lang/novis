@@ -1,0 +1,4 @@
+# One decompression may produce at most 64M, and at most 1000 bytes for each input byte.
+[limits]
+max_decompressed = "64M"
+max_decompression_ratio = 1000

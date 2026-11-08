@@ -1,0 +1,11 @@
+# The program may not write any file.
+# A program run with `nvs run` may write every file when this line is missing.
+[capabilities.fs]
+write = []
+
+# The second example may read files only in the `data` directory beside this file.
+[[app]]
+entry = "02-what-a-yes-does-not-cover.nvs"
+
+[app.capabilities.fs]
+read = ["data"]

@@ -1,0 +1,3 @@
+# Temporary directories are deleted when a run ends.
+[debug]
+keep_temporary = false

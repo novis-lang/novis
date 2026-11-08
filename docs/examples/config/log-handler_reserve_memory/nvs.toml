@@ -1,0 +1,8 @@
+# When a request stops on a limit, 1M of its memory is kept back for the report.
+[limits]
+fatal_reserve_memory = "1M"
+
+# The error handler gets 16M of memory and 5 seconds to write its report.
+[log]
+handler_reserve_memory = "16M"
+handler_reserve_time = "5s"

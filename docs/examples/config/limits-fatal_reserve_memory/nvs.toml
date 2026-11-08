@@ -1,0 +1,4 @@
+# Every request starts with 256M of memory. 1M of it is kept back for the error report.
+[limits]
+memory = "256M"
+fatal_reserve_memory = "1M"

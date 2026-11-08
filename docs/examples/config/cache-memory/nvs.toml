@@ -1,0 +1,4 @@
+# The memory cache may use 32M. A request waits up to 5 seconds for another request to fill a key.
+[cache.memory]
+max_size = "32M"
+fill_wait = "5s"

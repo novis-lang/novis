@@ -1,0 +1,7 @@
+# Each core runs the after-response work of at most 256 requests at once.
+[deferred]
+max_concurrent = 256
+
+# A program may raise its own memory limit up to 512M.
+[limits.hard]
+memory = "512M"

@@ -1,0 +1,17 @@
+# Every request starts with 256M of memory.
+[limits]
+memory = "256M"
+
+# This block covers every file in this directory.
+[[app]]
+root = "."
+
+[app.capabilities.script]
+spawn = true
+
+# This block covers one file. It sets a smaller memory limit for that file.
+[[app]]
+entry = "01-settings-for-one-application.nvs"
+
+[app.limits]
+memory = "64M"

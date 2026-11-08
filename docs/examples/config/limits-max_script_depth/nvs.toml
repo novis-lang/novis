@@ -1,0 +1,3 @@
+# A script may start another script, up to 64 levels deep.
+[limits]
+max_script_depth = 64

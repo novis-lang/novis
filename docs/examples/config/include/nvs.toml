@@ -1,0 +1,3 @@
+# Every request starts with 256M of memory.
+[limits]
+memory = "256M"

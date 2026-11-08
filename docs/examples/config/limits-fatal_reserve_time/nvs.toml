@@ -1,0 +1,4 @@
+# When a request stops on a limit, the error report gets 1M of memory and 50 milliseconds.
+[limits]
+fatal_reserve_memory = "1M"
+fatal_reserve_time = "50ms"

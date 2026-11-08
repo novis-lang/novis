@@ -1,0 +1,11 @@
+# The examples send mail through this server. Port 1 on this computer is closed,
+# so each message fails when it connects, and no mail leaves the computer.
+[mail.shop]
+host = "127.0.0.1"
+port = 1
+from = "shop@example.com"
+timeout = "5s"
+
+# The program may send mail through the `shop` block.
+[capabilities.mail]
+send = ["shop"]

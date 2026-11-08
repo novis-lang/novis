@@ -1,0 +1,3 @@
+# Each core keeps at most 16 finished connections open for the next call.
+[http.client]
+pool_idle = 16

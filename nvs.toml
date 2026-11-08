@@ -27,9 +27,7 @@ origin = "https://example.test"
 # A script inside the app folder spawns with no grant (`rule:security/script-spawn-capability`), and
 # this block makes the app folder the repository for every entry no deeper `root` covers. `spawn =
 # true` widens that to a script outside the app folder, which an attack under `tests/hostile` (whose
-# app folder is that directory) may spawn. It is also the value
-# `docs/examples/config/app/01-settings-for-one-application.nvs` prints as arriving from this block,
-# and the one `docs/examples/config/capabilities/`'s block takes back with `false`.
+# app folder is that directory) may spawn.
 [app.capabilities.script]
 spawn = true
 
@@ -75,18 +73,10 @@ write = []
 [app.capabilities.script]
 spawn = false
 
-# `Core\Http::allowUrl`'s examples and attack approve URLs a program was handed, under the
-# `net.connect` a production service calling its users' webhooks has: every public host, which is
-# the default. `net.internal` is written empty because a CLI run reaches loopback when it is not
-# written. What they show is the address table refusing loopback, private and link-local addresses
-# however the URL spells them. Every URL in them names a literal address, so no case waits on a
-# name server. The bench approves one address and is granted that address alone.
-[[app]]
-root = "docs/examples/core/Http/allowUrl"
-
-[app.capabilities.net]
-internal = []
-
+# `Core\Http::allowUrl`'s attack approves URLs a program was handed, granted every host, so the
+# address table is what refuses loopback, private and link-local addresses however the URL spells
+# them. Every URL in it names a literal address, so no case waits on a name server. The bench
+# approves one address and is granted that address alone. The examples carry their own file.
 [[app]]
 root = "tests/hostile/core/Http/allowUrl"
 
@@ -99,17 +89,10 @@ entry = "benches/members/core/Http/allowUrl.nvs"
 [app.capabilities.net]
 connect = ["203.0.113.10"]
 
-# `Core\Http\Client`'s examples and attacks run as `allowUrl`'s above: every public host, with
-# loopback closed in the examples and the attacks granted every host. None of them may open a
-# connection, because a figure or an output that depends on a network is not a proof. Each call is
+# `Core\Http\Client`'s attacks run as `allowUrl`'s above, granted every host. None of them may open
+# a connection, because a figure or an output that depends on a network is not a proof. Each call is
 # refused before a socket is opened, by the address table, an option's bounds or a header with a
 # control byte. The benches need no grant: they are answered from `Core\Test::answerHttp`'s table.
-[[app]]
-root = "docs/examples/core/Http-Client"
-
-[app.capabilities.net]
-internal = []
-
 [[app]]
 root = "tests/hostile/core/Http-Client"
 
@@ -125,19 +108,9 @@ root = "tests/hostile/core/WebPush/send"
 [app.capabilities.net]
 connect = true
 
-# `Core\Http\Part`'s examples and attacks send parts under the same `net` settings, and none of
-# them opens a connection either. `Part::file` reads files from its own `data/` directory and
-# nowhere else, so one example can show a file outside the grant being refused. The `file` bench
-# builds a part for its own source file, which a CLI run reads with no grant.
-[[app]]
-root = "docs/examples/core/Http-Part"
-
-[app.capabilities.fs]
-read = ["docs/examples/core/Http-Part/file/data"]
-
-[app.capabilities.net]
-internal = []
-
+# `Core\Http\Part`'s attacks send parts under the same `net` settings, and none of them opens a
+# connection either. `Part::file` reads files from its own `data/` directory and nowhere else. The
+# `file` bench builds a part for its own source file, which a CLI run reads with no grant.
 [[app]]
 root = "tests/hostile/core/Http-Part"
 
@@ -291,73 +264,7 @@ entry = "examples/queue-purge.nvs"
 [app.capabilities.queue]
 purge = true
 
-# The one block in this file that exists to be *read about* rather than to let a
-# fixture run: `docs/examples/config/app/` is the website's page for the `[[app]]`
-# directive, and its example prints the settings its own blocks put in force. So
-# this block has to be narrower than the `root = "."` one at the top and has to
-# disagree with it about something a program can print — `64M` against the `256M`
-# `[limits]` sets below, which is the whole demonstration. It grants nothing: what
-# the example shows about capabilities is `script.spawn` arriving from the wide
-# block untouched, which only holds while this block stays silent about it.
-[[app]]
-entry = "docs/examples/config/app/01-settings-for-one-application.nvs"
-
-[app.limits]
-memory = "64M"
-
-# The second block of that kind, and its grants are the whole page:
-# `docs/examples/config/capabilities/` is the website's page for `[capabilities]`,
-# and a page whose example prints `(nothing)` on every line teaches nothing about
-# the block an operator is about to write. Every grant here is a boolean, which is
-# the half a program can read back: `nvs_config::request`'s `as_text` hands
-# `Core\Config::get` a scalar and `None` for a list, so a grant scoped to paths
-# would print exactly as an absent one does and the example would teach the
-# opposite of what the block says. `nvs config dump` is where a scoped grant is
-# read, and `crate::audit` is what renders it.
-#
-# `read = true` is written so the program prints `true`: `Core\Config::get` reads what a file wrote,
-# and a default reads back as absent. A CLI run reads any file without it. `spawn = false` takes back
-# what the `root = "."` block at the top allows. One written grant, one absent key and one
-# narrowing, with nothing reachable that was not reachable before.
-[[app]]
-entry = "docs/examples/config/capabilities/01-what-this-program-is-allowed-to-do.nvs"
-
-[app.capabilities.fs]
-read = true
-
-[app.capabilities.script]
-spawn = false
-
-# `Core\Cap::has`'s own page needs a deployment that granted one thing and not
-# another. Its first example prints `yes` for `fs.read`, which a CLI run has by
-# default, and `no` for two names it does not have: `write = []` because a CLI
-# run writes any file when the key is not written.
-[[app]]
-entry = "docs/examples/core/Cap/has/01-what-this-program-may-do.nvs"
-
-[app.capabilities.fs]
-write = []
-
-# The second example is the pair that member cannot make on its own — the grant
-# is one directory wide, the answer is still `yes`, and a file outside it is
-# refused when the program opens it — so here the grant *is* a list, and the
-# example's own data directory is the only entry in it.
-[[app]]
-entry = "docs/examples/core/Cap/has/02-what-a-yes-does-not-cover.nvs"
-
-[app.capabilities.fs]
-read = ["docs/examples/core/Cap/has/data"]
-
-# The third example takes the other route when writing files is not granted, so
-# its deployment writes `write = []`: a command-line run may write every file by
-# default.
-[[app]]
-entry = "docs/examples/core/Cap/has/03-an-optional-feature.nvs"
-
-[app.capabilities.fs]
-write = []
-
-# The attack written against the same member spends most of its steps on names
+# `Core\Cap::has`'s attack spends most of its steps on names
 # that merely resemble a granted one, and there is nothing to resemble until one
 # name really is granted. The `tests/hostile` block writes `read = []`, so this
 # block writes it back. The bench for the same member needs no block: a CLI run
@@ -368,8 +275,7 @@ entry = "tests/hostile/core/Cap/has/01-names-that-try-to-win-a-yes.nvs"
 [app.capabilities.fs]
 read = true
 
-# The third block of that kind and the first written for an *attack* rather than
-# for an example: `tests/hostile/config/debug-keep_temporary/` exists to make
+# `tests/hostile/config/debug-keep_temporary/` exists to make
 # `rule:core-classes/temporary-dir-sweep`'s end-of-script sweep come apart, and a sweep has nothing to
 # walk until the program has been allowed to create the directories it hoards.
 # The `tests/hostile` block writes `read = []` and `write = []`, so this block writes both back.
@@ -527,22 +433,9 @@ entry = "benches/members/core/Db/connect.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
-# `Core\Mail::send`'s proof programs, granted `[mail.shop]` by name. The examples and the attack
-# send through it and are answered by a closed port, so every one of them reaches the socket and no
-# message leaves this machine. Example 02 and the bench are refused before the grant is asked, and
-# hold none.
-[[app]]
-entry = "docs/examples/core/Mail/send/01-sending-an-order-receipt.nvs"
-
-[app.capabilities.mail]
-send = ["shop"]
-
-[[app]]
-entry = "docs/examples/core/Mail/send/03-a-contact-form.nvs"
-
-[app.capabilities.mail]
-send = ["shop"]
-
+# `Core\Mail::send`'s attack, granted `[mail.shop]` by name. It sends through it and is answered by
+# a closed port, so it reaches the socket and no message leaves this machine. The bench is refused
+# before the grant is asked, and holds none.
 [[app]]
 entry = "tests/hostile/core/Mail/send/01-headers-hidden-in-every-field.nvs"
 
@@ -1457,10 +1350,7 @@ memory = "256M"
 # reserve, sixty-four levels of `spawn script` nesting, 64 MiB and 1000:1 of
 # decompression bound — so this repository behaves the same with them written as
 # it did with them absent, for the reason the cache blocks below are written the
-# same way. They are here to be *read*:
-# `docs/examples/config/limits-fatal_reserve_memory/` and its four siblings are
-# the website's pages for these directives, and a page whose example prints
-# `(unset)` teaches nothing about a key an operator is about to write.
+# same way. The attacks under `tests/hostile/config/` read them back.
 fatal_reserve_memory = "1M"
 fatal_reserve_time = "50ms"
 max_script_depth = 64
@@ -1476,21 +1366,16 @@ memory = "512M"
 # block states these two keys and no third: `handler` is written per application
 # above, where `examples/logging.nvs` is the fixture for it, and a `format` or a
 # `level` here would pin what the mode otherwise decides. They are here to be
-# *read*, for the reason the `[limits]` keys above are —
-# `docs/examples/config/log-handler_reserve_memory/` and its sibling are the
-# website's pages for them.
+# *read*, for the reason the `[limits]` keys above are: the attacks on these two
+# keys read them back.
 [log]
 handler_reserve_memory = "16M"
 handler_reserve_time = "5s"
 
 # The memory tier's block, written at exactly the figures `nvs_stdlib::cache`
 # ships — 32 MiB and a five-second fill wait — so this repository behaves the same
-# with it as it would without it. It is here to be *read*:
-# `docs/examples/config/cache-memory/` is the website's page for this directive,
-# and a page whose example prints `(unset)` teaches nothing about a key an
-# operator is about to write. Changing either figure changes that program's frozen
-# output, which is the point — a value written down is a value a reader can see
-# arriving.
+# with it as it would without it. It is here to be *read*, by the attack on
+# `cache.memory` under `tests/hostile/config/`.
 [cache.memory]
 max_size = "32M"
 fill_wait = "5s"
@@ -1511,9 +1396,7 @@ url = "redis://127.0.0.1:16379"
 # block already means: `nvs_config::tree::Debug::keep_temporary` is `None` here
 # and `Some(false)` there, and `rule:core-classes/temporary-dir-sweep`'s sweep asks the same question
 # of both, so this line keeps nothing this checkout was deleting. It is here to be
-# *read* — `docs/examples/config/debug-keep_temporary/` is the website's page for
-# the directive, and a page whose example prints `(nothing)` on the line that
-# matters teaches nothing about the key an operator is about to flip. `true` here
+# *read*, by the attack on the key under `tests/hostile/config/`. `true` here
 # instead would leave every temporary directory of every run in this repository on
 # disk, which is the one value this file must not carry: the acceptance sweep runs
 # hundreds of programs and nothing else deletes what it kept.
@@ -1597,7 +1480,7 @@ path = ":memory:"
 driver = "sqlite"
 path = ":memory:"
 
-# `Core\Mail::send`'s proof programs send through this block. Port 1 on loopback has no listener
+# `Core\Mail::send`'s attack sends through this block. Port 1 on loopback has no listener
 # anywhere this runs, so the connection is refused at once and every run ends the same way, with an
 # `IOError` and nothing sent. No credential, so nothing asks for `STARTTLS`.
 [mail.shop]
@@ -1676,26 +1559,20 @@ workers = 1
 # `rule:concurrency/deferred-is-bounded-by-two-directives` prints and
 # `nvs_runtime::Ctx::deferred_max_concurrent` already answers where nothing is written — so this
 # checkout holds exactly as much after-response work with the line as it did without it. It is here
-# to be *read*: `docs/examples/config/deferred-max_concurrent/` is the website's page for the
-# directive, and a page whose example prints `(nothing)` on the one line the whole page is about
-# teaches nothing about the number an operator sizes a machine with.
+# to be *read*, by the attack on the key under `tests/hostile/config/`.
 #
 # The block's other half stays unwritten on purpose. `deferred.deadline` is one of the few keys in
-# this file a program may set for itself, and `docs/examples/config/deferred-deadline/` is the page
-# that shows it arriving as the built-in default and being changed from code — which only holds
-# while nothing here writes it.
+# this file a program may set for itself, so every program here starts from the built-in default.
 [deferred]
 max_concurrent = 256
 
 # The outbound pool's two caps, written at the numbers `nvs_stdlib::http`'s `DEFAULT_POOL_IDLE` and
 # `DEFAULT_POOL_IDLE_TIMEOUT` already apply where nothing is written — so this checkout holds exactly
 # as many idle connections per core with the two lines as it did without them. They are here to be
-# *read*: `docs/examples/config/http-client-pool_idle/` and `.../http-client-pool_idle_timeout/` are
-# the website's pages for the pair, and a page whose example prints `(nothing)` on the one line the
-# whole page is about teaches nothing about the memory an operator sizes a host with.
+# *read*, by the attacks on the pair under `tests/hostile/config/`.
 #
 # `[http.client.tls] min_version` is written for the same reason and at the floor the client already
-# speaks, so `docs/examples/config/http-client-tls/` prints a version rather than nothing. Its two
+# speaks, so its attack reads a version back. Its two
 # siblings stay out: an unset `roots` is the compiled-in Mozilla set, which is what this checkout
 # trusts, and a list-valued key reads back as absent through `Core\Config::get` in any case
 # (`nvs_config::request`'s `get`), while a `keylog` writes out the secrets that decrypt everything
@@ -1704,9 +1581,7 @@ max_concurrent = 256
 # The rest of `[http.client]` stays unwritten on purpose, and each half for its own reason.
 # `connect_timeout`, `deadline`, `idle`, `max_duration` and `max_redirects` are bounds over the one
 # call a request is making, which a program names at the call site instead. `[http.client.socket]` is
-# the same, and `docs/examples/config/http-client-socket/` is the page that shows its bound arriving
-# as the built-in default and then being changed from code — which only holds while nothing here
-# writes it. And an absent `[http.client.proxy]` is how a deployment says it wants no proxy at all
+# the same: a program starts from its built-in default and may change it from code. And an absent `[http.client.proxy]` is how a deployment says it wants no proxy at all
 # (`rule:http-server/an-outbound-proxy-is-operator-configured`), so writing one to make a page print
 # would send every outbound byte this checkout sends through a host that is not there.
 [http.client]

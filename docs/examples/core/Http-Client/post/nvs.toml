@@ -1,0 +1,4 @@
+# The program may connect to public hosts only.
+# `internal = []` allows no address on this computer or on a private network.
+[capabilities.net]
+internal = []

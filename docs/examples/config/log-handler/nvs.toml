@@ -1,0 +1,4 @@
+# The error handler gets 16M of memory and 5 seconds to write its report.
+[log]
+handler_reserve_memory = "16M"
+handler_reserve_time = "5s"

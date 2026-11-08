@@ -1,21 +1,15 @@
 <?nvs
 // `[capabilities]` says what a program may do. A line you write replaces the default.
-// This program runs with these settings, for this program only:
-//
-//     [app.capabilities.fs]
-//     read = true
-//
-//     [app.capabilities.script]
-//     spawn = false
+// The `nvs.toml` beside this file sets `read = true` and `spawn = false`.
 
 echo 'read files:  ', Core\Config::get('capabilities.fs.read') ?? '(nothing)', "\n";
 
-// No block writes `write`, so `Core\Config::get` returns `null`.
+// The file does not write `write`, so `Core\Config::get` returns `null`.
 // The default still applies: a program run with `nvs run` may write any file.
 echo 'write files: ', Core\Config::get('capabilities.fs.write') ?? '(nothing)', "\n";
 
-// A block can also take a right away. A wider block lets every program run scripts.
-// The block for this program says `false`. That block wins, so this prints `false`.
+// A line can also take a right away. `spawn = false` means this program may not
+// start other scripts, so this prints `false`.
 echo 'run scripts: ', Core\Config::get('capabilities.script.spawn') ?? '(nothing)', "\n";
 
 // Some rights are lists, such as the directories a program may read.

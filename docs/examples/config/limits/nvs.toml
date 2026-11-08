@@ -1,0 +1,6 @@
+# Every request starts with 256M of memory. A program may raise its own limit up to 512M.
+[limits]
+memory = "256M"
+
+[limits.hard]
+memory = "512M"

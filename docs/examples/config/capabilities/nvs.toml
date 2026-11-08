@@ -1,0 +1,6 @@
+# The program may read files. It may not start other scripts.
+[capabilities.fs]
+read = true
+
+[capabilities.script]
+spawn = false

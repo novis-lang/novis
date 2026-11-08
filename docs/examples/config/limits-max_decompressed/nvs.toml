@@ -1,0 +1,3 @@
+# One decompression may produce at most 64M.
+[limits]
+max_decompressed = "64M"
