@@ -1,18 +1,18 @@
 event: replace
-data: {"html":"<p>Three ste</p>\n"}
+data: {"html":"\u003cp\u003eThree ste\u003c/p\u003e\n"}
 
 event: append
-data: {"html":"<p>Three steps:</p>\n"}
+data: {"html":"\u003cp\u003eThree steps:\u003c/p\u003e\n"}
 
 event: replace
-data: {"html":"<ol>\n<li>Pick a size</li>\n<li>Pay</li>\n</ol>\n"}
+data: {"html":"\u003col\u003e\n\u003cli\u003ePick a size\u003c/li\u003e\n\u003cli\u003ePay\u003c/li\u003e\n\u003c/ol\u003e\n"}
 
 event: append
-data: {"html":"<ol>\n<li>Pick a size</li>\n<li>Pay</li>\n</ol>\n"}
+data: {"html":"\u003col\u003e\n\u003cli\u003ePick a size\u003c/li\u003e\n\u003cli\u003ePay\u003c/li\u003e\n\u003c/ol\u003e\n"}
 
 event: replace
-data: {"html":"<p>The parcel ships <strong>today</strong>.</p>\n"}
+data: {"html":"\u003cp\u003eThe parcel ships \u003cstrong\u003etoday\u003c/strong\u003e.\u003c/p\u003e\n"}
 
 event: end
-data: {"html":"<p>The parcel ships <strong>today</strong>.</p>\n"}
+data: {"html":"\u003cp\u003eThe parcel ships \u003cstrong\u003etoday\u003c/strong\u003e.\u003c/p\u003e\n"}
 

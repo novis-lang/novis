@@ -1,9 +1,9 @@
 --TEST--
-Core\Json::encode writes `/` without an escape, `</` included, and `{pretty: true}` indents by two spaces at every depth, writes an empty array on one line and leaves a scalar unchanged
+Core\Json::encode writes `/` without an escape, the `<` before it as an escape in `</`, and `{pretty: true}` indents by two spaces at every depth, writes an empty array on one line and leaves a scalar unchanged
 --FILE--
 <?nvs
-// `/` is written as it is, in a value and in a key. HTML escaping is done when
-// the document is written into HTML, `rule:security/launderers-are-sink-named`.
+// `/` is written as it is, in a value and in a key. `<` and `>` are escaped, so
+// `</script>` cannot end a script, `rule:security/json-text-is-safe-inside-html`.
 echo Core\Json::encode("https://example.com/a?b=c"), "\n";
 echo Core\Json::encode("</script>"), "\n";
 echo Core\Json::encode(["a/b" => "c/d"]), "\n";
@@ -24,7 +24,7 @@ echo Core\Json::encode(["none" => $empty], {pretty: true}), "\n";
 echo Core\Json::encode(42, {pretty: true}), "\n";
 --EXPECT--
 "https://example.com/a?b=c"
-"</script>"
+"\u003c/script\u003e"
 {"a/b":"c/d"}
 "a\\/b"
 {

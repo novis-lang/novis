@@ -34461,7 +34461,9 @@ Keywords: JSON, encode, decode, parse JSON, validate JSON, pretty print, hydrati
 
 `Core\Json::encode` converts a value to JSON text. A list becomes a JSON array. Any other array
 becomes a JSON object, and its keys keep their order. An object can be encoded only if its class has
-the `#[Core\Json\Derive]` attribute. Any other object throws an error.
+the `#[Core\Json\Derive]` attribute. Any other object throws an error. In every string, `encode`
+and `encodeEach` write `<`, `>`, `&`, `'`, U+2028 and U+2029 as `\u` codes. So the text is safe
+inside an HTML page or a `<script>` element.
 
 `Core\Json::decode` reads JSON text and returns `mixed`. A JSON object becomes an array with string
 keys. Text that is not valid JSON throws a `ParseError`. Text that is nested too deep throws one too.
@@ -34547,7 +34549,7 @@ Ben user
 Core\Json::encode(mixed $value, { pretty?: bool, escapeUnicode?: bool }): string
 ```
 
-Converts `$value` to JSON text. It can be a scalar, an array, an anonymous object or an instance of a class with `#[Json\Derive]`. The text is on one line unless `pretty` is set.
+Converts `$value` to JSON text. It can be a scalar, an array, an anonymous object or an instance of a class with `#[Json\Derive]`. The text is on one line unless `pretty` is set. In every string, `<`, `>`, `&`, `'`, U+2028 and U+2029 are written as `\u` escapes, so the text is safe inside an HTML page.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -34637,7 +34639,7 @@ Reads the elements of a JSON array one at a time, in a `foreach` loop. Each elem
 Core\Json::encodeEach(array<mixed>|Iterable<mixed>|Iterator<mixed> $items, { lines?: bool }): Core\Json\Pieces
 ```
 
-Writes a JSON array in pieces, in a `foreach` loop. It takes the next item from `$items` only when it needs it, and encodes each item as `encode` does. You can write the pieces to a file with `Core\IO::writeStream`.
+Writes a JSON array in pieces, in a `foreach` loop. It takes the next item from `$items` only when it needs it, and encodes each item as `encode` does. So the text is safe inside an HTML page. You can write the pieces to a file with `Core\IO::writeStream`.
 
 | Parameter | Type | Meaning |
 |---|---|---|

@@ -6,7 +6,8 @@ Numbers, strings, `true`, `false` and `null` stay what they are. An instance of 
 
 The text is on one line. The option `pretty: true` puts each value on its own line. The option
 `escapeUnicode: true` writes each character outside ASCII as a `\u` code, for a reader that only
-accepts ASCII.
+accepts ASCII. The characters `<`, `>`, `&`, `'`, U+2028 and U+2029 are always written as `\u`
+codes, so the text is safe inside an HTML page.
 
 `encode` throws a `LogicError` for a value JSON cannot write: a `float` that is NaN or infinite, or
 an object that contains itself.

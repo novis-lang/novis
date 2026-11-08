@@ -5,7 +5,9 @@ keywords: JSON, encode, decode, parse JSON, validate JSON, pretty print, hydrati
 
 `Core\Json::encode` converts a value to JSON text. A list becomes a JSON array. Any other array
 becomes a JSON object, and its keys keep their order. An object can be encoded only if its class has
-the `#[Core\Json\Derive]` attribute. Any other object throws an error.
+the `#[Core\Json\Derive]` attribute. Any other object throws an error. In every string, `encode`
+and `encodeEach` write `<`, `>`, `&`, `'`, U+2028 and U+2029 as `\u` codes. So the text is safe
+inside an HTML page or a `<script>` element.
 
 `Core\Json::decode` reads JSON text and returns `mixed`. A JSON object becomes an array with string
 keys. Text that is not valid JSON throws a `ParseError`. Text that is nested too deep throws one too.
