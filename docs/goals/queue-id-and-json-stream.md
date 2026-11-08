@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-types/tests/tainted.rs, crates/nvs-stdlib/src/response.rs, docs/rules/security/response-body-is-one-typed-member.md, docs/examples/core/Json/encodeEach/about.md, docs/reference/core/Json.md, docs/reference/core/Json-Pieces.md]
   - id: 2
     title: "a job row carries a random token, and every statement that takes an Id matches it"
-    status: open
+    status: done
     context: [docs/rules/core-classes/queue-storage-is-a-table.md, docs/rules/core-classes/schema-converges.md, crates/nvs-cli/src/worker.rs, crates/nvs-cli/src/queue.rs, crates/nvs-stdlib/tests/queue_sqlite.rs, crates/nvs-cli/tests/queue_migrate.rs]
   - id: 3
     title: "every queue table the tree creates by hand has the token column"
@@ -187,6 +187,16 @@ expected `string|bytes`, found `tainted bytes`). `Core\Json::encode` returns a p
       second classification for one type.
     - **A second class for the tainted pieces.** Two classes with one iteration protocol, where the
       generic class already exists in `Core\Csv\Rows`.
+14. **The `token` column is text: the 16 bytes as 32 lower-case hex characters**, which replaces
+    decision 3's binary type. Every value the queue binds goes out as text on all four send paths, and
+    a binary parameter is spelled differently on each (`bytea` text form, `varbinary` from
+    `nvarchar`, a blob value). Hex has one written form per byte string, so MySQL's and SQL Server's
+    case-insensitive default collations still compare two tokens exactly; base64url text would not.
+    It spends 16 more bytes per row than binary, and memory is last in the ordering. The Id's third
+    slot holds the same hex text, `queue::token_text` writes it, and stage 4's `parse` decodes the
+    string's 22 base64url characters to 16 bytes and writes them through `token_text` before any
+    statement runs. A dedupe hit on a row written before the column returns an empty token, which
+    matches no row.
 
 ## Stages
 
@@ -221,21 +231,21 @@ committed then.
 **Does:** decisions 2, 3 and 7, under the rules first. After it, every test and example that creates
 the queue tables by hand fails on insert until stage 3; the handoff names them.
 
-- [ ] `rule:concurrency/queue-four-members` says an Id has a string form, a token makes it hard to
+- [x] `rule:concurrency/queue-four-members` says an Id has a string form, a token makes it hard to
   guess, and the app checks the owner. `docs/rules/concurrency/queue-four-members.md:1`
-- [ ] `rule:core-classes/queue-storage-is-a-table` names the `token` column and why it is nullable.
+- [x] `rule:core-classes/queue-storage-is-a-table` names the `token` column and why it is nullable.
   `docs/rules/core-classes/queue-storage-is-a-table.md:1`
-- [ ] `schema()` has the column in both tables, and `schema_shortfall` names it.
+- [x] `schema()` has the column in both tables, and `schema_shortfall` names it.
   `crates/nvs-stdlib/src/queue.rs:329`, `crates/nvs-stdlib/src/queue.rs:435`
-- [ ] The insert writes the token in all four dialects and returns the pending job's on a dedupe hit.
+- [x] The insert writes the token in all four dialects and returns the pending job's on a dedupe hit.
   `crates/nvs-stdlib/src/queue.rs:535`, `crates/nvs-stdlib/src/queue.rs:4212`
-- [ ] `status`, `cancel` and `delete` match the token in all four dialects.
+- [x] `status`, `cancel` and `delete` match the token in all four dialects.
   `crates/nvs-stdlib/src/queue.rs:1331`, `crates/nvs-stdlib/src/queue.rs:1400`,
   `crates/nvs-stdlib/src/queue.rs:1466`
-- [ ] The Id's third slot, read wherever an Id is read. `crates/nvs-stdlib/src/queue.rs:1926`,
+- [x] The Id's third slot, read wherever an Id is read. `crates/nvs-stdlib/src/queue.rs:1926`,
   `crates/nvs-stdlib/src/queue.rs:3382`
-- [ ] The dead-letter move carries the token. `crates/nvs-cli/src/worker.rs:1557`
-- [ ] The tests of the `queue-token` and `queue-migrate-token` checks.
+- [x] The dead-letter move carries the token. `crates/nvs-cli/src/worker.rs:1557`
+- [x] The tests of the `queue-token` and `queue-migrate-token` checks.
   `crates/nvs-stdlib/tests/queue_sqlite.rs:1`, `crates/nvs-cli/tests/queue_migrate.rs:1`
 
 ### 3. every queue table the tree creates by hand has the token column
@@ -295,32 +305,30 @@ for the bench and the attack. Their files are disjoint. None builds.
 
 ### State
 
-Stage 1 is done. `encode`'s answer turned out to be qualified, so decision 13 records how the pieces
-follow it: `Core\Json\Pieces<T>`, a `CELL_CLASSES` row, `bytes` or `tainted bytes` per call. The
-three `json-pieces-taint` tests pass, and the new conformance case passes. `Core\Json::encodeEach`'s
-perf record is stale because `json.rs` changed, and stage 6 records it. The sweep's reds were stale:
-no `env-secret-proofs` check is defined, and nightly run 42359979484 ran on 26dda36627, before the
-Miri ignores landed in f13f40646a.
+Stage 2 is done. Both tables have a nullable `token` column (decision 14: 32 lower-case hex
+characters, text). `push` draws it through `crate::random::draw` (`fresh_token`), every insert writes
+it, a dedupe hit returns the pending job's, `status`, `cancel` and `delete` match it in all four
+dialects, the dead-letter move copies it, and `Core\Queue\Id` has a third slot `token`. The five
+`queue-token` tests and `migrate_adds_the_token_column_to_an_existing_jobs_table` pass. The server
+suite `crates/nvs-stdlib/tests/queue.rs` binds one fixed `TOKEN` everywhere; it was not run, since
+only `bun nv db-matrix` runs it. Run `bun nv db-matrix --all` in stage 6. Both rules state the token.
 
-A run of the conformance tree showed three `image-*` cases red
-(`tests/conformance/novis/image-align-places-each-line-in-the-text-box.nvst`,
-`image-compare-counts-the-pixels-that-differ.nvst`, `image-each-adjustment-changes-the-pixels-it-should.nvst`).
-Stage 1 touches nothing they use, and stage 6 owns them.
+The sweep's reds are stale, as last session found: no `env-secret-proofs` check is defined, and
+nightly run 42359979484 ran on 26dda36627, before the Miri ignores in f13f40646a.
 
 ### Next
 
-**Stage 2**, the token, under the rules first.
+**Stage 3**, the hand-made tables, by its `**Split:**` line.
 
-- [ ] The two rules. `docs/rules/concurrency/queue-four-members.md:1`,
-  `docs/rules/core-classes/queue-storage-is-a-table.md:1`
-- [ ] `schema()` and `schema_shortfall`. `crates/nvs-stdlib/src/queue.rs:329`, `crates/nvs-stdlib/src/queue.rs:435`
-- [ ] The insert, the matching statements and the slot. `crates/nvs-stdlib/src/queue.rs:535`,
-  `crates/nvs-stdlib/src/queue.rs:1331`, `crates/nvs-stdlib/src/queue.rs:1926`
-- [ ] The dead-letter move and the checks' tests. `crates/nvs-cli/src/worker.rs:1557`,
-  `crates/nvs-stdlib/tests/queue_sqlite.rs:1`
+- [ ] The list of hand-made queue tables, starting at `docs/reference/core/Queue-Id.md:38`.
+- [ ] Each gains `token text` in both tables, last, as `crates/nvs-stdlib/src/queue.rs:424` declares it.
+- [ ] The queue proofs and conformance cases run once, as `docs/goals/queue-id-and-json-stream.md:261` says.
 
-Expected red after stage 2: every test and example that creates the queue tables by hand, until
-stage 3.
+Expected red until stage 3 lands: every example, conformance case, attack and bench that creates the
+queue tables by hand, with "no such column: token" on push. Also possibly red, for stage 6: unit tests
+in `crates/nvs-stdlib/src/queue.rs` and `crates/nvs-cli/src/worker.rs` that compare statement texts,
+column lists or placeholder counts, since only the new tests ran. The three `image-*` conformance
+cases are still stage 6's.
 
 ### Backlog
 
@@ -329,3 +337,5 @@ stage 3.
 - A list read from a request cannot be streamed as JSON through `Core\Response::stream`, because its
   pieces are tainted (decision 13). `Core\Response::json` sends it whole. A streamed JSON response
   member that accepts tainted items, as `json` does, is the user's call.
+- `crates/nvs-stdlib/tests/queue.rs`'s `status` helper sends `STATUS_MYSQL` to every driver but
+  PostgreSQL, SQL Server included; no SQL Server case calls it today.
