@@ -26,7 +26,7 @@ stages:
     context: [benches/members/README.md, tools/nv/cmd/bench-compare.ts, benches/compare/README.md, website/src/content/docs/in-depth/compare.mdx]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: one-read-per-request
@@ -219,24 +219,26 @@ receiver check.
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done, and each one's check passed by name. macOS has not run stage 1 yet: if a
-macOS runner shows a lost wake, decision 1's fallback applies.
+Every stage is done, and the goal is reached. `looper verify` is green over the whole goal, and
+the four acceptance checks pass by name. `bun nv verify --doc`, `bun nv owners --closes
+request-and-page-speed` and `bun nv ci --check` are green. macOS has not run stage 1 in CI yet:
+if a macOS runner shows a lost wake, decision 1's fallback applies.
 
-Stage 5 is done in `cde06a13e8` and `4ccbe86a79`. The proofs gate named 73 stale figures, all
-from stage 4's files (`compress.rs`, `http/stream.rs`, `net.rs`, `reflect.rs`), and they are
-recorded. The four features the stage named were recorded with `--force`. Their counts did not
-change, so no `// bench: allocations` line dropped. The profiles show `recvfrom` at 1.00 per
-request on both cases, and html-page at 11,495 requests a second against *Why*'s 9,373. The
-comparison's cases were recorded at `9c8966d84f` under load from the other loops. The page's prose
-states no case figure, so only `website/src/data/compare.json` changed.
+The gate stage fixed three things in `d7a0542637`. `core_str`'s allocation test pinned two
+allocations per `%d` format, and stage 2 makes it one, so it is now
+`a_lowered_format_allocates_only_the_result`. `docs/rules/concurrency.md` had not been rendered
+after stage 1's fragment paragraph. rustfmt broke three signatures, and its trailing commas staled
+49 perf figures, recorded again in `a603b74246`. A conformance run lost 28 extension cases to the
+host's page file (os error 1455) with the other loops running. All 28 passed alone, and the next
+verify was green. `6e6d027127` rewords the poller as edge-triggered, the Backlog's first item.
 
 The sweep's items are the same as the last session's: `env-secret-proofs` has no log on disk, and
 nightly `42468563179` ran on `81a279ca7a`, older than `c2b8671f25`, which is `origin/main` and was
@@ -244,24 +246,9 @@ recorded green.
 
 ### Next
 
-Stage 6: verify the goal once and fix every failure in one pass.
-
-- `docs/goals/request-and-page-speed.md:220` — start `looper verify` with `run_in_background`, then
-  end the turn and wait for its report.
-- `crates/nvs-runtime/src/string.rs:1`, `crates/nvs-render/src/html.rs:1`,
-  `crates/nvs-stdlib/src/instance.rs:1`, `crates/nvs-host/src/net.rs:1` — where a failure will land.
-- Then the goal-end gates in AGENTS.md § *In the loop*: `bun nv verify --doc`,
-  `bun nv owners --closes request-and-page-speed`, `bun nv ci --check`.
-
-No test is expected red. Stages 1 to 4 ran only their own tests by name, so this verify is the first
-full run over them. A conformance case that pins a `Fault` text from `receiver`, or an IR dump with a
-bare `%d`, is the likeliest place for one.
+Nothing in this goal. The goal-end hooks rebuild `target/release/nvs`. No test is expected red.
 
 ### Backlog
-
-- `crates/nvs-host/src/reactor.rs:19` and `:956`, and `rule:concurrency/the-parking-contract`'s rule 1,
-  call the poller level-triggered. mio is edge-triggered on epoll and kqueue. `net.rs` no longer says
-  so, and those three can be reworded in a slice of their own.
 
 - A `Uint` string part, and a `.` join lowered to parts when it has an integer operand. Both were left
   by `strings-in-place`'s decision 11, and decision 3 here leaves them again.
