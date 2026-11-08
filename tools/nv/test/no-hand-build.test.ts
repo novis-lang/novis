@@ -23,6 +23,7 @@ const ALLOWED: Record<string, string> = {
 
   "tools/nv/cmd/garden.ts": "on Linux, it builds `target/debug` itself just before it copies the binary into the origin's image",
   "tools/nv/cmd/ci.ts": "`--push` runs `cargo build` as the step just before the checks that read `target/debug`",
+  "tools/nv/cmd/deep.ts": "each step that reads `target/debug` runs `cargo build` first, as the CI job it copies does",
   "tools/nv/lib/nvs-binary.ts": "`target/debug` is one of the builds it compares, and it reads only the newest, so a stale build loses to a fresher one",
 };
 

@@ -840,6 +840,24 @@ table says.
 | `looper project add` | It exits 3, since it registers the project with the service. |
 | looper's web UI | `looper status`, `looper log` and `looper exec list` print what it shows. |
 
+### What `bun nv deep` needs installed
+
+`bun nv deep` runs every `ci.yml` job this machine can run. A step whose program is missing goes red
+and prints the line that installs it. `TOOLS` in `tools/nv/cmd/deep.ts` is the list, and these are its
+lines:
+
+| Program | Where | Install |
+|---|---|---|
+| Bun, Node | WSL | `curl -fsSL https://bun.sh/install \| bash`; `sudo apt-get install -y nodejs npm` (Node 22 or newer) |
+| Miri | WSL | `rustup toolchain install nightly --component miri rust-src && cargo +nightly miri setup` |
+| cargo-nextest | WSL and Windows | `cargo install cargo-nextest@0.9.148 --locked` |
+| cargo-fuzz | WSL | `cargo install cargo-fuzz --version 0.13.2 --locked` |
+| valgrind | WSL | `sudo apt-get install -y --no-install-recommends valgrind` |
+| Docker | WSL and Windows | Docker Desktop with its Linux engine, and its WSL integration on for the distro |
+| cargo-deny | Windows | `cargo install cargo-deny --locked` |
+| wit-bindgen, wasi-sdk | Windows | `cargo install wit-bindgen-cli --version 0.63.0 --locked`; wasi-sdk 34 for x86_64-windows, with `WASI_SDK_PATH` set to it |
+| Redis | Windows | `redis-server --port 16379`, running while `test-windows` runs |
+
 `tools/git-hooks/commit-msg` is this repository's own hook, and needs no looper. It rejects a trailer
 and a subject out of the shape `looper.toml`'s `[commits]` sets.
 

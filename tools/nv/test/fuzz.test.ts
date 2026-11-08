@@ -1,7 +1,7 @@
 // `bun nv fuzz`: which argument lists it takes, and the `bash` line it runs in the WSL copy.
 
 import { describe, expect, test } from "bun:test";
-import { fuzzLine, parsed } from "../cmd/fuzz.ts";
+import { ALL_SECONDS, YOUNG_SECONDS, allSeconds, ciTargets, fuzzLine, parsed, savedLine } from "../cmd/fuzz.ts";
 
 describe("bun nv fuzz", () => {
   test("a target and a number of runs or seconds is taken", () => {
@@ -30,6 +30,36 @@ describe("bun nv fuzz", () => {
     const line = fuzzLine("/c", "markdown", "-runs=1", "", "");
     expect(line.startsWith("j=$(( $(nproc) / 2 )); ")).toBe(true);
     expect(line).toContain("-ignore_timeouts=0 -ignore_ooms=0");
+  });
+
+  test("--all is taken alone, and keeps going after a crash, a timeout or an out-of-memory input", () => {
+    expect(parsed(["--all"])).toEqual({ all: true });
+    expect(typeof parsed(["--all", "--seconds", "5"])).toBe("string");
+    expect(typeof parsed(["markdown", "--all"])).toBe("string");
+    const line = fuzzLine("/c", "json", "-max_total_time=120", "", "", true);
+    expect(line).toContain("-max_total_time=120 -ignore_crashes=1 -ignore_timeouts=1 -ignore_ooms=1 -artifact_prefix=");
+    expect(line).not.toContain("-ignore_ooms=0");
+  });
+
+  test("--all fuzzes the targets ci.yml's fuzz-smoke legs list, in their order", () => {
+    const yml = "jobs:\n  fuzz-smoke:\n    strategy:\n      matrix:\n        include:\n" +
+      "          - { leg: 1, targets: [ast, json] }\n          - { leg: 2, targets: [xml] }\n";
+    expect(ciTargets(yml)).toEqual(["ast", "json", "xml"]);
+    expect(ciTargets("jobs: {}\n")).toEqual([]);
+  });
+
+  test("a target git added under 14 days ago runs 1800 seconds under --all, an older one 120", () => {
+    const day = 24 * 60 * 60;
+    expect(allSeconds(1000 * day, 1013 * day)).toBe(YOUNG_SECONDS);
+    expect(allSeconds(1000 * day, 1014 * day)).toBe(ALL_SECONDS);
+    expect(allSeconds(null, 1000 * day)).toBe(YOUNG_SECONDS);
+    expect([ALL_SECONDS, YOUNG_SECONDS]).toEqual([120, 1800]);
+  });
+
+  test("the saved inputs are listed with their base64", () => {
+    const line = savedLine();
+    expect(line).toContain("find /var/tmp/nvs-fuzz-artifacts -type f -newer /var/tmp/nvs-fuzz-all.stamp");
+    expect(line).toContain('echo "saved: $f"; base64 -w0 "$f"');
   });
 
   test("the job count is half the cores, capped by the free GiB, and at least one", () => {
