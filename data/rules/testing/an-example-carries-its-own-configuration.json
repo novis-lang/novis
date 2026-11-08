@@ -1,0 +1,13 @@
+{
+  "title": "An example's configuration is in its own directory, and the root nvs.toml names no example",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/examples-live-in-the-repository",
+    "testing/feature-proofs",
+    "config/a-relative-path-resolves-against-the-file-it-is-written-in"
+  ],
+  "guardedBy": [
+    "tools/nv/test/root-config-names-no-example.test.ts",
+    "docs/examples/README.md"
+  ]
+}

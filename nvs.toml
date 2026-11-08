@@ -3,6 +3,12 @@
 # directory and nowhere else. It is TOML (`rule:config/the-file-is-nvs-toml-and-it-is-toml`), and
 # `nvs serve` checks who owns it (`rule:config/ownership-is-the-trust-boundary`).
 #
+# It configures the programs that carry no `nvs.toml` of their own: the attacks under `tests/hostile`,
+# the benches under `benches/members`, the test fixtures and `examples/`. A program the website shows,
+# an example or a snippet, carries its configuration in its own directory, and no block or comment here
+# configures or names one (`rule:testing/an-example-carries-its-own-configuration`); an example with
+# no file of its own still runs under the `[[app]] root = "."` block below.
+#
 # A CLI run, which every fixture here is unless a `.nvsr` beside it makes it a request, reads and
 # writes any file, reaches public hosts and loopback, and runs any program with nothing written
 # (`rule:config/no-configuration-file-is-a-complete-configuration`). So a block below exists for what

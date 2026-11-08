@@ -586,8 +586,10 @@ export function proofRecording(proof: string, dir: string | undefined = process.
  * a `Core\Sse` member has a stream to wait on. A proof with a `<name>.env` beside it runs with each of
  * that file's `NAME=value` lines added to its environment (`envLines`), so a `Core\Env` member has
  * variables of the proof's own to read. A proof whose directory holds an `nvs.toml` runs
- * under that file alone, handed over as `--config` after `run`, so a feature that needs a grant carries
- * it where its reader sees it; every other proof runs under the repository root's. When that file turns
+ * under that file alone, handed over as `--config` after `run`, so an example that needs a grant or a
+ * setting carries it on the page that shows it, and the root's names no example
+ * (`rule:testing/an-example-carries-its-own-configuration`). Every other proof runs under the
+ * repository root's, which still configures many attacks and benches. When that file turns
  * on `[debug] store` (`storesDebug`), the run also gets a data folder of its own under `DATA_SCRATCH`,
  * handed over as `--data` and deleted after the run, so its spool files never add up in the data folder
  * beside the binary. `record` names the

@@ -37,6 +37,7 @@
     "testing/a-directory-of-programs-is-one-test-program",
     "testing/one-slice-is-one-feature",
     "testing/examples-live-in-the-repository",
+    "testing/an-example-carries-its-own-configuration",
     "testing/website-pages-are-stamped",
     "testing/the-tools-area-has-a-page-for-each-tool",
     "testing/a-terminal-block-shows-what-nvs-printed",
