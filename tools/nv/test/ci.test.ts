@@ -192,6 +192,34 @@ describe("bun nv ci --watch", () => {
     expect(old.slept).toEqual([POLL_IDLE_MS, POLL_IDLE_MS]);
   });
 
+  test("with no run going, a passed-over red run and an unpushed fix, it exits 5 and names the push", async () => {
+    // Local main is one commit past origin/main, and that commit changes code.
+    const ahead = (notes: boolean) => (args: string[]) => {
+      if (args[0] === "rev-list") return ok("1\n");
+      if (args[0] === "diff") return ok(notes ? "docs/goals/ci-green.md\n" : "crates/a/tests/b.rs\n");
+      if (args[0] === "log") return ok("fff1111 test(a): the fix\n");
+      return ok("");
+    };
+    const red = () => ({ runs: [runOf(19, "CI", "completed", "failure")], jobs: { 19: [jobOf(14, "test", "completed", "failure", "nextest")] } });
+    for (const flags of [["--past", "test"], ["--next"]]) {
+      const w = seams(`unpushed${flags[0]}`, red, ahead(false));
+      expect(await ci(["--watch", ...flags], w.s)).toBe(5);
+      expect(w.slept).toEqual([]);
+      expect(w.said).toContain("  fff1111 test(a): the fix");
+      expect(w.said.some((l) => l.includes("`bun nv ci --push`"))).toBe(true);
+    }
+    // Commits to the loop's notes alone start nothing worth a push, so the watch waits as before.
+    const notes = seams("unpushed-notes", red, ahead(true));
+    expect(await ci(["--watch", "--past", "test", "--max-min", "1"], notes.s)).toBe(3);
+    // A watched run that ends red in `--past` jobs alone still exits 4, and lists what to push.
+    const ended = seams("unpushed-ended", (p) => ({
+      runs: [runOf(20, "CI", p < 1 ? "in_progress" : "completed", p < 1 ? null : "failure")],
+      jobs: { 20: [jobOf(15, "test", "completed", "failure", "nextest")] },
+    }), ahead(false));
+    expect(await ci(["--watch", "--past", "test"], ended.s)).toBe(4);
+    expect(ended.said).toContain("  fff1111 test(a): the fix");
+  });
+
   test("`--past` covers each shard of a matrix job, and nothing that only starts with its name", async () => {
     const shards = (id: number) => [
       jobOf(11, "miri units (nvs-stdlib 1/12)", "completed", "failure", "miri nextest"),

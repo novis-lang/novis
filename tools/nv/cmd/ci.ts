@@ -43,6 +43,14 @@
 // report, so a caller under a time limit runs it again. A `gh` that keeps failing for `GH_GIVE_UP` polls
 // in a row exits 2. The exit codes are the verdict, and every line it prints is for the reader.
 //
+// **A watch never waits for a push that only its caller can make.** When its first poll finds no run
+// going, a newest run that ended red and was passed over (by `--past` or `--next`), and local `main`
+// has commits `origin/main` lacks that change a file outside `NOTES_ONLY`, it exits 5 and lists them:
+// the next run starts with a push, and a session whose fix is among them would otherwise wait until
+// `--max-min` for a run that never starts. Pushing them is the answer whoever wrote them, since `--push`
+// carries every commit on `main` anyway. An exit 4 lists the same commits, since a `--past` job they
+// fix is red until they are pushed. `--watch --release` does neither: a push starts no `Release` run.
+//
 // **`--past <job>`**, given once per job, passes over a failure that somebody else's open work owns, so
 // the watch goes on for every other job. It names a job, or the jobs under it: `--past proofs` covers
 // `proofs / linux-x86_64`, and `--past "miri units"` covers each shard, such as `miri units (nvs-stdlib
@@ -52,8 +60,8 @@
 // owns this way, which `sleep` cannot.
 //
 // **`--next`** passes over every run that had already ended when the watch started, so the watch waits
-// for the next push's runs. A session whose fixes for a red run are committed and not yet pushed
-// watches this way, since that red run would otherwise end the watch at once.
+// for the next push's runs. A session that has just pushed its fixes for a red run watches this way,
+// since that red run would otherwise end the watch before the push's own runs are listed.
 //
 // **`--status`** prints what `--watch` would read, once, and exits 1 when a newest run is red.
 // **`--rerun`** reruns the failed jobs of each red newest run, for a failure that a fix cannot reach,
@@ -190,6 +198,9 @@ export const NOTES_ONLY = ["docs/goals/", "docs/agent/playbook/", "docs/agent/pl
 /** How often a run in progress is polled, and how often an idle watch looks for a new run. */
 export const POLL_BUSY_MS = 15_000;
 export const POLL_IDLE_MS = 60_000;
+
+/** How many unpushed commits an exit 4 or 5 of `--watch` lists. */
+const UNPUSHED_SHOWN = 10;
 
 /** How many failed polls in a row end the watch. */
 const GH_GIVE_UP = 20;
@@ -506,7 +517,8 @@ const under = (name: string, p: string) => name === p || name.startsWith(`${p} /
 /**
  * Watches until a job fails (1), every run it saw in progress is green (0), or `maxMin` passes (3). A
  * failed job that `past` names is passed over, and a watched run that ended red in those jobs alone
- * ends the watch with 4. With `next`, every run that had ended at the first poll is passed over.
+ * ends the watch with 4. With `next`, every run that had ended at the first poll is passed over. A
+ * first poll with no run going, a passed-over red run and unpushed commits that change code exits 5.
  * `workflows` are the workflows watched: `WORKFLOWS`, or `[RELEASE]` under `--release`, whose runs it
  * never cancels, and where a failed leg `build.yml` marks optional is passed over too.
  */
@@ -573,10 +585,24 @@ export async function watch(s: CiSeams, maxMin: number, past: string[] = [], nex
           s.say(`  ${r.name}: ${n} of ${jobs.length} jobs finished green`);
         }
       }
+      if (first && !busy && watched.size === 0 && !workflows.includes(RELEASE) && runs.some((r) => done(r) && red(r))) {
+        const owed = await unpushed(s);
+        if (owed.length > 0) {
+          s.say(`no run is going, the newest run ended red, and local ${BRANCH} has commits origin/${BRANCH} lacks:`);
+          for (const l of owed) s.say(`  ${l}`);
+          s.say("push them with `bun nv ci --push`: no run starts until they are pushed");
+          return 5;
+        }
+      }
       first = false;
       if (!busy && watched.size > 0) {
         if (endedRed) {
           s.say("every watched run ended, and only the jobs `--past` names failed");
+          const owed = workflows.includes(RELEASE) ? [] : await unpushed(s);
+          if (owed.length > 0) {
+            s.say(`local ${BRANCH} has commits origin/${BRANCH} lacks: push them with \`bun nv ci --push\` if one fixes a \`--past\` job`);
+            for (const l of owed) s.say(`  ${l}`);
+          }
           return 4;
         }
         for (const r of runs) s.say(`GREEN ${runLine(r)}`);
@@ -602,6 +628,29 @@ async function gitOut(s: CiSeams, args: string[]): Promise<string> {
   const r = await s.git(args);
   if (r.code !== 0) throw new GhFailed(`\`git ${args.join(" ")}\` exited ${r.code}: ${firstLine(r)}`);
   return r.stdout.trim();
+}
+
+/** How many commits of local `main` `origin/main` lacks, as the last fetch or push left it. */
+async function aheadCount(s: CiSeams): Promise<number> {
+  const n = Number(await gitOut(s, ["rev-list", "--count", `origin/${BRANCH}..${BRANCH}`]));
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** The files local `main` changes that `origin/main` lacks, outside `NOTES_ONLY`. */
+async function unpushedCodeFiles(s: CiSeams): Promise<string[]> {
+  const changed = (await gitOut(s, ["diff", "--name-only", `origin/${BRANCH}`, BRANCH])).split(/\r?\n/).filter((l) => l !== "");
+  return changed.filter((p) => !NOTES_ONLY.some((n) => p.startsWith(n)));
+}
+
+/**
+ * The newest `UNPUSHED_SHOWN` commits local `main` has that `origin/main` lacks, one line each, when
+ * any of them changes a file outside `NOTES_ONLY`. Otherwise none: a push of the loop's notes alone
+ * changes nothing a run builds.
+ */
+async function unpushed(s: CiSeams): Promise<string[]> {
+  if ((await aheadCount(s)) === 0 || (await unpushedCodeFiles(s)).length === 0) return [];
+  const log = await gitOut(s, ["log", "--oneline", "-n", String(UNPUSHED_SHOWN), `origin/${BRANCH}..${BRANCH}`]);
+  return log.split(/\r?\n/).filter((l) => l !== "");
 }
 
 /** What a red check printed, without `bun`'s script lines: all of it up to `CHECK_LINES`, otherwise its
@@ -763,10 +812,9 @@ function dispatched(kind: DispatchKind, r: Run): boolean {
 export async function dispatch(s: CiSeams, kind: DispatchKind): Promise<number> {
   const d = DISPATCH[kind];
   await gitOut(s, ["fetch", "-q", "origin", BRANCH]);
-  const ahead = Number(await gitOut(s, ["rev-list", "--count", `origin/${BRANCH}..${BRANCH}`]));
+  const ahead = await aheadCount(s);
   if (ahead > 0) {
-    const changed = (await gitOut(s, ["diff", "--name-only", `origin/${BRANCH}`, BRANCH])).split(/\r?\n/).filter((l) => l !== "");
-    const code = changed.filter((p) => !NOTES_ONLY.some((n) => p.startsWith(n)));
+    const code = await unpushedCodeFiles(s);
     if (code.length > 0) {
       s.say(`local ${BRANCH} has ${ahead} commit(s) origin/${BRANCH} lacks, which change ${code.slice(0, 5).join(", ")}: run \`bun nv ci --push\` first, so the run tests the tree`);
       return 1;

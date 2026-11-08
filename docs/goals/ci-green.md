@@ -97,23 +97,29 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 1. **Push what is owed.** If `bun nv ci --status` names a refused push, or this goal has fixes
    committed that `origin/main` lacks, run `bun nv ci --push`, as § *Standing decisions* says.
+   **Never start a watch while a fix of this goal is unpushed and no run is going:** nothing will
+   start the next run, and the watch would wait for it until `--max-min`. A commit is followed by
+   `--push` before the watch, unless a run is still going (step 3).
 2. **Watch:** `bun nv ci --watch` with `run_in_background` and a timeout of 7200000, then end your turn.
    Its exit code starts your next turn. Pass `--past <job>` for each red already handed to the main
-   loop, and `--next` when the newest runs already ended and were seen, so the watch waits for the
-   next push.
+   loop, never for a job this goal's own commit fixes. Pass `--next` when the newest runs already
+   ended and were seen, or right after your push, so the watch waits for the push's runs.
    - **0, green:** write the handoff and the status line `CONTINUE CI green on <sha>`, and stop. The
      next session's watch, with `--next`, waits for the next push.
    - **1, a job failed, or a push was refused:** go to step 3.
    - **2, `gh` failed twenty times in a row:** check githubstatus.com and `gh auth status`, then
      watch again. An outage that lasts is reported in the status line with `CONTINUE`.
    - **3, nothing failed in 110 minutes:** watch again in the same session.
-   - **4, only the `--past` jobs failed:** write the handoff and the status line `CONTINUE CI green
-     on <sha> but for <job>`, and stop.
+   - **4, only the `--past` jobs failed:** if the watch lists unpushed commits and one is this goal's
+     fix, go to step 4. Otherwise write the handoff and the status line `CONTINUE CI green on <sha>
+     but for <job>`, and stop.
+   - **5, no run is going and `main` has unpushed commits that change code:** the watch lists them.
+     Go to step 4 and push them, whoever wrote them, as § *Standing decisions* says.
 3. **Fix:** `bun nv ci --status` lists a refused push's red checks and every job that failed so far.
    A refused push goes first. Find each cause in the code, fix it, check it locally as § *Standing
-   decisions* says, and commit each fix on its own with a pathspec. A run still going may fail more
-   jobs: watch it to its end with `--past` for the jobs already fixed before you push, so one push
-   carries every fix for that run.
+   decisions* says, and commit each fix on its own with a pathspec. A run **still going** may fail
+   more jobs: watch it to its end with `--past` for the jobs already fixed before you push, so one
+   push carries every fix for that run. Once no run is going, push at once (step 4).
 4. **Push and watch again:** `bun nv ci --push`, then step 2. Once the context reaches 120k, write
    the handoff with what was pushed and what is still red, and the status line `CONTINUE <the
    fixes>, pushed in <sha>`, and stop.
