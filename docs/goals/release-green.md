@@ -249,17 +249,9 @@ Stages 1 and 2 are built, and stage 2's push proof is stage 3's first push. Ever
 - **Green in this cycle's WSL steps:** `miri-units` (43 min), `lint` (25 s warm), `build-linux`
   (5 min), `proofs-linux` (4 min), `cost-guards-linux` (8 min), `valgrind` (2 min), `asan` (4 min),
   `tsan` (43 s) and `miri` (22 min).
-- **`proofs-linux` was red twice.** First, `eb4153d98b` had left the six `Core\Html` perf figures
-  stale, and `0dead72b3a` measured them again. Then the mssql attack
-  `tests/hostile/core/Db-Connection/query/04-one-sql-server-value-larger-than-the-memory-limit.nvs`
-  stopped once at step 2 with `IOError`, under the full run's load on an mssql the run had just
-  started. It passed seven times since, cold and warm, and the whole step was green next.
-- **`test-linux`:** four failures the WSL copy caused, and CI's checkout does not have, are fixed.
-  `d8d749a546` makes a scratch path canonical on Unix, since the copy's `target` is a link.
-  `661a58af3c` gives the copy the checkout's `HEAD` as a shallow commit, so `nvs --version` has a
-  commit and a date. It also drops the step's `compose down --volumes`, which stopped the shared
-  daemon's services under every other session. The last run is red on two tests alone, described
-  under § *Next*.
+- **Fixed this cycle:** stale `Core\Html` perf figures (`0dead72b3a`), and four `test-linux`
+  failures only the WSL copy had (`d8d749a546`, `661a58af3c`). The mssql attack `query/04` failed
+  once with `IOError` under load, then passed seven times.
 - **Green on `cf18d84bd9`:** `build-windows` (7 min), `docs`, `attribution`, `supply-chain`,
   `reference`, `test-windows` (20 min), `proofs-windows`, `cost-guards-windows` (16 min), `webp-lib`,
   `extension-sandbox`, and `bun nv selftest`. `test-windows` needs `docker compose -f
