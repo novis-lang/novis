@@ -237,14 +237,21 @@ Every session runs this cycle until the push run is green or the context reaches
 
 ### State
 
-`bun nv deep` and `bun nv fuzz --all` are on `main` (`a27732169d`). The first full run stopped at the
-two-hour background limit during `fuzz-smoke`, which has never run. `.agent-tmp/deep/report.json` has
-the rest: 17 steps green, and these red:
-- **`asan`, `tsan`, `miri-units`**: two `capability::tests` cases compared an unresolved path with
-  the resolved one, and the WSL copy's `target` is a symlink. They compare resolved paths now
-  (`9f69bf93e7`) and pass in WSL. Each step stopped at that crate, so the rest has not run.
-- **`docker`**: `nvs-ext`'s build script writes `target/ext` into the read-only source mount. The step
-  mounts a volume over `/src/target` now (committed), and has not run since.
+`bun nv deep` and `bun nv fuzz --all` are on `main`. Of the steps the first full run left, this
+session ran four with `--only`:
+- **`docker`** green in 4 minutes, **`asan`** green in 2 minutes and **`tsan`** green in 13 seconds,
+  each on a build warm from the first run.
+- **`miri-units`** red after 52 minutes: 1,683 of 1,684 `nvs-stdlib` tests passed, and
+  `markdown::tests::a_raw_text_html_block_read_in_small_pieces_joins_to_the_whole_document`, new in
+  the main loop's `e31845c58e`, passed the Miri profile's five minutes. It takes two tags and three
+  piece sizes under `cfg!(miri)` now (`a502373c2a`), about an eleventh of the work, and passes
+  natively. It has not run under Miri yet: Miri on `nvs-stdlib` runs only in WSL (the new playbook
+  bullet).
+- **WSL is down.** At the end of the Miri run its distro disk failed an ext4 block bitmap checksum,
+  and the kernel remounted it read-only, so every WSL step and `bun nv linux-test` fails at the sync.
+  The repair needs `wsl --shutdown`, which stops the main loop's WSL work too, so it is decision `d1`
+  (parked) for the person.
+- **`fuzz-smoke`** has never run, and needs WSL.
 - **Missing programs**, for the person who runs the loop to install (`docs/agent/commands.md`
   § *What `bun nv deep` needs installed*): wit-bindgen and wasi-sdk on Windows (`ext-templates`), Bun
   and Node in WSL (`proofs-linux`, `valgrind`), and Docker's WSL integration (`proofs-linux`,
@@ -252,23 +259,21 @@ the rest: 17 steps green, and these red:
 
 ### Next
 
-**Stage 1, last item.** Run the parts that have not run, each as its own background call: `bun nv deep --only docker`, `--only asan`, `--only tsan`,
-`--only miri-units` and `--only fuzz-smoke` (about 90 minutes alone). Fix what goes red, and expect no
-Rust test to go red from this session's change. Then tick the item and set stage 1 to done. Steps red
-only for a missing program go into stage 3 as a decision for the person (`looper decision ask
---parked`), not as blockers. Then stage 2.
+**Stage 2, which needs no WSL**, while `d1` waits. Its first group is the workflows:
+`.github/workflows/ci.yml:1` (the `changes` job, the `full` input and each `if:` on a lane output go;
+the build legs, the `dev` image job and the `--apply` check job join), `.github/workflows/dev-build.yml:1`
+deleted, and `.github/workflows/release.yml:224`'s `test` calling `ci.yml` with no input. Start with
+the stage's `Explore` subagent for the citations. Expect `tools/nv/test/deep.test.ts` to go red until
+`deep.ts` has rows for the new jobs, and the `ci-changes` tests until they are deleted with the
+command.
+
+**Stage 1's last item, once `d1` is answered and WSL writes again** (`wsl -e touch /var/tmp/x`
+succeeds): `bun nv deep --only miri-units` (about 50 minutes) to prove `a502373c2a`, then `--only
+fuzz-smoke` (about 90 minutes), each as its own background call. Fix what goes red. Then tick the
+item and set stage 1 to done. Steps red only for a missing program go into stage 3 as a decision for
+the person (`looper decision ask --parked`), not as blockers.
 
 ### Backlog
 
-- `bun nv ci --watch --past "fuzz smoke / markdown"` does not cover the job
-  `fuzz smoke / markdown, markdown_from_html`: the match takes the whole name, or a prefix ending
-  at ` / ` or ` (`. Let a prefix ending at `,` match too, in `tools/nv/cmd/ci.ts`.
-- `bun nv ci --check` does not run CI's `rustdoc links` step, so a broken doc link reaches CI. It
-  takes about a minute once warm. Add it to `PRE_PUSH` in `tools/nv/cmd/ci.ts`.
-- `crates/nvs-runtime/src/ctx/hooks.rs:603` says the sampler notices a crossing "up to one sweep
-  late". Since `d59403277`, the sweep wakes at the earliest possible crossing.
-- A CPU-time FATAL from a child task omits the time used, because it reads the child's
-  `cpu_limit` of 0 and not the tree's. `crates/nvs-runtime/src/ctx/limits.rs:1101`.
-- `publish_cpu_limit` (`crates/nvs-runtime/src/ctx/safepoint.rs:99`) does not wake the watchdog, so
-  a limit lowered by `Core\Config::set` is first seen up to one 50 ms `DEFAULT_INTERVAL` late, on
-  every platform. Wake it as `publish_wall_time` does.
+Empty. The five items the last handoff listed were already fixed on `main`: `--past` matches a prefix
+ending at `, `, `PRE_PUSH` runs `rustdoc links`, and the three runtime items are gone from their files.
