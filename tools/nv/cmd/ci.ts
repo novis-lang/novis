@@ -19,7 +19,7 @@
 //
 // **`--push`** pushes the local `main` to `origin`, and does nothing when `origin` has it already.
 // Before it pushes, it runs `PRE_PUSH`: each check a CI job runs that judges files rather than running
-// the suites, on the tree as it stands. Together they take about a minute once `cargo build` is warm,
+// the suites, on the tree as it stands. Together they take about two minutes once `cargo build` is warm,
 // and they cover about half of the failures CI finds, which CI reports an hour or two after the push. A red
 // check refuses the push: the command exits 1, prints each red check and its command, and writes them to
 // `REFUSED`, which `--watch` and `--status` report as red until a push goes out. **`--check`** runs
@@ -275,6 +275,12 @@ export const PRE_PUSH: PrePush[] = [
     name: `advisories (${d})`,
     argv: ["cargo", "deny", "--all-features", "--manifest-path", `${d}/Cargo.toml`, "--config", "deny.toml", "check", "advisories"],
   })),
+  // `lint`'s `rustdoc links` step. It takes about a minute once warm, and writes only `target/doc`.
+  {
+    name: "rustdoc links",
+    argv: ["cargo", "doc", "--no-deps", "--workspace"],
+    env: { RUSTDOCFLAGS: "-A rustdoc::private_intra_doc_links -D warnings" },
+  },
   { name: "build", argv: ["cargo", "build"] },
   // `nv reference` runs each example in a folder of its own, so the binary's path is absolute.
   { name: "chapter examples", argv: ["bun", "nv", "reference"], env: { NVS_BIN: join(ROOT, DEBUG_NVS) } },

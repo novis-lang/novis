@@ -254,7 +254,7 @@ What a loop session owes on top of the block's § *Session workflow*:
   that breaks callers are all design calls.
 - **Before `DONE`, the goal-end gates.** `bun nv verify --doc` and every broken doc link it names
   fixed, then `bun nv owners --closes <slug>` and every gap it names closed or given another owner,
-  then `bun nv ci --check`, each red fixed. It runs in about a minute the checks the goal end's push
+  then `bun nv ci --check`, each red fixed. It runs in about two minutes the checks the goal end's push
   runs, which are half of what CI finds: rustfmt, the proofs gate and the website on a binary built from
   the tree, the license file and the rest. Its proofs gate and website render are also floor checks, so a
   goal is not reached while CI's `proofs` or website render job would be red.

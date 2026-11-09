@@ -44,5 +44,6 @@ rule below is a failure CI found that the dev machine could not.
   `#[cfg_attr(miri, ignore = "<why>")]` on one line, as rustfmt writes it.
 - **Before a goal is claimed done, `bun nv ci --check` is green.** It is the checks the goal end's push
   runs: rustfmt, the lint tables, the rules, the rendered files and the website, the license file,
-  the advisories, and the feature proofs on a binary built from the tree. They take about a minute,
+  the advisories, the rustdoc links, and the feature proofs on a binary built from the tree. They take
+  about two minutes,
   and a red one refuses the push (`tools/nv/cmd/ci.ts`).
