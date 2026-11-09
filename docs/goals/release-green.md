@@ -6,7 +6,7 @@ context: [tools/nv/cmd/ci.ts, tools/nv/cmd/deep.ts, tools/nv/cmd/fuzz.ts, tools/
 stages:
   - id: 1
     title: one command runs every CI job this machine can run
-    status: open
+    status: done
     context: [tools/nv/cmd/fuzz.ts, tools/nv/cmd/linux-test.ts, .github/workflows/ci.yml]
   - id: 2
     title: one push run is the full suite, the dev build and the release's proof
@@ -89,8 +89,9 @@ end each red step with its command and the tail of its log. It writes the whole 
 names red. `--only <job>` runs one job's step. One step runs at a time, so a timing guard never shares
 the machine with Miri. What it costs: about three to four hours of this machine per full
 run, measured in stage 1. The first run's steps took two hours without the three steps whose WSL tools are missing, and with `asan`,
-`tsan` and `miri-units` stopping at their first red crate. The longest are `miri` (31 min),
-`test-windows` (22 min) and `cost-guards` (21 min, both legs). A session's background call ends at two
+`tsan` and `miri-units` stopping at their first red crate. The longest are `miri-units` (43 min
+green, every crate whole), `miri` (31 min), `test-windows` (20 to 22 min), `cost-guards` (21 min,
+both legs, 16 of them Windows) and `build-windows` (7 min). A session's background call ends at two
 hours, so a full run is taken in parts with `--only` and `--failed`. That is still less than one red
 CI run plus its fix and its second run.
 
@@ -193,7 +194,7 @@ needs (`file:line` and one line each). The session writes the code.
 - [x] Each step that cannot run yet because a tool is missing in WSL or on Windows (cargo-deny, Miri,
   valgrind) gets its install line in `docs/agent/commands.md` § *Without looper* and in the step's
   error message.
-- [ ] `bun nv selftest` is green, then one full `bun nv deep` run, with its time written into
+- [x] `bun nv selftest` is green, then one full `bun nv deep` run, with its time written into
   § *Standing decisions*. Its red steps are fixed in stage 3's first cycle.
 
 ### 2. one push run is the full suite, the dev build and the release's proof
@@ -245,14 +246,12 @@ Every session runs this cycle until the push run is green or the context reaches
 
 Stage 2 is built, and its push proof is stage 3's first push. `d1` is closed (§ *Standing
 decisions*), and every WSL step runs in `novis-test`, which `bun nv wsl` says is healthy.
-- **Docker's WSL integration is off for `novis-test`.** That is a Docker Desktop setting only the
-  person can change, and `test-linux` cannot start its servers until it is on.
+Stage 1 is done: `miri-units` is green on `7191942e48` in 43 min.
+- **Docker answers inside `novis-test`** (server 29.9.2), so `test-linux` can start its servers.
 - **Green on `cf18d84bd9`:** `build-windows` (7 min), `docs`, `attribution`, `supply-chain`,
   `reference`, `test-windows` (20 min), `proofs-windows`, `cost-guards-windows` (16 min), `webp-lib`,
   `extension-sandbox`, and `bun nv selftest`. `test-windows` needs `docker compose -f
   tests/db/compose.yaml up -d --wait redis postgres` first.
-- **`miri-units`:** `nvs-runtime` is green, which proves `a502373c2a`. One `nvs-stdlib` test ran past
-  300 s. `af6b41d329` cuts its Miri input, and it now takes 70 s alone. The step has not run again.
 - **The fuzz step is gone** (§ *Standing decisions*). The seven inputs it saved were fixed in
   `eb4153d98b` and `b4535b1892`, and they are seed files that `cargo test` replays.
 - No test is expected red from this loop's work.
@@ -260,13 +259,8 @@ decisions*), and every WSL step runs in `novis-test`, which `bun nv wsl` says is
 
 ### Next
 
-**The rest of stage 1's last item:** `bun nv deep --only miri-units` once more, which must be
-green with `af6b41d329`. Then tick the item, set stage 1 to done, and write the measured times into
-§ *Standing decisions*.
-
-**Then the WSL steps of stage 3's first cycle**, one `--only` call each: `lint`, `build-linux`,
-`proofs-linux`, `cost-guards-linux`, `valgrind`, `asan`, `tsan`, `miri`, and `test-linux` once the
-person turns on Docker's WSL integration. Then the Windows steps not run yet: `release-version`,
+**The WSL steps of stage 3's first cycle**, one `--only` call each: `lint`, `build-linux`,
+`proofs-linux`, `cost-guards-linux`, `valgrind`, `asan`, `tsan`, `miri` and `test-linux`. Then the Windows steps not run yet: `release-version`,
 `ext-templates`, `extension`, `extension-host`, `browser`, `database`, `docker` and `flood`. Fix each
 red step as § *Standing decisions* says. Then push.
 
