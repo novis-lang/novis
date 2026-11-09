@@ -852,10 +852,23 @@ fn an_unclosed_raw_html_element_keeps_its_blocks_in_one_group() {
 /// A raw-text HTML block, with or without a comment opener inside it, and a
 /// block after it: read in small pieces, the groups join to the whole
 /// document's HTML.
+///
+/// Under Miri it takes two of the four tags and three piece sizes, about an
+/// eleventh of the work, so it ends inside the Miri profile's five minutes.
 #[test]
 fn a_raw_text_html_block_read_in_small_pieces_joins_to_the_whole_document() {
+    let tags: &[&str] = if cfg!(miri) {
+        &["script", "pre"]
+    } else {
+        &["script", "style", "pre", "textarea"]
+    };
+    let pieces: Vec<usize> = if cfg!(miri) {
+        vec![1, 2, 7]
+    } else {
+        (1..=16).collect()
+    };
     let mut report = Vec::new();
-    for tag in ["script", "style", "pre", "textarea"] {
+    for &tag in tags {
         let double = format!("<!--<{tag}>");
         let left = format!("<!--<{tag}></{tag}>-->");
         let back = format!("<!--<{tag} a></{tag}>");
@@ -867,7 +880,7 @@ fn a_raw_text_html_block_read_in_small_pieces_joins_to_the_whole_document() {
                     if grouped(&markdown).concat() != whole {
                         report.push(format!("one piece {markdown:?}"));
                     }
-                    for piece in 1..=16 {
+                    for &piece in &pieces {
                         let groups = grouped_in(&markdown, piece);
                         if groups.concat() != whole {
                             report.push(format!(
@@ -882,7 +895,7 @@ fn a_raw_text_html_block_read_in_small_pieces_joins_to_the_whole_document() {
     }
     let markdown = "<script><!--<script></script>\n-";
     let whole = rendered(markdown, "a test").expect("no limit in a test");
-    for piece in 1..=16 {
+    for &piece in &pieces {
         assert_eq!(grouped_in(markdown, piece).concat(), whole, "piece {piece}");
     }
     assert!(
