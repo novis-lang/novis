@@ -583,9 +583,12 @@ function sayRefused(s: CiSeams): boolean {
 
 /**
  * Whether job `name` is `p` or a job under it: a reusable workflow's job, such as `proofs / linux-x86_64`
- * under `proofs`, or a matrix shard, such as `miri units (nvs-stdlib 1/12)` under `miri units`.
+ * under `proofs`, a matrix shard, such as `miri units (nvs-stdlib 1/12)` under `miri units`, or a leg
+ * that names several targets, such as `fuzz smoke / markdown, markdown_from_html` under
+ * `fuzz smoke / markdown`.
  */
-const under = (name: string, p: string) => name === p || name.startsWith(`${p} / `) || name.startsWith(`${p} (`);
+const under = (name: string, p: string) =>
+  name === p || [" / ", " (", ", "].some((sep) => name.startsWith(`${p}${sep}`));
 
 /** The runs `SEEN` names, none before a watch or `--status` wrote it. */
 function readSeen(root: string): Set<number> {

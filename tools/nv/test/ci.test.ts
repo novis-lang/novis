@@ -346,6 +346,14 @@ describe("bun nv ci --watch", () => {
     expect(other.said.some((l) => l.startsWith('FAILED CI / miri / step "miri test"'))).toBe(true);
   });
 
+  test("`--past` covers a leg that names several targets after a comma", async () => {
+    const w = seams("past-comma", (p) => ({
+      runs: [runOf(19, "CI", p < 1 ? "in_progress" : "completed", p < 1 ? null : "failure")],
+      jobs: { 19: [jobOf(21, "fuzz smoke / markdown, markdown_from_html", "completed", "failure", "fuzz")] },
+    }));
+    expect(await ci(["--watch", "--past", "fuzz smoke / markdown"], w.s)).toBe(4);
+  });
+
   test("a run still going beside a newer one of its workflow is cancelled once, and the newer one watched", async () => {
     const w = seams("two", (p) => ({
       runs: [
