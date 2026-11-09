@@ -4511,6 +4511,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvs-fuzz-checks"
+version = "0.0.2"
+dependencies = [
+ "httparse",
+ "nvs-diagnostics",
+ "nvs-repo",
+ "nvs-runtime",
+ "nvs-server",
+ "nvs-stdlib",
+ "nvs-syntax",
+]
+
+[[package]]
 name = "nvs-hir"
 version = "0.0.2"
 dependencies = [

@@ -1475,8 +1475,16 @@ name = "nvs-fuzz"
 version = "0.0.0"
 dependencies = [
  "comrak",
- "httparse",
  "libfuzzer-sys",
+ "nvs-fuzz-checks",
+ "nvs-stdlib",
+]
+
+[[package]]
+name = "nvs-fuzz-checks"
+version = "0.0.2"
+dependencies = [
+ "httparse",
  "nvs-diagnostics",
  "nvs-runtime",
  "nvs-server",

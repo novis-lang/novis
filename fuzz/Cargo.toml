@@ -17,13 +17,12 @@ cargo-fuzz = true
 # The other Markdown engine `rule:core-classes/markdown-to-html` measured, for
 # the `markdown_comrak` differential target alone. BSD-2-Clause.
 comrak = { version = "0.59", default-features = false }
-httparse = "1"
 libfuzzer-sys = "0.4"
-nvs-diagnostics = { path = "../crates/nvs-diagnostics" }
-nvs-runtime = { path = "../crates/nvs-runtime" }
-nvs-server = { path = "../crates/nvs-server" }
+# Every target's check but `markdown_comrak`'s, one function per target, which
+# the root workspace's `cargo test` also replays over `fuzz/seeds/`.
+nvs-fuzz-checks = { path = "../crates/nvs-fuzz-checks" }
+# `markdown_comrak`'s own seam into `Core\Markdown`.
 nvs-stdlib = { path = "../crates/nvs-stdlib" }
-nvs-syntax = { path = "../crates/nvs-syntax" }
 
 [[bin]]
 name = "ast"

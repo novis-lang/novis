@@ -1,5 +1,6 @@
 //! The fuzzing seam: thin wrappers over the parsers that read outside bytes and
-//! are private to this crate, for the targets under `fuzz/fuzz_targets/`
+//! are private to this crate, for the checks in `nvs-fuzz-checks` that the
+//! targets under `fuzz/fuzz_targets/` and a plain `cargo test` both run
 //! (`rule:testing/every-run-runs-every-job`).
 //!
 //! **One hidden module rather than a wider visibility on each parser.** The
@@ -10,7 +11,7 @@
 //! knowledge of `Ctx`, `Fault` or a module's internal types. Nothing here is
 //! called on a request path, and it spends nothing until a target calls it.
 
-use nvs_runtime::{Inbound, RequestBody, Scheme};
+use nvs_runtime::{Ctx, Inbound, NvsFn, RequestBody, Scheme, Value};
 
 /// One multipart body read to its end: the file parts it yielded and the
 /// fields it buffered, or the refusal.
@@ -136,6 +137,49 @@ pub struct ReplyHead {
     pub headers: Vec<(String, String)>,
     /// Where the body under the head ends.
     pub framing: Framing,
+}
+
+/// One reference to a [`Value`], released when this is dropped.
+///
+/// A check that calls a `Core` member from Rust owns the reference each call
+/// returns. This type releases it, so the check holds no `unsafe` of its own.
+/// The two ways to make one are [`Owned::text`] and [`call`], and each owns
+/// exactly one reference.
+#[derive(Debug)]
+pub struct Owned(Value);
+
+impl Owned {
+    /// A new `string` holding `text`.
+    #[must_use]
+    pub fn text(text: &str) -> Self {
+        Self(Value::text(text))
+    }
+
+    /// The value, borrowed: it is valid while `self` is, and it is passed only
+    /// as a call's argument, never to anything that takes the reference over.
+    #[must_use]
+    pub fn get(&self) -> Value {
+        self.0
+    }
+}
+
+impl Drop for Owned {
+    fn drop(&mut self) {
+        #[expect(
+            unsafe_code,
+            reason = "`Owned::text` and `call` are the only ways to make one, and \
+                      each owns exactly one reference, which is dropped once here"
+        )]
+        unsafe {
+            self.0.release();
+        }
+    }
+}
+
+/// `nvs_runtime::call(function, ctx, args)`'s result, owned, or `None` where
+/// the call threw.
+pub fn call(function: NvsFn, ctx: &mut Ctx, args: &[Value]) -> Option<Owned> {
+    nvs_runtime::call(function, ctx, args).ok().map(Owned)
 }
 
 /// `head` read as an outbound call's reply head, or `None` where it is refused.

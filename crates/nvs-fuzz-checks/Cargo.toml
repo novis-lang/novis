@@ -1,0 +1,33 @@
+[package]
+name = "nvs-fuzz-checks"
+description = "Each fuzz target's check as one function: the libFuzzer targets under `fuzz/fuzz_targets/` call it, and `cargo test` replays every saved input under `fuzz/seeds/` through it on every platform"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
+# The crates whose readers the checks call, and nothing else: every one is
+# already in the tree, so this crate adds no new edge to the lock file.
+[dependencies]
+nvs-diagnostics.workspace = true
+nvs-runtime.workspace = true
+nvs-server.workspace = true
+nvs-stdlib.workspace = true
+nvs-syntax.workspace = true
+# The `request_head` check's oracle: the head reader `hyper` uses.
+httparse.workspace = true
+
+[dev-dependencies]
+# The replay reads `fuzz/seeds/` through it.
+nvs-repo.workspace = true
+
+[lints]
+workspace = true

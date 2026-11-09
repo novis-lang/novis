@@ -202,6 +202,10 @@ hyper = { version = "1", default-features = false, features = [
     "server",
     "client",
 ] }
+# The head reader `hyper` uses, named for `nvs-fuzz-checks` alone: its
+# `request_head` check holds the server's own head scanner against it. Not a new
+# crate in the lock file, since `hyper` already resolved it.
+httparse = "1"
 
 # --- RFC 6455, over the connection h1 handed back (`rule:concurrency/a-connection-is-a-root-isolate`) ---
 # The framing crate, and `rule:packaging/a-c-dependency-answers-two-questions`'s first question answers "yes" for exactly
