@@ -128,6 +128,7 @@ fn written(nodes: &[&Parsed], notes: &[&Parsed]) -> Result<Option<String>, Fault
     }));
     let mut writer = Writer {
         task: false,
+        para: false,
         notes: (!notes.is_empty()).then(|| Rc::clone(&seen)),
     };
     let mut body = Vec::new();
@@ -427,7 +428,7 @@ fn tight_gap(before: Part, part: Part) -> Option<&'static str> {
 /// joins it, and a list after a list must have another marker. After a
 /// closed quote or list, a block that does not start with `>` ends the
 /// quote, and one outside the list's indent ends the list: a list there has
-/// another marker.
+/// another marker. After a table, it is a block that ends the table's rows.
 fn on_next_line(before: Part, part: Part) -> bool {
     match (before, part) {
         (Part::Heading | Part::Fence | Part::Rule, _) => true,
@@ -446,7 +447,11 @@ fn on_next_line(before: Part, part: Part) -> bool {
         (Part::Quote { open: true, .. } | Part::List { open: true, .. }, _) => part.interrupts(),
         (Part::Quote { open: false, .. }, _) => !matches!(part, Part::Quote { .. }),
         (Part::List { open: false, .. }, _) => true,
-        (Part::Table | Part::Html, _) => false,
+        // A heading, fence, rule, quote or any list marker ends a table's
+        // rows, an empty item or a number other than 1 too. A paragraph or a
+        // table would be read as a row, and an HTML block gets a blank line.
+        (Part::Table, _) => !matches!(part, Part::Paragraph | Part::Table | Part::Html),
+        (Part::Html, _) => false,
     }
 }
 
@@ -517,6 +522,10 @@ struct Writer {
     /// Whether the next paragraph is the first of a list item, where a
     /// checkbox is written as a task marker.
     task: bool,
+    /// Whether a `p` of the list item being written wrote a block. A `p`
+    /// that writes nothing shows no paragraph, so it does not make the list
+    /// loose.
+    para: bool,
     /// The references written, when the document has a footnote section.
     notes: Option<Rc<RefCell<Notes>>>,
 }
@@ -544,7 +553,9 @@ impl Writer {
                 });
             if boxed {
                 run.extend(node.children.iter());
+                let before = parts.len();
                 self.paragraph(&run, depth + 1, parts);
+                self.para |= parts.len() > before;
                 run.clear();
             } else if node.kind == Kind::Element && is_block(&node.name) {
                 self.paragraph(&run, depth, parts);
@@ -575,8 +586,16 @@ impl Writer {
         inline.notes.clone_from(&self.notes);
         inline.nodes(nodes.iter().copied(), depth);
         let text = inline.whole();
+        // A line that is one tag alone starts an HTML block, which runs on
+        // to the next blank line. A paragraph that is one break alone is
+        // that line, so it is an HTML block here.
+        let part = if text == "<br />" {
+            Part::Html
+        } else {
+            Part::Paragraph
+        };
         if !text.is_empty() {
-            self.push(parts, Part::Paragraph, text);
+            self.push(parts, part, text);
         }
     }
 
@@ -592,13 +611,18 @@ impl Writer {
             inline.text(&text_content(node, " "));
             let piece = inline.finish();
             if !piece.text.is_empty() {
+                self.para |= node.name == "p";
                 self.push(parts, Part::Paragraph, piece.text);
             }
             return Ok(());
         }
         let children: Vec<&Parsed> = node.children.iter().collect();
         match node.name.as_str() {
-            "p" => self.paragraph(&children, depth, parts),
+            "p" => {
+                let before = parts.len();
+                self.paragraph(&children, depth, parts);
+                self.para |= parts.len() > before;
+            }
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
                 let level = usize::from(node.name.as_bytes()[1] - b'0');
                 let mut inline = Inline::new(Place::Heading, false);
@@ -614,7 +638,9 @@ impl Writer {
             }
             "blockquote" => {
                 let mut inner = Vec::new();
+                let para = self.para;
                 self.collect(&children, depth, &mut inner)?;
+                self.para = para;
                 let last = inner.last().map(|(part, _)| *part);
                 let open = last.is_some_and(Part::open);
                 let shut = matches!(
@@ -636,8 +662,13 @@ impl Writer {
             },
             "dl" | "figure" => self.push(parts, Part::Html, html_block(node)?),
             // `div`, and an element of a table or a list found outside one:
-            // its children are blocks of the container it is in.
-            _ => self.collect(&children, depth, parts)?,
+            // its children are blocks of the container it is in. Only a `p`
+            // straight inside a list item makes the list loose.
+            _ => {
+                let para = self.para;
+                self.collect(&children, depth, parts)?;
+                self.para = para;
+            }
         }
         Ok(())
     }
@@ -695,25 +726,25 @@ impl Writer {
         if items.is_empty() {
             return Ok(());
         }
-        let paragraphs = items.iter().any(|item| {
-            item.iter()
-                .any(|child| child.kind == Kind::Element && child.name == "p")
-        });
-
+        let mut paragraphs = false;
+        let para = std::mem::take(&mut self.para);
         let mut blocks = Vec::with_capacity(items.len());
         for item in &items {
             let mut inner = Vec::new();
             self.task = true;
             self.collect(item, depth, &mut inner)?;
             self.task = false;
+            paragraphs |= std::mem::take(&mut self.para);
             blocks.push(inner);
         }
-        // A list whose items write nothing renders no paragraph, loose or
-        // tight, so it is written tight, as its own HTML is read again. Two
-        // blocks of an item that cannot share a line get a blank line
-        // between them, and that blank line makes the whole list loose. The
-        // list is written loose, so it reads back the same.
-        let loose = paragraphs && blocks.iter().any(|inner| !inner.is_empty())
+        self.para = para;
+        // A list is loose when a `p` of an item writes a block. A `p` that
+        // writes nothing renders no paragraph, loose or tight, so the list
+        // is written tight, as its own HTML is read again. Two blocks of an
+        // item that cannot share a line get a blank line between them, and
+        // that blank line makes the whole list loose. The list is written
+        // loose, so it reads back the same.
+        let loose = paragraphs
             || blocks.iter().any(|inner| {
                 inner
                     .windows(2)
@@ -1088,6 +1119,23 @@ fn text_content(node: &Parsed, line: &str) -> String {
         }
     }
     out
+}
+
+/// Whether a link label that starts with `text` ends at a `]` with a `:`
+/// right after it: the label ends at the first `]` without a backslash
+/// before it, and a `[` before that makes it no label.
+fn label_then_colon(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let mut ix = 0;
+    while let Some(&byte) = bytes.get(ix) {
+        match byte {
+            b'[' => return false,
+            b']' => return bytes.get(ix + 1) == Some(&b':'),
+            b'\\' if bytes.get(ix + 1).is_some_and(u8::is_ascii_punctuation) => ix += 2,
+            _ => ix += 1,
+        }
+    }
+    false
 }
 
 /// `node`'s start tag as the sanitizer writes it, and its end tag, or `None`
@@ -1578,6 +1626,14 @@ impl Inline {
                 piece.trail_break = 0;
             }
             self.wrap(&piece, "", "");
+            return;
+        }
+        // A paragraph that starts with `[label]:` is read as a link
+        // reference definition. Text escapes its `]`, but one in a code
+        // span cannot be escaped, so such a link is written as its tags.
+        if self.place == Place::Paragraph && !self.started() && label_then_colon(&piece.text) {
+            let (open, end) = tags(node);
+            self.wrap(&piece, &open, end.as_deref().unwrap_or(""));
             return;
         }
         self.wrap(&piece, "[", &close);

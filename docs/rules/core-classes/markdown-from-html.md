@@ -28,7 +28,9 @@ answer for the element, which the renderer writes unchanged: the input is parsed
 was would come back as two paragraphs and a table. Each such block costs a second parse. An inline element
 with no Markdown syntax, such as `sup`, is its tags around Markdown content. An `<a>` nested in an
 `<a>`, which the parser closes into links with no text, is written as `[](/x)`, where any other empty
-element writes nothing.
+element writes nothing. A link that starts a paragraph and whose text has a `]` with a `:` after it in
+a code span, where no backslash can go, is written as its tags, since `[text]:` there starts a link
+reference definition.
 
 **Depth.** The walk follows 128 levels of elements, and past that writes an element's text alone. It
 bounds both the native stack and the copy each level makes of its content, which keeps work linear.
@@ -41,14 +43,16 @@ bounds both the native stack and the copy each level makes of its content, which
   alone at the end of a block with content before it, so that one is dropped. Two or more there are
   all written, so the result is the same when it is read and written again. A break between two pieces of text is a backslash at the end of the
   line. Markdown has no syntax for a break with no text before or after it in its block, so that one
-  is `<br />`, inline HTML. A link with no text shows nothing, so the breaks in it are written in
-  front of it.
+  is `<br />`, inline HTML. A paragraph that is one such `<br />` alone is a line CommonMark reads as
+  an HTML block, which runs on to the next blank line, so it is placed as an HTML block. A link with
+  no text shows nothing, so the breaks in it are written in front of it.
 - A list item's blocks share lines where the next block cannot be read as part of the one before,
   since a blank line between two of them makes the list loose. After a paragraph, a block that
   interrupts a paragraph goes on the next line, and so does a table: GFM reads the line before a
   delimiter row as the header row, and the table writes its own. After a quote or a list that ends in a paragraph, so
   does any list, which after a list has another marker: a marker there ends the paragraph even where
-  it could not interrupt one. After an empty quote, or a list whose last block no line continues, any
+  it could not interrupt one. After a table, a heading, a fence, a rule, a quote and any list go on
+  the next line, since each ends the table's rows, an empty item and a number other than 1 too. After an empty quote, or a list whose last block no line continues, any
   block that does not continue it goes on the next line. A paragraph, table or HTML block after a
   quote that ends in a paragraph or a table gets a last `>` line in the quote, which ends that block
   and keeps the item tight. When the quote ends in a list, that line makes the list around the
@@ -71,8 +75,9 @@ bounds both the native stack and the copy each level makes of its content, which
   `rowspan`. Any other table is written as sanitized HTML.
 - A `div`, and any other container with no Markdown syntax, is unwrapped: its children are written as
   blocks of the container around it. An element with no content, such as an empty paragraph or list,
-  is written as nothing, since a browser shows nothing for it. A list whose items all write nothing
-  is written tight, even with a `p` in it, since no paragraph shows either way.
+  is written as nothing, since a browser shows nothing for it. A list is written loose when a `p`
+  straight inside one of its items writes a block. A `p` that writes nothing does not count, since
+  no paragraph shows for it loose or tight.
 - A task list item's checkbox is written `[ ]` or `[x]`, with a space before a break after it: the
   renderer reads the marker only when white space follows it.
 - A code block's fence is one backtick longer than the longest run of backticks inside it, and so is
