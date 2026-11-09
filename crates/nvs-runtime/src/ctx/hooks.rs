@@ -603,10 +603,11 @@ impl Ctx {
         let cpu_reserve = self.fatal_reserve_time;
         let stopped_for_cpu = self.safepoint_flags().contains(SafepointFlags::CPU_LIMIT);
         if cpu_ordinary != 0 {
-            // The slice starts where the handler does. The sampler notices a
-            // crossing up to one sweep late, and that time is the request's,
-            // so the widened ceiling is measured from what the tree has spent
-            // now. Published, because the sampler compares the tree's charge
+            // The slice starts where the handler does. The sampler wakes at the
+            // earliest time the tree could cross its ceiling, so it notices a
+            // crossing a little after it happens, and that time is the
+            // request's. So the widened ceiling is measured from what the tree
+            // has spent now. Published, because the sampler compares the tree's charge
             // with the published ceiling and raises the flag again past it.
             let spent = self.cpu_time_spent().map_or(0, |spent| {
                 u64::try_from(spent.as_nanos()).unwrap_or(u64::MAX)

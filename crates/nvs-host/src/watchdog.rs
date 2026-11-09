@@ -2928,6 +2928,16 @@ mod tests {
         let used: u128 = reading.0.parse().expect("the used time is a number");
         assert_eq!(reading.1, "35", "{message}");
         assert!(used >= 35, "{message}");
+
+        // A child task of the same tree has no ceiling of its own, and its
+        // `FATAL` names the tree's time and ceiling all the same.
+        let mut child = ctx();
+        child.join_tree(request.tree_handle());
+        let message = child.cpu_time_message();
+        assert!(
+            message.ends_with(" ms used of a limit of 35 ms"),
+            "{message}"
+        );
         registered.withdraw(&request.safepoint_view());
     }
 

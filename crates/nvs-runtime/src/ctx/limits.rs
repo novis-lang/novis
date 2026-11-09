@@ -1115,8 +1115,9 @@ impl Ctx {
 
     /// The `FATAL`'s message for a request past its CPU ceiling:
     /// [`Self::CPU_TIME_EXCEEDED`], then [`Self::cpu_time_spent`] and
-    /// [`Self::cpu_limit`], the point the sampler stops the request at. With
-    /// no reading it names the limit alone, and with no limit nothing more.
+    /// [`Self::cpu_limit`], the point the sampler stops the request at. A
+    /// child task, whose own limit is 0, names the ceiling its tree published.
+    /// With no reading it names the limit alone, and with no limit nothing more.
     ///
     /// The reading is taken here, where the request stops, never stored by
     /// the watchdog when it raised the flag: a stored reading would hide a
@@ -1124,7 +1125,16 @@ impl Ctx {
     /// --overshoot` exists to find.
     #[must_use]
     pub fn cpu_time_message(&self) -> String {
-        let limit = std::time::Duration::from_nanos(self.cpu_limit);
+        // A child task holds no ceiling of its own, so it names the one its
+        // tree's root published, which is the one the sampler stopped it at.
+        let nanos = if self.cpu_limit != 0 || self.tree_root {
+            self.cpu_limit
+        } else {
+            self.tree
+                .cpu_limit
+                .load(std::sync::atomic::Ordering::Relaxed)
+        };
+        let limit = std::time::Duration::from_nanos(nanos);
         let used = if limit.is_zero() {
             None
         } else {
