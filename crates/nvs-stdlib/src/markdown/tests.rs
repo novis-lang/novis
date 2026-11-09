@@ -1251,6 +1251,10 @@ const DOCUMENTS: &[&str] = &[
     "*a*b*c*d*",
     "**a**b**c**d**",
     "~~a~~b~~c~~d~~",
+    // Tab-indented list markers. The `markdown_from_html` fuzz target found
+    // it, and it is also a seed under `fuzz/seeds/markdown_from_html/`. The
+    // other seeds there hold raw HTML, which the round trip does not cover.
+    "-\t-6\namp;#\n\t-|\n\t-",
 ];
 
 #[test]
@@ -1777,80 +1781,4 @@ fn footnotes_keep_their_numbers_and_ids_in_any_section() {
     // A note whose own reference to itself has the id goes before the body.
     let html = crate::fuzz::markdown("[^,,,]:[^,,,]\n\n[^,,,]");
     assert_eq!(crate::fuzz::from_html(&html), "[^1]: [^1]\n\n[^1]\n");
-}
-
-/// The `markdown` fuzz target's properties, over one input as the target
-/// reads it: the first byte sets the piece size, and the rest is the text.
-fn markdown_target_holds(data: &[u8]) {
-    let (&cut, rest) = data.split_first().expect("an input with a first byte");
-    let text = std::str::from_utf8(rest).expect("UTF-8 text");
-    let html = crate::fuzz::markdown(text);
-    assert_eq!(
-        crate::fuzz::html_sanitized(&html),
-        html,
-        "sanitized again: {text:?}"
-    );
-    assert!(
-        html.len() <= 32 * text.len() + crate::fuzz::MARKDOWN_ADDED_OUTPUT,
-        "{text:?}"
-    );
-    let piece = usize::from(cut % 16) + 1;
-    assert_eq!(
-        crate::fuzz::markdown_groups(text, piece).concat(),
-        html,
-        "groups in pieces of {piece}: {text:?}"
-    );
-    let (parts, rest) = crate::fuzz::markdown_live(text, piece);
-    for (_, open) in &parts {
-        let kept = open.trim_start_matches(['\t', '\n', '\u{C}', '\r', ' ']);
-        assert_eq!(
-            crate::fuzz::html_sanitized(open),
-            kept,
-            "Live's open part: {text:?}"
-        );
-    }
-    if !text.contains("]:") {
-        let joined: String = parts
-            .iter()
-            .map(|(done, _)| done.as_str())
-            .collect::<String>()
-            + &rest;
-        assert_eq!(joined, html, "Live in pieces of {piece}: {text:?}");
-    }
-}
-
-#[test]
-fn every_saved_markdown_fuzz_input_holds_the_targets_properties() {
-    for data in [
-        &b"p<?>\xEF\xBB\xBF\r*r\0\0\0\0\0\0\0"[..],
-        b"\x0F</div>  \xEF\xBB\xBF",
-        b"\0#   >\0*\x02<h2>\0**#",
-    ] {
-        markdown_target_holds(data);
-    }
-}
-
-/// The `markdown_from_html` fuzz target's properties, over one input.
-fn from_html_target_holds(text: &str) {
-    let first = crate::fuzz::from_html(text);
-    let second = crate::fuzz::from_html(&crate::fuzz::markdown(&first));
-    assert_eq!(second, first, "written from its own HTML: {text:?}");
-    if crate::fuzz::markdown_has_raw_html(text) {
-        return;
-    }
-    let html = crate::fuzz::markdown(text);
-    let again = crate::fuzz::markdown(&crate::fuzz::from_html(&html));
-    assert_eq!(meaning(&again), meaning(&html), "the round trip: {text:?}");
-}
-
-#[test]
-fn every_saved_from_html_fuzz_input_holds_the_targets_properties() {
-    for text in [
-        "-\t-6\namp;#\n\t-|\n\t-",
-        "\r<ul><br>\t<ul>`.h",
-        "*<ul><a href=.u%><<code><br>]:",
-        "www. \0<hr></p>\0<ol><hr></p>\0<ol>  sz",
-    ] {
-        from_html_target_holds(text);
-    }
 }

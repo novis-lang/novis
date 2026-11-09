@@ -30,6 +30,8 @@
 # Fixtures that deliberately contain CRLF, to test the lexer's handling of it.
 # Anything under a `crlf/` directory is preserved exactly as committed.
 **/fixtures/crlf/**  -text
+# Fuzz seeds are a target's input byte for byte, CR and NUL included.
+fuzz/seeds/**        -text
 
 # Windows scripts keep CRLF
 *.bat     text eol=crlf
