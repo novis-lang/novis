@@ -1594,9 +1594,22 @@ fn footnotes_are_written_as_footnotes() {
         crate::fuzz::from_html(&crate::fuzz::markdown(&written)),
         written
     );
-    // References whose first appearances are not in the notes' order are
-    // written as links, since the renderer would number the notes another way.
+    // Notes that no reference with an id shows are named first in a
+    // definition the renderer does not write, so they keep their numbers.
     let html = "<p><sup><a href=\"#md-fn-2\">2</a></sup></p><hr><ol>\
+                <li id=\"md-fn-1\">a <a href=\"#md-fnref-1\">\u{21A9}</a></li>\
+                <li id=\"md-fn-2\">b <a href=\"#md-fnref-2\">\u{21A9}</a></li></ol>";
+    let written = crate::fuzz::from_html(html);
+    assert_eq!(written, "[^0]: [^1] [^2]\n\n[^2]\n\n[^1]: a\n\n[^2]: b\n");
+    assert_eq!(
+        crate::fuzz::from_html(&crate::fuzz::markdown(&written)),
+        written
+    );
+    // References with ids whose first appearances are not in the notes'
+    // order are written as links, since the renderer would number the notes
+    // another way.
+    let html = "<p><sup><a href=\"#md-fn-2\" id=\"md-fnref-2\">2</a></sup>\
+                <sup><a href=\"#md-fn-1\" id=\"md-fnref-1\">1</a></sup></p><hr><ol>\
                 <li id=\"md-fn-1\">a <a href=\"#md-fnref-1\">\u{21A9}</a></li>\
                 <li id=\"md-fn-2\">b <a href=\"#md-fnref-2\">\u{21A9}</a></li></ol>";
     let written = crate::fuzz::from_html(html);
@@ -1662,4 +1675,85 @@ fn from_html_strips_controls_around_a_url_as_a_browser_does() {
         assert_written_from_its_own_html("<p><a href=\"\u{1}javascript:x\">a</a></p>"),
         "a\n"
     );
+}
+
+/// Runs the `markdown_from_html` fuzz target's whole check on each of
+/// `inputs`: `fromHtml` over the input read as HTML gives Markdown whose own
+/// HTML it writes back unchanged, and the input read as Markdown with no raw
+/// HTML keeps its meaning through `fromHtml`.
+fn holds_the_fuzz_properties(inputs: &[&str]) {
+    for input in inputs {
+        assert_written_from_its_own_html(input);
+        if !crate::fuzz::markdown_has_raw_html(input) {
+            keeps_its_meaning(&[input]);
+        }
+    }
+}
+
+// The `markdown_from_html` fuzz target found the first input of each test
+// below, or the first few.
+
+// covers: Core\Markdown::fromHtml
+#[test]
+fn a_task_marker_before_a_break_stays_a_checkbox() {
+    holds_the_fuzz_properties(&[
+        "- [ ]  \n\0",
+        "- [ ]\n\\\n]",
+        "- [x]\n\\\n\\\nb",
+        "<ul><li><input type=\"checkbox\" checked><br><br></li></ul>",
+    ]);
+}
+
+// covers: Core\Markdown::fromHtml
+#[test]
+fn a_tight_item_with_text_before_a_table_stays_tight() {
+    holds_the_fuzz_properties(&[
+        "- l\rl\r  :-",
+        "- \\\rd\r  :-",
+        "- \\\ny\r  :-",
+        "- :\ri\r  :-",
+        "-\t\0\n\u{2}\n    -:",
+        "- a\\\n  b\n  | x | y |\n  | --- | --- |\n  | 1 | 2 |\n- c",
+    ]);
+}
+
+// covers: Core\Markdown::fromHtml
+#[test]
+fn a_list_whose_items_write_nothing_is_written_tight() {
+    holds_the_fuzz_properties(&["<ul><p><li>", "<ul><li><p></p></li><li><p> </p></li></ul>"]);
+}
+
+// covers: Core\Markdown::fromHtml
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "parses and renders dozens of documents, which Miri takes about twenty seconds each for"
+)]
+fn footnotes_keep_their_numbers_and_ids_in_any_section() {
+    holds_the_fuzz_properties(&[
+        "[^\0]:[^\0]:[^\0]",
+        "[^;]:[^;]:[^;]",
+        "[^\0]:[^\u{1c}]\n[^\u{1c}]:",
+        "[^,,,]:[^,,,]\n\n[^,,,]",
+        "[^a]: [^b] [^c]\n\n[^b]: x\n\n[^c]: y",
+        "a[^1]\n\n[^0]: [^2]\n\n[^1]: x\n\n[^2]: y",
+        "[^1]: [^1]\n\n[^0]: [^2]\n\nb [^1] [^2]\n\n[^2]: z",
+        "[^0]: [^1]\n\nb [^1]\n\n[^1]: z [^1]",
+        "a[^1] [^2]\n\n[^1]: b[^2]\n\n[^2]: c",
+        "[^1]: [^2]\n\n[^2]: [^1]\n\n[^1]",
+        "[^h]: [^a]\n\nb[^b]\n\n[^g]: [^c]\n\n[^a]: 1\n\n[^b]: 2\n\n[^c]: 3",
+    ]);
+    let html =
+        crate::fuzz::markdown("[^h]: [^a]\n\nb[^b]\n\n[^g]: [^c]\n\n[^a]: 1\n\n[^b]: 2\n\n[^c]: 3");
+    assert_eq!(
+        crate::fuzz::from_html(&html),
+        "[^0]: [^1]\n\nb[^2]\n\n[^0-1]: [^3]\n\n[^1]: 1\n\n[^2]: 2\n\n[^3]: 3\n"
+    );
+    // A note none of whose references is shown is named in `[^0]:`, a
+    // definition no reference names, which the renderer does not write.
+    let html = crate::fuzz::markdown("[^\0]:[^\0]:[^\0]");
+    assert_eq!(crate::fuzz::from_html(&html), "[^0]: [^1]\n\n[^1]:\n");
+    // A note whose own reference to itself has the id goes before the body.
+    let html = crate::fuzz::markdown("[^,,,]:[^,,,]\n\n[^,,,]");
+    assert_eq!(crate::fuzz::from_html(&html), "[^1]: [^1]\n\n[^1]\n");
 }

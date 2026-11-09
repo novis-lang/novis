@@ -45,7 +45,8 @@ bounds both the native stack and the copy each level makes of its content, which
   front of it.
 - A list item's blocks share lines where the next block cannot be read as part of the one before,
   since a blank line between two of them makes the list loose. After a paragraph, a block that
-  interrupts a paragraph goes on the next line. After a quote or a list that ends in a paragraph, so
+  interrupts a paragraph goes on the next line, and so does a table: GFM reads the line before a
+  delimiter row as the header row, and the table writes its own. After a quote or a list that ends in a paragraph, so
   does any list, which after a list has another marker: a marker there ends the paragraph even where
   it could not interrupt one. After an empty quote, or a list whose last block no line continues, any
   block that does not continue it goes on the next line. A paragraph, table or HTML block after a
@@ -57,15 +58,23 @@ bounds both the native stack and the copy each level makes of its content, which
   `md-fn-1`, `md-fn-2` and on, each ending in its `↩` link, is written as footnotes: each reference
   `<sup><a href="#md-fn-n">n</a></sup>` as `[^n]`, and each item as `[^n]:` without its back link,
   which the renderer writes again. Only a footnote gives an element an id, so a list would lose them.
-  The renderer numbers notes by their first reference, so the section is written so only when the
-  references written first appear in the notes' order; any other is written as a list and links. A
-  `(` or `:` right after a reference gets a backslash and a link an empty comment, or the reference
-  would read as a link or a definition.
+  The renderer numbers notes by their first reference in the source, also one inside a definition,
+  and gives that reference alone the id `md-fnref-n`, so the body and the definitions are written in
+  the order that gives each note its number and puts each id where it was. A definition may come
+  before the body, as `[^1]: [^1]` does when only the note's own reference has the id. A note whose
+  id no shown reference has was first named in a definition the renderer does not write, so `[^0]:`,
+  a definition no reference names, names it at its place in that order. A section no order fits,
+  such as references with ids out of the notes' order in one paragraph, is written as a list and
+  links. A `(` or `:` right after a reference gets a backslash and a link an empty comment, or the
+  reference would read as a link or a definition.
 - A GFM table is written when every cell holds only inline content and no cell uses `colspan` or
   `rowspan`. Any other table is written as sanitized HTML.
 - A `div`, and any other container with no Markdown syntax, is unwrapped: its children are written as
   blocks of the container around it. An element with no content, such as an empty paragraph or list,
-  is written as nothing, since a browser shows nothing for it.
+  is written as nothing, since a browser shows nothing for it. A list whose items all write nothing
+  is written tight, even with a `p` in it, since no paragraph shows either way.
+- A task list item's checkbox is written `[ ]` or `[x]`, with a space before a break after it: the
+  renderer reads the marker only when white space follows it.
 - A code block's fence is one backtick longer than the longest run of backticks inside it, and so is
   a code span's. A code span right after another gets an empty comment between them, since
   `` `a``b` `` is one span.

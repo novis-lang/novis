@@ -48,7 +48,7 @@
 //! whole in memory, so streaming would save only the tree
 //! (`rule:core-classes/markdown-from-html`'s *Large documents*).
 
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use nvs_runtime::Fault;
@@ -118,43 +118,139 @@ pub(super) fn markdown(tree: Parsed) -> Result<String, Fault> {
 }
 
 /// `nodes`, a document's top-level nodes, as Markdown, with `notes`, the items
-/// of a footnote section, as footnote definitions after them. `None` when the
-/// footnote references written do not first appear in the order 1, 2, 3 and
-/// so on up to the last note: the renderer numbers notes by their first
-/// reference, so it would number these another way.
+/// of a footnote section, as footnote definitions. `None` when no order of
+/// the blocks makes the renderer number the notes and place their ids as
+/// they are ([`arranged`]).
 fn written(nodes: &[&Parsed], notes: &[&Parsed]) -> Result<Option<String>, Fault> {
-    let seen = Rc::new(Cell::new(Notes {
+    let seen = Rc::new(RefCell::new(Notes {
         count: notes.len(),
-        seen: 0,
-        broken: false,
+        refs: Vec::new(),
     }));
     let mut writer = Writer {
         task: false,
         notes: (!notes.is_empty()).then(|| Rc::clone(&seen)),
     };
-    let mut parts = Vec::new();
-    writer.collect(nodes, 0, &mut parts)?;
-    for (at, item) in notes.iter().enumerate() {
-        writer.note(item, at + 1, &mut parts)?;
+    let mut body = Vec::new();
+    writer.collect(nodes, 0, &mut body)?;
+    if notes.is_empty() {
+        return joined(&body, false).map(Some);
     }
-    let seen = seen.get();
-    if seen.broken || seen.seen != seen.count {
+    let mut units = vec![(body, std::mem::take(&mut seen.borrow_mut().refs))];
+    for (at, item) in notes.iter().enumerate() {
+        let mut parts = Vec::new();
+        writer.note(item, at + 1, &mut parts)?;
+        units.push((parts, std::mem::take(&mut seen.borrow_mut().refs)));
+    }
+    let refs: Vec<&[(usize, bool)]> = units.iter().map(|(_, refs)| refs.as_slice()).collect();
+    let Some(order) = arranged(&refs, notes.len()) else {
         return Ok(None);
+    };
+    let mut parts = Vec::new();
+    let mut holders = 0;
+    for unit in order {
+        match unit {
+            Unit::Blocks(at) => parts.append(&mut units[at].0),
+            Unit::Holder(numbers) => {
+                // Each holder needs a label of its own, and no note has the
+                // label `0`.
+                let mut text = match holders {
+                    0 => String::from("[^0]:"),
+                    n => format!("[^0-{n}]:"),
+                };
+                holders += 1;
+                for number in numbers {
+                    text.push_str(&format!(" [^{number}]"));
+                }
+                parts.push((Part::Paragraph, text));
+            }
+        }
     }
     joined(&parts, false).map(Some)
 }
 
 /// The footnote references written so far, while a document with a footnote
 /// section is written.
-#[derive(Clone, Copy)]
 struct Notes {
     /// How many notes the section has.
     count: usize,
-    /// How many notes a reference has been written for.
-    seen: usize,
-    /// Whether a reference came before the references to the notes numbered
-    /// below it.
-    broken: bool,
+    /// Each reference written, in order: its note's number, and whether it
+    /// has the id `md-fnref-n`.
+    refs: Vec<(usize, bool)>,
+}
+
+/// One top-level piece of a document with a footnote section, in the order
+/// [`arranged`] gives.
+enum Unit {
+    /// The body's blocks, at index 0, or note `n`'s definition, at index `n`.
+    Blocks(usize),
+    /// A definition no reference names, holding a reference to each of these
+    /// notes, which no reference with an id shows. The renderer does not
+    /// write that definition, but it counts the references in it.
+    Holder(Vec<usize>),
+}
+
+/// The order of the body, the notes' definitions and the holders in which
+/// the renderer gives the notes the numbers and the ids they have. `refs` is
+/// the references of the body, then of each note: each one's number and
+/// whether it has its id.
+///
+/// The renderer numbers notes by their first reference in the source, also
+/// one in a definition it does not write, and gives that reference alone the
+/// id `md-fnref-n`. So number `n` goes to the piece whose reference with
+/// that id comes first in it, or, when no shown reference has the id, to a
+/// holder. Each such piece goes where its first new number is next, and
+/// every reference in it before or between its new numbers must be to a
+/// note numbered already. The pieces with no new number go after them, the
+/// body first, except that a body with no reference goes first. `None` when
+/// no order fits, such as when a body's references with ids skip a note
+/// numbered in a holder. The work is linear in the references.
+fn arranged(refs: &[&[(usize, bool)]], count: usize) -> Option<Vec<Unit>> {
+    // The piece whose reference has the id of note `n`, at `owner[n]`.
+    let mut owner = vec![None; count + 1];
+    for (at, piece) in refs.iter().enumerate() {
+        for &(number, id) in *piece {
+            if id {
+                if owner[number].is_some() {
+                    return None;
+                }
+                owner[number] = Some(at);
+            }
+        }
+    }
+    let mut order = Vec::new();
+    let mut placed = vec![false; refs.len()];
+    if refs[0].is_empty() {
+        placed[0] = true;
+        order.push(Unit::Blocks(0));
+    }
+    let mut next = 1;
+    while next <= count {
+        let Some(at) = owner[next] else {
+            match order.last_mut() {
+                Some(Unit::Holder(numbers)) => numbers.push(next),
+                _ => order.push(Unit::Holder(vec![next])),
+            }
+            next += 1;
+            continue;
+        };
+        // The piece's references must give `next`, `next + 1` and on with
+        // their ids, and name only notes numbered already in between.
+        for &(number, id) in refs[at] {
+            if id && number == next {
+                next += 1;
+            } else if id || number >= next {
+                return None;
+            }
+        }
+        placed[at] = true;
+        order.push(Unit::Blocks(at));
+    }
+    for (at, done) in placed.into_iter().enumerate() {
+        if !done {
+            order.push(Unit::Blocks(at));
+        }
+    }
+    Some(order)
 }
 
 /// The footnote section the renderer writes at the end of `nodes`: the index
@@ -322,7 +418,9 @@ fn tight_gap(before: Part, part: Part) -> Option<&'static str> {
 
 /// Whether `part` may be written on the line right after `before` in a tight
 /// container, where it cannot be read as part of `before`. After a paragraph,
-/// that is a block that interrupts a paragraph. After a quote or list that
+/// that is a block that interrupts a paragraph, or a table: GFM reads a
+/// paragraph's last line as a header row when a delimiter row follows it,
+/// and the table writes its own header row. After a quote or list that
 /// ends in an open block, it is the same, except that any list marker ends
 /// that block: an empty item or a number other than 1 may interrupt a
 /// paragraph that is not in the item's own container. A quote after a quote
@@ -333,6 +431,9 @@ fn tight_gap(before: Part, part: Part) -> Option<&'static str> {
 fn on_next_line(before: Part, part: Part) -> bool {
     match (before, part) {
         (Part::Heading | Part::Fence | Part::Rule, _) => true,
+        // A table's header row on the line after a paragraph, with the
+        // delimiter row after it, starts the table and ends the paragraph.
+        (Part::Paragraph, Part::Table) => true,
         (Part::Paragraph, _) => part.interrupts(),
         (Part::Quote { open: true, .. }, Part::Quote { .. }) => false,
         (Part::Quote { open: true, .. }, Part::List { .. }) => true,
@@ -399,6 +500,13 @@ fn css_space(ch: char) -> bool {
     matches!(ch, ' ' | '\t' | '\n' | '\r')
 }
 
+/// Whether `out`, a paragraph's Markdown so far, is a task list marker
+/// alone. Text never writes `[` without a backslash, so only the marker is
+/// `[ ]` or `[x]`.
+fn task_mark(out: &str) -> bool {
+    matches!(out, "[ ]" | "[x]")
+}
+
 /// Whether `node` is a text node of CSS white space alone.
 fn blank(node: &Parsed) -> bool {
     node.kind == Kind::Text && node.text.chars().all(css_space)
@@ -410,7 +518,7 @@ struct Writer {
     /// checkbox is written as a task marker.
     task: bool,
     /// The references written, when the document has a footnote section.
-    notes: Option<Rc<Cell<Notes>>>,
+    notes: Option<Rc<RefCell<Notes>>>,
 }
 
 impl Writer {
@@ -587,7 +695,7 @@ impl Writer {
         if items.is_empty() {
             return Ok(());
         }
-        let mut loose = items.iter().any(|item| {
+        let paragraphs = items.iter().any(|item| {
             item.iter()
                 .any(|child| child.kind == Kind::Element && child.name == "p")
         });
@@ -600,10 +708,12 @@ impl Writer {
             self.task = false;
             blocks.push(inner);
         }
-        // Two blocks of an item that cannot share a line get a blank line
+        // A list whose items write nothing renders no paragraph, loose or
+        // tight, so it is written tight, as its own HTML is read again. Two
+        // blocks of an item that cannot share a line get a blank line
         // between them, and that blank line makes the whole list loose. The
         // list is written loose, so it reads back the same.
-        loose = loose
+        let loose = paragraphs && blocks.iter().any(|inner| !inner.is_empty())
             || blocks.iter().any(|inner| {
                 inner
                     .windows(2)
@@ -717,7 +827,7 @@ impl Writer {
 fn gfm_table(
     node: &Parsed,
     depth: usize,
-    notes: Option<&Rc<Cell<Notes>>>,
+    notes: Option<&Rc<RefCell<Notes>>>,
 ) -> Result<Option<String>, Fault> {
     let mut header: Option<&Parsed> = None;
     let mut body: Vec<&Parsed> = Vec::new();
@@ -1087,7 +1197,7 @@ struct Inline {
     task: bool,
     /// The footnote references written, when the document has a footnote
     /// section.
-    notes: Option<Rc<Cell<Notes>>>,
+    notes: Option<Rc<RefCell<Notes>>>,
     /// Whether the output ends with a footnote reference, where a `(` would
     /// make it a link and a `:` a definition.
     after_note: bool,
@@ -1128,6 +1238,7 @@ impl Inline {
             self.space = false;
             if self.started() {
                 self.flush();
+                self.after_task_mark();
                 let one = match self.place {
                     Place::Paragraph => "\\\n",
                     Place::Heading | Place::Cell => "<br />",
@@ -1147,6 +1258,15 @@ impl Inline {
             }
         }
         self.task = self.task && !self.started();
+    }
+
+    /// Writes a space when the output is a task marker alone, before a break
+    /// is written after it. A marker must be followed by white space, so
+    /// `[ ]\` would be the text `[ ]`.
+    fn after_task_mark(&mut self) {
+        if self.run.is_empty() && task_mark(&self.out) {
+            self.out.push(' ');
+        }
     }
 
     /// Adds text, collapsing its whitespace.
@@ -1247,6 +1367,9 @@ impl Inline {
         } else {
             0
         };
+        if trail > 0 && task_mark(&text) {
+            text.push(' ');
+        }
         text.push_str(&"<br />".repeat(trail));
         text
     }
@@ -1398,7 +1521,7 @@ impl Inline {
         let Ok(number) = text.text.parse::<usize>() else {
             return false;
         };
-        let mut state = notes.get();
+        let mut state = notes.borrow_mut();
         let id = format!("md-fnref-{number}");
         let href = format!("#md-fn-{number}");
         let attributes_match =
@@ -1412,12 +1535,8 @@ impl Inline {
         {
             return false;
         }
-        if number > state.seen + 1 {
-            state.broken = true;
-        } else if number == state.seen + 1 {
-            state.seen = number;
-        }
-        notes.set(state);
+        state.refs.push((number, attribute(link, "id").is_some()));
+        drop(state);
         self.markup(&format!("[^{number}]"));
         self.after_note = true;
         true
