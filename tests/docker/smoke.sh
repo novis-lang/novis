@@ -15,17 +15,29 @@ image="${1:?usage: smoke.sh <image> [port]}"
 port="${2:-18000}"
 here="$(cd "$(dirname "$0")" && pwd)"
 app="$here/app"
-# Git Bash rewrites `/tmp`-like arguments and needs a Windows path for a bind mount; Linux needs
-# neither.
-if command -v cygpath >/dev/null 2>&1; then app="$(cygpath -w "$app")"; export MSYS_NO_PATHCONV=1; fi
 name="novis-smoke-$$"
 data="novis-smoke-data-$$"
+appvol="novis-smoke-app-$$"
 pass=0
 fail=0
 check() { if [ "$1" = 0 ]; then echo "PASS  $2"; pass=$((pass + 1)); else echo "FAIL  $2"; fail=$((fail + 1)); fi; }
 has() { case "$1" in *"$2"*) return 0 ;; *) return 1 ;; esac; }
-cleanup() { docker rm -f "$name" >/dev/null 2>&1; docker volume rm -f "$data" >/dev/null 2>&1; }
+cleanup() { docker rm -f "$name" >/dev/null 2>&1; docker volume rm -f "$data" "$appvol" >/dev/null 2>&1; }
 trap cleanup EXIT
+
+# On Windows, Docker Desktop shows a bind-mounted folder with mode 0777, and `nvs` refuses a
+# configuration file other accounts may write. So Git Bash copies `app/` into a volume with
+# `docker cp`, which writes it 0755 and owned by root. Git Bash also rewrites `/tmp`-like
+# arguments, which `MSYS_NO_PATHCONV` stops. Linux bind-mounts `app/` as it is.
+if command -v cygpath >/dev/null 2>&1; then
+  export MSYS_NO_PATHCONV=1
+  docker volume create "$appvol" >/dev/null || exit 1
+  filler="$(docker create --mount "type=volume,src=$appvol,dst=/app,volume-nocopy" "$image")" || exit 1
+  docker cp "$(cygpath -m "$app")/." "$filler:/app"; copied=$?
+  docker rm "$filler" >/dev/null
+  [ "$copied" = 0 ] || exit 1
+  app="$appvol"
+fi
 
 echo "== $image"
 docker image inspect "$image" --format 'user={{.Config.User}} stop={{.Config.StopSignal}} workdir={{.Config.WorkingDir}} cmd={{.Config.Cmd}}'
