@@ -33,8 +33,6 @@ test("the release builds through build.yml and image.yml, with its version", () 
   expect(release.build!.with?.version).toBe("${{ needs.plan.outputs.version }}");
   expect(release.docker!.uses).toBe("./.github/workflows/image.yml");
   expect(release.docker!.with?.version).toBe("${{ needs.plan.outputs.version }}");
-  // A release packages the archives of its own run, so it names no other one.
-  expect(release.docker!.with?.["binaries-run"]).toBeUndefined();
 });
 
 test("every CI run builds the binaries with no version, and has no dev build workflow beside it", () => {
@@ -58,8 +56,6 @@ test("only a push to main publishes the dev image, after every other job of its 
   const image = ci["dev-image"]!;
   expect(image.uses).toBe("./.github/workflows/image.yml");
   expect(image.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
-  // Empty `binaries-run` packages this run's archives, which its `build` job uploaded.
-  expect(image.with?.["binaries-run"]).toBeUndefined();
   const needs = [image.needs ?? []].flat().sort();
   const others = Object.keys(ci).filter((name) => name !== "dev-image").sort();
   expect(needs).toEqual(others);

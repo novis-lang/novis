@@ -1827,5 +1827,3 @@ jobs:
     permissions:
       contents: read
       packages: write
-      # Reads the Linux archives this run's `build` job uploaded.
-      actions: read

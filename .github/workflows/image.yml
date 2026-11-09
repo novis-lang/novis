@@ -17,9 +17,8 @@
 #   * No provenance attestation. `ci.yml`'s `dev-image` job grants `packages: write` and nothing
 #     else to write with.
 #
-# No job here declares `permissions:`, so each takes what its caller's job grants. Archives from
-# another run are read with the run's token, which needs `actions: read`; `ci.yml`'s `dev-image` job
-# grants it.
+# No job here declares `permissions:`, so each takes what its caller's job grants. The archives are
+# always the calling run's own, which needs no token.
 
 name: Image
 
@@ -41,11 +40,6 @@ on:
         type: boolean
         required: false
         default: true
-      binaries-run:
-        description: 'The id of the run whose Linux archives are packaged. Empty is this run.'
-        type: string
-        required: false
-        default: ''
 
 jobs:
   docker:
@@ -78,15 +72,11 @@ jobs:
       - name: Install tool dependencies
         run: bun install --frozen-lockfile
 
-      # Without a token, the action reads this run's artifacts and ignores `run-id`. With one, it
-      # reads the run `run-id` names, so the token is passed only when `binaries-run` is set.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           pattern: dist-linux-*
           merge-multiple: true
           path: dist
-          run-id: ${{ inputs.binaries-run || github.run_id }}
-          github-token: ${{ inputs.binaries-run && github.token || '' }}
 
       # The build context is `docker/`, and this fills `bin/` in it. Unpacking the archive rather
       # than rebuilding is the entire point of the job: `gh attestation verify` on a release's
