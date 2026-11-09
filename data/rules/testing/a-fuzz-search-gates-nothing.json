@@ -1,0 +1,14 @@
+{
+  "title": "A fuzz search gates nothing; `cargo test` replays every input it found",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/every-run-runs-every-job",
+    "core-classes/markdown-cost",
+    "core-classes/markdown-from-html"
+  ],
+  "guardedBy": [
+    ".github/workflows/ci.yml",
+    "tools/nv/test/fuzz-targets.test.ts",
+    "tools/nv/cmd/fuzz.ts"
+  ]
+}

@@ -65,7 +65,7 @@ one home and the row of [dependency-update.md](agent/dependency-update.md) that 
 | Tool | Version | Used by |
 |---|---|---|
 | MSVC build tools, with the Windows SDK | 14.50, SDK 10.0.26100 or newer | linking on Windows |
-| `cargo-fuzz` | 0.13.2, on a nightly toolchain | fuzzing, inside WSL on Windows (`bun nv wsl --setup` reads the version from `ci.yml`) |
+| `cargo-fuzz` | 0.13.2, on a nightly toolchain | fuzzing, inside WSL on Windows (`bun nv wsl --setup` reads the version from `tools/nv/cmd/fuzz.ts`'s `CARGO_FUZZ`) |
 | `valgrind` | the distro's package | the leak sweep and callgrind, inside WSL on Windows |
 | WSL's test distro | Ubuntu 26.04 (`IMAGE` in `tools/nv/cmd/wsl.ts`) | every Linux step on Windows |
 

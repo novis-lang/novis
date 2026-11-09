@@ -11,20 +11,18 @@
 // `CI_ONLY` with its reason: macOS and aarch64. `test/deep.test.ts` fails when `ci.yml` has a job that
 // neither names, so a new CI job is never skipped unseen. Where a step departs from its job, its `note`
 // says how: a debug build here never takes `-p` (AGENTS.md), so a step builds the whole tree and runs
-// the built binary; Miri runs each crate whole, where CI splits it into shards; the fuzzers run under
-// `bun nv fuzz --all`, which goes on after a crash.
+// the built binary; Miri runs each crate whole, where CI splits it into shards.
 //
 // **It runs every step and stops at none.** A step runs its commands in order and stops at its first
 // red one, then runs its `always` commands, which stop the services it started. Before it runs, a step
 // checks the programs it needs (`TOOLS`), and a missing one makes it red with the line that installs
-// it. One step runs at a time, so a timing guard never shares the machine with a fuzzer or Miri. It
+// it. One step runs at a time, so a timing guard never shares the machine with Miri. It
 // prints one line per step as it ends, and at the end each red step with its command and the tail of
 // its log. Each step's whole log is `.agent-tmp/deep/<step>.log`, and `REPORT` keeps every step's
 // verdict, which `--failed` reads. It exits 1 when a step is red, and 2 on a usage error.
 //
 // Windows only, since the Linux legs run in WSL. What it spends: about one to two hours of this machine
-// per full run, three target directories in WSL beside the debug one (the sanitizers' and the fuzz
-// workspace's), Docker volumes for the image job's Linux build, and the `build` job's two release
+// per full run, the sanitizers' target directories in WSL beside the debug one, Docker volumes for the image job's Linux build, and the `build` job's two release
 // builds of `nvs-cli`, each under its own target triple: about half an hour and a few GiB each.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -216,9 +214,10 @@ export function steps(root: string = ROOT): Step[] {
         { argv: ["cargo", "fmt", "--all", "--check"] },
         { argv: ["bun", "nv", "lints", "--check"] },
         { wsl: "cargo clippy --workspace --all-targets -- -D warnings" },
+        { wsl: "cargo check --locked --manifest-path fuzz/Cargo.toml --bins" },
         { wsl: "cargo doc --no-deps --workspace", env: { RUSTDOCFLAGS: "-A rustdoc::private_intra_doc_links -D warnings" } },
       ],
-      note: "clippy and rustdoc run in WSL, on Linux as the job does, so code under cfg(unix) is linted",
+      note: "clippy, the fuzz targets' check and rustdoc run in WSL, on Linux as the job does, so code under cfg(unix) is linted",
     },
     {
       id: "attribution",
@@ -495,9 +494,6 @@ export function steps(root: string = ROOT): Step[] {
       ],
       note: "each crate runs whole; the job splits nvs-runtime into 2 shards and nvs-stdlib into 12",
     },
-    // A fork-mode run first replays the target's saved corpus in one process and prints nothing until it
-    // ends, which takes over ten minutes once the corpus has grown, so the hang watch is off.
-    { id: "fuzz-smoke", job: "fuzz-smoke", cmds: [{ argv: ["bun", "nv", "fuzz", "--all"], quiet: true }], note: "`bun nv fuzz --all` goes on after a crash, and runs each target longer" },
   ];
 }
 

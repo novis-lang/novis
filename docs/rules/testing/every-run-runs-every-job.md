@@ -5,9 +5,9 @@ run the same jobs, and no job carries an `if:` that reads the diff. One workflow
 and a job is never defined twice: a second copy of a suite drifts, and nothing compares the copies.
 
 **The nightly runs the same jobs**, to catch what changes outside the tree on a day with no push: a new
-advisory, a new nightly toolchain, a download that moved. The fuzz corpus is cached between runs, so
-each run's fuzzing starts from everything the earlier runs found. Miri, the fuzz smoke runs, the
-unsafe audit, the `valgrind` leak check over every `examples/` program and the comparison's `flood`
+advisory, a new nightly toolchain, a download that moved. No run searches with a fuzzer, and the
+inputs the searches found are replayed by `cargo test` (`rule:testing/a-fuzz-search-gates-nothing`).
+Miri, the unsafe audit, the `valgrind` leak check over every `examples/` program and the comparison's `flood`
 row in its smoke form run in every run. The `valgrind` job is the one run that looks for leaks from end
 to end, since the `asan` job runs with leak detection off. The unsafe audit's counts and the `flood`
 row's results gate nothing.

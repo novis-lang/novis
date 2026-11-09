@@ -95,7 +95,10 @@ bounds both the native stack and the copy each level makes of its content, which
 
 `fromHtml` run twice gives the same Markdown, and Markdown rendered to HTML and written back keeps its
 meaning. Both are tests. The second holds for Markdown with no raw HTML: raw HTML comes back as Markdown
-where Markdown has the construct, so a `div` it holds does not come back.
+where Markdown has the construct, so a `div` it holds does not come back. The `markdown_from_html` fuzz
+target checks the first, and that nothing panics. The second is a fixed table of documents,
+`markdown_to_html_to_markdown_keeps_the_meaning`. It is fidelity, not safety, and as a fuzz property it
+found a new difference on nearly every run (`rule:testing/a-fuzz-search-gates-nothing`).
 
 **Large documents: the parse streams, and the tree is held whole.** The WHATWG tree builder still
 changes a top-level node after a later one has opened. Text that arrives inside a table before any

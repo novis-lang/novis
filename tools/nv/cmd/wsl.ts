@@ -10,7 +10,8 @@
 // nothing else). `--setup` installs Ubuntu 26.04, the release CI's Linux jobs run on, under that name, and
 // runs `tools/wsl/provision.sh` in it: once as root for the packages, Node, the user `novis`, `wsl.conf`
 // and the sysctl, and once as `novis` for Rust, Miri, cargo-nextest, cargo-fuzz and Bun. Every version is
-// read from the file CI reads it from, so a bump there reaches the distro at its next `--setup`. Running
+// read from the file CI reads it from, so a bump there reaches the distro at its next `--setup`. CI
+// installs no `cargo-fuzz`, so its version is `fuzz.ts`'s `CARGO_FUZZ`. Running
 // `--setup` again on a distro it made installs only what changed. Without `--location`, the disk goes where
 // WSL puts every distro's disk. Docker comes from Docker Desktop, whose WSL integration is turned on for the
 // distro by hand once: a second Docker engine in the same WSL VM would fight Docker Desktop's over the
@@ -30,6 +31,7 @@ import { ROOT } from "../lib/paths.ts";
 import { passthrough, run as runProc } from "../lib/proc.ts";
 import { DISTRO, distros, health, MARKER, wslArgv, wslExec, wslText } from "../lib/wsl.ts";
 import { TOOLS } from "./deep.ts";
+import { CARGO_FUZZ } from "./fuzz.ts";
 
 export const summary = "makes, checks and resets the WSL distro the Linux steps run in: nv wsl [--setup [--location <dir>] | --reset | --remove]";
 
@@ -42,7 +44,7 @@ export const USER = "novis";
 /** A download and the Rust toolchains it installs. */
 const SETUP_TIMEOUT_MS = 60 * 60 * 1000;
 
-/** Each version `provision.sh` installs, read from the file CI reads it from. Throws when a file lost it. */
+/** Each version `provision.sh` installs, read from the file CI reads it from, but `cargo-fuzz`'s. Throws when a file lost it. */
 export function versions(root: string = ROOT): Record<string, string> {
   const read = (file: string): string => readFileSync(join(root, file), "utf8");
   const find = (file: string, re: RegExp, what: string): string => {
@@ -54,7 +56,7 @@ export function versions(root: string = ROOT): Record<string, string> {
     NVS_NODE_MAJOR: find("editors/vscode/.nvmrc", /^\s*v?(\d+)/, "Node's major version"),
     NVS_BUN: find("package.json", /"packageManager":\s*"bun@([^"]+)"/, "Bun's version"),
     NVS_NEXTEST: find(".github/workflows/ci.yml", /NEXTEST_VERSION:\s*'([^']+)'/, "cargo-nextest's version"),
-    NVS_FUZZ: find(".github/workflows/ci.yml", /cargo install cargo-fuzz --version (\S+)/, "cargo-fuzz's version"),
+    NVS_FUZZ: CARGO_FUZZ,
   };
 }
 

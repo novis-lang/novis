@@ -1,7 +1,7 @@
 //! The fuzzing seam: thin wrappers over the parsers that read outside bytes and
 //! are private to this crate, for the checks in `nvs-fuzz-checks` that the
 //! targets under `fuzz/fuzz_targets/` and a plain `cargo test` both run
-//! (`rule:testing/every-run-runs-every-job`).
+//! (`rule:testing/a-fuzz-search-gates-nothing`).
 //!
 //! **One hidden module rather than a wider visibility on each parser.** The
 //! multipart, cookie, reply-head, XML and decompression readers stay

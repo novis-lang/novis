@@ -79,6 +79,7 @@
     "testing/member-perf-ledger",
     "testing/valgrind-on-wsl",
     "testing/every-run-runs-every-job",
+    "testing/a-fuzz-search-gates-nothing",
     "testing/one-run-on-main"
   ]
 }

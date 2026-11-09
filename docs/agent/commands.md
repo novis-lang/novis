@@ -737,8 +737,14 @@ every file it opens.
 again on the next call, so a target directory in `/tmp` is gone after any idle gap and the leg silently
 pays a cold build. Nothing ages `/var/tmp` out: Ubuntu ships its `q /var/tmp` line commented out.
 
-**`bun nv fuzz <target> --runs <n>` (or `--seconds <n>`) runs one target from Windows.** It syncs the
-same copy of the tree and runs the target there with its seeds and dictionary, as CI does, in libFuzzer's
+**A fuzz search gates nothing, and `cargo test` replays every input it found**
+(`rule:testing/a-fuzz-search-gates-nothing`). Each target only calls its check in
+`crates/nvs-fuzz-checks`, whose tests run every file under `fuzz/seeds/<target>/` through it. After a
+change to a parser of untrusted input, search the targets it reaches, copy each input found into
+`fuzz/seeds/<target>/`, and fix its cause.
+
+**`bun nv fuzz <target> --runs <n>` (or `--seconds <n>`) searches one target from Windows.** It syncs the
+same copy of the tree and runs the target there with its seeds and dictionary, in libFuzzer's
 fork mode on half the cores (fewer when memory is short). `--runs` counts inputs over all jobs. The build, the
 corpus and a crash's input stay on the distro's disk, under `/var/tmp/nvs-target-wsl-fuzz`,
 `/var/tmp/nvs-fuzz-corpus/<target>` and `/var/tmp/nvs-fuzz-artifacts/<target>`, because each sync
@@ -772,11 +778,8 @@ the site, add the minimized input to `fuzz/seeds/prefix/`, and pin it beside the
 
 A target whose inputs need bytes the LF checkout would rewrite takes a dictionary instead of seeds.
 `request_head` needs CRLF, so it runs with `-dict=fuzz/dicts/request_head.dict` after the `--`, and
-CI passes `fuzz/dicts/<target>.dict` to every target that has one.
-
-CI's `fuzz-smoke` job runs every target for 300s in every run, carrying the corpus between runs,
-because 300s against a corpus that starts empty every time is the same 300s repeated
-(`rule:testing/every-run-runs-every-job`).
+`bun nv fuzz` passes `fuzz/dicts/<target>.dict` to every target that has one. A seed file keeps its
+CR bytes: `.gitattributes` marks `fuzz/seeds/**` as not text.
 
 For the instruction-count leg: `cargo build --release -p nvs-abi-probe --example callgrind_spike`, then
 `valgrind --tool=callgrind --callgrind-out-file=/tmp/cg.out ./target/release/examples/callgrind_spike`.

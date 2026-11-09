@@ -1,15 +1,21 @@
-// `bun nv fuzz`: one `cargo fuzz run` of one target under `fuzz/`, or of every target CI fuzzes,
-// inside WSL.
+// `bun nv fuzz`: a search for new failing inputs of one fuzz target under `fuzz/`, or of every
+// target, inside WSL. Nothing runs it on a schedule and nothing waits on it: CI runs no fuzz search
+// (`rule:testing/a-fuzz-search-gates-nothing`). A person or a goal runs it after a change to the code
+// a target reaches, until a run finds nothing.
 //
 //     bun nv fuzz markdown --runs 1000000        # a million inputs, then stop
 //     bun nv fuzz markdown_from_html --seconds 300
-//     bun nv fuzz --all                          # every target CI fuzzes, and go on after a crash
+//     bun nv fuzz --all                          # every target, and go on after a crash
+//
+// Each target is a wrapper around its check in `crates/nvs-fuzz-checks`, and `cargo test` replays
+// every input under `fuzz/seeds/<target>/` through that check. So a failing input this command finds is
+// copied into `fuzz/seeds/<target>/`, the cause is fixed, and from then on every test run checks it.
 //
 // libFuzzer does not run on Windows, so a target runs in WSL with the distro's nightly toolchain and
 // `cargo-fuzz`. This command brings the WSL leg's copy of the tree up to date (`accept/mirror.ts`
-// `syncMirror`) and runs the target there, as CI's `fuzz-smoke` job runs it: the target's seeds from
-// `fuzz/seeds/<target>/` (`parse`'s for `ast`) and its dictionary from `fuzz/dicts/<target>.dict`
-// (`markdown`'s for `markdown_comrak`) when it has one.
+// `syncMirror`) and runs the target there, with its seeds from `fuzz/seeds/<target>/` (`parse`'s for
+// `ast`) and its dictionary from `fuzz/dicts/<target>.dict` (`markdown`'s for `markdown_comrak`)
+// when it has one.
 //
 // The target runs in libFuzzer's fork mode, on half the distro's cores but no more jobs than it has free
 // GiB (`JOBS`), so a run takes about its time on one core divided by the jobs. `-runs`
@@ -18,27 +24,24 @@
 // A crash stops every job and prints the failing job's log.
 //
 // **`--all` finds every crash it can in one run, so all of them are fixed in one pass.** It fuzzes each
-// target the `fuzz-smoke` job's legs list in `ci.yml` (`ciTargets`), one after another, with
+// file of `fuzz/fuzz_targets/` but the ones `BY_HAND` names, one after another, for `ALL_SECONDS`, with
 // `-ignore_crashes=1 -ignore_timeouts=1 -ignore_ooms=1`: a job that crashes is replaced and the run goes
-// on, and each input that crashed, hung or ran out of memory is saved. A target runs `ALL_SECONDS`, about
-// three times the work of CI's 300 seconds on one core. A target whose file git added under
-// `YOUNG_DAYS` ago runs `YOUNG_SECONDS`, because a young target finds a new bug every few minutes. At the
-// end it lists every input the run saved, each with its bytes in base64, and exits 1 when it saved one
-// or a target's run failed. It is `bun nv deep`'s `fuzz-smoke` step.
+// on, and each input that crashed, hung or ran out of memory is saved. At the end it lists every input
+// the run saved, each with its bytes in base64, and exits 1 when it saved one or a target's run failed.
 //
 // The sync runs `git clean -ffdx` in the copy, so nothing the run keeps lives there. The build goes to
 // `FUZZ_TARGET`, the corpus a run grows to `CORPUS/<target>/`, and a crash's input to
 // `ARTIFACTS/<target>/`, all on the distro's own disk. The corpus carries over from one run to the next.
-// A crash prints the input's path there and its bytes in base64, so the input can be copied into a
-// test. Its output is libFuzzer's and its exit status is cargo-fuzz's.
+// A crash prints the input's path there and its bytes in base64. Its output is libFuzzer's and its exit
+// status is cargo-fuzz's.
 //
 // Windows only, since on Linux `cargo +nightly fuzz run` is the same run. It exits 2 on a usage error or
 // when the copy cannot be synced. What it spends: the first run builds the fuzz workspace into
 // `FUZZ_TARGET`, which takes minutes cold, the corpus grows with each run, and each job holds up to
-// libFuzzer's 2 GiB `-rss_limit_mb`, which is why the free memory caps the jobs. `--all` takes 120
-// seconds per target and 30 minutes per young one: about half an hour, plus an hour while two are young.
+// libFuzzer's 2 GiB `-rss_limit_mb`, which is why the free memory caps the jobs. `--all` takes
+// `ALL_SECONDS` per target, about half an hour in all.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { mirrorPath, q, syncMirror, wslPath } from "../accept/mirror.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -46,7 +49,7 @@ import { passthrough, run as runProc } from "../lib/proc.ts";
 import { wslArgv } from "../lib/wsl.ts";
 
 export const summary =
-  "runs one fuzz target in WSL, or every target CI fuzzes: nv fuzz <target> --runs <n> | --seconds <n>, or nv fuzz --all";
+  "searches one fuzz target for failing inputs in WSL, or every target: nv fuzz <target> --runs <n> | --seconds <n>, or nv fuzz --all";
 
 const USAGE = "usage: bun nv fuzz <target> (--runs <n> | --seconds <n>) | bun nv fuzz --all";
 
@@ -60,12 +63,16 @@ const CORPUS = "/var/tmp/nvs-fuzz-corpus";
 const ARTIFACTS = "/var/tmp/nvs-fuzz-artifacts";
 /** Touched when `--all` starts, so the inputs it saved are the ones newer than it. */
 const STAMP = "/var/tmp/nvs-fuzz-all.stamp";
+/** The `cargo-fuzz` version `bun nv wsl --setup` installs in the test distro. CI installs none. */
+export const CARGO_FUZZ = "0.13.2";
 /** Seconds each target runs under `--all`. */
 export const ALL_SECONDS = 120;
-/** Seconds a young target runs under `--all`. */
-export const YOUNG_SECONDS = 1800;
-/** A target git added fewer days ago than this is young. */
-export const YOUNG_DAYS = 14;
+/** The targets `--all` leaves out, each with its reason. Each runs under `bun nv fuzz <target>` alone. */
+export const BY_HAND: Record<string, string> = {
+  // A differential against comrak. Its open differences are cmark-gfm edge cases with no security
+  // value, so it would save an input on every run (`rule:core-classes/markdown-cost`).
+  markdown_comrak: "known differences from cmark-gfm on unusual input",
+};
 /**
  * The `bash` that sets `j` to the fork mode's job count: half the cores, at most one per GiB the
  * distro has free, and at least one.
@@ -88,25 +95,13 @@ export function parsed(args: string[]): { target: string; limit: string } | { al
   return "give --runs <n> or --seconds <n>";
 }
 
-/** The targets the `fuzz-smoke` job's legs list in the text of `ci.yml`, in their order. */
-export function ciTargets(ciYml: string): string[] {
-  const yml = Bun.YAML.parse(ciYml) as {
-    jobs?: Record<string, { strategy?: { matrix?: { include?: { targets?: string[] }[] } } }>;
-  };
-  return (yml.jobs?.["fuzz-smoke"]?.strategy?.matrix?.include ?? []).flatMap((leg) => leg.targets ?? []);
-}
-
-/** The seconds `--all` runs a target that git added at `addedSec`, at `nowSec`; an untracked one is young. */
-export function allSeconds(addedSec: number | null, nowSec: number): number {
-  if (addedSec === null) return YOUNG_SECONDS;
-  return nowSec - addedSec < YOUNG_DAYS * 24 * 60 * 60 ? YOUNG_SECONDS : ALL_SECONDS;
-}
-
-/** When git first added `fuzz/fuzz_targets/<target>.rs`, in seconds, or null when it has not. */
-function addedAt(target: string): number | null {
-  const out = Bun.spawnSync(["git", "log", "--diff-filter=A", "--format=%ct", "--", `fuzz/fuzz_targets/${target}.rs`], { cwd: ROOT });
-  const oldest = out.stdout.toString().trim().split("\n").pop() ?? "";
-  return /^[0-9]+$/.test(oldest) ? Number(oldest) : null;
+/** The targets `--all` fuzzes: each of the file names in `fuzz/fuzz_targets/`, sorted, but `BY_HAND`'s. */
+export function allTargets(files: string[]): string[] {
+  return files
+    .filter((name) => name.endsWith(".rs"))
+    .map((name) => name.slice(0, -".rs".length))
+    .filter((name) => !(name in BY_HAND))
+    .sort();
 }
 
 /** The `bash` line that runs `target` in the copy at `mirror`, with `seeds` and `dict` when given. With
@@ -145,11 +140,11 @@ function inputsOf(target: string): { seeds: string; dict: string } {
 
 const wsl = (line: string): string[] => wslArgv(line);
 
-/** Fuzzes every target CI fuzzes in the copy at `mirror`, then lists what the run saved. */
+/** Fuzzes every target in the copy at `mirror`, then lists what the run saved. */
 async function runAll(mirror: string): Promise<number> {
-  const targets = ciTargets(readFileSync(join(ROOT, ".github", "workflows", "ci.yml"), "utf8"));
+  const targets = allTargets(readdirSync(join(ROOT, "fuzz", "fuzz_targets")));
   if (targets.length === 0) {
-    console.error("nv fuzz: error: ci.yml's fuzz-smoke job lists no target");
+    console.error("nv fuzz: error: fuzz/fuzz_targets/ holds no target");
     return 2;
   }
   const stamped = await runProc(wsl(`touch ${STAMP}`), { timeoutMs: 60_000, hang: false });
@@ -157,13 +152,11 @@ async function runAll(mirror: string): Promise<number> {
     console.error(`nv fuzz: error: cannot touch ${STAMP} in WSL: ${stamped.stderr.trim()}`);
     return 2;
   }
-  const now = Math.floor(Date.now() / 1000);
   const failed: string[] = [];
   for (const target of targets) {
-    const seconds = allSeconds(addedAt(target), now);
     const { seeds, dict } = inputsOf(target);
-    console.log(`fuzz: ${target} for ${seconds}s, going on after a crash`);
-    const line = fuzzLine(mirror, target, `-max_total_time=${seconds}`, seeds, dict, true);
+    console.log(`fuzz: ${target} for ${ALL_SECONDS}s, going on after a crash`);
+    const line = fuzzLine(mirror, target, `-max_total_time=${ALL_SECONDS}`, seeds, dict, true);
     const code = await passthrough(wsl(line), { timeoutMs: TIMEOUT_MS, hang: false });
     if (code !== 0) failed.push(`${target} (exit ${code})`);
   }

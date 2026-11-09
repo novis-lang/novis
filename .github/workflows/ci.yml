@@ -1039,6 +1039,12 @@ jobs:
         run: bun nv lints --check
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+      # The fuzz targets are a separate workspace that no test builds. Each one only calls its check
+      # in `nvs-fuzz-checks`, which `cargo test` replays over `fuzz/seeds/`, so a check of the
+      # wrappers is enough to keep `bun nv fuzz` working. CI runs no fuzz search
+      # (`rule:testing/a-fuzz-search-gates-nothing`).
+      - name: The fuzz targets compile
+        run: cargo check --locked --manifest-path fuzz/Cargo.toml --bins
       # Every `[`Foo::bar`]` in a doc comment resolves. This crate set states its
       # architecture in its doc comments and cross-references it by name, and
       # `broken_intra_doc_links` is warn-by-default and invisible to both steps
@@ -1333,88 +1339,6 @@ jobs:
         run: bun install --frozen-lockfile
       - name: The flood row, smoke form
         run: bun nv bench-compare --scenarios --smoke --row flood
-
-  # ---------------------------------------------------------------------------
-  # libFuzzer isn't supported on Windows, so this only ever runs here (or in
-  # a contributor's WSL/Linux/macOS setup — AGENTS.md's WSL section covers
-  # first-time setup on Windows). It carries its corpus between runs: 300s
-  # against a corpus that starts empty every time is the same 300s repeated,
-  # while 300s starting from everything every earlier run found is coverage
-  # that accumulates.
-  #
-  # Four legs of at most five targets each, run one after another, and one Rust cache for all four. A
-  # leg per target took fifteen concurrent job slots and saved fifteen copies of
-  # the same `fuzz` build, 307 MB each, into the repository's cache, where they evicted the
-  # `test` legs' caches and sent the Windows leg into a cold 43-minute build. A leg is at most 25
-  # minutes of fuzzing on top of its build. Only the first leg saves the cache the four restore.
-  # ---------------------------------------------------------------------------
-  fuzz-smoke:
-    name: fuzz smoke / ${{ join(matrix.targets, ', ') }}
-    runs-on: ubuntu-26.04
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { leg: 1, targets: [ast, cookie, decompress, image_path, json] }
-          - { leg: 2, targets: [lex, multipart, parse, prefix, regex] }
-          - { leg: 3, targets: [reply_head, request_head, serialize, uri, xml] }
-          - { leg: 4, targets: [markdown, markdown_from_html] }
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-        with:
-          key: fuzz
-          workspaces: fuzz -> target
-          save-if: ${{ matrix.leg == 1 }}
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz --version 0.13.2 --locked
-      # The key carries the run id so every night saves a new entry, and the prefix restores the
-      # newest one that exists — the accumulate-forever shape, not the write-once shape. A leg's
-      # entry is the corpus of its own five targets.
-      - name: Last night's corpus
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: fuzz/corpus
-          key: fuzz-corpus-leg${{ matrix.leg }}-${{ github.run_id }}
-          restore-keys: fuzz-corpus-leg${{ matrix.leg }}-
-      # `fuzz/corpus/` is the accumulated corpus and is not in the repository, so
-      # a target's hand-written seeds live in `fuzz/seeds/<target>/` and are
-      # copied in before it runs. `ast` reads `parse`'s, because both take one source text
-      # and a second copy of the same files is a second thing to keep true.
-      # Nothing the cache restored is at risk: libFuzzer names what it saves
-      # after the input's hash, so a seed can only overwrite itself. The guard is
-      # for a target with no seeds of its own, as `lex` and `uri` are.
-      #
-      # A target whose inputs need bytes a seed file cannot keep, as `request_head` needs CRLF under
-      # an LF checkout, has a libFuzzer dictionary in `fuzz/dicts/<target>.dict` instead.
-      #
-      # `markdown_comrak` is not fuzzed here. It compares with comrak, and its known differences on
-      # unusual input would turn this run red at random, so it runs by hand with `bun nv fuzz`.
-      #
-      # A target that fails does not stop the leg: every target gets its 300s, and the leg fails at
-      # the end with an error naming each target that failed.
-      - name: Fuzz each target for 300s
-        run: |
-          failed=
-          for target in ${{ join(matrix.targets, ' ') }}; do
-            echo "::group::fuzz $target"
-            seeds=fuzz/seeds/$target
-            if [ "$target" = ast ]; then seeds=fuzz/seeds/parse; fi
-            if [ -d "$seeds" ]; then
-              mkdir -p "fuzz/corpus/$target"
-              cp "$seeds"/* "fuzz/corpus/$target/"
-            fi
-            dict=fuzz/dicts/$target.dict
-            if [ -f "$dict" ]; then dict="-dict=$dict"; else dict=; fi
-            cargo +nightly fuzz run "$target" -- $dict -max_total_time=300 || failed="$failed $target"
-            echo "::endgroup::"
-          done
-          if [ -n "$failed" ]; then
-            echo "::error::fuzz targets that failed:$failed"
-            exit 1
-          fi
 
   # ---------------------------------------------------------------------------
   # Three jobs share the memory-safety work and none of them covers another's
@@ -1814,7 +1738,6 @@ jobs:
       - docs
       - unsafe-audit
       - flood
-      - fuzz-smoke
       - miri
       - miri-units
       - valgrind

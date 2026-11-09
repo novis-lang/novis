@@ -1,7 +1,7 @@
 // `bun nv fuzz`: which argument lists it takes, and the `bash` line it runs in the WSL copy.
 
 import { describe, expect, test } from "bun:test";
-import { ALL_SECONDS, YOUNG_SECONDS, allSeconds, ciTargets, fuzzLine, parsed, savedLine } from "../cmd/fuzz.ts";
+import { ALL_SECONDS, allTargets, fuzzLine, parsed, savedLine } from "../cmd/fuzz.ts";
 
 describe("bun nv fuzz", () => {
   test("a target and a number of runs or seconds is taken", () => {
@@ -16,7 +16,7 @@ describe("bun nv fuzz", () => {
     }
   });
 
-  test("the corpus, the seeds, the artifacts and the dictionary are passed as CI passes them", () => {
+  test("the corpus, the seeds, the artifacts and the dictionary are passed to the run", () => {
     const line = fuzzLine("/var/tmp/copy", "request_head", "-runs=9", "", "fuzz/dicts/request_head.dict");
     expect(line).toContain("cd /var/tmp/copy && cargo +nightly fuzz run --target-dir /var/tmp/nvs-target-wsl-fuzz request_head");
     expect(line).toContain('request_head /var/tmp/nvs-fuzz-corpus/request_head -- -fork="$j" -runs=9');
@@ -41,19 +41,10 @@ describe("bun nv fuzz", () => {
     expect(line).not.toContain("-ignore_ooms=0");
   });
 
-  test("--all fuzzes the targets ci.yml's fuzz-smoke legs list, in their order", () => {
-    const yml = "jobs:\n  fuzz-smoke:\n    strategy:\n      matrix:\n        include:\n" +
-      "          - { leg: 1, targets: [ast, json] }\n          - { leg: 2, targets: [xml] }\n";
-    expect(ciTargets(yml)).toEqual(["ast", "json", "xml"]);
-    expect(ciTargets("jobs: {}\n")).toEqual([]);
-  });
-
-  test("a target git added under 14 days ago runs 1800 seconds under --all, an older one 120", () => {
-    const day = 24 * 60 * 60;
-    expect(allSeconds(1000 * day, 1013 * day)).toBe(YOUNG_SECONDS);
-    expect(allSeconds(1000 * day, 1014 * day)).toBe(ALL_SECONDS);
-    expect(allSeconds(null, 1000 * day)).toBe(YOUNG_SECONDS);
-    expect([ALL_SECONDS, YOUNG_SECONDS]).toEqual([120, 1800]);
+  test("--all fuzzes every target file, sorted, but the hand-run ones, each for 120 seconds", () => {
+    expect(allTargets(["xml.rs", "ast.rs", "markdown_comrak.rs", "README.md", "json.rs"])).toEqual(["ast", "json", "xml"]);
+    expect(allTargets([])).toEqual([]);
+    expect(ALL_SECONDS).toBe(120);
   });
 
   test("the saved inputs are listed with their base64", () => {

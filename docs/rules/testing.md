@@ -3615,9 +3615,9 @@ run the same jobs, and no job carries an `if:` that reads the diff. One workflow
 and a job is never defined twice: a second copy of a suite drifts, and nothing compares the copies.
 
 **The nightly runs the same jobs**, to catch what changes outside the tree on a day with no push: a new
-advisory, a new nightly toolchain, a download that moved. The fuzz corpus is cached between runs, so
-each run's fuzzing starts from everything the earlier runs found. Miri, the fuzz smoke runs, the
-unsafe audit, the `valgrind` leak check over every `examples/` program and the comparison's `flood`
+advisory, a new nightly toolchain, a download that moved. No run searches with a fuzzer, and the
+inputs the searches found are replayed by `cargo test` ([`testing/a-fuzz-search-gates-nothing`](testing.md#testing-a-fuzz-search-gates-nothing)).
+Miri, the unsafe audit, the `valgrind` leak check over every `examples/` program and the comparison's `flood`
 row in its smoke form run in every run. The `valgrind` job is the one run that looks for leaks from end
 to end, since the `asan` job runs with leak detection off. The unsafe audit's counts and the `flood`
 row's results gate nothing.
@@ -3650,6 +3650,52 @@ no table of paths has to be kept in step with what each job reads.
   on it waits forever.
 
 <sub>See also [`testing/one-run-on-main`](testing.md#testing-one-run-on-main), [`testing/probes-on-is-a-tested-configuration`](testing.md#testing-probes-on-is-a-tested-configuration), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl).</sub>
+
+<a id="testing-a-fuzz-search-gates-nothing"></a>
+
+## A fuzz search gates nothing; `cargo test` replays every input it found
+
+`rule:testing/a-fuzz-search-gates-nothing`
+
+A fuzz search finds new failing inputs. It never decides whether a run, a push or a release is green,
+and nothing runs it on a schedule. What gates is the replay of every input already found.
+
+**The check is a function, and `cargo test` replays it.** Each target's properties are one function in
+`crates/nvs-fuzz-checks`, and the file under `fuzz/fuzz_targets/` only calls it. That crate's tests run
+every input under `fuzz/seeds/<target>/` through the same function, in the ordinary `cargo test` of
+every CI platform. So the inputs a search found stay checked forever, and the replay gives the same
+verdict on every run. The `lint` job compiles the fuzz workspace, so a wrapper never drifts from its
+check.
+
+**A search runs after a change to the code a target reaches.** `bun nv fuzz <target>` runs it, and
+`bun nv fuzz --all` runs every target and goes on after a crash. A goal that changes a parser of
+untrusted input runs it until a run finds nothing, copies each input found into
+`fuzz/seeds/<target>/`, and fixes each cause. A search of unchanged code mostly repeats work done
+before.
+
+**A target checks safety, not fidelity.** A target asserts what must hold for every input and what an
+attacker could use: no panic, a bound on output and work, sanitized output that sanitizing again does
+not change, a streamed result equal to the whole one. A property with no written end, such as two
+converters agreeing on what a document means, belongs in a fixed table of tests. As a fuzz property
+it fails on a new input every few minutes, and each failure is fidelity, not safety.
+`markdown_from_html` therefore checks no panic and that Markdown written from its own HTML comes back
+the same, and `markdown_to_html_to_markdown_keeps_the_meaning` holds the round trip.
+
+What it spends: a parser bug that no search has found yet waits for the next change to that parser
+or the next search a person runs, where a search in every run might have found it sooner. It saves
+the 300 s per target that each CI run spent, the nightly toolchain and `cargo-fuzz` install in CI, the
+corpus cache, and every red run that was luck.
+
+**Declined:**
+- **A fuzz search in every CI run, or in the nightly, as a job that can go red.** A green search says
+  only that nothing was found in its time, so the gate passed by chance. A young target found the next
+  input in nearly every run, and a loop that waited for a green search never ended.
+- **A search that runs but cannot fail the run.** Nobody reads a report that is never red, and it
+  spends runner time on every run.
+- **Replaying a corpus cached between CI runs.** The cache is not in the repository, so a local run and
+  CI would replay different inputs.
+
+<sub>See also [`testing/every-run-runs-every-job`](testing.md#testing-every-run-runs-every-job), [`core-classes/markdown-cost`](core-classes.md#core-classes-markdown-cost), [`core-classes/markdown-from-html`](core-classes.md#core-classes-markdown-from-html).</sub>
 
 <a id="testing-one-run-on-main"></a>
 
