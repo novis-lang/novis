@@ -9,7 +9,8 @@ header only after a paragraph, and alone it would be indented code. A document t
 `rendering_in_chunks_gives_the_same_html_as_the_whole_document` is the acceptance.
 
 **Raw HTML is read with a tokenizer that errs toward one group.** It keeps the elements raw HTML
-opened, and an end tag closes only the innermost one it names. A comment, a raw-text element or a tag
+opened, and an end tag closes only the innermost one it names. A `script` is read with the parser's
+escape states, so a `</script>` after `<!--` and a nested `<script>` does not end it. A comment, a raw-text element or a tag
 left unfinished when Markdown output follows ends every later boundary. A group after the first is
 rebuilt behind the first group's leading doctype and a `<body>` tag, with its leading whitespace kept,
 so the parser reads it in the mode and place the whole document's parse did. The tokenizer keeps a

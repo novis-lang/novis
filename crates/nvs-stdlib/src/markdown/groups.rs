@@ -69,8 +69,24 @@ enum Inside {
     Data,
     /// Inside `<!--`, up to `-->` or `--!>`.
     Comment,
-    /// Inside a raw-text element, up to its end tag.
+    /// Inside a raw-text element other than `script`, up to its end tag.
     RawText(String),
+    /// Inside a `script`, whose text the tokenizer reads with escape states
+    /// of its own.
+    Script(Escape),
+}
+
+/// The HTML tokenizer's escape state inside a `script`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Escape {
+    /// Script data: `</script` ends the element, and `<!--` escapes.
+    Plain,
+    /// After `<!--`: `</script` still ends the element, `-->` goes back to
+    /// plain, and `<script` escapes twice.
+    Escaped,
+    /// After `<!--` and then `<script`: `</script` goes back to escaped and
+    /// `-->` back to plain. Nothing here ends the element.
+    Double,
 }
 
 /// What the raw HTML of the group being read leaves open.
@@ -159,6 +175,16 @@ impl Balance {
                     at += end;
                     self.inside = Inside::Data;
                 }
+                Inside::Script(escape) => match script_end(rest, *escape) {
+                    Ok(end) => {
+                        at += end;
+                        self.inside = Inside::Data;
+                    }
+                    Err((read, escape)) => {
+                        self.inside = Inside::Script(escape);
+                        return at + read;
+                    }
+                },
                 Inside::Data => {
                     let Some(lt) = rest.find('<') else {
                         return text.len();
@@ -215,7 +241,9 @@ impl Balance {
             self.lost = true;
             return;
         }
-        if RAW_TEXT.contains(&name.as_str()) {
+        if name == "script" {
+            self.inside = Inside::Script(Escape::Plain);
+        } else if RAW_TEXT.contains(&name.as_str()) {
             self.inside = Inside::RawText(name.clone());
         }
         if is_foreign(&name) {
@@ -279,6 +307,76 @@ fn raw_text_end(text: &str, name: &str) -> Option<usize> {
         from = start + 2;
     }
     None
+}
+
+/// Where the `</script` that ends a `script` starts in `text`, read from the
+/// escape state `escape` as the HTML tokenizer reads it. After `<!--` and
+/// `<script`, a `</script` does not end the element, so a cut there would
+/// split a script the whole document's parse keeps open.
+///
+/// When `text` ends first, `Err` gives how many bytes are read and the state
+/// there. The rest is at most a `</script` and its next byte, kept for the
+/// next piece.
+fn script_end(text: &str, mut escape: Escape) -> Result<usize, (usize, Escape)> {
+    let bytes = text.as_bytes();
+    let mut at = 0;
+    while let Some(&byte) = bytes.get(at) {
+        let rest = &bytes[at..];
+        match byte {
+            b'<' => {
+                if escape == Escape::Plain {
+                    if b"<!--".starts_with(rest) {
+                        return Err((at, escape));
+                    }
+                    if rest.starts_with(b"<!--") {
+                        // The dashes are read again, so `<!-->` goes back
+                        // to plain as the tokenizer does.
+                        escape = Escape::Escaped;
+                        at += 2;
+                        continue;
+                    }
+                }
+                let closing = rest.get(1) == Some(&b'/');
+                match script_tag(rest, if closing { 2 } else { 1 }) {
+                    None => return Err((at, escape)),
+                    Some(false) => {}
+                    Some(true) => match (closing, escape) {
+                        (true, Escape::Plain | Escape::Escaped) => return Ok(at),
+                        (true, Escape::Double) => escape = Escape::Escaped,
+                        (false, Escape::Escaped) => escape = Escape::Double,
+                        (false, _) => {}
+                    },
+                }
+                at += 1;
+            }
+            b'-' if escape != Escape::Plain => {
+                if b"-->".starts_with(rest) {
+                    return Err((at, escape));
+                }
+                if rest.starts_with(b"-->") {
+                    escape = Escape::Plain;
+                    at += 3;
+                } else {
+                    at += 1;
+                }
+            }
+            _ => at += 1,
+        }
+    }
+    Err((at, escape))
+}
+
+/// Whether `text` has the name `script` at `from`, in any case, followed by
+/// whitespace, `/` or `>`. `None` when the text ends before that is known.
+fn script_tag(text: &[u8], from: usize) -> Option<bool> {
+    const NAME: &[u8] = b"script";
+    let got = text.get(from..).unwrap_or_default();
+    let len = got.len().min(NAME.len());
+    if !got[..len].eq_ignore_ascii_case(&NAME[..len]) {
+        return Some(false);
+    }
+    got.get(NAME.len())
+        .map(|byte| matches!(byte, b'\t' | b'\n' | b'\x0C' | b'\r' | b' ' | b'/' | b'>'))
 }
 
 /// The token `text` starts with. It starts with `<`.

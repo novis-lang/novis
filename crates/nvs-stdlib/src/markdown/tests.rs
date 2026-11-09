@@ -849,6 +849,50 @@ fn an_unclosed_raw_html_element_keeps_its_blocks_in_one_group() {
     );
 }
 
+/// A raw-text HTML block, with or without a comment opener inside it, and a
+/// block after it: read in small pieces, the groups join to the whole
+/// document's HTML.
+#[test]
+fn a_raw_text_html_block_read_in_small_pieces_joins_to_the_whole_document() {
+    let mut report = Vec::new();
+    for tag in ["script", "style", "pre", "textarea"] {
+        let double = format!("<!--<{tag}>");
+        let left = format!("<!--<{tag}></{tag}>-->");
+        let back = format!("<!--<{tag} a></{tag}>");
+        for inside in ["", "<!--", "<!-->", "<!-- x -->", &double, &left, &back] {
+            for after in ["\n-", "\n- a\n- b\n", "\n\n# h\n", "\npara\n", "\n\n> q\n"] {
+                for close in [String::new(), format!("</{tag}>")] {
+                    let markdown = format!("<{tag}>{inside}{close}{after}");
+                    let whole = rendered(&markdown, "a test").expect("no limit in a test");
+                    if grouped(&markdown).concat() != whole {
+                        report.push(format!("one piece {markdown:?}"));
+                    }
+                    for piece in 1..=16 {
+                        let groups = grouped_in(&markdown, piece);
+                        if groups.concat() != whole {
+                            report.push(format!(
+                                "piece {piece} {markdown:?}\n  whole  {whole:?}\n  groups {groups:?}"
+                            ));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let markdown = "<script><!--<script></script>\n-";
+    let whole = rendered(markdown, "a test").expect("no limit in a test");
+    for piece in 1..=16 {
+        assert_eq!(grouped_in(markdown, piece).concat(), whole, "piece {piece}");
+    }
+    assert!(
+        report.is_empty(),
+        "{} input(s):\n{}",
+        report.len(),
+        report.join("\n")
+    );
+}
+
 /// `markdown` pushed into a `Core\Markdown\Live` `piece` bytes at a time:
 /// the `done` part of each push, and what `finish()` returns.
 fn live_in(markdown: &str, piece: usize) -> (Vec<String>, String) {
