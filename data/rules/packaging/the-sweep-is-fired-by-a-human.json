@@ -5,7 +5,7 @@
     "packaging/a-dependency-break-is-absorbed-never-forwarded",
     "packaging/a-dependency-move-proves-two-things",
     "packaging/one-bump-one-commit",
-    "testing/ci-lanes",
+    "testing/every-run-runs-every-job",
     "testing/perf-two-mechanisms"
   ],
   "guardedBy": [

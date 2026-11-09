@@ -1,22 +1,22 @@
 # The release binaries and the VS Code extension, built one way for two callers.
 #
-# `release.yml` calls this with the version it is about to release. The dev build (`dev-build.yml`)
-# calls it with no version at each push to `main`, beside that push's CI run, so a tester can take
-# the commit's binaries from the push's dev build artifacts. One file builds both, so a push's
-# archives come from the same targets, profile and packaging as a release's, and the two cannot drift
-# apart (`rule:testing/ci-lanes` says why a job is never defined twice).
+# `release.yml` calls this with the version it is about to release. `ci.yml`'s `build` job calls it
+# with no version in every run, so a tester can take any commit's binaries from that run's artifacts.
+# One file builds both, so a CI run's archives come from the same targets, profile and packaging as a
+# release's, and the two cannot drift apart (`rule:testing/every-run-runs-every-job` says why a job is
+# never defined twice).
 #
 # Without a version, the build is the commit as it is:
 #
 #   * No version bump and no notes. The binary prints `X.Y.Z+dev (commit …)`, the archives are
 #     `nvs-dev-<name>.*` and the extension is `nvs-dev.vsix`.
-#   * No provenance attestation. The dev build grants this file `contents: read` alone, and a
-#     push's binaries are for testing, not for distribution.
+#   * No provenance attestation. `ci.yml` grants this file `contents: read` alone, and a CI run's
+#     binaries are for testing, not for distribution.
 #   * The artifacts stay 30 days rather than 7, so the last push's binaries are still there when
-#     the next push is a week or more away. Each push's are a few hundred MB, deleted on expiry.
+#     the next push is a week or more away. Each run's are a few hundred MB, deleted on expiry.
 #
 # No job here declares `permissions:`, so each takes what its caller's job grants. `release.yml`
-# grants the attestation's two; the dev build grants nothing beyond reading the repository.
+# grants the attestation's two; `ci.yml` grants nothing beyond reading the repository.
 #
 # `release.yml`'s header owns the release side: why the version bump happens here and again in
 # `publish`, and why no `${{ }}` appears inside a `run:` block.

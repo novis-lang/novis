@@ -420,7 +420,7 @@ export function steps(root: string = ROOT): Step[] {
 
 /** The jobs, and the legs of jobs, this machine does not run, each with its reason. */
 export const CI_ONLY: Record<string, string> = {
-  changes: "it picks the jobs a push runs from its diff; a local run runs every job",
+  "dev-image": "it publishes the `dev` image, which only a push to `main` does",
   "unsafe-audit": "it writes cargo-geiger's counts to the run summary and is never red",
   "test (macos-aarch64, linux-aarch64)": "no such machine here",
   "cost-guards (macos-aarch64)": "no such machine here",

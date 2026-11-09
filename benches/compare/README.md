@@ -152,7 +152,7 @@ not `no`.
   the load is past every peer's CPU as well as its memory. `nvs serve` admits a request while the
   memory running requests hold leaves room for one more to reach its cap. The holds of one burst all
   arrive before any of them has allocated, so Novis admits them, and those that grow past the room
-  are stopped with `500`. The nightly deep lane runs the row's `--smoke` form, which fails only when
+  are stopped with `500`. Every CI run runs the row's `--smoke` form, which fails only when
   a stack cannot serve the row.
 - No row tests whether a request sees a value another request set. A process that keeps state
   between requests is a design choice in Bun and Go, not a failure, and a yes or no cannot say which

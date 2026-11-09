@@ -5,26 +5,17 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-  # The deep lane, nightly: every job, unconditionally. A push runs only what its own diff can break
-  # (`rule:testing/ci-lanes`) — never a narrower set of platforms, only a narrower set of jobs — so what this
-  # catches is what no push runs at all: Miri, the fuzzers, the leak check and the unsafe audit. GitHub reads
-  # `schedule` only from the default branch, which is `main`. A `workflow_dispatch` is the deep lane
-  # too (`FULL` below).
+  # Every run runs every job, whatever its event and whatever its diff touched
+  # (`rule:testing/every-run-runs-every-job`), so a green run of a commit is the whole proof a release
+  # needs. The nightly runs the same jobs, to catch what changes outside the tree on a day with no
+  # push: a new advisory, a new nightly toolchain, a download that moved. GitHub reads `schedule` only
+  # from the default branch, which is `main`.
   schedule:
     - cron: '0 3 * * *'
-  # `release.yml` calls this workflow rather than restating any of it. The full suite is what a
-  # release must clear, and a release that ran a *copy* of these jobs would be proving something
-  # subtly different from what every push proves — the second copy drifts, and it drifts silently
-  # because nothing compares them. One home for "what must be green", per AGENTS.md. It calls it
-  # with `full: true`, which forces every gate below on — so the release gate is the same definition
-  # a push runs a slice of, and cannot drift from it either.
+  # `release.yml` calls this workflow rather than restating any of it, when its commit has no green
+  # run yet. A release that ran a copy of these jobs would prove something other than what every push
+  # proves, and the copy would drift without anything noticing. One home for "what must be green".
   workflow_call:
-    inputs:
-      full:
-        description: 'Run every job, whatever the diff touched'
-        type: boolean
-        required: false
-        default: false
 
 # Read-only, for every job, and stated here rather than left to the repository default — which is
 # a setting in the web UI that nothing in this tree can see and that a fork's pull request also
@@ -39,11 +30,10 @@ env:
   CARGO_INCREMENTAL: 0        # incremental compilation is noise in CI
   RUST_BACKTRACE: 1
 
-# `github.event_name` is in the group so a 25-minute nightly never sits in front of an 8-minute
-# push. A newer push to `main` cancels the older push's run still going, and a newer commit to a pull
-# request cancels its older run. A push run on `main` diffs against the newest commit whose CI went
-# green (the `changes` job below), so the newer run tests every commit the cancelled one did. A
-# scheduled or dispatched run is never cancelled by the group. `bun nv ci --push` and `--watch` cancel
+# `github.event_name` is in the group so a nightly run and a push run never cancel or wait for each
+# other. A newer push to `main` cancels the older push's run still going, and a newer commit to a pull
+# request cancels its older run. Every run runs every job, so the newer run tests every commit the
+# cancelled one did. A scheduled or dispatched run is never cancelled by the group. `bun nv ci --push` and `--watch` cancel
 # a push run that a newer nightly run replaces, and `bun nv ci --dispatch dry-run` cancels the push runs of
 # the commit its release run tests. `rule:testing/one-run-on-main`.
 concurrency:
@@ -82,82 +72,25 @@ concurrency:
 # - `docker` saves an entry of its own and reads no other. It runs on Ubuntu 22.04, and an entry
 #   built on a newer image has build scripts that need a newer glibc than 22.04 has.
 #
-# The organization's Team plan gives 60 concurrent jobs, and a full run has 59, so every job but
-# the macOS ones starts at once. A job added to the run past that waits for a free one. macOS has 5 concurrent jobs on any plan below Enterprise, and
-# the run has 6 macOS jobs. The `test`, `cost-guards` and `proofs` legs set the run's length, so
+# The organization's Team plan gives 60 concurrent jobs, and a run has about 70 with the `build`
+# legs and the `dev` image, so the last jobs to start wait for a free one. macOS has 5 concurrent
+# jobs on any plan below Enterprise, and the run has 7 macOS jobs. The `test`, `cost-guards` and `proofs` legs set the run's length, so
 # `ext-templates` and `extension` start once `lint` has finished, about ten minutes in, and the
 # four long macOS legs take the 5 slots first. Their `if` starts with `!cancelled()`, so a red
 # `lint` does not skip them.
 jobs:
-  # ---------------------------------------------------------------------------
-  # Which lanes this run needs. Every gated job below reads one boolean from
-  # here, and the table deciding them is `tools/nv/cmd/ci-changes.ts` — one home, and
-  # answerable locally with `--base HEAD~1` without pushing anything. `rule:testing/lane-table`.
-  #
-  # `blob:none` is what keeps the full history cheap: `git diff --name-only`
-  # reads trees, never file contents, so no blob older than HEAD is fetched.
-  # ---------------------------------------------------------------------------
-  changes:
-    name: what changed
-    runs-on: ubuntu-26.04
-    timeout-minutes: 10
-    # `actions: read` lists the green CI runs a push on `main` diffs against. A workflow that calls
-    # this one grants its job `actions: read` too, since a called job may ask for no more.
-    permissions:
-      contents: read
-      actions: read
-    outputs:
-      code: ${{ steps.lanes.outputs.code }}
-      native: ${{ steps.lanes.outputs.native }}
-      probe: ${{ steps.lanes.outputs.probe }}
-      ext: ${{ steps.lanes.outputs.ext }}
-      editor: ${{ steps.lanes.outputs.editor }}
-      deps: ${{ steps.lanes.outputs.deps }}
-      refdoc: ${{ steps.lanes.outputs.refdoc }}
-      proofs: ${{ steps.lanes.outputs.proofs }}
-      db: ${{ steps.lanes.outputs.db }}
-      browser: ${{ steps.lanes.outputs.browser }}
-      docker: ${{ steps.lanes.outputs.docker }}
-      deep: ${{ steps.lanes.outputs.deep }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-          filter: blob:none
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version-file: package.json
-      - name: Install tool dependencies
-        run: bun install --frozen-lockfile
-      - id: lanes
-        name: Which lanes this diff needs
-        # An empty, zeroed or unreachable BASE means every lane: a first push, a force push and a
-        # shallow clone all land there, and a commit nothing checked is the worse mistake. A push to
-        # `main` ignores BASE and diffs against the newest commit whose CI run went green, and with
-        # none found every lane runs (`SINCE_GREEN`, with one `gh api` call).
-        env:
-          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          FULL: ${{ inputs.full || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
-          SINCE_GREEN: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          GH_TOKEN: ${{ github.token }}
-        run: bun nv ci-changes
-
   # ---------------------------------------------------------------------------
   # The matrix that matters: Novis generates native code, so "it compiles" is not
   # the same claim on each platform. Windows uses SEH and a different calling
   # convention; aarch64 is a different backend in Cranelift entirely, and Linux
   # aarch64 runs it under ELF and the System V convention, which macOS does not.
   #
-  # All four run whenever any code changes, and the lane gate never narrows
-  # them. This is a public repository: which host a contributor pushes from is
-  # unknowable, so no platform's coverage may rest on an assumption about who is
-  # developing on what. What the gate skips is a run that changed no build input
-  # at all — a goal's handoff, a playbook bullet. `rule:testing/lane-table`.
+  # All four run in every run. This is a public repository: which host a
+  # contributor pushes from is unknowable, so no platform's coverage may rest on
+  # an assumption about who is developing on what.
   # ---------------------------------------------------------------------------
   test:
     name: test / ${{ matrix.name }}${{ matrix.part && format(' ({0}{1})', matrix.part, matrix.half && format(' {0}/2', matrix.half) || matrix.shard && format(' {0}/3', matrix.shard) || '') || '' }}
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
     # Debug only: one build of the workspace, its tests, the doc tests and the conformance suite.
     # The release-profile guards are the `cost-guards` job, so the two profiles never share a
@@ -417,8 +350,6 @@ jobs:
   # ---------------------------------------------------------------------------
   cost-guards:
     name: cost guards / ${{ matrix.name }}
-    needs: changes
-    if: needs.changes.outputs.native == 'true'
     runs-on: ${{ matrix.os }}
     # Windows is the slow leg. On a partial cache hit the probe's step took 10 minutes, and the
     # `nvs-cli` release build after it was still compiling 12 minutes in. That is at least 25 minutes
@@ -473,8 +404,8 @@ jobs:
       # generation, and they differ per platform: Windows unwinds through SEH, and
       # aarch64 is a different Cranelift backend entirely. The cost guards only run
       # in release, because the baselines they compare against are release figures
-      # — a full compile of the workspace beside the debug one `test` does, and why a
-      # diff that cannot move a baseline does not pay for it (`rule:testing/lane-table`, `rule:testing/perf-two-mechanisms`).
+      # — a full compile of the workspace beside the debug one `test` does
+      # (`rule:testing/perf-two-mechanisms`).
       #
       # Every cargo call in this job names the same two packages, `nvs-abi-probe` and `nvs-cli`, and
       # each builds a test target, so each resolves the same features and the release build of the
@@ -504,9 +435,7 @@ jobs:
         shell: bash
         run: cargo test --release -p nvs-abi-probe -p nvs-cli --lib $ABI_TESTS
 
-      # The binary's own cost guards, in release for the reason the probe's are, and on the same lane:
-      # its inputs are the code generator and the runtime, and the nightly turns every lane on, so a
-      # change under `crates/nvs-cli/` alone is measured there. The binary is built first because the
+      # The binary's own cost guards, in release for the reason the probe's are. The binary is built first because the
       # budget below times it. The test filter is the suffix both margin tests share: a warm start over
       # a cold one in `cache.rs`, and four cores over one in `serve.rs`. Both are ratios, so they hold
       # on all three runners, and the scaling test measures nothing on a runner with fewer than four
@@ -515,12 +444,11 @@ jobs:
         shell: bash
         run: cargo test --release -p nvs-abi-probe -p nvs-cli --bin nvs -- by_the_margin_this_test_names
 
-      # The serve soak, nightly only: one core serves thousands of requests over the loopback, and the
+      # The serve soak: one core serves thousands of requests over the loopback, and the
       # test fails when the bytes its thread holds grow with the count (`rule:programs/memory-priority`'s
-      # O(in-flight) bound). It is `#[ignore]`d so the push suite does not pay for a soak, and it rides
+      # O(in-flight) bound). It is `#[ignore]`d so the `test` legs do not run it, and it rides
       # this job's release build. On every platform, because each has its own socket and allocator path.
       - name: Serve soak
-        if: needs.changes.outputs.deep == 'true'
         shell: bash
         run: cargo test --release -p nvs-abi-probe -p nvs-cli --bin nvs -- --ignored live_bytes_stay_flat_while_one_core_serves_thousands_of_requests
 
@@ -541,8 +469,6 @@ jobs:
   # ---------------------------------------------------------------------------
   proofs:
     name: proofs / ${{ matrix.name }}
-    needs: changes
-    if: needs.changes.outputs.proofs == 'true'
     runs-on: ${{ matrix.os }}
     # A cold proof build on Windows takes about half an hour, and the whole roster's run comes after
     # it. A job that hits this limit saves no cache, so the next run starts cold again.
@@ -674,8 +600,6 @@ jobs:
   # ---------------------------------------------------------------------------
   database:
     name: five-driver matrix
-    needs: changes
-    if: needs.changes.outputs.db == 'true'
     runs-on: ubuntu-26.04
     # Every image pulled, five first-boot databases and a workspace build, then the drivers twice
     # over for the three with a second transport.
@@ -736,8 +660,6 @@ jobs:
   # ---------------------------------------------------------------------------
   browser:
     name: browser
-    needs: changes
-    if: needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     steps:
@@ -791,8 +713,6 @@ jobs:
   # ---------------------------------------------------------------------------
   extension-sandbox:
     name: extension sandbox probes
-    needs: changes
-    if: needs.changes.outputs.probe == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
@@ -820,8 +740,8 @@ jobs:
   # ---------------------------------------------------------------------------
   ext-templates:
     name: ext templates / ${{ matrix.name }}
-    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
-    if: ${{ !cancelled() && needs.changes.outputs.ext == 'true' }}
+    needs: lint  # starts after `lint`, as the note above `jobs:` says
+    if: ${{ !cancelled() }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -898,8 +818,6 @@ jobs:
   # Linux is the reference build, so one leg is the whole check.
   webp-lib:
     name: libwebp rebuild
-    needs: changes
-    if: needs.changes.outputs.ext == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
@@ -931,8 +849,8 @@ jobs:
   # ---------------------------------------------------------------------------
   extension:
     name: extension / ${{ matrix.name }}
-    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
-    if: ${{ !cancelled() && needs.changes.outputs.editor == 'true' }}
+    needs: lint  # starts after `lint`, as the note above `jobs:` says
+    if: ${{ !cancelled() }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -1008,8 +926,6 @@ jobs:
   # ---------------------------------------------------------------------------
   extension-host:
     name: extension host
-    needs: changes
-    if: needs.changes.outputs.editor == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
@@ -1058,8 +974,6 @@ jobs:
   # ---------------------------------------------------------------------------
   docker:
     name: container images
-    needs: changes
-    if: needs.changes.outputs.docker == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps:
@@ -1097,8 +1011,6 @@ jobs:
 
   lint:
     name: lint
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
@@ -1149,8 +1061,6 @@ jobs:
   # ---------------------------------------------------------------------------
   supply-chain:
     name: supply chain
-    needs: changes
-    if: needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
@@ -1242,8 +1152,6 @@ jobs:
   # ---------------------------------------------------------------------------
   attribution:
     name: third-party attribution
-    needs: changes
-    if: needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
@@ -1287,8 +1195,6 @@ jobs:
   # ---------------------------------------------------------------------------
   reference:
     name: the chapter examples run and the website matches the binary
-    needs: changes
-    if: needs.changes.outputs.refdoc == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
@@ -1374,17 +1280,13 @@ jobs:
       # A Windows child that writes with a `for /l` echo loop drains at a few kilobytes a second,
       # so the case or attack waiting on it is killed at its deadline on every Windows run. The
       # test's header says what to write instead. It greps the tools, the cases and the crates in
-      # seconds, so it runs here on every push and no code lane has to list all of `tools/nv/` for it.
+      # seconds, so it runs here.
       - name: No Windows child writes with an echo loop
         run: bun test tools/nv/test/no-echo-loop-child.test.ts
 
-  # Nightly and at release only. The counts it writes gate nothing, and a `cargo install
-  # cargo-geiger` per push bought a number no push was ever blocked by. It becomes a push-lane job
-  # again on the day it becomes a hard gate. `rule:testing/the-deep-lane`.
+  # The counts it writes to the run summary gate nothing. The job is never red.
   unsafe-audit:
     name: unsafe audit
-    needs: changes
-    if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-26.04
     # Geiger builds every member under its own feature set, so the scan grows with the workspace.
     timeout-minutes: 60
@@ -1411,16 +1313,13 @@ jobs:
                   || echo "::warning title=unsafe audit::cargo geiger could not scan $name"
               done
 
-  # Nightly and at release only. The comparison's `flood` row puts load past capacity on each stack
+  # The comparison's `flood` row puts load past capacity on each stack
   # behind nginx and prints what each did: its refusals, how long `/` took beside the load, and how
   # soon it answered again. The run fails when a stack cannot serve the row, and its results gate
-  # nothing. It builds every peer's image, and Novis's from this checkout in release, which no push
-  # can afford. `benches/compare/README.md` § *The feature scenarios* is the row.
-  # `rule:testing/the-deep-lane`.
+  # nothing. It builds every peer's image, and Novis's from this checkout in release.
+  # `benches/compare/README.md` § *The feature scenarios* is the row.
   flood:
     name: overload past capacity
-    needs: changes
-    if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 120
     steps:
@@ -1438,11 +1337,10 @@ jobs:
   # ---------------------------------------------------------------------------
   # libFuzzer isn't supported on Windows, so this only ever runs here (or in
   # a contributor's WSL/Linux/macOS setup — AGENTS.md's WSL section covers
-  # first-time setup on Windows). Nightly and at release rather than per push,
-  # and carrying its corpus between runs: 60s against a corpus that starts empty
-  # every time is the same 60s repeated, while 300s starting from everything
-  # every previous night found is coverage that accumulates.
-  # `rule:testing/the-deep-lane`.
+  # first-time setup on Windows). It carries its corpus between runs: 300s
+  # against a corpus that starts empty every time is the same 300s repeated,
+  # while 300s starting from everything every earlier run found is coverage
+  # that accumulates.
   #
   # Four legs of at most five targets each, run one after another, and one Rust cache for all four. A
   # leg per target took fifteen concurrent job slots and saved fifteen copies of
@@ -1452,8 +1350,6 @@ jobs:
   # ---------------------------------------------------------------------------
   fuzz-smoke:
     name: fuzz smoke / ${{ join(matrix.targets, ', ') }}
-    needs: changes
-    if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     strategy:
@@ -1533,8 +1429,6 @@ jobs:
   # samples. Run as one, the five outgrew 45 minutes. When a leg outgrows it, split that leg again.
   miri:
     name: miri (${{ matrix.part }})
-    needs: changes
-    if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-26.04
     # Generous: Miri interprets rather than executes, and the fixture trees below now really touch
     # the filesystem, so this job grows with the front end's test count rather than its code size.
@@ -1642,8 +1536,6 @@ jobs:
   # rest, so a test that asserts an exact float result checks the library and not Miri's noise.
   miri-units:
     name: miri units (${{ matrix.crate }} ${{ matrix.shard }}/${{ matrix.of }})
-    needs: changes
-    if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     strategy:
@@ -1684,15 +1576,12 @@ jobs:
           cargo +nightly miri nextest run --profile miri -p ${{ matrix.crate }} --lib
           ${{ matrix.features }} --partition hash:${{ matrix.shard }}/${{ matrix.of }}
 
-  # Nightly and at release only. Every `examples/` program runs under valgrind's memcheck over the
+  # Every `examples/` program runs under valgrind's memcheck over the
   # debug CLI, and a definite leak or an invalid access fails the job. It is the one run that looks
   # for leaks from end to end: `asan` below runs with leak detection off. `bun nv valgrind`
   # (`tools/nv/cmd/valgrind.ts`) is the home of what it runs and how it judges a run.
-  # `rule:testing/the-deep-lane`.
   valgrind:
     name: valgrind over the examples
-    needs: changes
-    if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-26.04
     # A debug build from the Linux test cache, then 82 programs two at a time under memcheck.
     timeout-minutes: 45
@@ -1744,8 +1633,6 @@ jobs:
   # ---------------------------------------------------------------------------
   asan:
     name: asan
-    needs: changes
-    if: needs.changes.outputs.native == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
@@ -1820,8 +1707,6 @@ jobs:
   # ---------------------------------------------------------------------------
   tsan:
     name: tsan
-    needs: changes
-    if: needs.changes.outputs.native == 'true'
     runs-on: ubuntu-26.04
     # Generous: instrumenting `std` means this leg builds its own standard
     # library before it builds anything of Novis's.
@@ -1843,3 +1728,104 @@ jobs:
           key: tsan
       - name: TSAN test (host and runtime)
         run: bash tools/tsan.sh
+
+  # ---------------------------------------------------------------------------
+  # The release binaries and the VS Code extension, built the way a release builds them, with no
+  # version. `build.yml` is the one home of the build, which `release.yml` calls with its version.
+  # The archives stay 30 days as this run's artifacts, so a tester can take any commit's binaries
+  # from its run, and the `dev-image` job below packages the Linux ones.
+  # ---------------------------------------------------------------------------
+  build:
+    name: build
+    uses: ./.github/workflows/build.yml
+    permissions:
+      contents: read
+
+  # ---------------------------------------------------------------------------
+  # The release's version step, on the next patch version, in this job's working copy only. It
+  # catches what a versioned build breaks before it compiles: the manifest rewrite, the separate
+  # lockfiles and the changelog section. It builds nothing and writes nothing back, so it costs a
+  # few minutes and no second build. `build.yml` and `release.yml` run the same commands.
+  # ---------------------------------------------------------------------------
+  release-version:
+    name: the release's version step
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # The notes and the version are derived from the tags and the commit log.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      # `--apply` updates the lockfiles offline, so each committed lock is fetched first.
+      - name: Fetch dependencies against the committed lock
+        run: cargo fetch --locked
+      - name: Fetch the fuzz workspace's dependencies against its committed lock
+        run: cargo fetch --locked --manifest-path fuzz/Cargo.toml
+      - name: Compute the next patch version
+        id: plan
+        run: bun nv release --plan patch --github-output
+      - name: Render its notes
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: bun nv release --notes "$VERSION" --out "$RUNNER_TEMP/release-notes.md"
+      - name: Set the version, and prepend its notes
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: bun nv release --apply "$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
+      - name: Both workspaces read with their updated locks
+        run: |
+          set -euo pipefail
+          cargo metadata --locked --offline --format-version 1 > /dev/null
+          cargo metadata --locked --offline --format-version 1 --manifest-path fuzz/Cargo.toml > /dev/null
+
+  # ---------------------------------------------------------------------------
+  # The `dev` image, from this run's Linux archives, once every other job is green. A push to `main`
+  # alone publishes it: a pull request, the nightly, a dispatch and a release's call skip it. GitHub
+  # checks a called job's permissions when the run starts, also for a skipped job, so `release.yml`
+  # grants `packages: write` to the job that calls this workflow. A newer push cancels this run, and
+  # its own run then publishes the image.
+  # ---------------------------------------------------------------------------
+  dev-image:
+    name: dev image
+    needs:
+      - test
+      - cost-guards
+      - proofs
+      - database
+      - browser
+      - extension-sandbox
+      - ext-templates
+      - webp-lib
+      - extension
+      - extension-host
+      - docker
+      - lint
+      - supply-chain
+      - attribution
+      - reference
+      - docs
+      - unsafe-audit
+      - flood
+      - fuzz-smoke
+      - miri
+      - miri-units
+      - valgrind
+      - asan
+      - tsan
+      - build
+      - release-version
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/image.yml
+    permissions:
+      contents: read
+      packages: write
+      # Reads the Linux archives this run's `build` job uploaded.
+      actions: read

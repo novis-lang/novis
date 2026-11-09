@@ -6,7 +6,7 @@
     "ide/dependencies-are-allowlisted",
     "ide/semantic-tokens-carry-the-qualifiers",
     "ide/the-lockfile-is-committed-and-build-output-is-not",
-    "testing/ci-lanes"
+    "testing/every-run-runs-every-job"
   ],
   "guardedBy": [
     "editors/vscode/scripts/headless.mjs",

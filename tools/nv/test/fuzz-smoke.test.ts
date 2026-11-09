@@ -1,5 +1,5 @@
 // The CI job that fuzzes every target: its legs together name each file of `fuzz/fuzz_targets/` once,
-// so a target added there is fuzzed in the deep lane without anyone remembering to list it. A target in
+// so a target added there is fuzzed in every CI run without anyone remembering to list it. A target in
 // `BY_HAND` is the one exception: it runs only under `bun nv fuzz <target>`, and the list says why.
 
 import { expect, test } from "bun:test";
@@ -10,7 +10,7 @@ import { ROOT } from "../lib/paths.ts";
 /** The targets CI does not fuzz, each with its reason. */
 const BY_HAND: Record<string, string> = {
   // A differential against comrak. Its open differences are cmark-gfm edge cases with no security
-  // value, so in CI they would turn the deep run red at random (`rule:core-classes/markdown-cost`).
+  // value, so in CI they would turn the CI run red at random (`rule:core-classes/markdown-cost`).
   markdown_comrak: "known differences from cmark-gfm on unusual input",
 };
 

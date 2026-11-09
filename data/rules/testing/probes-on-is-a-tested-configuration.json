@@ -3,7 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "testing/debug-probes",
-    "testing/the-deep-lane",
+    "testing/every-run-runs-every-job",
     "testing/nvst-is-separate"
   ],
   "guardedBy": [

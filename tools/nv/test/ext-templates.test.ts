@@ -1,11 +1,9 @@
-// `bun nv ext-templates` and the CI job that runs it: the job's platforms and gate, the `ext` lane's
-// reach over what the templates and the guide's example are built from, and the C leg's two
-// outcomes without wasi-sdk.
+// `bun nv ext-templates` and the CI job that runs it: the job's platforms, what the guide's example
+// leg copies, and the C leg's two outcomes without wasi-sdk.
 
 import { expect, test } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
-import { LANES, lanesFor } from "../cmd/ci-changes.ts";
+import { join, relative } from "node:path";
 import { EXAMPLE, exampleOwns } from "../cmd/ext-templates.ts";
 import { ROOT } from "../lib/paths.ts";
 
@@ -16,21 +14,12 @@ function filesUnder(dir: string): string[] {
     .map((e) => relative(ROOT, join(e.parentPath, e.name)).replaceAll("\\", "/"));
 }
 
-/** The files `rs` names in an `include_str!` or `include_bytes!`, repository-relative. */
-function included(rs: string): string[] {
-  const text = readFileSync(join(ROOT, rs), "utf8");
-  return [...text.matchAll(/include_(?:str|bytes)!\(\s*"([^"]+)"\s*\)/g)].map((m) =>
-    relative(ROOT, resolve(join(ROOT, dirname(rs)), m[1]!)).replaceAll("\\", "/"),
-  );
-}
-
 test("the CI job runs both templates on Linux, Windows and macOS", () => {
   const yml = Bun.YAML.parse(readFileSync(join(ROOT, ".github/workflows/ci.yml"), "utf8")) as {
-    jobs: Record<string, { if?: string; strategy?: { matrix?: { include?: { os: string }[] } }; steps: { run?: string }[] }>;
+    jobs: Record<string, { strategy?: { matrix?: { include?: { os: string }[] } }; steps: { run?: string }[] }>;
   };
   const job = yml.jobs["ext-templates"];
   expect(job).toBeDefined();
-  expect(job!.if).toContain("needs.changes.outputs.ext == 'true'");
   const oses = (job!.strategy?.matrix?.include ?? []).map((row) => row.os).sort();
   expect(oses).toEqual(["macos-latest", "ubuntu-26.04", "windows-latest"]);
   const runs = job!.steps.map((s) => s.run?.trim()).filter(Boolean);
@@ -39,32 +28,14 @@ test("the CI job runs both templates on Linux, Windows and macOS", () => {
   expect(runs).toContain("bun nv ext-templates --example");
 });
 
-test("the ext lane covers every file of the guide's example, and the leg copies none of its build output", () => {
+test("the example leg copies every source of the guide's example and none of its build output", () => {
   const owned = filesUnder(EXAMPLE).filter((path) => exampleOwns(relative(EXAMPLE, path)));
   expect(owned).toContain(`${EXAMPLE}/nvsx.toml`);
   expect(owned).toContain(`${EXAMPLE}/demo/index.nvs`);
-  const uncovered = owned.filter((path) => !lanesFor({ ext: LANES.ext! }, [path])[0]![1]);
-  expect(uncovered).toEqual([]);
   expect(exampleOwns("target/wasm32-wasip2/release/highlight.wasm")).toBe(false);
   expect(exampleOwns("highlighter.nvsx")).toBe(false);
   expect(exampleOwns("demo/nvs.toml")).toBe(false);
   expect(exampleOwns("src/lib.rs")).toBe(true);
-});
-
-test("the ext lane covers every file the templates are built from", () => {
-  const sources = [
-    ...filesUnder("crates/nvs-cli/templates/ext"),
-    ...filesUnder("crates/nvs-cli/src/ext"),
-    "crates/nvs-cli/src/ext.rs",
-    ...included("crates/nvs-cli/src/ext/new.rs"),
-    ...filesUnder("crates/nvs-ext/src"),
-    ...filesUnder("wit/nvs-ext"),
-    "tools/nv/cmd/ext-templates.ts",
-    "rust-toolchain.toml",
-  ];
-  expect(sources.length).toBeGreaterThan(20);
-  const uncovered = sources.filter((path) => !lanesFor({ ext: LANES.ext! }, [path])[0]![1]);
-  expect(uncovered).toEqual([]);
 });
 
 test("the C leg is skipped without wasi-sdk and fails under CI without it", () => {

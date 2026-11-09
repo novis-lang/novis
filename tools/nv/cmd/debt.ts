@@ -17,9 +17,9 @@
 // recorded the moment it ends, so a run the check's timeout kills loses only the atoms still running. It
 // prints each round with the time it took, and then what it paid and what debt is left, by kind.
 //
-// **The leak check is not debt.** valgrind runs over `examples/` in CI's nightly deep lane
-// (`cmd/valgrind.ts`), and CI's Linux jobs run every test on Linux at each push. What it costs: a leak a
-// goal brought in is found the next night, and not at the goal's end.
+// **The leak check is not debt.** valgrind runs over `examples/` in every CI run (`cmd/valgrind.ts`),
+// and CI's Linux jobs run every test on Linux in that run. What it costs: a leak a goal brought in is
+// found by the CI run of the goal's push, and not at the goal's end.
 //
 // **The benches are not debt.** One measured run paid 1093 owed benches in 70 minutes, then 2763 proof
 // programs in 49 minutes, so a goal's debt with its benches took past two hours. An owed bench waits for a

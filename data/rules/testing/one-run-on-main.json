@@ -2,8 +2,7 @@
   "title": "Each workflow has one run going on `main` at a time",
   "status": "shipped",
   "seeAlso": [
-    "testing/ci-lanes",
-    "testing/lane-table"
+    "testing/every-run-runs-every-job"
   ],
   "guardedBy": [
     "tools/nv/cmd/ci.ts",

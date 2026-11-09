@@ -1,9 +1,9 @@
 # The container images, from Linux archives `build.yml` already made.
 #
 # `release.yml` calls this with the version it released, and the archives are from the same run.
-# The dev build (`dev-build.yml`) calls it with none once a push's CI run on `main` is green, to
-# publish the `dev` image. Its archives are from the push's own run of `dev-build.yml`, which
-# `binaries-run` names. One file builds both, so the `dev` image is made the way a release's is: the
+# `ci.yml`'s `dev-image` job calls it with none once every other job of a push's run on `main` is
+# green, to publish the `dev` image. Its archives are from that run's own `build` job. One file builds
+# both, so the `dev` image is made the way a release's is: the
 # same Dockerfile, the same staging, the same smoke test before any push.
 #
 # It compiles nothing: it packages the binaries `build.yml` produced, so the bytes in the image are
@@ -14,11 +14,12 @@
 #
 #   * The one tag is `dev` (`dev-debian` for the other variant), which each green push moves.
 #     `bun nv release --docker-tags dev` says why there is no `sha-` tag.
-#   * No provenance attestation. The dev build grants `packages: write` and nothing else to write
-#     with.
+#   * No provenance attestation. `ci.yml`'s `dev-image` job grants `packages: write` and nothing
+#     else to write with.
 #
 # No job here declares `permissions:`, so each takes what its caller's job grants. Archives from
-# another run are read with the run's token, which needs `actions: read`; the dev build grants it.
+# another run are read with the run's token, which needs `actions: read`; `ci.yml`'s `dev-image` job
+# grants it.
 
 name: Image
 

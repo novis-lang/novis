@@ -1,6 +1,6 @@
 //! Every program directly under `examples/` runs with `nvs run` and ends with the status it is
-//! written to end with, so a broken example fails `bun nv verify` and not only CI's nightly
-//! `valgrind` job (`rule:testing/the-deep-lane`), which is the one other place they run.
+//! written to end with, so a broken example fails `bun nv verify` and not only CI's `valgrind`
+//! job (`rule:testing/every-run-runs-every-job`), which is the one other place they run.
 //!
 //! Each runs as `bun nv valgrind` (`tools/nv/cmd/valgrind.ts`) runs it: under the repository's
 //! `nvs.toml`, with this build in `NVS_BIN` for an example that starts `nvs` itself. An example with

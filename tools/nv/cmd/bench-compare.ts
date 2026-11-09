@@ -4,7 +4,7 @@
 //     bun nv bench-compare --scenarios --smoke                   # every feature row against every peer
 //     bun nv bench-compare --scenarios --smoke --row config      # one row
 //     bun nv bench-compare --scenarios --row loop --expect nvs=on-by-default   # exits 1 on another result
-//     bun nv bench-compare --scenarios --smoke --row flood       # the nightly deep lane's run
+//     bun nv bench-compare --scenarios --smoke --row flood       # what every CI run runs
 //     bun nv bench-compare --record benches/compare.json         # the fair arm, recorded
 //     bun nv bench-compare --scenarios --record benches/compare.json   # the feature rows, into that record
 //     bun nv bench-compare --arm deployed --record PATH          # four cpus to each backend

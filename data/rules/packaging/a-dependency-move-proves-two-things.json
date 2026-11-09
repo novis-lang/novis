@@ -3,7 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "testing/attribution-is-diffed-in-ci",
-    "testing/ci-lanes",
+    "testing/every-run-runs-every-job",
     "packaging/one-bump-one-commit",
     "packaging/the-sweep-is-fired-by-a-human",
     "packaging/the-third-party-notice-is-generated-never-written-by-hand"

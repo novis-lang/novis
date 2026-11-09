@@ -137,7 +137,6 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, wri
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
-import { LOCKFILE_DIRS } from "./ci-changes.ts";
 import { greenFullRun, type WorkflowRun } from "./release.ts";
 
 export const summary =
@@ -252,6 +251,14 @@ const RED = new Set(["failure", "timed_out", "startup_failure", "cancelled"]);
 const EXE = process.platform === "win32" ? "nvs.exe" : "nvs";
 /** The binary the checks after `cargo build` read, which that build has just made current. */
 const DEBUG_NVS = `target/debug/${EXE}`;
+
+/** Each directory with a lockfile of its own beside the root's. `ci.yml`'s `supply-chain` job and `bun nv
+ * ci --check` run `cargo deny check advisories` on each, under the root's `deny.toml`
+ * (`rule:packaging/a-dependency-move-proves-two-things`). */
+export const LOCKFILE_DIRS = [
+  "extensions/image", "extensions/intl", "extensions/pdf", "extensions/spreadsheet",
+  "fuzz", "tools/covwrap", "tools/nv-scan", "website/guides/highlight-extension",
+];
 
 /** A check `--push` runs first: its name, its command, and the variables it adds. */
 export interface PrePush {

@@ -3196,12 +3196,11 @@ A heavy check keyed on every file of every crate it builds would be reached by a
 so a goal that names them would pay for all of them after nearly every session; the twin is what keeps a
 change that reaches none of its code from running it. A twin is paid only when its heavy check runs.
 
-**The leak check is CI's nightly job, not the loop's.** `bun nv valgrind` runs every `examples/`
-program under memcheck in the deep lane ([`testing/the-deep-lane`](testing.md#testing-the-deep-lane)), and CI's Linux jobs run every
-test on Linux at each push. A run in the loop would be keyed on a goal's fixtures, and a goal that names
-none would run nothing: the nightly job names its own programs. The debt run runs no heavy check.
-Looper's sweep runs the heavy checks the live goal names, and a push to CI runs each one its diff
-reaches ([`testing/ci-lanes`](testing.md#testing-ci-lanes)).
+**The leak check is CI's job, not the loop's.** `bun nv valgrind` runs every `examples/` program under
+memcheck in every CI run ([`testing/every-run-runs-every-job`](testing.md#testing-every-run-runs-every-job)), and CI's Linux jobs run every test
+on Linux in that run. A run in the loop would be keyed on a goal's fixtures, and a goal that names none
+would run nothing: the CI job names its own programs. The debt run runs no heavy check. Looper's sweep
+runs the heavy checks the live goal names, and every CI run runs all of them.
 
 **The floor debt is paid once per goal, and nightly CI is the safety net.** An atom a change reached
 that a run did not start is owed, and it stays selected until a run of it is green. `bun nv debt` is

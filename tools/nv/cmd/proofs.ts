@@ -53,7 +53,7 @@
 // `--nvs` runs every program and records nothing.
 //
 // CI's `proofs` job is the one suite that runs every proof program: `--verify --nvs` on a fresh proof
-// binary, over the whole roster, on each platform, whenever its lane in `ci-changes.ts` says so. `nv
+// binary, over the whole roster, on each platform, in every CI run. `nv
 // verify` runs none, because the proof binary is an optimized build of its own that every change to
 // Rust would rebuild: it marks each program the change reaches as owed, and `--run` runs them locally.
 //

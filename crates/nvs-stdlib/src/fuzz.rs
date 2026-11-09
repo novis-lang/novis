@@ -1,6 +1,6 @@
 //! The fuzzing seam: thin wrappers over the parsers that read outside bytes and
 //! are private to this crate, for the targets under `fuzz/fuzz_targets/`
-//! (`rule:testing/the-deep-lane`).
+//! (`rule:testing/every-run-runs-every-job`).
 //!
 //! **One hidden module rather than a wider visibility on each parser.** The
 //! multipart, cookie, reply-head, XML and decompression readers stay

@@ -349,21 +349,21 @@ describe("greenFullRun", () => {
   };
 
   test("a green run on another branch does not count, because it ran that branch's ci.yml", () => {
-    for (const event of ["schedule", "workflow_dispatch"]) {
+    for (const event of ["push", "schedule", "workflow_dispatch"]) {
       expect(greenFullRun([ciRun({ event, head_branch: "topic" })], SHA)).toBeNull();
     }
     expect(greenFullRun([ciRun({ head_branch: null })], SHA)).toBeNull();
   });
 
-  test("a green schedule run and a green dispatch run count", () => {
-    for (const event of ["schedule", "workflow_dispatch"]) {
+  test("a green push run, schedule run and dispatch run count, since every run runs every job", () => {
+    for (const event of ["push", "schedule", "workflow_dispatch"]) {
       const run = ciRun({ event });
       expect(greenFullRun([run], SHA)).toBe(run);
     }
   });
 
-  test("a green push or pull_request run does not count, because it ran only its diff's lanes", () => {
-    expect(greenFullRun([ciRun({ event: "push" }), ciRun({ event: "pull_request" })], SHA)).toBeNull();
+  test("a green pull_request run does not count, because it tested a merge and not the commit", () => {
+    expect(greenFullRun([ciRun({ event: "pull_request" })], SHA)).toBeNull();
   });
 
   test("a failed, cancelled or unfinished full run does not count", () => {
@@ -384,7 +384,7 @@ describe("greenFullRun", () => {
 
   test("among several runs it returns a green full one", () => {
     const green = ciRun({ event: "workflow_dispatch" });
-    const runs = [ciRun({ event: "push" }), ciRun({ conclusion: "failure" }), ciRun({ head_sha: "c".repeat(40) }), green, ciRun({ status: "in_progress", conclusion: null })];
+    const runs = [ciRun({ event: "pull_request" }), ciRun({ conclusion: "failure" }), ciRun({ head_sha: "c".repeat(40) }), green, ciRun({ status: "in_progress", conclusion: null })];
     expect(greenFullRun(runs, SHA)).toBe(green);
     expect(greenFullRun(runs, SHA.toUpperCase())).toBe(green);
   });

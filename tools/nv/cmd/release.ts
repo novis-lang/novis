@@ -33,12 +33,10 @@
 // feature that missed the build is a smaller claim, and would fail most releases while the loop runs.
 //
 // **`--tested SHA` decides whether the release runs the full suite.** It is the release's longest
-// step, and the nightly has often already run it on the very commit being released. So `--tested`
-// looks for a run of `ci.yml` on `SHA` that finished green and was a `schedule` or a
-// `workflow_dispatch`, the two events ci.yml's `FULL` runs every job for. A green `release.yml` run of
-// `SHA` counts too, because its `verify` job is that full run: a real release after its green dry run
-// skips the suite the dry run passed an hour before. A green `push` or `pull_request` run does not
-// count: it ran only the lanes its own diff reaches. Skipping is safe
+// step, and the commit's own push run has already run it. So `--tested` looks for a run of `ci.yml`
+// on `SHA` on `main` that finished green, from a push, the nightly or a dispatch (`TESTED_CI_EVENTS`):
+// every run runs every job. A green `release.yml` run of `SHA` counts too, because its `verify` job
+// is that run. A `pull_request` run does not count: it tested a merge, not `SHA`. Skipping is safe
 // because the run proved the same commit against the same definition the release would call. When
 // `gh` cannot answer, the commit counts as untested, because running the suite is the safe side.
 //
@@ -715,25 +713,27 @@ export interface WorkflowRun {
   path?: string;
 }
 
-/** The events ci.yml's `FULL` runs every job for. Every other event runs the lanes its diff reaches. */
-export const FULL_CI_EVENTS = ["schedule", "workflow_dispatch"];
+/** The events whose `ci.yml` run tested the commit itself. Every run runs every job
+ * (`rule:testing/every-run-runs-every-job`), but a `pull_request` run tests the merge of its branch
+ * into its base, which is another tree than its `head_sha`, so it is not a proof of that commit. */
+export const TESTED_CI_EVENTS = ["push", "schedule", "workflow_dispatch"];
 
 /** The release workflow's file, as a run's `path` names it. */
 export const RELEASE_WORKFLOW = ".github/workflows/release.yml";
 
 /**
- * Whether `r` ran every job of `ci.yml`. A `ci.yml` run did when its event is one of `FULL_CI_EVENTS`. A
- * `release.yml` run, dry or real, did too: its `verify` job calls `ci.yml` with `full: true`, and a green
- * run either passed that job or skipped it beside an earlier proof of the same commit.
+ * Whether `r` ran every job of `ci.yml` on its own commit. A `ci.yml` run did when its event is one of
+ * `TESTED_CI_EVENTS`. A `release.yml` run, dry or real, did too: its `verify` job calls `ci.yml`, and a
+ * green run either passed that job or skipped it beside an earlier proof of the same commit.
  */
 function ranEveryJob(r: WorkflowRun): boolean {
   if (r.path === RELEASE_WORKFLOW) return r.event === "workflow_dispatch";
-  return FULL_CI_EVENTS.includes(r.event);
+  return TESTED_CI_EVENTS.includes(r.event);
 }
 
 /**
- * The first run in `runs` that ran every job of `ci.yml` on `sha` and finished green, or null: a full
- * `ci.yml` run, or a `release.yml` run (`ranEveryJob`). The sha is compared whole: a prefix could name
+ * The first run in `runs` that ran every job of `ci.yml` on `sha` and finished green, or null: a
+ * `ci.yml` run of the commit itself, or a `release.yml` run (`ranEveryJob`). The sha is compared whole: a prefix could name
  * another commit. A real release after its dry run finds the dry run here, and skips the suite the dry
  * run already passed.
  *

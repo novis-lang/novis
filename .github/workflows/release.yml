@@ -23,15 +23,14 @@
 # minutes and the suite about an hour, so the binaries are ready when the suite ends. `publish` waits
 # for both. A red `test` therefore costs one build's runner time, and never a write.
 #
-# `test` is skipped when the commit being released already has a green full run of `ci.yml` on
-# `main` (the nightly, or a `workflow_dispatch`), or a green `release.yml` run, such as the dry run a
-# real release follows. That run is the same commit and the same definition `test` would call, so
+# `test` is skipped when the commit being released already has a green run of `ci.yml` on `main`,
+# such as its push's run, or a green `release.yml` run, such as a dry run. That run is the same commit and the same definition `test` would call, so
 # the release keeps its proof and loses its longest step. `plan` looks it up with
 # `bun nv release --tested`, and `publish` reads a skipped `test` as passed and a failed or cancelled
 # one as the end of the release.
 #
-# `build` also packages the VS Code extension, and it runs both from `build.yml`, which the dev
-# build after each push to `main` calls too.
+# `build` also packages the VS Code extension, and it runs both from `build.yml`, which every
+# `ci.yml` run calls too.
 #
 # `docker` is last for the same reason read from the other end: it needs a tag that already
 # exists, so an image can never be pushed for a release the repository has no record of. A
@@ -211,37 +210,33 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # 2. The full suite, as the definition every push already runs a slice of. Not a copy of it.
+  # 2. The full suite, as the definition every push runs. Not a copy of it.
   #
-  # Skipped when `plan` found a green `schedule` or `workflow_dispatch` run of ci.yml on
-  # `github.sha`, or a green run of this file on it. Those run every job, as `full: true` does here,
-  # so that run proved the same commit against the same definition, and running it again proves
-  # nothing new. It saves the release's longest step whenever the nightly or the dry run before a
-  # real release already covered the commit. A green push run does
-  # not count: it ran only the lanes its diff reaches. The release never tests a commit it creates,
-  # since `build` bumps the version in a throwaway copy, so `github.sha` is the commit to look up.
+  # Skipped when `plan` found a green run of ci.yml on `github.sha` on `main`, from any event, or a
+  # green run of this file on it. Every run of ci.yml runs every job
+  # (`rule:testing/every-run-runs-every-job`), so that run proved the same commit against the same
+  # definition, and running it again proves nothing new. The release never tests a commit it
+  # creates, since `build` bumps the version in a throwaway copy, so `github.sha` is the commit to
+  # look up.
   # ---------------------------------------------------------------------------
   test:
     name: verify
     needs: plan
     if: needs.plan.outputs.tested != 'true'
     uses: ./.github/workflows/ci.yml
-    # Every gate in that file forced on. A push runs the lane its own diff needs (`rule:testing/ci-lanes`); a
-    # release runs all of it, out of the same definition, so the two cannot drift apart.
-    with:
-      full: true
     # A called workflow's job may ask for no more than this grant, and GitHub checks that when the
-    # run starts, also for a job its `if` skips. `actions: read` is for `ci.yml`'s `changes` job, which
-    # lists the green CI runs on `main` to pick a push's base; a full run never reads it.
+    # run starts, also for a job its `if` skips. `packages: write` and `actions: read` are for
+    # ci.yml's `dev-image` job, which only a push to `main` runs, so a release's call skips it.
     permissions:
       contents: read
+      packages: write
       actions: read
 
   # ---------------------------------------------------------------------------
   # 3. The binaries and the VS Code extension, at the version about to be released.
   #
-  # `build.yml` holds both jobs, because the dev build at each push to `main` builds the same
-  # binaries through it with no version. Its header says what a release build does that a dev
+  # `build.yml` holds both jobs, because every `ci.yml` run builds the same binaries through it
+  # with no version. Its header says what a release build does that a dev
   # build does not.
   # ---------------------------------------------------------------------------
   build:
@@ -432,7 +427,7 @@ jobs:
   # gate here would ask for approval in the middle of a run that is already committed — the tag
   # is pushed by then, so there would be nothing left to approve.
   #
-  # `image.yml` builds them, because the dev build after each green push to `main` publishes the
+  # `image.yml` builds them, because a green push run of `ci.yml` on `main` publishes the
   # `dev` image through it. A dry run has no `publish`, so it runs that file up to and including the smoke test and
   # stops there: it logs in nowhere, pushes nothing and signs nothing.
   #

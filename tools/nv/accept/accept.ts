@@ -489,8 +489,8 @@ export function heavyRole(c: Check): "fuzz" | "tsan" | "db-matrix" | null {
 
 /**
  * Whether `c` is heavy: it builds or measures the release profile, runs fuzz, TSan or the database
- * matrix, or is never memoized. A heavy check waits for looper's sweep after the session, and CI's
- * nightly deep lane runs every one. Every other check runs in the sweep of the change that reached it.
+ * matrix, or is never memoized. A heavy check waits for looper's sweep after the session, and every CI
+ * run runs every one. Every other check runs in the sweep of the change that reached it.
  */
 export function isHeavy(c: Check): boolean {
   return c.memoize === false || isRelease(c) || heavyRole(c) !== null;

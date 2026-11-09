@@ -2744,7 +2744,7 @@ that did not run. Nothing changes at run time: no byte of the binary, the server
 - **Skipping the local run when a display is busy.** A tier that runs only when convenient has a green
   that means nothing, and the condition would not show in the sweep's output.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`testing/ci-lanes`](testing.md#testing-ci-lanes).</sub>
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`testing/every-run-runs-every-job`](testing.md#testing-every-run-runs-every-job).</sub>
 
 <a id="ide-one-server-two-thin-clients"></a>
 

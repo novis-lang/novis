@@ -4,8 +4,8 @@
 an image is the website's Docker guide,
 [website/src/content/docs/guides/production/docker.mdx](../website/src/content/docs/guides/production/docker.mdx).
 The release procedure is [docs/release.md](../docs/release.md). Every push to `main` whose CI run is
-green also publishes `:dev` and `:dev-debian`, from that push's release binaries. The dev build,
-[dev-build.yml](../.github/workflows/dev-build.yml), runs after CI, and
+green also publishes `:dev` and `:dev-debian`, from the release binaries that run built. The run's
+`dev-image` job in [ci.yml](../.github/workflows/ci.yml) does it once every other job is green, and
 [image.yml](../.github/workflows/image.yml) builds both kinds of image.
 
 ## Building an image locally

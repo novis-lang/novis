@@ -2153,7 +2153,7 @@ dependency changes, and it keeps the build from depending on network access or o
   generator and on fetched sources, and the reviewable diff, which is how a human notices a new
   component at all, would be gone.
 
-<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes).</sub>
+<sub>See also [`testing/every-run-runs-every-job`](testing.md#testing-every-run-runs-every-job).</sub>
 
 <a id="testing-debug-mode-directive"></a>
 
@@ -2490,7 +2490,7 @@ recording bit is observable. `TRACE` files query spans and warns of a missing gr
 something else. Declined: turning on `COVERAGE`, `BRANCH`, `TRACE`, `PROFILE` and `COUNT` for the
 run.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/every-run-runs-every-job`](testing.md#testing-every-run-runs-every-job), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate).</sub>
 
 <a id="testing-redeclaration-matrix"></a>
 
@@ -3600,188 +3600,56 @@ so no symbol-registration shim exists; callgrind still runs JIT-compiled pages c
 8-frame JIT call chain counts the same instructions on every run
 (`benches/abi-probe/examples/callgrind_spike.rs`).
 
-<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane).</sub>
+<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/every-run-runs-every-job`](testing.md#testing-every-run-runs-every-job).</sub>
 
-<a id="testing-ci-lanes"></a>
+<a id="testing-every-run-runs-every-job"></a>
 
-## One workflow holds every job, and three lanes decide which of them a run needs
+## Every run of CI runs every job, and a green run on `main` is the release's proof
 
-`rule:testing/ci-lanes`
+`rule:testing/every-run-runs-every-job`
 
-One workflow file holds every CI job, and a schedule trigger plus a `full` flag decide which of them
-a given run needs.
+Every run of `ci.yml` runs every job, whatever its event and whatever its diff touched.
 
-The **push lane** covers a push to `main` and every pull request; each job runs under
-its own `if:`. The **deep lane** — the nightly schedule, a manual dispatch, and the release gate
-calling this same workflow — forces every gate true, so every job runs. Always-on are the document
-checks, which cost seconds.
+A push to `main`, a pull request, the nightly, a manual dispatch and a release's call of the workflow
+run the same jobs, and no job carries an `if:` that reads the diff. One workflow file holds every job,
+and a job is never defined twice: a second copy of a suite drifts, and nothing compares the copies.
 
-A job is never defined twice. A second copy of a suite drifts, and it drifts silently because
-nothing compares the copies, which is why the release gate calls this workflow rather than restating
-it — and why a fast lane can never be bought by deleting a job, since that deletes it from the
-release gate in the same edit.
+**The nightly runs the same jobs**, to catch what changes outside the tree on a day with no push: a new
+advisory, a new nightly toolchain, a download that moved. The fuzz corpus is cached between runs, so
+each run's fuzzing starts from everything the earlier runs found. Miri, the fuzz smoke runs, the
+unsafe audit, the `valgrind` leak check over every `examples/` program and the comparison's `flood`
+row in its smoke form run in every run. The `valgrind` job is the one run that looks for leaks from end
+to end, since the `asan` job runs with leak detection off. The unsafe audit's counts and the `flood`
+row's results gate nothing.
 
-Nothing has left the suite. What a push skips is work whose answer its own diff cannot change.
+**A green run of a commit on `main` is the release's proof.** `bun nv release --tested` accepts a green
+`ci.yml` run of that commit from a push, the nightly or a dispatch, and `release.yml`'s `test` job then
+skips beside it. A pull request's run does not count: it tests a merge, not the commit.
 
-A push to `main` diffs against the newest commit on `main` whose `ci.yml` run went green — a push,
-nightly or dispatched run, never a pull request's — and not against the push's `before`. That base is
-sound by induction: a full run checked every lane at its commit, and a green push run checked every
-lane its diff from a sound base touched, while each lane it did not touch has the same files as at
-that base. So a newer push may cancel an older push's run still going, and `bun nv ci --dispatch
-dry-run` may cancel the push runs of the commit its release run tests: the next run covers every
-commit a cancelled run would have. `bun nv ci-changes --since-green` makes the lookup. When GitHub
-cannot list the runs, or none is an ancestor of the commit, no base is known and every lane runs
-([`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything)). The push's `before` is not a fallback: its run may have
-been cancelled, and a run green from it would become the next push's base without having proved the
-commits in between. What that spends: one `gh api` call per push run, and a commit whose run was
-cancelled has no verdict of its own, so a bisect between two green runs is local.
+**Every run builds the release binaries** through `build.yml`, with no version, and keeps the archives
+as its artifacts, so a tester can take any commit's binaries from its run. Its `release-version` job
+runs the release's version step on the next patch version in its own working copy and writes nothing
+back. A green run of a push to `main` publishes the `dev` image through `image.yml`, from that run's
+Linux archives, so the image never names a commit CI failed. A newer push to `main` cancels the older
+push's run still going ([`testing/one-run-on-main`](testing.md#testing-one-run-on-main)), and the newer run tests every commit the
+cancelled one did.
 
-CI builds no release binaries. The dev build does, beside CI: `dev-build.yml` starts at each push
-to `main` and builds that commit through the release's own files, so its binaries arrive while CI
-still runs. `build.yml` holds the release binaries and the VS Code extension, and `image.yml` the
-container images; the dev build and `release.yml` both call them. Every push's binaries are the
-artifacts of its own dev build run, and a newer push cancels an older push's build that is still
-going. When a push's CI run finishes green, a second run of `dev-build.yml` waits for that build and
-publishes the `dev` image from its Linux archives, so the image never names a commit CI failed. A
-push that changed only paths no part of the build reads, such as a goal's handoff or a rule, builds
-nothing: the dev build diffs the commit against the newest green dev build that still has its
-artifacts, and those artifacts and the `dev` image stay current. A push whose `CI` run or dev build
-was cancelled gets no `dev` image: a newer push's green run publishes the next one. `UNBUILT` in
-`tools/nv/cmd/ci-changes.ts` names those paths, and a path it does not name is built. What that
-spends: six cold release builds per push that changed a build input, outside CI's cache but beside
-its jobs on the account's runners, macOS above all, so a busy hour can slow CI's verdict; a build
-for a commit CI then fails; and a `dev` image the next green build replaces, whose earlier versions
-stay in the package untagged.
+What it spends: about 1,030 to 1,280 runner minutes per run, where a push run that skipped the jobs its
+diff could not reach took about 620. The extra jobs run on Linux. A run may wait behind GitHub's limit
+of 60 concurrent jobs. It spends nothing from security, latency or the simplicity of the language, and
+no table of paths has to be kept in step with what each job reads.
 
-The lanes spend nothing from security, latency or simplicity of the language. The dependency policy
-still gates every change that can alter the dependency set, and the sanitizer still gates every
-change to a crate that holds unsafe code. What they cost is one table to read before a job is added,
-and a job the nightly shows the push lane should have run is one entry in that table.
+`tools/nv/test/ci-push-builds.test.ts` guards the build, the version step and the `dev` image.
 
 **Declined:**
-- **A second workflow holding the heavy jobs.** It needs a second copy of the toolchain and cache
-  setup, and the release gate would be put together from two files that drift apart.
-- **Building the release binaries inside the push's CI run.** No CI job compiles what the release
-  build does. `cost-guards` builds a release `nvs`, but on another runner image, for the host target
-  and without `cargo auditable`, so no compile is saved. `release.yml` calls `ci.yml` as its gate and
-  builds through `build.yml` beside it, so a release would build every leg twice. A push's CI verdict
-  would also wait for its slowest build leg. The dev build's own run starts at the same push, so its
-  binaries arrive as early.
-- **Building the binaries once the push's CI run ends.** A tester then waits for CI and for the build
-  one after the other. Only the `dev` image needs CI's verdict, and it still waits for a green run.
-- **Deleting the jobs a push defers.** Miri and the fuzzers are the memory-safety evidence a
-  JIT-compiled runtime has to keep producing. The question is only how often they run.
+- **Path lanes, which run only the jobs a diff reaches.** A lane table that missed an input let a red
+  commit through, and a green push run that skipped jobs did not prove a release.
+- **A separate workflow for the development build.** It is a second workflow and a second trigger for
+  the same build `ci.yml` already runs.
+- **A workflow-level path filter.** A workflow it filters out never reports, so a required status check
+  on it waits forever.
 
-<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/a-deferred-job-is-skipped-never-absent`](testing.md#testing-a-deferred-job-is-skipped-never-absent), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything).</sub>
-
-<a id="testing-lane-table"></a>
-
-## One table decides what a diff runs, and the platform matrix is never one of the gates
-
-`rule:testing/lane-table`
-
-The first job compares the push's or the pull request's base against `HEAD` and emits one boolean
-per lane; every other job's `if:` is a single comparison against one of them. Build, test,
-conformance and lint run when any build input changed; the sanitizer and the release-profile cost
-guards when a native crate changed; the dependency checks when the dependency set changed; the
-reference check when the binary or its chapters changed; the feature proofs when the binary or any
-feature's proofs changed.
-
-The table deciding those booleans is a dictionary in **one file**, `tools/nv/cmd/ci-changes.ts` — not a set of path filters
-spread over the workflow, and not a third-party action on the critical path of every run.
-`bun nv ci-changes --base HEAD~1` answers "what would CI have run for this commit" without
-pushing anything.
-
-A lane names the inputs its jobs read, and no wider prefix. `ci.yml` is in every lane, because an
-edit to it is the run where the lanes themselves need proving. No other workflow file is in a lane:
-no job of `ci.yml` runs one, and each proves itself when it runs (the dev build at every push that
-changes it, `release.yml` in `bun nv ci --dispatch dry-run`). The `code` lane names only the files
-under `tools/` that its jobs read: what cargo compiles or embeds, and the modules of the `bun nv`
-commands `test` and `lint` run. `ci-changes.test.ts` walks those commands' imports and fails when a
-module they load is missing. A check that reads all of `tools/nv/`, such as the echo-loop grep, runs
-in the always-on `docs` job instead. What that spends: a workflow edit outside `ci.yml` gets no push
-check of its own until the workflow runs, and a new `bun nv` command in a code-gated job is one entry
-in `CODE_COMMANDS`.
-
-**The platform matrix is not one of the gates.** Whenever any build input changed, all three
-platform legs run. This is a public repository and nothing here may assume which host a contributor
-develops or pushes from, so no platform's coverage is ever traded away by a path rule — the
-contributor who never sees a Windows failure until the nightly is precisely the one who cannot
-reproduce it.
-
-**Declined:**
-- **A third-party path-filter action.** It would sit on the critical path of every run, pinned and
-  audited by whoever updates it, to compute a diff this repository's own tools already compute. The
-  supply chain is a security question.
-- **Narrowing the platform matrix by path**, so a push builds one platform unless its diff looks
-  native. It is the largest saving on offer. It rests on a claim nothing enforces, that a change
-  outside the native crates cannot change per-platform behaviour, and that claim is false as soon as
-  a front-end change alters what gets compiled or a command-line change touches a path, a line ending
-  or a file mode.
-- **A workflow-level path filter.** It breaks required status checks
-  ([`testing/a-deferred-job-is-skipped-never-absent`](testing.md#testing-a-deferred-job-is-skipped-never-absent)).
-
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms).</sub>
-
-<a id="testing-unknown-base-runs-everything"></a>
-
-## A run with no base commit to diff against runs every lane
-
-`rule:testing/unknown-base-runs-everything`
-
-A first push to a branch, a force-push, a shallow clone, and a push to `main` whose lookup of the
-newest green CI run finds none all leave the lane computation without a base commit it can diff
-against. Every such case resolves to **every lane true**.
-
-The failure mode of guessing wrong in the other direction is a merged commit nothing checked, and
-there is no version of this that is worth one of those.
-
-<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes).</sub>
-
-<a id="testing-the-deep-lane"></a>
-
-## Miri, the fuzzers and the unsafe audit run nightly and at release, and the fuzz corpus persists
-
-`rule:testing/the-deep-lane`
-
-The memory-safety and fuzzing evidence — the interpreter-under-Miri run, the fuzz smoke runs and the
-unsafe audit — runs in the nightly and at release, and not on a push. The trade is stated plainly:
-anything only those would have seen is found within a day rather than within ten minutes. **Nothing
-platform-specific is deferred** — a divergence between Linux, Windows and macOS is still caught by
-the push that introduced it.
-
-The fuzz corpus is cached between nightly runs and each target's budget is larger there than a push
-could afford. A run that starts from what every previous night found is strictly more coverage than
-a per-push run that starts from nothing, and it costs the push lane nothing at all.
-
-The leak check runs there too: `bun nv valgrind` runs every `examples/` program under valgrind's
-memcheck over the debug build, and a definite leak or an invalid access fails the job. It is the one
-run that looks for leaks from end to end, since the `asan` job runs with leak detection off. A leak a
-change brings in is found the next night.
-
-The comparison's `flood` row runs there too, in its smoke form, because it builds every peer's image
-and Novis's in release, which no push can afford. It fails when a stack cannot serve the row, and the
-results it prints gate nothing.
-
-The unsafe audit's counts gate nothing, so a tool install on every push bought a number no push was
-blocked by. It returns to the push lane when it becomes a hard gate.
-
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/probes-on-is-a-tested-configuration`](testing.md#testing-probes-on-is-a-tested-configuration), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl).</sub>
-
-<a id="testing-a-deferred-job-is-skipped-never-absent"></a>
-
-## A job a lane defers is skipped by its own `if:`, never filtered out of the workflow
-
-`rule:testing/a-deferred-job-is-skipped-never-absent`
-
-Every lane gate is a job-level `if:`, never a workflow-level path filter.
-
-The difference matters exactly once and then permanently. A job skipped by `if:` reports success to
-a required status check; a workflow filtered out by a path rule never reports at all, and a required
-check on it waits forever. The second is a branch that cannot be merged, discovered by whoever turns
-branch protection on months from now.
-
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table).</sub>
+<sub>See also [`testing/one-run-on-main`](testing.md#testing-one-run-on-main), [`testing/probes-on-is-a-tested-configuration`](testing.md#testing-probes-on-is-a-tested-configuration), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl).</sub>
 
 <a id="testing-one-run-on-main"></a>
 
@@ -3793,24 +3661,23 @@ A run on `main` that a newer run of the same workflow replaces is cancelled, so 
 each have one run going on `main` at a time. `ci.yml`'s concurrency group cancels an older push's run
 when a newer push arrives, as it does for a pull request's. `bun nv ci --push` cancels every run still
 going on an older commit once its push is through, and `bun nv ci --watch` cancels, on each poll, every
-run going beside a newer one of its workflow, such as a push run the nightly deep lane started after.
-`bun nv ci --dispatch dry-run` and `--dispatch release` cancel the push runs of `ci.yml` and
-`dev-build.yml` still going on the commit their release run tests, since that run's full suite and
-release build cover both, and never a run on another commit, a scheduled or dispatched run, or a
-release run.
+run going beside a newer one of its workflow, such as a push run the nightly started after.
+`bun nv ci --dispatch dry-run` and `--dispatch release` cancel the push runs of `ci.yml` still going on
+the commit their release run tests, since that run's full suite and release build cover them, and never
+a run on another commit, a scheduled or dispatched run, or a release run.
 
-The newest run tests every commit the cancelled one did, because a push run diffs against the newest
-commit whose `CI` run went green, not against the push's `before` ([`testing/ci-lanes`](testing.md#testing-ci-lanes)). What a
-cancel spends: the cancelled commit has no verdict of its own, so a bisect between two green runs is
-local, and a cancelled job saves no cache, so the next run of that job starts from the cache before it.
-A nightly deep run that a push cuts short leaves that night without Miri and the fuzzers. A commit
-whose push runs a release run replaced gets no `dev` image.
+The newest run tests every commit the cancelled one did, because every run runs every job
+([`testing/every-run-runs-every-job`](testing.md#testing-every-run-runs-every-job)). What a cancel spends: the cancelled commit has no verdict of
+its own, so a bisect between two green runs is local, and a cancelled job saves no cache, so the next
+run of that job starts from the cache before it. A nightly run that a push cuts short leaves that night
+without its run on an unchanged tree. A commit whose push run was cancelled gets no `dev` image: the
+next green push run publishes it.
 
 The concurrency group is keyed by event as well, so a push run never waits behind a nightly, and the
 group never cancels a scheduled or dispatched run: `--push` and `--watch` cancel the older of a push
 and a nightly instead.
 
 **Declined:** one concurrency group for every event of `ci.yml`. A push would queue behind a nightly's
-two hours, or cancel the nightly's Miri and fuzzers.
+two hours, or a nightly would be cancelled by every push.
 
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table).</sub>
+<sub>See also [`testing/every-run-runs-every-job`](testing.md#testing-every-run-runs-every-job).</sub>

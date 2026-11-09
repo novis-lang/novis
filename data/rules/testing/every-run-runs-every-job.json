@@ -1,0 +1,16 @@
+{
+  "title": "Every run of CI runs every job, and a green run on `main` is the release's proof",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/one-run-on-main",
+    "testing/probes-on-is-a-tested-configuration",
+    "testing/valgrind-on-wsl"
+  ],
+  "guardedBy": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/release.yml",
+    ".github/workflows/build.yml",
+    ".github/workflows/image.yml",
+    "tools/nv/test/ci-push-builds.test.ts"
+  ]
+}

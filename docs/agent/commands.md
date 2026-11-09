@@ -298,7 +298,7 @@ what the selection store says differs from the tree it last recorded, which is w
 test binary and case whose footprint holds a key the change moved, or that is new, red or owed, with
 the path each came from. Its acceptance half is each plan check one of whose atoms is selected. A heavy
 check — the release profile, fuzz, TSan, the database matrix — is named and left to looper's sweep when
-the live goal names it, and to CI's nightly deep lane whatever changed. A check reached only because its atoms were owed or red before the change is left out, since
+the live goal names it, and to CI, whose every run runs it whatever changed. A check reached only because its atoms were owed or red before the change is left out, since
 it stays red until the goal is reached. `--run` runs the rest: `nv verify` first,
 then the sweep over exactly the checks it named, and a binary or case verify ran green is not started
 twice.
@@ -412,7 +412,7 @@ bun nv select --mutate FILE --batch N --jobs 16   # one batch only, 16 runs at o
 changed (`rule:tooling/a-check-runs-only-when-the-change-reaches-its-footprint`): an atom
 red in it whose last verdict was green and which the selection did not pick is a selection miss. It is
 kept in the store under `select-miss:<platform>:<atom>` until a full run finds the atom green, and the
-command exits 1 while there is one. A person runs it; the loop never does, and CI's nightly deep lane is
+command exits 1 while there is one. A person runs it; the loop never does, and CI, whose every run runs every job, is
 what catches a miss there. `--mutate
 tools/data/select-mutations.json` is the proof the keys lose no coverage: each batch is a few edits that
 each break something, applied together, and every atom that goes red must be one the selection picked.
@@ -772,9 +772,9 @@ A target whose inputs need bytes the LF checkout would rewrite takes a dictionar
 `request_head` needs CRLF, so it runs with `-dict=fuzz/dicts/request_head.dict` after the `--`, and
 CI passes `fuzz/dicts/<target>.dict` to every target that has one.
 
-CI's `fuzz-smoke` job runs every target for 300s nightly and at release, carrying the corpus between runs
--- not per push, because 60s against a corpus that starts empty every time is the same 60s repeated
-(`rule:testing/the-deep-lane`).
+CI's `fuzz-smoke` job runs every target for 300s in every run, carrying the corpus between runs,
+because 300s against a corpus that starts empty every time is the same 300s repeated
+(`rule:testing/every-run-runs-every-job`).
 
 For the instruction-count leg: `cargo build --release -p nvs-abi-probe --example callgrind_spike`, then
 `valgrind --tool=callgrind --callgrind-out-file=/tmp/cg.out ./target/release/examples/callgrind_spike`.

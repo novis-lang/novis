@@ -3,8 +3,8 @@
 //
 //     bun nv valgrind --nvs <binary> [<file>...]
 //
-// It runs on Linux, where valgrind is. CI's nightly deep lane runs it in the job `valgrind`
-// (`rule:testing/the-deep-lane`), and it is the one run that looks for leaks from end to end: CI's `asan`
+// It runs on Linux, where valgrind is. Every CI run runs it in the job `valgrind`
+// (`rule:testing/every-run-runs-every-job`), and it is the one run that looks for leaks from end to end: CI's `asan`
 // job runs with leak detection off, and `tools/leak-check.sh` runs only the files a person names. It
 // builds nothing and has no default binary, so it never runs a stale build it happened to find: `--nvs`
 // names the build, and a missing one is a usage error.
