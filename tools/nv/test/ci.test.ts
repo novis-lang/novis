@@ -2,7 +2,7 @@
 // GitHub: when `--watch` exits and with which code, what it prints of a failed job, that `--push`
 // runs its pre-push checks, pushes only when they are green and starts no run, and that both cancel a
 // run a newer one replaces. The release half: `--dispatch` starts a full `ci.yml` run, a dry-run Release,
-// or a real one only after a green dry run of `main`'s tip, and a Release run cancels the push runs of
+// or a real one only after a green full CI run of `main`'s tip, and a Release run cancels the push runs of
 // its own commit and no other run; `--watch --release` cancels no run;
 // `--release-status` judges a dry or a real run as `release.yml` does; `--approve-release` approves only
 // green builds; `--publish-release` publishes only a whole draft; and `--release-published` reads the
@@ -135,19 +135,19 @@ describe("bun nv ci --watch", () => {
   });
 
   test("`--next` judges a run that ended red between two watches, and a watch records what it reported", async () => {
-    // The first watch reports the red CI run. The Dev build run CI's end starts then ends red unseen.
+    // The first watch reports the red push run. The nightly run then ends red unseen.
     const first = seams("seen", () => ({ runs: [runOf(40, "CI", "completed", "failure", "push")], jobs: { 40: [jobOf(1, "lint", "completed", "failure", "clippy")] } }));
     expect(await ci(["--watch"], first.s)).toBe(1);
     expect(readFileSync(join(first.s.root, SEEN), "utf8")).toBe("40\n");
     const root = first.s.root;
     const later = seams("seen", () => ({
-      runs: [runOf(41, "Dev build", "completed", "failure", "workflow_run"), runOf(40, "CI", "completed", "failure", "push")],
-      jobs: { 40: [jobOf(1, "lint", "completed", "failure", "clippy")], 41: [jobOf(2, "image / push", "completed", "failure", "push")] },
+      runs: [runOf(41, "CI", "completed", "failure", "schedule"), runOf(40, "CI", "completed", "failure", "push")],
+      jobs: { 40: [jobOf(1, "lint", "completed", "failure", "clippy")], 41: [jobOf(2, "dev image / push", "completed", "failure", "push")] },
     }));
     expect(later.s.root).toBe(root);
     expect(await ci(["--watch", "--next"], later.s)).toBe(1);
     expect(later.said.some((l) => l.startsWith("passing over CI (push)"))).toBe(true);
-    expect(later.said.some((l) => l.startsWith('FAILED Dev build / image / push / step "push"'))).toBe(true);
+    expect(later.said.some((l) => l.startsWith('FAILED CI / dev image / push / step "push"'))).toBe(true);
     expect(readFileSync(join(root, SEEN), "utf8")).toBe("40\n41\n");
   });
 
@@ -163,8 +163,8 @@ describe("bun nv ci --watch", () => {
     }));
     expect(await ci(["--watch"], w.s)).toBe(1);
     expect(w.said.some((l) => l.startsWith('FAILED CI / miri units (nvs-stdlib 3/12)'))).toBe(true);
-    // A red Release dry run, a red Dev build run and a red promote run each end the watch.
-    for (const [name, event, title] of [["Release", "workflow_dispatch", DRY_RUN_TITLE], ["Dev build", "push", "Dev build"], ["Promote release images", "release", "v0.0.2"]] as const) {
+    // A red Release dry run, a red Website run and a red promote run each end the watch.
+    for (const [name, event, title] of [["Release", "workflow_dispatch", DRY_RUN_TITLE], ["Website", "push", "Website"], ["Promote release images", "release", "v0.0.2"]] as const) {
       const r = seams(`lanes-${name}`, () => ({
         runs: [runOf(61, name, "completed", "failure", event, "abc", title), runOf(60, "CI", "completed", "success", "push")],
         jobs: { 61: [jobOf(3, "verify / fuzz smoke", "completed", "failure", "fuzz")] },
@@ -174,15 +174,15 @@ describe("bun nv ci --watch", () => {
     }
   });
 
-  test("a failed optional build leg is passed over in a Dev build run as in a Release run", async () => {
+  test("a failed optional build leg is passed over in a CI run as in a Release run", async () => {
     const leg = optionalLegs(ROOT)[0];
     if (leg === undefined) return;
-    const w = seams("optional-dev", (p) => ({
-      runs: [runOf(70, "Dev build", p < 1 ? "in_progress" : "completed", p < 1 ? null : "failure", "push")],
-      jobs: { 70: [jobOf(1, `release binaries / ${leg.slice("build / ".length)}`, "completed", "failure", "build")] },
+    const w = seams("optional-ci", (p) => ({
+      runs: [runOf(70, "CI", p < 1 ? "in_progress" : "completed", p < 1 ? null : "failure", "push")],
+      jobs: { 70: [jobOf(1, leg, "completed", "failure", "build")] },
     }));
     expect(await ci(["--watch"], w.s)).toBe(4);
-    expect(w.said.some((l) => l.startsWith("  passing over FAILED Dev build / release binaries / build "))).toBe(true);
+    expect(w.said.some((l) => l.startsWith("  passing over FAILED CI / build / build "))).toBe(true);
   });
 
   test("a run waiting on an approval is printed once and polled as idle, and only `--release` waits for it", async () => {
@@ -524,14 +524,13 @@ describe("bun nv ci: the log and the arguments", () => {
 });
 
 /**
- * What GitHub lists at one poll: each workflow file's runs (`dev` is `dev-build.yml`'s), the 40 newest of all, each run's jobs, the
+ * What GitHub lists at one poll: each workflow file's runs, the 40 newest of all, each run's jobs, the
  * releases, the commit each tag names, where a commit stands against `main`, the promote runs, the
  * environments a run waits on, the notes artifact, and the registry's answers.
  */
 interface ReleaseWorld {
   release?: Run[];
   ci?: Run[];
-  dev?: Run[];
   all?: Run[];
   jobs?: Record<number, Job[]>;
   releases?: GhRelease[];
@@ -576,7 +575,6 @@ function releaseSeams(name: string, world: (poll: number) => ReleaseWorld, git: 
     const path = args[1] ?? "";
     if (path.includes("actions/workflows/release.yml/runs")) return ok((now.release ?? []).map(onMain));
     if (path.includes("actions/workflows/ci.yml/runs")) return ok((now.ci ?? []).map(onMain));
-    if (path.includes("actions/workflows/dev-build.yml/runs")) return ok((now.dev ?? []).map(onMain));
     if (args[0] === "api" && path.includes("/actions/runs?")) return ok(now.all ?? []);
     const jobsOf = path.match(/actions\/runs\/(\d+)\/jobs/);
     if (jobsOf) return ok(now.jobs?.[Number(jobsOf[1])] ?? []);
@@ -682,7 +680,7 @@ describe("bun nv ci: the release", () => {
     expect(never.slept.length).toBe(20);
   });
 
-  /** Every kind of `ci.yml` and `dev-build.yml` run beside a dry run on `tip`: only 21, 22 and 31 are push runs on `tip` still going. */
+  /** Every kind of `ci.yml` run beside a dry run on `tip`: only 21 and 22 are push runs on `tip` still going. */
   const beside = (): ReleaseWorld => ({
     ci: [
       runOf(19, "CI", "completed", "success", "push", "tip"),
@@ -693,29 +691,23 @@ describe("bun nv ci: the release", () => {
       runOf(24, "CI", "in_progress", null, "workflow_dispatch", "tip"),
       runOf(25, "CI", "in_progress", null, "pull_request", "tip"),
     ],
-    dev: [
-      runOf(30, "Dev build", "in_progress", null, "push", "old"),
-      runOf(31, "Dev build", "in_progress", null, "push", "tip"),
-      runOf(32, "Dev build", "in_progress", null, "workflow_run", "tip"),
-    ],
   });
 
-  test("dispatch dry-run cancels the push runs of ci.yml and dev-build.yml on its commit, and no other run", async () => {
+  test("dispatch dry-run cancels the push runs of ci.yml on its commit, and no other run", async () => {
     const w = releaseSeams("replaced", (p) => ({ ...beside(), release: p === 0 ? [] : [dryRun(9, "queued", null)] }));
     expect(await ci(["--dispatch", "dry-run"], w.s)).toBe(0);
-    expect(w.cancels()).toEqual([["run", "cancel", "21"], ["run", "cancel", "22"], ["run", "cancel", "31"]]);
+    expect(w.cancels()).toEqual([["run", "cancel", "21"], ["run", "cancel", "22"]]);
     expect(w.said).toContain("cancelled CI (push) on tip: in_progress  https://example.com/runs/21: the Release run on tip runs every job it would");
-    expect(w.said).toContain("cancelled Dev build (push) on tip: in_progress  https://example.com/runs/31: the Release run on tip runs every job it would");
-    // A full ci.yml run replaces neither: it builds no binaries.
+    // A full ci.yml run replaces none: it is another CI run.
     const full = releaseSeams("replaced-full", (p) => ({ ...beside(), ci: [...beside().ci!, ...(p === 0 ? [] : [runOf(40, "CI", "queued", null)])] }));
     expect(await ci(["--dispatch", "full"], full.s)).toBe(0);
     expect(full.cancels()).toEqual([]);
   });
 
   test("a Release run replaces only push runs still going on its own commit", () => {
-    const all = [...beside().ci!, ...beside().dev!, dryRun(41, "queued", null)];
-    expect(replacedByRelease(all, "tip").map((r) => r.id)).toEqual([21, 22, 31]);
-    expect(replacedByRelease(all, "old").map((r) => r.id)).toEqual([20, 30]);
+    const all = [...beside().ci!, dryRun(41, "queued", null)];
+    expect(replacedByRelease(all, "tip").map((r) => r.id)).toEqual([21, 22]);
+    expect(replacedByRelease(all, "old").map((r) => r.id)).toEqual([20]);
     expect(replacedByRelease(all, "other")).toEqual([]);
     // A push run on another branch is not main's.
     expect(replacedByRelease([{ ...runOf(50, "CI", "in_progress", null, "push", "tip"), head_branch: "next" }], "tip")).toEqual([]);
@@ -768,14 +760,16 @@ describe("bun nv ci: the release", () => {
     expect(await ci(["--release-status"], ran.s)).toBe(1);
   });
 
-  test("release-status counts a skipped verify job only beside a green full ci.yml run of that commit", async () => {
+  test("release-status counts a skipped verify job beside a green ci.yml run of that commit, and never beside a pull request's", async () => {
     const jobs = { 28: dryJobs({ "verify / lint": jobOf(1, "verify", "completed", "skipped") }) };
-    const pushOnly = releaseSeams("push-only", () => ({ release: [dryRun(28, "completed", "success")], jobs, ci: [runOf(3, "CI", "completed", "success", "push", "tip")] }));
-    expect(await ci(["--release-status"], pushOnly.s)).toBe(1);
-    expect(pushOnly.said.some((l) => l.startsWith("RED verify was skipped"))).toBe(true);
-    const full = releaseSeams("full-green", () => ({ release: [dryRun(28, "completed", "success")], jobs, ci: [runOf(4, "CI", "completed", "success", "schedule", "tip")] }));
-    expect(await ci(["--release-status"], full.s)).toBe(0);
-    expect(full.said).toContain("  ok verify: skipped beside the green full run https://example.com/runs/4");
+    const pr = releaseSeams("pr-only", () => ({ release: [dryRun(28, "completed", "success")], jobs, ci: [runOf(3, "CI", "completed", "success", "pull_request", "tip")] }));
+    expect(await ci(["--release-status"], pr.s)).toBe(1);
+    expect(pr.said.some((l) => l.startsWith("RED verify was skipped"))).toBe(true);
+    for (const event of ["push", "schedule", "workflow_dispatch"]) {
+      const full = releaseSeams(`full-green-${event}`, () => ({ release: [dryRun(28, "completed", "success")], jobs, ci: [runOf(4, "CI", "completed", "success", event, "tip")] }));
+      expect(await ci(["--release-status"], full.s)).toBe(0);
+      expect(full.said).toContain("  ok verify: skipped beside the green full run https://example.com/runs/4");
+    }
   });
 
   test("release-status counts a skipped verify job beside an earlier green release run of that commit, never beside itself", async () => {
@@ -862,8 +856,8 @@ describe("bun nv ci: the release", () => {
     }));
     expect(await ci(["--watch", "--release"], w.s)).toBe(0);
     expect(w.said).toContain(`  passing over FAILED Release / ${leg}  https://example.com/jobs/2`);
-    // Without `--release`, the same leg in a CI run ends the watch.
-    const ci1 = seams("watch-optional-ci", () => ({ runs: [runOf(21, "CI", "in_progress", null)], jobs: { 21: [jobOf(2, leg, "completed", "failure", "cargo build")] } }));
+    // A run of a workflow that calls no build.yml ends the watch on a job of the same name.
+    const ci1 = seams("watch-optional-site", () => ({ runs: [runOf(21, "Website", "in_progress", null)], jobs: { 21: [jobOf(2, leg, "completed", "failure", "cargo build")] } }));
     expect(await ci(["--watch"], ci1.s)).toBe(1);
   });
 
@@ -878,29 +872,33 @@ describe("bun nv ci: the release", () => {
     }));
     expect(await ci(["--dispatch", "release"], w.s)).toBe(0);
     expect(w.started()).toEqual([[...DISPATCH.release.argv]]);
-    expect(w.cancels()).toEqual([["run", "cancel", "21"], ["run", "cancel", "22"], ["run", "cancel", "31"]]);
+    expect(w.cancels()).toEqual([["run", "cancel", "21"], ["run", "cancel", "22"]]);
+    expect(w.said).toContain("origin/main's tip tip has the green full run https://example.com/runs/19");
     expect(w.said).toContain("started Release (workflow_dispatch) on tip: queued  https://example.com/runs/29");
     expect(w.said).toContain("watch it with `bun nv ci --watch --release`");
   });
 
-  test("dispatch release refuses unless release-status is green for main's tip, and while a Release run is going", async () => {
-    const refused = async (name: string, world: () => ReleaseWorld, git?: (args: string[]) => Ran | undefined) => {
-      const w = releaseSeams(name, world, git);
+  test("dispatch release refuses unless main's tip has a green full run, and while a Release run is going", async () => {
+    const refused = async (name: string, world: () => ReleaseWorld) => {
+      const w = releaseSeams(name, world);
       expect(await ci(["--dispatch", "release"], w.s)).toBe(1);
       expect(w.started()).toEqual([]);
       return w.said;
     };
-    // A red dry run.
-    await refused("red-dry", () => ({ release: [dryRun(28, "completed", "failure")], jobs: { 28: dryJobs({ plan: jobOf(1, "plan", "completed", "failure", "plan") }) } }));
-    // A green dry run of a commit that code changed since.
-    const since = (args: string[]) => (args[0] === "diff" ? ok("tools/nv/cmd/ci.ts\n") : undefined);
-    const old = await refused("old-dry", () => ({ release: [dryRun(28, "completed", "success", "old")], jobs: { 28: dryJobs() } }), since);
-    expect(old.some((l) => l.startsWith("RED 1 file(s)"))).toBe(true);
-    // A green real run is the newest completed one: a new release needs its own dry run first.
-    await refused("after-real", () => ({ release: [realRun(30, "completed", "success", "tip"), dryRun(28, "completed", "success")], jobs: { 28: dryJobs(), 30: realJobs() } }));
-    // A run still going, even a dry run.
-    const going = await refused("going", () => ({ release: [dryRun(31, "in_progress", null), dryRun(28, "completed", "success")], jobs: { 28: dryJobs() } }));
+    const why = "REFUSED a real release needs a green ci.yml run of origin/main's tip tip from a push, the nightly or a dispatch: wait for its push run, or `bun nv ci --dispatch full`";
+    // No run of the tip at all.
+    expect(await refused("none", () => ({}))).toContain(why);
+    // A red push run, a green run of another commit, and a green pull request run: none proves the tip.
+    expect(await refused("red-push", () => ({ ci: [runOf(3, "CI", "completed", "failure", "push", "tip")] }))).toContain(why);
+    expect(await refused("old-push", () => ({ ci: [runOf(3, "CI", "completed", "success", "push", "old")] }))).toContain(why);
+    expect(await refused("pr", () => ({ ci: [runOf(3, "CI", "completed", "success", "pull_request", "tip")] }))).toContain(why);
+    // A run still going, even a dry run, beside a green push run.
+    const going = await refused("going", () => ({ ci: [runOf(3, "CI", "completed", "success", "push", "tip")], release: [dryRun(31, "in_progress", null)] }));
     expect(going).toContain("REFUSED a Release run is going: dispatch the real release once it ends");
+    // A green nightly run of the tip is enough, with no dry run.
+    const nightly = releaseSeams("nightly", (p) => ({ ci: [runOf(4, "CI", "completed", "success", "schedule", "tip")], release: p === 0 ? [] : [realRun(29, "queued", null, "tip")] }));
+    expect(await ci(["--dispatch", "release"], nightly.s)).toBe(0);
+    expect(nightly.started()).toEqual([[...DISPATCH.release.argv]]);
   });
 
   test("approve-release approves the release environment of the newest real run only when every job before publish passed", async () => {

@@ -1,8 +1,8 @@
 // `bun nv ci`: pushes `main` and watches GitHub's CI on it, for the session that drives CI and
 // looper's `after_retire` hook.
 //
-//     bun nv ci --push                  # run the pre-push checks, then push main, which starts its CI,
-//                                       # Website and Dev build runs
+//     bun nv ci --push                  # run the pre-push checks, then push main, which starts its CI
+//                                       # and Website runs
 //     bun nv ci --check                 # run the pre-push checks alone, and push nothing
 //     bun nv ci --watch [--max-min <n>] [--past <job>]... [--next]
 //                                       # wait for the first failed job of any workflow, or the next
@@ -10,7 +10,7 @@
 //     bun nv ci --status                # the newest run of each workflow and trigger, and each failed job
 //     bun nv ci --rerun                 # run the failed jobs of each red newest run again
 //     bun nv ci --dispatch full|dry-run # start a full ci.yml run, or a dry-run Release, on main
-//     bun nv ci --dispatch release      # start the real Release, after a green dry run of main's tip
+//     bun nv ci --dispatch release      # start the real Release, after a green full CI run of main's tip
 //     bun nv ci --watch --release       # watch the newest Release run, and cancel no run
 //     bun nv ci --release-status        # the verdict of the newest completed Release, dry or real
 //     bun nv ci --approve-release       # approve the waiting real run's `release` environment
@@ -24,21 +24,19 @@
 // check refuses the push: the command exits 1, prints each red check and its command, and writes them to
 // `REFUSED`, which `--watch` and `--status` report as red until a push goes out. **`--check`** runs
 // the same checks and pushes nothing, for a session before it claims a goal done. The push itself starts
-// `ci.yml`'s push lane, the `Website` run and the `Dev build` run, so the command starts no run. It then
+// the push's `CI` and `Website` runs, so the command starts no run. It then
 // cancels every run of a workflow in `ONE_RUN_ON_MAIN` still going on `main` for an older commit, so each
 // workflow has one run going on `main` at a time (`rule:testing/one-run-on-main`); `ci.yml`'s own
-// concurrency group cancels an older push's `CI` run too. The push lane runs every job the diff since
-// the newest commit whose `CI` run went green reaches, and the nightly deep lane runs the rest
-// (`rule:testing/ci-lanes`).
+// concurrency group cancels an older push's `CI` run too. Every `CI` run runs every job, the build legs
+// and the `dev` image included (`rule:testing/every-run-runs-every-job`).
 //
 // **Every workflow that starts runs of its own is watched**, so no red run goes unseen: `CI`, `Website`,
-// `Dev build`, `Release` and `Promote release images`. `build.yml` and `image.yml` start no run, and
+// `Release` and `Promote release images`. `build.yml` and `image.yml` start no run, and
 // their jobs are judged inside the run that calls them. `listRuns` reads the newest runs on `main`,
 // and lists the two workflows with no push trigger apart (`LISTED_APART`), with the runs a published
 // release started on its tag. A workflow's runs are judged per trigger
-// (`lane`): the nightly `CI` run is not judged by the push run after it, which runs fewer jobs, and the
-// `Dev build` run CI's end starts is not judged by the push's own `Dev build` run. A newer green
-// dispatched run of a workflow answers each of its lanes, since it runs every job.
+// (`lane`): the nightly `CI` run is not judged by the push run after it, since the nightly also meets
+// what changed outside the tree. A newer green dispatched run of a workflow answers each of its lanes.
 //
 // **`--watch`** reads the newest run of each lane, passing over a cancelled
 // one on an older commit than `origin/main`, which a newer push replaced. A cancelled run or job on
@@ -46,7 +44,7 @@
 // of it, so the job's annotations are printed instead. It polls the jobs of each run in progress every
 // `POLL_BUSY_MS`. A run waiting on an environment's approval is printed once and polled every
 // `POLL_IDLE_MS`, and its verdict comes once it goes on. Each poll cancels every run of
-// a workflow in `ONE_RUN_ON_MAIN` still going beside a newer one, such as a push run the nightly deep lane started after. It exits 1 the moment a job
+// a workflow in `ONE_RUN_ON_MAIN` still going beside a newer one, such as a push run the nightly run started after. It exits 1 the moment a job
 // fails, or at once when a newest run already ended red, and prints each failed job, its failed step,
 // its URL and the end of its log. The whole log is kept under `.agent-tmp/ci/`. It exits 0 when every
 // run it watched in progress ended green. With nothing in progress and nothing red it waits, polling
@@ -74,8 +72,7 @@
 // watch or `--status` printed before, so the watch waits for the next push's runs. A session that has
 // just pushed its fixes for a red run watches this way, since that red run would otherwise end the
 // watch before the push's own runs are listed. `SEEN` lists the runs whose verdict was printed. A run
-// that ended between two watches, such as the `Dev build` run CI's end starts, is not in it, so `--next`
-// judges it.
+// that ended between two watches, such as the nightly run, is not in it, so `--next` judges it.
 //
 // **`--status`** prints what `--watch` would read, once, and exits 1 when a newest run is red.
 // **`--rerun`** reruns the failed jobs of each red newest run, for a failure that a fix cannot reach,
@@ -92,14 +89,12 @@
 // dry run dispatched beside a handoff commit still lands on the commit a full run proved, and skips
 // its `verify` job. Both then wait until GitHub lists a run newer than every one before
 // the dispatch, and print its address, so a `--watch` started after reads the new run. Five minutes
-// with no new run exits 2. A dry run and a real release then cancel each push run of `ci.yml` and
-// `dev-build.yml` still queued or going on the commit the `Release` run tests (`REPLACED_BY_RELEASE`),
-// and print each: its `verify` job runs every `ci.yml` job and its `build` job runs `build.yml`, so
-// the two runs would only compete with it for the account's 5 macOS runners. They never cancel a run on
-// another commit, a scheduled, dispatched or pull request run, or a `Release` run. The cancelled commit
-// gets no `dev` image, and the next push's CI run still covers it: it diffs against the newest commit
-// whose `ci.yml` run went green (`bun nv ci-changes`), and a `Release` run is not one. `--watch` and `--status` pass over the cancelled `CI`
-// run.
+// with no new run exits 2. A dry run and a real release then cancel each push run of `ci.yml` still
+// queued or going on the commit the `Release` run tests (`REPLACED_BY_RELEASE`), and print each: its
+// `verify` job runs every `ci.yml` job and its `build` job runs `build.yml`, so the push run would only
+// compete with it for the account's 5 macOS runners. They never cancel a run on another commit, a
+// scheduled, dispatched or pull request run, or a `Release` run. The cancelled commit gets no `dev`
+// image. `--watch` and `--status` pass over the cancelled `CI` run.
 //
 // **`--watch --release`** watches the newest `Release` run on `main` alone,
 // with the same polling, report and exit codes. A run waiting on the `release` environment keeps it
@@ -117,9 +112,11 @@
 // dispatches or cancels. `--watch --release` passes over a failed optional leg in the same way.
 //
 // **`--dispatch release`** starts the real release: the one argv with `dry_run=false`. Only a live goal
-// that says so runs it (`docs/release.md`). It refuses as the other two do, and also unless the newest
-// completed `release.yml` run is a dry run `--release-status` calls green, and while any `release.yml`
-// run is going. **`--approve-release`** approves the `release` environment `publish` waits on, in the
+// that says so runs it (`docs/release.md`). It refuses as the other two do, and also while any
+// `release.yml` run is going, and unless `origin/main`'s tip has a green `ci.yml` run from a push, the
+// nightly or a dispatch, or a green `release.yml` run (`greenFullRun`, the proof `bun nv release
+// --tested` reads). A green push run is the release's proof, so a release needs no dry run first: the
+// dry run is a person's tool for a change to the release workflows. **`--approve-release`** approves the `release` environment `publish` waits on, in the
 // newest real run. It refuses a dry run, a run not waiting, and a run where a job before `publish` did
 // not pass, and prints the notes `plan` rendered before it approves. **`--publish-release`** publishes
 // that run's draft once every job passed, `docker` included, and the draft carries each asset
@@ -153,7 +150,7 @@ export const ONE_RUN_ON_MAIN = ["CI", "Website"];
 /** `release.yml`'s `name:`, the one workflow `--watch --release` watches. No command cancels its runs. */
 export const RELEASE = "Release";
 /** The workflows, by their `name:`, whose runs call `build.yml`, where a failed optional leg is passed over. */
-const CALLS_BUILD = ["Release", "Dev build"];
+const CALLS_BUILD = ["Release", "CI"];
 /** `release-promote.yml`'s `name:`. A published release starts it on the release's tag. */
 export const PROMOTE = "Promote release images";
 /** The title `release.yml`'s `run-name` gives a dry run. */
@@ -167,22 +164,26 @@ export const DRY_RUN_TITLE = "Release (dry run)";
 export const WORKFLOW_FILES: Record<string, string> = {
   "ci.yml": "CI",
   "pages.yml": "Website",
-  "dev-build.yml": "Dev build",
   "release.yml": RELEASE,
   "release-promote.yml": PROMOTE,
 };
 /**
  * The workflow files, with their `name:`, whose push run on a commit a `Release` run on the same commit
- * replaces: its `verify` job is `ci.yml` with every job on, and its `build` job is `build.yml`, which
- * the push's `dev-build.yml` run calls. `--dispatch dry-run` and `--dispatch release` cancel them.
+ * replaces: its `verify` job is `ci.yml`, and its `build` job is `build.yml`, which `ci.yml` calls too.
+ * `--dispatch dry-run` and `--dispatch release` cancel them.
  */
-export const REPLACED_BY_RELEASE: Record<string, string> = { "ci.yml": "CI", "dev-build.yml": "Dev build" };
+export const REPLACED_BY_RELEASE: Record<string, string> = { "ci.yml": "CI" };
+/**
+ * The workflow files whose green run of a commit proves it for a release, as `bun nv release --tested`
+ * reads them (`greenFullRun`). `--dispatch release` needs one for `origin/main`'s tip.
+ */
+const PROVES_RELEASE = ["ci.yml", "release.yml"];
 const BRANCH = "main";
 
 /**
  * What `--dispatch` starts: each argv is a constant, so no argument can change it. A `workflow_dispatch`
  * of `ci.yml` runs every job. `dry-run`'s argv always carries `dry_run=true`, and `release`'s is the one
- * argv with `dry_run=false`, which `dispatch` starts only beside a green dry run of `main`'s tip.
+ * argv with `dry_run=false`, which `dispatch` starts only beside a green full run of `main`'s tip.
  */
 export const DISPATCH = {
   full: { workflow: "CI", file: "ci.yml", argv: ["workflow", "run", "ci.yml", "--ref", BRANCH] },
@@ -638,7 +639,7 @@ export async function watch(s: CiSeams, maxMin: number, past: string[] = [], nex
   const passedOver = new Set<number>();
   const waitedOn = new Set<number>();
   const seenBefore = readSeen(s.root);
-  // `release.yml`'s job `build` and `dev-build.yml`'s job `release binaries` both call `build.yml`.
+  // `release.yml`'s job `build` and `ci.yml`'s job `build` both call `build.yml`.
   const optional = optionalLegs(ROOT).map((n) => ` / ${n.slice("build / ".length)}`);
   const passed = (r: Run, j: Job) =>
     past.some((p) => under(j.name, p)) || (CALLS_BUILD.includes(r.name) && optional.some((o) => j.name.endsWith(o)));
@@ -836,7 +837,7 @@ export async function push(s: CiSeams): Promise<number> {
       s.say(`the push failed: ${firstLine(pushed)}`);
       return 1;
     }
-    s.say(`pushed ${BRANCH} at ${short(head)}: the push starts its CI, Website and Dev build runs`);
+    s.say(`pushed ${BRANCH} at ${short(head)}: the push starts its CI and Website runs`);
   }
   rmSync(refused, { force: true });
   // The push succeeded whatever GitHub says next, so a failed listing only warns.
@@ -943,9 +944,9 @@ function dispatched(kind: DispatchKind, r: Run): boolean {
  * Starts the run `DISPATCH[kind]` names on `main`, then waits until GitHub lists a run of it newer than
  * every one before, and prints its address. It refuses while local `main` has commits `origin/main`
  * lacks that change a file outside `NOTES_ONLY`, since the run would test `origin`'s tip and not the
- * tree. A real release also refuses unless the newest completed `release.yml` run is a green dry run
- * that stands for local `main`, and while any `release.yml` run is going. Five minutes with no new run
- * exits 2.
+ * tree. A real release also refuses while any `release.yml` run is going, and unless `origin/main`'s tip
+ * has a green run of a file in `PROVES_RELEASE` that `greenFullRun` accepts, the proof `plan` skips
+ * `test` beside. Five minutes with no new run exits 2.
  */
 export async function dispatch(s: CiSeams, kind: DispatchKind): Promise<number> {
   const d = DISPATCH[kind];
@@ -966,12 +967,15 @@ export async function dispatch(s: CiSeams, kind: DispatchKind): Promise<number> 
       s.say("REFUSED a Release run is going: dispatch the real release once it ends");
       return 1;
     }
-    const v = await releaseVerdict(s);
-    for (const l of v.lines) s.say(l);
-    if (!v.green || v.run === undefined || !isDry(v.run)) {
-      s.say(`REFUSED a real release needs a green dry run of local ${BRANCH}'s tip as the newest completed Release run: \`bun nv ci --dispatch dry-run\``);
+    const tip = await tipOf(s);
+    const runs: WorkflowRun[] = [];
+    for (const file of PROVES_RELEASE) runs.push(...(tip === "" ? [] : await workflowRuns(s, file, `&head_sha=${tip}`)));
+    const proof = tip === "" ? null : greenFullRun(runs, tip);
+    if (proof === null) {
+      s.say(`REFUSED a real release needs a green ci.yml run of origin/${BRANCH}'s tip ${short(tip)} from a push, the nightly or a dispatch: wait for its push run, or \`bun nv ci --dispatch full\``);
       return 1;
     }
+    s.say(`origin/${BRANCH}'s tip ${short(tip)} has the green full run ${proof.html_url}`);
   }
   const before = Math.max(0, ...(await workflowRuns(s, d.file)).map((r) => r.id));
   const started = await s.gh([...d.argv]);

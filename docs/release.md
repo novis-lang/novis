@@ -13,8 +13,10 @@ titles such a run `Release (dry run)` in the Actions list.
 
 A **real run** is a person's decision. A person cuts it from the Actions tab, or an agent cuts it
 through `bun nv ci`, only when the live goal under `docs/goals/` says to cut a release, and only with
-the commands § *Cutting a release* names. Those commands refuse a real run without a green dry run of
-`main`'s tip, approve only a run whose every build passed, and publish only a whole draft. No
+the commands § *Cutting a release* names. Those commands refuse a real run without a green full CI
+run of `main`'s tip, approve only a run whose every build passed, and publish only a whole draft. Every
+CI run runs every job and builds every binary, so a green push run is the release's proof, and a real
+run needs no dry run before it. A dry run is for a change to the release workflows themselves. No
 command cancels a `Release` run.
 
 ## What happens, in order
@@ -198,8 +200,9 @@ person's click either way.
    fails after the builds. Nothing is corrupted — but the whole matrix has to run again.
 
 4. **Start the run.** An agent runs `bun nv ci --dispatch release`, then `bun nv ci --watch
-   --release`. The command refuses unless the newest completed `Release` run is a green dry run of
-   `main`'s tip, and while any `Release` run is going. A person uses **Actions → Release → Run
+   --release`. The command refuses unless `main`'s tip has a green `CI` run from a push, the nightly
+   or a dispatch, or a green `Release` run, and while any `Release` run is going. A pull request's
+   run does not count: it tested a merge, not the commit. A person uses **Actions → Release → Run
    workflow**, chooses the branch `main`, and sets:
 
    | Input | |
@@ -207,7 +210,7 @@ person's click either way.
    | `bump` | `patch`, `minor` or `major` — read *The version scheme* below, it is not plain SemVer |
    | `version` | leave empty; an exact version here overrides the arithmetic |
    | `allow_contract` | only when deliberately reaching 0.1.0 |
-   | `dry_run` | **leave it unticked** for a real run. A dry run does everything except the writing; `bun nv ci --dispatch dry-run` starts one, and `bun nv ci --release-status` reads it. A green dry run on `main`'s tip is the rehearsal |
+   | `dry_run` | **leave it unticked** for a real run. A dry run does everything except the writing; `bun nv ci --dispatch dry-run` starts one, and `bun nv ci --release-status` reads it. Start one after a change to the release workflows |
 
 5. **Approve the `release` environment** when the run pauses, after checking the notes in the run
    summary and that every build leg passed. `bun nv ci --approve-release` does both checks, prints
