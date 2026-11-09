@@ -442,8 +442,8 @@ export function steps(root: string = ROOT): Step[] {
         ...conformance(WSL_NVS).map((argv) => ({ wsl: argv.map(q).join(" ") })),
         { wsl: `${WSL_NVS} test tests/conformance/`, env: { NOVIS_CHECK_TYPES: "1" } },
       ],
-      always: [{ wsl: "docker compose -f tests/db/compose.yaml down --volumes" }],
-      note: "the conformance runs use the built binary, not `cargo run -p`",
+      note:
+        "the conformance runs use the built binary, not `cargo run -p`; the services stay up, since WSL and Windows share one Docker daemon and the job's `down --volumes` would stop them under every other session and delete the CA their copies of `tests/db/ca.crt` name",
     },
     { id: "flood", job: "flood", tools: ["docker"], cmds: [{ argv: ["bun", "nv", "bench-compare", "--scenarios", "--smoke", "--row", "flood"] }] },
     {

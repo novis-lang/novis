@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { CARRIED, carryLine, mirrorPath, q, targetLine, wslBuildLine, wslPath } from "../accept/mirror.ts";
+import { CARRIED, carryLine, headLine, headOf, mirrorPath, q, targetLine, wslBuildLine, wslPath } from "../accept/mirror.ts";
 import { ROOT } from "../lib/paths.ts";
 
 describe("the WSL copy's helpers", () => {
@@ -40,6 +40,40 @@ describe("the WSL copy's helpers", () => {
   test("targetLine links the copy's target to the target directory the copy sits beside", () => {
     const mirror = mirrorPath("/var/tmp/nvs-target-wsl", "/mnt/d/mwl");
     expect(targetLine(mirror)).toBe(" && ln -sfn /var/tmp/nvs-target-wsl target");
+  });
+
+  test("headLine gives a repository with no commit the checkout's HEAD, with its id and date", () => {
+    const root = join(ROOT, ".agent-tmp", "mirror-test-head");
+    const git = (cwd: string, ...args: string[]) => {
+      const r = Bun.spawnSync(["git", ...args], { cwd, env: { ...process.env, GIT_AUTHOR_DATE: "2026-09-24T10:00:00Z", GIT_COMMITTER_DATE: "2026-09-24T10:00:00Z" } });
+      expect(r.exitCode).toBe(0);
+      return r.stdout.toString().trim();
+    };
+    try {
+      const from = join(root, "from");
+      const to = join(root, "to");
+      mkdirSync(from, { recursive: true });
+      mkdirSync(to, { recursive: true });
+      git(from, "init", "-q");
+      writeFileSync(join(from, "a.txt"), "a\n");
+      git(from, "add", "a.txt");
+      git(from, "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-q", "-m", "first");
+      git(from, "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-q", "--allow-empty", "-m", "Straße\n\nsecond");
+      git(to, "init", "-q");
+      const head = headOf(from);
+      expect(head).not.toBeNull();
+      expect(head!.sha).toBe(git(from, "rev-parse", "HEAD"));
+      const line = `true${headLine(head!)}`;
+      for (const _ of [1, 2]) {
+        const r = Bun.spawnSync(["bash", "-c", line], { cwd: to });
+        expect(r.stderr.toString()).toBe("");
+        expect(r.exitCode).toBe(0);
+      }
+      expect(git(to, "rev-parse", "HEAD")).toBe(head!.sha);
+      expect(git(to, "log", "-1", "--format=%cs", "HEAD")).toBe("2026-09-24");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   test("q quotes a word only when bash would split or expand it", () => {

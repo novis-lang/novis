@@ -27,6 +27,12 @@
 // each is copied over the mount when the working tree has it, so the copy fails exactly when the checkout
 // would. And `target` is a link to the copy's own target directory, so the grant `nvs.toml` writes under
 // `target` covers the Linux build a fixture finds in `NVS_BIN`.
+//
+// **The copy's `HEAD` is the checkout's `HEAD` commit, as a shallow commit with no history** (`headLine`).
+// `nvs --version` prints the commit and its date from `git`, and a test checks both, so a copy with no
+// commit would fail a test that CI's checkout passes. The commit's own object and its tree go across,
+// so `git status` in the copy says "dirty" exactly when the checkout has changes not committed. It costs
+// one `git cat-file` per sync and, after a commit, the objects of its tree that the copy lacks.
 
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
@@ -95,6 +101,41 @@ export function q(word: string): string {
   return `'${word.replaceAll("'", `'\\''`)}'`;
 }
 
+/** The checkout's `HEAD` commit: its id, its tree and its raw object in base64. */
+export interface Head {
+  sha: string;
+  tree: string;
+  object: string;
+}
+
+/** A commit object larger than this is not carried, so the `bash` line stays far below Windows's
+ * 32K-character command line. The copy then keeps the commit it had. */
+const HEAD_MAX_BASE64 = 16_000;
+
+/** The checkout's `HEAD` commit, or null in a repository with no commit yet or one too large to carry. */
+export function headOf(root: string): Head | null {
+  const sha = Bun.spawnSync(["git", "rev-parse", "-q", "--verify", "HEAD^{commit}"], { cwd: root });
+  if (sha.exitCode !== 0) return null;
+  const raw = Bun.spawnSync(["git", "cat-file", "commit", "HEAD"], { cwd: root });
+  if (raw.exitCode !== 0) return null;
+  const tree = /^tree ([0-9a-f]+)\n/.exec(raw.stdout.toString("latin1"));
+  const object = raw.stdout.toString("base64");
+  if (tree === null || object.length > HEAD_MAX_BASE64) return null;
+  return { sha: sha.stdout.toString().trim(), tree: tree[1]!, object };
+}
+
+/**
+ * The `bash` line that makes `head` the copy's `HEAD`, run in the copy after its tree's objects are
+ * stored. It writes the commit's object exactly as the checkout has it, checks its id, and marks it
+ * shallow so that git never looks for its parents. It writes nothing when `HEAD` is that commit already.
+ */
+export function headLine(head: Head): string {
+  const write =
+    `h=$(printf %s ${head.object} | base64 -d | git hash-object -t commit -w --stdin --literally) && ` +
+    `[ "$h" = ${head.sha} ] && printf '%s\\n' ${head.sha} > .git/shallow && git update-ref HEAD ${head.sha}`;
+  return ` && { [ "$(git rev-parse -q --verify HEAD)" = ${head.sha} ] || { ${write}; }; }`;
+}
+
 function lastLine(text: string): string {
   return text.trim().split("\n").pop() ?? "";
 }
@@ -152,18 +193,24 @@ export async function syncMirror(mirror: string, root: string = ROOT): Promise<s
 async function sync(mirror: string, root: string): Promise<string> {
   const snap = await snapshot(root);
   if ("fail" in snap) return snap.fail;
+  const head = headOf(root);
   const m = q(mirror);
-  const held = await inWsl(`mkdir -p ${m} && cd ${m} && { [ -d .git ] || git init -q; } && { git rev-parse -q --verify ${REF} || true; }`);
+  // `tree=` is the tree the copy holds, or nothing, and `head=yes` says it has `HEAD`'s tree.
+  const hasHead = head === null ? "" : ` && { git cat-file -e ${head.tree} 2>/dev/null && echo head=yes || true; }`;
+  const held = await inWsl(`mkdir -p ${m} && cd ${m} && { [ -d .git ] || git init -q; } && echo "tree=$(git rev-parse -q --verify ${REF})"${hasHead}`);
   if (held.code !== 0) return `the copy at ${mirror}: ${held.err}`;
-  const old = held.out;
-  const tidy = `git read-tree -u --reset ${snap.tree} && git clean -qffdx${carryLine(root)}${targetLine(mirror)}`;
-  if (old === snap.tree) {
+  const said = held.out.split("\n").map((l) => l.trim());
+  const old = said.find((l) => l.startsWith("tree="))?.slice("tree=".length) ?? "";
+  const headTree = said.includes("head=yes") ? "head" : "";
+  const tidy = `git read-tree -u --reset ${snap.tree} && git clean -qffdx${carryLine(root)}${targetLine(mirror)}${head ? headLine(head) : ""}`;
+  if (old === snap.tree && (head === null || headTree === "head")) {
     const r = await inWsl(`cd ${m} && ${tidy}`);
     return r.code === 0 ? "" : `the copy at ${mirror}: ${r.err}`;
   }
   // The old tree is excluded only while this repository still has it; after a prune, the whole tree goes.
   const known = old !== "" && (await git(["cat-file", "-e", old], root)).ok;
-  const revs = known ? `${snap.tree}\n^${old}\n` : `${snap.tree}\n`;
+  const headRev = head !== null && head.tree !== snap.tree ? `${head.tree}\n` : "";
+  const revs = `${snap.tree}\n${headRev}${known ? `^${old}\n` : ""}`;
   const pack = Bun.spawn(["git", "pack-objects", "--stdout", "--revs", "--thin", "-q"], {
     cwd: root,
     stdin: new TextEncoder().encode(revs),
