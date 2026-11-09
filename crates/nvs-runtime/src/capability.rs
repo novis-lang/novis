@@ -2506,6 +2506,13 @@ mod tests {
         nvs_repo::scratch(&format!("capability-{name}"))
     }
 
+    /// `path` with every symlink resolved. The runtime resolves `[io] temp_root` before it creates
+    /// under it, and the scratch directory is under `target/`, which a copy of the tree may link to
+    /// a directory elsewhere, so a case compares two resolved paths.
+    fn resolved(path: &Path) -> std::path::PathBuf {
+        std::fs::canonicalize(path).expect("the path exists")
+    }
+
     /// A context granting every write and naming `root` as the owned root. The grant is written as
     /// an operator would write it, per [`snapshot_of`]; the root goes in as a TOML *literal* string,
     /// because a Windows path in a basic string is a sequence of escapes.
@@ -2529,8 +2536,9 @@ mod tests {
 
         let made = temp_dir(&mut ctx, "Core\\IO::temporaryDir").expect("`write = true` covers it");
 
+        // Both sides resolved, since the runtime resolves the root and `target/` may be a symlink.
         assert!(
-            made.starts_with(&root),
+            resolved(&made).starts_with(resolved(&root)),
             "`rule:core-classes/temporary-dir-sweep` creates under `[io] temp_root`: {} is not under {}",
             made.display(),
             root.display()
@@ -2566,7 +2574,10 @@ mod tests {
         let made = temp_dir(&mut ctx, "Core\\IO::temporaryDir").expect("`write = true` covers it");
 
         assert!(root.is_dir(), "the first use created the root");
-        assert!(made.starts_with(&root), "and put the directory inside it");
+        assert!(
+            resolved(&made).starts_with(resolved(&root)),
+            "and put the directory inside it"
+        );
 
         #[cfg(unix)]
         {
