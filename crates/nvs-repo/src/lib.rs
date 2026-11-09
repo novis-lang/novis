@@ -394,6 +394,11 @@ fn fresh(name: &str) -> PathBuf {
 /// `<root>/target/test-scratch/<name>-<pid>-<n>`, created empty, where `n` counts the calls in
 /// this process. The root is the repository's with no `..` in it, so the path is the one a
 /// program that normalizes it prints back, and every byte of a socket path is one it needs.
+///
+/// On Unix the path is canonical, with every link resolved, because a program resolves them when
+/// it prints a path. `target` may be a link: `bun nv linux-test`'s copy of the tree links it to
+/// the copy's own target directory. Windows keeps the path as built, since its canonical form is
+/// a `\\?\` path that no program prints.
 fn fresh_under(name: &str) -> PathBuf {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let n = NEXT.fetch_add(1, Ordering::Relaxed);
@@ -406,6 +411,9 @@ fn fresh_under(name: &str) -> PathBuf {
         .join(format!("{name}-{}-{n}", std::process::id()));
     let _ = std::fs::remove_dir_all(&path);
     std::fs::create_dir_all(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
+    #[cfg(unix)]
+    let path =
+        std::fs::canonicalize(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
     path
 }
 
@@ -486,15 +494,24 @@ mod tests {
         let _ = named("crates/Cargo.toml");
     }
 
-    #[test]
-    fn a_scratch_dir_is_under_the_target_dir() {
-        let (dirs, lines) = nvs_footprint::capture(|| (scratch("probe"), scratch("probe")));
-        let under = Path::new(env!("CARGO_MANIFEST_DIR"))
+    /// `target/test-scratch` as [`fresh_under`] gives it: on Unix with every link resolved, since
+    /// `target` may be a link. Called once a scratch directory exists, so the path does too.
+    fn scratch_root() -> PathBuf {
+        let built = Path::new(env!("CARGO_MANIFEST_DIR"))
             .ancestors()
             .nth(2)
             .unwrap()
             .join("target")
             .join("test-scratch");
+        #[cfg(unix)]
+        let built = std::fs::canonicalize(&built).unwrap();
+        built
+    }
+
+    #[test]
+    fn a_scratch_dir_is_under_the_target_dir() {
+        let (dirs, lines) = nvs_footprint::capture(|| (scratch("probe"), scratch("probe")));
+        let under = scratch_root();
         assert!(
             dirs.0.is_dir() && dirs.0.starts_with(&under),
             "{}",
@@ -558,13 +575,11 @@ mod tests {
         );
         assert_eq!(sock.parent(), Some(dir.path()));
         assert!(dir.is_dir() && !sock.exists());
-        assert!(
-            sock.ends_with(
-                Path::new("target")
-                    .join("test-scratch")
-                    .join(dir.file_name().unwrap())
-                    .join("serve.sock")
-            )
+        assert_eq!(
+            sock,
+            scratch_root()
+                .join(dir.file_name().unwrap())
+                .join("serve.sock")
         );
         let kept = dir.to_path_buf();
         drop(dir);
