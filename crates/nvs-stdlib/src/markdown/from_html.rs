@@ -227,9 +227,12 @@ enum Part {
     Fence,
     Rule,
     /// A quote. `open` is whether it ends in a block that the next line could
-    /// continue as a lazy line.
+    /// continue as a lazy line. `shut` is whether a last `>` line ends that
+    /// block and keeps a list around the quote tight: it does after a
+    /// paragraph, a table or such a quote, and not after a list.
     Quote {
         open: bool,
+        shut: bool,
     },
     /// A list, with its marker character: `-`, `*` or `+`, `.` or `)`. `first` is
     /// whether an ordered list starts at 1, the one ordered list that may
@@ -268,7 +271,7 @@ impl Part {
     fn open(self) -> bool {
         match self {
             Self::Paragraph | Self::Table | Self::Html => true,
-            Self::Quote { open } | Self::List { open, .. } => open,
+            Self::Quote { open, .. } | Self::List { open, .. } => open,
             Self::Heading | Self::Fence | Self::Rule => false,
         }
     }
@@ -277,21 +280,17 @@ impl Part {
 /// `parts` joined into one container's Markdown. A loose container puts a
 /// blank line between every two blocks. A tight one, a list item of a tight
 /// list, puts a line feed where the second block cannot be read as part of
-/// the first, and a blank line elsewhere. After a list whose last block is
-/// closed, a paragraph, heading, fence, rule, quote or list on the next line
-/// ends the list, so it gets a line feed: a list there has another marker.
-/// After a quote whose last block is closed, such as an empty quote, a block
-/// on the next line that does not start with `>` ends the quote.
+/// the first, and a blank line elsewhere ([`tight_gap`]).
 fn joined(parts: &[(Part, String)], tight: bool) -> Result<String, Fault> {
-    let total = parts.iter().map(|(_, text)| text.len() + 2).sum::<usize>();
+    let total = parts.iter().map(|(_, text)| text.len() + 4).sum::<usize>();
     work(total + parts.len());
     nvs_runtime::affordable(Some(total), MEMBER)?;
     let mut out = String::with_capacity(total);
     let mut previous: Option<Part> = None;
     for (part, text) in parts {
         if let Some(before) = previous {
-            let line = tight && on_next_line(before, *part);
-            out.push_str(if line { "\n" } else { "\n\n" });
+            let gap = tight.then(|| tight_gap(before, *part)).flatten();
+            out.push_str(gap.unwrap_or("\n\n"));
         }
         out.push_str(text);
         previous = Some(*part);
@@ -299,26 +298,54 @@ fn joined(parts: &[(Part, String)], tight: bool) -> Result<String, Fault> {
     Ok(out)
 }
 
-/// Whether `part` may be written on the line right after `before` in a tight
-/// container, where it cannot be read as part of `before`.
-fn on_next_line(before: Part, part: Part) -> bool {
+/// What goes between `before` and `part` in a tight container, or `None`
+/// where only a blank line can, which makes a list around them loose. A line
+/// feed goes where `part` cannot be read as part of `before`
+/// ([`on_next_line`]). An open quote that a `>` line can shut gets that line
+/// first, where `part` may follow a closed quote.
+fn tight_gap(before: Part, part: Part) -> Option<&'static str> {
+    if on_next_line(before, part) {
+        return Some("\n");
+    }
+    let closed = Part::Quote {
+        open: false,
+        shut: false,
+    };
     match before {
-        Part::Heading | Part::Fence | Part::Rule => true,
-        Part::Paragraph => part.interrupts(),
-        Part::List { open: false, .. } => matches!(
-            part,
-            Part::Paragraph
-                | Part::Heading
-                | Part::Fence
-                | Part::Rule
-                | Part::Quote { .. }
-                | Part::List { .. }
-        ),
-        Part::Quote { open: false } => matches!(
-            part,
-            Part::Paragraph | Part::Heading | Part::Fence | Part::Rule
-        ),
-        _ => false,
+        Part::Quote {
+            open: true,
+            shut: true,
+        } if on_next_line(closed, part) => Some("\n>\n"),
+        _ => None,
+    }
+}
+
+/// Whether `part` may be written on the line right after `before` in a tight
+/// container, where it cannot be read as part of `before`. After a paragraph,
+/// that is a block that interrupts a paragraph. After a quote or list that
+/// ends in an open block, it is the same, except that any list marker ends
+/// that block: an empty item or a number other than 1 may interrupt a
+/// paragraph that is not in the item's own container. A quote after a quote
+/// joins it, and a list after a list must have another marker. After a
+/// closed quote or list, a block that does not start with `>` ends the
+/// quote, and one outside the list's indent ends the list: a list there has
+/// another marker.
+fn on_next_line(before: Part, part: Part) -> bool {
+    match (before, part) {
+        (Part::Heading | Part::Fence | Part::Rule, _) => true,
+        (Part::Paragraph, _) => part.interrupts(),
+        (Part::Quote { open: true, .. }, Part::Quote { .. }) => false,
+        (Part::Quote { open: true, .. }, Part::List { .. }) => true,
+        (
+            Part::List {
+                open: true, marker, ..
+            },
+            Part::List { marker: next, .. },
+        ) => marker != next,
+        (Part::Quote { open: true, .. } | Part::List { open: true, .. }, _) => part.interrupts(),
+        (Part::Quote { open: false, .. }, _) => !matches!(part, Part::Quote { .. }),
+        (Part::List { open: false, .. }, _) => true,
+        (Part::Table | Part::Html, _) => false,
     }
 }
 
@@ -480,9 +507,14 @@ impl Writer {
             "blockquote" => {
                 let mut inner = Vec::new();
                 self.collect(&children, depth, &mut inner)?;
-                let open = inner.last().is_some_and(|(part, _)| part.open());
+                let last = inner.last().map(|(part, _)| *part);
+                let open = last.is_some_and(Part::open);
+                let shut = matches!(
+                    last,
+                    Some(Part::Paragraph | Part::Table | Part::Quote { shut: true, .. })
+                );
                 let text = prefixed(&joined(&inner, false)?, ">", ">");
-                self.push(parts, Part::Quote { open }, text);
+                self.push(parts, Part::Quote { open, shut }, text);
             }
             "pre" => match fenced(node) {
                 Some(text) => self.push(parts, Part::Fence, text),
@@ -575,7 +607,7 @@ impl Writer {
             || blocks.iter().any(|inner| {
                 inner
                     .windows(2)
-                    .any(|pair| !on_next_line(pair[0].0, pair[1].0))
+                    .any(|pair| tight_gap(pair[0].0, pair[1].0).is_none())
             });
         let open = blocks
             .last()

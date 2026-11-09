@@ -237,8 +237,9 @@ pub fn markdown_url_allowed(url: &str) -> bool {
 /// of CSS white space (spaces, tabs and line breaks) as one space, and none
 /// between two tags. A `<br>` at either end of an inline element is moved out
 /// of it, and so is white space at either end of one. An inline element other
-/// than a link left empty is dropped, and so is an empty paragraph, since a
-/// browser draws all of these the same. The space at either end of a line
+/// than a link left empty is dropped, and so is an empty paragraph and one
+/// `<br>` alone at the end of a block after content, since a browser draws
+/// all of these the same. The space at either end of a line
 /// goes, as CSS drops it, also where inline tags stand between it and the
 /// `<br>` or block tag. Two renderings that differ only in how
 /// they lay out their whitespace, attributes and breaks give the same string.
@@ -398,8 +399,10 @@ fn space() -> crate::xml::Parsed {
 /// an inline element other than a link left empty is dropped. A paragraph
 /// with nothing in it but white space is dropped too: a browser shows nothing
 /// for it, and `fromHtml` writes it as nothing
-/// (`rule:core-classes/markdown-from-html`). The tree is at most 512 elements
-/// deep, which bounds the recursion.
+/// (`rule:core-classes/markdown-from-html`). So is one `<br>` alone at the end
+/// of a block with content before it, which shows no line and which
+/// `fromHtml` drops. The tree is at most 512 elements deep, which bounds the
+/// recursion.
 fn breaks_hoisted(node: &mut crate::xml::Parsed) {
     use crate::xml::Kind;
     for child in &mut node.children {
@@ -450,6 +453,20 @@ fn breaks_hoisted(node: &mut crate::xml::Parsed) {
             out.push(child);
         }
         out.extend(after);
+    }
+    // One break alone at the end of a block, with content before it, shows no
+    // line, and `fromHtml` writes it as nothing. Two or more show a line. The
+    // run of breaks ends at the first node that is not one or white space.
+    if node.kind == Kind::Element && !INLINE.contains(&node.name.as_str()) {
+        let edge = breaks_at_edge(out.iter().rev());
+        let (before, run) = out.split_at(out.len() - edge);
+        let breaks = run.iter().filter(|node| node.kind == Kind::Element).count();
+        let content = before
+            .iter()
+            .any(|node| !(node.kind == Kind::Text && node.text.chars().all(css_space)));
+        if breaks == 1 && content {
+            out.truncate(out.len() - edge);
+        }
     }
     node.children = out;
 }

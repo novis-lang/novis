@@ -1520,6 +1520,42 @@ fn a_break_alone_in_a_link_is_kept() {
 
 // covers: Core\Markdown::fromHtml
 #[test]
+fn a_break_that_ends_link_text_at_the_end_of_a_paragraph_means_nothing() {
+    keeps_its_meaning(&[
+        "*\u{11}[!+body&\\\\\n\\\n]()\n",
+        "[[ul\\\n](`:``)",
+        "[[u[[ul\\\n](;,)",
+        "a [b\\\n\\\n]()",
+    ]);
+}
+
+// covers: Core\Markdown::fromHtml
+#[test]
+fn a_tight_item_with_text_before_a_quote_or_list_stays_tight() {
+    keeps_its_meaning(&[
+        "-\t\0\0\0\0\r\t>\u{1b}\r\t- ",
+        ";`tab>\n\n*\t*>[^\n*\t*\t*\tle<em\n\t>",
+        "- a\n  > b\n  - c\n- d",
+        "- a\n  > b\n  -\n- d",
+        "- a\n  > b\n  2. c\n- d",
+        "- a\n  > b\n  >\n  c\n- d",
+        "- a\n  > b\n  >\n  | x |\n  |---|\n- d",
+        "- a\n  > > b\n  >\n  -\n- d",
+        "- a\n  > | x |\n  > |---|\n  >\n  -\n- d",
+        "- a\n  > - b\n  > - e\n  >\n  -\n- d",
+        "- a\n  >\n  - c\n- d",
+        "- a\n  >\n  2.\n- d",
+        "- a\n  - b\n  > c\n- d",
+        "- a\n  - b\n  # c\n- d",
+        "- a\n  - b\n  ***\n- d",
+        "- a\n  - b\n  ```\n  x\n  ```\n- d",
+        "- a\n  * b\n  -\n- d",
+        "- a\n  * b\n  - c\n- d",
+    ]);
+}
+
+// covers: Core\Markdown::fromHtml
+#[test]
 fn a_paragraph_whose_only_link_is_dropped_means_nothing() {
     keeps_its_meaning(&["[](:)", "[](//)"]);
 }

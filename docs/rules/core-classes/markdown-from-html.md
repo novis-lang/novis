@@ -43,9 +43,15 @@ bounds both the native stack and the copy each level makes of its content, which
   line. Markdown has no syntax for a break with no text before or after it in its block, so that one
   is `<br />`, inline HTML. A link with no text shows nothing, so the breaks in it are written in
   front of it.
-- A list item's blocks share lines where the next block cannot be read as part of the one before:
-  after an empty quote, or a list whose last block no line continues, text goes on the next line and
-  the item stays tight. A list whose item starts with a rule or a list takes the first of `-`, `*` and
+- A list item's blocks share lines where the next block cannot be read as part of the one before,
+  since a blank line between two of them makes the list loose. After a paragraph, a block that
+  interrupts a paragraph goes on the next line. After a quote or a list that ends in a paragraph, so
+  does any list, which after a list has another marker: a marker there ends the paragraph even where
+  it could not interrupt one. After an empty quote, or a list whose last block no line continues, any
+  block that does not continue it goes on the next line. A paragraph, table or HTML block after a
+  quote that ends in a paragraph or a table gets a last `>` line in the quote, which ends that block
+  and keeps the item tight. When the quote ends in a list, that line makes the list around the
+  quote loose, so a blank line goes there. A list whose item starts with a rule or a list takes the first of `-`, `*` and
   `+` that differs from the list before and does not make that line a thematic break, as `* ***` is.
 - The footnote section the renderer writes, a last `<hr>` and an `<ol>` whose items have the ids
   `md-fn-1`, `md-fn-2` and on, each ending in its `↩` link, is written as footnotes: each reference
