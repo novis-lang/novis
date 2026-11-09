@@ -876,14 +876,20 @@ unwrapped otherwise, because `html`, `head` and `body` are elements the algorith
 fragment. An attribute the list does not grant is not written, and a `href` or `src` naming a scheme
 outside the ones that fetch is not written either.
 
-**A document that fostered a node or lost a wrapper is rebuilt twice.** Foster parenting moves content
+**A document that moved a node or lost a wrapper is rebuilt twice.** Foster parenting moves content
 out of a table into the element around it, and so builds nesting no source builds:
 `<ul><li>a<table><tr><li>b` puts one `li` inside another, and a second parse of the answer closes the
-first. Unwrapping an element the list does not hold, such as an `applet` between two `li`, does the
-same. So when the parse fostered a node, or the rebuild unwrapped an element other than `html`,
-`head` and `body`, the answer is parsed and rebuilt once more, up to three passes in all. A document
-with neither costs one pass. One with either costs a second parse of an answer no larger than itself,
-and the extra latency is spent on the mutation-XSS property below.
+first. The adoption agency, which repairs a misnested formatting end tag, does the same when it moves
+a block's children: `<h1><em><h2></em></h1>` puts an `h2` inside the `h1`. Unwrapping an element the
+list does not hold, such as an `applet` between two `li`, does too. So when the parse fostered a node
+or the adoption agency moved a block's children, or the rebuild unwrapped an element other than
+`html`, `head` and `body`, the answer is parsed and rebuilt once more, up to three passes in all. A
+document with none of these costs one pass. One with any costs a second parse of an answer no larger
+than itself, and the extra latency is spent on the mutation-XSS property below.
+
+**The answer starts with neither whitespace nor a byte order mark.** A parse ignores whitespace before
+a document's first tag and drops a U+FEFF that is its first character, so text the rebuild leaves in
+front, such as the `\n` or U+FEFF after a removed `<?…>`, is removed from the answer.
 
 **A relative reference never names a host.** A URL value that starts with two of `/` and `\`, once tab,
 line feed and carriage return are removed as a browser removes them, is scheme-relative: `//host`, and
@@ -1269,7 +1275,8 @@ header only after a paragraph, and alone it would be indented code. A document t
 `rendering_in_chunks_gives_the_same_html_as_the_whole_document` is the acceptance.
 
 **Raw HTML is read with a tokenizer that errs toward one group.** It keeps the elements raw HTML
-opened, and an end tag closes only the innermost one it names. A comment, a raw-text element or a tag
+opened, and an end tag closes only the innermost one it names. A `script` is read with the parser's
+escape states, so a `</script>` after `<!--` and a nested `<script>` does not end it. A comment, a raw-text element or a tag
 left unfinished when Markdown output follows ends every later boundary. A group after the first is
 rebuilt behind the first group's leading doctype and a `<body>` tag, with its leading whitespace kept,
 so the parser reads it in the mode and place the whole document's parse did. The tokenizer keeps a
@@ -1360,9 +1367,13 @@ with an empty comment `<!-- -->` before the `.` of `www.`, the `:` of `://` and 
 The sanitizer drops the comment. Emphasis whose content starts or ends with punctuation is written as
 its tags, because `*` there is not read as emphasis.
 
-**What Markdown cannot write** — a table outside GFM's shape, `dl`, `figure`, and an `ol` whose start
-has more than nine digits — is written as its sanitized HTML on one line, with each line feed as
-`&#10;`, so CommonMark reads it as one HTML block that no blank line ends early. An inline element
+**What Markdown cannot write** — a table outside GFM's shape, `dl`, `figure`, an `ol` whose start
+has more than nine digits, and a `pre` whose text holds a carriage return, which Markdown reads as a
+line ending — is written as its sanitized HTML on one line, with each line feed as `&#10;`, so
+CommonMark reads it as one HTML block that no blank line ends early. That HTML is the sanitizer's
+answer for the element, which the renderer writes unchanged: the input is parsed in quirks mode, where
+`<table>` does not close a `<p>`, and the sanitizer is not, so a `p` around a `table` written as it
+was would come back as two paragraphs and a table. Each such block costs a second parse. An inline element
 with no Markdown syntax, such as `sup`, is its tags around Markdown content. An `<a>` nested in an
 `<a>`, which the parser closes into links with no text, is written as `[](/x)`, where any other empty
 element writes nothing.
@@ -1378,15 +1389,48 @@ bounds both the native stack and the copy each level makes of its content, which
   alone at the end of a block with content before it, so that one is dropped. Two or more there are
   all written, so the result is the same when it is read and written again. A break between two pieces of text is a backslash at the end of the
   line. Markdown has no syntax for a break with no text before or after it in its block, so that one
-  is `<br />`, inline HTML.
+  is `<br />`, inline HTML. A link with no text shows nothing, so the breaks in it are written in
+  front of it.
+- A list item's blocks share lines where the next block cannot be read as part of the one before,
+  since a blank line between two of them makes the list loose. After a paragraph, a block that
+  interrupts a paragraph goes on the next line, and so does a table: GFM reads the line before a
+  delimiter row as the header row, and the table writes its own. After a quote or a list that ends in a paragraph, so
+  does any list, which after a list has another marker: a marker there ends the paragraph even where
+  it could not interrupt one. After an empty quote, or a list whose last block no line continues, any
+  block that does not continue it goes on the next line. A paragraph, table or HTML block after a
+  quote that ends in a paragraph or a table gets a last `>` line in the quote, which ends that block
+  and keeps the item tight. When the quote ends in a list, that line makes the list around the
+  quote loose, so a blank line goes there. A list whose item starts with a rule or a list takes the first of `-`, `*` and
+  `+` that differs from the list before and does not make that line a thematic break, as `* ***` is.
+- The footnote section the renderer writes, a last `<hr>` and an `<ol>` whose items have the ids
+  `md-fn-1`, `md-fn-2` and on, each ending in its `↩` link, is written as footnotes: each reference
+  `<sup><a href="#md-fn-n">n</a></sup>` as `[^n]`, and each item as `[^n]:` without its back link,
+  which the renderer writes again. Only a footnote gives an element an id, so a list would lose them.
+  The renderer numbers notes by their first reference in the source, also one inside a definition,
+  and gives that reference alone the id `md-fnref-n`, so the body and the definitions are written in
+  the order that gives each note its number and puts each id where it was. A definition may come
+  before the body, as `[^1]: [^1]` does when only the note's own reference has the id. A note whose
+  id no shown reference has was first named in a definition the renderer does not write, so `[^0]:`,
+  a definition no reference names, names it at its place in that order. A section no order fits,
+  such as references with ids out of the notes' order in one paragraph, is written as a list and
+  links. A `(` or `:` right after a reference gets a backslash and a link an empty comment, or the
+  reference would read as a link or a definition.
 - A GFM table is written when every cell holds only inline content and no cell uses `colspan` or
   `rowspan`. Any other table is written as sanitized HTML.
 - A `div`, and any other container with no Markdown syntax, is unwrapped: its children are written as
   blocks of the container around it. An element with no content, such as an empty paragraph or list,
-  is written as nothing, since a browser shows nothing for it.
-- A code block's fence is one backtick longer than the longest run of backticks inside it.
+  is written as nothing, since a browser shows nothing for it. A list whose items all write nothing
+  is written tight, even with a `p` in it, since no paragraph shows either way.
+- A task list item's checkbox is written `[ ]` or `[x]`, with a space before a break after it: the
+  renderer reads the marker only when white space follows it.
+- A code block's fence is one backtick longer than the longest run of backticks inside it, and so is
+  a code span's. A code span right after another gets an empty comment between them, since
+  `` `a``b` `` is one span.
 - A URL goes through the same check [`core-classes/markdown-to-html`](core-classes.md#core-classes-markdown-to-html) applies, so a link the
   sanitizer would drop is written as its text.
+- A URL loses the control characters and spaces at each end, and every tab and line break, as a
+  browser's URL parser removes them. Encoded instead, `\x13http:` would be `%13http:`, which has no
+  scheme, and the renderer would drop the link.
 - A URL is written percent-encoded as the renderer writes an `href`, so `/Straße` is `/Stra%C3%9Fe`.
   Written as it was, it would render to the encoded `href`, and `fromHtml` run twice would differ. It
   costs readability for a URL with a space or a non-ASCII character. Declined: decoding an `href` to
