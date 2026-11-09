@@ -2,7 +2,7 @@
 looper: 1
 title: main's tip is ready to release
 summary: "Never reached: each time a person starts its loop, it runs every CI job that can run on this machine, fixes every failure in one pass, pushes, and fixes and pushes again until that push's CI run is green. A green push run is the full suite, the dev binaries and the dev image, so the commit is ready to release. Then the loop stops itself."
-context: [tools/nv/cmd/ci.ts, tools/nv/cmd/fuzz.ts, tools/nv/cmd/release.ts, .github/workflows/ci.yml, .github/workflows/dev-build.yml, .github/workflows/release.yml, looper.toml]
+context: [tools/nv/cmd/ci.ts, tools/nv/cmd/deep.ts, tools/nv/cmd/fuzz.ts, tools/nv/cmd/release.ts, .github/workflows/ci.yml, .github/workflows/release.yml, looper.toml]
 stages:
   - id: 1
     title: one command runs every CI job this machine can run
@@ -11,7 +11,7 @@ stages:
   - id: 2
     title: one push run is the full suite, the dev build and the release's proof
     status: open
-    context: [.github/workflows/ci.yml, .github/workflows/dev-build.yml, .github/workflows/build.yml, .github/workflows/image.yml, .github/workflows/release.yml, tools/nv/cmd/ci.ts, tools/nv/cmd/ci-changes.ts, tools/nv/cmd/release.ts]
+    context: [.github/workflows/ci.yml, .github/workflows/build.yml, .github/workflows/image.yml, .github/workflows/release.yml, tools/nv/cmd/ci.ts, tools/nv/cmd/release.ts]
   - id: 3
     title: the release cycle
     status: open
@@ -208,9 +208,9 @@ tree (`file:line`, one line each). The session writes the changes.
   `docs/release.md` say a green push run is the proof.
 - [x] `tools/nv/cmd/release.ts:35`: `--tested` takes a green `ci.yml` run of any event on `main`.
   Its tests cover a push run, a red run and a run on another branch.
-- [ ] `tools/nv/cmd/ci.ts:1`: no `Dev build` in its lists, and `--dispatch release` checks
+- [x] `tools/nv/cmd/ci.ts:1`: no `Dev build` in its lists, and `--dispatch release` checks
   `--tested` on `main`'s tip. Its tests follow.
-- [ ] The three rules rewritten or deleted, `bun nv rules --check` green, and the `deep.ts` rows
+- [x] The three rules rewritten or deleted, `bun nv rules --check` green, and the `deep.ts` rows
   for the build legs and the `--apply` check.
 - [ ] Proved in stage 3's first push: its run runs every job, publishes the `dev` image, and `bun nv
   release --tested <sha>` prints `tested=true` for it.
@@ -238,42 +238,39 @@ Every session runs this cycle until the push run is green or the context reaches
 
 ### State
 
-Stage 2's first group is on `main` in `f1c357ea3e`:
-- **`ci.yml`** has no `changes` job, no `full` input and no lane `if:`. It gained `build` (calls
-  `build.yml` with no version), `release-version` (`--plan patch`, `--notes`, `--apply`, then `cargo
-  metadata --locked --offline` on the root and `fuzz/`) and `dev-image` (calls `image.yml` with this
-  run's archives, needs every other job, runs only on a push to `main`). `release.yml`'s `test` grants
-  `packages: write` for it, since GitHub checks a skipped called job's permissions too.
-- **Deleted:** `dev-build.yml`, `bun nv ci-changes` and its test. `LOCKFILE_DIRS` is in `ci.ts` now.
-- **`--tested`** accepts a green `ci.yml` run on `main` from a push, the nightly or a dispatch
-  (`TESTED_CI_EVENTS`), not a pull request (the decision above says why).
-- **Rules:** `testing/every-run-runs-every-job` is new. `ci-lanes`, `lane-table`, `the-deep-lane`,
-  `unknown-base-runs-everything` and `a-deferred-job-is-skipped-never-absent` are deleted, and every
-  citation is repointed. `bun nv rules --check` and `bun nv verify --doc` are green.
-- **WSL is still read-only** (`d1` open), so stage 1's last item waits.
-- `docs/rules/core-classes.md` is modified in the tree by a render of another session's fragment.
-  It is not this loop's, so it was left uncommitted.
+Stage 2 is built. Every item but the push proof is ticked, and the proof is stage 3's first push.
+- **`f1c357ea3e`**: `ci.yml` runs every job, with `build`, `release-version` and `dev-image`;
+  `dev-build.yml` and `bun nv ci-changes` are deleted; `--tested` takes a push run; the rules follow.
+- **`9c43636c5d`**: `bun nv ci --dispatch release` refuses unless `greenFullRun` finds a green
+  `ci.yml` (push, nightly, dispatch) or `release.yml` run of `origin/main`'s tip (`PROVES_RELEASE`).
+  No dry run is needed. `Dev build` left `WORKFLOW_FILES` and `REPLACED_BY_RELEASE`, and
+  `CALLS_BUILD` is `Release` and `CI`, so a failed optional build leg in a `CI` run is passed over.
+  `docs/release.md` says the new order.
+- **`74105c5c0f`**: `bun nv deep` has `release-version` (in a clone of `HEAD` under
+  `.agent-tmp/deep/release-version/`, deleted after; green here in 13 s), `build-windows` and
+  `build-linux` (release `nvs-cli` per target, the `+dev` version check, `--package`). The aarch64,
+  macOS and musl legs are in `CI_ONLY`. The two build legs have not run yet.
+- **`ce82780576`**: `image.yml` lost `binaries-run`, and `ci.yml`'s `dev-image` and `release.yml`'s
+  `test` no longer grant `actions: read`, since a run reads its own artifacts with no token.
+- `ci.test.ts`, `deep.test.ts` and `ci-push-builds.test.ts` are green (74 tests). No test is
+  expected red from this loop's work.
+- **WSL is still read-only** (`d1` open; checked this session), so every WSL step waits.
+- `docs/rules/core-classes.md` is modified in the tree by another session. It is not this loop's.
+- `.claude/settings.json:30` still allows `bun nv ci-changes`. That file is the person's to edit.
 
 ### Next
 
-**Stage 2's second group, `tools/nv/cmd/ci.ts`** (`--dispatch release`, `CALLS_BUILD`,
-`REPLACED_BY_RELEASE`, the watched list at about line 170, and the header's lane prose at lines 30
-and 95 to 101) and `tools/nv/test/ci.test.ts`:
-- `Dev build` leaves every list, and the header loses the push lane and `ci-changes`.
-- `--dispatch release` refuses unless `greenFullRun` finds a green run of `main`'s tip, in place of
-  the green dry run. Then `release.yml:6`'s header says so (it still names the dry run).
-- Four tests are red until this group lands. `ci.test.ts`: "the watched table names every workflow
-  file…" (`Dev build` is gone) and "release-status counts a skipped verify job only beside a green
-  full ci.yml run" (a push run counts now). `deep.test.ts`: both coverage tests, until `deep.ts`'s
-  `steps()` has rows for `build` and `release-version`. `dev-image` is in `CI_ONLY` already.
-- `image.yml`'s `binaries-run` input has no caller now. Delete it and its branch in the download
-  step, and the line of `ci-push-builds.test.ts` that reads it.
-- `.claude/settings.json:30` still allows `bun nv ci-changes`. That file is the person's to edit.
-
 **Stage 1's last item, once `d1` is answered and WSL writes again**
-(`MSYS_NO_PATHCONV=1 wsl -e touch /var/tmp/x` succeeds): `bun nv deep --only miri-units` (about 50
-minutes) to prove `a502373c2a`, then `--only fuzz-smoke` (about 90 minutes), each as its own
-background call. Fix what goes red, then tick the item and set stage 1 to done.
+(`MSYS_NO_PATHCONV=1 wsl -e touch /var/tmp/x` succeeds): `bun nv selftest`, then `bun nv deep
+--only miri-units` (about 50 minutes) to prove `a502373c2a`, then `--only fuzz-smoke` (about 90
+minutes), each as its own background call. Fix what goes red, then tick the item and set stage 1
+to done.
+
+**While WSL stays read-only**, a session may run the Windows-only steps one by one as background
+calls, to start stage 3's first cycle early: `bun nv deep --only build-windows` first (new, about
+half an hour cold), then `docs`, `attribution`, `supply-chain`, `reference`, `test-windows`,
+`proofs-windows` and `cost-guards-windows`. Fix each red step as § *Standing decisions* says. Do
+not push until the WSL steps have run too.
 
 ### Backlog
 
