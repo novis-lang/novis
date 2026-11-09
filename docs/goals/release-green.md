@@ -268,36 +268,30 @@ Every session runs this cycle until the push run is green or the context reaches
 ### State
 
 Stages 1 and 2 are built, and stage 2's push proof is stage 3's first push. Every WSL step runs in
-`novis-test`, and Docker answers inside it. Nothing is pushed yet.
-- **Green in this cycle's WSL steps:** `miri-units` (43 min), `lint` (25 s warm), `build-linux`
-  (5 min), `proofs-linux` (4 min), `cost-guards-linux` (8 min), `valgrind` (2 min), `asan` (4 min),
-  `tsan` (43 s) and `miri` (22 min).
-- **Fixed this cycle:** stale `Core\Html` perf figures (`0dead72b3a`), four `test-linux` failures
-  only the WSL copy had (`d8d749a546`, `661a58af3c`), and `serve_isolation`'s two extension cases
-  (`efade84c36`). Those answered `503` because every test server pins its workers to CPU 0, and a
-  starved worker missed the watchdog's 5 s margin and was shed. Each case now sets
-  `watchdog_margin = "30s"`. Under six loaded copies, 5 failed at 5 s and none at 30 s. The mssql
-  attack `query/04` failed once with `IOError` under load, then passed seven times.
-- **Green on `cf18d84bd9`:** `build-windows` (7 min), `docs`, `attribution`, `supply-chain`,
-  `reference`, `test-windows` (20 min), `proofs-windows`, `cost-guards-windows` (16 min), `webp-lib`,
-  `extension-sandbox`, and `bun nv selftest`. `test-windows` needs `docker compose -f
-  tests/db/compose.yaml up -d --wait redis postgres` first.
-- **The fuzz step is gone** (§ *Standing decisions*). The seven inputs it saved were fixed in
-  `eb4153d98b` and `b4535b1892`, and they are seed files that `cargo test` replays.
-- `lint` is green again at `efade84c36`. Expected red: none.
+`novis-test`, and Docker answers inside it.
+- **Pushes of this start: 1.** `97e597307b`, after a green `bun nv ci --check`. Its CI run is being
+  watched; its id and verdict go here.
+- **This cycle's local lane is done.** Green at `efade84c36` or later: `test-linux` (37 min),
+  `release-version`, `extension`, `extension-host`, `browser`, `database`, `docker` (4 min) and
+  `flood` (8 min). Red after `--failed`: `ext-templates` alone, because `wit-bindgen` 0.63.0 and
+  wasi-sdk 34 are not installed on this machine. Installing them is a person's (their lines are in
+  the step's error). The push run decides that job.
+- **Green earlier this cycle:** `miri-units`, `lint`, `build-linux`, `proofs-linux`,
+  `cost-guards-linux`, `valgrind`, `asan`, `tsan`, `miri`, and on `cf18d84bd9` every other Windows
+  step. `test-windows` needs `docker compose -f tests/db/compose.yaml up -d --wait redis postgres`.
+- **Fixed this cycle:** `0dead72b3a`, `d8d749a546`, `661a58af3c`, and `efade84c36`, which gives
+  `serve_isolation`'s extension cases `watchdog_margin = "30s"`: test servers pin workers to CPU 0,
+  and a starved worker missed the 5 s margin and was shed with `503`.
 - `.claude/settings.json:30` still allows `bun nv ci-changes`. That file is the person's to edit.
 
 ### Next
 
-**`bun nv deep --only test-linux`** at `efade84c36`, if this session did not record its verdict
-above. A red `nvs serve` test that names `the core is not turning` in its server output is the
-same watchdog shed (playbook, *Writing a test case*). Other `crates/nvs-cli/tests/` files that
-start `nvs serve` do not set the margin yet, so give one that goes red the same fix.
-
-**Then the Windows steps not run yet:** `release-version`, `ext-templates`, `extension`,
-`extension-host`, `browser`, `database`, `docker` and `flood`, each once. Fix what is red in one
-pass, run `--failed` once, and push, as stage 3 says, whatever that rerun shows. This is the first
-push of this start (pushes so far: 0).
+**Watch push 1's run:** `bun nv ci --watch --next`, as stage 3's step 4 says. If it is green, stop
+the loop and tick stage 2's last item once `bun nv release --tested <sha>` prints `tested=true`. If
+a job is red, finish the run with `--past`, fix each red, close the gap in `bun nv deep`, and push
+again (push 2). A red `nvs serve` test whose server output names `the core is not turning` is the
+watchdog shed (playbook, *Writing a test case*). Give it `watchdog_margin = "30s"` as
+`efade84c36` did.
 
 ### Backlog
 
