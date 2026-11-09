@@ -35,6 +35,14 @@ use std::time::{Duration, Instant};
 /// How long one answer has to arrive before the case fails.
 const BOUND: Duration = Duration::from_secs(30);
 
+/// `[server] watchdog_margin` for every case: as long as [`BOUND`].
+///
+/// Each `nvs serve` pins its workers to the first CPUs the process may use, so the servers of a
+/// whole test run share CPU 0. A worker that gets no CPU time for the default five seconds is
+/// reported as wedged, and admission then answers `503`, though nothing is stuck. A core that is
+/// really stuck still fails the case, at the answer's own [`BOUND`].
+const WATCHDOG_MARGIN: &str = "30s";
+
 /// How long `nvs serve` has to compile its program and bind its port.
 const BOOT: Duration = Duration::from_secs(60);
 
@@ -100,7 +108,8 @@ impl Server {
         write_file(
             &dir.join("nvs.toml"),
             &format!(
-                "[mode]\ndefault = \"production\"\n\n[server]\nworkers = {workers}\n\n{config}"
+                "[mode]\ndefault = \"production\"\n\n[server]\nworkers = {workers}\n\
+                 watchdog_margin = \"{WATCHDOG_MARGIN}\"\n\n{config}"
             ),
         );
         for (name, bytes) in files {
@@ -251,6 +260,28 @@ impl Client {
             "`{path}` closed the connection, so the next request would not reuse it"
         );
         body
+    }
+
+    /// One `GET` of `path` on this connection, as [`Client::get`] checks it. Returns the body of a
+    /// `200`, or what went wrong, so the caller can print it beside what the server wrote.
+    fn served(&mut self, path: &str) -> Result<String, String> {
+        let answered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.answer(path)));
+        let (status, body, closes, retry_after) = answered.map_err(|panic| {
+            panic
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| panic.downcast_ref::<&str>().map(|text| (*text).to_owned()))
+                .unwrap_or_else(|| format!("the request for `{path}` panicked"))
+        })?;
+        if status.split_whitespace().nth(1) != Some("200") {
+            return Err(format!(
+                "`{path}` answered `{status}` (Retry-After: {retry_after:?})"
+            ));
+        }
+        if closes {
+            return Err(format!("`{path}` closed the connection"));
+        }
+        Ok(body)
     }
 
     /// One `GET` of `path` on this connection, whatever its status. Returns the status line,
@@ -738,7 +769,10 @@ fn every_request_that_calls_an_extension_ends_its_instance() {
     let before = request_memory(port, &server);
     for request in 4..LISTINGS {
         assert_eq!(
-            client.get("/"),
+            client.served("/").unwrap_or_else(|error| panic!(
+                "request {request} on one connection: {error}; the server wrote: {}",
+                server.said()
+            )),
             want,
             "request {request} on one connection; the server wrote: {}",
             server.said()
@@ -747,7 +781,12 @@ fn every_request_that_calls_an_extension_ends_its_instance() {
     drop(client);
     for request in 0..LISTINGS {
         assert_eq!(
-            Client::connect(server.addr).get("/"),
+            Client::connect(server.addr)
+                .served("/")
+                .unwrap_or_else(|error| panic!(
+                    "request {request} on a connection of its own: {error}; the server wrote: {}",
+                    server.said()
+                )),
             want,
             "request {request} on a connection of its own; the server wrote: {}",
             server.said()
@@ -787,11 +826,16 @@ fn every_request_in_flight_can_hold_an_extension_instance() {
     );
     let addr = server.addr;
     let threads: Vec<_> = (0..HELD_LISTINGS)
-        .map(|_| thread::spawn(move || Client::connect(addr).get("/")))
+        .map(|_| thread::spawn(move || Client::connect(addr).served("/")))
         .collect();
     for (request, thread) in threads.into_iter().enumerate() {
+        let served = thread.join().expect("the client thread panicked");
         assert_eq!(
-            thread.join().expect("the client thread panicked"),
+            served.unwrap_or_else(|error| panic!(
+                "request {request} of {HELD_LISTINGS} in flight together: {error}; \
+                 the server wrote: {}",
+                server.said()
+            )),
             "Shop, Blog, and Wiki",
             "request {request} of {HELD_LISTINGS} in flight together; the server wrote: {}",
             server.said()

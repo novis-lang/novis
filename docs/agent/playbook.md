@@ -268,6 +268,13 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **A heavy `nvs serve` test answers `503` under a full nextest run, and passes alone.** Every
+  server pins its workers to the first CPUs, so a test run's servers all share CPU 0. A starved
+  worker misses the watchdog's five-second margin, is reported wedged (`the core is not turning`
+  in its stderr), and admission sheds it. Set `[server] watchdog_margin` to the case's answer
+  bound, and reproduce with copies of the test beside `yes > /dev/null` hogs in WSL. See
+  `crates/nvs-cli/tests/serve_isolation.rs`. `until: gone crates/nvs-cli/tests/serve_isolation.rs:const WATCHDOG_MARGIN`
+
 - **An lsp test that edits an open library file cannot see a stale result for that file's lender.**
   The open file's own analysis borrows the first lender's map and indexes that program's files again,
   so a stale result for that program files nothing, and the test passes with the check it guards
