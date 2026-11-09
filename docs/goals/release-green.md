@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: main's tip is ready to release
-summary: "Never reached: each time a person starts its loop, it runs every CI job that can run on this machine, fixes every failure in one pass, pushes, and fixes and pushes again until that push's CI run is green. A green push run is the full suite, the dev binaries and the dev image, so the commit is ready to release. Then the loop stops itself."
+summary: "Never reached: each time a person starts its loop, it runs every CI job that can run on this machine once, fixes what is red, pushes, and fixes and pushes again until that push's CI run is green. A green push run is the full suite, the dev binaries and the dev image, so the commit is ready to release. Then the loop stops itself. After three red pushes, a fix that did not hold, or reds that are only the main loop's, it stops and hands back."
 context: [tools/nv/cmd/ci.ts, tools/nv/cmd/deep.ts, tools/nv/cmd/fuzz.ts, tools/nv/cmd/release.ts, .github/workflows/ci.yml, .github/workflows/release.yml, looper.toml]
 stages:
   - id: 1
@@ -32,8 +32,8 @@ release.
 
 Two changes move that first run earlier.
 
-- **Every CI job that can run on this machine runs here first** (`bun nv deep`, stage 1). Every
-  failure it finds is fixed in one pass before anything is pushed.
+- **Every CI job that can run on this machine runs here first** (`bun nv deep`, stage 1). The
+  failures it finds are fixed in one pass before the push.
 - **Every push runs everything** (stage 2). The full suite took the same wall time as the push lane,
   about 50 minutes, because its longest job runs in both. It costs about twice the runner minutes,
   which a public repository does not pay for. The same run builds the dev binaries and publishes the
@@ -47,7 +47,8 @@ never claims a release's version (`build.yml`'s version check). So a release of 
 about 30 minutes: plan, build, the approval, the tag, the draft and the images.
 
 This goal is never reached. A person starts its loop with `bun tools/looper/main.ts loop start
---loop side-release-green`, and the loop stops itself once the push run is green.
+--loop side-release-green`, and the loop stops itself once the push run is green, or with `BLOCKED`
+once green is out of its reach (§ *Standing decisions*).
 
 ## Standing decisions
 
@@ -135,11 +136,31 @@ run, in place of a green dry run. The dry run stays in `release.yml` as a person
 to the release workflows themselves, and this goal never starts one. `docs/release.md` says the new
 order.
 
-**The session pushes only after a green local run.** `bun nv ci --check`, then `bun nv ci --push`,
-then `bun nv ci --watch`. Never `git push`, never a force push, and never a push of another branch. A
-push from the root carries every commit on the local `main`, the main loop's too. A red that comes
-from the main loop's unfinished goal is told to it with `bun tools/looper/main.ts loop say --loop main
-"<job>: <what failed and why>"` and passed over with `--past <job>`.
+**The local lane runs once per cycle, and then the session pushes** (the person's call on
+2026-11-09). One `bun nv deep`, one pass of fixes, one `bun nv deep --failed`, then the push, whether
+that rerun is green or not. A local run is not CI: this machine has failures CI's runners never see (a
+WSL disk, workers pinned to one loaded CPU, Docker, a database under load), and a day of chasing them
+before the first push found no CI red. A step still red after the rerun goes into the handoff with its
+cause, and the push run decides it. If CI goes red the same way, it is fixed like any CI red. If CI is
+green there, it is this machine's, and it waits for a person. The push is `bun nv ci --check`, then
+`bun nv ci --push`, then `bun nv ci --watch`. A red `bun nv ci --check` does hold the push: its checks
+are CI's own and take two minutes. Never `git push`, never a force push, and never a push of another
+branch. A push from the root carries every commit on the local `main`, the main loop's too.
+
+**The loop stops and hands back when green is out of its reach.** It stops with `bun
+tools/looper/main.ts loop stop --loop side-release-green` and the status line `BLOCKED <each red job,
+its cause and what was tried>` when any of these holds:
+- **Three pushes since a person started the loop went red.** The handoff's State counts the pushes of
+  this start, each with its run's id and its red jobs. A person reads the reds and decides.
+- **A job fails the same way after its fix was pushed.** The fix did not hold, and a fourth guess is
+  not better than the third.
+- **What is left needs a person:** a secret, a permission (the `dev` image's first publish), a
+  repository setting, money, or this machine's repair (`d1`).
+- **Every red job is the main loop's.** A red that comes from the main loop's unfinished goal is told
+  to it with `bun tools/looper/main.ts loop say --loop main "<job>: <what failed and why>"`, and this
+  loop does not wait for that goal to end. If the run has a red of this loop's own, the session fixes
+  it and pushes once more, and that run counts as green for this loop when only the main loop's reds
+  remain.
 
 **A push run that goes red after a green `bun nv deep` names a gap, and the gap is fixed with the
 bug.** For each red job, the session fixes the code and also makes `bun nv deep` catch it next time: a
@@ -225,18 +246,20 @@ tree (`file:line`, one line each). The session writes the changes.
 
 Every session runs this cycle until the push run is green or the context reaches 120k:
 
-1. **Run the local lane:** `bun nv deep` with `run_in_background` and a timeout of 7200000, then end
-   your turn. Its exit code starts your next turn. After a fix, `bun nv deep --failed` runs only the
-   steps that were red.
+1. **Run the local lane once:** `bun nv deep` with `run_in_background` and a timeout of 7200000, then
+   end your turn. Its exit code starts your next turn. Only the first cycle after a person starts the
+   loop runs it whole. A later cycle runs `--only` for each job it fixed.
 2. **Fix every red step in one pass,** as § *Standing decisions* says, one commit per fix with a
-   pathspec. Then step 1 with `--failed`, until it exits 0.
-3. **Push:** `bun nv ci --check`, then `bun nv ci --push`.
+   pathspec. Then `bun nv deep --failed` once. A step still red goes into the handoff with its cause,
+   and does not hold the push.
+3. **Push:** `bun nv ci --check`, then `bun nv ci --push`. Count the push in the handoff's State.
 4. **Watch the push's run:** `bun nv ci --watch --next` with `run_in_background` and a timeout of
    7200000, then end your turn.
    - **Green:** stop the loop, as § *Standing decisions* says.
    - **A job failed:** let the run finish with `--past` for each job already seen, so one push carries
-     every fix. Fix each, close each gap in `bun nv deep`, check each with `bun nv deep --only <job>`
-     and `bun nv affected --run`, then step 3.
+     every fix. If a stop in § *The loop stops and hands back* holds, stop with `BLOCKED`. Otherwise
+     fix each, close each gap in `bun nv deep`, check each with `bun nv deep --only <job>` and `bun nv
+     affected --run`, then step 3.
 5. Once the context reaches 120k, write the handoff with what is fixed, what is pushed and which run
    is going, and the status line `CONTINUE <the fixes>, pushed in <sha>`, and stop.
 
@@ -272,8 +295,9 @@ same watchdog shed (playbook, *Writing a test case*). Other `crates/nvs-cli/test
 start `nvs serve` do not set the margin yet, so give one that goes red the same fix.
 
 **Then the Windows steps not run yet:** `release-version`, `ext-templates`, `extension`,
-`extension-host`, `browser`, `database`, `docker` and `flood`. Fix each red step as § *Standing
-decisions* says. Then push, as stage 3 says.
+`extension-host`, `browser`, `database`, `docker` and `flood`, each once. Fix what is red in one
+pass, run `--failed` once, and push, as stage 3 says, whatever that rerun shows. This is the first
+push of this start (pushes so far: 0).
 
 ### Backlog
 
