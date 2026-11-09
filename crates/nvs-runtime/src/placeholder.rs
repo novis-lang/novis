@@ -327,7 +327,15 @@ mod tests {
             u64::MAX as i64,
         ];
         // Miri takes past its 300 s limit over every case, so it runs a width
-        // and a precision under, at and past each value's own length.
+        // and a precision under, at and past each value's own length, the
+        // values at each edge (zero, a sign, a digit count and each end of the
+        // range), and one ASCII and one multi-byte pad.
+        let miri_values = [0, -1, 10, -4096, i64::MIN, i64::MAX, u64::MAX as i64];
+        let (values, pads): (&[i64], &[char]) = if cfg!(miri) {
+            (&miri_values, &['0', 'é'])
+        } else {
+            (&values, &[' ', '0', 'é'])
+        };
         let (widths, precisions): (&[usize], &[Option<usize>]) = if cfg!(miri) {
             (&[0, 25], &[None, Some(0), Some(30)])
         } else {
@@ -339,7 +347,7 @@ mod tests {
         for base in IntBase::ALL {
             for plus in [false, true] {
                 for left in [false, true] {
-                    for pad in [' ', '0', 'é'] {
+                    for &pad in pads {
                         for &width in widths {
                             for &precision in precisions {
                                 let placeholder = IntPlaceholder {
@@ -350,7 +358,7 @@ mod tests {
                                     width,
                                     precision,
                                 };
-                                for value in values {
+                                for &value in values {
                                     let want = formatted(&placeholder, value);
                                     let len = placeholder.len(value);
                                     let got = crate::NvsStr::build(len, |out| {
