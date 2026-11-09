@@ -24,7 +24,8 @@
 //
 // Windows only, since the Linux legs run in WSL. What it spends: about one to two hours of this machine
 // per full run, three target directories in WSL beside the debug one (the sanitizers' and the fuzz
-// workspace's), and Docker volumes for the image job's Linux build.
+// workspace's), Docker volumes for the image job's Linux build, and the `build` job's two release
+// builds of `nvs-cli`, each under its own target triple: about half an hour and a few GiB each.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -129,6 +130,46 @@ const ADVISORY_MANIFESTS = [
   "fuzz", "tools/covwrap", "tools/nv-scan", "website/guides/highlight-extension",
 ];
 
+/** The clone of `HEAD` that `release-version` sets the next version in, and the command that deletes it. */
+const RELEASE_CLONE = `${OUT}/release-version/tree`;
+const RM_RELEASE_CLONE: Cmd = {
+  argv: ["bun", "-e", `require("node:fs").rmSync(${JSON.stringify(`${OUT}/release-version`)}, { recursive: true, force: true })`],
+};
+/** Where the `build` step's legs write their archives. */
+const DIST = `${OUT}/dist`;
+
+/**
+ * The check `build.yml` runs on a dev build's binary at `exe`: `nvs --version` prints `+dev` and its
+ * commit, and never claims to be a release.
+ */
+function devVersion(exe: string): string {
+  return [
+    "set -euo pipefail",
+    `out="$(${q(exe)} --version)"`,
+    "echo \"$out\"",
+    "case \"$out\" in \"nvs \"*\"+dev (commit \"*) ;; *) echo \"a dev build's nvs --version does not print +dev: $out\"; exit 1 ;; esac",
+  ].join("\n");
+}
+
+/** One leg of `build.yml`'s `build` job: the release profile, the version check and the archive. */
+function buildLeg(where: "windows" | "wsl", target: string, name: string, archive: "zip" | "tar.gz"): Cmd[] {
+  const build = ["cargo", "build", "--release", "--locked", "-p", "nvs-cli", "--target", target];
+  const pack = ["bun", "nv", "release", "--package", "--version", "dev", "--target", target, "--name", name, "--archive", archive];
+  if (where === "windows") {
+    return [
+      { argv: build },
+      { argv: ["bash", "-c", devVersion(`target/${target}/release/nvs.exe`)] },
+      { argv: [...pack, "--out", DIST] },
+    ];
+  }
+  return [
+    { wsl: build.join(" ") },
+    { wsl: devVersion(`${WSL_TARGET}/${target}/release/nvs`) },
+    { wsl: BUN_INSTALL },
+    { wsl: [...pack, "--out", `${WSL_TARGET}-dist`].join(" ") },
+  ];
+}
+
 /** The `--test <name>` list of `benches/abi-probe/tests/`, as `cost-guards` builds it. */
 export function abiTests(root: string = ROOT): string[] {
   return readdirSync(join(root, "benches", "abi-probe", "tests"))
@@ -211,6 +252,35 @@ export function steps(root: string = ROOT): Step[] {
         { argv: ["bun", "nv", "reference"], env: { NVS_BIN: DEBUG_NVS } },
         { argv: ["bun", "nv", "render", "--website", "--check"], env: { NVS_BIN: DEBUG_NVS } },
       ],
+    },
+    {
+      // `--apply` rewrites the manifests and the lockfiles, so it runs in a clone of `HEAD`, which the
+      // main loop's tree never sees. A local clone carries every tag the version and the notes need.
+      id: "release-version",
+      job: "release-version",
+      cmds: [
+        RM_RELEASE_CLONE,
+        { argv: ["git", "clone", "-q", "--shared", ".", RELEASE_CLONE] },
+        { argv: ["bun", "install", "--frozen-lockfile"], cwd: RELEASE_CLONE },
+        { argv: ["cargo", "fetch", "--locked"], cwd: RELEASE_CLONE },
+        { argv: ["cargo", "fetch", "--locked", "--manifest-path", "fuzz/Cargo.toml"], cwd: RELEASE_CLONE },
+        {
+          argv: ["bash", "-c", [
+            "set -euo pipefail",
+            "export GITHUB_OUTPUT=../plan.out",
+            ": > \"$GITHUB_OUTPUT\"",
+            "bun nv release --plan patch --github-output",
+            "VERSION=\"$(sed -n 's/^version=//p' \"$GITHUB_OUTPUT\")\"",
+            "bun nv release --notes \"$VERSION\" --out ../release-notes.md",
+            "bun nv release --apply \"$VERSION\" --notes-file ../release-notes.md",
+            "cargo metadata --locked --offline --format-version 1 > /dev/null",
+            "cargo metadata --locked --offline --format-version 1 --manifest-path fuzz/Cargo.toml > /dev/null",
+          ].join("\n")],
+          cwd: RELEASE_CLONE,
+        },
+      ],
+      always: [RM_RELEASE_CLONE],
+      note: "on Windows, in a clone of the committed HEAD that the step deletes after",
     },
     { id: "webp-lib", job: "webp-lib", cmds: [{ argv: ["bun", "nv", "webp-lib", "--check"] }, { argv: ["bun", "nv", "webp-lib", "--verify"] }] },
     {
@@ -298,6 +368,19 @@ export function steps(root: string = ROOT): Step[] {
         ]),
       ],
       note: "the binary is built in a Debian 12 container, as old a glibc as the job's ubuntu-22.04 runner gives, since WSL's is newer than the images'",
+    },
+    {
+      id: "build-windows",
+      job: "build",
+      cmds: buildLeg("windows", "x86_64-pc-windows-msvc", "windows-x86_64", "zip"),
+      note: "`cargo build` in place of `cargo auditable build`, which only adds the dependency list to the binary; the `extension` step packages the `.vsix`",
+    },
+    {
+      id: "build-linux",
+      job: "build",
+      tools: ["wsl bun"],
+      cmds: buildLeg("wsl", "x86_64-unknown-linux-gnu", "linux-x86_64", "tar.gz"),
+      note: "in WSL, whose glibc is newer than the job's ubuntu-22.04; `cargo build` in place of `cargo auditable build`",
     },
     {
       id: "cost-guards-windows",
@@ -422,6 +505,8 @@ export function steps(root: string = ROOT): Step[] {
 export const CI_ONLY: Record<string, string> = {
   "dev-image": "it publishes the `dev` image, which only a push to `main` does",
   "unsafe-audit": "it writes cargo-geiger's counts to the run summary and is never red",
+  "build (linux-aarch64, macos-aarch64)": "no such machine here",
+  "build (linux-x86_64-musl)": "an optional leg, which may fail without failing the run",
   "test (macos-aarch64, linux-aarch64)": "no such machine here",
   "cost-guards (macos-aarch64)": "no such machine here",
   "proofs (macos-aarch64)": "no such machine here",
