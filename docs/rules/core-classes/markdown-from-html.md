@@ -37,7 +37,20 @@ bounds both the native stack and the copy each level makes of its content, which
   alone at the end of a block with content before it, so that one is dropped. Two or more there are
   all written, so the result is the same when it is read and written again. A break between two pieces of text is a backslash at the end of the
   line. Markdown has no syntax for a break with no text before or after it in its block, so that one
-  is `<br />`, inline HTML.
+  is `<br />`, inline HTML. A link with no text shows nothing, so the breaks in it are written in
+  front of it.
+- A list item's blocks share lines where the next block cannot be read as part of the one before:
+  after an empty quote, or a list whose last block no line continues, text goes on the next line and
+  the item stays tight. A list whose item starts with a rule or a list takes the first of `-`, `*` and
+  `+` that differs from the list before and does not make that line a thematic break, as `* ***` is.
+- The footnote section the renderer writes, a last `<hr>` and an `<ol>` whose items have the ids
+  `md-fn-1`, `md-fn-2` and on, each ending in its `↩` link, is written as footnotes: each reference
+  `<sup><a href="#md-fn-n">n</a></sup>` as `[^n]`, and each item as `[^n]:` without its back link,
+  which the renderer writes again. Only a footnote gives an element an id, so a list would lose them.
+  The renderer numbers notes by their first reference, so the section is written so only when the
+  references written first appear in the notes' order; any other is written as a list and links. A
+  `(` or `:` right after a reference gets a backslash and a link an empty comment, or the reference
+  would read as a link or a definition.
 - A GFM table is written when every cell holds only inline content and no cell uses `colspan` or
   `rowspan`. Any other table is written as sanitized HTML.
 - A `div`, and any other container with no Markdown syntax, is unwrapped: its children are written as

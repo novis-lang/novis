@@ -1436,3 +1436,96 @@ fn a_list_nested_far_past_512_renders_on_a_small_stack() {
         .expect("no stack overflow");
     assert!(depth(&parse(&out)) <= OPEN_ELEMENTS_CAP);
 }
+
+/// Asserts that each of `documents`, rendered, written back by `fromHtml` and
+/// rendered again, keeps its meaning, and that `fromHtml` gives the same
+/// Markdown from that Markdown's own HTML.
+fn keeps_its_meaning(documents: &[&str]) {
+    for document in documents {
+        let html = crate::fuzz::markdown(document);
+        let written = crate::fuzz::from_html(&html);
+        let again = crate::fuzz::markdown(&written);
+        assert_eq!(
+            meaning(&again),
+            meaning(&html),
+            "{document:?} rendered {html:?}, wrote {written:?}"
+        );
+        assert_eq!(crate::fuzz::from_html(&again), written, "{document:?}");
+    }
+}
+
+// The `markdown_from_html` fuzz target found each input below.
+
+// covers: Core\Markdown::fromHtml
+#[test]
+fn a_tight_item_with_text_after_a_closed_quote_or_list_stays_tight() {
+    keeps_its_meaning(&["*\t>\n\t4", "-\t>\n\t8", "- >\r  p", "*\t-\r\t*\r\t\0"]);
+}
+
+// covers: Core\Markdown::fromHtml
+#[test]
+fn a_list_item_that_starts_with_a_rule_keeps_it_after_another_list() {
+    keeps_its_meaning(&["*\n- ***", "*\n-\t***"]);
+}
+
+// covers: Core\Markdown::fromHtml
+#[test]
+fn a_break_alone_in_a_link_is_kept() {
+    keeps_its_meaning(&["[\\\n]()"]);
+}
+
+// covers: Core\Markdown::fromHtml
+#[test]
+fn a_paragraph_whose_only_link_is_dropped_means_nothing() {
+    keeps_its_meaning(&["[](:)", "[](//)"]);
+}
+
+// covers: Core\Markdown::fromHtml
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "parses and renders dozens of documents, which Miri takes about twenty seconds each for"
+)]
+fn footnotes_are_written_as_footnotes() {
+    keeps_its_meaning(&[
+        "[^o]:[^o]",
+        "[^#]:[^#]",
+        "[^0]:[^0]",
+        "[^/]:[^/]",
+        "[^:]:[^:]",
+        "a[^1]\n\n[^1]: b\n",
+        "a[^x](y) b[^x][^z] c[^x]: d [^z]\n\n[^x]: one\n\n[^z]: two\n",
+        "a[^1]\n\n[^1]: - a\n    b\n\n    - c\n\n    para\n\n    ```\n    code\n    ```\n",
+        "# h[^1]\n\n| a | b[^2] |\n|---|---|\n| 1[^1] | 2 |\n\n[^1]: x[^3]\n[^2]: y\n[^3]: z\n",
+        "a[^1]\n\n[^1]:\n",
+        "a[^1]\n\n[^1]: > q\n    > r\n",
+        "x\n\n***\n\na[^1]\n\n[^1]: n\n",
+        "a[^1]\\(x) [^1]\\[y\\] z\n\n[^1]: n\n",
+        "[^1]\\: b\n\n[^1]: n\n",
+        "b[^x]\n\n[^x]: [^y]\n[^y]: [^x]\n",
+    ]);
+    // A reference right before a link, and a back link inside the note's
+    // paragraph.
+    let html = "<p>a<sup><a href=\"#md-fn-1\" id=\"md-fnref-1\">1</a></sup><a href=\"/u\">b</a></p>\
+                <hr><ol><li id=\"md-fn-1\"><p>n <a href=\"#md-fnref-1\">\u{21A9}</a></p></li></ol>";
+    let written = crate::fuzz::from_html(html);
+    assert_eq!(written, "a[^1]<!-- -->[b](/u)\n\n[^1]: n\n");
+    assert_eq!(
+        crate::fuzz::from_html(&crate::fuzz::markdown(&written)),
+        written
+    );
+    // References whose first appearances are not in the notes' order are
+    // written as links, since the renderer would number the notes another way.
+    let html = "<p><sup><a href=\"#md-fn-2\">2</a></sup></p><hr><ol>\
+                <li id=\"md-fn-1\">a <a href=\"#md-fnref-1\">\u{21A9}</a></li>\
+                <li id=\"md-fn-2\">b <a href=\"#md-fnref-2\">\u{21A9}</a></li></ol>";
+    let written = crate::fuzz::from_html(html);
+    assert!(
+        written.starts_with("<sup>[2](#md-fn-2)</sup>"),
+        "{written:?}"
+    );
+    assert_eq!(
+        crate::fuzz::from_html(&crate::fuzz::markdown(&written)),
+        written
+    );
+}

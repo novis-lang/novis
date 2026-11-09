@@ -47,6 +47,9 @@
 //! whole in memory, so streaming would save only the tree
 //! (`rule:core-classes/markdown-from-html`'s *Large documents*).
 
+use std::cell::Cell;
+use std::rc::Rc;
+
 use nvs_runtime::Fault;
 
 use crate::html::{rebuilt, source};
@@ -93,11 +96,15 @@ pub(super) fn markdown(tree: Parsed) -> Result<String, Fault> {
     };
     let kept = rebuilt(&tree);
     drop(tree);
-    let mut writer = Writer { task: false };
     let nodes: Vec<&Parsed> = kept.children.iter().collect();
-    let mut parts = Vec::new();
-    writer.collect(&nodes, 0, &mut parts)?;
-    let mut out = joined(&parts, false)?;
+    let notes = match footnotes(&nodes) {
+        Some((rule, items)) => written(&nodes[..rule], &items)?,
+        None => None,
+    };
+    let mut out = match notes {
+        Some(out) => out,
+        None => written(&nodes, &[])?.unwrap_or_default(),
+    };
     // A Markdown reader drops a byte-order mark at the start of the document,
     // so text that starts with U+FEFF writes it as an entity.
     if out.starts_with('\u{FEFF}') {
@@ -109,6 +116,107 @@ pub(super) fn markdown(tree: Parsed) -> Result<String, Fault> {
     Ok(out)
 }
 
+/// `nodes`, a document's top-level nodes, as Markdown, with `notes`, the items
+/// of a footnote section, as footnote definitions after them. `None` when the
+/// footnote references written do not first appear in the order 1, 2, 3 and
+/// so on up to the last note: the renderer numbers notes by their first
+/// reference, so it would number these another way.
+fn written(nodes: &[&Parsed], notes: &[&Parsed]) -> Result<Option<String>, Fault> {
+    let seen = Rc::new(Cell::new(Notes {
+        count: notes.len(),
+        seen: 0,
+        broken: false,
+    }));
+    let mut writer = Writer {
+        task: false,
+        notes: (!notes.is_empty()).then(|| Rc::clone(&seen)),
+    };
+    let mut parts = Vec::new();
+    writer.collect(nodes, 0, &mut parts)?;
+    for (at, item) in notes.iter().enumerate() {
+        writer.note(item, at + 1, &mut parts)?;
+    }
+    let seen = seen.get();
+    if seen.broken || seen.seen != seen.count {
+        return Ok(None);
+    }
+    joined(&parts, false).map(Some)
+}
+
+/// The footnote references written so far, while a document with a footnote
+/// section is written.
+#[derive(Clone, Copy)]
+struct Notes {
+    /// How many notes the section has.
+    count: usize,
+    /// How many notes a reference has been written for.
+    seen: usize,
+    /// Whether a reference came before the references to the notes numbered
+    /// below it.
+    broken: bool,
+}
+
+/// The footnote section the renderer writes at the end of `nodes`: the index
+/// of its `<hr>`, and the items of the `<ol>` after it. Item `n` has the id
+/// `md-fn-n` and ends with its link back to the reference, `↩`.
+fn footnotes<'a>(nodes: &[&'a Parsed]) -> Option<(usize, Vec<&'a Parsed>)> {
+    let mut last = nodes
+        .iter()
+        .enumerate()
+        .rev()
+        .filter(|(_, node)| !blank(node));
+    let (_, list) = last.next()?;
+    let (rule, hr) = last.next()?;
+    let bare = |node: &Parsed, name: &str| {
+        node.kind == Kind::Element && node.name == name && node.attributes.is_empty()
+    };
+    if !bare(hr, "hr") || !bare(list, "ol") {
+        return None;
+    }
+    let items: Vec<&Parsed> = list.children.iter().filter(|node| !blank(node)).collect();
+    if items.is_empty() {
+        return None;
+    }
+    for (at, item) in items.iter().enumerate() {
+        let number = at + 1;
+        let id = format!("md-fn-{number}");
+        let named = item.kind == Kind::Element
+            && item.name == "li"
+            && item.attributes.len() == 1
+            && attribute(item, "id") == Some(id.as_str());
+        if !named || back_link(item, number).is_none() {
+            return None;
+        }
+    }
+    Some((rule, items))
+}
+
+/// Where the link back to note `number`'s reference is in `item`: the index
+/// of the last child that is not white space, and, when that child is a
+/// paragraph, the index of the link in it.
+fn back_link(item: &Parsed, number: usize) -> Option<(usize, Option<usize>)> {
+    let href = format!("#md-fnref-{number}");
+    let is_back = |node: &Parsed| {
+        node.kind == Kind::Element
+            && node.name == "a"
+            && node.attributes.len() == 1
+            && attribute(node, "href") == Some(href.as_str())
+            && matches!(node.children.as_slice(), [arrow] if arrow.kind == Kind::Text && arrow.text == "\u{21A9}")
+    };
+    let end = item.children.iter().rposition(|node| !blank(node))?;
+    let last = &item.children[end];
+    if is_back(last) {
+        return Some((end, None));
+    }
+    if last.kind == Kind::Element && last.name == "p" {
+        let inner = last.children.iter().rposition(|node| !blank(node))?;
+        if is_back(&last.children[inner]) {
+            return Some((end, Some(inner)));
+        }
+    }
+    None
+}
+
 /// What one block of Markdown is, which decides what may follow it on the
 /// next line.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -117,7 +225,11 @@ enum Part {
     Heading,
     Fence,
     Rule,
-    Quote,
+    /// A quote. `open` is whether it ends in a block that the next line could
+    /// continue as a lazy line.
+    Quote {
+        open: bool,
+    },
     /// A list, with its marker character: `-`, `*` or `+`, `.` or `)`. `first` is
     /// whether an ordered list starts at 1, the one ordered list that may
     /// interrupt a paragraph. `empty` is whether its first item is empty: a
@@ -138,7 +250,7 @@ impl Part {
     /// Whether this block may start on the line after a paragraph.
     fn interrupts(self) -> bool {
         match self {
-            Self::Heading | Self::Fence | Self::Rule | Self::Quote => true,
+            Self::Heading | Self::Fence | Self::Rule | Self::Quote { .. } => true,
             Self::List {
                 marker,
                 first,
@@ -154,8 +266,8 @@ impl Part {
     /// of a quote or a list.
     fn open(self) -> bool {
         match self {
-            Self::Paragraph | Self::Quote | Self::Table | Self::Html => true,
-            Self::List { open, .. } => open,
+            Self::Paragraph | Self::Table | Self::Html => true,
+            Self::Quote { open } | Self::List { open, .. } => open,
             Self::Heading | Self::Fence | Self::Rule => false,
         }
     }
@@ -165,8 +277,10 @@ impl Part {
 /// blank line between every two blocks. A tight one, a list item of a tight
 /// list, puts a line feed where the second block cannot be read as part of
 /// the first, and a blank line elsewhere. After a list whose last block is
-/// closed, a paragraph, heading, fence, rule or quote on the next line ends
-/// the list, so it gets a line feed.
+/// closed, a paragraph, heading, fence, rule, quote or list on the next line
+/// ends the list, so it gets a line feed: a list there has another marker.
+/// After a quote whose last block is closed, such as an empty quote, a block
+/// on the next line that does not start with `>` ends the quote.
 fn joined(parts: &[(Part, String)], tight: bool) -> Result<String, Fault> {
     let total = parts.iter().map(|(_, text)| text.len() + 2).sum::<usize>();
     work(total + parts.len());
@@ -192,7 +306,16 @@ fn on_next_line(before: Part, part: Part) -> bool {
         Part::Paragraph => part.interrupts(),
         Part::List { open: false, .. } => matches!(
             part,
-            Part::Paragraph | Part::Heading | Part::Fence | Part::Rule | Part::Quote
+            Part::Paragraph
+                | Part::Heading
+                | Part::Fence
+                | Part::Rule
+                | Part::Quote { .. }
+                | Part::List { .. }
+        ),
+        Part::Quote { open: false } => matches!(
+            part,
+            Part::Paragraph | Part::Heading | Part::Fence | Part::Rule
         ),
         _ => false,
     }
@@ -258,6 +381,8 @@ struct Writer {
     /// Whether the next paragraph is the first of a list item, where a
     /// checkbox is written as a task marker.
     task: bool,
+    /// The references written, when the document has a footnote section.
+    notes: Option<Rc<Cell<Notes>>>,
 }
 
 impl Writer {
@@ -311,6 +436,7 @@ impl Writer {
         }
         let mut inline = Inline::new(Place::Paragraph, false);
         inline.task = self.task;
+        inline.notes.clone_from(&self.notes);
         inline.nodes(nodes.iter().copied(), depth);
         let text = inline.whole();
         if !text.is_empty() {
@@ -340,6 +466,7 @@ impl Writer {
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
                 let level = usize::from(node.name.as_bytes()[1] - b'0');
                 let mut inline = Inline::new(Place::Heading, false);
+                inline.notes.clone_from(&self.notes);
                 inline.nodes(children.iter().copied(), depth);
                 let inner = inline.whole();
                 let mut text = "#".repeat(level);
@@ -352,8 +479,9 @@ impl Writer {
             "blockquote" => {
                 let mut inner = Vec::new();
                 self.collect(&children, depth, &mut inner)?;
+                let open = inner.last().is_some_and(|(part, _)| part.open());
                 let text = prefixed(&joined(&inner, false)?, ">", ">");
-                self.push(parts, Part::Quote, text);
+                self.push(parts, Part::Quote { open }, text);
             }
             "pre" => {
                 let text = fenced(node);
@@ -361,7 +489,7 @@ impl Writer {
             }
             "ul" | "ol" => self.list(node, depth, parts)?,
             "hr" => self.push(parts, Part::Rule, "***".to_owned()),
-            "table" => match gfm_table(node, depth)? {
+            "table" => match gfm_table(node, depth, self.notes.as_ref())? {
                 Some(text) => self.push(parts, Part::Table, text),
                 None => self.push(parts, Part::Html, html_block(node)),
             },
@@ -377,8 +505,8 @@ impl Writer {
     ///
     /// A list right after another list of the same kind changes its marker,
     /// `-` to `*` or `.` to `)`, because Markdown joins two lists with the
-    /// same marker into one. A `-` list whose item would start with a line
-    /// such as `- - -`, a thematic break, uses `+`, or `*` after a `+` list.
+    /// same marker into one. A list whose item would start with a line such
+    /// as `- - -` or `* ***`, a thematic break, uses another marker.
     /// A child that is not an `li`, such as a list
     /// written straight inside a list, goes into the item before it.
     fn list(
@@ -457,18 +585,31 @@ impl Writer {
             contents.push(joined(inner, !loose)?);
         }
         let empty = contents.first().is_some_and(String::is_empty);
-        // An item that starts with a list writes its markers on one line, and
-        // `- - -` is a thematic break. A `+` never makes one.
-        if marker == '-'
-            && contents.iter().any(|content| {
-                thematic_break(&format!("- {}", content.lines().next().unwrap_or("")))
-            })
-        {
-            marker = if matches!(after, Some(Part::List { marker: '+', .. })) {
-                '*'
-            } else {
-                '+'
+        // An item that starts with a list or a rule writes its first line
+        // after the marker, and `- - -` or `* ***` is a thematic break. A `+`
+        // never makes one. The marker is the first of `-`, `*` and `+` that
+        // makes none and differs from the list before.
+        if !ordered {
+            let breaks = |marker: char| {
+                contents.iter().any(|content| {
+                    thematic_break(&format!(
+                        "{marker} {}",
+                        content.lines().next().unwrap_or("")
+                    ))
+                })
             };
+            if breaks(marker) {
+                let before = match after {
+                    Some(Part::List { marker, .. }) => Some(marker),
+                    _ => None,
+                };
+                let others = ['-', '*', '+'].into_iter().filter(|&m| Some(m) != before);
+                marker = others
+                    .clone()
+                    .find(|&m| !breaks(m))
+                    .or_else(|| others.clone().next_back())
+                    .unwrap_or('+');
+            }
         }
 
         let mut written = Vec::with_capacity(items.len());
@@ -502,6 +643,36 @@ impl Writer {
         );
         Ok(())
     }
+
+    /// Item `number` of a footnote section, which [`footnotes`] found,
+    /// pushed onto `parts` as the note's definition `[^n]:`. Its link back to
+    /// the reference is not written, since the renderer writes it again.
+    fn note(
+        &mut self,
+        item: &Parsed,
+        number: usize,
+        parts: &mut Vec<(Part, String)>,
+    ) -> Result<(), Fault> {
+        let Some((end, inner)) = back_link(item, number) else {
+            return Ok(());
+        };
+        let children: Vec<&Parsed> = item.children.iter().collect();
+        let mut blocks = Vec::new();
+        self.collect(&children[..end], 2, &mut blocks)?;
+        if let Some(inner) = inner {
+            let last: Vec<&Parsed> = children[end].children[..inner].iter().collect();
+            self.paragraph(&last, 3, &mut blocks);
+        }
+        let content = joined(&blocks, false)?;
+        let label = format!("[^{number}]:");
+        let text = if content.is_empty() {
+            label
+        } else {
+            prefixed(&content, &format!("{label} "), "    ")
+        };
+        self.push(parts, Part::Paragraph, text);
+        Ok(())
+    }
 }
 
 /// `node` as a GFM table, or `None` when a GFM table cannot hold it.
@@ -509,7 +680,12 @@ impl Writer {
 /// A GFM table has one header row of `th` cells, the same number of cells in
 /// every row, one alignment per column, and inline content in each cell. A
 /// `caption`, a `tfoot`, a `colspan` or a `rowspan` has no place in it.
-fn gfm_table(node: &Parsed, depth: usize) -> Result<Option<String>, Fault> {
+/// `notes` is the footnote references written, as [`Writer`] has them.
+fn gfm_table(
+    node: &Parsed,
+    depth: usize,
+    notes: Option<&Rc<Cell<Notes>>>,
+) -> Result<Option<String>, Fault> {
     let mut header: Option<&Parsed> = None;
     let mut body: Vec<&Parsed> = Vec::new();
     for child in &node.children {
@@ -578,6 +754,7 @@ fn gfm_table(node: &Parsed, depth: usize) -> Result<Option<String>, Fault> {
         let mut out = String::from("|");
         for cell in cells {
             let mut inline = Inline::new(Place::Cell, false);
+            inline.notes = notes.cloned();
             inline.nodes(cell.children.iter(), depth);
             out.push(' ');
             out.push_str(&inline.whole());
@@ -859,6 +1036,12 @@ struct Inline {
     link: bool,
     /// Whether a checkbox here is a task list item's marker.
     task: bool,
+    /// The footnote references written, when the document has a footnote
+    /// section.
+    notes: Option<Rc<Cell<Notes>>>,
+    /// Whether the output ends with a footnote reference, where a `(` would
+    /// make it a link and a `:` a definition.
+    after_note: bool,
 }
 
 impl Inline {
@@ -873,12 +1056,16 @@ impl Inline {
             lead_break: 0,
             link,
             task: false,
+            notes: None,
+            after_note: false,
         }
     }
 
     /// An empty writer for one element's content.
     fn child(&self, link: bool) -> Self {
-        Self::new(self.place, self.link || link)
+        let mut child = Self::new(self.place, self.link || link);
+        child.notes.clone_from(&self.notes);
+        child
     }
 
     fn started(&self) -> bool {
@@ -939,6 +1126,12 @@ impl Inline {
     /// `!` right before a link's `[` would make the link an image, so it gets
     /// a backslash.
     fn open(&mut self, open: &str) {
+        // A link right after a footnote reference would make the two one
+        // reference link, so an empty comment goes between them.
+        if std::mem::take(&mut self.after_note) && open.starts_with('[') && !open.starts_with("[^")
+        {
+            self.out.push_str(CUT);
+        }
         if open.starts_with('[') && self.out.ends_with('!') {
             self.out.pop();
             self.out.push_str("\\!");
@@ -958,6 +1151,9 @@ impl Inline {
     fn flush(&mut self) {
         if self.run.is_empty() {
             return;
+        }
+        if std::mem::take(&mut self.after_note) && self.run.starts_with(['(', ':']) {
+            self.out.push('\\');
         }
         let line_start = self.out.is_empty() || self.out.ends_with('\n');
         escape_into(
@@ -1063,6 +1259,7 @@ impl Inline {
                 }
             }
             "span" if node.attributes.is_empty() => self.nodes(&node.children, depth),
+            "sup" if self.reference(node) => {}
             name if is_block(name) => {
                 if self.brk == 0 {
                     self.space = true;
@@ -1119,6 +1316,58 @@ impl Inline {
         }
     }
 
+    /// Writes `node`, a `sup`, as the footnote reference `[^n]` when it is
+    /// the renderer's reference to note `n` of the document's footnote
+    /// section, and returns whether it did. A reference inside a link's text
+    /// is not one, since a link cannot hold a link.
+    fn reference(&mut self, node: &Parsed) -> bool {
+        let Some(notes) = self.notes.clone() else {
+            return false;
+        };
+        if self.link {
+            return false;
+        }
+        let [link] = node.children.as_slice() else {
+            return false;
+        };
+        let [text] = link.children.as_slice() else {
+            return false;
+        };
+        if !node.attributes.is_empty()
+            || link.kind != Kind::Element
+            || link.name != "a"
+            || text.kind != Kind::Text
+        {
+            return false;
+        }
+        let Ok(number) = text.text.parse::<usize>() else {
+            return false;
+        };
+        let mut state = notes.get();
+        let id = format!("md-fnref-{number}");
+        let href = format!("#md-fn-{number}");
+        let attributes_match =
+            link.attributes.iter().all(|(key, value)| {
+                (key == "href" && *value == href) || (key == "id" && *value == id)
+            }) && attribute(link, "href").is_some();
+        if number == 0
+            || number > state.count
+            || text.text != number.to_string()
+            || !attributes_match
+        {
+            return false;
+        }
+        if number > state.seen + 1 {
+            state.broken = true;
+        } else if number == state.seen + 1 {
+            state.seen = number;
+        }
+        notes.set(state);
+        self.markup(&format!("[^{number}]"));
+        self.after_note = true;
+        true
+    }
+
     /// A link, or its text alone when it has no `href`: the sanitizer
     /// removed an `href` it does not allow.
     fn link(&mut self, node: &Parsed, depth: usize) {
@@ -1137,9 +1386,12 @@ impl Inline {
         close.push(')');
         if piece.text.is_empty() {
             // `wrap` writes nothing for an empty text, and an empty link is
-            // still a link.
-            if piece.lead_break > 0 {
-                self.hard_breaks(piece.lead_break);
+            // still a link. Text with breaks alone holds them as its trailing
+            // breaks. They go in front of the link, which the browser shows
+            // as nothing, so a break alone in its block stays `<br />`.
+            let breaks = piece.lead_break + piece.trail_break;
+            if breaks > 0 {
+                self.hard_breaks(breaks);
             } else if piece.lead && self.brk == 0 {
                 self.space = true;
             }
@@ -1147,6 +1399,10 @@ impl Inline {
             self.out.push_str(&close);
             piece.lead = false;
             piece.lead_break = 0;
+            if breaks > 0 {
+                piece.trail = false;
+                piece.trail_break = 0;
+            }
             self.wrap(&piece, "", "");
             return;
         }
