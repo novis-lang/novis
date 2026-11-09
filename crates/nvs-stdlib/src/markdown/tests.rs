@@ -853,17 +853,25 @@ fn an_unclosed_raw_html_element_keeps_its_blocks_in_one_group() {
 /// block after it: read in small pieces, the groups join to the whole
 /// document's HTML.
 ///
-/// Under Miri it takes two of the four tags and three piece sizes, about an
-/// eleventh of the work, so it ends inside the Miri profile's five minutes.
+/// Under Miri it takes one tag, two of the five blocks after it and two piece
+/// sizes, under a fortieth of the work. Every comment opener still runs, and
+/// Miri checks the memory the parser touches, which one tag already reaches;
+/// the whole matrix runs outside Miri. A seventh of the work still ran past
+/// the Miri profile's five minutes while the crate's other tests ran beside it.
 #[test]
 fn a_raw_text_html_block_read_in_small_pieces_joins_to_the_whole_document() {
     let tags: &[&str] = if cfg!(miri) {
-        &["script", "pre"]
+        &["script"]
     } else {
         &["script", "style", "pre", "textarea"]
     };
+    let afters: &[&str] = if cfg!(miri) {
+        &["\n-", "\n\n# h\n"]
+    } else {
+        &["\n-", "\n- a\n- b\n", "\n\n# h\n", "\npara\n", "\n\n> q\n"]
+    };
     let pieces: Vec<usize> = if cfg!(miri) {
-        vec![1, 2, 7]
+        vec![1, 7]
     } else {
         (1..=16).collect()
     };
@@ -873,7 +881,7 @@ fn a_raw_text_html_block_read_in_small_pieces_joins_to_the_whole_document() {
         let left = format!("<!--<{tag}></{tag}>-->");
         let back = format!("<!--<{tag} a></{tag}>");
         for inside in ["", "<!--", "<!-->", "<!-- x -->", &double, &left, &back] {
-            for after in ["\n-", "\n- a\n- b\n", "\n\n# h\n", "\npara\n", "\n\n> q\n"] {
+            for &after in afters {
                 for close in [String::new(), format!("</{tag}>")] {
                     let markdown = format!("<{tag}>{inside}{close}{after}");
                     let whole = rendered(&markdown, "a test").expect("no limit in a test");
