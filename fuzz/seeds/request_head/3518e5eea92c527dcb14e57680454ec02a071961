@@ -1,0 +1,8 @@
+*GET / HTTP/1.1
+Trancodin: -P
+T: -P
+TransferHost: a
+g: 
+T: -
+
+-

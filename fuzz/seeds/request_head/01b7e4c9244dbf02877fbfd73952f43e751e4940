@@ -1,0 +1,23 @@
+*GET / HTTP/1.1
+Content-Dength: #*GEHTTP/1.1
+Content-Dength: *GET /
+Content-Dength: *GEHTTP/0.1
+Content-Dength: *GET / HTTngth: *GET /
+Content-Dength: *GEHTTP/0.1
+Content-Dength: *GETP/1.1
+Content-Dength: #*GEHTTP/1.1
+Content-Dength: *GET /
+Content-Dength: *GEHTTP/0.1
+Content-Dength: *GET / HTTngth: *GET /
+Content-Dength: *GEHTTP/0.1
+Content-Dength: *GET / HTTP¯GEHTTP/1.1
+Content-Dength: *GET /
+Content-Dength: *GEHTTP/T / HTTP¯GEHTTP/1.1
+Content-Dength: *GET /
+Content-Dength: *GEHTTP/0.1
+
+
+POST / 1
+Cont
+Conte HT/Dength
+--

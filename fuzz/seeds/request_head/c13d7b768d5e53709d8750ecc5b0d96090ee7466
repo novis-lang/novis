@@ -1,0 +1,11 @@
+*GET / HTTP/1.1
+Trancoding: -P
+T:P
+T: -P
+TrmmmmmmmmmmmmmmmmmmmmmmmmmmExpect: 100-continue
+mm -Pt: a
+g: mmmansferHost: a
+-y
+
+
+-

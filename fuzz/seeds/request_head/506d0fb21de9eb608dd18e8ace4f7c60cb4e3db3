@@ -1,0 +1,11 @@
+*GET / HTTP/1.1
+Content-Lenftq: Tr*GET / HT/1.1
+Content-Lenftq: TrGET / HTTP/1.1
+Content-Lenftq: Tr*GET / HT/1.1
+Content-Lenftq: Tr*GET / HTTP/1.1
+Content-Lenftq: Tran/:an/TP/1.1
+Content-Lenftq: Tran/:a*GET / HTTP/1.1
+Content-Lenftq: Tran/:an/TP/1.1
+Content-Lenftq: Tran/:an/: :-
+
+-

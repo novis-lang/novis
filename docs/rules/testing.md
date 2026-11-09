@@ -3681,8 +3681,16 @@ it fails on a new input every few minutes, and each failure is fidelity, not saf
 `markdown_from_html` therefore checks no panic and that Markdown written from its own HTML comes back
 the same, and `markdown_to_html_to_markdown_keeps_the_meaning` holds the round trip.
 
+**The targets that read outside bytes keep their corpus as seeds.** `cookie`, `decompress`, `json`,
+`multipart`, `reply_head`, `request_head`, `uri`, `xml`, `markdown` and `markdown_from_html` each have
+the minimized corpus of the earlier searches (`cargo fuzz cmin`) under `fuzz/seeds/<target>/`. So the
+replay covers what those searches reached, not only the inputs that failed. A later search adds its
+new corpus the same way. A target over the compiler's own input keeps only its hand-written seeds.
+
 What it spends: a parser bug that no search has found yet waits for the next change to that parser
-or the next search a person runs, where a search in every run might have found it sooner. It saves
+or the next search a person runs, where a search in every run might have found it sooner. The seeds
+are about 21,000 files and 1.2 MB in the repository, and the replay takes about 8 seconds of a debug
+`cargo test`. It saves
 the 300 s per target that each CI run spent, the nightly toolchain and `cargo-fuzz` install in CI, the
 corpus cache, and every red run that was luck.
 

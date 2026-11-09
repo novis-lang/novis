@@ -1,0 +1,14 @@
+*GET / HTTP/1.1
+Trancoding: -P
+T: -P
+TransferHost: a
+g:1GET / HTT HTTP/1.1
+Trancoding: -P
+T: -P
+TransferHost: a
+g:1GET / HTTP/1.1 -y
+
+P/1.1 -y
+
+
+-
