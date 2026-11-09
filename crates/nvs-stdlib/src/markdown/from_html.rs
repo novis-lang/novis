@@ -22,8 +22,9 @@
 //!
 //! # What Markdown cannot write
 //!
-//! A table Markdown cannot hold, a definition list and a figure are written
-//! as their sanitized HTML on one line, which CommonMark reads as one HTML
+//! A table Markdown cannot hold, a definition list, a figure and a `pre`
+//! with a carriage return are written as their sanitized HTML on one line,
+//! which CommonMark reads as one HTML
 //! block. A line feed inside it is written `&#10;`, so the block has no blank
 //! line to end it early. An inline element Markdown has no syntax for, such
 //! as `<sup>`, is written as its start tag, its content as Markdown, and its
@@ -52,7 +53,7 @@ use std::rc::Rc;
 
 use nvs_runtime::Fault;
 
-use crate::html::{rebuilt, source};
+use crate::html::{rebuilt, settled, source};
 use crate::xml::{Kind, Parsed};
 
 /// The member every fault names.
@@ -483,17 +484,17 @@ impl Writer {
                 let text = prefixed(&joined(&inner, false)?, ">", ">");
                 self.push(parts, Part::Quote { open }, text);
             }
-            "pre" => {
-                let text = fenced(node);
-                self.push(parts, Part::Fence, text);
-            }
+            "pre" => match fenced(node) {
+                Some(text) => self.push(parts, Part::Fence, text),
+                None => self.push(parts, Part::Html, html_block(node)?),
+            },
             "ul" | "ol" => self.list(node, depth, parts)?,
             "hr" => self.push(parts, Part::Rule, "***".to_owned()),
             "table" => match gfm_table(node, depth, self.notes.as_ref())? {
                 Some(text) => self.push(parts, Part::Table, text),
-                None => self.push(parts, Part::Html, html_block(node)),
+                None => self.push(parts, Part::Html, html_block(node)?),
             },
-            "dl" | "figure" => self.push(parts, Part::Html, html_block(node)),
+            "dl" | "figure" => self.push(parts, Part::Html, html_block(node)?),
             // `div`, and an element of a table or a list found outside one:
             // its children are blocks of the container it is in.
             _ => self.collect(&children, depth, parts)?,
@@ -523,7 +524,7 @@ impl Writer {
                     Ok(start) if (0..=999_999_999).contains(&start) => start,
                     // CommonMark numbers a list with nine digits at most.
                     Ok(_) => {
-                        self.push(parts, Part::Html, html_block(node));
+                        self.push(parts, Part::Html, html_block(node)?);
                         return Ok(());
                     }
                     Err(_) => 1,
@@ -848,9 +849,14 @@ fn prefixed(text: &str, first: &str, rest: &str) -> String {
 
 /// A `pre` as a fenced code block. The fence is one backtick longer than the
 /// longest run of backticks in the code, and three at least. A `code` inside
-/// the `pre` with a `language-` class gives the fence its language.
-fn fenced(node: &Parsed) -> String {
+/// the `pre` with a `language-` class gives the fence its language. `None`
+/// when the code has a carriage return, which Markdown reads as the end of a
+/// line: such a `pre` is written as its HTML, which keeps it as `&#13;`.
+fn fenced(node: &Parsed) -> Option<String> {
     let code = pre_text(node);
+    if code.contains('\r') {
+        return None;
+    }
     let mut longest = 0;
     let mut run = 0;
     for ch in code.chars() {
@@ -878,7 +884,7 @@ fn fenced(node: &Parsed) -> String {
         out.push('\n');
     }
     out.push_str(&fence);
-    out
+    Some(out)
 }
 
 /// What a `pre` shows: its text as written, a line feed for each `br`, and
@@ -961,16 +967,27 @@ fn tags(node: &Parsed) -> (String, Option<String>) {
 
 /// `node` as sanitized HTML on one line: CommonMark reads it as one HTML
 /// block, which ends only at a blank line.
-fn html_block(node: &Parsed) -> String {
+///
+/// The HTML is the sanitizer's answer for the node's source, which the
+/// renderer writes unchanged. The input was parsed in quirks mode, where
+/// `<table>` does not close an open `<p>`, and the sanitizer parses in
+/// no-quirks mode, so a `p` around a `table` written as it was would come
+/// back as two paragraphs and a table. The cost is a second parse of each
+/// HTML block, which only a construct Markdown cannot write pays.
+///
+/// # Errors
+///
+/// The memory limit's `FATAL`.
+fn html_block(node: &Parsed) -> Result<String, Fault> {
     let (open, end) = tags(node);
     let mut out = open;
-    let inner = one_line(&source(node));
-    work(inner.len());
-    out.push_str(&inner);
+    out.push_str(&source(node));
     if let Some(end) = end {
         out.push_str(&end);
     }
-    out
+    let out = one_line(&settled(&out, None, MEMBER)?);
+    work(out.len());
+    Ok(out)
 }
 
 /// `html` with each line feed and carriage return written as a character
@@ -1135,6 +1152,12 @@ impl Inline {
         if open.starts_with('[') && self.out.ends_with('!') {
             self.out.pop();
             self.out.push_str("\\!");
+        }
+        // A code span right after another would join its fence to the one
+        // before, as `` `a``b` `` is one span, so an empty comment goes
+        // between them.
+        if open.starts_with('`') && self.out.ends_with('`') {
+            self.out.push_str(CUT);
         }
         self.out.push_str(open);
     }
@@ -1487,13 +1510,16 @@ impl Inline {
 
 /// A link destination, percent-encoded as the renderer writes an `href`
 /// ([`super::encoded_href`]), so the Markdown renders to the same `href` and
-/// `fromHtml` over that HTML writes the same destination. A tab, line feed and
-/// carriage return are removed first, as a browser removes them from a URL.
-/// An `&` that would start an entity gets a backslash. A destination that is
-/// empty or has a parenthesis is written in `<` and `>`, where the encoding
-/// leaves no `<`, `>` or `\` to escape.
+/// `fromHtml` over that HTML writes the same destination. A browser's URL
+/// parser first removes the control characters and spaces at each end and
+/// every tab, line feed and carriage return, and so does this: `\x13http:`
+/// is `http:`, where `%13http:` would have no scheme and the renderer would
+/// drop the link. An `&` that would start an entity gets a backslash. A
+/// destination that is empty or has a parenthesis is written in `<` and `>`,
+/// where the encoding leaves no `<`, `>` or `\` to escape.
 fn destination(url: &str, out: &mut String) {
     let url: String = url
+        .trim_matches(|ch: char| ch <= ' ')
         .chars()
         .filter(|ch| !matches!(ch, '\t' | '\n' | '\r'))
         .collect();

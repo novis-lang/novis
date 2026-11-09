@@ -19,9 +19,13 @@ with an empty comment `<!-- -->` before the `.` of `www.`, the `:` of `://` and 
 The sanitizer drops the comment. Emphasis whose content starts or ends with punctuation is written as
 its tags, because `*` there is not read as emphasis.
 
-**What Markdown cannot write** — a table outside GFM's shape, `dl`, `figure`, and an `ol` whose start
-has more than nine digits — is written as its sanitized HTML on one line, with each line feed as
-`&#10;`, so CommonMark reads it as one HTML block that no blank line ends early. An inline element
+**What Markdown cannot write** — a table outside GFM's shape, `dl`, `figure`, an `ol` whose start
+has more than nine digits, and a `pre` whose text holds a carriage return, which Markdown reads as a
+line ending — is written as its sanitized HTML on one line, with each line feed as `&#10;`, so
+CommonMark reads it as one HTML block that no blank line ends early. That HTML is the sanitizer's
+answer for the element, which the renderer writes unchanged: the input is parsed in quirks mode, where
+`<table>` does not close a `<p>`, and the sanitizer is not, so a `p` around a `table` written as it
+was would come back as two paragraphs and a table. Each such block costs a second parse. An inline element
 with no Markdown syntax, such as `sup`, is its tags around Markdown content. An `<a>` nested in an
 `<a>`, which the parser closes into links with no text, is written as `[](/x)`, where any other empty
 element writes nothing.
@@ -56,9 +60,14 @@ bounds both the native stack and the copy each level makes of its content, which
 - A `div`, and any other container with no Markdown syntax, is unwrapped: its children are written as
   blocks of the container around it. An element with no content, such as an empty paragraph or list,
   is written as nothing, since a browser shows nothing for it.
-- A code block's fence is one backtick longer than the longest run of backticks inside it.
+- A code block's fence is one backtick longer than the longest run of backticks inside it, and so is
+  a code span's. A code span right after another gets an empty comment between them, since
+  `` `a``b` `` is one span.
 - A URL goes through the same check `rule:core-classes/markdown-to-html` applies, so a link the
   sanitizer would drop is written as its text.
+- A URL loses the control characters and spaces at each end, and every tab and line break, as a
+  browser's URL parser removes them. Encoded instead, `\x13http:` would be `%13http:`, which has no
+  scheme, and the renderer would drop the link.
 - A URL is written percent-encoded as the renderer writes an `href`, so `/Straße` is `/Stra%C3%9Fe`.
   Written as it was, it would render to the encoded `href`, and `fromHtml` run twice would differ. It
   costs readability for a URL with a space or a non-ASCII character. Declined: decoding an `href` to

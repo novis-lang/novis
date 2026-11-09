@@ -1529,3 +1529,57 @@ fn footnotes_are_written_as_footnotes() {
         written
     );
 }
+
+/// `fromHtml` over `html`, then over the HTML its Markdown renders to, gives
+/// the same Markdown: the `markdown_from_html` fuzz target's first property.
+fn assert_written_from_its_own_html(html: &str) -> String {
+    let first = crate::fuzz::from_html(html);
+    let second = crate::fuzz::from_html(&crate::fuzz::markdown(&first));
+    assert_eq!(second, first, "{html:?}");
+    first
+}
+
+#[test]
+fn from_html_keeps_a_carriage_return_in_a_code_block() {
+    // The `markdown_from_html` fuzz target found the first.
+    assert_written_from_its_own_html("<pre>&#xd");
+    assert_written_from_its_own_html("<pre>a&#xd;b&#xd;\nc</pre>");
+    assert_written_from_its_own_html(
+        "<pre>\n\na&#13;</pre><pre><code class=\"language-x\">&#13;`</code></pre>",
+    );
+}
+
+#[test]
+fn from_html_fences_a_code_span_around_its_runs_of_backticks() {
+    // The `markdown_from_html` fuzz target found the first two.
+    assert_written_from_its_own_html("<a><code><<a><");
+    assert_written_from_its_own_html("<table><code>[<tr><");
+    assert_written_from_its_own_html("<p><code>a``b`c</code> <code>```</code></p>");
+}
+
+#[test]
+fn from_html_writes_raw_html_that_parses_back_to_itself() {
+    // The `markdown_from_html` fuzz target found the first.
+    assert_written_from_its_own_html("<dl><p><table>");
+    assert_written_from_its_own_html(
+        "<dl><dd><p>a<table><tr><td>b</td></tr></table></p></dd></dl>",
+    );
+}
+
+#[test]
+fn from_html_strips_controls_around_a_url_as_a_browser_does() {
+    // The `markdown_from_html` fuzz target found the first. Written as
+    // `%13http:`, the renderer read no valid scheme and dropped the link.
+    assert_eq!(
+        assert_written_from_its_own_html("<a href=\u{13}http:>"),
+        "[](http:)\n"
+    );
+    assert_eq!(
+        assert_written_from_its_own_html("<p><a href=\" /a\u{1}b\u{1f}\">a</a></p>"),
+        "[a](/a%01b)\n"
+    );
+    assert_eq!(
+        assert_written_from_its_own_html("<p><a href=\"\u{1}javascript:x\">a</a></p>"),
+        "a\n"
+    );
+}
