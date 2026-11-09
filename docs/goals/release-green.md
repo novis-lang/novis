@@ -59,42 +59,41 @@ pathspec of your own files, never run a tree-wide git command (`stash`, `checkou
 another session holds.
 
 **`bun nv deep` is the local lane: every `ci.yml` job this machine can run, in one call.** It is new
-in stage 1, in `tools/nv/cmd/deep.ts`. Each `ci.yml` job maps to one local step, which runs the same
-`bun nv` command or `cargo` line the job runs. A job with no local step is listed as CI-only with its
-reason (macOS, aarch64). A test fails when `ci.yml` has a job the table lacks, so a new CI job is never
-skipped unseen. The map, with each step stage 1 confirms against the job's `run:` lines:
-
-| `ci.yml` job | Local step |
-|---|---|
-| `changes` | none: stage 2 deletes it |
-| `test` (windows-x86_64) | `bun nv verify --full` |
-| `test` (linux-x86_64) | the whole suite in WSL: `bun nv linux-test` with no filter, extended in stage 1 if it needs one |
-| `test` (macos-aarch64, linux-aarch64) | CI-only: no such machine here |
-| `cost-guards` | the job's release-mode guard runs, as the job runs them |
-| `proofs` | `bun nv proofs --gate` on Windows, and the Linux leg in WSL |
-| `database` | `bun nv db-matrix --all` |
-| `browser`, `extension-sandbox`, `extension`, `extension-host` | the job's own commands, read from `ci.yml` |
-| `ext-templates` | `bun nv ext-templates` |
-| `webp-lib` | `bun nv webp-lib --check` |
-| `docker` | the job's image build, with Docker Desktop's Linux engine |
-| `lint`, `attribution`, `docs` | `bun nv ci --check`, which runs these checks already, and `bun nv verify --doc` |
-| `supply-chain` | `cargo deny check`, the version the job pins |
-| `reference` | `bun nv reference` |
-| `unsafe-audit`, `flood` | the job's own commands, read from `ci.yml` |
-| `fuzz-smoke` | `bun nv fuzz <target> --seconds <n> --all` for each target the job fuzzes, in WSL |
-| `miri`, `miri-units` | the jobs' `cargo miri` lines in WSL, on the toolchain the job pins |
-| `valgrind` | `bun nv valgrind` in WSL |
-| `asan`, `tsan` | the jobs' sanitizer lines in WSL |
-| the build legs and the `dev` image (stage 2) | CI-only for macOS; the Windows and Linux builds are `cargo build --release` here and in WSL |
-| the release `--apply` check (stage 2) | the same `bun nv release --apply` line, in a scratch copy under `.agent-tmp/` |
+in `tools/nv/cmd/deep.ts`, whose `steps()` is the map and whose `CI_ONLY` lists each job or leg with
+no local step and its reason; `bun nv deep --list` prints both. Each step runs the job's own `run:`
+lines, on Windows or in WSL's copy of the tree where the job runs on Linux, and a step's `note` says
+where it departs. `tools/nv/test/deep.test.ts` fails when `ci.yml` has a job neither names, so a new CI
+job is never skipped unseen. What stage 1 settled while building it:
+- **Every step copies its job's commands, not a `bun nv` stand-in.** `test` runs nextest, the doc and
+  bench tests and the four conformance runs, on Windows and in WSL, and `lint`, `attribution` and
+  `docs` run their own lines. `bun nv verify --full` only stops truncating output, and `bun nv ci
+  --check` skips clippy, rustdoc and half the docs job, so neither covers its job.
+- **The Linux suite runs through `deep.ts`'s own WSL runner** (`wslLine`), not `bun nv linux-test`,
+  which keeps refusing an unfiltered run for a person at the keyboard.
+- **A debug build here never takes `-p`.** A step builds the whole tree and runs the built binary where
+  the job runs `cargo run -p nvs-cli`. Release, proof-profile, Miri and sanitizer lines keep the job's
+  `-p`, each in its own target directory.
+- **`lint`'s clippy and rustdoc run in WSL**, so code under `cfg(unix)` is linted, as on CI's runner.
+- **`docker` builds its Linux binary in a `rust:1.99.1-bookworm` container**, since WSL's glibc 2.39 is
+  newer than the images'. Its cargo registry, toolchain and target directory are Docker volumes.
+- **`unsafe-audit` is CI-only**: it writes cargo-geiger's counts to the run summary and is never red.
+- **Miri's units run each crate whole**, where CI splits them into 14 shards.
+- **A step checks the programs it needs first** (`TOOLS`), and a missing one makes it red with its
+  install line, which `docs/agent/commands.md` § *What `bun nv deep` needs installed* repeats.
+- Stage 2's rows (the build legs, the `dev` image and the `--apply` check) are added to `steps()` with
+  the jobs that stage adds to `ci.yml`; the coverage test fails until they are.
 
 **`bun nv deep` runs every step and stops at none.** It prints one line per step as it ends, and at the
 end each red step with its command and the tail of its log. It writes the whole report to
 `.agent-tmp/deep/` and exits 1 when a step is red. `--failed` runs again only the steps the last report
 names red. `--only <job>` runs one job's step. One step runs at a time, so a timing guard never shares
-the machine with a fuzzer or Miri. What it costs: about one to two hours of this machine per full run,
-which stage 1 measures and records here. That is less than one red CI run plus its fix and its
-second run.
+the machine with a fuzzer or Miri. What it costs: about four to five hours of this machine per full
+run, measured in stage 1. The first run's steps took two hours without `fuzz-smoke` (about 90 minutes
+while two targets are young), without the three steps whose WSL tools are missing, and with `asan`,
+`tsan` and `miri-units` stopping at their first red crate. The longest are `miri` (31 min),
+`test-windows` (22 min) and `cost-guards` (21 min, both legs). A session's background call ends at two
+hours, so a full run is taken in parts with `--only` and `--failed`. That is still less than one red
+CI run plus its fix and its second run.
 
 **`bun nv fuzz --all` keeps fuzzing after a crash.** It runs libFuzzer's fork mode with
 `-ignore_crashes=1 -ignore_timeouts=1 -ignore_ooms=1`, and at the end lists every input it saved,
@@ -181,11 +180,11 @@ in `deep.ts` waits for stage 1.
 **Split:** a read-only `reader` subagent lists each `ci.yml` job's `run:` lines and the tools each
 needs (`file:line` and one line each). The session writes the code.
 
-- [ ] `tools/nv/cmd/deep.ts:1`: the job table, the runner, the report, `--failed` and `--only`.
-- [ ] `tools/nv/test/deep.test.ts:1`: every `ci.yml` job is in the table, as a step or as CI-only
+- [x] `tools/nv/cmd/deep.ts:1`: the job table, the runner, the report, `--failed` and `--only`.
+- [x] `tools/nv/test/deep.test.ts:1`: every `ci.yml` job is in the table, as a step or as CI-only
   with its reason.
-- [ ] `tools/nv/cmd/fuzz.ts:1`: `--all`, and the list of every saved input at the end.
-- [ ] Each step that cannot run yet because a tool is missing in WSL or on Windows (cargo-deny, Miri,
+- [x] `tools/nv/cmd/fuzz.ts:1`: `--all`, and the list of every saved input at the end.
+- [x] Each step that cannot run yet because a tool is missing in WSL or on Windows (cargo-deny, Miri,
   valgrind) gets its install line in `docs/agent/commands.md` § *Without looper* and in the step's
   error message.
 - [ ] `bun nv selftest` is green, then one full `bun nv deep` run, with its time written into
@@ -238,22 +237,26 @@ Every session runs this cycle until the push run is green or the context reaches
 
 ### State
 
-The goal replaced `ci-green`, whose loop watched every push run and fixed each red one at a time.
-Its last fixes are on `main`: `2d1f891fd5`, `1b237c54e2` and `6556919af6` for
-`markdown_from_html`, the Miri test sizes in `3986e9d237`, `3164c81133` and `0e0d7e58a0`, and the
-sweep line of a CPU-time stop in `f64caa415d`. No full run has run on `f64caa415d` yet. The nightly
-`CI` run `42468563179` was red on Miri, on `markdown_from_html`, and on downloads (Redis on Windows,
-`cargo-deny-action`, `wasi-sdk`).
-
-A dry run and a real release of the same commit build byte-identical binaries: on `383af5abc`, the
-`nvs` in `nvs-0.0.2-linux-x86_64.tar.gz` of dry run `41680643139` and real run `41689075384` had
-the same SHA-256, and so did every other file in the archive and the release notes. Only the
-`.tar.gz` around them differed, by its timestamps.
+`bun nv deep` and `bun nv fuzz --all` are on `main` (`a27732169d`). The first full run stopped at the
+two-hour background limit during `fuzz-smoke`, which has never run. `.agent-tmp/deep/report.json` has
+the rest: 17 steps green, and these red:
+- **`asan`, `tsan`, `miri-units`**: two `capability::tests` cases compared an unresolved path with
+  the resolved one, and the WSL copy's `target` is a symlink. They compare resolved paths now
+  (`9f69bf93e7`) and pass in WSL. Each step stopped at that crate, so the rest has not run.
+- **`docker`**: `nvs-ext`'s build script writes `target/ext` into the read-only source mount. The step
+  mounts a volume over `/src/target` now (committed), and has not run since.
+- **Missing programs**, for the person who runs the loop to install (`docs/agent/commands.md`
+  § *What `bun nv deep` needs installed*): wit-bindgen and wasi-sdk on Windows (`ext-templates`), Bun
+  and Node in WSL (`proofs-linux`, `valgrind`), and Docker's WSL integration (`proofs-linux`,
+  `test-linux`).
 
 ### Next
 
-**Stage 1.** Build `bun nv deep` and `bun nv fuzz --all`, and run `bun nv deep` once. Then stage 2,
-then stage 3 on `bun nv deep`'s red steps.
+**Stage 1, last item.** Run the parts that have not run, each as its own background call: `bun nv deep --only docker`, `--only asan`, `--only tsan`,
+`--only miri-units` and `--only fuzz-smoke` (about 90 minutes alone). Fix what goes red, and expect no
+Rust test to go red from this session's change. Then tick the item and set stage 1 to done. Steps red
+only for a missing program go into stage 3 as a decision for the person (`looper decision ask
+--parked`), not as blockers. Then stage 2.
 
 ### Backlog
 
