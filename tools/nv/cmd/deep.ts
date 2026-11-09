@@ -280,7 +280,9 @@ export function steps(root: string = ROOT): Step[] {
       tools: ["docker"],
       cmds: [
         {
-          argv: ["docker", "run", "--rm", "-v", `${ROOT}:/src:ro`, "-v", "nvs-deep-target:/target", "-v", "nvs-deep-cargo:/usr/local/cargo/registry",
+          // `nvs-ext`'s build script writes the built-in components under the tree's own `target/ext`,
+          // so a volume of its own covers `target` inside the read-only source.
+          argv: ["docker", "run", "--rm", "-v", `${ROOT}:/src:ro`, "-v", "nvs-deep-src-target:/src/target", "-v", "nvs-deep-target:/target", "-v", "nvs-deep-cargo:/usr/local/cargo/registry",
             "-v", "nvs-deep-rustup:/usr/local/rustup", "-v", `${join(ROOT, "docker", "bin")}:/out`, "-w", "/src", "-e", "CARGO_TARGET_DIR=/target",
             "rust:1.99.1-bookworm", "bash", "-c",
             "cargo build --locked --bin nvs && mkdir -p /out/amd64 /out/notices && cp /target/debug/nvs /out/amd64/nvs && " +
