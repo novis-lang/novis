@@ -244,25 +244,48 @@ Every session runs this cycle until the push run is green or the context reaches
 
 ### State
 
-Stage 2 is built, and its push proof is stage 3's first push. `d1` is closed (§ *Standing
-decisions*), and every WSL step runs in `novis-test`, which `bun nv wsl` says is healthy.
-Stage 1 is done: `miri-units` is green on `7191942e48` in 43 min.
-- **Docker answers inside `novis-test`** (server 29.9.2), so `test-linux` can start its servers.
+Stages 1 and 2 are built, and stage 2's push proof is stage 3's first push. Every WSL step runs in
+`novis-test`, and Docker answers inside it. Nothing is pushed yet.
+- **Green in this cycle's WSL steps:** `miri-units` (43 min), `lint` (25 s warm), `build-linux`
+  (5 min), `proofs-linux` (4 min), `cost-guards-linux` (8 min), `valgrind` (2 min), `asan` (4 min),
+  `tsan` (43 s) and `miri` (22 min).
+- **`proofs-linux` was red twice.** First, `eb4153d98b` had left the six `Core\Html` perf figures
+  stale, and `0dead72b3a` measured them again. Then the mssql attack
+  `tests/hostile/core/Db-Connection/query/04-one-sql-server-value-larger-than-the-memory-limit.nvs`
+  stopped once at step 2 with `IOError`, under the full run's load on an mssql the run had just
+  started. It passed seven times since, cold and warm, and the whole step was green next.
+- **`test-linux`:** four failures the WSL copy caused, and CI's checkout does not have, are fixed.
+  `d8d749a546` makes a scratch path canonical on Unix, since the copy's `target` is a link.
+  `661a58af3c` gives the copy the checkout's `HEAD` as a shallow commit, so `nvs --version` has a
+  commit and a date. It also drops the step's `compose down --volumes`, which stopped the shared
+  daemon's services under every other session. The last run is red on two tests alone, described
+  under § *Next*.
 - **Green on `cf18d84bd9`:** `build-windows` (7 min), `docs`, `attribution`, `supply-chain`,
   `reference`, `test-windows` (20 min), `proofs-windows`, `cost-guards-windows` (16 min), `webp-lib`,
   `extension-sandbox`, and `bun nv selftest`. `test-windows` needs `docker compose -f
   tests/db/compose.yaml up -d --wait redis postgres` first.
 - **The fuzz step is gone** (§ *Standing decisions*). The seven inputs it saved were fixed in
   `eb4153d98b` and `b4535b1892`, and they are seed files that `cargo test` replays.
-- No test is expected red from this loop's work.
+- Expected red: `test-linux`'s two `serve_isolation` tests below, and nothing else.
 - `.claude/settings.json:30` still allows `bun nv ci-changes`. That file is the person's to edit.
 
 ### Next
 
-**The WSL steps of stage 3's first cycle**, one `--only` call each: `lint`, `build-linux`,
-`proofs-linux`, `cost-guards-linux`, `valgrind`, `asan`, `tsan`, `miri` and `test-linux`. Then the Windows steps not run yet: `release-version`,
-`ext-templates`, `extension`, `extension-host`, `browser`, `database`, `docker` and `flood`. Fix each
-red step as § *Standing decisions* says. Then push.
+**`test-linux`'s last red**, at `661a58af3c`:
+`every_request_in_flight_can_hold_an_extension_instance` and
+`every_request_that_calls_an_extension_ends_its_instance` (`crates/nvs-cli/tests/serve_isolation.rs:776`).
+Under the full nextest run, some requests got `503 Service Unavailable` (`:245`) and others had
+their connection reset (`:317`). Both pass alone with `bun nv linux-test --test serve_isolation
+<name>`, and both were green in the two runs before. Find what answers `503` there: the extension
+instance pool or the admission under host load. Then decide whether the server or the test is
+wrong. CI runs the same suite under load, so this is not noise until it is explained. The test's
+`server.said()` is never printed, because the client thread panics first. Printing it is the first
+step.
+
+**Then `bun nv deep --only lint`** once more, since `d8d749a546` adds code under `cfg(unix)`, and
+`--only test-linux`. Then the Windows steps not run yet: `release-version`, `ext-templates`,
+`extension`, `extension-host`, `browser`, `database`, `docker` and `flood`. Fix each red step as
+§ *Standing decisions* says. Then push.
 
 ### Backlog
 
