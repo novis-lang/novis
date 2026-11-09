@@ -129,8 +129,9 @@ what a versioned build breaks before it compiles: the manifest rewrite, the sepa
 changelog section. It writes nothing back.
 
 **A green full push run is the release's proof.** `bun nv release --tested` accepts a green `ci.yml`
-run of `main` at the commit, from any event, since every run is full now (`FULL_CI_EVENTS` in
-`tools/nv/cmd/release.ts` goes). `bun nv ci --dispatch release` refuses unless `main`'s tip has such a
+run of `main` at the commit from a push, the nightly or a dispatch (`TESTED_CI_EVENTS` in
+`tools/nv/cmd/release.ts`). A `pull_request` run does not count: it tests the merge of its branch
+into its base, not its `head_sha`, and a fork's branch may be named `main`. `bun nv ci --dispatch release` refuses unless `main`'s tip has such a
 run, in place of a green dry run. The dry run stays in `release.yml` as a person's tool, for a change
 to the release workflows themselves, and this goal never starts one. `docs/release.md` says the new
 order.
@@ -199,13 +200,13 @@ release's version step, and a green push run counts for `--tested`, as § *Stand
 `testing/lane-table`, `testing/the-deep-lane`, `ci-changes`, `Dev build` and `dev-build.yml` in the
 tree (`file:line`, one line each). The session writes the changes.
 
-- [ ] `.github/workflows/ci.yml:1`: no `changes` job, no `full` input, no `if:` on a lane output.
+- [x] `.github/workflows/ci.yml:1`: no `changes` job, no `full` input, no `if:` on a lane output.
   The build legs, the `dev` image job and the `--apply` check job join it.
-- [ ] `.github/workflows/dev-build.yml:1` deleted, and `tools/nv/cmd/ci-changes.ts:1` with its
+- [x] `.github/workflows/dev-build.yml:1` deleted, and `tools/nv/cmd/ci-changes.ts:1` with its
   tests.
-- [ ] `.github/workflows/release.yml:224`: `test` calls `ci.yml` with no input. Its header and
+- [x] `.github/workflows/release.yml:224`: `test` calls `ci.yml` with no input. Its header and
   `docs/release.md` say a green push run is the proof.
-- [ ] `tools/nv/cmd/release.ts:35`: `--tested` takes a green `ci.yml` run of any event on `main`.
+- [x] `tools/nv/cmd/release.ts:35`: `--tested` takes a green `ci.yml` run of any event on `main`.
   Its tests cover a push run, a red run and a run on another branch.
 - [ ] `tools/nv/cmd/ci.ts:1`: no `Dev build` in its lists, and `--dispatch release` checks
   `--tested` on `main`'s tip. Its tests follow.
@@ -237,43 +238,43 @@ Every session runs this cycle until the push run is green or the context reaches
 
 ### State
 
-`bun nv deep` and `bun nv fuzz --all` are on `main`. Of the steps the first full run left, this
-session ran four with `--only`:
-- **`docker`** green in 4 minutes, **`asan`** green in 2 minutes and **`tsan`** green in 13 seconds,
-  each on a build warm from the first run.
-- **`miri-units`** red after 52 minutes: 1,683 of 1,684 `nvs-stdlib` tests passed, and
-  `markdown::tests::a_raw_text_html_block_read_in_small_pieces_joins_to_the_whole_document`, new in
-  the main loop's `e31845c58e`, passed the Miri profile's five minutes. It takes two tags and three
-  piece sizes under `cfg!(miri)` now (`a502373c2a`), about an eleventh of the work, and passes
-  natively. It has not run under Miri yet: Miri on `nvs-stdlib` runs only in WSL (the new playbook
-  bullet).
-- **WSL is down.** At the end of the Miri run its distro disk failed an ext4 block bitmap checksum,
-  and the kernel remounted it read-only, so every WSL step and `bun nv linux-test` fails at the sync.
-  The repair needs `wsl --shutdown`, which stops the main loop's WSL work too, so it is decision `d1`
-  (parked) for the person.
-- **`fuzz-smoke`** has never run, and needs WSL.
-- **Missing programs**, for the person who runs the loop to install (`docs/agent/commands.md`
-  § *What `bun nv deep` needs installed*): wit-bindgen and wasi-sdk on Windows (`ext-templates`), Bun
-  and Node in WSL (`proofs-linux`, `valgrind`), and Docker's WSL integration (`proofs-linux`,
-  `test-linux`).
+Stage 2's first group is on `main` in `f1c357ea3e`:
+- **`ci.yml`** has no `changes` job, no `full` input and no lane `if:`. It gained `build` (calls
+  `build.yml` with no version), `release-version` (`--plan patch`, `--notes`, `--apply`, then `cargo
+  metadata --locked --offline` on the root and `fuzz/`) and `dev-image` (calls `image.yml` with this
+  run's archives, needs every other job, runs only on a push to `main`). `release.yml`'s `test` grants
+  `packages: write` for it, since GitHub checks a skipped called job's permissions too.
+- **Deleted:** `dev-build.yml`, `bun nv ci-changes` and its test. `LOCKFILE_DIRS` is in `ci.ts` now.
+- **`--tested`** accepts a green `ci.yml` run on `main` from a push, the nightly or a dispatch
+  (`TESTED_CI_EVENTS`), not a pull request (the decision above says why).
+- **Rules:** `testing/every-run-runs-every-job` is new. `ci-lanes`, `lane-table`, `the-deep-lane`,
+  `unknown-base-runs-everything` and `a-deferred-job-is-skipped-never-absent` are deleted, and every
+  citation is repointed. `bun nv rules --check` and `bun nv verify --doc` are green.
+- **WSL is still read-only** (`d1` open), so stage 1's last item waits.
+- `docs/rules/core-classes.md` is modified in the tree by a render of another session's fragment.
+  It is not this loop's, so it was left uncommitted.
 
 ### Next
 
-**Stage 2, which needs no WSL**, while `d1` waits. Its first group is the workflows:
-`.github/workflows/ci.yml:1` (the `changes` job, the `full` input and each `if:` on a lane output go;
-the build legs, the `dev` image job and the `--apply` check job join), `.github/workflows/dev-build.yml:1`
-deleted, and `.github/workflows/release.yml:224`'s `test` calling `ci.yml` with no input. Start with
-the stage's `Explore` subagent for the citations. Expect `tools/nv/test/deep.test.ts` to go red until
-`deep.ts` has rows for the new jobs, and the `ci-changes` tests until they are deleted with the
-command.
+**Stage 2's second group, `tools/nv/cmd/ci.ts`** (`--dispatch release`, `CALLS_BUILD`,
+`REPLACED_BY_RELEASE`, the watched list at about line 170, and the header's lane prose at lines 30
+and 95 to 101) and `tools/nv/test/ci.test.ts`:
+- `Dev build` leaves every list, and the header loses the push lane and `ci-changes`.
+- `--dispatch release` refuses unless `greenFullRun` finds a green run of `main`'s tip, in place of
+  the green dry run. Then `release.yml:6`'s header says so (it still names the dry run).
+- Four tests are red until this group lands. `ci.test.ts`: "the watched table names every workflow
+  file…" (`Dev build` is gone) and "release-status counts a skipped verify job only beside a green
+  full ci.yml run" (a push run counts now). `deep.test.ts`: both coverage tests, until `deep.ts`'s
+  `steps()` has rows for `build` and `release-version`. `dev-image` is in `CI_ONLY` already.
+- `image.yml`'s `binaries-run` input has no caller now. Delete it and its branch in the download
+  step, and the line of `ci-push-builds.test.ts` that reads it.
+- `.claude/settings.json:30` still allows `bun nv ci-changes`. That file is the person's to edit.
 
-**Stage 1's last item, once `d1` is answered and WSL writes again** (`wsl -e touch /var/tmp/x`
-succeeds): `bun nv deep --only miri-units` (about 50 minutes) to prove `a502373c2a`, then `--only
-fuzz-smoke` (about 90 minutes), each as its own background call. Fix what goes red. Then tick the
-item and set stage 1 to done. Steps red only for a missing program go into stage 3 as a decision for
-the person (`looper decision ask --parked`), not as blockers.
+**Stage 1's last item, once `d1` is answered and WSL writes again**
+(`MSYS_NO_PATHCONV=1 wsl -e touch /var/tmp/x` succeeds): `bun nv deep --only miri-units` (about 50
+minutes) to prove `a502373c2a`, then `--only fuzz-smoke` (about 90 minutes), each as its own
+background call. Fix what goes red, then tick the item and set stage 1 to done.
 
 ### Backlog
 
-Empty. The five items the last handoff listed were already fixed on `main`: `--past` matches a prefix
-ending at `, `, `PRE_PUSH` runs `rustdoc links`, and the three runtime items are gone from their files.
+Empty.
