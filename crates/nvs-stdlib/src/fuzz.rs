@@ -237,8 +237,8 @@ pub fn markdown_url_allowed(url: &str) -> bool {
 /// of CSS white space (spaces, tabs and line breaks) as one space, and none
 /// between two tags. A `<br>` at either end of an inline element is moved out
 /// of it, and so is white space at either end of one. An inline element other
-/// than a link left empty is dropped, since a browser draws all of these the
-/// same. The space at either end of a line
+/// than a link left empty is dropped, and so is an empty paragraph, since a
+/// browser draws all of these the same. The space at either end of a line
 /// goes, as CSS drops it, also where inline tags stand between it and the
 /// `<br>` or block tag. Two renderings that differ only in how
 /// they lay out their whitespace, attributes and breaks give the same string.
@@ -395,8 +395,11 @@ fn space() -> crate::xml::Parsed {
 /// Moves each `<br>` at either end of an inline element in `node` out of the
 /// element, with the white space between two of them, children first. White
 /// space at either end of an inline element moves out of it as one space, and
-/// an inline element other than a link left empty is dropped. The tree is at
-/// most 512 elements deep, which bounds the recursion.
+/// an inline element other than a link left empty is dropped. A paragraph
+/// with nothing in it but white space is dropped too: a browser shows nothing
+/// for it, and `fromHtml` writes it as nothing
+/// (`rule:core-classes/markdown-from-html`). The tree is at most 512 elements
+/// deep, which bounds the recursion.
 fn breaks_hoisted(node: &mut crate::xml::Parsed) {
     use crate::xml::Kind;
     for child in &mut node.children {
@@ -404,6 +407,15 @@ fn breaks_hoisted(node: &mut crate::xml::Parsed) {
     }
     let mut out = Vec::with_capacity(node.children.len());
     for mut child in std::mem::take(&mut node.children) {
+        if child.kind == Kind::Element
+            && child.name == "p"
+            && child
+                .children
+                .iter()
+                .all(|node| node.kind == Kind::Text && node.text.chars().all(css_space))
+        {
+            continue;
+        }
         if child.kind != Kind::Element || !INLINE.contains(&child.name.as_str()) {
             out.push(child);
             continue;
