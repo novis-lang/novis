@@ -327,17 +327,17 @@ mod tests {
             u64::MAX as i64,
         ];
         // Miri takes past its 300 s limit over every case, so it runs a width
-        // and a precision under, at and past each value's own length, the
-        // values at each edge (zero, a sign, a digit count and each end of the
-        // range), and one ASCII and one multi-byte pad.
-        let miri_values = [0, -1, 10, -4096, i64::MIN, i64::MAX, u64::MAX as i64];
+        // and a precision under and past each value's own length, zero, a
+        // negative value, each end of the range, and one ASCII and one
+        // multi-byte pad.
+        let miri_values = [0, -4096, i64::MIN, u64::MAX as i64];
         let (values, pads): (&[i64], &[char]) = if cfg!(miri) {
             (&miri_values, &['0', 'é'])
         } else {
             (&values, &[' ', '0', 'é'])
         };
         let (widths, precisions): (&[usize], &[Option<usize>]) = if cfg!(miri) {
-            (&[0, 25], &[None, Some(0), Some(30)])
+            (&[0, 25], &[None, Some(30)])
         } else {
             (
                 &[0, 1, 5, 25, 80],

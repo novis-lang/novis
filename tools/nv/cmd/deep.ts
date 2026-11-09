@@ -11,7 +11,8 @@
 // `CI_ONLY` with its reason: macOS and aarch64. `test/deep.test.ts` fails when `ci.yml` has a job that
 // neither names, so a new CI job is never skipped unseen. Where a step departs from its job, its `note`
 // says how: a debug build here never takes `-p` (AGENTS.md), so a step builds the whole tree and runs
-// the built binary; Miri runs each crate whole, where CI splits it into shards.
+// the built binary; Miri runs each crate whole, where CI splits it into shards, and stops a test at a
+// fifth of CI's bound, since CI's runner took more than four times as long.
 //
 // **It runs every step and stops at none.** A step runs its commands in order and stops at its first
 // red one, then runs its `always` commands, which stop the services it started. Before it runs, a step
@@ -489,10 +490,10 @@ export function steps(root: string = ROOT): Step[] {
       job: "miri-units",
       tools: ["wsl nightly miri", "wsl cargo-nextest"],
       cmds: [
-        { wsl: "cargo +nightly miri nextest run --profile miri -p nvs-runtime --lib --features nvs-runtime/sanitizer", env: { MIRIFLAGS: MIRI_UNITS } },
-        { wsl: "cargo +nightly miri nextest run --profile miri -p nvs-stdlib --lib", env: { MIRIFLAGS: MIRI_UNITS } },
+        { wsl: "cargo +nightly miri nextest run --profile miri-deep -p nvs-runtime --lib --features nvs-runtime/sanitizer", env: { MIRIFLAGS: MIRI_UNITS } },
+        { wsl: "cargo +nightly miri nextest run --profile miri-deep -p nvs-stdlib --lib", env: { MIRIFLAGS: MIRI_UNITS } },
       ],
-      note: "each crate runs whole; the job splits nvs-runtime into 2 shards and nvs-stdlib into 12",
+      note: "each crate runs whole, where the job splits nvs-runtime into 2 shards and nvs-stdlib into 12, and the `miri-deep` profile stops a test at 60 s, a fifth of the job's bound, since the job's runner took over four times as long",
     },
   ];
 }

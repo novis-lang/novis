@@ -2418,15 +2418,16 @@ mod tests {
 
     /// The join asks the memory ceiling once, for the whole result, before
     /// it writes anything. Past the ceiling it allocates nothing, answers the
-    /// static empty string and records the breach.
+    /// static empty string and records the breach. Under Miri the source and
+    /// the ceiling are a quarter of the size, so it scans a quarter of the bytes.
     #[test]
     fn a_join_past_the_memory_limit_is_refused_before_a_byte_is_copied() {
         use crate::counting_alloc::allocated_bytes;
 
-        const SOURCE: usize = 256 << 10;
+        const SOURCE: usize = if cfg!(miri) { 64 << 10 } else { 256 << 10 };
         let source = NvsStr::new(&vec![b'<'; SOURCE]).into_raw();
         let mut ctx = crate::Ctx::buffered();
-        ctx.set_memory_limit(64 << 10);
+        ctx.set_memory_limit(SOURCE / 4);
         let parts = [
             StrPart::str(source),
             StrPart::html_text(source),

@@ -5393,6 +5393,10 @@ pub(crate) mod tests {
     /// the request twice for one walk and splice the second reply's tail onto
     /// the first one's.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "two loopback round trips, which Miri takes a minute for"
+    )]
     fn stream_is_retried_before_its_head_and_never_after() {
         let (at, served) = origin(vec![
             "HTTP/1.1 503 Busy\r\nContent-Length: 0\r\n\r\n",

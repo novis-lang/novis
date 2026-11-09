@@ -6351,6 +6351,10 @@ mod tests {
     /// allocated, because what is being asked is what each *shape* adds for a
     /// program that already has the bytes.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "parses and walks ninety items twice, a minute under Miri"
+    )]
     fn the_reader_holds_one_window_rather_than_the_document() {
         /// A document of `items` sibling elements, each carrying an attribute,
         /// a child element and text — three nodes a tree holds and three a walk

@@ -1499,9 +1499,16 @@ mod tests {
     /// An array holding one array twice, forty levels deep, is 2^40 strings
     /// to either carrier. The walk returns at the first refusal, so both
     /// copies end at the ceiling in a few visits past it, and this test ends.
+    /// Under Miri the strings and the ceiling are a quarter of the size, so the
+    /// walk makes the same thousand visits and copies a quarter of the bytes.
     #[test]
     fn a_doubling_graph_stops_both_carriers_at_the_first_refusal() {
-        let mut top = Value::text(&"x".repeat(1 << 10));
+        let (piece, ceiling) = if cfg!(miri) {
+            (1 << 8, 1 << 18)
+        } else {
+            (1 << 10, 1 << 20)
+        };
+        let mut top = Value::text(&"x".repeat(piece));
         for _ in 0..40 {
             let mut pair = NvsArray::new();
             retain(top);
@@ -1514,7 +1521,7 @@ mod tests {
         // refusal already recorded.
         {
             let mut ctx = crate::Ctx::new(crate::OutputSink::Buffer(Vec::new()));
-            ctx.set_memory_limit(1 << 20);
+            ctx.set_memory_limit(ceiling);
             retain(top);
             assert!(
                 matches!(encode_within(top, usize::MAX), Ok(Err(Stopped::Refused))),
@@ -1524,7 +1531,7 @@ mod tests {
         }
         {
             let mut ctx = crate::Ctx::new(crate::OutputSink::Buffer(Vec::new()));
-            ctx.set_memory_limit(1 << 20);
+            ctx.set_memory_limit(ceiling);
             assert!(!ctx.over_memory_limit(), "the copy began over its ceiling");
             retain(top);
             assert!(

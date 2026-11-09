@@ -906,6 +906,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "two P-256 seals take minutes under Miri")]
     fn two_sealed_messages_never_share_a_salt_or_a_key() {
         let to = read_subscription(&subscription_json(
             "https://push.example.com/send/abc",

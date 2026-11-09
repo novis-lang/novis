@@ -1001,6 +1001,7 @@ mod tests {
     /// `nvs_runtime::TOPIC_CAP` topics join, the next one throws, a topic
     /// already joined still joins, and leaving one makes room for another.
     #[test]
+    #[cfg_attr(miri, ignore = "joins 1,024 topics, which Miri takes minutes for")]
     fn a_connection_joins_at_most_its_cap_of_topics() {
         let mut ctx = connected();
         for i in 0..nvs_runtime::TOPIC_CAP {

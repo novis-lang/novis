@@ -853,35 +853,23 @@ fn an_unclosed_raw_html_element_keeps_its_blocks_in_one_group() {
 /// block after it: read in small pieces, the groups join to the whole
 /// document's HTML.
 ///
-/// Under Miri it takes one tag, two of the five blocks after it and two piece
-/// sizes, under a fortieth of the work. Every comment opener still runs, and
-/// Miri checks the memory the parser touches, which one tag already reaches;
-/// the whole matrix runs outside Miri. A seventh of the work still ran past
-/// the Miri profile's five minutes while the crate's other tests ran beside it.
+/// It does not run under Miri: a fortieth of the matrix took 70 s alone there,
+/// and over the Miri profile's five minutes on CI's runner beside the crate's
+/// other tests. The grouping is safe code, and the other markdown tests run the
+/// same parser under Miri.
 #[test]
+#[cfg_attr(miri, ignore = "renders hundreds of documents")]
 fn a_raw_text_html_block_read_in_small_pieces_joins_to_the_whole_document() {
-    let tags: &[&str] = if cfg!(miri) {
-        &["script"]
-    } else {
-        &["script", "style", "pre", "textarea"]
-    };
-    let afters: &[&str] = if cfg!(miri) {
-        &["\n-", "\n\n# h\n"]
-    } else {
-        &["\n-", "\n- a\n- b\n", "\n\n# h\n", "\npara\n", "\n\n> q\n"]
-    };
-    let pieces: Vec<usize> = if cfg!(miri) {
-        vec![1, 7]
-    } else {
-        (1..=16).collect()
-    };
+    let tags = ["script", "style", "pre", "textarea"];
+    let afters = ["\n-", "\n- a\n- b\n", "\n\n# h\n", "\npara\n", "\n\n> q\n"];
+    let pieces: Vec<usize> = (1..=16).collect();
     let mut report = Vec::new();
-    for &tag in tags {
+    for tag in tags {
         let double = format!("<!--<{tag}>");
         let left = format!("<!--<{tag}></{tag}>-->");
         let back = format!("<!--<{tag} a></{tag}>");
         for inside in ["", "<!--", "<!-->", "<!-- x -->", &double, &left, &back] {
-            for &after in afters {
+            for after in afters {
                 for close in [String::new(), format!("</{tag}>")] {
                     let markdown = format!("<{tag}>{inside}{close}{after}");
                     let whole = rendered(&markdown, "a test").expect("no limit in a test");
@@ -1556,6 +1544,7 @@ fn a_break_that_ends_link_text_at_the_end_of_a_paragraph_means_nothing() {
 
 // covers: Core\Markdown::fromHtml
 #[test]
+#[cfg_attr(miri, ignore = "round-trips nineteen documents, ten seconds each")]
 fn a_tight_item_with_text_before_a_quote_or_list_stays_tight() {
     keeps_its_meaning(&[
         "-\t\0\0\0\0\r\t>\u{1b}\r\t- ",
@@ -1731,6 +1720,7 @@ fn a_task_marker_before_a_break_stays_a_checkbox() {
 
 // covers: Core\Markdown::fromHtml
 #[test]
+#[cfg_attr(miri, ignore = "checks six documents against every fuzz property")]
 fn a_tight_item_with_text_before_a_table_stays_tight() {
     holds_the_fuzz_properties(&[
         "- l\rl\r  :-",

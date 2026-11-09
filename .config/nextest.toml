@@ -23,3 +23,10 @@ test-threads = 8
 # A test still running after five minutes is stopped and reported as a failure. A test that is only
 # slow under Miri takes a smaller input under `cfg!(miri)` instead.
 slow-timeout = { period = "60s", terminate-after = 5 }
+
+# `bun nv deep`'s Miri units, on a machine faster than CI's runner. CI runs each crate in shards of 4
+# threads, and a test there took more than four times as long as here: 74 s here passed, and over
+# 300 s there failed. So a test is stopped here at 60 s, a fifth of CI's bound.
+[profile.miri-deep]
+inherits = "miri"
+slow-timeout = { period = "30s", terminate-after = 2 }
