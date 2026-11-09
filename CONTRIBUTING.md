@@ -177,6 +177,7 @@ crates/             the Cargo workspace
   nvs-fmt           `nvs fmt` — the Novis formatter
   nvs-repo          how a test reaches a file outside its own package, recorded (dev-only)
   nvs-footprint     what an `nvs` process resolved and read, logged for observed selection
+  nvs-fuzz-checks   each fuzz target's check, which `cargo test` runs over the target's saved inputs
 benches/
   abi-probe         architecture invariants + cost baselines  [audited unsafe]
   serve-probe       the load generator of the server's throughput leg

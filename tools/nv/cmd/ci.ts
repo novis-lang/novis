@@ -277,6 +277,7 @@ export const PRE_PUSH: PrePush[] = [
   { name: "rules", argv: ["bun", "nv", "rules", "--check"] },
   { name: "rulebook pages", argv: ["bun", "nv", "rules", "--render", "--check"] },
   { name: "rendered files", argv: ["bun", "nv", "render", "--check"] },
+  { name: "repository layout", argv: ["bun", "nv", "layout", "--check"] },
   { name: "third-party attribution", argv: ["bun", "nv", "gen-attribution", "--check"] },
   { name: "advisories", argv: ["cargo", "deny", "check", "advisories"] },
   ...LOCKFILE_DIRS.map((d): PrePush => ({
