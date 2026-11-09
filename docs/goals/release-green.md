@@ -87,21 +87,19 @@ job is never skipped unseen. What stage 1 settled while building it:
 end each red step with its command and the tail of its log. It writes the whole report to
 `.agent-tmp/deep/` and exits 1 when a step is red. `--failed` runs again only the steps the last report
 names red. `--only <job>` runs one job's step. One step runs at a time, so a timing guard never shares
-the machine with a fuzzer or Miri. What it costs: about four to five hours of this machine per full
-run, measured in stage 1. The first run's steps took two hours without `fuzz-smoke` (about 90 minutes
-while two targets are young), without the three steps whose WSL tools are missing, and with `asan`,
+the machine with Miri. What it costs: about three to four hours of this machine per full
+run, measured in stage 1. The first run's steps took two hours without the three steps whose WSL tools are missing, and with `asan`,
 `tsan` and `miri-units` stopping at their first red crate. The longest are `miri` (31 min),
 `test-windows` (22 min) and `cost-guards` (21 min, both legs). A session's background call ends at two
 hours, so a full run is taken in parts with `--only` and `--failed`. That is still less than one red
 CI run plus its fix and its second run.
 
-**`bun nv fuzz --all` keeps fuzzing after a crash.** It runs libFuzzer's fork mode with
-`-ignore_crashes=1 -ignore_timeouts=1 -ignore_ooms=1`, and at the end lists every input it saved,
-each with its base64. So one run finds every crash it can, and all of them are fixed in one pass.
-Each target runs `120` seconds on the fork mode's jobs, about three times the work of the CI job's
-300 seconds on one core. A target whose `fuzz/fuzz_targets/<target>.rs` is younger than 14 days runs
-`1800` seconds, because a young target finds a new bug every few minutes. `markdown_comrak` stays out,
-as it does in CI.
+**No fuzz search is part of this goal's cycle** (`rule:testing/a-fuzz-search-gates-nothing`, the
+person's call on 2026-11-09). A search's verdict is luck: the cycle waited for a `fuzz-smoke` step that
+saved no input, and a young target saved a new one on nearly every run, so the loop never pushed. CI's
+`fuzz-smoke` job and `bun nv deep`'s step are gone. `cargo test` replays every input under
+`fuzz/seeds/` through each target's check in `crates/nvs-fuzz-checks`, and the `lint` job compiles
+the fuzz workspace. A session of this goal never runs `bun nv fuzz`.
 
 **Every run of `ci.yml` runs every job.** Stage 2 deletes the lanes: the `changes` job, `bun nv
 ci-changes`, the `full` input and the `deep` output, and the rules `testing/ci-lanes`,
@@ -255,25 +253,14 @@ decisions*), and every WSL step runs in `novis-test`, which `bun nv wsl` says is
   tests/db/compose.yaml up -d --wait redis postgres` first.
 - **`miri-units`:** `nvs-runtime` is green, which proves `a502373c2a`. One `nvs-stdlib` test ran past
   300 s. `af6b41d329` cuts its Miri input, and it now takes 70 s alone. The step has not run again.
-- **`fuzz-smoke` is red, with 7 crash inputs** under `/var/tmp/nvs-fuzz-artifacts/<target>/` in
-  `novis-test`. The per-job logs have the panics, so reproduce each one from its base64:
-  - `markdown`: `cDw/Pu+7vw0qcgAAAAAAAAA=`, `DzwvZGl2PiAg77u/`, `ACMgICA+ACoCPGgyPgAqKiM=`
-  - `markdown_from_html`: `LQktNgphbXA7IwoJLXwKCS0=`, `DTx1bD48YnI+CTx1bD5gLmg=`,
-    `Kjx1bD48YSBocmVmPS51JT48PGNvZGU+PGJyPl06`, `d3d3LiAAPGhyPjwvcD4APG9sPjxocj48L3A+ADxvbD4gIHN6`
+- **The fuzz step is gone** (§ *Standing decisions*). The seven inputs it saved were fixed in
+  `eb4153d98b` and `b4535b1892`, and they are seed files that `cargo test` replays.
 - No test is expected red from this loop's work.
-- `docs/rules/core-classes.md` is modified in the tree by another session. It is not this loop's.
 - `.claude/settings.json:30` still allows `bun nv ci-changes`. That file is the person's to edit.
 
 ### Next
 
-**Fix the 7 fuzz crashes in one pass.** `markdown` and `markdown_from_html` are two independent
-causes, so each goes to its own writing subagent, one after the other (§ *Split*). Each subagent decodes
-its inputs and writes a unit test in `crates/nvs-stdlib/src/markdown/tests.rs`, or the
-`from_html` tests, that fails on each input. It finds the panic and fixes its cause, then commits with a
-pathspec. Two inputs from one target may share a cause. Then run `bun nv deep --only fuzz-smoke`
-again, which must save no input.
-
-**Then the rest of stage 1's last item:** `bun nv deep --only miri-units` once more, which must be
+**The rest of stage 1's last item:** `bun nv deep --only miri-units` once more, which must be
 green with `af6b41d329`. Then tick the item, set stage 1 to done, and write the measured times into
 § *Standing decisions*.
 
