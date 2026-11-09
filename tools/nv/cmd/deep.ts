@@ -91,9 +91,13 @@ export const TOOLS: Record<string, Tool> = {
   },
 };
 
-/** One command of a step: a program on Windows, or a `bash` line in WSL's copy of the tree. */
+/**
+ * One command of a step: a program on Windows, or a `bash` line in WSL's copy of the tree. The hang
+ * watch is off for a `bash` line, whose CPU it cannot read, and for a program with `quiet`, which
+ * runs its work in WSL and prints nothing for long stretches by design. `CMD_TIMEOUT_MS` bounds both.
+ */
 export type Cmd =
-  | { argv: string[]; env?: Record<string, string>; cwd?: string; glob?: string }
+  | { argv: string[]; env?: Record<string, string>; cwd?: string; glob?: string; quiet?: true }
   | { wsl: string; env?: Record<string, string> };
 
 /** One local step: a job, or one leg of it, as this machine runs it. */
@@ -408,7 +412,9 @@ export function steps(root: string = ROOT): Step[] {
       ],
       note: "each crate runs whole; the job splits nvs-runtime into 2 shards and nvs-stdlib into 12",
     },
-    { id: "fuzz-smoke", job: "fuzz-smoke", cmds: [{ argv: ["bun", "nv", "fuzz", "--all"] }], note: "`bun nv fuzz --all` goes on after a crash, and runs each target longer" },
+    // A fork-mode run first replays the target's saved corpus in one process and prints nothing until it
+    // ends, which takes over ten minutes once the corpus has grown, so the hang watch is off.
+    { id: "fuzz-smoke", job: "fuzz-smoke", cmds: [{ argv: ["bun", "nv", "fuzz", "--all"], quiet: true }], note: "`bun nv fuzz --all` goes on after a crash, and runs each target longer" },
   ];
 }
 
@@ -508,7 +514,7 @@ async function runCmd(c: Cmd, mirror: string, log: string): Promise<number> {
     return r.timedOut ? 124 : r.code;
   }
   const files = c.glob ? globbed(c.glob) : [];
-  const r = await runProc([...c.argv, ...files], { cwd: c.cwd ? join(ROOT, c.cwd) : ROOT, env: c.env ?? {}, timeoutMs: CMD_TIMEOUT_MS, onLine });
+  const r = await runProc([...c.argv, ...files], { cwd: c.cwd ? join(ROOT, c.cwd) : ROOT, env: c.env ?? {}, timeoutMs: CMD_TIMEOUT_MS, onLine, ...(c.quiet ? { hang: false } : {}) });
   if (r.hung) appendFileSync(log, `HANG: ${r.hung}\n`);
   return r.timedOut ? 124 : r.code;
 }
