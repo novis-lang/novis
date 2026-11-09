@@ -1125,10 +1125,12 @@ struct Sink {
     /// what keeps each repeat in proportion to its own attributes rather than
     /// to every attribute the element already has.
     attribute_names: RefCell<HashMap<usize, HashSet<String>>>,
-    /// Whether the builder has foster-parented a node: moved content written
-    /// inside a table to just before it. [`settled`] reads it after the parse,
-    /// which consumes the sink, so it is shared.
-    fostered: Rc<Cell<bool>>,
+    /// Whether the builder has moved a node somewhere its source did not put
+    /// it: foster-parented content written inside a table to just before it,
+    /// or moved a block's children into a formatting element the adoption
+    /// agency made for them. [`settled`] reads it after the parse, which
+    /// consumes the sink, so it is shared.
+    moved: Rc<Cell<bool>>,
 }
 
 impl Sink {
@@ -1138,7 +1140,7 @@ impl Sink {
         Self {
             nodes: RefCell::new(vec![Node::new(Kind::Document)]),
             attribute_names: RefCell::new(HashMap::new()),
-            fostered: Rc::new(Cell::new(false)),
+            moved: Rc::new(Cell::new(false)),
         }
     }
 
@@ -1344,7 +1346,7 @@ impl TreeSink for Sink {
         prev_element: &usize,
         child: NodeOrText<usize>,
     ) {
-        self.fostered.set(true);
+        self.moved.set(true);
         if self.nodes.borrow()[*element].parent.is_some() {
             self.append_before_sibling(element, child);
         } else {
@@ -1416,7 +1418,12 @@ impl TreeSink for Sink {
         self.detach(*target);
     }
 
+    /// Called only by the adoption agency, when a misnested formatting end
+    /// tag has a block inside the element it closes. The tree it leaves can
+    /// nest a block where a parse of its source closes one, so this sets
+    /// [`Sink::moved`].
     fn reparent_children(&self, node: &usize, new_parent: &usize) {
+        self.moved.set(true);
         let moved = std::mem::take(&mut self.nodes.borrow_mut()[*node].children);
         let mut nodes = self.nodes.borrow_mut();
         for &child in &moved {
@@ -1617,14 +1624,15 @@ pub(crate) fn parse_in_page(document: &str) -> Parsed {
     parsed_in_page_noting(document).0
 }
 
-/// [`parse_in_page`]'s tree, and whether the parse foster-parented a node.
+/// [`parse_in_page`]'s tree, and whether the parse foster-parented a node or
+/// the adoption agency moved a block's children ([`Sink::moved`]).
 fn parsed_in_page_noting(document: &str) -> (Parsed, bool) {
     let mut opts = options();
     opts.tree_builder.never_quirks = true;
     let sink = Sink::new();
-    let fostered = Rc::clone(&sink.fostered);
+    let moved = Rc::clone(&sink.moved);
     let tree = html5ever::parse_document(sink, opts).one(document);
-    (tree, fostered.get())
+    (tree, moved.get())
 }
 
 /// The payload [`Sink::push`] unwinds with when the request cannot afford one
@@ -2289,8 +2297,9 @@ fn rebuilt_noting(tree: &Parsed) -> (Parsed, bool) {
 }
 
 /// How many times [`settled`] parses and rebuilds a document at most. The
-/// second pass parses an answer whose tables hold only what a table may hold,
-/// so it fosters nothing, and the third is there in case it does.
+/// second pass parses an answer whose tables hold only what a table may hold
+/// and whose formatting elements are closed where they are nested, so it moves
+/// nothing, and the third is there in case it does.
 const SETTLING_PASSES: usize = 3;
 
 /// `document` parsed by [`parse_in_page`], rebuilt and written out, as
@@ -2299,11 +2308,13 @@ const SETTLING_PASSES: usize = 3;
 /// **One pass is not always a fixed point.** Foster parenting builds nesting
 /// that no source builds: `<ul><li>a<table><tr><li>` puts the second `li`
 /// inside the first, and written out, a second parse closes the first `li`
-/// there. Unwrapping an element the list does not hold, such as a `center`
-/// between two `li`, does the same. So a parse that fostered a node, or a
-/// rebuild that unwrapped one, has its answer parsed and rebuilt again. A
-/// document with neither pays for one pass. One that has either pays for a
-/// second parse of its answer, which is no larger than the document.
+/// there. The adoption agency does the same: `<h1><em><h2></em></h1>` builds
+/// an `h2` inside the `h1`, which a second parse closes. Unwrapping an element
+/// the list does not hold, such as a `center` between two `li`, does too. So a
+/// parse that fostered a node or moved a block's children into a formatting
+/// element, or a rebuild that unwrapped one, has its answer parsed and rebuilt
+/// again. A document with none of these pays for one pass. One that has any
+/// pays for a second parse of its answer, which is no larger than the document.
 ///
 /// With `head`, `document` continues one written before it: each pass parses
 /// `head`, `<body>` and the text, and the whitespace the text starts with is
@@ -2320,14 +2331,14 @@ pub(crate) fn settled(document: &str, head: Option<&str>, member: &str) -> Resul
     };
     let mut pass = 1;
     loop {
-        let (tree, fostered) = caught(|| parsed_in_page_noting(&text), member)?;
+        let (tree, moved) = caught(|| parsed_in_page_noting(&text), member)?;
         let (mut built, unwrapped) = rebuilt_noting(&tree);
         drop(tree);
         if head.is_none() {
             without_leading_whitespace(&mut built);
         }
         let out = source(&built);
-        if !(fostered || unwrapped) || pass == SETTLING_PASSES {
+        if !(moved || unwrapped) || pass == SETTLING_PASSES {
             return Ok(out);
         }
         pass += 1;
@@ -2338,13 +2349,15 @@ pub(crate) fn settled(document: &str, head: Option<&str>, member: &str) -> Resul
     }
 }
 
-/// `document` without the whitespace its text starts with, up to its first
-/// element.
+/// `document` without the whitespace and byte order marks (U+FEFF) its text
+/// starts with, up to its first element.
 ///
-/// The parse ignores whitespace that comes before the first tag of a
-/// document, so a rebuilt answer that started with whitespace would lose it
-/// when it is sanitized again. `<x>\na` rebuilds to `\na`, which reparses as
-/// `a`. Removing it here is what keeps the rebuild a fixed point.
+/// The parse drops a byte order mark that is a document's first character,
+/// and ignores whitespace that comes before its first tag, so a rebuilt answer
+/// that started with either would lose it when it is sanitized again. `<x>\na`
+/// rebuilds to `\na`, which reparses as `a`, and `<?>\u{FEFF}a` rebuilds to
+/// `\u{FEFF}a`, which reparses as `a` too. Removing any run of the two here is
+/// what keeps the rebuild a fixed point.
 fn without_leading_whitespace(document: &mut Parsed) {
     while let Some(first) = document.children.first_mut() {
         if first.kind != Kind::Text {
@@ -2352,7 +2365,7 @@ fn without_leading_whitespace(document: &mut Parsed) {
         }
         let kept = first
             .text
-            .trim_start_matches(['\t', '\n', '\u{C}', '\r', ' '])
+            .trim_start_matches(['\t', '\n', '\u{C}', '\r', ' ', '\u{FEFF}'])
             .len();
         if kept > 0 {
             first.text.drain(..first.text.len() - kept);

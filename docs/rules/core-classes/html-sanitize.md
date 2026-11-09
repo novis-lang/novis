@@ -19,14 +19,20 @@ unwrapped otherwise, because `html`, `head` and `body` are elements the algorith
 fragment. An attribute the list does not grant is not written, and a `href` or `src` naming a scheme
 outside the ones that fetch is not written either.
 
-**A document that fostered a node or lost a wrapper is rebuilt twice.** Foster parenting moves content
+**A document that moved a node or lost a wrapper is rebuilt twice.** Foster parenting moves content
 out of a table into the element around it, and so builds nesting no source builds:
 `<ul><li>a<table><tr><li>b` puts one `li` inside another, and a second parse of the answer closes the
-first. Unwrapping an element the list does not hold, such as an `applet` between two `li`, does the
-same. So when the parse fostered a node, or the rebuild unwrapped an element other than `html`,
-`head` and `body`, the answer is parsed and rebuilt once more, up to three passes in all. A document
-with neither costs one pass. One with either costs a second parse of an answer no larger than itself,
-and the extra latency is spent on the mutation-XSS property below.
+first. The adoption agency, which repairs a misnested formatting end tag, does the same when it moves
+a block's children: `<h1><em><h2></em></h1>` puts an `h2` inside the `h1`. Unwrapping an element the
+list does not hold, such as an `applet` between two `li`, does too. So when the parse fostered a node
+or the adoption agency moved a block's children, or the rebuild unwrapped an element other than
+`html`, `head` and `body`, the answer is parsed and rebuilt once more, up to three passes in all. A
+document with none of these costs one pass. One with any costs a second parse of an answer no larger
+than itself, and the extra latency is spent on the mutation-XSS property below.
+
+**The answer starts with neither whitespace nor a byte order mark.** A parse ignores whitespace before
+a document's first tag and drops a U+FEFF that is its first character, so text the rebuild leaves in
+front, such as the `\n` or U+FEFF after a removed `<?…>`, is removed from the answer.
 
 **A relative reference never names a host.** A URL value that starts with two of `/` and `\`, once tab,
 line feed and carriage return are removed as a browser removes them, is scheme-relative: `//host`, and
