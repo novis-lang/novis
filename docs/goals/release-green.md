@@ -171,6 +171,13 @@ loop only. Stage 1 touches `tools/nv/cmd/deep.ts` and `tools/nv/cmd/fuzz.ts`. St
 workflows, `tools/nv/cmd/ci.ts`, `ci-changes.ts`, `release.ts` and the rules. Stage 2's table row
 in `deep.ts` waits for stage 1.
 
+**A broken WSL disk is the person's to repair (`d1`).** The fix needs `wsl --shutdown`, which also
+stops the main loop's WSL work, so the person picks a quiet moment for it. They run the shutdown, then
+`e2fsck -f -y` on the distro's `ext4.vhdx` from another distro or a `wsl --mount`, or they make the
+distro again. The loop never shuts WSL down and never repairs a disk. It runs the WSL steps once
+`bun nv wsl` says the distro is healthy. For this disk the person made the distro again: `cf18d84bd9`
+moves every WSL step into `novis-test`.
+
 ## Stages
 
 ### 1. one command runs every CI job this machine can run
@@ -238,41 +245,43 @@ Every session runs this cycle until the push run is green or the context reaches
 
 ### State
 
-Stage 2 is built. Every item but the push proof is ticked, and the proof is stage 3's first push.
-- **`f1c357ea3e`**: `ci.yml` runs every job, with `build`, `release-version` and `dev-image`;
-  `dev-build.yml` and `bun nv ci-changes` are deleted; `--tested` takes a push run; the rules follow.
-- **`9c43636c5d`**: `bun nv ci --dispatch release` refuses unless `greenFullRun` finds a green
-  `ci.yml` (push, nightly, dispatch) or `release.yml` run of `origin/main`'s tip (`PROVES_RELEASE`).
-  No dry run is needed. `Dev build` left `WORKFLOW_FILES` and `REPLACED_BY_RELEASE`, and
-  `CALLS_BUILD` is `Release` and `CI`, so a failed optional build leg in a `CI` run is passed over.
-  `docs/release.md` says the new order.
-- **`74105c5c0f`**: `bun nv deep` has `release-version` (in a clone of `HEAD` under
-  `.agent-tmp/deep/release-version/`, deleted after; green here in 13 s), `build-windows` and
-  `build-linux` (release `nvs-cli` per target, the `+dev` version check, `--package`). The aarch64,
-  macOS and musl legs are in `CI_ONLY`. The two build legs have not run yet.
-- **`ce82780576`**: `image.yml` lost `binaries-run`, and `ci.yml`'s `dev-image` and `release.yml`'s
-  `test` no longer grant `actions: read`, since a run reads its own artifacts with no token.
-- `ci.test.ts`, `deep.test.ts` and `ci-push-builds.test.ts` are green (74 tests). No test is
-  expected red from this loop's work.
-- **WSL is repaired, as a new distro.** `d1` is answered: the old Ubuntu 24.04 distro's disk logged an I/O
-  failure, then the bad bitmap, and the person deleted it. Every WSL step now runs in `novis-test`, an Ubuntu
-  26.04 distro that holds caches only. `bun nv wsl --setup` makes it, `bun nv wsl` checks it, and every
-  sync of the tree's copy stops at an ext4 error on its disk (`tools/nv/lib/wsl.ts`). Its target
-  directories start cold, so the first WSL step pays a full build.
+Stage 2 is built, and its push proof is stage 3's first push. `d1` is closed (§ *Standing
+decisions*), and every WSL step runs in `novis-test`, which `bun nv wsl` says is healthy.
+- **Docker's WSL integration is off for `novis-test`.** That is a Docker Desktop setting only the
+  person can change, and `test-linux` cannot start its servers until it is on.
+- **Green on `cf18d84bd9`:** `build-windows` (7 min), `docs`, `attribution`, `supply-chain`,
+  `reference`, `test-windows` (20 min), `proofs-windows`, `cost-guards-windows` (16 min), `webp-lib`,
+  `extension-sandbox`, and `bun nv selftest`. `test-windows` needs `docker compose -f
+  tests/db/compose.yaml up -d --wait redis postgres` first.
+- **`miri-units`:** `nvs-runtime` is green, which proves `a502373c2a`. One `nvs-stdlib` test ran past
+  300 s. `af6b41d329` cuts its Miri input, and it now takes 70 s alone. The step has not run again.
+- **`fuzz-smoke` is red, with 7 crash inputs** under `/var/tmp/nvs-fuzz-artifacts/<target>/` in
+  `novis-test`. The per-job logs have the panics, so reproduce each one from its base64:
+  - `markdown`: `cDw/Pu+7vw0qcgAAAAAAAAA=`, `DzwvZGl2PiAg77u/`, `ACMgICA+ACoCPGgyPgAqKiM=`
+  - `markdown_from_html`: `LQktNgphbXA7IwoJLXwKCS0=`, `DTx1bD48YnI+CTx1bD5gLmg=`,
+    `Kjx1bD48YSBocmVmPS51JT48PGNvZGU+PGJyPl06`, `d3d3LiAAPGhyPjwvcD4APG9sPjxocj48L3A+ADxvbD4gIHN6`
+- No test is expected red from this loop's work.
 - `docs/rules/core-classes.md` is modified in the tree by another session. It is not this loop's.
 - `.claude/settings.json:30` still allows `bun nv ci-changes`. That file is the person's to edit.
 
 ### Next
 
-**Stage 1's last item.** `bun nv wsl` first, which must print that `novis-test` is healthy, then
-`bun nv selftest`, then `bun nv deep --only miri-units` (about 50 minutes, plus a cold build) to prove
-`a502373c2a`, then `--only fuzz-smoke` (about 90 minutes), each as its own background call. Fix what
-goes red, then tick the item and set stage 1 to done.
+**Fix the 7 fuzz crashes in one pass.** `markdown` and `markdown_from_html` are two independent
+causes, so each goes to its own writing subagent, one after the other (§ *Split*). Each subagent decodes
+its inputs and writes a unit test in `crates/nvs-stdlib/src/markdown/tests.rs`, or the
+`from_html` tests, that fails on each input. It finds the panic and fixes its cause, then commits with a
+pathspec. Two inputs from one target may share a cause. Then run `bun nv deep --only fuzz-smoke`
+again, which must save no input.
 
-**Then stage 3's first cycle**, the Windows-only steps one by one as background calls:
-`bun nv deep --only build-windows` first (new, about half an hour cold), then `docs`, `attribution`,
-`supply-chain`, `reference`, `test-windows`, `proofs-windows` and `cost-guards-windows`, then the WSL
-steps. Fix each red step as § *Standing decisions* says.
+**Then the rest of stage 1's last item:** `bun nv deep --only miri-units` once more, which must be
+green with `af6b41d329`. Then tick the item, set stage 1 to done, and write the measured times into
+§ *Standing decisions*.
+
+**Then the WSL steps of stage 3's first cycle**, one `--only` call each: `lint`, `build-linux`,
+`proofs-linux`, `cost-guards-linux`, `valgrind`, `asan`, `tsan`, `miri`, and `test-linux` once the
+person turns on Docker's WSL integration. Then the Windows steps not run yet: `release-version`,
+`ext-templates`, `extension`, `extension-host`, `browser`, `database`, `docker` and `flood`. Fix each
+red step as § *Standing decisions* says. Then push.
 
 ### Backlog
 

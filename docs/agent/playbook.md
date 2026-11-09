@@ -133,6 +133,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **A Docker Desktop restart in the middle of a test run makes the server examples fail with
+  "deadline passed" or "failed to fill whole buffer".** Its port proxy still accepts on 15432 and
+  16379 while the compose containers are down, so `examples.rs` thinks the servers are up. If
+  `docker ps -a` shows `novis-db-*` with `Exited (255)`, run `docker compose -f
+  tests/db/compose.yaml up -d --wait redis postgres` and run the test again. See
+  `crates/nvs-cli/tests/examples.rs`.
 - **Format with `cargo fmt --all`, never `rustfmt <file>`.** Plain `rustfmt` does not read the
   workspace's settings, so it rewrites lines CI's `cargo fmt --all --check` accepts. `cargo fmt
   --all --check` is the check CI runs, and it found `fuzz.rs` and `segments.rs` unformatted after
