@@ -254,23 +254,25 @@ Stage 2 is built. Every item but the push proof is ticked, and the proof is stag
   `test` no longer grant `actions: read`, since a run reads its own artifacts with no token.
 - `ci.test.ts`, `deep.test.ts` and `ci-push-builds.test.ts` are green (74 tests). No test is
   expected red from this loop's work.
-- **WSL is still read-only** (`d1` open; checked this session), so every WSL step waits.
+- **WSL is repaired, as a new distro.** `d1` is answered: the old Ubuntu 24.04 distro's disk logged an I/O
+  failure, then the bad bitmap, and the person deleted it. Every WSL step now runs in `novis-test`, an Ubuntu
+  26.04 distro that holds caches only. `bun nv wsl --setup` makes it, `bun nv wsl` checks it, and every
+  sync of the tree's copy stops at an ext4 error on its disk (`tools/nv/lib/wsl.ts`). Its target
+  directories start cold, so the first WSL step pays a full build.
 - `docs/rules/core-classes.md` is modified in the tree by another session. It is not this loop's.
 - `.claude/settings.json:30` still allows `bun nv ci-changes`. That file is the person's to edit.
 
 ### Next
 
-**Stage 1's last item, once `d1` is answered and WSL writes again**
-(`MSYS_NO_PATHCONV=1 wsl -e touch /var/tmp/x` succeeds): `bun nv selftest`, then `bun nv deep
---only miri-units` (about 50 minutes) to prove `a502373c2a`, then `--only fuzz-smoke` (about 90
-minutes), each as its own background call. Fix what goes red, then tick the item and set stage 1
-to done.
+**Stage 1's last item.** `bun nv wsl` first, which must print that `novis-test` is healthy, then
+`bun nv selftest`, then `bun nv deep --only miri-units` (about 50 minutes, plus a cold build) to prove
+`a502373c2a`, then `--only fuzz-smoke` (about 90 minutes), each as its own background call. Fix what
+goes red, then tick the item and set stage 1 to done.
 
-**While WSL stays read-only**, a session may run the Windows-only steps one by one as background
-calls, to start stage 3's first cycle early: `bun nv deep --only build-windows` first (new, about
-half an hour cold), then `docs`, `attribution`, `supply-chain`, `reference`, `test-windows`,
-`proofs-windows` and `cost-guards-windows`. Fix each red step as § *Standing decisions* says. Do
-not push until the WSL steps have run too.
+**Then stage 3's first cycle**, the Windows-only steps one by one as background calls:
+`bun nv deep --only build-windows` first (new, about half an hour cold), then `docs`, `attribution`,
+`supply-chain`, `reference`, `test-windows`, `proofs-windows` and `cost-guards-windows`, then the WSL
+steps. Fix each red step as § *Standing decisions* says.
 
 ### Backlog
 

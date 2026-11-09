@@ -33,6 +33,7 @@ import { dirname, isAbsolute, join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { Tree } from "../lib/proctree.ts";
+import { health, wslArgv } from "../lib/wsl.ts";
 
 /** The scratch index the snapshot is taken through, under the repository root. */
 export const INDEX = ".agent-tmp/wsl-mirror/index";
@@ -121,7 +122,7 @@ async function snapshot(root: string): Promise<{ tree: string } | { fail: string
 
 /** One `bash -c` line inside the distro, with `input` on its standard input. */
 async function inWsl(line: string, input?: ReadableStream<Uint8Array>): Promise<{ code: number; out: string; err: string }> {
-  const child = Bun.spawn(["wsl.exe", "--exec", "bash", "-c", line], { stdin: input ?? "ignore", stdout: "pipe", stderr: "pipe" });
+  const child = Bun.spawn(wslArgv(line, { login: false }), { stdin: input ?? "ignore", stdout: "pipe", stderr: "pipe" });
   const tree = new Tree(child);
   const timer = setTimeout(() => tree.kill(), TIMEOUT_MS);
   try {
@@ -135,10 +136,13 @@ async function inWsl(line: string, input?: ReadableStream<Uint8Array>): Promise<
 
 /**
  * Brings the copy at `mirror` inside the distro to this checkout's working tree. Returns "" when the copy
- * matches it, else why it could not be brought there.
+ * matches it, else why it could not be brought there. A distro that is missing or whose disk is broken
+ * (`lib/wsl.ts` `health`) is the reason, and nothing is written to it.
  */
 export async function syncMirror(mirror: string, root: string = ROOT): Promise<string> {
   try {
+    const sick = await health();
+    if (sick !== "") return sick;
     return await sync(mirror, root);
   } catch (e) {
     return `cannot start -- ${(e as Error).message ?? e}`;

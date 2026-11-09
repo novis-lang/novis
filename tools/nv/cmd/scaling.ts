@@ -156,6 +156,7 @@ import { read } from "../proofs/roster.ts";
 import { releaseBinary, servicesFor, skipReason, spawnProof } from "../proofs/run.ts";
 import { freePort, hammer, HttpConn, type HttpShape, Server } from "./bench.ts";
 import { messageOf } from "../lib/proc.ts";
+import { wslArgv, wslExec } from "../lib/wsl.ts";
 
 export const summary = "how fast a program's cost grows with its size: nv scaling [--iterations] [--check] [path-filter...] | --areas";
 
@@ -230,7 +231,7 @@ function currentWslNvs(path: string): Promise<void> {
     let code: number;
     let err = "";
     try {
-      const build = Bun.spawn(["wsl.exe", "--exec", "bash", "-lc", wslBuildLine(mirror, WSL_TARGET, true)], { stdout: "pipe", stderr: "pipe" });
+      const build = Bun.spawn(wslArgv(wslBuildLine(mirror, WSL_TARGET, true)), { stdout: "pipe", stderr: "pipe" });
       const decoder = new TextDecoder();
       const echo = (async () => {
         for await (const chunk of build.stderr) {
@@ -562,7 +563,7 @@ async function timeRun(nvs: string, copy: string, bench: string, reps: number): 
 async function instructions(opts: Options, command: string, file: string, bench: string): Promise<number> {
   await currentWslNvs(opts.wslNvs);
   const nvs = [process.platform === "win32" ? opts.wslNvs : opts.nvs, command, file];
-  const wsl = (argv: string[]) => (process.platform === "win32" ? ["wsl.exe", "--", ...argv] : argv);
+  const wsl = (argv: string[]) => (process.platform === "win32" ? wslExec(argv) : argv);
   await spawnProof(wsl(nvs), file, TIMEOUT_MS, { unlogged: true });
   const argv = ["valgrind", "--tool=callgrind", "--callgrind-out-file=/dev/null", ...nvs];
   const out = await insideWsl(bench, () => spawnProof(wsl(argv), file, TIMEOUT_MS * 4, { unlogged: true }));
@@ -904,7 +905,7 @@ async function lspInstructions(opts: Options, printed: string, bench: string): P
   await currentWslNvs(opts.wslNvs);
   const nvs = process.platform === "win32" ? opts.wslNvs : opts.nvs;
   const shell = ["sh", "-c", `valgrind --tool=callgrind --callgrind-out-file=/dev/null '${nvs}' lsp < '${feed}'`];
-  const out = await insideWsl(bench, () => spawnProof(process.platform === "win32" ? ["wsl.exe", "--", ...shell] : shell, printed, TIMEOUT_MS * 4, { unlogged: true }));
+  const out = await insideWsl(bench, () => spawnProof(process.platform === "win32" ? wslExec(shell) : shell, printed, TIMEOUT_MS * 4, { unlogged: true }));
   return collected(out.stderr, bench);
 }
 

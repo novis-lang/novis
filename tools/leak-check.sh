@@ -12,9 +12,9 @@
 #   bash tools/leak-check.sh --test target/tests.nvs
 #   bash tools/leak-check.sh --request examples/json-body.nvsr examples/json-body.nvs
 #
-#   wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh target/mine.nvs examples/report.nvs    on Windows
-#   wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh --test target/tests.nvs
-#   wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh --request examples/json-body.nvsr examples/json-body.nvs
+#   wsl.exe -d novis-test -- bash /mnt/<drive>/<repo>/tools/leak-check.sh target/mine.nvs examples/report.nvs    on Windows
+#   wsl.exe -d novis-test -- bash /mnt/<drive>/<repo>/tools/leak-check.sh --test target/tests.nvs
+#   wsl.exe -d novis-test -- bash /mnt/<drive>/<repo>/tools/leak-check.sh --request examples/json-body.nvsr examples/json-body.nvs
 #
 # `--test` runs the fixtures through `nvs test` instead of `nvs run`, which is a
 # different program: the entry file's own statements do not run and the
@@ -28,7 +28,7 @@
 # nightly run answers only the requests the `.nvsr` files beside the examples
 # describe, so this is how an edge another request opens gets looked at.
 #
-# A `wsl.exe -- bash -lc "…"` one-liner mangles under two layers of shell
+# A `wsl.exe -d novis-test -- bash -lc "…"` one-liner mangles under two layers of shell
 # quoting, so this is a file passed by path instead. AGENTS.md says why.
 set -u
 

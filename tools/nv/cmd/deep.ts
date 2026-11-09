@@ -32,6 +32,7 @@ import { join } from "node:path";
 import { mirrorPath, q, syncMirror, wslPath } from "../accept/mirror.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
+import { DISTRO, wslArgv } from "../lib/wsl.ts";
 
 export const summary = "runs every CI job this machine can run, one after another: nv deep [--failed | --only <job> | --list]";
 
@@ -58,22 +59,21 @@ export interface Tool {
   install: string;
 }
 
+/** What makes the test distro and installs every `wsl` tool below at CI's versions (`cmd/wsl.ts`). */
+const WSL_SETUP = "bun nv wsl --setup";
+
 /** Every program a step may need that a clone does not bring. `commands.md` § *Without looper* lists the same lines. */
 export const TOOLS: Record<string, Tool> = {
-  "wsl bun": { where: "wsl", probe: "command -v bun", install: "in WSL: curl -fsSL https://bun.sh/install | bash" },
-  "wsl node": { where: "wsl", probe: "command -v node", install: "in WSL: sudo apt-get install -y nodejs npm (Node 22 or newer)" },
-  "wsl nightly miri": {
-    where: "wsl",
-    probe: "cargo +nightly miri --version",
-    install: "in WSL: rustup toolchain install nightly --component miri rust-src && cargo +nightly miri setup",
-  },
-  "wsl cargo-nextest": { where: "wsl", probe: "command -v cargo-nextest", install: "in WSL: cargo install cargo-nextest@0.9.148 --locked" },
-  "wsl cargo-fuzz": { where: "wsl", probe: "command -v cargo-fuzz", install: "in WSL: cargo install cargo-fuzz --version 0.13.2 --locked" },
-  "wsl valgrind": { where: "wsl", probe: "command -v valgrind", install: "in WSL: sudo apt-get install -y --no-install-recommends valgrind" },
+  "wsl bun": { where: "wsl", probe: "command -v bun", install: WSL_SETUP },
+  "wsl node": { where: "wsl", probe: "command -v node", install: WSL_SETUP },
+  "wsl nightly miri": { where: "wsl", probe: "cargo +nightly miri --version", install: WSL_SETUP },
+  "wsl cargo-nextest": { where: "wsl", probe: "command -v cargo-nextest", install: WSL_SETUP },
+  "wsl cargo-fuzz": { where: "wsl", probe: "command -v cargo-fuzz", install: WSL_SETUP },
+  "wsl valgrind": { where: "wsl", probe: "command -v valgrind", install: WSL_SETUP },
   "wsl docker": {
     where: "wsl",
     probe: "docker info >/dev/null 2>&1",
-    install: "turn on Docker Desktop's WSL integration for the distro (Settings > Resources > WSL integration)",
+    install: `turn on Docker Desktop's WSL integration for \`${DISTRO}\` (Settings > Resources > WSL integration)`,
   },
   "cargo-nextest": { where: "windows", probe: "command -v cargo-nextest", install: "cargo install cargo-nextest@0.9.148 --locked" },
   "cargo-deny": { where: "windows", probe: "command -v cargo-deny", install: "cargo install cargo-deny --locked" },
@@ -583,7 +583,7 @@ async function missing(step: Step): Promise<string[]> {
   const out: string[] = [];
   for (const name of step.tools ?? []) {
     const t = TOOLS[name]!;
-    const argv = t.where === "wsl" ? ["wsl.exe", "--exec", "bash", "-lc", t.probe] : ["bash", "-c", t.probe];
+    const argv = t.where === "wsl" ? wslArgv(t.probe) : ["bash", "-c", t.probe];
     const r = await runProc(argv, { timeoutMs: 120_000, hang: false });
     if (r.code !== 0) out.push(`${name} is missing; install it: ${t.install}`);
   }
@@ -595,7 +595,7 @@ async function runCmd(c: Cmd, mirror: string, log: string): Promise<number> {
   appendFileSync(log, `\n$ ${cmdLine(c)}\n`);
   const onLine = (line: string): void => appendFileSync(log, `${line}\n`);
   if ("wsl" in c) {
-    const r = await runProc(["wsl.exe", "--exec", "bash", "-lc", wslLine(mirror, c)], { timeoutMs: CMD_TIMEOUT_MS, hang: false, onLine });
+    const r = await runProc(wslArgv(wslLine(mirror, c)), { timeoutMs: CMD_TIMEOUT_MS, hang: false, onLine });
     return r.timedOut ? 124 : r.code;
   }
   const files = c.glob ? globbed(c.glob) : [];

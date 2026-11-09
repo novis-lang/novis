@@ -43,6 +43,7 @@ import { join } from "node:path";
 import { mirrorPath, q, syncMirror, wslPath } from "../accept/mirror.ts";
 import { ROOT } from "../lib/paths.ts";
 import { passthrough, run as runProc } from "../lib/proc.ts";
+import { wslArgv } from "../lib/wsl.ts";
 
 export const summary =
   "runs one fuzz target in WSL, or every target CI fuzzes: nv fuzz <target> --runs <n> | --seconds <n>, or nv fuzz --all";
@@ -142,9 +143,7 @@ function inputsOf(target: string): { seeds: string; dict: string } {
   return { seeds, dict };
 }
 
-function wsl(line: string): string[] {
-  return ["wsl.exe", "--exec", "bash", "-lc", line];
-}
+const wsl = (line: string): string[] => wslArgv(line);
 
 /** Fuzzes every target CI fuzzes in the copy at `mirror`, then lists what the run saved. */
 async function runAll(mirror: string): Promise<number> {

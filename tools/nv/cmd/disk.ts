@@ -71,6 +71,7 @@ import { covwsCargo } from "../lib/covws.ts";
 import { CACHE, OLD, ROOT } from "../lib/paths.ts";
 import { run as runProgram } from "../lib/proc.ts";
 import { pyInt } from "../lib/py.ts";
+import { DISTRO } from "../lib/wsl.ts";
 import { COVMAP_DIR, staleMaps } from "../select/extract.ts";
 
 export const summary = "what the tree costs on disk, and the sweep: nv disk [--clean [-n]] [--deep]";
@@ -119,19 +120,19 @@ const ELSEWHERE: [string, string, string, string][] = [
     "WSL Linux target",
     "{tmp}/nvs-linux",
     "tools/leak-check.sh's own target dir, inside the ext4 vhdx",
-    "wsl.exe -- rm -rf /var/tmp/nvs-linux    # frees ext4 space; see commands.md for the vhdx",
+    `wsl.exe -d ${DISTRO} -- rm -rf /var/tmp/nvs-linux    # frees ext4 space; see commands.md for the vhdx`,
   ],
   [
     "WSL loop target",
     "{tmp}/nvs-target-wsl",
     "the loop's WSL leg target dir, beside it and just as large",
-    "wsl.exe -- rm -rf /var/tmp/nvs-target-wsl    # the next leg pays a 32s cold build",
+    `wsl.exe -d ${DISTRO} -- rm -rf /var/tmp/nvs-target-wsl    # the next leg pays a 32s cold build`,
   ],
   [
     "WSL leg tree copies",
     "{tmp}/nvs-target-wsl-src",
     "the WSL leg's copy of each checkout, which it builds and runs from",
-    "wsl.exe -- rm -rf /var/tmp/nvs-target-wsl-src    # the next leg copies the tree again and rebuilds the workspace crates",
+    `wsl.exe -d ${DISTRO} -- rm -rf /var/tmp/nvs-target-wsl-src    # the next leg copies the tree again and rebuilds the workspace crates`,
   ],
   [
     "harness transcripts",

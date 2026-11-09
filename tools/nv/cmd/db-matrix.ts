@@ -72,6 +72,7 @@ import { join } from "node:path";
 import { Tree } from "../lib/proctree.ts";
 import { ROOT } from "../lib/paths.ts";
 import { passthrough } from "../lib/proc.ts";
+import { wslArgv } from "../lib/wsl.ts";
 import { ArgError, parseArgs, pyRepr } from "../lib/py.ts";
 
 export const summary = "nvs-db's assertions against five real servers: nv db-matrix --all | --driver NAME | --list | --down";
@@ -400,13 +401,9 @@ async function exportAnchor(driver: Driver, dir: string): Promise<string> {
   return dest;
 }
 
-/**
- * `bash -lc <line>` inside the default WSL distro. `wsl.exe --exec` starts `bash` directly. `wsl.exe --`
- * would first hand the line to the distro's default shell, which expands every `$` and strips every quote
- * in it before `bash` sees it.
- */
+/** `bash -lc <line>` inside the test distro (`lib/wsl.ts`). */
 function inDistro(line: string): string[] {
-  return ["wsl.exe", "--exec", "bash", "-lc", line];
+  return wslArgv(line);
 }
 
 /**

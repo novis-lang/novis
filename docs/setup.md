@@ -65,8 +65,9 @@ one home and the row of [dependency-update.md](agent/dependency-update.md) that 
 | Tool | Version | Used by |
 |---|---|---|
 | MSVC build tools, with the Windows SDK | 14.50, SDK 10.0.26100 or newer | linking on Windows |
-| `cargo-fuzz` | 0.13.2, on a nightly toolchain | fuzzing, inside WSL on Windows |
+| `cargo-fuzz` | 0.13.2, on a nightly toolchain | fuzzing, inside WSL on Windows (`bun nv wsl --setup` reads the version from `ci.yml`) |
 | `valgrind` | the distro's package | the leak sweep and callgrind, inside WSL on Windows |
+| WSL's test distro | Ubuntu 26.04 (`IMAGE` in `tools/nv/cmd/wsl.ts`) | every Linux step on Windows |
 
 ## Claude Code needs the pointer file
 
@@ -89,11 +90,11 @@ looper spawns that same `claude` binary. No other harness needs anything here: C
 The primary development platform, and the only one with real setup:
 
 1. **The MSVC C++ build tools** — the linker. The `x86_64-pc-windows-msvc` target has no other.
-2. **WSL, with a second full toolchain inside it.** Required, not a convenience: three things have no
-   Windows story at all — `valgrind`/`callgrind` (no native build,
+2. **WSL, with the test distro `bun nv wsl --setup` makes.** Required, not a convenience: three things
+   have no Windows story at all — `valgrind`/`callgrind` (no native build,
    `rule:testing/perf-two-mechanisms`), `cargo-fuzz` (needs libFuzzer), and the
    acceptance run's second leg, which exists because a JIT is exactly where a calling-convention
-   divergence between two targets hides.
+   divergence between two targets hides. § *The test distro* below is the whole setup.
 3. **The live service check's task.** `nvs service install`, `start` and `stop` talk to the service
    control manager, which only an elevated process may do, and neither a terminal nor an agent
    session is one. UAC is not weakened for that: `tools/service-live.ps1` registers **one**
@@ -109,20 +110,35 @@ The primary development platform, and the only one with real setup:
    stop, `sc qc`, the event log, uninstall — and prints what it saw; `-Unregister` takes the task
    away. The task points at the clone that registered it, so a clone moved runs `-Register` again.
 
-One-time setup inside the distro, which reaches the repo over its `/mnt/<drive>/…` mount:
+### The test distro
+
+Every Linux step on Windows runs in a WSL distro of its own, `novis-test`, which holds nothing but this
+repository's caches. Your own distros are never used, and the default distro does not matter. One command
+makes it, from the repository root, after WSL itself is installed (`wsl --install --no-distribution` on a
+machine that has never had it):
 
 ```sh
-sudo apt-get update && sudo apt-get install -y build-essential clang valgrind git
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-source "$HOME/.cargo/env"
-rustup toolchain install nightly --component rust-src
-cargo install cargo-fuzz --locked
+bun nv wsl --setup        # about 20 minutes the first time
+bun nv wsl                # checks it: healthy disk, every tool present
 ```
 
-`rust-src` is not optional here: `tools/tsan.sh` builds the standard library from source under the thread
-sanitizer, and without that component the leg stops before it compiles anything of Novis's. `git` is what
-`bun nv linux-test` syncs its copy of the tree with (`tools/nv/accept/mirror.ts`), and Ubuntu's WSL image
-usually has it already.
+`--setup` installs Ubuntu 26.04, the release CI's Linux jobs run on, and runs
+[tools/wsl/provision.sh](../tools/wsl/provision.sh) in it. That installs the build packages, valgrind,
+Node, Rust as `rust-toolchain.toml` pins it, nightly with Miri and `rust-src`, cargo-nextest, cargo-fuzz
+and Bun, each at the version CI reads, and sets `vm.max_map_count` (§ *One sysctl* below). Run it again
+after a version bump: it installs only what changed. Nothing in it names a machine, a path or a Windows
+user, so every developer gets the same distro.
+
+- **Where its disk goes.** WSL's own default folder, unless the first `--setup` gets `--location <dir>`.
+  The disk grows with the target directories; `bun nv disk --deep` reports them.
+- **Another name.** Set `NVS_WSL_DISTRO` before every `bun nv` command, for a second clone or a name that
+  is taken.
+- **Docker.** Turn on Docker Desktop's WSL integration for `novis-test` once (Settings > Resources > WSL
+  integration). A second Docker engine inside the distro would share the WSL VM's network with Docker
+  Desktop's.
+- **When its disk breaks.** Every WSL step checks the disk before it syncs the tree, and stops at the
+  first sign of an ext4 error. `bun nv wsl --reset` deletes the distro and makes it again. Only build time
+  is lost. `--reset` and `--remove` delete only a distro `--setup` made.
 
 ## Linux and macOS
 
@@ -132,7 +148,8 @@ directly. Install a C toolchain and (on Linux) `valgrind` the same way;
 it. macOS has no valgrind, so the leak sweep is a Linux or WSL machine's job, and so is `tools/tsan.sh`:
 `-Zsanitizer=thread` targets `x86_64-unknown-linux-gnu`.
 
-**One sysctl, Linux only — and the WSL distro is a Linux machine for this.** A task's stack is a
+**One sysctl, Linux only.** `bun nv wsl --setup` sets it in the test distro, so this is for a Linux
+machine. A task's stack is a
 reservation that leaves more than one mapping behind
 (`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`), and a Linux process may hold only
 `vm.max_map_count` of those. The stock setting is well under what the release-only test holding a hundred

@@ -31,6 +31,7 @@ import { join } from "node:path";
 import { mirrorPath, q, syncMirror, wslBuildLine, wslPath } from "../accept/mirror.ts";
 import { ROOT } from "../lib/paths.ts";
 import { passthrough, run as runProc } from "../lib/proc.ts";
+import { wslArgv } from "../lib/wsl.ts";
 import { ArgError, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
 import { Fail } from "./bench.ts";
 import { requireDocker } from "./bench-docker.ts";
@@ -139,7 +140,7 @@ async function linuxNvs(o: Options, dest: string): Promise<void> {
     const synced = await syncMirror(mirror);
     if (synced !== "") throw new Fail(`the WSL copy of the tree could not be synced: ${synced}`);
     const line = `${wslBuildLine(mirror, WSL_TARGET)} && cp ${q(`${WSL_TARGET}/debug/nvs`)} ${q(wslPath(dest))}`;
-    await must(["wsl.exe", "--exec", "bash", "-lc", line], "the WSL build of nvs");
+    await must(wslArgv(line), "the WSL build of nvs");
   } else if (process.platform === "linux") {
     console.log("nvs: cargo build");
     await must(["cargo", "build", "--quiet"], "cargo build");

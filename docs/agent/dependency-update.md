@@ -110,8 +110,8 @@ under memcheck. Before the push, `bun nv linux-test` runs one filtered test on L
 **D. If a lexer/parser-adjacent crate moved:**
 
 ```sh
-wsl.exe -- bash -lc "cd /mnt/<drive>/<repo> && cargo +nightly fuzz run lex -- -max_total_time=300"
-wsl.exe -- bash -lc "cd /mnt/<drive>/<repo> && cargo +nightly fuzz run parse -- -max_total_time=300"
+wsl.exe -d novis-test -- bash -lc "cd /mnt/<drive>/<repo> && cargo +nightly fuzz run lex -- -max_total_time=300"
+wsl.exe -d novis-test -- bash -lc "cd /mnt/<drive>/<repo> && cargo +nightly fuzz run parse -- -max_total_time=300"
 ```
 
 **E. If the JIT backend moved,** refresh the callgrind instruction counts per

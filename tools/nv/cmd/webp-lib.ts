@@ -12,8 +12,8 @@
 // before a byte of it is extracted, so the library is always a function of reviewed source and a
 // known compiler. Updating libwebp is an edit to the source pin followed by a rebuild.
 //
-// The build is the same on every host: the Linux wasi-sdk release, run directly on Linux and under
-// WSL (`wsl.exe`) on Windows, so the bytes a contributor commits are the bytes CI's Linux leg
+// The build is the same on every host: the Linux wasi-sdk release, run directly on Linux and in the
+// test distro (`lib/wsl.ts`) on Windows, so the bytes a contributor commits are the bytes CI's Linux leg
 // rebuilds. It compiles every C file of `src/dec`, `src/enc`, `src/dsp`, `src/utils` and `sharpyuv`
 // with no debug information, from a relative path, in a sorted order, and archives them with
 // `llvm-ar`'s deterministic mode, so nothing about the machine or the time reaches the archive. No
@@ -28,6 +28,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSyn
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { messageOf, run as runProc } from "../lib/proc.ts";
+import { wslArgv } from "../lib/wsl.ts";
 import { ArgError, parseArgs } from "../lib/py.ts";
 
 export const summary = "libwebp's wasm static library, rebuilt from its pinned source or checked against its digest: nv webp-lib [--check|--verify]";
@@ -147,7 +148,7 @@ async function build(sourceArg: string | undefined): Promise<Uint8Array> {
   } else source = await fetchPinned("libwebp source", record.source, dl);
   const sdk = await fetchPinned("wasi-sdk", record.toolchain, dl);
   const script = buildScript(record, shellPath(SCRATCH), shellPath(source), shellPath(sdk));
-  const argv = process.platform === "win32" ? ["wsl.exe", "-e", "bash", "-c", script] : ["bash", "-c", script];
+  const argv = process.platform === "win32" ? wslArgv(script, { login: false }) : ["bash", "-c", script];
   const r = await runProc(argv, { timeoutMs: BUILD_TIMEOUT_MS });
   if (r.code !== 0) throw new Error(`the build exited ${r.code}${r.timedOut ? " (timed out)" : ""}\n${`${r.stdout}${r.stderr}`.trim()}`);
   const extracted = join(SCRATCH, "src", record.source.dir);

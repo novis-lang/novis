@@ -86,6 +86,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   walkthrough: () => import("./cmd/walkthrough.ts"),
   "webcrypto-vectors": () => import("./cmd/webcrypto-vectors.ts"),
   "webp-lib": () => import("./cmd/webp-lib.ts"),
+  wsl: () => import("./cmd/wsl.ts"),
 
 };
 

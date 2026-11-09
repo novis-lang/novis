@@ -6,7 +6,7 @@
 # a contributor can run are the same command rather than two that drift.
 #
 #   bash tools/tsan.sh                    on Linux, from the repository root
-#   wsl.exe -- bash tools/tsan.sh         on Windows, from the repository root
+#   wsl.exe -d novis-test -- bash tools/tsan.sh         on Windows, from the repository root
 #
 # It prints `tsan: clean` and nothing else on success. A race is a report on
 # stderr and a non-zero status, because the sanitizer's own exit code passes

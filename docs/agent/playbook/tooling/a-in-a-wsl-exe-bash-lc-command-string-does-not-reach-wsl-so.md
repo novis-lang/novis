@@ -1,5 +1,5 @@
-- **A `$` in a `wsl.exe -- bash -lc '…'` command string does not reach WSL, so `$?` reads 0 and a
-  measured exit code is a fiction.** Single quotes do not protect it: `wsl.exe -- bash -lc 'false;
+- **A `$` in a `wsl.exe -d novis-test -- bash -lc '…'` command string does not reach WSL, so `$?` reads 0 and a
+  measured exit code is a fiction.** Single quotes do not protect it: `wsl.exe -d novis-test -- bash -lc 'false;
   echo "CODE=$?"'` prints `CODE=0`, and a `for f in a b; do … $f …; done` runs with `$f` empty every
   iteration, so a failing valgrind run reads as green. Use `&&`/`||` or `if cmd; then … fi`, never
   `$?`, and put the varying part in `xargs -I@`, which substitutes before any shell sees it.

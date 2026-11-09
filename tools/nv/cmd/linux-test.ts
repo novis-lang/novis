@@ -24,6 +24,7 @@
 import { mirrorPath, q, syncMirror, wslPath } from "../accept/mirror.ts";
 import { ROOT } from "../lib/paths.ts";
 import { passthrough } from "../lib/proc.ts";
+import { wslArgv } from "../lib/wsl.ts";
 
 export const summary = "runs one filtered `cargo test` on a Linux build of the tree, inside WSL: nv linux-test <cargo test args>";
 
@@ -76,5 +77,5 @@ export async function run(args: string[]): Promise<number> {
   }
   // `wsl.exe` hides the distro's CPU from the hang watch, and cargo prints nothing while one crate
   // compiles, so the watch is off and the timeout bounds the run.
-  return passthrough(["wsl.exe", "--exec", "bash", "-lc", testLine(mirror, args)], { timeoutMs: TIMEOUT_MS, hang: false });
+  return passthrough(wslArgv(testLine(mirror, args)), { timeoutMs: TIMEOUT_MS, hang: false });
 }

@@ -721,9 +721,11 @@ kills it while `nvs-cli` compiles: WSL's CPU time is invisible to it.
 
 `cargo-fuzz` (the `fuzz/` crate) needs libFuzzer, and `valgrind`/`callgrind`
 (`rule:testing/perf-two-mechanisms`) has no native Windows build at all — do
-both in WSL. From a Windows shell, `wsl.exe -- bash -lc "<command>"` runs a command in the default WSL
-distro, which reaches the repo over `/mnt/<drive>/…`. What that distro must have installed — and why PHP goes in
-it as well, at the same version as the Windows one — is [docs/setup.md](../setup.md).
+both in WSL. Every WSL command runs in the test distro, `novis-test` (`tools/nv/lib/wsl.ts`), never the
+default one, which can be any distro. From a Windows shell, `wsl.exe -d novis-test -- bash -lc "<command>"`
+runs a command there, and the distro reaches the repo over `/mnt/<drive>/…`. `bun nv wsl --setup` makes
+it with every tool installed, and `bun nv wsl` checks it ([docs/setup.md](../setup.md) § *The test
+distro*). A tool code runs in the distro goes through `wslArgv` or `wslExec`, so it names the distro too.
 
 **`bun nv linux-test` runs from a copy of the tree on the distro's own disk, not over the `/mnt` mount**,
 at `/var/tmp/nvs-target-wsl-src/<checkout>`. `tools/nv/accept/mirror.ts`'s module doc is why and how the copy
@@ -780,7 +782,7 @@ For the instruction-count leg: `cargo build --release -p nvs-abi-probe --example
 `valgrind --tool=callgrind --callgrind-out-file=/tmp/cg.out ./target/release/examples/callgrind_spike`.
 
 **A hand-written refcount protocol is where a leak hides, so check one before you commit it.**
-`MSYS_NO_PATHCONV=1 wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh <fixture> …` runs
+`MSYS_NO_PATHCONV=1 wsl.exe -d novis-test -- bash /mnt/<drive>/<repo>/tools/leak-check.sh <fixture> …` runs
 `valgrind --leak-check=full` over the `.nvs` files you name. Without the variable, Git Bash rewrites the
 `/mnt/…` path before `wsl.exe` sees it. Run it for **any** new refcount edge, against a fixture that
 actually exercises it: a leak no fixture reaches is a leak no run reports.
@@ -797,7 +799,7 @@ for `examples/limits.nvs`, and that file's header is the one home for why: the f
 is the distance to the memory cap, and its leak verdict is about the kill at the cap. `leak-check.sh` runs
 the fixture against the repository's own cap.
 
-**A new thread boundary is where a race hides, so run the sanitizer over it.** `wsl.exe -- bash -lc "bash
+**A new thread boundary is where a race hides, so run the sanitizer over it.** `wsl.exe -d novis-test -- bash -lc "bash
 tools/tsan.sh"` is the `tsan:` CI job's own command — ThreadSanitizer over `nvs-host` and `nvs-runtime`,
 the two crates a thread boundary runs through — and it prints `tsan: clean` and nothing else when it is.
 Its header owns what each flag buys; what is worth knowing before you read a report is that a task is a
@@ -848,12 +850,9 @@ lines:
 
 | Program | Where | Install |
 |---|---|---|
-| Bun, Node | WSL | `curl -fsSL https://bun.sh/install \| bash`; `sudo apt-get install -y nodejs npm` (Node 22 or newer) |
-| Miri | WSL | `rustup toolchain install nightly --component miri rust-src && cargo +nightly miri setup` |
-| cargo-nextest | WSL and Windows | `cargo install cargo-nextest@0.9.148 --locked` |
-| cargo-fuzz | WSL | `cargo install cargo-fuzz --version 0.13.2 --locked` |
-| valgrind | WSL | `sudo apt-get install -y --no-install-recommends valgrind` |
-| Docker | WSL and Windows | Docker Desktop with its Linux engine, and its WSL integration on for the distro |
+| Bun, Node, Miri, cargo-nextest, cargo-fuzz, valgrind | WSL | `bun nv wsl --setup` |
+| cargo-nextest | Windows | `cargo install cargo-nextest@0.9.148 --locked` |
+| Docker | WSL and Windows | Docker Desktop with its Linux engine, and its WSL integration on for `novis-test` |
 | cargo-deny | Windows | `cargo install cargo-deny --locked` |
 | wit-bindgen, wasi-sdk | Windows | `cargo install wit-bindgen-cli --version 0.63.0 --locked`; wasi-sdk 34 for x86_64-windows, with `WASI_SDK_PATH` set to it |
 | Redis | Windows | `redis-server --port 16379`, running while `test-windows` runs |
