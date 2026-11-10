@@ -2054,8 +2054,17 @@ impl<'a> Lowering<'a> {
         let (subj_v, subj_ty) = self.lower_expr(subject, None, env, cur);
         // A fresh subject is this expression's to free; an aliasing one stays
         // the slot's, exactly the split `Self::lower_ternary` applies to its
-        // own reused condition.
-        let owed = subj_ty.is_refcounted() && !self.aliasing_read(subject);
+        // own reused condition. A label can replace the slot a borrowed subject
+        // was read from, so `Self::hold_borrowed` judges it against every
+        // label, and a held subject is owed like a fresh one.
+        let labels: Vec<&Expr> = arms
+            .iter()
+            .filter_map(|arm| arm.conditions.as_ref())
+            .flatten()
+            .collect();
+        let owed = subj_ty.is_refcounted()
+            && (!self.aliasing_read(subject)
+                || !self.hold_borrowed(OperandSite::MatchSubject, subject, subj_v, &labels, *cur));
         // It is in flight for the whole label chain, and every comparison in
         // that chain can throw — a label is an arbitrary expression, and a
         // tagged pair goes through the fallible `Helper::Identical`. So it

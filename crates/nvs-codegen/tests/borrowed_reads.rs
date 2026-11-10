@@ -16,7 +16,8 @@ use nvs_ir::lower::OperandSite;
 
 /// The class every program below uses. `replace()` overwrites every slot a
 /// read form reads from with strings of the same length, then allocates more
-/// strings of that length, so a freed block is reused.
+/// strings of that length. Some heaps reuse a freed block only after many
+/// others, so the fill is large enough that the freed block is reused.
 const HOLDER: &str = r#"<?nvs
 class Holder {
     public string $s = "";
@@ -29,10 +30,16 @@ class Holder {
         $this->items = ["new-" . $n . "-abcdefghijklmnop"];
         Holder::$shared = "new-" . $n . "-abcdefghijklmnop";
         array<string> $fill = [];
-        for (int $i = 0; $i < 16; $i++) {
+        for (int $i = 0; $i < 1024; $i++) {
             $fill[] = "fil-" . $n . "-abcdefghijklmnop";
         }
         return "!";
+    }
+
+    public function same(): string {
+        // A literal, so the answer takes no block a freed read could share.
+        $this->replace();
+        return "old-1-abcdefghijklmnop";
     }
 }
 
@@ -42,6 +49,9 @@ $h->s = "old-" . $n . "-abcdefghijklmnop";
 $h->items = ["old-" . $n . "-abcdefghijklmnop"];
 Holder::$shared = "old-" . $n . "-abcdefghijklmnop";
 "#;
+
+/// The text every read form holds before `replace()` runs.
+const OLD: &str = "old-1-abcdefghijklmnop";
 
 /// Each way to read a borrowed string out of storage `replace()` overwrites.
 const READS: &[&str] = &["$h->s", "$h->items[0]", "Holder::$shared"];
@@ -54,6 +64,14 @@ fn statement(site: OperandSite, read: &str) -> Option<String> {
         OperandSite::Concat => Some(format!("echo {read} . $h->replace();\n")),
         OperandSite::StringHole if read.contains("::") => None,
         OperandSite::StringHole => Some(format!("echo \"{{{read}}}{{$h->replace()}}\";\n")),
+        // `same()` replaces the storage, then returns the old text. The pair is
+        // equal only while the read still has its own value.
+        OperandSite::Binary => Some(format!(
+            "echo ({read} == $h->same()) ? \"{OLD}!\" : \"lost\";\n"
+        )),
+        OperandSite::MatchSubject => Some(format!(
+            "echo match ({read}) {{ $h->same() => \"{OLD}!\", default => \"lost\" }};\n"
+        )),
         other => panic!("borrowed_reads has no program for {other:?}; add one"),
     }
 }
@@ -97,7 +115,7 @@ class Bump {
     public static function fill(): string {
         int $n = 2;
         array<string> $fill = [];
-        for (int $i = 0; $i < 16; $i++) {
+        for (int $i = 0; $i < 1024; $i++) {
             $fill[] = "fil-" . $n . "-abcdefghijklmnop";
         }
         return "!";

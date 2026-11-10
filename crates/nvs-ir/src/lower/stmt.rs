@@ -1172,7 +1172,11 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) {
         let (rv, _) = self.lower_expr(rhs, Some(Ty::Object), env, cur);
-        let (answer, _) = self.lower_carrier_concat(append, [(lhs, current), (rhs, rv)], env, cur);
+        let operands = [
+            (self.aliasing_read(lhs), current),
+            (self.aliasing_read(rhs), rv),
+        ];
+        let (answer, _) = self.lower_carrier_concat(append, operands, env, cur);
         self.emit_release(*cur, current);
         env.insert(name, (answer, Ty::Object));
     }

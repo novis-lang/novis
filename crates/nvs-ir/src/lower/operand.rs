@@ -39,11 +39,22 @@ pub enum OperandSite {
     /// A hole of a double-quoted string or heredoc, read by the join after
     /// the last hole.
     StringHole,
+    /// An operand of a binary operator that reads both sides only once the
+    /// second is lowered: `==`, `!=`, an ordering or arithmetic row over a
+    /// tag, and a carrier's `+`.
+    Binary,
+    /// A `match` subject, read by every label's comparison.
+    MatchSubject,
 }
 
 impl OperandSite {
     /// Every site, in the order the matrix test runs them.
-    pub const ALL: &'static [OperandSite] = &[OperandSite::Concat, OperandSite::StringHole];
+    pub const ALL: &'static [OperandSite] = &[
+        OperandSite::Concat,
+        OperandSite::StringHole,
+        OperandSite::Binary,
+        OperandSite::MatchSubject,
+    ];
 }
 
 /// Where a borrowed read's storage lives, which decides what can free it.

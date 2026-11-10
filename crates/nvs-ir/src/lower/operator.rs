@@ -653,21 +653,19 @@ impl<'a> Lowering<'a> {
     /// reason: the call carries `rule:errors/propagation`'s error edge, so an operand released
     /// after it would be abandoned on the edge a throw leaves by.
     /// The two operands arrive paired rather than as four parameters because
-    /// this body only ever uses them paired — the expression answers whether
-    /// the read aliases and the value is what the call takes — and because
-    /// `symbol` is what pushed the flat spelling past
-    /// `clippy::too_many_arguments`.
+    /// this body only ever uses them paired. The flag is `true` while a slot
+    /// still owns the value, as the caller judged it with
+    /// [`Self::hold_borrowed`], and the value is what the call takes.
     pub(crate) fn lower_carrier_concat(
         &mut self,
         symbol: &'static str,
-        operands: [(&Expr, ValueId); 2],
+        operands: [(bool, ValueId); 2],
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let mark = self.temporaries_mark();
-        for (operand, value) in operands {
-            let aliasing = self.aliasing_read(operand);
-            self.account_for_arg(value, Ty::Object, ArgOwnership::Borrowed, aliasing, *cur);
+        for (borrowed, value) in operands {
+            self.account_for_arg(value, Ty::Object, ArgOwnership::Borrowed, borrowed, *cur);
         }
         let (answer, _) = self.emit_fallible(
             *cur,
@@ -887,16 +885,35 @@ impl<'a> Lowering<'a> {
         // (`nvs_types::expr::uint_operand_expectation`), and without this
         // half a literal above `i64::MAX` beside a `uint` passes it and then
         // panics below on a value that never fit an `int`.
-        let (lv, lty, rv, rty) =
-            if matches!(lhs.kind, ExprKind::Int(_)) && !matches!(rhs.kind, ExprKind::Int(_)) {
-                let (rv, rty) = self.lower_expr(rhs, expected, env, cur);
-                let (lv, lty) = self.lower_expr(lhs, Some(rty), env, cur);
-                (lv, lty, rv, rty)
-            } else {
-                let (lv, lty) = self.lower_expr(lhs, expected, env, cur);
-                let (rv, rty) = self.lower_expr(rhs, Some(lty), env, cur);
-                (lv, lty, rv, rty)
-            };
+        //
+        // The operand lowered first is judged by `Self::hold_borrowed` against
+        // the second, which can replace the slot it was read from
+        // (`rule:expressions/an-operand-keeps-its-value-while-later-operands-run`).
+        // A held operand is staged while the second one runs, so a throw there
+        // releases it, and from then on every arm below treats it as fresh.
+        // `lb`/`rb` are each side's answer: `true` while the slot owns it.
+        let swapped = matches!(lhs.kind, ExprKind::Int(_)) && !matches!(rhs.kind, ExprKind::Int(_));
+        let (first, second) = if swapped { (rhs, lhs) } else { (lhs, rhs) };
+        let (fv, fty) = self.lower_expr(first, expected, env, cur);
+        let first_aliasing = self.aliasing_read(first);
+        let held = fty.is_refcounted()
+            && first_aliasing
+            && !self.hold_borrowed(OperandSite::Binary, first, fv, &[&**second], *cur);
+        let first_borrowed = first_aliasing && !held;
+        let slot = self.temporaries_mark();
+        if held {
+            self.own_temporary(fv);
+        }
+        let (sv, sty) = self.lower_expr(second, Some(fty), env, cur);
+        if held {
+            self.forget_temporary(slot);
+        }
+        let second_borrowed = self.aliasing_read(second);
+        let (lv, lty, lb, rv, rty, rb) = if swapped {
+            (sv, sty, second_borrowed, fv, fty, first_borrowed)
+        } else {
+            (fv, fty, first_borrowed, sv, sty, second_borrowed)
+        };
         // A mutant's swap, made once both representations are known
         // (`rule:testing/mutation-testing`).
         let op = self.mutated_binary(whole, op, lty, rty, env);
@@ -919,7 +936,7 @@ impl<'a> Lowering<'a> {
             && rty == Ty::Object
             && let Some(ExprInfo::CarrierComposition { symbol, .. }) = self.exprs.lookup(whole.span)
         {
-            return self.lower_carrier_concat(symbol, [(&**lhs, lv), (&**rhs, rv)], env, cur);
+            return self.lower_carrier_concat(symbol, [(lb, lv), (rb, rv)], env, cur);
         }
         // `rule:types/arithmetic`'s ordering rows for the operand shape
         // `Self::emit_equality` answers for equality: a `mixed` or a union names no row, so
@@ -942,9 +959,8 @@ impl<'a> Lowering<'a> {
         ) && (lty == Ty::Tagged || rty == Ty::Tagged)
         {
             let mark = self.temporaries_mark();
-            for (operand, value, ty) in [(lhs, lv, lty), (rhs, rv, rty)] {
-                let aliasing = self.aliasing_read(operand);
-                self.account_for_arg(value, ty, ArgOwnership::Borrowed, aliasing, *cur);
+            for (borrowed, value, ty) in [(lb, lv, lty), (rb, rv, rty)] {
+                self.account_for_arg(value, ty, ArgOwnership::Borrowed, borrowed, *cur);
             }
             let (helper, ty, args) = match op {
                 BinaryOp::Lt => (Helper::ValueLt, Ty::Bool, vec![lv, rv]),
@@ -992,9 +1008,8 @@ impl<'a> Lowering<'a> {
         ) && (lty == Ty::Tagged || rty == Ty::Tagged)
         {
             let mark = self.temporaries_mark();
-            for (operand, value, ty) in [(lhs, lv, lty), (rhs, rv, rty)] {
-                let aliasing = self.aliasing_read(operand);
-                self.account_for_arg(value, ty, ArgOwnership::Borrowed, aliasing, *cur);
+            for (borrowed, value, ty) in [(lb, lv, lty), (rb, rv, rty)] {
+                self.account_for_arg(value, ty, ArgOwnership::Borrowed, borrowed, *cur);
             }
             let helper = match op {
                 BinaryOp::Add => Helper::ValueAdd,
@@ -1060,8 +1075,8 @@ impl<'a> Lowering<'a> {
             // *read*, the same rule the `BinOp` table below applies to its
             // own. Written per operand because only one side may alias a
             // durable slot.
-            for (operand, value) in [(lhs, lv), (rhs, rv)] {
-                if !self.aliasing_read(operand) {
+            for (borrowed, value) in [(lb, lv), (rb, rv)] {
+                if !borrowed {
                     self.emit_release(*cur, value);
                 }
             }
@@ -1093,8 +1108,8 @@ impl<'a> Lowering<'a> {
         // what the rows above the `BinOp` are for.
         if matches!(op, BinaryOp::Eq | BinaryOp::NotEq) {
             let answer = self.emit_equality(op, (lv, lty), (rv, rty), env, cur);
-            for (operand, value, ty) in [(lhs, lv, lty), (rhs, rv, rty)] {
-                if ty.is_refcounted() && !self.aliasing_read(operand) {
+            for (borrowed, value, ty) in [(lb, lv, lty), (rb, rv, rty)] {
+                if ty.is_refcounted() && !borrowed {
                     self.emit_release(*cur, value);
                 }
             }
@@ -1275,10 +1290,10 @@ impl<'a> Lowering<'a> {
             self.emit(*cur, ty, inst)
         };
         if lty.is_refcounted() {
-            if !self.aliasing_read(lhs) {
+            if !lb {
                 self.emit_release(*cur, lv);
             }
-            if !self.aliasing_read(rhs) {
+            if !rb {
                 self.emit_release(*cur, rv);
             }
         }
