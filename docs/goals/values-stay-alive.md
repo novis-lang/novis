@@ -332,6 +332,13 @@ The session writes the list under this stage as checkpoints.
     `lower_keyed_property_access` 6353, `lower_key_name` 6405, `lower_keyed_property_assign` 6438,
     `lower_shape_property_assign` 6501, `lower_array_literal` 6589-6644, `lower_index` 6751,
     `lower_type_test` 6926, `lower_clone_expr` 7576.
+    Done: `lower_method_call`'s `Core` receiver (`OperandSite::Receiver`) and
+    `lower_keyed_property_access`'s receiver (`OperandSite::KeyedReceiver`). No hold needed:
+    `lower_coalesce` and `lower_ternary` read one branch's operand and retain it at once; a user
+    method's receiver, `lower_array_literal`'s elements and keys, and `lower_anon_object`'s fields
+    are each retained at their read. Left with two operands: `lower_spawn_script` (its path and
+    `output:` against the later options and narrowings), `lower_route_link` and
+    `lower_signing_settings` (`Core\Router` argument lists).
   - [ ] `operator.rs`: `lower_not` 299, `lower_unary` 479 and `lower_null_identity` 607/618
     read one operand with nothing after it, so they need no hold, only their `aliasing_read` calls
     moved once that function turns private. Done: `lower_binary`, `lower_carrier_concat`, and
@@ -535,10 +542,11 @@ session writes each group under its stage as checkpoints, so stages 6 to 8 start
 
 ### State
 
-Stage 1 has eight sites. `crates/nvs-ir/src/lower/operand.rs` holds `OperandSite` (`Concat`,
-`StringHole`, `Binary`, `MatchSubject`, `Argument`, `CallableArgument`, `IndexBase`, `Ordering`),
-`hold_borrowed`, `borrowed_arg`, `index_base_held` and `is_inert`, which calls a staged
-expression inert. The rule fragment is rendered.
+Stage 1 has ten sites. `crates/nvs-ir/src/lower/operand.rs` holds `OperandSite` (`Concat`,
+`StringHole`, `Binary`, `MatchSubject`, `Argument`, `CallableArgument`, `IndexBase`, `Ordering`,
+`Receiver`, `KeyedReceiver`), `hold_borrowed`, `borrowed_arg`, `index_base_held`,
+`call_arg_exprs` and `is_inert`, which calls a staged expression inert. The rule fragment is
+rendered.
 
 - `lower_binary` and `lower_object_comparison` stage a held first operand while the second runs and
   read the flags `lb`/`rb`. `lower_match` judges its subject against every label.
@@ -547,12 +555,16 @@ expression inert. The rule fragment is rendered.
 - `lower_index` holds a borrowed base while its key runs, then retains the element and releases
   the base. `aliasing_read`'s `Index` arm reads `index_base_held`, so that element read is a fresh
   producer to every consumer. A store stages a key that runs code, and a staged key is inert.
+- `lower_method_call` holds a `Core` member's borrowed receiver against its arguments, and
+  `lower_keyed_property_access` holds its receiver against the computed name. Their matrix rows
+  read the new `Holder::$d` date and `$h->v`, and use `yearFormat()` and `tagKey()`.
 
 `borrowed_reads.rs` is green, run by name, and every row fails with its hold off, by wrong text, a
 crash or a throw. Not yet written: `every_borrow_judgment_passes_the_one_operand_lowering`, the
 free-path test and the attack.
 
-The sweep's `env-secret-proofs` red is stale: it was the retired `request-http-settings`'s check.
+The sweep's `env-secret-proofs` red is stale. It was the retired `request-http-settings`'s check,
+no goal names it and its log does not exist.
 
 ### Next
 
@@ -565,11 +577,13 @@ to `statement()` in `crates/nvs-codegen/tests/borrowed_reads.rs:1`, and check th
 hold switched off. The consumer list is the checkpoints under stage 1's "Move every other consumer"
 item. Its line numbers are stale, so `bun nv peek --locate` each function first.
 
-- [ ] `crates/nvs-ir/src/lower/expr.rs:1`: the `expr.rs` consumers, two operands first:
-  `lower_coalesce`, `lower_ternary`, `lower_method_call` (its receiver against its arguments),
-  `lower_array_literal`, `lower_anon_object`, `lower_keyed_property_access` and
-  `lower_spawn_script`. A consumer that reads one operand with nothing lowered after it needs no
-  variant.
+- [ ] `crates/nvs-ir/src/lower/expr.rs:1`: the three `expr.rs` consumers with two operands that are
+  left. `lower_spawn_script` holds its path and `output:` through `borrowed_arg` against the
+  options and narrowings lowered after them. Its matrix row needs a spawned child, so first check
+  whether `crates/nvs-codegen/tests/common/mod.rs` can run one. If it cannot, the row returns
+  `None` and the attack covers the site. `lower_route_link` and `lower_signing_settings` go
+  through `borrowed_arg` with `OperandSite::Argument`. Every other `expr.rs` consumer reads one
+  operand with nothing lowered after it, and needs no variant.
 - [ ] `crates/nvs-ir/src/lower/mod.rs:4184`: then `convert.rs`, `stmt.rs`, `control.rs`,
   `exception.rs`, `anon_fn.rs` and `generator.rs`. Make `aliasing_read` private to `operand.rs`.
   Every one-operand consumer then calls one `pub(crate)` wrapper in `operand.rs` that names "a
