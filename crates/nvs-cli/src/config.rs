@@ -88,20 +88,26 @@ enum Command {
     },
     /// Print every key in force, one per line, in dotted-key order.
     ///
-    /// An include may override the file that pulled it in *on condition* that
-    /// every override is recoverable; this is where it is recovered in full.
-    // `rule:config/later-wins-and-every-override-is-recorded`. What is printed,
-    // and the one thing deliberately absent from it, is [`dump`]'s own doc
-    // comment.
+    /// The list has every key that a file sets. It also has the default value
+    /// of every key that no file sets. A default is the value that `nvs serve`
+    /// uses. When a file replaces a key from an earlier file, `--origin` names
+    /// both files.
+    // `rule:config/later-wins-and-every-override-is-recorded` and
+    // `rule:config/check-and-dump-audit-the-tree-offline`. What is printed, and
+    // why `--toml` has no defaults, is [`dump`]'s own doc comment.
     Dump {
-        /// The root files to read — `check`'s list, read the same way.
+        /// The root files to read. This is the same list `check` takes, read
+        /// the same way.
         files: Vec<PathBuf>,
-        /// Also name the file each key was written in, and the file it
-        /// overrode.
+        /// Also print where each value comes from: the file that sets the key,
+        /// and the file it replaced. A default value prints `default`. When the
+        /// mode chooses the value, it prints `default (production)` or
+        /// `default (development)`.
         #[arg(long)]
         origin: bool,
-        /// Write the resolved configuration as one canonical TOML document
-        /// instead, for diffing two environments.
+        /// Print the keys that the files set as one TOML document instead.
+        /// The document has no default values, so it reads back as the same
+        /// configuration. Use it to compare two environments.
         #[arg(long, conflicts_with = "origin")]
         toml: bool,
     },
@@ -992,6 +998,23 @@ impl Root {
     }
 }
 
+/// The boot line that says where log records go: the global `[log] target`, as the tree wrote it or
+/// as `nvs_config::log::service_default` filled it in for a service, else
+/// [`nvs_config::defaults::LOG_TARGET`]. A `file:` target is printed as it is written, which is
+/// the path the log file is opened at.
+///
+/// `nvs serve` prints it beside [`Root::lines`], and again after a reload that moved the target,
+/// so an operator who reads standard error learns where the records went. An `[[app]]` block's
+/// own `[app.log] target` is not in this line.
+pub(crate) fn log_destination(config: &nvs_config::Config) -> String {
+    let target = config
+        .log
+        .as_ref()
+        .and_then(|log| log.target.as_deref())
+        .unwrap_or(nvs_config::defaults::LOG_TARGET);
+    format!("info: log records go to {target}")
+}
+
 /// How many trees [`resolved_in`] has read in this process. A debug build counts them so that
 /// `nvs run` can assert it reads its tree once (`crate::run_run`): reading one parses every file
 /// in it, comments included, and is among the largest fixed costs of a warm start.
@@ -1658,18 +1681,23 @@ pub(crate) fn no_such_account(why: &str) -> Diagnostic {
 }
 
 /// `nvs config dump [--origin] [--toml] [<file>...]` — every key in force, one
-/// per line, in dotted-key order.
+/// per line, in dotted-key order: each key a file wrote, and the default of every
+/// key no file wrote.
 ///
 /// The roots are read exactly as [`check`] reads them. This is `rule:config/check-and-dump-audit-the-tree-offline`'s other
 /// offline half and `rule:config/later-wins-and-every-override-is-recorded`'s own condition: later-wins is acceptable *because*
 /// every override is recoverable, and `--origin` is where it is recovered in
 /// full rather than summarized.
 ///
-/// What a row looks like and what each column means is
+/// What a row looks like, what each column means and which defaults are listed is
 /// [`nvs_config::audit`]'s. What is decided *here* is only the stream:
 /// `--toml` is one canonical file for diffing two environments, so it carries
-/// the table and nothing else, while the listing carries the origin column an
-/// audit is read for.
+/// the written table and nothing else, while the listing carries the default
+/// rows and the origin column an audit is read for. The document leaves the
+/// defaults out because writing one down changes the tree: a written mode row no
+/// longer follows the mode, a written `[limits.hard]` ceiling bounds every
+/// `[[app]]` block, and a core count or a data-folder path pins the document to
+/// one machine. So the document read back as a tree lists the same rows.
 pub(crate) fn dump(config: &[PathBuf], paths: &[PathBuf], origin: bool, as_toml: bool) -> ExitCode {
     let files = LocalFiles;
     let mut sources = SourceMap::new();
@@ -1707,9 +1735,12 @@ pub(crate) fn dump(config: &[PathBuf], paths: &[PathBuf], origin: bool, as_toml:
         };
     }
 
+    let defaults = nvs_config::audit::defaults_of(&resolved.table);
     print!(
         "{}",
-        nvs_config::audit::Audit::of_files(&resolved).render(origin)
+        nvs_config::audit::Audit::of_files(&resolved)
+            .with_defaults(&defaults)
+            .render(origin)
     );
     ExitCode::SUCCESS
 }
@@ -1740,7 +1771,9 @@ mod tests {
 
     use nvs_diagnostics::SourceMap;
 
-    use super::{Declined, Init, boot_in, policy_of, relaxed_grants, write_default_at};
+    use super::{
+        Declined, Init, boot_in, log_destination, policy_of, relaxed_grants, write_default_at,
+    };
     use crate::testing::{open_to_the_world, refuse_new_files};
 
     /// A directory of this test's own, locked to this account, because
@@ -1817,6 +1850,30 @@ mod tests {
         );
         assert_eq!(policy.min_version.as_deref(), Some("1.3"));
         assert_eq!(policy.keylog.as_deref(), Some(keylog.as_path()));
+    }
+
+    /// The boot line about the log names `stderr` for a tree that writes no `[log] target`, and
+    /// the target as written for a tree that writes one.
+    #[test]
+    fn the_boot_line_names_where_log_records_go() {
+        let dir = scratch("log-destination");
+        let entry = entry(&dir);
+        let line = |text: &str| {
+            fs::write(dir.join("nvs.toml"), text).expect("a scratch directory takes a file");
+            let mut sources = SourceMap::new();
+            let (snapshot, _) = boot_in(&dir, None, &[], Some(&entry), &mut sources, Init::Never)
+                .expect("the tree resolves");
+            log_destination(&snapshot.config)
+        };
+        assert_eq!(line(""), "info: log records go to stderr");
+        assert_eq!(
+            line("[log]\ntarget = \"file:logs/shop.log\"\n"),
+            "info: log records go to file:logs/shop.log"
+        );
+        assert_eq!(
+            line("[log]\ntarget = \"stderr\"\n"),
+            "info: log records go to stderr"
+        );
     }
 
     /// The reminder the boot writes: one line per `[capabilities.tls]` grant and host, in the

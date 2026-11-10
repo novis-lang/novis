@@ -626,10 +626,12 @@ the file by itself, or only at its next start. Only `[server] listen`, `socket_m
 
 # Auditing a tree
 
-`nvs config check` resolves the tree and reports what it holds, exiting non-zero on any refusal;
-`nvs config dump` prints every key in force, `--origin` adds which file wrote it and which it
-overrode, and `--toml` prints the resolved tree as one document. Both are described with the other
-subcommands in the `nvs` command chapter.
+`nvs config check` reads the configuration and reports what it contains. Its exit status is not `0`
+when the configuration has an error. `nvs config dump` prints every key in force. That is each key a
+file sets, and the default value of every other key. `--origin` adds the file that set each key and
+the file it replaced. A default value shows `default`, or `default (production)` when the mode chose
+it. `--toml` prints the keys the files set as one TOML document. The `nvs` command chapter describes
+both commands with the other subcommands.
 
 ```text
 $ nvs config check nvs.toml
@@ -639,4 +641,8 @@ app.0.limits.wall_time = "120s"
 app.0.root             = "."
 limits.memory          = "256M"
 limits.wall_time       = "30s"
+log.target             = "stderr"
 ```
+
+The example shows the four keys that the file sets and one default. The real list has every
+default.

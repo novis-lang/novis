@@ -253,7 +253,7 @@
   },
   "/guides/how-to-use/configuration/": {
     "feature": "guides/how-to-use/configuration.mdx",
-    "hash": "9da899e832bc212a",
+    "hash": "c086cd576ad99cda",
     "questions": [
       "Override a few settings without editing nvs.toml",
       "How do I create a new configuration file with every setting?",
@@ -352,7 +352,7 @@
   },
   "/guides/production/limits-and-logs/": {
     "feature": "guides/production/limits-and-logs.mdx",
-    "hash": "c67bea7669623b54",
+    "hash": "69200b95e71ec4dc",
     "questions": [
       "Which limits and log settings does a production server need?",
       "How do I stop log files from growing too large?",
@@ -1241,14 +1241,14 @@
   },
   "/reference/cli/nvs-config-check-and-nvs-config-dump/": {
     "feature": "tools:cli/nvs-config-check-and-nvs-config-dump",
-    "hash": "b4ab457c7553b19e",
+    "hash": "c36fa99573937490",
     "questions": [
       "Validate my nvs.toml configuration before deploying",
       "Run a configuration check in my CI pipeline",
-      "Print the resolved settings as a TOML file",
+      "Compare the settings of two environments as TOML",
       "Check that my service account accepts the owner of each config file",
       "Find unknown keys or broken includes in my config",
-      "See which file set each configuration value"
+      "Is a setting a default value or set by a file?"
     ]
   },
   "/reference/cli/nvs-dap/": {
@@ -1532,13 +1532,14 @@
   },
   "/reference/config/auditing-a-tree/": {
     "feature": "tools:config/auditing-a-tree",
-    "hash": "918c34934f08a790",
+    "hash": "7f6f812c77d0fb65",
     "questions": [
       "How do I check my configuration file for errors?",
       "Print every setting that is currently in effect",
       "Which file set this configuration value?",
       "Audit a folder of configuration files before a release",
-      "Show the final merged configuration as one file"
+      "Show the final merged configuration as one file",
+      "See the default value of a setting no file sets"
     ]
   },
   "/reference/config/cache/": {
@@ -3900,13 +3901,14 @@
   },
   "/reference/core/crypto-keypair/read/": {
     "feature": "Core\\Crypto\\KeyPair::read",
-    "hash": "52d2935c2512b933",
+    "hash": "b6c2187911d8ff1c",
     "questions": [
       "How do I load a private key from a PEM file?",
       "Read a PKCS#8 private key",
       "Load a service account private key",
       "Import an RSA private key for signing",
-      "Why does loading my encrypted private key file fail?"
+      "Why does loading my encrypted private key file fail?",
+      "Error says my EC PRIVATE KEY file is not PKCS#8"
     ]
   },
   "/reference/core/crypto-keypair/write/": {
@@ -7985,24 +7987,24 @@
   },
   "/reference/core/log/": {
     "feature": "Core\\Log",
-    "hash": "30d24625a93cdbc6",
+    "hash": "fee35b5bc7719b5f",
     "questions": [
       "How do I write logs?",
       "Logging for a web server",
-      "Structured logs as JSON lines",
-      "Where do log messages go?"
+      "Where do log messages go?",
+      "Choose JSON or plain text for log records"
     ]
   },
   "/reference/core/log/write/": {
     "feature": "Core\\Log::write",
-    "hash": "89a5f6d896c6e14e",
+    "hash": "31d1d538d4609a36",
     "questions": [
       "How do I write a log message with extra fields?",
       "Log an error with an order number",
       "Write a warning to the log",
       "Can I log text that a user sent?",
       "Log one line per failed import row",
-      "Choose where log records are written"
+      "Why is my log message not in the page output?"
     ]
   },
   "/reference/core/mail/": {
@@ -11166,7 +11168,7 @@
   },
   "/reference/core/password/verify/": {
     "feature": "Core\\Password::verify",
-    "hash": "5751842cdea61cb5",
+    "hash": "e6ad2eb04763cfca",
     "questions": [
       "How do I check a password when a user logs in?",
       "Compare a typed password with the stored hash",
@@ -13079,12 +13081,13 @@
   },
   "/reference/core/response/slotted/": {
     "feature": "Core\\Response::slotted",
-    "hash": "8c2b39312074ea6c",
+    "hash": "4d1c8c278cc6c7e3",
     "questions": [
       "How do I show a page before its slow parts are ready?",
       "Send the page early and fill in late sections afterwards",
       "Make the visitor see content sooner on a slow page",
-      "Load slow page sections only for some paths"
+      "Load slow page sections only for some paths",
+      "Send late page sections with a strict Content-Security-Policy"
     ]
   },
   "/reference/core/response/stream/": {
@@ -13119,7 +13122,7 @@
   },
   "/reference/core/response-stream/end/": {
     "feature": "Core\\Response\\Stream::end",
-    "hash": "5b000210c558e249",
+    "hash": "1a324aed4386a2cf",
     "questions": [
       "How do I finish a streamed response early?",
       "Close the response body and keep working",
@@ -14721,13 +14724,14 @@
   },
   "/reference/core/test/request/": {
     "feature": "Core\\Test::request",
-    "hash": "2844357ba900fd6e",
+    "hash": "e0b1042804ba68df",
     "questions": [
       "How do I test a route of my web app?",
       "Send a fake HTTP request to my own program",
       "Test a POST endpoint with a JSON body",
       "Test a page without starting a server",
-      "Test an app that is served under a path prefix"
+      "Test an app that is served under a path prefix",
+      "Test the response the real server sends over the network"
     ]
   },
   "/reference/core/test/scriptanswers/": {
@@ -17189,7 +17193,7 @@
   },
   "/reference/types/log-level/": {
     "feature": "Core\\Log::Level",
-    "hash": "f6b4442d1d0192e3",
+    "hash": "becd5dc85c726697",
     "questions": [
       "Which log levels are there?",
       "How do I write a debug message to the log?",

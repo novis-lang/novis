@@ -24,5 +24,7 @@ path = "conf.d/local.toml"
 [log]
 level = "debug"
 --EXPECTF--
-include.0.path = "conf.d/local.toml"    %snvs.toml
-log.level      = "debug"                %sconf.d%elocal.toml (overrides %snvs.toml)
+%Ainclude.0.path%s= "conf.d/local.toml"%snvs.toml
+%Alog.level%s= "debug"%sconf.d%elocal.toml (overrides %snvs.toml)
+%Alog.target%s= "stderr"%sdefault
+%A

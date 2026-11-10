@@ -7,18 +7,29 @@ $ nvs config check --config /etc/nvs/nvs.toml
 ok: 5 files, 47 directives set, 3 overrides, 1 warning
 
 $ nvs config dump --origin
-limits.memory             = "512M"    prod.toml:4   (overrides base.toml:2)
-capabilities.process.exec = true      conf.d/host.toml:3
-db.main.password          = <secret>  /run/secrets/db_password (conf.d/20-db.toml:5)
+capabilities.process.exec = true      /etc/nvs/conf.d/host.toml
+db.main.password          = <secret>  /run/secrets/db_password
+limits.memory             = "512M"    /etc/nvs/prod.toml (overrides /etc/nvs/base.toml)
+log.format                = "json"    default (production)
+log.target                = "stderr"  default
 
-$ nvs config dump --toml > effective.toml     # one canonical file, for diffing environments
+$ nvs config dump --toml > effective.toml     # the written keys, for diffing environments
 ```
 
 Both are **offline and need no server**, so a tree is validated in CI before it is deployed. `check`
 stops at the first refusal, because a file that does not parse has no keys to carry into the rest of
-the stream, and its four counts are what CI reads; `dump --origin` is where each override is named,
-per key, with the file and line that set it and the one it overrode. A secret renders `<secret>` and
-names the file it came from, never the value, and `--toml` serializes the merged table whole.
+the stream, and its four counts are what CI reads; the directives it counts are the keys the files
+wrote. `dump` lists **every key in force**: each key a file wrote, and the default of every key no
+file wrote, as `nvs serve` has it (`nvs_config::defaults::unwritten`, server work, the mode the tree
+starts in). `dump --origin` is where each override is named, per key, with the file that set it and
+the one it overrode; a default's origin is `default`, or `default (production)` /
+`default (development)` where the mode chose it (`rule:config/a-mode-is-five-defaults` and the
+startup rows). The origin names the file and not the line, because a parsed value carries no span. A
+secret renders `<secret>` and names the file its value came from, never the value. `--toml`
+serializes the written table alone: a default written into the document would change the tree it is
+read back as (a mode row stops following the mode, a `[limits.hard]` ceiling starts bounding every
+`[[app]]` block, a core count or a data-folder path pins it to one machine), so the document read
+back lists the same rows.
 
 **A grant entry that allows nothing however it is asked is a refusal, from `check` and at boot
 alike**, because both resolve the same tree: a host with a port or a scheme (a grant compares the

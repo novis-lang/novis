@@ -53,10 +53,14 @@ forever.
 
 ## The log
 
-`[log] target` is where the server writes a failure, such as a request that went over a limit. It
-can be `stderr`, a file or `syslog`. When nothing is set, it is `stderr`. A server that runs as a
-service writes to `logs/nvs.log` in its data folder instead. Read
-[Run as a service](/guides/production/run-as-a-service/).
+`[log] target` is where the server writes its log. The log has every record your program writes with
+`Core\Log::write`, and every failure, such as a request that went over a limit. A record is never
+part of a response.
+
+The target can be `stderr`, a file or `syslog`. When nothing is set, it is `stderr`. A server that
+runs as a service writes to `logs/nvs.log` in its data folder instead. Read
+[Run as a service](/guides/production/run-as-a-service/). When the server starts, it prints where
+the log records go, for example `info: log records go to stderr`.
 
 ```toml
 [log]
@@ -90,7 +94,8 @@ Check the log to see the result. Each reload writes one `configuration reloaded`
 - `invalidated` is the number of program files that the server compiles again.
 
 Four keys need a restart: `[server] listen`, `socket_mode`, `workers` and `watchdog_margin`.
-`nvs config dump --origin` prints every key in the files on disk, and the file that set it.
+`nvs config dump --origin` prints every key in force, and the file that set it. A key that no file
+sets shows its default value and the word `default`.
 
 Read more in [Reference: nvs config dump](/reference/cli/nvs-config-check-and-nvs-config-dump/) and
 [Reference: log](/reference/config/log/).

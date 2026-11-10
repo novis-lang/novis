@@ -20,7 +20,14 @@ info: resolved from 3 files
 info:   /srv/www/app/nvs.toml
 info:   /srv/www/app/conf.d/10-limits.toml
 info:   /etc/nvs/local.toml
+info: log records go to stderr
 ```
+
+The last line names where log records go: the global `[log] target` as written, the service's
+`file:` default where the service manager started the process, else `stderr`. It follows the
+configuration lines whichever of them were printed, and a reload that moves the target prints it
+again with the new one, because the reload's own record goes to the new target
+(`crates/nvs-cli/src/config.rs`'s `log_destination`). An `[[app]]` block's own target is not in it.
 
 The announcement is half of what makes the two implicit steps of
 `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` safe — the working directory's

@@ -1,23 +1,28 @@
 //! `rule:config/check-and-dump-audit-the-tree-offline`'s listing: every key in force, one per line,
-//! in dotted-key order, beside the file each was written in.
+//! in dotted-key order, beside the file each was written in or the word `default`.
 //!
 //! [`Audit`] is the borrowed view `nvs config dump --origin` hands over: the merged table, where
-//! every leaf was written, what each override replaced, and the secrets that are in force beside the
-//! table rather than in it.
+//! every leaf was written, what each override replaced, the secrets that are in force beside the
+//! table rather than in it, and the defaults no file overrode.
 //!
-//! The listing is the **merged table**, not the typed configuration, so a key no reader has a field
-//! for is still in force and still printed. That is what an audit needs, and it is the same table
-//! `rule:config/every-matching-app-block-applies-least-specific-first` layers `[[app]]` blocks over.
+//! The written half is the **merged table**, not the typed configuration, so a key no reader has a
+//! field for is still in force and still printed. That is what an audit needs, and it is the same
+//! table `rule:config/every-matching-app-block-applies-least-specific-first` layers `[[app]]` blocks
+//! over. The default half is [`crate::defaults::unwritten`] at [`defaults_of`]'s run: the values
+//! `nvs serve` has for every key no file wrote.
 //!
 //! Cost, as `rule:programs/memory-priority` requires: one `String` per audit, held for as long as it
-//! takes to print it, plus the flattened key list it is built from. Nothing
+//! takes to print it, plus the flattened key list and the default rows it is built from. Nothing
 //! is retained here and nothing is per request.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
+use crate::defaults::{At, Unwritten};
+use crate::mode;
 use crate::resolve::{Origin, Override, Resolved};
 use crate::secret::{REDACTED, Secret};
+use crate::snapshot::value_at;
 
 /// The directive that says who resolves an outbound destination, as [`leaves`] spells a dotted key.
 /// The value that gives the address question away is `crate::http`'s own word, so the tree and this
@@ -31,8 +36,8 @@ const NARROWED_POLICY: &str = "rule:security/net-address-policy";
 
 /// The tree an audit is of, borrowed — `rule:config/check-and-dump-audit-the-tree-offline`.
 ///
-/// It is four borrows and not an owned copy because the caller already holds every part in a
-/// [`Resolved`], and rendering reads each part once.
+/// It is five borrows and not an owned copy because the caller already holds every part, four in a
+/// [`Resolved`] and the defaults from [`defaults_of`], and rendering reads each part once.
 #[derive(Clone, Copy, Debug)]
 pub struct Audit<'a> {
     /// The merged table, whose every leaf is a row.
@@ -44,10 +49,13 @@ pub struct Audit<'a> {
     /// The secrets in force, by the key each is the value of. Each is a row of its own, rendered
     /// [`REDACTED`] and naming the file its *value* came from.
     pub secrets: &'a BTreeMap<String, Secret>,
+    /// The defaults in force that no file wrote. Each is a row of its own, whose origin is
+    /// `default`, or `default (<mode>)` where the mode chose the value.
+    pub defaults: &'a [Unwritten],
 }
 
 impl<'a> Audit<'a> {
-    /// The tree as the files on disk resolve it — `nvs config dump`'s half.
+    /// The tree as the files on disk resolve it, with no default rows.
     #[must_use]
     pub fn of_files(resolved: &'a Resolved) -> Self {
         Self {
@@ -55,15 +63,24 @@ impl<'a> Audit<'a> {
             origins: &resolved.origins,
             overrides: &resolved.overrides,
             secrets: &resolved.secrets,
+            defaults: &[],
         }
     }
 
-    /// Every leaf of the table, plus one row per secret, in dotted-key order.
+    /// This audit with `defaults` listed beside the keys the files wrote — `nvs config dump`'s
+    /// listing, with `defaults` from [`defaults_of`] over the same table.
+    #[must_use]
+    pub fn with_defaults(self, defaults: &'a [Unwritten]) -> Self {
+        Self { defaults, ..self }
+    }
+
+    /// Every leaf of the table, plus one row per secret, in dotted-key order: the keys the files
+    /// wrote, and no default.
     ///
-    /// `nvs config check` counts this and [`render`](Audit::render) prints it, so the summary line
-    /// and the listing cannot disagree about how many directives are set. A secret is counted
-    /// because it *is* set — `db.main.password` is a key with a value in force, and the
-    /// `password_file` beside it is a second key rather than the same one spelled differently.
+    /// `nvs config check` counts this as the directives set, and [`render`](Audit::render) prints
+    /// it with the default rows beside it. A secret is counted because it *is* set —
+    /// `db.main.password` is a key with a value in force, and the `password_file` beside it is a
+    /// second key rather than the same one spelled differently.
     #[must_use]
     pub fn listing(&self) -> Vec<(String, String)> {
         let mut out = leaves(self.table);
@@ -76,11 +93,13 @@ impl<'a> Audit<'a> {
         out
     }
 
-    /// The listing as text, one row per line, each line ended.
+    /// The listing as text, one row per line, each line ended: every key a file wrote and every
+    /// default row, merged in dotted-key order.
     ///
-    /// `origin` adds the file column. It is a column rather than a suffix, so a tree assembled from
-    /// five files reads down that column instead of along each line, and the value is padded to hold
-    /// it straight.
+    /// `origin` adds the origin column: the file a key was written in, or `default`, or
+    /// `default (production)` and `default (development)` where the mode chose the value. It is a
+    /// column rather than a suffix, so a tree assembled from five files reads down that column
+    /// instead of along each line, and the value is padded to hold it straight.
     ///
     /// `--origin` **names the file and not the line**: an [`Origin`] carries the path and the
     /// `SourceId` because that is what a refusal needs, and a line would need a span per leaf, which
@@ -88,7 +107,6 @@ impl<'a> Audit<'a> {
     /// so the column is useful without it.
     #[must_use]
     pub fn render(&self, origin: bool) -> String {
-        let rows = self.listing();
         // Each key is printed with its segments quoted where they need it, so a table named with a
         // newline, `[db."main\n…"]`, cannot start a row of its own. A secret is not a leaf of the
         // table; its `_file` sibling is, and the two share every segment but the last.
@@ -96,49 +114,84 @@ impl<'a> Audit<'a> {
             .into_iter()
             .map(|leaf| (leaf.key, leaf.shown))
             .collect();
-        let shown: Vec<String> = rows
-            .iter()
-            .map(|(key, _)| match spellings.get(key) {
-                Some(shown) => shown.clone(),
-                None => spellings
-                    .get(&format!("{key}_file"))
-                    .and_then(|file| file.strip_suffix("_file"))
-                    .map_or_else(
-                        || key.split('.').map(segment).collect::<Vec<_>>().join("."),
-                        str::to_owned,
-                    ),
-            })
-            .collect();
-        let width = shown.iter().map(String::len).max().unwrap_or(0);
-        let value_width = rows.iter().map(|(_, value)| value.len()).max().unwrap_or(0);
         let overridden: BTreeMap<&str, &Override> = self
             .overrides
             .iter()
             .map(|record| (record.key.as_str(), record))
             .collect();
-
-        let mut out = String::new();
-        for ((key, value), shown) in rows.iter().zip(&shown) {
-            let mut line = if origin {
-                format!("{shown:width$} = {value:value_width$}")
-            } else {
-                format!("{shown:width$} = {value}")
-            };
-            if origin {
+        let mut rows: Vec<Row> = self
+            .listing()
+            .into_iter()
+            .map(|(key, value)| {
+                let shown = match spellings.get(&key) {
+                    Some(shown) => shown.clone(),
+                    None => spellings
+                        .get(&format!("{key}_file"))
+                        .and_then(|file| file.strip_suffix("_file"))
+                        .map_or_else(
+                            || key.split('.').map(segment).collect::<Vec<_>>().join("."),
+                            str::to_owned,
+                        ),
+                };
                 // A secret's origin is the file its *value* came from, not the file that named it —
                 // the `password_file` row directly below it is where the naming file is already
                 // reported, so printing that one twice would leave the path
                 // `rule:config/a-secret-is-a-file-whose-content-is-the-value` makes the value
                 // nowhere in the listing.
-                if let Some(secret) = self.secrets.get(key) {
-                    let _ = write!(line, "    {}", secret.file.display());
+                let mut from = if let Some(secret) = self.secrets.get(&key) {
+                    format!("    {}", secret.file.display())
                 } else if let Some(written_in) = self.origins.get(key.as_str()) {
-                    let _ = write!(line, "    {}", written_in.path.display());
-                }
+                    format!("    {}", written_in.path.display())
+                } else {
+                    String::new()
+                };
                 if let Some(record) = overridden.get(key.as_str()) {
-                    let _ = write!(line, " (overrides {})", record.replaced.path.display());
+                    let _ = write!(from, " (overrides {})", record.replaced.path.display());
                 }
+                Row {
+                    key,
+                    shown,
+                    value,
+                    from,
+                }
+            })
+            .collect();
+        // A default's key is spelled segment by segment like a written one, so a named block's
+        // default rows quote its name exactly as its written rows do.
+        rows.extend(self.defaults.iter().map(|default| {
+            Row {
+                key: default.key(),
+                shown: default
+                    .path
+                    .iter()
+                    .map(String::as_str)
+                    .map(segment)
+                    .collect::<Vec<_>>()
+                    .join("."),
+                value: spelled(&default.value),
+                from: match &default.mode {
+                    Some(chosen) => format!("    default ({chosen})"),
+                    None => "    default".to_owned(),
+                },
             }
+        }));
+        rows.sort_by(|left, right| left.key.cmp(&right.key));
+        let width = rows.iter().map(|row| row.shown.len()).max().unwrap_or(0);
+        let value_width = rows.iter().map(|row| row.value.len()).max().unwrap_or(0);
+
+        let mut out = String::new();
+        for Row {
+            key,
+            shown,
+            value,
+            from,
+        } in &rows
+        {
+            let mut line = if origin {
+                format!("{shown:width$} = {value:value_width$}{from}")
+            } else {
+                format!("{shown:width$} = {value}")
+            };
             // The offline half of
             // `rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`:
             // the one word that hands the address question to the proxy reads as an ordinary
@@ -155,6 +208,39 @@ impl<'a> Audit<'a> {
         }
         out
     }
+}
+
+/// One line of [`Audit::render`] before it is laid out.
+struct Row {
+    /// The dotted key the rows are sorted by.
+    key: String,
+    /// The key as the line prints it, each segment through [`segment`].
+    shown: String,
+    /// The value, through [`spelled`].
+    value: String,
+    /// The origin column with its leading gap, or empty where nothing names one.
+    from: String,
+}
+
+/// The defaults `nvs config dump` lists beside the keys `table` writes:
+/// [`crate::defaults::unwritten`] for server work, in the mode `table` starts in.
+///
+/// Server work, because an audit is of the tree a server is given. A command-line run of the same
+/// tree has no `limits.cpu_time`, and no `limits.hard.memory` unless a file writes one. The mode is
+/// `[mode] default` where the table writes one of the two modes, and `production` otherwise, as a
+/// server that wrote nothing starts in.
+#[must_use]
+pub fn defaults_of(table: &toml::Table) -> Vec<Unwritten> {
+    let started = value_at(table, mode::KEY)
+        .and_then(toml::Value::as_str)
+        .filter(|written| mode::rank(written).is_some())
+        .unwrap_or(mode::PRODUCTION);
+    crate::defaults::unwritten(&At {
+        table,
+        serving: true,
+        mode: started,
+        started,
+    })
 }
 
 /// Every key in force in `table`, as a dotted key and the TOML spelling of its value, in dotted-key
@@ -296,7 +382,91 @@ fn hidden(ch: char) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{Audit, leaves};
+    use super::{Audit, defaults_of, leaves};
+
+    /// The default rows of a tree that writes `development`, one `log.level`, a `[db.main]` block
+    /// and one `[[schedule]]` entry: a key the tree writes has no default row, a mode row names the
+    /// mode that chose it, a named block and an entry get their own keys' defaults, and
+    /// `[log] target` is listed although `Core\Config::get` never renders it.
+    // covers: tools:cli/nvs-config-check-and-nvs-config-dump
+    #[test]
+    fn every_default_no_file_wrote_is_a_row_naming_what_chose_it() {
+        let table: toml::Table = toml::from_str(
+            r#"
+            [mode]
+            default = "development"
+            [log]
+            level = "Info"
+            [db.main]
+            driver = "sqlite"
+            [[schedule]]
+            script = "jobs/report.nvs"
+            cron = "0 * * * *"
+            "#,
+        )
+        .expect("the fixture is valid TOML");
+        let defaults = defaults_of(&table);
+        let found = |key: &str| defaults.iter().find(|row| row.key() == key);
+
+        assert!(found("log.level").is_none(), "a written key is no default");
+        assert!(
+            found("mode.default").is_none(),
+            "a written key is no default"
+        );
+        let format = found("log.format").expect("`log.format` has a default row");
+        assert_eq!(format.value, toml::Value::String("text".to_owned()));
+        assert_eq!(format.mode.as_deref(), Some("development"));
+        let inline = found("debug.inline").expect("`debug.inline` has a default row");
+        assert_eq!(inline.value, toml::Value::Boolean(true));
+        let target = found("log.target").expect("`log.target` has a default row");
+        assert_eq!(target.value, toml::Value::String("stderr".to_owned()));
+        assert_eq!(target.mode, None);
+        assert!(found("db.main.pool.max").is_some(), "{defaults:?}");
+        assert!(found("schedule.0.timezone").is_some(), "{defaults:?}");
+        assert!(
+            found("ldap.main.timeout").is_none(),
+            "no `[ldap]` block is written: {defaults:?}"
+        );
+
+        let origins = std::collections::BTreeMap::new();
+        let secrets = std::collections::BTreeMap::new();
+        let audit = Audit {
+            table: &table,
+            origins: &origins,
+            overrides: &[],
+            secrets: &secrets,
+            defaults: &[],
+        }
+        .with_defaults(&defaults);
+        let listing = audit.render(true);
+        let row = |key: &str| {
+            listing
+                .lines()
+                .find(|line| line.starts_with(&format!("{key} ")))
+                .unwrap_or_else(|| panic!("no `{key}` row:\n{listing}"))
+                .trim_end()
+                .to_owned()
+        };
+        let format = row("log.format");
+        assert!(
+            format.contains("= \"text\" ") && format.ends_with("    default (development)"),
+            "{listing}"
+        );
+        assert!(row("log.target").ends_with("default"), "{listing}");
+        assert!(!row("log.level").contains("default"), "{listing}");
+        assert_eq!(
+            listing.lines().count(),
+            audit.listing().len() + defaults.len(),
+            "one line per written key and per default: {listing}"
+        );
+        assert!(
+            audit
+                .render(false)
+                .lines()
+                .all(|line| !line.contains("default (")),
+            "the origin column is printed only with `--origin`"
+        );
+    }
 
     /// The two array shapes `rule:config/a-value-array-replaces-and-a-table-appends` distinguishes,
     /// flattened the way `Resolved::origins` spells them: an array of tables descends by index so
@@ -352,6 +522,7 @@ mod tests {
             origins: &origins,
             overrides: &[],
             secrets: &secrets,
+            defaults: &[],
         };
 
         let listing = audit.render(false);

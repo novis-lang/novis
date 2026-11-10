@@ -644,7 +644,7 @@ additive: paths./users.get.query.q — optional parameter added
 
 Both read the configuration tree offline and run nothing, so a tree can be validated in CI before
 it is deployed. With no files named they read `./nvs.toml`. If there is none, they read `nvs.toml` in
-the data folder. If there is neither, they report an empty configuration, which is not an error.
+the data folder. If there is neither, they use the default settings, which is not an error.
 Naming files positionally is the same as `--config`. Neither command creates the data folder.
 
 - `config check` resolves the whole tree — includes, `[[app]]` blocks, secrets — and prints one
@@ -662,19 +662,30 @@ Naming files positionally is the same as `--config`. Neither command creates the
   machine as they are now. Without `--as`, `config check` does not check ownership. `config dump`
   does not take `--as`.
 - `config dump` prints every key in force, one per line in dotted-key order, with array-of-tables
-  blocks numbered (`app.0.root`, `include.1.path`). A value or a table name that holds a new line, a
-  control character or a right-to-left mark is written as a TOML escape, such as `\n` for a new
-  line. Each key stays on one line, and you can see text that a terminal would hide. `--origin` adds the file each key was written
-  in, and the file it overrode; `--toml` prints the resolved tree as one canonical TOML document,
-  for diffing two environments.
+  blocks numbered (`app.0.root`, `include.1.path`). The list has each key that a file sets. It also
+  has the default value of every key that no file sets, as `nvs serve` uses it. A value or a table
+  name can have a new line, a control character or a right-to-left mark. The dump writes it as a
+  TOML escape, such as `\n` for a new line. Each key stays on one line, and you can see text that a
+  terminal would hide.
+- `config dump --origin` adds where each value comes from: the file that sets the key, and the file
+  it replaced. A default value shows `default`. When the mode chooses the value, it shows
+  `default (production)` or `default (development)`.
+- `config dump --toml` prints the keys that the files set as one TOML document. The document has no
+  default values, so it reads back as the same configuration. You can compare the documents of two
+  environments.
 
 ```text
-app.0.capabilities.script.spawn = true
-app.0.origin                    = "https://example.test"
-app.0.root                      = "."
-limits.hard.memory              = "512M"
-limits.memory                   = "256M"
+$ nvs config dump --origin
+app.0.capabilities.script.spawn = true                    /srv/shop/nvs.toml
+app.0.origin                    = "https://example.test"  /srv/shop/nvs.toml
+app.0.root                      = "."                     /srv/shop/nvs.toml
+limits.hard.memory              = "512M"                  /srv/shop/nvs.toml
+limits.memory                   = "256M"                  /srv/shop/nvs.toml
+log.format                      = "json"                  default (production)
+log.target                      = "stderr"                default
 ```
+
+The real list is longer: it has every default. `log.target` shows where the log records go.
 
 # nvs ext new and nvs ext build
 

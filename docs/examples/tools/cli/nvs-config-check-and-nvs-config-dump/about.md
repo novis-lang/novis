@@ -9,8 +9,9 @@ that is not valid, or that is above its `[limits.hard]` ceiling.
 
 `config check --as <account>` also checks the owner of each file and folder for that account. The
 first file that a server with this account would not accept stops the check with `E0607`. On
-Windows, `NT SERVICE\<service>` works before the service exists. The check sees the files on this
-machine as they are now. It does not see another server's copy or a container's mount.
+Windows, `NT SERVICE\<service>` works before the service exists. The check sees only the files on
+this machine.
 
-`config dump` prints one key on each line, sorted by name. `--origin` adds the file that set each
-key. `--toml` prints one TOML document, which you can compare between two environments.
+`config dump` prints one key on each line, sorted by name. It also prints the default of every key
+that no file sets. `--origin` adds the file that set each key, or `default`. `--toml` prints only
+the keys that files set, as a TOML document.

@@ -199,8 +199,9 @@ in a key always gives an error message.
 
 - `nvs config check` reads the file and reports every error. It also warns about a key in the four
   blocks that no program reads.
-- `nvs config dump --origin` prints every key that is set, and the file that set it. When a later
-  file replaced a key, it names both files.
+- `nvs config dump --origin` prints every key in force, and the file that set it. When a later
+  file replaced a key, it names both files. A key that no file sets shows its default value and the
+  word `default`.
 
 Both commands read the files you list, in the order you list them:
 `nvs config dump --origin nvs.toml /etc/nvs/override.toml`.

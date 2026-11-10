@@ -290,7 +290,7 @@
     "Core\\Ldap\\Connection::Scope": "cce8505302144228",
     "Core\\Ldap\\Entry::AccountType": "f35a03f1876f43fe",
     "Core\\Ldap\\LdapError::Kind": "3289caebcf28589b",
-    "Core\\Log::Level": "6c1289976c043719",
+    "Core\\Log::Level": "5664f2415fc8ebb4",
     "Core\\Mime::Type": "7b8dfeaf6eb626d8",
     "Core\\Passkey\\Credential::Algorithm": "79dc3255d0c50e60",
     "Core\\Queue::State": "9790f63b8c97f935",

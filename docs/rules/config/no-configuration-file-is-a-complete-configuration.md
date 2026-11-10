@@ -39,9 +39,9 @@ anywhere" is a valid host and a program has to be able to ask on one. **`Core\Co
 give the value in force**: what the request set, then a secret, then what the file wrote, then the
 built-in default, rendered the way the shipped file writes it (`128M`, `30s`, `1000000`). A key with
 no default (`wall_time`) is `null`, and so is a key whose default is nothing for this run
-(`cpu_time` under `nvs run`). An unwritten `[log] target` is `null` too, because it is not one
-destination: a `Core\Log::write` record is the program's output and a floor record goes to stderr
-(`rule:errors/engine-floor`). A default inside a named block (`[db.<name>]`) is in force only where
+(`cpu_time` under `nvs run`). An unwritten `[log] target` is `null` too, because its destination is
+the process's and not the tree's: stderr, or the data folder's `logs/nvs.log` in a process a service
+manager started (`rule:errors/engine-floor`). `nvs config dump` names the one in force. A default inside a named block (`[db.<name>]`) is in force only where
 that block is written. `set` and `restore` behave as on any host: `set` is bounded as above, and
 `restore` brings back the written value or the default. A context that was handed no configuration
 at all — a test context, an embedder that has not built a snapshot — has no tree and no defaults:

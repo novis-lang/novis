@@ -3160,3 +3160,16 @@ fn the_shipped_defaults_line_is_printed_when_no_file_is_found() {
         "a boot on the shipped defaults listed files: {said}"
     );
 }
+
+/// Boot prints where log records go: `stderr` for a tree that writes no
+/// `[log] target`. A reload that moves the target prints the new one on
+/// standard error, where the old records went, because the reload's own record
+/// goes to the new target.
+#[test]
+fn boot_and_a_reload_that_moves_the_target_print_where_log_records_go() {
+    let server = Server::start("log-destination", "", &[("app.nvs", PLAIN)]);
+    server.logs("info: log records go to stderr\n");
+
+    server.save("[log]\ntarget = \"file:shop.log\"\n");
+    server.logs("info: log records go to file:shop.log\n");
+}

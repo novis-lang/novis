@@ -16,5 +16,6 @@ echo Core\Config::get('http.client.proxy.resolve'), "\n";
 url = "http://proxy.internal:3128"
 resolve = "proxy"
 --EXPECTF--
-http.client.proxy.resolve = "proxy"                         %snvs.toml    rule:security/net-address-policy
-http.client.proxy.url     = "http://proxy.internal:3128"    %snvs.toml
+%Ahttp.client.proxy.resolve%s= "proxy"%snvs.toml    rule:security/net-address-policy
+http.client.proxy.url%s= "http://proxy.internal:3128"%snvs.toml
+%A

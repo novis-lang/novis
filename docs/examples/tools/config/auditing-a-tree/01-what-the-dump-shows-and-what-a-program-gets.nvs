@@ -4,12 +4,12 @@
 // `nvs config check nvs.toml` reads the file and runs nothing. It prints this line and exits with `0`:
 //     ok: 1 file, 4 directives set, 0 overrides, 0 warnings
 
-// `nvs config dump nvs.toml` prints every setting. Each `[[app]]` block gets a number, here `0`:
+// `nvs config dump nvs.toml` prints every setting. These lines are the settings that the file sets:
 //     app.0.limits.wall_time = "120s"
 //     app.0.root             = "."
 //     limits.memory          = "256M"
 //     limits.wall_time       = "30s"
-// `--origin` adds the file that set each line. `--toml` prints all of it as one TOML file.
+// Every other line is a default value, such as `log.target = "stderr"`. `--origin` adds the file, or `default`.
 
 // This program is in the directory of block `app.0`, so its time limit is the block's value.
 // This prints `time limit: 120s`.

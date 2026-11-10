@@ -393,6 +393,10 @@ impl Process {
         // running tree stays live.
         let extensions = crate::extensions::loaded(&next.config, &origins, &sources)
             .map_err(|refusal| rendered(&refusal, &sources))?;
+        // The boot's line about where log records go, for the tree serving now: printed again
+        // below when the reload moves the target, because the reload's own record goes to the
+        // new target and a reader of standard error would otherwise see nothing.
+        let destination = crate::config::log_destination(&self.current.load().config);
         let recache = self.caching(&next);
         let retrust = self.trusting(&next);
         let mut keep: Vec<&str> = Vec::new();
@@ -432,6 +436,10 @@ impl Process {
         // `invalidated` count was derived from the same comparison, so doing
         // this first would leave a window where the two disagree.
         let serving = self.current.load();
+        let moved = crate::config::log_destination(&serving.config);
+        if moved != destination {
+            eprintln!("{moved}");
+        }
         *lock(&self.sources) = Some((serving.generation, Arc::new(sources)));
         let pending: Vec<Pending> = report
             .ignored

@@ -13,9 +13,15 @@ use std::process::Command;
 /// `nvs <args...>` in `dir`, as `(stdout, stderr, exit code)`, with `dir/.nvsdata` as the data
 /// folder so no case reads the one beside the binary.
 fn nvs_in(dir: &Path, args: &[&str]) -> (String, String, Option<i32>) {
+    nvs_with_data(dir, &dir.join(".nvsdata"), args)
+}
+
+/// [`nvs_in`] with `data` as the data folder, for a case that compares two dumps whose default
+/// paths in the data folder must be the same.
+fn nvs_with_data(dir: &Path, data: &Path, args: &[&str]) -> (String, String, Option<i32>) {
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
         .arg("--data")
-        .arg(dir.join(".nvsdata"))
+        .arg(data)
         .args(args)
         .current_dir(dir)
         .output()
@@ -30,6 +36,50 @@ fn nvs_in(dir: &Path, args: &[&str]) -> (String, String, Option<i32>) {
 /// A tree the repository ships, by its repository-rooted path.
 fn shipped(path: &str) -> PathBuf {
     nvs_repo::path(path)
+}
+
+/// Each row of a dump as its key, without the padding, and the rest of the line after ` = `.
+///
+/// # Panics
+///
+/// When a line has no ` = `.
+fn rows(out: &str) -> Vec<(&str, &str)> {
+    out.lines()
+        .map(|line| {
+            let (key, rest) = line
+                .split_once(" = ")
+                .unwrap_or_else(|| panic!("every row is `key = value`: {line}"));
+            (key.trim_end(), rest.trim_end())
+        })
+        .collect()
+}
+
+/// The rows of `out` whose key is one of `keys`, in the order the dump printed them.
+fn only<'a>(out: &'a str, keys: &[&str]) -> Vec<(&'a str, &'a str)> {
+    rows(out)
+        .into_iter()
+        .filter(|(key, _)| keys.contains(key))
+        .collect()
+}
+
+/// The line of `out` for `key`.
+///
+/// # Panics
+///
+/// When no line is for `key`.
+fn line_of<'a>(out: &'a str, key: &str) -> &'a str {
+    out.lines()
+        .find(|line| line.starts_with(&format!("{key} ")))
+        .unwrap_or_else(|| panic!("`{key}` has a row: {out}"))
+}
+
+/// Whether a `--origin` line is a default's: its origin column is `default` or
+/// `default (<mode>)`.
+fn is_default(line: &str) -> bool {
+    let line = line.trim_end();
+    line.ends_with("    default")
+        || line.ends_with("    default (production)")
+        || line.ends_with("    default (development)")
 }
 
 /// An empty directory of this case's own under `CARGO_TARGET_TMPDIR`, named for
@@ -114,13 +164,19 @@ fn check_as_an_account_that_does_not_exist_is_e0662() {
 
 /// The example's tree: `nvs.toml` includes `production.toml`, which sets
 /// `limits.memory` again. `check` counts both files and the one override, and
-/// `dump` lists the four keys in force with the later file's value; `--origin`
-/// names that file and the one it overrode, and `--toml` is the same table as
-/// one document.
+/// `dump` lists the four keys the files wrote with the later file's value, among
+/// the defaults no file overrode; `--origin` names that file and the one it
+/// overrode, and `--toml` is the written table as one document.
 // covers: tools:cli/nvs-config-check-and-nvs-config-dump
 #[test]
 fn check_counts_the_example_tree_and_dump_names_the_file_each_key_came_from() {
     let dir = shipped("docs/examples/tools/cli/nvs-config-check-and-nvs-config-dump");
+    let written = [
+        "include.0.path",
+        "limits.hard.memory",
+        "limits.memory",
+        "limits.wall_time",
+    ];
 
     let (out, err, code) = nvs_in(&dir, &["config", "check", "nvs.toml"]);
     assert_eq!(code, Some(0), "the example tree is valid: {err}");
@@ -133,24 +189,30 @@ fn check_counts_the_example_tree_and_dump_names_the_file_each_key_came_from() {
     let (out, err, code) = nvs_in(&dir, &["config", "dump", "nvs.toml"]);
     assert_eq!(code, Some(0), "{err}");
     assert_eq!(
-        out,
-        concat!(
-            "include.0.path     = \"production.toml\"\n",
-            "limits.hard.memory = \"512M\"\n",
-            "limits.memory      = \"128M\"\n",
-            "limits.wall_time   = \"30s\"\n",
-        )
+        only(&out, &written),
+        [
+            ("include.0.path", "\"production.toml\""),
+            ("limits.hard.memory", "\"512M\""),
+            ("limits.memory", "\"128M\""),
+            ("limits.wall_time", "\"30s\""),
+        ]
+    );
+    assert!(
+        rows(&out).contains(&("log.target", "\"stderr\"")),
+        "the dump lists the defaults too: {out}"
     );
 
     let (out, err, code) = nvs_in(&dir, &["config", "dump", "--origin", "nvs.toml"]);
     assert_eq!(code, Some(0), "{err}");
-    let memory = out
-        .lines()
-        .find(|line| line.starts_with("limits.memory "))
-        .unwrap_or_else(|| panic!("`limits.memory` has a row: {out}"));
+    let memory = line_of(&out, "limits.memory");
     assert!(
         memory.contains("production.toml (overrides ") && memory.ends_with("nvs.toml)"),
         "the row names the file that set it and the file it overrode: {memory}"
+    );
+    assert_eq!(
+        out.lines().filter(|line| !is_default(line)).count(),
+        written.len(),
+        "every other row is a default: {out}"
     );
 
     let (out, err, code) = nvs_in(&dir, &["config", "dump", "--toml", "nvs.toml"]);
@@ -165,12 +227,93 @@ fn check_counts_the_example_tree_and_dump_names_the_file_each_key_came_from() {
         !out.contains("production.toml (overrides"),
         "and carries no origin: {out}"
     );
+    assert!(
+        !table.contains_key("log"),
+        "and no default, which no file wrote: {out}"
+    );
+}
+
+/// A key a file wrote names its file, a default names `default`, and a default
+/// the mode chose names the mode. The summary line and the `--toml` document count
+/// and carry only the keys the file wrote.
+// covers: tools:cli/nvs-config-check-and-nvs-config-dump
+#[test]
+fn dump_lists_every_default_beside_the_written_keys_and_names_its_origin() {
+    let dir = scratch("defaults");
+    std::fs::write(
+        dir.join("nvs.toml"),
+        "[mode]\ndefault = \"development\"\n\n[log]\nlevel = \"info\"\n",
+    )
+    .expect("the case's directory takes a file");
+
+    let (out, err, code) = nvs_in(&dir, &["config", "check", "nvs.toml"]);
+    assert_eq!(code, Some(0), "{err}");
+    assert_eq!(
+        out,
+        "ok: 1 file, 2 directives set, 0 overrides, 0 warnings\n"
+    );
+
+    let (out, err, code) = nvs_in(&dir, &["config", "dump", "--origin", "nvs.toml"]);
+    assert_eq!(code, Some(0), "{err}");
+    let level = line_of(&out, "log.level");
+    assert!(
+        level.contains("= \"info\" ")
+            && level.trim_end().ends_with("nvs.toml")
+            && !is_default(level),
+        "a written key names the file that set it: {level}"
+    );
+    let target = line_of(&out, "log.target");
+    assert!(
+        target.contains("= \"stderr\" ") && target.trim_end().ends_with("    default"),
+        "an unwritten target is the default `stderr`: {target}"
+    );
+    let memory = line_of(&out, "limits.memory");
+    assert!(
+        memory.contains("= \"128M\" ") && memory.trim_end().ends_with("    default"),
+        "{memory}"
+    );
+    let format = line_of(&out, "log.format");
+    assert!(
+        format.contains("= \"text\" ") && format.trim_end().ends_with("    default (development)"),
+        "the mode chose the format: {format}"
+    );
+    let dispatch = line_of(&out, "server.dispatch");
+    assert!(
+        dispatch.contains("= \"path\" ")
+            && dispatch.trim_end().ends_with("    default (development)"),
+        "the mode the server starts in chose the dispatch: {dispatch}"
+    );
+
+    let (plain, err, code) = nvs_in(&dir, &["config", "dump", "nvs.toml"]);
+    assert_eq!(code, Some(0), "{err}");
+    assert_eq!(
+        plain.lines().count(),
+        out.lines().count(),
+        "`--origin` adds a column and no row"
+    );
+    assert!(
+        !plain.contains("default ("),
+        "the origin column is printed only with `--origin`: {plain}"
+    );
+
+    let (document, err, code) = nvs_in(&dir, &["config", "dump", "--toml", "nvs.toml"]);
+    assert_eq!(code, Some(0), "{err}");
+    let table: toml::Table = document.parse().expect("`--toml` prints one TOML document");
+    assert_eq!(table["log"]["level"].as_str(), Some("info"), "{document}");
+    assert!(
+        !table["log"]
+            .as_table()
+            .is_some_and(|log| log.contains_key("format"))
+            && !table.contains_key("server"),
+        "the document has no default: {document}"
+    );
+    drop(std::fs::remove_dir_all(&dir));
 }
 
 /// The configuration chapter's audit, over a tree with one `[[app]]` block: `dump`
 /// numbers the block's keys `app.0.…` in dotted-key order, and the `--toml`
-/// document, written out and dumped again, lists exactly the same rows, so two
-/// environments compare by their documents alone.
+/// document, written out and dumped again, lists exactly the same rows, defaults
+/// included, so two environments compare by their documents alone.
 // covers: tools:config/auditing-a-tree
 #[test]
 fn dump_numbers_each_app_block_and_the_toml_document_dumps_the_same_rows() {
@@ -186,20 +329,33 @@ fn dump_numbers_each_app_block_and_the_toml_document_dumps_the_same_rows() {
     let (dump, err, code) = nvs_in(&dir, &["config", "dump", "nvs.toml"]);
     assert_eq!(code, Some(0), "{err}");
     assert_eq!(
-        dump,
-        concat!(
-            "app.0.limits.wall_time = \"120s\"\n",
-            "app.0.root             = \".\"\n",
-            "limits.memory          = \"256M\"\n",
-            "limits.wall_time       = \"30s\"\n",
-        )
+        only(
+            &dump,
+            &[
+                "app.0.limits.wall_time",
+                "app.0.root",
+                "limits.memory",
+                "limits.wall_time"
+            ]
+        ),
+        [
+            ("app.0.limits.wall_time", "\"120s\""),
+            ("app.0.root", "\".\""),
+            ("limits.memory", "\"256M\""),
+            ("limits.wall_time", "\"30s\""),
+        ]
     );
 
     let (document, err, code) = nvs_in(&dir, &["config", "dump", "--toml", "nvs.toml"]);
     assert_eq!(code, Some(0), "{err}");
     let again = scratch("auditing-a-tree");
     std::fs::write(again.join("nvs.toml"), &document).expect("the document is written");
-    let (redump, err, code) = nvs_in(&again, &["config", "dump", "nvs.toml"]);
+    // The same data folder, so the defaults that are paths in it are the same paths.
+    let (redump, err, code) = nvs_with_data(
+        &again,
+        &dir.join(".nvsdata"),
+        &["config", "dump", "nvs.toml"],
+    );
     assert_eq!(
         code,
         Some(0),
@@ -286,7 +442,8 @@ fn every_refusal_the_chapter_names_exits_1_with_its_code() {
 }
 
 /// With no file named and no `./nvs.toml`, both commands read the shipped
-/// defaults: a tree of no files, which is a success and not a missing file.
+/// defaults: a tree of no files, which is a success and not a missing file, and
+/// whose dump is the defaults alone.
 // covers: tools:cli/nvs-config-check-and-nvs-config-dump
 #[test]
 fn a_directory_with_no_nvs_toml_is_a_tree_of_no_files() {
@@ -298,7 +455,26 @@ fn a_directory_with_no_nvs_toml_is_a_tree_of_no_files() {
         "ok: 0 files, 0 directives set, 0 overrides, 0 warnings\n"
     );
 
-    let (out, err, code) = nvs_in(&dir, &["config", "dump"]);
+    let (out, err, code) = nvs_in(&dir, &["config", "dump", "--origin"]);
+    assert_eq!(code, Some(0), "{err}");
+    assert!(
+        line_of(&out, "log.target")
+            .trim_end()
+            .ends_with("    default"),
+        "{out}"
+    );
+    assert!(
+        line_of(&out, "log.level")
+            .trim_end()
+            .ends_with("    default (production)"),
+        "a tree that names no mode is in production: {out}"
+    );
+    assert!(
+        out.lines().all(is_default),
+        "a tree of no files lists only defaults: {out}"
+    );
+
+    let (out, err, code) = nvs_in(&dir, &["config", "dump", "--toml"]);
     assert_eq!((code, out.as_str()), (Some(0), ""), "{err}");
     assert!(
         !dir.join(".nvsdata").exists(),
@@ -345,8 +521,9 @@ fn the_data_folder_s_nvs_toml_is_read_when_the_directory_has_none() {
 /// The attack's tree: values and a database name holding a newline followed by
 /// text shaped like `limits.hard.memory = "99G"`, a right-to-left override and a
 /// NUL, two files that include one shared file, and a directory include. The
-/// listing is one line per directive `check` counted, no line reads as a setting
-/// the tree never set, and `--toml` gives every value back exactly as written.
+/// listing has one written line per directive `check` counted, and the rest are
+/// defaults. No line reads as a setting the tree never set, and `--toml` gives
+/// every value back exactly as written.
 // covers: tools:cli/nvs-config-check-and-nvs-config-dump
 #[test]
 fn the_hostile_tree_lists_one_row_per_directive_and_forges_none() {
@@ -359,29 +536,37 @@ fn the_hostile_tree_lists_one_row_per_directive_and_forges_none() {
         "ok: 7 files, 11 directives set, 6 overrides, 0 warnings\n"
     );
 
-    for flags in [
-        &["config", "dump", "nvs.toml"][..],
-        &["config", "dump", "--origin", "nvs.toml"],
-    ] {
-        let (out, err, code) = nvs_in(&dir, flags);
-        assert_eq!(code, Some(0), "{err}");
-        assert_eq!(out.lines().count(), 11, "one line per directive: {out}");
+    let (origin, err, code) = nvs_in(&dir, &["config", "dump", "--origin", "nvs.toml"]);
+    assert_eq!(code, Some(0), "{err}");
+    let written: Vec<&str> = origin.lines().filter(|line| !is_default(line)).collect();
+    assert_eq!(
+        written.len(),
+        11,
+        "one written line per directive: {origin}"
+    );
+    for line in written {
+        assert!(
+            ["app.0.", "db.\"main\\n", "include.", "limits.memory "]
+                .iter()
+                .any(|start| line.starts_with(start)),
+            "every row that is not a default is a key the tree wrote: {line}"
+        );
+    }
+    let (plain, err, code) = nvs_in(&dir, &["config", "dump", "nvs.toml"]);
+    assert_eq!(code, Some(0), "{err}");
+    assert_eq!(
+        plain.lines().count(),
+        origin.lines().count(),
+        "`--origin` adds a column and no row: {plain}"
+    );
+    for out in [&plain, &origin] {
         for line in out.lines() {
-            assert!(
-                ["app.0.", "db.\"main\\n", "include.", "limits.memory "]
-                    .iter()
-                    .any(|start| line.starts_with(start)),
-                "every row is a key the tree wrote: {line}"
-            );
             assert!(
                 !line.contains(['\r', '\u{0}', '\u{202e}', '\u{2066}']),
                 "no row carries a character a terminal acts on: {line:?}"
             );
         }
-        let memory = out
-            .lines()
-            .find(|line| line.starts_with("limits.memory "))
-            .unwrap_or_else(|| panic!("`limits.memory` has a row: {out}"));
+        let memory = line_of(out, "limits.memory");
         assert!(
             memory.contains("\"16M\""),
             "`conf.d/9-earlier.toml` is read last, because names sort as text: {memory}"

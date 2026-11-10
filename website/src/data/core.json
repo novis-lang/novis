@@ -7639,7 +7639,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "<code>$pkcs8</code> is not a PKCS#8 private key of that kind. For example, it is a key of another kind, or a PKCS#1 key. It can be an encrypted PKCS#8, which needs a password, and this method has no password argument. It can be an RSA key outside 2048 to 8192 bits, or any malformed data. A private key belongs to your program, never to the other side. So this error always means that your program was given a wrong key."
+                "descHtml": "<code>$pkcs8</code> is not a PKCS#8 private key of that kind. For example, it is a key of another kind, or a SEC1 or PKCS#1 key. It can be an encrypted PKCS#8, which needs a password, and this method has no password argument. It can be an RSA key outside 2048 to 4096 bits, or any malformed data. The message names the format that was found. Where a command converts that format to PKCS#8, the message gives the command. A private key belongs to your program, never to the other side. So this error always means that your program was given a wrong key."
               }
             ]
           },
@@ -23548,7 +23548,7 @@
     {
       "id": "Log",
       "name": "Core\\Log",
-      "summary": "Writes log records. `write` writes one record as one line of JSON, with a level, a message and any extra fields. The server's `[log]` settings decide where records go and which levels are kept.",
+      "summary": "Writes log records. `write` writes one record with a level, a message and any extra fields. The `[log]` settings decide where records go, which levels are kept and which format is used.",
       "enums": [
         {
           "name": "Level",
@@ -23599,7 +23599,7 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "Writes one log record. Novis writes its own records about a stopped program in the same format, so every record in the log has the same shape. A log target gets JSON Lines: one JSON object per line.",
+            "shortHtml": "Writes one log record. Novis writes its own records about a stopped program in the same format, so every record in the log has the same shape. When <code>[log] target</code> is not set, the record goes to standard error. A server that runs as a service writes it to <code>logs/nvs.log</code> in its data folder. A record never appears in the program's output or in a web response. <code>[log] format</code> sets the format. <code>&quot;json&quot;</code> writes one JSON object per line, and <code>&quot;text&quot;</code> writes plain text. The default is <code>&quot;json&quot;</code> in production and <code>&quot;text&quot;</code> in development.",
             "params": [
               {
                 "name": "level",
@@ -23625,7 +23625,7 @@
       "url": "/reference/core/log/",
       "summaryBlocks": [
         {
-          "html": "<p>Writes log records. <code>write</code> writes one record as one line of JSON, with a level, a message and any extra fields. The server's <code>[log]</code> settings decide where records go and which levels are kept.</p>"
+          "html": "<p>Writes log records. <code>write</code> writes one record with a level, a message and any extra fields. The <code>[log]</code> settings decide where records go, which levels are kept and which format is used.</p>"
         }
       ],
       "returnedBy": []

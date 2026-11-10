@@ -26,8 +26,11 @@
 //! **A row has a [`Scope`].** A key in a named block (`[db.<name>]`) has its default only where that
 //! block is written, so a host with no `[db.main]` reads no `db.main.*` key. A key `get` cannot
 //! address — one inside an `[[entry]]`, one the boot refuses where the shipped file shows it, or
-//! `[log] target`, whose unwritten state is a split between two channels — has a row for its
-//! readers and for the drift test, and `get` never renders it.
+//! `[log] target`, whose unwritten destination depends on how the process was started — has a row
+//! for its readers and for the drift test, and `get` never renders it.
+//!
+//! **`nvs config dump` lists the same rows** through [`unwritten`]: each default no file wrote,
+//! typed as the shipped file writes it, with the mode that chose it where a mode did.
 //!
 //! Cost: one `&'static` slice and no allocation until a value is rendered. A value fixed by the
 //! binary is rendered once per process, and [`in_force`] copies it. `get` scans it only when
@@ -344,9 +347,9 @@ pub enum Scope {
     /// In each named block the file writes. The key spells the name as `<name>`.
     Named,
     /// Never through `get`: a key in an `[[entry]]`, one the boot refuses where the shipped file
-    /// shows it, or `[log] target`, whose unwritten state is not one value. An unwritten target
-    /// sends a `Core\Log::write` record to the program's output and a floor record to the
-    /// diagnostic channel, and a written `stderr` sends both to the process's stderr.
+    /// shows it, or `[log] target`, whose unwritten value is the process's rather than the tree's:
+    /// every record goes to the diagnostic channel, which is the process's stderr, and a process a
+    /// service manager started has the data folder's `logs/nvs.log` written in for it instead.
     Unaddressed,
 }
 
@@ -818,4 +821,184 @@ fn spells(pattern: &str, key: &str) -> Option<String> {
 /// Whether `table` has a table at the dotted `key`.
 fn is_table(table: &toml::Table, key: &str) -> bool {
     value_at(table, key).is_some_and(toml::Value::is_table)
+}
+
+/// `[log] target`'s key: the one [`Scope::Unaddressed`] row outside an entry that [`unwritten`]
+/// lists, because where records go is the first thing an operator reads an audit for.
+const LOG_TARGET_KEY: &str = "log.target";
+
+/// One default in force that no file wrote, as `nvs config dump` lists it beside the keys the
+/// files wrote (`rule:config/check-and-dump-audit-the-tree-offline`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Unwritten {
+    /// The key, one segment per element: a named block's name and an entry's index are one
+    /// segment each, so a name holding a `.` is still one segment.
+    pub path: Vec<String>,
+    /// The value as the shipped file writes it: a size, a duration, a mode and a word are strings,
+    /// a count is an integer, a flag a boolean, a ratio a float and a list an array of strings.
+    pub value: toml::Value,
+    /// The mode that chose the value, where the row is one the mode selects: a
+    /// [`mode::DERIVED`] row, a startup row and `[mode] ceiling`. `None` for every other row.
+    pub mode: Option<String>,
+}
+
+impl Unwritten {
+    /// The dotted key, as [`Resolved::origins`](crate::Resolved::origins) spells one.
+    #[must_use]
+    pub fn key(&self) -> String {
+        self.path.join(".")
+    }
+}
+
+/// Every default in force at `at` that `at.table` does not write, in [`DEFAULTS`] order.
+///
+/// The rows are the ones [`fill`] renders for `Core\Config::all`, plus the two kinds `get` never
+/// renders: a list, and the [`Scope::Unaddressed`] rows an audit can still place, which are
+/// `[log] target` and each `[[schedule]]` or `[[include]]` entry's own keys, once per entry the
+/// table holds. A computed value that is nothing at `at`, such as `cpu_time` outside server work,
+/// has no row.
+///
+/// Cost: one [`Unwritten`] per row, about a hundred and twenty with nothing written, built per
+/// call. Only `nvs config dump` calls it, and never on the request path.
+#[must_use]
+pub fn unwritten(at: &At<'_>) -> Vec<Unwritten> {
+    let mut out = Vec::new();
+    for row in DEFAULTS {
+        for path in paths(row, at.table) {
+            if path_value(at.table, &path).is_some() {
+                continue;
+            }
+            let Some(value) = typed(&row.value, row.key, at) else {
+                continue;
+            };
+            out.push(Unwritten {
+                path,
+                value,
+                mode: chosen_by(&row.value, at),
+            });
+        }
+    }
+    out
+}
+
+/// Every key `row` is the default of on the host whose table is `table`, one segment per element:
+/// [`keys`] for the rows `get` reads, and [`unwritten`]'s two extra kinds of
+/// [`Scope::Unaddressed`] row.
+fn paths(row: &Builtin, table: &toml::Table) -> Vec<Vec<String>> {
+    let segments: Vec<String> = row.key.split('.').map(str::to_owned).collect();
+    match row.scope {
+        Scope::Always => vec![segments],
+        Scope::Written(block) if is_table(table, block) => vec![segments],
+        Scope::Written(_) => Vec::new(),
+        Scope::Named => {
+            let Some(at) = segments.iter().position(|segment| segment == "<name>") else {
+                return Vec::new();
+            };
+            let Some(toml::Value::Table(named)) = path_value(table, &segments[..at]) else {
+                return Vec::new();
+            };
+            named
+                .iter()
+                .filter(|(_, block)| block.is_table())
+                .map(|(name, _)| {
+                    let mut path = segments[..at].to_vec();
+                    path.push(name.clone());
+                    path.extend_from_slice(&segments[at + 1..]);
+                    path
+                })
+                .collect()
+        }
+        Scope::Unaddressed if row.key == LOG_TARGET_KEY => vec![segments],
+        Scope::Unaddressed => {
+            let Some((first, rest)) = segments.split_first() else {
+                return Vec::new();
+            };
+            let Some(toml::Value::Array(entries)) = table.get(first) else {
+                return Vec::new();
+            };
+            entries
+                .iter()
+                .enumerate()
+                .filter(|(_, entry)| entry.is_table())
+                .map(|(index, _)| {
+                    let mut path = vec![first.clone(), index.to_string()];
+                    path.extend_from_slice(rest);
+                    path
+                })
+                .collect()
+        }
+    }
+}
+
+/// The value at `path` in `table`, descending a table by name and an array by index.
+fn path_value<'a>(table: &'a toml::Table, path: &[String]) -> Option<&'a toml::Value> {
+    let (first, rest) = path.split_first()?;
+    let mut value = table.get(first)?;
+    for segment in rest {
+        value = match value {
+            toml::Value::Table(inner) => inner.get(segment)?,
+            toml::Value::Array(items) => items.get(segment.parse::<usize>().ok()?)?,
+            _ => return None,
+        };
+    }
+    Some(value)
+}
+
+/// `value` at `at` as the TOML value the shipped file writes for it, or `None` where it is nothing
+/// at `at`. `key` is the row's key, which a [`Value::ByMode`] row is looked up by.
+fn typed(value: &Value, key: &str, at: &At<'_>) -> Option<toml::Value> {
+    match *value {
+        Value::Size(_)
+        | Value::Time(_)
+        | Value::Text(_)
+        | Value::FileMode(_)
+        | Value::Serving(_)
+        | Value::StartedMode
+        | Value::DataFolder(_) => render(value, key, at).map(toml::Value::String),
+        Value::Count(count) => Some(i64::try_from(count).map_or_else(
+            |_| toml::Value::String(count.to_string()),
+            toml::Value::Integer,
+        )),
+        Value::Ratio(fraction) => Some(toml::Value::Float(fraction)),
+        Value::Flag(flag) => Some(toml::Value::Boolean(flag)),
+        Value::List(items) => Some(toml::Value::Array(
+            items
+                .iter()
+                .map(|item| toml::Value::String((*item).to_owned()))
+                .collect(),
+        )),
+        Value::Cores => render(value, key, at)
+            .and_then(|text| text.parse::<i64>().ok())
+            .map(toml::Value::Integer),
+        // A mode row's value is a word, or a flag spelled `true` or `false`.
+        Value::ByMode => render(value, key, at).map(|text| match text.as_str() {
+            "true" => toml::Value::Boolean(true),
+            "false" => toml::Value::Boolean(false),
+            _ => toml::Value::String(text),
+        }),
+        Value::Startup {
+            production,
+            development,
+        } => match at.started {
+            mode::DEVELOPMENT => typed(development, key, at),
+            _ => typed(production, key, at),
+        },
+        Value::Inherit(other) => value_at(at.table, other)
+            .cloned()
+            .or_else(|| row(other).and_then(|found| typed(&found.value, other, at))),
+        Value::InheritServing(other) => at
+            .serving
+            .then(|| typed(&Value::Inherit(other), key, at))
+            .flatten(),
+    }
+}
+
+/// The mode that chose `value` at `at`: the mode in force for a [`Value::ByMode`] row, the mode
+/// the run started in for a startup row and for `[mode] ceiling`, and `None` for every other row.
+fn chosen_by(value: &Value, at: &At<'_>) -> Option<String> {
+    match value {
+        Value::ByMode => Some(at.mode.to_owned()),
+        Value::Startup { .. } | Value::StartedMode => Some(at.started.to_owned()),
+        _ => None,
+    }
 }

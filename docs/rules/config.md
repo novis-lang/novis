@@ -366,9 +366,9 @@ anywhere" is a valid host and a program has to be able to ask on one. **`Core\Co
 give the value in force**: what the request set, then a secret, then what the file wrote, then the
 built-in default, rendered the way the shipped file writes it (`128M`, `30s`, `1000000`). A key with
 no default (`wall_time`) is `null`, and so is a key whose default is nothing for this run
-(`cpu_time` under `nvs run`). An unwritten `[log] target` is `null` too, because it is not one
-destination: a `Core\Log::write` record is the program's output and a floor record goes to stderr
-([`errors/engine-floor`](errors.md#errors-engine-floor)). A default inside a named block (`[db.<name>]`) is in force only where
+(`cpu_time` under `nvs run`). An unwritten `[log] target` is `null` too, because its destination is
+the process's and not the tree's: stderr, or the data folder's `logs/nvs.log` in a process a service
+manager started ([`errors/engine-floor`](errors.md#errors-engine-floor)). `nvs config dump` names the one in force. A default inside a named block (`[db.<name>]`) is in force only where
 that block is written. `set` and `restore` behave as on any host: `set` is bounded as above, and
 `restore` brings back the written value or the default. A context that was handed no configuration
 at all — a test context, an embedder that has not built a snapshot — has no tree and no defaults:
@@ -457,7 +457,14 @@ info: resolved from 3 files
 info:   /srv/www/app/nvs.toml
 info:   /srv/www/app/conf.d/10-limits.toml
 info:   /etc/nvs/local.toml
+info: log records go to stderr
 ```
+
+The last line names where log records go: the global `[log] target` as written, the service's
+`file:` default where the service manager started the process, else `stderr`. It follows the
+configuration lines whichever of them were printed, and a reload that moves the target prints it
+again with the new one, because the reload's own record goes to the new target
+(`crates/nvs-cli/src/config.rs`'s `log_destination`). An `[[app]]` block's own target is not in it.
 
 The announcement is half of what makes the two implicit steps of
 [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults) safe — the working directory's
@@ -1732,18 +1739,29 @@ $ nvs config check --config /etc/nvs/nvs.toml
 ok: 5 files, 47 directives set, 3 overrides, 1 warning
 
 $ nvs config dump --origin
-limits.memory             = "512M"    prod.toml:4   (overrides base.toml:2)
-capabilities.process.exec = true      conf.d/host.toml:3
-db.main.password          = <secret>  /run/secrets/db_password (conf.d/20-db.toml:5)
+capabilities.process.exec = true      /etc/nvs/conf.d/host.toml
+db.main.password          = <secret>  /run/secrets/db_password
+limits.memory             = "512M"    /etc/nvs/prod.toml (overrides /etc/nvs/base.toml)
+log.format                = "json"    default (production)
+log.target                = "stderr"  default
 
-$ nvs config dump --toml > effective.toml     # one canonical file, for diffing environments
+$ nvs config dump --toml > effective.toml     # the written keys, for diffing environments
 ```
 
 Both are **offline and need no server**, so a tree is validated in CI before it is deployed. `check`
 stops at the first refusal, because a file that does not parse has no keys to carry into the rest of
-the stream, and its four counts are what CI reads; `dump --origin` is where each override is named,
-per key, with the file and line that set it and the one it overrode. A secret renders `<secret>` and
-names the file it came from, never the value, and `--toml` serializes the merged table whole.
+the stream, and its four counts are what CI reads; the directives it counts are the keys the files
+wrote. `dump` lists **every key in force**: each key a file wrote, and the default of every key no
+file wrote, as `nvs serve` has it (`nvs_config::defaults::unwritten`, server work, the mode the tree
+starts in). `dump --origin` is where each override is named, per key, with the file that set it and
+the one it overrode; a default's origin is `default`, or `default (production)` /
+`default (development)` where the mode chose it ([`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults) and the
+startup rows). The origin names the file and not the line, because a parsed value carries no span. A
+secret renders `<secret>` and names the file its value came from, never the value. `--toml`
+serializes the written table alone: a default written into the document would change the tree it is
+read back as (a mode row stops following the mode, a `[limits.hard]` ceiling starts bounding every
+`[[app]]` block, a core count or a data-folder path pins it to one machine), so the document read
+back lists the same rows.
 
 **A grant entry that allows nothing however it is asked is a refusal, from `check` and at boot
 alike**, because both resolve the same tree: a host with a port or a scheme (a grant compares the

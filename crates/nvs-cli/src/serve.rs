@@ -271,6 +271,7 @@ pub(crate) fn run(
     for line in root.lines() {
         eprintln!("{line}");
     }
+    eprintln!("{}", crate::config::log_destination(&snapshot.config));
     if !snapshot.warnings.is_empty() {
         let mut diags = Diagnostics::new();
         for warning in &snapshot.warnings {

@@ -44835,7 +44835,7 @@ Keywords: write
 Core\Log::write(Core\Log::Level $level, string $message, array<mixed> $fields = []): void
 ```
 
-Writes one log record. Novis writes its own records about a stopped program in the same format, so every record in the log has the same shape. A log target gets JSON Lines: one JSON object per line.
+Writes one log record. Novis writes its own records about a stopped program in the same format, so every record in the log has the same shape. When `[log] target` is not set, the record goes to standard error. A server that runs as a service writes it to `logs/nvs.log` in its data folder. A record never appears in the program's output or in a web response. `[log] format` sets the format. `"json"` writes one JSON object per line, and `"text"` writes plain text. The default is `"json"` in production and `"text"` in development.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -45776,7 +45776,7 @@ Reads a stored private key, as DER PKCS#8 or as one PEM `PRIVATE KEY` block. A s
 
 **Returns** `Core\Crypto\KeyPair` — The key pair, ready to sign or to agree. Its `publicKey()` method returns the public key, which you can send to others.
 
-**Throws** `LogicError` — `$pkcs8` is not a PKCS#8 private key of that kind. For example, it is a key of another kind, or a PKCS#1 key. It can be an encrypted PKCS#8, which needs a password, and this method has no password argument. It can be an RSA key outside 2048 to 8192 bits, or any malformed data. A private key belongs to your program, never to the other side. So this error always means that your program was given a wrong key.
+**Throws** `LogicError` — `$pkcs8` is not a PKCS#8 private key of that kind. For example, it is a key of another kind, or a SEC1 or PKCS#1 key. It can be an encrypted PKCS#8, which needs a password, and this method has no password argument. It can be an RSA key outside 2048 to 4096 bits, or any malformed data. The message names the format that was found. Where a command converts that format to PKCS#8, the message gives the command. A private key belongs to your program, never to the other side. So this error always means that your program was given a wrong key.
 
 <a id="core-core-crypto-keypair-write"></a>
 #### `Core\Crypto\KeyPair->write`
@@ -58302,7 +58302,7 @@ additive: paths./users.get.query.q — optional parameter added
 
 Both read the configuration tree offline and run nothing, so a tree can be validated in CI before
 it is deployed. With no files named they read `./nvs.toml`. If there is none, they read `nvs.toml` in
-the data folder. If there is neither, they report an empty configuration, which is not an error.
+the data folder. If there is neither, they use the default settings, which is not an error.
 Naming files positionally is the same as `--config`. Neither command creates the data folder.
 
 - `config check` resolves the whole tree — includes, `[[app]]` blocks, secrets — and prints one
@@ -58320,19 +58320,30 @@ Naming files positionally is the same as `--config`. Neither command creates the
   machine as they are now. Without `--as`, `config check` does not check ownership. `config dump`
   does not take `--as`.
 - `config dump` prints every key in force, one per line in dotted-key order, with array-of-tables
-  blocks numbered (`app.0.root`, `include.1.path`). A value or a table name that holds a new line, a
-  control character or a right-to-left mark is written as a TOML escape, such as `\n` for a new
-  line. Each key stays on one line, and you can see text that a terminal would hide. `--origin` adds the file each key was written
-  in, and the file it overrode; `--toml` prints the resolved tree as one canonical TOML document,
-  for diffing two environments.
+  blocks numbered (`app.0.root`, `include.1.path`). The list has each key that a file sets. It also
+  has the default value of every key that no file sets, as `nvs serve` uses it. A value or a table
+  name can have a new line, a control character or a right-to-left mark. The dump writes it as a
+  TOML escape, such as `\n` for a new line. Each key stays on one line, and you can see text that a
+  terminal would hide.
+- `config dump --origin` adds where each value comes from: the file that sets the key, and the file
+  it replaced. A default value shows `default`. When the mode chooses the value, it shows
+  `default (production)` or `default (development)`.
+- `config dump --toml` prints the keys that the files set as one TOML document. The document has no
+  default values, so it reads back as the same configuration. You can compare the documents of two
+  environments.
 
 ```text
-app.0.capabilities.script.spawn = true
-app.0.origin                    = "https://example.test"
-app.0.root                      = "."
-limits.hard.memory              = "512M"
-limits.memory                   = "256M"
+$ nvs config dump --origin
+app.0.capabilities.script.spawn = true                    /srv/shop/nvs.toml
+app.0.origin                    = "https://example.test"  /srv/shop/nvs.toml
+app.0.root                      = "."                     /srv/shop/nvs.toml
+limits.hard.memory              = "512M"                  /srv/shop/nvs.toml
+limits.memory                   = "256M"                  /srv/shop/nvs.toml
+log.format                      = "json"                  default (production)
+log.target                      = "stderr"                default
 ```
+
+The real list is longer: it has every default. `log.target` shows where the log records go.
 
 ### nvs ext new and nvs ext build
 
@@ -59915,10 +59926,12 @@ the file by itself, or only at its next start. Only `[server] listen`, `socket_m
 
 ### Auditing a tree
 
-`nvs config check` resolves the tree and reports what it holds, exiting non-zero on any refusal;
-`nvs config dump` prints every key in force, `--origin` adds which file wrote it and which it
-overrode, and `--toml` prints the resolved tree as one document. Both are described with the other
-subcommands in the `nvs` command chapter.
+`nvs config check` reads the configuration and reports what it contains. Its exit status is not `0`
+when the configuration has an error. `nvs config dump` prints every key in force. That is each key a
+file sets, and the default value of every other key. `--origin` adds the file that set each key and
+the file it replaced. A default value shows `default`, or `default (production)` when the mode chose
+it. `--toml` prints the keys the files set as one TOML document. The `nvs` command chapter describes
+both commands with the other subcommands.
 
 ```text
 $ nvs config check nvs.toml
@@ -59928,7 +59941,11 @@ app.0.limits.wall_time = "120s"
 app.0.root             = "."
 limits.memory          = "256M"
 limits.wall_time       = "30s"
+log.target             = "stderr"
 ```
+
+The example shows the four keys that the file sets and one default. The real list has every
+default.
 
 <a id="tools-server"></a>
 ## C.4 The HTTP server
