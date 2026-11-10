@@ -2,7 +2,7 @@
   "name": "nvs",
   "displayName": "Novis-Lang",
   "description": "Novis language support: syntax, diagnostics, completion and navigation for .nvs files.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "novis-lang",
   "license": "MIT",
   "icon": "media/novis-logo.png",

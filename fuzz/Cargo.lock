@@ -1427,7 +1427,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-config"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "base64 0.23.1",
  "blake3",
@@ -1444,7 +1444,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-db"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "bytes",
  "fallible-iterator 0.2.0",
@@ -1459,7 +1459,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-diagnostics"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "anstyle",
  "nvs-footprint",
@@ -1468,7 +1468,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-footprint"
-version = "0.0.2"
+version = "0.0.3"
 
 [[package]]
 name = "nvs-fuzz"
@@ -1482,7 +1482,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-fuzz-checks"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "httparse",
  "nvs-diagnostics",
@@ -1494,7 +1494,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-host"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "base64 0.23.1",
  "core_affinity",
@@ -1514,7 +1514,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-ldap"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "nvs-host",
  "nvs-runtime",
@@ -1522,7 +1522,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-render"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "serde",
  "serde_json",
@@ -1530,7 +1530,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-runtime"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "base64 0.23.1",
  "bitflags 2.13.2",
@@ -1552,7 +1552,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-server"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "hyper",
  "jiff",
@@ -1567,7 +1567,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-stdlib"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "aes-gcm",
  "aes-kw",
@@ -1629,7 +1629,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-syntax"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "nvs-diagnostics",
  "nvs-render",
