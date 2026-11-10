@@ -1635,14 +1635,14 @@
   },
   "/reference/config/http/": {
     "feature": "directive:http",
-    "hash": "6e5eff529bb62c03",
+    "hash": "ce5d7d02797274dc",
     "questions": [
       "How do I set security headers on every response?",
       "Allow cross-origin requests from another website",
       "Protect API requests against cross-site request forgery",
       "Use a proxy server for outgoing HTTP calls",
       "Trust my own certificate authority for outbound HTTPS",
-      "Limit message size on a WebSocket my program opens"
+      "Change the CORS or cookie settings for one request only"
     ]
   },
   "/reference/config/image/": {
