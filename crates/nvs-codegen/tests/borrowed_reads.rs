@@ -72,6 +72,13 @@ fn statement(site: OperandSite, read: &str) -> Option<String> {
         OperandSite::MatchSubject => Some(format!(
             "echo match ({read}) {{ $h->same() => \"{OLD}!\", default => \"lost\" }};\n"
         )),
+        OperandSite::Argument => Some(format!(
+            "echo Core\\Str::startsWith({read}, $h->same()) ? \"{OLD}!\" : \"lost\";\n"
+        )),
+        OperandSite::CallableArgument => Some(format!(
+            "callable $f = fn(string $a, string $b): string => $a . $b;\n\
+             echo $f({read}, $h->replace());\n"
+        )),
         other => panic!("borrowed_reads has no program for {other:?}; add one"),
     }
 }

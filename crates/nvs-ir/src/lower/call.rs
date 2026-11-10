@@ -118,7 +118,8 @@ impl<'a> Lowering<'a> {
         // `rule:core-api/options-bag`'s bag flattens into one value per declared option.
         let mut filled: Vec<Option<LoweredArgs>> = (0..fixed).map(|_| None).collect();
         let mut tail = Vec::new();
-        for (arg, slot) in list.iter().zip(&sig.arg_slots) {
+        let values: Vec<&Expr> = list.iter().map(|arg| &arg.value).collect();
+        for (i, (arg, slot)) in list.iter().zip(&sig.arg_slots).enumerate() {
             let index = match *slot {
                 ArgSlot::Param(index) | ArgSlot::Spread(index) => index,
                 ArgSlot::Unresolved => panic!(
@@ -134,7 +135,7 @@ impl<'a> Lowering<'a> {
             }
             let mut one = LoweredArgs::default();
             self.lower_fixed_arg(
-                arg,
+                (arg, &values[i + 1..]),
                 index,
                 sig,
                 checked_types,
@@ -176,7 +177,8 @@ impl<'a> Lowering<'a> {
     /// One written argument, lowered against the fixed parameter at `index` —
     /// which is the parameter its `ArgSlot` named, not its own place in the
     /// list. Everything it produces goes into `out`, which is that parameter's
-    /// own slice of the ABI argument list and nothing else's.
+    /// own slice of the ABI argument list and nothing else's. `later` is every
+    /// argument written after it, which [`Self::borrowed_arg`] judges it by.
     #[expect(
         clippy::too_many_arguments,
         reason = "the same context `lower_call_args` itself threads; splitting it into a struct \
@@ -184,7 +186,7 @@ impl<'a> Lowering<'a> {
     )]
     fn lower_fixed_arg(
         &mut self,
-        arg: &nvs_syntax::ast::Arg,
+        (arg, later): (&nvs_syntax::ast::Arg, &[&Expr]),
         index: usize,
         sig: &ArgSig,
         checked_types: &TypeInterner,
@@ -204,7 +206,7 @@ impl<'a> Lowering<'a> {
             let options = shape.fields.clone();
             let defaults = shape_fills(&sig.defaults, index);
             self.lower_options_arg(
-                Some(&arg.value),
+                Some((&arg.value, later)),
                 &options,
                 defaults,
                 checked_types,
@@ -224,7 +226,8 @@ impl<'a> Lowering<'a> {
             Some(expected) => expected,
             None => {
                 let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
-                let aliasing = self.aliasing_read(&arg.value);
+                let site = OperandSite::Argument;
+                let aliasing = self.borrowed_arg(site, &arg.value, (v, ty), ownership, later, *cur);
                 self.account_for_arg(v, ty, ownership, aliasing, *cur);
                 out.values.push(v);
                 return;
@@ -236,7 +239,8 @@ impl<'a> Lowering<'a> {
             return;
         }
         let (v, ty) = self.lower_expr(&arg.value, Some(expected), env, cur);
-        let aliasing = self.aliasing_read(&arg.value);
+        let site = OperandSite::Argument;
+        let aliasing = self.borrowed_arg(site, &arg.value, (v, ty), ownership, later, *cur);
         self.account_for_arg(v, ty, ownership, aliasing, *cur);
         // A parameter declared wider than the argument -- `?T` or another
         // union -- is `Ty::Tagged`, so the argument is widened into the slot's
@@ -533,7 +537,7 @@ impl<'a> Lowering<'a> {
     )]
     pub(crate) fn lower_options_arg(
         &mut self,
-        written: Option<&Expr>,
+        written: Option<(&Expr, &[&Expr])>,
         options: &[nvs_types::CoreShapeField],
         defaults: &[(String, nvs_types::ConstArg)],
         checked_types: &TypeInterner,
@@ -542,7 +546,8 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
         out: &mut LoweredArgs,
     ) {
-        let fields: Vec<(String, &Expr)> = match written {
+        let later_args = written.map_or(&[][..], |(_, later)| later);
+        let fields: Vec<(String, &Expr)> = match written.map(|(expr, _)| expr) {
             Some(expr) => match &expr.kind {
                 ExprKind::AnonObject(fields) => fields
                     .iter()
@@ -556,6 +561,16 @@ impl<'a> Lowering<'a> {
             },
             None => Vec::new(),
         };
+        // The written fields in the order they are lowered, which is the
+        // options' declared order. A field's later operands are the fields
+        // after it here, then the arguments after the bag.
+        let lowered: Vec<&Expr> = options
+            .iter()
+            .filter_map(|option| fields.iter().find(|(field, _)| *field == option.name))
+            .map(|(_, value)| *value)
+            .chain(later_args.iter().copied())
+            .collect();
+        let mut next = 0;
         for option in options {
             let name = &option.name;
             // Each flattened option is widened into the slot its *declared*
@@ -568,7 +583,10 @@ impl<'a> Lowering<'a> {
             let expected = erase_checked_ty(option.ty, checked_types);
             if let Some((_, value)) = fields.iter().find(|(field, _)| field == name) {
                 let (v, ty) = self.lower_expr(value, Some(expected), env, cur);
-                let aliasing = self.aliasing_read(value);
+                next += 1;
+                let later = &lowered[next..];
+                let site = OperandSite::Argument;
+                let aliasing = self.borrowed_arg(site, value, (v, ty), ownership, later, *cur);
                 self.account_for_arg(v, ty, ownership, aliasing, *cur);
                 let v = self.coerce(*cur, v, ty, expected, env);
                 out.values.push(v);
@@ -879,9 +897,21 @@ impl<'a> Lowering<'a> {
         // one — `(fn (): int => 7)()` — is this frame's temporary too, and an
         // argument that throws while it is in flight has to drop it.
         let mark = self.temporaries_mark();
+        // The callable and each argument are judged against the arguments
+        // written after them, which can replace the slot they were read from.
+        let written: Vec<&Expr> = list.iter().map(|arg| &arg.value).collect();
+        let site = OperandSite::CallableArgument;
+        let borrowed = ArgOwnership::Borrowed;
         let (anon_fn, callable_ty) = self.lower_expr(callee, None, env, cur);
-        let aliasing = self.aliasing_read(callee);
-        self.account_for_arg(anon_fn, callable_ty, ArgOwnership::Borrowed, aliasing, *cur);
+        let aliasing = self.borrowed_arg(
+            site,
+            callee,
+            (anon_fn, callable_ty),
+            borrowed,
+            &written,
+            *cur,
+        );
+        self.account_for_arg(anon_fn, callable_ty, borrowed, aliasing, *cur);
         let mut values = vec![anon_fn];
         assert!(
             list.iter().all(|arg| arg.name.is_none()),
@@ -914,21 +944,25 @@ impl<'a> Lowering<'a> {
                          list of a different length — nvs_types::expr::calls records \
                          `ExprInfo::CallThroughSignature` only where the counts agree"
                     );
-                    for (arg, param) in list.iter().zip(params) {
+                    for (i, (arg, param)) in list.iter().zip(params).enumerate() {
                         let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
+                        let later = &written[i + 1..];
+                        let aliasing =
+                            self.borrowed_arg(site, &arg.value, (v, ty), borrowed, later, *cur);
                         let want = erase_checked_ty(*param, self.checked_types);
                         let v = self.coerce(*cur, v, ty, want, env);
-                        let aliasing = self.aliasing_read(&arg.value);
-                        self.account_for_arg(v, want, ArgOwnership::Borrowed, aliasing, *cur);
+                        self.account_for_arg(v, want, borrowed, aliasing, *cur);
                         values.push(v);
                     }
                     Helper::CallCallableProven
                 }
                 None => {
-                    for arg in list {
+                    for (i, arg) in list.iter().enumerate() {
                         let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
-                        let aliasing = self.aliasing_read(&arg.value);
-                        self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
+                        let later = &written[i + 1..];
+                        let aliasing =
+                            self.borrowed_arg(site, &arg.value, (v, ty), borrowed, later, *cur);
+                        self.account_for_arg(v, ty, borrowed, aliasing, *cur);
                         values.push(v);
                     }
                     Helper::CallCallable
@@ -1032,14 +1066,19 @@ impl<'a> Lowering<'a> {
         // value travels to the helper and the tag test is made there.
         let (object_v, receiver_ty, guard) =
             self.open_nullsafe(object, nullsafe, ReceiverProof::Erased, env, cur);
-        let aliasing = self.aliasing_read(object);
-        self.account_for_arg(
-            object_v,
-            receiver_ty,
-            ArgOwnership::Borrowed,
-            aliasing,
+        // The arguments can replace the slot the receiver was read from.
+        let written: Vec<&Expr> = list.iter().map(|arg| &arg.value).collect();
+        let borrowed = ArgOwnership::Borrowed;
+        let receiver = (object_v, receiver_ty);
+        let aliasing = self.borrowed_arg(
+            OperandSite::Argument,
+            object,
+            receiver,
+            borrowed,
+            &written,
             *cur,
         );
+        self.account_for_arg(object_v, receiver_ty, borrowed, aliasing, *cur);
         let (member, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(name.to_owned()));
         let rest: Vec<&nvs_syntax::ast::Arg> = list.iter().collect();
         let array = self.lower_args_as_array(&rest, None, env, cur);
@@ -1101,11 +1140,18 @@ impl<'a> Lowering<'a> {
         let mark = self.temporaries_mark();
         let (anon_fn, callable_ty, guard) =
             self.open_nullsafe(object, nullsafe, ReceiverProof::Erased, env, cur);
-        let aliasing = self.aliasing_read(object);
-        self.account_for_arg(anon_fn, callable_ty, ArgOwnership::Borrowed, aliasing, *cur);
+        // The callable is read by the bind, after the first argument, and each
+        // later argument by the call, after the ones written after it.
+        let site = OperandSite::CallableArgument;
+        let borrowed = ArgOwnership::Borrowed;
+        let written: Vec<&Expr> = rest.iter().map(|arg| &arg.value).collect();
+        let first = [&this_arg.value];
+        let aliasing =
+            self.borrowed_arg(site, object, (anon_fn, callable_ty), borrowed, &first, *cur);
+        self.account_for_arg(anon_fn, callable_ty, borrowed, aliasing, *cur);
         let (this_v, this_ty) = self.lower_expr(&this_arg.value, None, env, cur);
         let aliasing = self.aliasing_read(&this_arg.value);
-        self.account_for_arg(this_v, this_ty, ArgOwnership::Borrowed, aliasing, *cur);
+        self.account_for_arg(this_v, this_ty, borrowed, aliasing, *cur);
         let (bound, bound_ty) = self.emit_fallible(
             *cur,
             Ty::Object,
@@ -1128,10 +1174,11 @@ impl<'a> Lowering<'a> {
             values.push(array);
             Helper::CallCallableArray
         } else {
-            for arg in rest {
+            for (i, arg) in rest.iter().enumerate() {
                 let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
-                let aliasing = self.aliasing_read(&arg.value);
-                self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
+                let later = &written[i + 1..];
+                let aliasing = self.borrowed_arg(site, &arg.value, (v, ty), borrowed, later, *cur);
+                self.account_for_arg(v, ty, borrowed, aliasing, *cur);
                 values.push(v);
             }
             Helper::CallCallable

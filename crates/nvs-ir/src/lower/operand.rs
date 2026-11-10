@@ -22,7 +22,8 @@ use nvs_syntax::ast::{Arg, Expr, ExprKind, StringPart};
 use nvs_types::expr_table::FormatPiece;
 use rustc_hash::FxHashSet;
 
-use super::Lowering;
+use super::{ArgOwnership, Lowering};
+use crate::Ty;
 use crate::ids::{BlockId, ValueId};
 use crate::{span_text, strip_sigil};
 
@@ -45,6 +46,12 @@ pub enum OperandSite {
     Binary,
     /// A `match` subject, read by every label's comparison.
     MatchSubject,
+    /// An argument a call borrows, read by the call after the last argument:
+    /// a `Core` member's argument, and each field of its options bag.
+    Argument,
+    /// An argument of a call through a `callable` value, and the callable
+    /// itself, read by the call after the last argument.
+    CallableArgument,
 }
 
 impl OperandSite {
@@ -54,6 +61,8 @@ impl OperandSite {
         OperandSite::StringHole,
         OperandSite::Binary,
         OperandSite::MatchSubject,
+        OperandSite::Argument,
+        OperandSite::CallableArgument,
     ];
 }
 
@@ -97,6 +106,30 @@ impl Lowering<'_> {
         }
         self.emit_retain(cur, v);
         false
+    }
+
+    /// The `aliasing` answer [`Self::account_for_arg`] takes for the argument
+    /// `e`, lowered to `(v, ty)` and followed by the arguments in `later`.
+    ///
+    /// A transferred argument is retained as soon as it is read, so it needs
+    /// no hold. A borrowed one is held by [`Self::hold_borrowed`] when a later
+    /// argument can free it, and is then accounted as a fresh value.
+    pub(crate) fn borrowed_arg(
+        &mut self,
+        site: OperandSite,
+        e: &Expr,
+        (v, ty): (ValueId, Ty),
+        ownership: ArgOwnership,
+        later: &[&Expr],
+        cur: BlockId,
+    ) -> bool {
+        if !self.aliasing_read(e) {
+            return false;
+        }
+        if ownership == ArgOwnership::Transferred || !ty.is_refcounted() {
+            return true;
+        }
+        self.hold_borrowed(site, e, v, later, cur)
     }
 
     /// Whether an expression in `later` can free the storage `e` reads.
