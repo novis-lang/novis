@@ -286,10 +286,10 @@ it. Then prove every site with a matrix that reads the site list.
 The session writes the list under this stage as checkpoints.
 
 - [ ] Find the rule for operand order with `bun nv brief --where operand` and `--where evaluation`.
-  Extend it, or write `rule:expressions/an-operand-keeps-its-value-while-later-operands-run`, with
-  the cost line and the Declined list above (`docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:1`).
+  Extend it, or write a new fragment with the cost line and the Declined list above
+  (`docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:1`).
 - [ ] Add `OperandSite` with `ALL`, and the one function that lowers an operand given what follows
-  it (`rule:expressions/an-operand-keeps-its-value-while-later-operands-run`,
+  it (`docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:1`,
   `crates/nvs-ir/src/lower/mod.rs:4182`, `crates/nvs-ir/src/lower/call.rs:1153`).
 - [ ] Write the exhaustive `ExprKind` judgment: "can run code" and "writes this local"
   (`crates/nvs-ir/src/lower/mod.rs:5249`, `crates/nvs-syntax/src/ast.rs:914`).
@@ -325,7 +325,7 @@ The session writes the list under this stage as checkpoints.
 chain and key held by stage 1's function.
 
 - [ ] `lower_store` holds the receiver chain and the key, lowers the value, then reads the slot
-  (`rule:expressions/an-operand-keeps-its-value-while-later-operands-run`,
+  (`docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:1`,
   `crates/nvs-ir/src/lower/stmt.rs:1319`).
 - [ ] `lower_read_modify_write` does the same for `.=` and every compound form
   (`crates/nvs-ir/src/lower/stmt.rs:665`).
@@ -379,7 +379,7 @@ landing block, and make codegen refuse a poll with no error edge.
 **Does:** make the by-reference loop retain its subject and read positions from it, and replace the
 write-through with one status-returning helper that writes in place or by key.
 
-- [ ] Write `rule:iteration/an-inout-loop-walks-the-array-it-began-with` from the standing decision,
+- [ ] Write the rule fragment for an `inout` loop from the standing decision,
   with its cost and Declined list, and point `rule:statements/inout-is-the-by-reference-spelling`
   at it (`docs/rules/iteration/an-inout-loop-walks-the-array-it-began-with.md:1`,
   `docs/rules/statements/inout-is-the-by-reference-spelling.md:16`).
@@ -401,7 +401,7 @@ write-through with one status-returning helper that writes in place or by key.
   assigned, passed `inout`, and the nested loop form), and
   `an_inout_loop_that_only_writes_copies_nothing` (allocations counted at two array sizes).
 - [ ] Conformance cases for the rule's observable results: the visit count, the thrown class and its
-  message (`rule:iteration/an-inout-loop-walks-the-array-it-began-with`,
+  message (`docs/rules/iteration/an-inout-loop-walks-the-array-it-began-with.md:1`,
   `tests/hostile/lang/statements/foreach/01-a-million-elements-walked-written-and-changed-under-the-loop.nvs:1`).
   Find the `.nvst` home with `bun nv brief --where conformance`.
 - [ ] Attack `tests/hostile/lang/statements/foreach/02-an-inout-loop-whose-array-changes-under-it.nvs`:
@@ -504,7 +504,7 @@ subagent first lists every call of `aliasing_read` and `is_aliasing_read` under
 
 - [ ] `docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:1`: find the
   rule for operand order with `bun nv brief --where operand` and `--where evaluation`. Extend it, or
-  write `rule:expressions/an-operand-keeps-its-value-while-later-operands-run`.
+  write that fragment.
 - [ ] `crates/nvs-ir/src/lower/mod.rs:4182`: add `OperandSite` with `ALL`, and the one function that
   lowers an operand given what follows it (`crates/nvs-ir/src/lower/call.rs:1153`).
 - [ ] `crates/nvs-ir/src/lower/mod.rs:5249`: write the exhaustive `ExprKind` judgment, "can run
