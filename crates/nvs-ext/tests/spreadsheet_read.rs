@@ -885,28 +885,33 @@ fn timed_header(read: &Read) -> (Duration, Value) {
 }
 
 /// Numbering a full row of equal names grows linearly with the row. A header
-/// of 16384 equal names is read in at most four times the time of one of 16384
-/// distinct names, which parses the same and needs no numbering. Numbering
-/// each duplicate from `(2)` up again makes it thousands of times. The two are
-/// read in turn and the fastest of three reads each is kept, so both see the
-/// same load (`rule:testing/a-test-holds-at-any-speed`, a bound measured in the
-/// same run).
+/// of 16384 equal names is read in under 24 times the time of one of 2048 equal
+/// names, the same code on an eighth of the row: linear growth is at most 8,
+/// and numbering each duplicate from `(2)` up again is 64. The two
+/// sizes are read in turn and the fastest of three reads each is kept, so both
+/// see the same load (`rule:testing/a-test-holds-at-any-speed`, a bound
+/// measured in the same run). A header of distinct names is no baseline: it
+/// formats and hashes no numbered name, and a runner measured linear numbering
+/// at nearly five times it.
 #[test]
 fn a_header_of_every_column_equal_is_numbered_in_linear_time() {
     const COLUMNS: u32 = 16_384;
+    const SMALL: u32 = COLUMNS / 8;
     // `Name (2)` in the second column is the numbered name a duplicate would
     // otherwise take.
-    let equal = header_of(COLUMNS, |at| {
-        if at == 1 { "Name (2)" } else { "Name" }.to_owned()
-    });
-    let distinct = header_of(COLUMNS, |at| format!("N{at:05}"));
-    let (mut fastest_equal, mut fastest_distinct) = (Duration::MAX, Duration::MAX);
+    let equal_of = |columns| {
+        header_of(columns, |at| {
+            if at == 1 { "Name (2)" } else { "Name" }.to_owned()
+        })
+    };
+    let (equal, small) = (equal_of(COLUMNS), equal_of(SMALL));
+    let (mut fastest_equal, mut fastest_small) = (Duration::MAX, Duration::MAX);
     let mut header = None;
     for _ in 0..3 {
         let (took, read) = timed_header(&equal);
         fastest_equal = fastest_equal.min(took);
         header = Some(read);
-        fastest_distinct = fastest_distinct.min(timed_header(&distinct).0);
+        fastest_small = fastest_small.min(timed_header(&small).0);
     }
     let mut want = vec!["Name".to_owned(), "Name (2)".to_owned()];
     want.extend((3..=COLUMNS).map(|count| format!("Name ({count})")));
@@ -917,11 +922,11 @@ fn a_header_of_every_column_equal_is_numbered_in_linear_time() {
         "a name given in the file is skipped"
     );
     assert!(
-        fastest_equal < fastest_distinct * 4,
-        "{COLUMNS} equal names took {fastest_equal:?} and {COLUMNS} distinct ones {fastest_distinct:?}"
+        fastest_equal < fastest_small * 24,
+        "{COLUMNS} equal names took {fastest_equal:?} and {SMALL} equal ones {fastest_small:?}"
     );
     block_on(equal.request.end()).expect("the request ends");
-    block_on(distinct.request.end()).expect("the request ends");
+    block_on(small.request.end()).expect("the request ends");
 }
 
 #[test]
