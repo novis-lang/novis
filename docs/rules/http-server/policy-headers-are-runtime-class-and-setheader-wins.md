@@ -6,6 +6,19 @@ request on the same core sees the configured value. `Core\Response::setHeader` a
 overrides a policy-owned header on **one** response with no configuration involved at all: a
 header the response already carries is left alone when the policy set is filled in.
 
+A request's settings shape its own response: its secure header set and its CORS answer are built
+from the file's `[http]` block with the request's settings folded over it. A list setting crosses
+as text, its entries separated by commas (`"https://a.example, https://b.example"`), and
+`frame_ancestors` takes its sources separated by commas or spaces. **A CORS preflight is the
+file's**: it is answered before any program runs
+(`rule:http-server/a-preflight-is-answered-before-any-code-runs`), so no request setting reaches
+it, and only the actual response's CORS headers take the request's values.
+
+**What it spends:** nothing for a request that set no `[http.headers]` or `[http.cors]` key; it is
+answered under the policy the server built once per snapshot. A request that set one pays one clone
+of the `[http]` block and one render of its own header set and CORS answer, a few hundred bytes,
+per request and dropped with its response.
+
 This costs nothing in security because the alternative buys nothing. A request can already write
 any response header it likes through `setHeader` — that is what a response object is. A
 compromised handler can therefore turn its own response's protections off, and could before any

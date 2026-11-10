@@ -460,6 +460,16 @@ impl Ctx {
         self.config.as_ref()
     }
 
+    /// The `[http]` block this request's response is built from, or `None`
+    /// where it set no `[http.headers]` or `[http.cors]` setting, or nobody
+    /// configured the context
+    /// (`rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`).
+    /// [`nvs_config::Request::response_http`] owns the fold and its cost.
+    #[must_use]
+    pub fn response_http(&self) -> Option<crate::host::ResponseHttp> {
+        self.config.as_ref()?.response_http().map(Box::new)
+    }
+
     /// The same, for the two members that write the overlay
     /// (`Core\Config::set` and `restore`).
     pub fn config_mut(&mut self) -> Option<&mut nvs_config::Request> {

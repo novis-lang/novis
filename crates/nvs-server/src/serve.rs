@@ -2033,6 +2033,11 @@ where
         // about an answer the policy never produced. [`crate::cors`] owns the
         // rest, including why a cache is what `Vary` is for.
         let crossing = policy.cors.answer(request.headers());
+        // The `Origin` itself, kept for a request that sets its own `[http.cors]`
+        // settings: its answer is decided again at the policy step below. A
+        // clone of a header value shares its bytes, so this costs a reference
+        // count where the request sent an `Origin`, and nothing where it did not.
+        let sent_origin = request.headers().get(header::ORIGIN).cloned();
         // What a request that answers with a **file** will be answered against —
         // taken here for `crossing`'s reason, the handler below owning the
         // request from the next line on, and kept rather than the whole header
@@ -2587,9 +2592,19 @@ where
         // the answer already spelled for itself exactly as it is. The CORS answer
         // (`rule:http-server/cors-is-closed-until-origins-are-named`)
         // is written on the same terms and at the same point, so a response has
-        // one place where policy reaches it rather than two.
-        policy.secure.fill(answered.headers_mut(), scheme);
-        crossing.fill(answered.headers_mut());
+        // one place where policy reaches it rather than two. A request that set
+        // its own `[http.headers]` or `[http.cors]` settings is answered under
+        // the block they fold into (`RequestHttp`), and every other request
+        // under the cached policy.
+        if let Some(RequestHttp(http)) = answered.extensions_mut().remove::<RequestHttp>() {
+            Secure::of(Some(&http)).fill(answered.headers_mut(), scheme);
+            Cors::of(Some(&http))
+                .answer_to(sent_origin.as_ref())
+                .fill(answered.headers_mut());
+        } else {
+            policy.secure.fill(answered.headers_mut(), scheme);
+            crossing.fill(answered.headers_mut());
+        }
         // After the policy is complete, so a policy from either source is the
         // one that learns the slotted page's two script hashes.
         if answered
@@ -2959,11 +2974,33 @@ fn answer(mut done: Completion) -> Response<Answer> {
 /// file and then threw did not get to give the response the file was for, and
 /// reading a path for a body nobody will be sent is authority spent on nothing.
 fn finished(mut done: Completion, asked: &HeaderMap) -> Response<Answer> {
-    match done.file_body.take() {
+    // The request's own `[http]` block, which the policy step builds this
+    // response's header set and CORS answer from in place of the server's
+    // (`RequestHttp`). A request that set none carries nothing here.
+    let http = done.http.take();
+    let mut response = match done.file_body.take() {
         Some(file) if done.ok => sent(done, &file, asked, &OnDisk),
         _ => answer(done),
+    };
+    if let Some(http) = http {
+        response.extensions_mut().insert(RequestHttp(http));
     }
+    response
 }
+
+/// The `[http]` block one request's response is answered under, where the
+/// request set a `[http.headers]` or `[http.cors]` setting of its own
+/// (`rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`).
+///
+/// The policy step in [`serve_connection`] takes it off the response and builds
+/// a header set and a CORS answer from it for this response alone. A response
+/// without one is answered under the cached [`Policy`].
+///
+/// **What it spends:** for a request that set such a setting, one rendered
+/// header set and one CORS policy, a few hundred bytes, dropped with the
+/// response. Nothing for every other request.
+#[derive(Clone, Debug)]
+struct RequestHttp(Box<nvs_config::tree::Http>);
 
 /// The response a request that named a file is — [`answer`]'s other half for
 /// `rule:security/response-body-is-one-typed-member`'s file row.
@@ -3749,6 +3786,7 @@ pub(crate) mod tests {
             content_type: content_type.map(Into::into),
             file_body: None,
             style_nonce: None,
+            http: None,
             status: None,
             headers: Vec::new(),
             error: None,
@@ -7104,6 +7142,7 @@ pub(crate) mod tests {
                 content_type: None,
                 file_body: None,
                 style_nonce: None,
+                http: None,
                 status: None,
                 headers: Vec::new(),
                 error: None,
@@ -11241,6 +11280,139 @@ pub(crate) mod tests {
                 "an answer an open policy could have varied did not say so: {answer}"
             );
         }
+    }
+
+    /// The tree the two request-settings cases boot on: a policy of its own, a
+    /// `frame_ancestors` and one CORS origin, so that a header a request did
+    /// not change is told apart from a shipped default.
+    const A_FILE_POLICY: &str = "[http.headers]\n\
+        content_security_policy = \"default-src 'self'\"\n\
+        frame_ancestors = \"self\"\n\
+        [http.cors]\n\
+        origins = [\"https://file.example\"]\n";
+
+    /// Serves one `GET` sent from `origin` on [`A_FILE_POLICY`]'s tree, by a
+    /// program that sets each of `settings` through the overlay
+    /// `Core\Config::set` writes, and answers with the response, lower-cased.
+    fn answered_after_setting(
+        settings: &'static [(&'static str, &'static str)],
+        origin: &str,
+    ) -> String {
+        let tree = tree_of(A_FILE_POLICY);
+        let http = tree.config.http.clone();
+        let serving = Serving::new(
+            Arc::new(Admission::new(&Ceiling::of(&Capacity {
+                configured: 10_000,
+                per_request: None,
+                budget: None,
+            }))),
+            Arc::new(Secure::of(http.as_ref())),
+            Arc::new(Trusted::none()),
+            Arc::new(Cors::of(http.as_ref())),
+            tree,
+        );
+        let handler = Rc::new(move |_request: Request<Incoming>, _origin: Origin| {
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                let config = child
+                    .config_mut()
+                    .expect("a served request has a configuration");
+                for (key, value) in settings {
+                    assert!(config.set(key, value), "`{key}` was refused");
+                }
+                child.write_output(b"set").expect("a buffer");
+                Value::null()
+            });
+            Reply::run(Isolate::new(program, Value::null(), Output::Capture))
+        });
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let asked = format!(
+            "GET /page HTTP/1.1\r\nHost: localhost\r\nOrigin: {origin}\r\nConnection: close\r\n\r\n"
+        );
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(asked.as_bytes())
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+        let answer = served_under(listener, &handler, client, serving).to_ascii_lowercase();
+        assert!(
+            answer.starts_with("http/1.1 200 ok") && answer.ends_with("set"),
+            "the request was not answered by the program that set its settings: {answer}"
+        );
+        answer
+    }
+
+    /// `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`:
+    /// a request's own `content_security_policy`, `frame_ancestors` and CORS
+    /// `origins` reach its response, and the file's values do not.
+    #[test]
+    fn a_requests_own_header_settings_reach_its_response() {
+        let answer = answered_after_setting(
+            &[
+                ("http.headers.content_security_policy", "script-src 'none'"),
+                ("http.headers.frame_ancestors", "https://embed.example"),
+                (
+                    "http.cors.origins",
+                    "https://request.example, https://other.example",
+                ),
+            ],
+            "https://request.example",
+        );
+        assert!(
+            answer.contains(
+                "content-security-policy: script-src 'none'; frame-ancestors https://embed.example\r\n"
+            ),
+            "the request's own policy and frame-ancestors were not the response's: {answer}"
+        );
+        assert!(
+            answer.contains("access-control-allow-origin: https://request.example\r\n"),
+            "an origin the request named was not allowed: {answer}"
+        );
+        assert!(
+            !answer.contains("default-src"),
+            "the file's policy reached a request that set its own: {answer}"
+        );
+        // The file's origin is not one the request named, so it gets no allow.
+        let refused = answered_after_setting(
+            &[("http.cors.origins", "https://request.example")],
+            "https://file.example",
+        );
+        assert!(
+            !refused.contains("access-control-allow-origin"),
+            "the file's origin was allowed after the request replaced the list: {refused}"
+        );
+        assert!(
+            refused.contains(
+                "content-security-policy: default-src 'self'; frame-ancestors 'self'\r\n"
+            ),
+            "a header setting the request left alone was not the file's: {refused}"
+        );
+    }
+
+    /// A request that sets no `[http]` setting is answered under the file's
+    /// policy, which the server built once at boot.
+    #[test]
+    fn a_request_that_sets_no_http_setting_gets_the_files_policy() {
+        let answer = answered_after_setting(&[], "https://file.example");
+        assert!(
+            answer.contains(
+                "content-security-policy: default-src 'self'; frame-ancestors 'self'\r\n"
+            ),
+            "the file's policy did not reach a request that set nothing: {answer}"
+        );
+        assert!(
+            answer.contains("access-control-allow-origin: https://file.example\r\n"),
+            "the file's origin was not allowed: {answer}"
+        );
     }
 
     /// [`wide_open`] with one origin named, which is the only difference between the

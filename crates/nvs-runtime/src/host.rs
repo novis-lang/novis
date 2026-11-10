@@ -577,6 +577,10 @@ impl From<Vec<u8>> for Written {
     }
 }
 
+/// The `[http]` block one request's response is built from, as
+/// [`Completion::http`] carries it.
+pub type ResponseHttp = Box<nvs_config::tree::Http>;
+
 /// What an isolate answers with — the native half of the `ScriptResult` the
 /// language surface presents.
 #[derive(Debug)]
@@ -632,6 +636,12 @@ pub struct Completion {
     /// The server adds it to the response's Content-Security-Policy, so a
     /// policy that limits styles still lets the block's style apply.
     pub style_nonce: Option<Box<str>>,
+    /// The `[http]` block the response is built from, or `None` where the
+    /// request set no `[http.headers]` or `[http.cors]` setting and the
+    /// server's own policy applies
+    /// (`rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`).
+    /// [`nvs_config::Request::response_http`] owns the fold and its cost.
+    pub http: Option<ResponseHttp>,
     /// What the child declared this response *means* — its status code,
     /// or `None` where nothing set one.
     ///
@@ -1117,6 +1127,7 @@ mod tests {
                 content_type: None,
                 file_body: None,
                 style_nonce: None,
+                http: None,
                 status: None,
                 headers: Vec::new(),
                 error: None,

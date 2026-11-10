@@ -9,7 +9,8 @@
 //! have them drift, which is why [`Inbound`] holds the values the two questions are decided from
 //! and [`Inbound::meaningless`] is the only place either question is answered.
 //! [`validate`] reads those values off the merged tree; [`Request::set`](crate::request::Request)
-//! reads them off its own snapshot and overlay and folds the proposed assignment in before asking.
+//! reads them off [`folded`]: its own snapshot's block with its overlay and the proposed assignment
+//! folded over it, which is also the block the server answers that request under.
 //! What differs between the two callers is where the values come from, never what makes them wrong.
 //!
 //! **Refused rather than warned**, because neither combination is a weak policy — every browser
@@ -149,21 +150,6 @@ impl Inbound {
         }
     }
 
-    /// Folds one `key = value` assignment in — a request's overlay entry, or the value
-    /// `Core\Config::set` is proposing. A key deciding neither pair changes nothing.
-    ///
-    /// `origins` is absent on purpose: it is a list, and `rule:config/ini-set-is-core-config-set` crosses values as text, so
-    /// no request can set one. Which star origins are in force is therefore always the snapshot's
-    /// answer, and [`of`](Self::of) has already read it.
-    pub fn assign(&mut self, key: &str, value: &str) {
-        match key {
-            "http.cors.credentials" => self.credentials = is_true(value),
-            "http.cookies.same_site" => self.same_site_none = is_none_same_site(value),
-            "http.cookies.secure" => self.secure = is_true(value),
-            _ => {}
-        }
-    }
-
     /// Whether either refused pair is in force, and which — [`None`] for a meaningful configuration.
     ///
     /// The one place the condition itself is written. Both refusals check the *pair*: a star origin
@@ -179,6 +165,105 @@ impl Inbound {
         }
         None
     }
+}
+
+/// The `[http]` block a request is answered under: `http`, with each of the request's own
+/// `key = value` settings folded over it in order.
+///
+/// The one fold of a request's `[http]` settings
+/// (`rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`). `Core\Config::set`
+/// asks [`Inbound::of`] of it before it accepts a value, and the server builds a response's header
+/// set and CORS answer from it, so what a request is refused and what it is answered with are read
+/// off the same block.
+///
+/// Values arrive as text (`rule:config/ini-set-is-core-config-set`), and each is read as the type
+/// its key has in the file. A boolean is `true` or anything else. A list is its entries separated
+/// by commas, so `"https://a.example, https://b.example"` is two origins and `""` is none.
+/// `frame_ancestors` is `false`, or its sources separated by commas or spaces. A key outside
+/// `[http.headers]`, `[http.cors]` and `[http.cookies]` changes nothing here.
+///
+/// **What it spends:** one clone of the `[http]` block per call, a few hundred bytes, made only
+/// for a request that set a key under it and dropped with that request's response.
+#[must_use]
+pub fn folded<'a>(
+    http: Option<&Http>,
+    settings: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> Http {
+    let mut http = http.cloned().unwrap_or_default();
+    for (key, value) in settings {
+        fold(&mut http, key, value);
+    }
+    http
+}
+
+/// Folds one setting into `http`; [`folded`] owns how each value is read.
+fn fold(http: &mut Http, key: &str, value: &str) {
+    let text = || Some(value.to_owned());
+    if let Some(leaf) = key.strip_prefix("http.headers.") {
+        let headers = http.headers.get_or_insert_with(Default::default);
+        match leaf {
+            "content_type_options" => headers.content_type_options = Some(is_true(value)),
+            "frame_ancestors" => headers.frame_ancestors = Some(ancestors_of(value)),
+            "referrer_policy" => headers.referrer_policy = text(),
+            "hsts" => {
+                headers.hsts = Some(if value.trim().eq_ignore_ascii_case("false") {
+                    Setting::Bool(false)
+                } else {
+                    Setting::Text(value.trim().to_owned())
+                });
+            }
+            "hsts_subdomains" => headers.hsts_subdomains = Some(is_true(value)),
+            "content_security_policy" => headers.content_security_policy = text(),
+            "permissions_policy" => headers.permissions_policy = text(),
+            _ => {}
+        }
+    } else if let Some(leaf) = key.strip_prefix("http.cors.") {
+        let cors = http.cors.get_or_insert_with(Default::default);
+        match leaf {
+            "origins" => cors.origins = Some(list_of(value)),
+            "methods" => cors.methods = Some(list_of(value)),
+            "headers" => cors.headers = Some(list_of(value)),
+            "expose" => cors.expose = Some(list_of(value)),
+            "credentials" => cors.credentials = Some(is_true(value)),
+            "max_age" => cors.max_age = text(),
+            _ => {}
+        }
+    } else if let Some(leaf) = key.strip_prefix("http.cookies.") {
+        let cookies = http.cookies.get_or_insert_with(Default::default);
+        match leaf {
+            "secure" => cookies.secure = Some(is_true(value)),
+            "http_only" => cookies.http_only = Some(is_true(value)),
+            "same_site" => cookies.same_site = text(),
+            "path" => cookies.path = text(),
+            _ => {}
+        }
+    }
+}
+
+/// A list setting crossed as text: its entries separated by commas, each trimmed, the empty ones
+/// left out.
+fn list_of(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// `frame_ancestors` crossed as text: `false` drops the directive, and anything else is its
+/// sources, separated by commas or spaces.
+fn ancestors_of(value: &str) -> Setting {
+    if value.trim().eq_ignore_ascii_case("false") {
+        return Setting::Bool(false);
+    }
+    Setting::List(
+        value
+            .split(|c: char| c == ',' || c.is_ascii_whitespace())
+            .filter(|entry| !entry.is_empty())
+            .map(str::to_owned)
+            .collect(),
+    )
 }
 
 impl Meaningless {

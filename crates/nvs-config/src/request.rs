@@ -469,9 +469,10 @@ impl Request {
     /// The same two combinations the boot refuses, refused here as `false` with the value unchanged
     /// — `rule:http-server/a-wildcard-origin-with-credentials-is-refused` states both halves and
     /// [`http`](crate::http) is the one place the condition is
-    /// written, so this reads those values off the snapshot, folds this request's overlay and
-    /// then the proposed assignment over them, and asks. A key under neither block returns before
-    /// any of that, `[errors] deprecated` with whether [`crate::errors::Deprecated::of`] names it.
+    /// written, so this asks it of [`crate::http::folded`]: the snapshot's block with this
+    /// request's overlay and then the proposed assignment folded over it, the block the server
+    /// would answer this request under. A key under neither block returns before any of that,
+    /// `[errors] deprecated` with whether [`crate::errors::Deprecated::of`] names it.
     fn stays_meaningful(&self, key: &str, value: &str) -> bool {
         if key == crate::errors::KEY {
             return crate::errors::Deprecated::of(value).is_some();
@@ -479,12 +480,40 @@ impl Request {
         if !key.starts_with("http.cors.") && !key.starts_with("http.cookies.") {
             return true;
         }
-        let mut inbound = crate::http::Inbound::of(self.base.config.http.as_ref());
-        for (set, held) in &self.overlay {
-            inbound.assign(set, held);
+        let http = crate::http::folded(
+            self.base.config.http.as_ref(),
+            self.http_settings().chain([(key, value)]),
+        );
+        crate::http::Inbound::of(Some(&http))
+            .meaningless()
+            .is_none()
+    }
+
+    /// The `[http]` block this request's response is built from, or [`None`] where the request set
+    /// no key under `[http.headers]` or `[http.cors]` and the server's own policy for the snapshot
+    /// is the answer (`rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`).
+    ///
+    /// Cost: nothing for a request with an empty overlay. A request that set such a key pays
+    /// [`crate::http::folded`]'s one clone, per request.
+    #[must_use]
+    pub fn response_http(&self) -> Option<crate::tree::Http> {
+        let shapes_the_response =
+            |key: &str| key.starts_with("http.headers.") || key.starts_with("http.cors.");
+        if !self.overlay.keys().any(|key| shapes_the_response(key)) {
+            return None;
         }
-        inbound.assign(key, value);
-        inbound.meaningless().is_none()
+        Some(crate::http::folded(
+            self.base.config.http.as_ref(),
+            self.http_settings(),
+        ))
+    }
+
+    /// This request's own settings under `[http]`, in key order.
+    fn http_settings(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.overlay
+            .iter()
+            .filter(|(key, _)| key.starts_with("http."))
+            .map(|(key, value)| (key.as_str(), value.as_str()))
     }
 
     /// `Core\Config::restore`: drops what this request set for `name`, leaving the file's value in

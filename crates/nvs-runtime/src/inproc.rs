@@ -234,6 +234,7 @@ mod tests {
                 content_type: None,
                 file_body: None,
                 style_nonce: None,
+                http: None,
                 status: Some(self.0),
                 headers: Vec::new(),
                 error: None,

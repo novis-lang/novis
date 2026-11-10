@@ -1440,6 +1440,11 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // The headers `Core\Response` declared, taken on the same paths again and for the same
     // reason. A list rather than a word, and empty for the child that set none.
     let headers = isolate_ctx.take_headers();
+    // The `[http]` block the response is built from, read beside the headers
+    // and on the same paths: `None` for a request that set no `[http.headers]`
+    // or `[http.cors]` setting, which is nearly every request
+    // (`rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`).
+    let http = isolate_ctx.response_http();
     // `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
     // request-scoped body, ended here because this is where its request ends.
     // A program that returned, exited or finished has written every byte of
@@ -1488,6 +1493,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             content_type,
             file_body,
             style_nonce,
+            http,
             status,
             headers,
             error: Some(Failure {
@@ -1516,6 +1522,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         completion.output = output;
         completion.content_type = content_type;
         completion.style_nonce = style_nonce;
+        completion.http = http;
         completion.status = status;
         completion.headers = headers;
         completion.trace = trace;
@@ -1540,6 +1547,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             content_type,
             file_body,
             style_nonce,
+            http,
             status,
             headers,
             error: None,
@@ -1556,6 +1564,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             content_type,
             file_body,
             style_nonce,
+            http,
             status,
             headers,
             error: Some(Failure {
@@ -1623,6 +1632,7 @@ pub(crate) fn refused_completion(message: &str) -> Completion {
         content_type: None,
         file_body: None,
         style_nonce: None,
+        http: None,
         status: None,
         headers: Vec::new(),
         error: Some(Failure {
@@ -1651,6 +1661,7 @@ pub(crate) fn cancelled_completion() -> Completion {
         content_type: None,
         file_body: None,
         style_nonce: None,
+        http: None,
         status: None,
         headers: Vec::new(),
         error: Some(Failure {

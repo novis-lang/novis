@@ -267,6 +267,14 @@ impl Cors {
     /// the right thing to write is nothing, and a writer is easy to call unconditionally.
     #[must_use]
     pub fn answer(&self, request: &HeaderMap) -> Crossing {
+        self.answer_to(request.get(ORIGIN))
+    }
+
+    /// [`Self::answer`], for a request whose `Origin` is all that is left of it — a request that
+    /// set its own `[http.cors]` settings is answered again after its program ran, and the request
+    /// itself is gone by then.
+    #[must_use]
+    pub fn answer_to(&self, origin: Option<&HeaderValue>) -> Crossing {
         if self.origins.is_empty() {
             return Crossing::default();
         }
@@ -283,7 +291,7 @@ impl Cors {
             };
         }
         Crossing {
-            allow: self.named(request),
+            allow: self.named(origin),
             varies: true,
             expose: self.expose.clone(),
             credentials: self.credentials,
@@ -295,8 +303,8 @@ impl Cors {
     /// Echoing the request's bytes rather than the configured string is not a choice between
     /// two spellings: an exact match makes them the same bytes, and reading it off the request
     /// keeps the answer to a header the peer sent from ever being assembled here.
-    fn named(&self, request: &HeaderMap) -> Option<HeaderValue> {
-        let sent = request.get(ORIGIN)?;
+    fn named(&self, origin: Option<&HeaderValue>) -> Option<HeaderValue> {
+        let sent = origin?;
         let written = sent.to_str().ok()?;
         self.origins
             .iter()
