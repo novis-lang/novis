@@ -1,0 +1,130 @@
+<?nvs
+// Attack: each expression reads a property, and a later part of the same
+// expression replaces that property. Every line should print the old value.
+
+class Version implements Comparable
+{
+    public string $tag;
+
+    public function constructor(string $tag)
+    {
+        $this->tag = $tag;
+    }
+
+    public function compareTo(self $other): int
+    {
+        return $this->tag == $other->tag ? 0 : 1;
+    }
+}
+
+class Target
+{
+    public string $s = "";
+    public array<string> $items = [];
+    public Version $v;
+    public Core\Time\Date $d;
+
+    public function constructor()
+    {
+        $this->v = new Version("");
+        $this->d = Core\Time\Date::at(1999, 1, 1);
+        $this->reset();
+    }
+
+    // Writes the old values back before the next step.
+    public function reset(): void
+    {
+        int $n = 1;
+        $this->s = "old-" . $n . "-abcdefghijklmnop";
+        $this->items = ["old-" . $n . "-abcdefghijklmnop"];
+        $this->v = new Version("old-" . $n . "-abcdefghijklmnop");
+        $this->d = Core\Time\Date::at(1999, 1, 1);
+    }
+
+    // Replaces every property, then allocates many strings of the same size.
+    public function replace(): string
+    {
+        int $n = 2;
+        $this->s = "new-" . $n . "-abcdefghijklmnop";
+        $this->items = ["new-" . $n . "-abcdefghijklmnop"];
+        $this->v = new Version("new-" . $n . "-abcdefghijklmnop");
+        $this->d = Core\Time\Date::at(2002, 2, 2);
+        array<string> $fill = [];
+        for (int $i = 0; $i < 1024; $i++) {
+            $fill[] = "fil-" . $n . "-abcdefghijklmnop";
+        }
+        return "!";
+    }
+
+    public function same(): string
+    {
+        $this->replace();
+        return "old-1-abcdefghijklmnop";
+    }
+
+    public function zero(): int
+    {
+        $this->replace();
+        return 0;
+    }
+
+    public function yearFormat(): string
+    {
+        $this->replace();
+        return "yyyy";
+    }
+
+    public function tagKey(): property<Version>
+    {
+        $this->replace();
+        return "tag" as property<Version>;
+    }
+
+    public function sameVersion(): Version
+    {
+        $this->replace();
+        return new Version("old-1-abcdefghijklmnop");
+    }
+}
+
+Target $t = new Target();
+
+// 1. Joins a property with `.` and then replaces it.
+echo $t->s . $t->replace(), "\n";
+$t->reset();
+
+// 2. Puts a property in a string and then replaces it in the next hole.
+echo "{$t->s}{$t->replace()}\n";
+$t->reset();
+
+// 3. Compares a property with `==` to a call that replaces it.
+echo ($t->s == $t->same()) ? "same\n" : "different\n";
+$t->reset();
+
+// 4. Matches a property against a label that replaces it.
+echo match ($t->s) { $t->same() => "matched\n", default => "no match\n" };
+$t->reset();
+
+// 5. Passes a property to a `Core` function, and the next argument replaces it.
+echo Core\Str::startsWith($t->s, $t->same()) ? "starts\n" : "does not start\n";
+$t->reset();
+
+// 6. Passes a property to a function value, and the next argument replaces it.
+callable $join = fn(string $a, string $b): string => $a . $b;
+echo $join($t->s, $t->replace()), "\n";
+$t->reset();
+
+// 7. Reads an element of an array property, and the key replaces the array.
+echo $t->items[$t->zero()], "\n";
+$t->reset();
+
+// 8. Compares an object property with `<=>`, and the right side replaces it.
+echo ($t->v <=> $t->sameVersion()) == 0 ? "equal\n" : "not equal\n";
+$t->reset();
+
+// 9. Calls a method on a date property, and the argument replaces the date.
+echo $t->d->format($t->yearFormat()), "\n";
+$t->reset();
+
+// 10. Reads a property by name, and the name replaces the object.
+echo $t->v->{$t->tagKey()}, "\n";
