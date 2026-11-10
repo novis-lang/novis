@@ -305,18 +305,20 @@ The session writes the list under this stage as checkpoints.
 - [x] Move `.` concatenation and string holes to it, and delete the late retain
   (`crates/nvs-ir/src/lower/expr.rs:3207`, `crates/nvs-ir/src/lower/expr.rs:3251`,
   `crates/nvs-ir/src/lower/expr.rs:1020`).
-- [ ] Move `==`, `!=`, the tagged comparisons and the `match` subject to it
+- [x] Move `==`, `!=`, the tagged comparisons and the `match` subject to it
   (`crates/nvs-ir/src/lower/operator.rs:859`, `crates/nvs-ir/src/lower/expr.rs:2039`).
-- [ ] Move `Core` member arguments and callable arguments to it, so the `(Borrowed, true)` arm holds
+- [x] Move `Core` member arguments and callable arguments to it, so the `(Borrowed, true)` arm holds
   (`crates/nvs-ir/src/lower/call.rs:497`, `crates/nvs-ir/src/lower/call.rs:1134`).
 - [ ] Move an index's base and key, and a property chain's base, to it
   (`crates/nvs-ir/src/lower/expr.rs:6713`, `crates/nvs-ir/src/lower/expr.rs:5689`).
 - [ ] Move every other consumer the list names, then make `aliasing_read` private to the one function
   (`crates/nvs-ir/src/lower/mod.rs:4182`). The `Explore` list, by file; each consumer that lowers
   operands and reads them after later ones gets an `OperandSite` variant and a matrix row:
-  - [ ] `call.rs`: `lower_fixed_arg` 227/239, `lower_args_as_array` 405/440, `lower_options_arg`
-    571, `lower_callable_call` 862/883/921/930, `lower_erased_method_call` 1035,
-    `lower_callable_rebind` 1104/1107/1133.
+  - [ ] `call.rs`: `lower_args_as_array` 405/440 is left. It retains each element at its read
+    and hands a spread subject to its copy at once, so it needs no hold, only its
+    `aliasing_read` calls moved once that function turns private. Done: `lower_fixed_arg`,
+    `lower_options_arg`, `lower_callable_call`, `lower_erased_method_call` and
+    `lower_callable_rebind`, through `Lowering::borrowed_arg`.
   - [ ] `expr.rs`: `lower_echo` 795, `lower_exit` 968, `convert_operand` 1046/1107/1135,
     `lower_to_string_call` 1215/1234, `lower_coalesce` 1518-1643, `lower_isset_operand` 1784,
     `lower_ternary` 1847-1895, `lower_match` 2058-2211, `lower_rendered_format` 2523,
@@ -329,7 +331,8 @@ The session writes the list under this stage as checkpoints.
     `lower_shape_property_assign` 6501, `lower_array_literal` 6589-6644, `lower_index` 6751,
     `lower_type_test` 6926, `lower_clone_expr` 7576.
   - [ ] `operator.rs`: `lower_object_comparison` 177-216, `lower_not` 299, `lower_unary` 479,
-    `lower_null_identity` 607/618, `lower_carrier_concat` 669, `lower_binary` 946/996/1064/1097/1278.
+    `lower_null_identity` 607/618. Done: `lower_binary` and `lower_carrier_concat`, which now
+    takes each side's borrow flag.
   - [ ] `convert.rs`: `convert` 79-357, `convert_or_null` 465, `lower_truthy_cond` 675,
     `lower_conversion` 878-1011, `lower_nullable_shape_conversion` 1393,
     `lower_tested_conversion` 1454, `lower_markup_lift` 1587, `lower_array_restamp` 1667,
@@ -529,34 +532,41 @@ session writes each group under its stage as checkpoints, so stages 6 to 8 start
 
 ### State
 
-Stage 1 has its machinery and its first two sites. `crates/nvs-ir/src/lower/operand.rs` holds
-`OperandSite` (`Concat`, `StringHole`), `Lowering::hold_borrowed`, the shared-or-local root of a
-read, and `is_inert`. `.` concatenation (`lower_concat`), interpolated-string holes and
-`Core\Str::format` arguments (`interpolated_hole`) call it. The rule is
+Stage 1 has its machinery and six sites. `crates/nvs-ir/src/lower/operand.rs` holds `OperandSite`
+(`Concat`, `StringHole`, `Binary`, `MatchSubject`, `Argument`, `CallableArgument`),
+`Lowering::hold_borrowed`, `Lowering::borrowed_arg` (the `aliasing` answer `account_for_arg`
+takes), the shared-or-local root of a read, and `is_inert`. The rule is
 `docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md`, rendered.
 
-Three tests are green, each run once by name. `borrowed_reads.rs` has both of its tests, and both
-fail with `hold_borrowed` switched off. The lowering test
-`a_read_followed_only_by_literals_and_locals_takes_no_reference` counts retains. Not yet written:
-`every_borrow_judgment_passes_the_one_operand_lowering`, which goes red until every consumer has
-moved, so it lands with the last move. The attack is not written either.
+- `lower_binary` lowers its two operands as first and second, judges the first against the second,
+  stages a held one while the second runs, and every arm reads the flags `lb`/`rb`.
+  `lower_carrier_concat` takes `(bool, ValueId)` pairs.
+- `lower_match` judges its subject against every label.
+- `lower_call_args` passes each fixed argument the ones written after it. An options bag judges
+  each field against the fields declared after it, because options lower in declared order.
+  `lower_callable_call`, `lower_erased_method_call` and `lower_callable_rebind` judge the callable,
+  the receiver and each argument the same way.
 
-The acceptance sweep's `env-secret-proofs` red is stale. `looper check --name env-secret-proofs`
-finds no such check, and `.loop/last-sweep.md` still carries it from a retired goal.
+`borrowed_reads.rs` is green, run by name, and every one of its rows fails with `hold_borrowed`
+switched off. Its fill grew from 16 to 1024 strings: on Windows the heap reuses a freed block only
+after many allocations, so with 16 the property rows passed even with no hold. `Holder::same()`
+returns a literal for the same reason. Not yet written:
+`every_borrow_judgment_passes_the_one_operand_lowering`, which lands with the last move, and the
+attack.
+
+The sweep's `env-secret-proofs` red is stale: no such check or log exists.
 
 ### Next
 
 Stage 1 goes on. Each move is the same three steps. Add an `OperandSite` variant and its `ALL` entry
 (`crates/nvs-ir/src/lower/operand.rs:1`). Pass the expressions lowered after the operand to
-`hold_borrowed` where the consumer already judged it a borrow. Add the variant's program to
-`statement()` in `crates/nvs-codegen/tests/borrowed_reads.rs:1`. The consumer list is the
-checkpoints under stage 1's "Move every other consumer" item. The `Explore` line numbers predate
-this session's edits to `expr.rs`, so `bun nv peek --locate` each function first.
+`hold_borrowed`, or to `borrowed_arg` for an argument, where the consumer already judged it a
+borrow. A held operand that stays in flight while later operands run is staged with
+`own_temporary` and forgotten once they have run, as `lower_binary` does. Add the variant's program
+to `statement()` in `crates/nvs-codegen/tests/borrowed_reads.rs:1`, and check that it fails with the
+hold switched off. The consumer list is the checkpoints under stage 1's "Move every other consumer"
+item. Its line numbers are stale, so `bun nv peek --locate` each function first.
 
-- [ ] `crates/nvs-ir/src/lower/operator.rs:859`: move `==`, `!=`, the tagged comparisons and the
-  `match` subject to it (`crates/nvs-ir/src/lower/expr.rs:2039`).
-- [ ] `crates/nvs-ir/src/lower/call.rs:497`: move `Core` member arguments and callable arguments to
-  it (`crates/nvs-ir/src/lower/call.rs:1134`).
 - [ ] `crates/nvs-ir/src/lower/expr.rs:6713`: move an index's base and key, and a property chain's
   base, to it (`crates/nvs-ir/src/lower/expr.rs:5689`).
 - [ ] `crates/nvs-ir/src/lower/mod.rs:4182`: move every other consumer the list names, then make
@@ -566,8 +576,8 @@ this session's edits to `expr.rs`, so `bun nv peek --locate` each function first
 - [ ] `tests/hostile/lang/expressions/string-operators/02-an-operand-that-frees-the-one-before-it.nvs:1`:
   the attack, each consumer once, with a later operand that replaces the property.
 
-Expected red: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` where a `.` spine or a string
-hole reads a property before a call. Each one gains a `retain` at the read, and the stage-9 gate
+Expected red: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` where a `.` spine, a string
+hole, a comparison operand, a `match` subject or a `Core` argument reads a property before a call. Each one gains a `retain` at the read, and the stage-9 gate
 accepts them after reading each diff. Stage 3 changes more snapshots.
 
 ### Backlog

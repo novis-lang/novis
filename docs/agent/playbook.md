@@ -268,6 +268,13 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **A use-after-free test on Windows needs about a thousand same-size allocations after the free.**
+  The Windows heap does not hand a freed block back at once, so a fill of 16 strings left the freed
+  property's bytes intact and the test passed with the fix switched off. Fill with 1024, never
+  build the expected answer by concatenation (it can land in the freed block and match), and switch
+  the fix off once to watch every row fail. See `crates/nvs-codegen/tests/borrowed_reads.rs`.
+  `until: gone crates/nvs-codegen/tests/borrowed_reads.rs:fn statement`
+
 - **A heavy `nvs serve` test answers `503` under a full nextest run, and passes alone.** Every
   server pins its workers to the first CPUs, so a test run's servers all share CPU 0. A starved
   worker misses the watchdog's five-second margin, is reported wedged (`the core is not turning`
