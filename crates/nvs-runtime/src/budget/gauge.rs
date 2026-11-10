@@ -17,8 +17,9 @@
 //! ([`Ctx::between_requests`](crate::Ctx::between_requests)), and what that tree holds above the
 //! balance its last request started at is moved into [`IDLE`] at each of its parks. The next
 //! request's start ([`Ctx::reroot`](crate::Ctx::reroot)) takes it out again, so those bytes count
-//! while a request is in flight on the connection. A tree with a child still running, such as
-//! after-response work, moves nothing, because that child is a request's work. What an idle tree
+//! while a request is in flight on the connection. A tree with a child still running moves
+//! nothing, because that child is a request's work. After-response work runs in the tree its
+//! request left, which the connection is no longer in, so its bytes stay counted. What an idle tree
 //! holds is bounded by `hyper`'s buffer size, and how many connections are open is the proxy's to
 //! bound (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`).
 //!

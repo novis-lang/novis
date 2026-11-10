@@ -219,6 +219,9 @@ impl Ctx {
     /// such as `rule:concurrency/after-response-outlives-the-connection`'s,
     /// keeps that tree with its stop and the budget its request spent.
     ///
+    /// A connection that goes idle while such work runs is rerooted then
+    /// ([`Self::between_requests`]), and again as its next request starts.
+    ///
     /// **What it spends:** one [`TreeState`] allocated and the old one freed
     /// per request, or kept until the last work still running in it ends.
     /// The deadline is one word, cleared in place where this context is its
@@ -306,20 +309,29 @@ impl Ctx {
     /// next request, and an instance it kept would hold one of the process's
     /// instance places all that time. Those places are sized for the requests
     /// in flight, so idle connections that kept theirs would make a request
-    /// that calls an extension fail. A tree that other work still holds, such as
-    /// after-response work or a child placed on another core, keeps its
-    /// instances, and they are dropped with the tree.
+    /// that calls an extension fail.
+    ///
+    /// Where other work still holds the tree, such as after-response work or a
+    /// child placed on another core, the connection leaves the tree to that
+    /// work and waits on a fresh one ([`Self::reroot`]). The tree then ends
+    /// when its last work ends, and its instances with it, however long the
+    /// connection waits. The connection's own turns are charged to the fresh
+    /// tree, so they spend none of the CPU time that work has left.
     ///
     /// **What it spends:** nothing per request beyond the tree's three words, a
     /// thread-local read and a reference count read per finished request, and a
-    /// thread-local add at each park of an idle tree.
+    /// thread-local add at each park of an idle tree. A request that leaves
+    /// work behind pays one more [`TreeState`], allocated here and freed when
+    /// the connection's next request starts.
     pub fn between_requests(&mut self) {
         let turn = crate::budget::turn_holds(&self.tree);
-        self.idles_tree = crate::budget::begin_idle(&self.tree) || self.idles_tree;
         let connection_holders = 1 + usize::from(turn);
         if std::sync::Arc::strong_count(&self.tree) == connection_holders {
             drop(self.tree.end_extensions());
+        } else {
+            self.reroot();
         }
+        self.idles_tree = crate::budget::begin_idle(&self.tree) || self.idles_tree;
     }
 
     /// Joins `tree` as a member running on a core **other** than the one that
@@ -939,9 +951,9 @@ pub struct TreeState {
     /// extension instances its calls made, and the resources they returned —
     /// set at its first call into an extension. It is dropped when the
     /// request's connection waits for its next request and nothing else holds
-    /// the tree ([`Ctx::between_requests`]), or else with the tree: once the
-    /// request's after-response work has ended and its connection has started
-    /// its next request or closed. Empty for every request
+    /// the tree ([`Ctx::between_requests`]), or else with the tree. The
+    /// connection leaves a tree other work still holds, so that tree ends when
+    /// the request's after-response work does. Empty for every request
     /// that calls no extension. A call holds its own handle on it, so the lock
     /// is never held while a guest runs.
     pub(super) extensions: std::sync::Mutex<Option<ExtensionHost>>,
@@ -1903,26 +1915,36 @@ mod tests {
     }
 
     /// The other direction: after-response work still running in the tree
-    /// keeps the instances while the connection waits. They are dropped with
-    /// the tree, once that work has ended and the connection has started its
-    /// next request.
+    /// keeps the instances while the connection waits, and they are dropped
+    /// when that work ends. The connection stays open and starts no request,
+    /// so only its leaving the tree can let the tree end.
     #[test]
     fn after_response_work_keeps_the_extension_instances_until_it_ends() {
         std::thread::spawn(|| {
             let (mut connection, dropped) = connection_that_called_an_extension();
             let mut deferred = connection.isolate(OutputSink::Buffer(Vec::new()));
             deferred.leave_this_stack();
+            let left = connection.tree_key();
             connection.between_requests();
             assert!(
                 !dropped.load(std::sync::atomic::Ordering::Relaxed),
                 "the instances were dropped while after-response work could still call them"
             );
+            assert_eq!(
+                deferred.tree_key(),
+                left,
+                "after-response work was moved off the tree its request ran in"
+            );
+            assert_ne!(
+                connection.tree_key(),
+                left,
+                "a waiting connection kept the tree its after-response work runs in"
+            );
 
             drop(deferred);
-            connection.reroot();
             assert!(
                 dropped.load(std::sync::atomic::Ordering::Relaxed),
-                "the tree the connection left kept its instances after its last work ended"
+                "the instances outlived the after-response work, on a connection that still waits"
             );
         })
         .join()

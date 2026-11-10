@@ -929,6 +929,52 @@ fn an_idle_keep_alive_connection_holds_no_extension_instance() {
     }
 }
 
+/// The program the after-response case serves: one call into `Novis\Intl`, and work that runs
+/// after the response and outlasts it.
+const LISTING_THEN_WORK: &str = "<?nvs\n\
+use Novis\\Intl\\ListFormat;\n\
+Core\\Task::afterResponse(fn(): void => {\n    \
+Core\\Time::sleep(Core\\Time\\Duration::milliseconds(50));\n\
+});\n\
+echo ListFormat::join([[\"Shop\", \"Blog\", \"Wiki\"]], \"en\")[0];\n";
+
+/// The gauge that counts the request trees kept alive for after-response work.
+const DEFERRED_TREES: &str = "nvs_deferred_trees";
+
+/// The instances of a request that leaves after-response work end when that work ends, while
+/// its connection stays open and waits (`rule:packaging/a-fresh-instance-per-request`). Each of
+/// [`IDLE_LISTINGS`] connections sends one such request and stays open. Under
+/// `max_in_flight = 1` they would fill the pool if each kept its instance until its next
+/// request. Every request is served once the work before it has ended.
+#[test]
+fn an_idle_connection_holds_no_instance_once_its_after_response_work_ends() {
+    let port = free_port();
+    let config = format!(
+        "max_in_flight = 1\n\n[metrics]\nexporter = \"prometheus\"\nlisten = \"127.0.0.1:{port}\"\n"
+    );
+    let server = Server::serving("work-instances", 1, LISTING_THEN_WORK, &config, &[]);
+    let want = "Shop, Blog, and Wiki";
+    let mut idle = Vec::with_capacity(IDLE_LISTINGS);
+    for connection in 0..=IDLE_LISTINGS {
+        let mut client = Client::connect(server.addr);
+        assert_eq!(
+            client.served("/").unwrap_or_else(|error| panic!(
+                "a request on connection {connection}, with {} connections open and idle \
+                 whose after-response work has ended: {error}; the server wrote: {}",
+                idle.len(),
+                server.said()
+            )),
+            want,
+            "connection {connection}; the server wrote: {}",
+            server.said()
+        );
+        // The request registered its work before it answered, so the gauge reads it from the
+        // answer on, and reads zero once the work has ended.
+        scraped_until(port, &server, DEFERRED_TREES, |trees| trees < 1.0);
+        idle.push(client);
+    }
+}
+
 /// A program that logs the request's path and a query value, then prints a page.
 const LOGS_THEN_PRINTS: &str = "<?nvs\n\
 Core\\Log::write(Core\\Log::Level::Warn, 'not found: ' . Core\\Request::path(), \
