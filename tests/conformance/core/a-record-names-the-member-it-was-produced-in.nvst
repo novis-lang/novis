@@ -53,8 +53,16 @@ class Checked {
 }
 
 echo Checked::divided(0), "\n";
+
+// With no `[log] target` the two records go to standard error, and the runner
+// reads standard error only off a run that fails
+// (`nvs_test::Case::expects_failure`). This throw is what buys the section
+// below; its last line is the floor's own record for the throw.
+throw new RuntimeError("the case ends here, so its standard error can be asserted");
 --EXPECT--
-{"level":"info","msg":"placed","source":{"file":"case.nvs","line":9,"member":"Orders::place"}}
-{"level":"info","msg":"done","source":{"file":"case.nvs","line":18}}
 case.nvs:27
 case.nvs:44
+--EXPECTF-ERROR--
+{"level":"info","msg":"placed","source":{"file":"case.nvs","line":9,"member":"Orders::place"}}
+{"level":"info","msg":"done","source":{"file":"case.nvs","line":18}}
+{"level":"error","msg":"the case ends here, so its standard error can be asserted","fields":{"class":"RuntimeError"},"nodes":%s}

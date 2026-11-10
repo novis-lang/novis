@@ -22,8 +22,7 @@
 //! discarded: this runs where a report has already lost its usual guarantees —
 //! after a response, or as a process is ending — so a sink that has gone is
 //! nothing left to fail about. `Core\Log::write` writes the same rendering to
-//! the program's own stream instead, which is the one difference between them
-//! and is about *where* rather than *what*.
+//! the same channel, through the same [`Ctx::write_log_record`].
 //!
 //! # What is in an uncaught throw's record, and what is deliberately not
 //!
@@ -283,7 +282,7 @@ pub fn report(ctx: &mut Ctx, record: &Record) {
         carried.envelope.count = Some(count);
     }
     ctx.stamp_envelope(&mut carried.envelope);
-    let _ = ctx.write_log_record(&carried, crate::LogChannel::Diagnostic);
+    let _ = ctx.write_log_record(&carried);
 }
 
 /// How a record reaches `rule:errors/escalation-ladder`'s **tier 3** from a

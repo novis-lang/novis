@@ -58,25 +58,21 @@
 //! # Where the bytes go
 //!
 //! [`Ctx::write_log_record`](nvs_runtime::Ctx::write_log_record), which is the
-//! one reader of `[log] target`, `level` and `format`, and takes the channel to
-//! use when the first of those names nothing. **Both of `rule:errors/record-producers`'s writers call it**, so a
-//! deployment naming a destination gets one destination and not two —
-//! `rule:errors/log-write`'s sameness is about the record, and a per-caller destination is the
-//! other half of the same claim. That method's doc comment owns the routing,
-//! including why a named target is not captured by `Core\Out::capture`.
+//! one reader of `[log] target`, `level` and `format`. **Every one of
+//! `rule:errors/record-producers`'s writers calls it**, so a deployment naming a
+//! destination gets one destination and not several — `rule:errors/log-write`'s
+//! sameness is about the record, and a per-caller destination is the other half
+//! of the same claim. That method's doc comment owns the routing.
 //!
-//! With no target configured the two callers keep the split they have always
-//! had, and it is by *whose* record it is. A `Core\Log::write` is something the
-//! program chose to say, so it is output —
-//! [`Ctx::write_output`](nvs_runtime::Ctx::write_output), where `rule:security/capture-answers-the-carrier`'s
-//! sink rules apply and `Core\Out::capture` around one captures it, which is
-//! exactly what `rule:errors/renderings` asks of every rendering. A record the engine
-//! writes about a program that has already stopped is not the program's output
-//! and lands on [`Ctx::write_diagnostic`](nvs_runtime::Ctx::write_diagnostic)
-//! instead, beside where [`crate::debug`] sends a dump.
+//! With no target configured a record goes to the diagnostic channel,
+//! [`Ctx::write_diagnostic`](nvs_runtime::Ctx::write_diagnostic), which is the
+//! process's standard error (`rule:errors/engine-floor`). It never goes to the
+//! program's output: inside a request that is the response body, and a record
+//! carries the source path, the request id and every field, unescaped.
+//! `Core\Out::capture` therefore never captures a record.
 
 use nvs_render::{Level, Node, Record, Rendered, Source};
-use nvs_runtime::{Ctx, Fault, LogChannel, Value};
+use nvs_runtime::{Ctx, Fault, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, MethodDoc,
@@ -143,8 +139,7 @@ const LEVEL_DOC: EnumDoc = EnumDoc {
 /// `rule:errors/log-write`, and beside `Core\Fatal` because the two are one ladder:
 /// the rung above every `catch` and the reporting half every rung of it
 /// ends at. [`crate::log`] owns why the level enum's integers are syslog
-/// severities and why a record reaches the output stream rather than the
-/// diagnostic one.
+/// severities and where a record goes when no target is named.
 // rank: 850
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -169,16 +164,20 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Log`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
-    short: "Writes log records. `write` writes one record as one line of JSON, with a level, a \
-            message and any extra fields. The server's `[log]` settings decide where records go \
-            and which levels are kept.",
+    short: "Writes log records. `write` writes one record with a level, a message and any extra \
+            fields. The `[log]` settings decide where records go, which levels are kept and \
+            which format is used.",
 };
 
 /// `Core\Log::write`'s reference card — `rule:core-api/reference-card`.
 const WRITE_DOC: MethodDoc = MethodDoc {
     short: "Writes one log record. Novis writes its own records about a stopped program in the \
-            same format, so every record in the log has the same shape. A log target gets JSON \
-            Lines: one JSON object per line.",
+            same format, so every record in the log has the same shape. When `[log] target` is \
+            not set, the record goes to standard error. A server that runs as a service writes \
+            it to `logs/nvs.log` in its data folder. A record never appears in the program's \
+            output or in a web response. `[log] format` sets the format. `\"json\"` writes one \
+            JSON object per line, and `\"text\"` writes plain text. The default is `\"json\"` \
+            in production and `\"text\"` in development.",
     params: &[
         ParamDoc {
             name: "level",
@@ -226,7 +225,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// Where that one call lands is
     /// [`Ctx::write_log_record`](nvs_runtime::Ctx::write_log_record)'s, not
-    /// this member's — the module doc's § *Where the bytes go* owns the split.
+    /// this member's — the module doc's § *Where the bytes go*.
     fn nvs_core_log_write(ctx, args: [4]) {
         #[expect(
             unsafe_code,
@@ -255,13 +254,12 @@ nvs_runtime::nvs_helper! {
             return Ok(Value::null());
         }
         // Unreachable from source. Absent a `[log] target` the destination is
-        // the process's own output stream, which nothing in the language moves
-        // or closes — the reason `Core\Debug::dump`'s own write gives. With one
+        // the process's standard error, which nothing in the language moves or
+        // closes, the reason `Core\Debug::dump`'s own write gives. With one
         // configured it is the operator's file, which a full disk can fail:
-        // still nothing the program said, and still a `FATAL` rather than a
-        // throw, because a `catch` around a log write is not where a
-        // deployment's unwritable log gets handled.
-        ctx.write_log_record(&record, LogChannel::Output)
+        // that is a `FATAL` and not a throw, because a `catch` around a log
+        // write is not where a deployment's unwritable log gets handled.
+        ctx.write_log_record(&record)
             .map_err(|why| Fault::fatal(format!("Core\\Log::write could not write: {why}")))?;
         Ok(Value::null())
     }
@@ -370,7 +368,7 @@ pub fn extension_line(
     if !nvs_runtime::floor::admit_log_record(&mut record) {
         return Ok(());
     }
-    ctx.write_log_record(&record, LogChannel::Output)
+    ctx.write_log_record(&record)
 }
 
 /// The `fields` bag as the envelope's named nodes.
@@ -414,6 +412,29 @@ mod tests {
     };
 
     use super::{LEVEL, nvs_core_log_write};
+
+    /// A buffered context whose diagnostic channel is a buffer too, which is
+    /// where a record goes when no `[log] target` is named.
+    fn logging() -> Ctx {
+        let mut ctx = Ctx::buffered();
+        ctx.set_diagnostic_sink(OutputSink::Buffer(Vec::new()));
+        ctx
+    }
+
+    /// Everything on `ctx`'s diagnostic channel since it was last read, after
+    /// checking that none of it reached the program's output.
+    fn logged(ctx: &mut Ctx) -> String {
+        assert_eq!(
+            ctx.take_buffered_output().unwrap_or_default(),
+            b"",
+            "a record with no `[log] target` reached the program's output"
+        );
+        String::from_utf8(
+            ctx.take_buffered_diagnostic()
+                .expect("the case pointed the channel at a buffer"),
+        )
+        .expect("a JSON Lines line is text")
+    }
 
     /// The integer `Core\Log::Level::Error` arrives as, read off [`LEVEL`]'s own
     /// row rather than written out here: a lowered enum case *is* that integer,
@@ -470,7 +491,7 @@ mod tests {
         const SLOTS: [&str; 4] = ["message", "previous", "backtrace", "location"];
         let mut classes = ClassTable::new();
         let root = classes.define("RuntimeError", &SLOTS, &[]);
-        let mut ctx = Ctx::buffered();
+        let mut ctx = logging();
         ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), root));
         ctx.set_pending("the store said no");
         ctx.push_frame("Main::main");
@@ -497,11 +518,7 @@ mod tests {
             ],
         )
         .expect("a buffered sink is the one output that cannot fail");
-        let written = String::from_utf8(
-            ctx.take_buffered_output()
-                .expect("a buffered context hands its bytes back"),
-        )
-        .expect("a JSON Lines line is text");
+        let written = logged(&mut ctx);
 
         let (envelope, nodes) = floored
             .split_once(",\"nodes\":")
@@ -536,7 +553,7 @@ mod tests {
     /// One `Core\Log::write` of `"a message"` from `source`, as the line it
     /// wrote — the whole helper, so what is asserted is what a target receives.
     fn from_source(source: Value) -> String {
-        let mut ctx = Ctx::buffered();
+        let mut ctx = logging();
         call(
             nvs_core_log_write,
             &mut ctx,
@@ -548,11 +565,7 @@ mod tests {
             ],
         )
         .expect("a buffered sink is the one output that cannot fail");
-        String::from_utf8(
-            ctx.take_buffered_output()
-                .expect("a buffered context hands its bytes back"),
-        )
-        .expect("a JSON Lines line is text")
+        logged(&mut ctx)
     }
 
     /// `rule:errors/a-record-names-where-it-was-produced`'s member half: a
@@ -629,7 +642,7 @@ mod tests {
     /// `None` is therefore the ordinary served request, which has an id and no
     /// trace being recorded.
     fn serving(traceparent: Option<&str>) -> Ctx {
-        let mut ctx = Ctx::buffered();
+        let mut ctx = logging();
         let mut inbound = Inbound::new("GET", "/orders", "");
         if let Some(header) = traceparent {
             inbound.set_trace_context(TraceContext::continuing(Some(header), 0.0));
@@ -651,11 +664,7 @@ mod tests {
             ],
         )
         .expect("a buffered sink is the one output that cannot fail");
-        String::from_utf8(
-            ctx.take_buffered_output()
-                .expect("a buffered context hands its bytes back"),
-        )
-        .expect("a JSON Lines line is text")
+        logged(ctx)
     }
 
     /// That line as the object it is, parsed rather than matched on, so an
@@ -791,7 +800,7 @@ mod tests {
     fn a_field_with_no_value_is_omitted_rather_than_empty() {
         let header = format!("00-{TRACE}-{SPAN}-01");
         let shapes: [(Ctx, &[&str]); 3] = [
-            (Ctx::buffered(), &["level", "msg"]),
+            (logging(), &["level", "msg"]),
             (serving(None), &["level", "msg", "request_id", "ts"]),
             (
                 serving(Some(&header)),
@@ -828,7 +837,7 @@ mod tests {
     /// that rule one key apart, which is the divergence it forbids.
     #[test]
     fn a_cli_runs_record_is_still_level_and_msg_alone() {
-        let mut ctx = Ctx::buffered();
+        let mut ctx = logging();
         assert_eq!(
             written(&mut ctx, "the store said no"),
             "{\"level\":\"error\",\"msg\":\"the store said no\"}\n",
@@ -1099,7 +1108,7 @@ mod tests {
     )]
     #[test]
     fn a_record_below_the_minimum_takes_no_coalescing_slot() {
-        let mut ctx = Ctx::buffered();
+        let mut ctx = logging();
         ctx.set_config(crate::tests::granting("[log]\nlevel = \"Warn\"\n"));
         let write = |ctx: &mut Ctx, level: Level, message: &str| {
             call(
@@ -1121,11 +1130,7 @@ mod tests {
         }
         write(&mut ctx, Level::Error, "the one that is written");
 
-        let output = String::from_utf8(
-            ctx.take_buffered_output()
-                .expect("a buffered context hands its bytes back"),
-        )
-        .expect("a JSON Lines line is text");
+        let output = logged(&mut ctx);
         assert_eq!(
             output.lines().count(),
             1,

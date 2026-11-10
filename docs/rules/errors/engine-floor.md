@@ -8,6 +8,13 @@ no usable data folder keeps `stderr`. The check reads where the key was written,
 operator wrote is kept. A service has no terminal, and its `stderr` is the journal or the Event Log,
 where a busy server's records crowd out the service manager's own.
 
+That destination is every writer's, `Core\Log::write` included, and **a record never reaches the
+program's output**: under `nvs run` it leaves stdout to what the program printed, and inside a request
+it is never part of the response body, where it would show a client its source path, the request id
+and its fields unescaped. So `Core\Out::capture` never captures a record either
+(`crates/nvs-cli/tests/serve_isolation.rs`'s
+`a_record_written_with_no_log_target_stays_out_of_the_response_body`).
+
 It fires when `[log] handler` is unset or `rule:errors/handler-script` failed for any reason. **If
 even this write fails — a full disk, a broken pipe — the failure is swallowed**, and the request
 tears down normally regardless. That is deliberately boring: an undefined "what then" at the true

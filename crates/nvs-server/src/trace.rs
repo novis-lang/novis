@@ -492,7 +492,7 @@ pub fn access(ctx: &mut nvs_runtime::Ctx, on: bool, line: &Access<'_>) {
         fields.push(("route".into(), floor::text(route)));
     }
     // A sink that has gone is ignored, for `floor::report`'s reason.
-    let _ = ctx.write_log_record(&record, nvs_runtime::LogChannel::Diagnostic);
+    let _ = ctx.write_log_record(&record);
 }
 
 /// A span id for a derived span, drawn like the root's: all-zero is the value

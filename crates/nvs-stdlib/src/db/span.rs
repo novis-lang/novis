@@ -186,7 +186,7 @@ fn trace_ungranted_record(ctx: &mut nvs_runtime::Ctx) {
     let mut record = nvs_render::Record::at(nvs_render::Level::Warn);
     record.envelope.message = Some(nvs_render::Rendered::new(&message));
     ctx.stamp_envelope(&mut record.envelope);
-    let _dropped = ctx.write_log_record(&record, nvs_runtime::LogChannel::Diagnostic);
+    let _dropped = ctx.write_log_record(&record);
 }
 
 /// `rule:observability/a-slow-query-is-logged-past-a-threshold`'s line: the
@@ -202,11 +202,13 @@ fn trace_ungranted_record(ctx: &mut nvs_runtime::Ctx) {
 ///
 /// A record that cannot be written is dropped rather than retried or thrown —
 /// `Core\Log::write`'s own rule, and a statement that already ran is not failed
-/// by the line describing it.
+/// by the line describing it. It goes where every record goes: the `[log]
+/// target`, or the diagnostic channel when none is named, and never the
+/// response body, because the line carries the statement's SQL.
 pub(super) fn slow_query_record(ctx: &mut nvs_runtime::Ctx, line: &str) {
     let mut record = nvs_render::Record::at(nvs_render::Level::Warn);
     record.envelope.message = Some(nvs_render::Rendered::new(line));
-    let _dropped = ctx.write_log_record(&record, nvs_runtime::LogChannel::Output);
+    let _dropped = ctx.write_log_record(&record);
 }
 
 /// Files `rule:observability/a-query-is-a-trace-event`'s event for a statement that never lent a `PgRows` out —

@@ -1,5 +1,6 @@
 // Running the proofs on disk. An example runs and its standard output is compared with the `.out` frozen
-// beside it, or its diagnostic when it declares `proof: compile-error`, or its `nvs test` report when it
+// beside it, with its standard error after it when it declares `proof: with-stderr`, or its diagnostic
+// when it declares `proof: compile-error`, or its `nvs test` report when it
 // declares `proof: test` (`exampleOutput`). An attack runs and passes when the runtime survived it, whatever the program's own fate.
 // `bun nv proofs --run` and `--verify` call this, over any number of groups in one pass: the files of
 // every group go into one pool, and each group's verdict lines are counted from its own files. A program
@@ -231,6 +232,9 @@ const EXAMPLE_EXIT_RE = /(?:\/\/|#)\s*proof:\s*exit\s+([0-9]+)/;
 /** `// proof: compile-error` in an example: it shows code that does not compile, so the run must end
  * with `nvs`'s compile-error status and a diagnostic, and its `.out` is that diagnostic. */
 const EXAMPLE_COMPILE_ERROR_RE = /(?:\/\/|#)\s*proof:\s*compile-error\b/;
+/** `// proof: with-stderr` in an example: part of what it shows is written to standard error, such as
+ * a `Core\Log::write` record, so its `.out` is standard output followed by standard error. */
+const EXAMPLE_WITH_STDERR_RE = /(?:\/\/|#)\s*proof:\s*with-stderr\b/;
 /** `// proof: test` in an example: it shows the report `nvs test` prints for it, so it runs under
  * `nvs test`, and its `.out` is that report with every duration removed (`testReport`). An attack
  * that declares it runs under `nvs test` as well, because `nvs run` calls no test (`judgeHostile`). */
@@ -763,12 +767,14 @@ function declaredExit(source: string): number {
 }
 
 /**
- * What an example's `.out` freezes: its standard output, or for a `proof: compile-error` example the
+ * What an example's `.out` freezes: its standard output, or for a `proof: with-stderr` example its
+ * standard output followed by its standard error, or for a `proof: compile-error` example the
  * diagnostic on standard error, with the example's path shortened to its file name in either slash
  * form, so the `.out` reads the same on every host and on the website.
  */
 export function exampleOutput(path: string, source: string, out: Pick<Ran, "stdout" | "stderr">): string {
   if (EXAMPLE_TEST_RE.test(source)) return testReport(out.stdout);
+  if (EXAMPLE_WITH_STDERR_RE.test(source)) return out.stdout + out.stderr;
   if (!EXAMPLE_COMPILE_ERROR_RE.test(source)) return out.stdout;
   const name = basename(path);
   return out.stderr.replaceAll(path.replaceAll("\\", "/"), name).replaceAll(path.replaceAll("/", "\\"), name);
@@ -833,7 +839,8 @@ async function runExample(nvs: string, path: string, unlogged = false): Promise<
   if (!existsSync(abs(expected))) return ["fail", `no ${basename(expected)} beside it`, out];
   const printed = exampleOutput(path, source, out);
   if (!matchesOut(printed, read(expected), path.endsWith(".cmd"))) {
-    return ["fail", `${compileError ? "the diagnostic" : "stdout"} differs from its .out: ${firstDifference(printed, read(expected))}`, out];
+    const what = compileError ? "the diagnostic" : EXAMPLE_WITH_STDERR_RE.test(source) ? "stdout and stderr" : "stdout";
+    return ["fail", `${what} differs from its .out: ${firstDifference(printed, read(expected))}`, out];
   }
   return ["ok", "", out];
 }

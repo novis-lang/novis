@@ -120,7 +120,7 @@ pub unsafe extern "C" fn nvs_deprecated_use(
                 };
                 let mut record = crate::floor::note(Level::Warn, &line);
                 ctx.stamp_envelope(&mut record.envelope);
-                let _ = ctx.write_log_record(&record, crate::LogChannel::Diagnostic);
+                let _ = ctx.write_log_record(&record);
             }
             crate::OK
         }

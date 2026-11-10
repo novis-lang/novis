@@ -1,6 +1,6 @@
 <?nvs
 // Shows a login function as a web application writes it. A wrong password is
-// a normal answer. A broken stored value is a bug, so it is logged.
+// a normal result. A broken stored value is a bug, so it is logged.
 
 class Login
 {
@@ -28,6 +28,7 @@ secret string $wrong = 'my first pet was a dog';
 echo Login::check($right, $stored), "\n";
 echo Login::check($wrong, $stored), "\n";
 
-// This stored value was damaged, so `verify` throws a `LogicError`. The
-// function catches it. This prints the log line, then `wrong email or password`.
+// This stored value is damaged, so `verify` throws a `LogicError`. The function
+// returns `wrong email or password` and writes a log record to standard error.
 echo Login::check($right, 'not-a-hash'), "\n";
+// proof: with-stderr

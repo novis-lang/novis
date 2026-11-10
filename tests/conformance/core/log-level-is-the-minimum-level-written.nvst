@@ -12,9 +12,9 @@
 // inverts everything either side of it, which is what asking about all four
 // costs nothing and catches.
 //
-// The records are read back out of the target rather than off standard output,
-// because a deployment that names a destination gets one: with `[log] target`
-// set, `Core\Log::write` no longer writes the program's own stream. The hook
+// The records are read back out of the target, because a deployment that names
+// a destination gets one: with `[log] target` set, `Core\Log::write` writes
+// that file and nothing else, and the runner can read a file. The hook
 // runs as the last user code of the script (`rule:observability/script-on-exit`), by which point every
 // record above has been written or dropped.
 Core\Script::onExit(fn (): void => {

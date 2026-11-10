@@ -1738,6 +1738,7 @@ mod tests {
         let dir = nvs_repo::scratch(name);
         super::install(Writer::new(dir.to_path_buf(), "1-2-0".to_owned(), u64::MAX));
         let mut ctx = crate::Ctx::buffered();
+        ctx.set_diagnostic_sink(crate::OutputSink::Buffer(Vec::new()));
         ctx.set_config(snapshot_of(written));
         ctx.set_trace_context(crate::trace_context::TraceContext::continuing(
             Some(&format!("00-{TRACE}-00f067aa0ba902b7-01")),
@@ -1765,16 +1766,14 @@ mod tests {
         );
         let mut quiet = nvs_render::Record::at(nvs_render::Level::Debug);
         quiet.envelope.message = Some(nvs_render::Rendered::new("below the level"));
-        ctx.write_log_record(&quiet, crate::LogChannel::Output)
-            .expect("a buffer never fails");
+        ctx.write_log_record(&quiet).expect("a buffer never fails");
         let mut record = nvs_render::Record::at(nvs_render::Level::Warn);
         record.envelope.message = Some(nvs_render::Rendered::new("an order was paid twice"));
         record.envelope.fields = vec![(
             "order".to_owned(),
             nvs_render::Node::Scalar(nvs_render::Scalar::Int(7)),
         )];
-        ctx.write_log_record(&record, crate::LogChannel::Output)
-            .expect("a buffer never fails");
+        ctx.write_log_record(&record).expect("a buffer never fails");
 
         let all = sealed_lines(&dir);
         let [line] = all.as_slice() else {

@@ -332,23 +332,24 @@ fn run_logging(dir: &Path, data: &Path, managed: bool) -> Output {
 
 /// A command run from a terminal keeps its log records off the data folder,
 /// whatever the configuration leaves unset: no `[log] target` writes no
-/// `logs/nvs.log`.
+/// `logs/nvs.log`, and the record goes to standard error, leaving standard
+/// output to what the program echoed.
 // covers: tools:cli/nvs-run, directive:log.target
 #[test]
 fn a_command_line_run_with_no_log_target_writes_no_log_file() {
     let dir = scratch("log-command-line");
     let data = dir.join(".nvsdata");
     let out = run_logging(&dir, &data, false);
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "{stderr}");
     assert_eq!(
-        out.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
+        String::from_utf8_lossy(&out.stdout),
+        "ran\n",
+        "the record is not the program's output"
     );
     assert!(
-        stdout.contains("logged"),
-        "the record is the program's output: {stdout}"
+        stderr.contains("logged"),
+        "the record is on standard error: {stderr}"
     );
     assert!(data.join("logs").is_dir(), "the folder is still created");
     assert!(!data.join("logs").join("nvs.log").exists());
@@ -388,7 +389,8 @@ fn a_service_with_no_log_target_writes_to_the_data_folder() {
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert_eq!(out.status.code(), Some(0), "{stderr}");
     assert!(stderr.contains("warning: Novis cannot use its data folder"));
-    assert!(String::from_utf8_lossy(&out.stdout).contains("logged"));
+    assert!(stderr.contains("logged"), "{stderr}");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "ran\n");
 }
 
 /// Every row of the *Exit status* table: `exit(n)` is `n`, `exit("message")`

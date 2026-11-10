@@ -4,8 +4,7 @@
 <?nvs
 // `rule:errors/record-producers`'s sameness, one step past the record's shape: the two writers
 // agree about the *destination* as well as about the envelope. With
-// `[log] target` naming a file, `Core\Log::write` no longer writes the
-// program's own output and the floor no longer writes the diagnostic channel —
+// `[log] target` naming a file, neither writer writes the diagnostic channel —
 // both land in the operator's file, which is what makes a named target one
 // destination rather than two copies of the configuration.
 //
@@ -25,9 +24,8 @@ Core\Script::onExit(fn (): void => {
 
 Core\Log::write(Core\Log::Level::Error, "the application said so");
 
-// Printed *before* either record, which is the displacement asserted from the
-// outside: with no target configured this line would come second, after
-// `Core\Log::write` had written the same stream.
+// Printed *before* either record: the records reach standard output only
+// through the hook above, which reads them back out of the file.
 echo "the program's own output\n";
 --FILE nvs.toml--
 [log]
@@ -37,5 +35,5 @@ target = "file:app.log"
 read = ["."]
 --EXPECTF--
 the program's own output
-{"level":"error","msg":"the application said so","source":{"file":"case.nvs","line":23}}
+{"level":"error","msg":"the application said so","source":{"file":"case.nvs","line":22}}
 {"level":"error","msg":"the floor said so","fields":{"class":"RuntimeError","origin":"exit-hook"},"nodes":%s}

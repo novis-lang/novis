@@ -1387,6 +1387,7 @@ mod tests {
     #[test]
     fn a_request_budget_is_its_contexts_clock_seed_log_and_settings() {
         let mut ctx = Ctx::buffered();
+        ctx.set_diagnostic_sink(nvs_runtime::OutputSink::Buffer(Vec::new()));
         ctx.set_config(Arc::new(nvs_config::Snapshot {
             table: toml::from_str("[ext.geo]\nzoom = 3\n").expect("a table"),
             ..nvs_config::Snapshot::default()
@@ -1410,7 +1411,12 @@ mod tests {
         nvs_stdlib::random::fill_seeded(&mut state, &mut expected);
         assert_eq!(drawn, expected);
         assert_eq!(ctx.random_state(), Some(state));
-        let output = String::from_utf8(ctx.take_buffered_output().expect("a buffer"))
+        assert_eq!(
+            ctx.take_buffered_output().unwrap_or_default(),
+            b"",
+            "a guest's log line with no `[log] target` stays out of the program's output"
+        );
+        let output = String::from_utf8(ctx.take_buffered_diagnostic().expect("a buffer"))
             .expect("a log line is text");
         assert!(output.contains("tile loaded"), "{output}");
         assert!(output.contains("geo"), "{output}");

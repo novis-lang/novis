@@ -120,26 +120,6 @@ pub enum OutputSink {
     Sink,
 }
 
-/// Where a record goes when `[log] target` names no destination — which is a
-/// different channel for each of `rule:errors/record-producers`'s two writers, and the same one for both as soon as it does name one.
-///
-/// [`Ctx::write_log_record`] is the whole of the routing and its doc comment is
-/// the home of why the unconfigured default is a split rather than a single
-/// channel. A writer that holds no request picks neither value: only one of the
-/// two channels exists with no program underneath it, which is [`LogWriter`]'s
-/// own doc comment.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum LogChannel {
-    /// The program's own output, through [`Ctx::write_output`] and so through
-    /// `rule:security/capture-answers-the-carrier`'s capture stack — `Core\Log::write`'s, because a record a
-    /// program chose to write is something it said.
-    Output,
-    /// The diagnostic channel, through [`Ctx::write_diagnostic`] — the engine
-    /// floor's, because a record about a program that has already stopped is
-    /// not that program's output.
-    Diagnostic,
-}
-
 /// What `[log] target` resolved to, read once per context.
 #[derive(Debug)]
 pub(super) enum LogTarget {
@@ -147,8 +127,8 @@ pub(super) enum LogTarget {
     /// returns here at [`Ctx::set_config`], so the read happens after the
     /// configuration is in place and never twice.
     Unread,
-    /// Read, and the configuration names no target.
-    /// Each writer keeps [`LogChannel`]'s own channel.
+    /// Read, and the configuration names no target: every writer writes the
+    /// diagnostic channel, through [`Ctx::write_diagnostic`].
     Unnamed,
     /// Read: both writers land here.
     Named(OutputSink),
@@ -170,13 +150,8 @@ pub(super) enum LogTarget {
 /// argument [`Ctx::stamp_envelope`] makes about the envelope.
 ///
 /// **A configuration that names no target writes to [`OutputSink::Stderr`]**,
-/// which is [`LogChannel::Diagnostic`]'s channel. The other value is not a
-/// choice this writer can make: [`LogChannel::Output`] is the program's own
-/// output through `rule:security/capture-answers-the-carrier`'s capture stack,
-/// and a writer that is no request has no program, no response body and no
-/// capture stack to reach — so the split a context makes between the two
-/// collapses to the engine's own channel, which is where the floor already puts
-/// a record about a program that is not running.
+/// the process's standard error, which is where a context's records go too
+/// when no target is named (`rule:errors/engine-floor`).
 ///
 /// **What it spends** (`rule:programs/memory-priority`): one resolved target per
 /// writer — a handle to the one shared file where the target is a file —
@@ -476,24 +451,26 @@ impl Ctx {
         write_to(&mut self.diagnostic, bytes)
     }
 
-    /// Writes one rendered record where `[log] target` says, and where
-    /// `unconfigured` says when the directive names nothing.
+    /// Writes one rendered record where `[log] target` says, and to the
+    /// diagnostic channel ([`Self::write_diagnostic`]) when the directive names
+    /// nothing.
     ///
-    /// **This is the only reader of that directive**, and both of
-    /// `rule:errors/record-producers`'s writers reach it: `Core\Log::write` with [`LogChannel::Output`]
-    /// and [`crate::floor::report`] with [`LogChannel::Diagnostic`]. That rule's
-    /// claim is about *sameness* — one serialiser, two callers — and a
+    /// **This is the only reader of that directive**, and every one of
+    /// `rule:errors/record-producers`'s writers reaches it: `Core\Log::write`,
+    /// [`crate::floor::report`] and the runtime's own warnings. That rule's
+    /// claim is about *sameness* — one serialiser, every caller — and a
     /// destination each caller resolved for itself is the second way that
     /// sameness could be lost after the record's shape.
     ///
-    /// **A named target wins over `Core\Out::capture`.** The record leaves
-    /// through the sink rather than through [`Self::write_output`], so `rule:security/capture-answers-the-carrier`
-    /// 's capture stack does not see it and `[limits] max_output` is not
-    /// charged for it. Both follow from what the directive means: an operator
-    /// naming a destination is saying where the deployment's records go, and a
-    /// program capturing its own output has said nothing about that. With no
-    /// target configured the record is still the program's output and both
-    /// rules apply to it exactly as before.
+    /// **A record never reaches the program's output.** It leaves through the
+    /// target's sink or the diagnostic channel and never through
+    /// [`Self::write_output`], so `rule:security/capture-answers-the-carrier`'s
+    /// capture stack does not see it and `[limits] max_output` is not charged
+    /// for it. Inside a request the program's output is the response body, and
+    /// a record carries the source path, the request id and every field
+    /// unescaped: none of that is a client's to read. The diagnostic channel is
+    /// the process's standard error in every context but a test's that points
+    /// it elsewhere ([`Self::set_diagnostic_sink`]).
     ///
     /// **`[log] level` is the floor, and it is read here for the same reason.**
     /// `rule:errors/log-level`'s last paragraph makes the directive the minimum level
@@ -535,16 +512,12 @@ impl Ctx {
     /// because a development server logs to its terminal and the viewer has no
     /// file to read. A dump is written with [`Self::write_dump_record`] instead,
     /// so it is one `dump` line and not a `log` line too.
-    pub fn write_log_record(
-        &mut self,
-        record: &Record,
-        unconfigured: LogChannel,
-    ) -> io::Result<()> {
+    pub fn write_log_record(&mut self, record: &Record) -> io::Result<()> {
         if !self.log_writes(record.envelope.level) {
             return Ok(());
         }
         self.spool_log(record);
-        self.emit_log_record(record, unconfigured)
+        self.emit_log_record(record)
     }
 
     /// Writes a `Core\Debug::dump` record as [`Self::write_log_record`] does,
@@ -554,15 +527,11 @@ impl Ctx {
     /// # Errors
     ///
     /// As [`Self::write_log_record`].
-    pub fn write_dump_record(
-        &mut self,
-        record: &Record,
-        unconfigured: LogChannel,
-    ) -> io::Result<()> {
+    pub fn write_dump_record(&mut self, record: &Record) -> io::Result<()> {
         if !self.log_writes(record.envelope.level) {
             return Ok(());
         }
-        self.emit_log_record(record, unconfigured)
+        self.emit_log_record(record)
     }
 
     /// Writes `record` to the debug spool as a `log` line: its level, its
@@ -621,18 +590,15 @@ impl Ctx {
         );
     }
 
-    /// Writes one record where `[log] target` says, once the floor let it by.
-    fn emit_log_record(&mut self, record: &Record, unconfigured: LogChannel) -> io::Result<()> {
+    /// Writes one record where `[log] target` says, once the floor let it by,
+    /// and to the diagnostic channel when it names nothing.
+    fn emit_log_record(&mut self, record: &Record) -> io::Result<()> {
         let rendered = rendered(self.log_format, record);
         let line = rendered.as_bytes();
         match &mut self.log {
-            LogTarget::Named(sink) => return write_to(sink, line),
-            LogTarget::Syslog => return crate::syslog::send(record.envelope.level, &rendered),
-            LogTarget::Unread | LogTarget::Unnamed => {}
-        }
-        match unconfigured {
-            LogChannel::Output => self.write_output(line),
-            LogChannel::Diagnostic => self.write_diagnostic(line),
+            LogTarget::Named(sink) => write_to(sink, line),
+            LogTarget::Syslog => crate::syslog::send(record.envelope.level, &rendered),
+            LogTarget::Unread | LogTarget::Unnamed => write_to(&mut self.diagnostic, line),
         }
     }
 
@@ -1866,11 +1832,8 @@ mod tests {
         })
     }
 
-    /// [`LogWriter`]'s own decision: with no request underneath it, a record
-    /// the configuration named no target for goes to the engine's channel.
-    /// [`LogChannel::Output`] is not a second answer this writer could give —
-    /// there is no program whose output it would be — so a tree that named
-    /// nothing lands on stderr, and one that named `syslog` lands in the daemon.
+    /// [`LogWriter`] resolves as a context does: a tree that named no target
+    /// lands on stderr, and one that named `syslog` lands in the daemon.
     #[test]
     fn a_writer_holding_no_request_sends_an_unconfigured_record_to_the_engines_channel() {
         assert!(
@@ -1889,12 +1852,13 @@ mod tests {
     }
 
     /// A context reads `syslog` to the same transport the writer does, so
-    /// both of `rule:errors/log-write`'s callers send a record there and neither keeps its own
-    /// channel.
+    /// every one of `rule:errors/log-write`'s callers sends a record there and
+    /// none of them keeps a channel of its own.
     #[cfg_attr(miri, ignore = "opens a Unix socket, which Miri does not emulate")]
     #[test]
-    fn a_context_sends_both_writers_to_syslog_when_the_target_names_it() {
+    fn a_context_sends_every_writer_to_syslog_when_the_target_names_it() {
         let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+        ctx.set_diagnostic_sink(OutputSink::Buffer(Vec::new()));
         ctx.set_config(snapshot("[log]\ntarget = \"syslog\"\n"));
         assert!(ctx.log_writes(Level::Critical));
         assert!(
@@ -1902,11 +1866,49 @@ mod tests {
             "a context named `syslog` resolved {:?}",
             ctx.log
         );
-        let _ = ctx.write_log_record(&Record::at(Level::Critical), LogChannel::Output);
+        let _ = ctx.write_log_record(&Record::at(Level::Critical));
         assert_eq!(
             ctx.take_buffered_output().unwrap_or_default(),
             b"",
             "a syslog record was also written to the program's own output"
+        );
+        assert_eq!(
+            ctx.take_buffered_diagnostic().unwrap_or_default(),
+            b"",
+            "a syslog record was also written to the diagnostic channel"
+        );
+    }
+
+    /// With no `[log] target`, a record goes to the diagnostic channel and
+    /// never to the program's output: not to a response body, and not into a
+    /// capture a program has open around the write (`rule:errors/engine-floor`).
+    #[test]
+    fn an_unconfigured_record_reaches_the_diagnostic_channel_and_never_the_body() {
+        let mut ctx = Ctx::new(OutputSink::Body(Vec::new()));
+        ctx.set_diagnostic_sink(OutputSink::Buffer(Vec::new()));
+        ctx.set_config(snapshot("[log]\nformat = \"json\"\n"));
+        ctx.write_output(b"<p>page</p>")
+            .expect("a body buffer cannot fail");
+        let mut record = Record::at(Level::Warn);
+        record.envelope.message = Some(nvs_render::Rendered::new("<img src=x>"));
+        ctx.write_log_record(&record)
+            .expect("a buffered channel cannot fail");
+        ctx.begin_capture();
+        ctx.write_log_record(&record)
+            .expect("a buffered channel cannot fail");
+        let captured = ctx.end_capture().expect("the capture was open");
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some(&b"<p>page</p>"[..]),
+            "a record reached the response body"
+        );
+        assert!(captured.is_empty(), "a capture took a record: {captured:?}");
+        let diagnostic = String::from_utf8(ctx.take_buffered_diagnostic().unwrap_or_default())
+            .expect("a record is UTF-8");
+        assert_eq!(
+            diagnostic.matches("\"level\":\"warn\"").count(),
+            2,
+            "both records reach the diagnostic channel: {diagnostic}"
         );
     }
 

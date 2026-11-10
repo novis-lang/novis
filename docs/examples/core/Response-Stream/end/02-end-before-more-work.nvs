@@ -8,9 +8,11 @@ $body->write("Your report is ready.\n");
 $body->end();
 
 // This work runs after the client has the whole body.
+// The log record goes to standard error, so it is the last line of the output.
 array<int> $values = [3, 4, 5];
 int $total = 0;
 foreach ($values as int $value) {
     $total = $total + $value;
 }
 Core\Log::write(Core\Log::Level::Info, 'report sent', ['total' => $total]);
+// proof: with-stderr

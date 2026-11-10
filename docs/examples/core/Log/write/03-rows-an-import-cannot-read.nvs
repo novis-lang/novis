@@ -1,5 +1,6 @@
 <?nvs
 // Shows how an import job logs each row it cannot read, and one summary at the end.
+// With no `[log] target` set, every record goes to standard error.
 
 // Each row is an order number and an amount. Two of these rows are broken.
 array<string> $rows = ['1042;19.99', '1043;abc', '1044;5.00', ';7.50'];
@@ -23,3 +24,4 @@ foreach ($rows as string $row) {
 
 // One record says how the whole import went. It has `"saved":2,"skipped":2`.
 Core\Log::write(Core\Log::Level::Info, 'the import finished', ['saved' => $saved, 'skipped' => $skipped]);
+// proof: with-stderr

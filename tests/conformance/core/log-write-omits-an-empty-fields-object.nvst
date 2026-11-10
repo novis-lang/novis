@@ -23,8 +23,16 @@ Core\Log::write(Core\Log::Level::Warn, "mixed", $several);
 // given.
 array<mixed> $none = [];
 Core\Log::write(Core\Log::Level::Info, "bare", $none);
+
+// With no `[log] target` the records go to standard error, and the runner reads
+// standard error only off a run that fails (`nvs_test::Case::expects_failure`).
+// This throw is what buys the section below; its last line is the floor's own
+// record for the throw. A property of the harness, not of `Core\Log`.
+throw new RuntimeError("the case ends here, so its standard error can be asserted");
 --EXPECT--
+--EXPECTF-ERROR--
 {"level":"info","msg":"bare","source":{"file":"case.nvs","line":5}}
 {"level":"info","msg":"given","source":{"file":"case.nvs","line":8},"fields":{"user":7}}
 {"level":"warn","msg":"mixed","source":{"file":"case.nvs","line":16},"fields":{"ratio":1.5,"retried":true,"codes":[1,2]}}
 {"level":"info","msg":"bare","source":{"file":"case.nvs","line":22}}
+{"level":"error","msg":"the case ends here, so its standard error can be asserted","fields":{"class":"RuntimeError"},"nodes":%s}

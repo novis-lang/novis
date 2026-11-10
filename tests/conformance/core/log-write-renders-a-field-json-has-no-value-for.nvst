@@ -17,6 +17,14 @@ Core\Log::write(Core\Log::Level::Error, "captured", $binary);
 // report with. So the record after this one is the next record, never the tail
 // of a failed write.
 Core\Log::write(Core\Log::Level::Info, "after");
+
+// With no `[log] target` the records go to standard error, and the runner reads
+// standard error only off a run that fails (`nvs_test::Case::expects_failure`).
+// This throw is what buys the section below; its last line is the floor's own
+// record for the throw. A property of the harness, not of `Core\Log`.
+throw new RuntimeError("the case ends here, so its standard error can be asserted");
 --EXPECT--
+--EXPECTF-ERROR--
 {"level":"error","msg":"captured","source":{"file":"case.nvs","line":9},"fields":{"payload":{"$bytes":"74657874"}}}
 {"level":"info","msg":"after","source":{"file":"case.nvs","line":16}}
+{"level":"error","msg":"the case ends here, so its standard error can be asserted","fields":{"class":"RuntimeError"},"nodes":%s}

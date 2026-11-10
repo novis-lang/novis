@@ -10,7 +10,9 @@
 //! `rule:packaging/a-fresh-instance-per-request`: an extension instance ends with its request, so
 //! requests past the process's instance places are all served. And
 //! `rule:http-server/four-idle-waits-all-finite`: a program that works past the
-//! body wait once its body is read is still answered.
+//! body wait once its body is read is still answered. And
+//! `rule:errors/engine-floor`: a record a request logs with no `[log] target`
+//! goes to standard error and never into the response body.
 //!
 //! [`Server`] starts the binary this test was built beside on a port the
 //! platform chose and reads the port back from the `listening on` line, as
@@ -129,6 +131,9 @@ impl Server {
             // Each time stop writes how late its clock woke to standard error, so a
             // failure message shows how many stops a request met.
             .env(nvs_runtime::SWEEP_LINES_ENV, "1")
+            // A process a service manager started logs to the data folder, so the server is
+            // started as a terminal starts it and its records reach standard error.
+            .env_remove("NOTIFY_SOCKET")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -840,5 +845,38 @@ fn every_request_in_flight_can_hold_an_extension_instance() {
             "request {request} of {HELD_LISTINGS} in flight together; the server wrote: {}",
             server.said()
         );
+    }
+}
+
+/// A program that logs the request's path and a query value, then prints a page.
+const LOGS_THEN_PRINTS: &str = "<?nvs\n\
+Core\\Log::write(Core\\Log::Level::Warn, 'not found: ' . Core\\Request::path(), \
+['q' => Core\\Request::query('q') ?? '']);\n\
+echo 'page';\n";
+
+/// `rule:errors/engine-floor`: with no `[log] target`, a record a request writes goes to the
+/// server's standard error, and the response body is exactly what the program printed. The
+/// query value is markup, so a record in the body would put it into the page unescaped.
+#[test]
+fn a_record_written_with_no_log_target_stays_out_of_the_response_body() {
+    let server = Server::serving("log-not-in-body", 1, LOGS_THEN_PRINTS, "", &[]);
+    let body = Client::connect(server.addr).get("/?q=%3Cimg%20src%3Dx%3E");
+    assert_eq!(
+        body,
+        "page",
+        "the body carries more than the program printed; the server wrote: {}",
+        server.said()
+    );
+
+    // The record was written before the answer was sent, so it is already in the pipe and
+    // only the reader thread can be behind.
+    let started = Instant::now();
+    while !server.said().contains("\"msg\":\"not found: /\"") {
+        assert!(
+            started.elapsed() <= BOUND,
+            "the record never reached standard error; the server wrote: {}",
+            server.said()
+        );
+        thread::sleep(Duration::from_millis(20));
     }
 }

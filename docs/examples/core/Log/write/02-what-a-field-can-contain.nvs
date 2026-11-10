@@ -1,5 +1,6 @@
 <?nvs
 // Shows the kinds of values a log field can contain, and how each one is written.
+// With no `[log] target` set, every record goes to standard error.
 
 // Numbers, `true`, `false` and `null` are written as JSON values.
 // A nested array is written as a nested JSON object.
@@ -18,3 +19,4 @@ Core\Log::write(Core\Log::Level::Info, 'order tags', $tags);
 
 // A line break in the message is written as `\n`. The record is still one line.
 Core\Log::write(Core\Log::Level::Warn, "the address has two lines:\nMain Street 1\nVienna");
+// proof: with-stderr

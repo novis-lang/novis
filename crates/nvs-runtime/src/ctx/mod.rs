@@ -916,8 +916,9 @@ pub struct Ctx {
     pending_fatal: bool,
     /// Where `echo` writes.
     output: OutputSink,
-    /// Where a **diagnostic** writes — `rule:errors/debug-dump`'s destination for a CLI `Core\Debug::dump`, and later for the log
-    /// target's own records.
+    /// Where a **diagnostic** writes — `rule:errors/debug-dump`'s destination for a CLI
+    /// `Core\Debug::dump`, and every log record's when `[log] target` names nothing
+    /// ([`Self::write_log_record`]).
     ///
     /// A second sink rather than another [`OutputSink`] variant, because the
     /// two channels differ in *where they go* and not in what is written to

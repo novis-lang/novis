@@ -202,7 +202,7 @@ impl Ctx {
         let mut record = nvs_render::Record::at(nvs_render::Level::Warn);
         self.stamp_envelope(&mut record.envelope);
         record.envelope.message = Some(nvs_render::Rendered::new(&line));
-        let _dropped = self.write_log_record(&record, crate::LogChannel::Diagnostic);
+        let _dropped = self.write_log_record(&record);
     }
 
     /// `[limits] memory_high_water` as a fraction, or `None` where the

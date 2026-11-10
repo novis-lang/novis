@@ -300,6 +300,18 @@ The runner then requires `nvs run`'s compile-error status, `1`, and a compile di
 the example's path shortened to its file name so it is the same on every host. `--bless` writes it
 the same way. Keep such an example to one error, so the `.out` shows the one rule it is about.
 
+## `// proof: with-stderr`
+
+Some of what a program shows is written to standard error: a `Core\Log::write` record with no
+`[log] target` goes there and never to standard output. An example whose point is such a record
+ends with:
+
+    // proof: with-stderr
+
+The `.out` beside it is then standard output followed by standard error, so the records come after
+everything the program printed. A comment in the example says that the record goes to standard
+error, so a reader who runs it knows where to look.
+
 ## `// proof: test`
 
 A testing feature is about what `nvs test` reports: which test passed, which failed and why, a skip

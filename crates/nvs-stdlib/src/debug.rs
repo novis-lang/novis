@@ -37,10 +37,8 @@
 //! other writers — so `[log] target`, `[log] level` and `[log] format` answer
 //! for it too, and a forgotten call in production is a line in whatever the
 //! deployment already collects rather than an engine-side channel nobody reads.
-//! With no target configured the fallback channel is the diagnostic one and not
-//! the program's output, which is the difference between this producer and
-//! `Core\Log::write`: a dump is something the engine writes *about* a program,
-//! not something the program said.
+//! With no target configured the record goes to the diagnostic channel, as
+//! every record does (`rule:errors/engine-floor`).
 //!
 //! **With `[debug] store` on, a dump is also one debug spool `dump` line**, in
 //! both rows, written through `nvs_runtime::Ctx::spool_dump`. Its log record
@@ -107,7 +105,7 @@
 use nvs_config::capability::{Cap, Scope};
 use nvs_render::plain::Colour;
 use nvs_render::{Level, Node, Record, Source};
-use nvs_runtime::{Ctx, DebugFlags, Fault, LogChannel, NvsArray, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{Ctx, DebugFlags, Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -443,7 +441,7 @@ nvs_runtime::nvs_helper! {
         // answer for every record write: a log target that could not be written
         // is not a reason to fail the program that was being debugged, and
         // `Core\Log::write` beside it makes the same call.
-        drop(ctx.write_dump_record(&record, LogChannel::Diagnostic));
+        drop(ctx.write_dump_record(&record));
         Ok(Value::null())
     }
 }

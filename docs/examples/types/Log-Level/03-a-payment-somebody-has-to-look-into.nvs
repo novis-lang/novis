@@ -2,6 +2,7 @@
 // The everyday job: one card, two tries, and a record the support desk can
 // find again tomorrow. The order number goes in the fields beside the message
 // instead of inside it, so a search for that order finds every line about it.
+// The records go to standard error.
 
 string $order = 'ORD-1042';
 array<bool> $tries = [false, false];
@@ -23,3 +24,4 @@ foreach ($tries as bool $wentThrough) {
 // `Error` is what somebody is expected to look into.
 array<mixed> $result = ['order' => $order, 'attempts' => 2];
 Core\Log::write(Core\Log::Level::Error, 'the order was not taken', $result);
+// proof: with-stderr

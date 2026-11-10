@@ -15,15 +15,13 @@ application code and the engine floor produce schema-identical records for the s
 // was written (`rule:errors/a-record-names-where-it-was-produced`, which the
 // floor has no call site for), and the floor's carries the frames this caller
 // has none of — one `nodes` entry per frame, which is
-// `rule:errors/record-producers`'s shape for the throw producer. What *does*
-// differ is the
-// channel: `rule:errors/log-write`'s application caller writes the program's own output, and
-// `nvs_runtime::floor` writes the diagnostic one, which is why this case has
-// both an `--EXPECT--` and an `--EXPECTF-ERROR--` section for one error.
+// `rule:errors/record-producers`'s shape for the throw producer. The channel
+// is the same too: with no `[log] target` both writers write standard error,
+// so the two lines follow each other there and standard output stays empty.
 Core\Log::write(Core\Log::Level::Error, "boom", ["class" => "RuntimeError"]);
 
 throw new RuntimeError("boom");
 --EXPECT--
-{"level":"error","msg":"boom","source":{"file":"case.nvs","line":20},"fields":{"class":"RuntimeError"}}
 --EXPECTF-ERROR--
+{"level":"error","msg":"boom","source":{"file":"case.nvs","line":18},"fields":{"class":"RuntimeError"}}
 {"level":"error","msg":"boom","fields":{"class":"RuntimeError"},"nodes":[{"function":"<script>","file":"case.nvs","line":%d}]}

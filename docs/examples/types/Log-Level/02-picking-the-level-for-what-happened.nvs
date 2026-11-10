@@ -1,7 +1,7 @@
 <?nvs
 // Which level something deserves is a decision, and it is worth making once.
 // Keeping it in a single place means two parts of your program are never loud
-// about the same thing in two different ways.
+// about the same thing in two different ways. The records go to standard error.
 
 class Report
 {
@@ -26,3 +26,4 @@ array<string> $events = [
 foreach ($events as string $outcome => string $message) {
     Core\Log::write(Report::levelFor($outcome), $message);
 }
+// proof: with-stderr
