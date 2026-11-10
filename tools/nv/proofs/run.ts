@@ -766,15 +766,21 @@ function declaredExit(source: string): number {
   return m ? Number(m[1]) : 0;
 }
 
+/** The queue worker's line when it could not open its database. An example with no `nvs.toml` of its
+ * own runs under the repository's, whose `[queue]` serves the fixtures and opens a PostgreSQL only
+ * some hosts run, so whether a run prints this line says which host ran it. */
+const QUEUE_WORKER_WARNING_RE = /^warning: no queue worker started: .*(?:\r?\n|$)/gm;
+
 /**
  * What an example's `.out` freezes: its standard output, or for a `proof: with-stderr` example its
- * standard output followed by its standard error, or for a `proof: compile-error` example the
- * diagnostic on standard error, with the example's path shortened to its file name in either slash
- * form, so the `.out` reads the same on every host and on the website.
+ * standard output followed by its standard error without the queue worker's warning, or for a
+ * `proof: compile-error` example the diagnostic on standard error, with the example's path shortened
+ * to its file name in either slash form, so the `.out` reads the same on every host and on the
+ * website.
  */
 export function exampleOutput(path: string, source: string, out: Pick<Ran, "stdout" | "stderr">): string {
   if (EXAMPLE_TEST_RE.test(source)) return testReport(out.stdout);
-  if (EXAMPLE_WITH_STDERR_RE.test(source)) return out.stdout + out.stderr;
+  if (EXAMPLE_WITH_STDERR_RE.test(source)) return out.stdout + out.stderr.replace(QUEUE_WORKER_WARNING_RE, "");
   if (!EXAMPLE_COMPILE_ERROR_RE.test(source)) return out.stdout;
   const name = basename(path);
   return out.stderr.replaceAll(path.replaceAll("\\", "/"), name).replaceAll(path.replaceAll("/", "\\"), name);

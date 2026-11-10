@@ -85,6 +85,19 @@ describe("a `proof: compile-error` example", () => {
   });
 });
 
+describe("a `proof: with-stderr` example", () => {
+  const source = "<?nvs\necho 1;\n// proof: with-stderr\n";
+
+  test("its `.out` is standard output, then standard error", () => {
+    expect(exampleOutput("a.nvs", source, { stdout: "1\n", stderr: "{\"level\":\"error\"}\n" })).toBe("1\n{\"level\":\"error\"}\n");
+  });
+
+  test("the queue worker's warning about a database this host lacks is not part of it", () => {
+    const stderr = "warning: no queue worker started: `[db.main]` at 127.0.0.1:15432 did not open: refused\r\n{\"level\":\"error\"}\n";
+    expect(exampleOutput("a.nvs", source, { stdout: "1\n", stderr })).toBe("1\n{\"level\":\"error\"}\n");
+  });
+});
+
 describe("a `proof: test` example", () => {
   test("its `.out` is the `nvs test` report without a duration", () => {
     const report = "  SumTest\n    ✓ itAdds                           0.3 ms\n    ✗ itFails                          12.0 ms\n      Core\\Test::assertSame failed: `$actual` is 4, `$expected` is 5\n    - itWaits                          0.0 ms\n      skipped: not yet\n\n  1 failed, 1 passed, 1 skipped, 0 flaky in 14 ms\n";
