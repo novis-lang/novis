@@ -152,8 +152,25 @@ impl<'a> Lowering<'a> {
         let method = call.method.clone();
         let core = nvs_types::core_symbol_of(&call.class, &call.method);
         let mark = self.temporaries_mark();
+        // The left operand is judged against the right one, exactly as
+        // `Self::lower_binary` judges its first operand: a held one is staged
+        // while the right one runs, and is fresh from then on. `lb`/`rb` are
+        // `true` while the slot owns the operand.
         let (lv, lty) = self.lower_expr(lhs, None, env, cur);
+        let l_aliasing = self.aliasing_read(lhs);
+        let l_held = lty.is_refcounted()
+            && l_aliasing
+            && !self.hold_borrowed(OperandSite::Ordering, lhs, lv, &[rhs], *cur);
+        let slot = self.temporaries_mark();
+        if l_held {
+            self.own_temporary(lv);
+        }
         let (rv, rty) = self.lower_expr(rhs, None, env, cur);
+        if l_held {
+            self.forget_temporary(slot);
+        }
+        let lb = l_aliasing && !l_held;
+        let rb = self.aliasing_read(rhs);
         assert!(
             matches!(lty, Ty::Object) && matches!(rty, Ty::Object),
             "nvs-ir: `nvs_types` recorded a `Comparable::compareTo` target for a comparison \
@@ -173,8 +190,8 @@ impl<'a> Lowering<'a> {
             // by nobody here, and a freshly built one (`Core\Time::now() <
             // $deadline`) is this frame's temporary to release — the opposite
             // of the transferring branch below.
-            for (v, operand) in [(lv, lhs), (rv, rhs)] {
-                if !self.aliasing_read(operand) {
+            for (v, borrowed) in [(lv, lb), (rv, rb)] {
+                if !borrowed {
                     self.own_temporary(v);
                 }
             }
@@ -198,8 +215,8 @@ impl<'a> Lowering<'a> {
             // frame's until the call takes it, so it is a temporary for the
             // check and the throw's landing block releases it.
             let check_mark = self.temporaries_mark();
-            for (v, operand) in [(lv, lhs), (rv, rhs)] {
-                if !self.aliasing_read(operand) {
+            for (v, borrowed) in [(lv, lb), (rv, rb)] {
+                if !borrowed {
                     self.own_temporary(v);
                 }
             }
@@ -212,8 +229,8 @@ impl<'a> Lowering<'a> {
             };
             let desc = self.emit_same_class_check(lv, rv, written, expr.span, env, cur);
             self.forget_temporaries_since(check_mark);
-            for (v, operand) in [(lv, lhs), (rv, rhs)] {
-                if self.aliasing_read(operand) {
+            for (v, borrowed) in [(lv, lb), (rv, rb)] {
+                if borrowed {
                     self.emit_retain(*cur, v);
                 }
             }

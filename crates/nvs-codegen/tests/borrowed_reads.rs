@@ -19,16 +19,35 @@ use nvs_ir::lower::OperandSite;
 /// strings of that length. Some heaps reuse a freed block only after many
 /// others, so the fill is large enough that the freed block is reused.
 const HOLDER: &str = r#"<?nvs
+class Version implements Comparable {
+    public string $tag;
+
+    public function constructor(string $tag) {
+        $this->tag = $tag;
+    }
+
+    public function compareTo(self $other): int {
+        return $this->tag == $other->tag ? 0 : 1;
+    }
+}
+
 class Holder {
     public string $s = "";
     public array<string> $items = [];
     public static string $shared = "";
+    public Version $v;
+
+    public function constructor() {
+        int $n = 1;
+        $this->v = new Version("old-" . $n . "-abcdefghijklmnop");
+    }
 
     public function replace(): string {
         int $n = 2;
         $this->s = "new-" . $n . "-abcdefghijklmnop";
         $this->items = ["new-" . $n . "-abcdefghijklmnop"];
         Holder::$shared = "new-" . $n . "-abcdefghijklmnop";
+        $this->v = new Version("new-" . $n . "-abcdefghijklmnop");
         array<string> $fill = [];
         for (int $i = 0; $i < 1024; $i++) {
             $fill[] = "fil-" . $n . "-abcdefghijklmnop";
@@ -45,6 +64,11 @@ class Holder {
     public function zero(): int {
         $this->replace();
         return 0;
+    }
+
+    public function sameVersion(): Version {
+        $this->replace();
+        return new Version("old-1-abcdefghijklmnop");
     }
 }
 
@@ -63,7 +87,8 @@ const READS: &[&str] = &["$h->s", "$h->items[0]", "Holder::$shared"];
 
 /// The statement that reads `read` at `site` and then calls `replace()`, or
 /// `None` where the site cannot contain that read: a string hole reads no
-/// static property, and an index base reads only an array.
+/// static property, an index base reads only an array, and an ordering reads
+/// only the object `$h->v`.
 fn statement(site: OperandSite, read: &str) -> Option<String> {
     match site {
         OperandSite::Concat => Some(format!("echo {read} . $h->replace();\n")),
@@ -89,6 +114,12 @@ fn statement(site: OperandSite, read: &str) -> Option<String> {
         OperandSite::IndexBase => read
             .strip_suffix("[0]")
             .map(|array| format!("echo {array}[$h->zero()] . \"!\";\n")),
+        // The read is an object, and `compareTo` reads its string after the
+        // right operand replaced it. It runs once, with the first read form.
+        OperandSite::Ordering if read == READS[0] => Some(format!(
+            "echo ($h->v <=> $h->sameVersion()) == 0 ? \"{OLD}!\" : \"lost\";\n"
+        )),
+        OperandSite::Ordering => None,
         other => panic!("borrowed_reads has no program for {other:?}; add one"),
     }
 }

@@ -54,6 +54,9 @@ pub enum OperandSite {
     CallableArgument,
     /// The base of an element read, read by the element read after its key.
     IndexBase,
+    /// The left operand of `<`, `<=`, `>`, `>=` or `<=>` over two objects,
+    /// read by `compareTo` after the right one.
+    Ordering,
 }
 
 impl OperandSite {
@@ -66,6 +69,7 @@ impl OperandSite {
         OperandSite::Argument,
         OperandSite::CallableArgument,
         OperandSite::IndexBase,
+        OperandSite::Ordering,
     ];
 }
 
