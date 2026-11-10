@@ -202,6 +202,15 @@ that local: an assignment, a compound assignment, `++` or `--`, a destructuring 
 So `$this->a . $this->b` and `$s . f($x)` cost nothing more. Safe default: if a form writes a local
 in a way the scan cannot see, a local is held like shared storage, at one more pair per operand.
 
+**What stage 1 settled while building it.** `ExprKind` is `#[non_exhaustive]` in another crate, so
+`Lowering::is_inert` lists every kind and still ends in a `_ => false` arm. That arm gives the safe
+answer: a new kind costs a pair until it is listed, never a freed read. "Inert" also takes a plain
+property, static property or element read whose base and key are inert and which has no `get` hook,
+because without it `$this->a . $this->b` would pay a pair. "Writes this local" reuses
+`Lowering::collect_reassigned_in_expr`, the scan the loop phis already trust. The retain
+`emit_concat` gives an unstaged leading piece stays: a borrowed leading piece reaches it only when
+`hold_borrowed` found nothing later can free it, and `Concat` consumes that reference.
+
 **Every operand site is named, and the proof reads the names.** The one function takes a value of a
 public enum `OperandSite` with one variant per consumer and an `ALL` list. The matrix test builds a
 program per variant from an exhaustive `match`. It fails naming a site whose first operand changed.
@@ -285,15 +294,15 @@ it. Then prove every site with a matrix that reads the site list.
 `is_aliasing_read` under `crates/nvs-ir/src/lower/`, as `file.rs:NN` and the consumer's function.
 The session writes the list under this stage as checkpoints.
 
-- [ ] Find the rule for operand order with `bun nv brief --where operand` and `--where evaluation`.
+- [x] Find the rule for operand order with `bun nv brief --where operand` and `--where evaluation`.
   Extend it, or write a new fragment with the cost line and the Declined list above
   (`docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:1`).
-- [ ] Add `OperandSite` with `ALL`, and the one function that lowers an operand given what follows
+- [x] Add `OperandSite` with `ALL`, and the one function that lowers an operand given what follows
   it (`docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:1`,
   `crates/nvs-ir/src/lower/mod.rs:4182`, `crates/nvs-ir/src/lower/call.rs:1153`).
-- [ ] Write the exhaustive `ExprKind` judgment: "can run code" and "writes this local"
+- [x] Write the exhaustive `ExprKind` judgment: "can run code" and "writes this local"
   (`crates/nvs-ir/src/lower/mod.rs:5249`, `crates/nvs-syntax/src/ast.rs:914`).
-- [ ] Move `.` concatenation and string holes to it, and delete the late retain
+- [x] Move `.` concatenation and string holes to it, and delete the late retain
   (`crates/nvs-ir/src/lower/expr.rs:3207`, `crates/nvs-ir/src/lower/expr.rs:3251`,
   `crates/nvs-ir/src/lower/expr.rs:1020`).
 - [ ] Move `==`, `!=`, the tagged comparisons and the `match` subject to it
@@ -303,12 +312,40 @@ The session writes the list under this stage as checkpoints.
 - [ ] Move an index's base and key, and a property chain's base, to it
   (`crates/nvs-ir/src/lower/expr.rs:6713`, `crates/nvs-ir/src/lower/expr.rs:5689`).
 - [ ] Move every other consumer the list names, then make `aliasing_read` private to the one function
-  (`crates/nvs-ir/src/lower/mod.rs:4182`).
-- [ ] Test `every_operand_site_keeps_a_borrowed_read_alive_across_later_code` in
+  (`crates/nvs-ir/src/lower/mod.rs:4182`). The `Explore` list, by file; each consumer that lowers
+  operands and reads them after later ones gets an `OperandSite` variant and a matrix row:
+  - [ ] `call.rs`: `lower_fixed_arg` 227/239, `lower_args_as_array` 405/440, `lower_options_arg`
+    571, `lower_callable_call` 862/883/921/930, `lower_erased_method_call` 1035,
+    `lower_callable_rebind` 1104/1107/1133.
+  - [ ] `expr.rs`: `lower_echo` 795, `lower_exit` 968, `convert_operand` 1046/1107/1135,
+    `lower_to_string_call` 1215/1234, `lower_coalesce` 1518-1643, `lower_isset_operand` 1784,
+    `lower_ternary` 1847-1895, `lower_match` 2058-2211, `lower_rendered_format` 2523,
+    `lower_format_placeholder` 2582, `lower_html_template_hole` 2758, `lower_array_key_as` 2898,
+    `lower_method_ref` 3457, `lower_spawn_script` 4122-4170, `lower_spawn_narrowing` 4258,
+    `lower_await` 4326, `lower_route_link` 4397, `lower_signing_settings` 4481, `lower_route_is`
+    4501, `lower_method_call` 4657/4732, `lower_union_member` 5619, `lower_property_access`
+    5809/5821, `lower_isinit` 6020, `lower_anon_object` 6248, `lower_shape_property_access` 6305,
+    `lower_keyed_property_access` 6353, `lower_key_name` 6405, `lower_keyed_property_assign` 6438,
+    `lower_shape_property_assign` 6501, `lower_array_literal` 6589-6644, `lower_index` 6751,
+    `lower_type_test` 6926, `lower_clone_expr` 7576.
+  - [ ] `operator.rs`: `lower_object_comparison` 177-216, `lower_not` 299, `lower_unary` 479,
+    `lower_null_identity` 607/618, `lower_carrier_concat` 669, `lower_binary` 946/996/1064/1097/1278.
+  - [ ] `convert.rs`: `convert` 79-357, `convert_or_null` 465, `lower_truthy_cond` 675,
+    `lower_conversion` 878-1011, `lower_nullable_shape_conversion` 1393,
+    `lower_tested_conversion` 1454, `lower_markup_lift` 1587, `lower_array_restamp` 1667,
+    `lower_nullable_membership` 2112.
+  - [ ] `mod.rs`: `lower_property_hook` 1938/1962, `bind_local` 3706, `lower_stored` 3721.
+  - [ ] `stmt.rs`: `lower_stmt` 188, `lower_expr_stmt` 510, `lower_read_modify_write` 710,
+    `stage_value_of` 1014, `lower_string_self_concat` 1093 (its leading piece is the local the
+    later operands may rebind), `lower_store` 1551/1680, `lower_destructure` 2387.
+  - [ ] `control.rs` `lower_switch` 729/779, `lower_foreach` 1045, `lower_foreach_cursor` 1466;
+    `exception.rs` `lower_throw` 44, `lower_unloaded_require` 72, `lower_catch` 841/896;
+    `anon_fn.rs` `lower_anon_fn` 264; `generator.rs` `lower_yield` 127.
+- [x] Test `every_operand_site_keeps_a_borrowed_read_alive_across_later_code` in
   `crates/nvs-codegen/tests/borrowed_reads.rs:1`. For each `OperandSite::ALL` entry and each read
   form (property, element of a property array, static property), it runs a program whose later
   operand replaces the storage and allocates blocks of the same size. It fails naming the site.
-- [ ] Test `a_local_read_survives_a_later_operand_that_rebinds_it` in the same file: a local and a
+- [x] Test `a_local_read_survives_a_later_operand_that_rebinds_it` in the same file: a local and a
   local array's element, each followed by an `inout` argument and by an assignment operand
   (`crates/nvs-codegen/tests/borrowed_reads.rs:1`).
 - [ ] Tests `a_read_followed_only_by_literals_and_locals_takes_no_reference` and
@@ -492,26 +529,30 @@ session writes each group under its stage as checkpoints, so stages 6 to 8 start
 
 ### State
 
-Nothing is built yet. The tree holds every defect in *Why*: the late retain in `lower_concat`, the
-empty `(Borrowed, true)` arm, the edge-less entry poll, and the position `expect` in
-`nvs_array_key_at`. No test named in the checks exists.
+Stage 1 has its machinery and its first two sites. `crates/nvs-ir/src/lower/operand.rs` holds
+`OperandSite` (`Concat`, `StringHole`), `Lowering::hold_borrowed`, the shared-or-local root of a
+read, and `is_inert`. `.` concatenation (`lower_concat`), interpolated-string holes and
+`Core\Str::format` arguments (`interpolated_hole`) call it. The rule is
+`docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md`, rendered.
+
+Three tests are green, each run once by name. `borrowed_reads.rs` has both of its tests, and both
+fail with `hold_borrowed` switched off. The lowering test
+`a_read_followed_only_by_literals_and_locals_takes_no_reference` counts retains. Not yet written:
+`every_borrow_judgment_passes_the_one_operand_lowering`, which goes red until every consumer has
+moved, so it lands with the last move. The attack is not written either.
+
+The acceptance sweep's `env-secret-proofs` red is stale. `looper check --name env-secret-proofs`
+finds no such check, and `.loop/last-sweep.md` still carries it from a retired goal.
 
 ### Next
 
-Stage 1, over `crates/nvs-ir/src/lower/mod.rs`, `call.rs`, `expr.rs` and `operator.rs`. An `Explore`
-subagent first lists every call of `aliasing_read` and `is_aliasing_read` under
-`crates/nvs-ir/src/lower/`.
+Stage 1 goes on. Each move is the same three steps. Add an `OperandSite` variant and its `ALL` entry
+(`crates/nvs-ir/src/lower/operand.rs:1`). Pass the expressions lowered after the operand to
+`hold_borrowed` where the consumer already judged it a borrow. Add the variant's program to
+`statement()` in `crates/nvs-codegen/tests/borrowed_reads.rs:1`. The consumer list is the
+checkpoints under stage 1's "Move every other consumer" item. The `Explore` line numbers predate
+this session's edits to `expr.rs`, so `bun nv peek --locate` each function first.
 
-- [ ] `docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:1`: find the
-  rule for operand order with `bun nv brief --where operand` and `--where evaluation`. Extend it, or
-  write that fragment.
-- [ ] `crates/nvs-ir/src/lower/mod.rs:4182`: add `OperandSite` with `ALL`, and the one function that
-  lowers an operand given what follows it (`crates/nvs-ir/src/lower/call.rs:1153`).
-- [ ] `crates/nvs-ir/src/lower/mod.rs:5249`: write the exhaustive `ExprKind` judgment, "can run
-  code" and "writes this local" (`crates/nvs-syntax/src/ast.rs:914`).
-- [ ] `crates/nvs-ir/src/lower/expr.rs:3207`: move `.` concatenation and string holes to it, and
-  delete the late retain (`crates/nvs-ir/src/lower/expr.rs:3251`,
-  `crates/nvs-ir/src/lower/expr.rs:1020`).
 - [ ] `crates/nvs-ir/src/lower/operator.rs:859`: move `==`, `!=`, the tagged comparisons and the
   `match` subject to it (`crates/nvs-ir/src/lower/expr.rs:2039`).
 - [ ] `crates/nvs-ir/src/lower/call.rs:497`: move `Core` member arguments and callable arguments to
@@ -519,17 +560,14 @@ subagent first lists every call of `aliasing_read` and `is_aliasing_read` under
 - [ ] `crates/nvs-ir/src/lower/expr.rs:6713`: move an index's base and key, and a property chain's
   base, to it (`crates/nvs-ir/src/lower/expr.rs:5689`).
 - [ ] `crates/nvs-ir/src/lower/mod.rs:4182`: move every other consumer the list names, then make
-  `aliasing_read` private to the one function.
-- [ ] `crates/nvs-codegen/tests/borrowed_reads.rs:1`: tests
-  `every_operand_site_keeps_a_borrowed_read_alive_across_later_code` and
-  `a_local_read_survives_a_later_operand_that_rebinds_it`.
-- [ ] `crates/nvs-ir/src/lower/tests.rs:1`: tests
-  `a_read_followed_only_by_literals_and_locals_takes_no_reference` and
-  `every_borrow_judgment_passes_the_one_operand_lowering`.
+  `aliasing_read` private to `operand.rs`.
+- [ ] `crates/nvs-ir/src/lower/tests.rs:1`: `every_borrow_judgment_passes_the_one_operand_lowering`,
+  once no `aliasing_read` call is left outside `operand.rs`.
 - [ ] `tests/hostile/lang/expressions/string-operators/02-an-operand-that-frees-the-one-before-it.nvs:1`:
   the attack, each consumer once, with a later operand that replaces the property.
 
-Expected red until stage 3 lands: none. Stage 3 changes IR snapshots under
-`crates/nvs-ir/src/lower/snapshots/`.
+Expected red: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` where a `.` spine or a string
+hole reads a property before a call. Each one gains a `retain` at the read, and the stage-9 gate
+accepts them after reading each diff. Stage 3 changes more snapshots.
 
 ### Backlog
