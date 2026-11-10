@@ -4138,6 +4138,30 @@ impl<'a> Lowering<'a> {
         // argument *means*: a path the child's resolver compiles, or a label
         // naming a method of the unit this frame is already running.
         let method = self.spawn_method_entry(path);
+        let written = |key: SpawnOptionKey| options.iter().find(|opt| opt.key == key);
+        // The option values in the order they lower, which is not the order
+        // they were written: what each earlier operand is read after.
+        let lowered_options: Vec<&Expr> = [
+            SpawnOptionKey::Args,
+            SpawnOptionKey::Output,
+            SpawnOptionKey::On,
+            SpawnOptionKey::Limits,
+            SpawnOptionKey::Grants,
+        ]
+        .into_iter()
+        .filter_map(|key| written(key).map(|opt| &opt.value))
+        .collect();
+        let after = |key: SpawnOptionKey| -> Vec<&Expr> {
+            match written(key) {
+                Some(opt) => lowered_options
+                    .iter()
+                    .skip_while(|e| !std::ptr::eq(**e, &opt.value))
+                    .skip(1)
+                    .copied()
+                    .collect(),
+                None => Vec::new(),
+            }
+        };
         let (path_v, path_ty) = match &method {
             // A constant, not the operand: a method reference
             // lowered as an expression would build a `callable` value, which is
@@ -4146,14 +4170,29 @@ impl<'a> Lowering<'a> {
             Some((label, _)) => self.emit(*cur, Ty::Str, InstKind::ConstStr(label.clone())),
             None => self.lower_expr(path, Some(Ty::Str), env, cur),
         };
-        let aliasing = method.is_none() && self.aliasing_read(path);
+        let aliasing = method.is_none()
+            && self.borrowed_arg(
+                OperandSite::Argument,
+                path,
+                (path_v, path_ty),
+                ArgOwnership::Borrowed,
+                &lowered_options,
+                *cur,
+            );
         self.account_for_arg(path_v, path_ty, ArgOwnership::Borrowed, aliasing, *cur);
 
-        let written = |key: SpawnOptionKey| options.iter().find(|opt| opt.key == key);
         let args_v = match written(SpawnOptionKey::Args) {
             Some(opt) => {
                 let (v, ty) = self.lower_expr(&opt.value, Some(Ty::Tagged), env, cur);
-                let aliasing = self.aliasing_read(&opt.value);
+                // Transferred, so it is retained at its read and needs no hold.
+                let aliasing = self.borrowed_arg(
+                    OperandSite::Argument,
+                    &opt.value,
+                    (v, ty),
+                    ArgOwnership::Transferred,
+                    &[],
+                    *cur,
+                );
                 let v = self.coerce(*cur, v, ty, Ty::Tagged, env);
                 // The one transferred argument. A value the frame still owns
                 // is retained first, so the reference the child consumes is a
@@ -4173,7 +4212,15 @@ impl<'a> Lowering<'a> {
         let output_v = match written(SpawnOptionKey::Output) {
             Some(opt) => {
                 let (v, ty) = self.lower_expr(&opt.value, Some(Ty::Str), env, cur);
-                let aliasing = self.aliasing_read(&opt.value);
+                let later = after(SpawnOptionKey::Output);
+                let aliasing = self.borrowed_arg(
+                    OperandSite::Argument,
+                    &opt.value,
+                    (v, ty),
+                    ArgOwnership::Borrowed,
+                    &later,
+                    *cur,
+                );
                 self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
                 v
             }
@@ -4194,7 +4241,15 @@ impl<'a> Lowering<'a> {
             // apart rather than a core to be told about.
             Some(opt) => {
                 let (v, ty) = self.lower_expr(&opt.value, Some(Ty::Str), env, cur);
-                let aliasing = self.aliasing_read(&opt.value);
+                let later = after(SpawnOptionKey::On);
+                let aliasing = self.borrowed_arg(
+                    OperandSite::Argument,
+                    &opt.value,
+                    (v, ty),
+                    ArgOwnership::Borrowed,
+                    &later,
+                    *cur,
+                );
                 self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
                 v
             }
@@ -4214,8 +4269,10 @@ impl<'a> Lowering<'a> {
         // crosses into the child, only the narrowing decoded from it — which is
         // also why they are lowered here rather than folded to constants, since
         // a sub-cap may be any expression of the shape's type.
-        let limits_v = self.lower_spawn_narrowing(written(SpawnOptionKey::Limits), env, cur);
-        let grants_v = self.lower_spawn_narrowing(written(SpawnOptionKey::Grants), env, cur);
+        let limits_later = after(SpawnOptionKey::Limits);
+        let limits_v =
+            self.lower_spawn_narrowing(written(SpawnOptionKey::Limits), &limits_later, env, cur);
+        let grants_v = self.lower_spawn_narrowing(written(SpawnOptionKey::Grants), &[], env, cur);
 
         // `rule:security/isolate-shares-nothing` binds `args:`'s entries to the entry's own
         // parameters **by name**, which is a question only the declaration
@@ -4276,13 +4333,22 @@ impl<'a> Lowering<'a> {
     fn lower_spawn_narrowing(
         &mut self,
         written: Option<&SpawnOption>,
+        later: &[&Expr],
         env: &mut Env,
         cur: &mut BlockId,
     ) -> ValueId {
         let (v, ty, aliasing) = match written {
             Some(opt) => {
                 let (v, ty) = self.lower_expr(&opt.value, Some(Ty::Tagged), env, cur);
-                (v, ty, self.aliasing_read(&opt.value))
+                let aliasing = self.borrowed_arg(
+                    OperandSite::Argument,
+                    &opt.value,
+                    (v, ty),
+                    ArgOwnership::Borrowed,
+                    later,
+                    *cur,
+                );
+                (v, ty, aliasing)
             }
             None => {
                 let (v, _) = self.emit(*cur, Ty::Null, InstKind::ConstNull);
@@ -4415,13 +4481,26 @@ impl<'a> Lowering<'a> {
         // An omitted `$params` is `[]`, evaluated after everything written, so
         // the settings, if any, come first.
         let settings_first = settings_at.filter(|at| params_at.is_none_or(|params| *at < params));
+        let settings_last = settings_at.filter(|at| params_at.is_some_and(|params| *at > params));
+        let params_expr = params_at.map(|at| &list[at].value);
         if let Some(at) = settings_first {
-            self.lower_signing_settings(&list[at].value, env, cur, &mut settings);
+            let after: Vec<&Expr> = params_expr.into_iter().collect();
+            self.lower_signing_settings(&list[at].value, &after, env, cur, &mut settings);
         }
-        let params = match params_at {
-            Some(at) => {
-                let (params, params_ty) = self.lower_expr(&list[at].value, None, env, cur);
-                let aliasing = self.aliasing_read(&list[at].value);
+        let params = match params_expr {
+            Some(written) => {
+                let (params, params_ty) = self.lower_expr(written, None, env, cur);
+                let later = settings_last
+                    .map(|at| Self::signing_fields(self.src, &list[at].value).to_vec())
+                    .unwrap_or_default();
+                let aliasing = self.borrowed_arg(
+                    OperandSite::Argument,
+                    written,
+                    (params, params_ty),
+                    ArgOwnership::Borrowed,
+                    &later,
+                    *cur,
+                );
                 self.account_for_arg(params, params_ty, ArgOwnership::Borrowed, aliasing, *cur);
                 params
             }
@@ -4440,8 +4519,8 @@ impl<'a> Lowering<'a> {
             }
         };
         lowered.push(params);
-        if let Some(at) = settings_at.filter(|at| params_at.is_some_and(|params| *at > params)) {
-            self.lower_signing_settings(&list[at].value, env, cur, &mut settings);
+        if let Some(at) = settings_last {
+            self.lower_signing_settings(&list[at].value, &[], env, cur, &mut settings);
         }
         lowered.extend(settings);
         let symbol = match (signed.is_some(), absolute) {
@@ -4483,10 +4562,33 @@ impl<'a> Lowering<'a> {
     fn lower_signing_settings(
         &mut self,
         written: &Expr,
+        after: &[&Expr],
         env: &mut Env,
         cur: &mut BlockId,
         out: &mut Vec<ValueId>,
     ) {
+        let [keys, until] = Self::signing_fields(self.src, written);
+        // Each field is read after the fields that follow it and after the
+        // arguments lowered once the settings are done.
+        let keys_later: Vec<&Expr> = std::iter::once(until).chain(after.iter().copied()).collect();
+        for (value, later) in [(keys, keys_later.as_slice()), (until, after)] {
+            let (v, ty) = self.lower_expr(value, None, env, cur);
+            let aliasing = self.borrowed_arg(
+                OperandSite::Argument,
+                value,
+                (v, ty),
+                ArgOwnership::Borrowed,
+                later,
+                *cur,
+            );
+            self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
+            out.push(v);
+        }
+    }
+
+    /// The `keys` and `until` field values of `urlSigned`'s settings, in the
+    /// order they lower. See [`Self::lower_signing_settings`] for its panics.
+    fn signing_fields<'e>(src: &nvs_diagnostics::SourceFile, written: &'e Expr) -> [&'e Expr; 2] {
         let ExprKind::AnonObject(fields) = &written.kind else {
             panic!(
                 "nvs-ir: `Core\\Router::urlSigned`'s settings lowered from something that is not \
@@ -4494,21 +4596,18 @@ impl<'a> Lowering<'a> {
                  E_OPTIONS_NOT_AN_ANON_OBJECT"
             )
         };
-        for name in ["keys", "until"] {
+        ["keys", "until"].map(|name| {
             let field = fields
                 .iter()
-                .find(|field| span_text(self.src, field.name) == name)
+                .find(|field| span_text(src, field.name) == name)
                 .unwrap_or_else(|| {
                     panic!(
                         "nvs-ir: `Core\\Router::urlSigned`'s settings omitted `{name}`, which \
                          nvs_stdlib::signature::SIGNING declares with no default"
                     )
                 });
-            let (v, ty) = self.lower_expr(&field.value, None, env, cur);
-            let aliasing = self.aliasing_read(&field.value);
-            self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
-            out.push(v);
-        }
+            &field.value
+        })
     }
 
     /// `$match->is(Shop::show)` with the reference folded to `handler`: the
