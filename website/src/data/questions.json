@@ -1241,13 +1241,13 @@
   },
   "/reference/cli/nvs-config-check-and-nvs-config-dump/": {
     "feature": "tools:cli/nvs-config-check-and-nvs-config-dump",
-    "hash": "c36fa99573937490",
+    "hash": "359ea3eb0feb3cb8",
     "questions": [
       "Validate my nvs.toml configuration before deploying",
       "Run a configuration check in my CI pipeline",
-      "Compare the settings of two environments as TOML",
       "Check that my service account accepts the owner of each config file",
       "Find unknown keys or broken includes in my config",
+      "Catch a memory limit that is above its hard ceiling",
       "Is a setting a default value or set by a file?"
     ]
   },

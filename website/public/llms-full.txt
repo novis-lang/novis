@@ -58309,9 +58309,8 @@ Naming files positionally is the same as `--config`. Neither command creates the
   line: `ok: 2 files, 4 directives set, 1 override, 0 warnings`. It exits `1` on anything the tree
   refuses: a TOML syntax error, an unknown key (`E0601`), a missing or cyclic include (`E0605`,
   `E0606`), an `[[app]]` block naming both `root` and `entry` or neither (`E0609`), a secret with
-  both `password` and `password_file` (`E0608`). It does **not** check whether a value is a valid
-  quantity, or whether a default lies under its own `[limits.hard]` ceiling: `memory = "12
-  bananas"` passes `config check` in this build.
+  both `password` and `password_file` (`E0608`), and a `[limits]` value that is not a valid
+  quantity or is above its `[limits.hard]` ceiling (`E0601`).
 - `config check --as <account>` also checks who owns each file and who can write it. It checks the
   files for `<account>`, the account that will run `nvs serve`. A file that `nvs serve` would not
   read as that account is `E0607`, with the same help `nvs serve` prints. On Unix, `<account>` is a
