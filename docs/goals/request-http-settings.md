@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-stdlib/src/response.rs, crates/nvs-config/src/directive.rs, docs/rules/config/three-changeability-classes.md]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: headers-follow-the-request
@@ -181,37 +181,27 @@ standing decision with one test that reads the key list.
 
 ### 3. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 and 2 are done. A request's `[http.headers]`, `[http.cors]` and `[http.cookies]` settings
-reach its response. `nvs_config::Request::cookies` folds the cookie settings, and
-`configured_cookies` in `crates/nvs-stdlib/src/response.rs` reads it, so `addCookie` and the session
-cookie both follow. `set` returns `false` for the four keys in `UNREAD_BY_A_REQUEST`
-(`crates/nvs-config/src/request.rs`) and for an unknown `same_site`. The outbound-call keys already
-read `Request::get`. `nvs_config::request::keys()` exposes the leaf-key roster `set` reads.
-`every_http_setting_a_request_may_set_reaches_its_response` walks it and passes by name. The `[http]`
-example, its `about.md`, the attack's step 6 and the rule fragments follow. Build and clippy are
-green.
+All three stages are done. The first `looper verify` failed on rustfmt and two stale rule chapters,
+fixed in `e24b070633`; the second was green, the examples and hostile suites included. The
+goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes request-http-settings` and
+`bun nv ci --check`. That last one needed the `[http]` `about.md` cut under 200 words, the page's
+questions restamped, the stale perf of the response, script, sse and crypto members recorded, and a
+roadmap theme for this goal.
 
-The acceptance sweep's `env-secret-proofs` red has no log and no definition in the tree, so it is
-stale.
+The acceptance sweep's `env-secret-proofs` red is stale: `looper check --name env-secret-proofs`
+finds no such check, and its log does not exist.
 
 ### Next
 
-Stage 3, the gate. Run `looper verify` in the background, fix every failure in one pass, and run it
-once more. Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes
-request-http-settings` and `bun nv ci --check`.
-
-- [ ] `docs/examples/config/http/01-what-a-response-is-shaped-by.nvs:1`: the examples test reads its
-  new `.out`.
-
-Tests that may go red: the examples and hostile suites over `docs/examples/config/http/` and
-`tests/hostile/config/http/`. Each passed when run by hand against the debug binary.
+Nothing in this goal. The retire hooks rebuild `target/release/nvs`. The roadmap theme in
+`website/src/data/roadmap.json` goes when the goal leaves the chain. No test is expected red.
 
 ### Backlog
