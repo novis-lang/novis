@@ -1097,6 +1097,9 @@ fn enroll(shared: &Arc<Shared>, core: Option<(CpuId, DeadlineView)>) -> Registra
     // first registration in the process installs it. Idempotent after that.
     nvs_runtime::install_cpu_spent(tree_spent);
     nvs_runtime::install_cpu_lowered(wake_for_lowered_ceiling);
+    // And a reroot moves the running task's charge to the fresh tree, which
+    // matters only where a meter charges trees, so here too.
+    nvs_runtime::install_tree_replaced(crate::scheduler::charge_rerooted_task);
     let mut state = lock(&shared.state);
     let id = state.next_id;
     state.next_id += 1;
@@ -3052,6 +3055,71 @@ mod tests {
             neighbour_charge < ceiling / 2,
             "the request beside the child was charged {neighbour_charge:?} for the child's loop"
         );
+    }
+
+    /// A connection's context starts a new tree for each request it serves
+    /// (`Ctx::reroot`), and the connection's task parks through
+    /// [`crate::scheduler::suspend_current`], which names no tree. Every later
+    /// turn of the task is charged to the new tree, which is the one published,
+    /// and never to the address of the tree it left: a later tree on this core
+    /// may be given that address.
+    #[test]
+    fn a_rerooted_connection_task_is_charged_to_its_new_tree() {
+        use crate::scheduler::{Scheduler, Waiting, suspend_current};
+        use std::cell::Cell;
+
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let clocked = ThreadClock::current().is_some();
+        let shared = Arc::clone(&dog.shared);
+        let watchdog = &dog;
+        let read = std::thread::scope(|scope| {
+            scope
+                .spawn(move || {
+                    let _installed = install(Reactor::new().expect("the OS refused a poll"));
+                    let _core = watchdog.register_requests();
+                    let mut sched = Scheduler::new();
+                    let read = Rc::new(Cell::new(None));
+                    let into = Rc::clone(&read);
+                    sched.spawn(capped(a_minute()), TaskRoot::Request, move |ctx| {
+                        let left = ctx.tree_key();
+                        ctx.reroot();
+                        let _published = publish_here(ctx.safepoint_view());
+                        let _ = suspend_current(Waiting::Yielded);
+                        let charging = running_tree();
+                        if clocked {
+                            burn_a_charge();
+                        }
+                        into.set(Some((
+                            left,
+                            ctx.tree_key(),
+                            charging,
+                            charged_on(&shared, &ctx.safepoint_view()),
+                        )));
+                    });
+                    run_until_idle(&mut sched).expect("the loop failed");
+                    read.get()
+                })
+                .join()
+                .expect("the core panicked")
+        });
+        let (left, entered, charging, charge) = read.expect("the task never ran");
+        assert_ne!(
+            left, entered,
+            "the reroot kept the tree's address, so nothing here moved"
+        );
+        assert_eq!(
+            charging, entered,
+            "the task's turn after the reroot was charged to {charging:#x}, the tree it left \
+             is {left:#x} and its new one {entered:#x}"
+        );
+        if clocked {
+            let charge = charge.expect("the new tree was not published");
+            assert!(
+                charge >= Duration::from_millis(20),
+                "the new tree was charged {charge:?} for a turn that spent 20 ms"
+            );
+        }
     }
 
     /// `rule:http-server/a-core-is-never-blocked-on-a-syscall`: CPU a request's

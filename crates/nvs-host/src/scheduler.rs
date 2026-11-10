@@ -659,8 +659,9 @@ struct Task {
     /// The request tree this task runs for, as [`nvs_runtime::Ctx::tree_key`]
     /// names it: taken from the context it was spawned with, and taken again
     /// at each suspension, because a connection's context starts a new tree
-    /// for each request it serves (`Ctx::reroot`) and a placed child's task
-    /// moves to its child's tree ([`charge_running_task_to`]).
+    /// for each request it serves (`Ctx::reroot`, which moves the task through
+    /// [`charge_rerooted_task`]) and a placed child's task moves to its child's
+    /// tree ([`charge_running_task_to`]).
     /// [`Scheduler::run`] hands it to [`crate::watchdog::switch_to`] before
     /// every resume, so the CPU time the task spends is charged to its own
     /// request.
@@ -1735,6 +1736,19 @@ pub(crate) fn charge_running_task_to(tree: usize) {
     running.tree = tree;
     RUNNING.set(Some(running));
     crate::watchdog::switch_to(tree);
+}
+
+/// Charges the running task to `new` where it was charged to `old`: the
+/// [`nvs_runtime::TreeReplaced`] the watchdog installs, which
+/// [`nvs_runtime::Ctx::reroot`] calls when it replaces a connection's tree.
+///
+/// A task charged to another tree is left where it is, so a reroot of a
+/// context the running task is not running moves nothing. Off a task, it does
+/// nothing.
+pub(crate) fn charge_rerooted_task(old: usize, new: usize) {
+    if RUNNING.get().is_some_and(|running| running.tree == old) {
+        charge_running_task_to(new);
+    }
 }
 
 /// The task running on this core right now, if there is one.

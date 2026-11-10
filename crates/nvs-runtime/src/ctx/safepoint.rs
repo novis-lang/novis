@@ -242,6 +242,10 @@ impl Ctx {
             // was read in, so bytes the old request allocated and the new one
             // frees are given back where they were charged.
             crate::budget::reroot_turn(&old, &self.tree);
+            // And the task running it is charged CPU time under the fresh tree,
+            // read while `old` is still alive so no later tree can share its
+            // address: [`TreeReplaced`] owns why.
+            tree_replaced(std::sync::Arc::as_ptr(&old).addr(), self.tree_key());
             // Beside the handle and never without it, for
             // [`Self::share_safepoint_with`]'s reason: the hot slot may not name
             // a word this context holds no share of.
@@ -1432,6 +1436,39 @@ pub fn install_cpu_lowered(wake: CpuLowered) {
 pub(super) fn cpu_lowered(left: u64, earlier: bool) {
     if let Some(wake) = CPU_LOWERED.get() {
         wake(left, earlier);
+    }
+}
+
+/// Tells the scheduler running the calling thread that [`Ctx::reroot`] replaced
+/// the tree whose [`Ctx::tree_key`] is the first argument with the one whose key
+/// is the second. The host installs it with [`install_tree_replaced`], for the
+/// same reason as [`CpuSpent`].
+///
+/// A connection's task parks with no context in hand, so the scheduler keeps
+/// charging the key the task last stated. Without this, every turn after a
+/// reroot is charged to the old tree's address, which is freed, and which the
+/// next tree made on the core may be given: the connection's CPU time is then
+/// charged to an unrelated request.
+///
+/// **What it spends:** one load and one call per reroot that replaces the
+/// tree, which is a served request, and nothing on a reroot that resets the
+/// tree in place.
+pub type TreeReplaced = fn(usize, usize);
+
+/// The process's [`TreeReplaced`], or none before a host installs one.
+static TREE_REPLACED: std::sync::OnceLock<TreeReplaced> = std::sync::OnceLock::new();
+
+/// Installs the process's [`TreeReplaced`]. The first call wins, as with
+/// [`install_cpu_spent`].
+pub fn install_tree_replaced(replaced: TreeReplaced) {
+    let _ = TREE_REPLACED.set(replaced);
+}
+
+/// Calls the installed [`TreeReplaced`] with `old` and `new`, or does nothing
+/// before a host installs one.
+fn tree_replaced(old: usize, new: usize) {
+    if let Some(replaced) = TREE_REPLACED.get() {
+        replaced(old, new);
     }
 }
 
