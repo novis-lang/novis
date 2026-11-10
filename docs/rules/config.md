@@ -1239,6 +1239,14 @@ does not, and for directives that only ever narrow, such as `open_basedir`. The 
 one question only — *who may set it*. What applying a change requires is a second field on the same
 entry ([`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)).
 
+A key nothing reads while a request runs is not settable, whatever its block's class: `set` returns
+`false` for it, because a `true` would change nothing. Under `[http]`, the `Runtime` block, these are
+`http.cors.methods`, `http.cors.headers` and `http.cors.max_age`, which shape only a preflight
+answered before any program runs, and `http.errors.detail`, which shapes the page of a request that
+never got a frame. `http.csrf_key`, `http.csrf_key_file`, `[http.client.tls]`, `[http.client.proxy]`
+and the outbound pool's two caps are `System`. `nvs_config::request::UNREAD_BY_A_REQUEST` is the
+list, and `crates/nvs-cli/tests/request_http_settings.rs` walks every `http.*` key against it.
+
 The ceiling is `[limits.hard]`, and a key it does not write is the value the run started with, so a
 `Runtime` limit widens only where the operator wrote a ceiling above its start
 ([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)).

@@ -638,8 +638,14 @@ impl BodySlot {
         let mut all = ranged.headers;
         all.extend(headers);
         let window = ranged.window;
-        self.open_sized(content_type, ranged.status.or(status), all, http, window.length())
-            .map(|emit| (emit, window))
+        self.open_sized(
+            content_type,
+            ranged.status.or(status),
+            all,
+            http,
+            window.length(),
+        )
+        .map(|emit| (emit, window))
     }
 
     /// [`Self::open`] for `rule:core-classes/html-later`'s slotted page, whose

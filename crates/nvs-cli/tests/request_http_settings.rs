@@ -73,11 +73,14 @@ type Check = fn(&Answer) -> bool;
 /// row here covers.
 fn response_probe(key: &str) -> Option<(&'static str, Check)> {
     let probe: (&'static str, Check) = match key {
-        "http.headers.content_type_options" => ("false", |a| {
-            a.header("x-content-type-options").is_none()
-        }),
+        "http.headers.content_type_options" => {
+            ("false", |a| a.header("x-content-type-options").is_none())
+        }
         "http.headers.frame_ancestors" => ("https://c.example", |a| {
-            a.has("content-security-policy", "frame-ancestors https://c.example")
+            a.has(
+                "content-security-policy",
+                "frame-ancestors https://c.example",
+            )
         }),
         "http.headers.referrer_policy" => ("no-referrer", |a| {
             a.header("referrer-policy") == Some("no-referrer")
@@ -89,9 +92,9 @@ fn response_probe(key: &str) -> Option<(&'static str, Check)> {
         "http.headers.content_security_policy" => ("default-src https:", |a| {
             a.has("content-security-policy", "default-src https:")
         }),
-        "http.headers.permissions_policy" => ("usb=(self)", |a| {
-            a.has("permissions-policy", "usb=(self)")
-        }),
+        "http.headers.permissions_policy" => {
+            ("usb=(self)", |a| a.has("permissions-policy", "usb=(self)"))
+        }
         "http.cors.origins" => ("https://a.example", |a| {
             a.header("access-control-allow-origin").is_none()
         }),
@@ -102,10 +105,12 @@ fn response_probe(key: &str) -> Option<(&'static str, Check)> {
             a.has("access-control-expose-headers", "X-Probe")
         }),
         "http.cookies.secure" => ("false", |a| {
-            a.header("set-cookie").is_some_and(|c| !c.contains("Secure"))
+            a.header("set-cookie")
+                .is_some_and(|c| !c.contains("Secure"))
         }),
         "http.cookies.http_only" => ("false", |a| {
-            a.header("set-cookie").is_some_and(|c| !c.contains("HttpOnly"))
+            a.header("set-cookie")
+                .is_some_and(|c| !c.contains("HttpOnly"))
         }),
         "http.cookies.same_site" => ("Strict", |a| a.has("set-cookie", "SameSite=Strict")),
         "http.cookies.path" => ("/app", |a| a.has("set-cookie", "Path=/app")),
@@ -179,7 +184,12 @@ impl Server {
         thread::spawn(move || {
             for line in BufReader::new(out_pipe).lines().map_while(Result::ok) {
                 if let Some(rest) = line.strip_prefix("listening on http://") {
-                    let _ = sent.send(rest.split_whitespace().next().unwrap_or_default().to_owned());
+                    let _ = sent.send(
+                        rest.split_whitespace()
+                            .next()
+                            .unwrap_or_default()
+                            .to_owned(),
+                    );
                 }
             }
         });
@@ -210,8 +220,11 @@ impl Server {
             .iter()
             .map(|(name, value)| format!("{name}: {value}\r\n"))
             .collect();
-        write!(stream, "GET {path} HTTP/1.0\r\nHost: localhost\r\n{extra}\r\n")
-            .expect("the request is sent");
+        write!(
+            stream,
+            "GET {path} HTTP/1.0\r\nHost: localhost\r\n{extra}\r\n"
+        )
+        .expect("the request is sent");
         let mut raw = Vec::new();
         stream
             .read_to_end(&mut raw)

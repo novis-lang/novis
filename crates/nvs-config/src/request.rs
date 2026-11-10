@@ -539,7 +539,11 @@ impl Request {
     #[must_use]
     pub fn cookies(&self) -> crate::http::Cookies {
         let http = self.base.config.http.as_ref();
-        if !self.overlay.keys().any(|key| key.starts_with("http.cookies.")) {
+        if !self
+            .overlay
+            .keys()
+            .any(|key| key.starts_with("http.cookies."))
+        {
             return crate::http::Cookies::of(http);
         }
         crate::http::Cookies::of(Some(&crate::http::folded(http, self.http_settings())))
