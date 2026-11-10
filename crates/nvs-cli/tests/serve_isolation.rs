@@ -560,9 +560,14 @@ fn once(addr: SocketAddr, path: &str) -> (String, bool) {
     (code, retry_after.is_some())
 }
 
-/// `nvs_memory_bytes{scope="request"}` as a scrape of `port` reads it. The scrape port may open a
-/// moment after the server's own, so a refused connection is tried again for up to [`BOOT`].
+/// `nvs_memory_bytes{scope="request"}` as a scrape of `port` reads it.
 fn request_memory(port: u16, server: &Server) -> f64 {
+    scraped(port, server, "nvs_memory_bytes{scope=\"request\"}")
+}
+
+/// The value of `series` as a scrape of `port` reads it. The scrape port may open a moment after
+/// the server's own, so a refused connection is tried again for up to [`BOOT`].
+fn scraped(port: u16, server: &Server, series: &str) -> f64 {
     let started = Instant::now();
     let mut stream = loop {
         match TcpStream::connect(("127.0.0.1", port)) {
@@ -586,17 +591,53 @@ fn request_memory(port: u16, server: &Server) -> f64 {
         .read_to_string(&mut raw)
         .expect("the scrape is answered");
     raw.lines()
-        .find_map(|line| line.strip_prefix("nvs_memory_bytes{scope=\"request\"} "))
+        .find_map(|line| line.strip_prefix(series)?.strip_prefix(' '))
         .and_then(|value| value.trim().parse().ok())
-        .unwrap_or_else(|| panic!("the scrape has no request memory: {raw}"))
+        .unwrap_or_else(|| panic!("the scrape has no `{series}`: {raw}"))
 }
+
+/// Scrapes `series` on `port` until `settled` accepts its value, and returns that value.
+///
+/// # Panics
+///
+/// When no reading within [`BOUND`] is accepted; the message carries the last one and what the
+/// server wrote.
+fn scraped_until(
+    port: u16,
+    server: &Server,
+    series: &str,
+    settled: impl Fn(f64) -> bool,
+) -> f64 {
+    let started = Instant::now();
+    loop {
+        let now = scraped(port, server, series);
+        if settled(now) {
+            return now;
+        }
+        assert!(
+            started.elapsed() <= BOUND,
+            "`{series}` stayed at {now}; the server wrote: {}",
+            server.said()
+        );
+        thread::sleep(Duration::from_millis(20));
+    }
+}
+
+/// The gauge that counts the tasks every core's scheduler holds.
+const TASKS: &str = "nvs_tasks_in_flight";
 
 /// A flood of valid requests four times `max_in_flight` runs beside requests that reach the memory
 /// limit, reach the CPU limit, and lose their client, while a probe sends ordinary requests. Every
 /// refusal is a `503` with `Retry-After`, every probe is answered within [`PROBE_BOUND`], and the
 /// process lives. Once the flood ends, the request memory comes back within [`SETTLED`] of its
-/// reading before it, [`CEILING`] requests held open together are all admitted, and the next
-/// request answers `200` (`rule:http-server/admission-is-arithmetic-not-a-number`).
+/// reading before it and every task the flood started has ended. Then [`CEILING`] requests held
+/// open together are all admitted, and the next request answers `200`
+/// (`rule:http-server/admission-is-arithmetic-not-a-number`).
+///
+/// The flood opens more connections at once than the listen backlog holds on some hosts. A
+/// connection past the backlog is tried again about a second later, so its request can arrive
+/// after every client thread has ended. A request that reaches a limit then still answers `500`,
+/// and a hold a client left still takes a place for as long as it runs.
 #[test]
 fn a_flood_past_capacity_is_refused_and_every_place_and_byte_comes_back() {
     let port = free_port();
@@ -612,6 +653,10 @@ fn a_flood_past_capacity_is_refused_and_every_place_and_byte_comes_back() {
         once(addr, path);
     }
     let before = request_memory(port, &server);
+    // The scheduler's tasks while no request is in flight. The last warm-up connection may
+    // still be closing, which is one task. A request in flight is two: its connection's task
+    // and its own.
+    let quiet = scraped(port, &server, TASKS);
 
     let flooding = Arc::new(AtomicBool::new(true));
     let probe = {
@@ -709,6 +754,10 @@ fn a_flood_past_capacity_is_refused_and_every_place_and_byte_comes_back() {
         );
         thread::sleep(Duration::from_millis(50));
     }
+    // A client that left sent a request nobody waited for. It may reach the server late: a
+    // connection past the listen backlog is tried again a second later. Such a request holds a
+    // place, so the ceiling is asked for only once the scheduler runs no request's task.
+    scraped_until(port, &server, TASKS, |now| now <= quiet);
 
     // The ceiling's requests are sent together, once every connection is open.
     let together = Arc::new(Barrier::new(CEILING as usize));

@@ -8,7 +8,9 @@
 
 **Each core accepts on its own handle, so no connection passes through a thread every other connection also passes through.** The kernel picks which blocked acceptor a connection wakes: there is no handoff, no shared queue and no accepting core to become the bottleneck the fan-out exists to remove. A request stays on the core that accepted it.
 
-- **Memory:** one scheduler, one accept loop and one listener handle per listener per core, all paid at process start and O(cores) rather than O(requests served). The shared compiled unit holds strictly less than a compiled unit per core would, so the fleet's compiled-code footprint does not grow with the core count.
+**Each listener asks for the longest accept queue the kernel allows.** On Unix the server listens again with the largest length, and the kernel caps it at its own limit: `net.core.somaxconn` on Linux, `kern.ipc.somaxconn` on macOS. The operator's setting is the bound, and there is no directive for it. The standard library's own length is 128, and connections past the queue are not refused: the kernel drops their handshakes and each client tries again a second later, which the server can neither answer with a `503` nor record. With a longer queue a burst is accepted and each request gets its answer at once, the `503` of `rule:http-server/max-in-flight-refuses-before-allocating` included. A socket systemd passed keeps the length systemd gave it. Windows keeps the standard library's 128, because a second `listen` there changes nothing.
+
+- **Memory:** one scheduler, one accept loop and one listener handle per listener per core, all paid at process start and O(cores) rather than O(requests served). A connection waiting in an accept queue is kernel memory, bounded by the kernel's limit above. The shared compiled unit holds strictly less than a compiled unit per core would, so the fleet's compiled-code footprint does not grow with the core count.
 
 **Declined:**
 - **One acceptor handing connections to N request workers.** The acceptor is one thread paying a syscall and a handoff per connection, which moves the bottleneck rather than removing it.
@@ -16,4 +18,5 @@
 - **A compiled-unit cache per core.** It costs N compiles of the same file, and "compile exactly once" would mean something different at four cores than at one.
 - **Clamping `workers` to the machine's parallelism.** The count is already bounded by the file, a container's CPU quota is in general invisible from inside the process, and a directive silently overridden is a value the file cannot state.
 - **An `auto` value for `workers`.** A second way to write the default is a second thing to explain; leaving the key out already asks the machine.
+- **A `[server]` key for the accept queue's length.** The kernel already caps the length at a setting the operator owns, so a key would be a second place to state one number.
 - **Reading the core count from the environment.** The configuration is the one place a deployment is stated, and a second input for one number would be the first exception.

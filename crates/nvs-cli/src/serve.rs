@@ -3033,10 +3033,15 @@ fn close_on_exec(fd: std::os::fd::RawFd) -> std::io::Result<()> {
 fn bind_one(entry: &Listen, mode: u32) -> Result<Socket, String> {
     use std::os::unix::fs::PermissionsExt as _;
 
+    use std::os::fd::AsRawFd as _;
+
     let path = match entry {
         Listen::Tcp(addr) => {
             return std::net::TcpListener::bind(addr)
-                .map(Socket::Tcp)
+                .and_then(|listener| {
+                    longest_accept_queue(listener.as_raw_fd())?;
+                    Ok(Socket::Tcp(listener))
+                })
                 .map_err(|error| format!("could not listen on {addr}: {error}"));
         }
         Listen::Unix(path) => path,
@@ -3071,7 +3076,42 @@ fn bind_one(entry: &Listen, mode: u32) -> Result<Socket, String> {
             path.display()
         )
     })?;
+    longest_accept_queue(listener.as_raw_fd())
+        .map_err(|error| format!("could not listen on `{}`: {error}", path.display()))?;
     Ok(Socket::Unix(listener))
+}
+
+/// Gives the listening socket `fd` the longest accept queue the kernel allows
+/// (`rule:http-server/the-accept-fan-out-is-one-worker-per-core`).
+///
+/// `std` listens on a TCP socket with a queue of 128. Connections past the
+/// queue are not refused: the kernel drops their handshakes, and each client
+/// tries again a second later. The server sees none of it, so it answers no
+/// `503` and writes no record.
+///
+/// A second `listen` on a listening socket changes its queue length and
+/// nothing else. The kernel caps the length asked for at its own limit, which
+/// is `net.core.somaxconn` on Linux and `kern.ipc.somaxconn` on macOS, so the
+/// operator's setting is the bound.
+///
+/// **What it spends:** one system call per listener at boot. A queued
+/// connection is kernel memory, bounded by that limit.
+///
+/// # Errors
+///
+/// The platform's, for a descriptor that is not a listening socket.
+#[cfg(unix)]
+#[allow(
+    unsafe_code,
+    reason = "`listen` is the only call that sets a socket's queue length, and `std` has no way \
+              to pass one. It takes two integers and reads no memory of the caller's."
+)]
+fn longest_accept_queue(fd: std::os::fd::RawFd) -> std::io::Result<()> {
+    // SAFETY: `fd` is a socket the caller holds open for the length of the call.
+    if unsafe { libc::listen(fd, libc::c_int::MAX) } < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(())
 }
 
 /// Puts `mask` on this process's file-creation mask, answering the one it
@@ -3903,6 +3943,42 @@ mod tests {
         answered.sort();
         answered.dedup();
         assert_eq!(answered.len(), 3, "three entries are three sockets");
+    }
+
+    /// `rule:http-server/the-accept-fan-out-is-one-worker-per-core`: a listener
+    /// queues more connections than the standard library's 128 before anything
+    /// accepts one. The case opens 256, or as many as the kernel's own limit
+    /// where that is lower, and a kernel limited to 128 has nothing to show.
+    /// A connection past the queue would wait for a handshake nobody answers,
+    /// so each connect is bounded.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_listener_queues_more_connections_than_the_standard_librarys_128() {
+        let limit: usize = std::fs::read_to_string("/proc/sys/net/core/somaxconn")
+            .ok()
+            .and_then(|text| text.trim().parse().ok())
+            .expect("the kernel states its accept queue limit");
+        let wanted = limit.min(256);
+        let entry = Listen::Tcp("127.0.0.1:0".parse().expect("a loopback address"));
+        let Socket::Tcp(listener) = super::bind_one(&entry, 0o660).expect("a free loopback port")
+        else {
+            panic!("a TCP entry bound a socket of another family");
+        };
+        let addr = listener.local_addr().expect("a bound address");
+        // Nothing accepts, so every connection stays in the queue.
+        let queued: Vec<_> = (0..wanted)
+            .map(|connection| {
+                std::net::TcpStream::connect_timeout(&addr, Duration::from_secs(5)).unwrap_or_else(
+                    |error| {
+                        panic!(
+                            "connection {connection} of {wanted} was not queued, under a kernel \
+                             limit of {limit}: {error}"
+                        )
+                    },
+                )
+            })
+            .collect();
+        assert_eq!(queued.len(), wanted);
     }
 
     /// A socket bound by this case and given to [`super::passed`] as systemd
