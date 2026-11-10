@@ -4677,11 +4677,22 @@ impl<'a> Lowering<'a> {
             // `Core` member, so a *freshly built* one — a nested
             // call's own result — has no other owner and this frame
             // owes its release. A receiver read out of a local or a
-            // field is that binding's to release, not this call's.
-            // Staged *before* the arguments, since it is already in
-            // flight while they are evaluated and an argument that
-            // throws has to drop it.
-            if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
+            // field is that binding's to release, unless an argument can
+            // free it: `Self::borrowed_arg` then retains it and it is staged
+            // as a fresh one. Staged *before* the arguments, since it is
+            // already in flight while they are evaluated and an argument
+            // that throws has to drop it.
+            let later = Self::call_arg_exprs(args);
+            if receiver_ty.is_refcounted()
+                && !self.borrowed_arg(
+                    OperandSite::Receiver,
+                    object,
+                    (object_v, receiver_ty),
+                    ArgOwnership::Borrowed,
+                    &later,
+                    *cur,
+                )
+            {
                 self.own_temporary(object_v);
             }
             // A member on `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS` is
@@ -6377,7 +6388,21 @@ impl<'a> Lowering<'a> {
         let mark = self.temporaries_mark();
         let (object_v, receiver_ty, guard) =
             self.open_nullsafe(object, nullsafe, ReceiverProof::Erased, env, cur);
-        let mut staged = receiver_ty.is_refcounted() && !self.aliasing_read(object);
+        // A borrowed receiver is held while a computed name runs code that
+        // can free it, and is then staged as a fresh one.
+        let name: Vec<&Expr> = match property {
+            MemberName::Variable(e) | MemberName::Expr(e) => vec![e.as_ref()],
+            _ => Vec::new(),
+        };
+        let mut staged = receiver_ty.is_refcounted()
+            && !self.borrowed_arg(
+                OperandSite::KeyedReceiver,
+                object,
+                (object_v, receiver_ty),
+                ArgOwnership::Borrowed,
+                &name,
+                *cur,
+            );
         if staged {
             self.own_temporary(object_v);
         }

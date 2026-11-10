@@ -18,7 +18,7 @@
 //! operand, per evaluation. A read followed only by inert operands
 //! ([`Lowering::is_inert`]) pays nothing.
 
-use nvs_syntax::ast::{Arg, Expr, ExprKind, StringPart};
+use nvs_syntax::ast::{Arg, CallArgs, Expr, ExprKind, StringPart};
 use nvs_types::expr_table::FormatPiece;
 use rustc_hash::FxHashSet;
 
@@ -57,6 +57,13 @@ pub enum OperandSite {
     /// The left operand of `<`, `<=`, `>`, `>=` or `<=>` over two objects,
     /// read by `compareTo` after the right one.
     Ordering,
+    /// The receiver of a `Core` member, read by the call after the last
+    /// argument. A user method's receiver is transferred and retained when
+    /// it is read, so it needs no hold.
+    Receiver,
+    /// The receiver of `$o->$name` or `$o->{expr}`, read by the property
+    /// read after the name.
+    KeyedReceiver,
 }
 
 impl OperandSite {
@@ -70,6 +77,8 @@ impl OperandSite {
         OperandSite::CallableArgument,
         OperandSite::IndexBase,
         OperandSite::Ordering,
+        OperandSite::Receiver,
+        OperandSite::KeyedReceiver,
     ];
 }
 
@@ -303,5 +312,14 @@ impl Lowering<'_> {
                 StringPart::Text(_) => None,
             })
             .collect()
+    }
+
+    /// The written arguments of `args`, in the order they lower: what a
+    /// receiver is read after. A method reference writes none.
+    pub(crate) fn call_arg_exprs(args: &CallArgs) -> Vec<&Expr> {
+        match args {
+            CallArgs::List(list) => list.iter().map(|arg| &arg.value).collect(),
+            CallArgs::MethodRef => Vec::new(),
+        }
     }
 }

@@ -36,10 +36,12 @@ class Holder {
     public array<string> $items = [];
     public static string $shared = "";
     public Version $v;
+    public Core\Time\Date $d;
 
     public function constructor() {
         int $n = 1;
         $this->v = new Version("old-" . $n . "-abcdefghijklmnop");
+        $this->d = Core\Time\Date::at(1999, 1, 1);
     }
 
     public function replace(): string {
@@ -48,11 +50,24 @@ class Holder {
         $this->items = ["new-" . $n . "-abcdefghijklmnop"];
         Holder::$shared = "new-" . $n . "-abcdefghijklmnop";
         $this->v = new Version("new-" . $n . "-abcdefghijklmnop");
+        $this->d = Core\Time\Date::at(2002, 2, 2);
         array<string> $fill = [];
+        array<Core\Time\Date> $dates = [];
         for (int $i = 0; $i < 1024; $i++) {
             $fill[] = "fil-" . $n . "-abcdefghijklmnop";
+            $dates[] = Core\Time\Date::at(2003, 3, 3);
         }
         return "!";
+    }
+
+    public function yearFormat(): string {
+        $this->replace();
+        return "yyyy";
+    }
+
+    public function tagKey(): property<Version> {
+        $this->replace();
+        return "tag" as property<Version>;
     }
 
     public function same(): string {
@@ -87,8 +102,9 @@ const READS: &[&str] = &["$h->s", "$h->items[0]", "Holder::$shared"];
 
 /// The statement that reads `read` at `site` and then calls `replace()`, or
 /// `None` where the site cannot contain that read: a string hole reads no
-/// static property, an index base reads only an array, and an ordering reads
-/// only the object `$h->v`.
+/// static property, an index base reads only an array, an ordering and a
+/// keyed read read only the object `$h->v`, and a `Core` receiver reads only
+/// the date `$h->d`.
 fn statement(site: OperandSite, read: &str) -> Option<String> {
     match site {
         OperandSite::Concat => Some(format!("echo {read} . $h->replace();\n")),
@@ -120,6 +136,16 @@ fn statement(site: OperandSite, read: &str) -> Option<String> {
             "echo ($h->v <=> $h->sameVersion()) == 0 ? \"{OLD}!\" : \"lost\";\n"
         )),
         OperandSite::Ordering => None,
+        // `yearFormat()` replaces the date before `format` reads it.
+        OperandSite::Receiver if read == READS[0] => Some(format!(
+            "echo ($h->d->format($h->yearFormat()) == \"1999\") ? \"{OLD}!\" : \"lost\";\n"
+        )),
+        OperandSite::Receiver => None,
+        // `tagKey()` replaces the object before its property is read.
+        OperandSite::KeyedReceiver if read == READS[0] => {
+            Some("echo $h->v->{$h->tagKey()} . \"!\";\n".to_owned())
+        }
+        OperandSite::KeyedReceiver => None,
         other => panic!("borrowed_reads has no program for {other:?}; add one"),
     }
 }
