@@ -8,6 +8,9 @@ pattern such as `/shops/{1}`, `captures` gives the parts of the prefix that the 
 The result is a `Core\Test\Response`. `status()` returns the status code. If the program set no
 status, it is `200`. `body()` returns the text the program wrote, and `json()` and `jsonAs()` decode
 it. `header()`, `headers()` and `cookies()` return the headers and cookies that the program set.
+A page that uses `Core\Response::slotted()`
+arrives whole, with each part already in place. To test what the server sends, declare the test
+with `#[Test(server: true)]` and send the request to `Core\Test::serverUrl()`.
 
 Novis runs your program again from the top to handle the request. In that run, the `Core\Request`
 methods read the request you sent. A request cannot send another request, so in that run
