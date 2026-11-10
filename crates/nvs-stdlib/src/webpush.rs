@@ -831,6 +831,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "two full-record seals take minutes under Miri")]
     fn a_payload_over_one_record_throws_and_one_that_fills_it_does_not() {
         let p256dh: [u8; POINT_LEN] = b64(UA_PUBLIC).try_into().unwrap();
         let auth: [u8; AUTH_LEN] = b64(AUTH).try_into().unwrap();
