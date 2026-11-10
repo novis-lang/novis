@@ -914,7 +914,9 @@ impl Meter {
     fn new(registry: Registry) -> Arc<Self> {
         Arc::new(Self {
             registry: Mutex::new(registry),
-            tasks: AtomicU64::new(0),
+            // The tasks this thread started before it had a meter, a core's
+            // accept loop among them.
+            tasks: AtomicU64::new(LIVE_TASKS.get()),
             trees: AtomicU64::new(0),
             ended: AtomicBool::new(false),
         })
@@ -960,16 +962,26 @@ pub fn read_cache_bytes_with(reader: fn() -> u64) {
     let _ = CACHE_BYTES.set(reader);
 }
 
+thread_local! {
+    /// What [`publish_tasks`] last published on this thread. A core starts its
+    /// accept loop before that loop takes the core's meter, and an idle core
+    /// starts and ends no task after it. A new meter starts at this count, so
+    /// the gauge is right from the core's first scrape.
+    ///
+    /// **What it spends:** one word per thread, and one store per task started
+    /// or ended.
+    static LIVE_TASKS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
 /// Publishes how many tasks this core's scheduler holds, for
-/// `nvs_tasks_in_flight`. A store into this core's own word, and nothing on a
-/// core with no meter.
+/// `nvs_tasks_in_flight`. A store into this core's own word. On a core with no
+/// meter the count is kept for the meter it may take later ([`LIVE_TASKS`]).
 pub fn publish_tasks(live: usize) {
+    let live = u64::try_from(live).unwrap_or(u64::MAX);
+    LIVE_TASKS.set(live);
     CORE.with_borrow(|core| {
         if let Some(meter) = core.0.as_ref() {
-            meter.tasks.store(
-                u64::try_from(live).unwrap_or(u64::MAX),
-                atomic::Ordering::Relaxed,
-            );
+            meter.tasks.store(live, atomic::Ordering::Relaxed);
         }
     });
 }
@@ -1904,5 +1916,31 @@ mod tests {
                 "nvs_memory_bytes{{scope={scope:?}}} read 0"
             );
         }
+    }
+
+    /// A core starts its accept loop before that loop takes the core's meter,
+    /// and an idle core starts no task after it. Its tasks are in the gauge
+    /// from its first gather all the same. The count is one no other test's
+    /// core publishes, so it is read off this core's own registry.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the process scope reads the resident set through a system call Miri does not model"
+    )]
+    fn a_core_metered_after_its_first_tasks_counts_them() {
+        let gathered = thread::spawn(|| {
+            publish_tasks(1_000_003);
+            meter_this_core(&configured(Setting::Text("prometheus".to_owned()), None));
+            every_core()
+        })
+        .join()
+        .expect("the metering thread panicked");
+        assert!(
+            gathered.iter().any(|registry| matches!(
+                registry.read("nvs_tasks_in_flight", &[]),
+                Some(Value::Gauge(tasks)) if *tasks >= 1_000_003.0
+            )),
+            "the tasks a core started before it took its meter are not in its gauge"
+        );
     }
 }
