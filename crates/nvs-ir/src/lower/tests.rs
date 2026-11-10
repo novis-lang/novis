@@ -5127,3 +5127,51 @@ echo Core\\Str::format('%d', $i);
     assert!(text.contains("concat v1, int v0, v2"), "{text}");
     assert!(text.contains("= concat int v0  ;"), "{text}");
 }
+
+/// How many `Retain` instructions the first method of class `T` in `src`
+/// lowers to.
+fn retains_in(src: &str) -> usize {
+    let (f, _, _) = lower_first_method(src);
+    f.blocks
+        .iter()
+        .flat_map(|b| &b.insts)
+        .filter(|i| matches!(i.kind, InstKind::Retain { .. }))
+        .count()
+}
+
+/// `rule:expressions/an-operand-keeps-its-value-while-later-operands-run`'s
+/// free path: a borrowed read followed only by plain property reads, or by a
+/// call that writes no local it reads, takes no reference of its own. The one
+/// retain in each is the leading piece's, which `InstKind::Concat` consumes,
+/// and it does not grow with the operand count. A later call that can
+/// replace the property is the contrast, and it adds exactly one.
+#[test]
+fn a_read_followed_only_by_literals_and_locals_takes_no_reference() {
+    let class = |body: &str| {
+        format!(
+            "<?nvs\nclass T {{\n  public string $a = \"x\";\n  public string $b = \"y\";\n  \
+             function m(string $s, string $x): string {{\n    return {body};\n  }}\n  \
+             static function f(string $v): string {{\n    return $v;\n  }}\n}}\n"
+        )
+    };
+    for body in [
+        "$this->a . $this->b",
+        "$this->a . $this->b . $this->a . \"!\"",
+    ] {
+        assert_eq!(retains_in(&class(body)), 1, "{body}");
+    }
+    // A literal-led concatenation retains nothing for its leading piece, so
+    // the local adds exactly the one retain `Concat` consumes. The call's own
+    // retains are the same on both sides.
+    for calls in ["T::f($x)", "T::f($x) . T::f($x)"] {
+        let led_by_local = retains_in(&class(&format!("$s . {calls}")));
+        let led_by_literal = retains_in(&class(&format!("\"k\" . {calls}")));
+        assert_eq!(led_by_local, led_by_literal + 1, "$s . {calls}");
+    }
+    // Both property reads come before a call that can replace them, so each
+    // is held: one retain each, beyond what the call itself costs.
+    assert_eq!(
+        retains_in(&class("$this->b . $this->a . T::f($x)")),
+        retains_in(&class("\"k\" . T::f($x)")) + 2,
+    );
+}

@@ -1,0 +1,12 @@
+{
+  "title": "An operand keeps the value it read while later operands run, and only a read a later operand can free pays for it",
+  "status": "shipped",
+  "seeAlso": [
+    "expressions/equality-semantics",
+    "expressions/switch-match-equality"
+  ],
+  "guardedBy": [
+    "crates/nvs-ir/src/lower/tests.rs",
+    "crates/nvs-codegen/tests/borrowed_reads.rs"
+  ]
+}

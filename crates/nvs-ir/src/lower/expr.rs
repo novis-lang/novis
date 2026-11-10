@@ -2288,6 +2288,8 @@ impl<'a> Lowering<'a> {
              non-empty parts vec"
         );
         let is_heredoc = span_text(self.src, whole_span).starts_with("<<<");
+        // A hole is read by the join after the last one, so each is judged
+        // against the holes that follow it.
         let indent = if is_heredoc {
             nvs_types::string_lit::heredoc_shape(self.src, whole_span)
                 .0
@@ -2325,7 +2327,10 @@ impl<'a> Lowering<'a> {
                     let (v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(s));
                     (ConcatPart::str(v), false)
                 }
-                StringPart::Expr(e) => self.interpolated_hole(e, parts.len() > 1, env, cur),
+                StringPart::Expr(e) => {
+                    let later = Self::later_holes(parts, i + 1);
+                    self.interpolated_hole(e, parts.len() > 1, &later, env, cur)
+                }
             };
             if !piece.1 {
                 if pieces.is_empty() {
@@ -2345,10 +2350,14 @@ impl<'a> Lowering<'a> {
     /// writes its digits into the result and no string of digits is made. A
     /// hole alone in its string is not joined, so it converts as every other
     /// hole does, through [`Self::convert_operand`].
+    ///
+    /// `later` is the holes after this one. A borrowed hole one of them can
+    /// free is held ([`Self::hold_borrowed`]) and reported as fresh.
     fn interpolated_hole(
         &mut self,
         e: &Expr,
         joined: bool,
+        later: &[&Expr],
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ConcatPart, bool) {
@@ -2361,6 +2370,8 @@ impl<'a> Lowering<'a> {
             return (part, true);
         }
         let (text, aliasing) = self.convert_operand(e, v, ty, env, cur);
+        let aliasing =
+            aliasing && self.hold_borrowed(OperandSite::StringHole, e, text, later, *cur);
         (ConcatPart::str(text), aliasing)
     }
 
@@ -2429,7 +2440,7 @@ impl<'a> Lowering<'a> {
         let mark = self.temporaries_mark();
         let mut lowered: Vec<(ConcatPart, bool)> = Vec::with_capacity(pieces.len());
         let mut leading = None;
-        for piece in pieces {
+        for (k, piece) in pieces.iter().enumerate() {
             let piece = match piece {
                 nvs_types::expr_table::FormatPiece::Text(text) => (
                     ConcatPart::str(self.emit(*cur, Ty::Str, InstKind::ConstStr(text.clone())).0),
@@ -2445,7 +2456,8 @@ impl<'a> Lowering<'a> {
                     });
                     // An `int` is a `PartKind::Int` piece even alone, so the
                     // join writes its digits and no string of digits is made.
-                    self.interpolated_hole(&arg.value, true, env, cur)
+                    let later = Self::later_format_arguments(&pieces[k + 1..], args);
+                    self.interpolated_hole(&arg.value, true, &later, env, cur)
                 }
                 nvs_types::expr_table::FormatPiece::Integer { argument, kind } => {
                     let arg = args.get(*argument).unwrap_or_else(|| {
@@ -3204,8 +3216,10 @@ impl<'a> Lowering<'a> {
         let mark = self.temporaries_mark();
         let mut pieces = Vec::with_capacity(operands.len());
         let mut leading = None;
-        for operand in operands {
+        for (i, operand) in operands.iter().enumerate() {
             let (v, aliasing) = self.concat_operand(operand, env, cur);
+            let aliasing = aliasing
+                && self.hold_borrowed(OperandSite::Concat, operand, v, &operands[i + 1..], *cur);
             if !aliasing {
                 if pieces.is_empty() {
                     leading = Some(self.temporaries_mark());
@@ -3234,6 +3248,10 @@ impl<'a> Lowering<'a> {
     /// The retain sits immediately before the instruction, once every operand
     /// has been lowered, so nothing that can throw runs between the two and no
     /// unwinding edge ever sees a reference this frame holds and nothing names.
+    /// It is sound because a leading piece reaches it unstaged only when
+    /// [`Self::hold_borrowed`] found that no later operand can free it. A
+    /// leading piece a later operand can free was retained when it was read,
+    /// and is staged like any fresh piece.
     /// [`InstKind::Concat`]'s own doc comment owns the protocol itself.
     ///
     /// A join with any piece that is not a [`PartKind::Str`] consumes nothing,

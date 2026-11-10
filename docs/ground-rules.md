@@ -122,6 +122,7 @@ One line per rule, and the link to the rule that owns it. Generated from `docs/r
 - **The expression form lowers to the block form's landing pad, with the value in a temporary** — There is no run-time representation of the expression form. ([`expressions/catch-lowers-to-block-form`](rules/expressions.md#expressions-catch-lowers-to-block-form))
 - **A method reference is the bare `Class::method` on a class and `$obj->method(...)` on an object, one form per receiver, and a dropped reference is a compile error** — A method reference takes a reference to a declared method, and each receiver form has exactly one way to write it. ([`expressions/method-reference`](rules/expressions.md#expressions-method-reference))
 - **Partial function application is not adopted; an anonymous function already spells it** — `f(?, $x)` and every application-with-holes shape do not parse. ([`expressions/no-partial-application`](rules/expressions.md#expressions-no-partial-application))
+- **An operand keeps the value it read while later operands run, and only a read a later operand can free pays for it** — Operands are evaluated left to right, and a value an earlier operand read stays alive until its consumer has used it, whatever a later operand does. ([`expressions/an-operand-keeps-its-value-while-later-operands-run`](rules/expressions.md#expressions-an-operand-keeps-its-value-while-later-operands-run))
 
 ## Statements
 

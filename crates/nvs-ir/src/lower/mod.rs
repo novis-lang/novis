@@ -127,6 +127,7 @@ pub(crate) mod exception;
 pub(crate) mod expr;
 pub(crate) mod generator;
 pub(crate) mod mutate;
+pub(crate) mod operand;
 pub(crate) mod operator;
 pub(crate) mod stmt;
 
@@ -135,6 +136,7 @@ pub(crate) mod stmt;
 // here also carry free items this module and its siblings call.
 pub use self::checked::{check_types, is_checking_types};
 pub use self::mutate::{Mutant, Operator, lower_mutant, mutants};
+pub use self::operand::OperandSite;
 use self::{anon_fn::*, call::delegation_forward, exception::*, generator::*};
 
 /// A local's current SSA binding: which value it holds, and at what
