@@ -10,7 +10,7 @@ stages:
     context: [tools/nv/cmd/fuzz.ts, tools/nv/cmd/linux-test.ts, .github/workflows/ci.yml]
   - id: 2
     title: one push run is the full suite, the dev build and the release's proof
-    status: open
+    status: done
     context: [.github/workflows/ci.yml, .github/workflows/build.yml, .github/workflows/image.yml, .github/workflows/release.yml, tools/nv/cmd/ci.ts, tools/nv/cmd/release.ts]
   - id: 3
     title: the release cycle
@@ -239,7 +239,7 @@ tree (`file:line`, one line each). The session writes the changes.
   `--tested` on `main`'s tip. Its tests follow.
 - [x] The three rules rewritten or deleted, `bun nv rules --check` green, and the `deep.ts` rows
   for the build legs and the `--apply` check.
-- [ ] Proved in stage 3's first push: its run runs every job, publishes the `dev` image, and `bun nv
+- [x] Proved in stage 3's first push: its run runs every job, publishes the `dev` image, and `bun nv
   release --tested <sha>` prints `tested=true` for it.
 
 ### 3. the release cycle
@@ -267,35 +267,24 @@ Every session runs this cycle until the push run is green or the context reaches
 
 ### State
 
-Stages 1 and 2 are built, and stage 2's push proof is stage 3's first push. Every WSL step runs in
-`novis-test`, and Docker answers inside it.
-- **Pushes of this start: 3.**
-  - Push 1, `97e597307b`, run `42702417500`: red. `docs` (no `CONTRIBUTING.md` row for
-    `nvs-fuzz-checks`, fixed in `3cec78f67d`, and `PRE_PUSH` now runs the layout check) and `miri
-    units (nvs-stdlib 9/12, 11/12)`, four tests over 300 s (fixed in `e7c3b0bdd5`, and `bun nv
-    deep`'s Miri units now stop a test at 60 s under the `miri-deep` profile). Its other jobs were
-    green, `ext-templates` among them.
-  - Push 2, `c5d9ccd4c3`, after a green `bun nv ci --check`. `bun nv deep --only miri-units` under
-    `miri-deep` was green but one web push test at 60 s, which `c5d9ccd4c3` skips under Miri as its
-    sibling is. Run `42736367309`: red on one test alone, `spreadsheet_read`'s linear-time header
-    check (a ratio against distinct names, 4.9 where the bound was 4). Fixed in `4aff13935f`.
-  - Push 3, `4aff13935f`. Its run is being watched; its id and verdict go here.
-- **This cycle's local lane is done.** Green at `efade84c36` or later: `test-linux` (37 min),
-  `release-version`, `extension`, `extension-host`, `browser`, `database`, `docker` (4 min) and
-  `flood` (8 min). Red after `--failed`: `ext-templates` alone, because `wit-bindgen` 0.63.0 and
-  wasi-sdk 34 are not installed on this machine. Installing them is a person's (their lines are in
-  the step's error). The push run decides that job.
-- Every other local step was green this cycle.
+Stages 1 and 2 are done. This start ended green: push 3, `4aff13935f`, ran every job green in CI run
+`42743079039`, the `dev` image and the release's version step among them, and `bun nv release
+--tested 4aff13935f` prints `tested=true`. A real Release of `4aff13935f` skips its test job.
+- **Pushes of this start: 3.** Push 1, `97e597307b`, was red on `docs` and Miri units over 300 s
+  (`3cec78f67d`, `e7c3b0bdd5`). Push 2, `c5d9ccd4c3`, was red on `spreadsheet_read`'s
+  linear-time check, whose ratio measured a constant factor (`4aff13935f`).
+- `bun nv deep`'s Miri units stop a test at 60 s under the `miri-deep` profile, a fifth of CI's
+  bound. `ext-templates` stays red here: `wit-bindgen` 0.63.0 and wasi-sdk 34 are not installed,
+  and installing them is a person's. CI runs that job green.
 - `.claude/settings.json:30` still allows `bun nv ci-changes`. That file is the person's to edit.
 
 ### Next
 
-**Watch push 3's run:** `bun nv ci --watch --next`, as stage 3's step 4 says. If it is green, stop
-the loop and tick stage 2's last item once `bun nv release --tested 4aff13935f` prints
-`tested=true`. If a job is red, push 3 is the third red push of this start: finish the run with
-`--past`, write each red and its cause here, and stop the loop with `BLOCKED`. A red `nvs serve` test whose server output names `the core is not turning` is the
-watchdog shed (playbook, *Writing a test case*). Give it `watchdog_margin = "30s"` as
-`efade84c36` did.
+**The next start of this loop runs stage 3's cycle from step 1:** a whole `bun nv deep`, then its
+fixes, `--failed`, and the push. Every WSL step runs in `novis-test`. `test-windows` needs
+`docker compose -f tests/db/compose.yaml up -d --wait redis postgres` first. A red `nvs serve`
+test whose server output names `the core is not turning` is the watchdog shed (playbook, *Writing a
+test case*). Give it `watchdog_margin = "30s"` as `efade84c36` did.
 
 ### Backlog
 
