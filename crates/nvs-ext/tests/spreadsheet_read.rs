@@ -877,22 +877,29 @@ fn header_of(columns: u32, text: impl Fn(u32) -> String) -> Read {
     Read::open(xlsx(&[sheet("Shop", data)], &[]))
 }
 
-/// One read of `read`'s header: how long it took, and the header it returned.
-fn timed_header(read: &Read) -> (Duration, Value) {
+/// `times` reads of `read`'s header in one window: how long they took, and the
+/// header the last one returned.
+fn timed_header(read: &Read, times: u32) -> (Duration, Value) {
     let started = std::time::Instant::now();
-    let header = read.call("readerHeader", vec![options("Shop").value()]);
+    let mut header = Value::Null;
+    for _ in 0..times {
+        header = read.call("readerHeader", vec![options("Shop").value()]);
+    }
     (started.elapsed(), header)
 }
 
-/// Numbering a full row of equal names grows linearly with the row. A header
-/// of 16384 equal names is read in under 24 times the time of one of 2048 equal
-/// names, the same code on an eighth of the row: linear growth is at most 8,
-/// and numbering each duplicate from `(2)` up again is 64. The two
-/// sizes are read in turn and the fastest of three reads each is kept, so both
-/// see the same load (`rule:testing/a-test-holds-at-any-speed`, a bound
-/// measured in the same run). A header of distinct names is no baseline: it
-/// formats and hashes no numbered name, and a runner measured linear numbering
-/// at nearly five times it.
+/// Numbering a full row of equal names grows linearly with the row. One read
+/// of a header of 16384 equal names takes under three times as long as eight
+/// reads of one of 2048 equal names, the same code on an eighth of the row:
+/// linear growth is even, and numbering each duplicate from `(2)` up again is
+/// eight times. Both windows do the same work when the growth is linear, so a
+/// loaded runner stretches both alike; one long window beside one eight times
+/// shorter was preempted unevenly and read 27 times on a runner that reads 8
+/// unloaded. The two are timed in turn and the fastest of five each is kept
+/// (`rule:testing/a-test-holds-at-any-speed`, a bound measured in the same
+/// run). A header of distinct names is no baseline: it formats and hashes no
+/// numbered name, and a runner measured linear numbering at nearly five times
+/// it.
 #[test]
 fn a_header_of_every_column_equal_is_numbered_in_linear_time() {
     const COLUMNS: u32 = 16_384;
@@ -907,11 +914,11 @@ fn a_header_of_every_column_equal_is_numbered_in_linear_time() {
     let (equal, small) = (equal_of(COLUMNS), equal_of(SMALL));
     let (mut fastest_equal, mut fastest_small) = (Duration::MAX, Duration::MAX);
     let mut header = None;
-    for _ in 0..3 {
-        let (took, read) = timed_header(&equal);
+    for _ in 0..5 {
+        let (took, read) = timed_header(&equal, 1);
         fastest_equal = fastest_equal.min(took);
         header = Some(read);
-        fastest_small = fastest_small.min(timed_header(&small).0);
+        fastest_small = fastest_small.min(timed_header(&small, COLUMNS / SMALL).0);
     }
     let mut want = vec!["Name".to_owned(), "Name (2)".to_owned()];
     want.extend((3..=COLUMNS).map(|count| format!("Name ({count})")));
@@ -922,8 +929,8 @@ fn a_header_of_every_column_equal_is_numbered_in_linear_time() {
         "a name given in the file is skipped"
     );
     assert!(
-        fastest_equal < fastest_small * 24,
-        "{COLUMNS} equal names took {fastest_equal:?} and {SMALL} equal ones {fastest_small:?}"
+        fastest_equal < fastest_small * 3,
+        "{COLUMNS} equal names took {fastest_equal:?} and eight reads of {SMALL} {fastest_small:?}"
     );
     block_on(equal.request.end()).expect("the request ends");
     block_on(small.request.end()).expect("the request ends");
