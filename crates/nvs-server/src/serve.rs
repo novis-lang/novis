@@ -3087,6 +3087,9 @@ fn streamed(head: stream::Opened, cut: DrainCut) -> Response<Answer> {
         );
         response.extensions_mut().insert(crate::slotted::Slotted);
     }
+    if let Some(http) = head.http {
+        response.extensions_mut().insert(RequestHttp(http));
+    }
     overrides(&mut response, head.headers);
     response
 }
@@ -7005,7 +7008,7 @@ pub(crate) mod tests {
                     .cloned()
                     .expect("a served request was offered no response-stream cell");
                 let emit = cell
-                    .open("text/csv", Some(201), Vec::new())
+                    .open("text/csv", Some(201), Vec::new(), None)
                     .expect("the first stream on a request opens");
                 child.set_body_stream(emit);
                 child
@@ -11294,9 +11297,12 @@ pub(crate) mod tests {
     /// Serves one `GET` sent from `origin` on [`A_FILE_POLICY`]'s tree, by a
     /// program that sets each of `settings` through the overlay
     /// `Core\Config::set` writes, and answers with the response, lower-cased.
+    /// A `slotted` program opens a slotted page's stream after setting them, and
+    /// writes its body there.
     fn answered_after_setting(
         settings: &'static [(&'static str, &'static str)],
         origin: &str,
+        slotted: bool,
     ) -> String {
         let tree = tree_of(A_FILE_POLICY);
         let http = tree.config.http.clone();
@@ -11319,10 +11325,25 @@ pub(crate) mod tests {
                 for (key, value) in settings {
                     assert!(config.set(key, value), "`{key}` was refused");
                 }
-                child.write_output(b"set").expect("a buffer");
+                if slotted {
+                    let cell = child
+                        .inbound()
+                        .and_then(nvs_runtime::Inbound::response_stream_slot)
+                        .cloned()
+                        .expect("a served request was offered no response-stream cell");
+                    let mut emit = cell
+                        .open_slotted("text/html", None, Vec::new(), child.response_http())
+                        .expect("the first stream on a request opens");
+                    emit.send(b"set".to_vec())
+                        .expect("the connection takes the body");
+                } else {
+                    child.write_output(b"set").expect("a buffer");
+                }
                 Value::null()
             });
-            Reply::run(Isolate::new(program, Value::null(), Output::Capture))
+            let isolate = Isolate::new(program, Value::null(), Output::Capture)
+                .answering(nvs_runtime::Inbound::new("GET", "/page", ""));
+            Reply::run(isolate)
         });
         let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
             .expect("the OS refused a port");
@@ -11344,8 +11365,9 @@ pub(crate) mod tests {
             answer
         });
         let answer = served_under(listener, &handler, client, serving).to_ascii_lowercase();
+        let body = answer.split_once("\r\n\r\n").map_or("", |(_, body)| body);
         assert!(
-            answer.starts_with("http/1.1 200 ok") && answer.ends_with("set"),
+            answer.starts_with("http/1.1 200 ok") && body.contains("set"),
             "the request was not answered by the program that set its settings: {answer}"
         );
         answer
@@ -11366,6 +11388,7 @@ pub(crate) mod tests {
                 ),
             ],
             "https://request.example",
+            false,
         );
         assert!(
             answer.contains(
@@ -11385,6 +11408,7 @@ pub(crate) mod tests {
         let refused = answered_after_setting(
             &[("http.cors.origins", "https://request.example")],
             "https://file.example",
+            false,
         );
         assert!(
             !refused.contains("access-control-allow-origin"),
@@ -11396,13 +11420,30 @@ pub(crate) mod tests {
             ),
             "a header setting the request left alone was not the file's: {refused}"
         );
+        // A slotted page is streamed, and its head carries the request's policy
+        // with the two slot-script hashes added.
+        let slotted = answered_after_setting(
+            &[("http.headers.content_security_policy", "script-src 'self'")],
+            "https://file.example",
+            true,
+        );
+        let hashes = format!(
+            "content-security-policy: script-src 'self' {} {}; frame-ancestors 'self'\r\n",
+            crate::slotted::POLYFILL_HASH,
+            crate::slotted::TRIGGER_HASH
+        )
+        .to_ascii_lowercase();
+        assert!(
+            slotted.contains(&hashes),
+            "a slotted page did not carry the request's policy with the slot hashes: {slotted}"
+        );
     }
 
     /// A request that sets no `[http]` setting is answered under the file's
     /// policy, which the server built once at boot.
     #[test]
     fn a_request_that_sets_no_http_setting_gets_the_files_policy() {
-        let answer = answered_after_setting(&[], "https://file.example");
+        let answer = answered_after_setting(&[], "https://file.example", false);
         assert!(
             answer.contains(
                 "content-security-policy: default-src 'self'; frame-ancestors 'self'\r\n"
@@ -12489,7 +12530,7 @@ pub(crate) mod tests {
                     .cloned()
                     .expect("a served request was offered no response-stream cell");
                 let emit = cell
-                    .open("text/plain", None, Vec::new())
+                    .open("text/plain", None, Vec::new(), None)
                     .expect("the first stream on a request opens");
                 child.set_body_stream(emit);
                 child
@@ -13876,7 +13917,7 @@ pub(crate) mod tests {
                     .cloned()
                     .expect("a served request was offered no response-stream cell");
                 let emit = cell
-                    .open("text/plain", None, Vec::new())
+                    .open("text/plain", None, Vec::new(), None)
                     .expect("the first stream on a request opens");
                 child.set_body_stream(emit);
                 let body: Vec<u8> = ALPHABET.iter().copied().cycle().take(SENT).collect();
@@ -14175,13 +14216,13 @@ pub(crate) mod tests {
                             .unwrap_or_default();
                         let ranged = nvs_runtime::conditional::ranged(asked, etag, total);
                         let (emit, window) = cell
-                            .open_ranged("video/mp4", None, Vec::new(), ranged)
+                            .open_ranged("video/mp4", None, Vec::new(), None, ranged)
                             .expect("the first stream on a request opens");
                         child.set_stream_window(Some(window));
                         (emit, Some(window))
                     }
                     None => (
-                        cell.open("video/mp4", None, Vec::new())
+                        cell.open("video/mp4", None, Vec::new(), None)
                             .expect("the first stream on a request opens"),
                         None,
                     ),

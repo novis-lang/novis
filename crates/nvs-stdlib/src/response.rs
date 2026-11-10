@@ -2225,8 +2225,9 @@ nvs_runtime::nvs_helper! {
             // none of them and the connection does not apply a header twice.
             let status = ctx.take_status();
             let headers = ctx.take_headers();
+            let http = ctx.response_http();
             let opened = match length {
-                None => cell.open(media_type, status, headers),
+                None => cell.open(media_type, status, headers, http),
                 Some(total) => {
                     let asked = ctx
                         .inbound()
@@ -2235,7 +2236,7 @@ nvs_runtime::nvs_helper! {
                         })
                         .unwrap_or_default();
                     let ranged = nvs_runtime::conditional::ranged(asked, etag.as_deref(), total);
-                    cell.open_ranged(media_type, status, headers, ranged)
+                    cell.open_ranged(media_type, status, headers, http, ranged)
                         .map(|(emit, window)| {
                             ctx.set_stream_window(Some(window));
                             emit

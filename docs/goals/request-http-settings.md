@@ -6,7 +6,7 @@ context: [crates/nvs-config/src/request.rs, crates/nvs-config/src/http.rs, crate
 stages:
   - id: 1
     title: "a request's [http.headers] and [http.cors] settings reach its response"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/output.rs, crates/nvs-server/src/cors.rs, crates/nvs-server/src/csp.rs]
   - id: 2
     title: "cookie defaults and every other [http] reader take the request's settings"
@@ -121,28 +121,28 @@ build that response's header set and CORS headers from it.
 - [x] `nvs-config`: one function that returns the snapshot's `Http` with a request's overlay folded
   over it, used by `stays_meaningful` too (`rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`,
   `crates/nvs-config/src/request.rs:479`, `crates/nvs-config/src/http.rs:158`).
-- [ ] `nvs-runtime`: the response carries the request's `http.headers.`/`http.cors.` overlay entries
+- [x] `nvs-runtime`: the response carries the request's `http.headers.`/`http.cors.` overlay entries
   when there is at least one (`crates/nvs-runtime/src/ctx/output.rs:1248`).
   - [x] A finished response: `Completion::http`, filled by `Ctx::response_http`
     (`crates/nvs-runtime/src/host.rs:640`, `crates/nvs-runtime/src/ctx/wiring.rs:463`).
-  - [ ] A streamed response: `stream::Opened` gains `http`, set at each open site from
+  - [x] A streamed response: `stream::Opened` gains `http`, set at each open site from
     `ctx.response_http()` (`crates/nvs-runtime/src/stream.rs:403`, `crates/nvs-runtime/src/stream.rs:646`,
     `crates/nvs-runtime/src/later.rs:397`, `crates/nvs-stdlib/src/response.rs:2229`).
-- [ ] `nvs-server`: at the fill, a response carrying settings gets `Secure::of` and the CORS answer
+- [x] `nvs-server`: at the fill, a response carrying settings gets `Secure::of` and the CORS answer
   built from the folded `Http`. Every other response uses the cached `Policy`
   (`crates/nvs-server/src/serve.rs:2591`, `crates/nvs-server/src/serve.rs:2035`,
   `crates/nvs-server/src/secure.rs:122`, `crates/nvs-server/src/cors.rs:207`).
   - [x] The fill reads the `RequestHttp` extension `finished` inserts
     (`crates/nvs-server/src/serve.rs:2599`, `crates/nvs-server/src/serve.rs:2976`).
-  - [ ] `streamed` inserts `RequestHttp` from `Opened::http` (`crates/nvs-server/src/serve.rs:3065`).
-- [ ] Tests `a_requests_own_header_settings_reach_its_response` and
+  - [x] `streamed` inserts `RequestHttp` from `Opened::http` (`crates/nvs-server/src/serve.rs:3065`).
+- [x] Tests `a_requests_own_header_settings_reach_its_response` and
   `a_request_that_sets_no_http_setting_gets_the_files_policy` in `crates/nvs-server/src/serve.rs`
   tests: a set `content_security_policy` with the configured `frame_ancestors` appended and the slot
   hashes added on a slotted page, a set `frame_ancestors`, a set CORS `origins`, and a request that set
   nothing (`crates/nvs-server/src/serve.rs:1`).
   - [x] Both tests exist and pass for a finished response: policy, `frame_ancestors`, `origins`, and
     nothing set (`crates/nvs-server/src/serve.rs:11297`).
-  - [ ] A slotted page's case: a set `content_security_policy` gains the two slot hashes.
+  - [x] A slotted page's case: a set `content_security_policy` gains the two slot hashes.
 - [x] The rule fragment gains the preflight sentence and the cost line
   (`docs/rules/http-server/policy-headers-are-runtime-class-and-setheader-wins.md:1`).
 
@@ -175,36 +175,29 @@ standing decision with one test that reads the key list.
 
 ### State
 
-Stage 1 is built for a **finished** response (commit `8a96e4d120`). `nvs_config::http::folded`
-(`crates/nvs-config/src/http.rs:188`) is the one fold, and `stays_meaningful` uses it too.
-`Request::response_http` (`crates/nvs-config/src/request.rs:499`) returns the folded block for a
-request that set a `[http.headers]` or `[http.cors]` key. `Completion::http` carries it, and the
-server's fill builds `Secure` and `Cors` from it (`crates/nvs-server/src/serve.rs:2599`).
-`Inbound::assign` is gone. Both stage-1 tests pass by name. Build and clippy are green.
+Stage 1 is done. A finished response carries the request's folded `[http]` block on
+`Completion::http`, and a streamed one on `stream::Opened::http`. Every open of the response-stream
+cell takes it as a parameter, so each site decides: `Core\Response::stream`, `Core\Sse::stream` and
+the slotted page pass `ctx.response_http()`. `streamed` in `crates/nvs-server/src/serve.rs` inserts
+`RequestHttp` from it, and the one fill builds `Secure` and `Cors` from it. Both stage-1 tests pass
+by name, the slotted case included. Build and clippy are green.
 
-A **streamed** response, a slotted page among them, does not carry the block yet, so it gets the
-file's policy.
-
-The acceptance sweep's reds: `env-secret-proofs` names no check in the tree now, so it is stale. The
-nightly run `42468563179` ran on `81a279ca7a`, 104 commits behind. A reader traced its reds as
-follows. The Windows, aarch64, macOS, `ext templates` and `supply chain` jobs failed on GitHub 504
-downloads, so a rerun clears them. The Miri `PROT_NONE` mmap failures from `corosensei` have a
-later fix (`e7c3b0bdd5`), as do the `byte_source` range-read limit test (`f53e2f1ba5`) and the
-`markdown_from_html` round trip (`b4535b1892`). None needs work here; the next nightly confirms it.
+The acceptance sweep's `env-secret-proofs` red names no check in the tree or the floor, and has no
+log, so it is stale. The nightly reds the last handoff traced need no work here.
 
 ### Next
 
-Stage 1's streamed half, files `crates/nvs-runtime/src/stream.rs`, `crates/nvs-runtime/src/later.rs`,
-`crates/nvs-stdlib/src/response.rs`, `crates/nvs-server/src/serve.rs`, no gate.
+Stage 2, no gate. Files `crates/nvs-stdlib/src/response.rs`, `crates/nvs-config/src/request.rs`,
+`crates/nvs-config/src/directive.rs`, a new `crates/nvs-cli/tests/request_http_settings.rs`.
 
-- [ ] `crates/nvs-runtime/src/stream.rs:403`: `Opened` gains `http: Option<host::ResponseHttp>`.
-  Each open site sets it from `ctx.response_http()`, as a parameter of `open_as` or as a slot setter
-  called before the open (`crates/nvs-runtime/src/stream.rs:646`,
-  `crates/nvs-runtime/src/later.rs:397`, `crates/nvs-stdlib/src/response.rs:2229`).
-- [ ] `crates/nvs-server/src/serve.rs:3065`: `streamed` inserts `RequestHttp` from `head.http`.
-- [ ] `crates/nvs-server/src/serve.rs:11297`: the slotted case in
-  `a_requests_own_header_settings_reach_its_response`, where the request's policy gains the two slot
-  hashes. Then stage 1 is done, and stage 2 starts.
+- [ ] `crates/nvs-config/src/tree.rs:1`: first, the stage's split. An `Explore` subagent lists every
+  reader of an `[http]` value outside `nvs-config`, each as a path, a line and the key.
+- [ ] `crates/nvs-stdlib/src/response.rs:1693`: `configured_cookies` reads
+  `nvs_config::http::folded` through the request's config, not the snapshot's block.
+- [ ] `crates/nvs-config/src/request.rs:300`: each `http.*` key the list shows no request-time
+  reader for returns `false` from `set`.
+- [ ] `crates/nvs-cli/tests/request_http_settings.rs:1`: the test enumerates the keys from the
+  configuration's own key list (`crates/nvs-config/src/directive.rs:126`).
 
 No test is expected to go red.
 

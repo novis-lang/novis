@@ -667,7 +667,8 @@ nvs_runtime::nvs_helper! {
             // from here. The status is `None` and not `ctx.take_status()`: the
             // refusal above is what a program gets for having set one.
             let headers = ctx.take_headers();
-            let emit = cell.open(MEDIA_TYPE, None, headers).ok_or_else(|| {
+            let http = ctx.response_http();
+            let emit = cell.open(MEDIA_TYPE, None, headers, http).ok_or_else(|| {
                 // No case can reach this: a `.nvst` case runs a script no
                 // connection is framing a response for, so it is offered no cell
                 // and never gets here.
@@ -1294,7 +1295,7 @@ mod tests {
         // reaching through the sibling member to fill the cell would make it a
         // claim about that member as well.
         let _writing = slot
-            .open("text/csv", None, Vec::new())
+            .open("text/csv", None, Vec::new(), None)
             .expect("an empty cell opens");
         nvs_runtime::call(super::nvs_core_sse_stream, &mut ctx, &[])
             .expect_err("one response opens at most one body stream");
@@ -1345,7 +1346,7 @@ mod tests {
         // with it: a response body written over time is the program that holds
         // a writing half and is still not an event stream.
         let _writing = slot
-            .open("text/csv", None, Vec::new())
+            .open("text/csv", None, Vec::new(), None)
             .expect("an empty cell opens");
         nvs_runtime::call(super::nvs_core_sse_current, &mut ctx, &[])
             .expect_err("a response body stream is not an event stream");
@@ -1362,7 +1363,7 @@ mod tests {
     fn upgraded(slot: &nvs_runtime::stream::BodySlot) -> Ctx {
         let mut ctx = Ctx::buffered();
         ctx.set_body_stream(
-            slot.open(super::MEDIA_TYPE, None, Vec::new())
+            slot.open(super::MEDIA_TYPE, None, Vec::new(), None)
                 .expect("an empty cell opens"),
         );
         ctx.mark_event_stream(nvs_runtime::EventStreamDoor::Connection);

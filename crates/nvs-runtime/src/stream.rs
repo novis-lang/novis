@@ -421,6 +421,11 @@ pub struct Opened {
     /// connection states it as `Content-Length` and cuts the connection when
     /// the writer ends short of it.
     pub length: Option<u64>,
+    /// The `[http]` block this response is answered under, where the request
+    /// had set a `[http.headers]` or `[http.cors]` setting by the time it
+    /// opened the stream, and `None` where it had not
+    /// ([`crate::host::Completion::http`] is the same for a finished response).
+    pub http: Option<crate::host::ResponseHttp>,
 }
 
 /// The window of a stream whose length was stated: which bytes the program
@@ -586,14 +591,18 @@ impl BodySlot {
     /// than a `Result` carrying a refusal, because there is exactly one reason
     /// and nothing crossed to hand back: the caller still holds its own
     /// argument, and the member that asked is where the sentence belongs.
+    ///
+    /// `http` is the request's own `[http]` block, `Ctx::response_http`'s
+    /// answer at the open, for the reason [`Opened::http`] gives.
     #[must_use]
     pub fn open(
         &self,
         content_type: &str,
         status: Option<u16>,
         headers: Vec<DeclaredHeader>,
+        http: Option<crate::host::ResponseHttp>,
     ) -> Option<Emit> {
-        self.open_as(content_type, status, headers, false, None)
+        self.open_as(content_type, status, headers, http, false, None)
     }
 
     /// [`Self::open`] for a body of exactly `length` bytes, which the head
@@ -604,9 +613,10 @@ impl BodySlot {
         content_type: &str,
         status: Option<u16>,
         headers: Vec<DeclaredHeader>,
+        http: Option<crate::host::ResponseHttp>,
         length: u64,
     ) -> Option<Emit> {
-        self.open_as(content_type, status, headers, false, Some(length))
+        self.open_as(content_type, status, headers, http, false, Some(length))
     }
 
     /// [`Self::open`] for a stream whose length was stated, with the head and
@@ -622,12 +632,13 @@ impl BodySlot {
         content_type: &str,
         status: Option<u16>,
         headers: Vec<DeclaredHeader>,
+        http: Option<crate::host::ResponseHttp>,
         ranged: crate::conditional::Ranged,
     ) -> Option<(Emit, Window)> {
         let mut all = ranged.headers;
         all.extend(headers);
         let window = ranged.window;
-        self.open_sized(content_type, ranged.status.or(status), all, window.length())
+        self.open_sized(content_type, ranged.status.or(status), all, http, window.length())
             .map(|emit| (emit, window))
     }
 
@@ -639,8 +650,9 @@ impl BodySlot {
         content_type: &str,
         status: Option<u16>,
         headers: Vec<DeclaredHeader>,
+        http: Option<crate::host::ResponseHttp>,
     ) -> Option<Emit> {
-        self.open_as(content_type, status, headers, true, None)
+        self.open_as(content_type, status, headers, http, true, None)
     }
 
     fn open_as(
@@ -648,6 +660,7 @@ impl BodySlot {
         content_type: &str,
         status: Option<u16>,
         headers: Vec<DeclaredHeader>,
+        http: Option<crate::host::ResponseHttp>,
         slotted: bool,
         length: Option<u64>,
     ) -> Option<Emit> {
@@ -664,6 +677,7 @@ impl BodySlot {
             drain,
             slotted,
             length,
+            http,
         });
         if let Some(watcher) = cell.watcher.take() {
             watcher.wake();

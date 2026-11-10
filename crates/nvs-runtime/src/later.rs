@@ -393,8 +393,9 @@ fn deliver(ctx: &mut Ctx, mut body: Vec<u8>, cell: &BodySlot, scripts: Scripts) 
         .unwrap_or(crate::host::ECHOED_MEDIA_TYPE);
     let status = ctx.take_status();
     let headers = ctx.take_headers();
+    let http = ctx.response_http();
     // `slotted_cell` checked the cell is unopened, so this always opens it.
-    let Some(mut emit) = cell.open_slotted(media_type, status, headers) else {
+    let Some(mut emit) = cell.open_slotted(media_type, status, headers, http) else {
         ctx.restore_body(body);
         return;
     };
