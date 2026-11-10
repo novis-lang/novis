@@ -128,7 +128,12 @@ This section shows what comes next for Novis. There are no dates. The
 [roadmap page](https://novis-lang.org/in-depth/roadmap/) shows the same.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-Nothing is planned after the current release yet.
+The work is in the order it is planned. The order can change.
+
+1. **Fixes from a security review.** *Working on it now.* A review of the whole runtime found places where a safety rule did not apply. Each place gets a fix and a test.
+2. **Faster writes to arrays and strings.** A write to a nested array, or an append to a string in a property, changes the value in place. The cost no longer grows with the size of the value.
+3. **A request path that scales with cores.** Each core keeps its own copy of what every request reads. Static files are read on a separate thread.
+4. **A JSON reader and writer made for Novis.** `Core\Json` reads and writes Novis values directly. The `nvs` binary also becomes smaller.
 <!-- roadmap:end -->
 
 ## Contributing

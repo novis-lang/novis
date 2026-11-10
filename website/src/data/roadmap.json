@@ -1,5 +1,36 @@
 {
   "comment": "The public roadmap. `bun nv site --check roadmap` keeps it in step with the goal chain, and `bun nv site --roadmap` copies it into README.md. `internal` lists the goals that are not public work.",
-  "internal": [],
-  "themes": []
+  "internal": ["chain-ends-green"],
+  "themes": [
+    {
+      "title": "Fixes from a security review",
+      "text": "A review of the whole runtime found places where a safety rule did not apply. Each place gets a fix and a test.",
+      "goals": [
+        "values-stay-alive",
+        "crossings-carry-data-only",
+        "qualifiers-hold",
+        "package-authority-closed",
+        "limits-hold",
+        "waits-are-bounded",
+        "sessions-scoped",
+        "database-doors",
+        "operator-surfaces"
+      ]
+    },
+    {
+      "title": "Faster writes to arrays and strings",
+      "text": "A write to a nested array, or an append to a string in a property, changes the value in place. The cost no longer grows with the size of the value.",
+      "goals": ["in-place-writes"]
+    },
+    {
+      "title": "A request path that scales with cores",
+      "text": "Each core keeps its own copy of what every request reads. Static files are read on a separate thread.",
+      "goals": ["request-path-per-core"]
+    },
+    {
+      "title": "A JSON reader and writer made for Novis",
+      "text": "`Core\\Json` reads and writes Novis values directly. The `nvs` binary also becomes smaller.",
+      "goals": ["fitted-dependencies"]
+    }
+  ]
 }
