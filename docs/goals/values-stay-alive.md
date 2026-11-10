@@ -309,8 +309,10 @@ The session writes the list under this stage as checkpoints.
   (`crates/nvs-ir/src/lower/operator.rs:859`, `crates/nvs-ir/src/lower/expr.rs:2039`).
 - [x] Move `Core` member arguments and callable arguments to it, so the `(Borrowed, true)` arm holds
   (`crates/nvs-ir/src/lower/call.rs:497`, `crates/nvs-ir/src/lower/call.rs:1134`).
-- [ ] Move an index's base and key, and a property chain's base, to it
-  (`crates/nvs-ir/src/lower/expr.rs:6713`, `crates/nvs-ir/src/lower/expr.rs:5689`).
+- [x] Move an index's base and key, and a property chain's base, to it
+  (`crates/nvs-ir/src/lower/expr.rs:6713`, `crates/nvs-ir/src/lower/expr.rs:5689`). The base is
+  `OperandSite::IndexBase`. The key is read last, so it needs no hold. A property chain's base
+  needs none either: nothing runs between it and the slot read, and a `get` hook retains it.
 - [ ] Move every other consumer the list names, then make `aliasing_read` private to the one function
   (`crates/nvs-ir/src/lower/mod.rs:4182`). The `Explore` list, by file; each consumer that lowers
   operands and reads them after later ones gets an `OperandSite` variant and a matrix row:
@@ -330,9 +332,10 @@ The session writes the list under this stage as checkpoints.
     `lower_keyed_property_access` 6353, `lower_key_name` 6405, `lower_keyed_property_assign` 6438,
     `lower_shape_property_assign` 6501, `lower_array_literal` 6589-6644, `lower_index` 6751,
     `lower_type_test` 6926, `lower_clone_expr` 7576.
-  - [ ] `operator.rs`: `lower_object_comparison` 177-216, `lower_not` 299, `lower_unary` 479,
-    `lower_null_identity` 607/618. Done: `lower_binary` and `lower_carrier_concat`, which now
-    takes each side's borrow flag.
+  - [ ] `operator.rs`: `lower_not` 299, `lower_unary` 479 and `lower_null_identity` 607/618
+    read one operand with nothing after it, so they need no hold, only their `aliasing_read` calls
+    moved once that function turns private. Done: `lower_binary`, `lower_carrier_concat`, and
+    `lower_object_comparison` as `OperandSite::Ordering`.
   - [ ] `convert.rs`: `convert` 79-357, `convert_or_null` 465, `lower_truthy_cond` 675,
     `lower_conversion` 878-1011, `lower_nullable_shape_conversion` 1393,
     `lower_tested_conversion` 1454, `lower_markup_lift` 1587, `lower_array_restamp` 1667,
@@ -532,29 +535,24 @@ session writes each group under its stage as checkpoints, so stages 6 to 8 start
 
 ### State
 
-Stage 1 has its machinery and six sites. `crates/nvs-ir/src/lower/operand.rs` holds `OperandSite`
-(`Concat`, `StringHole`, `Binary`, `MatchSubject`, `Argument`, `CallableArgument`),
-`Lowering::hold_borrowed`, `Lowering::borrowed_arg` (the `aliasing` answer `account_for_arg`
-takes), the shared-or-local root of a read, and `is_inert`. The rule is
-`docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md`, rendered.
+Stage 1 has eight sites. `crates/nvs-ir/src/lower/operand.rs` holds `OperandSite` (`Concat`,
+`StringHole`, `Binary`, `MatchSubject`, `Argument`, `CallableArgument`, `IndexBase`, `Ordering`),
+`hold_borrowed`, `borrowed_arg`, `index_base_held` and `is_inert`, which calls a staged
+expression inert. The rule fragment is rendered.
 
-- `lower_binary` lowers its two operands as first and second, judges the first against the second,
-  stages a held one while the second runs, and every arm reads the flags `lb`/`rb`.
-  `lower_carrier_concat` takes `(bool, ValueId)` pairs.
-- `lower_match` judges its subject against every label.
-- `lower_call_args` passes each fixed argument the ones written after it. An options bag judges
-  each field against the fields declared after it, because options lower in declared order.
-  `lower_callable_call`, `lower_erased_method_call` and `lower_callable_rebind` judge the callable,
-  the receiver and each argument the same way.
+- `lower_binary` and `lower_object_comparison` stage a held first operand while the second runs and
+  read the flags `lb`/`rb`. `lower_match` judges its subject against every label.
+- `lower_call_args`, an options bag, `lower_callable_call`, `lower_erased_method_call` and
+  `lower_callable_rebind` judge each operand against the ones lowered after it.
+- `lower_index` holds a borrowed base while its key runs, then retains the element and releases
+  the base. `aliasing_read`'s `Index` arm reads `index_base_held`, so that element read is a fresh
+  producer to every consumer. A store stages a key that runs code, and a staged key is inert.
 
-`borrowed_reads.rs` is green, run by name, and every one of its rows fails with `hold_borrowed`
-switched off. Its fill grew from 16 to 1024 strings: on Windows the heap reuses a freed block only
-after many allocations, so with 16 the property rows passed even with no hold. `Holder::same()`
-returns a literal for the same reason. Not yet written:
-`every_borrow_judgment_passes_the_one_operand_lowering`, which lands with the last move, and the
-attack.
+`borrowed_reads.rs` is green, run by name, and every row fails with its hold off, by wrong text, a
+crash or a throw. Not yet written: `every_borrow_judgment_passes_the_one_operand_lowering`, the
+free-path test and the attack.
 
-The sweep's `env-secret-proofs` red is stale: no such check or log exists.
+The sweep's `env-secret-proofs` red is stale: it was the retired `request-http-settings`'s check.
 
 ### Next
 
@@ -567,17 +565,23 @@ to `statement()` in `crates/nvs-codegen/tests/borrowed_reads.rs:1`, and check th
 hold switched off. The consumer list is the checkpoints under stage 1's "Move every other consumer"
 item. Its line numbers are stale, so `bun nv peek --locate` each function first.
 
-- [ ] `crates/nvs-ir/src/lower/expr.rs:6713`: move an index's base and key, and a property chain's
-  base, to it (`crates/nvs-ir/src/lower/expr.rs:5689`).
-- [ ] `crates/nvs-ir/src/lower/mod.rs:4182`: move every other consumer the list names, then make
-  `aliasing_read` private to `operand.rs`.
+- [ ] `crates/nvs-ir/src/lower/expr.rs:1`: the `expr.rs` consumers, two operands first:
+  `lower_coalesce`, `lower_ternary`, `lower_method_call` (its receiver against its arguments),
+  `lower_array_literal`, `lower_anon_object`, `lower_keyed_property_access` and
+  `lower_spawn_script`. A consumer that reads one operand with nothing lowered after it needs no
+  variant.
+- [ ] `crates/nvs-ir/src/lower/mod.rs:4184`: then `convert.rs`, `stmt.rs`, `control.rs`,
+  `exception.rs`, `anon_fn.rs` and `generator.rs`. Make `aliasing_read` private to `operand.rs`.
+  Every one-operand consumer then calls one `pub(crate)` wrapper in `operand.rs` that names "a
+  read with nothing lowered after it", so the source test can tell it from a judged operand.
 - [ ] `crates/nvs-ir/src/lower/tests.rs:1`: `every_borrow_judgment_passes_the_one_operand_lowering`,
   once no `aliasing_read` call is left outside `operand.rs`.
 - [ ] `tests/hostile/lang/expressions/string-operators/02-an-operand-that-frees-the-one-before-it.nvs:1`:
   the attack, each consumer once, with a later operand that replaces the property.
 
 Expected red: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` where a `.` spine, a string
-hole, a comparison operand, a `match` subject or a `Core` argument reads a property before a call. Each one gains a `retain` at the read, and the stage-9 gate
+hole, a comparison operand, a `match` subject, an index base or a `Core` argument reads a property
+before a call. Each one gains a `retain` at the read, and the stage-9 gate
 accepts them after reading each diff. Stage 3 changes more snapshots.
 
 ### Backlog
