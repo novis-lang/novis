@@ -269,27 +269,31 @@ Every session runs this cycle until the push run is green or the context reaches
 
 Stages 1 and 2 are built, and stage 2's push proof is stage 3's first push. Every WSL step runs in
 `novis-test`, and Docker answers inside it.
-- **Pushes of this start: 1.** `97e597307b`, after a green `bun nv ci --check`. Its CI run is being
-  watched; its id and verdict go here.
+- **Pushes of this start: 2.**
+  - Push 1, `97e597307b`, run `42702417500`: red. `docs` (no `CONTRIBUTING.md` row for
+    `nvs-fuzz-checks`, fixed in `3cec78f67d`, and `PRE_PUSH` now runs the layout check) and `miri
+    units (nvs-stdlib 9/12, 11/12)`, four tests over 300 s (fixed in `e7c3b0bdd5`, and `bun nv
+    deep`'s Miri units now stop a test at 60 s under the `miri-deep` profile). Its other jobs were
+    green, `ext-templates` among them.
+  - Push 2, `c5d9ccd4c3`, after a green `bun nv ci --check`. `bun nv deep --only miri-units` under
+    `miri-deep` was green but one web push test at 60 s, which `c5d9ccd4c3` skips under Miri as its
+    sibling is. Its run is being watched; its id and verdict go here.
 - **This cycle's local lane is done.** Green at `efade84c36` or later: `test-linux` (37 min),
   `release-version`, `extension`, `extension-host`, `browser`, `database`, `docker` (4 min) and
   `flood` (8 min). Red after `--failed`: `ext-templates` alone, because `wit-bindgen` 0.63.0 and
   wasi-sdk 34 are not installed on this machine. Installing them is a person's (their lines are in
   the step's error). The push run decides that job.
-- **Green earlier this cycle:** `miri-units`, `lint`, `build-linux`, `proofs-linux`,
-  `cost-guards-linux`, `valgrind`, `asan`, `tsan`, `miri`, and on `cf18d84bd9` every other Windows
-  step. `test-windows` needs `docker compose -f tests/db/compose.yaml up -d --wait redis postgres`.
-- **Fixed this cycle:** `0dead72b3a`, `d8d749a546`, `661a58af3c`, and `efade84c36`, which gives
-  `serve_isolation`'s extension cases `watchdog_margin = "30s"`: test servers pin workers to CPU 0,
-  and a starved worker missed the 5 s margin and was shed with `503`.
+- Every other local step was green this cycle. `test-windows` needs `docker compose -f
+  tests/db/compose.yaml up -d --wait redis postgres` first.
 - `.claude/settings.json:30` still allows `bun nv ci-changes`. That file is the person's to edit.
 
 ### Next
 
-**Watch push 1's run:** `bun nv ci --watch --next`, as stage 3's step 4 says. If it is green, stop
-the loop and tick stage 2's last item once `bun nv release --tested <sha>` prints `tested=true`. If
-a job is red, finish the run with `--past`, fix each red, close the gap in `bun nv deep`, and push
-again (push 2). A red `nvs serve` test whose server output names `the core is not turning` is the
+**Watch push 2's run:** `bun nv ci --watch --next`, as stage 3's step 4 says. If it is green, stop
+the loop and tick stage 2's last item once `bun nv release --tested c5d9ccd4c3` prints
+`tested=true`. If a job is red, finish the run with `--past`, fix each red, close the gap in `bun nv
+deep`, and push again (push 3, the last before the loop hands back). A `miri units` job red again
+the way push 1's was is a fix that did not hold, and stops the loop. A red `nvs serve` test whose server output names `the core is not turning` is the
 watchdog shed (playbook, *Writing a test case*). Give it `watchdog_margin = "30s"` as
 `efade84c36` did.
 
