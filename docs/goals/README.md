@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: []
+chain: [request-http-settings]
 floor:
   - id: floor-debt
     name: every owed or red atom is paid green
@@ -37,7 +37,11 @@ floor:
 
 # Goals
 
-The chain is empty.
+The chain holds 1 goal(s). `request-http-settings` is live.
+
+| # | Goal | Reached when | Stages |
+|---|---|---|---|
+| 1 | [`request-http-settings`](request-http-settings.md) **live** | Every [http] setting a request changes with Core\Config::set reaches that request's response: its security headers, its CORS answer and its cookie defaults. A request that sets nothing costs nothing extra, and a test per setting reads the setting list itself. | **1 a request's [http.headers] and [http.cors] settings reach its response** · 2 cookie defaults and every other [http] reader take the request's settings · 3 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`release-green`](release-green.md).
 
