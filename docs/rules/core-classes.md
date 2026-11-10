@@ -796,6 +796,10 @@ the slowest slot ends. A browser without JavaScript shows the placeholders.
   is bounded exactly as the same page without it, and a second set of limits is something every
   developer must learn.
 - **A slot in `<head>`.** The head is sent first, so a `<title>` cannot be filled later.
+- **A nonce on the two scripts**, given by the program or drawn per response. Their hashes are added
+  to whatever policy the response carries, the program's own included, so a page lists neither and
+  no Novis build can break a policy. A program that wants a nonce for its own elements already
+  draws one with `Core\Random::token`.
 
 <sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees).</sub>
 
