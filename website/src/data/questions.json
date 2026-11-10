@@ -18576,11 +18576,11 @@
   },
   "/tools/cli/": {
     "feature": "tools/cli/index.mdx",
-    "hash": "11a7592916cbca93",
+    "hash": "43a86208ac34b51d",
     "questions": [
       "How do I check my code for errors from the command line?",
       "Get compiler errors as JSON for a script or CI",
-      "Check one class file that a program in my project loads with autoload",
+      "Check one autoloaded class file, also in a folder that .gitignore names",
       "Where does Novis store compiled code, and how do I clear it?",
       "How do I find out if a new Novis version is released?",
       "Does the nvs command send telemetry, and how do I turn it off?"
@@ -18612,26 +18612,26 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "d27797a34a2aaf2f",
+    "hash": "5cfc300234efd5c5",
     "questions": [
       "Install the Novis extension from the Marketplace, Open VSX or a .vsix file",
       "Rename a method in every file of my project at once",
       "Which quick fixes and code actions does the editor offer?",
       "How can I see which routes and tests use a method?",
-      "Where is the Novis Tasks view when I debug in VS Code?",
-      "How do I change a colour of the Novis Dark theme?"
+      "How do I change a colour of the Novis Dark theme?",
+      "Which files does the editor read, and does it skip folders in .gitignore?"
     ]
   },
   "/tools/formatter/": {
     "feature": "tools/formatter/index.mdx",
-    "hash": "aa6c8dd5a35a9cfa",
+    "hash": "ed4fdcae10ef4a17",
     "questions": [
       "How do I format my Novis code?",
-      "Is there an automatic code formatter like gofmt or prettier?",
       "Check in CI that every file is formatted",
       "See what the formatter would change before it writes",
       "Can I change the indentation or the code style?",
-      "How does the formatter lay out a long condition that I split over several lines?"
+      "How does the formatter lay out a long condition that I split over several lines?",
+      "Does nvs fmt skip the files that .gitignore names?"
     ]
   },
   "/tools/profiler/": {
