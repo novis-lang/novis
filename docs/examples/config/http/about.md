@@ -11,3 +11,7 @@ A program may change almost any of it for the one request it is handling, and th
 starts from the file again — a handler that wanted a different policy could have written the header
 into its own response by hand anyway. The two it may not touch are the key cross-site request
 tokens are signed with and the file that key is read from.
+
+A program also cannot change a setting that is used before it starts. The error page and the answer
+to a CORS preflight request are sent before any program runs. So `Core\Config::set` returns `false`
+for `http.errors.detail`, `http.cors.methods`, `http.cors.headers` and `http.cors.max_age`.

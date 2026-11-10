@@ -16,7 +16,8 @@
 //!
 //! **What `set` refuses, it refuses by returning `false`** (`rule:config/three-changeability-classes` and `rule:config/ini-set-is-core-config-set`): a
 //! name no [`Directive`](crate::directive::Directive) row governs, a name a row governs that is not
-//! a leaf key the file may write (`log`, `log.x`), a `System` one, a value that
+//! a leaf key the file may write (`log`, `log.x`), a key in [`UNREAD_BY_A_REQUEST`] that nothing
+//! reads while a request runs, a `System` one, a value that
 //! does not spell its unit, a value above its ceiling (`[limits.hard]`, or where that is not
 //! written the `[limits]` value the run started with, except `memory` on a CLI run), a
 //! [`RuntimeTighten`](Class::RuntimeTighten) one that does not narrow, an assignment that would
@@ -56,6 +57,22 @@ use crate::mode;
 use crate::snapshot::{Snapshot, value_at};
 use crate::tree::Setting;
 use crate::value::{self, unit_of};
+
+/// The `[http]` keys under a `Runtime` row that nothing reads while a request runs, so `set`
+/// returns `false` for each (`rule:config/three-changeability-classes`).
+///
+/// `http.cors.methods`, `headers` and `max_age` shape only a preflight, which is answered before
+/// any program runs. `http.errors.detail` shapes the page of a request that never got a frame, so
+/// no program ran to set it. A mode flip still derives `http.errors.detail` into the overlay, since
+/// `get` answers the mode's default from there.
+///
+/// Cost: one scan of four keys per `set` naming a key the default file writes.
+pub const UNREAD_BY_A_REQUEST: [&str; 4] = [
+    "http.cors.methods",
+    "http.cors.headers",
+    "http.cors.max_age",
+    "http.errors.detail",
+];
 
 /// The `RuntimeTighten` rows that are a `true`/`false` switch, which a request may set to `false`
 /// and to nothing else (the module doc's flag paragraph).
@@ -292,7 +309,7 @@ impl Request {
         // A name under a settable block that is not one of its keys — `log`, `log.x`,
         // `limits..memory` — is still governed by that block's row, but no reader ever asks for it,
         // so a set of it would change nothing and say `true`.
-        if !is_key(key) {
+        if !is_key(key) || UNREAD_BY_A_REQUEST.contains(&key) {
             return false;
         }
         let Some(row) = lookup(key) else {
@@ -480,6 +497,11 @@ impl Request {
         if !key.starts_with("http.cors.") && !key.starts_with("http.cookies.") {
             return true;
         }
+        // The boot refuses a `same_site` that is none of the three values (`E0624`), and the
+        // cookie resolver has no fourth arm, so a request's own is refused the same way.
+        if key == "http.cookies.same_site" && crate::http::SameSite::parse(value).is_none() {
+            return false;
+        }
         let http = crate::http::folded(
             self.base.config.http.as_ref(),
             self.http_settings().chain([(key, value)]),
@@ -506,6 +528,21 @@ impl Request {
             self.base.config.http.as_ref(),
             self.http_settings(),
         ))
+    }
+
+    /// `rule:http-server/cookies-are-secure-httponly-and-lax`'s four cookie defaults as they stand
+    /// for this request: the file's `[http.cookies]` block with this request's own settings folded
+    /// over it, through the one fold [`crate::http::folded`].
+    ///
+    /// Cost: one read of the snapshot's block for a request that set no `http.cookies.` key. A
+    /// request that set one pays [`crate::http::folded`]'s one clone, per `addCookie` call.
+    #[must_use]
+    pub fn cookies(&self) -> crate::http::Cookies {
+        let http = self.base.config.http.as_ref();
+        if !self.overlay.keys().any(|key| key.starts_with("http.cookies.")) {
+            return crate::http::Cookies::of(http);
+        }
+        crate::http::Cookies::of(Some(&crate::http::folded(http, self.http_settings())))
     }
 
     /// This request's own settings under `[http]`, in key order.
@@ -627,9 +664,17 @@ fn canonical(name: &str) -> &str {
 ///
 /// Cost: the set is built once per process, on the first `set`, and is a few kilobytes.
 fn is_key(key: &str) -> bool {
+    keys().contains(key)
+}
+
+/// Every leaf key an `nvs.toml` may write, read off the shipped default file: the roster [`is_key`]
+/// asks, for a test that walks the keys `set` may accept.
+///
+/// Cost: as [`is_key`]'s, the one set built once per process.
+#[must_use]
+pub fn keys() -> &'static BTreeSet<String> {
     static KEYS: OnceLock<BTreeSet<String>> = OnceLock::new();
     KEYS.get_or_init(|| leaf_keys(crate::default_file()))
-        .contains(key)
 }
 
 /// Every setting line's dotted key in `file`: `#name = …` under the nearest `[block]` or

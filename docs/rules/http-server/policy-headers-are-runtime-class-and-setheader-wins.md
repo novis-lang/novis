@@ -12,12 +12,17 @@ as text, its entries separated by commas (`"https://a.example, https://b.example
 `frame_ancestors` takes its sources separated by commas or spaces. **A CORS preflight is the
 file's**: it is answered before any program runs
 (`rule:http-server/a-preflight-is-answered-before-any-code-runs`), so no request setting reaches
-it, and only the actual response's CORS headers take the request's values.
+it, and only the actual response's CORS headers take the request's values. So `methods`, `headers`
+and `max_age`, which only a preflight carries, are not settable: `set` returns `false` for each
+(`rule:config/three-changeability-classes`). A cookie's defaults are the request's too: an
+`addCookie` call, and the session cookie, take `[http.cookies]` with the request's settings folded
+over it, and `set` refuses a `same_site` that is not `Lax`, `Strict` or `None`.
 
 **What it spends:** nothing for a request that set no `[http.headers]` or `[http.cors]` key; it is
 answered under the policy the server built once per snapshot. A request that set one pays one clone
 of the `[http]` block and one render of its own header set and CORS answer, a few hundred bytes,
-per request and dropped with its response.
+per request and dropped with its response. A request that set an `[http.cookies]` key pays one
+clone of the block per `addCookie` call.
 
 This costs nothing in security because the alternative buys nothing. A request can already write
 any response header it likes through `setHeader` — that is what a response object is. A

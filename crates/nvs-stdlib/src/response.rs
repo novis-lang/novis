@@ -1682,7 +1682,9 @@ const SECURE_PREFIX: &str = "__Secure-";
 const ADD_COOKIE: &str = "Core\\Response::addCookie()";
 
 /// The four defaults of `rule:http-server/cookies-are-secure-httponly-and-lax`
-/// as they stand for this request.
+/// as they stand for this request: the file's block with the request's own
+/// `Core\Config::set` settings folded over it
+/// ([`nvs_config::Request::cookies`]).
 ///
 /// A program with no configuration at all still gets them: `Cookies::of(None)`
 /// is `rule:http-server/cookies-are-secure-httponly-and-lax`'s shipped set, which is the answer a `nvs.toml`-less run
@@ -1693,7 +1695,7 @@ const ADD_COOKIE: &str = "Core\\Response::addCookie()";
 pub(crate) fn configured_cookies(ctx: &nvs_runtime::Ctx) -> nvs_config::http::Cookies {
     ctx.config().map_or_else(
         || nvs_config::http::Cookies::of(None),
-        |config| nvs_config::http::Cookies::of(config.snapshot().config.http.as_ref()),
+        nvs_config::Request::cookies,
     )
 }
 

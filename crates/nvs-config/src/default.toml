@@ -437,7 +437,7 @@
 
 [http.errors]
 # What a request that never got a frame shows: `generic` or `full`. The mode picks this.
-# `Runtime`-class, so a request may pick the other.
+# No program ran for such a request, so `Core\Config::set` returns `false` for this key.
 #detail = "generic"                   # default: "generic" in production, "full" in development
 
 [http.headers]

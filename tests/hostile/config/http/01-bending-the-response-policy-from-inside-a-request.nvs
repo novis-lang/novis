@@ -99,10 +99,9 @@ foreach ($nearby as string $key) {
 // 6. Set one key 50,000 times with no restore. Only the last value should use memory.
 uint $i = 0;
 while ($i < 50000) {
-    Core\Config::set('http.errors.detail', $i % 2 == 0 ? 'full' : 'generic');
+    Core\Config::set('http.cookies.same_site', $i % 2 == 0 ? 'Strict' : 'Lax');
     $i = $i + 1;
 }
-Core\Config::restore('http.errors.detail');
 Core\Config::restore('http.cookies.same_site');
 Core\Config::restore('http.cookies.secure');
 Core\Config::restore('http.cors.origins');

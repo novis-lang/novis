@@ -1,7 +1,8 @@
 error detail:    generic
 cookies default: Lax
 CORS origins:    (nothing, so no cross-origin call is answered)
-say more:        yes
-now in force:    full
+stricter:        yes
+now in force:    Strict
+say more:        no
 choose the key:  no
-restored to:     generic
+restored to:     Lax

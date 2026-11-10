@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/output.rs, crates/nvs-server/src/cors.rs, crates/nvs-server/src/csp.rs]
   - id: 2
     title: "cookie defaults and every other [http] reader take the request's settings"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/response.rs, crates/nvs-config/src/directive.rs, docs/rules/config/three-changeability-classes.md]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
@@ -109,6 +109,15 @@ file's `credentials = true` returns `false`.
 `Ctx::response_http` in `wiring.rs` when the request ends. `nvs-host`'s own code reads no
 configuration, and `output.rs` was claimed by another session.
 
+**Four `Runtime` keys under `[http]` are refused by name, not by class.** `http.cors.methods`,
+`headers` and `max_age` reach only a preflight, and `http.errors.detail` only the page of a request
+that never got a frame, so no request-time reader exists for any of them.
+`nvs_config::request::UNREAD_BY_A_REQUEST` lists them, and `set` returns `false` for each. Their
+registry rows stay `Runtime`, because `http.errors.detail` is a mode-table row and a mode's derived
+rows must stay settable (`every_derived_default_names_a_directive_the_registry_holds`); a mode flip
+still derives it into the overlay. `set` also refuses a `same_site` outside `Lax`, `Strict` and
+`None`, as the boot does with `E0624`. **What it spends:** a scan of four keys per `set`.
+
 **Lanes:** one lane. Stage 2 builds on stage 1's carrier, and both touch `serve.rs`.
 
 ## Stages
@@ -154,15 +163,20 @@ standing decision with one test that reads the key list.
 **Split:** an `Explore` subagent lists every reader of an `[http]` value outside `nvs-config`, as
 `file.rs:NN` and the key, before the first edit.
 
-- [ ] `configured_cookies` reads the folded `Http` (`crates/nvs-stdlib/src/response.rs:1693`,
+- [x] `configured_cookies` reads the folded `Http` (`crates/nvs-stdlib/src/response.rs:1693`,
   `rule:http-server/cookies-are-secure-httponly-and-lax`).
-- [ ] Every other `[http]` reader the list names, `[http.errors] detail` among them, reads the
+  - [x] `Request::cookies` folds the request's `http.cookies.` settings through `http::folded`.
+  - [x] `configured_cookies`, and so the session cookie, reads it.
+- [x] Every other `[http]` reader the list names, `[http.errors] detail` among them, reads the
   request's value, or its key returns `false` from `set` (`crates/nvs-config/src/request.rs:300`).
-- [ ] Test `every_http_setting_a_request_may_set_reaches_its_response` in
+  - [x] The outbound-call keys already read `Request::get`; TLS, proxy, pool and CSRF are `System`.
+  - [x] `UNREAD_BY_A_REQUEST` refuses the three preflight keys and `http.errors.detail`.
+  - [x] The `[http]` example, its `about.md`, the attack's step 6 and `default.toml` follow.
+- [x] Test `every_http_setting_a_request_may_set_reaches_its_response` in
   `crates/nvs-cli/tests/request_http_settings.rs:1`. It enumerates the `http.*` keys from the
   configuration's own key list, not a list in the test, and fails naming a key that `set` accepts and
   the response ignores.
-- [ ] `rule:config/three-changeability-classes` names any `http.*` key that is not settable
+- [x] `rule:config/three-changeability-classes` names any `http.*` key that is not settable
   (`docs/rules/config/three-changeability-classes.md:1`).
 
 ### 3. the goal is verified once, and every failure is fixed
@@ -175,30 +189,29 @@ standing decision with one test that reads the key list.
 
 ### State
 
-Stage 1 is done. A finished response carries the request's folded `[http]` block on
-`Completion::http`, and a streamed one on `stream::Opened::http`. Every open of the response-stream
-cell takes it as a parameter, so each site decides: `Core\Response::stream`, `Core\Sse::stream` and
-the slotted page pass `ctx.response_http()`. `streamed` in `crates/nvs-server/src/serve.rs` inserts
-`RequestHttp` from it, and the one fill builds `Secure` and `Cors` from it. Both stage-1 tests pass
-by name, the slotted case included. Build and clippy are green.
+Stages 1 and 2 are done. A request's `[http.headers]`, `[http.cors]` and `[http.cookies]` settings
+reach its response. `nvs_config::Request::cookies` folds the cookie settings, and
+`configured_cookies` in `crates/nvs-stdlib/src/response.rs` reads it, so `addCookie` and the session
+cookie both follow. `set` returns `false` for the four keys in `UNREAD_BY_A_REQUEST`
+(`crates/nvs-config/src/request.rs`) and for an unknown `same_site`. The outbound-call keys already
+read `Request::get`. `nvs_config::request::keys()` exposes the leaf-key roster `set` reads.
+`every_http_setting_a_request_may_set_reaches_its_response` walks it and passes by name. The `[http]`
+example, its `about.md`, the attack's step 6 and the rule fragments follow. Build and clippy are
+green.
 
-The acceptance sweep's `env-secret-proofs` red names no check in the tree or the floor, and has no
-log, so it is stale. The nightly reds the last handoff traced need no work here.
+The acceptance sweep's `env-secret-proofs` red has no log and no definition in the tree, so it is
+stale.
 
 ### Next
 
-Stage 2, no gate. Files `crates/nvs-stdlib/src/response.rs`, `crates/nvs-config/src/request.rs`,
-`crates/nvs-config/src/directive.rs`, a new `crates/nvs-cli/tests/request_http_settings.rs`.
+Stage 3, the gate. Run `looper verify` in the background, fix every failure in one pass, and run it
+once more. Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes
+request-http-settings` and `bun nv ci --check`.
 
-- [ ] `crates/nvs-config/src/tree.rs:1`: first, the stage's split. An `Explore` subagent lists every
-  reader of an `[http]` value outside `nvs-config`, each as a path, a line and the key.
-- [ ] `crates/nvs-stdlib/src/response.rs:1693`: `configured_cookies` reads
-  `nvs_config::http::folded` through the request's config, not the snapshot's block.
-- [ ] `crates/nvs-config/src/request.rs:300`: each `http.*` key the list shows no request-time
-  reader for returns `false` from `set`.
-- [ ] `crates/nvs-cli/tests/request_http_settings.rs:1`: the test enumerates the keys from the
-  configuration's own key list (`crates/nvs-config/src/directive.rs:126`).
+- [ ] `docs/examples/config/http/01-what-a-response-is-shaped-by.nvs:1`: the examples test reads its
+  new `.out`.
 
-No test is expected to go red.
+Tests that may go red: the examples and hostile suites over `docs/examples/config/http/` and
+`tests/hostile/config/http/`. Each passed when run by hand against the debug binary.
 
 ### Backlog
