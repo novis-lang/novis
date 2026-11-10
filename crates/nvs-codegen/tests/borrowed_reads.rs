@@ -41,6 +41,11 @@ class Holder {
         $this->replace();
         return "old-1-abcdefghijklmnop";
     }
+
+    public function zero(): int {
+        $this->replace();
+        return 0;
+    }
 }
 
 int $n = 1;
@@ -58,7 +63,7 @@ const READS: &[&str] = &["$h->s", "$h->items[0]", "Holder::$shared"];
 
 /// The statement that reads `read` at `site` and then calls `replace()`, or
 /// `None` where the site cannot contain that read: a string hole reads no
-/// static property.
+/// static property, and an index base reads only an array.
 fn statement(site: OperandSite, read: &str) -> Option<String> {
     match site {
         OperandSite::Concat => Some(format!("echo {read} . $h->replace();\n")),
@@ -79,6 +84,11 @@ fn statement(site: OperandSite, read: &str) -> Option<String> {
             "callable $f = fn(string $a, string $b): string => $a . $b;\n\
              echo $f({read}, $h->replace());\n"
         )),
+        // The read is the array, and the key replaces it before the element
+        // is read. Only the element form reads an array.
+        OperandSite::IndexBase => read
+            .strip_suffix("[0]")
+            .map(|array| format!("echo {array}[$h->zero()] . \"!\";\n")),
         other => panic!("borrowed_reads has no program for {other:?}; add one"),
     }
 }

@@ -6773,9 +6773,17 @@ impl<'a> Lowering<'a> {
         // read out of it needs a reference of its own first because
         // `ArrayGet` borrows. Staged on the owned-temporaries stack before the
         // read, so a throw on the way out of the key drops it too.
+        //
+        // A borrowed base whose key can free it is held while the key runs,
+        // and from then on it is a temporary like a fresh one:
+        // `$this->rows[$this->reload()]` keeps the array it read even when
+        // `reload()` replaces `$this->rows`. `Self::aliasing_read` reads the
+        // same judgment, so it calls that element read a fresh producer.
         let mark = self.temporaries_mark();
         let (array_v, base_ty) = self.lower_expr(base, None, env, cur);
-        let base_is_temporary = base_ty.is_refcounted() && !self.aliasing_read(base);
+        let base_is_temporary = base_ty.is_refcounted()
+            && (!self.aliasing_read(base)
+                || !self.hold_borrowed(OperandSite::IndexBase, base, array_v, &[index], *cur));
         if base_is_temporary {
             self.own_temporary(array_v);
         }

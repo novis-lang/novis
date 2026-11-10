@@ -4172,15 +4172,11 @@ impl<'a> Lowering<'a> {
     /// an object's slot, and [`Lowering::lower_index`] answers it identically,
     /// so the recursion below covers both spellings of "reads a slot of
     /// something nothing else owns".
-    /// The table's record for the member access at `span`, or the one
-    /// class's record [`Self::lower_union_member`] is lowering it through
-    /// ([`Self::union_arm`]).
-    pub(crate) fn member_record(&self, span: Span) -> Option<&'a ExprInfo> {
-        match self.union_arm {
-            Some((arm_span, record)) if arm_span == span => Some(record),
-            _ => self.exprs.lookup(span),
-        }
-    }
+    ///
+    /// An element read whose key can free its borrowed base is the third
+    /// case: [`Lowering::lower_index`] holds the base while the key runs, so
+    /// it retains the element and releases the base, exactly as it does for a
+    /// fresh base ([`Lowering::index_base_held`]).
     pub(crate) fn aliasing_read(&self, e: &Expr) -> bool {
         // A staged sub-expression of an assignment target is a borrow of a
         // value this frame's own temporaries stack (or a durable slot) already
@@ -4229,8 +4225,22 @@ impl<'a> Lowering<'a> {
         }
         match &e.kind {
             ExprKind::PropertyAccess { object, .. } => self.aliasing_read(object),
-            ExprKind::Index { base, .. } => self.aliasing_read(base),
+            ExprKind::Index { base, index } => {
+                self.aliasing_read(base)
+                    && index
+                        .as_deref()
+                        .is_none_or(|key| !self.index_base_held(base, key))
+            }
             _ => true,
+        }
+    }
+    /// The table's record for the member access at `span`, or the one
+    /// class's record [`Self::lower_union_member`] is lowering it through
+    /// ([`Self::union_arm`]).
+    pub(crate) fn member_record(&self, span: Span) -> Option<&'a ExprInfo> {
+        match self.union_arm {
+            Some((arm_span, record)) if arm_span == span => Some(record),
+            _ => self.exprs.lookup(span),
         }
     }
     /// Releases every refcounted local still live in `env`, in a fixed

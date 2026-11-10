@@ -52,6 +52,8 @@ pub enum OperandSite {
     /// An argument of a call through a `callable` value, and the callable
     /// itself, read by the call after the last argument.
     CallableArgument,
+    /// The base of an element read, read by the element read after its key.
+    IndexBase,
 }
 
 impl OperandSite {
@@ -63,6 +65,7 @@ impl OperandSite {
         OperandSite::MatchSubject,
         OperandSite::Argument,
         OperandSite::CallableArgument,
+        OperandSite::IndexBase,
     ];
 }
 
@@ -132,6 +135,17 @@ impl Lowering<'_> {
         self.hold_borrowed(site, e, v, later, cur)
     }
 
+    /// Whether the borrowed base of `base[key]` is held while `key` runs.
+    ///
+    /// [`Self::lower_index`] holds it through [`Self::hold_borrowed`], whose
+    /// answer is this one, and [`Self::aliasing_read`] reads it to call such
+    /// an element read a fresh producer: the element is retained before the
+    /// held base is released. Every index base is an array or a tag, so it is
+    /// always refcounted and the two never disagree.
+    pub(crate) fn index_base_held(&self, base: &Expr, key: &Expr) -> bool {
+        self.later_can_free(base, &[key])
+    }
+
     /// Whether an expression in `later` can free the storage `e` reads.
     fn later_can_free(&self, e: &Expr, later: &[&Expr]) -> bool {
         match self.read_root(e) {
@@ -183,13 +197,18 @@ impl Lowering<'_> {
     /// Whether lowering `x` can run no program code and write no storage, so
     /// that no borrowed read before it can be freed while it runs.
     ///
-    /// A literal, a local, and a plain read of a property, a static property
+    /// A staged expression, a literal, a local, and a plain read of a property, a static property
     /// or an element whose base and key are themselves inert. A property with
     /// a `get` hook is a call, which [`Self::aliasing_read`] already tells
     /// apart. Every other kind is listed with the answer `false`, and the
     /// last arm is the `#[non_exhaustive]` tax: a kind added to `nvs-syntax`
     /// is judged able to run code until somebody lists it here.
     pub(crate) fn is_inert(&self, x: &Expr) -> bool {
+        // A staged expression was evaluated before the target that names it,
+        // and lowering it again reads the staged value and runs nothing.
+        if self.staged(x.span).is_some() {
+            return true;
+        }
         match &x.kind {
             ExprKind::Null
             | ExprKind::Bool(_)
