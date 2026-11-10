@@ -508,6 +508,8 @@ Expected red until stage 1 lands its callers: any in-tree package that reads `Co
 
 ### Backlog
 
-- The package client, the registry tooling, reflection and dynamic dispatch were not reviewed for
-  package authority. No item here covers them.
+- Grant enforcement through a callable, a `mixed` receiver, inheritance and namespace identity is not
+  reviewed. No item here covers it.
+- The package client is the goal `package-files-contained`, the registry is `registry-waits-hold`, and
+  reflection is `calls-by-name-are-checked` and `crossings-carry-data-only`.
 - `require` of an application file from a package namespace was not traced.
