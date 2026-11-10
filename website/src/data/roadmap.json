@@ -1,13 +1,5 @@
 {
   "comment": "The public roadmap. `bun nv site --check roadmap` keeps it in step with the goal chain, and `bun nv site --roadmap` copies it into README.md. `internal` lists the goals that are not public work.",
   "internal": [],
-  "themes": [
-    {
-      "title": "Response settings per request",
-      "text": "A program can change the `[http]` settings for the request it is handling. Its security headers, its CORS headers and its cookie defaults then follow the new values. A request that changes nothing costs nothing extra.",
-      "goals": [
-        "request-http-settings"
-      ]
-    }
-  ]
+  "themes": []
 }

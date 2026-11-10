@@ -128,9 +128,7 @@ This section shows what comes next for Novis. There are no dates. The
 [roadmap page](https://novis-lang.org/in-depth/roadmap/) shows the same.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-The work is in the order it is planned. The order can change.
-
-1. **Response settings per request.** *Working on it now.* A program can change the `[http]` settings for the request it is handling. Its security headers, its CORS headers and its cookie defaults then follow the new values. A request that changes nothing costs nothing extra.
+Nothing is planned after the current release yet.
 <!-- roadmap:end -->
 
 ## Contributing
