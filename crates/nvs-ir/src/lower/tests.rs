@@ -5175,3 +5175,48 @@ fn a_read_followed_only_by_literals_and_locals_takes_no_reference() {
         retains_in(&class("\"k\" . T::f($x)")) + 2,
     );
 }
+
+/// `rule:expressions/an-operand-keeps-its-value-while-later-operands-run`'s
+/// one judgment: no lowering module judges a borrow by itself. Each one calls
+/// `Lowering::sole_operand_borrowed`, `Lowering::borrowed_operand` or
+/// `Lowering::borrowed_arg`, so a consumer that reads operands after later
+/// ones has to name what follows them. Privacy already keeps a call out of
+/// another module; this test also keeps the method private.
+#[test]
+fn every_borrow_judgment_passes_the_one_operand_lowering() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/lower");
+    let mut read = 0;
+    let mut outside = Vec::new();
+    for entry in std::fs::read_dir(&dir).expect("src/lower is readable") {
+        let path = entry.expect("a directory entry").path();
+        if path.extension().is_none_or(|ext| ext != "rs") {
+            continue;
+        }
+        let src = std::fs::read_to_string(&path).expect("a lowering source file is UTF-8");
+        read += 1;
+        let file = path.file_name().map(|n| n.to_string_lossy().into_owned());
+        let file = file.unwrap_or_default();
+        if file == "operand.rs" {
+            assert!(
+                src.contains("\n    fn aliasing_read(&self, e: &Expr) -> bool {"),
+                "`aliasing_read` must stay a private method of operand.rs"
+            );
+            continue;
+        }
+        // This file names the method in the assertion above, so it is
+        // skipped here.
+        if file == "tests.rs" {
+            continue;
+        }
+        for (n, line) in src.lines().enumerate() {
+            if line.contains(".aliasing_read(") || line.contains("fn aliasing_read(") {
+                outside.push(format!("{file}:{}", n + 1));
+            }
+        }
+    }
+    assert!(read > 10, "found only {read} lowering source files under {dir:?}");
+    assert!(
+        outside.is_empty(),
+        "a borrow judged outside the one operand lowering: {outside:?}"
+    );
+}

@@ -185,7 +185,10 @@ impl<'a> Lowering<'a> {
                 let ret_ty = self.ret_ty;
                 let v = if let Some(value_expr) = value.as_ref() {
                     let (rv, rty) = self.lower_expr(value_expr, Some(ret_ty), env, cur);
-                    if except.is_none() && rty.is_refcounted() && self.aliasing_read(value_expr) {
+                    if except.is_none()
+                        && rty.is_refcounted()
+                        && self.sole_operand_borrowed(value_expr)
+                    {
                         self.emit_retain(*cur, rv);
                     }
                     Some(self.coerce(*cur, rv, rty, ret_ty, env))
@@ -497,7 +500,7 @@ impl<'a> Lowering<'a> {
             // is evaluated, and the residue that genuinely does nothing costs
             // one dead instruction the backend drops.
             //
-            // The release is `Self::aliasing_read`'s judgment, not a blanket
+            // The release is `Self::sole_operand_borrowed`'s judgment, not a blanket
             // one: `$x;` hands back the local's own value and releasing that
             // would be a release of a reference this frame never took, while
             // `$m->rows()["0"];` is a fresh producer whose only reference is
@@ -507,7 +510,7 @@ impl<'a> Lowering<'a> {
             // wrapping it.
             _ => {
                 let (v, ty) = self.lower_expr(e, None, env, cur);
-                if ty.is_refcounted() && !self.aliasing_read(e) {
+                if ty.is_refcounted() && !self.sole_operand_borrowed(e) {
                     self.emit_release(*cur, v);
                 }
             }
@@ -707,7 +710,7 @@ impl<'a> Lowering<'a> {
         // it with the other temporaries. A `??=` that keeps the old value
         // gives it to its caller, so that one is left alone.
         let kept_old = op == BinaryOp::Coalesce && !defaults;
-        if !kept_old && old_ty.is_refcounted() && !self.aliasing_read(target) {
+        if !kept_old && old_ty.is_refcounted() && !self.sole_operand_borrowed(target) {
             self.own_temporary(old);
         }
         self.stage(target.span, old, old_ty);
@@ -1011,7 +1014,7 @@ impl<'a> Lowering<'a> {
         }
     }
     fn stage_value_of(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) {
-        let aliasing = self.aliasing_read(e);
+        let aliasing = self.sole_operand_borrowed(e);
         let (v, ty) = self.lower_expr(e, None, env, cur);
         if ty.is_refcounted() && !aliasing {
             self.own_temporary(v);
@@ -1172,9 +1175,11 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) {
         let (rv, _) = self.lower_expr(rhs, Some(Ty::Object), env, cur);
+        // A store reads its target and its value. Stage 2 of the
+        // values-stay-alive goal orders this one so the value runs first.
         let operands = [
-            (self.aliasing_read(lhs), current),
-            (self.aliasing_read(rhs), rv),
+            (self.sole_operand_borrowed(lhs), current),
+            (self.sole_operand_borrowed(rhs), rv),
         ];
         let (answer, _) = self.lower_carrier_concat(append, operands, env, cur);
         self.emit_release(*cur, current);
@@ -1552,7 +1557,7 @@ impl<'a> Lowering<'a> {
                     // retained here belongs to this frame until the hook is
                     // called, and a throw before that releases it.
                     let receiver_mark = self.temporaries_mark();
-                    if receiver_ty.is_refcounted() && self.aliasing_read(object) {
+                    if receiver_ty.is_refcounted() && self.sole_operand_borrowed(object) {
                         self.emit_retain(*cur, object_v);
                         self.own_temporary(object_v);
                     }
@@ -1681,7 +1686,10 @@ impl<'a> Lowering<'a> {
                     // — has no other owner, so this frame releases it after the
                     // store, and a throw before that releases it too.
                     let receiver_mark = self.temporaries_mark();
-                    let fresh_receiver = receiver_ty.is_refcounted() && !self.aliasing_read(object);
+                    // A store reads its target and its value. Stage 2 of the
+                    // values-stay-alive goal orders this one so the value runs first.
+                    let fresh_receiver =
+                        receiver_ty.is_refcounted() && !self.sole_operand_borrowed(object);
                     if fresh_receiver {
                         self.own_temporary(object_v);
                     }
@@ -2388,7 +2396,7 @@ impl<'a> Lowering<'a> {
             "nvs-ir destructures only an `array<T>` — got {subject_ty:?}; a value that names no \
              element type is `E0482` at `nvs_types::locals`, so this body was not checked"
         );
-        if !self.aliasing_read(value) {
+        if !self.sole_operand_borrowed(value) {
             self.own_temporary(subject_v);
         }
         self.lower_destructure_target(target, subject_v, cur, env);

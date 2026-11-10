@@ -76,7 +76,7 @@ impl<'a> Lowering<'a> {
             // retain makes the free row honour the contract every other row
             // already does. `$s as string` is one spelling of it, and
             // `rule:types/single-value-types`'s erasure makes `$s as "a"|"b"` another.
-            if to.is_refcounted() && self.aliasing_read(operand) {
+            if to.is_refcounted() && self.sole_operand_borrowed(operand) {
                 self.emit_retain(cur, v);
             }
             return (v, to);
@@ -126,7 +126,7 @@ impl<'a> Lowering<'a> {
             // one retain that makes this row honour the same contract every
             // helper row does.
             (Ty::Str, Ty::Bytes) => {
-                if self.aliasing_read(operand) {
+                if self.sole_operand_borrowed(operand) {
                     self.emit_retain(cur, v);
                 }
                 self.emit(cur, to, InstKind::Reinterpret { operand: v })
@@ -146,14 +146,14 @@ impl<'a> Lowering<'a> {
             // borrowed storage handed through it owes the one retain that
             // makes this row honour the contract every helper row does.
             (_, Ty::Tagged) => {
-                if from.is_refcounted() && self.aliasing_read(operand) {
+                if from.is_refcounted() && self.sole_operand_borrowed(operand) {
                     self.emit_retain(cur, v);
                 }
                 self.emit(cur, to, InstKind::Tag { operand: v })
             }
             (_, Ty::Bool) => {
                 let b = self.truthy_convert(v, from, cur, env);
-                if from.is_refcounted() && !self.aliasing_read(operand) {
+                if from.is_refcounted() && !self.sole_operand_borrowed(operand) {
                     self.emit_release(cur, v);
                 }
                 (b, Ty::Bool)
@@ -225,7 +225,7 @@ impl<'a> Lowering<'a> {
                         },
                         env,
                     );
-                    if !self.aliasing_read(operand) {
+                    if !self.sole_operand_borrowed(operand) {
                         self.emit_release(cur, v);
                     }
                     out
@@ -245,7 +245,7 @@ impl<'a> Lowering<'a> {
                     },
                     env,
                 );
-                if !self.aliasing_read(operand) {
+                if !self.sole_operand_borrowed(operand) {
                     self.emit_release(cur, v);
                 }
                 out
@@ -302,7 +302,7 @@ impl<'a> Lowering<'a> {
                     },
                     env,
                 );
-                if from.is_refcounted() && !self.aliasing_read(operand) {
+                if from.is_refcounted() && !self.sole_operand_borrowed(operand) {
                     self.emit_release(cur, v);
                 }
                 out
@@ -327,7 +327,7 @@ impl<'a> Lowering<'a> {
                     },
                     env,
                 );
-                if !self.aliasing_read(operand) {
+                if !self.sole_operand_borrowed(operand) {
                     self.emit_release(cur, v);
                 }
                 out
@@ -354,7 +354,7 @@ impl<'a> Lowering<'a> {
                     },
                     env,
                 );
-                if !self.aliasing_read(operand) {
+                if !self.sole_operand_borrowed(operand) {
                     self.emit_release(cur, v);
                 }
                 out
@@ -462,7 +462,7 @@ impl<'a> Lowering<'a> {
         // helper returns a status and an uncatchable one has to leave the
         // frame swept (`Inst::on_error`).
         let out = self.emit_fallible(cur, Ty::Tagged, call, env);
-        if from.is_refcounted() && !self.aliasing_read(operand) {
+        if from.is_refcounted() && !self.sole_operand_borrowed(operand) {
             self.emit_release(cur, v);
         }
         out
@@ -672,7 +672,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> ValueId {
         let (v, ty) = self.lower_expr(cond, None, env, cur);
-        let is_alias = self.aliasing_read(cond);
+        let is_alias = self.sole_operand_borrowed(cond);
         self.truthy_value(v, ty, is_alias, *cur, env)
     }
 
@@ -875,7 +875,7 @@ impl<'a> Lowering<'a> {
                 // through.
                 if let Some(accepted) = self.property_key_set(ty) {
                     self.lower_single_value_membership(v, from, &accepted, ty.span, env, cur, None);
-                    if Ty::Str.is_refcounted() && self.aliasing_read(inner) {
+                    if Ty::Str.is_refcounted() && self.sole_operand_borrowed(inner) {
                         self.emit_retain(*cur, v);
                     }
                     return (v, Ty::Str);
@@ -890,7 +890,7 @@ impl<'a> Lowering<'a> {
                     if from != Ty::Str {
                         return self.convert(v, from, Ty::Str, inner, env, *cur);
                     }
-                    if self.aliasing_read(inner) {
+                    if self.sole_operand_borrowed(inner) {
                         self.emit_retain(*cur, v);
                     }
                     return (v, Ty::Str);
@@ -1008,7 +1008,7 @@ impl<'a> Lowering<'a> {
                         // releases one, because the consumer of a `Ty::Bool`
                         // never will and a release over a tag that owns
                         // nothing is a no-op the runtime already handles.
-                        if !self.aliasing_read(inner) {
+                        if !self.sole_operand_borrowed(inner) {
                             self.emit_release(*cur, v);
                         }
                         return (out, Ty::Bool);
@@ -1390,7 +1390,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let holds = self.emit_shape_walk(shape, value, from, span, env, cur);
-        if self.aliasing_read(operand) {
+        if self.sole_operand_borrowed(operand) {
             self.emit_retain(*cur, value);
         }
         let answer = if from == Ty::Tagged {
@@ -1451,7 +1451,7 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        let borrowed = self.aliasing_read(operand);
+        let borrowed = self.sole_operand_borrowed(operand);
         let hit = self.new_block();
         let refused = self.new_block();
         let hit_edge = self.ids.next_edge(span);
@@ -1584,7 +1584,7 @@ impl<'a> Lowering<'a> {
             },
             env,
         );
-        if !self.aliasing_read(operand) {
+        if !self.sole_operand_borrowed(operand) {
             self.emit_release(*cur, v);
         }
         out
@@ -1664,7 +1664,7 @@ impl<'a> Lowering<'a> {
         } else {
             self.emit_fallible(*cur, Ty::Array, call, env)
         };
-        if !self.aliasing_read(operand) {
+        if !self.sole_operand_borrowed(operand) {
             self.emit_release(*cur, v);
         }
         out
@@ -2109,7 +2109,7 @@ impl<'a> Lowering<'a> {
         let miss = self.new_block();
         let join = self.new_block();
         let (probe, probe_ty, answer) = if from == Ty::Tagged && !matches!(to, Ty::Enum(_)) {
-            if self.aliasing_read(inner) {
+            if self.sole_operand_borrowed(inner) {
                 self.emit_retain(*cur, v);
             }
             (v, Ty::Tagged, v)

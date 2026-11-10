@@ -124,7 +124,7 @@ impl<'a> Lowering<'a> {
         // `Tagged`. [`Lowering::coerce`] is the conversion a `return` makes
         // at the same boundary.
         let (v, vty) = self.lower_expr(value, Some(elem), env, cur);
-        if vty.is_refcounted() && self.aliasing_read(value) {
+        if vty.is_refcounted() && self.sole_operand_borrowed(value) {
             self.emit_retain(*cur, v);
         }
         let v = self.coerce(*cur, v, vty, elem, env);

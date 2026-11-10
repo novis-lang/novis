@@ -157,10 +157,8 @@ impl<'a> Lowering<'a> {
         // while the right one runs, and is fresh from then on. `lb`/`rb` are
         // `true` while the slot owns the operand.
         let (lv, lty) = self.lower_expr(lhs, None, env, cur);
-        let l_aliasing = self.aliasing_read(lhs);
-        let l_held = lty.is_refcounted()
-            && l_aliasing
-            && !self.hold_borrowed(OperandSite::Ordering, lhs, lv, &[rhs], *cur);
+        let l_owner = self.borrowed_operand(OperandSite::Ordering, lhs, (lv, lty), &[rhs], *cur);
+        let l_held = l_owner == OperandOwner::Held;
         let slot = self.temporaries_mark();
         if l_held {
             self.own_temporary(lv);
@@ -169,8 +167,8 @@ impl<'a> Lowering<'a> {
         if l_held {
             self.forget_temporary(slot);
         }
-        let lb = l_aliasing && !l_held;
-        let rb = self.aliasing_read(rhs);
+        let lb = l_owner == OperandOwner::Slot;
+        let rb = self.sole_operand_borrowed(rhs);
         assert!(
             matches!(lty, Ty::Object) && matches!(rty, Ty::Object),
             "nvs-ir: `nvs_types` recorded a `Comparable::compareTo` target for a comparison \
@@ -313,7 +311,7 @@ impl<'a> Lowering<'a> {
     /// same way a bare `&&`/`||`/ternary does.
     pub(crate) fn lower_not(&mut self, inner: &Expr, env: &mut Env, cur: &mut BlockId) -> ValueId {
         let (v, ty) = self.lower_expr(inner, None, env, cur);
-        let is_alias = self.aliasing_read(inner);
+        let is_alias = self.sole_operand_borrowed(inner);
         let b = self.truthy_value(v, ty, is_alias, *cur, env);
         self.emit(
             *cur,
@@ -493,7 +491,7 @@ impl<'a> Lowering<'a> {
         // a throw leaves by.
         if ty == Ty::Tagged && matches!(op, AstUnaryOp::Neg | AstUnaryOp::BitNot) {
             let mark = self.temporaries_mark();
-            let aliasing = self.aliasing_read(inner);
+            let aliasing = self.sole_operand_borrowed(inner);
             self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
             let helper = if matches!(op, AstUnaryOp::Neg) {
                 Helper::ValueNeg
@@ -621,7 +619,7 @@ impl<'a> Lowering<'a> {
             );
         }
         if ty != Ty::Tagged {
-            if ty.is_refcounted() && !self.aliasing_read(operand) {
+            if ty.is_refcounted() && !self.sole_operand_borrowed(operand) {
                 self.emit_release(*cur, v);
             }
             let is_null = matches!(ty, Ty::Null);
@@ -632,7 +630,7 @@ impl<'a> Lowering<'a> {
             );
         }
         let (is_null, _) = self.emit(*cur, Ty::Bool, InstKind::IsNull { operand: v });
-        if !self.aliasing_read(operand) {
+        if !self.sole_operand_borrowed(operand) {
             self.emit_release(*cur, v);
         }
         if op == BinaryOp::Eq {
@@ -912,11 +910,10 @@ impl<'a> Lowering<'a> {
         let swapped = matches!(lhs.kind, ExprKind::Int(_)) && !matches!(rhs.kind, ExprKind::Int(_));
         let (first, second) = if swapped { (rhs, lhs) } else { (lhs, rhs) };
         let (fv, fty) = self.lower_expr(first, expected, env, cur);
-        let first_aliasing = self.aliasing_read(first);
-        let held = fty.is_refcounted()
-            && first_aliasing
-            && !self.hold_borrowed(OperandSite::Binary, first, fv, &[&**second], *cur);
-        let first_borrowed = first_aliasing && !held;
+        let first_owner =
+            self.borrowed_operand(OperandSite::Binary, first, (fv, fty), &[&**second], *cur);
+        let held = first_owner == OperandOwner::Held;
+        let first_borrowed = first_owner == OperandOwner::Slot;
         let slot = self.temporaries_mark();
         if held {
             self.own_temporary(fv);
@@ -925,7 +922,7 @@ impl<'a> Lowering<'a> {
         if held {
             self.forget_temporary(slot);
         }
-        let second_borrowed = self.aliasing_read(second);
+        let second_borrowed = self.sole_operand_borrowed(second);
         let (lv, lty, lb, rv, rty, rb) = if swapped {
             (sv, sty, second_borrowed, fv, fty, first_borrowed)
         } else {

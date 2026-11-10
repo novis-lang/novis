@@ -324,7 +324,7 @@ impl<'a> Lowering<'a> {
     /// Ownership follows [`ir::InstKind::ArrayNew`]'s own rule rather than
     /// [`Self::account_for_arg`]'s: the array *durably owns* each element the
     /// way a callee's parameter slot does, so a refcounted element that is an
-    /// [`Lowering::aliasing_read`] is retained before it is stored, and the
+    /// [`Lowering::sole_operand_borrowed`] is retained before it is stored, and the
     /// array itself is the one value accounted at the call boundary — a fresh
     /// producer, hence this frame's temporary to release once the call has
     /// returned.
@@ -406,7 +406,7 @@ impl<'a> Lowering<'a> {
         let mut entries = Vec::with_capacity(spread_from);
         for (index, arg) in rest[..spread_from].iter().enumerate() {
             let (v, ty) = self.lower_expr(&arg.value, expected, env, cur);
-            if ty.is_refcounted() && self.aliasing_read(&arg.value) {
+            if ty.is_refcounted() && self.sole_operand_borrowed(&arg.value) {
                 self.emit_retain(*cur, v);
             }
             // The element is stored as a whole `nvs_runtime::Value`, so it is
@@ -441,7 +441,7 @@ impl<'a> Lowering<'a> {
                 // The subject is *borrowed* by the copy, so a freshly-built one
                 // is this frame's to release on whichever edge the copy takes.
                 let (subject, subject_ty) = self.lower_expr(&arg.value, None, env, cur);
-                if subject_ty.is_refcounted() && !self.aliasing_read(&arg.value) {
+                if subject_ty.is_refcounted() && !self.sole_operand_borrowed(&arg.value) {
                     self.own_temporary(subject);
                 }
                 array = self
@@ -779,7 +779,7 @@ impl<'a> Lowering<'a> {
     ///
     /// No retain on any field: every value here is a constant this call just
     /// emitted, so each is a fresh producer whose one reference the slot takes
-    /// — the written literal's [`Self::aliasing_read`] question has no
+    /// — the written literal's [`Self::sole_operand_borrowed`] question has no
     /// expression to ask about and no borrowed operand to ask it of.
     fn emit_const_shape(
         &mut self,
@@ -857,7 +857,7 @@ impl<'a> Lowering<'a> {
     /// `tests/conformance/lang/a-method-reference-of-a-callable-is-that-callable.nvst`.
     /// It is handed on as a fresh owner: one retain where the callee borrowed a
     /// slot this frame does not own, and none where the callee already produced
-    /// one, which is [`Self::aliasing_read`]'s judgment everywhere else in this
+    /// one, which is [`Self::sole_operand_borrowed`]'s judgment everywhere else in this
     /// file.
     ///
     /// # Panics
@@ -877,7 +877,7 @@ impl<'a> Lowering<'a> {
             CallArgs::List(list) => list,
             CallArgs::MethodRef => {
                 let (anon_fn, callable_ty) = self.lower_expr(callee, None, env, cur);
-                if callable_ty.is_refcounted() && self.aliasing_read(callee) {
+                if callable_ty.is_refcounted() && self.sole_operand_borrowed(callee) {
                     self.emit_retain(*cur, anon_fn);
                 }
                 return (anon_fn, callable_ty);
@@ -1150,7 +1150,7 @@ impl<'a> Lowering<'a> {
             self.borrowed_arg(site, object, (anon_fn, callable_ty), borrowed, &first, *cur);
         self.account_for_arg(anon_fn, callable_ty, borrowed, aliasing, *cur);
         let (this_v, this_ty) = self.lower_expr(&this_arg.value, None, env, cur);
-        let aliasing = self.aliasing_read(&this_arg.value);
+        let aliasing = self.sole_operand_borrowed(&this_arg.value);
         self.account_for_arg(this_v, this_ty, borrowed, aliasing, *cur);
         let (bound, bound_ty) = self.emit_fallible(
             *cur,

@@ -726,7 +726,7 @@ impl<'a> Lowering<'a> {
     ) {
         self.shield_literal(subject);
         let (subj_v, subj_ty) = self.lower_expr(subject, None, env, cur);
-        let subject_is_alias = self.aliasing_read(subject);
+        let subject_is_alias = self.sole_operand_borrowed(subject);
         // `switch ($x) {}` — PHP still evaluates the subject and then does
         // nothing with it, so this owes only the release a fresh value owes.
         if cases.is_empty() {
@@ -776,7 +776,7 @@ impl<'a> Lowering<'a> {
             let label_mark = self.temporaries_mark();
             let (cond_v, cond_ty) =
                 self.lower_expr(cond, Some(subj_ty), &mut entry_env, &mut test_cur);
-            let label_owed = cond_ty.is_refcounted() && !self.aliasing_read(cond);
+            let label_owed = cond_ty.is_refcounted() && !self.sole_operand_borrowed(cond);
             if label_owed {
                 self.own_temporary(cond_v);
             }
@@ -1042,7 +1042,7 @@ impl<'a> Lowering<'a> {
                  `Iterable`/`Iterator` pair took the cursor lowering above"
             );
         }
-        if !value_inout && self.aliasing_read(subject) {
+        if !value_inout && self.sole_operand_borrowed(subject) {
             self.emit_retain(*cur, array_v);
         }
 
@@ -1463,7 +1463,7 @@ impl<'a> Lowering<'a> {
              {subject_ty:?} rather than an object — `rule:iteration/foreach-subjects`'s `Iterable`/`Iterator` shapes \
              are both class types"
         );
-        if self.aliasing_read(subject) {
+        if self.sole_operand_borrowed(subject) {
             self.emit_retain(*cur, subject_v);
         }
 

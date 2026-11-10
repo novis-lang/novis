@@ -136,6 +136,7 @@ pub(crate) mod stmt;
 // here also carry free items this module and its siblings call.
 pub use self::checked::{check_types, is_checking_types};
 pub use self::mutate::{Mutant, Operator, lower_mutant, mutants};
+pub(crate) use self::operand::OperandOwner;
 pub use self::operand::OperandSite;
 use self::{anon_fn::*, call::delegation_forward, exception::*, generator::*};
 
@@ -1937,7 +1938,7 @@ pub fn lower_property_hook(
                 .to_owned();
             let field = strip_sigil(span_text(src, p.name)).to_owned();
             let (v, _) = low.lower_expr(e, Some(prop_ty), &mut env, &mut cur);
-            if prop_ty.is_refcounted() && low.aliasing_read(e) {
+            if prop_ty.is_refcounted() && low.sole_operand_borrowed(e) {
                 low.emit_retain(cur, v);
             }
             // Store, then release, so a `finally` the release runs reads the
@@ -1961,7 +1962,7 @@ pub fn lower_property_hook(
         }
         Some(PropertyHookBody::Expr(e)) => {
             let (v, ty) = low.lower_expr(e, Some(ret_ty), &mut env, &mut cur);
-            if ty.is_refcounted() && low.aliasing_read(e) {
+            if ty.is_refcounted() && low.sole_operand_borrowed(e) {
                 low.emit_retain(cur, v);
             }
             if !low.is_terminated(cur) {
@@ -2206,7 +2207,7 @@ pub(crate) struct Lowering<'a> {
     /// An entry is a **borrow**, not an owner: whatever it names is either a
     /// durable slot's value or one this frame already put on
     /// [`Self::owned_temporaries`] for the length of the statement. That is
-    /// why [`Self::aliasing_read`] answers `true` for a staged span — a
+    /// why [`Self::sole_operand_borrowed`] answers `true` for a staged span — a
     /// consumer that wants to own the value retains it, and none of them
     /// releases it.
     ///
@@ -3705,7 +3706,7 @@ impl<'a> Lowering<'a> {
         ty: Ty,
         source: &Expr,
     ) {
-        let aliasing = self.aliasing_read(source);
+        let aliasing = self.sole_operand_borrowed(source);
         self.bind_local_value(cur, env, name, v, ty, aliasing);
     }
     /// The value half of [`Self::lower_store`]: `(value, representation,
@@ -3720,7 +3721,7 @@ impl<'a> Lowering<'a> {
         match stored {
             Stored::Expr(e) => {
                 let (v, ty) = self.lower_expr(e, expected, env, cur);
-                (v, ty, self.aliasing_read(e))
+                (v, ty, self.sole_operand_borrowed(e))
             }
             Stored::Value(v, ty) => (*v, *ty, false),
         }
@@ -4144,94 +4145,6 @@ impl<'a> Lowering<'a> {
         self.emit_field_set(cur, object, class.to_owned(), field.to_owned(), written);
         if let Some(old_v) = old_v {
             self.emit_release(cur, old_v);
-        }
-    }
-    /// Whether `e` reads storage some durable slot still owns, so a value
-    /// taken from it needs a retain before anything else can own it too —
-    /// [`is_aliasing_read`]'s syntactic judgment, plus the one case that
-    /// judgment cannot make from syntax alone.
-    ///
-    /// `$obj->prop` *looks* like a slot read at every hooked and unhooked
-    /// property alike, but a property with an `rule:classes/property-hooks` `get` hook is a
-    /// **call**: its result is a fresh, already-owned value, exactly like any
-    /// other call's, and retaining it would leak one reference per read. Only
-    /// `nvs_types`' resolution can tell the two apart, which is why this is a
-    /// method on the lowering rather than a free function over the AST —
-    /// every retain decision in this file goes through it.
-    ///
-    /// The second case a syntactic judgment cannot make is the *base*: a slot
-    /// is only durable if whatever holds it is. `$m->make()->name` reads a
-    /// field of an object nothing else owns, so
-    /// [`Lowering::lower_property_access`] retains the value it reads and
-    /// releases the object underneath it — the whole expression is a fresh
-    /// producer, exactly like the call inside it, and a consumer that
-    /// retained it again would leak one reference per read. `$a["k"]->name`
-    /// is still an aliasing read, because the base is.
-    ///
-    /// `$m->rows()["0"]` is the same shape over an array's element rather than
-    /// an object's slot, and [`Lowering::lower_index`] answers it identically,
-    /// so the recursion below covers both spellings of "reads a slot of
-    /// something nothing else owns".
-    ///
-    /// An element read whose key can free its borrowed base is the third
-    /// case: [`Lowering::lower_index`] holds the base while the key runs, so
-    /// it retains the element and releases the base, exactly as it does for a
-    /// fresh base ([`Lowering::index_base_held`]).
-    pub(crate) fn aliasing_read(&self, e: &Expr) -> bool {
-        // A staged sub-expression of an assignment target is a borrow of a
-        // value this frame's own temporaries stack (or a durable slot) already
-        // owns — see `Self::staged_targets`. It answers `true` whatever its
-        // syntax was, which is what stops the second read of a rewritten
-        // `$t = $t ⊕ e` releasing a receiver the first read still needs.
-        if self.staged(e.span).is_some() {
-            return true;
-        }
-        // Parentheses group and never change what an expression *is*
-        // (`nvs_syntax::ast::Expr::unparenthesized`), so every question below
-        // is asked of what they wrap: `($a)` aliases the local exactly as `$a`
-        // does, and answering `false` here for one would make
-        // `array<string> $b = ($a);` release the array twice. The staged
-        // lookup runs on both spans because a rewritten target's staged
-        // sub-expression is recorded under the span it was *written* with.
-        let e = e.unparenthesized();
-        if self.staged(e.span).is_some() {
-            return true;
-        }
-        // `rule:types/anonymous-function-self-name`'s self-name reads the invoke's own receiver, a binding
-        // this frame's `Env` holds for the whole body — so a call through it
-        // borrows exactly as `$f(...)` borrows the local `$f`, and answering
-        // `false` here would have the call release a receiver the rest of the
-        // body still needs. Asked before the syntactic judgment because a bare
-        // name is not one of its shapes, and only the checker's record tells
-        // this one from the `E0319` every other bare name is.
-        if matches!(self.exprs.lookup(e.span), Some(ExprInfo::AnonFnSelf)) {
-            return true;
-        }
-        if !is_aliasing_read(&e.kind) {
-            return false;
-        }
-        if matches!(
-            self.exprs.lookup(e.span),
-            Some(ExprInfo::HookedProperty { get: Some(_), .. })
-        ) {
-            return false;
-        }
-        // A read through a union where one class has a `get` hook is a fresh
-        // producer on every arm (`Self::lower_union_member`).
-        if let Some(ExprInfo::UnionMember { arms }) = self.exprs.lookup(e.span)
-            && arms.iter().any(|(_, arm)| is_get_hook(arm))
-        {
-            return false;
-        }
-        match &e.kind {
-            ExprKind::PropertyAccess { object, .. } => self.aliasing_read(object),
-            ExprKind::Index { base, index } => {
-                self.aliasing_read(base)
-                    && index
-                        .as_deref()
-                        .is_none_or(|key| !self.index_base_held(base, key))
-            }
-            _ => true,
         }
     }
     /// The table's record for the member access at `span`, or the one
@@ -5244,7 +5157,7 @@ fn shared_erasure(members: &[TypeId], checked_types: &TypeInterner) -> Ty {
 /// hand over — see [`Lowering::lower_read_modify_write`].
 pub(crate) enum Stored<'a> {
     /// `$t = e;` — lowered against the target's declared representation, and
-    /// judged by [`Lowering::aliasing_read`] like any other read.
+    /// judged by [`Lowering::sole_operand_borrowed`] like any other read.
     Expr(&'a Expr),
     /// A value already in hand. Always a **fresh producer**: the only thing
     /// that builds one is a binary operator's result, which no durable slot
@@ -5254,7 +5167,7 @@ pub(crate) enum Stored<'a> {
 
 /// Whether a property record reads through a `get` hook, which makes the read
 /// a call and its result a fresh producer.
-fn is_get_hook(record: &ExprInfo) -> bool {
+pub(crate) fn is_get_hook(record: &ExprInfo) -> bool {
     matches!(record, ExprInfo::HookedProperty { get: Some(_), .. })
 }
 

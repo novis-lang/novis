@@ -6,7 +6,7 @@
 //! Part of [`super`]'s one `impl Lowering`, under the rule [`super::expr`]'s
 //! header states.
 //!
-//! A borrowed read is a [`Lowering::aliasing_read`]: the value is in a durable
+//! A borrowed read is one `Lowering::aliasing_read` judges a borrow: the value is in a durable
 //! slot (a local, a property, an element, a static property) and this frame
 //! holds no reference to it. That is free and sound for as long as nothing
 //! between the read and its use can replace the slot. [`Lowering::hold_borrowed`]
@@ -82,6 +82,18 @@ impl OperandSite {
     ];
 }
 
+/// Who owns an operand once [`Lowering::borrowed_operand`] has judged it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum OperandOwner {
+    /// A fresh value this frame owns, such as a call's result.
+    Fresh,
+    /// A borrow the durable slot still owns, and nothing later can free it.
+    Slot,
+    /// A borrow a later operand could free: retained at its read, so this
+    /// frame owns it like a fresh value.
+    Held,
+}
+
 /// Where a borrowed read's storage lives, which decides what can free it.
 enum ReadRoot {
     /// A property, a static property, or a staged target: storage code outside
@@ -96,6 +108,135 @@ enum ReadRoot {
 }
 
 impl Lowering<'_> {
+    /// Whether `e` reads storage some durable slot still owns, so a value
+    /// taken from it needs a retain before anything else can own it too —
+    /// [`super::is_aliasing_read`]'s syntactic judgment, plus the one case that
+    /// judgment cannot make from syntax alone.
+    ///
+    /// `$obj->prop` *looks* like a slot read at every hooked and unhooked
+    /// property alike, but a property with an `rule:classes/property-hooks` `get` hook is a
+    /// **call**: its result is a fresh, already-owned value, exactly like any
+    /// other call's, and retaining it would leak one reference per read. Only
+    /// `nvs_types`' resolution can tell the two apart, which is why this is a
+    /// method on the lowering rather than a free function over the AST —
+    /// every retain decision in this file goes through it.
+    ///
+    /// The second case a syntactic judgment cannot make is the *base*: a slot
+    /// is only durable if whatever holds it is. `$m->make()->name` reads a
+    /// field of an object nothing else owns, so
+    /// [`Lowering::lower_property_access`] retains the value it reads and
+    /// releases the object underneath it — the whole expression is a fresh
+    /// producer, exactly like the call inside it, and a consumer that
+    /// retained it again would leak one reference per read. `$a["k"]->name`
+    /// is still an aliasing read, because the base is.
+    ///
+    /// `$m->rows()["0"]` is the same shape over an array's element rather than
+    /// an object's slot, and [`Lowering::lower_index`] answers it identically,
+    /// so the recursion below covers both spellings of "reads a slot of
+    /// something nothing else owns".
+    ///
+    /// An element read whose key can free its borrowed base is the third
+    /// case: [`Lowering::lower_index`] holds the base while the key runs, so
+    /// it retains the element and releases the base, exactly as it does for a
+    /// fresh base ([`Lowering::index_base_held`]).
+    ///
+    /// Private to this module, so no consumer judges a read without naming
+    /// what follows it: [`Self::sole_operand_borrowed`] is the read with
+    /// nothing lowered after it, and [`Self::borrowed_operand`] and
+    /// [`Self::borrowed_arg`] judge the rest.
+    fn aliasing_read(&self, e: &Expr) -> bool {
+        // A staged sub-expression of an assignment target is a borrow of a
+        // value this frame's own temporaries stack (or a durable slot) already
+        // owns — see `Self::staged_targets`. It answers `true` whatever its
+        // syntax was, which is what stops the second read of a rewritten
+        // `$t = $t ⊕ e` releasing a receiver the first read still needs.
+        if self.staged(e.span).is_some() {
+            return true;
+        }
+        // Parentheses group and never change what an expression *is*
+        // (`nvs_syntax::ast::Expr::unparenthesized`), so every question below
+        // is asked of what they wrap: `($a)` aliases the local exactly as `$a`
+        // does, and answering `false` here for one would make
+        // `array<string> $b = ($a);` release the array twice. The staged
+        // lookup runs on both spans because a rewritten target's staged
+        // sub-expression is recorded under the span it was *written* with.
+        let e = e.unparenthesized();
+        if self.staged(e.span).is_some() {
+            return true;
+        }
+        // `rule:types/anonymous-function-self-name`'s self-name reads the invoke's own receiver, a binding
+        // this frame's `Env` holds for the whole body — so a call through it
+        // borrows exactly as `$f(...)` borrows the local `$f`, and answering
+        // `false` here would have the call release a receiver the rest of the
+        // body still needs. Asked before the syntactic judgment because a bare
+        // name is not one of its shapes, and only the checker's record tells
+        // this one from the `E0319` every other bare name is.
+        if matches!(
+            self.exprs.lookup(e.span),
+            Some(nvs_types::expr_table::ExprInfo::AnonFnSelf)
+        ) {
+            return true;
+        }
+        if !super::is_aliasing_read(&e.kind) {
+            return false;
+        }
+        if matches!(
+            self.exprs.lookup(e.span),
+            Some(nvs_types::expr_table::ExprInfo::HookedProperty { get: Some(_), .. })
+        ) {
+            return false;
+        }
+        // A read through a union where one class has a `get` hook is a fresh
+        // producer on every arm (`Self::lower_union_member`).
+        if let Some(nvs_types::expr_table::ExprInfo::UnionMember { arms }) =
+            self.exprs.lookup(e.span)
+            && arms.iter().any(|(_, arm)| super::is_get_hook(arm))
+        {
+            return false;
+        }
+        match &e.kind {
+            ExprKind::PropertyAccess { object, .. } => self.aliasing_read(object),
+            ExprKind::Index { base, index } => {
+                self.aliasing_read(base)
+                    && index
+                        .as_deref()
+                        .is_none_or(|key| !self.index_base_held(base, key))
+            }
+            _ => true,
+        }
+    }
+
+    /// Whether `e`, the one operand its consumer reads, is a borrow of a
+    /// durable slot ([`Self::aliasing_read`]).
+    ///
+    /// For a consumer that lowers nothing between this read and its use, so
+    /// nothing can free the slot while the value is in flight.
+    pub(crate) fn sole_operand_borrowed(&self, e: &Expr) -> bool {
+        self.aliasing_read(e)
+    }
+
+    /// Who owns the operand `e`, lowered to `(v, ty)`, once the expressions in
+    /// `later` are judged: [`Self::aliasing_read`], then [`Self::hold_borrowed`].
+    ///
+    /// A [`OperandOwner::Held`] operand has its retain emitted into `cur`, and
+    /// the consumer stages it while `later` runs and treats it as fresh after.
+    pub(crate) fn borrowed_operand(
+        &mut self,
+        site: OperandSite,
+        e: &Expr,
+        (v, ty): (ValueId, Ty),
+        later: &[&Expr],
+        cur: BlockId,
+    ) -> OperandOwner {
+        if !self.aliasing_read(e) {
+            return OperandOwner::Fresh;
+        }
+        if !ty.is_refcounted() || self.hold_borrowed(site, e, v, later, cur) {
+            return OperandOwner::Slot;
+        }
+        OperandOwner::Held
+    }
+
     /// Whether the operand `e`, whose value `v` this frame borrows, stays a
     /// borrow once the expressions in `later` have run.
     ///

@@ -683,7 +683,7 @@ impl<'a> Lowering<'a> {
             // frame's return type is `Ty::Tagged` by construction, so the
             // value arrives here needing no conversion, and it is a fresh
             // producer — nothing else holds a reference to what the callee
-            // returned — so the consumer owns it and `Self::aliasing_read`
+            // returned — so the consumer owns it and `Self::sole_operand_borrowed`
             // answers `false` for this shape, as it does for a call.
             //
             // A path with no recorded target is a literal in a source with no
@@ -792,7 +792,9 @@ impl<'a> Lowering<'a> {
             // `Helper::EchoStr`, which no carrier can reach.
             let (v, ty) = self.lower_expr(operand, None, env, cur);
             let (v, aliasing, helper) = match ty {
-                Ty::Object | Ty::Tagged => (v, self.aliasing_read(operand), Helper::EchoValue),
+                Ty::Object | Ty::Tagged => {
+                    (v, self.sole_operand_borrowed(operand), Helper::EchoValue)
+                }
                 scalar => {
                     let (sv, aliasing) = self.convert_operand(operand, v, scalar, env, cur);
                     (sv, aliasing, Helper::EchoStr)
@@ -965,7 +967,7 @@ impl<'a> Lowering<'a> {
                 if matches!(ty, Ty::Str) {
                     // PHP's `exit("…")`: the message is written exactly the
                     // way `echo` writes it, and the status is `0`.
-                    if !self.aliasing_read(operand) {
+                    if !self.sole_operand_borrowed(operand) {
                         self.own_temporary(v);
                     }
                     let landing = self.landing_block(env);
@@ -1043,7 +1045,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, bool) {
         match ty {
-            Ty::Str => (v, self.aliasing_read(expr)),
+            Ty::Str => (v, self.sole_operand_borrowed(expr)),
             Ty::Bool | Ty::Int | Ty::Uint | Ty::Float | Ty::Decimal => {
                 let helper = match ty {
                     Ty::Bool => Helper::BoolToString,
@@ -1104,7 +1106,7 @@ impl<'a> Lowering<'a> {
                     },
                     env,
                 );
-                if !self.aliasing_read(expr) {
+                if !self.sole_operand_borrowed(expr) {
                     self.emit_release(*cur, v);
                 }
                 (sv, false)
@@ -1132,7 +1134,7 @@ impl<'a> Lowering<'a> {
                         },
                         env,
                     );
-                    if !self.aliasing_read(expr) {
+                    if !self.sole_operand_borrowed(expr) {
                         self.emit_release(*cur, v);
                     }
                     (sv, false)
@@ -1212,7 +1214,7 @@ impl<'a> Lowering<'a> {
         // `toString` it can have.
         if let Some(symbol) = nvs_types::core_symbol_of(&call.class, &call.method) {
             let mark = self.temporaries_mark();
-            if !self.aliasing_read(expr) {
+            if !self.sole_operand_borrowed(expr) {
                 self.own_temporary(receiver);
             }
             let (s, _) = self.emit_fallible(
@@ -1231,7 +1233,7 @@ impl<'a> Lowering<'a> {
             .has_body
             .then(|| format!("{}::{}", call.class, call.method));
         let method = call.method.clone();
-        if self.aliasing_read(expr) {
+        if self.sole_operand_borrowed(expr) {
             self.emit_retain(cur, receiver);
         }
         let (desc, _) = self.emit(
@@ -1407,7 +1409,7 @@ impl<'a> Lowering<'a> {
     ///
     /// The [`InstKind::Untag`] is unchecked for [`Self::untag_receiver`]'s
     /// reason, and transfers ownership unchanged — so a borrowed slot read
-    /// stays a borrow, and [`Self::aliasing_read`], which answers on the
+    /// stays a borrow, and [`Self::sole_operand_borrowed`], which answers on the
     /// *syntax* rather than on the representation, still decides the one
     /// retain a consumer owes.
     ///
@@ -1515,7 +1517,7 @@ impl<'a> Lowering<'a> {
         let result_repr = erase_checked_ty(result, self.checked_types);
 
         let (lhs_v, lhs_ty) = self.lower_expr(lhs, None, env, cur);
-        let lhs_is_alias = self.aliasing_read(lhs);
+        let lhs_is_alias = self.sole_operand_borrowed(lhs);
 
         // A left operand whose representation is not tagged cannot be `null`
         // at runtime, so `??` is the left operand and the right one is never
@@ -1563,7 +1565,7 @@ impl<'a> Lowering<'a> {
             let mut null_env = pre_env.clone();
             let mut rhs_cur = null_block;
             let (rv, rty) = self.lower_expr(rhs, Some(result_repr), &mut null_env, &mut rhs_cur);
-            if rty.is_refcounted() && self.aliasing_read(rhs) {
+            if rty.is_refcounted() && self.sole_operand_borrowed(rhs) {
                 self.emit_retain(rhs_cur, rv);
             }
             let null_v = self.coerce(rhs_cur, rv, rty, result_repr, &mut null_env);
@@ -1587,7 +1589,7 @@ impl<'a> Lowering<'a> {
             if lhs_ty == Ty::Null {
                 let mut rhs_cur = *cur;
                 let (rv, rty) = self.lower_expr(rhs, Some(result_repr), env, &mut rhs_cur);
-                if rty.is_refcounted() && self.aliasing_read(rhs) {
+                if rty.is_refcounted() && self.sole_operand_borrowed(rhs) {
                     self.emit_retain(rhs_cur, rv);
                 }
                 let rv = self.coerce(rhs_cur, rv, rty, result_repr, env);
@@ -1640,7 +1642,7 @@ impl<'a> Lowering<'a> {
         let mut null_env = pre_env.clone();
         let mut rhs_cur = null_block;
         let (rv, rty) = self.lower_expr(rhs, Some(result_repr), &mut null_env, &mut rhs_cur);
-        if rty.is_refcounted() && self.aliasing_read(rhs) {
+        if rty.is_refcounted() && self.sole_operand_borrowed(rhs) {
             self.emit_retain(rhs_cur, rv);
         }
         let null_v = self.coerce(rhs_cur, rv, rty, result_repr, &mut null_env);
@@ -1781,7 +1783,7 @@ impl<'a> Lowering<'a> {
         // once the test has read it. Same rule [`Self::lower_type_test`]
         // applies to its own subject, and the answer being a [`Ty::Bool`] is
         // what makes "right after" safe.
-        if !self.aliasing_read(operand) && ty.is_refcounted() {
+        if !self.sole_operand_borrowed(operand) && ty.is_refcounted() {
             self.emit_release(*cur, v);
         }
         present
@@ -1844,7 +1846,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let (cond_v, cond_ty) = self.lower_expr(cond, None, env, cur);
-        let cond_is_alias = self.aliasing_read(cond);
+        let cond_is_alias = self.sole_operand_borrowed(cond);
         let truthy_v = self.truthy_convert(cond_v, cond_ty, *cur, env);
         let pre_block = *cur;
         if then.is_some() && cond_ty.is_refcounted() && !cond_is_alias {
@@ -1876,7 +1878,7 @@ impl<'a> Lowering<'a> {
             Some(then_expr) => {
                 let mut then_cur = then_block;
                 let (v, ty) = self.lower_expr(then_expr, expected, &mut then_env, &mut then_cur);
-                if ty.is_refcounted() && self.aliasing_read(then_expr) {
+                if ty.is_refcounted() && self.sole_operand_borrowed(then_expr) {
                     self.emit_retain(then_cur, v);
                 }
                 (v, ty, then_cur)
@@ -1892,7 +1894,7 @@ impl<'a> Lowering<'a> {
         let mut else_env = pre_env.clone();
         let mut else_cur = else_block;
         let (else_v, else_ty) = self.lower_expr(else_, expected, &mut else_env, &mut else_cur);
-        if else_ty.is_refcounted() && self.aliasing_read(else_) {
+        if else_ty.is_refcounted() && self.sole_operand_borrowed(else_) {
             self.emit_retain(else_cur, else_v);
         }
 
@@ -2062,9 +2064,10 @@ impl<'a> Lowering<'a> {
             .filter_map(|arm| arm.conditions.as_ref())
             .flatten()
             .collect();
+        let site = OperandSite::MatchSubject;
         let owed = subj_ty.is_refcounted()
-            && (!self.aliasing_read(subject)
-                || !self.hold_borrowed(OperandSite::MatchSubject, subject, subj_v, &labels, *cur));
+            && self.borrowed_operand(site, subject, (subj_v, subj_ty), &labels, *cur)
+                != OperandOwner::Slot;
         // It is in flight for the whole label chain, and every comparison in
         // that chain can throw — a label is an arbitrary expression, and a
         // tagged pair goes through the fallible `Helper::Identical`. So it
@@ -2111,7 +2114,7 @@ impl<'a> Lowering<'a> {
                 let label_mark = self.temporaries_mark();
                 let (cond_v, cond_ty) =
                     self.lower_expr(cond, Some(label_expect), env, &mut test_cur);
-                if cond_ty.is_refcounted() && !self.aliasing_read(cond) {
+                if cond_ty.is_refcounted() && !self.sole_operand_borrowed(cond) {
                     self.own_temporary(cond_v);
                 }
                 // The label takes the subject's own move, for the subject's
@@ -2139,7 +2142,7 @@ impl<'a> Lowering<'a> {
                     &mut test_cur,
                 );
                 self.forget_temporaries_since(label_mark);
-                if cond_ty.is_refcounted() && !self.aliasing_read(cond) {
+                if cond_ty.is_refcounted() && !self.sole_operand_borrowed(cond) {
                     self.emit_release(test_cur, cond_v);
                 }
                 let next = self.new_block();
@@ -2217,7 +2220,7 @@ impl<'a> Lowering<'a> {
                 self.emit_release(arm_cur, subj_v);
             }
             let (v, ty) = self.lower_expr(&arm.body, expected, &mut arm_env, &mut arm_cur);
-            if ty.is_refcounted() && self.aliasing_read(&arm.body) {
+            if ty.is_refcounted() && self.sole_operand_borrowed(&arm.body) {
                 self.emit_retain(arm_cur, v);
             }
             branches.push((arm_cur, v, ty));
@@ -2541,7 +2544,7 @@ impl<'a> Lowering<'a> {
         let mut values = Vec::with_capacity(args.len());
         for arg in args.iter().skip(1) {
             let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
-            let aliasing = self.aliasing_read(&arg.value);
+            let aliasing = self.sole_operand_borrowed(&arg.value);
             self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
             values.push(v);
         }
@@ -2600,7 +2603,7 @@ impl<'a> Lowering<'a> {
     ) -> ValueId {
         let inner = self.temporaries_mark();
         let (v, ty) = self.lower_expr(value, None, env, cur);
-        if ty == Ty::Str && !self.aliasing_read(value) {
+        if ty == Ty::Str && !self.sole_operand_borrowed(value) {
             self.own_temporary(v);
         }
         let rendered = self.render_format_placeholder(spec, v, env, cur);
@@ -2776,7 +2779,7 @@ impl<'a> Lowering<'a> {
         let mark = self.temporaries_mark();
         let (v, ty) = self.lower_expr(e, None, env, cur);
         if self.hole_is_carrier(e.span) {
-            let aliasing = self.aliasing_read(e);
+            let aliasing = self.sole_operand_borrowed(e);
             self.account_for_arg(v, Ty::Object, ArgOwnership::Borrowed, aliasing, *cur);
             let (bytes, _) = self.emit_fallible(
                 *cur,
@@ -2916,7 +2919,7 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty, bool) {
         let (v, ty) = self.lower_expr(expr, None, env, cur);
         match ty {
-            Ty::Str => (v, Ty::Str, self.aliasing_read(expr)),
+            Ty::Str => (v, Ty::Str, self.sole_operand_borrowed(expr)),
             Ty::Int => (v, Ty::Int, false),
             Ty::Uint if !render_uint => (
                 self.lower_uint_array_key(v, expr.span, env, cur),
@@ -3481,7 +3484,7 @@ impl<'a> Lowering<'a> {
             let (recv, ty, aliasing) = match receiver {
                 Some(object) => {
                     let (v, ty) = self.lower_expr(object, None, env, cur);
-                    (v, ty, self.aliasing_read(object))
+                    (v, ty, self.sole_operand_borrowed(object))
                 }
                 None => {
                     let &(v, ty) = env.get("this").unwrap_or_else(|| {
@@ -4416,7 +4419,7 @@ impl<'a> Lowering<'a> {
     fn lower_await(&mut self, operand: &Expr, env: &mut Env, cur: &mut BlockId) -> (ValueId, Ty) {
         let mark = self.temporaries_mark();
         let (handle, ty) = self.lower_expr(operand, Some(Ty::Object), env, cur);
-        let aliasing = self.aliasing_read(operand);
+        let aliasing = self.sole_operand_borrowed(operand);
         self.account_for_arg(handle, ty, ArgOwnership::Borrowed, aliasing, *cur);
         let result = self.emit_fallible(
             *cur,
@@ -4570,7 +4573,9 @@ impl<'a> Lowering<'a> {
         let [keys, until] = Self::signing_fields(self.src, written);
         // Each field is read after the fields that follow it and after the
         // arguments lowered once the settings are done.
-        let keys_later: Vec<&Expr> = std::iter::once(until).chain(after.iter().copied()).collect();
+        let keys_later: Vec<&Expr> = std::iter::once(until)
+            .chain(after.iter().copied())
+            .collect();
         for (value, later) in [(keys, keys_later.as_slice()), (until, after)] {
             let (v, ty) = self.lower_expr(value, None, env, cur);
             let aliasing = self.borrowed_arg(
@@ -4624,7 +4629,7 @@ impl<'a> Lowering<'a> {
         let mark = self.temporaries_mark();
         let (object_v, receiver_ty, guard) =
             self.open_nullsafe(object, nullsafe, ReceiverProof::Proven, env, cur);
-        if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
+        if receiver_ty.is_refcounted() && !self.sole_operand_borrowed(object) {
             self.own_temporary(object_v);
         }
         let (label, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(handler.to_owned()));
@@ -4866,7 +4871,7 @@ impl<'a> Lowering<'a> {
             // (see `Self::release_all_locals`). `$this->m()` and
             // `$obj->m()` both read an existing slot, so both need the
             // retain `Self::lower_call_args` already inserts for one.
-            let aliasing = self.aliasing_read(object);
+            let aliasing = self.sole_operand_borrowed(object);
             self.account_for_arg(
                 object_v,
                 receiver_ty,
@@ -5728,7 +5733,7 @@ impl<'a> Lowering<'a> {
     /// staged receiver is a borrow, and a receiver that is a fresh producer is
     /// owned here and released after the join. A `read` whose result is a
     /// fresh producer on some arm (a `get` hook) or whose receiver dies here
-    /// retains a plain arm's borrowed slot value, and [`Self::aliasing_read`]
+    /// retains a plain arm's borrowed slot value, and [`Self::sole_operand_borrowed`]
     /// then reports the access as fresh.
     ///
     /// Costs `n - 1` class tests for `n` classes and one copy of the access per
@@ -5753,7 +5758,7 @@ impl<'a> Lowering<'a> {
         let mark = self.temporaries_mark();
         let (object_v, receiver_ty, guard) =
             self.open_nullsafe(object, nullsafe, ReceiverProof::Proven, env, cur);
-        let base_is_temporary = receiver_ty.is_refcounted() && !self.aliasing_read(object);
+        let base_is_temporary = receiver_ty.is_refcounted() && !self.sole_operand_borrowed(object);
         if base_is_temporary {
             self.own_temporary(object_v);
         }
@@ -5944,7 +5949,7 @@ impl<'a> Lowering<'a> {
         // deliberately skipped for. Staged before the read so a throw on the
         // way drops it too, exactly like the `Core`-call arm's receiver.
         let base_is_temporary =
-            get.is_none() && receiver_ty.is_refcounted() && !self.aliasing_read(object);
+            get.is_none() && receiver_ty.is_refcounted() && !self.sole_operand_borrowed(object);
         if base_is_temporary {
             self.own_temporary(object_v);
         }
@@ -5955,7 +5960,7 @@ impl<'a> Lowering<'a> {
                 // an explicit `$obj->m()` inserts, for the same reason
                 // (the callee releases every refcounted parameter at
                 // scope exit).
-                if receiver_ty.is_refcounted() && self.aliasing_read(object) {
+                if receiver_ty.is_refcounted() && self.sole_operand_borrowed(object) {
                     self.emit_retain(*cur, object_v);
                 }
                 self.emit_fallible(
@@ -6034,7 +6039,7 @@ impl<'a> Lowering<'a> {
             // releasing the object underneath a borrowed result is a
             // use-after-free rather than a leak. That makes this whole
             // expression a *fresh producer*, which is why
-            // `Lowering::aliasing_read` reports a property read off a
+            // `Lowering::sole_operand_borrowed` reports a property read off a
             // temporary as non-aliasing: the consumer must not retain it a
             // second time.
             if ty.is_refcounted() {
@@ -6154,7 +6159,7 @@ impl<'a> Lowering<'a> {
         let mark = self.temporaries_mark();
         let (object_v, receiver_ty, guard) =
             self.open_nullsafe(object, false, ReceiverProof::Proven, env, cur);
-        if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
+        if receiver_ty.is_refcounted() && !self.sole_operand_borrowed(object) {
             self.own_temporary(object_v);
         }
         let (is_init, _) = self.emit(
@@ -6382,7 +6387,7 @@ impl<'a> Lowering<'a> {
                 .declared_ty(field.name)
                 .map(|id| erase_checked_ty(id, self.checked_types));
             let (v, ty) = self.lower_expr(&field.value, declared, env, cur);
-            if ty.is_refcounted() && self.aliasing_read(&field.value) {
+            if ty.is_refcounted() && self.sole_operand_borrowed(&field.value) {
                 self.emit_retain(*cur, v);
             }
             let (v, ty) = match declared {
@@ -6439,7 +6444,7 @@ impl<'a> Lowering<'a> {
         let mark = self.temporaries_mark();
         let (object_v, receiver_ty, guard) =
             self.open_nullsafe(object, nullsafe, ReceiverProof::Erased, env, cur);
-        let base_is_temporary = receiver_ty.is_refcounted() && !self.aliasing_read(object);
+        let base_is_temporary = receiver_ty.is_refcounted() && !self.sole_operand_borrowed(object);
         if base_is_temporary {
             self.own_temporary(object_v);
         }
@@ -6553,7 +6558,7 @@ impl<'a> Lowering<'a> {
             ),
         };
         let (key_v, key_ty) = self.lower_expr(name, Some(Ty::Str), env, cur);
-        if key_ty.is_refcounted() && !self.aliasing_read(name) {
+        if key_ty.is_refcounted() && !self.sole_operand_borrowed(name) {
             self.own_temporary(key_v);
             *staged = true;
         }
@@ -6586,7 +6591,7 @@ impl<'a> Lowering<'a> {
         // `Self::lower_shape_property_assign` takes its own: `InstKind::KeySet`
         // checks the tag where it checks the name.
         let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
-        if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
+        if receiver_ty.is_refcounted() && !self.sole_operand_borrowed(object) {
             self.own_temporary(object_v);
         }
         let mut staged = false;
@@ -6649,7 +6654,7 @@ impl<'a> Lowering<'a> {
         // same rule for the same reason: an unchecked untag over a `mixed`
         // holding an `int` is a pointer the runtime would then store through.
         let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
-        if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
+        if receiver_ty.is_refcounted() && !self.sole_operand_borrowed(object) {
             self.own_temporary(object_v);
         }
         let (v, vty, aliasing) = self.lower_stored(value, Some(field_ty), env, cur);
@@ -6737,7 +6742,7 @@ impl<'a> Lowering<'a> {
             for (i, item) in items.iter().enumerate() {
                 let (v, ty) = self.lower_array_element(&item.value, env, cur);
                 if ty.is_refcounted() {
-                    if self.aliasing_read(&item.value) {
+                    if self.sole_operand_borrowed(&item.value) {
                         self.emit_retain(*cur, v);
                     }
                     self.own_transferred_temporary(v);
@@ -6765,7 +6770,7 @@ impl<'a> Lowering<'a> {
                 if item.spread {
                     let mark = self.temporaries_mark();
                     let (subject, subject_ty) = self.lower_expr(&item.value, None, env, cur);
-                    if subject_ty.is_refcounted() && !self.aliasing_read(&item.value) {
+                    if subject_ty.is_refcounted() && !self.sole_operand_borrowed(&item.value) {
                         self.own_temporary(subject);
                     }
                     array_v = self
@@ -6792,7 +6797,7 @@ impl<'a> Lowering<'a> {
                     key_v
                 });
                 let (v, ty) = self.lower_array_element(&item.value, env, cur);
-                if ty.is_refcounted() && self.aliasing_read(&item.value) {
+                if ty.is_refcounted() && self.sole_operand_borrowed(&item.value) {
                     self.emit_retain(*cur, v);
                 }
                 array_v = match key_v {
@@ -6901,13 +6906,14 @@ impl<'a> Lowering<'a> {
         // A borrowed base whose key can free it is held while the key runs,
         // and from then on it is a temporary like a fresh one:
         // `$this->rows[$this->reload()]` keeps the array it read even when
-        // `reload()` replaces `$this->rows`. `Self::aliasing_read` reads the
+        // `reload()` replaces `$this->rows`. `Self::sole_operand_borrowed` reads the
         // same judgment, so it calls that element read a fresh producer.
         let mark = self.temporaries_mark();
         let (array_v, base_ty) = self.lower_expr(base, None, env, cur);
+        let site = OperandSite::IndexBase;
         let base_is_temporary = base_ty.is_refcounted()
-            && (!self.aliasing_read(base)
-                || !self.hold_borrowed(OperandSite::IndexBase, base, array_v, &[index], *cur));
+            && self.borrowed_operand(site, base, (array_v, base_ty), &[index], *cur)
+                != OperandOwner::Slot;
         if base_is_temporary {
             self.own_temporary(array_v);
         }
@@ -6966,7 +6972,7 @@ impl<'a> Lowering<'a> {
         let result = self.emit_fallible(*cur, result_ty, kind, env);
         if base_is_temporary {
             // That makes the whole expression a *fresh producer*, which is why
-            // `Lowering::aliasing_read` reports an index read off a temporary
+            // `Lowering::sole_operand_borrowed` reports an index read off a temporary
             // as non-aliasing: the consumer must not retain it a second time.
             // The retain goes first, since the release below drops the base
             // this borrowed element lives inside.
@@ -7082,7 +7088,7 @@ impl<'a> Lowering<'a> {
                 self.emit_test_shape(shape, value, subject, expr.span, env, cur)
             }
         };
-        if !self.aliasing_read(inner) && subject.is_refcounted() {
+        if !self.sole_operand_borrowed(inner) && subject.is_refcounted() {
             self.emit_release(*cur, value);
         }
         result
@@ -7732,7 +7738,7 @@ impl<'a> Lowering<'a> {
              `nvs_types::expr::members::reject_non_object_clone` admits — representation \
              {ty:?} means this is a bug in nvs-ir"
         );
-        let borrowed = self.aliasing_read(inner);
+        let borrowed = self.sole_operand_borrowed(inner);
         let object = self.guard_cloneable(v, ty, borrowed, inner.span, env, cur);
         // A generator is an object, and `rule:iteration/generator-stays-in-one-isolate`
         // still refuses to copy it. Asked of every operand, because a generator

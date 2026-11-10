@@ -41,7 +41,7 @@ impl<'a> Lowering<'a> {
              `nvs_types::expr::members::reject_unthrowable` admits — representation {ty:?} means \
              this is a bug in nvs-ir"
         );
-        let borrowed = self.aliasing_read(inner);
+        let borrowed = self.sole_operand_borrowed(inner);
         let v = self.guard_throwable(v, ty, borrowed, inner.span, env, cur);
         if borrowed {
             self.emit_retain(*cur, v);
@@ -69,7 +69,7 @@ impl<'a> Lowering<'a> {
     /// fresh block nothing reaches, as an expression-position `throw` leaves it.
     pub(crate) fn lower_unloaded_require(&mut self, path: &Expr, env: &mut Env, cur: &mut BlockId) {
         let (v, ty) = self.lower_expr(path, None, env, cur);
-        if ty.is_refcounted() && !self.aliasing_read(path) {
+        if ty.is_refcounted() && !self.sole_operand_borrowed(path) {
             self.emit_release(*cur, v);
         }
         let (message, _) = self.emit(
@@ -130,7 +130,7 @@ impl<'a> Lowering<'a> {
     /// and one descriptor walk, on the tagged operand alone, and no allocation
     /// on the path where both hold.
     ///
-    /// `borrowed` is [`Self::aliasing_read`]'s answer for the operand, and it
+    /// `borrowed` is [`Self::sole_operand_borrowed`]'s answer for the operand, and it
     /// is what decides the release on either raise: a fresh operand is this
     /// frame's to discharge before the block leaves, and [`InstKind::Untag`]
     /// carries that obligation onto the narrowed value with the reference.
@@ -838,7 +838,7 @@ impl<'a> Lowering<'a> {
         // as fresh — `is_aliasing_read` names no `catch` — so a guard that is
         // itself a borrow owes the retain here, the same one a `match` arm
         // body owes ([`Self::lower_match`]).
-        if guard_ty.is_refcounted() && self.aliasing_read(guarded) {
+        if guard_ty.is_refcounted() && self.sole_operand_borrowed(guarded) {
             self.emit_retain(guard_cur, guard_v);
         }
         let mut branches: Vec<(BlockId, ValueId, Ty)> = vec![(guard_cur, guard_v, guard_ty)];
@@ -893,7 +893,7 @@ impl<'a> Lowering<'a> {
                 continue;
             }
             let (v, ty) = self.lower_expr(&arm.body, expected, &mut arm_env, &mut arm_cur);
-            if ty.is_refcounted() && self.aliasing_read(&arm.body) {
+            if ty.is_refcounted() && self.sole_operand_borrowed(&arm.body) {
                 self.emit_retain(arm_cur, v);
             }
             if let Some(name) = &bound

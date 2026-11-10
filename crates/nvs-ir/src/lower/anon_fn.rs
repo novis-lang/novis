@@ -261,7 +261,7 @@ pub(crate) fn lower_anon_fn(
         // so the frame returns nothing, exactly as a block body does.
         FnBody::Expr(body) => {
             let (v, ty) = low.lower_expr(body, Some(*ret), &mut env, &mut cur);
-            if ty.is_refcounted() && low.aliasing_read(body) {
+            if ty.is_refcounted() && low.sole_operand_borrowed(body) {
                 low.emit_retain(cur, v);
             }
             low.release_all_locals(cur, &env, None);
