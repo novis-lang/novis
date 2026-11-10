@@ -198,6 +198,10 @@ allows `development`, and returns `false` otherwise. `set("mode.ceiling", …)` 
 `development`, and `Production` otherwise. `Core\Config::get("mode")`
 (without `.default`) answers `null`, and `set("mode", …)` returns `false`.
 
+In `development` mode, a server checks the `Host` header of each request from this machine. A host
+it does not know gets `421`. The server chapter's section *Development: the `Host` check* lists the
+allowed hosts, and `[server] development_hosts` adds more.
+
 <!-- primer -->
 # `[capabilities]`
 

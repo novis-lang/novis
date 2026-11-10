@@ -272,8 +272,8 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "debug.token_file", class: Class::System, apply: Apply::Boot },
     // `rule:http-server/the-server-block-is-boot-class`. `System` because every key in the block is
     // the deployment's. The block row is `Reload`, and governs the keys a request reads from the
-    // snapshot it cloned (`dispatch`, `static`, `health_path`, `trusted_proxies` and
-    // `max_in_flight`), the ones a connection reads from the snapshot published when it is
+    // snapshot it cloned (`dispatch`, `static`, `health_path`, `trusted_proxies`,
+    // `development_hosts` and `max_in_flight`), the ones a connection reads from the snapshot published when it is
     // accepted (the four waits, `drain_timeout` and `[server.connection]`), and `root` and `mount`,
     // which `nvs serve`'s background expansion reads from the published snapshot and expands again
     // when they changed. The longer rows below it are `Boot`.

@@ -2,7 +2,7 @@
 id: server
 title: The HTTP server
 summary: `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away and `nvs service`
-keywords: nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, development server, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
+keywords: nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, development_hosts, Host header, 421, Misdirected Request, loopback, DNS rebinding, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, development server, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
 ---
 
 # nvs serve
@@ -47,6 +47,7 @@ socket_mode        = "0660"               # Unix-socket entries only
 dispatch           = "entry"              # "entry" or "path"; unset is "entry", or "path" in development
 static             = false                # serve files under the mount root; unset is false, or true in development
 trusted_proxies    = []                   # empty: forwarding headers are never read
+development_hosts  = []                   # in development, the extra hosts a request from this machine may use
 health_path        = ""                   # "" is off
 max_in_flight      = 10000                # requests in flight before a 503
 workers            = 4                    # accept cores; unset is the machine's parallelism
@@ -154,6 +155,33 @@ runs as `GET` with the body discarded.
 process accepts, `503` while it drains, no dependency checked and nothing logged.
 
 <!-- src: `rule:http-server/a-request-resolves-in-five-steps`, `rule:http-server/health-path-is-off-and-checks-nothing` -->
+
+## Development: the `Host` check
+
+In `development` mode, the server checks the `Host` header of every request that comes from this
+machine. The host must be one of these:
+
+- `localhost`, or a name that ends in `.localhost`, such as `blog.localhost`
+- a loopback address, such as `127.0.0.1` or `[::1]`
+- the `host` of a `[[server.mount]]`
+- an entry in `[server] development_hosts`
+
+Any other host gets `421 Misdirected Request` with an empty body. The log has a `Warn` line with
+the host and the setting to change. This check stops a web page on another site from using your
+development server. Such a page can make its own name point at `127.0.0.1`.
+
+A local proxy that sends its own host name needs that name in `development_hosts`:
+
+```toml
+[server]
+development_hosts = ["app.test"]   # the host name alone, without a port
+```
+
+Each entry is one host name or one IP address. Write an IPv6 address in brackets. A port, `*`
+and `/` are not allowed. A request from another machine is not checked. In `production` mode,
+no request is checked.
+
+<!-- src: `rule:http-server/a-development-server-answers-the-hosts-it-knows` -->
 
 ## Static files
 

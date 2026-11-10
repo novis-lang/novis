@@ -423,6 +423,10 @@ pub struct Access<'a> {
     pub route: Option<&'a str>,
     /// The trace the door decided for this request.
     pub trace: Option<TraceContext>,
+    /// The `Host` a development server's guard turned this request away for
+    /// (`crate::serve::Reply::misdirected`), or `None`. A line with one is a
+    /// `Warn` that names the host and the key that lets it in.
+    pub misdirected: Option<&'a str>,
 }
 
 /// Writes `line` as one diagnostic record where `[log] target` says, when
@@ -443,22 +447,39 @@ pub struct Access<'a> {
 /// request. The ids are the same ones, read off the trace the door decided.
 ///
 /// The health probe writes no line at all, whatever its status.
+///
+/// A request a development server's host guard turned away is a `Warn`,
+/// written whatever `on` says, with a `host` field and a message that names
+/// `[server] development_hosts`
+/// (`rule:http-server/a-development-server-answers-the-hosts-it-knows`): its
+/// `421` is a setup mistake to fix, and the line is where it is found.
 pub fn access(ctx: &mut nvs_runtime::Ctx, on: bool, line: &Access<'_>) {
     use nvs_render::{Level, Node, Scalar};
     use nvs_runtime::floor;
 
     let failed = line.status >= 500 && line.status != 501;
-    if line.probe || (!on && !failed) {
+    if line.probe || (!on && !failed && line.misdirected.is_none()) {
         return;
     }
-    let level = if failed { Level::Error } else { Level::Info };
+    let level = if failed {
+        Level::Error
+    } else if line.misdirected.is_some() {
+        Level::Warn
+    } else {
+        Level::Info
+    };
     if !ctx.log_writes(level) {
         return;
     }
-    let mut record = floor::note(
-        level,
-        &format!("{} {} {}", line.method, line.path, line.status),
-    );
+    let message = match line.misdirected {
+        Some(host) => format!(
+            "{} {} {}: in development, a request from this machine must use one of its own \
+             host names. Add \"{host}\" to [server] development_hosts to allow this host",
+            line.method, line.path, line.status
+        ),
+        None => format!("{} {} {}", line.method, line.path, line.status),
+    };
+    let mut record = floor::note(level, &message);
     let envelope = &mut record.envelope;
     envelope.ts = Some(jiff::Timestamp::now().to_string());
     if let Some(trace) = &line.trace {
@@ -490,6 +511,9 @@ pub fn access(ctx: &mut nvs_runtime::Ctx, on: bool, line: &Access<'_>) {
     }
     if let Some(route) = line.route {
         fields.push(("route".into(), floor::text(route)));
+    }
+    if let Some(host) = line.misdirected {
+        fields.push(("host".into(), floor::text(host)));
     }
     // A sink that has gone is ignored, for `floor::report`'s reason.
     let _ = ctx.write_log_record(&record);
@@ -1075,6 +1099,7 @@ mod tests {
                 client_ip_logged,
                 route: Some("orders.show"),
                 trace,
+                misdirected: None,
             },
         );
         String::from_utf8(
@@ -1082,6 +1107,49 @@ mod tests {
                 .expect("a buffered channel hands its bytes back"),
         )
         .expect("a JSON Lines line is text")
+    }
+
+    /// `rule:http-server/a-development-server-answers-the-hosts-it-knows`: a
+    /// request the host guard turned away is a `Warn` line with the host and
+    /// the key that allows it, written with `[log] access` off too.
+    #[test]
+    fn a_misdirected_request_is_a_warn_line_naming_the_host() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_diagnostic_sink(OutputSink::Buffer(Vec::new()));
+        super::access(
+            &mut ctx,
+            false,
+            &super::Access {
+                probe: false,
+                method: "GET",
+                path: "/blog/",
+                status: 421,
+                took: std::time::Duration::from_millis(1),
+                bytes: Some(0),
+                client_ip: Some(std::net::IpAddr::from([127, 0, 0, 1])),
+                client_ip_logged: true,
+                route: None,
+                trace: Some(TraceContext::started()),
+                misdirected: Some("app.example.com"),
+            },
+        );
+        let line = String::from_utf8(
+            ctx.take_buffered_diagnostic()
+                .expect("a buffered channel hands its bytes back"),
+        )
+        .expect("a JSON Lines line is text");
+        assert_eq!(line.lines().count(), 1, "one line with access off: {line}");
+        for wanted in [
+            "\"status\":421",
+            "\"host\":\"app.example.com\"",
+            "development_hosts",
+        ] {
+            assert!(line.contains(wanted), "the line has no {wanted}: {line}");
+        }
+        assert!(
+            line.contains("\"level\":\"warn\"") || line.contains("\"level\":\"Warn\""),
+            "a misdirected request is `Warn`: {line}"
+        );
     }
 
     /// `rule:http-server/the-access-log-is-a-mode-default`: one line per

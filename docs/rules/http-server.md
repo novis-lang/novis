@@ -496,6 +496,32 @@ In production — `dispatch = "entry"`, `static = false` — steps 3 and 4 do no
 
 <sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/static-serving-is-one-policy`](http-server.md#http-server-static-serving-is-one-policy), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler).</sub>
 
+<a id="http-server-a-development-server-answers-the-hosts-it-knows"></a>
+
+## In development, a request from this machine must name a host the server knows, `[server] development_hosts` adds a proxy's, and any other host is a logged `421`
+
+`rule:http-server/a-development-server-answers-the-hosts-it-knows`
+
+**In development, a request from a loopback address must name a host this server knows in `Host`:** `localhost`, a name under `.localhost`, a loopback address, a host a `[[server.mount]]` lists, or an entry of `[server] development_hosts`. Any other host reaches no mount and is answered `421 Misdirected Request`, bodiless, before step 1 of [`http-server/a-request-resolves-in-five-steps`](http-server.md#http-server-a-request-resolves-in-five-steps). Only the health probe still answers at its path. That closes DNS rebinding, where a web page makes its own name resolve to `127.0.0.1` and the browser sends that name to a server on this machine.
+
+**Who is asked.** The peer is the client address after the forwarded walk, so a trusted proxy that forwards a remote client's address is not asked, and a local proxy serving a browser on this machine is. A request from another machine is not asked, so a development server on `0.0.0.0` still answers its network address. A request over a Unix socket is not asked. Production never asks: the mode is `[mode] default` as the tree states it, so a reload that flips the mode turns the guard on or off for the next request.
+
+**`[server] development_hosts`** lists the extra hosts, for a local proxy that sends its own name. Each entry is a host name or an IP address, an IPv6 one in brackets, compared exactly with the folded `Host`: ASCII lower case, no trailing `.`, no port. An entry with a scheme, a port, a wildcard, a path or a space is `E0663` at boot and at reload, because an entry that can never equal a `Host` is a proxy an operator believes is let in. The key is checked in production too, so a tree a reload flips to development cannot carry one. It is `System` and reloads with the `[server]` block.
+
+**The refusal is logged.** Its access line is a `Warn`, written whatever `[log] access` says, with a `host` field and a message that names the key. `421` and not the table's `404`, because a `404` looks exactly like a mount that does not exist and the server looks broken behind a proxy that works.
+
+- **Memory:** the list, once per configuration tree, and one copy of the refused host per refused request, freed with its response. Nothing per accepted request.
+
+**Declined:**
+
+- **A wildcard or suffix entry.** One entry would let in every name under a domain the operator does not control the DNS of, which is the rebinding the guard exists to close. A proxy sends a fixed list of names.
+- **Turning the guard off with a switch.** A list states what is let in; a switch lets in every page on the web.
+- **Trusting any host a trusted proxy sends.** A local proxy with a catch-all server block forwards a rebinding page's host as readily as its own.
+- **The table's `404`.** It is indistinguishable from a missing mount, so a correct proxy setup reads as a broken server.
+- **A body explaining the refusal.** A rebinding page can read it; the log line is for the person who runs the server, who is the one who can fix it.
+
+<sub>See also [`http-server/a-request-resolves-in-five-steps`](http-server.md#http-server-a-request-resolves-in-five-steps), [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/the-access-log-is-a-mode-default`](http-server.md#http-server-the-access-log-is-a-mode-default).</sub>
+
 <a id="http-server-trusted-proxies-is-empty-and-empty-reads-nothing"></a>
 
 ## `trusted_proxies` defaults to empty, empty means the forwarded headers are never read, and a trusted walk takes the rightmost untrusted `X-Forwarded-For` entry
@@ -711,8 +737,6 @@ A single `Range` is honoured; a multi-range request, a second `Range` line, a bo
 **A `.nvs` file is never served as source**, under any dispatch, from any mount. **Nor is a file the program could not read by default:** a dot-file, a file in a dot-folder (`.well-known` included; a route answers it), `nvs.toml`, a `.nvst` test file, and a database file a `[db]` block names with its `-wal`, `-shm` and `-journal` files. Only the host tree has `[db]` blocks, since an `[[app]]` block has no `[db]` table, and a reload that moves one builds the table again. One predicate, `nvs_config::capability::kept_from_requests`, decides the first three for both. A declined file falls through to the next step, so the peer cannot tell it from a missing one. A link is followed to where it leads, and the file there is judged.
 
 **An HTML, SVG or XML file is sent with `Content-Security-Policy: sandbox; frame-ancestors 'none'`.** It runs no script and has no origin of its own, so a file somebody uploaded under a static root cannot act as the site. The cost is that a static page's own script does not run either: a page that needs script is rendered by a program. A program's own `setHeader` still has the last word on `sendFile`.
-
-**In development, a request from a loopback address must name this machine in `Host`:** `localhost`, a name under `.localhost`, a loopback address, or a host a `[[server.mount]]` lists. Any other host reaches no mount and gets the table's `404`, and only the health probe answers it. That closes DNS rebinding, where a web page makes its own name resolve to `127.0.0.1`. A request from another machine is not asked, so a development server on `0.0.0.0` still answers its network address.
 
 - **Memory:** one open file handle and one 64 KiB chunk per in-flight file response, plus the HTTP layer's write buffer, whatever the file's size or the range's. The next chunk is read only when that buffer has room, so a slow peer holds the read back. Nothing is cached between requests: O(in-flight), not O(files served).
 - **Latency:** every lookup, open and chunk read runs on the blocking pool ([`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall)), one hand-off per path asked and one per chunk sent, so a slow disk stalls its own request and no other request on the core.

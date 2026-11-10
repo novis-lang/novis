@@ -1348,6 +1348,10 @@ pub struct Server {
     /// Fail-closed (`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`): with
     /// nothing here, no forwarding header is believed.
     pub trusted_proxies: Option<Vec<String>>,
+    /// The hosts a development server answers a loopback peer on, beyond this machine's own names
+    /// and the mounts' hosts (`rule:http-server/a-development-server-answers-the-hosts-it-knows`).
+    /// [`crate::server::development_hosts`] reads it, and production never does.
+    pub development_hosts: Option<Vec<String>>,
     /// Off when empty.
     pub health_path: Option<String>,
     /// The in-flight ceiling.

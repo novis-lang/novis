@@ -404,6 +404,65 @@ fn a_request_with_a_non_ascii_host_is_a_400() {
     );
 }
 
+/// `rule:http-server/a-development-server-answers-the-hosts-it-knows`: a
+/// development server answers a request from this machine whose `Host` it does
+/// not know with `421`, and its log names the host and the key. A host the key
+/// lists is answered, and so is `localhost`.
+#[test]
+fn a_development_server_answers_an_unknown_host_from_this_machine_with_a_logged_421() {
+    let served = Served::serving(
+        "development-hosts",
+        "<?nvs\necho \"ran\";\n",
+        Some(
+            "[mode]\ndefault = \"development\"\n\n\
+             [server]\ndevelopment_hosts = [\"proxy.test\"]\n\n\
+             [log]\ntarget = \"file:server.log\"\nformat = \"json\"\n",
+        ),
+    );
+    let answer = served.answer_to(
+        b"GET /blog/ HTTP/1.1\r\nHost: app.example.com:8080\r\nConnection: close\r\n\r\n",
+    );
+    assert!(
+        answer.starts_with("HTTP/1.1 421 Misdirected Request\r\n"),
+        "an unknown host: {answer}"
+    );
+    assert!(answer.ends_with("\r\n\r\n"), "the 421 has no body: {answer}");
+    for host in ["proxy.test", "PROXY.test:8080", "localhost"] {
+        assert_eq!(
+            served.status_of(
+                format!("GET / HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n").as_bytes()
+            ),
+            "HTTP/1.1 200 OK",
+            "for {host}"
+        );
+    }
+
+    let log = served.dir.join("server.log");
+    let until = std::time::Instant::now() + Duration::from_secs(60);
+    let line = loop {
+        let text = std::fs::read_to_string(&log).unwrap_or_default();
+        if let Some(line) = text.lines().find(|line| line.contains("\"status\":421")) {
+            break line.to_owned();
+        }
+        assert!(
+            std::time::Instant::now() < until,
+            "no line for the 421 in the log: {text}"
+        );
+        thread::sleep(Duration::from_millis(20));
+    };
+    for wanted in [
+        "\"host\":\"app.example.com\"",
+        "\"path\":\"/blog/\"",
+        "development_hosts",
+    ] {
+        assert!(line.contains(wanted), "the line has no {wanted}: {line}");
+    }
+    assert!(
+        line.to_ascii_lowercase().contains("\"level\":\"warn\""),
+        "a 421 is a `Warn`: {line}"
+    );
+}
+
 /// A `POST` of `body` with its length declared.
 fn post_of(body: &[u8]) -> Vec<u8> {
     let mut raw = format!(

@@ -274,6 +274,10 @@ pub struct Table {
     /// Whether a request that arrives from this machine must name this machine
     /// in its `Host`: `true` in development ([`Table::local_hosts_only`]).
     local_hosts_only: bool,
+    /// `[server] development_hosts`, folded: the hosts beyond this machine's
+    /// own names and the mounts' hosts that the guard lets in
+    /// ([`Table::development_hosts`]).
+    development_hosts: Vec<String>,
 }
 
 impl Table {
@@ -288,6 +292,7 @@ impl Table {
             health: None,
             databases: Vec::new(),
             local_hosts_only: false,
+            development_hosts: Vec::new(),
         }
     }
 
@@ -312,17 +317,29 @@ impl Table {
     }
 
     /// The same table, answering a request from a loopback address only where
-    /// its `Host` names this machine or a mount: `localhost`, a name under
-    /// `.localhost`, a loopback address, or a host a `[[server.mount]]` lists.
+    /// its `Host` names this machine, a mount or a listed host: `localhost`, a
+    /// name under `.localhost`, a loopback address, a host a `[[server.mount]]`
+    /// lists, or one of [`development_hosts`](Table::development_hosts).
     ///
-    /// That is development's DNS rebinding guard. A web page on another site
-    /// can make its own name resolve to `127.0.0.1`, and the browser then sends
-    /// that name in `Host` to this server. A request from another machine is
-    /// not asked, so a development server on `0.0.0.0` still answers its own
+    /// That is `rule:http-server/a-development-server-answers-the-hosts-it-knows`,
+    /// development's DNS rebinding guard. A web page on another site can make
+    /// its own name resolve to `127.0.0.1`, and the browser then sends that
+    /// name in `Host` to this server. A request from another machine is not
+    /// asked, so a development server on `0.0.0.0` still answers its own
     /// network address.
     #[must_use]
     pub fn local_hosts_only(mut self, yes: bool) -> Self {
         self.local_hosts_only = yes;
+        self
+    }
+
+    /// The same table, letting the guard of
+    /// [`local_hosts_only`](Table::local_hosts_only) through for `hosts` too:
+    /// the names a local proxy sends, already folded by
+    /// [`nvs_config::server::development_hosts`].
+    #[must_use]
+    pub fn development_hosts(mut self, hosts: Vec<String>) -> Self {
+        self.development_hosts = hosts;
         self
     }
 
@@ -356,10 +373,16 @@ impl Table {
             .as_ref()
             .and_then(|mode| mode.default.as_deref())
             == Some(nvs_config::mode::DEVELOPMENT);
+        // A list `nvs_config::server::validate` refused at boot never reaches
+        // here, so the only tree with one is one nothing validated, and it lets
+        // in nothing beyond this machine's own names.
+        let listed = nvs_config::server::development_hosts(config, &BTreeMap::new())
+            .unwrap_or_default();
         Self::new(mounts, switches.dispatch, switches.serve_static)
             .with_health(health)
             .withholding(databases(config).map(Path::to_path_buf))
             .local_hosts_only(development)
+            .development_hosts(listed)
     }
 
     /// Every mount this table holds, which is the executable set
@@ -383,7 +406,8 @@ impl Table {
     ///
     /// `peer` is the address the request came from, and `None` over a Unix
     /// socket. A loopback peer with a `Host` [`refuses_host`](Table::refuses_host)
-    /// names reaches no mount, and only the probe answers it.
+    /// names reaches no mount: the probe answers it at the probe's path, and
+    /// every other path is [`Resolved::Misdirected`].
     #[must_use]
     pub fn select(
         &self,
@@ -394,7 +418,11 @@ impl Table {
         let path = request.uri().path();
         match host(request) {
             Host::Named(named) if self.refuses_host(&named, peer) => {
-                (self.health.as_deref() == Some(path)).then_some(Resolved::Health)
+                if self.health.as_deref() == Some(path) {
+                    Some(Resolved::Health)
+                } else {
+                    Some(Resolved::Misdirected(named.into()))
+                }
             }
             Host::Named(named) => self.resolve(Some(&named), path, disk),
             Host::Absent => self.resolve(None, path, disk),
@@ -405,7 +433,8 @@ impl Table {
     /// Whether this table gives no mount to a request from `peer` that names
     /// `host`, already [`folded`]: [`local_hosts_only`](Table::local_hosts_only)
     /// is on, `peer` is a loopback address, and `host` names neither this
-    /// machine nor any mount.
+    /// machine, nor any mount, nor any of the
+    /// [`development_hosts`](Table::development_hosts).
     #[must_use]
     pub fn refuses_host(&self, host: &str, peer: Option<IpAddr>) -> bool {
         self.local_hosts_only
@@ -415,6 +444,7 @@ impl Table {
                 .mounts
                 .iter()
                 .any(|mount| mount.host.as_deref() == Some(host))
+            && !self.development_hosts.iter().any(|listed| listed == host)
     }
 
     /// Step 0 and the five steps over a host and a path, which is
@@ -567,14 +597,21 @@ pub enum Resolved<'a> {
     Health,
     /// Steps 1 to 5: this mount, and what it says the request is.
     Mounted(Selection<'a>),
+    /// A development server's guard turned this request away before step 1:
+    /// it came from this machine and its `Host`, folded and carried here so
+    /// the log can name it, is none this server knows
+    /// ([`Table::refuses_host`]). The answer is `421 Misdirected Request`, so a
+    /// refused host never looks like a mount that does not exist.
+    Misdirected(Box<str>),
 }
 
 impl<'a> Resolved<'a> {
-    /// The mount the five steps chose, or `None` for a probe hit.
+    /// The mount the five steps chose, or `None` for a probe hit and a
+    /// misdirected request.
     #[must_use]
     pub fn selection(self) -> Option<Selection<'a>> {
         match self {
-            Self::Health => None,
+            Self::Health | Self::Misdirected(_) => None,
             Self::Mounted(selection) => Some(selection),
         }
     }
@@ -2084,12 +2121,16 @@ mod tests {
     /// DNS rebinding against a development server: a page on another site
     /// makes its own name resolve to `127.0.0.1`, and the browser sends that
     /// name in `Host`. A request from this machine reaches a mount only when
-    /// its `Host` names this machine or a mount. A request from another
-    /// machine, over a Unix socket, or to a production server is not asked.
+    /// its `Host` names this machine, a mount or a `[server] development_hosts`
+    /// entry. A request from another machine, over a Unix socket, or to a
+    /// production server is not asked.
     #[test]
     fn a_rebinding_host_from_this_machine_reaches_no_mount() {
-        let config: Config = toml::from_str("[mode]\ndefault = \"development\"\n")
-            .expect("the fixture deserializes");
+        let config: Config = toml::from_str(
+            "[mode]\ndefault = \"development\"\n\
+             [server]\ndevelopment_hosts = [\"Proxy.Test.\"]\n",
+        )
+        .expect("the fixture deserializes");
         let mounts = vec![
             mount("/", Some("app.test"), "/www/app/index.nvs"),
             mount("/", None, "/www/site/index.nvs"),
@@ -2133,9 +2174,13 @@ mod tests {
             "127.1.2.3",
             "[::1]",
             "app.test",
+            // Listed as `Proxy.Test.`, and compared in the folded form.
+            "proxy.test",
         ] {
             assert!(!development.refuses_host(host, Some(here)), "{host}");
         }
+        // The list adds exact names: a name under a listed one is still refused.
+        assert!(development.refuses_host("api.proxy.test", Some(here)));
     }
 
     /// `rule:errors/http-message-defects`'s path row, as the door reads it: a

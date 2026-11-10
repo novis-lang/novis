@@ -846,6 +846,23 @@ impl Reply {
         Self::status(StatusCode::NOT_FOUND)
     }
 
+    /// A request a development server's host guard turned away
+    /// ([`crate::mount::Resolved::Misdirected`]): `421 Misdirected Request`,
+    /// bodiless, carrying `host` for the access line, which names it and is
+    /// written at `Warn` (`rule:http-server/a-development-server-answers-the-hosts-it-knows`).
+    ///
+    /// `421` and not the table's `404`: RFC 9110 § 15.5.20 is "this server
+    /// does not answer for this host", and a `404` reads as a mount that does
+    /// not exist.
+    #[must_use]
+    pub fn misdirected(host: Box<str>) -> Self {
+        let mut reply = Self::status(StatusCode::MISDIRECTED_REQUEST);
+        if let Self::Done(response) = &mut reply {
+            response.extensions_mut().insert(MisdirectedHost(host));
+        }
+        reply
+    }
+
     /// The verb the peer wrote is outside the eight `Core\Http\Method` names, so
     /// no program is asked to answer it: `501`, before an isolate exists.
     ///
@@ -923,6 +940,19 @@ struct Probe;
 /// Whether `response` is the health probe's — [`Reply::health`] marked it.
 pub(crate) fn is_probe(response: &Response<Answer>) -> bool {
     response.extensions().get::<Probe>().is_some()
+}
+
+/// The host [`Reply::misdirected`] turned away, carried on its response to the
+/// access line. Only a refused request allocates it.
+#[derive(Clone)]
+struct MisdirectedHost(Box<str>);
+
+/// The host a development server's guard turned `response` away for, or `None`.
+pub(crate) fn misdirected_host(response: &Response<Answer>) -> Option<&str> {
+    response
+        .extensions()
+        .get::<MisdirectedHost>()
+        .map(|MisdirectedHost(host)| &**host)
 }
 
 /// Whether this server has stopped accepting — `rule:http-server/the-server-block-is-boot-class`'s drain, as the one
@@ -1942,9 +1972,21 @@ where
             let status = response.status().as_u16();
             crate::metrics::count_request(verb.as_str(), status, route, took);
             let probe = is_probe(response);
+            let misdirected = misdirected_host(response);
             // Read only where it decides something: the probe writes nothing,
-            // and a `5xx` other than `501` is written whatever it says.
-            let on = !probe && (status < 500 || status == 501) && crate::trace::access_on(under);
+            // and a `5xx` other than `501` and a misdirected request are
+            // written whatever it says.
+            let on = !probe
+                && misdirected.is_none()
+                && (status < 500 || status == 501)
+                && crate::trace::access_on(under);
+            // An answer the door wrote before any program ran on this
+            // connection finds a context nobody configured, whose log has no
+            // `[log] target` to read. It is given the snapshot the request
+            // was answered under, so its line goes where every other line does.
+            if ctx.borrow().config().is_none() {
+                ctx.borrow_mut().set_config(Arc::clone(under));
+            }
             crate::trace::access(
                 &mut ctx.borrow_mut(),
                 on,
@@ -1959,6 +2001,7 @@ where
                     client_ip_logged: under.client_ip_logged(),
                     route,
                     trace: Some(trace),
+                    misdirected,
                 },
             );
             // `rule:testing/the-debug-stream-reaches-the-service-through-the-disk`'s

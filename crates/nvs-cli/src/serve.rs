@@ -1188,6 +1188,10 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 // question is being asked.
                 Some(Resolved::Health) if unknown_verb => return Reply::not_implemented(),
                 Some(Resolved::Health) => return Reply::health(&draining),
+                // The development host guard, ahead of step 1: `421`, and the
+                // access line names the host
+                // (`rule:http-server/a-development-server-answers-the-hosts-it-knows`).
+                Some(Resolved::Misdirected(host)) => return Reply::misdirected(host),
                 Some(Resolved::Mounted(selected)) => selected,
                 // Step 1's third arrow (`rule:http-server/a-request-resolves-in-five-steps`). There is no mount for it and so
                 // nothing to run: not a program's `404` but the table's.

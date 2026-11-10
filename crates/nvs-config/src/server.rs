@@ -166,6 +166,7 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
     workers_for(config, origins)?;
     watchdog_margin_for(config, origins)?;
     health_path(config, origins)?;
+    development_hosts(config, origins)?;
     crate::mount::check(config, origins)
 }
 
@@ -749,6 +750,73 @@ pub fn health_path(
     ))
 }
 
+/// `[server] development_hosts`, each entry in the form a request's `Host` is compared in: ASCII
+/// lower case and without a trailing `.`. Empty where the key is not written.
+///
+/// `rule:http-server/a-development-server-answers-the-hosts-it-knows` is what reads it, in
+/// development alone. The list is checked in every mode, so a tree that a reload flips to
+/// development cannot start answering on an entry nobody could match.
+///
+/// # Errors
+///
+/// `E0663` for an entry that no folded `Host` can equal: an empty one, or one carrying a scheme,
+/// a port, a wildcard, a path or a space. An IPv6 address is written in brackets, as `Host`
+/// carries it.
+pub fn development_hosts(
+    config: &Config,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<Vec<String>, Diagnostic> {
+    let written = config
+        .server
+        .as_ref()
+        .and_then(|server| server.development_hosts.as_deref())
+        .unwrap_or_default();
+    let mut hosts = Vec::with_capacity(written.len());
+    for entry in written {
+        if let Some(problem) = development_host_problem(entry) {
+            return Err(Diagnostic::error(
+                code::E_BAD_DEVELOPMENT_HOST,
+                format!("`[server] development_hosts` has the entry `{entry}`, which {problem}"),
+            )
+            .with_note(format!(
+                "each entry is compared with the host in a request's `Host` header. This entry \
+                 can never be equal to one{}",
+                origin_note(origins.get("server.development_hosts"))
+            ))
+            .with_help(
+                "write the host alone, such as `app.test`. Write an IPv6 address in brackets, \
+                 such as `[fd00::1]`"
+                    .to_string(),
+            ));
+        }
+        let host = entry.strip_suffix('.').unwrap_or(entry);
+        hosts.push(host.to_ascii_lowercase());
+    }
+    Ok(hosts)
+}
+
+/// Why a `[server] development_hosts` entry can never equal a folded `Host`, or `None` when it can.
+fn development_host_problem(entry: &str) -> Option<&'static str> {
+    let bracketed = entry.starts_with('[') && entry.ends_with(']');
+    if entry.is_empty() || entry == "." {
+        Some("is empty")
+    } else if !entry.is_ascii() {
+        Some("is not ASCII. Write the `xn--` form of the name")
+    } else if entry.contains("://") {
+        Some("has a scheme")
+    } else if entry.contains('*') {
+        Some("is a wildcard")
+    } else if entry.contains('/') {
+        Some("has a path or a network range")
+    } else if entry.chars().any(|char| char.is_whitespace() || char.is_control()) {
+        Some("has a space or a control character")
+    } else if entry.contains(':') && !bracketed {
+        Some("has a port, or is an IPv6 address without brackets")
+    } else {
+        None
+    }
+}
+
 /// Which of `rule:http-server/a-request-resolves-in-five-steps`'s two dispatch readings is in
 /// force.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1088,6 +1156,49 @@ mod tests {
             )
             .expect_err("a value that is not a file mode was accepted");
             assert_eq!(refused.code, Some(code::E_BAD_SOCKET_MODE), "for {written}");
+        }
+    }
+
+    /// `[server] development_hosts`: unwritten is empty, an entry is folded to the form a request's
+    /// `Host` is compared in, and every entry no `Host` could equal is `E0663` — each one an operator
+    /// could plausibly type for a proxy.
+    #[test]
+    fn development_hosts_are_folded_and_an_entry_no_host_can_equal_is_refused() {
+        let origins = BTreeMap::new();
+        assert!(
+            development_hosts(&tree(""), &origins)
+                .expect("an unwritten list was refused")
+                .is_empty()
+        );
+        assert_eq!(
+            development_hosts(
+                &tree("[server]\ndevelopment_hosts = [\"App.Test.\", \"192.0.2.7\", \"[fd00::1]\"]\n"),
+                &origins
+            )
+            .expect("a list of hosts was refused"),
+            ["app.test", "192.0.2.7", "[fd00::1]"]
+        );
+        for written in [
+            "",
+            "app.test:8080",
+            "http://app.test",
+            "*.app.test",
+            "app.test/",
+            "10.0.0.0/8",
+            "fd00::1",
+            "app test",
+            "bücher.test",
+        ] {
+            let refused = development_hosts(
+                &tree(&format!("[server]\ndevelopment_hosts = [{written:?}]\n")),
+                &origins,
+            )
+            .expect_err("an entry no host can equal was accepted");
+            assert_eq!(
+                refused.code,
+                Some(code::E_BAD_DEVELOPMENT_HOST),
+                "for {written:?}"
+            );
         }
     }
 

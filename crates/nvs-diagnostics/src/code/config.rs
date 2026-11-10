@@ -913,4 +913,14 @@ codes! {
          `LocalSystem` and `NT SERVICE\\<service>` always work, even before the service is \
          installed.",
     );
+
+    /// A `[server] development_hosts` entry that cannot equal a request's
+    /// folded `Host`: empty, or carrying a scheme, a port, a wildcard, a path
+    /// or a space (`rule:http-server/a-development-server-answers-the-hosts-it-knows`).
+    /// An entry that can never match is a proxy an operator believes is let
+    /// in, so it is refused at boot rather than left to answer `421`.
+    pub const E_BAD_DEVELOPMENT_HOST: Code = Code::new("E0663").card(
+        "An entry in `[server] development_hosts` must be a host name, such as `app.test`, or an \
+         IP address. A port, a scheme, `*` and `/` are not allowed. Write each host on its own.",
+    );
 }

@@ -1,0 +1,14 @@
+{
+  "title": "In development, a request from this machine must name a host the server knows, `[server] development_hosts` adds a proxy's, and any other host is a logged `421`",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/a-request-resolves-in-five-steps",
+    "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",
+    "http-server/the-access-log-is-a-mode-default"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/mount.rs",
+    "crates/nvs-server/src/trace.rs",
+    "crates/nvs-config/src/server.rs"
+  ]
+}

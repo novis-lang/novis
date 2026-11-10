@@ -19,6 +19,7 @@
     "http-server/a-response-is-not-lost-to-an-unread-body",
     "http-server/the-accept-loop-backs-off",
     "http-server/a-request-resolves-in-five-steps",
+    "http-server/a-development-server-answers-the-hosts-it-knows",
     "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",
     "http-server/x-forwarded-for-is-the-only-address-header",
     "http-server/a-forwarded-token-is-read-withheld-or-refused",
