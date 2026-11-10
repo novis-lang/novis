@@ -549,11 +549,14 @@ pub(super) fn offset_datetime<'a>(
         "a `datetimeoffset`",
     )?));
     let (date, time) = datetime2(&bytes[..split], column, scale)?;
-    let shifted = days_from_civil(date) * NANOS_PER_DAY
-        + i64::try_from(nanos_of(time)).expect("a time of day is under a day of nanoseconds")
+    // Only the time of day is shifted, and whole days are added to the day count.
+    // Nanoseconds since 1970 in an `i64` would end at 1677 and 2262, and the type
+    // spans 0001 to 9999. A time of day plus an `i16` of minutes is within a few
+    // weeks of nanoseconds, so this sum cannot overflow.
+    let local = i64::try_from(nanos_of(time)).expect("a time of day is under a day of nanoseconds")
         + minutes * 60 * NANOS_PER_SECOND;
-    let days = shifted.div_euclid(NANOS_PER_DAY);
-    let within = shifted.rem_euclid(NANOS_PER_DAY);
+    let days = days_from_civil(date) + local.div_euclid(NANOS_PER_DAY);
+    let within = local.rem_euclid(NANOS_PER_DAY);
     Ok(TdsScalar::Instant {
         date: civil_from_days(column, days)?,
         time: civil_from_nanos(
@@ -952,6 +955,52 @@ mod tests {
             let refused = scalar(&described(opaque, 0), Some(&[0x01]))
                 .expect_err("a value carrying its own type");
             assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
+        }
+    }
+
+    /// A `datetimeoffset` decodes across the whole `0001`–`9999` range the type
+    /// has, not only the `1677`–`2262` an `i64` of nanoseconds since 1970 spans.
+    ///
+    /// Each date is read at both extreme offsets SQL Server allows, and the
+    /// last two rows move the clock across midnight in each direction, so the
+    /// day carry is checked both ways.
+    #[test]
+    fn an_offset_datetime_decodes_across_the_whole_calendar() {
+        /// Year, month, day, hour and minute.
+        type Civil = (i32, u8, u8, u8, u8);
+        const TICKS_PER_MINUTE: u64 = 60 * 10_000_000;
+        // The UTC reading the bytes carry, the offset in minutes, and the
+        // local reading the decoder gives back.
+        let cases: [(Civil, i16, Civil); 10] = [
+            ((1, 1, 1, 0, 0), 14 * 60, (1, 1, 1, 14, 0)),
+            ((1, 1, 1, 12, 0), -12 * 60, (1, 1, 1, 0, 0)),
+            ((1677, 9, 21, 0, 0), 14 * 60, (1677, 9, 21, 14, 0)),
+            ((1677, 9, 21, 0, 0), -12 * 60, (1677, 9, 20, 12, 0)),
+            ((2262, 4, 12, 0, 0), 14 * 60, (2262, 4, 12, 14, 0)),
+            ((2262, 4, 12, 0, 0), -12 * 60, (2262, 4, 11, 12, 0)),
+            ((9999, 12, 31, 0, 0), 14 * 60, (9999, 12, 31, 14, 0)),
+            ((9999, 12, 31, 12, 0), -12 * 60, (9999, 12, 31, 0, 0)),
+            ((2024, 2, 28, 23, 30), 60, (2024, 2, 29, 0, 30)),
+            ((2024, 3, 1, 0, 30), -60, (2024, 2, 29, 23, 30)),
+        ];
+        for (utc, minutes, local) in cases {
+            let (year, month, day, hour, minute) = utc;
+            let days = days_from_civil(TdsDate { year, month, day }) + DAYS_0001_TO_1970;
+            let days = u32::try_from(days).expect("a day the type has");
+            let ticks = (u64::from(hour) * 60 + u64::from(minute)) * TICKS_PER_MINUTE;
+            let mut raw = ticks.to_le_bytes()[..5].to_vec();
+            raw.extend_from_slice(&days.to_le_bytes()[..3]);
+            raw.extend_from_slice(&minutes.to_le_bytes());
+            let TdsScalar::Instant { date, time, offset } =
+                offset_datetime(&raw, "c", 7).expect("a `datetimeoffset` the type has")
+            else {
+                panic!("a `datetimeoffset` is not an instant");
+            };
+            let case = format!("{utc:?} at {minutes} minutes");
+            let read = (date.year, date.month, date.day, time.hour, time.minute);
+            assert_eq!(read, local, "{case}");
+            assert_eq!(time.second, 0, "{case}");
+            assert_eq!(offset, i32::from(minutes) * 60, "{case}");
         }
     }
 }
