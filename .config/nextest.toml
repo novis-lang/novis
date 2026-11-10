@@ -2,9 +2,9 @@
 # Miri jobs under `miri` (`.github/workflows/ci.yml`). Each test is a process of its own, so a test
 # that fails, hangs or crashes its process fails alone and the run goes on to list every other result.
 
-# The one test that starts Windows PowerShell twice and gives the first one 60 seconds to print. Under
+# The one test that starts Windows PowerShell twice and waits for the first one to print. Under
 # nextest every core runs a test from any binary, and on the 4-core Windows runner PowerShell's start
-# went past that bound under the whole workspace's load. Alone it took about 14 seconds there, and
+# went past 60 seconds under the whole workspace's load. Alone it took about 14 seconds there, and
 # reserving every test thread keeps every other test off the machine for those seconds.
 [[profile.default.overrides]]
 filter = 'binary(run_command) & test(=a_spawned_process_holds_none_of_nvs_s_handles_and_only_it_ends_when_nvs_is_killed)'

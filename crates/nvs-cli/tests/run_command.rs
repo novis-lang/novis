@@ -698,9 +698,13 @@ fn a_spawned_process_holds_none_of_nvs_s_handles_and_only_it_ends_when_nvs_is_ki
         }
     });
 
+    // The line comes once Windows PowerShell has started twice. That takes about
+    // 14 seconds on a CI runner with this test alone on it, and once took over 60
+    // on the same runner while another test there ran four times its usual
+    // time, so the wait only stops a hang.
     let mut printed = Vec::new();
     while !printed.contains(&b'\n') {
-        match heard.recv_timeout(Duration::from_secs(60)) {
+        match heard.recv_timeout(Duration::from_secs(180)) {
             Ok(Some(chunk)) => printed.extend(chunk),
             other => panic!("`nvs` printed no line: {other:?}, {printed:?}"),
         }
