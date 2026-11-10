@@ -602,12 +602,7 @@ fn scraped(port: u16, server: &Server, series: &str) -> f64 {
 ///
 /// When no reading within [`BOUND`] is accepted; the message carries the last one and what the
 /// server wrote.
-fn scraped_until(
-    port: u16,
-    server: &Server,
-    series: &str,
-    settled: impl Fn(f64) -> bool,
-) -> f64 {
+fn scraped_until(port: u16, server: &Server, series: &str, settled: impl Fn(f64) -> bool) -> f64 {
     let started = Instant::now();
     loop {
         let now = scraped(port, server, series);
