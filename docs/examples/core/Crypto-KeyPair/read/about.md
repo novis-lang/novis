@@ -1,16 +1,16 @@
 Reads a private key your program already has, and gives you the key pair it belongs to.
 
-A private key is stored as PKCS#8. That is a standard format, so a key written by another program
-and a key from `Core\Crypto\KeyPair::write` are read the same way. The octets may be the binary DER
-form, or one PEM block that starts with `-----BEGIN PRIVATE KEY-----`.
+The key must be PKCS#8, so a key from another program and a key from `Core\Crypto\KeyPair::write`
+are read the same way. It may be binary DER, or one PEM block that starts with
+`-----BEGIN PRIVATE KEY-----`.
 
 You always name the kind of key. The file does not say whether an RSA key is for `RsaPkcs1` or for
-`RsaPss`. Naming the kind also means a file that was swapped for a key of another kind is refused
-here.
+`RsaPss`. If somebody swapped the file for a key of another kind, `read` throws an error.
 
-The key is parsed once, at the read. A pair can then sign with `Core\Crypto::sign` and agree a
-shared secret with `Core\Crypto::agree`. `Core\Crypto\KeyPair::publicKey` gives you the half you
-send to other people.
+The key is parsed once, here. The pair can then sign with `Core\Crypto::sign` and agree a shared
+secret with `Core\Crypto::agree`. `Core\Crypto\KeyPair::publicKey` gives the half you send to other
+people.
 
-**Good to know:** a key with a password and an old PKCS#1 key are both refused. Their PEM blocks say
-`ENCRYPTED PRIVATE KEY` and `RSA PRIVATE KEY`. Convert such a file to PKCS#8 first.
+**Good to know:** a key in another format throws a `LogicError`. Examples are a key with a password
+(`ENCRYPTED PRIVATE KEY`), an RSA key in PKCS#1 (`RSA PRIVATE KEY`) and an EC key in SEC1
+(`EC PRIVATE KEY`). The message names the format and the command that converts the file to PKCS#8.

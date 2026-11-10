@@ -1,12 +1,11 @@
 --TEST--
-Core\Crypto\KeyPair::read refuses every file that is not a PKCS#8 private key of the kind named, each with the one LogicError sentence, and reads one RSA file under either scheme into two pairs that differ only in the scheme — `rule:core-classes/crypto-interop-tier`, `rule:security/algorithm-comes-from-the-key`
+Core\Crypto\KeyPair::read refuses every file that is not a PKCS#8 private key of the kind named, each with a LogicError that names what the file is, and reads one RSA file under either scheme into two pairs that differ only in the scheme — `rule:core-classes/crypto-interop-tier`, `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
 // A private key is the program's own and never a peer's, so there is nobody a
 // verdict could be about: every refusal here is a `LogicError`, a bug in what
-// the program was deployed with. The sentence names what is accepted rather
-// than what was wrong with these octets, so it is the same sentence for all of
-// them and a case can assert that.
+// the program was deployed with. Each message names what the file is, so each
+// file below gets its own sentence.
 array<string> $notPairs = [
     // An Ed25519 key read as P-256: the file is a key, and not this kind of one.
     "302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf",
@@ -19,7 +18,7 @@ array<string> $notPairs = [
     // goes. It parses as DER and is still not a private key.
     "302a300506032b6570032100fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac",
     // A 1024-bit RSA key, which is a well-formed PKCS#8 outside the roster's
-    // 2048 to 8192 bits. The floor is at the read, so no later member has to
+    // 2048 to 4096 bits. The floor is at the read, so no later member has to
     // ask how wide a key it was handed.
     "30820277020100300d06092a864886f70d0101010500048202613082025d02010002818100d0c2a934825d2fa1372f78ca36bf1cf0b04b356238c3157f46897dbbf733fa3b7324fcd300f77556d801183740887915d578c052c4c007a93622607e16b308372a97b42127ade49bd6e0f2a7cf75a40869bdb9ac7095bf6ccd9a129ff39893ef47153d8f065a37153f814d8645a801b0454dbcd70134172d5fad87e70f687ce9020301000102818046737b30ea51d27220b2979bfe8fce8f779f59fbb4d6395a038f00ecbf473e4a73d866ae3ae448282fab66e5b69497f0836345dc68e3b972247fc37aa9e46f7fba09cf4879ac0fdc0387160aab6834c0b1d0ad7f7f4218bde5f9773e3f847341caab2066676e336ec128e5f8a5adc81167b57417748c4c76fbcfc7d67ec0a225024100fa78fe52dd7bc809feb022ec43a1c15465cf0763d881240db39ec68bcf375f40c842012de78099401f581efec11a8a8669814bf9e297f33918e7fdc56f19228f024100d55e05496665b7aeccd8a0c3ce2ffefb4954a4c90ae25668aa627bebb0e0d215a99b484e8e757c05e51f2dfaa21f0b7530a4c0cfdedeccb336156004de184507024100ce20b0bc2545eef43ac35d9a2e767a1228ceddf80f7f07dab6cd9dfc05063ebfa38e9e45d6d50049c301d450373ece6d9b7a2aba74fe33cdf36f486b28e8f885024045970fc45bd86b2b60f67aa0c25c171ee050f219fc29cc2301077401704433610b5b711ee609dd7492c1339ede479fd60e127e2c8e353eb068c059fbdc702ffb024100f7a40d5d336cb659a791f7a42e313a2e8d1887bf700959bb0a8165d7f42746e65b8c35d50d85defffe3475b50bfdb3c977bac41b27e9c7aa43e66063615b4063",
     // Octets that are not DER at all.
@@ -49,7 +48,8 @@ foreach ($notPairs as string $slot => string $hex) {
 
 // The armour is the refusal for the two labels next to `PRIVATE KEY`: PKCS#1 is
 // a body this member does not read, and an encrypted PKCS#8 has a password
-// there is no argument for. Neither is unwrapped, so neither reaches a parser.
+// there is no argument for. Neither is unwrapped, so neither reaches a parser,
+// and each message gives the command that converts the file.
 array<string> $armoured = [
     "-----BEGIN RSA PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIDbnkTx1/12Juk9GUmMg9UfPdTaaVgoWj2q1uxePvqrf\n-----END RSA PRIVATE KEY-----\n",
     "-----BEGIN ENCRYPTED PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIDbnkTx1/12Juk9GUmMg9UfPdTaaVgoWj2q1uxePvqrf\n-----END ENCRYPTED PRIVATE KEY-----\n",
@@ -69,14 +69,9 @@ foreach ($armoured as string $block) {
 uint $expected = Core\Arr::count($notPairs) + Core\Arr::count($armoured);
 echo "refused ", Core\Arr::count($said), " of ", $expected, "\n";
 
-int $oneSentence = 0;
 foreach ($said as string $message) {
-    if ($message == $said[0]) {
-        $oneSentence += 1;
-    }
+    echo $message, "\n";
 }
-echo "one sentence ", $oneSentence, " of ", Core\Arr::count($said), "\n";
-echo $said[0], "\n";
 
 // The one pairing that is not a mistake: an RSA file is a key of both RSA
 // kinds, because PKCS#8 says *RSA* and never which of `RS256` and `PS256` the
@@ -102,8 +97,14 @@ echo $underPkcs1->publicKey()->kind() == Core\Crypto\KeyKind::RsaPkcs1 ? "RsaPkc
 echo $underPss->publicKey()->kind() == Core\Crypto\KeyKind::RsaPss ? "RsaPss\n" : "another kind\n";
 --EXPECT--
 refused 8 of 8
-one sentence 8 of 8
-Core\Crypto\KeyPair::read(): these octets are not a PKCS#8 private key of the kind this call named — DER or one PEM `PRIVATE KEY` block, never a PKCS#1 body and never an encrypted PKCS#8.
+Core\Crypto\KeyPair::read(): the data is an Ed25519 key, but `$kind` is `KeyKind::P256`. Pass `KeyKind::Ed25519`, or use a P-256 key.
+Core\Crypto\KeyPair::read(): the data is an Ed25519 key, but `$kind` is `KeyKind::X25519`. Pass `KeyKind::Ed25519`, or use an X25519 key.
+Core\Crypto\KeyPair::read(): the data is a P-256 key, but `$kind` is `KeyKind::RsaPkcs1`. Pass `KeyKind::P256`, or use an RSA key.
+Core\Crypto\KeyPair::read(): the data is a public key. This method needs the private key. To read a public key, use `Core\Crypto\PublicKey::read`.
+Core\Crypto\KeyPair::read(): the data is an RSA key with 1024 bits. This method reads RSA keys of 2048 to 4096 bits.
+Core\Crypto\KeyPair::read(): the data is not a private key in a format this method reads. It reads PKCS#8, as DER or as one PEM `PRIVATE KEY` block.
+Core\Crypto\KeyPair::read(): the data is an RSA key in PKCS#1 format, as PEM. This method reads PKCS#8 only. Convert the key with `openssl pkcs8 -topk8 -nocrypt -in key.pem -out key-pkcs8.pem`.
+Core\Crypto\KeyPair::read(): the data is an encrypted PKCS#8 key, as PEM. This method has no password argument. Decrypt the key with `openssl pkcs8 -in key.pem -out key-pkcs8.pem`.
 one file
 one public key
 RsaPkcs1

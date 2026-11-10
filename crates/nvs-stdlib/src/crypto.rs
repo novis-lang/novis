@@ -1371,11 +1371,12 @@ const KEY_PAIR_READ_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "`$pkcs8` is not a PKCS#8 private key of that kind. For example, it is a key of \
-               another kind, or a PKCS#1 key. It can be an encrypted PKCS#8, which needs a \
-               password, and this method has no password argument. It can be an RSA key outside \
-               2048 to 8192 bits, or any malformed data. A private key belongs to your program, \
-               never to the other side. So this error always means that your program was given \
-               a wrong key.",
+               another kind, or a SEC1 or PKCS#1 key. It can be an encrypted PKCS#8, which needs \
+               a password, and this method has no password argument. It can be an RSA key outside \
+               2048 to 4096 bits, or any malformed data. The message names the format that was \
+               found. Where a command converts that format to PKCS#8, the message gives the \
+               command. A private key belongs to your program, never to the other side. So this \
+               error always means that your program was given a wrong key.",
     }],
 };
 
@@ -2740,10 +2741,10 @@ impl PrivateKey {
     ///
     /// `None` is not reachable from a program: every branch derives its point
     /// or its components from material that has already been parsed as a key of
-    /// that kind, and `ring` holds an RSA pair to the same 2048–8192 bits
-    /// [`PublicKey::rsa`] does. The answer goes through this module's own
-    /// constructors rather than being assembled, so a public key derived here
-    /// and the same key read off the wire are one value.
+    /// that kind, and `ring` holds an RSA pair to 2048–4096 bits, inside the
+    /// 2048–8192 [`PublicKey::rsa`] takes. The answer goes through this
+    /// module's own constructors rather than being assembled, so a public key
+    /// derived here and the same key read off the wire are one value.
     pub(crate) fn public(&self) -> Option<PublicKey> {
         /// `n` and `e` out of the PKCS#1 `RSAPublicKey` `ring` serializes,
         /// which is the same body a `SubjectPublicKeyInfo` carries.
@@ -2852,28 +2853,24 @@ fn x25519_scalar(der: &[u8]) -> Option<[u8; KEY_LEN]> {
 /// making a pair remember a transport. **The label is the refusal**: `RSA
 /// PRIVATE KEY` is PKCS#1 and `ENCRYPTED PRIVATE KEY` is a file with a password
 /// this member takes no argument for, and neither matches, so both fall through
-/// to a DER read that cannot succeed either.
+/// to a DER read that cannot succeed either. [`pair_refusal`] reads the label
+/// again, only to name it in the error.
 ///
 /// The base64 is decoded here rather than with a PEM reader because this graph
 /// carries none this crate can reach: `nvs_host::tls`'s is `rustls`'s, and
 /// `der`'s own is behind a feature nothing turns on.
 fn pkcs8_der(octets: &[u8]) -> Option<Vec<u8>> {
-    /// One PEM block's armour, which is also the whole of what is checked.
-    const HEADER: &str = "-----BEGIN PRIVATE KEY-----";
-    /// Its closing half.
-    const FOOTER: &str = "-----END PRIVATE KEY-----";
-
     let text = str::from_utf8(octets)
         .ok()
         .map(str::trim)
-        .filter(|text| text.starts_with(HEADER));
+        .filter(|text| text.starts_with(PEM_PRIVATE_KEY_HEADER));
     let Some(text) = text else {
         return Some(octets.to_vec());
     };
 
     let body: String = text
-        .strip_prefix(HEADER)?
-        .strip_suffix(FOOTER)?
+        .strip_prefix(PEM_PRIVATE_KEY_HEADER)?
+        .strip_suffix(PEM_PRIVATE_KEY_FOOTER)?
         .chars()
         .filter(|character| !character.is_ascii_whitespace())
         .collect();
@@ -3622,23 +3619,387 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// The one refusal `Core\Crypto\KeyPair::read` has.
+/// The one refusal `Core\Crypto\KeyPair::read` has: `stored`, which did not
+/// read as a pair of `kind`.
 ///
 /// A `LogicError` rather than [`key_refused`]'s two-way split, and not because
 /// the reasons could not be told apart: a private key is the program's own, so
 /// there is nobody a verdict could be about, and every way of failing is a
-/// mistake in what the program was deployed with. The sentence names what is
-/// accepted rather than what was wrong with these octets, which is what makes
-/// it actionable without being a report on a file this member will not read
-/// twice.
-fn pair_refused() -> Fault {
+/// mistake in what the program was deployed with. [`pair_refusal`] owns the
+/// sentence.
+fn pair_refused(stored: &[u8], kind: KeyKind) -> Fault {
     Fault::thrown_as(
         ThrownClass::Logic,
-        "Core\\Crypto\\KeyPair::read(): these octets are not a PKCS#8 private key of the kind \
-         this call named — DER or one PEM `PRIVATE KEY` block, never a PKCS#1 body and never an \
-         encrypted PKCS#8."
-            .to_owned(),
+        format!("{KEY_PAIR_NAME}::read(): {}", pair_refusal(stored, kind)),
     )
+}
+
+/// One PEM `PRIVATE KEY` block's opening line, which is also the whole of what
+/// [`pkcs8_der`] checks of its armour.
+const PEM_PRIVATE_KEY_HEADER: &str = "-----BEGIN PRIVATE KEY-----";
+/// Its closing line.
+const PEM_PRIVATE_KEY_FOOTER: &str = "-----END PRIVATE KEY-----";
+/// What opens any PEM block, up to its label.
+const PEM_BEGIN: &str = "-----BEGIN ";
+/// What closes a PEM label.
+const PEM_DASHES: &str = "-----";
+
+/// `id-ecPublicKey`, 1.2.840.10045.2.1 — the algorithm every EC key's PKCS#8
+/// names, with its curve as the parameter.
+const EC_PUBLIC_KEY_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.10045.2.1");
+/// `prime256v1`, 1.2.840.10045.3.1.7 — the parameter that makes an EC key P-256.
+const PRIME256V1_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.10045.3.1.7");
+/// Ed25519's, 1.3.101.112 — RFC 8410's, beside [`X25519_OID`].
+const ED25519_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.101.112");
+
+/// The DER tags [`pair_refusal`] tells formats apart by.
+const DER_INTEGER: u8 = 0x02;
+/// `BIT STRING`.
+const DER_BIT_STRING: u8 = 0x03;
+/// `OCTET STRING`.
+const DER_OCTET_STRING: u8 = 0x04;
+/// `OBJECT IDENTIFIER`.
+const DER_OID: u8 = 0x06;
+/// `SEQUENCE`, constructed.
+const DER_SEQUENCE: u8 = 0x30;
+
+/// The encoded OID arcs 1.2.840.113549.1.5 — PKCS#5, whose PBES1 and PBES2 are
+/// what an encrypted PKCS#8 names as its algorithm.
+const PKCS5_ARCS: [u8; 8] = [0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x05];
+/// 1.2.840.113549.1.12.1 — PKCS#12's password-based schemes, the older ones an
+/// encrypted PKCS#8 can also name.
+const PKCS12_PBE_ARCS: [u8; 9] = [0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x0c, 0x01];
+
+/// The sentence for a file that is none of the formats below.
+const NOT_A_PRIVATE_KEY: &str = "the data is not a private key in a format this method reads. It \
+                                 reads PKCS#8, as DER or as one PEM `PRIVATE KEY` block.";
+
+/// How the octets [`pair_refusal`] names arrived, which is what its conversion
+/// command reads.
+#[derive(Debug, Clone, Copy)]
+enum Carrier {
+    /// Binary DER.
+    Der,
+    /// Base64 inside PEM armour.
+    Pem,
+}
+
+impl Carrier {
+    /// The word the sentence names it with.
+    fn name(self) -> &'static str {
+        match self {
+            Self::Der => "DER",
+            Self::Pem => "PEM",
+        }
+    }
+
+    /// The input half of an `openssl` command over a file of this carrier.
+    fn input(self) -> &'static str {
+        match self {
+            Self::Der => "-inform DER -in key.der",
+            Self::Pem => "-in key.pem",
+        }
+    }
+}
+
+/// Why `stored` is not a PKCS#8 private key of `kind`, as the sentence after
+/// `Core\Crypto\KeyPair::read(): `.
+///
+/// It names the format the octets turned out to be and, where `openssl` or
+/// `ssh-keygen` converts that format to PKCS#8, the command. Every format is
+/// told apart by its PEM label or by the outline of its DER, never by a
+/// guess: a file none of them matches gets [`NOT_A_PRIVATE_KEY`]. **None of
+/// the key's own octets is ever in the sentence**, only format names, kind
+/// names and an RSA modulus's width.
+///
+/// This runs only after the read has failed, so the second parse it does is on
+/// the error path and costs a correct read nothing. Nothing new is accepted:
+/// a SEC1 or PKCS#1 key is named so it can be converted, never read.
+fn pair_refusal(stored: &[u8], kind: KeyKind) -> String {
+    let Some(text) = str::from_utf8(stored)
+        .ok()
+        .filter(|text| text.contains(PEM_BEGIN))
+    else {
+        return der_refusal(stored, kind, Carrier::Der);
+    };
+
+    let labels: Vec<&str> = text
+        .split(PEM_BEGIN)
+        .skip(1)
+        .filter_map(|after| after.split_once(PEM_DASHES).map(|(label, _)| label))
+        .collect();
+
+    // A private key's label wins over any block beside it: `openssl ecparam
+    // -genkey` writes an `EC PARAMETERS` block ahead of its key.
+    let named = labels.iter().find_map(|label| match *label {
+        "EC PRIVATE KEY" => Some(not_pkcs8(Traditional::Sec1, Carrier::Pem)),
+        "RSA PRIVATE KEY" => Some(not_pkcs8(Traditional::Pkcs1, Carrier::Pem)),
+        "ENCRYPTED PRIVATE KEY" => Some(encrypted_pkcs8(Carrier::Pem)),
+        "OPENSSH PRIVATE KEY" => Some(
+            "the data is a private key in OpenSSH format. This method reads PKCS#8 only. For an \
+             RSA or ECDSA key, `ssh-keygen -p -m PKCS8 -f key` converts the file in place. Leave \
+             the new passphrase empty."
+                .to_owned(),
+        ),
+        _ => None,
+    });
+    if let Some(sentence) = named {
+        return sentence;
+    }
+
+    if labels.contains(&"PRIVATE KEY") {
+        let trimmed = text.trim();
+        if labels.len() > 1
+            || !trimmed.starts_with(PEM_PRIVATE_KEY_HEADER)
+            || !trimmed.ends_with(PEM_PRIVATE_KEY_FOOTER)
+        {
+            return format!(
+                "the data has a PEM `PRIVATE KEY` block and other text. This method reads one \
+                 block and nothing else. Remove the text before `{PEM_PRIVATE_KEY_HEADER}` and \
+                 after `{PEM_PRIVATE_KEY_FOOTER}`."
+            );
+        }
+        return pkcs8_der(stored).map_or_else(
+            || "the PEM `PRIVATE KEY` block does not contain valid base64.".to_owned(),
+            |der| der_refusal(&der, kind, Carrier::Pem),
+        );
+    }
+
+    if labels
+        .iter()
+        .any(|label| matches!(*label, "PUBLIC KEY" | "RSA PUBLIC KEY"))
+    {
+        return public_key_given();
+    }
+    if labels.iter().any(|label| label.ends_with("CERTIFICATE")) {
+        return "the data is a certificate. A certificate contains only the public key. This \
+                method needs the private key that belongs to it."
+            .to_owned();
+    }
+    NOT_A_PRIVATE_KEY.to_owned()
+}
+
+/// [`pair_refusal`] over octets that are DER, either as they arrived or as the
+/// body of a PEM `PRIVATE KEY` block.
+///
+/// A PKCS#8 is parsed for its algorithm; every other format is recognised by
+/// the tags of its outer `SEQUENCE`, which no two of them share: SEC1 opens
+/// with `INTEGER 1` and an `OCTET STRING`, PKCS#1 is nine `INTEGER`s from
+/// version 0, an encrypted PKCS#8 is a PKCS#5 or PKCS#12 algorithm and an
+/// `OCTET STRING`, and a `SubjectPublicKeyInfo` is an algorithm and a `BIT
+/// STRING`.
+fn der_refusal(der: &[u8], kind: KeyKind, carrier: Carrier) -> String {
+    if let Ok(info) = PrivateKeyInfoRef::from_der(der) {
+        return pkcs8_refusal(&info, kind);
+    }
+    let Some(elements) = der_sequence(der) else {
+        return NOT_A_PRIVATE_KEY.to_owned();
+    };
+
+    let starts_with_oid =
+        |algorithm: &[u8]| matches!(der_element(algorithm), Some((DER_OID, _, _)));
+    let password_based = |algorithm: &[u8]| {
+        der_element(algorithm).is_some_and(|(tag, oid, _)| {
+            tag == DER_OID && (oid.starts_with(&PKCS5_ARCS) || oid.starts_with(&PKCS12_PBE_ARCS))
+        })
+    };
+
+    match elements.as_slice() {
+        [(DER_INTEGER, [1]), (DER_OCTET_STRING, _)]
+        | [(DER_INTEGER, [1]), (DER_OCTET_STRING, _), (0xa0 | 0xa1, _)]
+        | [
+            (DER_INTEGER, [1]),
+            (DER_OCTET_STRING, _),
+            (0xa0, _),
+            (0xa1, _),
+        ] => not_pkcs8(Traditional::Sec1, carrier),
+        [(DER_INTEGER, [0]), rest @ ..]
+            if rest.len() == 8 && rest.iter().all(|(tag, _)| *tag == DER_INTEGER) =>
+        {
+            not_pkcs8(Traditional::Pkcs1, carrier)
+        }
+        [(DER_SEQUENCE, algorithm), (DER_OCTET_STRING, _)] if password_based(algorithm) => {
+            encrypted_pkcs8(carrier)
+        }
+        [(DER_SEQUENCE, algorithm), (DER_BIT_STRING, _)] if starts_with_oid(algorithm) => {
+            public_key_given()
+        }
+        _ => NOT_A_PRIVATE_KEY.to_owned(),
+    }
+}
+
+/// [`pair_refusal`] over a well-formed PKCS#8 that did not read as `kind`: the
+/// kind the file names, beside the kind the call named.
+fn pkcs8_refusal(info: &PrivateKeyInfoRef<'_>, kind: KeyKind) -> String {
+    let oid = info.algorithm.oid;
+    let found = if oid == RSA_OID {
+        KeyKind::RsaPkcs1
+    } else if oid == ED25519_OID {
+        KeyKind::Ed25519
+    } else if oid == X25519_OID {
+        KeyKind::X25519
+    } else if oid == EC_PUBLIC_KEY_OID {
+        if info.algorithm.parameters_oid().ok() != Some(PRIME256V1_OID) {
+            return "the data is an EC key, but not on the curve P-256. This method reads EC keys \
+                    on P-256 only."
+                .to_owned();
+        }
+        KeyKind::P256
+    } else {
+        return "the data is a PKCS#8 key of a kind this method does not read. It reads P-256, \
+                X25519, Ed25519 and RSA keys."
+            .to_owned();
+    };
+
+    let is_rsa = |of: KeyKind| matches!(of, KeyKind::RsaPkcs1 | KeyKind::RsaPss);
+    if found == kind || (is_rsa(found) && is_rsa(kind)) {
+        let width = rsa_modulus_bits(info.private_key.as_bytes())
+            .filter(|bits| is_rsa(kind) && !(2048..=4096).contains(bits));
+        if let Some(bits) = width {
+            return format!(
+                "the data is an RSA key with {bits} bits. This method reads RSA keys of 2048 to \
+                 4096 bits."
+            );
+        }
+        return format!(
+            "the data is {} in PKCS#8, but its values are not a valid key.",
+            a_key(found)
+        );
+    }
+
+    let pass = if is_rsa(found) {
+        "`KeyKind::RsaPkcs1` or `KeyKind::RsaPss`".to_owned()
+    } else {
+        format!("`KeyKind::{}`", case_name(found))
+    };
+    format!(
+        "the data is {}, but `$kind` is `KeyKind::{}`. Pass {pass}, or use {}.",
+        a_key(found),
+        case_name(kind),
+        a_key(kind)
+    )
+}
+
+/// The two pre-PKCS#8 private key formats `openssl pkcs8 -topk8` converts.
+#[derive(Debug, Clone, Copy)]
+enum Traditional {
+    /// RFC 5915's `ECPrivateKey`, PEM label `EC PRIVATE KEY`.
+    Sec1,
+    /// RFC 8017's `RSAPrivateKey`, PEM label `RSA PRIVATE KEY`.
+    Pkcs1,
+}
+
+/// The sentence for a SEC1 or PKCS#1 key, with the command that wraps it in
+/// PKCS#8.
+fn not_pkcs8(format: Traditional, carrier: Carrier) -> String {
+    let what = match format {
+        Traditional::Sec1 => "an EC key in SEC1 format",
+        Traditional::Pkcs1 => "an RSA key in PKCS#1 format",
+    };
+    format!(
+        "the data is {what}, as {}. This method reads PKCS#8 only. Convert the key with `openssl \
+         pkcs8 -topk8 -nocrypt {} -out key-pkcs8.pem`.",
+        carrier.name(),
+        carrier.input()
+    )
+}
+
+/// The sentence for an encrypted PKCS#8, with the command that decrypts it.
+///
+/// `openssl pkcs8` without `-topk8` reads an encrypted PKCS#8, asks for its
+/// password, and writes the key unencrypted. `-nocrypt` is left out because
+/// there it means the *input* is unencrypted.
+fn encrypted_pkcs8(carrier: Carrier) -> String {
+    format!(
+        "the data is an encrypted PKCS#8 key, as {}. This method has no password argument. \
+         Decrypt the key with `openssl pkcs8 {} -out key-pkcs8.pem`.",
+        carrier.name(),
+        carrier.input()
+    )
+}
+
+/// The sentence for the public half handed where the private one goes.
+fn public_key_given() -> String {
+    "the data is a public key. This method needs the private key. To read a public key, use \
+     `Core\\Crypto\\PublicKey::read`."
+        .to_owned()
+}
+
+/// `kind`'s case name in [`KEY_KIND`].
+fn case_name(kind: KeyKind) -> &'static str {
+    match kind {
+        KeyKind::P256 => "P256",
+        KeyKind::X25519 => "X25519",
+        KeyKind::Ed25519 => "Ed25519",
+        KeyKind::RsaPkcs1 => "RsaPkcs1",
+        KeyKind::RsaPss => "RsaPss",
+    }
+}
+
+/// `kind` as a noun phrase with its article, both RSA cases as one.
+fn a_key(kind: KeyKind) -> &'static str {
+    match kind {
+        KeyKind::P256 => "a P-256 key",
+        KeyKind::X25519 => "an X25519 key",
+        KeyKind::Ed25519 => "an Ed25519 key",
+        KeyKind::RsaPkcs1 | KeyKind::RsaPss => "an RSA key",
+    }
+}
+
+/// The width in bits of the modulus inside a PKCS#1 `RSAPrivateKey`, or `None`
+/// when `rsa_private_key` is not one.
+fn rsa_modulus_bits(rsa_private_key: &[u8]) -> Option<usize> {
+    let elements = der_sequence(rsa_private_key)?;
+    let &(DER_INTEGER, modulus) = elements.get(1)? else {
+        return None;
+    };
+    let start = modulus.iter().position(|&octet| octet != 0)?;
+    let (&top, below) = modulus.get(start..)?.split_first()?;
+    let top_bits = usize::try_from(u8::BITS - top.leading_zeros()).ok()?;
+    Some(below.len() * 8 + top_bits)
+}
+
+/// One definite-length DER element at the front of `octets`: its tag, its
+/// contents, and the octets after it. `None` for anything else.
+///
+/// A peek, not a parser: it is what [`der_refusal`] reads a file's outline
+/// with, on the error path, and it checks lengths and nothing more.
+fn der_element(octets: &[u8]) -> Option<(u8, &[u8], &[u8])> {
+    let (&tag, rest) = octets.split_first()?;
+    let (&first, rest) = rest.split_first()?;
+    let (len, rest) = if first < 0x80 {
+        (usize::from(first), rest)
+    } else {
+        let width = usize::from(first & 0x7f);
+        if width == 0 || width > 4 || rest.len() < width {
+            return None;
+        }
+        let (digits, rest) = rest.split_at(width);
+        let len = digits
+            .iter()
+            .fold(0_usize, |len, &digit| (len << 8) | usize::from(digit));
+        (len, rest)
+    };
+    if rest.len() < len {
+        return None;
+    }
+    let (contents, rest) = rest.split_at(len);
+    Some((tag, contents, rest))
+}
+
+/// The elements of the one DER `SEQUENCE` that is the whole of `octets`, each
+/// as its tag and contents, or `None` when `octets` is not exactly that.
+fn der_sequence(octets: &[u8]) -> Option<Vec<(u8, &[u8])>> {
+    let (DER_SEQUENCE, mut contents, []) = der_element(octets)? else {
+        return None;
+    };
+    let mut elements = Vec::new();
+    while !contents.is_empty() {
+        let (tag, inner, after) = der_element(contents)?;
+        elements.push((tag, inner));
+        contents = after;
+    }
+    Some(elements)
 }
 
 /// The pair the instance in slot `index` holds, read back out of its own slots
@@ -3751,8 +4112,9 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_crypto_key_pair_read(_ctx, args: [2]) {
         let stored = key_octets(args, 0, KEY_PAIR_NAME, "read")?;
         let kind = key_kind_of(args, 1, KEY_PAIR_NAME, "read")?;
-        let der = pkcs8_der(stored).ok_or_else(pair_refused)?;
-        PrivateKey::read(&der, kind).ok_or_else(pair_refused)?;
+        let refused = || pair_refused(stored, kind);
+        let der = pkcs8_der(stored).ok_or_else(refused)?;
+        PrivateKey::read(&der, kind).ok_or_else(refused)?;
         nvs_runtime::affordable(Some(der.len()), "Core\\Crypto\\KeyPair::read")?;
         Ok(crate::instance::build(
             &KEY_PAIR,
@@ -5682,6 +6044,236 @@ mod tests {
                 "neither neighbour of `PRIVATE KEY` is a file this reads"
             );
         }
+    }
+
+    /// Each key format `Core\Crypto\KeyPair::read` does not take is named in
+    /// its error, with the command that converts it where one exists, and a
+    /// PKCS#8 of another kind names both kinds.
+    ///
+    /// The fixtures are labels and DER outlines this test writes itself: the
+    /// sentence is chosen by the outline, so no real key of those formats is
+    /// needed, and none of these octets is a key a parser would accept.
+    #[test]
+    fn a_key_file_that_is_not_pkcs8_is_named_with_the_command_that_converts_it() {
+        /// One DER element: `tag`, a definite length, and `contents`.
+        fn tlv(tag: u8, contents: &[u8]) -> Vec<u8> {
+            let len = contents.len();
+            let mut out = vec![tag];
+            if len < 0x80 {
+                out.push(u8::try_from(len).expect("short form"));
+            } else {
+                let digits: Vec<u8> = len
+                    .to_be_bytes()
+                    .into_iter()
+                    .skip_while(|&digit| digit == 0)
+                    .collect();
+                out.push(0x80 | u8::try_from(digits.len()).expect("a few octets"));
+                out.extend(digits);
+            }
+            out.extend_from_slice(contents);
+            out
+        }
+        /// One PEM block labelled `label`, around two octets of DER.
+        fn pem(label: &str) -> Vec<u8> {
+            format!("-----BEGIN {label}-----\nMAA=\n-----END {label}-----\n").into_bytes()
+        }
+
+        let integer = |value: u8| tlv(DER_INTEGER, &[value]);
+        let sec1 = tlv(
+            DER_SEQUENCE,
+            &[integer(1), tlv(DER_OCTET_STRING, &[0xaa; 32])].concat(),
+        );
+        let sec1_with_curve = tlv(
+            DER_SEQUENCE,
+            &[
+                integer(1),
+                tlv(DER_OCTET_STRING, &[0xaa; 32]),
+                tlv(0xa0, &tlv(DER_OID, PRIME256V1_OID.as_bytes())),
+                tlv(0xa1, &tlv(DER_BIT_STRING, &[0, 4])),
+            ]
+            .concat(),
+        );
+        let pkcs1 = tlv(DER_SEQUENCE, &integer(0).repeat(9));
+        let encrypted = tlv(
+            DER_SEQUENCE,
+            &[
+                tlv(
+                    DER_SEQUENCE,
+                    &tlv(DER_OID, &[PKCS5_ARCS.as_slice(), &[0x0d]].concat()),
+                ),
+                tlv(DER_OCTET_STRING, &[0xbb; 16]),
+            ]
+            .concat(),
+        );
+        let spki = tlv(
+            DER_SEQUENCE,
+            &[
+                tlv(DER_SEQUENCE, &tlv(DER_OID, ED25519_OID.as_bytes())),
+                tlv(DER_BIT_STRING, &[0; 33]),
+            ]
+            .concat(),
+        );
+        // A PKCS#8 RSA key whose modulus is 1024 bits wide; the other values
+        // are placeholders, because the width is read before anything else.
+        let modulus = [&[0x00, 0xd0][..], &[0x01; 127]].concat();
+        let narrow_rsa = tlv(
+            DER_SEQUENCE,
+            &[
+                integer(0),
+                tlv(
+                    DER_SEQUENCE,
+                    &[tlv(DER_OID, RSA_OID.as_bytes()), vec![0x05, 0x00]].concat(),
+                ),
+                tlv(
+                    DER_OCTET_STRING,
+                    &tlv(
+                        DER_SEQUENCE,
+                        &[
+                            integer(0),
+                            tlv(DER_INTEGER, &modulus),
+                            tlv(DER_INTEGER, &[1, 0, 1]),
+                        ]
+                        .concat(),
+                    ),
+                ),
+            ]
+            .concat(),
+        );
+        let ec_parameters_then_key = [pem("EC PARAMETERS"), pem("EC PRIVATE KEY")].concat();
+        let text_around = [b"Bag Attributes\n".as_slice(), &pem("PRIVATE KEY")].concat();
+        let pkcs8 =
+            |id: &str| webcrypto::octets(webcrypto::node(&format!("/jws/keys/{id}")), "/pkcs8");
+
+        let topk8_pem = "`openssl pkcs8 -topk8 -nocrypt -in key.pem -out key-pkcs8.pem`";
+        let topk8_der =
+            "`openssl pkcs8 -topk8 -nocrypt -inform DER -in key.der -out key-pkcs8.pem`";
+        let cases: [(&str, Vec<u8>, KeyKind, &[&str]); 17] = [
+            (
+                "SEC1 PEM",
+                pem("EC PRIVATE KEY"),
+                KeyKind::P256,
+                &["SEC1", "as PEM", topk8_pem],
+            ),
+            (
+                "SEC1 after its parameters",
+                ec_parameters_then_key,
+                KeyKind::P256,
+                &["SEC1", topk8_pem],
+            ),
+            (
+                "SEC1 DER",
+                sec1,
+                KeyKind::P256,
+                &["SEC1", "as DER", topk8_der],
+            ),
+            (
+                "SEC1 DER with its curve",
+                sec1_with_curve,
+                KeyKind::P256,
+                &["SEC1", topk8_der],
+            ),
+            (
+                "PKCS#1 PEM",
+                pem("RSA PRIVATE KEY"),
+                KeyKind::RsaPkcs1,
+                &["PKCS#1", "as PEM", topk8_pem],
+            ),
+            (
+                "PKCS#1 DER",
+                pkcs1,
+                KeyKind::RsaPss,
+                &["PKCS#1", "as DER", topk8_der],
+            ),
+            (
+                "encrypted PEM",
+                pem("ENCRYPTED PRIVATE KEY"),
+                KeyKind::Ed25519,
+                &[
+                    "encrypted PKCS#8",
+                    "password",
+                    "`openssl pkcs8 -in key.pem -out key-pkcs8.pem`",
+                ],
+            ),
+            (
+                "encrypted DER",
+                encrypted,
+                KeyKind::Ed25519,
+                &[
+                    "encrypted PKCS#8",
+                    "`openssl pkcs8 -inform DER -in key.der -out key-pkcs8.pem`",
+                ],
+            ),
+            (
+                "OpenSSH",
+                pem("OPENSSH PRIVATE KEY"),
+                KeyKind::Ed25519,
+                &["OpenSSH format", "`ssh-keygen -p -m PKCS8 -f key`"],
+            ),
+            (
+                "public PEM",
+                pem("PUBLIC KEY"),
+                KeyKind::P256,
+                &["public key", "`Core\\Crypto\\PublicKey::read`"],
+            ),
+            (
+                "public DER",
+                spki,
+                KeyKind::Ed25519,
+                &["public key", "`Core\\Crypto\\PublicKey::read`"],
+            ),
+            (
+                "certificate",
+                pem("CERTIFICATE"),
+                KeyKind::RsaPkcs1,
+                &["certificate", "only the public key"],
+            ),
+            (
+                "text around a block",
+                text_around,
+                KeyKind::P256,
+                &["other text", "-----BEGIN PRIVATE KEY-----"],
+            ),
+            (
+                "Ed25519 as P-256",
+                pkcs8("ed-1"),
+                KeyKind::P256,
+                &[
+                    "an Ed25519 key",
+                    "`KeyKind::P256`",
+                    "Pass `KeyKind::Ed25519`",
+                ],
+            ),
+            (
+                "P-256 as RSA",
+                pkcs8("ec-1"),
+                KeyKind::RsaPss,
+                &["a P-256 key", "`KeyKind::RsaPss`", "Pass `KeyKind::P256`"],
+            ),
+            (
+                "RSA as Ed25519",
+                pkcs8("rsa-1"),
+                KeyKind::Ed25519,
+                &["an RSA key", "`KeyKind::RsaPkcs1` or `KeyKind::RsaPss`"],
+            ),
+            (
+                "1024-bit RSA",
+                narrow_rsa,
+                KeyKind::RsaPkcs1,
+                &["1024 bits", "2048 to 4096 bits"],
+            ),
+        ];
+        for (case, stored, kind, named) in cases {
+            let said = pair_refusal(&stored, kind);
+            for &part in named {
+                assert!(said.contains(part), "{case}: {part:?} is not in {said:?}");
+            }
+        }
+
+        assert_eq!(
+            pair_refusal(&[1, 2, 3, 4, 5], KeyKind::P256),
+            NOT_A_PRIVATE_KEY,
+            "octets of no format get the sentence that names what is read"
+        );
     }
 
     /// A key file reads into the pair's own two slots — the DER the file
