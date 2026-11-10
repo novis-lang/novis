@@ -784,6 +784,20 @@ pub(crate) fn reroot_turn(
     });
 }
 
+/// Whether the running stack is `tree`'s turn, which means [`TURN`] has one
+/// handle on `tree`. [`Ctx::between_requests`](crate::Ctx::between_requests)
+/// counts that handle as the connection's own.
+pub(crate) fn turn_holds(tree: &std::sync::Arc<crate::TreeState>) -> bool {
+    TURN.with(|cell| {
+        let turn = cell.take();
+        let holds = turn
+            .as_ref()
+            .is_some_and(|turn| std::sync::Arc::ptr_eq(turn, tree));
+        cell.set(turn);
+        holds
+    })
+}
+
 /// The tree whose turn the running stack is, by address, or null on a stack
 /// that runs no tree's turn. [`Ctx::new`](crate::Ctx::new) notes it, so a
 /// spawn can tell whether the context was made on the turn that hands it over.
@@ -882,15 +896,7 @@ const IDLE: u8 = 2;
 /// Answers whether the tree is idle now. It is not where the running stack is
 /// not `tree`'s turn, because only a turn keeps the tree's balance current.
 pub(crate) fn begin_idle(tree: &std::sync::Arc<crate::TreeState>) -> bool {
-    let running = TURN.with(|cell| {
-        let turn = cell.take();
-        let running = turn
-            .as_ref()
-            .is_some_and(|turn| std::sync::Arc::ptr_eq(turn, tree));
-        cell.set(turn);
-        running
-    });
-    if !running {
+    if !turn_holds(tree) {
         return false;
     }
     let balance = live_bytes();

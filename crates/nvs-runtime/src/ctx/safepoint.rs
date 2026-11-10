@@ -298,17 +298,26 @@ impl Ctx {
     /// [`Self::reroot`] counts it again. `crate::budget`'s gauge module owns
     /// why. A context whose stack is not its tree's turn is left counted.
     ///
-    /// Where nothing else holds the tree, its extension instances are dropped
-    /// here (`rule:packaging/a-fresh-instance-per-request`). A connection may
-    /// wait a long time for its next request, and an instance it kept would
-    /// hold one of the process's instance places all that time. A tree that
-    /// after-response work still holds drops them when that work ends.
+    /// Where nothing but this connection holds the tree, its extension
+    /// instances are dropped here (`rule:packaging/a-fresh-instance-per-request`).
+    /// The connection holds the tree twice: through this context, and through
+    /// the running turn where that turn is this tree's
+    /// ([`crate::budget::turn_holds`]). A connection may wait a long time for its
+    /// next request, and an instance it kept would hold one of the process's
+    /// instance places all that time. Those places are sized for the requests
+    /// in flight, so idle connections that kept theirs would make a request
+    /// that calls an extension fail. A tree that other work still holds, such as
+    /// after-response work or a child placed on another core, keeps its
+    /// instances, and they are dropped with the tree.
     ///
-    /// **What it spends:** nothing per request beyond the tree's three words,
-    /// and a thread-local add at each park of an idle tree.
+    /// **What it spends:** nothing per request beyond the tree's three words, a
+    /// thread-local read and a reference count read per finished request, and a
+    /// thread-local add at each park of an idle tree.
     pub fn between_requests(&mut self) {
+        let turn = crate::budget::turn_holds(&self.tree);
         self.idles_tree = crate::budget::begin_idle(&self.tree) || self.idles_tree;
-        if std::sync::Arc::strong_count(&self.tree) == 1 {
+        let connection_holders = 1 + usize::from(turn);
+        if std::sync::Arc::strong_count(&self.tree) == connection_holders {
             drop(self.tree.end_extensions());
         }
     }
@@ -930,8 +939,9 @@ pub struct TreeState {
     /// extension instances its calls made, and the resources they returned —
     /// set at its first call into an extension. It is dropped when the
     /// request's connection waits for its next request and nothing else holds
-    /// the tree ([`Ctx::between_requests`]), or else with the tree, which is
-    /// the end of the request's after-response work. Empty for every request
+    /// the tree ([`Ctx::between_requests`]), or else with the tree: once the
+    /// request's after-response work has ended and its connection has started
+    /// its next request or closed. Empty for every request
     /// that calls no extension. A call holds its own handle on it, so the lock
     /// is never held while a guest runs.
     pub(super) extensions: std::sync::Mutex<Option<ExtensionHost>>,
@@ -1841,6 +1851,82 @@ mod tests {
             "a handle on the tree that was left behind now names the tree that replaced it"
         );
         assert!(connection.safepoint_flags().is_empty() && !connection.deadline_expired());
+    }
+
+    /// What a request's calls into extensions keep in its tree, standing in for
+    /// the instances: it sets its flag when it is dropped.
+    struct Instances(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
+    impl Drop for Instances {
+        fn drop(&mut self) {
+            self.0.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    /// A connection's context, handed to a task and armed on its stack as a
+    /// spawn does, whose request called an extension. Returns the context and
+    /// the flag its instances set when they are dropped.
+    fn connection_that_called_an_extension() -> (Ctx, std::sync::Arc<std::sync::atomic::AtomicBool>)
+    {
+        let mut connection = Ctx::buffered();
+        connection.leave_this_stack();
+        connection.arm_on_this_stack();
+        assert!(
+            crate::budget::turn_holds(&connection.tree),
+            "the connection's task does not run its tree's turn"
+        );
+        let dropped = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = std::sync::Arc::clone(&dropped);
+        let made = connection
+            .tree
+            .extensions(|| Ok::<ExtensionHost, ()>(std::sync::Arc::new(Instances(flag))));
+        drop(made);
+        (connection, dropped)
+    }
+
+    /// `rule:packaging/a-fresh-instance-per-request`: a connection that waits
+    /// for its next request holds no extension instance. Its context and the
+    /// turn its task runs both hold its tree, and the instances are dropped
+    /// all the same.
+    #[test]
+    fn a_connection_between_requests_drops_its_extension_instances() {
+        std::thread::spawn(|| {
+            let (mut connection, dropped) = connection_that_called_an_extension();
+            connection.between_requests();
+            assert!(
+                dropped.load(std::sync::atomic::Ordering::Relaxed),
+                "a connection waiting for its next request kept its last request's instances"
+            );
+        })
+        .join()
+        .expect("the connection's thread panicked");
+    }
+
+    /// The other direction: after-response work still running in the tree
+    /// keeps the instances while the connection waits. They are dropped with
+    /// the tree, once that work has ended and the connection has started its
+    /// next request.
+    #[test]
+    fn after_response_work_keeps_the_extension_instances_until_it_ends() {
+        std::thread::spawn(|| {
+            let (mut connection, dropped) = connection_that_called_an_extension();
+            let mut deferred = connection.isolate(OutputSink::Buffer(Vec::new()));
+            deferred.leave_this_stack();
+            connection.between_requests();
+            assert!(
+                !dropped.load(std::sync::atomic::Ordering::Relaxed),
+                "the instances were dropped while after-response work could still call them"
+            );
+
+            drop(deferred);
+            connection.reroot();
+            assert!(
+                dropped.load(std::sync::atomic::Ordering::Relaxed),
+                "the tree the connection left kept its instances after its last work ended"
+            );
+        })
+        .join()
+        .expect("the connection's thread panicked");
     }
 
     #[test]

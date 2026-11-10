@@ -848,6 +848,38 @@ fn every_request_in_flight_can_hold_an_extension_instance() {
     }
 }
 
+/// Keep-alive connections the idle-instance case leaves open and waiting: twice the instance
+/// places of a server with `max_in_flight = 1`, which is one place per class one request can call.
+const IDLE_LISTINGS: usize = 8;
+
+/// A keep-alive connection that waits for its next request holds no extension instance
+/// (`rule:packaging/a-fresh-instance-per-request`). Under `max_in_flight = 1` the pool has one
+/// place per class, so [`IDLE_LISTINGS`] connections that each called `Novis\Intl` and stay open
+/// would fill it if each kept its instance. Every request is served, the last on a new
+/// connection.
+#[test]
+fn an_idle_keep_alive_connection_holds_no_extension_instance() {
+    let server = Server::serving("idle-instances", 1, LISTING, "max_in_flight = 1\n", &[]);
+    let want = "Shop, Blog, and Wiki";
+    let mut idle = Vec::with_capacity(IDLE_LISTINGS);
+    for connection in 0..=IDLE_LISTINGS {
+        let mut client = Client::connect(server.addr);
+        assert_eq!(
+            client.served("/").unwrap_or_else(|error| panic!(
+                "a request on connection {connection}, with {} connections open and idle: \
+                 {error}; the server wrote: {}",
+                idle.len(),
+                server.said()
+            )),
+            want,
+            "connection {connection}; the server wrote: {}",
+            server.said()
+        );
+        // The connection stays open, so its next request could come at any time.
+        idle.push(client);
+    }
+}
+
 /// A program that logs the request's path and a query value, then prints a page.
 const LOGS_THEN_PRINTS: &str = "<?nvs\n\
 Core\\Log::write(Core\\Log::Level::Warn, 'not found: ' . Core\\Request::path(), \
