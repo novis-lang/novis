@@ -378,6 +378,32 @@ fn a_test_file_that_mentions_require_only_in_a_comment_borrows_its_bootstraps_ma
     assert_eq!(checked.status.code(), Some(0), "{}", stderr(&checked));
 }
 
+/// The program of a class file sits in a folder `.gitignore` names. The search
+/// walks the ignored folder the class file is in, so the program is found.
+// covers: tools:cli/nvs-check
+#[test]
+fn a_class_file_in_an_ignored_folder_finds_the_program_beside_it() {
+    let project = Project::new("ignored");
+    project.write(".gitignore", "/addons/\n");
+    project.write(
+        "addons/Shop/public/index.nvs",
+        "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Cart;\n\nnew Cart();\n",
+    );
+    project.write(
+        "addons/Shop/src/Cart.nvs",
+        "<?nvs\nnamespace Shop;\n\nclass Cart {\n    \
+         public function total(): int {\n        return (new Price())->cents();\n    }\n}\n",
+    );
+    project.write(
+        "addons/Shop/src/Price.nvs",
+        "<?nvs\nnamespace Shop;\n\nclass Price {\n    \
+         public function cents(): int {\n        return 100;\n    }\n}\n",
+    );
+
+    let checked = project.check(&["addons/Shop/src/Cart.nvs"]);
+    assert_eq!(checked.status.code(), Some(0), "{}", stderr(&checked));
+}
+
 /// The number `nvs check --count` printed for `kind`, such as `programs`.
 fn counted(output: &Output, kind: &str) -> usize {
     let stderr = stderr(output);

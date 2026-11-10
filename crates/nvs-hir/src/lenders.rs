@@ -409,7 +409,9 @@ pub fn a_map_could_declare(diagnostic: &nvs_diagnostics::Diagnostic) -> bool {
 }
 
 /// The lender among the `.nvs` files under `root` that lends its map to
-/// `path`, as [`choose`] picks it in entry-path order.
+/// `path`, as [`choose`] picks it in entry-path order. The files are
+/// [`sources`] of `root` and [`around`] `path`, so a program in the ignored
+/// folder that holds `path` is found too.
 ///
 /// The files are walked one by one and the search stops at the first lender
 /// that owns `path`, so the cost is one read per file and one walk per program
@@ -427,6 +429,7 @@ pub fn a_map_could_declare(diagnostic: &nvs_diagnostics::Diagnostic) -> bool {
 pub fn first_lender(root: &Path, path: &Path, plain: bool) -> Option<Lender> {
     let mut key = None;
     let mut found = sources(root);
+    found.extend(around(root, path));
     found.sort();
     let mut survey = Survey::new();
     choose(
@@ -485,27 +488,15 @@ pub fn project_root(root: &Path, path: &Path) -> PathBuf {
 ///   read is skipped: a tree with one unreadable directory in it is still a
 ///   tree.
 ///
+/// A search for the program of one file walks more than this:
+/// [`around`] adds the folder this walk skipped on the way to that file.
+///
 /// Cost: each ignore file is read once per walk, and its parsed patterns, a
 /// few KiB, live until the walk ends. Nothing here runs on the request path.
 #[must_use]
 pub fn sources(root: &Path) -> Vec<PathBuf> {
-    WalkBuilder::new(root)
-        .hidden(false)
-        .parents(false)
-        .ignore(true)
-        .git_ignore(true)
-        .require_git(false)
-        .git_global(false)
-        .git_exclude(false)
-        .follow_links(false)
-        .filter_entry(|entry| {
-            let dir = entry.file_type().is_some_and(|kind| kind.is_dir());
-            let name = entry.file_name().to_str();
-            !(dir
-                && name.is_some_and(|name| {
-                    name == "target" || name == "vendor" || name.starts_with('.')
-                }))
-        })
+    walker(root)
+        .filter_entry(entered)
         .build()
         .filter_map(Result::ok)
         .inspect(|entry| {
@@ -517,6 +508,91 @@ pub fn sources(root: &Path) -> Vec<PathBuf> {
         .map(ignore::DirEntry::into_path)
         .filter(|path| path.extension().is_some_and(|ext| ext == "nvs"))
         .collect()
+}
+
+/// The walk [`sources`] makes, before it decides which folders to enter: the
+/// ignore files it reads and the links it does not follow.
+fn walker(root: &Path) -> WalkBuilder {
+    let mut walker = WalkBuilder::new(root);
+    walker
+        .hidden(false)
+        .parents(false)
+        .ignore(true)
+        .git_ignore(true)
+        .require_git(false)
+        .git_global(false)
+        .git_exclude(false)
+        .follow_links(false);
+    walker
+}
+
+/// Whether [`sources`] enters `entry` once no ignore file names it: every
+/// file, and every folder but `target`, `vendor` and a dot-directory.
+fn entered(entry: &ignore::DirEntry) -> bool {
+    let dir = entry.file_type().is_some_and(|kind| kind.is_dir());
+    let name = entry.file_name().to_str();
+    !(dir && name.is_some_and(|name| name == "target" || name == "vendor" || name.starts_with('.')))
+}
+
+/// The `.nvs` files a search for the program of `path` walks besides
+/// [`sources`] of `root`: those under the folder that walk skipped on the way
+/// to `path`, and under each folder skipped again inside that one.
+///
+/// A file in an ignored folder is a file somebody chose to check or open, so
+/// the program that loads it is searched for where the file is. The usual
+/// case is a folder of installed modules that `.gitignore` names, each with
+/// its own program and classes. The rest of the walk still skips what an
+/// ignore file names, so a build output or a dependency tree is not read for
+/// every other file.
+///
+/// Cost: [`skipped_folder`]'s listing of one folder per level between `root`
+/// and `path`, and nothing more when nothing was skipped. A skipped folder is
+/// walked as [`sources`] walks a root.
+#[must_use]
+pub fn around(root: &Path, path: &Path) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    let mut from = root.to_path_buf();
+    while let Some(folder) = skipped_folder(&from, path) {
+        found.extend(sources(&folder));
+        from = folder;
+    }
+    found
+}
+
+/// The folder [`sources`] of `root` does not enter on its way down to
+/// `path`: the highest folder between them that an ignore file names, or
+/// that is called `target` or `vendor` or starts with a dot. It is spelled
+/// from `root` as given.
+///
+/// `None` when the walk reaches the folder `path` is in, and when `path` is
+/// not under `root`. Only the folders above `path` are entered, one listing
+/// per level, so the cost is the depth of `path` below `root`.
+#[must_use]
+pub fn skipped_folder(root: &Path, path: &Path) -> Option<PathBuf> {
+    let top = std::path::absolute(root).ok()?;
+    let folder = std::path::absolute(path).ok()?.parent()?.to_path_buf();
+    if folder == top || !folder.starts_with(&top) {
+        return None;
+    }
+    let on_the_way = folder.clone();
+    let mut deepest = top.clone();
+    for entry in walker(&top)
+        .filter_entry(move |entry| entered(entry) && on_the_way.starts_with(entry.path()))
+        .build()
+        .filter_map(Result::ok)
+    {
+        if entry.file_type().is_some_and(|kind| kind.is_dir()) {
+            nvs_diagnostics::work::count(nvs_diagnostics::work::Kind::Listed);
+            if entry.path().components().count() > deepest.components().count() {
+                deepest = entry.into_path();
+            }
+        }
+    }
+    if deepest == folder {
+        return None;
+    }
+    let below = folder.strip_prefix(&deepest).ok()?.components().next()?;
+    Some(root.join(deepest.strip_prefix(&top).ok()?).join(below))
 }
 
 #[cfg(test)]
@@ -653,5 +729,82 @@ mod tests {
         let vendor = dir.join("vendor");
         assert_eq!(found(&vendor), ["lib.nvs", "sub/deep.nvs"]);
         assert!(found(&dir).is_empty());
+    }
+
+    /// The paths `files` returned, relative to `root`, with `/`, sorted.
+    fn relative(root: &Path, files: &[PathBuf]) -> Vec<String> {
+        let mut found: Vec<String> = files
+            .iter()
+            .map(|path| {
+                path.strip_prefix(root)
+                    .expect("a source under the root")
+                    .to_string_lossy()
+                    .replace('\\', "/")
+            })
+            .collect();
+        found.sort();
+        found
+    }
+
+    #[test]
+    fn the_skipped_folder_is_the_highest_one_an_ignore_file_names_above_the_file() {
+        let dir = tree(
+            "skipped-folder",
+            &[
+                (".gitignore", "/modules/\n"),
+                ("modules/Shop/public/index.nvs", ""),
+                ("modules/Shop/src/Cart.nvs", ""),
+                ("vendor/acme/Lib.nvs", ""),
+                ("src/Page.nvs", ""),
+            ],
+        );
+        assert_eq!(
+            skipped_folder(&dir, &dir.join("modules/Shop/src/Cart.nvs")),
+            Some(dir.join("modules"))
+        );
+        assert_eq!(
+            skipped_folder(&dir, &dir.join("vendor/acme/Lib.nvs")),
+            Some(dir.join("vendor"))
+        );
+        assert_eq!(skipped_folder(&dir, &dir.join("src/Page.nvs")), None);
+        assert_eq!(skipped_folder(&dir, &dir.join("main.nvs")), None);
+        assert_eq!(
+            skipped_folder(&dir.join("src"), &dir.join("main.nvs")),
+            None
+        );
+    }
+
+    #[test]
+    fn around_walks_the_ignored_folder_of_the_file_and_each_folder_ignored_inside_it() {
+        let dir = tree(
+            "around",
+            &[
+                (".gitignore", "/modules/\n"),
+                ("modules/Shop/.gitignore", "/build/\n"),
+                ("modules/Shop/public/index.nvs", ""),
+                ("modules/Shop/build/gen/Out.nvs", ""),
+                ("modules/Shop/build/Kept.nvs", ""),
+                ("src/Page.nvs", ""),
+            ],
+        );
+        assert_eq!(
+            relative(
+                &dir,
+                &around(&dir, &dir.join("modules/Shop/public/index.nvs"))
+            ),
+            ["modules/Shop/public/index.nvs"]
+        );
+        assert_eq!(
+            relative(
+                &dir,
+                &around(&dir, &dir.join("modules/Shop/build/gen/Out.nvs"))
+            ),
+            [
+                "modules/Shop/build/Kept.nvs",
+                "modules/Shop/build/gen/Out.nvs",
+                "modules/Shop/public/index.nvs"
+            ]
+        );
+        assert!(around(&dir, &dir.join("src/Page.nvs")).is_empty());
     }
 }

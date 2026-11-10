@@ -31,6 +31,11 @@ Give it a folder to format every `.nvs` file in that folder and in its subfolder
 nvs fmt src
 ```
 
+In a folder, `nvs fmt` skips the files that a `.gitignore` or `.ignore` file names. It also skips each
+folder named `target` or `vendor`, and each folder whose name starts with a dot.
+[Which files the editor reads](/tools/editor/#which-files-the-editor-reads) has the details. A file or
+folder that you name in the command is always formatted.
+
 A file with a syntax error is not changed. `nvs fmt` prints the error and continues with the next file.
 
 ## See the changes first

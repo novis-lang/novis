@@ -56,7 +56,7 @@
 //! map on each call, so one analysis costs the size of all open buffers.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -129,6 +129,16 @@ pub struct Documents {
     /// session. Shared with every [`Snapshot`], and copied on write only while
     /// one is alive.
     lenders: Arc<Vec<Lender>>,
+    /// The root the last [`survey`](Self::survey) walked, under its
+    /// `canonical_key`, or `None` when it walked the open documents alone.
+    /// [`open`](Self::open) searches the folder this walk skipped on the way
+    /// to an opened file.
+    walked: Option<PathBuf>,
+    /// Every file a search around an opened file walked since the last survey,
+    /// so opening a file in the same skipped folder again reads nothing. It
+    /// spends one path per `.nvs` file under each skipped folder a file was
+    /// opened in, and the next survey empties it.
+    around: HashSet<PathBuf>,
     /// Where the `Core` stub tree is written, for a jump to a name no source
     /// file declares (`crate::stubs`); `None` is a server nobody told and no
     /// cache directory to fall back to, whose `Core` jumps open nothing.
@@ -218,9 +228,16 @@ impl Documents {
     ///
     /// Opening a URI that is already open replaces the buffer, which is what a
     /// client that reopened a document without closing it means.
+    ///
+    /// A file in a folder the survey skipped, such as one `.gitignore` names,
+    /// also searches that folder for the program that loads it
+    /// ([`nvs_hir::lenders::around`]).
     pub fn open(&mut self, uri: Uri, version: i32, text: String) {
         self.kept.get_mut().clear();
         let path = path_of(&uri);
+        if let Some(path) = &path {
+            self.survey_around(path);
+        }
         self.buffers.insert(
             uri.clone(),
             Document {
@@ -230,6 +247,35 @@ impl Documents {
                 text,
             },
         );
+    }
+
+    /// Adds the programs in the folder the survey skipped on the way to
+    /// `path`, and in each folder skipped inside that one, to the lenders.
+    ///
+    /// Nothing is read when the survey walked no root, when nothing above
+    /// `path` was skipped, or when every file there was walked already.
+    fn survey_around(&mut self, path: &Path) {
+        let Some(root) = self.walked.clone() else {
+            return;
+        };
+        let fresh: Vec<PathBuf> = nvs_hir::lenders::around(&root, &canonical_key(path))
+            .into_iter()
+            .filter(|file| !self.around.contains(file))
+            .collect();
+        if fresh.is_empty() {
+            return;
+        }
+        let mut survey = survey_of(self);
+        let found: Vec<Lender> = fresh
+            .iter()
+            .filter_map(|file| Lender::walk(&mut survey, file))
+            .collect();
+        self.around.extend(fresh);
+        self.kept.get_mut().clear();
+        let lenders = Arc::make_mut(&mut self.lenders);
+        lenders.retain(|lender| !found.iter().any(|new| new.entry() == lender.entry()));
+        lenders.extend(found);
+        lenders.sort_by(|a, b| a.entry().cmp(b.entry()));
     }
 
     /// `textDocument/didChange` under `FULL` sync, where `text` is the whole
@@ -311,13 +357,18 @@ impl Documents {
     /// it. [`resurvey`](Self::resurvey) keeps the answer current after that.
     pub fn survey(&mut self, scope: crate::CheckScope, root: Option<&Path>) {
         let tree = crate::index::tree(self, scope, root);
-        self.survey_tree(&tree);
+        self.survey_tree(
+            &tree,
+            root.filter(|_| scope == crate::CheckScope::Workspace),
+        );
     }
 
     /// [`survey`](Self::survey) over a tree [`crate::index::tree`] already
     /// walked, so a start that builds its index from the same tree walks the
-    /// workspace once.
-    pub(crate) fn survey_tree(&mut self, tree: &[(PathBuf, i32)]) {
+    /// workspace once. `walked` is the root that tree walked, if it walked one.
+    /// Each open document in a folder that walk skipped then searches that
+    /// folder, as [`open`](Self::open) does.
+    pub(crate) fn survey_tree(&mut self, tree: &[(PathBuf, i32)], walked: Option<&Path>) {
         let mut survey = survey_of(self);
         let lenders = tree
             .iter()
@@ -325,6 +376,16 @@ impl Documents {
             .collect();
         self.kept.get_mut().clear();
         self.lenders = Arc::new(lenders);
+        self.walked = walked.map(canonical_key);
+        self.around.clear();
+        let open: Vec<PathBuf> = self
+            .buffers
+            .values()
+            .filter_map(|document| document.path().map(Path::to_path_buf))
+            .collect();
+        for path in open {
+            self.survey_around(&path);
+        }
     }
 
     /// [`survey`](Self::survey), for the one file that changed: `changed`

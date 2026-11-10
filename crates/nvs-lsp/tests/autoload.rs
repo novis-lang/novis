@@ -389,6 +389,37 @@ fn a_plain_file_under_a_lenders_directory_borrows_its_map() {
     assert!(alone.lent.is_empty());
 }
 
+/// The survey skips a folder `.gitignore` names, and with it the program in
+/// that folder. Opening a class file there searches the folder it is in, so
+/// the program is found and lends its map.
+#[test]
+fn a_file_in_an_ignored_folder_borrows_the_map_of_the_program_beside_it() {
+    let dir = TempDir::new("ignored");
+    dir.write("site/.gitignore", "/addons/\n");
+    dir.write(
+        "site/addons/Shop/public/index.nvs",
+        "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Cart;\n\nnew Cart();\n",
+    );
+    let cart = "<?nvs\nnamespace Shop;\n\nclass Cart {\n    \
+                public function total(): int {\n        return (new Price())->cents();\n    }\n}\n";
+    dir.write("site/addons/Shop/src/Cart.nvs", cart);
+    dir.write(
+        "site/addons/Shop/src/Price.nvs",
+        "<?nvs\nnamespace Shop;\n\nclass Price {\n    \
+         public function cents(): int {\n        return 100;\n    }\n}\n",
+    );
+    let root = dir.at("site");
+    let mut documents = Documents::new();
+    documents.survey(CheckScope::Workspace, Some(&root));
+    dir.open(&mut documents, "site/addons/Shop/src/Cart.nvs", cart);
+
+    let analysed =
+        analyse(&documents, &dir.uri("site/addons/Shop/src/Cart.nvs")).expect("it is open");
+    assert_eq!(codes(&analysed), Vec::<&str>::new());
+    let read = tails(&analysed);
+    assert!(read.contains(&"public/index.nvs".to_owned()), "{read:?}");
+}
+
 /// A cursor on a prefix's `{..}` segment is told which directory name the
 /// segment is replaced by, and the namespace below it is spelled with that
 /// name. A `.lspt` case cannot hold this: its document sits at the top of a

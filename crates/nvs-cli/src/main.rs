@@ -1421,11 +1421,13 @@ fn resolve_entry(
 
 /// The note on the first unresolved name when the search for a program that
 /// lends the checked file its `autoload` map found none: the folder searched,
-/// shown absolute, and the option that names another one.
+/// shown absolute, the folders the search skips, and the option that names
+/// another one.
 fn searched_note(root: &std::path::Path) -> String {
     let shown = std::path::absolute(root).unwrap_or_else(|_| root.to_path_buf());
     format!(
         "no program in `{}` gives this file an `autoload` map. \
+         The search skips the folders that `.gitignore` names, except the folder of this file. \
          To search another folder, run `nvs check --root <folder>`.",
         nvs_diagnostics::plain_path(&shown).display()
     )

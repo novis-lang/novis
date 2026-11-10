@@ -347,12 +347,25 @@ lands it on.
 Under `nvs.check.scope = open` only the open documents are surveyed, so a map is lent once the file that
 declares it, or the entry that requires it, is open too.
 
+**A file in a folder the survey skipped is searched for where it is.** The survey walks what
+[`tooling/nvs-code-answers-about-the-project`](tooling.md#tooling-nvs-code-answers-about-the-project)'s project walk walks, so a program in a folder
+`.gitignore` names is no lender. Opening a file in such a folder, under `workspace` scope, surveys the
+highest skipped folder above it, and each folder skipped again inside that one
+(`nvs_hir::lenders::around`), and adds the programs found there to the lenders. A folder of installed
+modules that `.gitignore` names, each with its own program, is the case: without this, each class file
+in it reported every name of its own program undeclared. Somebody who opens the file chose it, so the
+search goes there, while the rest of the survey still reads no ignored folder. It costs one listing per
+folder between the root and the opened file on each open, and one survey of a skipped folder the first
+time a file in it is opened. The server keeps one path per file it surveyed this way until the next
+whole survey.
+
 `nvs check <file>` borrows by the same test, and searches only when it must. It checks the file first;
 when the walk found no declaration of the file's own program, and the walk or the type phase after it
 reported `E0303` or `E0306`, it walks the `.nvs` files under the project root — `--root <dir>`, else
 the directory of the first `--config` file, else the working directory, narrowed to the nearest
 directory at or above the file and below that root that holds an `nvs.toml` or a `package.toml`, and
-skipping what the server skips — in path order,
+skipping what the server skips, except the skipped folder above the file as the server does on open —
+in path order,
 stops at the first lender that owns the file, else takes the nearest that holds it, and checks the file
 again with that lender's declarations behind its own. The type phase counts because it is where a
 name written in a type, in `new` or before `::class` is reported: a class file that names a class of

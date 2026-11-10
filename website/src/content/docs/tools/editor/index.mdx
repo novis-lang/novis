@@ -191,6 +191,42 @@ extension `0.4.2` works with `nvs` `0.4.0`, and does not work with `nvs` `0.5.0`
 A change to `nvs.path` or `nvs.lsp.enable` restarts the server. After a change to another setting,
 run **Novis: Restart Language Server**.
 
+## Which files the editor reads
+
+The editor reads every `.nvs` file in the folder you opened and in its subfolders. It skips these
+files and folders:
+
+- a file or folder that a `.gitignore` or `.ignore` file names. This is also true in a folder that is
+  not a git repository.
+- a folder named `target` or `vendor`.
+- a folder whose name starts with a dot, such as `.cache`.
+
+Novis does not read `.git/info/exclude` or your global git ignore file. It also does not read an
+ignore file above the folder you opened. So every computer finds the same files.
+
+`nvs check`, `nvs fmt` and `nvs code` skip the same files.
+
+### A file in a skipped folder
+
+A class file usually has no `autoload` lines. The editor searches for the program that loads it, and
+uses the `autoload` lines of that program. When you open a file in a skipped folder, the editor also
+searches that folder. `nvs check` does the same for the file you check.
+
+For example, `.gitignore` names the folder `addons`, and the program `addons/Shop/public/index.nvs`
+loads the classes in `addons/Shop/src`. When you open `addons/Shop/src/Cart.nvs`, the editor finds
+that program.
+
+The other files in a skipped folder are still skipped. For example, rename does not change them. To
+read a folder like every other folder, create a file named `.ignore` next to `.gitignore`. Add the
+folder with a `!` at the start of the line:
+
+```txt
+!/addons/
+```
+
+A line in `.ignore` is stronger than a line in `.gitignore`. Git does not read `.ignore`, so git still
+ignores the folder. Then run **Novis: Restart Language Server**.
+
 ## Change a Novis colour
 
 The VS Code setting `workbench.colorCustomizations` changes any colour. You can also change a colour

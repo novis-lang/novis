@@ -248,7 +248,10 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // The tree is walked once here, and the survey and the index below both
     // read it.
     let tree = tree(&documents, settings.scope, settings.root.as_deref());
-    documents.survey_tree(&tree);
+    documents.survey_tree(
+        &tree,
+        settings.root.as_deref().filter(|_| walks_tree(&settings)),
+    );
 
     // The one index `rule:ide/five-features-are-one-reference-index` names,
     // held here because this is what owns the store it is built from. Empty at
@@ -880,7 +883,10 @@ fn configure(
             indexing.begin(connection)?;
         }
         let tree = tree(documents, settings.scope, settings.root.as_deref());
-        documents.survey_tree(&tree);
+        documents.survey_tree(
+            &tree,
+            settings.root.as_deref().filter(|_| walks_tree(settings)),
+        );
         *index = start_index(documents, settings, tree);
         indexing.track(connection, index)?;
         if completion_files.check(index) {
