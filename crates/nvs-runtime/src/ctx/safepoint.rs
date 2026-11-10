@@ -210,9 +210,19 @@ impl Ctx {
     /// that ran first would leave the allocator raising its flag in the word
     /// this replaces.
     ///
-    /// **What it spends:** nothing on the ordinary request, which reuses the
-    /// allocation below, and one [`TreeState`] and one word on a request that
-    /// follows one whose deferred work is still running. O(in-flight), per
+    /// **A new tree every time, never the old one reset in place.** A fresh
+    /// [`TreeState`] starts with every field at its default by construction,
+    /// and at an address no live tree has. A reset in place would be isolated
+    /// only while it reset every field a fresh tree starts with, and it would
+    /// keep the address, so anything keyed by [`Self::tree_key`] would carry
+    /// over to the next request. Work still running in the tree left behind,
+    /// such as `rule:concurrency/after-response-outlives-the-connection`'s,
+    /// keeps that tree with its stop and the budget its request spent.
+    ///
+    /// **What it spends:** one [`TreeState`] allocated and the old one freed
+    /// per request, or kept until the last work still running in it ends.
+    /// The deadline is one word, cleared in place where this context is its
+    /// only holder and allocated anew where it is not. O(in-flight), per
     /// `rule:programs/memory-priority`.
     pub fn reroot(&mut self) {
         debug_assert!(
@@ -225,18 +235,10 @@ impl Ctx {
         if std::mem::take(&mut self.idles_tree) {
             crate::budget::end_idle(&self.tree);
         }
-        // Reset in place where this context is the tree's only holder, which is
-        // the request path's ordinary case, and replaced where it is not —
-        // which is exactly the case a reset would be wrong in.
-        // `rule:concurrency/after-response-outlives-the-connection`'s deferred
-        // work belongs to the tree it was spawned in and is still polling that
-        // word, so a reset would hand it back the stop and the budget its own
-        // request had already spent. The uniqueness that makes the reuse free is
-        // the same fact that makes it safe, which is why one branch answers both
-        // questions.
-        if let Some(tree) = std::sync::Arc::get_mut(&mut self.tree) {
-            *tree = TreeState::default();
-        } else {
+        // A fresh tree, for the reason the doc above gives. The handle on the
+        // old one is dropped at the end of this block, so what that frees is
+        // gone before the fresh tree's base is read below.
+        {
             let old = std::mem::replace(&mut self.tree, std::sync::Arc::new(TreeState::default()));
             // The running turn is the fresh tree's from here, in the units it
             // was read in, so bytes the old request allocated and the new one
@@ -1450,9 +1452,8 @@ pub(super) fn cpu_lowered(left: u64, earlier: bool) {
 /// next tree made on the core may be given: the connection's CPU time is then
 /// charged to an unrelated request.
 ///
-/// **What it spends:** one load and one call per reroot that replaces the
-/// tree, which is a served request, and nothing on a reroot that resets the
-/// tree in place.
+/// **What it spends:** one load and one call per reroot, which is one per
+/// served request.
 pub type TreeReplaced = fn(usize, usize);
 
 /// The process's [`TreeReplaced`], or none before a host installs one.
@@ -1797,9 +1798,25 @@ mod tests {
         );
     }
 
-    /// The other direction, and the one the reuse inside
-    /// [`Ctx::reroot`] has to answer: work still running in the tree the
-    /// connection left keeps the stop that was raised on it.
+    /// A reroot starts a new tree even where the context is the old tree's
+    /// only holder, so the next request never shares its address with the
+    /// last one, and nothing keyed by that address carries over.
+    #[test]
+    fn a_reroot_starts_a_new_tree_where_nothing_else_holds_the_old_one() {
+        let mut connection = Ctx::buffered();
+        let request = connection.isolate(OutputSink::Buffer(Vec::new()));
+        drop(request);
+        let left = connection.tree_key();
+        connection.reroot();
+        assert_ne!(
+            connection.tree_key(),
+            left,
+            "the next request was given the tree of the request before it"
+        );
+    }
+
+    /// The other direction: work still running in the tree the connection
+    /// left keeps the stop that was raised on it.
     #[test]
     fn a_reroot_leaves_the_tree_behind_it_stopped() {
         let mut connection = Ctx::buffered();
