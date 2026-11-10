@@ -1,0 +1,4 @@
+<h1>Welcome back</h1>
+<div id="posts">Loading posts…</div>
+<div id="deals">Loading deals…</div>
+<script src="/home.js"></script>

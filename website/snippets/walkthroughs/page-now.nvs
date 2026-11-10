@@ -1,13 +1,41 @@
 <?nvs
-use Core\Html\Markup;
-
+Account::check();
 Core\Response::slotted();
-var $posts = Core\Html::later(fn(): Markup => {
-    Core\Time::sleep(900ms);
-    return html`<p>3 new blog posts</p>`;
-}, { placeholder: html`<p>Loading posts…</p>` });
-var $deals = Core\Html::later(fn(): Markup => {
-    Core\Time::sleep(500ms);
-    return html`<p>2 deals in the shop</p>`;
-}, { placeholder: html`<p>Loading deals…</p>` });
-echo html`<h1>Welcome back</h1>`, $posts, $deals;
+var $posts = Core\Html::later(
+    fn() => Blog::latestPosts(),
+    { placeholder: html`<p>Loading posts…</p>` },
+);
+var $deals = Core\Html::later(
+    fn() => Shop::deals(),
+    { placeholder: html`<p>Loading deals…</p>` },
+);
+echo html`<h1>Welcome back</h1>{$posts}{$deals}`;
+
+// stage: cut
+// The walkthrough shows only the lines above. These classes let the program run.
+class Account
+{
+    // A real site checks the visitor's login here.
+    public static function check(): void
+    {}
+}
+
+class Blog
+{
+    // A real site reads the posts from its database. This takes 900 milliseconds.
+    public static function latestPosts(): Core\Html\Markup
+    {
+        Core\Time::sleep(900ms);
+        return html`<p>3 new blog posts</p>`;
+    }
+}
+
+class Shop
+{
+    // A real site reads the deals from its database. This takes 500 milliseconds.
+    public static function deals(): Core\Html\Markup
+    {
+        Core\Time::sleep(500ms);
+        return html`<p>2 deals in the shop</p>`;
+    }
+}

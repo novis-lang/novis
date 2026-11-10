@@ -2,11 +2,14 @@
 /**
  * The `later` and `slotted` walkthrough, "Page now, slow parts later". Its brief is at the top of
  * `page-now.ts`: everything here serves one moment, the page in the browser while its slow parts
- * still run in the same request.
+ * still run in the same request, with no script and no API route written for them.
  *
- * Left is the visitor's browser, right is the server's side: the code, and the request with its two
- * parts on a time axis. The same request runs twice, first without and then with
- * `Core\Response::slotted()`.
+ * Left is the visitor's browser, right is the server's side: the code, and the requests on a time
+ * axis. The page runs twice: first the usual way, with a script and an API route per slow part, then
+ * with `Core\Html::later` and `Core\Response::slotted()`.
+ *
+ * The editor's files, counted from 0: the usual page, its two API routes and its script, then the
+ * Novis page, which replaces the usual page under the same tab.
  */
 import Stage from '../Stage.astro'
 import Editor from '../Editor.astro'
@@ -17,7 +20,7 @@ import Movers from '../Movers.astro'
 
 <Stage id="wt-page-now" scene="page-now" lazy={Astro.props.lazy} label="How Core\Html::later and Core\Response::slotted work, step by step">
   <Movers kind="wire" name="wire" />
-  <Browser name="browser" url="example.com" tab="Home" place={{ wide: [40, 40, 620, 820], tall: [150, 630, 600, 560] }}>
+  <Browser name="browser" url="example.com" tab="Home" rows={4} place={{ wide: [40, 40, 620, 820], tall: [150, 630, 600, 560] }}>
     <div class="wt-screen" data-screen="blank"></div>
     <div class="wt-screen" data-screen="home">
       <div class="wt-big" data-stagger>Welcome back</div>
@@ -25,6 +28,12 @@ import Movers from '../Movers.astro'
       <div class="wt-fill" data-fill="deals" data-stagger><span class="wt-was">Loading deals…</span><span class="wt-now">2 deals in the shop</span></div>
     </div>
   </Browser>
-  <Editor name="editor" src="walkthroughs/page-now.nvs" title="home.nvs" place={{ wide: [720, 24, 840, 560], tall: [50, 30, 800, 560] }} />
-  <Server name="server" title="nvs serve" pps={100} place={{ wide: [720, 604, 840, 284], tall: [50, 1240, 800, 290] }} />
+  <Editor
+    name="editor"
+    src={['walkthroughs/page-now-usual/home.nvs', 'walkthroughs/page-now-usual/posts.nvs', 'walkthroughs/page-now-usual/deals.nvs', 'walkthroughs/page-now-usual/home.js', 'walkthroughs/page-now.nvs']}
+    tabs={['home.nvs', 'api/posts.nvs', 'api/deals.nvs', 'home.js', 'home.nvs']}
+    place={{ wide: [720, 24, 840, 560], tall: [50, 30, 800, 560] }}
+  />
+  <Server name="server" title="nvs serve" pps={55} place={{ wide: [720, 604, 840, 284], tall: [50, 1240, 800, 290] }} />
+  <Movers kind="card" name="card" label="Blog::latestPosts()" />
 </Stage>

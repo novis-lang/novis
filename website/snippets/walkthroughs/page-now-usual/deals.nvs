@@ -1,0 +1,22 @@
+<?nvs
+Account::check();
+echo Shop::deals();
+
+// stage: cut
+// The walkthrough shows only the lines above. These classes let the program run.
+class Account
+{
+    // A real site checks the visitor's login here.
+    public static function check(): void
+    {}
+}
+
+class Shop
+{
+    // A real site reads the deals from its database. This takes 500 milliseconds.
+    public static function deals(): Core\Html\Markup
+    {
+        Core\Time::sleep(500ms);
+        return html`<p>2 deals in the shop</p>`;
+    }
+}

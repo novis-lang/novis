@@ -5,11 +5,13 @@
  *   segment, `phase(label, tone)` starts the next segment where the bar is, and `end()` stops it with
  *   a check mark.
  * - `lane(label, { child: true })` adds a thinner lane right under the last one: a task that runs as a
- *   child of that request, such as a part of a page. Its label is in its bar.
+ *   child of that request, such as a part of a page, or a short request of its own. Its label is in
+ *   its bar.
  * - `marker(label, tone)` draws a dashed line across the lanes at the cursor's time, with a label: a
  *   moment in the request's life, such as when the browser has the page.
  * - `clear()` fades out every lane and marker, so the next lanes start again at the top: the same
- *   request run a second time.
+ *   request run a second time. `clear({ keep: 0.25 })` leaves them faded under the next round, which
+ *   is drawn on their scale from its own start, so the two runs compare.
  * - `lane.tip` is an anchor at the growing end of the bar, which a card can ride.
  *
  * Every lane since the last `clear()` is on one time axis (`axis()`), so a request that starts later
@@ -188,15 +190,22 @@ export class Server extends Panel {
     return d
   }
 
-  /** Fades out every lane and marker at the cursor; the next lane starts at the top again. */
-  clear(): number {
+  /**
+   * Fades out every lane and marker at the cursor; the next lane starts at the top again. With
+   * `keep`, they fade only to that opacity and stay under the next round, which then uses their scale.
+   */
+  clear(opts: { keep?: number } = {}): number {
+    const keep = opts.keep ?? 0
     let d = 0
-    for (const l of this.lanes) if (l.round === this.round) d = l.kept.to(0, 'out')
+    for (const l of this.lanes) if (l.round === this.round) d = l.kept.to(keep, 'out')
+    if (keep > 0) this.scaleOf.set(this.round + 1, this.round)
     this.round++
     this.bottom = null
     return d
   }
 
+  /** A round drawn over a kept one, and the kept round whose scale it uses. */
+  private readonly scaleOf = new Map<number, number>()
   private axes = new Map<number, { t0: number; pps: number }>()
 
   /**
@@ -213,7 +222,8 @@ export class Server extends Panel {
     const t0 = started.length ? Math.min(...started.map((l) => l.startAt)) : 0
     const ended = started.length > 0 && started.every((l) => Number.isFinite(l.endAt))
     const t1 = ended ? Math.max(...started.map((l) => l.endAt)) : 0
-    const pps = ended ? (started[0].width * 0.86) / Math.max(t1 - t0, 0.001) : this.pps
+    const under = this.scaleOf.get(round)
+    const pps = under !== undefined ? this.axis(under).pps : ended ? (started[0].width * 0.86) / Math.max(t1 - t0, 0.001) : this.pps
     const axis = { t0, pps }
     this.axes.set(round, axis)
     return axis

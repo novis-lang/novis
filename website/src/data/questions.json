@@ -24,7 +24,7 @@
   },
   "/guides/": {
     "feature": "guides/index.mdx",
-    "hash": "1b9cad90d38e0794",
+    "hash": "ec4413d918815a65",
     "questions": [
       "Which guide should I read first?",
       "Step by step guides with small programs I can run",
@@ -630,7 +630,7 @@
   },
   "/guides/walkthroughs/": {
     "feature": "guides/walkthroughs/index.mdx",
-    "hash": "17af880bd5632b24",
+    "hash": "6d0536b6c411df54",
     "questions": [
       "Animations that show what happens while my program runs",
       "Watch a request step by step in the browser and on the server",
@@ -650,12 +650,13 @@
   },
   "/guides/walkthroughs/page-now/": {
     "feature": "guides/walkthroughs/page-now.mdx",
-    "hash": "fc9cd0b4bc7d4d72",
+    "hash": "736a29f39290d35a",
     "questions": [
       "Show the page at once and fill in slow parts later",
-      "Animation of a page whose slow parts arrive when ready",
+      "Load slow parts of a page without a JavaScript fetch or extra API routes",
       "Load slow sections of a page in the same request",
-      "How can a page appear fast when one part is slow?"
+      "How can a page appear fast when one part is slow?",
+      "Lazy load page sections without writing a script"
     ]
   },
   "/guides/why-novis/": {

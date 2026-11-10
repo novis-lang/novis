@@ -52,10 +52,13 @@ function runs(node, style, out) {
   return out
 }
 
-/** Each line of `text`, coloured the way `<Snippet>` colours Novis code, as runs `[text, style]`. */
-export async function colourLines(text) {
+/**
+ * Each line of `text`, coloured the way `<Snippet>` colours code in `language`, as runs `[text,
+ * style]`. The language is Novis unless the caller names another, such as `js`.
+ */
+export async function colourLines(text, language = 'novis') {
   const ec = await expressiveCode()
-  const { renderedGroupAst } = await ec.render({ code: text, language: 'novis', meta: '' })
+  const { renderedGroupAst } = await ec.render({ code: text, language, meta: '' })
   // Expressive Code writes an empty line as a line break, so the line keeps its height.
   return withClass(renderedGroupAst, 'ec-line').map((line) => runs(withClass(line, 'code')[0] ?? line, '', []).filter(([t]) => t !== '\n'))
 }

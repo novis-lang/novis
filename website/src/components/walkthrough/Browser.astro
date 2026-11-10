@@ -14,9 +14,11 @@ interface Props {
   url: string
   /** The tab's title. */
   tab: string
+  /** How many requests the Network panel has room for; 3 when not given. */
+  rows?: number
 }
 
-const { name, place, url, tab } = Astro.props
+const { name, place, url, tab, rows = 3 } = Astro.props
 const [host, ...rest] = url.split('/')
 ---
 
@@ -35,7 +37,7 @@ const [host, ...rest] = url.split('/')
     <div class="wt-page">
       <slot />
     </div>
-    <div class="wt-devtools">
+    <div class="wt-devtools" style={`--wt-dt-rows: ${rows}`}>
       <div class="wt-dt-head"><b>Network</b><span>Name</span><span class="wt-dt-count">0 requests</span></div>
       <div class="wt-rows"></div>
     </div>

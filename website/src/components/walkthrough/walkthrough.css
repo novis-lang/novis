@@ -114,7 +114,32 @@
   color: var(--wt-text);
 }
 
-/* Editor */
+/* Editor: one sheet per file, on top of each other, and a tab per file when there are several. */
+.wt-etabs {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+.wt-etab {
+  overflow: hidden;
+  max-width: calc(var(--open, 1) * 220px);
+  padding: 4px calc(var(--open, 1) * 12px);
+  border-radius: 8px;
+  font-family: var(--sl-font-mono);
+  font-size: 16px;
+  white-space: nowrap;
+  color: color-mix(in oklab, var(--wt-text) calc(55% + var(--on, 0) * 45%), transparent);
+  background: color-mix(in oklab, var(--wt-line-strong) calc(var(--on, 0) * 100%), transparent);
+  opacity: var(--open, 1);
+}
+.wt-sheets {
+  position: relative;
+  flex: 1;
+}
+.wt-sheets > .wt-code {
+  position: absolute;
+  inset: 0;
+}
 .wt-code {
   position: relative;
   flex: 1;
@@ -247,7 +272,8 @@
 }
 .wt-devtools {
   flex: none;
-  height: 168px;
+  /* The head, and one 40-pixel line per request the panel has room for. */
+  height: calc(48px + var(--wt-dt-rows, 3) * 40px);
   border-top: 1px solid var(--wt-line-strong);
   background: var(--wt-win-2);
   font-size: 16px;

@@ -1,0 +1,15 @@
+<?nvs
+Account::check();
+echo html`<h1>Welcome back</h1>
+<div id="posts">Loading posts…</div>
+<div id="deals">Loading deals…</div>
+<script src="/home.js"></script>`;
+
+// stage: cut
+// The walkthrough shows only the lines above. This class lets the program run.
+class Account
+{
+    // A real site checks the visitor's login here.
+    public static function check(): void
+    {}
+}

@@ -932,7 +932,7 @@ const REPLAY_RE = /<Replay\s+src=["']([^"']+)["']/g;
 const TERMINAL_RE = /<Terminal\s+src=["']([^"']+)["']/g;
 const SHOT_RE = /<Shot\s+src=["']([^"']+)["']/g;
 /** A walkthrough `<Editor>` tag's `src`, a snippet path, wherever it is among the attributes. */
-const EDITOR_RE = /<Editor\b[^>]*?\ssrc=["']([^"']+)["']/g;
+const EDITOR_RE = /<Editor\b[^>]*?\ssrc=(?:["']([^"']+)["']|\{\[([^\]]*)\]\})/g;
 /** Where the walkthrough scenes are: each `<Name>.astro` is shown on a page as `<Name />`. */
 const SCENES = "website/src/components/walkthrough/scenes";
 
@@ -1002,9 +1002,12 @@ export function snippetShape(root: string = ROOT): { problems: string[]; snippet
   for (const scene of walkthroughScenes(root)) {
     if (!pages(root).some((page) => new RegExp(`<${scene.name}\\b`).test(page.text))) continue;
     for (const m of scene.text.matchAll(EDITOR_RE)) {
-      const src = m[1]!;
-      used.add(src);
-      if (!existsSync(join(root, SNIPPETS, src))) problems.push(`${scene.path}: <Editor src="${src}"/> names no file under ${SNIPPETS}/`);
+      // `src` is one path, or a list of paths for a window with several files.
+      const srcs = m[1] !== undefined ? [m[1]] : [...m[2]!.matchAll(/["']([^"']+)["']/g)].map((s) => s[1]!);
+      for (const src of srcs) {
+        used.add(src);
+        if (!existsSync(join(root, SNIPPETS, src))) problems.push(`${scene.path}: <Editor src="${src}"/> names no file under ${SNIPPETS}/`);
+      }
     }
   }
   for (const t of terms) if (!used.has(t.slice(SNIPPETS.length + 1))) problems.push(`${t}: no page shows it`);
