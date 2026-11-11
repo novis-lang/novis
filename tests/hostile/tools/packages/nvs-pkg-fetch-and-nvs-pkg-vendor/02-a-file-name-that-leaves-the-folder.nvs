@@ -1,0 +1,68 @@
+<?nvs
+// Attack: a package archive gives its files names that point outside the package folder.
+// Every name below should be stopped before a file is written.
+
+// The checks for the path of one file inside a package.
+class PackagePath
+{
+    public function constructor()
+    {
+    }
+
+    // Throws an error unless the path is the path of one file inside the package.
+    // The parts of a path are the names between the `/` characters.
+    public static function check(string $path): void
+    {
+        foreach (Core\Str::split($path, '/') as string $part) {
+            if ($part == '' || $part == '.' || $part == '..') {
+                throw new RuntimeError('the path `' . $path . '` has an empty part, or a part that is `.` or `..`');
+            }
+            if (Core\Str::contains($part, '\\') || Core\Str::contains($part, ':')) {
+                throw new RuntimeError('the path `' . $path . '` has a character that a file name cannot have');
+            }
+        }
+    }
+}
+
+// 1. A name that starts with `/`. It points to a folder outside the package.
+// Each step below catches its error, so the next step still runs.
+try {
+    PackagePath::check('/etc/cron.d/job');
+    echo "1. the path from the top folder was accepted\n";
+} catch (Throwable $e) {
+    echo '1. stopped: ', $e->message, "\n";
+}
+
+// 2. A name that starts with `//`. On Windows it points to a shared folder on another computer.
+try {
+    PackagePath::check('//host/share/file.txt');
+    echo "2. the path to another computer was accepted\n";
+} catch (Throwable $e) {
+    echo '2. stopped: ', $e->message, "\n";
+}
+
+// 3. A name with `..` in the middle. It goes up two folders, out of the package.
+try {
+    PackagePath::check('src/../../escaped.txt');
+    echo "3. the path with `..` was accepted\n";
+} catch (Throwable $e) {
+    echo '3. stopped: ', $e->message, "\n";
+}
+
+// 4. A name that ends in `/`. It names a folder, not a file.
+try {
+    PackagePath::check('src/');
+    echo "4. the path of a folder was accepted\n";
+} catch (Throwable $e) {
+    echo '4. stopped: ', $e->message, "\n";
+}
+
+// 5. The empty name.
+try {
+    PackagePath::check('');
+    echo "5. the empty path was accepted\n";
+} catch (Throwable $e) {
+    echo '5. stopped: ', $e->message, "\n";
+}
+
+echo "done\n";

@@ -693,7 +693,10 @@ impl Walk<'_> {
         Ok(manifest)
     }
 
-    /// The entries of the tree `id`: each name, its mode and its object.
+    /// The entries of the tree `id`: each name, its mode and its object. Each name is one file or
+    /// folder name, never empty and with no `/`, also for an entry the archive does not carry. A
+    /// repository `git` made never holds another
+    /// (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`).
     fn entries(
         &mut self,
         id: gix::ObjectId,
@@ -707,6 +710,13 @@ impl Walk<'_> {
                 let name = entry.filename.to_str().map_err(|_| {
                     fault(format!("`{}` has a file name that is not UTF-8", self.url))
                 })?;
+                if name.is_empty() || name.contains('/') {
+                    return Err(fault(format!(
+                        "`{}` has an entry named {name:?}. A name in a git folder is one file or \
+                         folder name, so it cannot be empty or contain `/`.",
+                        self.url
+                    )));
+                }
                 Ok((name.to_owned(), entry.mode, entry.oid.to_owned()))
             })
             .collect()
@@ -861,6 +871,110 @@ pub(crate) mod tests {
         ];
         files.extend_from_slice(extra);
         repository(dir, &files)
+    }
+
+    /// A tree entry named `/` and a path, a name holding `..` between `/`s, and the empty name
+    /// are each refused, naming the entry, and no file is written outside the clone's folder.
+    /// `git` never makes such a tree, so the test writes the tree object itself.
+    #[test]
+    fn a_tree_entry_that_is_not_one_name_is_refused() {
+        let scratch = nvs_repo::scratch("git-one-name");
+        let rooted: Vec<String> = scratch
+            .components()
+            .filter_map(|part| match part {
+                std::path::Component::Normal(name) => Some(name.to_string_lossy().into_owned()),
+                _ => None,
+            })
+            .collect();
+        let landing = scratch.join("landing");
+        let names = [
+            format!("/{}/landing/escaped.txt", rooted.join("/")),
+            "src/../../escaped.txt".to_owned(),
+            String::new(),
+        ];
+        for (i, name) in names.iter().enumerate() {
+            let repo_dir = scratch.join(format!("repo-{i}"));
+            let repo = gix::init_bare(&repo_dir).expect("the test makes a repository");
+            let blob = |contents: &[u8]| {
+                repo.write_blob(contents)
+                    .expect("the test writes a file")
+                    .detach()
+            };
+            let mut entries = vec![
+                gix::objs::tree::Entry {
+                    mode: gix::objs::tree::EntryKind::Blob.into(),
+                    filename: "LICENSE".into(),
+                    oid: blob(b"MIT\n"),
+                },
+                gix::objs::tree::Entry {
+                    mode: gix::objs::tree::EntryKind::Blob.into(),
+                    filename: "package.toml".into(),
+                    oid: blob(b"[package]\nname = 'Acme\\Git'\nversion = \"1.0.0\"\n"),
+                },
+                gix::objs::tree::Entry {
+                    mode: gix::objs::tree::EntryKind::Blob.into(),
+                    filename: name.as_str().into(),
+                    oid: blob(b"escaped\n"),
+                },
+            ];
+            entries.sort();
+            let tree = repo
+                .write_object(gix::objs::Tree { entries })
+                .expect("the test writes the tree")
+                .detach();
+            let person = gix::actor::Signature {
+                name: "Test".into(),
+                email: "test@example.com".into(),
+                time: gix::date::Time::new(0, 0),
+            };
+            let mut committer = gix::date::parse::TimeBuf::default();
+            let mut author = gix::date::parse::TimeBuf::default();
+            let rev = repo
+                .new_commit_as(
+                    person.to_ref(&mut committer),
+                    person.to_ref(&mut author),
+                    "one",
+                    tree,
+                    std::iter::empty::<gix::ObjectId>(),
+                )
+                .expect("the test commits")
+                .id
+                .to_hex()
+                .to_string();
+            let url = format!("file:{}", repo_dir.display());
+            let work = scratch.join(format!("work-{i}"));
+            fs::create_dir_all(&work).expect("the test makes the work folder");
+            let fault =
+                clone(&url, &rev, &work, &work, LIMITS, &Outbound::default()).expect_err(name);
+            assert!(
+                fault.0.contains(&format!("{name:?}")),
+                "{name:?}: {}",
+                fault.0
+            );
+            assert!(
+                !landing.exists(),
+                "{name:?} wrote under {}",
+                landing.display()
+            );
+            assert!(
+                !escaped(&scratch),
+                "{name:?} wrote an `escaped.txt` under {}",
+                scratch.display()
+            );
+        }
+    }
+
+    /// Whether any file named `escaped.txt` lies under `dir`.
+    fn escaped(dir: &Path) -> bool {
+        fs::read_dir(dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .any(|item| {
+                let path = item.path();
+                path.file_name().is_some_and(|file| file == "escaped.txt")
+                    || (path.is_dir() && escaped(&path))
+            })
     }
 
     /// The clone of a `file:` remote is the package at that commit, packed: only the archive's

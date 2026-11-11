@@ -112,21 +112,9 @@ pub(crate) fn check_form(downloads: &[Download]) -> Result<(), String> {
     Ok(())
 }
 
-/// The path rules of one entry's `path`: a relative path to one file, written with `/`, that the
-/// archive's rules accept, that does not end in `.nvs` and is not under `src/`.
+/// The path rules of one entry's `path`: a path [`pack::check_path`] accepts, which is the path
+/// of one file inside the package, that does not end in `.nvs` and is not under `src/`.
 fn check_path(path: &str) -> Result<(), String> {
-    let bad = path.is_empty()
-        || path.starts_with('/')
-        || path.contains('\\')
-        || path
-            .split('/')
-            .any(|part| part.is_empty() || part == "." || part == "..");
-    if bad {
-        return Err(format!(
-            "the download path `{path}` must be the path of one file inside the package, \
-             written with `/`, such as `fonts/Big.otf`."
-        ));
-    }
     pack::check_path(path).map_err(|refusal| refusal.to_string())?;
     if path.to_lowercase().ends_with(".nvs") {
         return Err(format!(
@@ -685,10 +673,10 @@ mod tests {
             ("64 lowercase hex", |e| e.sha256 = "AB".repeat(32)),
             ("above zero", |e| e.size = 0),
             ("SPDX", |e| e.license = Some("MIT OR Apache".to_owned())),
-            ("written with `/`", |e| e.path = "../outside.otf".to_owned()),
+            ("`.` or `..`", |e| e.path = "../outside.otf".to_owned()),
             ("ends in `.nvs`", |e| e.path = "fonts/Code.nvs".to_owned()),
             ("under `src/`", |e| e.path = "src/Big.otf".to_owned()),
-            ("written with `/`", |e| e.path = "/abs.otf".to_owned()),
+            ("an empty part", |e| e.path = "/abs.otf".to_owned()),
         ];
         for (said, change) in cases {
             let mut bad = good.clone();

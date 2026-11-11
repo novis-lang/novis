@@ -11,7 +11,8 @@
 //!
 //! **Each package is unpacked into `vendor/<vendor>/<name>/`** ([`unpack`]), its slug as a path,
 //! so its folder does not move when its version does.
-//! Every entry of the archive is a regular file at a path [`pack::check_path`] accepts, within
+//! Every entry of the archive is a regular file at a path [`pack::check_path`] accepts, so no
+//! part of it is empty, `.` or `..`, within
 //! [`pack::MAX_FILES`] and [`pack::MAX_BYTES`], so a hostile archive writes nothing outside its
 //! folder, and none is an `nvs.toml` ([`pack::check_not_server_config`],
 //! `rule:packaging/a-package-cannot-reach-its-host`). The folder is written beside its place and renamed into it, so a failed fetch leaves
@@ -496,8 +497,8 @@ fn holds(dir: &Path, digest: &blake3::Hash) -> bool {
 ///
 /// # Errors
 ///
-/// An entry that is not a regular file, a path [`pack::check_path`] refuses or with an empty
-/// part, an `nvs.toml` ([`pack::check_not_server_config`]), an archive over [`pack::MAX_FILES`]
+/// An entry that is not a regular file, a path [`pack::check_path`] refuses, such as one with
+/// an empty, `.` or `..` part, an `nvs.toml` ([`pack::check_not_server_config`]), an archive over [`pack::MAX_FILES`]
 /// or [`pack::MAX_BYTES`], and a failed write.
 pub(crate) fn unpack(archive: &[u8], dir: &Path) -> Result<(), Fault> {
     let mut partial = dir.as_os_str().to_owned();
@@ -533,9 +534,6 @@ fn unpack_into(archive: &[u8], into: &Path) -> Result<(), Fault> {
             String::from_utf8(path_bytes).map_err(|_| bad("a path is not UTF-8".to_owned()))?;
         if entry.header().entry_type() != tar::EntryType::Regular {
             return Err(bad(format!("`{path}` is not a regular file")));
-        }
-        if path.split('/').any(str::is_empty) {
-            return Err(bad(format!("`{path}` has an empty part")));
         }
         pack::check_path(&path).map_err(|refusal| bad(refusal.to_string()))?;
         pack::check_not_server_config(&path).map_err(|refusal| bad(refusal.to_string()))?;

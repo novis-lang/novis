@@ -14,7 +14,8 @@ at the package root, and exactly the files `package.toml`'s `files` list names, 
   build and the fetch, and neither has a setting. A file too large for them is an external download
   (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`).
 - **Every path works on every platform.** It is UTF-8 in NFC, at most 160 bytes, and no two paths are
-  equal ignoring case. No component is a name Windows reserves (`CON`, `PRN`, `AUX`, `NUL`, `COM1` to
+  equal ignoring case. No component is empty, `.` or `..`, so the empty path, a leading `/`, `//` and a
+  trailing `/` are refused too. No component is a name Windows reserves (`CON`, `PRN`, `AUX`, `NUL`, `COM1` to
   `COM9`, `LPT1` to `LPT9`, with any extension), contains a control character or one of `<>:"\|?*`, or
   ends in a dot or a space. 160 bytes leaves room under the Windows path limit for the folder a package
   is fetched into.
@@ -79,6 +80,14 @@ nothing per request.
 (`crates/nvs-cli/src/package/pack.rs`, whose `MAX_BYTES` and `MAX_FILES` are the two constants).
 It refuses a symbolic link anywhere it reads, since a link would make the set depend on what lies
 outside the package.
+
+**One function judges every package path:** `pack::check_path`. The pack's `files` list, the fetch's
+unpack of an archive, a `[[download]]` path and the git walk of a commit's tree all call it, and none
+checks the parts of a path again, so no reader can drift from the others. A reader that needs words
+of its own adds them around the shared refusal. The git walk also refuses a tree entry whose name is
+empty or holds `/`, for every entry of every tree it reads: a name in a git folder is one file or
+folder name, and a repository `git` made never holds another
+(`crates/nvs-cli/src/package/git.rs`'s `Walk::entries`).
 
 `nvs pkg fetch` writes each package's set to `vendor/package-files.toml`
 (`crates/nvs-cli/src/package/fetch.rs`), `nvs_config::package` reads it onto each vendored package,

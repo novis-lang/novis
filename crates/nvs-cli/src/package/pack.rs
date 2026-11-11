@@ -196,8 +196,8 @@ fn write_file(entries: &[Entry], target: &Path) -> Result<blake3::Hash, Refusal>
 ///
 /// A missing license file, a listed file that is missing, is not a regular file, ends in `.nvs`
 /// or is already in the default set, two `.nvsx` files, a symlink, an `nvs.toml`, a path
-/// [`check_path`] refuses, two paths equal ignoring case, or a set over [`MAX_FILES`] or
-/// [`MAX_BYTES`].
+/// [`check_path`] refuses, such as a `files` line with an empty, `.` or `..` part, two paths
+/// equal ignoring case, or a set over [`MAX_FILES`] or [`MAX_BYTES`].
 pub(crate) fn file_set(dir: &Path, manifest: &Manifest) -> Result<Vec<Entry>, Refusal> {
     let mut entries = Vec::new();
     entries.push(regular(dir, nvs_config::grants::FILE)?);
@@ -224,7 +224,6 @@ pub(crate) fn file_set(dir: &Path, manifest: &Manifest) -> Result<Vec<Entry>, Re
     }
     let defaults = entries.len();
     for listed in &manifest.files {
-        listed_form(listed)?;
         check_path(listed)?;
         let folded = listed.to_lowercase();
         if folded.ends_with(".nvs") {
@@ -423,30 +422,17 @@ fn symlink(path: &str) -> Refusal {
     ))
 }
 
-/// A `files` line is a relative path to one file, written with `/`.
-fn listed_form(listed: &str) -> Result<(), Refusal> {
-    let bad = listed.is_empty()
-        || listed.starts_with('/')
-        || listed.contains('\\')
-        || listed
-            .split('/')
-            .any(|part| part.is_empty() || part == "." || part == "..");
-    if bad {
-        return Err(refuse(format!(
-            "`files` lists `{listed}`. Each line must be the path of one file inside the \
-             package, written with `/`, such as `templates/error.html`."
-        )));
-    }
-    Ok(())
-}
-
-/// Whether `path` works as a file path on every platform.
+/// Whether `path` is the path of one file inside a package that works on every platform. It is
+/// the one judge of a package path: the pack, the fetch's unpack, a download and the git walk all
+/// call it, and none checks the parts again
+/// (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`).
 ///
 /// # Errors
 ///
 /// The reason, as a sentence that names the path: it is not NFC, it is over
-/// [`MAX_PATH_BYTES`], or a component is a reserved Windows name, contains a control character
-/// or one of `<>:"\|?*`, or ends in a dot or a space.
+/// [`MAX_PATH_BYTES`], or a component is empty, `.` or `..`, is a reserved Windows name,
+/// contains a control character or one of `<>:"\|?*`, or ends in a dot or a space. So the empty
+/// path, a leading `/`, `//` and a trailing `/` are refused too.
 pub(crate) fn check_path(path: &str) -> Result<(), Refusal> {
     if !unicode_normalization::is_nfc(path) {
         return Err(refuse(format!(
@@ -461,6 +447,13 @@ pub(crate) fn check_path(path: &str) -> Result<(), Refusal> {
         )));
     }
     for part in path.split('/') {
+        if part.is_empty() || part == "." || part == ".." {
+            return Err(refuse(format!(
+                "the path `{path}` has an empty part, or a part that is `.` or `..`. Write the \
+                 path of one file inside the package, with `/` between folders, such as \
+                 `templates/error.html`."
+            )));
+        }
         let stem = part.split('.').next().unwrap_or(part).to_ascii_lowercase();
         if RESERVED_NAMES.contains(&stem.as_str()) {
             return Err(refuse(format!(
@@ -718,20 +711,107 @@ mod tests {
         }
     }
 
+    /// Paths that are not the path of one file inside the package, each with an empty, `.` or
+    /// `..` part.
+    const NOT_ONE_FILE: [&str; 11] = [
+        "",
+        "/abs.txt",
+        "//host/share.txt",
+        "a//b.txt",
+        "src/",
+        ".",
+        "..",
+        "./a.txt",
+        "../a.txt",
+        "a/./b.txt",
+        "a/../b.txt",
+    ];
+
+    /// The words of [`check_path`]'s refusal of an empty, `.` or `..` part.
+    const NOT_ONE_FILE_SAID: &str = "has an empty part, or a part that is `.` or `..`";
+
     #[test]
-    fn a_files_line_must_be_one_relative_path() {
-        for line in [
-            "",
-            "/abs.txt",
-            "a//b.txt",
-            "./a.txt",
-            "../a.txt",
-            "a/../b.txt",
-            "a\\b.txt",
-        ] {
-            assert!(listed_form(line).is_err(), "accepted {line:?}");
+    fn an_empty_dot_or_dot_dot_part_is_refused() {
+        for path in NOT_ONE_FILE {
+            let refusal = check_path(path).expect_err(path);
+            assert!(refusal.0.contains(NOT_ONE_FILE_SAID), "{path:?}: {refusal}");
         }
-        assert!(listed_form("templates/error.html").is_ok());
+        assert!(check_path("a\\b.txt").is_err());
+        assert_eq!(check_path("templates/error.html"), Ok(()));
+    }
+
+    /// The pack's `files` list, the fetch's unpack and a download's form all refuse each path of
+    /// [`NOT_ONE_FILE`] with [`check_path`]'s sentence.
+    #[test]
+    fn every_reader_of_a_package_path_refuses_the_same_parts() {
+        let scratch = nvs_repo::scratch("pack-one-judge");
+        let package = scratch.join("package");
+        fs::create_dir_all(&package).expect("the test makes the package folder");
+        fs::write(package.join(nvs_config::grants::FILE), "")
+            .expect("the test writes the manifest");
+        fs::write(package.join("LICENSE"), "MIT").expect("the test writes the license");
+        let mut manifest = manifest::parse(
+            &mut SourceMap::new(),
+            &package.join(nvs_config::grants::FILE),
+            "",
+        )
+        .expect("an empty manifest reads");
+        assert!(
+            file_set(&package, &manifest).is_ok(),
+            "the package itself packs"
+        );
+
+        for path in NOT_ONE_FILE {
+            manifest.files = vec![path.to_owned()];
+            let said = file_set(&package, &manifest)
+                .map(|_| ())
+                .map_err(|refusal| refusal.0);
+            judged("`files`", path, said);
+
+            let download = manifest::Download {
+                path: path.to_owned(),
+                urls: vec!["https://example.com/file".to_owned()],
+                sha256: "a".repeat(64),
+                size: 1,
+                license: None,
+            };
+            judged(
+                "`[[download]]`",
+                path,
+                super::super::download::check_form(&[download]),
+            );
+
+            let mut bytes = Vec::new();
+            {
+                let mut builder = tar::Builder::new(&mut bytes);
+                let mut header = tar::Header::new_ustar();
+                // `set_path` refuses some of these names, so each is written into the header's
+                // bytes.
+                header.as_old_mut().name[..path.len()].copy_from_slice(path.as_bytes());
+                header.set_size(1);
+                header.set_entry_type(tar::EntryType::Regular);
+                header.set_cksum();
+                builder
+                    .append(&header, &b"x"[..])
+                    .expect("the entry writes");
+                builder.finish().expect("the archive ends");
+            }
+            let into = scratch.join("unpacked");
+            let said = super::super::fetch::unpack(&bytes, &into).map_err(|fault| fault.0);
+            judged("the fetch", path, said);
+            assert!(!into.exists(), "the fetch left a folder for {path:?}");
+        }
+    }
+
+    /// `said` is [`check_path`]'s refusal of `path`, as `reader` reported it.
+    fn judged(reader: &str, path: &str, said: Result<(), String>) {
+        match said {
+            Ok(()) => panic!("{reader} accepted the path {path:?}"),
+            Err(why) => assert!(
+                why.contains(NOT_ONE_FILE_SAID),
+                "{reader} refused {path:?} for another reason: {why}"
+            ),
+        }
     }
 
     #[test]
