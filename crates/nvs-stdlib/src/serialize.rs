@@ -124,7 +124,8 @@ const DECODE_DOC: MethodDoc = MethodDoc {
         error: "ParseError",
         desc: "`$payload` was not written by `encode()`, is incomplete, or has extra bytes at \
                the end. It is also thrown when it names a class this program does not have, or \
-               a class whose properties are different now.",
+               a class whose properties are different now. Bytes that name a generator, a \
+               function value or an open resource, such as a file, are not read either.",
     }],
 };
 

@@ -1,7 +1,11 @@
 `Core\Serialize::encode($x): bytes` runs the graph copy and encodes the result; `decode` runs it in
 reverse. The accepted format is Novis's own, versioned and self-describing enough to be checked before
 any object is built. A payload without the format marker is refused outright rather than best-effort
-parsed. A payload naming a class the receiving side cannot resolve is refused, naming the class. A
+parsed. A payload naming a class the receiving side cannot resolve is refused, naming the class.
+`decode` refuses every class `encode` refuses, with the same sentence, by asking the function
+`rule:classes/graph-copy` names once the class resolves. It asks before it compares a property or
+makes an object, so a refused payload builds nothing and its error does not print the class's layout.
+The cost is a few flag reads and one scan of the class's `secret` flags per decoded object. A
 payload whose recorded property set does not exactly match the target class's current declarations —
 one added, removed or retyped — is refused, naming the mismatch, never coerced and never filled with a
 default.

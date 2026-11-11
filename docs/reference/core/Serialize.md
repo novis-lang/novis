@@ -9,6 +9,8 @@ program declares, its declared properties assigned directly — no constructor r
 method runs either. A cycle is preserved as a cycle. `decode` answers
 `mixed`, so narrow it with `as`; it refuses foreign bytes, another format version, and a class whose
 declared properties no longer match with `ParseError`, and `encode` throws `LogicError` on a callable.
+`decode` does not read bytes that name a generator, a function value or an open resource, such as a
+file. It throws a `ParseError` for them.
 
 ```nvs
 <?nvs
