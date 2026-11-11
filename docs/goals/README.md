@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: [calls-by-name-are-checked, crossings-carry-data-only, package-files-contained, qualifiers-hold, package-authority-closed, registry-waits-hold, limits-hold, waits-are-bounded, sessions-scoped, database-doors, operator-surfaces, in-place-writes, request-path-per-core, fitted-dependencies, chain-ends-green]
+chain: [calls-by-name-are-checked, crossings-carry-data-only, package-files-contained, qualifiers-hold, package-authority-closed, registry-waits-hold, limits-hold, waits-are-bounded, sessions-scoped, database-doors, operator-surfaces, in-place-writes, request-path-per-core, fitted-dependencies, server-events, chain-ends-green]
 floor:
   - id: floor-debt
     name: every owed or red atom is paid green
@@ -37,7 +37,7 @@ floor:
 
 # Goals
 
-The chain holds 15 goal(s). `calls-by-name-are-checked` is live.
+The chain holds 16 goal(s). `calls-by-name-are-checked` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
@@ -55,7 +55,8 @@ The chain holds 15 goal(s). `calls-by-name-are-checked` is live.
 | 12 | [`in-place-writes`](in-place-writes.md) | Reached when a write into a row of an unshared array happens in place, an append to a property or element grows its string in place, an array passed at its last use is moved, and a retain or release that frees nothing makes no call, each held by a count guard that fails on faster than linear growth. | **1 a nested write into an unshared array happens in place** · 2 an append to a property or an element grows its string in place · 3 an append of an interpolated string writes its parts into the target · 4 an array or string passed at its last use is moved · 5 a literal is never retained or released · 6 a retain or release that frees nothing runs without a call · 7 the goal is verified once, and every failure is fixed |
 | 13 | [`request-path-per-core`](request-path-per-core.md) | Reached when the shared writes of one request are counted and guarded, a request reads its configuration, policy and compiled unit from its own core's record where the count confirms the cost, the inbound head is one buffer, static files are read off the core thread, and no setting is parsed from text per request. | **1 the shared writes of one request are counted and guarded** · 2 the door reads the publish and the policy from its core's record · 3 the handler reads its mount's snapshot, folder and unit from its core's record · 4 the request head is one buffer, and a dispatching unit keeps one copy of it · 5 a static file's calls run off the core · 6 a setting the door reads is parsed once per configuration · 7 the goal is verified once, and every failure is fixed |
 | 14 | [`fitted-dependencies`](fitted-dependencies.md) | Reached when Core\Json decodes and encodes without serde_json, without native recursion and without a stack switch, an integer literal outside int throws at any length, wasmtime builds with only the features the engine uses, and the built-in components are stored compressed and loaded before the first request. | **1 a JSON reader with its own stack reads every token, and agrees with serde_json on every saved input** · 2 decode, isValid and Request::json build values from the reader, with one allocation per key · 3 decodeAs and jsonAs fill classes from the reader on the task's own stack · 4 decodeEach reads through the same reader, and the spare stack leaves the tree · 5 the writer escapes each string in one pass, and Core\Json names serde_json only in its tests · 6 wasmtime builds with only the features the engine uses · 7 the built-in components are stored compressed, and a served program's are loaded before its first request · 8 the goal is verified once, and every failure is fixed |
-| 15 | [`chain-ends-green`](chain-ends-green.md) | Reached when origin/main holds every commit of the chain that a CI run builds, and the push runs of CI and Website on that commit ended green. The session pushes, watches the run, fixes every red job and pushes again until that holds. | **1 one command says whether main's tip is green** · 2 the goal is verified once, then pushed, watched and fixed until the run is green |
+| 15 | [`server-events`](server-events.md) | Reached when a [[schedule]] entry with on = start, stop, reload or failed runs its script on that event under nvs serve, is checked at boot, and has its feature proofs. | **1 the on key is checked at boot** · 2 start and stop entries run, and every run reads one map · 3 reload and failed entries run · 4 the server runs every event end to end, and the feature has its proofs · 5 the goal is verified once, and every failure is fixed |
+| 16 | [`chain-ends-green`](chain-ends-green.md) | Reached when origin/main holds every commit of the chain that a CI run builds, and the push runs of CI and Website on that commit ended green. The session pushes, watches the run, fixes every red job and pushes again until that holds. | **1 one command says whether main's tip is green** · 2 the goal is verified once, then pushed, watched and fixed until the run is green |
 
 Off the chain (side goals): [`release-green`](release-green.md).
 
