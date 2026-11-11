@@ -14,6 +14,8 @@ the class `T` from JSON text.
 ## Do and don't
 
 - Do write a constructor that takes every property, with the same names and types.
+- Do include the properties of the parent classes in that constructor. The JSON writes them first.
+- Do use a set of allowed values, such as `"draft"|"live"`, for a property with a few fixed values.
 - Do catch `ParseError` around `decodeAs` when the text comes from a user.
 - Do use `#[Core\Json\Field(skip: true)]` for a value that is only a cache.
 - Do declare a password that a request sends as `secret tainted string`. The decoder fills it, and

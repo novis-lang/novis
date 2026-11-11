@@ -5,6 +5,13 @@
   ],
   "themes": [
     {
+      "title": "JSON for more class shapes",
+      "text": "`#[Core\\Json\\Derive]` also reads and writes the properties a class inherits. A property can have a set of allowed values. `nvs meta --json` prints the JSON schema of each derived class.",
+      "goals": [
+        "derive-wider-types"
+      ]
+    },
+    {
       "title": "Fixes from a security review",
       "text": "A review of the whole runtime found places where a safety rule did not apply. Each place gets a fix and a test.",
       "goals": [
@@ -18,13 +25,6 @@
         "sessions-scoped",
         "database-doors",
         "operator-surfaces"
-      ]
-    },
-    {
-      "title": "JSON for more class shapes",
-      "text": "`#[Core\\Json\\Derive]` also reads and writes the properties a class inherits. A property can have a set of allowed values. `nvs meta --json` prints the JSON schema of each derived class.",
-      "goals": [
-        "derive-wider-types"
       ]
     },
     {

@@ -1365,13 +1365,14 @@
   },
   "/reference/cli/nvs-meta-json/": {
     "feature": "tools:cli/nvs-meta-json",
-    "hash": "42f483f2db81ea02",
+    "hash": "414f41b6d8591d36",
     "questions": [
       "Export the standard library documentation as JSON",
       "Get a machine-readable list of every Core class and method",
       "Which standard library functions need a permission?",
       "List every configuration key in a JSON file",
-      "Generate API documentation from my own classes and doc comments"
+      "Generate API documentation from my own classes and doc comments",
+      "Get the JSON schema of each class that encodes itself to JSON"
     ]
   },
   "/reference/cli/nvs-run/": {
