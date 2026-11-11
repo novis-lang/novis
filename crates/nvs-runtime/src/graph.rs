@@ -305,7 +305,7 @@ type Seen<N> = HashMap<*mut ObjHeader, N>;
 
 /// The one traversal. **Consumes one reference to `value`.**
 ///
-/// Every caller arranges that reference: [`copy_graph`] is handed one, and a
+/// Every caller arranges that reference: [`copy_graph_to`] is handed one, and a
 /// child slot is retained before it is descended into, so an adopted holder and
 /// a freshly built one take the same path through here.
 fn walk<C: Carrier>(
@@ -880,7 +880,7 @@ impl Carrier for Encode {
 ///
 /// # Errors
 ///
-/// [`GraphError`], exactly as [`copy_graph`] does: the two carriers refuse the
+/// [`GraphError`], exactly as [`copy_graph_to`] does: the two carriers refuse the
 /// same graphs because they share the walk that decides.
 ///
 /// Where the request's memory ceiling refused the buffer's growth, the result
