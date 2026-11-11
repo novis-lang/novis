@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-types/src/expr/type_test.rs, crates/nvs-types/src/locals.rs, docs/rules/security/secret-propagation.md, docs/rules/types/type-test.md]
   - id: 2
     title: "mixed keeps a secret only where secret mixed is written"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/assign.rs, crates/nvs-types/src/ty.rs, crates/nvs-types/src/lower.rs, docs/rules/types/unions-and-mixed.md]
   - id: 3
     title: "a call or a write with no static parameter list refuses a qualified value"
@@ -181,7 +181,12 @@ since `secret mixed` is `mixed` below the checker. Usability: a program that kee
 `mixed` bag writes `secret mixed`. Simplicity: one more type atom. Safe default if the new atom cannot
 be carried through `nvs-ir` in one stage: refuse a `secret` value into `mixed` everywhere, with the
 help naming `Core\Secret::reveal`. `mixed` already carries `tainted`, because text out of it is
-`tainted`. So there is no `tainted mixed`.
+`tainted`. So there is no `tainted mixed`. **Built:** every `Core` row's `mixed` parameter, not only
+the classified ones, keeps taking a `secret` argument. The argument is compared against the parameter
+with each `mixed` read as `secret mixed` (`mixed_admitting_secret`, `quals.rs`), so a plain `string`
+position still refuses it. Reason: the `reject_secret_*_argument` family refuses at each `Core` sink
+with its own code, and an `E0401` beside it would be a second report of one mistake. A parameter the
+program declares `mixed` refuses.
 
 **A `secret` value converts only to a type that can carry `secret`.** `$secret as int` does not
 compile. The help says to write `Core\Secret::reveal($value, "reason") as int`. This replaces the
@@ -310,26 +315,26 @@ whose target cannot carry `secret`.
 **Split:** an `Explore` subagent lists every match on `Ty::Mixed` in `nvs-ir`, `nvs-codegen`,
 `nvs-lsp`, `nvs-cli` and `nvs-stdlib`, as `file.rs:NN` and one line each, before the first edit.
 
-- [ ] `Ty` gains the `secret mixed` atom, and the type grammar accepts `secret mixed`
+- [x] `Ty` gains the `secret mixed` atom, and the type grammar accepts `secret mixed`
   (`rule:security/secret-qualifier`, `rule:types/grammar`, `crates/nvs-types/src/ty.rs:130`,
   `crates/nvs-types/src/lower.rs:44`, `crates/nvs-types/src/expr/quals.rs:441`).
-- [ ] `is_secret`, `contains_secret`, `carries_secret`, `unsecret` and `secret_result` know the atom,
+- [x] `is_secret`, `contains_secret`, `carries_secret`, `unsecret` and `secret_result` know the atom,
   and `secret_result(mixed)` is `secret mixed` (`crates/nvs-types/src/expr/quals.rs:429`,
   `crates/nvs-types/src/expr/quals.rs:575`, `crates/nvs-types/src/expr/quals.rs:1079`).
-- [ ] `assignable` refuses a value that contains `secret` into `mixed` and into a union with a `mixed`
+- [x] `assignable` refuses a value that contains `secret` into `mixed` and into a union with a `mixed`
   member, and accepts it into `secret mixed` (`rule:security/secret-qualifier`,
   `crates/nvs-types/src/expr/assign.rs:216`).
-- [ ] The refusal's message names `secret mixed`, and a sink that reports its own code still reports
+- [x] The refusal's message names `secret mixed`, and a sink that reports its own code still reports
   that one alone (`rule:types/one-mistake-reports-once`, `crates/nvs-types/src/expr/quals.rs:1164`).
-- [ ] Text out of `secret mixed` through `as` and `is` is `secret tainted`
+- [x] Text out of `secret mixed` through `as` and `is` is `secret tainted`
   (`rule:security/secret-propagation`, `crates/nvs-types/src/expr/quals.rs:832`,
   `crates/nvs-types/src/expr/type_test.rs:128`).
-- [ ] Every site the subagent listed treats `secret mixed` as `mixed` below the checker
+- [x] Every site the subagent listed treats `secret mixed` as `mixed` below the checker
   (`crates/nvs-ir/src/lower/expr.rs:4540`).
-- [ ] Tests `a_secret_value_enters_mixed_only_where_secret_mixed_is_written` (every placement the
+- [x] Tests `a_secret_value_enters_mixed_only_where_secret_mixed_is_written` (every placement the
   standing decision lists), `text_out_of_secret_mixed_is_secret_and_tainted` and
   `every_secret_sink_refuses_a_secret_mixed` (`crates/nvs-types/tests/qualifiers_hold.rs:1`).
-- [ ] `rule:security/secret-qualifier` names the three carriers, and `rule:types/unions-and-mixed`
+- [x] `rule:security/secret-qualifier` names the three carriers, and `rule:types/unions-and-mixed`
   names `secret mixed` (`docs/rules/security/secret-qualifier.md:1`, `docs/rules/types/unions-and-mixed.md:1`).
 
 ### 3. a call or a write with no static parameter list refuses a qualified value
@@ -492,46 +497,41 @@ disjoint folders side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done and its check is green. A type test puts the subject's qualifiers back on the tested
-type (`keep_subject_qualifiers`, `crates/nvs-types/src/expr/type_test.rs`), and `type_test_residue`
-calls it once more against the variable's current type. `always_holds` compares the two sides with
-`erased_qualifiers` (`crates/nvs-types/src/expr/quals.rs`). A `secret` operand converted to a type
-with no `secret` form is `E0894` (`E_SECRET_CONVERSION_LOSES_SECRET`,
-`reject_secret_conversion_loss`), asked only where no other refusal of the conversion reported. A
-shape conversion over a class that names a `secret` property is `E0894` too
-(`reject_secret_property_in_shape`). `nvs-ir`'s two type-test maps take the `secret` atoms
-(`crates/nvs-ir/src/lower/expr.rs` `test_shape`, `crates/nvs-ir/src/lower/mod.rs` param tag word).
-`crates/nvs-types/tests/secret.rs`'s old accepted-gap test now expects `E0894`.
+Stages 1 and 2 are done, and their checks are green. `Ty::SecretMixed` (`TypeAtom::SecretMixed`) is
+`secret mixed`. `assignable` refuses a value that `contains_secret` into `mixed`, and
+`secret_into_mixed_help` names `secret mixed` on `E0401` and `E0403`. A `Core` row's `mixed`
+parameter still takes a `secret` (`mixed_admitting_secret`, `args.rs`). An element read out of
+`secret mixed` is `secret mixed`. A property read, a method call, a `foreach` and an operator over it
+do not compile yet, which is safe. `nvs-ir` erases it to `Ty::Tagged`. The sweep's reds were stale:
+no file defines `env-secret-proofs`, and `305c04f660` fixed the nightly's `live_config` test.
 
 Expected red at the gate: any `.nvst` case, example or test that converts a `secret` value to a
 number, a bool, an enum or a class, or that narrows a `tainted` value with `is` and then passes it to
-a plain `string` sink. Stage 7 updates them.
+a plain `string` sink. From stage 2 also: any program that puts a `secret` value into a parameter,
+property, variable or `array<mixed>` the program declares `mixed`, and any test that expects
+`$secret as mixed` to be `E0894` (it now compiles as `secret mixed`). Stage 7 updates them.
 
 ### Next
 
-Stage 2, over `crates/nvs-types/src/ty.rs`, `crates/nvs-types/src/lower.rs`,
-`crates/nvs-types/src/expr/quals.rs`, `crates/nvs-types/src/expr/assign.rs` and
-`crates/nvs-types/tests/qualifiers_hold.rs`. Follow the stage's `**Split:**` line first: an `Explore`
-subagent lists every match on `Ty::Mixed` below the checker.
+Stage 3, over `crates/nvs-types/src/expr/calls.rs`, `crates/nvs-types/src/expr/quals.rs`,
+`crates/nvs-types/src/expr/assign.rs`, `crates/nvs-stdlib/src/reflect.rs` and
+`crates/nvs-types/tests/qualifiers_hold.rs`.
 
-- [ ] `crates/nvs-types/src/ty.rs:130`, `crates/nvs-types/src/lower.rs:44`: `Ty` gains the
-  `secret mixed` atom, and the type grammar accepts `secret mixed`.
-- [ ] `crates/nvs-types/src/expr/quals.rs:429`: `is_secret`, `contains_secret`, `carries_secret`,
-  `unsecret`, `secret_result` and `erased_qualifiers` know the atom, and `secret_result(mixed)` is
-  `secret mixed`. Check `reject_secret_conversion_loss`: `$s as mixed` is refused today, and with the
-  atom it should compile as `secret mixed`.
-- [ ] `crates/nvs-types/src/expr/assign.rs:216`: `assignable` refuses a value that contains `secret`
-  into `mixed` and into a union with a `mixed` member, and accepts it into `secret mixed`. The message
-  names `secret mixed`, and a sink that reports its own code still reports that one alone.
-- [ ] `crates/nvs-types/src/expr/quals.rs:861`: text out of `secret mixed` through `as` and `is` is
-  `secret tainted` (`apply_qualifier_conversion_rule`, `keep_subject_qualifiers`).
-- [ ] `crates/nvs-ir/src/lower/expr.rs:4540`: every site the subagent listed treats `secret mixed` as
-  `mixed` below the checker.
-- [ ] `crates/nvs-types/tests/qualifiers_hold.rs:1`: tests
-  `a_secret_value_enters_mixed_only_where_secret_mixed_is_written`,
-  `text_out_of_secret_mixed_is_secret_and_tainted` and `every_secret_sink_refuses_a_secret_mixed`.
-- [ ] `docs/rules/security/secret-qualifier.md:1`, `docs/rules/types/unions-and-mixed.md:1`: name the
-  three carriers and `secret mixed`.
+- [ ] `crates/nvs-types/src/expr/calls.rs:2023`: one function in `quals.rs` (beside
+  `contains_secret`, `crates/nvs-types/src/expr/quals.rs:1193`) refuses an argument that carries
+  `tainted`, `secret` or unchecked text, and `report_args_with_no_parameter_list` calls it.
+- [ ] `crates/nvs-types/src/expr/calls.rs:2417`: the spread path of `check_call_through_signature`
+  calls it for the spread subject's element type.
+- [ ] `crates/nvs-types/src/expr/assign.rs:1229`: a property write through `mixed` or `object` calls
+  it for the written value.
+- [ ] `crates/nvs-stdlib/src/reflect.rs:661`: the value parameters of `ClassInfo::set`, `call` and
+  `construct` carry one mark, and the checker calls the same function for a marked parameter.
+- [ ] `crates/nvs-stdlib/src/reflect.rs:342`: the name parameters become `Qual::Sink`, and their
+  reference cards say `tainted` text is not allowed.
+- [ ] `crates/nvs-types/tests/qualifiers_hold.rs:1`, `crates/nvs-stdlib/tests/taint_signatures.rs:150`:
+  the stage's four tests.
+- [ ] `docs/rules/types/callable-signature.md:1`, `docs/rules/types/erased-member-access.md:1`,
+  `docs/rules/security/sink-predicate.md:1`: each states the refusal.
 
 ### Backlog
 
