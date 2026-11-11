@@ -544,6 +544,10 @@ pub enum SlotCheck {
     Any,
     /// A value of this representation, which has exactly one tag.
     Repr(Ty),
+    /// A value of this representation whose raw payload is one of these,
+    /// sorted and without duplicates: an enum's case values, or the one value
+    /// of an enum case or a single-value type (`rule:enums/representation`).
+    Values(Ty, Vec<u64>),
     /// An object whose class conforms to this label.
     Class(String),
     /// An array whose every value passes the inner check.

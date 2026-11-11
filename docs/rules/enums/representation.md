@@ -7,7 +7,10 @@ Materialized into a tagged value — a `mixed`, an `array<mixed>` element, an er
 case takes an **enum tag of its own**, one per backing type: `EnumInt` over an `int` payload and
 `EnumUint` over a `uint` one. A condition, a type test, an anonymous function parameter's check and a declared
 slot's write check read that tag, so a case in a `mixed` is always truthy (`rule:enums/truthiness`),
-`is int` is `false` for it and `is` an enum is `false` for a plain integer. Every reader that only
+`is int` is `false` for it and `is` an enum is `false` for a plain integer. A type test and a declared
+slot's write check also test the payload against the enum's case values, so a value no case has is
+refused. A case of another enum with the same backing passes when this enum has a case of that value,
+and it is this enum's case from then on, as `$any as Rank` converts an integer. Every reader that only
 decodes the value — printing, conversion and the `==` comparison — reads it as its backing integer. The tag
 names no enum, so two enums with the same backing are not told apart in a `mixed`. `Core\Serialize`
 writes a case as a node kind of its own over the same payload, so a case read back from it, from
@@ -26,7 +29,9 @@ case in a `mixed` as `int` or `uint`.
 Crossing an isolate boundary copies a plain scalar, with no object identity to preserve or discard.
 
 - **Memory:** an enum value costs exactly what its `int` or `uint` costs, in the same payload. Nothing
-  is held per enum, per request or per isolate: no case table, no singleton and no type descriptor.
+  is held per value, per request or per isolate: no singleton and no type descriptor. A declared slot
+  of an enum type holds the enum's sorted case values on its class descriptor, once per process, and
+  a write by name pays one binary search over them.
 
 **Declined:**
 - **A case keeping the `Int` or `Uint` tag in a `mixed`.** A case backed by `0` would then be falsy

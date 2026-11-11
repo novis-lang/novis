@@ -421,6 +421,137 @@ echo (new Loud(\"!\"))->greet(\"a\", 1);
     );
 }
 
+/// `rule:types/erased-member-access`: a write by name checks what `$x is T`
+/// checks. One property per type kind `is` has a test for, and one sample per
+/// row that `is` admits or refuses. The descriptor's `check_slot` must agree
+/// with the compiled `is` on every row.
+#[test]
+fn a_slot_check_refuses_what_an_is_test_refuses() {
+    let unit = compile(
+        "<?nvs
+enum Rank {
+    Low = 1,
+    High = 7,
+}
+enum Other {
+    One = 1,
+    Three = 3,
+}
+class Spot {}
+class Holder {
+    public Rank $rank = Rank::Low;
+    public Rank::High $top = Rank::High;
+    public 1|2 $small = 1;
+    public true $yes = true;
+    public callable $any;
+    public callable(int): string $render;
+    public Core\\Time\\Date $day;
+    public ?Core\\Time\\Date $maybeDay = null;
+    public array<Rank> $ranks = [];
+    public ?Spot $spot = null;
+
+    public function constructor() {
+        $this->any = fn(int $n): int => $n;
+        $this->render = fn(int $n): string => \"x\";
+        $this->day = Core\\Time\\Date::at(2024, 1, 2);
+    }
+
+    public static function sample(int $k): mixed {
+        return match ($k) {
+            0 => Rank::High,
+            1 => Other::Three,
+            2 => Other::One,
+            3 => 7,
+            4 => Rank::Low,
+            5 => 2,
+            6 => 3,
+            7 => true,
+            8 => false,
+            9 => fn(int $n): string => \"y\",
+            10 => fn(string $s): string => $s,
+            11 => Core\\Time\\Date::at(2024, 1, 3),
+            12 => Core\\Time\\TimeOfDay::at(1, 2),
+            13 => null,
+            14 => [Rank::Low, Rank::High],
+            15 => [Rank::Low, Other::Three],
+            16 => new Spot(),
+            default => \"text\",
+        };
+    }
+
+    public static function verdict(int $field, int $k): bool {
+        mixed $v = static::sample($k);
+        return match ($field) {
+            0 => $v is Rank,
+            1 => $v is Rank::High,
+            2 => $v is 1|2,
+            3 => $v is true,
+            4 => $v is callable,
+            5 => $v is callable(int): string,
+            6 => $v is Core\\Time\\Date,
+            7 => $v is ?Core\\Time\\Date,
+            8 => $v is array<Rank>,
+            default => $v is ?Spot,
+        };
+    }
+}
+echo (new Holder())->rank == Rank::Low ? \"\" : \"?\";
+",
+    )
+    .expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    unit.install_in(&mut ctx);
+    let holder = unit.class_desc("Holder").expect("the class is declared");
+
+    // Each field, and the samples that `is` answers `true` and `false` for.
+    let rows: [(&str, &[i64], &[i64]); 10] = [
+        ("rank", &[0, 2, 4], &[1, 3, 5, 13]),
+        ("top", &[0], &[1, 3, 4]),
+        ("small", &[5], &[3, 6, 2]),
+        ("yes", &[7], &[8, 3]),
+        ("any", &[9, 10], &[11, 16, 17]),
+        ("render", &[9], &[10, 11]),
+        ("day", &[11], &[12, 13, 16]),
+        ("maybeDay", &[11, 13], &[12, 16]),
+        ("ranks", &[14], &[15, 0]),
+        ("spot", &[16, 13], &[11, 9]),
+    ];
+    for (field, (name, admitted, refused)) in rows.iter().enumerate() {
+        let slot = holder.field_slot(name, 0).expect("the class declares it");
+        for (k, want) in admitted
+            .iter()
+            .map(|k| (*k, true))
+            .chain(refused.iter().map(|k| (*k, false)))
+        {
+            let field_arg = i64::try_from(field).expect("ten fields");
+            let is = unit
+                .call_static(
+                    &mut ctx,
+                    "Holder",
+                    "verdict",
+                    &[Value::int(field_arg), Value::int(k)],
+                )
+                .expect("the method is compiled")
+                .expect("the verdict runs")
+                .as_bool()
+                .expect("a bool");
+            assert_eq!(
+                is, want,
+                "the fixture's own `is` for `{name}` and sample {k}"
+            );
+            let value = unit
+                .call_static(&mut ctx, "Holder", "sample", &[Value::int(k)])
+                .expect("the method is compiled")
+                .expect("the sample runs");
+            assert_eq!(
+                holder.check_slot(slot, name, value).is_ok(),
+                want,
+                "`{name}` and sample {k}: the slot check disagrees with `is`"
+            );
+        }
+    }
+}
+
 /// `rule:tooling/commands-are-compiled`'s help page asks the other parameter
 /// question, and this is the layer that answers it: a parameter's declared type
 /// reaches the runtime descriptor as the text the declaration wrote, because

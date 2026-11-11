@@ -11,8 +11,10 @@ For all three:
   silent value or a `null`. A receiver whose tag turns out not to be an object is one more
   catchable throw.
 - **Write:** the same missing-name throw, plus a check of the incoming value against the field's
-  *real*, concrete declared type, throwing on a mismatch. A write through an erased view can **never
-  create a field**. An anonymous object has no declared class, and its slot carries no declared
+  *real*, concrete declared type, throwing on a mismatch. The check tests what `is` tests: an enum
+  field takes a case value of that enum, a `callable` field takes a callable, a written signature
+  takes a callable that fits it, and a field of a `Core` class takes an instance of that class. A
+  write through an erased view can **never create a field**. An anonymous object has no declared class, and its slot carries no declared
   type, so its write is checked against the value the field has now: the new value has the same
   exact type, an object's class is the current one's or a subclass of it, a nested anonymous object
   passes the same check field by field, and each array element has the shape of some current element.

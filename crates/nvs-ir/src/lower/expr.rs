@@ -8372,7 +8372,7 @@ pub(super) fn test_shape(
 /// with an enum tag of its own (`rule:enums/representation`), so the tag test
 /// tells a case from an integer, while [`payload_repr`] is what steps down to
 /// the scalar where a payload is actually compared.
-fn enum_repr(backing: nvs_types::EnumBacking) -> Ty {
+pub(super) fn enum_repr(backing: nvs_types::EnumBacking) -> Ty {
     match backing {
         nvs_types::EnumBacking::Int => Ty::Enum(EnumRepr::Int),
         nvs_types::EnumBacking::Uint => Ty::Enum(EnumRepr::Uint),

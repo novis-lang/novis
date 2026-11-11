@@ -1958,6 +1958,9 @@ fn runtime_slot_check(check: &nvs_ir::ir::SlotCheck) -> nvs_runtime::SlotCheck {
     match check {
         Ir::Any => Rt::Any,
         Ir::Repr(ty) => crate::ty::tag_of(*ty).map_or(Rt::Any, Rt::Tag),
+        Ir::Values(ty, values) => {
+            crate::ty::tag_of(*ty).map_or(Rt::Any, |tag| Rt::Values(tag, values.clone()))
+        }
         Ir::Class(label) => Rt::Class(label.clone()),
         Ir::Array(element) => Rt::Array(Box::new(runtime_slot_check(element))),
         Ir::Shape(fields) => Rt::Shape(

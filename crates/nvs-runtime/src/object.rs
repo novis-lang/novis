@@ -161,16 +161,21 @@
 //! * [`ClassDesc::field_classes`] holds the classes a slot typed `Node`,
 //!   `?Node` or `A|B` admits, because [`Tag::Object`] answers for every class.
 //! * [`ClassDesc::field_checks`] holds the rest as a [`SlotCheck`]: an
-//!   `array<Dog>`'s elements, a `{ pet: Dog }`'s fields and every arm of a
-//!   `?int` or an `int|Dog`. [`write_erased_property`] walks the written value
-//!   against it, so an erased write costs time in the size of that value.
+//!   `array<Dog>`'s elements, a `{ pet: Dog }`'s fields, every arm of a
+//!   `?int` or an `int|Dog`, an enum's case values, a single-value type's
+//!   value, the marker class of `callable` or of a written signature, and a
+//!   `Core` class with instances. [`write_erased_property`] walks the written
+//!   value against it, so an erased write costs time in the size of that
+//!   value, plus one binary search over the case values for an enum.
 //!
 //! `nvs_ir::lower`'s `field_slots` builds all three by joining every layout's
 //! slots against the declared property types the checker recorded, since an
-//! erased receiver reaches any class at all. A type the run time cannot
-//! compare against — `mixed`, `iterable`, a class with no layout of its own —
-//! is [`SlotCheck::Any`], so the check never refuses a write the checker
-//! accepted.
+//! erased receiver reaches any class at all. The check tests what `$x is T`
+//! tests. A type the run time cannot compare against — `mixed`, `iterable`,
+//! an intersection, a class with no layout of its own that is not a `Core`
+//! class with instances — is [`SlotCheck::Any`], so the check never refuses a
+//! write the checker accepted. A single-value `string` is checked by its tag
+//! alone.
 //!
 //! An **anonymous object's** slot is checked by tag alone. Its class is named
 //! for its field names (`$shape{x,y}`, `nvs_ir::lower::shape_class_label`), so
@@ -6237,6 +6242,11 @@ pub enum SlotCheck {
     Any,
     /// A value with exactly this tag ([`Value::exact_tag`]).
     Tag(Tag),
+    /// A value with exactly this tag whose payload is one of these, sorted
+    /// and without duplicates: an enum's case values, or the one value of an
+    /// enum case or a single-value type (`rule:enums/representation`). A
+    /// `bool`'s payload is read as `0` or `1`.
+    Values(Tag, Vec<u64>),
     /// An object whose class conforms to this label
     /// ([`ClassDesc::conforms_to_name`]).
     Class(String),
@@ -6274,6 +6284,18 @@ impl SlotCheck {
             Self::Any => Ok(()),
             Self::Tag(tag) => {
                 if value.exact_tag() == Some(*tag) {
+                    Ok(())
+                } else {
+                    Err(describe_written(value))
+                }
+            }
+            Self::Values(tag, values) => {
+                let bits = if *tag == Tag::Bool {
+                    u64::from(value.bits() != 0)
+                } else {
+                    value.bits()
+                };
+                if value.exact_tag() == Some(*tag) && values.binary_search(&bits).is_ok() {
                     Ok(())
                 } else {
                     Err(describe_written(value))
@@ -6910,6 +6932,28 @@ mod tests {
         assert_eq!(object.refcount(), 2);
         drop(second);
         assert_eq!(object.refcount(), 1);
+    }
+
+    /// `rule:enums/representation`: an enum slot's check is the enum tag and
+    /// one of the enum's own case values.
+    #[test]
+    fn an_enum_slot_admits_its_own_cases_alone() {
+        let check = SlotCheck::Values(Tag::EnumInt, vec![1, 2, 7]);
+        assert!(check.admits(Value::enum_int(2)).is_ok());
+        assert!(check.admits(Value::enum_int(7)).is_ok());
+        assert!(check.admits(Value::enum_int(3)).is_err(), "no case has 3");
+        assert!(check.admits(Value::int(2)).is_err(), "an int is not a case");
+        assert!(
+            check.admits(Value::enum_uint(2)).is_err(),
+            "another backing"
+        );
+
+        let negative = SlotCheck::Values(Tag::EnumInt, vec![(-1_i64).cast_unsigned()]);
+        assert!(negative.admits(Value::enum_int(-1)).is_ok());
+
+        let yes = SlotCheck::Values(Tag::Bool, vec![1]);
+        assert!(yes.admits(Value::bool(true)).is_ok());
+        assert!(yes.admits(Value::bool(false)).is_err());
     }
 
     #[test]

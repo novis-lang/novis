@@ -536,7 +536,14 @@ fn field_slots(
     layouts: &ClassLayoutTable,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
+    enums: &EnumTable,
 ) -> FieldSlots {
+    let scope = SlotScope {
+        layouts,
+        exprs,
+        checked_types,
+        enums,
+    };
     type Slot = (Ty, bool, Option<Vec<String>>, Option<SlotCheck>);
     let mut image: Vec<Option<Slot>> = vec![None; layout.fields.len()];
     let chain = std::iter::once(label).chain(layout.conforms.iter().map(String::as_str));
@@ -552,7 +559,7 @@ fn field_slots(
                 erase_checked_ty(*ty, checked_types),
                 nvs_types::expr::type_is_secret(*ty, checked_types),
                 admitted_classes(*ty, layouts, checked_types),
-                deep_check(*ty, layouts, checked_types),
+                deep_check(*ty, &scope),
             ));
         }
     }
@@ -578,41 +585,102 @@ struct FieldSlots {
     checks: Vec<Option<SlotCheck>>,
 }
 
+/// What [`slot_check`] reads a declared type against: the run's layouts, its
+/// typed-expression table for a written signature's marker class, its type
+/// interner and its enum table.
+struct SlotScope<'a> {
+    layouts: &'a ClassLayoutTable,
+    exprs: &'a ExprTypeTable,
+    checked_types: &'a TypeInterner,
+    enums: &'a EnumTable,
+}
+
 /// `crate::ir::Class::field_checks`' entry for declared type `id`: its
 /// [`slot_check`], or `None` when the slot's one tag or its
 /// [`admitted_classes`] already check all of it.
-fn deep_check(
-    id: TypeId,
-    layouts: &ClassLayoutTable,
-    checked_types: &TypeInterner,
-) -> Option<SlotCheck> {
-    let check = slot_check(id, layouts, checked_types);
-    let shallow = |arm: &SlotCheck| matches!(arm, SlotCheck::Class(_) | SlotCheck::Repr(Ty::Null));
+///
+/// The admitted classes cover a class arm only when every class in the type
+/// has a layout. A `Core` class, `callable` and a written signature have none,
+/// so their class arm stays in the check.
+fn deep_check(id: TypeId, scope: &SlotScope<'_>) -> Option<SlotCheck> {
+    let check = slot_check(id, scope);
+    let covered = admitted_classes(id, scope.layouts, scope.checked_types).is_some();
+    let shallow = |arm: &SlotCheck| match arm {
+        SlotCheck::Class(_) => covered,
+        SlotCheck::Repr(Ty::Null) => true,
+        _ => false,
+    };
     match &check {
-        SlotCheck::Any | SlotCheck::Repr(_) | SlotCheck::Class(_) => None,
+        SlotCheck::Any | SlotCheck::Repr(_) => None,
+        SlotCheck::Class(_) if covered => None,
         SlotCheck::AnyOf(arms) if arms.iter().all(shallow) => None,
         _ => Some(check),
     }
 }
 
 /// Declared type `id` as a [`SlotCheck`]: what a value written into a slot of
-/// that type must be.
+/// that type must be. It tests what `$x is T` tests
+/// ([`expr::test_shape`]) for every kind but four.
 ///
 /// A type the run time cannot compare a value against becomes
 /// [`SlotCheck::Any`], so the check never refuses a write the checker accepted.
 /// That covers `mixed`, `iterable`, an intersection and a class with no layout
-/// of its own, whose label no descriptor carries.
-fn slot_check(id: TypeId, layouts: &ClassLayoutTable, checked_types: &TypeInterner) -> SlotCheck {
+/// of its own that is not a `Core` class with instances, whose label no
+/// descriptor carries. A single-value `string` keeps the `string` tag alone,
+/// because its value is not a payload a list can hold. A written signature
+/// the checker recorded no marker for keeps the object tag alone.
+///
+/// An enum admits its own case values under its own tag, which is all the
+/// identity a case in a tagged value has (`rule:enums/representation`). So a
+/// case of another enum with the same backing passes when this enum has a
+/// case of that value, and is this enum's case from then on.
+///
+/// **What it spends:** one sorted list of case values per enum-typed slot,
+/// once per process, and one binary search per enum value written by name.
+fn slot_check(id: TypeId, scope: &SlotScope<'_>) -> SlotCheck {
+    let checked_types = scope.checked_types;
     match checked_types.get(id) {
         CheckedTy::Class(name, _) => {
             let label = name.to_string();
-            if layouts.get(&label).is_some() {
+            if scope.layouts.get(&label).is_some() {
+                SlotCheck::Class(label)
+            } else if let Some(implementors) = nvs_types::core_interface_implementors(name) {
+                SlotCheck::AnyOf(
+                    implementors
+                        .iter()
+                        .map(|class| SlotCheck::Class((*class).to_owned()))
+                        .collect(),
+                )
+            } else if nvs_types::expr::testable_core_class(name) {
                 SlotCheck::Class(label)
             } else {
                 SlotCheck::Repr(Ty::Object)
             }
         }
-        CheckedTy::Array(element) => match slot_check(*element, layouts, checked_types) {
+        CheckedTy::Callable => SlotCheck::Class(CALLABLE_MARKER.to_owned()),
+        CheckedTy::CallableSig { .. } => scope
+            .exprs
+            .callable_sig_marker(id)
+            .map_or(SlotCheck::Repr(Ty::Object), |marker| {
+                SlotCheck::Class(marker.to_owned())
+            }),
+        CheckedTy::Enum(qname, backing) => match scope.enums.get(qname) {
+            Some(info) => {
+                let mut values: Vec<u64> = info.cases.values().map(|v| enum_bits(*v)).collect();
+                values.sort_unstable();
+                values.dedup();
+                SlotCheck::Values(expr::enum_repr(*backing), values)
+            }
+            None => SlotCheck::Repr(erase_checked_ty(id, checked_types)),
+        },
+        CheckedTy::EnumCase(qname, backing, case) => match scope.enums.case(qname, case) {
+            Some(value) => SlotCheck::Values(expr::enum_repr(*backing), vec![enum_bits(value)]),
+            None => SlotCheck::Repr(erase_checked_ty(id, checked_types)),
+        },
+        CheckedTy::SingleValueInt(value) => SlotCheck::Values(Ty::Int, vec![value.cast_unsigned()]),
+        CheckedTy::True => SlotCheck::Values(Ty::Bool, vec![1]),
+        CheckedTy::False => SlotCheck::Values(Ty::Bool, vec![0]),
+        CheckedTy::Array(element) => match slot_check(*element, scope) {
             SlotCheck::Any => SlotCheck::Repr(Ty::Array),
             element => SlotCheck::Array(Box::new(element)),
         },
@@ -620,7 +688,7 @@ fn slot_check(id: TypeId, layouts: &ClassLayoutTable, checked_types: &TypeIntern
             fields
                 .iter()
                 .map(|field| {
-                    let check = slot_check(field.ty, layouts, checked_types);
+                    let check = slot_check(field.ty, scope);
                     (field.name.clone(), field.required, check)
                 })
                 .collect(),
@@ -628,7 +696,7 @@ fn slot_check(id: TypeId, layouts: &ClassLayoutTable, checked_types: &TypeIntern
         CheckedTy::Union(members) => {
             let arms: Vec<SlotCheck> = members
                 .iter()
-                .map(|member| slot_check(*member, layouts, checked_types))
+                .map(|member| slot_check(*member, scope))
                 .collect();
             if arms.contains(&SlotCheck::Any) {
                 SlotCheck::Any
@@ -641,6 +709,14 @@ fn slot_check(id: TypeId, layouts: &ClassLayoutTable, checked_types: &TypeIntern
             Ty::Tagged | Ty::Void | Ty::ClassDesc => SlotCheck::Any,
             repr => SlotCheck::Repr(repr),
         },
+    }
+}
+
+/// An enum case's value as the raw payload a tagged value carries.
+const fn enum_bits(value: nvs_types::EnumValue) -> u64 {
+    match value {
+        nvs_types::EnumValue::Int(n) => n.cast_unsigned(),
+        nvs_types::EnumValue::Uint(n) => n,
     }
 }
 
@@ -1090,7 +1166,7 @@ fn lower_program_as(
     let mut classes: Vec<crate::ir::Class> = layouts
         .iter()
         .map(|(label, layout)| {
-            let slots = field_slots(label, layout, layouts, exprs, checked_types);
+            let slots = field_slots(label, layout, layouts, exprs, checked_types, enums);
             crate::ir::Class {
                 label: label.to_owned(),
                 fields: layout.fields.clone(),
