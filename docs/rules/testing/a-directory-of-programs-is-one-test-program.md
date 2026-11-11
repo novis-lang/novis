@@ -38,6 +38,14 @@ the same files by hand would.
 - **The editor reads the directory the same way.** A plain file under the directory of a file that
   requires the bootstrap is analysed through that bootstrap's map
   (`rule:ide/an-autoloaded-file-borrows-its-programs-map`).
+- **The walk skips three kinds of folder below the named one:** a linked folder, a cache a
+  `CACHEDIR.TAG` marks, and a folder where `package.toml` is a file, named or not. A package's files
+  are the package's, and a vendored dependency's tests, scripts and broken files are not the
+  project's suite, so `nvs test .` and `nvs check .` would otherwise run and report code the project
+  never asked for. The folder named on the command line is always walked, so a package's tests run
+  when somebody names its folder. `nvs_test::is_walked` is the one test both walks call. It reads no
+  manifest, so what a manifest says cannot bring a folder back in. Cost: one `stat` per folder
+  walked, before the compile.
 
 A new test file is in the suite the moment it exists, and nothing is added to the language, the
 configuration or the command line for it. The cost is one directory walk per invocation before the
@@ -47,6 +55,9 @@ Nothing is on a request path of the runtime.
 **Memory:** the written entry is one string, held for the run.
 
 **Declined:**
+- **Skipping a folder by the name `vendor`.** A name is a convention, and a hand-copied package
+  sits anywhere. The manifest is what makes a folder a package, for the compiler's namespace check
+  and for this walk alike.
 - **A glob in a literal `require`**, `require 'tests/*Test.nvs';`. A `require` site is one call to
   one file's script frame, and a site that expands to many files reaches into the type checker and
   the compiler for a feature the tests never execute.

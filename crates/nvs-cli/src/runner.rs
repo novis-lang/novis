@@ -130,7 +130,9 @@ mod mutation;
 ///
 /// The path decides which one runs. A `.nvs` file is a program, and its
 /// `#[Test]` methods run. A folder with `.nvs` files is one program made of
-/// every `.nvs` file in it and in its subfolders. Run `nvs test .` in your
+/// every `.nvs` file in it and in its subfolders. A subfolder that has its
+/// own `package.toml` is not read. To run the tests of a package, give
+/// `nvs test` the folder of that package. Run `nvs test .` in your
 /// project folder to run every test in the project. The entry file is in
 /// that folder, so its `autoload` line loads your classes for every test.
 /// The tests can be under `src/`, or in a `tests/` folder with one
@@ -5616,6 +5618,13 @@ mod tests {
         let (_, one) =
             nvs_test::selected(&paths, None, Some("second"), None).expect("the tree is walked");
         assert_eq!(one.len(), 1);
+    }
+
+    /// The case walk skips a folder by the same file name the compiler reads
+    /// a package's manifest from.
+    #[test]
+    fn the_walk_and_the_compiler_name_the_same_manifest() {
+        assert_eq!(nvs_test::PACKAGE_FILE, nvs_config::grants::FILE);
     }
 
     /// Discovery answers from the checked program alone.

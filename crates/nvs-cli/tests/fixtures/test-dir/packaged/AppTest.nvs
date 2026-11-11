@@ -1,0 +1,11 @@
+<?nvs
+use Core\Test;
+
+final class AppTest
+{
+    #[Test]
+    public function addition(): void
+    {
+        Test::assertSame(4, 2 + 2);
+    }
+}

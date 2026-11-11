@@ -16,12 +16,17 @@ use serde_json::Value;
 
 /// `nvs test <args...> <path>`, as `(stdout, stderr, success)`.
 fn run_test(args: &[&str], path: &Path) -> (String, String, bool) {
+    run("test", args, path)
+}
+
+/// `nvs <command> <args...> <path>`, as `(stdout, stderr, success)`.
+fn run(command: &str, args: &[&str], path: &Path) -> (String, String, bool) {
     let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
         .arg("--data")
         .arg(&*data)
         .arg("--no-init")
-        .arg("test")
+        .arg(command)
         .args(args)
         .arg(path)
         .output()
@@ -177,4 +182,37 @@ fn a_directory_mixing_programs_and_cases_is_refused() {
     let (_, err, ok) = run_test(&[], &fixture("mixed"));
     assert!(!ok);
     assert!(err.contains("run separately"), "{err}");
+}
+
+/// `packaged` holds `AppTest`, which passes, and two packages below it under
+/// `vendor/acme/`. `http` is named and holds a failing test and a type error.
+/// `tools` has a manifest with no name and a failing test. A walk from the
+/// root goes into neither, so only `AppTest` runs.
+#[test]
+fn a_package_below_the_folder_is_not_walked() {
+    let document = document(&["--format", "json"], "packaged");
+    assert_eq!(names(&document, "tests"), ["AppTest::addition"]);
+}
+
+/// `nvs check` over the same root reads no file of either package, so the type
+/// error in `vendor/acme/http/src/Broken.nvs` is not reported.
+#[test]
+fn a_folder_check_reads_no_file_of_a_package_below_it() {
+    let (out, err, ok) = run("check", &[], &fixture("packaged"));
+    assert!(ok, "{out}{err}");
+    assert!(out.contains("no errors"), "{out}{err}");
+}
+
+/// A package's folder named on the command line is walked, so its own test
+/// runs, and fails.
+#[test]
+fn a_package_folder_named_on_the_command_line_is_run() {
+    let (out, err, ok) = run_test(
+        &["--format", "json"],
+        &fixture("packaged/vendor/acme/tools"),
+    );
+    assert!(!ok, "the package's failing test ran:\n{out}{err}");
+    let document: Value = serde_json::from_str(&out)
+        .unwrap_or_else(|error| panic!("`--format json` printed a document: {error}\n{out}"));
+    assert_eq!(names(&document, "tests"), ["ToolTest::fails"]);
 }

@@ -1,0 +1,10 @@
+<?nvs
+namespace Acme\Http;
+
+final class Broken
+{
+    public function count(): int
+    {
+        return 'not a number';
+    }
+}

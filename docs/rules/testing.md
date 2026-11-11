@@ -1254,8 +1254,10 @@ consumer tells the two kinds of record apart by. The selection is the run's own:
 file under it is a case tree even when it also holds programs, so an editor lists a workspace's cases
 by naming the workspace folder. A run of such a directory is still refused, because it would report
 two suites in one call ([`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate)). Both directory walks, the case tree's and a
-directory program's, skip a linked directory and a directory that a `CACHEDIR.TAG` marks as a cache,
-and walk with a stack of their own, so no tree's depth can overflow the thread's stack.
+directory program's, skip a linked directory, a directory that a `CACHEDIR.TAG` marks as a cache, and
+a directory below the named one that holds a `package.toml`
+([`testing/a-directory-of-programs-is-one-test-program`](testing.md#testing-a-directory-of-programs-is-one-test-program)). Both walk with a stack of their own, so
+no tree's depth can overflow the thread's stack.
 
 - **Memory:** the compiler holds one span per `#[Test]` row for the life of a compile, on a table that
   exists only for a program that declares tests. A run holds one resolved path, line and column per
@@ -1412,6 +1414,14 @@ the same files by hand would.
 - **The editor reads the directory the same way.** A plain file under the directory of a file that
   requires the bootstrap is analysed through that bootstrap's map
   ([`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map)).
+- **The walk skips three kinds of folder below the named one:** a linked folder, a cache a
+  `CACHEDIR.TAG` marks, and a folder where `package.toml` is a file, named or not. A package's files
+  are the package's, and a vendored dependency's tests, scripts and broken files are not the
+  project's suite, so `nvs test .` and `nvs check .` would otherwise run and report code the project
+  never asked for. The folder named on the command line is always walked, so a package's tests run
+  when somebody names its folder. `nvs_test::is_walked` is the one test both walks call. It reads no
+  manifest, so what a manifest says cannot bring a folder back in. Cost: one `stat` per folder
+  walked, before the compile.
 
 A new test file is in the suite the moment it exists, and nothing is added to the language, the
 configuration or the command line for it. The cost is one directory walk per invocation before the
@@ -1421,6 +1431,9 @@ Nothing is on a request path of the runtime.
 **Memory:** the written entry is one string, held for the run.
 
 **Declined:**
+- **Skipping a folder by the name `vendor`.** A name is a convention, and a hand-copied package
+  sits anywhere. The manifest is what makes a folder a package, for the compiler's namespace check
+  and for this walk alike.
 - **A glob in a literal `require`**, `require 'tests/*Test.nvs';`. A `require` site is one call to
   one file's script frame, and a site that expands to many files reaches into the type checker and
   the compiler for a feature the tests never execute.

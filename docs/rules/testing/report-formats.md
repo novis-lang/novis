@@ -43,8 +43,10 @@ consumer tells the two kinds of record apart by. The selection is the run's own:
 file under it is a case tree even when it also holds programs, so an editor lists a workspace's cases
 by naming the workspace folder. A run of such a directory is still refused, because it would report
 two suites in one call (`rule:testing/nvst-is-separate`). Both directory walks, the case tree's and a
-directory program's, skip a linked directory and a directory that a `CACHEDIR.TAG` marks as a cache,
-and walk with a stack of their own, so no tree's depth can overflow the thread's stack.
+directory program's, skip a linked directory, a directory that a `CACHEDIR.TAG` marks as a cache, and
+a directory below the named one that holds a `package.toml`
+(`rule:testing/a-directory-of-programs-is-one-test-program`). Both walk with a stack of their own, so
+no tree's depth can overflow the thread's stack.
 
 - **Memory:** the compiler holds one span per `#[Test]` row for the life of a compile, on a table that
   exists only for a program that declares tests. A run holds one resolved path, line and column per

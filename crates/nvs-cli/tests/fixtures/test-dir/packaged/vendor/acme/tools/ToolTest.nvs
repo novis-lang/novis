@@ -1,0 +1,11 @@
+<?nvs
+use Core\Test;
+
+final class ToolTest
+{
+    #[Test]
+    public function fails(): void
+    {
+        Test::assertSame(5, 2 + 2);
+    }
+}

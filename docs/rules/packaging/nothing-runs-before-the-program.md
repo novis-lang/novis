@@ -20,4 +20,7 @@ the rule is re-argued from scratch rather than amended.
 
 `nvs pkg fetch` and `nvs pkg vendor` read archives and write files, and compile
 nothing (`crates/nvs-cli/tests/package_fetch.rs`). `nvs build` compiles a vendored package as it
-compiles any other source, and runs none of it.
+compiles any other source, and runs none of it. `nvs test <dir>` and `nvs check <dir>` load no file
+of a package below the folder unless the program loads it: the folder walk does not go into a
+folder that holds a `package.toml`, so a package's own test files and top-level statements are not
+swept into the program (`rule:testing/a-directory-of-programs-is-one-test-program`).

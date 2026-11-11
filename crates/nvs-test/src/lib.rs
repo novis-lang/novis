@@ -249,10 +249,11 @@ fn collect(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
         for entry in fs::read_dir(&dir)? {
             let entry = entry?.path();
             // A linked directory is not walked: a link back up the tree would
-            // make the walk endless. A named path is followed, so a linked
-            // tree is still run by naming it.
+            // make the walk endless. Nor is a cache or a package, by
+            // [`is_walked`]. A named path is always followed, so a linked tree
+            // or a package is still run by naming it.
             if fs::symlink_metadata(&entry).is_ok_and(|meta| meta.is_dir()) {
-                if !is_cache_dir(&entry) {
+                if is_walked(&entry) {
                     pending.push(entry);
                 }
             } else if entry.extension().is_some_and(|ext| ext == EXTENSION) {
@@ -261,6 +262,25 @@ fn collect(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
         }
     }
     Ok(())
+}
+
+/// The file whose presence makes a folder a package's
+/// (`rule:packaging/a-package-name-is-vendor-slash-name`). `nvs-test` has no
+/// dependencies, so the name is written here, and a test in `nvs-cli` holds it
+/// equal to the compiler's.
+pub const PACKAGE_FILE: &str = "package.toml";
+
+/// Whether a walk that reached `dir` below the path it was named goes into it.
+/// It does not go into a cache ([`is_cache_dir`]), nor into a folder where
+/// [`PACKAGE_FILE`] is a file, named or not: a package's tests and files are
+/// the package's, and run when somebody names its folder
+/// (`rule:testing/a-directory-of-programs-is-one-test-program`).
+///
+/// Cost: one `stat` and one failed open per folder walked. It reads no
+/// manifest, so what a manifest says cannot bring a folder back into the walk.
+#[must_use]
+pub fn is_walked(dir: &Path) -> bool {
+    !is_cache_dir(dir) && !dir.join(PACKAGE_FILE).is_file()
 }
 
 /// Whether `dir` is a cache, by the Cache Directory Tagging Specification: it
@@ -572,5 +592,23 @@ mod tests {
     fn discovery_names_the_path_it_could_not_read() {
         let error = discover(&[PathBuf::from("no/such/place")]).expect_err("a missing path fails");
         assert!(error.to_string().contains("no/such/place"), "{error}");
+    }
+
+    /// A folder below the named one that holds a `package.toml` is not walked,
+    /// and the same folder named on its own is.
+    #[test]
+    fn a_folder_with_a_package_toml_is_not_walked_for_cases() {
+        let scratch = nvs_repo::scratch("package-walk");
+        let tree = scratch.join("tree");
+        let package = tree.join("vendor/acme/http");
+        fs::create_dir_all(package.join("tests")).expect("the tree's folders");
+        fs::write(tree.join("first.nvst"), "").expect("the first case");
+        fs::write(package.join(PACKAGE_FILE), "").expect("the manifest");
+        fs::write(package.join("tests/second.nvst"), "").expect("the second case");
+
+        let found = discover(std::slice::from_ref(&tree)).expect("the tree is walked");
+        assert_eq!(found, [tree.join("first.nvst")]);
+        let found = discover(std::slice::from_ref(&package)).expect("the package is walked");
+        assert_eq!(found, [package.join("tests/second.nvst")]);
     }
 }

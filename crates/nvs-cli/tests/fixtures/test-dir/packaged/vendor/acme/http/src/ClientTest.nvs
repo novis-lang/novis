@@ -1,0 +1,13 @@
+<?nvs
+namespace Acme\Http;
+
+use Core\Test;
+
+final class ClientTest
+{
+    #[Test]
+    public function fails(): void
+    {
+        Test::assertSame(5, 2 + 2);
+    }
+}

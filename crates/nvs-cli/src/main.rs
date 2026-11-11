@@ -3366,7 +3366,8 @@ fn is_program(path: &std::path::Path) -> bool {
 }
 
 /// Collects every `.nvs` file under `dir`, directories walked in name order,
-/// and notes in `cases` whether a `.nvst` case sits among them.
+/// and notes in `cases` whether a `.nvst` case sits among them. A folder below
+/// `dir` that `nvs_test::is_walked` refuses, a cache or a package, adds nothing.
 fn programs_under(
     dir: &std::path::Path,
     into: &mut Vec<PathBuf>,
@@ -3387,10 +3388,10 @@ fn programs_under(
             open.pop();
             continue;
         };
-        // `nvs_test::discover`'s rules: a linked directory and a cache
-        // directory are not walked.
+        // `nvs_test::discover`'s rules: a linked folder is not walked, and
+        // `nvs_test::is_walked` keeps out a cache and a package's folder.
         if std::fs::symlink_metadata(&entry).is_ok_and(|meta| meta.is_dir()) {
-            if !nvs_test::is_cache_dir(&entry) {
+            if nvs_test::is_walked(&entry) {
                 open.push(sorted(&entry)?);
             }
         } else if is_program(&entry) {

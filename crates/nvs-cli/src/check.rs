@@ -61,6 +61,7 @@ pub(crate) struct Args {
     /// The file or directory to check.
     ///
     /// A directory is checked as one program, the program `nvs test` runs for it.
+    /// A subfolder that has its own `package.toml` is not read.
     path: PathBuf,
     /// Print the diagnostics as the frozen JSON document rather than
     /// rendering them for a terminal.
