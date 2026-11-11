@@ -501,8 +501,13 @@ the example and the help text the feature owes.
 repository. It reports each new error as `path:line` and its code. Writing subagents then update
 disjoint folders side by side, and none of them builds.
 
-- [ ] Every program the subagent listed compiles again with the typed form or the launderer, and its
+- [x] Every program the subagent listed compiles again with the typed form or the launderer, and its
   `.out` is unchanged (`rule:security/taint-propagation`, `docs/examples/README.md:1`).
+  - [x] The sweep ran `nvs check` over 8270 files: 12 new errors, in `core/Reflect-ClassInfo`
+    examples and attacks, three attacks on `mixed` and bare `callable` calls, and one bench.
+  - [x] The three `Reflect-ClassInfo` examples compile and their `.out` is unchanged.
+  - [x] The eight attacks compile and still reach the run-time error they were written for.
+  - [x] `benches/members/novis/Pdf-Reader/invoiceXml.nvs` compiles.
 - [ ] Every Rust test and `.nvst` case that expected the old acceptance expects the refusal
   (`rule:security/secret-qualifier`, `crates/nvs-types/tests/secret.rs:1`,
   `crates/nvs-types/tests/tainted.rs:1`, `crates/nvs-types/tests/type_test.rs:1`).

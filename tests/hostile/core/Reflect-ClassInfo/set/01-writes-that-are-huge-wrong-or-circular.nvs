@@ -26,7 +26,7 @@ echo $node->label, "\n";
 
 // 2. Values of the wrong type: a negative number into `uint`, text into `uint`,
 // `null` into `string`, and an object of another class into `?Node`.
-array<mixed> $wrong = [-1, '12', null, new Other()];
+array<int|string|object|null> $wrong = [-1, '12', null, new Other()];
 array<string> $targets = ['count', 'count', 'label', 'next'];
 uint $at = 0;
 while ($at < 4) {

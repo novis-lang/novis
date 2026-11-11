@@ -54,14 +54,14 @@ class Nested
 var $foundPair = Core\Reflect::forClass('Pair');
 if ($foundPair != null) {
     Core\Reflect\ClassInfo $pair = $foundPair;
-    array<mixed> $many = [];
+    array<int|uint|string|array<int>|null> $many = [];
     uint $i = 0;
     while ($i < 100000) {
         $many[] = $i;
         $i = $i + 1;
     }
-    array<array<mixed>> $lists = [[], [1], $many, ['one', 'two'], [null, null], [[1], [2]]];
-    foreach ($lists as array<mixed> $arguments) {
+    array<array<int|uint|string|array<int>|null>> $lists = [[], [1], $many, ['one', 'two'], [null, null], [[1], [2]]];
+    foreach ($lists as array<int|uint|string|array<int>|null> $arguments) {
         try {
             $pair->construct($arguments);
             echo 'built ', Core\Arr::count($arguments), "\n";

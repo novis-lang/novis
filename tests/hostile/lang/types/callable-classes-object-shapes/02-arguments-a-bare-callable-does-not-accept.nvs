@@ -18,7 +18,7 @@ class Rock
 class Runner
 {
     // The parameter is a bare `callable`, so the compiler cannot check the arguments.
-    public static function run(callable $f, mixed $v): mixed
+    public static function run(callable $f, object|array<int|string>|Color|string $v): mixed
     {
         return $f($v);
     }
@@ -41,7 +41,7 @@ try {
 }
 
 // 3. An array with a string in it is passed where an `array<int>` is declared.
-array<mixed> $mixed = [1, 'two', 3];
+array<int|string> $mixed = [1, 'two', 3];
 try {
     Runner::run(fn(array<int> $a): int => { echo "body ran\n"; return $a[1] + 1; }, $mixed);
     echo "called\n";

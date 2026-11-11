@@ -48,14 +48,14 @@ try {
 }
 
 // 3. Too few arguments, too many arguments, and arguments of the wrong type.
-array<mixed> $many = [];
+array<int|uint|string|null> $many = [];
 uint $i = 0;
 while ($i < 100000) {
     $many[] = $i;
     $i = $i + 1;
 }
-array<array<mixed>> $lists = [[1], $many, ['one', 'two'], [null, null]];
-foreach ($lists as array<mixed> $arguments) {
+array<array<int|uint|string|null>> $lists = [[1], $many, ['one', 'two'], [null, null]];
+foreach ($lists as array<int|uint|string|null> $arguments) {
     try {
         $info->call($target, 'add', $arguments);
     } catch (Throwable $error) {

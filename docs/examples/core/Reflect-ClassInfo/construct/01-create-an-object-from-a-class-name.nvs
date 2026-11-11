@@ -15,7 +15,7 @@ class Point
 
 class Factory
 {
-    public static function make(string $className, array<mixed> $arguments): mixed
+    public static function make(string $className, array<int|float|string|bool> $arguments): mixed
     {
         var $info = Core\Reflect::forClass($className);
         if ($info == null) {

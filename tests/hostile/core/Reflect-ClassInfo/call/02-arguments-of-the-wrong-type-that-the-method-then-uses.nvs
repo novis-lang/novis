@@ -68,8 +68,8 @@ try {
 }
 
 // 2. Passes a `FakeWallet`, a string and a number where `?Wallet` is declared. The method calls `double()`.
-array<mixed> $notWallets = [new FakeWallet(), 'wallet', 42];
-foreach ($notWallets as mixed $notWallet) {
+array<object|string|int> $notWallets = [new FakeWallet(), 'wallet', 42];
+foreach ($notWallets as object|string|int $notWallet) {
     try {
         echo $info->call($bank, 'ask', [$notWallet]), "\n";
     } catch (Throwable $error) {
@@ -78,8 +78,8 @@ foreach ($notWallets as mixed $notWallet) {
 }
 
 // 3. Passes arrays that contain a string, a float and an object where `array<int>` is declared.
-array<array<mixed>> $lists = [[1, 'two'], [1, 2.5], [1, new Wallet()], [1, null]];
-foreach ($lists as array<mixed> $list) {
+array<array<int|float|string|object|null>> $lists = [[1, 'two'], [1, 2.5], [1, new Wallet()], [1, null]];
+foreach ($lists as array<int|float|string|object|null> $list) {
     try {
         echo $info->call($bank, 'add', [$list]), "\n";
     } catch (Throwable $error) {

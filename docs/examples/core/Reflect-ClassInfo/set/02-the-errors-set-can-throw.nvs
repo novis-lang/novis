@@ -9,7 +9,7 @@ class Session
 
 class Write
 {
-    public static function try(Session $session, string $name, mixed $value): string
+    public static function try(Session $session, string $name, int|string $value): string
     {
         var $info = Core\Reflect::forObject($session);
         try {

@@ -22,7 +22,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            ?string $found = $readers[($total % 2) as int]->invoiceXml();
+            ?tainted string $found = $readers[($total % 2) as int]->invoiceXml();
             uint $step = $found == null ? 3 : 1;
             $total = $total + $step;
             $i = $i + 1;
