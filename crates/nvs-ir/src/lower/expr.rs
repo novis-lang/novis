@@ -856,7 +856,10 @@ impl<'a> Lowering<'a> {
                     self.emit(*cur, Ty::Str, InstKind::ConstStr(s)).0
                 }
                 StringPart::Expr(e) => {
-                    let (part, fresh) = self.lower_html_template_hole(e, env, cur);
+                    // Each piece is written before the next one is lowered, so
+                    // no piece is read after a later one runs.
+                    let earlier = (&mut [][..], &mut None);
+                    let (part, fresh) = self.lower_html_template_hole(e, &[], earlier, env, cur);
                     if part.kind != PartKind::Str && fresh {
                         self.own_temporary(part.value);
                     }
@@ -2341,7 +2344,8 @@ impl<'a> Lowering<'a> {
                 }
                 StringPart::Expr(e) => {
                     let later = Self::later_holes(parts, i + 1);
-                    self.interpolated_hole(e, parts.len() > 1, &later, env, cur)
+                    let earlier = (&mut pieces[..], &mut leading);
+                    self.interpolated_hole(e, parts.len() > 1, &later, earlier, env, cur)
                 }
             };
             if !piece.1 {
@@ -2365,15 +2369,22 @@ impl<'a> Lowering<'a> {
     ///
     /// `later` is the holes after this one. A borrowed hole one of them can
     /// free is held ([`Self::hold_borrowed`]) and reported as fresh.
+    /// `earlier` is the pieces before this one and the join's leading slot. A
+    /// conversion that can call a `toString` holds them first
+    /// ([`Self::hold_earlier_pieces`]).
     fn interpolated_hole(
         &mut self,
         e: &Expr,
         joined: bool,
         later: &[&Expr],
+        (earlier, leading): (&mut [(ConcatPart, bool)], &mut Option<usize>),
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ConcatPart, bool) {
         let (v, ty) = self.lower_expr(e, None, env, cur);
+        if self.conversion_runs_code(e, ty) {
+            self.hold_earlier_pieces(earlier, leading, *cur);
+        }
         if joined && ty == Ty::Int {
             let part = ConcatPart {
                 kind: PartKind::Int,
@@ -2469,7 +2480,8 @@ impl<'a> Lowering<'a> {
                     // An `int` is a `PartKind::Int` piece even alone, so the
                     // join writes its digits and no string of digits is made.
                     let later = Self::later_format_arguments(&pieces[k + 1..], args);
-                    self.interpolated_hole(&arg.value, true, &later, env, cur)
+                    let earlier = (&mut lowered[..], &mut leading);
+                    self.interpolated_hole(&arg.value, true, &later, earlier, env, cur)
                 }
                 nvs_types::expr_table::FormatPiece::Integer { argument, kind } => {
                     let arg = args.get(*argument).unwrap_or_else(|| {
@@ -2688,9 +2700,10 @@ impl<'a> Lowering<'a> {
             return self.emit(*cur, Ty::Object, InstKind::ConstMarkup(text));
         }
         let mark = self.temporaries_mark();
-        let mut pieces: Vec<ConcatPart> = Vec::with_capacity(parts.len());
+        // Each piece, and whether nothing is staged for it.
+        let mut held: Vec<(ConcatPart, bool)> = Vec::with_capacity(parts.len());
         let mut leading = None;
-        for part in parts {
+        for (i, part) in parts.iter().enumerate() {
             let (piece, staged) = match part {
                 StringPart::Text(span) => {
                     // The issues are discarded: `nvs_types::check_program` has
@@ -2699,16 +2712,21 @@ impl<'a> Lowering<'a> {
                     let (v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(s));
                     (ConcatPart::str(v), true)
                 }
-                StringPart::Expr(e) => self.lower_html_template_hole(e, env, cur),
+                StringPart::Expr(e) => {
+                    let later = Self::later_holes(parts, i + 1);
+                    let earlier = (&mut held[..], &mut leading);
+                    self.lower_html_template_hole(e, &later, earlier, env, cur)
+                }
             };
             if staged {
-                if pieces.is_empty() {
+                if held.is_empty() {
                     leading = Some(self.temporaries_mark());
                 }
                 self.own_temporary(piece.value);
             }
-            pieces.push(piece);
+            held.push((piece, !staged));
         }
+        let pieces: Vec<ConcatPart> = held.into_iter().map(|(part, _)| part).collect();
         let bytes = match pieces[..] {
             // ``html`` ``, whose body has nothing in it at all — the one shape
             // that reaches here with no parts, a body of plain text arriving as
@@ -2769,15 +2787,22 @@ impl<'a> Lowering<'a> {
     /// bytes escaped or not.
     ///
     /// The second answer is whether the piece is fresh, so the literal stages
-    /// it and releases it once the join has read it.
+    /// it and releases it once the join has read it. `later` and `earlier`
+    /// are the holes after this one and the pieces before it, held as
+    /// [`Self::interpolated_hole`] holds them.
     fn lower_html_template_hole(
         &mut self,
         e: &Expr,
+        later: &[&Expr],
+        (earlier, leading): (&mut [(ConcatPart, bool)], &mut Option<usize>),
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ConcatPart, bool) {
         let mark = self.temporaries_mark();
         let (v, ty) = self.lower_expr(e, None, env, cur);
+        if !self.hole_is_carrier(e.span) && self.conversion_runs_code(e, ty) {
+            self.hold_earlier_pieces(earlier, leading, *cur);
+        }
         if self.hole_is_carrier(e.span) {
             let aliasing = self.sole_operand_borrowed(e);
             self.account_for_arg(v, Ty::Object, ArgOwnership::Borrowed, aliasing, *cur);
@@ -2801,6 +2826,8 @@ impl<'a> Lowering<'a> {
             return (part, false);
         }
         let (text, aliasing) = self.convert_operand(e, v, ty, env, cur);
+        let aliasing =
+            aliasing && self.hold_borrowed(OperandSite::StringHole, e, text, later, *cur);
         let part = ConcatPart {
             kind: PartKind::HtmlText,
             value: text,
@@ -3226,10 +3253,15 @@ impl<'a> Lowering<'a> {
         Self::flatten_concat(lhs, &mut operands);
         Self::flatten_concat(rhs, &mut operands);
         let mark = self.temporaries_mark();
-        let mut pieces = Vec::with_capacity(operands.len());
+        let mut pieces: Vec<(ConcatPart, bool)> = Vec::with_capacity(operands.len());
         let mut leading = None;
         for (i, operand) in operands.iter().enumerate() {
-            let (v, aliasing) = self.concat_operand(operand, env, cur);
+            let (v, ty) = self.lower_expr(operand, None, env, cur);
+            // A `toString` this conversion calls can free an earlier piece.
+            if self.conversion_runs_code(operand, ty) {
+                self.hold_earlier_pieces(&mut pieces, &mut leading, *cur);
+            }
+            let (v, aliasing) = self.convert_operand(operand, v, ty, env, cur);
             let aliasing = aliasing
                 && self.hold_borrowed(OperandSite::Concat, operand, v, &operands[i + 1..], *cur);
             if !aliasing {
@@ -3238,8 +3270,9 @@ impl<'a> Lowering<'a> {
                 }
                 self.own_temporary(v);
             }
-            pieces.push(ConcatPart::str(v));
+            pieces.push((ConcatPart::str(v), aliasing));
         }
+        let pieces = pieces.into_iter().map(|(part, _)| part).collect();
         let result = self.emit_concat(*cur, pieces, leading);
         self.release_temporaries_since(mark, *cur);
         (result, Ty::Str)

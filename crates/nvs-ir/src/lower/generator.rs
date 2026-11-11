@@ -731,9 +731,11 @@ pub(crate) fn lower_generator_factory(
         low.emit_covariant_check(check, name, &mut env, &mut cur);
     }
 
-    // The landing block is over an empty `Env`, as it was before a parameter
-    // had a test: the state object is the first thing this frame allocates.
-    // The rest of the frame is emitted into the block the tests passed to.
+    // The state object is the first thing this frame allocates, and a memory
+    // stop there throws. Until the stores below move them into its fields,
+    // the receiver and the parameters are this frame's, so the landing block
+    // is over the `Env` that binds them and releases each one. The rest of
+    // the frame is emitted into the block the tests passed to.
     let entry = cur;
     let (gen_v, _) = low.emit_fallible(
         entry,
@@ -743,7 +745,7 @@ pub(crate) fn lower_generator_factory(
             ctor: None,
             args: Vec::new(),
         },
-        &Env::default(),
+        &env,
     );
     let (zero, _) = low.emit(entry, Ty::Int, InstKind::ConstInt(0));
     low.emit_field_set(entry, gen_v, class.to_owned(), GEN_STATE.to_owned(), zero);

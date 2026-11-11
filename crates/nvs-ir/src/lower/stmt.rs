@@ -1584,6 +1584,8 @@ impl<'a> Lowering<'a> {
                     // into a `mixed` field arrives as its own `Int`/`Float`/
                     // `Bool` until this widens it.
                     let v = self.coerce(*cur, v, vty, field_ty, env);
+                    let aliasing =
+                        self.hold_guarded_value(guard.is_some(), v, field_ty, aliasing, *cur);
                     if self.exprs.is_covariant_write(target.span) {
                         self.emit_covariant_property_check(
                             object_v,
@@ -1719,6 +1721,8 @@ impl<'a> Lowering<'a> {
                     let (v, vty, aliasing) = self.lower_stored(stored, Some(field_ty), env, cur);
                     // Coerce first, retain second — the arm above says why.
                     let v = self.coerce(*cur, v, vty, field_ty, env);
+                    let aliasing =
+                        self.hold_guarded_value(guard.is_some(), v, field_ty, aliasing, *cur);
                     if self.exprs.is_covariant_write(target.span) {
                         self.emit_covariant_property_check(
                             object_v,
@@ -2018,6 +2022,8 @@ impl<'a> Lowering<'a> {
                 // the reason the `inout` arm above states: `$mixed[] = $n`
                 // with `int $n` is otherwise a refcount on a plain integer.
                 let v = self.coerce(*cur, v, vty, elem_ty, env);
+                let guarded = self.element_guard_of(root).is_some();
+                let aliasing = self.hold_guarded_value(guarded, v, elem_ty, aliasing, *cur);
                 // `PropertyGuard` runs before any row is touched, with the
                 // new element and its key path.
                 self.emit_element_guard(
@@ -2128,15 +2134,7 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) {
-        let ExprKind::PropertyAccess { object, .. } = &root.kind else {
-            return;
-        };
-        let Some(ExprInfo::Property {
-            name,
-            guard: Some(calls),
-            ..
-        }) = self.exprs.lookup(root.span)
-        else {
+        let Some((object, name, calls)) = self.element_guard_of(root) else {
             return;
         };
         let name = name.clone();
@@ -2186,6 +2184,52 @@ impl<'a> Lowering<'a> {
             env,
         );
     }
+    /// The receiver, the property name and the `PropertyGuard` calls of an
+    /// element write whose root `root` is a guarded property, or `None` when
+    /// no guard runs.
+    fn element_guard_of<'e>(
+        &self,
+        root: &'e Expr,
+    ) -> Option<(&'e Expr, &'a String, &'a nvs_types::expr_table::GuardCalls)> {
+        let ExprKind::PropertyAccess { object, .. } = &root.kind else {
+            return None;
+        };
+        let Some(ExprInfo::Property {
+            name,
+            guard: Some(calls),
+            ..
+        }) = self.exprs.lookup(root.span)
+        else {
+            return None;
+        };
+        Some((object, name, calls))
+    }
+
+    /// Takes this frame's own reference to a borrowed value a store is about
+    /// to hand a `PropertyGuard`, and returns its new `aliasing` answer.
+    ///
+    /// The guard is program code. It can replace the storage the value was
+    /// read from, which frees the value before the store retains it. So the
+    /// retain the store makes for a borrowed value is made here, before the
+    /// guard, and the value is then this frame's like a fresh one: the guard
+    /// stages it while it runs, and the store takes this reference over.
+    /// **What it spends:** nothing more. The store pays the same one retain,
+    /// earlier.
+    fn hold_guarded_value(
+        &mut self,
+        guarded: bool,
+        v: ValueId,
+        ty: Ty,
+        aliasing: bool,
+        cur: BlockId,
+    ) -> bool {
+        if guarded && aliasing && ty.is_refcounted() {
+            self.emit_retain(cur, v);
+            return false;
+        }
+        aliasing
+    }
+
     /// The representation of one intermediate level of a nested
     /// array-element write target — `$grid[0]` in `$grid[0][1] = v` — read
     /// out of the typed-expression table exactly as the write's own element

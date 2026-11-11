@@ -387,6 +387,56 @@ impl Lowering<'_> {
         self.later_can_free(base, &[key])
     }
 
+    /// Whether converting `e`, lowered to `ty`, to a `string` can run program
+    /// code: a `toString` the static class resolves to, or the one
+    /// `nvs_runtime::stringify` finds on the runtime class of an `object` or
+    /// a union. A `Core` class renders in native code and runs none.
+    ///
+    /// [`Self::is_inert`] judges syntax and calls `$o` inert, so a join asks
+    /// this once each piece is lowered, before its conversion runs.
+    pub(crate) fn conversion_runs_code(&self, e: &Expr, ty: Ty) -> bool {
+        match ty {
+            Ty::Tagged => true,
+            Ty::Object => self
+                .exprs
+                .to_string_call(e.span)
+                .is_none_or(|call| nvs_types::core_symbol_of(&call.class, &call.method).is_none()),
+            _ => false,
+        }
+    }
+
+    /// Holds every borrowed `string` piece a join has already read, before a
+    /// later piece's conversion runs a `toString` that could free it
+    /// ([`Self::conversion_runs_code`]).
+    ///
+    /// Each pair is a piece and whether nothing is staged for it. A held
+    /// piece is retained, staged on [`Self::owned_temporaries`] and reported
+    /// as staged, so the join's sweep and every landing block release it. A
+    /// held leading piece records its slot in `leading`, so the join hands
+    /// that reference to `Concat` as it does for a fresh leading piece.
+    ///
+    /// **What it spends:** one non-atomic increment and one decrement per
+    /// borrowed piece, only in a join with an `object` or union piece after it.
+    pub(crate) fn hold_earlier_pieces(
+        &mut self,
+        pieces: &mut [(crate::ir::ConcatPart, bool)],
+        leading: &mut Option<usize>,
+        cur: BlockId,
+    ) {
+        use crate::ir::PartKind;
+        for (i, (part, borrowed)) in pieces.iter_mut().enumerate() {
+            if !*borrowed || !matches!(part.kind, PartKind::Str | PartKind::HtmlText) {
+                continue;
+            }
+            self.emit_retain(cur, part.value);
+            if i == 0 {
+                *leading = Some(self.temporaries_mark());
+            }
+            self.own_temporary(part.value);
+            *borrowed = false;
+        }
+    }
+
     /// Whether an expression in `later` can free the storage `e` reads.
     fn later_can_free(&self, e: &Expr, later: &[&Expr]) -> bool {
         match self.read_root(e) {

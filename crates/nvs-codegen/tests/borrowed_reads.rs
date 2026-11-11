@@ -236,3 +236,194 @@ array<string> $a = ["old-" . $n . "-abcdefghijklmnop"];
         failures.join("\n")
     );
 }
+
+/// A `toString` that a conversion calls replaces the storage of an earlier
+/// piece, or frees its own receiver. Each piece and the receiver keep their
+/// value while it runs.
+#[test]
+fn a_to_string_conversion_keeps_its_receiver_alive() {
+    let prelude = r#"<?nvs
+class Name implements Stringable {
+    public Holder $h;
+    public string $text;
+
+    public function constructor(Holder $h, string $text) {
+        $this->h = $h;
+        $this->text = $text;
+    }
+
+    public function toString(): string {
+        $this->h->replace();
+        return $this->text . "!";
+    }
+}
+
+class Holder {
+    public string $s = "";
+    public ?Name $name = null;
+
+    public function replace(): void {
+        int $n = 2;
+        $this->s = "new-" . $n . "-abcdefghijklmnop";
+        $this->name = null;
+        array<string> $fill = [];
+        for (int $i = 0; $i < 1024; $i++) {
+            $fill[] = "fil-" . $n . "-abcdefghijklmnop";
+        }
+    }
+}
+
+int $n = 1;
+Holder $h = new Holder();
+$h->s = "old-" . $n . "-abcdefghijklmnop";
+Name $name = new Name($h, "");
+mixed $any = $name;
+"#;
+    let cases = [
+        ("echo $h->s . $name;\n", "concat, object"),
+        ("echo $h->s . $any;\n", "concat, mixed"),
+        ("echo \"{$h->s}{$name}\";\n", "string hole, object"),
+        ("echo \"{$h->s}{$any}\";\n", "string hole, mixed"),
+        (
+            "$h->name = new Name($h, \"old-\" . $n . \"-abcdefghijklmnop\");\necho $h->name;\n",
+            "own receiver",
+        ),
+    ];
+    let mut failures = Vec::new();
+    for (statement, label) in cases {
+        let output = output_of(&format!("{prelude}{statement}"));
+        if output != "old-1-abcdefghijklmnop!" {
+            failures.push(format!("{label}: printed {output:?}"));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "a conversion lost a value its `toString` freed:\n{}",
+        failures.join("\n")
+    );
+}
+
+/// A `PropertyGuard` replaces the property the stored value was read from.
+/// The store still writes that value.
+#[test]
+fn a_property_guard_cannot_free_the_value_being_stored() {
+    let prelude = r#"<?nvs
+class Box implements PropertyGuard {
+    public string $s = "";
+    public string $t = "";
+    public array<string> $items = [];
+
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
+        if ($name == "s") {
+            return;
+        }
+        int $n = 2;
+        $this->s = "new-" . $n . "-abcdefghijklmnop";
+        array<string> $fill = [];
+        for (int $i = 0; $i < 1024; $i++) {
+            $fill[] = "fil-" . $n . "-abcdefghijklmnop";
+        }
+    }
+
+    public function beforePropertyUnset(string $name, array<string> $keys): void {}
+
+    public static function fill(): void {
+        int $n = 3;
+        array<string> $fill = [];
+        for (int $i = 0; $i < 1024; $i++) {
+            $fill[] = "fil-" . $n . "-abcdefghijklmnop";
+        }
+    }
+}
+
+int $n = 1;
+Box $b = new Box();
+$b->s = "old-" . $n . "-abcdefghijklmnop";
+"#;
+    // The old value is freed when the guard returns, so the fill that reuses
+    // its block runs after the store.
+    let cases = [
+        ("$b->t = $b->s;\nBox::fill();\necho $b->t;\n", "property"),
+        (
+            "$b->items[] = $b->s;\nBox::fill();\necho $b->items[0];\n",
+            "element",
+        ),
+    ];
+    let mut failures = Vec::new();
+    for (statement, label) in cases {
+        let output = output_of(&format!("{prelude}{statement}"));
+        if output != "old-1-abcdefghijklmnop" {
+            failures.push(format!("{label}: printed {output:?}"));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "a guarded store lost the value it stores:\n{}",
+        failures.join("\n")
+    );
+}
+
+/// A memory stop anywhere in a call of a generator factory releases the
+/// arguments the factory owns.
+///
+/// The ceiling that stops at a given step is not known in advance, so the run
+/// is swept over every ceiling up to one it fits under. Every stopped run must
+/// leave nothing allocated.
+///
+/// The state object's `new` has no constructor, so it compiles to an
+/// allocation with no status. A crossing there is reported at the next poll,
+/// and the sweep cannot stop at the `new` itself. Its landing block releases
+/// the arguments for the day that allocation can fail.
+#[test]
+fn a_memory_stop_in_a_generator_factory_releases_its_arguments() {
+    /// Each argument's length.
+    const FILLER: usize = 4 << 10;
+    /// The step between two ceilings, below the state object's size.
+    const STEP: usize = 8;
+
+    let filler = "x".repeat(FILLER);
+    let source = format!(
+        "<?nvs\nclass Gen {{\n    \
+         public static function items(string $a, string $b): Iterator<string> {{\n        \
+         yield $a;\n        yield $b;\n    }}\n}}\n\
+         int $n = 1;\n\
+         Gen::items(\"{filler}\" . $n, \"{filler}\" . $n);\n"
+    );
+    let unit = compile(&source).expect("the fixture compiles");
+    let mut leaks = Vec::new();
+    let mut last_stop = None;
+    let mut completed = false;
+    let mut ceiling = STEP;
+    while !completed {
+        assert!(
+            ceiling < 64 * FILLER,
+            "no ceiling up to {ceiling} bytes let the run complete"
+        );
+        let mut ctx = Ctx::buffered();
+        unit.install_in(&mut ctx);
+        let entry = unit.script().expect("the script frame was compiled");
+        nvs_runtime::prime_empty_array();
+        let before = nvs_runtime::budget::live_bytes();
+        ctx.set_memory_limit(ceiling);
+        let stopped = entry.call(&mut ctx).is_err();
+        drop(ctx.take_pending());
+        drop(ctx.take_buffered_output());
+        if nvs_runtime::budget::live_bytes() != before {
+            leaks.push(ceiling);
+        }
+        if stopped {
+            last_stop = Some(ceiling);
+        } else {
+            completed = true;
+        }
+        ceiling += STEP;
+    }
+    assert!(
+        last_stop.is_some_and(|stop| stop >= 2 * FILLER),
+        "no run stopped once both arguments were allocated: {last_stop:?}"
+    );
+    assert!(
+        leaks.is_empty(),
+        "a memory stop left bytes allocated at the ceilings {leaks:?}"
+    );
+}

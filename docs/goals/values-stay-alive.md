@@ -368,6 +368,23 @@ read or a leak the title rules out, and no goal ahead on the chain is about valu
 stage 9 closes them and the gate runs again as stage 10. Declined: parking them with a later goal,
 which ships a known use-after-free to buy an earlier `DONE`.
 
+**What stage 9 settled while building it.** A `toString` never freed its own receiver: the
+compiled call and `nvs_runtime::call_method` each retain it for the callee. The freed read was
+an *earlier* piece of a join. `is_inert` judges syntax and calls `$o` inert, but the conversion
+of `$o` runs `toString`, which can replace the storage an earlier piece borrowed. So every join
+(`.`, an interpolated string, a `Core\Str::format` argument and an html template) asks
+`Lowering::conversion_runs_code` once a piece is lowered, before its conversion. When the
+piece is an `object` without a `Core` renderer, or a union, `Lowering::hold_earlier_pieces`
+retains and stages each borrowed piece read before it. An html template hole is now also held
+against the holes after it, as an interpolated hole is. A guarded store makes the retain it
+owes a borrowed value before the `PropertyGuard` runs, in `Lowering::hold_guarded_value`, so it
+pays nothing more. A covariant check runs no program code and needs no hold. A generator
+factory's `New` takes the `Env` that binds the receiver and the arguments. A `New` with no
+constructor compiles to `nvs_object_new`, which returns no status, so that edge is not reached
+today, and the sweep test proves a stop anywhere in the factory call leaks nothing. **What it
+spends:** one pair per borrowed piece before an `object` or union piece, nothing for a guarded
+store, and one cold landing block per generator factory.
+
 **Lanes:** stages 1 and 2 share the lowering files and run in order. Stage 3 shares `mod.rs` with
 stage 1 and `emit.rs` with stage 4, so stages 1 to 4 run in order. Stage 5 shares `array.rs` with
 stage 4 and runs after it. Stages 6, 7 and 8 touch disjoint runtime files and may run side by side
@@ -696,16 +713,27 @@ not trace their callees or their arithmetic.
 **Does:** close the three shapes the gate session found still open. Each is a freed read or a leak
 that this goal's title rules out, so it stays here and is not handed to a later goal.
 
-- [ ] A `toString()` that an implicit conversion calls cannot free its own borrowed receiver. The
+- [x] A `toString()` that an implicit conversion calls cannot free its own borrowed receiver. The
   conversion holds the receiver through the call, the way `Lowering::hold_borrowed` holds an
   operand (`crates/nvs-ir/src/lower/expr.rs:1114`, `crates/nvs-ir/src/lower/operand.rs:242`).
-- [ ] A `PropertyGuard` or a covariant-property check that runs user code after a store's value is
+  - [x] The receiver is already held; the freed read is an earlier piece of the join.
+  - [x] `conversion_runs_code` and `hold_earlier_pieces` in `operand.rs`.
+  - [x] `.`, interpolation, `Core\Str::format` arguments and html templates call them.
+- [x] A `PropertyGuard` or a covariant-property check that runs user code after a store's value is
   read holds that value until the store retains it (`crates/nvs-ir/src/lower/stmt.rs:1617`,
   `crates/nvs-ir/src/lower/stmt.rs:1749`, `crates/nvs-ir/src/lower/expr.rs:5485`).
-- [ ] A generator factory's state-object `New` has a landing block that releases the parameters
+  - [x] `hold_guarded_value` at both property-store arms and the element store.
+- [x] A generator factory's state-object `New` has a landing block that releases the parameters
   the factory still owns (`crates/nvs-ir/src/lower/generator.rs:738`).
-- [ ] The three tests the `user-code-holds` check names exist in
+- [x] The three tests the `user-code-holds` check names exist in
   `crates/nvs-codegen/tests/borrowed_reads.rs` and are green, each run once by name.
+  - [x] The `toString` and guard tests fail with their fix switched off.
+- [ ] A rendered `Core\Str::format` holds a borrowed argument against the later arguments and
+  their rendering (`crates/nvs-ir/src/lower/expr.rs:2548`). Each argument is judged with
+  `sole_operand_borrowed`, and nothing judges what follows it. Confirm with a row first.
+- [ ] An element store under a `PropertyGuard` holds a borrowed key and the root array it read
+  while the guard runs (`crates/nvs-ir/src/lower/stmt.rs:2025`). The keys are retained only
+  after the guard, and the guard can replace the property the root array came from.
 
 **What it spends:** one non-atomic retain and release per conversion or guarded store whose value
 is borrowed, and one cold landing block per generator factory. Nothing in memory.
@@ -720,38 +748,33 @@ is borrowed, and one cold landing block per generator factory. Nothing in memory
 
 ### State
 
-Stages 1 to 8 are done, and the first gate over them is green. `looper verify` found three reds,
-each fixed and committed: the statements chapter was not re-rendered after stage 4, five hostile
-cases were not formatted, and `unit_layout`'s shared-literal test pooled CLIF's per-function
-`userextnameN` names across functions. The goal-end gates are green too: `bun nv verify --doc`,
-`bun nv owners --closes values-stay-alive` and `bun nv ci --check`. `ci --check` also needed the
-perf figures for `lang:statements` and the three `Core\Test` classes recorded again, the foreach page
-restamped, three chain goals added to the roadmap, and the follow-up to another session's
-keepalive commit (`llms-full.txt` and the server page's questions). `rule:errors/helper-abi` now
-holds stage 8's reasoning about wrapped and void primitives. The goal was not ended: its backlog
-had three freed-read and leak shapes that the title rules out, so they became stage 9. The gate
-moved to stage 10. The sweep's `env-secret-proofs` red is stale: `looper check --name
-env-secret-proofs` reports that no check matches.
+Stages 1 to 8 are done, and their first gate was green. Stage 9's three listed shapes are fixed
+and committed, and the `user-code-holds` tests are green by name. Their decisions are under
+*What stage 9 settled*. The `toString` and guard tests fail with their fix switched off. The
+generator test cannot: a `New` with no constructor returns no status, so its edge is not
+reached today. Building stage 9 found two more shapes of the same kind, added to stage 9 as
+open items, so stage 9 stays open. The sweep's `env-secret-proofs` red is stale: its log does not
+exist and no check of that name matches.
 
 ### Next
 
-Take stage 9: the three shapes, then the three tests the `user-code-holds` check names, each run
-once by name. Stages 9 and 10 share no file with the finished stages' open work.
+Finish stage 9: the two open items, each with a row in `borrowed_reads.rs` that fails with the
+fix switched off (fill after the free, as the guard test does).
 
-- [ ] `crates/nvs-ir/src/lower/expr.rs:1114`: a `toString()` conversion holds its borrowed
-  receiver through the call, as `crates/nvs-ir/src/lower/operand.rs:242` holds an operand.
-- [ ] `crates/nvs-ir/src/lower/stmt.rs:1617`: a property guard or covariant check holds the value
-  being stored until the store retains it, and so does `crates/nvs-ir/src/lower/stmt.rs:1749`.
-- [ ] `crates/nvs-ir/src/lower/generator.rs:738`: the generator factory's state-object `New` gets a
-  landing block over the parameters it owns.
-- [ ] The three tests in `crates/nvs-codegen/tests/borrowed_reads.rs:1`, green by name.
+- [ ] `crates/nvs-ir/src/lower/expr.rs:2548`: `lower_rendered_format` judges each argument with
+  `sole_operand_borrowed`. Hold it with `borrowed_arg` against the later arguments, and hold
+  every borrowed argument before a rendering that can call `toString`
+  (`Lowering::conversion_runs_code`, `crates/nvs-ir/src/lower/operand.rs:397`).
+- [ ] `crates/nvs-ir/src/lower/stmt.rs:2025`: an element store under a guard retains its borrowed
+  keys only after the guard. Retain and stage them, and the root array, before the guard.
 
 Then stage 10, the gate: `looper verify` in the background, the goal-end gates, and the goal file
 deleted once the remaining decisions are moved into `docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:1`
 and `crates/nvs-ir/src/lower/generator.rs:1`.
 
 Expected red at stage 10: an `nvs-codegen` IR snapshot through a generator factory gains a landing
-block, and one through a `toString()` conversion or a guarded store gains a retain and release.
+block, one through a join with an `object` or `mixed` piece gains a retain and release, and one
+through a guarded store moves its retain before the guard call.
 
 ### Backlog
 
