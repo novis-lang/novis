@@ -1062,15 +1062,20 @@ fn message_of_frame(frame: PeerFrame) -> Value {
     crate::instance::build(&MESSAGE, [Value::null(), text, bytes, Value::null()])
 }
 
-/// One [`MESSAGE`] built out of a value the bus delivered.
+/// One [`MESSAGE`] built out of what the bus delivered, decoded with this
+/// program's own classes ([`crate::topic::decoded`]).
 ///
-/// The topic is read before the value is taken, because taking it consumes the
-/// delivery — [`Delivery`] hands its one owned reference on rather than
-/// copying it, and the slot is where that reference comes to rest.
-fn message_of_delivery(delivery: Delivery) -> Value {
+/// # Errors
+///
+/// The `ParseError` a payload this program cannot read throws. The delivery is
+/// already off the queue, so the next `receive()` reads the next one.
+fn message_of_delivery(ctx: &Ctx, delivery: &Delivery) -> Result<Value, Fault> {
+    let value = crate::topic::decoded(ctx, delivery, r"Core\Socket::receive")?;
     let topic = Value::text(delivery.topic());
-    let value = delivery.into_value();
-    crate::instance::build(&MESSAGE, [topic, Value::null(), Value::null(), value])
+    Ok(crate::instance::build(
+        &MESSAGE,
+        [topic, Value::null(), Value::null(), value],
+    ))
 }
 
 /// The half both `send` rows share: the receiver check, the peer, and the one
@@ -1188,7 +1193,7 @@ nvs_runtime::nvs_helper! {
             return Err(no_connection("receive"));
         }
         loop {
-            crate::topic::deliver_from_other_cores(ctx);
+            crate::topic::deliver_from_other_cores();
             if ctx.inbox_overflowed() {
                 ctx.peer()
                     .expect("`has_peer` answered above and nothing since could have taken it")
@@ -1196,7 +1201,7 @@ nvs_runtime::nvs_helper! {
                 return Ok(Value::null());
             }
             if let Some(delivery) = ctx.take_delivery() {
-                return Ok(message_of_delivery(delivery));
+                return message_of_delivery(ctx, &delivery);
             }
             match wait_on_both(ctx) {
                 // `null`, the condition the connection loop ends on.
@@ -1333,7 +1338,7 @@ mod tests {
     use nvs_runtime::script::{Installed, Prepared, Program, Resolver, install};
     use nvs_runtime::{Ctx, Inbound, NvsArray, NvsStr, UpgradeSlot, Value};
 
-    use nvs_runtime::{Closing, Delivery, PeerError, PeerFrame, PeerSocket, Received};
+    use nvs_runtime::{Closing, PeerError, PeerFrame, PeerSocket, Received};
 
     use super::{
         CLASS, nvs_core_socket_current, nvs_core_socket_message_bytes,
@@ -1443,8 +1448,7 @@ mod tests {
             .push_back(Ok(Some(PeerFrame::Text("hello".to_owned()))));
         let mut ctx = connected(&peer);
         assert!(
-            ctx.deliver(Delivery::new("room:lobby", Value::int(7)))
-                .is_none(),
+            ctx.deliver(crate::topic::delivery_of("room:lobby", Value::int(7))),
             "an empty queue takes the first delivery"
         );
 
@@ -1668,8 +1672,7 @@ mod tests {
             .push_back(Ok(Some(PeerFrame::Binary(vec![0xde, 0xad]))));
         let mut ctx = connected(&peer);
         assert!(
-            ctx.deliver(Delivery::new("prices", Value::int(3)))
-                .is_none(),
+            ctx.deliver(crate::topic::delivery_of("prices", Value::int(3))),
             "an empty queue takes the first delivery"
         );
         let null_tag = Value::null().tag_byte();

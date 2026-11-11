@@ -160,19 +160,18 @@ impl Ctx {
     /// `rule:concurrency/receive-is-the-one-wait`
     /// specifies without the framing layer learning that topics exist.
     ///
-    /// Takes over the value's reference; [`crate::peer::Delivery`] owns that
-    /// convention and [`Self::take_delivery`] is where it is handed on.
+    /// The delivery carries encoded bytes, and [`crate::peer::Delivery`] owns
+    /// why. The subscriber's `receive()` decodes what [`Self::take_delivery`]
+    /// returns.
     ///
     /// A connection already parked in `Core\Socket::receive()` is woken by the
     /// push: its wait left a [`crate::peer::Interrupt`] on the queue through
     /// [`crate::peer::Inbox::wake_on`], and the push fires it. An event
     /// stream's wait registers a plain wake there the same way.
     ///
-    /// **Answers the delivery back when the queue is full** — `rule:core-classes/topic`'s bound, and
-    /// [`crate::peer::Inbox::push`] owns why a refusal comes back to the caller
-    /// rather than being dropped here.
-    #[must_use = "a refused delivery still owns a reference the caller has to release"]
-    pub fn deliver(&mut self, delivery: crate::peer::Delivery) -> Option<crate::peer::Delivery> {
+    /// **Answers `false` when the queue is full** — `rule:core-classes/topic`'s
+    /// bound, which [`crate::peer::Inbox::push`] owns.
+    pub fn deliver(&mut self, delivery: crate::peer::Delivery) -> bool {
         self.deliveries
             .get_or_insert_with(|| std::rc::Rc::new(crate::peer::Inbox::default()))
             .push(delivery)
@@ -203,7 +202,7 @@ impl Ctx {
         self.deliveries.clone()
     }
 
-    /// The oldest queued delivery, handing its reference to the caller.
+    /// The oldest queued delivery.
     ///
     /// `None` when the bus has nothing waiting. It does not make the queue,
     /// for the reason [`Self::deliveries`] does not.
@@ -226,22 +225,16 @@ impl Ctx {
     /// subscribes or is published to and released with its context — never to
     /// an ordinary request, which never reaches this.
     ///
-    /// Each call records this context's memory limit on the queue, and its
-    /// tree where this stack runs that tree's turn, which is where a delivery's
-    /// bytes are charged ([`crate::peer::Inbox::push_sized`]).
+    /// Each call records this context's memory limit on the queue, which bounds
+    /// the bytes it holds ([`crate::peer::Inbox::push`]).
     #[must_use]
     pub fn inbox(&mut self) -> std::rc::Rc<crate::peer::Inbox> {
-        let tree = std::ptr::eq(
-            std::sync::Arc::as_ptr(&self.tree),
-            crate::budget::running_turn(),
-        )
-        .then(|| std::sync::Arc::clone(&self.tree));
         let limit = self.memory_limit;
         let inbox = std::rc::Rc::clone(
             self.deliveries
                 .get_or_insert_with(|| std::rc::Rc::new(crate::peer::Inbox::default())),
         );
-        inbox.bind(limit, tree);
+        inbox.bind(limit);
         inbox
     }
 

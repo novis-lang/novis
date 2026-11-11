@@ -514,10 +514,9 @@ pub(crate) fn refusable(class: &ClassDesc, door: Door) -> Result<(), GraphError>
 /// The graph copy's first carrier: arena-to-arena, with no intervening byte
 /// representation.
 ///
-/// `receiving` is the class table the copy lands in, when the crossing has one
-/// — every live crossing's, in both directions. `None` asks nothing of the
-/// receiving side, and its one shipped caller is the topic's local delivery,
-/// which `every_crossing_site_names_its_receiving_side` names.
+/// `receiving` is the class table the copy lands in — every live crossing's,
+/// in both directions. `None` asks nothing of the receiving side, and only this
+/// module's tests of the walk's own refusals build one.
 struct Live<'a> {
     receiving: Option<&'a Receiving<'a>>,
 }
@@ -693,22 +692,6 @@ pub fn copy_graph_to(value: Value, receiving: &Receiving<'_>) -> Result<Value, G
         &mut seen,
         0,
     )
-}
-
-/// The live copy that asks nothing of the receiving side: every refusal of
-/// [`copy_graph_to`] except the unresolvable class.
-///
-/// Its one shipped caller is `Core\Topic::publish`'s delivery to a subscriber
-/// on the same core, which `every_crossing_site_names_its_receiving_side`
-/// names until that delivery carries bytes.
-///
-/// # Errors
-///
-/// What [`copy_graph_to`] refuses, less the unresolvable class.
-#[doc(hidden)]
-pub fn copy_graph_unreceived(value: Value) -> Result<Value, GraphError> {
-    let mut seen = Seen::new();
-    walk(&mut Live { receiving: None }, value, &mut seen, 0)
 }
 
 // ============================================================================
@@ -1307,7 +1290,8 @@ mod tests {
     /// A live copy into a side that asks nothing, for the tests that are about
     /// the walk's refusals and not about the receiving side.
     fn copy_graph(value: Value) -> Result<Value, GraphError> {
-        copy_graph_unreceived(value)
+        let mut seen = Seen::new();
+        walk(&mut Live { receiving: None }, value, &mut seen, 0)
     }
 
     /// A payload naming `class` with `fields` recorded and each one `null`,
@@ -1419,9 +1403,6 @@ mod tests {
     const DRIVERS: &[(&str, Driver)] = &[
         ("copy_graph_to", |table, name| {
             answered(copy_graph_to(instance_of(table, name), &resolver(table)))
-        }),
-        ("copy_graph_unreceived", |table, name| {
-            answered(copy_graph_unreceived(instance_of(table, name)))
         }),
         ("encode", |table, name| {
             encode(instance_of(table, name)).err().map(|why| why.0)

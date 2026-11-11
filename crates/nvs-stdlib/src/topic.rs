@@ -211,13 +211,14 @@
 
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
+use std::sync::Arc;
 
-use nvs_runtime::{Ctx, Delivery, Fault, Inbox, ThrownClass, Value, budget, copy_graph_unreceived};
+use nvs_runtime::{Ctx, Delivery, Fault, Inbox, ThrownClass, Value, budget};
 
 use crate::registry::{
     ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
-use crate::socket::{release_crossed, retained};
+use crate::socket::retained;
 
 /// `Core\Topic`'s fully-qualified name, in one place so the row and every
 /// message quoting it cannot drift apart.
@@ -630,105 +631,103 @@ fn subscribers_of(topic: &str) -> Vec<Rc<Inbox>> {
     live
 }
 
-/// `rule:classes/graph-copy`'s copy of the value being published, which is also the one
-/// refusal `publish` makes about it.
+/// `rule:classes/graph-copy`'s encoding of the value being published, made once
+/// per publish. It is also the one refusal `publish` makes about the value.
 ///
-/// **Answers one owned reference**, which the delivery it is put in takes over.
-/// The argument is only borrowed by this frame, so the retain is what
-/// reconciles the two conventions — [`crate::socket::retained`] owns why.
+/// **Borrows the argument**, on [`retained`]'s convention. The bytes are
+/// written on the publishing request's balance and copied once into the shared
+/// buffer, which is the process's (`nvs_runtime::Delivery`). The request frees
+/// its own `Vec` here, outside the bracket, so each block is allocated and
+/// freed on one balance.
 ///
 /// # Errors
 ///
 /// A `LogicError` naming what has no meaning on the other side of a copy
-/// boundary: a resource, or a `secret`, which `rule:security/secret-qualifier` says may never be
-/// published.
-fn cross(value: Value) -> Result<Value, Fault> {
-    copy_graph_unreceived(retained(value)).map_err(|refused| {
+/// boundary: a resource, a class the compiler made, or a `secret`, which
+/// `rule:security/secret-qualifier` says may never be published.
+fn encoded(value: Value) -> Result<Arc<[u8]>, Fault> {
+    let bytes = nvs_runtime::encode(retained(value)).map_err(|refused| {
         Fault::thrown_as(
             ThrownClass::Logic,
             format!("`Core\\Topic::publish` cannot publish this value: {refused}"),
         )
-    })
+    })?;
+    #[cfg(test)]
+    tests::ENCODES.with(|count| count.set(count.get() + 1));
+    let _bracket = budget::Detached::begin();
+    Ok(Arc::from(&bytes[..]))
 }
 
-/// `rule:classes/graph-copy`'s *encoding* of the value being published, which is what
-/// crosses to another core in place of a copy.
+/// A delivery on `topic` carrying `value`, encoded as `publish` encodes it,
+/// for a test that queues one by hand. Borrows `value`.
+#[cfg(test)]
+pub(crate) fn delivery_of(topic: &str, value: Value) -> Delivery {
+    Delivery::new(
+        topic,
+        encoded(value).expect("a test delivers a value that crosses"),
+    )
+}
+
+/// The value a delivery carries, decoded with the receiving program's own
+/// classes — `receive()`'s half of the bus, for both doors.
 ///
-/// **Borrows the argument**, on [`retained`]'s convention, and answers bytes
-/// that own nothing.
+/// An object arrives as the class of that name in the subscriber's program,
+/// checked as `Core\Serialize::decode` checks it. The delivery is already off
+/// the queue, so the next `receive()` reads the next message whatever this one
+/// answers.
 ///
 /// # Errors
 ///
-/// The same refusal [`cross`] makes, in the same words: `encode` and
-/// `copy_graph` share the walk that decides, so this cannot refuse a value the
-/// copy above already accepted. It is mapped rather than asserted because a
-/// carrier answering `Result` is not a place to write an `expect`.
-fn externalize(value: Value) -> Result<Vec<u8>, Fault> {
-    nvs_runtime::encode(retained(value)).map_err(|refused| {
+/// A `ParseError` naming the topic and what the payload holds that this
+/// program cannot make: a class it does not declare, or one whose properties
+/// differ. `member` is the `receive` that asked.
+pub(crate) fn decoded(ctx: &Ctx, delivery: &Delivery, member: &str) -> Result<Value, Fault> {
+    nvs_runtime::decode(delivery.payload(), &ctx.receiving()).map_err(|why| {
         Fault::thrown_as(
-            ThrownClass::Logic,
-            format!("`Core\\Topic::publish` cannot publish this value: {refused}"),
+            ThrownClass::Parse,
+            format!(
+                "`{member}` cannot read the message on topic `{}`: {why}",
+                delivery.topic()
+            ),
         )
     })
 }
 
-/// Fans out everything other cores have published to this one, into the
-/// subscribers that joined here.
+/// Moves everything other cores have published to this one into the queues of
+/// the subscribers that joined here.
 ///
-/// Called by `Core\Socket::receive()` before it reads either source, which is
+/// Called by both doors' `receive()` before it reads either source, which is
 /// where a connection is about to wait anyway — [`crate::socket`] owns that
 /// ordering, and this module's docs own why a delivery from another core
 /// inherits the wake gap rather than adding one.
 ///
-/// One `decode` **per subscriber**, so each is handed a graph it shares with
-/// nobody, which is `rule:core-classes/topic` and is the same guarantee the
-/// local walk's copy-per-subscriber gives. An envelope naming a class this program cannot
-/// resolve is dropped rather than thrown: the connection running this drain
-/// did not publish it and has no answer to give. The resolver is the
-/// draining program's own class table.
-pub(crate) fn deliver_from_other_cores(ctx: &Ctx) {
+/// It decodes nothing. Each subscriber's queue gets the envelope's own shared
+/// buffer, and each subscriber's `receive()` decodes it with its own classes
+/// ([`decoded`]). So a message one subscriber cannot read still reaches the
+/// others.
+pub(crate) fn deliver_from_other_cores() {
     // The drain is held for the whole fan-out and freed by the bus, on the
     // balance the publishing core allocated it on — `crate::bus`'s accounting
     // decision, which is why this is not a `for` over an owned `Vec`.
     let drained = crate::bus::take_all();
     for envelope in drained.envelopes() {
-        let subscribers = subscribers_of(envelope.topic());
-        let resolve = ctx.receiving();
-        let mut size = envelope.payload().len();
-        for inbox in &subscribers {
-            // The same bounds the local walk keeps, asked before the decode for
-            // the same reason they are asked before the copy.
-            if !inbox.has_room() || !inbox.has_room_for(size) {
-                inbox.note_overflow();
-                continue;
-            }
-            // The decode is made on this turn and handed on, so it is asked
-            // for here. A refusal records the breach, and this request ends at
-            // its next poll.
-            if !budget::affords(size) {
-                return;
-            }
-            let Some((value, made)) =
-                measured(|| nvs_runtime::decode(envelope.payload(), &resolve).ok())
-            else {
-                break;
-            };
-            size = made;
-            if let Some(refused) = inbox.push_sized(Delivery::new(envelope.topic(), value), made) {
-                release_crossed(refused.into_value());
-            }
+        for inbox in &subscribers_of(envelope.topic()) {
+            queue_into(inbox, envelope.topic(), envelope.payload());
         }
     }
 }
 
-/// Runs `make` and returns what it made with the bytes the running request's
-/// balance rose by meanwhile, which is what a copy handed to a subscriber
-/// takes. A collection that freed more than `make` allocated reads as `0`.
-fn measured(make: impl FnOnce() -> Option<Value>) -> Option<(Value, usize)> {
-    let before = budget::live_bytes();
-    let made = make()?;
-    let grew = usize::try_from(budget::live_bytes().wrapping_sub(before)).unwrap_or(0);
-    Some((made, grew))
+/// Queues `payload` for one subscriber, and answers whether it was taken.
+///
+/// The count bound is asked first, so a subscriber already being closed costs
+/// no allocation. [`Inbox::push`] asks the byte bound with the buffer's full
+/// length.
+fn queue_into(inbox: &Inbox, topic: &str, payload: &Arc<[u8]>) -> bool {
+    if !inbox.has_room() {
+        inbox.note_overflow();
+        return false;
+    }
+    inbox.push(Delivery::new(topic, Arc::clone(payload)))
 }
 
 /// Publishes `text` on `topic` as `Core\Topic::publish($topic, $text)` does,
@@ -793,61 +792,20 @@ nvs_runtime::nvs_helper! {
     /// those cores reported, which is this module's fourth decision.
     fn nvs_core_topic_publish(ctx, args: [2]) {
         let topic = topic_of(&args[0], "publish")?;
-        let subscribers = subscribers_of(topic);
-        let before = budget::live_bytes();
-        let mut first = Some(cross(args[1])?);
-        let mut size = usize::try_from(budget::live_bytes().wrapping_sub(before)).unwrap_or(0);
+        let payload = encoded(args[1])?;
         let mut delivered: u64 = 0;
-        for inbox in &subscribers {
-            // The subscriber queue's bounds, asked before the copy is made
-            // rather than after: a subscriber that is already being closed
-            // costs this publisher nothing but the test. The byte bound is
-            // asked with the size of the last copy, which every further copy
-            // of the same value repeats. `nvs_runtime::peer` owns the rest of it.
-            if !inbox.has_room() || !inbox.has_room_for(size) {
-                inbox.note_overflow();
-                continue;
+        for inbox in &subscribers_of(topic) {
+            if queue_into(inbox, topic, &payload) {
+                delivered += 1;
             }
-            // A refusal is a property of the graph rather than of the copy, so
-            // the one above is the one that reports it: a further copy of the
-            // same unchanged value cannot decide differently, and this `?` is
-            // unreachable in the same sense the module doc's decision is.
-            let (copy, made) = match first.take() {
-                Some(made) => (made, size),
-                None => {
-                    // Each further copy is this request's until it is queued,
-                    // so it is asked for first. A refusal records the breach,
-                    // and the request ends at its next poll.
-                    if !budget::affords(size) {
-                        break;
-                    }
-                    let before = budget::live_bytes();
-                    let copy = cross(args[1])?;
-                    (copy, usize::try_from(budget::live_bytes().wrapping_sub(before)).unwrap_or(0))
-                }
-            };
-            size = made;
-            // Nothing between the tests above and here can have filled the
-            // queue — this core is the only one that pushes into its own
-            // subscribers' queues, and neither call suspends. The byte bound
-            // is asked again with the copy's real size.
-            if let Some(refused) = inbox.push_sized(Delivery::new(topic, copy), made) {
-                release_crossed(refused.into_value());
-                continue;
-            }
-            delivered += 1;
-        }
-        if let Some(unused) = first {
-            release_crossed(unused);
-        }
-        // A copy refused above ends this request at its next poll, so it
-        // encodes nothing more for the other cores.
-        if budget::refused() {
-            return Ok(Value::uint(delivered));
         }
         if crate::bus::subscribers_elsewhere(topic) > 0 {
-            delivered += crate::bus::hand_off(topic, externalize(args[1])?, ctx.memory_limit());
+            delivered += crate::bus::hand_off(topic, &payload, ctx.memory_limit());
         }
+        // The last reference this request holds goes back to the balance the
+        // buffer was made on.
+        let _bracket = budget::Detached::begin();
+        drop(payload);
         Ok(Value::uint(delivered))
     }
 }
@@ -869,15 +827,23 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use nvs_runtime::{
-        Closing, Ctx, EventStreamDoor, INBOX_CAP, NvsFn, PeerError, PeerFrame, PeerSocket, Value,
-        budget,
+        ClassTable, Closing, Ctx, ErrorClass, EventStreamDoor, INBOX_CAP, NvsFn, NvsObj, PeerError,
+        PeerFrame, PeerSocket, Value, budget,
     };
 
     use super::{
         nvs_core_topic_publish, nvs_core_topic_subscribe, nvs_core_topic_unsubscribe,
         subscribers_of,
     };
+
+    thread_local! {
+        /// How many times `publish` encoded a value on this thread — read by
+        /// `a_publish_encodes_once_however_many_subscribed`.
+        pub(super) static ENCODES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
 
     /// How many live connections on this core have joined `topic`.
     ///
@@ -1096,24 +1062,257 @@ mod tests {
         answered.map(|count| count.as_uint().expect("`publish` answers a `uint`"))
     }
 
-    /// Takes the one delivery `topic` should have queued on `ctx`, releasing
-    /// the reference it hands over.
-    ///
-    /// The release is the case's rather than `Ctx`'s own `Drop` on purpose:
-    /// two independent releases of what a fan-out handed two subscribers is
-    /// exactly what a walk that shared one copy would fail at.
+    /// Takes the one delivery `topic` should have queued on `ctx`, decodes it
+    /// as `receive()` does, and releases the value.
     fn drained(ctx: &mut Ctx, topic: &str) {
+        let value = read(ctx, topic).expect("the subscriber reads what it was sent");
+        release(value);
+        assert!(ctx.take_delivery().is_none(), "and exactly one");
+    }
+
+    /// Takes the next delivery on `ctx`, which must be on `topic`, and decodes
+    /// it with `ctx`'s own classes, as both doors' `receive()` does.
+    fn read(ctx: &mut Ctx, topic: &str) -> Result<Value, nvs_runtime::Fault> {
         let delivery = ctx.take_delivery().expect("this subscriber was queued one");
         assert_eq!(delivery.topic(), topic);
-        #[expect(
-            unsafe_code,
-            reason = "the delivery handed this frame the only reference to its value"
-        )]
-        // SAFETY: nothing else points at the copy this subscriber was queued.
+        super::decoded(ctx, &delivery, "receive")
+    }
+
+    /// Releases a value this frame owns one reference to.
+    fn release(value: Value) {
+        #[expect(unsafe_code, reason = "the caller owns the one reference it passes")]
+        // SAFETY: nothing else points at a value a decode just made.
         unsafe {
-            delivery.into_value().release();
+            value.release();
         }
-        assert!(ctx.take_delivery().is_none(), "and exactly one");
+    }
+
+    /// A class table that declares `class` with one property, `text`, anchored
+    /// on its own `RuntimeError` as a compiled unit's table is, with the
+    /// `ParseError` a refused message throws.
+    fn declaring(class: &str) -> Arc<ClassTable> {
+        const SLOTS: [&str; 4] = ["message", "previous", "backtrace", "location"];
+        let mut classes = ClassTable::new();
+        classes.define("RuntimeError", &SLOTS, &[]);
+        classes.define("ParseError", &SLOTS, &[]);
+        classes.define(class, &["text"], &[]);
+        Arc::new(classes)
+    }
+
+    /// A connection whose program is `classes`.
+    fn connected_with(classes: &Arc<ClassTable>) -> Ctx {
+        let mut ctx = connected();
+        let root = classes
+            .id_of("RuntimeError")
+            .expect("the table anchors on it");
+        ctx.set_runtime_error_class(ErrorClass::new(Arc::clone(classes), root));
+        ctx
+    }
+
+    /// An instance of `class` from `classes`, its `text` set to `text`.
+    fn note(classes: &Arc<ClassTable>, class: &str, text: &str) -> Value {
+        let id = classes.id_of(class).expect("the table declares the class");
+        #[expect(unsafe_code, reason = "the table outlives the object")]
+        // SAFETY: the case holds the table for as long as the object lives.
+        let object = unsafe { NvsObj::new(classes.desc(id)) };
+        object.set_field(0, Value::text(text));
+        Value::object(object)
+    }
+
+    /// One `publish` of `value`, which the call borrows.
+    fn publish_value(ctx: &mut Ctx, topic: &str, value: Value) -> Result<u64, i32> {
+        let name = Value::text(topic);
+        let answered = nvs_runtime::call(nvs_core_topic_publish, ctx, &[name, value]);
+        release(name);
+        answered.map(|count| count.as_uint().expect("`publish` answers a `uint`"))
+    }
+
+    /// The class descriptor of the object `value` is.
+    fn class_of(value: Value) -> *const nvs_runtime::ClassDesc {
+        let header = value.obj_ptr().expect("an object arrived");
+        #[expect(unsafe_code, reason = "the value is a live object this frame holds")]
+        // SAFETY: the header belongs to a live object the case owns.
+        unsafe {
+            NvsObj::class_of(header)
+        }
+    }
+
+    /// `rule:core-classes/topic`: an object published by one program arrives
+    /// as the class of the same name in the subscriber's program. The two
+    /// tables declare one name, and the subscriber's object has the
+    /// subscriber table's descriptor.
+    #[test]
+    fn a_published_object_arrives_as_the_subscribers_own_class() {
+        let theirs = declaring("Note");
+        let mine = declaring("Note");
+        let mut subscriber = connected_with(&mine);
+        call(nvs_core_topic_subscribe, &mut subscriber, "room:own-class").expect("it joins");
+
+        let mut publisher = Ctx::buffered();
+        let sent = note(&theirs, "Note", "hello");
+        assert_eq!(publish_value(&mut publisher, "room:own-class", sent), Ok(1));
+        release(sent);
+
+        let arrived = read(&mut subscriber, "room:own-class").expect("the subscriber declares it");
+        let id = mine.id_of("Note").expect("declared");
+        assert!(
+            std::ptr::eq(class_of(arrived), mine.desc(id)),
+            "the object arrived with a descriptor other than the subscriber's own"
+        );
+        release(arrived);
+    }
+
+    /// A subscriber whose program does not declare the class gets a
+    /// `ParseError` it can catch, and its next `receive()` reads the next
+    /// message.
+    #[test]
+    fn a_subscriber_that_lacks_the_class_catches_an_error_and_reads_the_next_message() {
+        let theirs = declaring("Note");
+        let mine = declaring("Other");
+        let mut subscriber = connected_with(&mine);
+        call(nvs_core_topic_subscribe, &mut subscriber, "room:lacks").expect("it joins");
+
+        let mut publisher = Ctx::buffered();
+        let sent = note(&theirs, "Note", "hello");
+        assert_eq!(publish_value(&mut publisher, "room:lacks", sent), Ok(1));
+        release(sent);
+        assert_eq!(publish(&mut publisher, "room:lacks", "next"), Ok(1));
+
+        let conn = nvs_runtime::call(crate::socket::nvs_core_socket_current, &mut subscriber, &[])
+            .expect("a connection isolate answers `current()`");
+        let refused = nvs_runtime::call(
+            crate::socket::nvs_core_socket_receive,
+            &mut subscriber,
+            &[conn],
+        );
+        assert!(refused.is_err(), "a class the program lacks was read");
+        let thrown = subscriber.take_thrown();
+        assert!(
+            !thrown.is_none(),
+            "the refusal is a throw the program can catch"
+        );
+        assert_eq!(thrown.class_name(), "ParseError");
+        assert!(
+            thrown.message().contains("room:lacks") && thrown.message().contains("Note"),
+            "the error names the topic and the class: {}",
+            thrown.message()
+        );
+        drop(thrown);
+
+        let next = nvs_runtime::call(
+            crate::socket::nvs_core_socket_receive,
+            &mut subscriber,
+            &[conn],
+        )
+        .expect("the next message is read");
+        let value = nvs_runtime::call(
+            crate::socket::nvs_core_socket_message_value,
+            &mut subscriber,
+            &[next],
+        )
+        .expect("a delivery carries its value");
+        assert_eq!(value.as_text(), Some("next"));
+        release(value);
+        release(next);
+        release(conn);
+    }
+
+    /// The same message reaches a subscriber that can read it and one that
+    /// cannot, and only the second one's `receive()` throws. On this core.
+    #[test]
+    fn a_message_one_subscriber_cannot_read_still_reaches_the_others() {
+        let theirs = declaring("Note");
+        let reads = declaring("Note");
+        let lacks = declaring("Other");
+        let mut reader = connected_with(&reads);
+        let mut stranger = connected_with(&lacks);
+        call(nvs_core_topic_subscribe, &mut stranger, "room:mixed").expect("one joins");
+        call(nvs_core_topic_subscribe, &mut reader, "room:mixed").expect("and another");
+
+        let mut publisher = Ctx::buffered();
+        let sent = note(&theirs, "Note", "hello");
+        assert_eq!(publish_value(&mut publisher, "room:mixed", sent), Ok(2));
+        release(sent);
+
+        assert!(
+            read(&mut stranger, "room:mixed").is_err(),
+            "the stranger read it"
+        );
+        release(read(&mut reader, "room:mixed").expect("the reader reads it"));
+    }
+
+    /// The same, through the drain: the message comes from another core, and
+    /// both subscribers on this one are queued it.
+    #[test]
+    fn a_message_one_subscriber_cannot_read_still_reaches_the_others_through_the_drain() {
+        let (joined, listening) = std::sync::mpsc::channel();
+        let (published, sent) = std::sync::mpsc::channel::<()>();
+        let subscribers = std::thread::spawn(move || {
+            let reads = declaring("Note");
+            let lacks = declaring("Other");
+            let mut reader = connected_with(&reads);
+            let mut stranger = connected_with(&lacks);
+            call(nvs_core_topic_subscribe, &mut stranger, "room:mixed-far").expect("one joins");
+            call(nvs_core_topic_subscribe, &mut reader, "room:mixed-far").expect("and another");
+            joined.send(()).expect("the publisher is waiting");
+            sent.recv()
+                .expect("the publisher says when it has published");
+
+            super::deliver_from_other_cores();
+            let stranger_read = read(&mut stranger, "room:mixed-far").is_ok();
+            let reader_read = read(&mut reader, "room:mixed-far").map(release).is_ok();
+            (stranger_read, reader_read)
+        });
+
+        listening.recv().expect("the subscribers have joined");
+        let theirs = declaring("Note");
+        let mut publisher = Ctx::buffered();
+        let sent_note = note(&theirs, "Note", "hello");
+        assert_eq!(
+            publish_value(&mut publisher, "room:mixed-far", sent_note),
+            Ok(2)
+        );
+        release(sent_note);
+        published.send(()).expect("the subscribers are waiting");
+        let (stranger_read, reader_read) = subscribers.join().expect("the subscribers finished");
+        assert!(
+            !stranger_read,
+            "the stranger read a class it does not declare"
+        );
+        assert!(
+            reader_read,
+            "the reader missed a message the stranger could not read"
+        );
+    }
+
+    /// A publish encodes the value once, and every subscriber's queue holds
+    /// that one buffer: the count of encodes and the buffers queued are the
+    /// same for two subscribers and for eight.
+    #[test]
+    fn a_publish_encodes_once_however_many_subscribed() {
+        let measure = |count: usize, topic: &str| {
+            let mut subscribers: Vec<Ctx> = (0..count).map(|_| connected()).collect();
+            for ctx in &mut subscribers {
+                call(nvs_core_topic_subscribe, ctx, topic).expect("it joins");
+            }
+            let before = ENCODES.with(std::cell::Cell::get);
+            let mut publisher = Ctx::buffered();
+            assert_eq!(
+                publish(&mut publisher, topic, "one payload for everyone"),
+                Ok(u64::try_from(count).expect("a small count"))
+            );
+            let encodes = ENCODES.with(std::cell::Cell::get) - before;
+            let buffers: std::collections::HashSet<usize> = subscribers
+                .iter_mut()
+                .map(|ctx| {
+                    let delivery = ctx.take_delivery().expect("each subscriber was queued one");
+                    delivery.payload().as_ptr() as usize
+                })
+                .collect();
+            (encodes, buffers.len())
+        };
+        assert_eq!(measure(2, "room:two"), (1, 1));
+        assert_eq!(measure(8, "room:eight"), (1, 1));
     }
 
     /// A publish reaches every live subscriber on this core, answers how many,
@@ -1161,7 +1360,7 @@ mod tests {
             sent.recv()
                 .expect("the publisher says when it has published");
 
-            super::deliver_from_other_cores(&ctx);
+            super::deliver_from_other_cores();
             drained(&mut ctx, "room:crosscore");
         });
 
@@ -1182,7 +1381,8 @@ mod tests {
 
     /// Each subscriber is handed a value of its own — `rule:core-classes/topic`'s
     /// "subscribers share nothing with the publisher or with each other",
-    /// asserted as the two payloads not being one allocation.
+    /// asserted as the two decoded values not being one allocation, though the
+    /// two queues share one encoded buffer.
     ///
     /// Read off the pointers rather than off the contents, because two
     /// subscribers holding one refcounted string compare equal on every
@@ -1202,14 +1402,8 @@ mod tests {
             2
         );
 
-        let mine = first
-            .take_delivery()
-            .expect("the first subscriber was queued one")
-            .into_value();
-        let yours = second
-            .take_delivery()
-            .expect("and so was the second")
-            .into_value();
+        let mine = read(&mut first, "room:unshared").expect("the first subscriber reads it");
+        let yours = read(&mut second, "room:unshared").expect("and so does the second");
         let held = |value: &Value| {
             value
                 .as_str_bytes()
@@ -1223,16 +1417,8 @@ mod tests {
             "one copy per subscriber, so the two payloads are two allocations"
         );
 
-        #[expect(
-            unsafe_code,
-            reason = "each delivery handed this frame the only reference to its own copy"
-        )]
-        // SAFETY: nothing else points at either copy — the fan-out made one per
-        // subscriber and both queues have been drained.
-        unsafe {
-            mine.release();
-            yours.release();
-        }
+        release(mine);
+        release(yours);
     }
 
     /// A topic nobody joined is reached by nobody, and a connection that ended

@@ -1753,28 +1753,12 @@ impl Drop for Ctx {
             // is the only other place it is given back.
             unsafe { hook.release() };
         }
-        // `rule:concurrency/a-connection-is-a-loop`'s undelivered topic values, for a connection that ended
-        // with the queue non-empty — `crate::peer::Delivery` carries one owned
-        // reference and deliberately has no `Drop` of its own, so this is where
-        // the ones no `receive()` reached are given back.
-        // Taking the handle is also what unsubscribes this connection from
+        // Taking the delivery queue is what unsubscribes this connection from
         // every topic it joined: `Core\Topic`'s table holds a `Weak` onto this
         // queue and nothing else, so dropping the last strong reference is the
-        // subscription ending — see `crate::peer::Inbox`.
-        if let Some(inbox) = self.deliveries.take() {
-            while let Some(delivery) = inbox.pop() {
-                #[expect(
-                    unsafe_code,
-                    reason = "the queue holds exactly one reference per delivery and \
-                              nothing else points at it"
-                )]
-                // SAFETY: `Ctx::deliver` was handed that reference and this is
-                // the only other place it is given back.
-                unsafe {
-                    delivery.into_value().release();
-                }
-            }
-        }
+        // subscription ending — see `crate::peer::Inbox`. A delivery no
+        // `receive()` reached holds bytes and no value, so it frees itself.
+        drop(self.deliveries.take());
         // `rule:concurrency/after-response-outlives-the-connection`'s deferred work is request-local for the same reason,
         // and a request that never returned ordinarily reaches here with its
         // registrations unrun — `crate::deferred`'s module doc owns why they

@@ -794,16 +794,18 @@ nvs_runtime::nvs_helper! {
 /// bus wakes the core it hands a value to.
 const CROSS_CORE_TICK: std::time::Duration = std::time::Duration::from_millis(50);
 
-/// One [`MESSAGE`] built out of a value the bus delivered.
-///
-/// The topic is read before the value is taken, because taking it consumes the
-/// delivery — [`Delivery`] hands its one owned reference on rather than copying
-/// it, and the slot is where that reference comes to rest. Two slots and not the
+/// One [`MESSAGE`] built out of what the bus delivered, decoded with this
+/// program's own classes ([`crate::topic::decoded`]). Two slots and not the
 /// sibling's four: [`MESSAGE`]'s own doc owns why this door has one source.
-fn message_of_delivery(delivery: Delivery) -> Value {
+///
+/// # Errors
+///
+/// The `ParseError` a payload this program cannot read throws. The delivery is
+/// already off the queue, so the next `receive()` reads the next one.
+fn message_of_delivery(ctx: &Ctx, delivery: &Delivery) -> Result<Value, Fault> {
+    let value = crate::topic::decoded(ctx, delivery, r"Core\Sse::receive")?;
     let topic = Value::text(delivery.topic());
-    let value = delivery.into_value();
-    crate::instance::build(&MESSAGE, [topic, value])
+    Ok(crate::instance::build(&MESSAGE, [topic, value]))
 }
 
 nvs_runtime::nvs_helper! {
@@ -840,7 +842,7 @@ nvs_runtime::nvs_helper! {
             ));
         }
         loop {
-            crate::topic::deliver_from_other_cores(ctx);
+            crate::topic::deliver_from_other_cores();
             // `rule:core-classes/topic`'s bound, taken by the subscriber
             // itself: the publisher refused the value rather than waiting, and
             // this is where that refusal becomes the close it means. The stream
@@ -855,7 +857,7 @@ nvs_runtime::nvs_helper! {
                 return Ok(Value::null());
             }
             if let Some(delivery) = ctx.take_delivery() {
-                return Ok(message_of_delivery(delivery));
+                return message_of_delivery(ctx, &delivery);
             }
             // The stream is over once nothing will read it: the client went
             // away, a send met its bound, or the body was ended. A queued
@@ -1514,16 +1516,13 @@ mod tests {
             .expect("the isolate was handed the body of a response");
 
         // One past the bound, which is what raises the overflow: the queue is
-        // full at `INBOX_CAP`, and the refused value comes back to the
-        // publisher rather than being dropped here.
+        // full at `INBOX_CAP`, and the next delivery is refused.
         for n in 0..=nvs_runtime::INBOX_CAP {
-            let queued = stream.deliver(nvs_runtime::Delivery::new(
+            let queued = stream.deliver(crate::topic::delivery_of(
                 "room:flood",
                 Value::int(i64::try_from(n).expect("a bound this small fits an `int`")),
             ));
-            if let Some(refused) = queued {
-                dropped(refused.into_value());
-            }
+            assert_eq!(queued, n < nvs_runtime::INBOX_CAP, "the queue takes {n}");
         }
 
         let answered = nvs_runtime::call(super::nvs_core_sse_receive, &mut stream, &[handle])

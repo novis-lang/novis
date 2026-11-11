@@ -63,13 +63,15 @@
 //! # What it spends
 //!
 //! Up to [`INBOX_CAP`] deliveries per **live connection that subscribed to
-//! something** — a `Box<str>`, a 16-byte value and a size each, so about
-//! 10 KiB of queue slots, plus the published copies themselves. Those are at
-//! most the subscriber's own `[limits] memory`, and they are charged to the
-//! subscriber's tree as they are queued ([`Inbox::push_sized`]), so the
-//! request that frees a copy is the one that holds it. It is O(live
-//! connections), never O(publishes), which is the whole point of the cap: a
-//! subscriber that stops reading is closed rather than accumulated.
+//! something** — a `Box<str>` and a shared buffer's pointer each, so about
+//! 8 KiB of queue slots, plus the encoded buffers themselves. A buffer is held
+//! once however many queues share it, and is the process's bytes
+//! ([`Delivery`]). Each queue counts every buffer it holds in full against its
+//! subscriber's own `[limits] memory` ([`Inbox::push`]), so what one queue holds
+//! is bounded by that limit. The value a subscriber decodes is made on its own
+//! turn and charged to it. It is O(live connections), never O(publishes),
+//! which is the whole point of the cap: a subscriber that stops reading is
+//! closed rather than accumulated.
 //!
 //! Beyond that: one boxed trait object per connection isolate, and one buffer per frame in
 //! flight — a `String` or a `Vec<u8>` the caller is handed and then owns.
@@ -100,34 +102,40 @@ pub enum PeerFrame {
 /// through the [`Inbox`] handle the subscriber table holds rather than through
 /// a context it has no way to name.
 ///
-/// **The value is one owned reference.** Whoever takes a `Delivery` out of the
-/// queue owes [`Self::into_value`] and, if it does not hand the reference on,
-/// a release — the same convention `Ctx::set_isolate_argument` keeps for the
-/// other value a context holds. There is deliberately no `Drop`: a release
-/// needs the context that allocated it, and a `Delivery` does not carry one.
+/// **It carries bytes, never a value.** The publisher encodes the value once
+/// (`rule:classes/graph-copy`'s bytes carrier), and every queue it reaches holds
+/// the same buffer. The subscriber's own `receive()` decodes it with its own
+/// program's classes, so an object arrives as the class of that name on the
+/// receiving side (`rule:core-classes/topic`). A `Delivery` therefore owns no
+/// reference into any heap and needs no context to drop.
+///
+/// **Its bytes are the process's.** The buffer outlives the publishing request
+/// and is freed by whichever queue drops it last, so it is allocated and freed
+/// inside [`crate::budget::Detached`]
+/// (`rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`). The
+/// topic's name is too, which is why [`Self::new`] makes it there and the
+/// `Drop` frees it there.
 #[derive(Debug)]
 pub struct Delivery {
     /// The topic's name, which is what tells a delivery from a peer frame at
     /// the one member that answers both (`rule:concurrency/receive-is-the-one-wait`).
     topic: Box<str>,
-    /// The published value, already copied across the boundary by the
-    /// publisher — `rule:classes/graph-copy`, as `rule:core-classes/topic` requires of anything the bus hands a subscriber.
-    value: crate::Value,
-    /// The bytes the copy took, as [`Inbox::push_sized`] counted them against
-    /// the queue's byte bound, and what [`Inbox::pop`] gives back to it.
-    bytes: usize,
+    /// The encoded value, shared with every other queue the publish reached.
+    /// `None` only inside `Drop`, which takes it out to free it in the bracket.
+    payload: Option<std::sync::Arc<[u8]>>,
 }
 
 impl Delivery {
-    /// Builds one from the topic it arrived on and the value that crossed.
+    /// Builds one from the topic it arrived on and the encoded value.
     ///
-    /// Takes over the value's reference.
+    /// **Cost:** one allocation for the name, the process's, and one count on
+    /// the shared buffer.
     #[must_use]
-    pub fn new(topic: impl Into<Box<str>>, value: crate::Value) -> Self {
+    pub fn new(topic: &str, payload: std::sync::Arc<[u8]>) -> Self {
+        let _bracket = crate::budget::Detached::begin();
         Self {
-            topic: topic.into(),
-            value,
-            bytes: 0,
+            topic: Box::from(topic),
+            payload: Some(payload),
         }
     }
 
@@ -137,10 +145,26 @@ impl Delivery {
         &self.topic
     }
 
-    /// The value, handing the reference on to the caller.
+    /// The encoded value, which the subscriber decodes with its own classes.
     #[must_use]
-    pub fn into_value(self) -> crate::Value {
-        self.value
+    pub fn payload(&self) -> &[u8] {
+        self.payload.as_deref().unwrap_or_default()
+    }
+
+    /// The bytes this delivery counts against its queue's bound: the whole
+    /// buffer, though other queues share it. That over-counts, which is the
+    /// safe direction.
+    #[must_use]
+    pub fn bytes(&self) -> usize {
+        self.payload().len()
+    }
+}
+
+impl Drop for Delivery {
+    fn drop(&mut self) {
+        let _bracket = crate::budget::Detached::begin();
+        drop(std::mem::take(&mut self.topic));
+        drop(self.payload.take());
     }
 }
 
@@ -149,8 +173,8 @@ impl Delivery {
 ///
 /// The module doc owns why an overflow closes the subscriber and what the queue
 /// spends. The bytes have a bound of their own beside this count: the queue
-/// holds at most its subscriber's `[limits] memory` ([`Inbox::push_sized`]),
-/// and each delivery is charged to the subscriber's tree as it is queued. 256
+/// holds at most its subscriber's `[limits] memory` of encoded bytes
+/// ([`Inbox::push`]). 256
 /// is far more than the gap between a publish and the `receive()` that drains
 /// it — a connection that is running at all empties its whole queue at every
 /// wait — so reaching it means this subscriber has not run for 256 publishes,
@@ -206,10 +230,8 @@ pub fn slow_subscribers_closed() -> u64 {
 /// out, which matters because a connection that ended at a limit or a fatal
 /// error runs no more of its own code.
 ///
-/// **Every queued [`Delivery`] holds one owned reference** and this type has no
-/// [`Drop`], for the reason `Delivery` has none: releasing a value needs the
-/// context that allocated it. `Ctx`'s own `Drop` is where what no `receive()`
-/// reached is given back.
+/// A queued [`Delivery`] holds bytes and no value, so a queue dropped with
+/// deliveries still in it frees them with no context.
 #[derive(Default)]
 pub struct Inbox {
     /// Arrival order, drained from the front. A [`RefCell`] rather than a
@@ -247,13 +269,6 @@ pub struct Inbox {
     /// The subscriber's memory limit in bytes as it last subscribed, or `0`
     /// for none. [`Self::bind`] writes it.
     limit: std::cell::Cell<usize>,
-    /// The subscriber's request tree, where a delivery's bytes are charged as
-    /// it is queued, or [`None`] where the subscriber runs on no tree's turn
-    /// and the bytes stay on the balance that allocated them.
-    ///
-    /// **What it spends:** one pointer per connection that subscribed, and an
-    /// `Arc` count on its tree's state.
-    tree: std::cell::RefCell<Option<std::sync::Arc<crate::TreeState>>>,
 }
 
 impl std::fmt::Debug for Inbox {
@@ -273,74 +288,56 @@ impl std::fmt::Debug for Inbox {
 }
 
 impl Inbox {
-    /// Queues one delivery, taking over its value's reference.
+    /// Queues one delivery.
     ///
-    /// **Answers the delivery back when the queue is full**, having raised the
-    /// overflow: this type cannot release a value — [`Delivery`] says why — so
-    /// the refused one goes back to the caller, which is the publisher and does
-    /// have the context that allocated it.
+    /// **Refuses a delivery when the queue is full**, having raised the
+    /// overflow: [`INBOX_CAP`] deliveries, or the delivery's
+    /// [bytes](Delivery::bytes) past the subscriber's memory limit beside what
+    /// is queued. A subscriber that has not read that much is the slow
+    /// subscriber `rule:core-classes/topic` closes. The refused delivery is
+    /// dropped here, which frees nothing another queue still shares. Answers
+    /// whether the delivery was queued.
+    ///
+    /// The bytes are counted against the limit and charged to nobody: the
+    /// buffer is the process's ([`Delivery`]), and the value the subscriber
+    /// decodes from it is made on the subscriber's own turn.
     ///
     /// **Wakes a parked subscriber on the way out**, on both paths: one that
-    /// took the value has something to answer with, and one that overflowed has
-    /// a close to perform, so a queue that changed and left a task parked would
-    /// be `Core\Sse->receive`'s hang. The wake is fired after the borrow ends,
-    /// because it runs the waiting task's scheduler and not this queue.
-    #[must_use = "a refused delivery still owns a reference the caller has to release"]
-    pub fn push(&self, delivery: Delivery) -> Option<Delivery> {
-        self.push_sized(delivery, 0)
-    }
-
-    /// Queues one delivery whose copy took `bytes`, as [`Self::push`] does,
-    /// and charges those bytes to the subscriber's tree.
+    /// took the delivery has something to answer with, and one that overflowed
+    /// has a close to perform, so a queue that changed and left a task parked
+    /// would be `Core\Sse->receive`'s hang. The wake is fired after the borrow
+    /// ends, because it runs the waiting task's scheduler and not this queue.
     ///
-    /// The queue refuses a delivery that would take it past its subscriber's
-    /// memory limit, on the same overflow path as a full count: a subscriber
-    /// that has not read that much is the slow subscriber
-    /// `rule:core-classes/topic` closes. A delivery taken moves its bytes off
-    /// the publishing tree and onto the subscriber's
-    /// ([`crate::budget::hand_to`]), so the request that frees the copy is the
-    /// one that was charged for it. The publisher never accumulates the copies
-    /// a fan-out makes.
-    ///
-    /// **Cost:** two compares and, where the bytes move, three thread-local
-    /// writes and one relaxed add.
-    #[must_use = "a refused delivery still owns a reference the caller has to release"]
-    pub fn push_sized(&self, mut delivery: Delivery, bytes: usize) -> Option<Delivery> {
+    /// **Cost:** two compares and one push.
+    pub fn push(&self, delivery: Delivery) -> bool {
+        let bytes = delivery.bytes();
         let mut queue = self.queue.borrow_mut();
         if queue.len() >= INBOX_CAP || !self.has_room_for(bytes) {
             drop(queue);
+            drop(delivery);
             self.note_overflow();
             self.wake();
-            return Some(delivery);
+            return false;
         }
-        delivery.bytes = bytes;
         queue.push_back(delivery);
         drop(queue);
         self.held.set(self.held.get().saturating_add(bytes));
-        if let Some(tree) = self.tree.borrow().as_ref() {
-            crate::budget::hand_to(tree, bytes);
-        }
         self.wake();
-        None
+        true
     }
 
     /// Whether a delivery of `bytes` fits under the subscriber's memory limit
     /// beside what is already queued.
-    ///
-    /// Asked by the fan-out before it makes a copy, with the size of the copy
-    /// it made last, for the reason [`Self::has_room`] is.
     #[must_use]
     pub fn has_room_for(&self, bytes: usize) -> bool {
         let limit = self.limit.get();
         limit == 0 || self.held.get().saturating_add(bytes) <= limit
     }
 
-    /// Records the subscriber this queue belongs to: its memory limit and, where
-    /// it runs on its tree's turn, its tree. [`Ctx::inbox`](crate::Ctx::inbox)
+    /// Records the subscriber's memory limit. [`Ctx::inbox`](crate::Ctx::inbox)
     /// calls it at each subscribe, so a limit lowered since is the one used.
-    pub(crate) fn bind(&self, limit: usize, tree: Option<std::sync::Arc<crate::TreeState>>) {
+    pub(crate) fn bind(&self, limit: usize) {
         self.limit.set(limit);
-        *self.tree.borrow_mut() = tree;
     }
 
     /// Registers the wake this queue owes the calling task, which is about to
@@ -399,19 +396,16 @@ impl Inbox {
         self.overflowed.get()
     }
 
-    /// The oldest queued delivery, handing its reference to the caller.
-    ///
-    /// Its bytes leave the queue's count here. They stay on the subscriber's
-    /// balance until the program frees the value.
+    /// The oldest queued delivery. Its bytes leave the queue's count here.
     #[must_use]
     pub fn pop(&self) -> Option<Delivery> {
         let delivery = self.queue.borrow_mut().pop_front()?;
         self.held
-            .set(self.held.get().saturating_sub(delivery.bytes));
+            .set(self.held.get().saturating_sub(delivery.bytes()));
         Some(delivery)
     }
 
-    /// The bytes the queued deliveries took — what [`Self::push_sized`]
+    /// The bytes the queued deliveries take — what [`Self::push`]
     /// bounds by the subscriber's memory limit.
     #[must_use]
     pub fn held_bytes(&self) -> usize {

@@ -122,8 +122,9 @@ impl Envelope {
         &self.topic
     }
 
-    /// The encoded value, for the `decode` that reads it back.
-    pub(crate) fn payload(&self) -> &[u8] {
+    /// The encoded value, which each subscriber's queue on this core takes a
+    /// count on and each subscriber decodes for itself.
+    pub(crate) fn payload(&self) -> &Arc<[u8]> {
         &self.payload
     }
 }
@@ -296,15 +297,12 @@ pub(crate) fn subscribers_elsewhere(topic: &str) -> u64 {
 /// past `limit`, the publishing request's memory limit (`0` for none). So a
 /// core that does not drain holds at most one request's limit of the bus's
 /// bytes.
-pub(crate) fn hand_off(topic: &str, payload: Vec<u8>, limit: usize) -> u64 {
+pub(crate) fn hand_off(topic: &str, carrier: &Arc<[u8]>, limit: usize) -> u64 {
     let queued = {
-        // Everything the queue comes to hold is allocated here, and the carrier
-        // is a *copy* of what the caller handed over rather than that `Vec`
-        // taken by the ownership it came with: the request allocated the `Vec`
-        // on its own balance and has to free it on the same one, which it does
-        // below, outside this block.
+        // Everything the queue comes to hold is allocated here. The carrier is
+        // the publish's own shared buffer, which is the process's already
+        // (`nvs_runtime::Delivery`), so each envelope takes a count on it.
         let _bracket = budget::Detached::begin();
-        let carrier: Arc<[u8]> = Arc::from(&payload[..]);
         let mut woken = Vec::new();
         let queued = with_mine(|mine| {
             let mut queued = 0;
@@ -321,7 +319,7 @@ pub(crate) fn hand_off(topic: &str, payload: Vec<u8>, limit: usize) -> u64 {
                 }
                 waiting.push_back(Envelope {
                     topic: Box::from(topic),
-                    payload: Arc::clone(&carrier),
+                    payload: Arc::clone(carrier),
                 });
                 core.held.store(bytes, Ordering::Relaxed);
                 drop(waiting);
@@ -450,7 +448,26 @@ pub(crate) fn take_all() -> Drained {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::{MAILBOX_CAP, budget, hand_off, note_subscribers, subscribers_elsewhere, take_all};
+
+    /// `bytes` as the shared buffer a publish makes, the process's at both
+    /// ends as `crate::topic` makes it.
+    fn carrier(bytes: &[u8]) -> Arc<[u8]> {
+        let _bracket = budget::Detached::begin();
+        Arc::from(bytes)
+    }
+
+    /// One [`hand_off`] of `bytes`, with the caller's own count on the buffer
+    /// given back where it was taken.
+    fn hand(topic: &str, bytes: &[u8], limit: usize) -> u64 {
+        let payload = carrier(bytes);
+        let queued = hand_off(topic, &payload, limit);
+        let _bracket = budget::Detached::begin();
+        drop(payload);
+        queued
+    }
 
     /// A core does not hand an envelope to itself: the publisher's own
     /// subscribers are `crate::topic`'s local walk, and counting them twice is
@@ -459,7 +476,7 @@ mod tests {
     fn a_core_is_never_its_own_neighbour() {
         note_subscribers("bus:self", 3);
         assert_eq!(subscribers_elsewhere("bus:self"), 0);
-        assert_eq!(hand_off("bus:self", vec![1, 2, 3], 0), 0);
+        assert_eq!(hand("bus:self", &[1, 2, 3], 0), 0);
         assert!(take_all().envelopes().is_empty());
         note_subscribers("bus:self", 0);
     }
@@ -483,7 +500,7 @@ mod tests {
 
         listening.recv().expect("the neighbour has joined");
         let accepted: u64 = (0..=MAILBOX_CAP)
-            .map(|_| hand_off("bus:flooded", vec![0], 0))
+            .map(|_| hand("bus:flooded", &[0], 0))
             .sum();
         done.send(()).expect("the neighbour is waiting");
 
@@ -517,9 +534,7 @@ mod tests {
         });
 
         listening.recv().expect("the neighbour has joined");
-        let accepted: u64 = (0..5)
-            .map(|_| hand_off("bus:heavy", vec![0; 1024], LIMIT))
-            .sum();
+        let accepted: u64 = (0..5).map(|_| hand("bus:heavy", &[0; 1024], LIMIT)).sum();
         done.send(()).expect("the neighbour is waiting");
 
         assert_eq!(
@@ -538,11 +553,11 @@ mod tests {
     ///
     /// `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance` asked
     /// of a store whose two ends are on two cores. The publishing core's
-    /// detached balance rises with the envelope while the balance its ceiling is
-    /// armed against only *falls* — by the caller's own copy, which the store
-    /// does not keep — and the receiving core's detached balance falls by that
-    /// same envelope while its request's reading does not move at all. A bracket
-    /// on one end alone leaves one of those two halves failing.
+    /// detached balance rises with the shared buffer while the balance its
+    /// ceiling is armed against does not, and the receiving core's detached
+    /// balance falls by that same buffer while its request's reading does not
+    /// move at all. A bracket on one end alone leaves one of those two halves
+    /// failing.
     #[test]
     fn a_publish_is_charged_to_the_process_at_both_ends_and_to_neither_request() {
         /// The payload one envelope has to show through the noise.
@@ -566,19 +581,17 @@ mod tests {
         });
 
         listening.recv().expect("the neighbour has joined");
-        let payload = vec![b'e'; ENTRY];
         let held = budget::detached_bytes();
         let live = budget::live_bytes();
-        assert_eq!(hand_off("bus:charged", payload, 0), 1);
+        assert_eq!(hand("bus:charged", &vec![b'e'; ENTRY], 0), 1);
 
         assert!(
             budget::detached_bytes() - held >= ENTRY.cast_signed(),
             "the envelope reached no balance at all, so nothing holds its bytes to the process"
         );
         assert!(
-            budget::live_bytes() <= live - ENTRY.cast_signed(),
-            "the publishing request was charged for the store's carrier, or credited nothing \
-             for the buffer it handed over"
+            budget::live_bytes() - live < ENTRY.cast_signed(),
+            "the publishing request was charged for the store's carrier"
         );
 
         done.send(()).expect("the neighbour is waiting");
