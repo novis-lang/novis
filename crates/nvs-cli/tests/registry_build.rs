@@ -946,6 +946,38 @@ fn a_class_outside_the_package_namespace_is_refused() {
     );
 }
 
+/// A class whose namespace differs from the package's name only in case is refused, and the
+/// same class in the package's own namespace builds.
+#[test]
+fn a_namespace_that_differs_only_in_case_is_refused() {
+    let case = Case::new("registry-build-namespace-case");
+    case.package("", "1.0.0", false);
+    case.write(
+        "src/Other.nvs",
+        b"<?nvs\nnamespace Acme\\HTTP;\n\nfinal class Thing\n{\n}\n",
+    );
+    let commit = case.commit("case");
+    let host = Host::start(&case);
+
+    let (out, json) = case.build(&host, &commit, &[]);
+    refused(
+        &out,
+        &json,
+        "`Acme\\HTTP\\Thing` is outside the package's namespace `Acme\\Http`",
+    );
+
+    case.write(
+        "src/Other.nvs",
+        b"<?nvs\nnamespace Acme\\Http;\n\nfinal class Thing\n{\n}\n",
+    );
+    let commit = case.commit("exact");
+    drop(host);
+    let host = Host::start(&case);
+    let (out, json) = case.build(&host, &commit, &[]);
+    assert!(out.status.success(), "{}", shown(&out));
+    assert_eq!(json["ok"], true, "{json}");
+}
+
 /// A commit whose `files` lists a second `package.toml` is refused.
 #[test]
 fn a_commit_that_carries_a_second_package_toml_is_refused() {

@@ -1,0 +1,10 @@
+<?nvs
+// Attack: a package puts a second `package.toml` with no name in one of its folders.
+// A file in that folder uses another namespace and reads a file of your application.
+// Every file in a package folder must use the package's namespace, so this program should not compile.
+// hostile: expect-refusal
+
+// 1. Loads a file of `Acme\Http` that says it is in `Acme\HTTP`.
+require './vendor/acme/http/src/Inner/Run.nvs';
+
+echo Acme\HTTP\Run::read(), "\n";

@@ -224,3 +224,53 @@ fn a_path_through_a_symlink_out_of_the_package_is_outside_it() {
         "a directory whose name only starts the same way is outside the package"
     );
 }
+
+/// An entry that requires `vendor/acme/http/src/Inner/Run.nvs`, declared in `namespace`, in the
+/// package `Acme\Http` whose `src/Inner/` holds a second manifest, `inner`.
+fn inner_manifest(inner: &str, namespace: &str) -> (String, bool) {
+    let run = format!("<?nvs\nnamespace {namespace};\n\nclass Run {{}}\n");
+    let (_root, app) = layout(&[
+        (
+            "main.nvs",
+            "<?nvs\nrequire 'vendor/acme/http/src/Inner/Run.nvs';\n",
+        ),
+        ("vendor/acme/http/package.toml", MANIFEST),
+        ("vendor/acme/http/src/Inner/package.toml", inner),
+        ("vendor/acme/http/src/Inner/Run.nvs", run.as_str()),
+    ]);
+    check(&app.join("main.nvs"))
+}
+
+#[test]
+fn a_second_manifest_with_no_name_does_not_end_the_namespace_check() {
+    let unnamed = "# a manifest with no name\n";
+    let (stderr, ok) = inner_manifest(unnamed, "Acme\\Http\\Inner");
+    assert!(
+        ok,
+        "a file below the second manifest in the package's namespace compiles:\n{stderr}"
+    );
+
+    let (stderr, ok) = inner_manifest(unnamed, "Acme\\HTTP");
+    assert!(!ok && stderr.contains("E0660"), "{stderr}");
+    assert!(
+        stderr.contains("`Acme\\HTTP`") && stderr.contains("the package `Acme\\Http`"),
+        "the file is still checked against the outer package:\n{stderr}"
+    );
+}
+
+#[test]
+fn a_second_manifest_with_a_name_makes_no_second_package() {
+    let named = "[package]\nname = 'Free\\Hands'\n";
+    let (stderr, ok) = inner_manifest(named, "Acme\\Http\\Inner");
+    assert!(
+        ok,
+        "a file below the second manifest in the outer package's namespace compiles:\n{stderr}"
+    );
+
+    let (stderr, ok) = inner_manifest(named, "Free\\Hands");
+    assert!(!ok && stderr.contains("E0660"), "{stderr}");
+    assert!(
+        stderr.contains("`Free\\Hands`") && stderr.contains("the package `Acme\\Http`"),
+        "the inner manifest names no package of its own:\n{stderr}"
+    );
+}

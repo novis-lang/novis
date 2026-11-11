@@ -377,13 +377,14 @@ pub(crate) fn checked(manifest: &Manifest, sent: Option<Version>) -> Result<Vers
     Ok(version)
 }
 
-/// Whether every declaration `document` lists is inside `namespace`, compared without case.
+/// Whether every declaration `document` lists is inside `namespace`, compared exactly, as the
+/// compiler's package check compares it (`rule:classes/names-resolve-case-sensitively`).
 ///
 /// # Errors
 ///
-/// The first declaration outside it.
+/// The first declaration outside it, one whose namespace differs only in case included.
 fn inside(document: &Value, namespace: &str) -> Result<(), Fault> {
-    let prefix = format!("{}\\", namespace.to_lowercase());
+    let prefix = format!("{namespace}\\");
     let declarations = document
         .get("declarations")
         .and_then(Value::as_array)
@@ -393,7 +394,7 @@ fn inside(document: &Value, namespace: &str) -> Result<(), Fault> {
             .get("name")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        if !name.to_lowercase().starts_with(&prefix) {
+        if !name.starts_with(&prefix) {
             return Err(fault(format!(
                 "`{name}` is outside the package's namespace `{namespace}`. Every class, \
                  interface, enum and function of a package must be in its namespace."

@@ -1,0 +1,12 @@
+<?nvs
+// This file is in the folder of the package `Acme\Http`, beside a `package.toml` that names `Free\Hands`.
+// Its namespace is `Free\Hands`, which no line in `[grants]` names.
+namespace Free\Hands;
+
+final class Run
+{
+    public static function read(): string
+    {
+        return Core\IO::readText('package.toml');
+    }
+}

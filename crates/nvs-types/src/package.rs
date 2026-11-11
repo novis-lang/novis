@@ -3,13 +3,16 @@
 //! `rule:packaging/a-package-cannot-reach-its-host`.
 //!
 //! **A file is in a package when a directory between it and the entry's directory holds a
-//! `package.toml` with a `[package] name`.** The nearest such file wins, so a package inside
-//! another package's directory is its own. The walk is over the file's canonical path, so an
-//! autoloaded file, a file a `discover` glob found and a file a `require` loaded are placed by
-//! one rule, and nothing has to remember how a file was reached. The walk stops at the entry's
-//! directory: a `package.toml` there or above is the application's own, which `nvs_config::grants`
-//! reads for `[grants]`. A file with a name-less `package.toml`, or with none, is in no package
-//! and gets no file check (hand-copied code). `nvs_config::package` reads the manifest.
+//! `package.toml` with a `[package] name`.** The outermost such file below the entry's directory
+//! wins, and a manifest with no name ends nothing. So a manifest inside a package's directory,
+//! named or not, makes no second package: every file under the package's directory stays under
+//! its namespace check, and a manifest below the package's is never read. The walk is over the
+//! file's canonical path, so an autoloaded file, a file a `discover` glob found and a file a
+//! `require` loaded are placed by one rule, and nothing has to remember how a file was reached.
+//! The walk stops at the entry's directory: a `package.toml` there or above is the application's
+//! own, which `nvs_config::grants` reads for `[grants]`. A file with no named manifest between it
+//! and the entry's directory is in no package and gets no file check (hand-copied code).
+//! `nvs_config::package` reads the manifest.
 //!
 //! **A package file declares the package's namespace or one below it.** Every `namespace`
 //! declaration at the top of the file is compared to the package's name exactly, and a file
@@ -25,10 +28,11 @@
 //! all resolve before the comparison, so each one that leaves the directory is
 //! [`code::E_PACKAGE_PATH_ESCAPES`].
 //!
-//! Cost: one `stat` of `package.toml` per distinct directory between a loaded file and the entry,
-//! each noted as missed in the `SourceMap` so a server sees a manifest created there, and one read
-//! of each package's manifest. A program that loads only its entry pays nothing. All of it is
-//! compile time; nothing is held per request.
+//! Cost: one `stat` of `package.toml` per distinct directory between a loaded file and the
+//! entry, the directories between a package's and the entry's included, each missing one noted in
+//! the `SourceMap` so a server sees a manifest created there. One read of each package's
+//! manifest, and of each manifest with no name above it. A program that loads only its entry pays
+//! nothing. All of it is compile time; nothing is held per request.
 
 use std::path::{Path, PathBuf};
 
@@ -126,11 +130,11 @@ pub fn check(
         let Some(base) = nvs_hir::requires::canonicalize(&site.base_dir) else {
             continue;
         };
+        // No package's directory is inside another's, so at most one holds the site.
         let Some(package) = packages
             .packages
             .iter()
-            .filter(|package| base.starts_with(package.dir()))
-            .max_by_key(|package| package.dir().components().count())
+            .find(|package| base.starts_with(package.dir()))
         else {
             continue;
         };
@@ -160,17 +164,24 @@ pub fn within(dir: &Path, target: &Path, canonicalize: impl Fn(&Path) -> Option<
     canonicalize(target).is_some_and(|real| real.starts_with(dir))
 }
 
-/// The walk up from a file's directory to the nearest package, with each directory's answer kept.
+/// The walk up from a file's directory to the entry's, with each directory's answer kept.
 struct Finder {
     /// The entry's canonical directory. A `package.toml` here or above is the application's.
     stop: PathBuf,
-    /// Each directory walked, and the package its nearest manifest names, if any.
+    /// Each directory walked, and the package it is in: the one the outermost named manifest
+    /// between it and [`Self::stop`] names, if any.
     dirs: FxHashMap<PathBuf, Option<usize>>,
 }
 
 impl Finder {
     /// The index in `packages` of the package `dir` is in, read and pushed the first time a
     /// directory of it is walked.
+    ///
+    /// The walk goes up to [`Self::stop`] or to a directory already answered, noting each
+    /// directory that holds a `package.toml`. When no directory above answered with a package,
+    /// the noted manifests are read from the outermost inward, and the first that names a
+    /// package wins. A manifest with no name is passed over, and one below the winner is never
+    /// read, so a manifest inside a package's directory makes no second package.
     fn package_of(
         &mut self,
         dir: &Path,
@@ -178,37 +189,49 @@ impl Finder {
         map: &mut SourceMap,
         diags: &mut Diagnostics,
     ) -> Option<usize> {
-        let mut walked: Vec<PathBuf> = Vec::new();
-        let mut found = None;
+        // Innermost first, each with whether it holds a manifest.
+        let mut walked: Vec<(PathBuf, bool)> = Vec::new();
+        let mut above = None;
         for ancestor in dir.ancestors() {
             if let Some(&known) = self.dirs.get(ancestor) {
-                found = known;
+                above = known;
                 break;
             }
             if self.stop.starts_with(ancestor) {
                 break;
             }
-            walked.push(ancestor.to_path_buf());
             let manifest = ancestor.join(nvs_config::grants::FILE);
-            if !manifest.is_file() {
+            let held = manifest.is_file();
+            if !held {
                 map.note_missing(&manifest);
-                continue;
             }
-            found = match package::read(ancestor, map) {
-                Ok(Some(read)) => {
-                    packages.push(read);
-                    Some(packages.len() - 1)
-                }
-                Ok(None) => None,
-                Err(refused) => {
-                    diags.report(refused);
-                    None
-                }
-            };
-            break;
+            walked.push((ancestor.to_path_buf(), held));
         }
-        for each in walked {
-            self.dirs.insert(each, found);
+        // How many of `walked`, from the innermost, are at or below the package found here.
+        let mut inside = 0;
+        let mut found = above;
+        if above.is_none() {
+            for (at, (folder, held)) in walked.iter().enumerate().rev() {
+                if !held {
+                    continue;
+                }
+                match package::read(folder, map) {
+                    Ok(Some(read)) => {
+                        packages.push(read);
+                        found = Some(packages.len() - 1);
+                        inside = at + 1;
+                        break;
+                    }
+                    Ok(None) => {}
+                    Err(refused) => diags.report(refused),
+                }
+            }
+        } else {
+            inside = walked.len();
+        }
+        for (at, (folder, _)) in walked.into_iter().enumerate() {
+            self.dirs
+                .insert(folder, if at < inside { found } else { None });
         }
         found
     }
