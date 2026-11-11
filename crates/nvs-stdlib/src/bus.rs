@@ -3,16 +3,17 @@
 //! thread-per-core design is crossed on purpose.
 //!
 //! [`crate::topic`] owns the bus a program sees: the per-core subscriber table,
-//! `Core\Topic`'s three members, and the copy each subscriber is handed. This module is
+//! `Core\Topic`'s three members, and the bytes each subscriber is handed. This module is
 //! the transport underneath it and knows nothing about either. What crosses a
 //! core boundary here is a topic's **name** and the **bytes**
 //! `rule:classes/graph-copy`'s
 //! [`nvs_runtime::encode`] made of the published value — never a
 //! [`nvs_runtime::Value`], which is refcounted on the core that made it, so a
 //! second core touching that count is exactly the data race the thread-per-core
-//! design exists not to have. The receiving core reads the bytes back with
-//! `decode` against its own class table, which is the same carrier
-//! [`crate::cache`]'s shared tier crosses a process boundary with.
+//! design exists not to have. The bus carries the same bytes on one core, so
+//! this is the one carrier and not a second one: the receiving core queues
+//! the envelope's buffer for each subscriber, and each subscriber's
+//! `receive()` decodes it with its own program's classes.
 //!
 //! # Decision: a registry of mailboxes, not one shared subscriber table
 //!
@@ -22,8 +23,9 @@
 //! what is shared is a `Vec` of mailboxes, one per core that has touched the bus, each holding a
 //! queue of envelopes and the count of live subscribers its own core last saw
 //! per topic. A publish reads the counts, queues one envelope per interested
-//! core, and returns; the interested core decodes and fans out on its own
-//! stack, where the values it makes belong.
+//! core, and returns; the interested core queues the buffer for its own
+//! subscribers, and each of them decodes it on its own turn, where the value
+//! it makes belongs.
 //!
 //! The alternative — one process-wide table of every subscriber — puts a lock
 //! in front of the queue every `receive()` drains, and makes a delivery an
@@ -75,9 +77,10 @@
 //! publisher's rises with the envelope and the receiver's falls with it, which
 //! is the ordinary shape of a store one core fills and another empties rather
 //! than an imbalance. What the pair owes is that a block is allocated and freed
-//! on the same side of the boundary, which is why [`hand_off`] copies the bytes
-//! it is handed instead of keeping the caller's `Vec` — the request frees its
-//! own buffer outside the bracket, and the store frees the carrier inside one.
+//! on the same side of the boundary. So the buffer [`hand_off`] is handed is
+//! already the process's: `crate::topic` copies the request's encoding into it
+//! inside a bracket, and whichever queue drops it last frees it inside one
+//! (`nvs_runtime::Delivery`).
 //!
 //! # What it spends
 //!
@@ -87,8 +90,8 @@
 //! the encoded value once however many cores take it, and one `VecDeque` slot
 //! per core. All of it is O(live cores × topics each holds) and O(in-flight
 //! envelopes); none of it is O(publishes) or O(connections served). On the
-//! common path — one core, or a topic nobody joined elsewhere — a publish costs
-//! one read lock and no encode at all.
+//! common path — one core, or a topic nobody joined elsewhere — the hand-off
+//! costs a publish one read lock.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicUsize, Ordering};

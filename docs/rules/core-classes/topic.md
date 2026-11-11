@@ -4,6 +4,22 @@ thread-per-core design is crossed on purpose, and it is a bounded message hand-o
 state. A published value is graph-copied, so subscribers share nothing with the publisher or with
 each other.
 
+**A value is encoded once, and each subscriber decodes it into its own classes.** `publish` writes
+the value with the bytes carrier of `rule:classes/graph-copy`, before it looks at who joined, so a
+value that cannot cross throws whether or not anyone listens. One buffer goes to every subscriber, on
+this core and on every other. Each subscriber's `receive()` decodes it with its own program's
+classes, as `Core\Serialize::decode` does. So an object arrives as the class of that name in the
+subscriber's program, with every property checked. A subscriber whose program cannot make that class
+gets a `ParseError` from `receive()`, naming the topic and the class. That message is off the queue,
+the next `receive()` reads the next one, and no other subscriber is affected. **What it spends:** one
+encode per publish, however many joined, and one decode per subscriber on that subscriber's own turn
+and memory balance. The buffer is the process's bytes, held once until the last queue drops it. Each
+queue counts its full length against its subscriber's memory limit, which over-counts a shared
+buffer, the safe direction.
+
+**Declined:** a live copy per subscriber. The live carrier keeps the sender's class descriptor, so a
+program's class would reach a subscriber on another core and never one on the same core.
+
 **A slow subscriber is closed, never tolerated.** Each subscriber has a bounded queue, drained by its
 own connection and by nothing else; on overflow *that subscriber's connection* is closed with a
 defined code and a metric increments. The publisher is never blocked and no queue grows without

@@ -2,16 +2,17 @@
 //!
 //! `rule:concurrency/receive-is-the-one-wait` gives a connection one wait over
 //! two sources; this is the second one. A connection joins a topic by name, a
-//! publish copies a value to everyone who joined it, and the value arrives as
-//! the `Core\Socket\Message` whose `topic` is non-`null` — so a program that
+//! publish encodes a value once for everyone who joined it, and each
+//! subscriber decodes it into a value of its own, which arrives as the
+//! `Core\Socket\Message` whose `topic` is non-`null` — so a program that
 //! already writes `rule:concurrency/a-connection-is-a-loop`'s loop needs no
 //! second control-flow style to receive from the bus.
 //!
 //! # What is here, and what is not
 //!
 //! The class's three rows, the table behind them, and both halves of the crossing
-//! between cores: the publish that hands an encoded value to every other core
-//! listening, and the drain that reads it back and fans it out where it
+//! between cores: the publish that hands its encoded value to every other core
+//! listening, and the drain that queues it for the subscribers where it
 //! landed. The transport underneath is [`crate::bus`] — this module is what
 //! decides what crosses and what a subscriber is handed.
 //!
@@ -120,36 +121,45 @@
 //! than "subscribers". A chat loop relies on exactly that: the sender sees
 //! their own message, which is what every chat does.
 //!
-//! # Decision: the copy is made before the walk, and whether or not anyone joined
+//! # Decision: a topic carries bytes on every path, and each subscriber decodes them
 //!
-//! `rule:classes/graph-copy`'s graph copy does two jobs here and only one of
-//! them scales with the audience. It gives each subscriber a value that shares
+//! `publish` encodes the value once with `rule:classes/graph-copy`'s bytes
+//! carrier, [`nvs_runtime::encode`], before the walk and whether or not anyone
+//! joined. That one encoding is the refusal a publish makes: a resource, a
+//! class the compiler made, or a `secret`, which
+//! `rule:security/secret-qualifier` says may never be published. A refusal
+//! that only happened once somebody had joined would hold or not by timing,
+//! and a `.nvst` case, which has no connection to subscribe with, could never
+//! reach it.
+//!
+//! One shared buffer goes into each local subscriber's queue and into the
+//! hand-off to other cores ([`crate::bus`]). Each subscriber's own `receive()`
+//! decodes it with its own resolver ([`decoded`]), so an object arrives as the
+//! class of that name in the **subscriber's** program, checked as
+//! `Core\Serialize::decode` checks it. Each decode makes a value that shares
 //! nothing with the publisher or with any other subscriber, which is
-//! `rule:core-classes/topic` and is one copy per subscriber; and it is what
-//! **refuses** a value with no meaning on the other side — a resource, or a
-//! `secret`, which `rule:security/secret-qualifier` says may never be
-//! published.
+//! `rule:core-classes/topic`. A live copy per subscriber could not do this:
+//! the live carrier keeps the publisher's descriptor, so a program's class
+//! would reach a subscriber on another core and never one on the same core.
 //!
-//! A refusal that only happened once somebody had joined would be a rule that
-//! held or did not by timing, and it would be unreachable from the conformance
-//! corpus outright, because a `.nvst` case has no connection to subscribe
-//! with. So the first copy is made before the walk, the walk hands it to the
-//! first subscriber and makes one more for each further one, and a publish to
-//! a topic nobody joined releases it unused. **What it spends:** one graph
-//! copy on a publish nobody is listening to, which is the price of the refusal
-//! being the value's business rather than the topic's.
+//! **A subscriber that cannot decode a message gets an error it can catch.**
+//! The publisher has returned by then, so the subscriber's `receive()` throws
+//! a `ParseError` naming the topic and the class, the error
+//! `Core\Cache\Store::get` throws for an entry it cannot decode. The message
+//! is off the queue, so the next `receive()` reads the next one, and no other
+//! subscriber is affected. After a deploy, a connection that kept its old
+//! compiled unit ends on the first message whose class changed, unless it
+//! catches, and the client reconnects into the new unit.
 //!
-//! # Decision: what crosses a core is bytes, and the count is what was queued
+//! **What it spends:** one encode per publish, however many joined. Each
+//! subscriber pays one decode on its own turn, in its own
+//! CPU time and memory balance. The buffer is the process's bytes
+//! (`nvs_runtime::Delivery`), held once until the last queue drops it. Each
+//! queue counts its full length against its subscriber's limit, so a shared
+//! buffer is counted once per queue. That over-counts, which is the safe
+//! direction.
 //!
-//! A [`Value`] is refcounted on the core that made it, so the copy a
-//! subscriber on another core is handed cannot be made by the publisher. What
-//! crosses is `rule:classes/graph-copy`'s *encoding* rather than its copy —
-//! [`nvs_runtime::encode`] on the publishing core and `decode` on the
-//! receiving one, the same carrier [`crate::cache`]'s shared tier crosses a
-//! process with — and the receiving core makes one value per subscriber as it
-//! drains. The two halves of that carrier refuse the same graphs, so the
-//! crossing decided above is still the one that reports a refusal, and a
-//! publish cannot be refused by who happened to be listening elsewhere.
+//! # Decision: the count is what was queued
 //!
 //! **The count is what was queued, on either side.** Locally that is the live
 //! subscribers the walk found; elsewhere it is the number that core last
@@ -162,22 +172,21 @@
 //! which is the publisher blocking on a subscriber, and that is the one thing
 //! `rule:core-classes/topic` says may not happen.
 //!
-//! **What it spends:** one encoding per publish somebody elsewhere is
-//! listening to, held once however many cores take it, and nothing at all on a
-//! single-core server or a topic joined only here. [`crate::bus`] owns the
-//! rest of that accounting.
+//! The hand-off to other cores is asked for only when another core reported a
+//! subscriber, so a single-core server pays one read lock for it.
+//! [`crate::bus`] owns the rest of that accounting.
 //!
 //! # Decision: a subscriber that has stopped reading is skipped, not waited for
 //!
 //! `rule:core-classes/topic`'s slow-subscriber guarantee, in the fan-out: the
-//! walk asks each queue whether it has room *before* it makes that
-//! subscriber's copy, and a full one is marked and stepped over. So a
-//! connection that stopped reading costs a publish one comparison — not an
-//! allocation, not a wait, and not the other nine thousand nine hundred and
-//! ninety-nine subscribers' latency.
+//! walk asks each queue whether it has room *before* it queues the buffer,
+//! and a full one is marked and stepped over. So a connection that stopped
+//! reading costs a publish one comparison — not an allocation, not a wait,
+//! and not the other nine thousand nine hundred and ninety-nine subscribers'
+//! latency.
 //!
-//! **It is not counted, either.** `publish` answers what it queued, and a value
-//! this member declined to copy was never queued for anybody. That keeps the
+//! **It is not counted, either.** `publish` answers what it queued, and a
+//! delivery a full queue declined was never queued for anybody. That keeps the
 //! count's meaning the one the card states rather than making it two numbers a
 //! caller has to subtract.
 //!
@@ -265,7 +274,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // The name is a sink for `subscribe`'s reason. The value is not
             // one: a `tainted` payload crosses and stays `tainted` where it
             // arrives (`rule:security/tainted-qualifier`), and what may not cross at all is refused by
-            // the copy rather than by the signature.
+            // the encoding rather than by the signature.
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Mixed],
             defaults: &[],
             return_ty: CoreTy::Uint,
@@ -339,7 +348,8 @@ const PUBLISH_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "value",
             desc: "The value to send. Each subscriber gets its own copy, so a change one \
-                   subscriber makes is not seen by any other. A `tainted` value is still \
+                   subscriber makes is not seen by any other. An object arrives as the class \
+                   with the same name in the subscriber's program. A `tainted` value is still \
                    `tainted` when it arrives. A value that contains a `secret` cannot be \
                    published.",
             shape: &[],
@@ -352,10 +362,10 @@ const PUBLISH_DOC: MethodDoc = MethodDoc {
           is being closed, and `publish` never waits for it.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$topic` is empty or longer than 256 bytes, or `$value` cannot be copied to \
-               another connection, such as an \
-               object with a `secret` property. The error is thrown even when nobody joined the \
-               topic.",
+        desc: "`$topic` is empty or longer than 256 bytes, or `$value` cannot be sent to \
+               another connection. Examples are an object with a `secret` property, a \
+               function, a generator and an open file. The error is thrown even when nobody \
+               joined the topic.",
     }],
 };
 
@@ -602,7 +612,7 @@ fn leave(topic: &str, inbox: &Rc<Inbox>) {
 /// only them.
 ///
 /// Handed back as owned handles rather than walked in place: the fan-out makes
-/// a graph copy per subscriber, and a table borrow held across an allocation
+/// a delivery per subscriber, and a table borrow held across an allocation
 /// is a re-entrancy nobody needs — `subscribe` runs on a connection's own task
 /// and reaches the same map.
 fn subscribers_of(topic: &str) -> Vec<Rc<Inbox>> {
@@ -735,7 +745,7 @@ fn queue_into(inbox: &Inbox, topic: &str, payload: &Arc<[u8]>) -> bool {
 ///
 /// For a publisher with no program behind it: `nvs run --events` reads its
 /// values off a file and puts them on the bus through this, so the program it
-/// runs meets the same fan-out, the same copy and the same bound as a
+/// runs meets the same fan-out, the same encoding and the same bound as a
 /// connection published to by another. A name the member would refuse reaches
 /// nobody and answers `0`.
 #[must_use]
@@ -750,7 +760,7 @@ pub fn publish_text(topic: &str, text: &str) -> u64 {
                   and the member borrows rather than takes them"
     )]
     // SAFETY: nothing else points at either value — each subscriber was queued
-    // a copy of its own.
+    // the encoded bytes, not the value.
     unsafe {
         name.release();
         payload.release();
@@ -775,21 +785,19 @@ nvs_runtime::nvs_helper! {
     /// `Core\Topic::publish(string $topic, mixed $value): uint` — `rule:core-classes/topic`'s second row, and the only member of this class that asks nothing
     /// about the program calling it.
     ///
-    /// The name, then the crossing, then the walk. The crossing stands before
-    /// the walk and is made once however many joined, which is this module's
-    /// third decision; the walk hands that first copy to the first subscriber
-    /// and makes one more for each further one, because subscribers share
-    /// nothing with each other or with the publisher.
+    /// The name, then the encoding, then the walk. The encoding stands before
+    /// the walk and is made once however many joined, and the walk queues that
+    /// one buffer for every subscriber. Each subscriber decodes it into a value
+    /// of its own, which is this module's decision on the carrier.
     ///
     /// The count is what reached a queue, not what a subscriber has read: a
     /// delivery waits until that connection's own `receive()` drains it
     /// (`rule:concurrency/receive-is-the-one-wait`), and this member never
     /// blocks on one — on this core or on any other.
     ///
-    /// **The walk of the other cores comes last**, and it is asked before the
-    /// value is encoded so that a topic nobody joined elsewhere costs no
-    /// carrier at all. What it hands over is bytes and what it counts is what
-    /// those cores reported, which is this module's fourth decision.
+    /// **The walk of the other cores comes last.** It hands over the same
+    /// buffer, and what it counts is what those cores reported, which is this
+    /// module's decision on the count.
     fn nvs_core_topic_publish(ctx, args: [2]) {
         let topic = topic_of(&args[0], "publish")?;
         let payload = encoded(args[1])?;
