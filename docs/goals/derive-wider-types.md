@@ -6,7 +6,7 @@ context: [docs/rules/core-classes/derive-property-list.md, crates/nvs-types/src/
 stages:
   - id: 1
     title: a derived class's fields include what its parents declare
-    status: open
+    status: done
     context: [docs/rules/core-classes/keep-key-order-freezes-a-derived-classs-keys.md, crates/nvs-ir/src/lower/mod.rs, crates/nvs-diagnostics/src/code/types_e08.rs, tests/conformance/core/json-derive-encodes-declared-fields.nvst, tests/conformance/reject/a-json-derive-field-needs-a-matching-constructor-parameter.nvst]
   - id: 2
     title: a set of allowed values is codec-reachable
@@ -99,6 +99,19 @@ properties, which forces a hand-written codec for every class family.
 **What it spends:** a longer compile-time walk per derived class, nothing per object and nothing per
 request. The codec's field list grows by the inherited fields, which it should have carried anyway.
 
+**A property a subclass declares again is one field.** It is one slot in the layout, so two fields
+would write one key twice or fill one slot from two keys. It keeps its topmost declaration's position
+and takes the nearest declaration's type and `#[Json\Field]`, so a subclass that redeclares a renamed
+property through a promoted parameter writes its own key. Found while building stage 1: a promoted
+constructor parameter over a parent's property is the common case.
+**What it spends:** nothing per object; one name lookup per field at compile time.
+
+**A parent's declaration is read through the attribute table.** `crate::retrieval::AttributeTable`
+already holds each class's file and scope, because a parent may be declared in another file and its
+`#[Json\Field]` resolves through that file's `use` table. It now also holds each class declaration
+(`AttributeTable::class_decl`). An inherited field's type comes from the parent's signature, so a bad
+type is reported once, where the parent is checked.
+
 **`field_order` keeps its signature.** It still lists one class's members, because `nvs_lsp::order`
 asks what one class's fields would be after its own members move. A new function in
 `crates/nvs-types/src/derive.rs` walks the chain and calls it per class. `#[Json\KeepKeyOrder]` and
@@ -163,24 +176,24 @@ reads stage 1 and 2's codec and runs after them. Stage 4's examples and attack r
 
 **Does:** walk the class chain for a derived class's fields, fix the `E0820` help, and flip the rule.
 
-- [ ] A function in `crates/nvs-types/src/derive.rs` lists a class's fields over its whole chain,
+- [x] A function in `crates/nvs-types/src/derive.rs` lists a class's fields over its whole chain,
   root first, each class through `field_order` (`rule:core-classes/derive-property-list`,
   `crates/nvs-types/src/derive.rs:2609`).
-- [ ] `check_class_format` walks that list in place of `field_order(&decl.members, …)`, with each
+- [x] `check_class_format` walks that list in place of `field_order(&decl.members, …)`, with each
   inherited field checked by `codec_field` and `check_constructor_parameter` against the subclass's
   constructor, and refusals reported at the subclass's attribute with a label on the parent's property
   (`crates/nvs-types/src/derive.rs:2466`, `:2795`).
-- [ ] The IR join gives an inherited field its slot in the flattened layout and its position in the
+- [x] The IR join gives an inherited field its slot in the flattened layout and its position in the
   subclass's constructor (`crates/nvs-ir/src/lower/mod.rs:485`).
-- [ ] `E0820`'s help names the parameters no field fills when no field is skipped
+- [x] `E0820`'s help names the parameters no field fills when no field is skipped
   (`crates/nvs-types/src/derive.rs:1595`, `:1777`, `crates/nvs-diagnostics/src/code/types_e08.rs:351`).
-- [ ] Conformance case `tests/conformance/core/json-derive-encodes-inherited-fields-parents-first.nvst:1`:
+- [x] Conformance case `tests/conformance/core/json-derive-encodes-inherited-fields-parents-first.nvst:1`:
   a two-level chain encodes parents first, decodes back to an equal object, an `array<Base>` holding a
   subclass encodes the subclass's keys, and a parent's `#[Json\Field(name: …)]` renames for the
   subclass.
-- [ ] Conformance case `tests/conformance/reject/a-json-derive-subclass-needs-a-parameter-for-each-inherited-field.nvst:1`:
+- [x] Conformance case `tests/conformance/reject/a-json-derive-subclass-needs-a-parameter-for-each-inherited-field.nvst:1`:
   a subclass whose constructor has no parameter for an inherited field is `E0460` at its attribute.
-- [ ] `rule:core-classes/derive-property-list`'s first paragraph says every instance property in the
+- [x] `rule:core-classes/derive-property-list`'s first paragraph says every instance property in the
   class chain, root first, with the two Declined lines above; `rule:core-classes/keep-key-order-freezes-a-derived-classs-keys`
   gains its sentence (`docs/rules/core-classes/derive-property-list.md:1`).
 
@@ -260,13 +273,25 @@ the comments with `bun nv proofs --comments`.
 
 ### State
 
-Nothing built yet. The gaps were reproduced on `main` at 4724df76ac with the release `nvs`: a derived
-subclass encodes only its own keys, `"a"|"b"` is `E0756`, and `mixed` already works.
+Stage 1 is done. `chain_field_order` in `crates/nvs-types/src/derive.rs` walks the chain root first;
+an inherited field is read in its parent's file and scope, checked against the subclass's
+constructor, and its refusals are moved to the subclass's attribute (`Inherited::relabel`). The IR
+join needed no change: it joins by property name against the flattened layout. `E0820`'s help names
+each unfilled parameter when no skipped property explains it (`not_constructible_help`), at the
+JSON door and the row door. Both stage 1 cases pass, run by name. The acceptance sweep's
+`env-secret-proofs` red is stale (no file defines it; `bun nv proofs --gate --only 'Core\Env::secret'`
+owes nothing), and the nightly CI's one red, `live_config`
+`a_changed_server_timeout_applies_to_the_next_connection`, ran at f4c1d5c7e2 and is fixed on `main` by
+305c04f660.
+
+Expect red at the gate: any test that pinned a subclass's own-keys-only JSON output or an `E0820` for a
+subclass whose constructor takes a parent's property (none found by grep), and any `nvs-types` unit
+test that builds a `DerivedCodec` literal without `..Default::default()`.
 
 ### Next
 
-Stage 1, all items: they share `crates/nvs-types/src/derive.rs` and the IR join. Expect
-`tests/conformance/core/json-derive-encodes-declared-fields.nvst` to stay green, and any test that
-pins a subclass's own-keys-only output to go red and be updated.
+Stage 2, all items: `crates/nvs-types/src/derive.rs:2253` (`json_reachable`) first, then `codec_ty`,
+the runtime `CodecField::allowed`, the JSON and row decoders, OpenAPI and the `E0756` help. They share
+the codec type path end to end.
 
 ### Backlog
