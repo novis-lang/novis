@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-codegen/src/emit.rs, crates/nvs-ir/src/ir.rs, crates/nvs-codegen/tests/throwing.rs, docs/rules/errors/stack-depth.md]
   - id: 4
     title: an inout loop walks the array it began with and writes by key
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/control.rs, crates/nvs-runtime/src/array.rs, docs/rules/statements/inout-is-the-by-reference-spelling.md, docs/rules/iteration/foreach-subjects.md]
   - id: 5
     title: the array primitives hold no panic a program reaches
@@ -281,6 +281,17 @@ in-place branch proves unsound, every write goes by key and the first write copi
 Declined: a compile error for changing the subject inside the loop, which removes a working idiom.
 Declined: a position that follows a sweep, which needs a counter on every array.
 
+**What stage 4 settled while building it.** The walked array is the reserved `foreach#N` name in
+both loop shapes, loop-private and released in the after-block and by every sweep. The helper is
+`nvs_array_inout_write` in `array.rs`, row `Helper::ArrayInoutWrite`. "Only the binding and the loop
+hold it" is a pointer match and a count of two. On a throw the helper does not consume the subject,
+so the landing block releases it with the variable. `write_through_element` binds the new `$v` in
+the `Env` before the call, because every caller has already released the old value. The three
+string and carrier fast paths for `$v .= e` and `$v = $v . e` skipped the write-through entirely,
+and now call it. The two position primitives carry stage 5's `deny` set already, since an
+`#[expect(clippy::expect_used)]` is unfulfilled without it. An entry the body appends is no longer
+visited: the old conformance row that pinned the opposite now expects `[100,2]`.
+
 **A panic in a primitive keeps aborting the process.** A primitive takes no context, so it cannot
 report a `FATAL`, and after a panic the runtime's state is unknown. Going on would risk request
 isolation, which is not traded. So the fix is to remove every panic a program shape can reach. Each
@@ -458,35 +469,35 @@ landing block, and make codegen refuse a poll with no error edge.
 **Does:** make the by-reference loop retain its subject and read positions from it, and replace the
 write-through with one status-returning helper that writes in place or by key.
 
-- [ ] Write the rule fragment for an `inout` loop from the standing decision,
+- [x] Write the rule fragment for an `inout` loop from the standing decision,
   with its cost and Declined list, and point `rule:statements/inout-is-the-by-reference-spelling`
   at it (`docs/rules/iteration/an-inout-loop-walks-the-array-it-began-with.md:1`,
   `docs/rules/statements/inout-is-the-by-reference-spelling.md:16`).
-- [ ] The loop retains the subject at its start and releases it on every exit, as the by-value loop
+- [x] The loop retains the subject at its start and releases it on every exit, as the by-value loop
   does. The header reads positions from the walked array
   (`crates/nvs-ir/src/lower/control.rs:1130`, `crates/nvs-ir/src/lower/control.rs:1045`).
-- [ ] Add the helper through `nvs_helper!`: subject, walked array, position and value in, the
+- [x] Add the helper through `nvs_helper!`: subject, walked array, position and value in, the
   subject out. It consumes the value on every path (`crates/nvs-runtime/src/array.rs:2425`,
   `crates/nvs-ir/src/ir.rs:2488`).
-- [ ] `write_through_element` emits that helper as a fallible instruction and stores the returned
+- [x] `write_through_element` emits that helper as a fallible instruction and stores the returned
   subject. The `ArrayKeyAt` and `ArraySet` pair goes (`crates/nvs-ir/src/lower/control.rs:1363`).
-- [ ] The two position `expect`s keep their panic, each with the reason: the walked array is
+- [x] The two position `expect`s keep their panic, each with the reason: the walked array is
   retained, so nothing changes it (`crates/nvs-runtime/src/array.rs:2439`,
   `crates/nvs-runtime/src/array.rs:2473`).
-- [ ] Tests in `crates/nvs-codegen/tests/foreach_inout.rs:1`:
+- [x] Tests in `crates/nvs-codegen/tests/foreach_inout.rs:1`:
   `a_write_to_a_removed_entry_throws_a_logic_error`,
   `an_inout_loop_survives_removals_that_sweep_the_array` (forty entries, each visit removes the one
   before it and writes `$v`), `an_inout_loop_over_a_replaced_array_never_panics` (the subject
   assigned, passed `inout`, and the nested loop form), and
   `an_inout_loop_that_only_writes_copies_nothing` (allocations counted at two array sizes).
-- [ ] Conformance cases for the rule's observable results: the visit count, the thrown class and its
+- [x] Conformance cases for the rule's observable results: the visit count, the thrown class and its
   message (`docs/rules/iteration/an-inout-loop-walks-the-array-it-began-with.md:1`,
   `tests/hostile/lang/statements/foreach/01-a-million-elements-walked-written-and-changed-under-the-loop.nvs:1`).
   Find the `.nvst` home with `bun nv brief --where conformance`.
-- [ ] Attack `tests/hostile/lang/statements/foreach/02-an-inout-loop-whose-array-changes-under-it.nvs`:
+- [x] Attack `tests/hostile/lang/statements/foreach/02-an-inout-loop-whose-array-changes-under-it.nvs`:
   the three aborting shapes from *Why*, each caught, so the next step runs
   (`rule:testing/feature-proofs`, `tests/hostile/lang/statements/foreach/02-an-inout-loop-whose-array-changes-under-it.nvs:1`).
-- [ ] The `foreach` example's `about.md` says what a write does after the entry was removed. Find it
+- [x] The `foreach` example's `about.md` says what a write does after the entry was removed. Find it
   with `bun nv proofs --id 'lang:statements/foreach'` (`docs/examples/lang/statements/foreach/about.md:1`).
 
 ### 5. the array primitives hold no panic a program reaches
@@ -571,33 +582,37 @@ session writes each group under its stage as checkpoints, so stages 6 to 8 start
 
 ### State
 
-Stages 1 to 3 are done. Every function polls at its entry through
-`Lowering::emit_safepoint(b, env)` once its parameters are bound, and the edge-less emitter is gone.
-Codegen sends the poll's and the stack check's status through `emit_status_check`. The two
-`throwing.rs` tests fail with the fix stashed and pass with it. `every_function_kind_polls_with_an_error_edge`
-and `codegen_refuses_a_poll_with_no_error_edge` pass. The 160 IR snapshots were accepted after
-reading samples: each shows the moved poll, the entry's landing block that renumbers the blocks
-after it, and the stage 1 and stage 2 changes the earlier handoff named. The sweep's
-`env-secret-proofs` red is stale: a retired goal's check with no log, named nowhere in the tree.
+Stages 1 to 4 are done. An `inout` loop retains the array it began with under `foreach#N` and walks
+it, and every write to `$v` is one fallible `nvs_array_inout_write` call
+(`crates/nvs-runtime/src/array.rs`, `Helper::ArrayInoutWrite`). The four `foreach_inout` tests pass,
+including a live-bytes balance on the throwing path. The new conformance case, the changed row of
+`a-foreach-by-reference-writes-through-to-its-array.nvst` and the attack `02-…` were run with
+`bun nv try` on the debug binary and print what they expect. `nvs_array_key_at` and
+`nvs_array_value_at` already carry stage 5's `deny` set. The rulebook was re-rendered, which also
+picked up stale renders of `errors.md` and `expressions.md`. The sweep's `env-secret-proofs` red is
+stale: a retired goal's check with no log, named nowhere in the tree.
 
 ### Next
 
-Stage 4: an `inout` loop walks the array it began with and writes by key. Read the standing decision
-*An `inout` loop walks the array it began with* first.
+Stage 5: the array primitives hold no panic a program reaches. Follow its `**Split:**` line first:
+an `Explore` subagent lists every panic site reachable from a bare `extern "C" fn`.
 
-- [ ] `docs/rules/iteration/an-inout-loop-walks-the-array-it-began-with.md:1`: the rule fragment,
-  and the pointer from `docs/rules/statements/inout-is-the-by-reference-spelling.md:16`.
-- [ ] `crates/nvs-ir/src/lower/control.rs:1130`: retain the subject at the loop's start, as the
-  by-value loop does (`crates/nvs-ir/src/lower/control.rs:1045`).
-- [ ] `crates/nvs-runtime/src/array.rs:2425`: the write helper through `nvs_helper!`, and its
-  `Helper` row (`crates/nvs-ir/src/ir.rs:2488`).
-- [ ] `crates/nvs-ir/src/lower/control.rs:1363`: `write_through_element` emits the helper.
-- [ ] `crates/nvs-codegen/tests/foreach_inout.rs:1`: the four tests stage 4 names, then the
-  conformance cases, the attack and the `about.md` line.
+- [ ] `docs/rules/errors/helper-abi.md:1`, `crates/nvs-runtime/src/lib.rs:23` and
+  `crates/nvs-runtime/src/abi.rs:13`: say a primitive has no wrapper and no program may reach a
+  panic in one.
+- [ ] `crates/nvs-runtime/tests/primitives_never_panic.rs:1`: the source-reading test and its four
+  groups.
+- [ ] `crates/nvs-runtime/src/array.rs:1906` to `crates/nvs-runtime/src/array.rs:2404`: the `deny`
+  set on each array primitive and `nvs_array_eq` (`crates/nvs-runtime/src/identity.rs:180`). Copy
+  the attribute block from `nvs_array_key_at` (`crates/nvs-runtime/src/array.rs:2433`).
+- [ ] `crates/nvs-runtime/src/array.rs:884`: the table methods those primitives call.
+- [ ] `tests/hostile/lang/expressions/arrays-in-expressions/02-every-array-operation-at-its-edge.nvs:1`:
+  the attack.
 
 Expected red: a test or conformance case that prints a backtrace through a `RecursionError` or a
 limit stop at a function's entry now shows the stopped frame too. Any `nvs-codegen` test that
-compares an IR dump. The stage-9 gate reads each.
+compares an IR dump through an `inout` loop. Any conformance case or example that appends to the
+subject of an `inout` loop and expected the new entry visited. The stage-9 gate reads each.
 
 ### Backlog
 
