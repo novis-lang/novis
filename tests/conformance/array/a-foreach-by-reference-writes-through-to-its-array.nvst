@@ -109,9 +109,9 @@ foreach ($bumped as inout int $b) {
 }
 echo Core\Json::encode($bumped), "\n";
 
-// The loop walks the subject's own binding, so an entry appended by the
-// body is reached — the opposite of the by-value loop, which keeps walking
-// the array it started on.
+// The loop walks the array it began with, as the by-value loop does, so an
+// entry the body appends is not visited. The write to `$g` still reaches the
+// variable (`rule:iteration/an-inout-loop-walks-the-array-it-began-with`).
 array<int> $grown = [1];
 foreach ($grown as inout int $g) {
     if ($g == 1) {
@@ -133,4 +133,4 @@ caught stop
 [[10,20],[30,40]]
 [[8],[8]]
 [103,104]
-[100,200]
+[100,2]

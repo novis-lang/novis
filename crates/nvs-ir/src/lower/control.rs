@@ -921,18 +921,18 @@ impl<'a> Lowering<'a> {
     ///   of the body rather than the bottom precisely so that a `continue`'s
     ///   back edge needs no step of its own.
     ///
-    /// # `inout $v` inverts the loop's second reference
+    /// # `inout $v` walks the array it began with
     ///
-    /// A by-reference value binding writes each element back into the array
-    /// being walked, so the loop must **not** hold a second reference: the
-    /// one thing the extra reference buys — `rule:types/arrays` separating the array
-    /// on the first write, leaving the cursor on the snapshot — is exactly
-    /// what an `inout $v` loop must not do. So the by-reference shape drops the
-    /// retain, walks the subject variable's *own* `Env` binding rather than a
-    /// reserved `foreach#N` one (`nvs_types`' `check_foreach_inout` refuses
-    /// every subject that is not a plain variable, so there is always one),
-    /// and releases nothing after the loop, the local's own exit sweep being
-    /// the single owner it always was.
+    /// `rule:iteration/an-inout-loop-walks-the-array-it-began-with`. The
+    /// by-reference shape takes the same second reference and walks it, so
+    /// nothing the body does can move the positions the cursor reads. Its
+    /// subject is always a plain variable (`nvs_types`' `check_foreach_inout`
+    /// refuses every other one), and every write goes to that variable's
+    /// binding through [`Helper::ArrayInoutWrite`]. While the variable still
+    /// holds the walked array and nothing else shares it, the helper replaces
+    /// the entry at the cursor's position, so a loop that only writes `$v`
+    /// copies nothing. Once the body has changed the variable, the helper
+    /// writes by key, and a key the body removed throws a `LogicError`.
     ///
     /// **Each write is a write-through, not a copy-back at the end of the
     /// iteration.** Every rebinding of `$v` — `$v = e`, `$v .= e`, `$v++`, a
@@ -946,12 +946,11 @@ impl<'a> Lowering<'a> {
     /// alias, has already written. Write-through is that alias, one store
     /// later.
     ///
-    /// The array's binding is re-pointed by every such write, because
-    /// [`InstKind::ArraySet`] consumes one reference and produces the one the
-    /// holder now owns (see [`Self::write_back_array`]). That is why the
-    /// subject's name gets a header phi like any reassigned local, and why
-    /// [`InoutElement`] carries `Env` names rather than values: a write
-    /// inside the body is what the *next* iteration walks.
+    /// The subject's binding is re-pointed by every such write, because the
+    /// helper consumes one reference and gives back the one the holder now
+    /// owns (see [`Self::write_back_array`]). That is why the subject's name
+    /// gets a header phi like any reassigned local, and why [`InoutElement`]
+    /// carries `Env` names rather than values.
     ///
     /// # Panics
     ///
@@ -1042,16 +1041,17 @@ impl<'a> Lowering<'a> {
                  `Iterable`/`Iterator` pair took the cursor lowering above"
             );
         }
-        if !value_inout && self.sole_operand_borrowed(subject) {
+        // A by-reference subject is always a variable's binding, so the loop
+        // takes its own reference to it, as a by-value loop over a variable does.
+        if value_inout || self.sole_operand_borrowed(subject) {
             self.emit_retain(*cur, array_v);
         }
 
         let seq = self.foreach_seq;
         self.foreach_seq += 1;
-        // A by-reference loop walks the subject variable's own binding — see
-        // this method's doc comment on why it must be that one slot and not a
-        // second reference to the same array.
-        let array_name = if value_inout {
+        // Both shapes walk the loop's own reference. A by-reference loop also
+        // names the subject variable, which every write through `$v` goes to.
+        let subject_name = if value_inout {
             let ExprKind::Variable(name_span) = &subject.kind else {
                 panic!(
                     "nvs-ir: a `foreach (… as inout $v)` subject at {:?} is not a plain variable — \
@@ -1059,12 +1059,12 @@ impl<'a> Lowering<'a> {
                     subject.span
                 );
             };
-            strip_sigil(span_text(self.src, *name_span)).to_owned()
+            Some(strip_sigil(span_text(self.src, *name_span)).to_owned())
         } else {
-            let name = format!("foreach#{seq}");
-            env.insert(name.clone(), (array_v, Ty::Array));
-            name
+            None
         };
+        let array_name = format!("foreach#{seq}");
+        env.insert(array_name.clone(), (array_v, Ty::Array));
         let cursor_name = format!("foreach#{seq}$cursor");
         let slot_name = format!("foreach#{seq}$slot");
         let (zero_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(0));
@@ -1080,8 +1080,10 @@ impl<'a> Lowering<'a> {
         // syntactic scan below cannot see that — the write is spelled `$v`,
         // not `$a`. Seeding it is what gives the next iteration the array the
         // last one wrote into.
-        if value_inout && seen.insert(array_name.clone()) {
-            reassigned.push(array_name.clone());
+        if let Some(name) = &subject_name
+            && seen.insert(name.clone())
+        {
+            reassigned.push(name.clone());
         }
         self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
         self.seed_generator_loop_carried(env, &mut seen, &mut reassigned);
@@ -1174,14 +1176,7 @@ impl<'a> Lowering<'a> {
             break_edges: Vec::new(),
             iteration_owned,
             carried: header_env.keys().cloned().collect(),
-            // A by-reference loop's array *is* the subject's own binding, so
-            // it is not private to the loop and outlives it — only the cursor
-            // and the slot are reserved names to hide.
-            loop_private: if value_inout {
-                vec![cursor_name.clone(), slot_name.clone()]
-            } else {
-                vec![array_name.clone(), cursor_name.clone()]
-            },
+            loop_private: vec![array_name.clone(), cursor_name.clone(), slot_name.clone()],
             try_depth: self.try_stack.len(),
         });
 
@@ -1236,7 +1231,7 @@ impl<'a> Lowering<'a> {
         }
         body_env.insert(value_name.clone(), (v_v, value_ty));
 
-        if value_inout {
+        if let Some(subject_name) = &subject_name {
             // The slot travels in the `Env` rather than as a `ValueId` for
             // `Self::seed_generator_loop_carried`'s reason: a write to `$v`
             // may sit after a `yield`, where the header's own definition has
@@ -1245,7 +1240,8 @@ impl<'a> Lowering<'a> {
             body_env.insert(slot_name.clone(), (slot_v, Ty::Int));
             self.inout_elements.push(InoutElement {
                 binding: value_name,
-                array: array_name.clone(),
+                array: subject_name.clone(),
+                walked: array_name.clone(),
                 slot: slot_name.clone(),
             });
         }
@@ -1287,19 +1283,11 @@ impl<'a> Lowering<'a> {
         let mut exit_env = header_env.clone();
         exit_env.remove(&cursor_name);
         exit_env.remove(&slot_name);
-        if !value_inout {
-            exit_env.remove(&array_name);
-        }
+        exit_env.remove(&array_name);
         let mut after_incoming: Vec<(BlockId, Env)> = vec![(header_block, exit_env.clone())];
         after_incoming.extend(frame.break_edges);
         *env = self.merge_envs(after_block, &after_incoming, &exit_env);
-        // The by-reference loop never took a reference of its own, so there
-        // is none to give back: what the subject's binding holds after the
-        // loop is the array every write-through re-pointed it at, and its own
-        // exit sweep releases that once.
-        if !value_inout {
-            self.emit_release(after_block, array_v);
-        }
+        self.emit_release(after_block, array_v);
         *cur = after_block;
     }
     /// The array a `foreach` is walking, read out of the [`Env`] name it is
@@ -1307,7 +1295,7 @@ impl<'a> Lowering<'a> {
     ///
     /// One [`InstKind::RefLoad`] when that name is an `inout $x` parameter's cell
     /// (see [`Ty::Ref`]), the binding's own value otherwise. A by-reference
-    /// loop walks the subject's binding directly ([`Self::lower_foreach`]),
+    /// loop writes to the subject's binding ([`Self::write_through_element`]),
     /// and a `&array<T>` parameter is as much a plain variable at the source
     /// level as any local — so both shapes reach here, and the cell is the
     /// one the write-through re-points.
@@ -1351,15 +1339,16 @@ impl<'a> Lowering<'a> {
     /// for every other name, which is every name in a frame with no
     /// by-reference loop open.
     ///
-    /// Called from the three places that re-point a local's slot:
+    /// Called from every place that re-points a local's slot:
     /// [`Self::bind_local_value`] (`$v = e` and every compound form),
-    /// [`Self::write_back_holder`] (an `inout $v` argument's copy-back) and
-    /// [`Self::write_back_array`] (`$v[0] = e`). The binding keeps its own
+    /// [`Self::write_back_holder`] (an `inout $v` argument's copy-back),
+    /// [`Self::write_back_array`] (`$v[0] = e`), and the three `string` and
+    /// carrier fast paths for `$v .= e` and `$v = $v . e`. The binding keeps its own
     /// reference and the array takes one of its own, so a refcounted value is
     /// retained here and released with the binding at the end of the
-    /// iteration ([`LoopFrame::iteration_owned`]) — [`InstKind::ArrayKeyAt`]'s
-    /// fresh key is consumed by the [`InstKind::ArraySet`] and owes nothing
-    /// further.
+    /// iteration ([`LoopFrame::iteration_owned`]). The write is one
+    /// [`Helper::ArrayInoutWrite`] call with an error edge, and this binds `v`
+    /// in `env` before it, so the edge releases the binding's reference once.
     pub(crate) fn write_through_element(
         &mut self,
         cur: BlockId,
@@ -1374,25 +1363,35 @@ impl<'a> Lowering<'a> {
         let Some(element) = self.inout_elements.iter().rev().find(|e| e.binding == name) else {
             return;
         };
-        let (array_name, slot_name) = (element.array.clone(), element.slot.clone());
+        let (array_name, walked_name, slot_name) = (
+            element.array.clone(),
+            element.walked.clone(),
+            element.slot.clone(),
+        );
         let &(slot_v, Ty::Int) = env.get(&slot_name).unwrap_or_else(|| {
             panic!("nvs-ir: a `foreach (… as inout $v)` body lost the cursor slot `{slot_name}`")
         }) else {
             panic!("nvs-ir: a `foreach` cursor slot is bound at `Ty::Int` and nothing rebinds it")
         };
         let array_v = self.loop_array(cur, env, &array_name);
-        let (key_v, _) = self.emit(
-            cur,
-            Ty::Str,
-            InstKind::ArrayKeyAt {
-                array: array_v,
-                slot: slot_v,
-            },
-        );
+        let walked_v = self.loop_array(cur, env, &walked_name);
         if ty.is_refcounted() {
             self.emit_retain(cur, v);
         }
-        let written = self.emit_array_set(cur, array_v, key_v, v);
+        // Every caller has already released the binding's old value and binds
+        // `v` once this returns, so the error edge must see `v` bound: the
+        // landing block then releases the binding's reference, and the helper
+        // has consumed the one retained above.
+        env.insert(name.to_owned(), (v, ty));
+        let (written, _) = self.emit_fallible(
+            cur,
+            Ty::Array,
+            InstKind::HelperCall {
+                helper: Helper::ArrayInoutWrite,
+                args: vec![array_v, walked_v, slot_v, v],
+            },
+            env,
+        );
         self.store_loop_array(cur, env, &array_name, written);
     }
     /// `foreach ($subject as $v) body` over `rule:iteration/foreach-subjects`'s other two shapes —

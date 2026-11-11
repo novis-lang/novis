@@ -3523,6 +3523,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_array_truthy", address(nvs_array_truthy)),
         ("nvs_value_truthy", address(nvs_value_truthy)),
         ("nvs_array_row_for_write", address(nvs_array_row_for_write)),
+        (
+            "nvs_array_inout_write",
+            address(crate::array::nvs_array_inout_write),
+        ),
         ("nvs_guard_key_path", address(nvs_guard_key_path)),
         ("nvs_array_required_get", address(nvs_array_required_get)),
         ("nvs_array_optional_get", address(nvs_array_optional_get)),

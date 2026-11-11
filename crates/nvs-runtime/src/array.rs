@@ -2421,6 +2421,14 @@ pub unsafe extern "C" fn nvs_array_next_slot(array: *const ArrayHeader, from: us
     reason = "compiled code passes a raw array pointer and a slot the \
               signature cannot bound"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_key_at(
     array: *const ArrayHeader,
@@ -2430,6 +2438,11 @@ pub unsafe extern "C" fn nvs_array_key_at(
         unsafe_code,
         reason = "the caller guarantees the allocation is live and the slot is \
                   a live entry's"
+    )]
+    #[expect(
+        clippy::expect_used,
+        reason = "no program reaches this: both `foreach` shapes retain the array \
+                  they walk, so nothing removes the entry the cursor is on"
     )]
     let key = unsafe {
         (*array)
@@ -2454,6 +2467,14 @@ pub unsafe extern "C" fn nvs_array_key_at(
     reason = "compiled code passes raw pointers and a slot the signature \
               cannot bound"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_value_at(
     array: *const ArrayHeader,
@@ -2465,6 +2486,11 @@ pub unsafe extern "C" fn nvs_array_value_at(
         reason = "the caller guarantees the allocation is live, that the slot \
                   is a live entry's, and that `out` is a writable 16-byte slot"
     )]
+    #[expect(
+        clippy::expect_used,
+        reason = "no program reaches this: both `foreach` shapes retain the array \
+                  they walk, so nothing removes the entry the cursor is on"
+    )]
     unsafe {
         let value = (*array)
             .table
@@ -2472,6 +2498,114 @@ pub unsafe extern "C" fn nvs_array_value_at(
             .value_at(slot)
             .expect("a foreach cursor only names live entries");
         out.write(value);
+    }
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ArrayInoutWrite`: one write to a `foreach (… as inout
+    /// $v)` binding, `rule:iteration/an-inout-loop-walks-the-array-it-began-with`.
+    ///
+    /// `args[0]` is the subject variable's array, whose reference the write
+    /// consumes and gives back as the result. `args[1]` is the array the loop
+    /// walks, borrowed. `args[2]` is the position the cursor is on, and
+    /// `args[3]` the value, whose reference is consumed on every path.
+    ///
+    /// Where the subject is still the walked array and only the variable and
+    /// the loop hold it, the value replaces the entry at the position, with no
+    /// key and no lookup. Otherwise the subject's entry with the walked
+    /// entry's key is written, separating a shared subject once. A subject
+    /// with no such entry throws a `LogicError`, and the subject is not
+    /// consumed: the variable still holds it.
+    ///
+    /// A write the request's memory ceiling refuses leaves the subject as it
+    /// was and releases the value, as [`nvs_array_set`] does.
+    fn nvs_array_inout_write(_ctx, args: [4]) {
+        let value = args[3];
+        let release_value = || {
+            #[expect(
+                unsafe_code,
+                reason = "the write took over the value's one reference and stores nothing"
+            )]
+            unsafe {
+                crate::release::release_value(value);
+            }
+        };
+        let (Some(subject), Some(walked), Some(slot)) =
+            (args[0].array_ptr(), args[1].array_ptr(), args[2].as_int())
+        else {
+            release_value();
+            return Err(crate::helpers::wrong_tag(
+                "nvs_array_inout_write",
+                crate::value::Tag::Array,
+                args[0],
+            ));
+        };
+        let Ok(slot) = usize::try_from(slot) else {
+            release_value();
+            return Err(crate::helpers::wrong_tag(
+                "nvs_array_inout_write",
+                crate::value::Tag::Int,
+                args[2],
+            ));
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the subject argument owns a reference to a live allocation, \
+                      which this handle takes over and gives back as the result \
+                      or with `into_raw` on the throwing path"
+        )]
+        let mut handle = unsafe { NvsArray::from_raw(subject) };
+        // The loop holds one reference to the walked array, so a subject that
+        // is that array at a count of two is shared with nothing else, and
+        // nothing has moved its positions.
+        if std::ptr::eq(subject, walked) && handle.refcount() == 2 {
+            let old = handle.header().table.borrow_mut().replace_at(slot, value);
+            #[expect(
+                unsafe_code,
+                reason = "the table owned exactly one reference to the value this \
+                          write displaced, and no longer holds it"
+            )]
+            unsafe {
+                crate::release::release_value(old);
+            }
+            return Ok(Value::from_array_ptr(handle.into_raw()));
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the walked argument is borrowed from the loop, which owns a \
+                      reference to it for the call's whole duration"
+        )]
+        let walked = unsafe { ArrayRef::borrowed(walked) };
+        // No program reaches this panic: the loop retains the walked array, so
+        // nothing removes the entry its cursor is on.
+        let key = walked
+            .slot_key(slot)
+            .expect("a foreach cursor only names live entries");
+        let present = match &key {
+            SlotKey::Index(index) => handle.get_index(*index).is_some(),
+            SlotKey::Str(text) => handle.has_key(text.as_bytes()),
+        };
+        if !present {
+            release_value();
+            let _ = handle.into_raw();
+            return Err(crate::abi::Fault::thrown_as(
+                crate::ThrownClass::Logic,
+                format!(
+                    "array key `{}` was removed during the loop, so the `inout` value \
+                     cannot be written to it",
+                    String::from_utf8_lossy(key.to_str().as_bytes())
+                ),
+            ));
+        }
+        if handle.refcount() > 1 && !handle.affords_write() {
+            release_value();
+            return Ok(Value::from_array_ptr(handle.into_raw()));
+        }
+        match key {
+            SlotKey::Index(index) => handle.set_index(index, value),
+            SlotKey::Str(text) => handle.set(text, value),
+        }
+        Ok(Value::from_array_ptr(handle.into_raw()))
     }
 }
 

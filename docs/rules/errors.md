@@ -170,7 +170,9 @@ So recursion is bounded twice. A catchable `RecursionError` throws at a **soft**
 recursive-descent parser or a walk over untrusted-depth data can degrade instead of dying; this is
 safe because [`errors/propagation`](errors.md#errors-propagation) pops frames as it unwinds,
 so the handler runs with a shallow stack again. A non-catchable `FATAL` at the true limit is the
-floor beneath it and reaches [`errors/on-limit`](errors.md#errors-on-limit) like any other resource limit.
+floor beneath it and reaches [`errors/on-limit`](errors.md#errors-on-limit) like any other resource limit. A stop at a
+function's entry, at either tier or at the poll the check rides on, releases the arguments the frame
+owns: the check runs once the parameters are bound, and it takes the frame's landing block.
 
 The ceiling is **the task's own stack**, whose width [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled)
 sets and whose bounds arm the limit ([`concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`](concurrency.md#concurrency-a-tasks-recursion-limit-comes-from-its-own-stack));

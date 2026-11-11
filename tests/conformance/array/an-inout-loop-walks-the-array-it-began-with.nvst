@@ -1,0 +1,45 @@
+--TEST--
+A `foreach (… as inout $v)` loop visits the entries its array had when it began, and a write to `$v` after the body removed that entry throws a `LogicError` (`rule:iteration/an-inout-loop-walks-the-array-it-began-with`)
+--FILE--
+<?nvs
+// covers: lang:statements/foreach
+
+// The body removes an entry the loop has not reached yet. The loop still
+// visits it, because it walks the entries the array had at the start.
+array<int> $a = ["x" => 1, "y" => 2, "z" => 3];
+int $visits = 0;
+try {
+    foreach ($a as inout int $v) {
+        $visits++;
+        unset($a["z"]);
+        $v = $v * 10;
+    }
+} catch (LogicError $e) {
+    echo "LogicError: ", $e->message, "\n";
+}
+echo $visits, " ", Core\Json::encode($a), "\n";
+
+// The body may add and remove entries as long as it writes `$v` only while
+// its entry is there. The added entries are not visited.
+array<int> $b = [1, 2, 3];
+int $seen = 0;
+foreach ($b as string $k => inout int $w) {
+    $seen++;
+    $w = $w + 100;
+    $b["new" . $k] = 0;
+}
+echo $seen, " ", Core\Json::encode($b), "\n";
+
+// Assigning a new array to the subject: each write goes to the entry with the
+// same key in the new array.
+array<int> $c = [1, 2];
+foreach ($c as inout int $x) {
+    $c = [7, 8, 9];
+    $x = $x + 1;
+}
+echo Core\Json::encode($c), "\n";
+--EXPECT--
+LogicError: array key `z` was removed during the loop, so the `inout` value cannot be written to it
+3 {"x":10,"y":20}
+3 {"0":101,"1":102,"2":103,"new0":0,"new1":0,"new2":0}
+[7,3,9]

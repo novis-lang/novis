@@ -1182,6 +1182,16 @@ compile until it is judged.
   storage only this frame writes. It is held only when a later operand writes that local: an
   assignment, a compound assignment, `++` or `--`, a destructuring target, or an `inout` argument.
 
+**A store is the same rule, with its target's parts as the earlier operands.** For `$a->b->c = e`,
+`$o->s .= e`, `$o->arr[k] = e`, `$o->arr[] = e` and `$m[$o->key] = e`, the receiver of the slot
+written and every key are evaluated first, left to right, and held while the later keys and `e` run
+when one of them can free them. Then `e` runs, and only then is the slot read and written. So a
+property store writes the object its receiver named before `e` ran, and a compound store reads and
+writes that same object. An element store reads the array after `e`, so it writes into the array the
+property holds when the store runs, as PHP does. The order of side effects does not change. A
+`.=` or self-concatenation that hands a string local's buffer on takes the general store whenever
+`e` writes that local.
+
 So `$this->a . $this->b` and `$s . f($x)` cost nothing more. Where a form might write a local in a
 way the scan cannot see, the local is judged as shared storage, at one more pair per operand.
 

@@ -1,0 +1,45 @@
+<?nvs
+// Attack: an `inout` loop changes its own array, then writes the loop variable.
+// Each write to a removed entry should throw a `LogicError`, and the program
+// should catch it and go on to the next step.
+// covers: lang:statements/foreach
+
+// 1. The body removes the current entry, then writes the loop variable.
+array<string> $a = ['x' => 'a', 'y' => 'b'];
+try {
+    foreach ($a as string $k => inout string $v) {
+        unset($a[$k]);
+        $v = 'w';
+    }
+} catch (LogicError $e) {
+    echo "step 1: ", $e->message, "\n";
+}
+
+// 2. The body replaces the array with an empty one, then writes the loop variable.
+array<string> $b = ['x' => 'a', 'y' => 'b'];
+try {
+    foreach ($b as inout string $v) {
+        $b = [];
+        $v = 'w';
+    }
+} catch (LogicError $e) {
+    echo "step 2: ", $e->message, "\n";
+}
+
+// 3. Each visit removes the entry before it, then writes the loop variable.
+// These writes are allowed, so the loop runs to the end.
+array<string> $c = [];
+for (int $i = 0; $i < 40; $i++) {
+    $c['k' . $i] = 'v' . $i;
+}
+string $prev = '';
+int $visits = 0;
+foreach ($c as string $k => inout string $v) {
+    if ($prev != '') {
+        unset($c[$prev]);
+    }
+    $v = 'w';
+    $prev = $k;
+    $visits++;
+}
+echo "step 3: ", $visits, " ", Core\Json::encode($c), "\n";

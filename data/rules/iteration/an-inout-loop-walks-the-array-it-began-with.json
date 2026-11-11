@@ -1,0 +1,15 @@
+{
+  "title": "An `inout` loop walks the array it began with, and a write to its variable goes to the subject by key",
+  "status": "shipped",
+  "seeAlso": [
+    "iteration/foreach-subjects",
+    "statements/inout-is-the-by-reference-spelling",
+    "types/arrays"
+  ],
+  "guardedBy": [
+    "crates/nvs-codegen/tests/foreach_inout.rs",
+    "tests/conformance/array/an-inout-loop-walks-the-array-it-began-with.nvst",
+    "tests/conformance/array/a-foreach-by-reference-writes-through-to-its-array.nvst",
+    "tests/hostile/lang/statements/foreach/02-an-inout-loop-whose-array-changes-under-it.nvs"
+  ]
+}

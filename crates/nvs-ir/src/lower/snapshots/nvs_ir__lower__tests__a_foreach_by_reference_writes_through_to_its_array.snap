@@ -8,6 +8,7 @@ fn m(object, array) -> void {
     v1 = param 1  ; array
     safepoint
     ; stmt s0 @4:5-6:6
+    retain v1
     v2 = const.int 0  ; int
     jump bb2
   bb1:
@@ -16,37 +17,45 @@ fn m(object, array) -> void {
     propagate "m() at t.nvs:1"
   bb2:
     v3 = phi [bb0: v2, bb3: v9]  ; int
-    v4 = phi [bb0: v1, bb3: v14]  ; array
-    v5 = array.next_slot v4, v3  ; int
+    v4 = phi [bb0: v1, bb3: v13]  ; array
+    v5 = array.next_slot v1, v3  ; int
     v6 = const.int 0  ; int
     v7 = ge v5, v6  ; bool
     branch v7 -> bb3 (e0), bb4 (e1)
   bb3:
     v8 = const.int 1  ; int
     v9 = add v5, v8 ! bb5  ; int
-    v10 = array.value_at v4, v5  ; int
+    v10 = array.value_at v1, v5  ; int
     ; stmt s1 @4:34-6:6
     ; stmt s2 @5:7-5:19
     v11 = const.int 1  ; int
     v12 = add v10, v11 ! bb6  ; int
-    v13 = array.key_at v4, v5  ; string
-    v14 = array.set v4, v13, v12  ; array
+    v13 = helper.array_inout_write v4, v1, v5, v12 ! bb7  ; array
     safepoint
     jump bb2
   bb4:
+    release v1
     release v4
     release v0
     return
   bb5:
     release v4
+    release v1
     release v0
     propagate "m() at t.nvs:4"
   bb6:
     release v4
+    release v1
     release v0
     propagate "m() at t.nvs:5"
   bb7:
-    release v14
+    release v4
+    release v1
+    release v0
+    propagate "m() at t.nvs:5"
+  bb8:
+    release v13
+    release v1
     release v0
     propagate "m() at t.nvs:5"
 }

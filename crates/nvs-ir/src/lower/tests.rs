@@ -198,7 +198,9 @@ fn every_function_kind_polls_with_an_error_edge() {
             f.name
         );
         assert!(
-            entry.insts[..poll].iter().all(|inst| inst.on_error.is_none()),
+            entry.insts[..poll]
+                .iter()
+                .all(|inst| inst.on_error.is_none()),
             "`{}` runs a fallible instruction before its entry poll",
             f.name
         );
@@ -236,7 +238,10 @@ fn every_function_kind_polls_with_an_error_edge() {
         "generator",
         "property hook",
     ] {
-        assert!(kinds.contains(kind), "the fixture lowered no {kind}: {kinds:?}");
+        assert!(
+            kinds.contains(kind),
+            "the fixture lowered no {kind}: {kinds:?}"
+        );
     }
 }
 
@@ -2898,13 +2903,13 @@ class T {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `foreach (… as inout $v)` writes back through the array it is walking, which
-/// is the one shape copy-on-write separation has to be told *not* to
-/// separate. The snapshot is where that shows: no retain of the subject on
-/// the way in and no release after the loop, an `array.key_at`/`array.set`
-/// pair at the write rather than at the end of the iteration, and the
-/// subject's own binding carrying a header phi over what the last
-/// iteration wrote.
+/// `foreach (… as inout $v)` walks its own reference to the array it began
+/// with and writes to the subject variable
+/// (`rule:iteration/an-inout-loop-walks-the-array-it-began-with`). The snapshot
+/// shows the retain of the subject on the way in and the release after the
+/// loop, one fallible `array_inout_write` helper call at the write, and the
+/// subject's own binding carrying a header phi over what the last iteration
+/// wrote.
 #[test]
 fn a_foreach_by_reference_writes_through_to_its_array() {
     let (f, map, file) = lower_first_method(

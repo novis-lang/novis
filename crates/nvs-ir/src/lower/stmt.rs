@@ -1061,6 +1061,7 @@ impl<'a> Lowering<'a> {
         }
         let (appended, _) = self.emit(*cur, Ty::Str, InstKind::StrAppend { target, suffix });
         self.release_temporaries_since(mark, *cur);
+        self.write_through_element(*cur, env, &name, appended, Ty::Str);
         env.insert(name, (appended, Ty::Str));
     }
     /// `$s = $s . e …;` where `$s` is a plain `Ty::Str` local — one
@@ -1109,6 +1110,7 @@ impl<'a> Lowering<'a> {
         }
         let (joined, _) = self.emit(*cur, Ty::Str, InstKind::Concat { pieces });
         self.release_temporaries_since(mark, *cur);
+        self.write_through_element(*cur, env, &name, joined, Ty::Str);
         env.insert(name, (joined, Ty::Str));
     }
     /// `$x = expr;` or `$obj->prop = expr;` as a bare expression statement —
@@ -1197,6 +1199,7 @@ impl<'a> Lowering<'a> {
         ];
         let (answer, _) = self.lower_carrier_concat(append, operands, env, cur);
         self.emit_release(*cur, current);
+        self.write_through_element(*cur, env, &name, answer, Ty::Object);
         env.insert(name, (answer, Ty::Object));
     }
     /// The same assignment in **value** position — `int $b = ($a = 2);`, and

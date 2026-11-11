@@ -2448,18 +2448,19 @@ pub(crate) enum RefHolder {
 /// [`Lowering::write_through_element`], which is what
 /// [`Lowering::lower_foreach`]'s own doc comment calls write-through: every
 /// rebinding of `$v` also stores the new value into the entry `$v` came from,
-/// rather than one copy-back at the end of the iteration. Both names are
+/// rather than one copy-back at the end of the iteration. The names are
 /// [`Env`] names rather than values because the [`Env`] is what survives a
-/// header phi, a landing block's clone and a generator's spill/reload — the
-/// array's own binding is re-pointed by every write (`rule:types/arrays`'s
-/// separation), so reading a stale [`ValueId`] here would write into the
-/// array the loop *started* on.
+/// header phi, a landing block's clone and a generator's spill/reload. The
+/// subject's own binding is re-pointed by every write, so a stale [`ValueId`]
+/// for it would write into an array the variable no longer holds.
 struct InoutElement {
     /// The `$v` binding's name, as an assignment target names it.
     binding: String,
-    /// The `Env` name the array being walked is bound under — the subject
-    /// variable's own, since the loop takes no second reference to it.
+    /// The subject variable's `Env` name: the array a write goes to.
     array: String,
+    /// The `Env` name of the loop's own reference to the array it began
+    /// with, which the cursor walks and nothing else changes.
+    walked: String,
     /// The `Env` name the current entry's cursor slot is bound under, a
     /// `Ty::Int` rebound at the top of every iteration.
     slot: String,

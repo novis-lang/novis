@@ -6,6 +6,7 @@
     "iteration/for-counter-scope",
     "iteration/for-init-refusals",
     "iteration/foreach-subjects",
+    "iteration/an-inout-loop-walks-the-array-it-began-with",
     "iteration/two-interfaces",
     "iteration/concrete-generic-implements",
     "iteration/no-magic-collection-interfaces",

@@ -2613,6 +2613,20 @@ pub enum Helper {
     /// on the way back up stores it, which is the same instruction that
     /// re-points an existing row.
     ArrayRowForWrite,
+    /// One write to a `foreach (… as inout $v)` binding
+    /// (`rule:iteration/an-inout-loop-walks-the-array-it-began-with`), emitted
+    /// by `crate::lower::Lowering::write_through_element`. Four operands: the
+    /// subject variable's array, whose reference is consumed and given back
+    /// as the result; the array the loop walks, borrowed; the cursor's
+    /// position as a `Ty::Int`; and the value, whose reference is consumed on
+    /// every path.
+    ///
+    /// Where the subject is still the walked array and only the variable and
+    /// the loop hold it, the value replaces the entry at the position.
+    /// Otherwise it writes the subject's entry with the same key. Where the
+    /// subject has no such entry it throws a `LogicError` and does not
+    /// consume the subject, so the error edge releases it with the variable.
+    ArrayInoutWrite,
     /// The `$keys` a `PropertyGuard` is given for an element write or an
     /// element `unset`. `args[0]` is the root array and `args[1]` the key
     /// path as written: a `string` or an `int` per level, `null` for an
