@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/identity.rs, crates/nvs-runtime/src/string.rs]
   - id: 6
     title: the string, value and arithmetic primitives hold no panic a program reaches
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/string.rs, crates/nvs-runtime/src/value.rs, crates/nvs-runtime/src/arith.rs]
   - id: 7
     title: the object primitives hold no panic a program reaches
@@ -310,6 +310,15 @@ clippy::indexing_slicing, clippy::arithmetic_side_effects)]`. So does each funct
 `extern "C" fn` in `crates/nvs-runtime/src/` and fails naming one without the attribute.
 Trade-off: an attribute per function, for a rule the build holds.
 
+**What stage 6 settled while building it.** A string primitive's length sum saturates and never
+overflows. The saturated length has no layout, so `NvsStr::alloc_or_refusal` asks the ceiling for
+`usize::MAX`: a capped request is refused, and the primitive returns its degenerate value. An
+uncapped request asking past the address space aborts, as the platform heap saying no does. Only
+`alloc_or_refusal` changed: `try_alloc_uninit` still returns `None` with no breach, so a `Core`
+member's `try_build` still throws a catchable error. **What it spends:** nothing on the path that
+allocates. The kept `expect`s are the refcount overflow in `nvs_str_retain`, `str_layout` over a
+capacity that has a layout, and `Piece::of`'s two miscompile arms.
+
 **Lanes:** stages 1 and 2 share the lowering files and run in order. Stage 3 shares `mod.rs` with
 stage 1 and `emit.rs` with stage 4, so stages 1 to 4 run in order. Stage 5 shares `array.rs` with
 stage 4 and runs after it. Stages 6, 7 and 8 touch disjoint runtime files and may run side by side
@@ -541,13 +550,19 @@ append past the last key, a spread of an array with gaps, and `==` over arrays w
 
 **Does:** clear the string group from stage 5's list.
 
-- [ ] The eight primitives in `string.rs` get the attribute, and each listed site is resolved. The
+- [x] The eight primitives in `string.rs` get the attribute, and each listed site is resolved. The
   subtraction in the append path is one of them (`rule:errors/helper-abi`,
   `crates/nvs-runtime/src/string.rs:1307`, `crates/nvs-runtime/src/string.rs:1231`).
-- [ ] `nvs_value_retain`, `nvs_value_release` and `nvs_float_pow` get the attribute
+  - [x] The deny set on the eight, and on `concat_onto`, `join_parts`, `append_onto`, `Piece::of`,
+    `str_layout`, `joined_count`, `alloc_or_refusal` and `NvsStr`'s `Drop`.
+  - [x] Every length sum saturates, and `alloc_or_refusal` refuses a capacity with no layout.
+  - [x] The sites that stay are `#[expect]`s whose reason starts "no program reaches this".
+- [x] `nvs_value_retain`, `nvs_value_release` and `nvs_float_pow` get the attribute
   (`crates/nvs-runtime/src/value.rs:895`, `crates/nvs-runtime/src/value.rs:928`,
   `crates/nvs-runtime/src/arith.rs:32`).
-- [ ] The comment above the string primitives says how the rule is held
+  - [x] The three primitives, `Value::retain`, `Value::release`, and `release_value` and
+    `step_field` in `release.rs`.
+- [x] The comment above the string primitives says how the rule is held
   (`crates/nvs-runtime/src/string.rs:1289`).
 
 The list's sites, for the checkpoints:
@@ -631,34 +646,34 @@ not trace their callees or their arithmetic.
 
 ### State
 
-Stages 1 to 5 are done. Every array primitive and `nvs_array_eq` carries the `deny` set. So do the
-`Table`, `Hashed` and `NvsArray` impl blocks, as one attribute on each impl, and `bump` and
-`drop_one`. Indexing became `get`, and `+ 1` became `saturating_add` where the value is a vector
-position. Each site that stays is an `#[expect]` whose reason starts "no program reaches this".
-`crates/nvs-runtime/tests/primitives_never_panic.rs` reads the source. Its array test and its
-self-test pass. Its string, object and whole-directory tests fail by design, naming what stages 6
-to 8 owe. `rule:errors/helper-abi` now says what a primitive is and how the rule is held, and the
-rulebook was re-rendered. The attack `02-every-array-operation-at-its-edge.nvs` exits 0 under
-`bun nv try`. The subagent's list is under stages 6, 7 and 8. The sweep's `env-secret-proofs` red is
-stale: no such check and no log exist in the tree, so it comes from looper's service.
+Stages 1 to 6 are done. Every array, string, value and arithmetic primitive carries the `deny`
+set, and so does each function the lists showed they call. Stage 6 made every string length sum
+saturate. `NvsStr::alloc_or_refusal` puts a capacity with no layout to the ceiling as an ask of
+`usize::MAX`, so a capped request is refused there (the decision is under "What stage 6 settled").
+`release_value` and `step_field` in `release.rs` already carry the set, so stage 7's second item
+owes only `object::drop_one` and the two `dismantle`s. The test
+`the_string_and_value_primitives_deny_a_panic_in_their_own_body` passes. Clippy is clean over the
+workspace. The sweep's `env-secret-proofs` red is stale: no such check and no log exist in the
+tree, so it comes from looper's service.
 
 ### Next
 
-Stages 6, 7 and 8 touch disjoint files and may run side by side. Take stage 6 first: the string,
-value and arithmetic primitives.
+Stages 7 and 8 touch disjoint files and may run side by side. Take stage 7: the object primitives.
 
-- [ ] `crates/nvs-runtime/src/string.rs:1307` to `crates/nvs-runtime/src/string.rs:2019`: the
-  `deny` set on the eight string primitives, and on the functions they call: `concat_onto`,
-  `join_parts`, `append_onto`, `StrPart::of` and the layout helper at
-  `crates/nvs-runtime/src/string.rs:458`. Copy the block from `nvs_array_count` in `array.rs`.
-- [ ] `crates/nvs-runtime/src/value.rs:895`, `crates/nvs-runtime/src/value.rs:928` and
-  `crates/nvs-runtime/src/arith.rs:32`: the same set.
-- [ ] `crates/nvs-runtime/src/string.rs:1289`: the comment says how the rule is held.
-- [ ] `crates/nvs-runtime/tests/primitives_never_panic.rs:127`: run
-  `cargo test --test primitives_never_panic -- the_string_and_value_primitives` once.
+- [ ] `crates/nvs-runtime/src/object.rs:4342` to `crates/nvs-runtime/src/object.rs:5197`, and
+  `crates/nvs-runtime/src/object.rs:6251`: the `deny` set on the seventeen primitives. Copy the
+  block from `nvs_str_concat` in `string.rs`.
+- [ ] The helpers they call: `obj_layout` (`crates/nvs-runtime/src/object.rs:3647`), `field_ptr`
+  (`crates/nvs-runtime/src/object.rs:4070`), `drop_one` (`crates/nvs-runtime/src/object.rs:4144`),
+  `dismantle` (`crates/nvs-runtime/src/object.rs:4237`) and `array::dismantle`.
+- [ ] `crates/nvs-runtime/src/object.rs:4070`: decide whether `field_ptr`'s index is proven at
+  compile time, and record it.
+- [ ] `tests/hostile/lang/classes/properties/02-every-slot-read-and-write-at-its-edge.nvs:1`: the
+  attack the stage names, then `bun nv try` on it.
+- [ ] `crates/nvs-runtime/tests/primitives_never_panic.rs:135`: run
+  `cargo test --test primitives_never_panic -- the_object_primitives` once.
 
-Expected red: `the_string_and_value_primitives_deny_a_panic_in_their_own_body`,
-`the_object_primitives_deny_a_panic_in_their_own_body` and
+Expected red: `the_object_primitives_deny_a_panic_in_their_own_body` and
 `every_primitive_denies_a_panic_in_its_own_body`, until stages 6 to 8 land. A test or conformance
 case that prints a backtrace through a `RecursionError` or a limit stop at a function's entry now
 shows the stopped frame too. Any `nvs-codegen` test that compares an IR dump through an `inout`

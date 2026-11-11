@@ -805,6 +805,14 @@ impl Value {
         unsafe_code,
         reason = "the payload's liveness is the caller's obligation to state"
     )]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub unsafe fn retain(self) {
         // `buffer_ptr`, not `str_ptr`: a `bytes` is refcounted through the
         // very same primitive, so the pair takes one branch here exactly as it
@@ -854,6 +862,14 @@ impl Value {
         unsafe_code,
         reason = "owning the reference is the caller's obligation to state"
     )]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub unsafe fn release(self) {
         #[expect(
             unsafe_code,
@@ -891,6 +907,14 @@ impl Value {
     clippy::cast_possible_truncation,
     reason = "the tag is the low byte of the word by construction (`nvs_ir::Ty::Tagged`);               the other seven are its padding and mean nothing"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_value_retain(tag_word: u64, bits: u64) {
     let Some(tag) = Tag::from_byte(tag_word as u8) else {
@@ -923,6 +947,14 @@ pub unsafe extern "C" fn nvs_value_retain(tag_word: u64, bits: u64) {
 #[expect(
     clippy::cast_possible_truncation,
     reason = "see `nvs_value_retain`: the tag is the word's low byte by construction"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_value_release(tag_word: u64, bits: u64) {

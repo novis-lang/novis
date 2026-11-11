@@ -454,7 +454,21 @@ static EMPTY_IMMORTAL: SharedHeader = SharedHeader(StrHeader {
 ///
 /// Takes the *capacity*, never the length: this is the layout an allocation is
 /// both made and freed with, and those two must be the same one.
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 fn str_layout(cap: usize) -> Layout {
+    #[expect(
+        clippy::expect_used,
+        reason = "no program reaches this: every caller passes the capacity of an \
+                  allocation that already exists, or one `try_str_layout` accepted \
+                  first, and `NvsStr::alloc_or_refusal` asks for a layout only then"
+    )]
     try_str_layout(cap).expect("string capacity overflows the address space")
 }
 
@@ -561,12 +575,22 @@ unsafe fn cached_count(ptr: *const StrHeader) -> Option<usize> {
 /// window heuristic, per [`crate::graphemes::seam_joins`], which also owns the
 /// one case answering `None`. A repeated offset is an empty piece and is
 /// tested once, not twice: two seams at one byte are one join.
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 fn joined_count(text: &str, sum: usize, seams: impl Iterator<Item = usize>) -> Option<usize> {
     let mut total = sum;
     let mut previous = 0;
     for seam in seams {
         if seam != previous && crate::graphemes::seam_joins(text, seam)? {
-            total -= 1;
+            // Each joining seam merges two clusters the sum counted, so the
+            // total is at least one here and never saturates.
+            total = total.saturating_sub(1);
         }
         previous = seam;
     }
@@ -751,11 +775,31 @@ impl NvsStr {
     /// # Panics
     ///
     /// Aborts through [`handle_alloc_error`] for that third case.
+    ///
+    /// A capacity with no layout at all is a length sum that saturated. It is
+    /// put to the ceiling as an ask no request can afford, so a capped request
+    /// is refused as for any other large ask. With no ceiling, the address
+    /// space cannot hold it, which is the platform heap saying no, so the
+    /// process aborts.
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     fn alloc_or_refusal(len: usize, cap: usize) -> Option<NonNull<StrHeader>> {
-        match Self::try_alloc_uninit(len, cap) {
-            Some(ptr) => Some(ptr),
-            None if crate::budget::refused() => None,
-            None => handle_alloc_error(str_layout(cap)),
+        if let Some(ptr) = Self::try_alloc_uninit(len, cap) {
+            return Some(ptr);
+        }
+        if crate::budget::refused() {
+            return None;
+        }
+        match try_str_layout(cap) {
+            Some(layout) => handle_alloc_error(layout),
+            None if !crate::budget::affords(usize::MAX) => None,
+            None => std::process::abort(),
         }
     }
 
@@ -1220,6 +1264,14 @@ impl Clone for NvsStr {
 }
 
 impl Drop for NvsStr {
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     fn drop(&mut self) {
         let count = self.header().refcount.get();
         // The one compare an immortal literal costs the release path, and the
@@ -1228,7 +1280,8 @@ impl Drop for NvsStr {
         if count == IMMORTAL_REFCOUNT {
             return;
         }
-        let remaining = count - 1;
+        // A live handle owns one reference, so `count` is at least one.
+        let remaining = count.saturating_sub(1);
         if remaining > 0 {
             self.header().refcount.set(remaining);
             return;
@@ -1286,11 +1339,16 @@ impl Eq for NvsStr {}
 // code polls: the program reaches its next poll and, in between, no `Core`
 // member, no output and nothing durable.
 //
-// They are panic-free by construction. The abort that remains is the failure no
-// ceiling explains — the platform heap saying no — which `handle_alloc_error`
-// turns into an abort rather than an unwind; and every one of these is
-// `extern "C"` and never `extern "C-unwind"`, so nothing can unwind through a
-// JIT frame either way.
+// No program reaches a panic in one. `rule:errors/helper-abi` holds it: each
+// primitive below, and each function here it calls, denies clippy's panic
+// lints in its own body, and a site that stays is an `#[expect]` whose reason
+// says why no program reaches it. A length sum saturates rather than
+// overflowing, and the saturated length has no layout, so
+// `NvsStr::alloc_or_refusal` refuses it at the ceiling. The abort that remains
+// is the failure no ceiling explains: the platform heap saying no, or an
+// uncapped ask past the address space. Every one of these is `extern "C"` and
+// never `extern "C-unwind"`, so nothing can unwind through a JIT frame either
+// way.
 
 /// Allocates a fresh string from `len` bytes at `ptr`, with a reference count
 /// of one — `nvs_ir::InstKind::ConstStr`'s entry point.
@@ -1302,6 +1360,14 @@ impl Eq for NvsStr {}
     unsafe_code,
     reason = "compiled code passes a pointer and a length; the contract cannot \
               be expressed in the signature, so the function is honestly unsafe"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_str_new(ptr: *const u8, len: usize) -> *mut StrHeader {
@@ -1359,6 +1425,14 @@ pub unsafe extern "C" fn nvs_str_new(ptr: *const u8, len: usize) -> *mut StrHead
     reason = "the pointees' liveness and the left operand's ownership are the \
               caller's obligation to state"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 unsafe fn concat_onto(lhs: *mut StrHeader, rest: &[*const StrHeader]) -> *mut StrHeader {
     #[expect(
         unsafe_code,
@@ -1372,21 +1446,19 @@ unsafe fn concat_onto(lhs: *mut StrHeader, rest: &[*const StrHeader]) -> *mut St
         }
         let header = &*lhs;
         let len = header.len.get();
-        let added = rest
-            .iter()
-            .try_fold(0_usize, |total, piece| {
-                total.checked_add(NvsStr::bytes_of(*piece).len())
-            })
-            .expect("an Novis string's length cannot overflow a usize");
-        let needed = len
-            .checked_add(added)
-            .expect("an Novis string's length cannot overflow a usize");
+        // A sum past `usize::MAX` saturates, and the saturated length has no
+        // layout: `NvsStr::alloc_or_refusal` refuses it at the ceiling, and
+        // the refusal path below returns before a byte is written.
+        let needed = rest.iter().fold(len, |total, piece| {
+            total.saturating_add(NvsStr::bytes_of(*piece).len())
+        });
         // Every piece or none: one uncached operand and the sum is unknown,
         // which is `cached_count`'s whole rule. Read before anything moves,
-        // since the write below invalidates the left operand's own word.
+        // since the write below invalidates the left operand's own word. A
+        // count is at most its piece's length, so this sum is at most `needed`.
         let counts = cached_count(lhs).and_then(|first| {
             rest.iter().try_fold(first, |total, piece| {
-                cached_count(*piece).map(|c| total + c)
+                cached_count(*piece).map(|c| total.saturating_add(c))
             })
         });
         let solely_owned = header.refcount.get() == 1;
@@ -1416,9 +1488,10 @@ unsafe fn concat_onto(lhs: *mut StrHeader, rest: &[*const StrHeader]) -> *mut St
             // A piece that *is* the reused destination reads its own payload,
             // which ends where this write begins — the two ranges are disjoint
             // for the same reason `nvs_str_append`'s are.
+            // `written` stays at most `needed`, which an allocation now has.
             let bytes = NvsStr::bytes_of(*piece);
             std::ptr::copy_nonoverlapping(bytes.as_ptr(), dst.add(written), bytes.len());
-            written += bytes.len();
+            written = written.saturating_add(bytes.len());
         }
         debug_assert_eq!(written, needed, "a piece was copied at the wrong offset");
         // The joined text is read off the buffer rather than through the
@@ -1430,8 +1503,9 @@ unsafe fn concat_onto(lhs: *mut StrHeader, rest: &[*const StrHeader]) -> *mut St
         // scratch allocation this path exists to do without.
         let joined = counts.and_then(|sum| {
             let mut at = len;
-            let seams = std::iter::once(len).chain(rest[..rest.len() - 1].iter().map(|piece| {
-                at += NvsStr::bytes_of(*piece).len();
+            let leading = rest.split_last().map_or(&[][..], |(_, leading)| leading);
+            let seams = std::iter::once(len).chain(leading.iter().map(|piece| {
+                at = at.saturating_add(NvsStr::bytes_of(*piece).len());
                 at
             }));
             let payload = std::slice::from_raw_parts(dst, needed);
@@ -1484,6 +1558,14 @@ unsafe fn concat_onto(lhs: *mut StrHeader, rest: &[*const StrHeader]) -> *mut St
     reason = "compiled code passes two raw string pointers whose liveness and \
               ownership the signature cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_str_concat(
     lhs: *mut StrHeader,
@@ -1527,6 +1609,14 @@ pub unsafe extern "C" fn nvs_str_concat(
     reason = "compiled code passes a stack array of raw string pointers whose \
               liveness, count and leading operand's ownership the signature \
               cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_str_concat_n(
@@ -1652,6 +1742,14 @@ impl Piece<'_> {
         reason = "the payload's liveness and encoding are the caller's \
                   obligation to state"
     )]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     unsafe fn of(part: &StrPart) -> Self {
         #[expect(
             unsafe_code,
@@ -1666,9 +1764,20 @@ impl Piece<'_> {
                 kind if kind & 0xff == StrPart::FORMAT => {
                     match crate::placeholder::IntPlaceholder::of_kind_word(kind) {
                         Some(placeholder) => Piece::Format(placeholder, part.payload.cast_signed()),
+                        #[expect(
+                            clippy::unreachable,
+                            reason = "no program reaches this: the kind word is a constant \
+                                      the compiler packed with `kind_word`, which this \
+                                      function unpacks"
+                        )]
                         None => unreachable!("a miscompile: placeholder word {kind:#x}"),
                     }
                 }
+                #[expect(
+                    clippy::unreachable,
+                    reason = "no program reaches this: the compiler writes only the four \
+                              kinds `StrPart` defines"
+                )]
                 kind => unreachable!("a miscompile: string part kind {kind} does not exist"),
             }
         }
@@ -1741,6 +1850,14 @@ impl Piece<'_> {
     reason = "compiled code passes a stack array of typed parts whose \
               liveness, count and payloads the signature cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_str_concat_parts(
     parts: *const StrPart,
@@ -1765,18 +1882,25 @@ pub unsafe extern "C" fn nvs_str_concat_parts(
     unsafe_code,
     reason = "every part's payload is the caller's obligation to state"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 unsafe fn join_parts(parts: &[StrPart]) -> NvsStr {
     #[expect(
         unsafe_code,
         reason = "the caller guarantees each part's payload, for both passes"
     )]
     unsafe {
-        let total = parts
-            .iter()
-            .try_fold(0_usize, |total, part| {
-                total.checked_add(Piece::of(part).len())
-            })
-            .expect("an Novis string's length cannot overflow a usize");
+        // A saturated total has no layout, so `NvsStr::build` refuses it at
+        // the ceiling and returns the static empty string unwritten.
+        let total = parts.iter().fold(0_usize, |total, part| {
+            total.saturating_add(Piece::of(part).len())
+        });
         if total == 0 {
             return NvsStr::empty_immortal();
         }
@@ -1833,6 +1957,14 @@ unsafe fn join_parts(parts: &[StrPart]) -> NvsStr {
     reason = "compiled code passes two raw string pointers whose liveness and \
               ownership the signature cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_str_append(
     target: *mut StrHeader,
@@ -1874,6 +2006,14 @@ pub unsafe extern "C" fn nvs_str_append(
     reason = "the caller's contract covers both pointers; every write below stays \
               inside one allocation's payload, bounded by its `cap`"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 unsafe fn append_onto(
     target: *mut StrHeader,
     src: *const u8,
@@ -1888,21 +2028,26 @@ unsafe fn append_onto(
     unsafe {
         let header = &*target;
         let len = header.len.get();
-        let needed = len
-            .checked_add(added)
-            .expect("an Novis string's length cannot overflow a usize");
+        // A saturated length has no layout, so `NvsStr::alloc_or_refusal`
+        // refuses it at the ceiling and `target` comes back unchanged. A
+        // count is at most its string's length, so the sum of the two counts
+        // is at most `needed` and never saturates on a path that writes.
+        let needed = len.saturating_add(added);
         if header.refcount.get() == 1 && header.cap >= needed {
             // The two ranges cannot overlap even when `src` is inside the
             // target: the source then lies before `len`, and the destination
             // begins at `len`.
-            let dst = target.cast::<u8>().add(PAYLOAD_OFFSET + len);
+            let dst = target.cast::<u8>().add(PAYLOAD_OFFSET).add(len);
             std::ptr::copy_nonoverlapping(src, dst, added);
             header.len.set(needed);
             header.graphemes.set(COUNT_UNKNOWN);
             header.digest.set(DIGEST_UNKNOWN);
             if let Some((held, gained)) = counts
-                && let Some(joined) =
-                    joined_count(NvsStr::text_of(target), held + gained, std::iter::once(len))
+                && let Some(joined) = joined_count(
+                    NvsStr::text_of(target),
+                    held.saturating_add(gained),
+                    std::iter::once(len),
+                )
             {
                 remember_count(header, joined);
             }
@@ -1917,7 +2062,7 @@ unsafe fn append_onto(
         if let Some((held, gained)) = counts
             && let Some(joined) = joined_count(
                 NvsStr::text_of(grown.as_ptr()),
-                held + gained,
+                held.saturating_add(gained),
                 std::iter::once(len),
             )
         {
@@ -1949,6 +2094,14 @@ unsafe fn append_onto(
     reason = "compiled code passes two raw string pointers whose liveness the \
               signature cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_str_eq(lhs: *const StrHeader, rhs: *const StrHeader) -> bool {
     #[expect(
@@ -1975,6 +2128,14 @@ pub unsafe extern "C" fn nvs_str_eq(lhs: *const StrHeader, rhs: *const StrHeader
     reason = "compiled code passes a raw string pointer whose liveness the \
               signature cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_str_retain(ptr: *mut StrHeader) {
     if ptr.is_null() {
@@ -1990,6 +2151,11 @@ pub unsafe extern "C" fn nvs_str_retain(ptr: *mut StrHeader) {
     let count = header.refcount.get();
     // See [`IMMORTAL_REFCOUNT`]: a literal's header is not ours to write.
     if count != IMMORTAL_REFCOUNT {
+        #[expect(
+            clippy::expect_used,
+            reason = "no program reaches this: every reference is a word stored in \
+                      memory, so the count stays far below the address space"
+        )]
         header.refcount.set(
             count
                 .checked_add(1)
@@ -2014,6 +2180,14 @@ pub unsafe extern "C" fn nvs_str_retain(ptr: *mut StrHeader) {
     unsafe_code,
     reason = "compiled code passes a raw string pointer whose ownership the \
               signature cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_str_release(ptr: *mut StrHeader) {

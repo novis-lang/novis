@@ -54,6 +54,14 @@ pub(crate) enum Dying {
     unsafe_code,
     reason = "owning the reference is the caller's obligation to state"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 pub(crate) unsafe fn release_value(value: Value) {
     // The overwhelmingly common case: a scalar, a string, or a container whose
     // count does not reach zero. None of them needs a worklist, so none of
@@ -106,6 +114,14 @@ pub(crate) unsafe fn release_value(value: Value) {
 #[expect(
     unsafe_code,
     reason = "owning the reference is the caller's obligation to state"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 pub(crate) unsafe fn step_field(value: Value) -> Option<Dying> {
     match value.tag()? {

@@ -28,6 +28,14 @@
     unsafe_code,
     reason = "compiled code calls this by symbol name, so it cannot be mangled"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub extern "C" fn nvs_float_pow(base: f64, exponent: f64) -> f64 {
     base.powf(exponent)
