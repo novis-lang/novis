@@ -137,6 +137,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **A value `nvs run` reads off the context before `ctx.set_config` is the empty configuration.**
+  The `--events` publisher took its configuration there, so its topics had no application and the
+  `Core\Sse\Message` examples printed nothing, which only `floor-debt` caught. Read anything
+  configured after `set_config`. See `crates/nvs-cli/src/main.rs`.
 - **`bun nv try` runs the coverage build's `nvs`, not `target/debug/nvs`, so a runtime change is not
   in what it prints.** A refusal added to the decoder still showed the old property-count message.
   Run `cargo build --bin nvs` and then `NVS_BIN=target/debug/nvs.exe bun nv try <file>`, or

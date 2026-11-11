@@ -902,6 +902,11 @@ memory cache uses.
 All nine stages are done, and the goal is reached. The sweep's reds were stale: no
 `env-secret-proofs` check exists, and nightly run 43001191130 tested f4c1d5c7e2.
 
+The refused DONE named `floor-debt`: the ten `Core\Sse\Message` examples printed nothing. `nvs run
+--events` built its publisher before the run had its configuration, so it published under an empty
+application while the program subscribed under the repository's block. The publisher is now built
+after `set_config` (`crates/nvs-cli/src/main.rs:2231`), and the examples print their `.out`.
+
 `looper verify` is green at 6625054931. The gate fixed generated files (the types chapter and the
 rule chapters), one formatted attack file and four Rust tests that built a value the goal now
 refuses. `bun nv verify --doc`, `bun nv owners --closes crossings-carry-data-only` and
