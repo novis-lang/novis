@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-cli/src/package/git.rs, crates/nvs-cli/src/package/fetch.rs, crates/nvs-cli/src/package/download.rs, tests/hostile/README.md]
   - id: 2
     title: "a package carries one package.toml, its own"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/fetch.rs, crates/nvs-cli/src/package/download.rs, crates/nvs-cli/tests/package_fetch.rs, docs/rules/packaging/a-package-cannot-reach-its-host.md]
   - id: 3
     title: "the outermost package decides a file's namespace, and the registry build compares exactly"
@@ -413,42 +413,42 @@ of that check, and refuse a git tree entry that is not one name.
 **Does:** rename the one check of a carried file name, make it refuse every `package.toml` but the
 root one, and call it for a download path.
 
-- [ ] `check_not_server_config` becomes `check_reserved_file`. It keeps the `nvs.toml` refusal and
+- [x] `check_not_server_config` becomes `check_reserved_file`. It keeps the `nvs.toml` refusal and
   refuses a last part equal to `package.toml` in any case of letters unless the path is exactly
   `package.toml`, with the sentence the standing decision gives. Its doc and the module doc are
   rewritten as a whole (`rule:packaging/a-package-cannot-reach-its-host`,
   `crates/nvs-cli/src/package/pack.rs:495`, `crates/nvs-cli/src/package/pack.rs:60`,
   `crates/nvs-cli/src/package/pack.rs:8`).
-- [ ] The two callers take the new name, and their docs follow
+- [x] The two callers take the new name, and their docs follow
   (`crates/nvs-cli/src/package/pack.rs:512`, `crates/nvs-cli/src/package/fetch.rs:541`,
   `crates/nvs-cli/src/package/fetch.rs:499`).
-- [ ] `download::check_path` calls `check_reserved_file` after `pack::check_path`
+- [x] `download::check_path` calls `check_reserved_file` after `pack::check_path`
   (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`,
   `crates/nvs-cli/src/package/download.rs:130`).
-- [ ] Tests `only_the_root_package_toml_is_carried` in `pack.rs`'s tests and
+- [x] Tests `only_the_root_package_toml_is_carried` in `pack.rs`'s tests and
   `a_download_is_never_a_configuration_file` in `download.rs`'s tests
   (`crates/nvs-cli/src/package/pack.rs:690`, `crates/nvs-cli/src/package/download.rs:676`). The first
   passes `package.toml` and refuses `src/Inner/package.toml`, `Package.toml`, `data/PACKAGE.TOML`,
   `nvs.toml` and `config/Nvs.Toml`. The second refuses a `[[download]]` whose `path` is `nvs.toml` and
   one whose `path` is `data/package.toml`.
-- [ ] Test `a_listed_second_package_toml_is_refused`, beside `a_listed_nvs_toml_is_refused`: `files`
+- [x] Test `a_listed_second_package_toml_is_refused`, beside `a_listed_nvs_toml_is_refused`: `files`
   lists `src/Inner/package.toml`, and `nvs pkg pack` prints the new sentence
   (`crates/nvs-cli/tests/package_client.rs:297`).
-- [ ] Test `a_fetched_archive_that_carries_a_second_package_toml_is_refused_and_writes_nothing`.
+- [x] Test `a_fetched_archive_that_carries_a_second_package_toml_is_refused_and_writes_nothing`.
   `assert_refused` takes the sentence it expects, and the test runs it for `src/Inner/package.toml`,
   `data/Package.TOML` and `PACKAGE.toml`, with the `// covers:` line the tests beside it carry
   (`crates/nvs-cli/tests/package_fetch.rs:427`, `crates/nvs-cli/tests/package_fetch.rs:460`).
-- [ ] Test `a_commit_that_carries_a_second_package_toml_is_refused`, beside
+- [x] Test `a_commit_that_carries_a_second_package_toml_is_refused`, beside
   `a_class_outside_the_package_namespace_is_refused`: the commit's `files` lists
   `src/Inner/package.toml`, and the build is refused with the new sentence
   (`crates/nvs-cli/tests/registry_build.rs:931`).
-- [ ] Rule fragments: a package may not contain a second `package.toml`, why, and the new function
+- [x] Rule fragments: a package may not contain a second `package.toml`, why, and the new function
   name (`docs/rules/packaging/a-package-cannot-reach-its-host.md:3`,
   `docs/rules/packaging/a-package-cannot-reach-its-host.md:17`). The `files` bullet says a
   `package.toml` below the root is refused
   (`docs/rules/packaging/a-package-carries-only-its-source-and-what-it-lists.md:7`).
   `bun nv rules --render` writes the chapter.
-- [ ] `about.md` of the two features gains one sentence each, written by `AGENTS.md` § *Text an end
+- [x] `about.md` of the two features gains one sentence each, written by `AGENTS.md` § *Text an end
   user reads*: a package has one `package.toml`
   (`docs/examples/tools/packages/nvs-pkg-pack/about.md:10`), and a package that contains a second
   `package.toml` stops the fetch
@@ -621,49 +621,46 @@ once every class is checked, and say so in the help of `nvs test`.
 
 ### State
 
-Stage 1 is done. `pack::check_path` refuses an empty, `.` and `..` part, and `listed_form`, the
-empty-part test in `unpack_into` and the first block of `download::check_path` are gone.
-`Walk::entries` refuses a tree entry that is empty or holds `/`, and `place` runs every joined path
-through `check_path` as before. The three acceptance tests of stage 1 and the two changed tests
-(`the_form_refuses_each_bad_entry`, `an_archive_entry_outside_its_folder_is_refused`) passed once by
-name. Attack `02-a-file-name-that-leaves-the-folder.nvs` runs to its last line, and the rule chapter is
-rendered.
+Stages 1 and 2 are done. `pack::check_path` is the one judge of a package path, and `Walk::entries`
+refuses a git tree entry that is not one name. `pack::check_reserved_file` refuses an `nvs.toml` in
+any folder and every `package.toml` but the root one, in any case of letters. `pack`, the unpack, the
+registry build and `download::check_path` call it. The five acceptance tests of stage 2 passed once
+by name. The rule chapter is rendered, and the rule's title now names the second `package.toml`
+(`data/rules/packaging/a-package-cannot-reach-its-host.json:2`).
 
-The sweep's two other findings need no change. Nightly run 43001191130 tested `f4c1d5c7e2`, and its
-one red test, `a_changed_server_timeout_applies_to_the_next_connection`, was fixed after it by
-`305c04f660`. The next nightly run should be green. `env-secret-proofs` is defined nowhere in the
-tree and has no log. It is stale driver state from the retired goal `defaults-that-work`, whose last
-handoff records its command green.
+The sweep's findings were the same as the last session's and need no change. Nightly run
+43001191130 tested `f4c1d5c7e2`, and its red test was fixed after it by `305c04f660`.
+`env-secret-proofs` is defined nowhere in the tree and has no log: stale driver state from the
+retired goal `defaults-that-work`.
 
-`Finder::package_of` still ends at the first `package.toml`. `programs_under` and `nvs_test::collect`
-walk every folder but a linked one and a cache. The test table keeps the rows of every class the
-compile checks, also a class of a package.
+`Finder::package_of` still ends at the first `package.toml`. `inside` in the registry build still
+compares lower-cased. `programs_under` and `nvs_test::collect` walk every folder but a linked one and
+a cache. The test table keeps the rows of every class the compile checks, also a class of a package.
 
 ### Next
 
-Stage 2, over `crates/nvs-cli/src/package/pack.rs`, `crates/nvs-cli/src/package/fetch.rs`,
-`crates/nvs-cli/src/package/download.rs` and three integration test files. It waits on no other goal.
+Stage 3, over `crates/nvs-types/src/package.rs`, `crates/nvs-cli/src/package/build.rs`,
+`crates/nvs-cli/tests/package_grants.rs`, `crates/nvs-cli/tests/registry_build.rs`, two attacks and
+one rule fragment. It waits on no other goal. Start with the stage's `**Split:**` subagent.
 
-- [ ] `crates/nvs-cli/src/package/pack.rs:488`: `check_not_server_config` becomes
-  `check_reserved_file`, also refusing every `package.toml` but the root one
-  (`crates/nvs-cli/src/package/pack.rs:61`, `crates/nvs-cli/src/package/pack.rs:8`).
-- [ ] `crates/nvs-cli/src/package/pack.rs:505`: the two callers take the new name
-  (`crates/nvs-cli/src/package/fetch.rs:539`).
-- [ ] `crates/nvs-cli/src/package/download.rs:118`: `download::check_path` calls
-  `check_reserved_file` after `pack::check_path`.
-- [ ] `crates/nvs-cli/src/package/pack.rs:734`: tests `only_the_root_package_toml_is_carried` and
-  `a_download_is_never_a_configuration_file` (`crates/nvs-cli/src/package/download.rs:664`).
-- [ ] `crates/nvs-cli/tests/package_client.rs:297`: test `a_listed_second_package_toml_is_refused`.
-- [ ] `crates/nvs-cli/tests/package_fetch.rs:427`: test
-  `a_fetched_archive_that_carries_a_second_package_toml_is_refused_and_writes_nothing`.
+- [ ] `crates/nvs-types/src/package.rs:174`: `Finder::package_of` walks to `stop` and takes the
+  outermost named manifest; `dirs` (`crates/nvs-types/src/package.rs:168`) keeps every folder's answer.
+- [ ] `crates/nvs-types/src/package.rs:129`: the autoload-site lookup, and the module doc
+  (`crates/nvs-types/src/package.rs:5`).
+- [ ] `crates/nvs-cli/tests/package_grants.rs:201`: the two tests after the last one, each with its
+  control.
+- [ ] `crates/nvs-cli/src/package/build.rs:385`: `inside` drops both `to_lowercase` calls
+  (`crates/nvs-cli/src/package/build.rs:396`).
 - [ ] `crates/nvs-cli/tests/registry_build.rs:931`: test
-  `a_commit_that_carries_a_second_package_toml_is_refused`.
-- [ ] `docs/rules/packaging/a-package-cannot-reach-its-host.md:3`: rule fragments, then
+  `a_namespace_that_differs_only_in_case_is_refused`, after
+  `a_commit_that_carries_a_second_package_toml_is_refused` (`crates/nvs-cli/tests/registry_build.rs:951`).
+- [ ] `tests/hostile/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/03-a-second-package-toml-with-no-name.nvs:1`
+  and `04-a-second-package-toml-with-another-name.nvs`.
+- [ ] `docs/rules/packaging/a-package-file-stays-under-its-declared-prefix.md:26`: the fragment, then
   `bun nv rules --render`.
-- [ ] `docs/examples/tools/packages/nvs-pkg-pack/about.md:10`: one sentence each in the two
-  `about.md` files (`docs/examples/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/about.md:19`).
 
-No test is expected red: stage 1 left every test it touched green.
+No test is expected red: stage 2 changed only the words `assert_refused` matches, and every caller
+of it passes the words it expects.
 
 ### Backlog
 
