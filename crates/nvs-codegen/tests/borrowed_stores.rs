@@ -87,8 +87,7 @@ fn forms() -> Vec<(&'static str, String, &'static str)> {
         ),
         (
             "$o->arr[k] = e",
-            "$h->items[1] = $h->replace();\necho $h->items[0] . \"|\" . $h->items[1];\n"
-                .to_owned(),
+            "$h->items[1] = $h->replace();\necho $h->items[0] . \"|\" . $h->items[1];\n".to_owned(),
             "new-2-abcdefghijklmnop|!",
         ),
         (

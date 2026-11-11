@@ -3197,7 +3197,10 @@ echo Holder::take(\"a\");
                     .find(|inst| matches!(inst.kind, nvs_ir::ir::InstKind::Safepoint))
             })
             .expect("`Holder::take` polls at its entry");
-        assert!(poll.on_error.is_some(), "the lowering gave the poll an edge");
+        assert!(
+            poll.on_error.is_some(),
+            "the lowering gave the poll an edge"
+        );
         poll.on_error = None;
 
         let mut jit = UnitBuilder::new(None).expect("this host has a Cranelift backend");
