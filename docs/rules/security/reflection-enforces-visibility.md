@@ -18,10 +18,11 @@ through reflection calls the constructor under the same check, so a `private` co
 from its own class's bodies and from nowhere else.
 
 `construct` makes only a class the program declares and `new` could make. It refuses, with a
-`LogicError`, an `abstract` class, an interface, a `Core` class, an anonymous object's class, and
+`LogicError` the program can catch and never a `FATAL`, an `abstract` class, an interface, a `Core` class, an anonymous object's class, and
 every class the compiler made, such as a generator's state class or a function value's class. A
 `Core` instance is made by a `Core` member, and no constructor of one reaches the runtime; an
-anonymous object has no name a program writes. The question is the copy boundary's own,
+anonymous object has no name a program writes. `new Core\ObjectSet<T>()` is the one `new` this
+leaves out, because its constructor is a native function the compiler calls. The question is the copy boundary's own,
 `ClassDesc::refusal` asked for the construct door (`rule:classes/graph-copy`), and a kind it has no
 row for is refused. **What it spends:** one call that reads a few flags and one branch per
 `construct`; a refused `construct` allocates nothing.

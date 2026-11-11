@@ -17,8 +17,15 @@ and memory balance. The buffer is the process's bytes, held once until the last 
 queue counts its full length against its subscriber's memory limit, which over-counts a shared
 buffer, the safe direction.
 
-**Declined:** a live copy per subscriber. The live carrier keeps the sender's class descriptor, so a
-program's class would reach a subscriber on another core and never one on the same core.
+One carrier serves every path, so a subscriber on this core and one on another core get the same
+classes and the same errors.
+
+**Declined:**
+- **A live copy per subscriber.** The live carrier keeps the sender's class descriptor, so a
+  program's class would reach a subscriber on another core and never one on the same core.
+- **Dropping a message a subscriber cannot decode, silently.** An old connection would stay open and
+  miss messages. After a deploy, a connection that kept its old unit ends on the first message whose
+  class changed, unless it catches, and the client reconnects into the new unit.
 
 **A slow subscriber is closed, never tolerated.** Each subscriber has a bounded queue, drained by its
 own connection and by nothing else; on overflow *that subscriber's connection* is closed with a

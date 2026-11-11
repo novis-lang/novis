@@ -116,7 +116,8 @@ it crosses the cache, and a program's class arrives only as the same class, by d
 function builds that resolver from the receiving program's table, `Ctx::receiving` for a context,
 and every crossing takes it, so no crossing can leave `Core` out or resolve by name where the live
 carrier needs the same descriptor. A side with no program table declares no program class: such an
-object is refused there, and a `Core` object still arrives. **What it spends:** one more name lookup
+object is refused there, and a `Core` object still arrives. So a Rust test that hands a native
+program an object passes that object's table, as a compiled program's spawn does. **What it spends:** one more name lookup
 per object at a live crossing, only where the program's table misses.
 
 A value crosses exactly twice, and both crossings are the same walk. In, at the spawn, the `args:`
@@ -551,10 +552,11 @@ through reflection calls the constructor under the same check, so a `private` co
 from its own class's bodies and from nowhere else.
 
 `construct` makes only a class the program declares and `new` could make. It refuses, with a
-`LogicError`, an `abstract` class, an interface, a `Core` class, an anonymous object's class, and
+`LogicError` the program can catch and never a `FATAL`, an `abstract` class, an interface, a `Core` class, an anonymous object's class, and
 every class the compiler made, such as a generator's state class or a function value's class. A
 `Core` instance is made by a `Core` member, and no constructor of one reaches the runtime; an
-anonymous object has no name a program writes. The question is the copy boundary's own,
+anonymous object has no name a program writes. `new Core\ObjectSet<T>()` is the one `new` this
+leaves out, because its constructor is a native function the compiler calls. The question is the copy boundary's own,
 `ClassDesc::refusal` asked for the construct door ([`classes/graph-copy`](classes.md#classes-graph-copy)), and a kind it has no
 row for is refused. **What it spends:** one call that reads a few flags and one branch per
 `construct`; a refused `construct` allocates nothing.

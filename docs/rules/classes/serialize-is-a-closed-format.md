@@ -39,7 +39,22 @@ is refused with its reason, which ends the refusal's sentence. A live crossing d
 check slots: it copies an object a `Core` member made, and with `decode` checked and `construct`
 closed, no `Core` instance has a slot of a type its class does not state. The cost is one tag test
 per slot per decoded `Core` object, and one small table per `Core` class, built once per process. A
-program that decodes nothing pays nothing per request.
+program that decodes nothing pays nothing per request. The usability cost is that a class whose row
+is a reason does not go through the cache, the session or `Core\Serialize`.
+
+Six doors read bytes, and every one decodes through this check:
+
+| Door | Who wrote the bytes |
+|---|---|
+| `Core\Serialize::decode` | the program, which hands them over |
+| the shared cache tier | whoever can write the store, which is outside the process |
+| the session record | whoever can write the session store: the data folder's file or the shared store |
+| the memory cache tier | this process's `encode` |
+| `spawn` placed on another core | this process's `encode` |
+| a topic message | this process's `encode` |
+
+The first three read bytes a program or an outsider can write. The last three read bytes nothing
+forged, and they pay the slot check too, because one decoder is checked in one place.
 
 `decode` is a `tainted` sink with no launderer. The rules above close code execution but not type
 confusion: a payload reconstructing a `User` with `isAdmin` set bypasses the constructor while
@@ -68,3 +83,5 @@ loosening of this format.
 - **Each `Core` reader testing its slot before it returns it.** That is one check per member, and a
   new member would have to remember it. `decode` checks each slot where the bytes come in.
 - **Skipping the slot check for bytes this process wrote.** That is a second decoder to keep in step.
+- **A reason row for every `Core` class whose slots a check could fail on.** It would take the dates
+  and times out of the cache. A reader that checks again and throws is enough for those.

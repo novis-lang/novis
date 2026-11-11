@@ -58,9 +58,23 @@ The crossings are these, and each calls a public function of the graph module:
 | `spawn` placed on another core | bytes | the child, then the parent |
 | `Core\Socket::upgrade` and `Core\Sse::upgrade` | live | the connection |
 | the test fixtures | live, or bytes across cores | the test |
-| `Core\Topic::publish` | live on one core, bytes across cores | each subscriber |
+| `Core\Topic::publish` | bytes, on one core and across cores | each subscriber |
 
 Every door that lands a value takes the receiving side
 (`rule:security/isolate-values-cross-by-copy`), and a test reads every shipped call of one and fails
-on a call that names none. `Core\Queue::push` is not a crossing: it writes `$args` as JSON, which
-names no class.
+on a call that names none. A second test drives a class of every refused kind through each public
+function of the graph module, and one more drives a class of every row of the table above through
+every door and compares each answer with its row. `Core\Queue::push` is not a crossing: it writes
+`$args` as JSON, which names no class.
+
+**Declined:**
+- **A list of the suffixes the compiler gives the classes it makes.** A new lowering would have to
+  remember to add its own. The `$` no declared class can hold already says it, and a `$shape{…}` is
+  the one such class that is data.
+- **A second bit telling an `abstract` class from an interface at run time.** It changes one word of
+  a message, and both have no instances.
+- **The `Core\` name prefix as the test for a `Core` class.** Six classes of the error tree have such
+  a name and are rows of the program's own table, which `new` makes. The mark is set where
+  `nvs_stdlib::instance` defines every `Core` descriptor.
+- **Resolving a program's class by name at the live carrier.** It keeps the descriptor it was built
+  with, so the same class is the same address. A copy that must change class is the bytes carrier.

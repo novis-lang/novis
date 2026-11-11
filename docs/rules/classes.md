@@ -1573,12 +1573,26 @@ The crossings are these, and each calls a public function of the graph module:
 | `spawn` placed on another core | bytes | the child, then the parent |
 | `Core\Socket::upgrade` and `Core\Sse::upgrade` | live | the connection |
 | the test fixtures | live, or bytes across cores | the test |
-| `Core\Topic::publish` | live on one core, bytes across cores | each subscriber |
+| `Core\Topic::publish` | bytes, on one core and across cores | each subscriber |
 
 Every door that lands a value takes the receiving side
 ([`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy)), and a test reads every shipped call of one and fails
-on a call that names none. `Core\Queue::push` is not a crossing: it writes `$args` as JSON, which
-names no class.
+on a call that names none. A second test drives a class of every refused kind through each public
+function of the graph module, and one more drives a class of every row of the table above through
+every door and compares each answer with its row. `Core\Queue::push` is not a crossing: it writes
+`$args` as JSON, which names no class.
+
+**Declined:**
+- **A list of the suffixes the compiler gives the classes it makes.** A new lowering would have to
+  remember to add its own. The `$` no declared class can hold already says it, and a `$shape{…}` is
+  the one such class that is data.
+- **A second bit telling an `abstract` class from an interface at run time.** It changes one word of
+  a message, and both have no instances.
+- **The `Core\` name prefix as the test for a `Core` class.** Six classes of the error tree have such
+  a name and are rows of the program's own table, which `new` makes. The mark is set where
+  `nvs_stdlib::instance` defines every `Core` descriptor.
+- **Resolving a program's class by name at the live carrier.** It keeps the descriptor it was built
+  with, so the same class is the same address. A copy that must change class is the bytes carrier.
 
 <sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`types/callable-values`](types.md#types-callable-values), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling).</sub>
 
@@ -1629,7 +1643,22 @@ is refused with its reason, which ends the refusal's sentence. A live crossing d
 check slots: it copies an object a `Core` member made, and with `decode` checked and `construct`
 closed, no `Core` instance has a slot of a type its class does not state. The cost is one tag test
 per slot per decoded `Core` object, and one small table per `Core` class, built once per process. A
-program that decodes nothing pays nothing per request.
+program that decodes nothing pays nothing per request. The usability cost is that a class whose row
+is a reason does not go through the cache, the session or `Core\Serialize`.
+
+Six doors read bytes, and every one decodes through this check:
+
+| Door | Who wrote the bytes |
+|---|---|
+| `Core\Serialize::decode` | the program, which hands them over |
+| the shared cache tier | whoever can write the store, which is outside the process |
+| the session record | whoever can write the session store: the data folder's file or the shared store |
+| the memory cache tier | this process's `encode` |
+| `spawn` placed on another core | this process's `encode` |
+| a topic message | this process's `encode` |
+
+The first three read bytes a program or an outsider can write. The last three read bytes nothing
+forged, and they pay the slot check too, because one decoder is checked in one place.
 
 `decode` is a `tainted` sink with no launderer. The rules above close code execution but not type
 confusion: a payload reconstructing a `User` with `isAdmin` set bypasses the constructor while
@@ -1658,6 +1687,8 @@ loosening of this format.
 - **Each `Core` reader testing its slot before it returns it.** That is one check per member, and a
   new member would have to remember it. `decode` checks each slot where the bytes come in.
 - **Skipping the slot check for bytes this process wrote.** That is a second decoder to keep in step.
+- **A reason row for every `Core` class whose slots a check could fail on.** It would take the dates
+  and times out of the cache. A reader that checks again and throws is enough for those.
 
 <sub>See also [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization).</sub>
 
