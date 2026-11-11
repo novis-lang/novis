@@ -8282,14 +8282,16 @@ pub(super) fn test_shape(
                     // [`TestShape::All`], which answers `true`. `mixed` has no
                     // row of its own because the checker settles every test
                     // whose whole type it is.
-                    value: Box::new(if matches!(
-                        checked_types.get(field.ty),
-                        CheckedTy::Mixed | CheckedTy::SecretMixed
-                    ) {
-                        TestShape::All(Vec::new())
-                    } else {
-                        test_shape(field.ty, exprs, checked_types, enums)?
-                    }),
+                    value: Box::new(
+                        if matches!(
+                            checked_types.get(field.ty),
+                            CheckedTy::Mixed | CheckedTy::SecretMixed
+                        ) {
+                            TestShape::All(Vec::new())
+                        } else {
+                            test_shape(field.ty, exprs, checked_types, enums)?
+                        },
+                    ),
                 });
             }
             return Some(TestShape::All(rows));

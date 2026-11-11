@@ -1246,6 +1246,7 @@ mod tests {
             spawn_entry_args: rustc_hash::FxHashSet::default(),
             body_writers: crate::response::BodyWriters::default(),
             in_call_argument: false,
+            dispatched_literal: false,
             deprecated_uses: None,
         };
         let id = lower_type(&probe_ty, &ctx, &mut env);

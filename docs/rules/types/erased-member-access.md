@@ -21,6 +21,13 @@ For all three:
   This refuses some writes the declared type allows: a `{pet: ?Dog}` field that is `null` takes only
   `null`, an empty array takes only an empty array, and an absent optional field takes nothing. It
   spends nothing per object, which a declared type carried by each anonymous object would.
+- **Qualifiers:** the run-time check of a write and of a call's arguments tests representations,
+  and neither `tainted` nor `secret` has one. So a value that carries `tainted`, `secret` or `mixed`
+  does not compile as the value of a write through an erased receiver, as an argument of a call
+  through `mixed`, or as a value argument of `Core\Reflect\ClassInfo::set`, `call` and `construct`
+  (`E0895`). An array literal at `call` or `construct` is judged element by element. A `secret`
+  value written through `mixed` is already the `mixed` refusal of `rule:security/secret-qualifier`,
+  and reports nothing more. The form that compiles narrows the receiver with `$x is ClassName`.
 - **Visibility:** an erased receiver is outside every class, so a read or write of a property that
   is not `public` throws, as a call of a method that is not `public` through `mixed` does. That
   holds inside the property's own class too, whose code reaches the property through a variable of

@@ -596,9 +596,15 @@ fn infer_kind(
                 // hands back are the ones with no parameter to be checked
                 // against, and they take the ordinary walk below.
                 if check_self_name_args(expr, args, live, scope, ctx, env).is_none() {
-                    check_args(args, live, scope, ctx, env);
+                    let types = check_args(args, live, scope, ctx, env);
+                    if let CallArgs::List(list) = args
+                        && let Some(fn_self) = &env.fn_self
+                    {
+                        let params = fn_self.params.clone();
+                        calls::reject_qualified_spreads(list, &types, &params, env);
+                    }
                 }
-                report_args_with_no_parameter_list(args, NoParameterList::Callable, env);
+                report_args_with_no_parameter_list(args, &[], NoParameterList::Callable, env);
                 if matches!(args, CallArgs::MethodRef) {
                     return env.interner.callable();
                 }
@@ -616,8 +622,15 @@ fn infer_kind(
             {
                 return ret;
             }
-            check_args(args, live, scope, ctx, env);
-            report_args_with_no_parameter_list(args, NoParameterList::Callable, env);
+            let types = check_args(args, live, scope, ctx, env);
+            // A callee that is not callable at all reports that instead
+            // (`rule:types/one-mistake-reports-once`).
+            let dynamic = matches!(
+                env.interner.get(callee_ty),
+                Ty::Callable | Ty::Mixed | Ty::SecretMixed
+            );
+            let types = if dynamic { types } else { Vec::new() };
+            report_args_with_no_parameter_list(args, &types, NoParameterList::Callable, env);
             if matches!(args, CallArgs::MethodRef) {
                 return env.interner.callable();
             }

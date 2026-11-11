@@ -1033,6 +1033,7 @@ pub fn build_signatures(
             spawn_entry_args: FxHashSet::default(),
             body_writers: crate::response::BodyWriters::default(),
             in_call_argument: false,
+            dispatched_literal: false,
             deprecated_uses: None,
         };
         collect_stmts(file.stmts, &[], &FxHashMap::default(), &mut table, &mut env);

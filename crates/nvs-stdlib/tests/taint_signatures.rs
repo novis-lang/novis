@@ -64,9 +64,10 @@ fn holds_outside_text(ty: &CoreTy) -> bool {
         CoreTy::Array(elem) => {
             !matches!(ty.classification(), Some(Qual::Contagious)) && holds_outside_text(elem)
         }
-        CoreTy::Iterated(elem) | CoreTy::Nullable(elem) | CoreTy::Variadic(elem) => {
-            holds_outside_text(elem)
-        }
+        CoreTy::Iterated(elem)
+        | CoreTy::Nullable(elem)
+        | CoreTy::Variadic(elem)
+        | CoreTy::Dispatched(elem) => holds_outside_text(elem),
         CoreTy::Union(members) => members.iter().any(holds_outside_text),
         CoreTy::InstanceAt(_, args) => args.iter().any(holds_outside_text),
         CoreTy::Shape(arms) => arms
@@ -166,4 +167,35 @@ fn every_allowed_row_names_a_member_and_a_rule() {
             "`{class_name}::{member}`'s row names `{rule}`, which is not a rule id"
         );
     }
+}
+
+/// `rule:security/sink-predicate` over `Core\Reflect`: text that picks a class, a method, a
+/// property, a constant or a case by name is an instruction, so the parameter is a sink. A member
+/// that returns a `bool` only checks that the name exists and runs nothing, so it may stay neutral.
+#[test]
+fn every_reflection_member_that_picks_by_name_refuses_tainted_text() {
+    let mut open = Vec::new();
+    for class in CLASSES
+        .iter()
+        .filter(|class| class.name.starts_with(r"Core\Reflect"))
+    {
+        for member in class.members() {
+            if matches!(member.return_ty, CoreTy::Bool) {
+                continue;
+            }
+            for (index, param) in member.params.iter().enumerate() {
+                let picks_by_text = matches!(param, CoreTy::Text(_) | CoreTy::ClassName(_));
+                if picks_by_text && !matches!(param.classification(), Some(Qual::Sink)) {
+                    let name = member.names.get(index).copied().unwrap_or("?");
+                    open.push(format!("{}::{}(${name})", class.name, member.name));
+                }
+            }
+        }
+    }
+    assert!(
+        open.is_empty(),
+        "each parameter below picks code by its text and is not `Qual::Sink`. Make it a sink, or \
+         return a `bool` that runs nothing:\n{}",
+        open.join("\n")
+    );
 }

@@ -1063,7 +1063,8 @@ pub(crate) fn check_assign(
                 value.span,
                 KeyedStore::Value(value_ty),
                 env,
-            ) {
+            ) && !reject_qualified_erased_write(target, value.span, value_ty, env)
+            {
                 reject_secret_element_write(target, target_ty, value, value_ty, env);
             }
         } else {
@@ -1071,6 +1072,33 @@ pub(crate) fn check_assign(
         }
         target_ty
     }
+}
+
+/// `rule:types/erased-member-access`'s write, asked for the qualifier: a value
+/// that carries `tainted`, `secret` or text out of `mixed` is not written to a
+/// property through `mixed`, `object` or a shape that does not list the name.
+/// The run-time check tests the property's declared type and not a qualifier,
+/// so a plain `string` property would take the value as trusted text. Answers
+/// whether it reported.
+fn reject_qualified_erased_write(
+    target: &Expr,
+    value_span: Span,
+    value_ty: TypeId,
+    env: &mut Env<'_>,
+) -> bool {
+    let root = target.unparenthesized();
+    if !matches!(
+        env.exprs.lookup(root.span),
+        Some(ExprInfo::ShapeProperty { erased: true, .. })
+    ) {
+        return false;
+    }
+    super::quals::reject_qualified_untyped_value(
+        value_ty,
+        value_span,
+        super::quals::UntypedTarget::ErasedWrite,
+        env,
+    )
 }
 
 /// `rule:classes/this-is-not-assignable`: `$this = …` and `$this ⊕= …` are

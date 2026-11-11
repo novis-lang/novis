@@ -339,7 +339,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "forClass",
             names: &["name"],
-            params: &[CoreTy::ClassName(Qual::Neutral)],
+            params: &[CoreTy::ClassName(Qual::Sink)],
             defaults: &[],
             // `?ClassInfo`, and the `null` is what replaces `class_exists`:
             // a name the running program declares no class for is an absence
@@ -403,7 +403,8 @@ const FOR_CLASS_DOC: MethodDoc = MethodDoc {
     params: &[ParamDoc {
         name: "name",
         desc: "The class's name as its declaration writes it, with the namespace and with no \
-               `\\` at the start. `Core\\Reflect\\ClassInfo::name` returns this name.",
+               `\\` at the start. `Core\\Reflect\\ClassInfo::name` returns this name. The text cannot be `tainted`. Check text from a request with \
+               `Core\\Taint::assertTrusted` first.",
         shape: &[],
     }],
     ret: "A description of that class. The result is `null` if the running program declares no \
@@ -613,7 +614,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
         CoreMethod {
             name: "constant",
             names: &["name"],
-            params: &[CoreTy::Text(Qual::Neutral)],
+            params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             // `mixed`, on `get`'s terms one member down: which of the four
             // literal kinds a constant folded to is not known where the call
@@ -643,7 +644,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
         CoreMethod {
             name: "get",
             names: &["object", "name"],
-            params: &[CoreTy::Mixed, CoreTy::Text(Qual::Neutral)],
+            params: &[CoreTy::Mixed, CoreTy::Text(Qual::Sink)],
             defaults: &[],
             // `mixed`: the whole point of the read is that the property's
             // declared type is not known where the call is written.
@@ -658,7 +659,12 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             // property's declared type is not known where the call is written,
             // so what the write is checked against is the *class's* answer, at
             // run time — `nvs_runtime::write_erased_property`'s tag check.
-            params: &[CoreTy::Mixed, CoreTy::Text(Qual::Neutral), CoreTy::Mixed],
+            // That check reads no qualifier, so the value is `Dispatched`.
+            params: &[
+                CoreTy::Mixed,
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Dispatched(&CoreTy::Mixed),
+            ],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_reflect_class_info_set",
@@ -669,8 +675,8 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             names: &["object", "name", "arguments"],
             params: &[
                 CoreTy::Mixed,
-                CoreTy::Text(Qual::Neutral),
-                CoreTy::Array(&CoreTy::Mixed),
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Dispatched(&CoreTy::Array(&CoreTy::Mixed)),
             ],
             // `$arguments` is required rather than defaulted to `[]`:
             // `registry::Const` has no array variant, and a member whose
@@ -686,7 +692,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
         CoreMethod {
             name: "construct",
             names: &["arguments"],
-            params: &[CoreTy::Array(&CoreTy::Mixed)],
+            params: &[CoreTy::Dispatched(&CoreTy::Array(&CoreTy::Mixed))],
             // Required rather than defaulted to `[]` for the row above's
             // reason: `registry::Const` has no array variant.
             defaults: &[],
@@ -731,7 +737,8 @@ const CONSTANT_DOC: MethodDoc = MethodDoc {
     params: &[ParamDoc {
         name: "name",
         desc: "The constant's name, as the declaration writes it, with no class name and no \
-               `::`.",
+               `::`. The text cannot be `tainted`. Check text from a request with \
+               `Core\\Taint::assertTrusted` first.",
         shape: &[],
     }],
     ret: "The value, computed at compile time. It is a `string`, `int`, `bool` or `float`, the \
@@ -832,7 +839,8 @@ const GET_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "name",
-            desc: "The property's name without the `$`, as `properties` returns it.",
+            desc: "The property's name without the `$`, as `properties` returns it. The text cannot be `tainted`. Check text from a request with \
+               `Core\\Taint::assertTrusted` first.",
             shape: &[],
         },
     ],
@@ -867,13 +875,14 @@ const SET_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "name",
-            desc: "The property's name without the `$`, as `properties` returns it.",
+            desc: "The property's name without the `$`, as `properties` returns it. The text cannot be `tainted`. Check text from a request with \
+               `Core\\Taint::assertTrusted` first.",
             shape: &[],
         },
         ParamDoc {
             name: "value",
             desc: "The value to store. It is checked against the type that the object's class \
-                   declares for the property, because that type is not known at compile time.",
+                   declares for the property, because that type is not known at compile time. A `tainted` or `secret` value, or a `mixed` value, does not compile here.",
             shape: &[],
         },
     ],
@@ -1012,14 +1021,15 @@ const CALL_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "name",
-            desc: "The method's name without the `()`, as the declaration writes it.",
+            desc: "The method's name without the `()`, as the declaration writes it. The text cannot be `tainted`. Check text from a request with \
+               `Core\\Taint::assertTrusted` first.",
             shape: &[],
         },
         ParamDoc {
             name: "arguments",
             desc: "One entry for each declared parameter, in order. Keys are ignored. Entries \
                    after the last parameter are ignored. This argument is required even when \
-                   the method has no parameters. In that case, pass `[]`.",
+                   the method has no parameters. In that case, pass `[]`. A `tainted` or `secret` value, or a `mixed` value, does not compile here.",
             shape: &[],
         },
     ],
@@ -1050,7 +1060,7 @@ const CONSTRUCT_DOC: MethodDoc = MethodDoc {
         name: "arguments",
         desc: "One entry for each declared constructor parameter, in order. Keys are ignored. \
                Entries after the last parameter are ignored. This argument is required even \
-               when the class declares no constructor. In that case, pass `[]`.",
+               when the class declares no constructor. In that case, pass `[]`. A `tainted` or `secret` value, or a `mixed` value, does not compile here.",
         shape: &[],
     }],
     ret: "The new instance. Its type is `mixed`. For a class with no constructor, the new \
@@ -1278,7 +1288,7 @@ pub(crate) const ENUM_INFO: CoreClass = CoreClass {
     methods: &[CoreMethod {
         name: "of",
         names: &["name"],
-        params: &[CoreTy::Text(Qual::Neutral)],
+        params: &[CoreTy::Text(Qual::Sink)],
         defaults: &[],
         // `?EnumInfo`, on `Core\Reflect::forClass`'s terms exactly: a name the
         // program declares no enum for is an absence (`rule:core-api/shape-rules` R6), not a failure.
@@ -1308,7 +1318,7 @@ pub(crate) const ENUM_INFO: CoreClass = CoreClass {
         CoreMethod {
             name: "valueOf",
             names: &["case"],
-            params: &[CoreTy::Text(Qual::Neutral)],
+            params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             // The union is `rule:enums/one-backing-type`'s two options and no
             // third: which one this enum answers with is `isUnsigned`, asked
@@ -1345,7 +1355,8 @@ const ENUM_OF_DOC: MethodDoc = MethodDoc {
     params: &[ParamDoc {
         name: "name",
         desc: "The full name of the enum, with its namespace and with no `\\` at the start. \
-               `Status::class` gives this name.",
+               `Status::class` gives this name. The text cannot be `tainted`. Check text from a request with \
+               `Core\\Taint::assertTrusted` first.",
         shape: &[],
     }],
     ret: "A `Core\\Reflect\\EnumInfo` for that enum. The result is `null` if the program has no \
@@ -1377,7 +1388,8 @@ const ENUM_VALUE_OF_DOC: MethodDoc = MethodDoc {
     short: "Returns the value of one case of the enum.",
     params: &[ParamDoc {
         name: "case",
-        desc: "The name of the case, as `cases` gives it. The name is case-sensitive.",
+        desc: "The name of the case, as `cases` gives it. The name is case-sensitive. The text cannot be `tainted`. Check text from a request with \
+               `Core\\Taint::assertTrusted` first.",
         shape: &[],
     }],
     ret: "The value of the case. It is a `uint` if `isUnsigned` returns `true`, and an `int` \
@@ -1647,7 +1659,7 @@ pub(crate) const ATTRIBUTE_INFO: CoreClass = CoreClass {
         CoreMethod {
             name: "field",
             names: &["name"],
-            params: &[CoreTy::Text(Qual::Neutral)],
+            params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             // `mixed`, on `ClassInfo::constant`'s terms: which of the four
             // literal kinds a payload field folded to is not known where the
@@ -1736,7 +1748,8 @@ const ATTRIBUTE_FIELD_DOC: MethodDoc = MethodDoc {
     short: "Returns one payload field's value, computed at compile time.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The field's name, as `fields` returns it.",
+        desc: "The field's name, as `fields` returns it. The text cannot be `tainted`. Check text from a request with \
+               `Core\\Taint::assertTrusted` first.",
         shape: &[],
     }],
     ret: "The value as a `string`, `int`, `bool` or `float`. These are the four types a \

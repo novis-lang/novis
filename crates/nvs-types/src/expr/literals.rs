@@ -1187,12 +1187,28 @@ pub(crate) fn check_array_literal(
         Ty::Array(elem) => Some(*elem),
         _ => None,
     });
+    // A literal written as the argument of a dispatching `Core` parameter is
+    // judged element by element, since each element is passed on as a value
+    // of its own (`nvs_stdlib::registry::CoreTy::Dispatched`). Taken here, so
+    // a literal inside an element's own call is not judged by it.
+    let dispatched = std::mem::take(&mut env.dispatched_literal);
+    let target = super::quals::UntypedTarget::Dispatched;
+    // Each element meets `secret mixed` there, so a `secret` element gets
+    // the one refusal below and not a `mixed` mismatch whose help names a
+    // type the member cannot take.
+    let elem_expected = match elem_expected {
+        Some(elem) if dispatched => Some(super::quals::mixed_admitting_secret(elem, env.interner)),
+        other => other,
+    };
     for item in items {
         if item.by_ref {
             report_by_reference_element(item, env);
         }
         if item.spread {
-            check_spread_element(item, elem_expected, live, scope, ctx, env);
+            let subject_ty = check_spread_element(item, elem_expected, live, scope, ctx, env);
+            if dispatched {
+                reject_qualified_untyped_value(subject_ty, item.value.span, target, env);
+            }
             continue;
         }
         if let Some(key) = &item.key {
@@ -1209,8 +1225,13 @@ pub(crate) fn check_array_literal(
         // [`check_spread_element`]'s reason — an element that already reported
         // a mismatch against `T` is one mistake, not two.
         let before = env.diags.len();
+        let nested = dispatched && matches!(item.value.kind, ExprKind::ArrayLiteral(_));
+        env.dispatched_literal = nested;
         let elem_ty = check_expr(&item.value, elem_expected, live, scope, ctx, env);
-        if env.diags.len() == before {
+        env.dispatched_literal = false;
+        if dispatched && !nested && env.diags.len() == before {
+            reject_qualified_untyped_value(elem_ty, item.value.span, target, env);
+        } else if env.diags.len() == before {
             reject_secret_into_container(
                 &item.value,
                 elem_ty,
@@ -1460,15 +1481,15 @@ fn check_spread_element(
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
-) {
+) -> TypeId {
     let expectation = elem_expected.map(|elem| env.interner.array(elem));
     let before = env.diags.len();
     let subject_ty = check_expr(&item.value, expectation, live, scope, ctx, env);
     let reported = env.diags.len() != before;
-    if reported || matches!(env.interner.get(subject_ty), Ty::Array(_)) {
-        return;
+    if !reported && !matches!(env.interner.get(subject_ty), Ty::Array(_)) {
+        report_spread_not_an_array(item, subject_ty, env);
     }
-    report_spread_not_an_array(item, subject_ty, env);
+    subject_ty
 }
 
 /// `E0484`, for [`check_spread_element`] and [`spread_element_ty`] alike.

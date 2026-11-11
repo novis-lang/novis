@@ -146,6 +146,14 @@ fn check_arg_list(
             }
             _ => None,
         };
+        // `nvs_stdlib::registry::CoreTy::Dispatched`: the argument reaches a
+        // member picked by name at run time, so it may carry no qualifier. A
+        // literal is judged element by element where it is checked.
+        let dispatched = matches!(slot, ArgSlot::Param(index)
+            if sig.text_at(index) == nvs_stdlib::registry::ParamText::Dispatched);
+        let dispatched_literal = dispatched && matches!(arg.value.kind, ExprKind::ArrayLiteral(_));
+        env.dispatched_literal = dispatched_literal;
+        let before = env.diags.len();
         let actual = if let Some((text, (holes, kind))) = written_holes {
             super::members::report_unwritten_string_holes(&kind, text, arg.value.span, env);
             holes
@@ -175,6 +183,15 @@ fn check_arg_list(
                 _ => check_arg(&arg.value, expected, live, scope, ctx, env),
             }
         };
+        env.dispatched_literal = false;
+        if dispatched && !dispatched_literal && env.diags.len() == before {
+            super::quals::reject_qualified_untyped_value(
+                actual,
+                arg.value.span,
+                super::quals::UntypedTarget::Dispatched,
+                env,
+            );
+        }
         // Only a whole argument can be written back: a `...` hands over a
         // subject's entries rather than the subject, so there is no one
         // storage location for a by-reference parameter to alias.
@@ -679,7 +696,8 @@ fn check_arg_admitting_quals(
         widened != expected
             && is_assignable(compared, widened, env.interner, env.graph, env.signatures)
     };
-    if !tainted_walk && !core_secret && !(admitted.core && reads_any_walk(compared, expected, env)) {
+    if !tainted_walk && !core_secret && !(admitted.core && reads_any_walk(compared, expected, env))
+    {
         report_mismatch(value.span, expected, actual, env);
     }
     actual

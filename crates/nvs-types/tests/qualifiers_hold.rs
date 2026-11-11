@@ -233,10 +233,10 @@ fn a_secret_value_enters_mixed_only_where_secret_mixed_is_written() {
         );
     }
     // A value with no secret in it still fits plain `mixed`.
-    let diags = check_src(&placement_program("mixed", "mixed $m = \"a\"; $this->take(1);").replace(
-        "return $x;",
-        "return 1;",
-    ));
+    let diags = check_src(
+        &placement_program("mixed", "mixed $m = \"a\"; $this->take(1);")
+            .replace("return $x;", "return 1;"),
+    );
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
@@ -249,7 +249,10 @@ fn text_out_of_secret_mixed_is_secret_and_tainted() {
         ("secret tainted string $s = $m as string;", false),
         ("?secret tainted string $s = $m as ?string;", false),
         ("if ($m is string) { string $s = $m; }", true),
-        ("if ($m is string) { secret tainted string $s = $m; }", false),
+        (
+            "if ($m is string) { secret tainted string $s = $m; }",
+            false,
+        ),
         ("mixed $n = $m[\"k\"];", true),
         ("secret mixed $n = $m[\"k\"];", false),
         ("mixed $n = $m;", true),
@@ -276,9 +279,125 @@ fn every_secret_sink_refuses_a_secret_mixed() {
         let src = in_function("secret mixed", &line.replace("$m", "$x"));
         let diags = check_src(&src);
         assert!(
-            diags.iter().all(|d| d.code != Some(code::E_UNDEFINED_VARIABLE)),
+            diags
+                .iter()
+                .all(|d| d.code != Some(code::E_UNDEFINED_VARIABLE)),
             "{line}\n{diags:?}"
         );
         assert!(diags.has_errors(), "a sink took a `secret mixed`: {line}");
+    }
+}
+
+/// The qualified types a call or a write with no parameter type is tried
+/// with. `mixed` counts, because text out of it is `tainted`.
+const QUALIFIED: [&str; 3] = ["tainted string", "secret string", "mixed"];
+
+/// A program over a value `$x` of type `{Q}` and an `array<{Q}> $xs`, with a
+/// bare `callable $f`, a `mixed $r`, an `object $o`, a
+/// `callable(string): void $g` and a `callable({Q}): void $h`. `{Q}` is
+/// replaced by the type under test.
+fn untyped_program(qualified: &str, body: &str) -> String {
+    format!(
+        "<?nvs\n\
+         class Box {{\n\
+         \x20 public string $p = \"\";\n\
+         \x20 function put(string $s): void {{}}\n\
+         }}\n\
+         class T {{\n\
+         \x20 function m({{Q}} $x, array<{{Q}}> $xs, callable $f, mixed $r, object $o, \
+         callable(string): void $g, callable({{Q}}): void $h): void {{\n\
+         \x20   {body}\n\
+         \x20 }}\n\
+         }}\n"
+    )
+    .replace("{Q}", qualified)
+}
+
+#[test]
+fn a_call_with_no_parameter_list_refuses_a_qualified_argument() {
+    let bodies = [
+        "$f($x);",
+        "$f(1, [$x]);",
+        "$r->put($x);",
+        "$g(...$xs);",
+        "Core\\Reflect::forObject($r)->set($r, \"p\", $x);",
+        "Core\\Reflect::forObject($r)->call($r, \"put\", [$x]);",
+        "Core\\Reflect::forObject($r)->call($r, \"put\", $xs);",
+        "Core\\Reflect::forObject($r)->construct([1, $x]);",
+    ];
+    for qualified in QUALIFIED {
+        for body in bodies {
+            let src = untyped_program(qualified, body);
+            let diags = check_src(&src);
+            assert!(
+                diags
+                    .iter()
+                    .any(|d| d.code == Some(code::E_QUALIFIED_VALUE_WITHOUT_PARAMETER_TYPE)),
+                "a call with no parameter list took a `{qualified}`:\n{src}\n{diags:?}"
+            );
+        }
+    }
+    // A value with no qualifier still passes, and is checked when it runs.
+    for body in [
+        "$f(\"a\", 1);",
+        "$r->put(\"a\");",
+        "Core\\Reflect::forObject($r)->set($r, \"p\", \"a\");",
+        "Core\\Reflect::forObject($r)->call($r, \"put\", [\"a\"]);",
+        "Core\\Reflect::forObject($r)->construct([]);",
+    ] {
+        let src = untyped_program("string", body);
+        let diags = check_src(&src);
+        assert!(!diags.has_errors(), "{src}\n{diags:?}");
+    }
+}
+
+#[test]
+fn a_typed_callable_takes_the_qualified_argument_its_signature_names() {
+    for qualified in QUALIFIED {
+        for body in ["$h($x);", "$h(...$xs);"] {
+            let src = untyped_program(qualified, body);
+            let diags = check_src(&src);
+            assert!(
+                !diags.has_errors(),
+                "`callable({qualified}): void` refused its own argument:\n{src}\n{diags:?}"
+            );
+        }
+        // The signature checks the argument: a plain `string` parameter
+        // refuses the qualified value.
+        let src = untyped_program(qualified, "$g($x);");
+        let diags = check_src(&src);
+        assert!(diags.has_errors(), "{src}\n{diags:?}");
+    }
+}
+
+#[test]
+fn an_erased_property_write_refuses_a_qualified_value() {
+    for qualified in QUALIFIED {
+        for body in ["$o->p = $x;", "$r->p = $x;"] {
+            let src = untyped_program(qualified, body);
+            let diags = check_src(&src);
+            // A `secret` value is refused by the `mixed` it is written into,
+            // and that one report is the whole of it.
+            let code = if qualified.starts_with("secret") {
+                code::E_TYPE_MISMATCH
+            } else {
+                code::E_QUALIFIED_VALUE_WITHOUT_PARAMETER_TYPE
+            };
+            let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+            assert!(
+                codes.contains(&code),
+                "an erased write took a `{qualified}`:\n{src}\n{diags:?}"
+            );
+            assert!(
+                !(code == code::E_TYPE_MISMATCH
+                    && codes.contains(&code::E_QUALIFIED_VALUE_WITHOUT_PARAMETER_TYPE)),
+                "one mistake reported twice:\n{src}\n{diags:?}"
+            );
+        }
+    }
+    for body in ["$o->p = \"a\";", "$r->p = \"a\";"] {
+        let src = untyped_program("string", body);
+        let diags = check_src(&src);
+        assert!(!diags.has_errors(), "{src}\n{diags:?}");
     }
 }

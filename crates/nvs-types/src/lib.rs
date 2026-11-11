@@ -675,6 +675,12 @@ pub(crate) struct Env<'a> {
     /// is still inside that argument, and the flag has to survive the recursion
     /// rather than be re-derived at each level.
     pub in_call_argument: bool,
+    /// Whether the array literal about to be checked is the argument of a
+    /// `Core` parameter that hands each element on to code picked by name at
+    /// run time (`nvs_stdlib::registry::CoreTy::Dispatched`). Set by
+    /// `crate::expr::args` and taken by `check_array_literal`, which judges
+    /// each element's own type rather than the literal's `array<mixed>`.
+    pub dispatched_literal: bool,
     /// The uses of deprecated code already warned about in the body being
     /// checked, or `None` where nothing warns: outside a body, and inside a
     /// deprecated declaration or a member of a deprecated class. Opened by

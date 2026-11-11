@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-types/src/expr/assign.rs, crates/nvs-types/src/ty.rs, crates/nvs-types/src/lower.rs, docs/rules/types/unions-and-mixed.md]
   - id: 3
     title: "a call or a write with no static parameter list refuses a qualified value"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/calls.rs, crates/nvs-stdlib/src/reflect.rs, docs/rules/types/callable-signature.md, docs/rules/types/erased-member-access.md, docs/rules/security/sink-predicate.md]
   - id: 4
     title: "the run time keeps a secret out of an erased read and out of a failed conversion's message"
@@ -211,6 +211,10 @@ each argument against the written parameter. The review ran both directions, and
 `callable` writes `callable(mixed): T`. Safe default if the `mixed` half breaks more of the tree than
 stage 7 can update: keep the refusal for `tainted` and `secret`, and check `mixed` text at run time
 on the dynamic call path. That costs one AND per argument there and nothing on a typed call.
+**Built:** the mark on `ClassInfo::set`, `call` and `construct` is `CoreTy::Dispatched`, a
+transparent wrapper read as `ParamText::Dispatched`. A new `Qual` was declined: `Qual` says what a
+member does with text, and `mixed` has no text cell to carry one. `ParamText` already reaches the
+checker per parameter.
 
 **An erased read never returns a `secret` property.** A read through `mixed` or `object`,
 `ClassInfo::get`, a shape test's field walk, and a reflective or erased call of a method that returns
@@ -342,34 +346,34 @@ whose target cannot carry `secret`.
 **Does:** refuse a qualified value at every call and write whose target type the site cannot see,
 and make reflection's name parameters sinks.
 
-- [ ] One function in `quals.rs` refuses an argument that carries `tainted`, `secret` or unchecked
+- [x] One function in `quals.rs` refuses an argument that carries `tainted`, `secret` or unchecked
   text, and `report_args_with_no_parameter_list` calls it for both callee kinds
   (`rule:types/callable-signature`, `rule:types/erased-member-access`,
   `crates/nvs-types/src/expr/calls.rs:2023`, `crates/nvs-types/src/expr/quals.rs:1106`).
-- [ ] The spread path of `check_call_through_signature` calls it for the spread subject's element type
+- [x] The spread path of `check_call_through_signature` calls it for the spread subject's element type
   (`rule:types/callable-signature`, `crates/nvs-types/src/expr/calls.rs:2430`).
-- [ ] A property write through `mixed` or `object` calls it for the written value. Find the checker's
+- [x] A property write through `mixed` or `object` calls it for the written value. Find the checker's
   site by Grep for `erased-member-access` in `assign.rs` (`rule:types/erased-member-access`,
   `crates/nvs-types/src/expr/assign.rs:216`, `crates/nvs-runtime/src/object.rs:5650`).
-- [ ] The value parameters of `ClassInfo::set`, `call` and `construct` carry one mark in the member
+- [x] The value parameters of `ClassInfo::set`, `call` and `construct` carry one mark in the member
   table, and the checker calls the same function for a marked parameter. A literal argument is judged
   element by element (`rule:security/unclassified-parameter-refuses-tainted`,
   `crates/nvs-stdlib/src/reflect.rs:661`, `crates/nvs-stdlib/src/reflect.rs:673`,
   `crates/nvs-stdlib/src/reflect.rs:689`).
-- [ ] The name parameters become `Qual::Sink`: `forClass`, `constant`, `get`, `set`, `call`,
+- [x] The name parameters become `Qual::Sink`: `forClass`, `constant`, `get`, `set`, `call`,
   `EnumInfo::of`, and each of the rows at `:1309` and `:1648` that picks by name
   (`rule:security/sink-predicate`, `crates/nvs-stdlib/src/reflect.rs:342`,
   `crates/nvs-stdlib/src/reflect.rs:616`, `crates/nvs-stdlib/src/reflect.rs:646`,
   `crates/nvs-stdlib/src/reflect.rs:1279`).
-- [ ] The reference cards of those members say that `tainted` text is not allowed
+- [x] The reference cards of those members say that `tainted` text is not allowed
   (`rule:core-api/reference-card`, `crates/nvs-stdlib/src/reflect.rs:349`).
-- [ ] Tests `a_call_with_no_parameter_list_refuses_a_qualified_argument`,
+- [x] Tests `a_call_with_no_parameter_list_refuses_a_qualified_argument`,
   `a_typed_callable_takes_the_qualified_argument_its_signature_names` and
   `an_erased_property_write_refuses_a_qualified_value` (`crates/nvs-types/tests/qualifiers_hold.rs:1`).
-- [ ] Test `every_reflection_member_that_picks_by_name_refuses_tainted_text` walks the `Core\Reflect`
+- [x] Test `every_reflection_member_that_picks_by_name_refuses_tainted_text` walks the `Core\Reflect`
   rows of the registry. It fails naming a text or class-name parameter that is not a sink on a member
   that returns anything but `bool` (`crates/nvs-stdlib/tests/taint_signatures.rs:150`).
-- [ ] `rule:types/callable-signature`, `rule:types/erased-member-access` and
+- [x] `rule:types/callable-signature`, `rule:types/erased-member-access` and
   `rule:security/sink-predicate` each state the refusal (`docs/rules/types/callable-signature.md:1`,
   `docs/rules/types/erased-member-access.md:1`, `docs/rules/security/sink-predicate.md:1`).
 
@@ -497,44 +501,52 @@ disjoint folders side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done, and their checks are green. `Ty::SecretMixed` (`TypeAtom::SecretMixed`) is
-`secret mixed`. `assignable` refuses a value that `contains_secret` into `mixed`, and
-`secret_into_mixed_help` names `secret mixed` on `E0401` and `E0403`. A `Core` row's `mixed`
-parameter still takes a `secret` (`mixed_admitting_secret`, `args.rs`). An element read out of
-`secret mixed` is `secret mixed`. A property read, a method call, a `foreach` and an operator over it
-do not compile yet, which is safe. `nvs-ir` erases it to `Ty::Tagged`. The sweep's reds were stale:
-no file defines `env-secret-proofs`, and `305c04f660` fixed the nightly's `live_config` test.
+Stages 1, 2 and 3 are done, and their checks are green. Stage 3 added `E0895`
+(`E_QUALIFIED_VALUE_WITHOUT_PARAMETER_TYPE`) and one function,
+`reject_qualified_untyped_value` with its `UntypedTarget` (`crates/nvs-types/src/expr/quals.rs:1281`).
+It refuses a value that is `carries_qualifier` or `carries_unchecked` at: a bare `callable` call and a
+`mixed` callee (`expr/mod.rs`), a method call on a `mixed` receiver
+(`report_args_with_no_parameter_list`), a spread into a written signature or a self-name unless every
+parameter takes the element (`reject_qualified_spreads`, `calls.rs:2413`), an erased property write
+(`assign.rs:1083`), and a `Core` parameter marked `CoreTy::Dispatched` (`ParamText::Dispatched`):
+`ClassInfo::set`'s `$value` and the `$arguments` of `call` and `construct`. An array literal there is
+judged element by element (`Env::dispatched_literal`). Every `Core\Reflect` name parameter on a member
+that returns anything but `bool` is `Qual::Sink`. The sweep's reds were stale: nightly `43001191130`
+built `f4c1d5c7e2`, older than the fix `305c04f660`, and no file defines `env-secret-proofs`.
 
 Expected red at the gate: any `.nvst` case, example or test that converts a `secret` value to a
 number, a bool, an enum or a class, or that narrows a `tainted` value with `is` and then passes it to
 a plain `string` sink. From stage 2 also: any program that puts a `secret` value into a parameter,
 property, variable or `array<mixed>` the program declares `mixed`, and any test that expects
-`$secret as mixed` to be `E0894` (it now compiles as `secret mixed`). Stage 7 updates them.
+`$secret as mixed` to be `E0894` (it now compiles as `secret mixed`). From stage 3: any program that
+passes a `tainted`, `secret` or `mixed` value through a bare `callable`, a `mixed` receiver's method
+call, an erased property write, or `ClassInfo::set`, `call` or `construct`, and any program that
+passes request text to a `Core\Reflect` name parameter. Stage 7 updates them.
 
 ### Next
 
-Stage 3, over `crates/nvs-types/src/expr/calls.rs`, `crates/nvs-types/src/expr/quals.rs`,
-`crates/nvs-types/src/expr/assign.rs`, `crates/nvs-stdlib/src/reflect.rs` and
-`crates/nvs-types/tests/qualifiers_hold.rs`.
+Stage 4, over `crates/nvs-runtime/src/object.rs`, `crates/nvs-runtime/src/helpers.rs`,
+`crates/nvs-stdlib/src/reflect.rs`, `crates/nvs-ir/src/lower/convert.rs` and a new
+`crates/nvs-codegen/tests/qualifiers_at_run_time.rs`. Follow the stage's `**Split:**` line first.
 
-- [ ] `crates/nvs-types/src/expr/calls.rs:2023`: one function in `quals.rs` (beside
-  `contains_secret`, `crates/nvs-types/src/expr/quals.rs:1193`) refuses an argument that carries
-  `tainted`, `secret` or unchecked text, and `report_args_with_no_parameter_list` calls it.
-- [ ] `crates/nvs-types/src/expr/calls.rs:2417`: the spread path of `check_call_through_signature`
-  calls it for the spread subject's element type.
-- [ ] `crates/nvs-types/src/expr/assign.rs:1229`: a property write through `mixed` or `object` calls
-  it for the written value.
-- [ ] `crates/nvs-stdlib/src/reflect.rs:661`: the value parameters of `ClassInfo::set`, `call` and
-  `construct` carry one mark, and the checker calls the same function for a marked parameter.
-- [ ] `crates/nvs-stdlib/src/reflect.rs:342`: the name parameters become `Qual::Sink`, and their
-  reference cards say `tainted` text is not allowed.
-- [ ] `crates/nvs-types/tests/qualifiers_hold.rs:1`, `crates/nvs-stdlib/tests/taint_signatures.rs:150`:
-  the stage's four tests.
-- [ ] `docs/rules/types/callable-signature.md:1`, `docs/rules/types/erased-member-access.md:1`,
-  `docs/rules/security/sink-predicate.md:1`: each states the refusal.
+- [ ] `crates/nvs-runtime/src/object.rs:6041`: `read_erased_property` and its `_owned` and `_hinted`
+  twins (`:6068`, `:6182`) throw a `LogicError` for a property whose `secret` bit is set.
+- [ ] `crates/nvs-stdlib/src/reflect.rs:2926`, `crates/nvs-stdlib/src/reflect.rs:3067`: `ClassInfo::get`
+  reads through it, and `call` throws for a method whose declared return carries `secret`.
+- [ ] `crates/nvs-runtime/src/helpers.rs:1539`: `does_not_fit` and its callers name a text operand by
+  type and length only, and so does every site the subagent lists.
+- [ ] `crates/nvs-codegen/tests/callables.rs:201`: the stage's three tests go in a new
+  `crates/nvs-codegen/tests/qualifiers_at_run_time.rs`, which runs programs as this file does.
+- [ ] `docs/rules/types/conversion.md:1`, `docs/rules/security/secret-sinks-refuse.md:1`: the message
+  rule and the erased read, each with its cost line.
 
 ### Backlog
 
+- `$fn->call($obj, $a)` on a `callable` forwards `$a` with no parameter list, and its arguments are not
+  yet asked the stage 3 question (`crates/nvs-types/src/expr/calls.rs`, the `bind`/`call` checker that
+  passes `&[]`). Stage 6's matrix should name it as a position.
+- A `.=` compound write through an erased property is not asked the stage 3 question, only the plain
+  `=` (`crates/nvs-types/src/expr/assign.rs:1083`).
 - A third-party extension method that takes a resource may return text built from an earlier
   `tainted` argument as plain text (`crates/nvs-types/src/ext_lib.rs:290`). Not traced to a run.
 - `slot_check` and `test_shape` are two maps from a type to a run-time test, and an intersection

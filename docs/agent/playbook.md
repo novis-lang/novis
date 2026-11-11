@@ -26,6 +26,11 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **A scratch script's `String.replace` or `replaceAll` with a string replacement reads `` $` ``,
+  `$'` and `$&` in it as patterns.** An anchor such as "without the `` `$` ``," copied into the
+  replacement inserts the whole text before the match, and one edit of
+  `crates/nvs-stdlib/src/reflect.rs` grew it by 1700 lines. Write `src.split(anchor).join(text)`,
+  which is literal, and check `git diff --stat` after the script.
 - **`looper lint` reads a `### Next` item's anchor on its first line alone.** An item whose
   `path:line` sits on a continuation line, or behind a bare directory path, fails as "an open
   `### Next` item has no repo-rooted path:line anchor". Start the item with its anchor, as in

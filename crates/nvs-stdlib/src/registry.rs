@@ -915,6 +915,18 @@ pub enum CoreTy {
     /// the name is only what a message, a hover, a card and the website show.
     /// [`ALIASES`] declares each one.
     Alias(&'static str, &'static CoreTy),
+    /// A value parameter whose argument the member hands to a method or a
+    /// property it picks by name when the program runs, such as
+    /// `Core\Reflect\ClassInfo::set`'s `$value`. The wrapped type is what it
+    /// takes, and it interns exactly as that type does.
+    ///
+    /// The mark is [`ParamText::Dispatched`], and the checker reads it there:
+    /// the argument may not carry `tainted`, `secret` or text out of `mixed`,
+    /// since the run time checks the value's representation and never its
+    /// qualifier (`rule:types/erased-member-access`). A literal argument is
+    /// judged by its elements' types, because each element is a value of its
+    /// own.
+    Dispatched(&'static CoreTy),
 }
 
 /// A `Core` type alias — `rule:types/type-alias`'s class-scoped member,
@@ -1515,6 +1527,8 @@ impl CoreTy {
                 .join("|"),
             Self::SingleValueInt(value) => value.to_string(),
             Self::Nullable(inner) => format!("?{}", inner.spelled()),
+            // The mark is not a type: the wrapped type is what a program writes.
+            Self::Dispatched(inner) => inner.spelled(),
             // The name the program writes. The type it stands for is on the
             // owner class's card.
             Self::Alias(name, _) => (*name).into(),
@@ -1593,6 +1607,7 @@ impl CoreTy {
             Self::Path(_) | Self::Entry => ParamText::Path,
             Self::Program(_) => ParamText::Program,
             Self::ClassName(_) => ParamText::ClassName,
+            Self::Dispatched(_) => ParamText::Dispatched,
             Self::Nullable(inner) | Self::Alias(_, inner) => inner.param_text(),
             _ => ParamText::Plain,
         }
@@ -1619,6 +1634,9 @@ pub enum ParamText {
     Program,
     /// A fully-qualified class name.
     ClassName,
+    /// Not text: a value the member hands to a method or a property it picks
+    /// by name when the program runs. [`CoreTy::Dispatched`] owns the rule.
+    Dispatched,
 }
 
 impl CoreMethod {

@@ -475,6 +475,7 @@ fn walk_file(
         spawn_entry_args: FxHashSet::default(),
         body_writers: crate::response::BodyWriters::default(),
         in_call_argument: false,
+        dispatched_literal: false,
         deprecated_uses: None,
     };
     let mut frame = ScriptFrame {

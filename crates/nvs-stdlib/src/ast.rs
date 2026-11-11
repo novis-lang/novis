@@ -1398,7 +1398,8 @@ mod tests {
             | CoreTy::Variadic(inner)
             | CoreTy::StringHoles(inner, _)
             | CoreTy::PropertyPath(inner)
-            | CoreTy::Alias(_, inner) => mentions(inner, class),
+            | CoreTy::Alias(_, inner)
+            | CoreTy::Dispatched(inner) => mentions(inner, class),
             CoreTy::InstanceAt(name, args) => {
                 *name == class || args.iter().any(|arg| mentions(arg, class))
             }

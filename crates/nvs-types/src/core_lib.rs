@@ -901,6 +901,9 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
             interner.name_alias(id, name);
             id
         }
+        // Transparent: the mark is read through `MethodSig::param_text`, and
+        // the type is the wrapped one.
+        CoreTy::Dispatched(inner) => lower(inner, interner),
         // `Mixed` and anything a later registry variant adds: `mixed` is the
         // registry's own "unchecked position" spelling, and is the only safe
         // answer for a variant this arm has not learned yet, since `Ty` and

@@ -234,7 +234,12 @@ pub(crate) fn infer_method_call(
         if matches!(args, CallArgs::MethodRef) {
             report_method_ref_on_erased_receiver(expr.span, &name, env);
         } else {
-            report_args_with_no_parameter_list(args, NoParameterList::ErasedReceiver, env);
+            report_args_with_no_parameter_list(
+                args,
+                &arg_types,
+                NoParameterList::ErasedReceiver,
+                env,
+            );
             env.exprs.record(expr.span, ExprInfo::ErasedCall { name });
         }
     }
@@ -2020,8 +2025,15 @@ pub(crate) enum NoParameterList {
 /// [`super::args::map_arguments`] — a positional argument cannot follow a `...`
 /// — for the same reason it applies at a resolved call, so the two refusals are
 /// one walk.
+///
+/// The same walk refuses an argument that carries `tainted`, `secret` or text
+/// out of `mixed` ([`super::quals::reject_qualified_untyped_value`]): the run
+/// time checks each argument's representation and never its qualifier, so the
+/// callee would read it at a plain parameter. `arg_types` lines up with the
+/// list, and an empty one is a caller that does not ask that question.
 pub(crate) fn report_args_with_no_parameter_list(
     args: &CallArgs,
+    arg_types: &[TypeId],
     callee: NoParameterList,
     env: &mut Env<'_>,
 ) {
@@ -2054,7 +2066,14 @@ pub(crate) fn report_args_with_no_parameter_list(
         }
     };
     let mut positional_ends: Option<Span> = None;
-    for arg in list {
+    let target = match callee {
+        NoParameterList::Callable => super::quals::UntypedTarget::Callable,
+        NoParameterList::ErasedReceiver => super::quals::UntypedTarget::ErasedReceiver,
+    };
+    for (index, arg) in list.iter().enumerate() {
+        if let Some(&ty) = arg_types.get(index) {
+            super::quals::reject_qualified_untyped_value(ty, arg.value.span, target, env);
+        }
         // `rule:statements/inout-is-written-at-the-call`'s marker has the same nothing to resolve against, one
         // step worse: neither callee can bind such a parameter at all.
         if arg.inout {
@@ -2147,7 +2166,7 @@ fn infer_callable_rebind(
     let CallArgs::List(list) = args else {
         return None;
     };
-    report_args_with_no_parameter_list(args, NoParameterList::Callable, env);
+    report_args_with_no_parameter_list(args, &[], NoParameterList::Callable, env);
     let object = env.interner.object();
     let null = env.interner.null();
     let this_ty = env.interner.make_union([object, null]);
@@ -2378,12 +2397,54 @@ pub(crate) fn check_args(
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
-) {
+) -> Vec<TypeId> {
     let CallArgs::List(list) = args else {
-        return;
+        return Vec::new();
     };
-    for Arg { value, .. } in list {
-        check_expr(value, None, live, scope, ctx, env);
+    list.iter()
+        .map(|Arg { value, .. }| check_expr(value, None, live, scope, ctx, env))
+        .collect()
+}
+
+/// A spread's elements land in parameters the call site cannot pair them with,
+/// so an element that carries a qualifier is refused unless every parameter
+/// in `params` takes it (`rule:types/callable-signature`). `types` lines up
+/// with `list`.
+pub(crate) fn reject_qualified_spreads(
+    list: &[Arg],
+    types: &[TypeId],
+    params: &[TypeId],
+    env: &mut Env<'_>,
+) {
+    for (arg, &ty) in list.iter().zip(types) {
+        if !arg.spread {
+            continue;
+        }
+        let Some(elem) = spread_element(ty, env) else {
+            continue;
+        };
+        let every_param_takes_it = params
+            .iter()
+            .all(|&param| is_assignable(elem, param, env.interner, env.graph, env.signatures));
+        if !every_param_takes_it {
+            super::quals::reject_qualified_untyped_value(
+                elem,
+                arg.value.span,
+                super::quals::UntypedTarget::Spread,
+                env,
+            );
+        }
+    }
+}
+
+/// The element type a `...` argument of type `ty` hands over: an array's
+/// element, `mixed` for `mixed`, and `None` for anything else, which a spread
+/// refuses elsewhere.
+fn spread_element(ty: TypeId, env: &mut Env<'_>) -> Option<TypeId> {
+    match env.interner.get(ty) {
+        Ty::Array(elem) => Some(*elem),
+        Ty::Mixed | Ty::SecretMixed => Some(ty),
+        _ => None,
     }
 }
 
@@ -2431,7 +2492,8 @@ pub(crate) fn check_call_through_signature(
         && list.iter().any(|arg| arg.spread)
         && !list.iter().any(|arg| arg.name.is_some() || arg.inout)
     {
-        check_args(args, live, scope, ctx, env);
+        let types = check_args(args, live, scope, ctx, env);
+        reject_qualified_spreads(list, &types, &params, env);
         return Some(ret);
     }
     let exact = check_args_against_params(

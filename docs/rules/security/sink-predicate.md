@@ -15,6 +15,15 @@ grammars the library parses are all instructions by it
 (`rule:security/every-grammar-is-a-sink`), and a member nobody classified fails closed
 (`rule:security/unclassified-parameter-refuses-tainted`).
 
+**A name that picks code is an instruction.** Every `Core\Reflect` parameter whose text picks a class,
+a method, a property, a constant, an enum or an enum case is a sink: `Reflect::forClass`,
+`ClassInfo::constant`, the `$name` of `get`, `set` and `call`, `EnumInfo::of`, `EnumInfo::valueOf` and
+`AttributeInfo::field`. A request path segment passed there would choose what runs.
+`ClassInfo::hasProperty` and `hasMethod` stay neutral, because they return a `bool` and run nothing.
+A dispatcher compares the text with its own list, or writes `Core\Taint::assertTrusted` with its
+reason. `crates/nvs-stdlib/tests/taint_signatures.rs` fails on a `Core\Reflect` text parameter that
+is not a sink on a member that returns anything but a `bool`.
+
 **Declined:**
 - **Denying `tainted` at the process boundary, so it may leave only through a typed carrier.** Strictly
   stronger and wrong: it refuses a file's contents, an outbound request body, a bound database parameter

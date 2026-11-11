@@ -49,6 +49,17 @@ no compiled instruction reads an object's class name, and adding one is a new va
 of a message. The row check's error names it, because it runs in the runtime, which reads the
 argument's descriptor.
 
+**A call with no parameter list refuses a qualified argument where it is written** (`E0895`). The
+run-time check tests each argument's representation, and neither `tainted` nor `secret` has one, so a
+callee's plain `string` parameter would take the value as trusted text. An argument that carries
+`tainted`, `secret` or `mixed` anywhere in it does not compile through a bare `callable`, or through
+the method call on a `mixed` receiver that `rule:types/erased-member-access` defers. `mixed` counts,
+because text out of it is `tainted` (`rule:security/taint-propagation`). The form that compiles writes
+the parameter types, such as `callable(tainted string): void` or `callable(mixed): void`, and the
+signature then checks each argument. A `...` argument into a written signature is refused the same
+way unless every parameter takes its element type, because the call site cannot pair an element with
+its parameter. It costs nothing at run time.
+
 The parameter list needs no trial parse: a `(` after `callable` in a type position can only open a
 parameter list, because a type position has no call syntax to confuse it with.
 

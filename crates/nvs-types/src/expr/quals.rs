@@ -1239,6 +1239,106 @@ pub(crate) fn carries_qualifier(ty: TypeId, interner: &TypeInterner) -> bool {
     }
 }
 
+/// A place a value goes with no static type to check it against, for
+/// [`reject_qualified_untyped_value`]'s message and help.
+#[derive(Clone, Copy)]
+pub(crate) enum UntypedTarget {
+    /// An argument of a call through a bare `callable`.
+    Callable,
+    /// An argument of a method call on a `mixed` receiver.
+    ErasedReceiver,
+    /// A `...` argument into a callable whose parameters do not all take its
+    /// element.
+    Spread,
+    /// The value of a property write through `mixed`, `object` or a shape
+    /// that does not list the name.
+    ErasedWrite,
+    /// A value argument of a `Core` member that hands it to code the program
+    /// picks by name at run time (`nvs_stdlib::registry::ParamText::Dispatched`).
+    Dispatched,
+}
+
+/// `rule:types/callable-signature`'s and `rule:types/erased-member-access`'s
+/// qualifier half: a value that carries `tainted`, `secret` or text out of
+/// `mixed` does not go where no static type checks it. Answers whether it
+/// reported.
+///
+/// Neither qualifier exists at run time, and the check a call through a bare
+/// `callable` or an erased write makes there tests the representation alone.
+/// So the parameter or the property it reaches takes the value at its own
+/// declared type, which is plain `string` as often as not, and the qualifier
+/// is gone without a word. This call site is the last place it is visible.
+///
+/// "Carries" is [`carries_qualifier`] or [`carries_unchecked`]. A `mixed`
+/// value counts, because text out of it is `tainted` by rule
+/// (`rule:security/taint-propagation`), and the parameter it lands in reads it
+/// as plain text. A callable whose signature names a qualifier counts too: its
+/// result is qualified, and the code it reaches may read it as plain.
+///
+/// **What it spends:** nothing at run time. A program that passes outside text
+/// through a bare `callable` writes the parameter types, such as
+/// `callable(mixed): void`.
+pub(crate) fn reject_qualified_untyped_value(
+    ty: TypeId,
+    span: Span,
+    target: UntypedTarget,
+    env: &mut Env<'_>,
+) -> bool {
+    if env.interner.is_error(ty) {
+        return false;
+    }
+    let what = if contains_secret(ty, env.interner) {
+        "`secret`"
+    } else if carries_qualifier(ty, env.interner) {
+        "`tainted`"
+    } else if carries_unchecked(ty, env.interner) {
+        "`mixed`"
+    } else {
+        return false;
+    };
+    let (place, help) = match target {
+        UntypedTarget::Callable => (
+            "to a `callable` with no parameter types",
+            "Write the parameter types on the `callable`, such as \
+             `callable(tainted string): void`. Or check the value before you pass it.",
+        ),
+        UntypedTarget::ErasedReceiver => (
+            "to a method of a `mixed` value",
+            "The method is known only when the program runs, so its parameter types are not \
+             known. Test the receiver with `$x is ClassName` first.",
+        ),
+        UntypedTarget::Spread => (
+            "with `...` to a `callable` whose parameters do not take it",
+            "Write parameter types that take the value, such as \
+             `callable(tainted string): void`. Or check each element before you pass it.",
+        ),
+        UntypedTarget::ErasedWrite => (
+            "to a property of a value whose class is not known",
+            "The property type is known only when the program runs. Test the receiver with \
+             `$x is ClassName` first.",
+        ),
+        UntypedTarget::Dispatched => (
+            "to a method or property that `Core\\Reflect` picks by name",
+            "The parameter type is known only when the program runs. Call the method or \
+             write the property directly, or check the value before you pass it.",
+        ),
+    };
+    let label = if what == "`mixed`" {
+        "this is `mixed`, and text in it is `tainted`".to_owned()
+    } else {
+        format!("this value is {what}")
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_QUALIFIED_VALUE_WITHOUT_PARAMETER_TYPE,
+            format!("a {what} value cannot be passed {place}"),
+        )
+        .with_primary(span, label)
+        .with_help(help),
+    );
+    true
+}
+
 /// `rule:security/secret-qualifier`'s container axis: a `secret` value may be
 /// written into an array element or a shape field only where the position's own
 /// type carries the qualifier.

@@ -1200,4 +1200,20 @@ codes! {
          as int`. A shape cannot read a `secret` property of a class. Read the property \
          directly.",
     );
+    /// A `tainted` or `secret` value, or text from `mixed`, passed where no
+    /// static type checks it: a bare `callable`, a method call on a `mixed`
+    /// receiver, a spread into a callable whose parameters do not take it, a
+    /// property write through `mixed` or `object`, and the value arguments of
+    /// `Core\Reflect\ClassInfo::set`, `call` and `construct`. The run time has
+    /// no qualifier to check, so the value would arrive at a plain parameter
+    /// as trusted text.
+    pub const E_QUALIFIED_VALUE_WITHOUT_PARAMETER_TYPE: Code = Code::new("E0895").card(
+        "A `tainted` or `secret` value cannot be passed where no parameter type is known. \
+         A value of type `mixed` counts as `tainted`. This applies to a call through a \
+         `callable` with no parameter types and to a method call on a `mixed` value. It \
+         also applies to a property write through `mixed` or `object`, and to \
+         `Core\\Reflect\\ClassInfo::set`, `call` and `construct`. Write the parameter \
+         types, such as `callable(tainted string): void`. Or test the value with \
+         `$x is ClassName` first. Or check the text before you pass it.",
+    );
 }
