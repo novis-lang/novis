@@ -2763,7 +2763,10 @@ mod tests {
 
         let gone = Value::text("gone");
         let refused = hydrated(&status, gone).expect_err("a value outside the set is refused");
-        assert_eq!(refused, r#"a `string` of 4 bytes is not one of `"draft"`, `"live"`"#);
+        assert_eq!(
+            refused,
+            r#"a `string` of 4 bytes is not one of `"draft"`, `"live"`"#
+        );
         released(gone);
 
         // The base type is still asked first, so a number in a text field is
@@ -2786,7 +2789,10 @@ mod tests {
         list.append(Value::text("z"));
         let held = Value::array(list);
         let refused = hydrated(&tags, held).expect_err("one element is outside the set");
-        assert_eq!(refused, r#"element 1: a `string` of 1 byte is not one of `"a"`, `"b"`"#);
+        assert_eq!(
+            refused,
+            r#"element 1: a `string` of 1 byte is not one of `"a"`, `"b"`"#
+        );
         released(held);
     }
 

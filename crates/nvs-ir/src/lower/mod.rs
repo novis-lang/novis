@@ -1210,9 +1210,7 @@ fn lower_program_as(
                 secret_returns: layout
                     .methods
                     .iter()
-                    .filter(|(name, declaring, ..)| {
-                        exprs.secret_returns(declaring).contains(name)
-                    })
+                    .filter(|(name, declaring, ..)| exprs.secret_returns(declaring).contains(name))
                     .map(|(name, ..)| name.clone())
                     .collect(),
                 // `rule:security/reflection-enforces-visibility`'s visibility bit, copied across with the slot
