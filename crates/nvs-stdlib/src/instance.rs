@@ -1669,4 +1669,54 @@ mod tests {
             value.release();
         }
     }
+
+    /// Bytes that name `desc`'s class with its own slot names, each `null`.
+    /// They are written by the real encoder, from a twin class with the same
+    /// name and slots and none of the marks, because `encode` writes nothing
+    /// for a class it refuses.
+    fn payload_naming(desc: &ClassDesc) -> Vec<u8> {
+        let fields: Vec<&str> = (0..desc.field_count())
+            .map(|index| desc.field_name(index).unwrap_or_default())
+            .collect();
+        let mut twins = ClassTable::new();
+        let id = twins.define(desc.name(), &fields, &[]);
+        let twins: &'static ClassTable = Box::leak(Box::new(twins));
+        #[expect(unsafe_code, reason = "the leaked table outlives the object")]
+        let object = unsafe { nvs_runtime::NvsObj::new(twins.desc(id)) };
+        for index in 0..fields.len() {
+            object.set_field(index, Value::null());
+        }
+        nvs_runtime::encode(Value::object(object)).expect("the twin has no marks, so it encodes")
+    }
+
+    /// Walks every descriptor the process defined, not a list written here, so
+    /// a `Core` class marked later is covered on the day it is marked.
+    #[test]
+    fn every_core_class_that_holds_a_host_handle_is_refused_by_decode() {
+        let table = descriptors();
+        let mut refused = 0;
+        for (name, id) in &table.by_name {
+            #[expect(
+                unsafe_code,
+                reason = "the leaked table owns the descriptor for the whole \
+                          process, so this borrow is sound for any lifetime"
+            )]
+            let desc = unsafe { &*table.table.desc(*id) };
+            if !desc.holds_host_handle() {
+                continue;
+            }
+            refused += 1;
+            let bytes = payload_naming(desc);
+            let resolve = |wanted: &str| core_class_desc(wanted);
+            let Err(why) = nvs_runtime::decode(&bytes, &resolve) else {
+                panic!("{name} holds a host handle and decoded");
+            };
+            let why = why.to_string();
+            assert!(
+                why.contains(name) && why.contains("holds a handle onto something"),
+                "{name} was not refused with the host-handle sentence: {why}"
+            );
+        }
+        assert!(refused > 0, "no `Core` descriptor holds a host handle");
+    }
 }
