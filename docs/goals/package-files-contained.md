@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-types/src/package.rs, crates/nvs-cli/tests/package_grants.rs, crates/nvs-cli/src/package/build.rs, docs/rules/security/an-unmatched-namespace-holds-the-application.md]
   - id: 4
     title: nvs test and nvs check walk into no package below the folder they were given
-    status: open
+    status: done
     context: [crates/nvs-test/src/lib.rs, crates/nvs-cli/tests/test_dir.rs, docs/rules/testing/a-directory-of-programs-is-one-test-program.md, docs/rules/packaging/nothing-runs-before-the-program.md]
   - id: 5
     title: nvs test runs no test of a package the program loads
@@ -512,20 +512,20 @@ inside the folder of a package: a folder whose own `package.toml` has a `[packag
 **Does:** make the two folder walks skip a folder below the named one that holds a `package.toml`,
 through one shared function, and say so in the help of both commands.
 
-- [ ] `nvs_test::is_walked(dir)` beside `is_cache_dir`: false for a cache folder and for a folder
+- [x] `nvs_test::is_walked(dir)` beside `is_cache_dir`: false for a cache folder and for a folder
   where `package.toml` is a file. The file name is the constant `nvs_test::PACKAGE_FILE`, and the doc
   says what the check spends and that it reads no manifest
   (`rule:testing/a-directory-of-programs-is-one-test-program`, `crates/nvs-test/src/lib.rs:274`).
-- [ ] `collect` and `programs_under` call it where they call `is_cache_dir` today, and the comment
+- [x] `collect` and `programs_under` call it where they call `is_cache_dir` today, and the comment
   above each is rewritten (`crates/nvs-test/src/lib.rs:254`, `crates/nvs-cli/src/main.rs:3388`,
   `crates/nvs-cli/src/main.rs:3364`).
-- [ ] Test `a_folder_with_a_package_toml_is_not_walked_for_cases` in `nvs-test`'s lib tests: a tree
+- [x] Test `a_folder_with_a_package_toml_is_not_walked_for_cases` in `nvs-test`'s lib tests: a tree
   with `first.nvst`, `vendor/acme/http/package.toml` and `vendor/acme/http/tests/second.nvst`.
   `discover` over the tree returns the first case alone, and `discover` over `vendor/acme/http`
   returns the second (`crates/nvs-test/src/lib.rs:573`).
-- [ ] Test `the_walk_and_the_compiler_name_the_same_manifest` in `nvs-cli`: `nvs_test::PACKAGE_FILE`
+- [x] Test `the_walk_and_the_compiler_name_the_same_manifest` in `nvs-cli`: `nvs_test::PACKAGE_FILE`
   equals `nvs_config::grants::FILE` (`crates/nvs-cli/src/runner.rs:5585`).
-- [ ] Tests in `test_dir.rs`, on one layout `fixture` builds: `AppTest.nvs` with one passing test,
+- [x] Tests in `test_dir.rs`, on one layout `fixture` builds: `AppTest.nvs` with one passing test,
   `vendor/acme/http/package.toml` naming `Acme\Http`, `vendor/acme/http/src/ClientTest.nvs` with one
   failing test, `vendor/acme/http/src/Broken.nvs` with a type error, and `vendor/acme/tools/` with a
   `package.toml` that holds one comment and a second failing test
@@ -534,15 +534,15 @@ through one shared function, and say so in the help of both commands.
   `AppTest` alone. `a_folder_check_reads_no_file_of_a_package_below_it`: `nvs check <root>` prints
   `no errors`. `a_package_folder_named_on_the_command_line_is_run`: `nvs test <root>/vendor/acme/tools`
   runs that folder's test.
-- [ ] The help of `nvs test` gains two sentences after the one on subfolders: "A subfolder that has
+- [x] The help of `nvs test` gains two sentences after the one on subfolders: "A subfolder that has
   its own `package.toml` is not read. To run the tests of a package, give `nvs test` the folder of
   that package." (`crates/nvs-cli/src/runner.rs:128`). The help of `nvs check` gains the first of them
   (`crates/nvs-cli/src/check.rs:61`). Both follow `AGENTS.md` § *Text an end user reads*.
-- [ ] The two website pages that describe the walk gain the same sentence
+- [x] The two website pages that describe the walk gain the same sentence
   (`website/src/content/docs/tools/test-runner/index.mdx:35`,
   `website/src/content/docs/guides/how-to-use/project-layout.mdx:46`). `bun nv render --website`
   writes the generated files once the help text has changed.
-- [ ] Rule fragments: the folder rule says which folders the walk skips and why, with a **Declined:**
+- [x] Rule fragments: the folder rule says which folders the walk skips and why, with a **Declined:**
   entry for skipping by the name `vendor`
   (`docs/rules/testing/a-directory-of-programs-is-one-test-program.md:1`). The sentence on skipped
   folders names the third kind (`docs/rules/testing/report-formats.md:46`).
@@ -621,52 +621,50 @@ once every class is checked, and say so in the help of `nvs test`.
 
 ### State
 
-Stages 1, 2 and 3 are done. `pack::check_path` is the one judge of a package path, `Walk::entries`
-refuses a git tree entry that is not one name, and `pack::check_reserved_file` refuses every
-`package.toml` but the root one.
-
-`Finder::package_of` now walks to the entry's folder, notes each folder with a `package.toml`, and
-reads them from the outermost inward. The first named one wins, a manifest with no name ends nothing,
-and one below the winner is never read. `dirs` keeps each folder's answer: a folder above the winner
-answers `None` (`crates/nvs-types/src/package.rs:171`). The autoload-site lookup takes the one package
-that holds the site (`crates/nvs-types/src/package.rs:129`). The registry build's `inside` compares
-exactly (`crates/nvs-cli/src/package/build.rs:381`). The three stage-3 tests passed once by name, and
-attacks `03` and `04` pass under `bun nv proofs --id 'tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor'
---run`. The rule fragment has its **Declined:** entry and the chapter is rendered.
-
-The `**Split:**` subagent found no tracked `package.toml` inside a named package's folder. The three
-nested manifests tests write (`crates/nvs-cli/tests/package_client.rs:316`,
-`crates/nvs-cli/tests/registry_build.rs:990`, `crates/nvs-cli/tests/package_fetch.rs:482`) are
-refusal cases of stage 2, so no layout moved.
+Stages 1 to 4 are done. Paths, git entries and second manifests are refused at pack, fetch and the
+registry build. `Finder::package_of` takes the outermost named manifest
+(`crates/nvs-types/src/package.rs:171`), and the registry build compares exactly.
 
 The sweep's findings need no change: nightly run 43001191130 tested `f4c1d5c7e2`, fixed after it by
 `305c04f660`, and `env-secret-proofs` is stale driver state from the retired `defaults-that-work`.
 
-`programs_under` and `nvs_test::collect` still walk every folder but a linked one and a cache. The
-test table keeps the rows of every class the compile checks, also a class of a package.
+Stage 4: `nvs_test::is_walked` and `nvs_test::PACKAGE_FILE` sit beside `is_cache_dir`, and
+`collect` and `programs_under` both call `is_walked`. The fixture is
+`crates/nvs-cli/tests/fixtures/test-dir/packaged/`, and every `.nvs` file in it passes
+`nvs fmt --check`. Its three tests (`crates/nvs-cli/tests/test_dir.rs:192`), the lib test
+`a_folder_with_a_package_toml_is_not_walked_for_cases` and `the_walk_and_the_compiler_name_the_same_manifest`
+each passed once by name. `test_dir.rs` gained `run(command, args, path)`, which `run_test` calls.
+The help of `nvs test` and `nvs check`, the two website pages and the three rule fragments say it, and
+the chapters, `numbers.json` and the website files are rendered.
+
+The test table still keeps the rows of every class the compile checks, also a class of a package.
 
 ### Next
 
-Stage 4, over `crates/nvs-test/src/lib.rs`, `crates/nvs-cli/src/main.rs`,
-`crates/nvs-cli/src/runner.rs`, `crates/nvs-cli/src/check.rs`, `crates/nvs-cli/tests/test_dir.rs`,
-two website pages and three rule fragments. It waits on no other goal.
+Stage 5, over `crates/nvs-types/src/test_inherit.rs`, `crates/nvs-types/src/check.rs`,
+`crates/nvs-types/src/expr_table.rs`, `crates/nvs-cli/tests/test_dir.rs`, a new fixture, the help of
+`nvs test`, one website page and three rule fragments. It waits on no other goal.
 
-- [ ] `crates/nvs-test/src/lib.rs:274`: `is_walked` and `PACKAGE_FILE` beside `is_cache_dir`.
-- [ ] `crates/nvs-test/src/lib.rs:255` and `crates/nvs-cli/src/main.rs:3393`: both walks call it, in
-  `collect` (`crates/nvs-test/src/lib.rs:237`) and `programs_under` (`crates/nvs-cli/src/main.rs:3370`).
-- [ ] The lib test in `nvs-test`'s tests (`crates/nvs-test/src/lib.rs:490`), the constant test in
-  `crates/nvs-cli/src/runner.rs:5629`'s module, and the three tests after
-  `crates/nvs-cli/tests/test_dir.rs:176`.
-- [ ] The help of `nvs test` (`crates/nvs-cli/src/runner.rs:128`) and `nvs check`
-  (`crates/nvs-cli/src/check.rs:61`), the two website pages, then `bun nv render --website`.
-- [ ] `docs/rules/testing/a-directory-of-programs-is-one-test-program.md:1` and the two other
-  fragments the stage names (
-  `docs/rules/testing/report-formats.md:46`, `docs/rules/packaging/nothing-runs-before-the-program.md:21`),
-  then `bun nv rules --render`.
+- [ ] `merge` (`crates/nvs-types/src/test_inherit.rs:247`) takes the symbol table and an
+  `Option<&Packages>`. After the abstract-class pass (`crates/nvs-types/src/test_inherit.rs:276`) it
+  calls `forget_tests` (`crates/nvs-types/src/expr_table.rs:2651`) for each class whose file
+  `Packages::of` (`crates/nvs-types/src/package.rs:58`) places in a package.
+- [ ] `after_walk` (`crates/nvs-types/src/check.rs:506`) takes the `Packages` from `check_files`
+  (`crates/nvs-types/src/check.rs:250`) and passes it to `merge` at `crates/nvs-types/src/check.rs:532`.
+- [ ] The module doc (`crates/nvs-types/src/test_inherit.rs:17`) and `forget_tests`'s doc
+  (`crates/nvs-types/src/expr_table.rs:2649`), rewritten whole.
+- [ ] `crates/nvs-cli/tests/test_dir.rs:209`: fixture `loads-a-package` and the two tests after
+  `a_package_folder_named_on_the_command_line_is_run`.
+  `nvs test loads-a-package` already skips `vendor/acme/http` by stage 4, so only `AppTest.nvs`'s
+  `require` loads `Client.nvs`.
+- [ ] The help sentence goes before "To run the tests of a package" (`crates/nvs-cli/src/runner.rs:133`),
+  and the same on `website/src/content/docs/tools/test-runner/index.mdx:35`, then
+  `bun nv render --website`.
+- [ ] `docs/rules/testing/test-attribute.md:5`, `docs/rules/testing/hook-inheritance.md:24` and
+  `docs/rules/packaging/nothing-runs-before-the-program.md:21`, then `bun nv rules --render`.
 
-No test is expected red. Stage 3 changed where a file's package is found only for a layout with a
-second manifest inside a package's folder, and no tracked layout or test layout outside the new
-tests has one.
+No test is expected red. No tracked layout that `nvs test` or `nvs check` walks holds a
+`package.toml` below the named folder, and no tracked package file has a `#[Test]`.
 
 ### Backlog
 
