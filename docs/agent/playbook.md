@@ -274,6 +274,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   build the expected answer by concatenation (it can land in the freed block and match), and switch
   the fix off once to watch every row fail. See `crates/nvs-codegen/tests/borrowed_reads.rs`.
   `until: gone crates/nvs-codegen/tests/borrowed_reads.rs:fn statement`
+- **The fill goes after the free, and the free is often when a callee returns.** A value a
+  `PropertyGuard` or `toString` frees is still held by that call's own argument, so it is freed
+  when the call returns. A fill inside the call runs first and the test passes with the fix off;
+  fill in a later statement. A memory stop cannot reach a `new` with no constructor:
+  `nvs_object_new` returns no status, and the crossing is reported at the next poll.
+  `until: gone crates/nvs-codegen/tests/borrowed_reads.rs:fn a_property_guard_cannot_free_the_value_being_stored`
 
 - **A heavy `nvs serve` test answers `503` under a full nextest run, and passes alone.** Every
   server pins its workers to the first CPUs, so a test run's servers all share CPU 0. A starved
