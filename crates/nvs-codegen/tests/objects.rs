@@ -409,6 +409,141 @@ echo (new Dog())->name();
     assert_eq!(construct("LogicError"), None, "the error tree is refused");
 }
 
+/// `rule:types/class-reference`: a string built at run time converts to no
+/// class reference of a class the compiler made. A generator's state class
+/// implements `Iterator<int>`, and its label is in the unit, so before this the
+/// conversion found it. A declared `Iterator<int>` still converts.
+#[test]
+fn a_run_time_string_names_no_class_the_compiler_made() {
+    let unit = compile(
+        "<?nvs
+final class Counter {
+    public static function upTo(int $n): Iterator<int> { yield $n; }
+}
+echo 'compiled';
+",
+    )
+    .expect("the fixture compiles");
+    assert!(
+        unit.class_desc("Counter::upTo$gen").is_some(),
+        "the generator's label this test converts is not the unit's"
+    );
+    let source = "<?nvs
+final class Counter {
+    public static function upTo(int $n): Iterator<int> { yield $n; }
+}
+final class Seq implements Iterator<int> {
+    private int $n = 0;
+    public function advance(): bool {
+        $this->n = $this->n + 1;
+        return $this->n < 3;
+    }
+    public function current(): int {
+        return $this->n;
+    }
+}
+string $made = 'Counter::upTo' . '$gen';
+string $declared = 'Seq';
+?class<Iterator<int>> $a = $made as ?class<Iterator<int>>;
+?class<Iterator<int>> $b = $declared as ?class<Iterator<int>>;
+echo $a == null ? 'null' : 'set', ' ', $b == null ? 'null' : 'set';
+";
+    assert_eq!(output_of(source), "null set");
+}
+
+/// `rule:types/class-reference-sites`: `new $c()` over an `abstract` class or
+/// an interface throws a `LogicError` the program catches, and allocates
+/// nothing. Over a subclass it builds the subclass.
+#[test]
+fn new_through_a_class_reference_refuses_a_class_with_no_instances() {
+    let source = "<?nvs
+interface Named {
+    public function name(): string;
+}
+abstract class Animal {
+    public function name(): string { return 'animal'; }
+}
+class Dog extends Animal implements Named {
+    public function constructor() {}
+    public function name(): string { return 'Rex'; }
+}
+string $abstract = 'Animal';
+string $interface = 'Named';
+string $concrete = 'Dog';
+class<Animal> $a = $abstract as class<Animal>;
+class<Named> $n = $interface as class<Named>;
+class<Animal> $d = $concrete as class<Animal>;
+var $i = 0;
+while ($i < 100) {
+    try {
+        Animal $x = new $a();
+        echo 'built ', $x->name(), \"\\n\";
+    } catch (LogicError $e) {
+        if ($i == 0) { echo $e->message, \"\\n\"; }
+    }
+    try {
+        Named $y = new $n();
+        echo 'built ', $y->name(), \"\\n\";
+    } catch (LogicError $e) {
+        if ($i == 0) { echo $e->message, \"\\n\"; }
+    }
+    $i = $i + 1;
+}
+echo (new $d())->name(), \"\\n\";
+";
+    let unit = compile(source).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    unit.install_in(&mut ctx);
+    let entry = unit.script().expect("the script frame was compiled");
+    // The first run makes whatever the context makes once. The second run's
+    // balance is the one the test reads.
+    entry.call(&mut ctx).expect("the first run completes");
+    let first = ctx.take_buffered_output().expect("a buffered context");
+    nvs_runtime::prime_empty_array();
+    let before = nvs_runtime::budget::live_bytes();
+    entry.call(&mut ctx).expect("the second run completes");
+    let second = ctx.take_buffered_output().expect("a buffered context");
+    let expected = "`Animal` is `abstract` or an interface, so it has no instances, so it cannot be constructed\n\
+                    `Named` is `abstract` or an interface, so it has no instances, so it cannot be constructed\n\
+                    Rex\n";
+    let same = second == expected.as_bytes();
+    // The output buffer is the run's own allocation, so it is freed before
+    // the balance is read.
+    drop(second);
+    let after = nvs_runtime::budget::live_bytes();
+    assert_eq!(String::from_utf8(first).expect("UTF-8"), expected);
+    assert!(same, "the second run printed something else");
+    assert_eq!(after - before, 0, "a refused `new` left memory behind");
+}
+
+/// `rule:types/class-reference-sites`: `new static()` is the same dynamic
+/// `new`. Called on its `abstract` class it throws, and called on a subclass it
+/// builds the subclass.
+#[test]
+fn new_static_refuses_an_abstract_class() {
+    let source = "<?nvs
+abstract class Shape {
+    public static function make(): Shape { return new static(); }
+    public function name(): string { return 'shape'; }
+}
+class Square extends Shape {
+    public function name(): string { return 'square'; }
+}
+try {
+    Shape $s = Shape::make();
+    echo 'built ', $s->name(), \"\\n\";
+} catch (LogicError $e) {
+    echo $e->message, \"\\n\";
+}
+echo Square::make()->name();
+";
+    assert_eq!(
+        output_of(source),
+        "`Shape` is `abstract` or an interface, so it has no instances, so it cannot be \
+         constructed\nsquare"
+    );
+}
+
 /// `rule:core-classes/reflect`'s method half, at the layer that carries it: a
 /// parameter's *name* is spelled where the declaration is and reaches the
 /// runtime descriptor, because `nvs_runtime::MethodRow`'s other two parameter

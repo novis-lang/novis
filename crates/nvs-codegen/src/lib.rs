@@ -1631,10 +1631,27 @@ impl Classes {
 
     /// Fills [`Self::conforming`] from every class's `conforms`, each list
     /// sorted by label for [`Self::conforming_to`]'s reason.
+    ///
+    /// A class `construct` refuses because of its kind is left out: a class
+    /// the compiler made, such as a generator's state class or an anonymous
+    /// object's. So a run-time string converts to no class reference of one,
+    /// and the conversion throws as it does for an unknown name
+    /// (`rule:types/class-reference`). An `abstract` class and an interface
+    /// stay, because a static call through such a reference is legal.
+    /// **What it spends:** nothing at run time; the set is built here.
     fn index_conforming(&mut self) {
         let mut conforming: FxHashMap<String, Vec<(String, *const nvs_runtime::ClassDesc)>> =
             FxHashMap::default();
         for (label, entry) in &self.by_label {
+            let refused_by_kind = self
+                .ids
+                .get(label)
+                .and_then(|id| self.table.desc_by_id(*id))
+                .and_then(|desc| desc.refusal(nvs_runtime::Door::Construct))
+                .is_some_and(|refusal| matches!(refusal, nvs_runtime::Refusal::Kind(_)));
+            if refused_by_kind {
+                continue;
+            }
             for base in std::iter::once(label).chain(&entry.conforms) {
                 conforming
                     .entry(base.clone())

@@ -3717,6 +3717,14 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::object::nvs_object_new as *const ()).cast::<u8>(),
         ),
         (
+            "nvs_object_new_dynamic",
+            (crate::object::nvs_object_new_dynamic as *const ()).cast::<u8>(),
+        ),
+        (
+            "nvs_object_new_refused",
+            (crate::object::nvs_object_new_refused as *const ()).cast::<u8>(),
+        ),
+        (
             "nvs_object_clone",
             (crate::object::nvs_object_clone as *const ()).cast::<u8>(),
         ),

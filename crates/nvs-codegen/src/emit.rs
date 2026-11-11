@@ -3290,6 +3290,12 @@ impl Emitter<'_, '_> {
     ///
     /// The descriptor address is a relocation against a named symbol: see
     /// [`crate::Classes`] for why it is not the immediate a JIT could bake in.
+    ///
+    /// `dynamic` is set for `nvs_ir::ir::InstKind::NewDynamic`, whose class is
+    /// a run-time value. It allocates through
+    /// [`Self::emit_new_dynamic_alloc`], which throws for a class with no
+    /// instances. A `new` of a class written by name keeps `nvs_object_new`,
+    /// because the checker already refused such a class there.
     fn emit_new(
         &mut self,
         cur: Block,
@@ -3299,9 +3305,13 @@ impl Emitter<'_, '_> {
         dynamic: bool,
         args: &[ValueId],
     ) -> Result<Block, CodegenError> {
-        let callee = self.runtime_ref("nvs_object_new", RuntimeSig::PtrToPtr)?;
-        let call = self.b.ins().call(callee, &[desc]);
-        let object = self.b.inst_results(call)[0];
+        let (object, cur) = if dynamic {
+            self.emit_new_dynamic_alloc(inst, desc)?
+        } else {
+            let callee = self.runtime_ref("nvs_object_new", RuntimeSig::PtrToPtr)?;
+            let call = self.b.ins().call(callee, &[desc]);
+            (self.b.inst_results(call)[0], cur)
+        };
         self.define(inst, object)?;
 
         let Some(ctor) = ctor else {
@@ -3331,6 +3341,54 @@ impl Emitter<'_, '_> {
             Some(object),
         )?;
         Ok(cont)
+    }
+
+    /// The allocation of a `new` whose class is known only at run time:
+    /// `new $c()` over a `class<T>`, and `new static()`
+    /// (`rule:types/class-reference-sites`).
+    ///
+    /// `nvs_runtime::nvs_object_new_dynamic` returns null and allocates
+    /// nothing for a class with no instances. The null takes a cold block that
+    /// calls `nvs_runtime::nvs_object_new_refused` and jumps to the
+    /// instruction's landing block with the `LogicError` it threw. So a class
+    /// reference never builds an `abstract` class or an interface, and the
+    /// program can catch the error. Returns the object and the block emission
+    /// continues in. **What it spends:** one byte load and one branch.
+    fn emit_new_dynamic_alloc(
+        &mut self,
+        inst: &Inst,
+        desc: Value,
+    ) -> Result<(Value, Block), CodegenError> {
+        let Some(landing) = inst.on_error else {
+            return Err(internal("a dynamic `new` with no error edge"));
+        };
+        let landing = self.block(landing)?;
+        let callee = self.runtime_ref("nvs_object_new_dynamic", RuntimeSig::PtrToPtr)?;
+        let call = self.b.ins().call(callee, &[desc]);
+        let object = self.b.inst_results(call)[0];
+
+        let refused = self.b.create_block();
+        self.b.set_cold_block(refused);
+        let cont = self.b.create_block();
+        self.b.ins().brif(object, cont, &[], refused, &[]);
+
+        self.b.switch_to_block(refused);
+        let slot = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            (2 * VALUE_SIZE).cast_unsigned(),
+            VALUE_ALIGN_SHIFT,
+        ));
+        let args_p = self.b.ins().stack_addr(types::I64, slot, 0);
+        self.store_value(args_p, 0, desc, Ty::ClassDesc)?;
+        let out_p = self.b.ins().stack_addr(types::I64, slot, VALUE_SIZE);
+        let throw = self.runtime_ref("nvs_object_new_refused", RuntimeSig::Helper)?;
+        let call = self.b.ins().call(throw, &[self.ctx_p, args_p, out_p]);
+        let status = self.b.inst_results(call)[0];
+        let args = [codegen::ir::BlockArg::Value(status)];
+        self.b.ins().jump(landing, &args);
+
+        self.b.switch_to_block(cont);
+        Ok((object, cont))
     }
 
     /// [`nvs_ir::ir::InstKind::ClassDescIn`] — `rule:types/class-reference`'s checked rows

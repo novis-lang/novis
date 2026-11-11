@@ -3196,6 +3196,13 @@ impl ClassTable {
         self.classes.get(id.0).map(Box::as_ref)
     }
 
+    /// The descriptor for `id`, as a borrow — [`Self::desc_of`] without the
+    /// name lookup. `None` when `id` belongs to another table.
+    #[must_use]
+    pub fn desc_by_id(&self, id: ClassId) -> Option<&ClassDesc> {
+        self.classes.get(id.0).map(Box::as_ref)
+    }
+
     /// The descriptor pointer for `id` — the token compiled code holds.
     ///
     /// Stays valid for as long as this table is alive and not dropped.
@@ -4872,6 +4879,64 @@ pub unsafe extern "C" fn nvs_object_new(class: *const ClassDesc) -> *mut ObjHead
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
     unsafe {
         NvsObj::new(class).into_raw()
+    }
+}
+
+/// [`nvs_object_new`] for a `new` whose class is known only at run time:
+/// `new $c()` over a `class<T>`, and `new static()`. It returns null and
+/// allocates nothing when the class has no instances, an `abstract` class or
+/// an interface. Compiled code branches on the null to
+/// [`nvs_object_new_refused`], which throws (`rule:types/class-reference-sites`).
+///
+/// A `new` of a class written by name keeps [`nvs_object_new`], because the
+/// checker already refused such a class there.
+///
+/// **What it spends:** one byte load and one branch per such `new`.
+///
+/// # Safety
+///
+/// `class` must refer to a descriptor that stays live for at least as long as
+/// the object.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes a descriptor pointer whose liveness the \
+              signature cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_object_new_dynamic(class: *const ClassDesc) -> *mut ObjHeader {
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    if unsafe { &*class }.has_no_instances() {
+        return std::ptr::null_mut();
+    }
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    unsafe {
+        NvsObj::new(class).into_raw()
+    }
+}
+
+crate::nvs_helper! {
+    /// The throw of a `new` whose class is known only at run time and has no
+    /// instances, reached when [`nvs_object_new_dynamic`] returns null.
+    /// `args[0]` is the descriptor, and this always returns an error: a
+    /// `LogicError` with `construct`'s sentence for such a class.
+    fn nvs_object_new_refused(_ctx, args: [1]) {
+        let name = match args[0].as_class_desc().filter(|desc| !desc.is_null()) {
+            #[expect(unsafe_code, reason = "a descriptor compiled code holds is live")]
+            Some(desc) => unsafe { &*desc }.name().to_owned(),
+            None => "?".to_owned(),
+        };
+        Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!("{}, so it cannot be constructed", no_instances_sentence(&name)),
+        ))
     }
 }
 
