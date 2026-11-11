@@ -6,11 +6,11 @@ context: [crates/nvs-runtime/src/graph.rs, docs/rules/classes/graph-copy.md, doc
 stages:
   - id: 1
     title: decode refuses what encode refuses
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/object.rs, crates/nvs-stdlib/src/serialize.rs, crates/nvs-stdlib/src/instance.rs, docs/rules/classes/serialize-is-a-closed-format.md, tests/hostile/README.md]
   - id: 2
     title: "a class is made by name only if the program declares it and `new` could make it"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/dispatch.rs, crates/nvs-runtime/src/object.rs, crates/nvs-stdlib/src/reflect.rs, crates/nvs-stdlib/src/instance.rs, crates/nvs-types/src/layout.rs, docs/rules/security/reflection-enforces-visibility.md, docs/rules/core-classes/reflect.md]
   - id: 3
     title: "a class reference builds only a class `new` could make"
@@ -488,11 +488,11 @@ any object is made.
   walks the process's `Core` descriptors, not a list in the test. For each one the function refuses,
   a payload with the class's own slot names is refused with that sentence
   (`crates/nvs-stdlib/src/instance.rs:544`, `crates/nvs-stdlib/src/instance.rs:143`).
-- [ ] `.nvst` case `serialize-decode-refuses-a-class-the-compiler-made`. The program builds `bytes`
+- [x] `.nvst` case `serialize-decode-refuses-a-class-the-compiler-made`. The program builds `bytes`
   that name its own generator's state class, its own closure's class and `Core\IO\File`. Each
   `decode` throws a `ParseError`
   (`tests/conformance/core/serialize-decode-refuses-a-class-the-compiler-made.nvst:1`).
-- [ ] Attack `02-bytes-that-name-a-class-encode-refuses.nvs`. Its payloads name a generator's state
+- [x] Attack `02-bytes-that-name-a-class-encode-refuses.nvs`. Its payloads name a generator's state
   class with a wrong-kind slot, a host-handle class with a chosen key, and a callable's class. Every
   step should throw (`rule:testing/feature-proofs`,
   `tests/hostile/core/Serialize/decode/02-bytes-that-name-a-class-encode-refuses.nvs:1`).
@@ -515,79 +515,79 @@ any object is made.
 **Split:** once the Rust change builds, one writing subagent writes the attack, the `.nvst` case
 and the `about.md` sentence. Its files are disjoint from the session's, and it does not build.
 
-- [ ] `ClassDesc` gains two flags beside `is_callable`: a `Core` class, and a class with no
+- [x] `ClassDesc` gains two flags beside `is_callable`: a `Core` class, and a class with no
   instances. Each has a setter on `set_host_handle`'s terms (`rule:classes/graph-copy`,
   `crates/nvs-runtime/src/object.rs:629`, `crates/nvs-runtime/src/object.rs:2226`,
   `crates/nvs-runtime/src/object.rs:2282`).
-- [ ] The question moves onto `ClassDesc` as one public function. It takes the door, a copy boundary
+- [x] The question moves onto `ClassDesc` as one public function. It takes the door, a copy boundary
   or `construct`, and returns the reason for a refusal. Its body is the table in *Standing
   decisions*, one arm per row. `refusable` calls it for the copy doors, keeps its sentences and gains
   the refusal of a class with no instances (`rule:classes/graph-copy`,
   `crates/nvs-runtime/src/object.rs:1495`, `crates/nvs-runtime/src/graph.rs:444`).
-- [ ] `nvs_stdlib::instance` marks every descriptor it defines as a `Core` class
+- [x] `nvs_stdlib::instance` marks every descriptor it defines as a `Core` class
   (`rule:core-classes/reflect`, `crates/nvs-stdlib/src/instance.rs:584`,
   `crates/nvs-stdlib/src/instance.rs:639`).
-- [ ] `ClassLayout` gains the no-instances bit, read from `ClassLinks::concrete`. The error tree's
+- [x] `ClassLayout` gains the no-instances bit, read from `ClassLinks::concrete`. The error tree's
   classes have instances, and the compiler's own interfaces have none
   (`rule:security/reflection-enforces-visibility`, `crates/nvs-types/src/layout.rs:72`,
   `crates/nvs-types/src/layout.rs:441`, `crates/nvs-types/src/layout.rs:492`,
   `crates/nvs-types/src/layout.rs:555`, `crates/nvs-hir/src/hierarchy.rs:218`).
-- [ ] `ir::Class` carries the bit, and each of its eight literals states it. The layout copy copies
+- [x] `ir::Class` carries the bit, and each of its eight literals states it. The layout copy copies
   it, and the seven compiler-made classes say they have instances (`crates/nvs-ir/src/ir.rs:534`,
   `crates/nvs-ir/src/lower/mod.rs:1091`, `crates/nvs-ir/src/lower/mod.rs:1180`,
   `crates/nvs-ir/src/lower/mod.rs:1213`, `crates/nvs-ir/src/lower/mod.rs:2736`,
   `crates/nvs-ir/src/lower/mod.rs:4836`, `crates/nvs-ir/src/lower/anon_fn.rs:302`,
   `crates/nvs-ir/src/lower/anon_fn.rs:1127`, `crates/nvs-ir/src/lower/generator.rs:524`).
-- [ ] `nvs-codegen` hands the bit to its setter where it hands `is_callable` to `set_callable`
+- [x] `nvs-codegen` hands the bit to its setter where it hands `is_callable` to `set_callable`
   (`crates/nvs-codegen/src/lib.rs:1777`).
-- [ ] `construct_erased_from` asks the question before `NvsObj::new` and returns a thrown
+- [x] `construct_erased_from` asks the question before `NvsObj::new` and returns a thrown
   `LogicError` with the sentences of *Standing decisions*. Its doc comment is rewritten, because the
   allocation now follows the check (`rule:security/reflection-enforces-visibility`,
   `crates/nvs-runtime/src/dispatch.rs:505`, `crates/nvs-runtime/src/dispatch.rs:514`,
   `crates/nvs-runtime/src/dispatch.rs:484`).
-- [ ] `Reflect::forClass` returns `null` when the question refuses the class because of its kind,
+- [x] `Reflect::forClass` returns `null` when the question refuses the class because of its kind,
   and still describes a class with no instances. Its doc comment and `construct`'s are rewritten to
   say what is now true (`rule:core-classes/reflect`, `crates/nvs-stdlib/src/reflect.rs:2168`,
   `crates/nvs-stdlib/src/reflect.rs:2159`, `crates/nvs-stdlib/src/reflect.rs:3092`).
-- [ ] Test `every_class_kind_gets_the_tables_answer_at_each_door` in `object.rs` tests. One class
+- [x] Test `every_class_kind_gets_the_tables_answer_at_each_door` in `object.rs` tests. One class
   table holds a class of every row. The test asks each door and compares the answer with the row
   (`crates/nvs-runtime/src/object.rs:6266`).
-- [ ] Test `construct_refuses_a_class_new_could_not_make_and_allocates_nothing` in `reflect.rs`
+- [x] Test `construct_refuses_a_class_new_could_not_make_and_allocates_nothing` in `reflect.rs`
   tests. For a class of each refused row, `construct` throws a `LogicError` that names the class,
   and the context's memory balance is what it was before the call. A plain class and `LogicError`
   are still built. `forObject` of an instance of a refused class describes it, and `construct` on
   that description throws (`crates/nvs-stdlib/src/reflect.rs:3380`).
-- [ ] Test `for_class_is_null_for_a_core_class_and_a_class_the_compiler_made`:
+- [x] Test `for_class_is_null_for_a_core_class_and_a_class_the_compiler_made`:
   `Core\Http\TlsInfo`, a `$gen`, a `$fn0`, `$callable` and a `$shape{n}` name give `null`. An
   `abstract` class, an interface and a `Core\Db\DbError` of the program's own table are described
   (`crates/nvs-stdlib/src/reflect.rs:3914`).
-- [ ] Test `every_core_descriptor_is_refused_by_construct` in `instance.rs` tests. It walks the
+- [x] Test `every_core_descriptor_is_refused_by_construct` in `instance.rs` tests. It walks the
   process's `Core` descriptors, not a list in the test, and `construct_erased_from` refuses each
   (`crates/nvs-stdlib/src/instance.rs:1237`, `crates/nvs-stdlib/src/instance.rs:544`).
-- [ ] Test `an_abstract_class_and_an_interface_are_laid_out_with_no_instances` in `layout.rs`
+- [x] Test `an_abstract_class_and_an_interface_are_laid_out_with_no_instances` in `layout.rs`
   tests. An `abstract` class, an interface and `Stringable` have none. A plain class, a subclass of
   the `abstract` one and `LogicError` have instances (`crates/nvs-types/src/layout.rs:1194`).
-- [ ] Test `a_compiled_unit_says_which_classes_new_could_not_make` in the `objects` integration
+- [x] Test `a_compiled_unit_says_which_classes_new_could_not_make` in the `objects` integration
   test. It compiles a unit with an `abstract` class, an interface, a generator and a function value,
   and reads each descriptor's answer for `construct` (`crates/nvs-codegen/tests/objects.rs:344`).
-- [ ] `.nvst` case `reflect-construct-refuses-a-class-new-could-not-make`. The program asks
+- [x] `.nvst` case `reflect-construct-refuses-a-class-new-could-not-make`. The program asks
   `forClass` and `construct` for its own generator's class, its own function value's class, an
   anonymous object's class, `Core\Http\TlsInfo`, an `abstract` class and an interface. It prints
   `null` or the caught `LogicError` for each, and it builds a plain class and a `LogicError`
   (`tests/conformance/core/reflect-construct-refuses-a-class-new-could-not-make.nvst:1`).
-- [ ] Attack `03-classes-a-program-cannot-make.nvs`. It builds its own generator's class by name
+- [x] Attack `03-classes-a-program-cannot-make.nvs`. It builds its own generator's class by name
   and iterates the result, builds its own function value's class and calls it, builds
   `Core\Http\TlsInfo` and the class of a `Core\Uri` it holds and calls a method of each, and builds
   an `abstract` class and an interface. Every step should give `null` or throw. The goal
   `calls-by-name-are-checked` owns `02` in this folder (`rule:testing/feature-proofs`,
   `tests/hostile/core/Reflect-ClassInfo/construct/03-classes-a-program-cannot-make.nvs:1`).
-- [ ] `rule:classes/graph-copy` holds the table with its four columns and says the function takes
+- [x] `rule:classes/graph-copy` holds the table with its four columns and says the function takes
   the door. `rule:security/reflection-enforces-visibility` says `construct` makes only a class the
   program declares and `new` could make, with the cost line and the declined choices.
   `rule:core-classes/reflect` says which names `forClass` returns `null` for and that `forObject`
   describes any object (`docs/rules/classes/graph-copy.md:7`,
   `docs/rules/security/reflection-enforces-visibility.md:8`, `docs/rules/core-classes/reflect.md:9`).
-- [ ] The `construct` card's `LogicError` row and the `construct` `about.md` say, in one plain
+- [x] The `construct` card's `LogicError` row and the `construct` `about.md` say, in one plain
   sentence each, that an `abstract` class, an interface and a class of `Core` cannot be created
   this way (`crates/nvs-stdlib/src/reflect.rs:1057`,
   `docs/examples/core/Reflect-ClassInfo/construct/about.md:7`).
@@ -886,46 +886,37 @@ memory cache uses.
 
 ### State
 
-Stage 1 is built except its `.nvst` case and its attack. `ClassDesc::is_compiler_made` is a `$` in the
-name and not `$shape{`, set in `ClassTable::push_class`. `refusable` in `graph.rs` refuses a
-callable's class, a generator's state class, a host-handle class, a compiler-made class and a class
-with a `secret` property (naming the first one). The walk's own `secret` loop is gone, and
-`Reader::object` asks `refusable` right after the class resolves, before the property comparison. The
-four acceptance tests of `decode-refuses-what-encode-refuses` pass when run by name. The fuzz table,
-both rule fragments, the `decode` card, its `about.md` and the reference page say so.
+Stages 1 and 2 are done, and their three acceptance checks are green.
 
-The sweep's `env-secret-proofs` red is stale: the check was retired with `derive-wider-types` and no
-longer exists. Nightly run 43001191130 ran at f4c1d5c7e2. Its one red on all four runners,
-`live_config`'s `a_changed_server_timeout_applies_to_the_next_connection`, was fixed by 305c04f660, and
-it passes on this tree.
+`ClassDesc::refusal(Door)` in `crates/nvs-runtime/src/object.rs` is the one question. `Door::Copy`
+refuses a callable, a generator, a host handle, a compiler-made class, a class with no instances and
+a class with a `secret` property. `Door::Construct` refuses a `Core` class, every compiler-made class,
+a shape (`Refusal::Kind`) and a class with no instances (`Refusal::NoInstances`). `refusable` in
+`graph.rs` is now a one-line caller of `Door::Copy`, and `GENERATOR_REFUSAL` moved into `object.rs`.
+The two new bits are `is_core` (set in `nvs_stdlib::instance`'s descriptor loop) and `no_instances`
+(from `ClassLinks::concrete`, through `ClassLayout::no_instances`, `ir::Class::no_instances` and
+`ClassTable::set_no_instances` in codegen). `construct_erased_from` asks before it allocates.
+`forClass` returns `null` on `Refusal::Kind`. The `.nvst` cases, both attacks, the three rule
+fragments, the `construct` card and `about.md` say so.
 
-Still true from the goal's start: `Core\Topic::publish` copies with no receiving table, and the topic
-table is keyed by the bare name. `spawn script` refuses a `Core` value in `args:`.
-`ClassInfo::construct` builds any class its name resolves to. `new $c()` and `new static()` build an
-`abstract` class. `decode` builds a `Core` class with a value of any type in its slots.
+The `$callable` markers carry `no_instances: true`, since nothing is an instance of them. They are
+refused by kind first. `website/public/llms-full.txt` still has the old `construct` card text.
 
-No test is expected to go red. One to watch at the gate: a test that sends a `$`-named class other
-than a shape across `spawn`, the cache or `Core\Serialize` is now refused.
+Still true: `Core\Topic::publish` copies with no receiving table and keys by the bare name, `spawn
+script` refuses a `Core` value in `args:`, `new $c()` builds an `abstract` class, and `decode` does
+not check a `Core` class's slots.
+
+No test is expected to go red. To watch at the gate: a test that sends a `$`-named class other than a
+shape across `spawn`, the cache or `Core\Serialize`, and a test that builds a `Core` class, an
+`abstract` class or an interface through `construct_erased_from` (the router's handler, the test
+fixtures in `crates/nvs-runtime/src/dispatch.rs`), are now refused.
 
 ### Next
 
-Finish stage 1, then set its status to done and take stage 2.
-
-- [ ] `tests/conformance/core/serialize-decode-refuses-a-class-the-compiler-made.nvst:1`: the program
-  builds `bytes` that name its own generator's state class (`{fn}$gen`), its own closure's class and
-  `Core\IO\File`, and each `decode` throws a `ParseError`. The format is `NVS\x1b`, version byte `1`,
-  node byte `9`, the class name as a LEB128 length and the bytes, the property count, each property
-  name the same way, then one node per property (`0` is `null`). `payload_naming` in the graph tests
-  writes exactly this (`crates/nvs-runtime/src/graph.rs:1293`). The plain way to get a closure's or a
-  generator's label is to read it from the `ParseError` of `encode` on one, or from
-  `nvs_ir::lower::generator` (`{name}$gen`). Write the bytes as `Core\Taint::assertTrustedBytes` over
-  a literal the case builds, as `decode`'s existing cases do.
-- [ ] `tests/hostile/core/Serialize/decode/02-bytes-that-name-a-class-encode-refuses.nvs:1`: payloads
-  naming a generator's state class with a wrong-kind slot, a host-handle class (`Core\IO\File`) with a
-  chosen key, and a callable's class. Every step should throw. Its comments follow AGENTS.md § *Text an
-  end user reads* (`// Attack:` top line), and `bun nv proofs --comments <path>` checks the bounds.
-- [ ] Then stage 2 from its first item (`crates/nvs-runtime/src/object.rs:1452` for the flags,
-  `crates/nvs-runtime/src/graph.rs:444` for the function that moves onto `ClassDesc`).
+Take stage 3 from its first item. It asks the `no_instances` bit stage 2 added
+(`ClassDesc::has_no_instances`, `crates/nvs-runtime/src/object.rs`) at the allocation of a `new`
+whose class is known only at run time, beside `nvs_object_new`, and leaves every kind-refused class
+out of `index_conforming` (`crates/nvs-codegen/src/lib.rs`).
 
 ### Backlog
 
