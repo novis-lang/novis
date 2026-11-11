@@ -383,11 +383,19 @@ const RECEIVE_DOC: MethodDoc = MethodDoc {
           `while (var $msg = $sse->receive())` loop. A message has the published value and the \
           name of its topic. A stream that falls too far behind also gets `null`. Its queue is \
           full, so the stream is closed and publishers do not wait for it.",
-    errors: &[ErrorDoc {
-        error: "LogicError",
-        desc: "This stream was opened by `stream`, not by `upgrade`. It ends with the request, so \
-               no published value can reach it, and there is nothing to wait for.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This stream was opened by `stream`, not by `upgrade`. It ends with the \
+                   request, so no published value can reach it, and there is nothing to wait for.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "A published object has a class that this program does not declare, or its \
+                   properties do not match that class. The error names the topic and the class. \
+                   The message is removed, so the next call returns the next message.",
+        },
+    ],
 };
 
 /// `Core\Sse->send`'s reference card — `rule:core-api/reference-card`.

@@ -457,6 +457,12 @@ const RECEIVE_DOC: MethodDoc = MethodDoc {
             desc: "The script is not running for a connection, so there is no client to wait for.",
         },
         ErrorDoc {
+            error: "ParseError",
+            desc: "A published object has a class that this program does not declare, or its \
+                   properties do not match that class. The error names the topic and the class. \
+                   The message is removed, so the next call returns the next message.",
+        },
+        ErrorDoc {
             error: "RuntimeError",
             desc: "The connection broke, or the client sent something the WebSocket protocol does \
                    not allow.",

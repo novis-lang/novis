@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-host/src/isolate.rs, crates/nvs-host/src/placed.rs, crates/nvs-runtime/src/ctx/error.rs, crates/nvs-runtime/src/dispatch.rs]
   - id: 7
     title: "a published value reaches each subscriber as bytes it decodes into its own classes"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/topic.rs, crates/nvs-stdlib/src/bus.rs, crates/nvs-runtime/src/peer.rs, crates/nvs-stdlib/src/socket.rs, crates/nvs-stdlib/src/sse.rs, docs/rules/core-classes/topic.md]
   - id: 8
     title: a topic name belongs to one application
@@ -840,18 +840,19 @@ subscriber's own `receive()`.
 - [x] Test `a_publish_encodes_once_however_many_subscribed`: a counter in the test reads the same
   number of encodes and payload allocations for two subscribers and for eight
   (`crates/nvs-stdlib/src/topic.rs:870`).
-- [ ] Attack `03-an-object-a-generator-and-an-open-file.nvs`, with its `.nvsp`. A connection joins a
-  topic and publishes an object of its own class, a generator, a closure and an open file. The
-  object should arrive as its own class and the other three should throw
+- [x] Attack `03-an-object-a-generator-and-an-open-connection.nvs`, with its `.nvsp`. A connection
+  joins a topic and publishes an object of its own class, a generator, a closure and its own open
+  connection. The object should arrive as its own class and the other three should throw. A
+  connection isolate has no `fs.write` grant, so the host handle is the connection, not a file
   (`rule:testing/feature-proofs`,
-  `tests/hostile/core/Topic/publish/03-an-object-a-generator-and-an-open-file.nvs:1`).
+  `tests/hostile/core/Topic/publish/03-an-object-a-generator-and-an-open-connection.nvs:1`).
 - [x] The module docs of `topic.rs` and `bus.rs` are rewritten for one carrier
   (`crates/nvs-stdlib/src/topic.rs:123`, `crates/nvs-stdlib/src/topic.rs:142`,
   `crates/nvs-stdlib/src/bus.rs:1`).
 - [x] `rule:core-classes/topic` says a value is encoded once, each subscriber decodes it into its own
   classes, and what a subscriber that cannot gets, with the cost line
   (`docs/rules/core-classes/topic.md:4`).
-- [ ] The `publish` card and its `about.md` say an object arrives as the subscriber's class of the
+- [x] The `publish` card and its `about.md` say an object arrives as the subscriber's class of the
   same name. The `receive` cards of both doors name the `ParseError`
   (`crates/nvs-stdlib/src/topic.rs:352`, `docs/examples/core/Topic/publish/about.md:1`,
   `crates/nvs-stdlib/src/socket.rs:1190`, `crates/nvs-stdlib/src/sse.rs:841`).

@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a script publishes an object, a generator, a function and its own open connection.
+// The object should arrive as a `Note`, and the other three should throw an error.
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe('room:lobby');
+
+class Note
+{
+    public string $text = 'hello';
+}
+
+class Counter
+{
+    public static function upTo(uint $count): Iterator<uint>
+    {
+        uint $i = 0;
+        while ($i < $count) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+// 1. Publish an object of a class this script declares. It arrives as a `Note`.
+Core\Topic::publish('room:lobby', new Note());
+?Core\Socket\Message $message = $conn->receive();
+if ($message != null && $message->value() is Note) {
+    echo "note arrived\n";
+}
+
+// 2. Publish a generator. This throws a `LogicError`.
+try {
+    Core\Topic::publish('room:lobby', Counter::upTo(3));
+} catch (LogicError $generatorError) {
+    echo "generator refused\n";
+}
+
+// 3. Publish a function. This throws a `LogicError`.
+try {
+    Core\Topic::publish('room:lobby', fn() => 1);
+} catch (LogicError $functionError) {
+    echo "function refused\n";
+}
+
+// 4. Publish this open connection. This throws a `LogicError`.
+try {
+    Core\Topic::publish('room:lobby', $conn);
+} catch (LogicError $connectionError) {
+    echo "connection refused\n";
+}
