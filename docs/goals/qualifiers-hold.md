@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-types/src/expr/calls.rs, crates/nvs-stdlib/src/reflect.rs, docs/rules/types/callable-signature.md, docs/rules/types/erased-member-access.md, docs/rules/security/sink-predicate.md]
   - id: 4
     title: "the run time keeps a secret out of an erased read and out of a failed conversion's message"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/helpers.rs, docs/rules/security/secret-sinks-refuse.md, docs/rules/types/conversion.md]
   - id: 5
     title: "every key position checks the qualifier, and the member table says which members make keys"
@@ -386,22 +386,22 @@ failed conversion's message.
 each. The first is every run-time message that includes a conversion operand's text. The second is
 where `Core\Serialize::encode` reads a property's `secret` bit.
 
-- [ ] `read_erased_property` throws a `LogicError` for a property whose `secret` bit is set, and the
+- [x] `read_erased_property` throws a `LogicError` for a property whose `secret` bit is set, and the
   shape field walk and `ClassInfo::get` read through it (`rule:security/secret-sinks-refuse`,
   `crates/nvs-runtime/src/object.rs:5244`, `crates/nvs-stdlib/src/reflect.rs:2903`).
-- [ ] `ClassInfo::call` and an erased method call throw when the method's declared return carries
+- [x] `ClassInfo::call` and an erased method call throw when the method's declared return carries
   `secret` (`rule:security/secret-sinks-refuse`, `crates/nvs-stdlib/src/reflect.rs:3044`).
-- [ ] `does_not_fit` and its callers name a text operand by type and length only, and every site the
+- [x] `does_not_fit` and its callers name a text operand by type and length only, and every site the
   subagent listed does the same (`rule:types/conversion`, `crates/nvs-runtime/src/helpers.rs:1540`,
   `crates/nvs-runtime/src/helpers.rs:1552`, `crates/nvs-runtime/src/helpers.rs:1971`,
   `crates/nvs-ir/src/lower/convert.rs:1208`).
-- [ ] Every frozen output that quotes a text operand is updated, and the commit says why
+- [x] Every frozen output that quotes a text operand is updated, and the commit says why
   (`crates/nvs-codegen/tests/callables.rs:201`).
-- [ ] Tests `an_erased_read_of_a_secret_property_throws`,
+- [x] Tests `an_erased_read_of_a_secret_property_throws`,
   `a_reflective_read_or_call_never_returns_a_secret_as_plain_text` and
   `a_failed_conversion_never_quotes_a_text_operand`. Each runs a program and reads its output and its
   error message (`crates/nvs-codegen/tests/qualifiers_at_run_time.rs:1`).
-- [ ] `rule:types/conversion` and `rule:security/secret-sinks-refuse` state the message rule and the
+- [x] `rule:types/conversion` and `rule:security/secret-sinks-refuse` state the message rule and the
   erased read, each with its cost line (`docs/rules/types/conversion.md:1`,
   `docs/rules/security/secret-sinks-refuse.md:1`).
 
@@ -501,47 +501,44 @@ disjoint folders side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done, and their checks are green. Stage 3 added `E0895`
-(`E_QUALIFIED_VALUE_WITHOUT_PARAMETER_TYPE`) and one function,
-`reject_qualified_untyped_value` with its `UntypedTarget` (`crates/nvs-types/src/expr/quals.rs:1281`).
-It refuses a value that is `carries_qualifier` or `carries_unchecked` at: a bare `callable` call and a
-`mixed` callee (`expr/mod.rs`), a method call on a `mixed` receiver
-(`report_args_with_no_parameter_list`), a spread into a written signature or a self-name unless every
-parameter takes the element (`reject_qualified_spreads`, `calls.rs:2413`), an erased property write
-(`assign.rs:1083`), and a `Core` parameter marked `CoreTy::Dispatched` (`ParamText::Dispatched`):
-`ClassInfo::set`'s `$value` and the `$arguments` of `call` and `construct`. An array literal there is
-judged element by element (`Env::dispatched_literal`). Every `Core\Reflect` name parameter on a member
-that returns anything but `bool` is `Qual::Sink`. The sweep's reds were stale: nightly `43001191130`
-built `f4c1d5c7e2`, older than the fix `305c04f660`, and no file defines `env-secret-proofs`.
+Stages 1 to 4 are done and green. Stage 4: an erased read of a `secret` slot throws
+(`read_erased_property_hinted`), and an erased or reflective call of a method on
+`ClassDesc::secret_returns` throws (`call_erased_unchecked`). The list flows from
+`record_secret_returns` (`nvs-types/src/check.rs`) through `ir::Class::secret_returns`. The slot bit
+now uses `type_contains_secret`, so `?secret string` counts. A failed conversion names text as "a
+`string` of N bytes" (`text_operand`), and `class<T>` as "a `string`". The JSON and row decoders share
+`rendered_operand`. The 64-character case is renamed `a-failed-conversion-message-names-a-text-operand-by-its-length.nvst`.
 
-Expected red at the gate: any `.nvst` case, example or test that converts a `secret` value to a
-number, a bool, an enum or a class, or that narrows a `tainted` value with `is` and then passes it to
-a plain `string` sink. From stage 2 also: any program that puts a `secret` value into a parameter,
-property, variable or `array<mixed>` the program declares `mixed`, and any test that expects
-`$secret as mixed` to be `E0894` (it now compiles as `secret mixed`). From stage 3: any program that
-passes a `tainted`, `secret` or `mixed` value through a bare `callable`, a `mixed` receiver's method
-call, an erased property write, or `ClassInfo::set`, `call` or `construct`, and any program that
-passes request text to a `Core\Reflect` name parameter. Stage 7 updates them.
+Expected red at the gate. Stage 1: converting a `secret` to a number, bool, enum or class; narrowing
+`tainted` with `is` into a plain sink. Stage 2: a `secret` into a declared `mixed`; tests expecting
+`$secret as mixed` to be `E0894`. Stage 3: qualified or `mixed` values through a bare `callable`, a
+`mixed` receiver, an erased write, `ClassInfo::set`/`call`/`construct`, or a `Core\Reflect` name.
+Stage 4: any output the grep missed that quotes a conversion's string operand; any read of a
+`secret` property through `mixed`, `object`, a shape or `ClassInfo::get`; a dump or encoder test that
+showed a `?secret string`. `website/public/llms-full.txt` and `docs/reference/` were edited by hand.
+`bun nv proofs --record-perf` was not run. Stage 7 updates the programs.
 
 ### Next
 
-Stage 4, over `crates/nvs-runtime/src/object.rs`, `crates/nvs-runtime/src/helpers.rs`,
-`crates/nvs-stdlib/src/reflect.rs`, `crates/nvs-ir/src/lower/convert.rs` and a new
-`crates/nvs-codegen/tests/qualifiers_at_run_time.rs`. Follow the stage's `**Split:**` line first.
+Stage 5, over `quals.rs`, `literals.rs`, `registry.rs` and `qualifiers_hold.rs`.
 
-- [ ] `crates/nvs-runtime/src/object.rs:6041`: `read_erased_property` and its `_owned` and `_hinted`
-  twins (`:6068`, `:6182`) throw a `LogicError` for a property whose `secret` bit is set.
-- [ ] `crates/nvs-stdlib/src/reflect.rs:2926`, `crates/nvs-stdlib/src/reflect.rs:3067`: `ClassInfo::get`
-  reads through it, and `call` throws for a method whose declared return carries `secret`.
-- [ ] `crates/nvs-runtime/src/helpers.rs:1539`: `does_not_fit` and its callers name a text operand by
-  type and length only, and so does every site the subagent lists.
-- [ ] `crates/nvs-codegen/tests/callables.rs:201`: the stage's three tests go in a new
-  `crates/nvs-codegen/tests/qualifiers_at_run_time.rs`, which runs programs as this file does.
-- [ ] `docs/rules/types/conversion.md:1`, `docs/rules/security/secret-sinks-refuse.md:1`: the message
-  rule and the erased read, each with its cost line.
+- [ ] `crates/nvs-types/src/expr/quals.rs:277`: one key function replaces `reject_tainted_key_write`
+  at its callers (`crates/nvs-types/src/expr/literals.rs:1202`, `crates/nvs-types/src/expr/literals.rs:1382`,
+  `crates/nvs-types/src/expr/mod.rs:818`).
+- [ ] `crates/nvs-diagnostics/src/code/types_e08.rs:435`: the same function refuses a key containing
+  `secret` in every array, with a new code whose card sits beside `E0824`.
+- [ ] `crates/nvs-stdlib/src/registry.rs:1374`: the key mark beside `classification`, on `countBy`,
+  `flip`, `fillKeys`, `fromKeysAndValues`, `mapKeys`, `groupBy` and `column`'s `indexBy`, read in
+  the generic call path.
+- [ ] `crates/nvs-types/tests/qualifiers_hold.rs:374`: the stage's tests after this one, the registry
+  walk in `crates/nvs-stdlib/tests/taint_signatures.rs`, and `rule:security/taint-propagation`.
 
 ### Backlog
 
+- A property-path or string-with-holes failure still names the bad segment's text, such as
+  ``has no public property `$nmae` `` (`nvs_property_path_mismatch`, `nvs_string_holes_mismatch`,
+  `crates/nvs-runtime/src/helpers.rs`). The whole operand is no longer shown, but a segment is part
+  of it. Name the segment by position instead.
 - `$fn->call($obj, $a)` on a `callable` forwards `$a` with no parameter list, and its arguments are not
   yet asked the stage 3 question (`crates/nvs-types/src/expr/calls.rs`, the `bind`/`call` checker that
   passes `&[]`). Stage 6's matrix should name it as a position.
