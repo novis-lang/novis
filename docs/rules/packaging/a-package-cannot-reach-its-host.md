@@ -27,3 +27,7 @@ and the registry's build call one check, `pack::check_reserved_file`
 (`crates/nvs-cli/src/package/pack.rs`), so an archive from a mirror or a private registry is held to
 what the registry's build refuses. The refused fetch
 removes the files it unpacked and writes no lock (`crates/nvs-cli/tests/package_fetch.rs`).
+
+**Declined:**
+- **A second manifest that has no `[package]` table.** The check would have to read the file, and
+  the compiler would have to agree with it on every tree.

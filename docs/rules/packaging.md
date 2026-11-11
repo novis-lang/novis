@@ -1303,6 +1303,10 @@ and the registry's build call one check, `pack::check_reserved_file`
 what the registry's build refuses. The refused fetch
 removes the files it unpacked and writes no lock (`crates/nvs-cli/tests/package_fetch.rs`).
 
+**Declined:**
+- **A second manifest that has no `[package]` table.** The check would have to read the file, and
+  the compiler would have to agree with it on every tree.
+
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix).</sub>
 
 <a id="packaging-only-a-major-may-break-the-api"></a>

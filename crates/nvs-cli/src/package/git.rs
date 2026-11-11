@@ -696,7 +696,10 @@ impl Walk<'_> {
     /// The entries of the tree `id`: each name, its mode and its object. Each name is one file or
     /// folder name, never empty and with no `/`, also for an entry the archive does not carry. A
     /// repository `git` made never holds another
-    /// (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`).
+    /// (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`). This one check of
+    /// the name is the whole guard: the clone folder is new and a link is refused, so the joined
+    /// path is not checked a second time, and the walk keeps no copy of [`pack::check_path`]'s
+    /// part rules.
     fn entries(
         &mut self,
         id: gix::ObjectId,
