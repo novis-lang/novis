@@ -5201,7 +5201,9 @@ unsafe fn convert_field<'a>(
     if let Seen::Value(value) = found
         && value.tag() == Some(Tag::Null)
     {
-        if field.nullable {
+        // `mixed` holds `null` as it holds any other JSON value, so its field
+        // takes `null` without being written `?mixed`.
+        if field.nullable || matches!(field.ty, CodecTy::Mixed) {
             return Step::Done(Ok(Value::null()));
         }
         return issue("null is not permitted".to_owned());

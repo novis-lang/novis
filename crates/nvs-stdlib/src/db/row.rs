@@ -309,7 +309,7 @@ fn hand_written(
 /// leak nothing.
 pub(super) fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<Value, String> {
     if held.tag() == Some(Tag::Null) {
-        return if field.nullable {
+        return if field.nullable || matches!(field.ty, nvs_runtime::CodecTy::Mixed) {
             Ok(held)
         } else {
             Err(

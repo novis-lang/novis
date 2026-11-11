@@ -77,7 +77,7 @@ array<string> $spellings = ["true", "1", "-1", "1.0", "\"1\"", "[]", "null"];
 int $strayMixed = 0;   // taken by some type and refused by `mixed`
 int $strayFloat = 0;   // taken by `int` and refused by `float`
 int $strayInt = 0;     // taken by `uint` and refused by `int`
-int $nullTaken = 0;    // taken anywhere at all, on the `null` row
+int $nullTaken = 0;    // taken by a type other than `mixed`, on the `null` row
 foreach ($spellings as string $s) {
     bool $b = Probe::asBool($s);
     bool $i = Probe::asInt($s);
@@ -91,7 +91,7 @@ foreach ($spellings as string $s) {
     if (($b || $i || $u || $f || $t) && !$m) { $strayMixed = $strayMixed + 1; }
     if ($i && !$f) { $strayFloat = $strayFloat + 1; }
     if ($u && !$i) { $strayInt = $strayInt + 1; }
-    if ($s == "null" && ($b || $i || $u || $f || $t || $m)) { $nullTaken = $nullTaken + 1; }
+    if ($s == "null" && ($b || $i || $u || $f || $t)) { $nullTaken = $nullTaken + 1; }
 }
 
 // The three containments, counted over the whole sweep rather than read off a
@@ -106,9 +106,9 @@ echo "strict-mixed=", Probe::mark(Probe::asMixed("[]") && !Probe::asFloat("[]"))
 echo "strict-float=", Probe::mark(Probe::asFloat("1.0") && !Probe::asInt("1.0")), "\n";
 echo "strict-int=", Probe::mark(Probe::asInt("-1") && !Probe::asUint("-1")), "\n";
 
-// `rule:core-api/required-optional-and-nullable`: nullability belongs to the *type*, and the check runs ahead of
-// the type switch — so `null` is the one spelling even a `mixed` field refuses,
-// and `?T` in the neighbouring case is the only thing that admits it.
+// `rule:core-api/required-optional-and-nullable`: nullability belongs to the *type*. `mixed`
+// holds `null` as it holds every other JSON value, so it takes the `null` row; no
+// other type here does, and `?T` in the neighbouring case is how one admits it.
 echo "null-taken=", $nullTaken, "\n";
 
 // `uint`'s bound, named on both sides at each end. The floor is the ordinary
@@ -159,7 +159,7 @@ true  ynnnny
 1.0   nnnyny
 "1"   nnnnyy
 []    nnnnny
-null  nnnnnn
+null  nnnnny
 stray-mixed=0 stray-float=0 stray-int=0
 strict-mixed=y
 strict-float=y

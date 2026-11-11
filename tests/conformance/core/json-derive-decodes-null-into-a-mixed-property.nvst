@@ -1,0 +1,28 @@
+--TEST--
+a `#[Json\Derive]` property typed `mixed` takes a JSON `null` in a decode as it takes any other value, and a missing key is still an issue — `rule:core-classes/derive-property-list`
+--FILE--
+<?nvs
+// covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
+use Core\Json;
+
+#[Core\Json\Derive]
+class Event {
+    public function constructor(public string $kind, public mixed $data, public array<mixed> $rest) {}
+}
+
+var $event = Json::decodeAs<Event>("{\"kind\":\"e\",\"data\":null,\"rest\":[1,null]}");
+echo $event->data == null ? "null" : "set", "\n";
+echo Json::encode($event), "\n";
+
+try {
+    Json::decodeAs<Event>("{\"kind\":\"e\",\"rest\":[]}");
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    foreach ($bad->issues as {path: string, message: string} $issue) {
+        echo $issue->path, ": ", $issue->message, "\n";
+    }
+}
+--EXPECT--
+null
+{"kind":"e","data":null,"rest":[1,null]}
+data: required field missing
