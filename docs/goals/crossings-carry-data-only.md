@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-stdlib/src/instance.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/serialize.rs, docs/rules/classes/serialize-is-a-closed-format.md, tests/hostile/README.md]
   - id: 6
     title: "every live crossing asks one receiving side, and a test lists the crossings"
-    status: open
+    status: done
     context: [crates/nvs-host/src/isolate.rs, crates/nvs-host/src/placed.rs, crates/nvs-runtime/src/ctx/error.rs, crates/nvs-runtime/src/dispatch.rs]
   - id: 7
     title: "a published value reaches each subscriber as bytes it decodes into its own classes"
@@ -773,33 +773,33 @@ attack, the `.nvst` case and the reference sentences, and it does not build.
 **Does:** give every crossing one resolver for the receiving side, remove the live copy that has
 none, and pin both with tests that read the code.
 
-- [ ] One function builds the receiving resolver from a program's table: that table first, then the
+- [x] One function builds the receiving resolver from a program's table: that table first, then the
   `Core` descriptors, as `Ctx::class_desc` does (`rule:security/isolate-values-cross-by-copy`,
   `crates/nvs-runtime/src/ctx/error.rs:328`, `crates/nvs-runtime/src/graph.rs:167`).
-- [ ] Every site takes its resolver from it: `copy_graph_to` (`crates/nvs-runtime/src/graph.rs:670`),
+- [x] Every site takes its resolver from it: `copy_graph_to` (`crates/nvs-runtime/src/graph.rs:670`),
   the out crossing (`crates/nvs-host/src/isolate.rs:1539`), the placed spawn's two decodes
   (`crates/nvs-host/src/placed.rs:387`, `crates/nvs-host/src/placed.rs:264`,
   `crates/nvs-host/src/placed.rs:347`) and the fixtures (`crates/nvs-runtime/src/dispatch.rs:1168`).
-- [ ] The table-less `copy_graph` leaves the public API, and `copy_graph_to` with no table is a
+- [x] The table-less `copy_graph` leaves the public API, and `copy_graph_to` with no table is a
   receiving side with no program class. `Fixtures::copy` takes a table and its callers pass one
   (`crates/nvs-runtime/src/graph.rs:636`, `crates/nvs-runtime/src/graph.rs:674`,
   `crates/nvs-host/src/isolate.rs:719`, `crates/nvs-runtime/src/dispatch.rs:1107`). The call in
   `crates/nvs-stdlib/src/topic.rs:646` stays until stage 7 and is the one site the new test names.
-- [ ] Test `every_door_of_the_graph_module_refuses_the_same_classes` in `graph.rs` tests. It reads the
+- [x] Test `every_door_of_the_graph_module_refuses_the_same_classes` in `graph.rs` tests. It reads the
   file's shipped half for `pub fn` names and fails naming one it has no driver for. Each driver puts
   every refused kind through that door (`crates/nvs-runtime/src/graph.rs:1247`; the scan's shape is
   `crates/nvs-stdlib/src/cache.rs:3119`).
-- [ ] Test `a_core_value_crosses_a_live_boundary_into_any_program`: a `Core` instance crosses
+- [x] Test `a_core_value_crosses_a_live_boundary_into_any_program`: a `Core` instance crosses
   `copy_graph_to` into a table that does not declare it, and a program's object still does not
   (`crates/nvs-runtime/src/graph.rs:1247`).
-- [ ] Test `every_crossing_site_names_its_receiving_side` in a new integration test. It takes the door
+- [x] Test `every_crossing_site_names_its_receiving_side` in a new integration test. It takes the door
   names from `graph.rs`, finds every shipped call under `crates/*/src`, and fails naming a call with
   no receiving side or with a resolver written at the site (`crates/nvs-stdlib/tests/crossings.rs:1`).
   It is red until stage 7 removes `topic.rs:646`, so its check `every-crossing-site` belongs to
   stage 7, and the handoff says so.
-- [ ] `.nvst` case: a `Core\Uri` in `args:` reaches a `spawn script` method entry and comes back in
+- [x] `.nvst` case: a `Core\Uri` in `args:` reaches a `spawn script` method entry and comes back in
   its answer (`tests/conformance/isolate/a-core-value-crosses-into-a-spawned-script-and-back.nvst:1`).
-- [ ] `rule:security/isolate-values-cross-by-copy` says the receiving side resolves its own classes
+- [x] `rule:security/isolate-values-cross-by-copy` says the receiving side resolves its own classes
   and every `Core` class. `rule:classes/graph-copy` lists the crossings and says `Core\Queue::push`
   carries JSON (`docs/rules/security/isolate-values-cross-by-copy.md:9`,
   `docs/rules/classes/graph-copy.md:13`).
@@ -898,21 +898,22 @@ memory cache uses.
 
 ### State
 
-Stages 1 to 5 are done. Stage 5's two acceptance tests pass, and so do the `instance::tests` and
-`time::tests` modules. The sweep's reds were stale: the `env-secret-proofs` check was retired, and
-run 43001191130's four jobs failed on one test that 305c04f660 fixed after that run's commit.
+Stages 1 to 6 are done. The sweep's reds were stale again: no `env-secret-proofs` check exists,
+and run 43001191130 predates 305c04f660.
 
-`SLOT_TYPES` (`crates/nvs-stdlib/src/instance.rs:263`) has a row for each of the 91 `Core` classes
-with instances and no host handle: 53 typed and 38 reasons. The reasons are six shared sentences
-above it (`RUNNING_STATE`, `THIS_REQUEST`, `KEY_MATERIAL`, `TRUSTED_TEXT`, `CHECKED_ONCE`,
-`BY_IDENTITY`), and each row says why in a comment. `slot_type` (`crates/nvs-stdlib/src/instance.rs:634`)
-now states `mixed`, a union and a `Core` enum. An enum slot admits the enum's case values as an
-`int` or as an enum case, because members store both. `parse_offset` in `time.rs` checks its sum,
-which a zone id from bytes could overflow. The full `tests/conformance` suite is green after the
-rows, the old expected-red `Core\Time\Date` case included, and the decode attacks pass.
+`graph::Receiving` (`crates/nvs-runtime/src/graph.rs:180`) is the one resolver, built for a
+context by `Ctx::receiving` (`crates/nvs-runtime/src/ctx/error.rs:347`). `copy_graph_to` and
+`decode` take one, and every site does. `copy_graph` and `copy_graph_into` are gone. The topic's
+local copy calls `copy_graph_unreceived` (`crates/nvs-runtime/src/graph.rs:709`), which stage 7
+deletes. Both stage 6 lib tests and the new `.nvst` case pass. `cargo test --test crossings` is
+red on `topic.rs:646` alone, as expected until stage 7.
 
-Still true: `Core\Topic::publish` copies with no receiving table and keys by the bare name, `spawn
-script` refuses a `Core` value in `args:`, and `llms-full.txt` has the old `construct` card text.
+Expect at the gate: a side with no program table now refuses a program object. A Rust test that
+hands a Rust-written program an object goes red; pass the object's table. The full conformance run
+had one red, `tests/conformance/core/task-after-response-deadline-of-zero-or-less-is-already-over.nvst`,
+which passes alone, so it looks like a timing flake under load.
+
+Still true: the topic keys by the bare name; `llms-full.txt` has the old `construct` card text.
 
 Watch at the gate: a debug `build` checks each `Core` instance against its row, so a row that is
 wrong panics in whatever Rust test or case builds that class. Only the `instance`, `time` and
@@ -924,13 +925,11 @@ of a generator's or a callable's class.
 
 ### Next
 
-crates/nvs-runtime/src/ctx/error.rs:328 — take stage 6 from its first item: one function that builds
-the receiving resolver from a program's table, then `Core`, as `Ctx::class_desc` does. Then move
-every site onto it, `copy_graph_to` first (`crates/nvs-runtime/src/graph.rs:663`), and take the
-table-less `copy_graph` (`crates/nvs-runtime/src/graph.rs:629`) out of the public API. Its
-`a_core_class_that_states_no_slot_types_does_not_decode` test in `instance.rs` calls `copy_graph`,
-so it moves to `copy_graph_to` with it. The site test `every_crossing_site_names_its_receiving_side`
-is red until stage 7, as stage 6 says.
+crates/nvs-runtime/src/peer.rs:109 — take stage 7 from its first item: `Delivery` holds the shared
+encoded payload. Then `publish` encodes once (`crates/nvs-stdlib/src/topic.rs:645`), `cross` and
+`copy_graph_unreceived` go (delete the function from `graph.rs`, its re-export in
+`crates/nvs-runtime/src/lib.rs`, and its driver in `graph.rs`'s `DRIVERS`), and each `receive()`
+decodes with `ctx.receiving()`. Then `cargo test --test crossings` goes green.
 
 ### Backlog
 
