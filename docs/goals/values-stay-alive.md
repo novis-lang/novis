@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-runtime/src/object.rs]
   - id: 8
     title: every other primitive holds no panic a program reaches
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/throwable.rs, crates/nvs-runtime/src/callable.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/ctx/frames.rs]
   - id: 9
     title: "the goal is verified once, and every failure is fixed"
@@ -331,6 +331,23 @@ field access. The kept `expect`s are `obj_layout` over a compiled class's proper
 `field_offset`'s two overflow arms, and the refcount overflow in `bump`. `drop_one` decrements
 with `checked_sub`, as `array::drop_one` does. **What it spends:** nothing at run time.
 
+**What stage 8 settled while building it.** There are eighteen more primitives, and they come in
+three kinds. Six were already contained: the two callable calls and `nvs_extension_call` run
+through `run_helper`, and `nvs_safepoint`, `nvs_stack_check` and `nvs_debug_site` through
+`abi::contain_panic`. So the `CURRENT` borrow in `extension.rs` is contained, and each needs the set
+on its own body alone. Two returned a status with nothing around them: `nvs_debug_throw` and
+`nvs_deprecated_use` now run their body under `contain_panic`, because each runs a stop handler or
+writes a log record. Ten return nothing: the five in `throwable.rs`, `nvs_debug_return` and the
+four `nvs_probe_*`. A void primitive cannot report `FATAL`, and `Ctx::take_fatal` is read only at
+a job seam, so wrapping one would turn a panic into a catchable throw. Declined for that reason.
+Each carries the set, and so does each runtime function it calls directly. Clippy found no site in
+them but two counter increments and the step depth's `+ 1` and `- 1`, which now saturate.
+`invoke_native` runs `B::run` under `contain_panic` and releases its receiver on both paths. A
+forced unwind that tears a cancelled task down still passes through it, because
+`contained_panic` resumes that unwind. The `nvs-stdlib` trampoline and `answered_arity` carry the
+set, because both run before `run_helper`'s guard. **What it spends:** nothing at run time;
+`catch_unwind` costs nothing on the path that does not panic.
+
 **Lanes:** stages 1 and 2 share the lowering files and run in order. Stage 3 shares `mod.rs` with
 stage 1 and `emit.rs` with stage 4, so stages 1 to 4 run in order. Stage 5 shares `array.rs` with
 stage 4 and runs after it. Stages 6, 7 and 8 touch disjoint runtime files and may run side by side
@@ -626,16 +643,16 @@ The list's sites, for the checkpoints. The subagent did not read the bodies from
 
 **Does:** clear the remaining files, and the primitives the list found in other crates.
 
-- [ ] `throwable.rs`, `callable.rs`, `extension.rs`, `deferred.rs` and `lib.rs`
+- [x] `throwable.rs`, `callable.rs`, `extension.rs`, `deferred.rs` and `lib.rs`
   (`rule:errors/helper-abi`, `crates/nvs-runtime/src/throwable.rs:1025`,
   `crates/nvs-runtime/src/callable.rs:345`, `crates/nvs-runtime/src/extension.rs:101`).
-- [ ] The files under `ctx/`: `safepoint.rs`, `frames.rs`, `trace.rs`, `hooks.rs`, `isolate.rs` and
+- [x] The files under `ctx/`: `safepoint.rs`, `frames.rs`, `trace.rs`, `hooks.rs`, `isolate.rs` and
   `deprecated.rs` (`crates/nvs-runtime/src/ctx/safepoint.rs:1173`,
   `crates/nvs-runtime/src/ctx/frames.rs:444`, `crates/nvs-runtime/src/ctx/trace.rs:767`,
   `crates/nvs-runtime/src/ctx/deprecated.rs:89`).
-- [ ] Each function the list named in `nvs-stdlib` and `nvs-host` runs its body inside `run_helper`,
+- [x] Each function the list named in `nvs-stdlib` and `nvs-host` runs its body inside `run_helper`,
   or gets the attribute (`crates/nvs-runtime/src/abi.rs:518`).
-- [ ] `every_primitive_denies_a_panic_in_its_own_body` is green over the whole directory
+- [x] `every_primitive_denies_a_panic_in_its_own_body` is green over the whole directory
   (`crates/nvs-runtime/tests/primitives_never_panic.rs:1`).
 
 The list's sites, for the checkpoints. The subagent searched these bodies for panic calls and did
@@ -664,32 +681,32 @@ not trace their callees or their arithmetic.
 
 ### State
 
-Stages 1 to 7 are done. Every array, string, value, arithmetic and object primitive carries the
-`deny` set, and so does each function it calls with no `run_helper` around it. Stage 7's
-decisions are under "What stage 7 settled": five slot and key primitives are contained by
-`run_helper`, and `field_ptr`'s index stays checked in debug builds alone. The attack
-`tests/hostile/lang/classes/properties/02-every-slot-read-and-write-at-its-edge.nvs` passes under
-`bun nv try`, and `the_object_primitives_deny_a_panic_in_their_own_body` passes. Clippy is clean
-over the workspace. The sweep's `env-secret-proofs` red is stale: no such check and no log exist
-in the tree, so it comes from looper's service.
+Stages 1 to 8 are done. Every primitive in `crates/nvs-runtime/src/` carries the `deny` set, and
+`cargo test --test primitives_never_panic` is green, all five tests. Stage 8's decisions are under
+"What stage 8 settled": `nvs_debug_throw`, `nvs_deprecated_use` and `invoke_native` now run under
+`abi::contain_panic`, and the ten void primitives carry the set with their direct callees. Clippy
+is clean over the workspace and `cargo fmt --check` passes. The sweep's `env-secret-proofs` red is
+stale: no file defines the check, and its old command `bun nv proofs --gate --only
+'Core\Env::secret'` reports nothing owed.
 
 ### Next
 
-Take stage 8: every other primitive. Read the bodies first, then put the set on each.
+Take stage 9, the gate: `looper verify` over the whole goal, started with `run_in_background`, then
+fix every failure in one pass and run it once more. Then the goal-end gates AGENTS.md names:
+`bun nv verify --doc`, `bun nv owners --closes values-stay-alive`, `bun nv ci --check`. Move each
+decision only this file holds into `docs/rules/errors/helper-abi.md` or a module doc before the
+file is deleted.
 
-- [ ] `crates/nvs-runtime/src/throwable.rs:1025`, `:1078`, `:1154`, `:1185` and `:1225`: the five
-  raise and trace primitives, and the helpers each calls.
-- [ ] `crates/nvs-runtime/src/callable.rs:345` and `:389` run through `run_helper`. Decide whether
-  `invoke_native` (`crates/nvs-runtime/src/callable.rs:1095`) moves its body under `run_helper`.
-  `crates/nvs-runtime/src/extension.rs:101` and its `CURRENT` borrow at `:125`.
-- [ ] `crates/nvs-runtime/src/ctx/safepoint.rs:1185` and `:1397`, `crates/nvs-runtime/src/ctx/frames.rs:444`,
-  `:468` and `:517`, `crates/nvs-runtime/src/ctx/trace.rs:767`, `:802`, `:1371` and `:1408`, and
-  `crates/nvs-runtime/src/ctx/deprecated.rs:89`.
-- [ ] `crates/nvs-stdlib/src/test.rs:5220`: `trampoline` reads `*args` before `run_helper`'s guard.
-- [ ] `crates/nvs-runtime/tests/primitives_never_panic.rs:140`: run
-  `cargo test --test primitives_never_panic` once, and it is green.
+- [ ] `looper verify`, in the background, over the goal's crates (`crates/nvs-ir/src/lower/mod.rs:1`,
+  `crates/nvs-runtime/src/abi.rs:1`).
+- [ ] Each red it names, fixed in one pass (`crates/nvs-runtime/tests/primitives_never_panic.rs:1`).
+  The likely reds are below.
+- [ ] `looper verify` once more, green (`crates/nvs-runtime/src/abi.rs:1`).
+- [ ] The three goal-end gates, each red fixed (`docs/goals/values-stay-alive.md:1`).
+- [ ] The standing decisions moved to `docs/rules/errors/helper-abi.md:1` and the module docs, and
+  the goal file deleted.
 
-Expected red: `every_primitive_denies_a_panic_in_its_own_body`, until stage 8 lands. A test or conformance
+Expected red: a test or conformance
 case that prints a backtrace through a `RecursionError` or a limit stop at a function's entry now
 shows the stopped frame too. Any `nvs-codegen` test that compares an IR dump through an `inout`
 loop. Any conformance case or example that appends to the subject of an `inout` loop and expected
