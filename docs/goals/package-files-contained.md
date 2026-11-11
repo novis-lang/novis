@@ -6,7 +6,7 @@ context: [crates/nvs-cli/src/package/pack.rs, docs/rules/packaging/a-package-car
 stages:
   - id: 1
     title: one function judges every package path
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/git.rs, crates/nvs-cli/src/package/fetch.rs, crates/nvs-cli/src/package/download.rs, tests/hostile/README.md]
   - id: 2
     title: "a package carries one package.toml, its own"
@@ -354,35 +354,35 @@ nothing in `crates/nvs-types/src/package.rs`, which stage 3 rewrites. Goal
 **Does:** make `pack::check_path` refuse an empty, `.` and `..` part, delete the three private copies
 of that check, and refuse a git tree entry that is not one name.
 
-- [ ] `check_path` refuses an empty part, `.` and `..` by name, before the reserved-name rule, with
+- [x] `check_path` refuses an empty part, `.` and `..` by name, before the reserved-name rule, with
   the sentence the standing decision gives. Its doc lists the new reason
   (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`,
   `crates/nvs-cli/src/package/pack.rs:450`, `crates/nvs-cli/src/package/pack.rs:463`).
-- [ ] `listed_form` and its call are deleted, and `file_set`'s doc follows
+- [x] `listed_form` and its call are deleted, and `file_set`'s doc follows
   (`crates/nvs-cli/src/package/pack.rs:427`, `crates/nvs-cli/src/package/pack.rs:227`,
   `crates/nvs-cli/src/package/pack.rs:195`). Test `a_files_line_must_be_one_relative_path` is deleted
   with it, and its lines move into the new test below (`crates/nvs-cli/src/package/pack.rs:722`).
-- [ ] Test `an_empty_dot_or_dot_dot_part_is_refused` in `pack.rs`'s tests
+- [x] Test `an_empty_dot_or_dot_dot_part_is_refused` in `pack.rs`'s tests
   (`crates/nvs-cli/src/package/pack.rs:690`). It gives `check_path` the empty path, `/abs.txt`,
   `//host/share.txt`, `a//b.txt`, `src/`, `.`, `..`, `./a.txt`, `../a.txt`, `a/./b.txt` and
   `a/../b.txt`, and expects the new sentence for each.
-- [ ] `unpack_into` loses its own empty-part test, and the docs of `unpack` and of the module follow
+- [x] `unpack_into` loses its own empty-part test, and the docs of `unpack` and of the module follow
   (`crates/nvs-cli/src/package/fetch.rs:537`, `crates/nvs-cli/src/package/fetch.rs:499`,
   `crates/nvs-cli/src/package/fetch.rs:14`).
-- [ ] `download::check_path` loses its first block and keeps the `.nvs` rule and the `src/` rule
+- [x] `download::check_path` loses its first block and keeps the `.nvs` rule and the `src/` rule
   (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`,
   `crates/nvs-cli/src/package/download.rs:117`). The test at
   `crates/nvs-cli/src/package/download.rs:676` follows the new sentence.
-- [ ] Test `every_reader_of_a_package_path_refuses_the_same_parts` in `pack.rs`'s tests. One table of
+- [x] Test `every_reader_of_a_package_path_refuses_the_same_parts` in `pack.rs`'s tests. One table of
   bad paths goes to each reader: `file_set` through a manifest's `files`, `fetch::unpack` through an
   archive, and `download::check_form`. It fails naming the reader and the path that passed. The
   archive's entry names are written into the header's name field as bytes, because `set_path` refuses
   some of them (`crates/nvs-cli/src/package/pack.rs:201`, `crates/nvs-cli/src/package/fetch.rs:502`,
   `crates/nvs-cli/src/package/download.rs:71`).
-- [ ] `Walk::entries` refuses a name that is empty or holds `/`, with the sentence the standing
+- [x] `Walk::entries` refuses a name that is empty or holds `/`, with the sentence the standing
   decision gives (`rule:packaging/a-git-dependency-is-root-only`,
   `crates/nvs-cli/src/package/git.rs:697`).
-- [ ] Test `a_tree_entry_that_is_not_one_name_is_refused` in `git.rs`'s tests
+- [x] Test `a_tree_entry_that_is_not_one_name_is_refused` in `git.rs`'s tests
   (`crates/nvs-cli/src/package/git.rs:817`). The test builds its repository itself, with no `git`
   program: `repo.write_blob` for each file, `repo.write_object(gix::objs::Tree { entries })` for the
   root tree, and `new_commit_as` as `repository` does. `write_object` refuses only a NUL in a name, and
@@ -394,13 +394,13 @@ of that check, and refuse a git tree entry that is not one name.
   or at the rooted path afterwards. A name gix's own decoder refuses is left out of the list.
   `nvs registry build` reaches the same walk through `clone_within`
   (`crates/nvs-cli/src/package/git.rs:136`, `crates/nvs-cli/src/package/build.rs:169`).
-- [ ] Attack `tests/hostile/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/02-a-file-name-that-leaves-the-folder.nvs:1`.
+- [x] Attack `tests/hostile/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/02-a-file-name-that-leaves-the-folder.nvs:1`.
   A class holds the rules for one path of a package: no empty part, no `.`, no `..`, no `\` and no
   `:`. Each numbered step gives it one name and catches the error, so the next step runs: a name that
   starts with `/`, one that starts with `//`, one with `..` in the middle, one that ends in `/`, and
   the empty name. The program runs to its last line. Its comments follow `AGENTS.md` § *Text an end
   user reads*.
-- [ ] Rule fragment: the bullet *Every path works on every platform* says no part is empty, `.` or
+- [x] Rule fragment: the bullet *Every path works on every platform* says no part is empty, `.` or
   `..`, and the closing paragraphs say `pack::check_path` is the one check the pack, the fetch, a
   download and the git walk share, and that a git tree entry is one name
   (`docs/rules/packaging/a-package-carries-only-its-source-and-what-it-lists.md:16`,
@@ -621,41 +621,49 @@ once every class is checked, and say so in the help of `nvs test`.
 
 ### State
 
-Nothing is built yet. `pack::check_path` passes an empty part, three readers carry their own copy of
-that check and the git walk carries none. `Finder::package_of` ends at the first `package.toml`.
-`programs_under` and `nvs_test::collect` walk every folder but a linked one and a cache. The test table
-keeps the rows of every class the compile checks, also a class of a package.
+Stage 1 is done. `pack::check_path` refuses an empty, `.` and `..` part, and `listed_form`, the
+empty-part test in `unpack_into` and the first block of `download::check_path` are gone.
+`Walk::entries` refuses a tree entry that is empty or holds `/`, and `place` runs every joined path
+through `check_path` as before. The three acceptance tests of stage 1 and the two changed tests
+(`the_form_refuses_each_bad_entry`, `an_archive_entry_outside_its_folder_is_refused`) passed once by
+name. Attack `02-a-file-name-that-leaves-the-folder.nvs` runs to its last line, and the rule chapter is
+rendered.
+
+The sweep's two other findings need no change. Nightly run 43001191130 tested `f4c1d5c7e2`, and its
+one red test, `a_changed_server_timeout_applies_to_the_next_connection`, was fixed after it by
+`305c04f660`. The next nightly run should be green. `env-secret-proofs` is defined nowhere in the
+tree and has no log. It is stale driver state from the retired goal `defaults-that-work`, whose last
+handoff records its command green.
+
+`Finder::package_of` still ends at the first `package.toml`. `programs_under` and `nvs_test::collect`
+walk every folder but a linked one and a cache. The test table keeps the rows of every class the
+compile checks, also a class of a package.
 
 ### Next
 
-Stage 1, over `crates/nvs-cli/src/package/pack.rs`, `crates/nvs-cli/src/package/git.rs`,
-`crates/nvs-cli/src/package/fetch.rs` and `crates/nvs-cli/src/package/download.rs`. It waits on no
-other goal.
+Stage 2, over `crates/nvs-cli/src/package/pack.rs`, `crates/nvs-cli/src/package/fetch.rs`,
+`crates/nvs-cli/src/package/download.rs` and three integration test files. It waits on no other goal.
 
-- [ ] `crates/nvs-cli/src/package/pack.rs:450`: `check_path` refuses an empty part, `.` and `..` by
-  name, before the reserved-name rule (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`,
-  `crates/nvs-cli/src/package/pack.rs:463`).
-- [ ] `crates/nvs-cli/src/package/pack.rs:427`: `listed_form`, its call and its test are deleted
-  (`crates/nvs-cli/src/package/pack.rs:227`, `crates/nvs-cli/src/package/pack.rs:722`).
-- [ ] `crates/nvs-cli/src/package/pack.rs:690`: test `an_empty_dot_or_dot_dot_part_is_refused`.
-- [ ] `crates/nvs-cli/src/package/fetch.rs:537`: `unpack_into` loses its own empty-part test
-  (`crates/nvs-cli/src/package/fetch.rs:499`).
-- [ ] `crates/nvs-cli/src/package/download.rs:117`: `download::check_path` loses its first block, and
-  the test at `crates/nvs-cli/src/package/download.rs:676` follows.
-- [ ] `crates/nvs-cli/src/package/pack.rs:201`: test
-  `every_reader_of_a_package_path_refuses_the_same_parts`, over `file_set`, `fetch::unpack`
-  (`crates/nvs-cli/src/package/fetch.rs:502`) and `download::check_form`
-  (`crates/nvs-cli/src/package/download.rs:71`).
-- [ ] `crates/nvs-cli/src/package/git.rs:697`: `Walk::entries` refuses a name that is empty or holds
-  `/` (`rule:packaging/a-git-dependency-is-root-only`).
-- [ ] `crates/nvs-cli/src/package/git.rs:817`: test `a_tree_entry_that_is_not_one_name_is_refused`,
-  its repository built with `write_object` and no `git` program.
-- [ ] Attack `tests/hostile/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/02-a-file-name-that-leaves-the-folder.nvs:1`.
-- [ ] Rule fragment `docs/rules/packaging/a-package-carries-only-its-source-and-what-it-lists.md:16`,
-  and `bun nv rules --render`.
+- [ ] `crates/nvs-cli/src/package/pack.rs:488`: `check_not_server_config` becomes
+  `check_reserved_file`, also refusing every `package.toml` but the root one
+  (`crates/nvs-cli/src/package/pack.rs:61`, `crates/nvs-cli/src/package/pack.rs:8`).
+- [ ] `crates/nvs-cli/src/package/pack.rs:505`: the two callers take the new name
+  (`crates/nvs-cli/src/package/fetch.rs:539`).
+- [ ] `crates/nvs-cli/src/package/download.rs:118`: `download::check_path` calls
+  `check_reserved_file` after `pack::check_path`.
+- [ ] `crates/nvs-cli/src/package/pack.rs:734`: tests `only_the_root_package_toml_is_carried` and
+  `a_download_is_never_a_configuration_file` (`crates/nvs-cli/src/package/download.rs:664`).
+- [ ] `crates/nvs-cli/tests/package_client.rs:297`: test `a_listed_second_package_toml_is_refused`.
+- [ ] `crates/nvs-cli/tests/package_fetch.rs:427`: test
+  `a_fetched_archive_that_carries_a_second_package_toml_is_refused_and_writes_nothing`.
+- [ ] `crates/nvs-cli/tests/registry_build.rs:931`: test
+  `a_commit_that_carries_a_second_package_toml_is_refused`.
+- [ ] `docs/rules/packaging/a-package-cannot-reach-its-host.md:3`: rule fragments, then
+  `bun nv rules --render`.
+- [ ] `docs/examples/tools/packages/nvs-pkg-pack/about.md:10`: one sentence each in the two
+  `about.md` files (`docs/examples/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/about.md:19`).
 
-Expected red until stage 1 ends: `a_files_line_must_be_one_relative_path` and
-`the_form_refuses_each_bad_entry`, each for the sentence it expects.
+No test is expected red: stage 1 left every test it touched green.
 
 ### Backlog
 
