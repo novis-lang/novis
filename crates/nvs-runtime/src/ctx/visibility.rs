@@ -46,9 +46,13 @@ impl Ctx {
             return false;
         };
         subject.field_is_public(slot)
-            || self.reaches(subject, site, subject.field_is_protected(slot), |desc| {
-                desc.field_slot(name, 0).is_some()
-            })
+            || self.reaches(
+                subject,
+                site,
+                subject.field_is_protected(slot),
+                |desc| desc.field_slot(name, 0).is_some(),
+                |desc| desc.field_slot(name, 0) == Some(slot),
+            )
     }
 
     /// Whether `row` — a method table row of `subject`, which is what the
@@ -62,9 +66,16 @@ impl Ctx {
         site: Option<&str>,
     ) -> bool {
         row.public
-            || self.reaches(subject, site, row.protected, |desc| {
-                desc.method_row(&row.name).is_some()
-            })
+            || self.reaches(
+                subject,
+                site,
+                row.protected,
+                |desc| desc.method_row(&row.name).is_some(),
+                |desc| {
+                    desc.method_row(&row.name)
+                        .is_some_and(|own| std::ptr::eq(own.code, row.code))
+                },
+            )
     }
 
     /// Whether the class constant `name` of `subject` may be read from a body
@@ -86,38 +97,55 @@ impl Ctx {
             return false;
         };
         constant.public
-            || self.reaches(subject, site, constant.protected, |desc| {
-                desc.constant(name).is_some()
-            })
+            || self.reaches(
+                subject,
+                site,
+                constant.protected,
+                |desc| desc.constant(name).is_some(),
+                |desc| desc.constant(name).is_some(),
+            )
     }
 
-    /// The half of both answers above that a `public` member never reaches:
-    /// where a member of `subject` at this level is reachable from, given
-    /// `declares`, which says whether a class has the member at all.
+    /// The half of the three answers above that a `public` member never
+    /// reaches: where a member of `subject` at this level is reachable from.
+    /// `declares` says whether a class has a member of that name at all, and
+    /// `same` whether it has that very member: the same slot for a property,
+    /// the same code address for a method, and the same name for a constant.
     ///
-    /// Three answers, and the middle one is the whole of what a second bit
-    /// bought. A `private` member answers to `subject` itself. A `protected`
-    /// one answers to every class the site *is* — a subclass inherits the
-    /// member, so it reaches it — and to an ancestor of `subject` that declares
-    /// it, which is the direction a subclass's own `$this->n` reads from and
-    /// the one `declares` is asked about: an ancestor above the declaration has
-    /// no such member and is refused. A class outside the hierarchy is refused
-    /// however it spells its own properties, which is why the relation is asked
-    /// and not just `declares`.
+    /// A `protected` member answers to every class the site *is* — a subclass
+    /// inherits the member, so it reaches it — and to an ancestor of `subject`
+    /// that declares it, which is the direction a subclass's own `$this->n`
+    /// reads from: an ancestor above the declaration has no such member and is
+    /// refused. A class outside the hierarchy is refused however it spells its
+    /// own properties, which is why the relation is asked and not just
+    /// `declares`.
+    ///
+    /// A `private` member answers to the class that declares it alone. The site
+    /// is `subject` or an ancestor of it, the site has that very member, and no
+    /// class the site also is has it, so the site did not inherit it. A
+    /// subclass is refused its parent's private member on its own instance,
+    /// and the parent reaches it on an instance of the subclass. A method a
+    /// subclass declares again has its own address, so it is the subclass's.
+    /// A `private` constant a subclass declares again over its parent's is
+    /// refused to the subclass: a constant row names no declaring class, and
+    /// refusing is the safe direction. **What it spends:** one class table
+    /// lookup and one scan of the site's flattened supertypes per `private`
+    /// access by name, and nothing on a descriptor.
     fn reaches(
         &self,
         subject: &ClassDesc,
         site: Option<&str>,
         protected: bool,
         declares: impl Fn(&ClassDesc) -> bool,
+        same: impl Fn(&ClassDesc) -> bool,
     ) -> bool {
         let Some(site) = site else {
             return false;
         };
-        if site == subject.name() {
+        if protected && site == subject.name() {
             return true;
         }
-        if !protected {
+        if !protected && !subject.conforms_to_name(site) {
             return false;
         }
         let Some(desc) = self.class_desc(site) else {
@@ -130,6 +158,9 @@ impl Ctx {
                       that table while a member reached through it is running"
         )]
         let desc = unsafe { &*desc };
+        if !protected {
+            return same(desc) && !desc.any_supertype(&same);
+        }
         desc.conforms_to_name(subject.name()) || (subject.conforms_to_name(site) && declares(desc))
     }
 }

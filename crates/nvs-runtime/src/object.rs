@@ -1835,6 +1835,23 @@ impl ClassDesc {
                 .any(|&other| unsafe { (*other).name == name })
     }
 
+    /// Whether some other class or interface an instance of this one also is
+    /// passes `test`. This descriptor itself is not asked.
+    ///
+    /// `crate::Ctx`'s visibility check asks it whether a `private` member a
+    /// class has came down from an ancestor, which is the one case where the
+    /// class has the member and did not declare it.
+    #[must_use]
+    #[expect(
+        unsafe_code,
+        reason = "a `conforms` entry belongs to the same table as this \
+                  descriptor and outlives it — this type's own invariant, \
+                  stated at the field"
+    )]
+    pub fn any_supertype(&self, test: impl Fn(&ClassDesc) -> bool) -> bool {
+        self.conforms.iter().any(|&other| test(unsafe { &*other }))
+    }
+
     /// The compiled address of the method this class answers `name` with —
     /// its own override if it declares one, otherwise the nearest ancestor's
     /// — or `None` if nothing in the chain declares a *body* for it.

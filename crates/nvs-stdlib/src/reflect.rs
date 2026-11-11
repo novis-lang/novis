@@ -3342,6 +3342,199 @@ mod tests {
         }
     }
 
+    /// `Base::again`'s second body, which `Heir` declares over it: a second
+    /// address, so the two rows are told apart by their code.
+    #[expect(
+        unsafe_code,
+        reason = "compiled code's own signature, which `call_at` calls through: \
+                  one live value and the address of a live `Value` for the \
+                  result, neither expressible in the type"
+    )]
+    unsafe extern "C" fn heir_again(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        unsafe {
+            (*args).release();
+            *out = Value::uint(OPENED + 1);
+        }
+        OK
+    }
+
+    /// A `Base` with a `private` property `secret`, a `private` method `sealed`,
+    /// a `private` method `again` and a `private` constant `KEY`, and an `Heir`
+    /// that extends it. `Heir` inherits all four and declares `again` over
+    /// `Base`'s, so its `again` row has [`heir_again`]'s address. Both classes
+    /// list `KEY`, as the descriptor table flattens a constant into the class
+    /// that inherits it. The answer is the context and a descriptor per class.
+    fn family() -> (
+        Ctx,
+        *const nvs_runtime::ClassDesc,
+        *const nvs_runtime::ClassDesc,
+    ) {
+        let mut classes = ClassTable::new();
+        let base = classes.define("Base", &["secret"], &[]);
+        let heir = classes.define("Heir", &["secret"], &[base]);
+        let row = |name: &str, code: NvsFn| MethodRow {
+            name: name.to_owned(),
+            code: code as *const u8,
+            arity: 0,
+            param_tags: 0,
+            param_names: Vec::new(),
+            param_types: Vec::new(),
+            public: false,
+            protected: false,
+            native: false,
+            param_classes: Vec::new(),
+            param_checks: Vec::new(),
+            is_static: false,
+            by_reference: false,
+        };
+        classes.set_methods(
+            base,
+            vec![row("again", vault_open), row("sealed", vault_open)],
+        );
+        classes.set_methods(
+            heir,
+            vec![row("again", heir_again), row("sealed", vault_open)],
+        );
+        for id in [base, heir] {
+            classes.set_class_constants(
+                id,
+                vec![nvs_runtime::ConstantDesc {
+                    name: "KEY".to_owned(),
+                    public: false,
+                    protected: false,
+                    secret: false,
+                    value: ConstantValue::Int(7),
+                }],
+            );
+        }
+        let classes = std::sync::Arc::new(classes);
+        let (base_desc, heir_desc) = (classes.desc(base), classes.desc(heir));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(classes, base));
+        (ctx, base_desc, heir_desc)
+    }
+
+    /// Whether `site` reaches `Base`'s three private members on `subject`: the
+    /// property, the method `sealed` and the constant, in that order.
+    fn reach(ctx: &Ctx, subject: &nvs_runtime::ClassDesc, site: &str) -> [bool; 3] {
+        let sealed = subject
+            .method_row("sealed")
+            .expect("`sealed` is in the table");
+        [
+            ctx.field_is_visible_from(subject, "secret", Some(site)),
+            ctx.method_is_visible_from(subject, sealed, Some(site)),
+            ctx.constant_is_visible_from(subject, "KEY", Some(site)),
+        ]
+    }
+
+    /// `rule:security/reflection-enforces-visibility`: a `private` member is
+    /// reached by name from the class that declares it alone. `Heir` has each
+    /// of `Base`'s private members, and did not declare one of them, so a site
+    /// in `Heir` is refused all three on an `Heir` and on a `Base`.
+    #[test]
+    #[expect(
+        unsafe_code,
+        reason = "both descriptors belong to the table the context holds for its whole life"
+    )]
+    fn a_private_member_is_refused_to_a_subclass_by_name() {
+        let (ctx, base, heir) = family();
+        let (base, heir) = unsafe { (&*base, &*heir) };
+        assert_eq!(
+            reach(&ctx, heir, "Heir"),
+            [false; 3],
+            "`Heir` inherited the three members and declared none of them"
+        );
+        assert_eq!(
+            reach(&ctx, base, "Heir"),
+            [false; 3],
+            "a `Base` is not an `Heir`, so `Heir` reaches nothing private on it"
+        );
+        assert_eq!(
+            reach(&ctx, heir, "Elsewhere"),
+            [false; 3],
+            "a site whose class the table does not hold is refused"
+        );
+    }
+
+    /// The other direction of the same rule: `Base`'s own body reaches its
+    /// private members on an instance of `Heir`, as it does on a `Base`.
+    #[test]
+    #[expect(
+        unsafe_code,
+        reason = "both descriptors belong to the table the context holds for its whole life"
+    )]
+    fn a_class_reaches_its_private_member_on_an_instance_of_a_subclass() {
+        let (ctx, base, heir) = family();
+        let (base, heir) = unsafe { (&*base, &*heir) };
+        assert_eq!(reach(&ctx, base, "Base"), [true; 3]);
+        assert_eq!(
+            reach(&ctx, heir, "Base"),
+            [true; 3],
+            "`Base` declared each member, and an `Heir` is a `Base`"
+        );
+    }
+
+    /// A private method a subclass declares again is the subclass's, because
+    /// its row has the subclass's own address. On an `Heir`, `again` answers
+    /// to `Heir` and not to `Base`; on a `Base`, it answers to `Base`. The call
+    /// through `ClassInfo::call` runs the body of the class that reached it.
+    #[test]
+    #[expect(
+        unsafe_code,
+        reason = "both descriptors belong to the table the context holds for its whole life, \
+                  and `Heir` declares no field but the one a fresh allocation leaves null"
+    )]
+    fn a_private_method_declared_again_belongs_to_the_class_that_declared_it() {
+        let (mut ctx, base, heir) = family();
+        let (base_ref, heir_ref) = unsafe { (&*base, &*heir) };
+        let again = |desc: &nvs_runtime::ClassDesc| {
+            desc.method_row("again")
+                .expect("`again` is in the table")
+                .clone()
+        };
+        let on_heir = again(heir_ref);
+        let on_base = again(base_ref);
+        assert!(ctx.method_is_visible_from(heir_ref, &on_heir, Some("Heir")));
+        assert!(!ctx.method_is_visible_from(heir_ref, &on_heir, Some("Base")));
+        assert!(ctx.method_is_visible_from(base_ref, &on_base, Some("Base")));
+        assert!(!ctx.method_is_visible_from(base_ref, &on_base, Some("Heir")));
+
+        let subject = Value::object(unsafe { NvsObj::new(heir) });
+        let info = call(super::nvs_core_reflect_for_object, &mut ctx, &[subject])
+            .expect("every object has a description");
+        let name = Value::text("again");
+        let none = Value::array(NvsArray::new());
+        let site = inside("Heir::run");
+        assert_eq!(
+            call(
+                super::nvs_core_reflect_class_info_call,
+                &mut ctx,
+                &[info, subject, name, none, site.1],
+            )
+            .expect("`Heir` declared its own `again`")
+            .as_uint(),
+            Some(OPENED + 1),
+            "the body that runs is `Heir`'s"
+        );
+        let none = Value::array(NvsArray::new());
+        let site = inside("Base::run");
+        assert_eq!(
+            call(
+                super::nvs_core_reflect_class_info_call,
+                &mut ctx,
+                &[info, subject, name, none, site.1],
+            )
+            .err(),
+            Some(nvs_runtime::THROWN),
+            "`Base`'s `again` is not the one an `Heir` has"
+        );
+        drop(ctx.take_pending());
+        unsafe {
+            info.release();
+            subject.release();
+        }
+    }
+
     thread_local! {
         /// How many times [`singleton_constructor`] has run on this thread, so
         /// a refusal is read as a constructor that never ran and not only as a
