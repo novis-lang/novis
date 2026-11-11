@@ -532,3 +532,13 @@ test is expected to go red before the gate, except cases that convert a `secret`
 
 - A third-party extension method that takes a resource may return text built from an earlier
   `tainted` argument as plain text (`crates/nvs-types/src/ext_lib.rs:290`). Not traced to a run.
+- `slot_check` and `test_shape` are two maps from a type to a run-time test, and an intersection
+  type and `iterable` stay `SlotCheck::Any` in the first, and a single-value `string` keeps its tag
+  alone (`crates/nvs-ir/src/lower/mod.rs:602`, `crates/nvs-ir/src/lower/expr.rs:7881`).
+- A callable's `invoke` row carries no parameter type spellings, so a bare `callable`'s refusal
+  names no type (`crates/nvs-ir/src/lower/anon_fn.rs:374`, `crates/nvs-runtime/src/dispatch.rs:286`).
+- `check_param_class` runs on every call of an anonymous function, a proven one too, and the row
+  check may make it removable (`crates/nvs-ir/src/lower/anon_fn.rs:454`).
+- `Core\Str::format('%1$s', $o)` over a `Stringable` object throws "it does not implement
+  `Stringable`": `stringify` finds no compiled `toString` (`crates/nvs-runtime/src/helpers.rs:2049`).
+  Once it works, `crates/nvs-codegen/tests/borrowed_reads.rs` gains a row for it.

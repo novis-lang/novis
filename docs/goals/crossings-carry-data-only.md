@@ -951,3 +951,7 @@ No existing test is expected to go red in stage 1.
   (`crates/nvs-stdlib/src/instance.rs:124`, `crates/nvs-stdlib/src/instance.rs:565`).
 - Row hydration (`queryAs`, `streamAs`) and `Core\Test::double` and `partial` were not traced for an
   object built without its constructor (`rule:security/reflection-enforces-visibility`).
+- A `private` constant a subclass declares again is refused to that subclass by name. A
+  declaring-class label on the row would make it exact (`crates/nvs-runtime/src/object.rs:1123`).
+- `call_callable_with` keeps eight inline slots, so a callable call with more than seven arguments
+  allocates once (`crates/nvs-runtime/src/callable.rs:201`).

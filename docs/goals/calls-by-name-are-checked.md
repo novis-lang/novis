@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-runtime/src/callable.rs, crates/nvs-stdlib/src/reflect.rs, crates/nvs-stdlib/tests/allocation_policy.rs]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: slot-check-arms
@@ -508,74 +508,46 @@ property, a method and a constant.
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done. Stage 6, the gate, is next.
+Every stage is done, and the goal is reached. `looper verify` is green over the whole goal, and so
+are `bun nv verify --doc`, `bun nv owners --closes calls-by-name-are-checked` (no gap) and every
+part of `bun nv ci --check` this host can run. Docker was not answering, so the website snippets
+that need `postgres` were skipped, as the check reports.
 
-Stage 4: `tests/conformance/core/reflect-a-private-member-is-reached-by-name-only-from-the-class-that-declares-it.nvst`
-and the attacks `get/02`, `set/04`, `call/03` and `constant/03` under
-`tests/hostile/core/Reflect-ClassInfo/` pass on `target/debug/nvs.exe`. The rule fragment names
-the declaring class and the redeclared constant's refusal.
+The gate's fix pass:
 
-Stage 5: a call by name builds its slots in a stack array of seventeen
-(`call_erased_unchecked`, `crates/nvs-runtime/src/dispatch.rs:434`), formats the callee through a
-`Callee` display value only on refusal, and reads an `array<mixed>` through
-`with_array_entries` (`crates/nvs-runtime/src/dispatch.rs:597`), which `ClassInfo::call`,
-`ClassInfo::construct` and `nvs_call_erased_method` use. `call_at` builds stack slots too and
-hands them to `call_slots` (`crates/nvs-runtime/src/dispatch.rs:1613`). `check_param_tags` and
-`check_param_types` take `&dyn Display`. `a_successful_call_by_name_allocates_nothing` is the last
-test in `crates/nvs-stdlib/tests/allocation_policy.rs` and passes. `erased_entries`' scanner now
-knows `call_slots` as a door, with a row of its own, and passes. Clippy and fmt are clean.
+- A refused write by name says "`User` declares property `age` as `int`, so a string cannot be
+  written to it". It names the declared type as written, an anonymous function's value as "a
+  function", an anonymous object's as "an anonymous object", and `null` in backticks
+  (`ClassDesc::check_slot`, `describe_object` in `crates/nvs-runtime/src/object.rs`).
+- `a_changed_server_timeout_applies_to_the_next_connection` begins a head on its new connection.
+  Since `022b148763`, a connection that sends nothing waits `keepalive_timeout`.
+- The four rule chapters, three attacks, the bench counts (one allocation fewer per test method),
+  three website pages, one page's questions and the perf ledger are current.
+- The roadmap gives `server-events` and `derive-wider-types` a theme each.
+
+Every standing decision is in `rule:types/erased-member-access`, `rule:classes/property-hooks` or
+`rule:security/reflection-enforces-visibility`. The Backlog moved to `qualifiers-hold` and
+`crossings-carry-data-only`.
 
 The sweep's `env-secret-proofs` red is stale: no file defines it, and its old command
-`bun nv proofs --gate --only 'Core\Env::secret'` exits 0. `bun nv try` and `bun nv proofs --run`
-take `NVS_BIN=target/debug/nvs.exe`; several `--id` flags do not combine, so run one member per
-call.
+`bun nv proofs --gate --only 'Core\Env::secret'` exits 0.
 
 ### Next
 
-Stage 6, the gate (`docs/goals/calls-by-name-are-checked.md`, `### 6.`).
+Nothing. The goal is reached, and the loop retires it.
 
-- [ ] `docs/goals/calls-by-name-are-checked.md:509`: start `looper verify` in the background, and wait.
-- [ ] `docs/goals/calls-by-name-are-checked.md:511`: fix every failure in one pass, then rerun.
-- [ ] `crates/nvs-runtime/src/object.rs:1739`: the two diagnostics below, in the same fix pass.
-- [ ] `AGENTS.md:1`: the goal-end gates, `bun nv verify --doc`, `bun nv owners --closes
-  calls-by-name-are-checked` and `bun nv ci --check`.
-
-Tests that may go red: a `.nvst` or example in which a subclass reads, writes or calls its parent's
-`private` member by name and expected it to work; one in which a parent's body expected a refusal for
-its own private member on a subclass instance; one that writes an `int` by name to a hooked `float`
-property; a test that counted the allocations of a call by name or of `call_at`.
-
-Two diagnostics break the prose rules: a by-name write says "declares field `price` as float, so a
-int cannot be written" ("field", "a int"), and a bare `callable` property's refusal says "as object"
-and names an internal `Script$fn1` class.
+No test is expected to go red.
 
 ### Backlog
 
-- An `invoke` row carries no parameter type spellings, so a bare `callable`'s refusal names no
-  type. Filling them would also change what reflection lists for a callable's class
-  (`crates/nvs-ir/src/lower/anon_fn.rs:374`, `crates/nvs-runtime/src/dispatch.rs:286`).
-- `check_param_class` runs on every call of an anonymous function, a proven one too. The row check
-  may make it removable (`crates/nvs-ir/src/lower/anon_fn.rs:454`).
-- A `private` constant a subclass declares again is refused to that subclass by name. A
-  declaring-class label on the row would make it exact (`crates/nvs-runtime/src/object.rs:1123`).
-- `slot_check` and `test_shape` are two maps from a type to a run-time test
-  (`crates/nvs-ir/src/lower/mod.rs:602`, `crates/nvs-ir/src/lower/expr.rs:7881`).
-- An intersection type and `iterable` stay `SlotCheck::Any`, and a single-value `string` keeps its
-  tag alone (`crates/nvs-ir/src/lower/mod.rs:640`).
-- `call_callable_with` keeps eight inline slots (`crates/nvs-runtime/src/callable.rs:201`), so a
-  callable call with more than seven arguments allocates once.
-- `Core\Str::format('%1$s', $o)` over an object whose class implements `Stringable` throws "it does
-  not implement `Stringable`" at run time. The rendering in `nvs_stdlib::format` reaches
-  `stringify`, which finds no `toString` for a compiled class, and throws at
-  `crates/nvs-runtime/src/helpers.rs:2049`. It is a call by name to a compiled method, and the
-  lowering already holds every format argument against it (`rule:expressions/an-operand-keeps-its-value-while-later-operands-run`).
-  Once it works, `crates/nvs-codegen/tests/borrowed_reads.rs` gains a row that drives a
-  `toString` from a rendered format.
+Every item moved to a later goal's Backlog: the type-check items and the `Core\Str::format` bug to
+`qualifiers-hold`, and the redeclared private constant and the callable's inline slots to
+`crossings-carry-data-only`.
