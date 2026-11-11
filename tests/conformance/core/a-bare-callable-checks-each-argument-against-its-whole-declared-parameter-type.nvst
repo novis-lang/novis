@@ -1,0 +1,59 @@
+--TEST--
+A call of a value declared only `callable` checks each argument against the whole type its parameter declares, so an unrelated class, a wrong array element and a value of another enum throw `LogicError` before the body runs, while `null` reaches a `?C` parameter — `rule:types/callable-signature` and `rule:types/anonymous-function`
+--FILE--
+<?nvs
+// `Runner::run` takes a bare `callable`, so the compiler cannot check its arguments.
+// Each body prints `body` when it runs.
+enum Level: int { Low = 1, High = 7 }
+// `Blue`'s value 3 is not a value of `Level`. `Red`'s value 1 is.
+enum Color: int { Red = 1, Blue = 3 }
+class Pet { public string $name = "pet"; }
+class Rock { public int $weight = 9; }
+
+class Runner {
+    public static function run(callable $f, mixed $v): mixed {
+        return $f($v);
+    }
+    public static function attempt(callable $f, mixed $v): void {
+        try {
+            mixed $r = Runner::run($f, $v);
+            echo "ran\n";
+        } catch (Throwable $e) {
+            echo Core\Reflect::forObject($e)->name(), ": ", $e->message, "\n";
+        }
+    }
+}
+
+// A class parameter, and its nullable twin, given an unrelated class.
+Runner::attempt(fn (Pet $p): string => { echo "body\n"; return $p->name; }, new Rock());
+Runner::attempt(fn (?Pet $p): string => { echo "body\n"; return "p"; }, new Rock());
+// `null` reaches the nullable twin.
+Runner::attempt(fn (?Pet $p): string => { echo "body\n"; return "p"; }, null);
+
+// Each element of the array is checked against `int`.
+array<mixed> $mixedList = [1, "two", 3];
+Runner::attempt(fn (array<int> $a): uint => { echo "body\n"; return Core\Arr::count($a); }, $mixedList);
+
+// An enum parameter is checked by the case value: two enums with one backing
+// are not told apart, so `Color::Red` reaches a `Level` parameter.
+Runner::attempt(fn (Level $l): int => { echo "body\n"; return $l as int; }, Color::Blue);
+Runner::attempt(fn (Level $l): int => { echo "body\n"; return $l as int; }, Color::Red);
+
+Runner::attempt(fn (?float $x): string => { echo "body\n"; return "x"; }, "text");
+
+// A correct call runs the body and returns its value.
+Runner::attempt(fn (Pet $p): string => { echo "body\n"; return $p->name; }, new Pet());
+echo Runner::run(fn (Pet $p): string => $p->name, new Pet()), "\n";
+--EXPECT--
+LogicError: argument 1 to a `callable` does not accept an object of class `Rock`
+LogicError: argument 1 to a `callable` does not accept an object of class `Rock`
+body
+ran
+LogicError: argument 1 to a `callable` does not accept an array holding a string
+LogicError: argument 1 to a `callable` does not accept an int
+body
+ran
+LogicError: argument 1 to a `callable` does not accept a string
+body
+ran
+pet

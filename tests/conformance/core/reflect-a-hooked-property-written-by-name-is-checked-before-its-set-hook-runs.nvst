@@ -1,0 +1,113 @@
+--TEST--
+A write by name to a property with a `set` hook, through `Core\Reflect` or a `mixed` receiver, is checked against the property's declared type before the hook runs, so a wrong value throws the `RuntimeError` an unhooked property throws, the hook does not run and the old value stays — `rule:classes/property-hooks`, `rule:types/erased-member-access` and `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// Each hook prints a line when it runs, so a refused write shows no hook line.
+// Every property is assigned once in the constructor, which runs each hook once.
+enum Level: int { Low = 1, High = 7 }
+// `Blue`'s value 3 is not a value of `Level`.
+enum Color: int { Red = 1, Blue = 3 }
+class Pet {}
+class Rock {}
+
+class Box {
+    public float $price {
+        set(float $v) { echo "  hook price\n"; $this->price = $v; }
+    }
+    public Level $level {
+        set(Level $v) { echo "  hook level\n"; $this->level = $v; }
+    }
+    public callable $run {
+        set(callable $v) { echo "  hook run\n"; $this->run = $v; }
+    }
+    public callable(int): string $label {
+        set(callable(int): string $v) { echo "  hook label\n"; $this->label = $v; }
+    }
+    public Pet $pet {
+        set(Pet $v) { echo "  hook pet\n"; $this->pet = $v; }
+    }
+    public ?Pet $guest {
+        set(?Pet $v) { echo "  hook guest\n"; $this->guest = $v; }
+    }
+    public function constructor() {
+        $this->price = 1.5;
+        $this->level = Level::Low;
+        $this->run = fn (int $n): int => $n + 1;
+        $this->label = fn (int $n): string => "n" . $n;
+        $this->pet = new Pet();
+        $this->guest = null;
+    }
+}
+
+// Prints the class of what was thrown. The message wording is pinned by the
+// unhooked cases, so only the class is compared here.
+class Show {
+    public static function error(Throwable $e): void {
+        echo Core\Reflect::forObject($e)->name(), "\n";
+    }
+}
+
+Box $box = new Box();
+echo "built\n";
+var $info = Core\Reflect::forObject($box);
+mixed $m = $box;
+
+// Each wrong value is written twice: through `ClassInfo::set`, then through `mixed`.
+// An `int` is not widened to a hooked `float` on a write by name.
+try { $info->set($box, "price", 2); echo "written\n"; } catch (Throwable $e) { Show::error($e); }
+try { $m->price = 2; echo "written\n"; } catch (Throwable $e) { Show::error($e); }
+echo $box->price, "\n";
+
+try { $info->set($box, "level", Color::Blue); echo "written\n"; } catch (Throwable $e) { Show::error($e); }
+try { $m->level = Color::Blue; echo "written\n"; } catch (Throwable $e) { Show::error($e); }
+echo $box->level as int, "\n";
+
+try { $info->set($box, "run", "not a function"); echo "written\n"; } catch (Throwable $e) { Show::error($e); }
+try { $m->run = 5; echo "written\n"; } catch (Throwable $e) { Show::error($e); }
+echo ($box->run)(1), "\n";
+
+// A function of the wrong signature is not a `callable(int): string`.
+try { $info->set($box, "label", fn (string $s): string => $s); echo "written\n"; } catch (Throwable $e) { Show::error($e); }
+try { $m->label = fn (string $s): string => $s; echo "written\n"; } catch (Throwable $e) { Show::error($e); }
+echo ($box->label)(4), "\n";
+
+try { $info->set($box, "pet", new Rock()); echo "written\n"; } catch (Throwable $e) { Show::error($e); }
+try { $m->pet = new Rock(); echo "written\n"; } catch (Throwable $e) { Show::error($e); }
+try { $info->set($box, "guest", new Rock()); echo "written\n"; } catch (Throwable $e) { Show::error($e); }
+try { $m->guest = new Rock(); echo "written\n"; } catch (Throwable $e) { Show::error($e); }
+echo $box->guest == null ? "null" : "set", "\n";
+
+// A correct write by name runs the hook, once per door.
+$info->set($box, "price", 2.5);
+$m->guest = new Pet();
+echo $box->price, "\n";
+echo $box->guest == null ? "null" : "set", "\n";
+--EXPECT--
+  hook price
+  hook level
+  hook run
+  hook label
+  hook pet
+  hook guest
+built
+RuntimeError
+RuntimeError
+1.5
+RuntimeError
+RuntimeError
+1
+RuntimeError
+RuntimeError
+2
+RuntimeError
+RuntimeError
+n4
+RuntimeError
+RuntimeError
+RuntimeError
+RuntimeError
+null
+  hook price
+  hook guest
+2.5
+set

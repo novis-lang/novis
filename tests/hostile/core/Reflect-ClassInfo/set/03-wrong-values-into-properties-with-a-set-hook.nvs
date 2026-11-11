@@ -1,0 +1,92 @@
+<?nvs
+// Attack: a program writes values of the wrong type by name into properties that have a `set` hook.
+// Every write should throw an error. The hook should not run, and each property should keep its old value.
+
+enum Level: int { Low = 1, High = 7 }
+enum Color: int { Red = 1, Blue = 3 }
+
+class Pet
+{
+    public string $name = 'pet';
+}
+
+class Rock
+{
+    public int $weight = 9;
+}
+
+class Holder
+{
+    public float $price {
+        set(float $v) { echo "hook price\n"; $this->price = $v; }
+    }
+    public Level $level {
+        set(Level $v) { echo "hook level\n"; $this->level = $v; }
+    }
+    public callable(int): string $label {
+        set(callable(int): string $v) { echo "hook label\n"; $this->label = $v; }
+    }
+    public Pet $pet {
+        set(Pet $v) { echo "hook pet\n"; $this->pet = $v; }
+    }
+
+    public function constructor()
+    {
+        $this->price = 1.5;
+        $this->level = Level::Low;
+        $this->label = fn (int $n): string => 'number ' . $n;
+        $this->pet = new Pet();
+    }
+}
+
+Holder $holder = new Holder();
+var $info = Core\Reflect::forObject($holder);
+mixed $any = $holder;
+
+// 1. A whole number is written where a `float` is declared.
+try {
+    $info->set($holder, 'price', 2);
+    echo "written\n";
+} catch (RuntimeError $refused) {
+    echo "refused\n";
+}
+echo $holder->price, "\n";
+
+// 2. A case of another enum is written through a `mixed` variable. Its value 3 is not a value of `Level`.
+try {
+    $any->level = Color::Blue;
+    echo "written\n";
+} catch (RuntimeError $refused) {
+    echo "refused\n";
+}
+echo $holder->level as int, "\n";
+
+// 3. A string and a function that takes a string are written where a `callable(int): string` is declared.
+try {
+    $info->set($holder, 'label', 'not a function');
+    echo "written\n";
+} catch (RuntimeError $refused) {
+    echo "refused\n";
+}
+try {
+    $any->label = fn (string $s): string => Core\Str::upper($s);
+    echo "written\n";
+} catch (RuntimeError $refused) {
+    echo "refused\n";
+}
+echo ($holder->label)(42), "\n";
+
+// 4. An object of an unrelated class is written where a `Pet` is declared, through both ways.
+try {
+    $info->set($holder, 'pet', new Rock());
+    echo "written\n";
+} catch (RuntimeError $refused) {
+    echo "refused\n";
+}
+try {
+    $any->pet = new Rock();
+    echo "written\n";
+} catch (RuntimeError $refused) {
+    echo "refused\n";
+}
+echo $holder->pet->name, "\n";
