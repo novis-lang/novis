@@ -74,10 +74,7 @@ pub(crate) fn document(
 ) -> Result<Value, Collision> {
     let routes = exprs.routes();
     let ids = operation_ids(routes);
-    let mut schemas = Schemas {
-        codecs: exprs,
-        entries: BTreeMap::new(),
-    };
+    let mut schemas = Schemas::new(exprs, "#/components/schemas/");
 
     // The orderings determinism requires, in the type that holds them, before anything
     // is handed to the JSON map — so the sort is this module's own fact rather
@@ -201,19 +198,42 @@ fn shape(template: &str) -> String {
 
 /// `components.schemas`, collected while the operations are rendered: one
 /// entry per class a response or a request body reaches, keyed by
-/// [`component_name`].
+/// [`component_name`]. `nvs meta --json <entry>` renders each derived class
+/// through this same type, so a codec's schema is written in one place
+/// (`rule:tooling/meta-json-takes-a-program`), and `prefix` is where each
+/// document keeps the entries a `$ref` points at.
 ///
 /// A class's schema is its `#[Json\Derive]` codec's field list, read from the
 /// checked program's [`ExprTypeTable::codec`]. That list is what the codec
 /// writes, so a skipped field and a private property the codec does not name
 /// never reach the document. A class with no codec has no JSON form to
 /// describe and gets the empty schema.
-struct Schemas<'a> {
+pub(crate) struct Schemas<'a> {
     codecs: &'a ExprTypeTable,
+    prefix: &'static str,
     entries: BTreeMap<String, Value>,
 }
 
-impl Schemas<'_> {
+impl<'a> Schemas<'a> {
+    /// No entries yet. A `$ref` it writes is `prefix` and the component name.
+    pub(crate) fn new(codecs: &'a ExprTypeTable, prefix: &'static str) -> Self {
+        Self {
+            codecs,
+            prefix,
+            entries: BTreeMap::new(),
+        }
+    }
+
+    /// The table each codec is read from.
+    pub(crate) fn codecs(&self) -> &'a ExprTypeTable {
+        self.codecs
+    }
+
+    /// Every entry a `$ref` reached, sorted by component name.
+    pub(crate) fn into_entries(self) -> BTreeMap<String, Value> {
+        self.entries
+    }
+
     /// The schema for a declared body type.
     fn body(&mut self, ty: &BodyTy) -> Value {
         match ty {
@@ -259,13 +279,13 @@ impl Schemas<'_> {
             let object = self.object(codec);
             self.entries.insert(name.clone(), object);
         }
-        json!({"$ref": format!("#/components/schemas/{name}")})
+        json!({"$ref": format!("{}{name}", self.prefix)})
     }
 
     /// An object schema over a codec's fields, with `required` in declaration
     /// order. A field is in `required` when a document must carry its key,
     /// which is independent of whether its value may be `null`.
-    fn object(&mut self, codec: &DerivedCodec) -> Value {
+    pub(crate) fn object(&mut self, codec: &DerivedCodec) -> Value {
         let mut properties = Map::new();
         let mut required = Vec::new();
         for field in &codec.fields {

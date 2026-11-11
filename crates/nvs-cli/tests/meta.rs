@@ -803,6 +803,50 @@ fn a_user_class_names_its_parent_and_interfaces_fully_qualified() {
     );
 }
 
+/// A class with a `#[Json\Derive]` codec carries `json`, its object schema as
+/// `nvs build --openapi` writes it: the parent's renamed field is there, the
+/// skipped field is not, a set of allowed values is an `enum`, and a nested
+/// class is a `$ref` into the program's `schemas` map. A class with no codec has
+/// no `json` key.
+// covers: tools:cli/nvs-meta-json
+#[test]
+fn a_derived_class_carries_its_json_schema() {
+    let entry = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/meta/derive.nvs")
+        .display()
+        .to_string();
+    let program = program(&["--json", &entry]);
+
+    let post = declared(&program, "classes", r"Shop\Post");
+    assert_eq!(
+        post["json"],
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "id": { "type": "integer" },
+                "state": { "type": "string", "enum": ["draft", "live"] },
+                "author": { "$ref": "#/program/schemas/Shop.Author" },
+            },
+            "required": ["id", "state", "author"],
+        })
+    );
+    assert_eq!(
+        program["schemas"],
+        serde_json::json!({
+            "Shop.Author": {
+                "type": "object",
+                "properties": { "name": { "type": "string" } },
+                "required": ["name"],
+            },
+        })
+    );
+
+    for plain in [r"Shop\Entity", r"Shop\Price"] {
+        let class = declared(&program, "classes", plain);
+        assert!(class.get("json").is_none(), "{plain} has no codec");
+    }
+}
+
 /// The registry document's rosters, and the one this adds beside them.
 fn roster(document: &serde_json::Value, key: &str) -> Vec<serde_json::Value> {
     document[key]

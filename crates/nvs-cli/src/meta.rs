@@ -143,6 +143,8 @@ use nvs_syntax::ast::{
 use rustc_hash::FxHashMap;
 use serde_json::{Map, Value, json};
 
+use crate::openapi::Schemas;
+
 /// Print the `Core` registry — every class and member, with each
 /// documented member's reference card — and, given an entry point, that
 /// program's own declarations beside it.
@@ -673,7 +675,11 @@ fn builtin_json() -> (Vec<Value>, Vec<Value>) {
             let mut map = SourceMap::new();
             let id = map.add(file.path.as_str(), file.text.as_str());
             let stmts = nvs_syntax::parse_file(map.file(id), &mut Diagnostics::new());
-            collect(&stmts, map.file(id), "", &mut declared);
+            // A source half is parsed, never checked, so no codec is known
+            // and no class gets a `json` key.
+            let unchecked = nvs_types::ExprTypeTable::new();
+            let mut schemas = Schemas::new(&unchecked, "#/program/schemas/");
+            collect(&stmts, map.file(id), "", &mut declared, &mut schemas);
             promoted_types(&stmts, map.file(id), &mut promoted);
         }
         let mut public: Vec<Value> = declared.classes.into_iter().map(public_surface).collect();
@@ -917,17 +923,25 @@ struct Declared {
 /// file its `require`/`autoload` graph reached, and within a file the order
 /// they were written. A roster with nothing in it is left out, the same
 /// omission rule the registry half follows.
+///
+/// `schemas` is every class a derived class's `json` schema reaches through a
+/// `$ref`, once each, under the component name `nvs build --openapi` gives it.
 fn program_json(checked: &crate::Checked) -> Value {
     let mut declared = Declared::default();
+    let mut schemas = Schemas::new(&checked.exprs, "#/program/schemas/");
     for file in &checked.files {
         let src = checked.map.file(file.id);
-        collect(&file.stmts, src, "", &mut declared);
+        collect(&file.stmts, src, "", &mut declared, &mut schemas);
     }
     let mut out = Map::new();
     put_values(&mut out, "classes", declared.classes);
     put_values(&mut out, "interfaces", declared.interfaces);
     put_values(&mut out, "enums", declared.enums);
     put_values(&mut out, "types", declared.types);
+    let entries: Map<String, Value> = schemas.into_entries().into_iter().collect();
+    if !entries.is_empty() {
+        out.insert("schemas".into(), Value::Object(entries));
+    }
     Value::Object(out)
 }
 
@@ -940,7 +954,13 @@ fn program_json(checked: &crate::Checked) -> Value {
 /// gathered in the same pass, into a [`Scope`] that each namespace starts
 /// empty. Nothing else descends: a declaration inside a function body or a
 /// branch is not a declaration this language has.
-fn collect(stmts: &[Stmt], src: &SourceFile, enclosing: &str, out: &mut Declared) {
+fn collect(
+    stmts: &[Stmt],
+    src: &SourceFile,
+    enclosing: &str,
+    out: &mut Declared,
+    schemas: &mut Schemas<'_>,
+) {
     let mut namespace = enclosing.to_owned();
     let mut scope = Scope::new(enclosing);
     for stmt in stmts {
@@ -951,7 +971,7 @@ fn collect(stmts: &[Stmt], src: &SourceFile, enclosing: &str, out: &mut Declared
                     .map(|name| text(src, name.span).to_owned())
                     .unwrap_or_default();
                 match &decl.body {
-                    Some(block) => collect(&block.stmts, src, &name, out),
+                    Some(block) => collect(&block.stmts, src, &name, out, schemas),
                     None => {
                         scope = Scope::new(&name);
                         namespace = name;
@@ -961,7 +981,7 @@ fn collect(stmts: &[Stmt], src: &SourceFile, enclosing: &str, out: &mut Declared
             StmtKind::UseDecl(decl) => scope.import(text(src, decl.path.span)),
             StmtKind::ClassDecl(decl) => {
                 out.classes
-                    .push(user_class_json(decl, src, &namespace, &scope));
+                    .push(user_class_json(decl, src, &namespace, &scope, schemas));
             }
             StmtKind::InterfaceDecl(decl) => {
                 out.interfaces
@@ -1031,7 +1051,18 @@ impl Scope {
 /// interfaces' names in the order they were written, each omitted when the
 /// class has none. Only the names written on this declaration are listed: an
 /// interface reached through the parent is the parent's own entry.
-fn user_class_json(decl: &ClassDecl, src: &SourceFile, namespace: &str, scope: &Scope) -> Value {
+///
+/// A class whose `#[Json\Derive]` codec the checker recorded carries `json`,
+/// the codec's object schema as `nvs build --openapi` writes it, inherited
+/// fields included and skipped ones absent. A class with no codec has no
+/// `json` key, because nothing knows its JSON shape.
+fn user_class_json(
+    decl: &ClassDecl,
+    src: &SourceFile,
+    namespace: &str,
+    scope: &Scope,
+    schemas: &mut Schemas<'_>,
+) -> Value {
     let mut out = Map::new();
     let name = qualify(namespace, text(src, decl.name.span));
     out.insert("name".into(), Value::from(name.as_str()));
@@ -1046,6 +1077,9 @@ fn user_class_json(decl: &ClassDecl, src: &SourceFile, namespace: &str, scope: &
     put_values(&mut out, "implements", implements);
     body_json(&decl.members, src, &name, &mut out);
     put_doc(&mut out, decl.doc.as_ref(), src);
+    if let Some(codec) = schemas.codecs().codec(&name) {
+        out.insert("json".into(), schemas.object(codec));
+    }
     Value::Object(out)
 }
 

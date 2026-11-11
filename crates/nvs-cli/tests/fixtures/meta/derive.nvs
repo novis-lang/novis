@@ -1,0 +1,55 @@
+<?nvs
+// The program `nvs meta --json <entry>` reads for a class's JSON schema: a
+// derived class with an inherited field, a renamed key, a skipped field, a set
+// of allowed values and a nested class, beside a class with no JSON codec.
+
+namespace Shop;
+
+use Core\Json;
+use Core\Json\Field;
+
+/// Anything the shop stores under a number.
+class Entity
+{
+    #[Field(name: "id")]
+    public int $key;
+
+    public function constructor(int $key)
+    {
+        $this->key = $key;
+    }
+}
+
+/// Who wrote a post.
+#[Core\Json\Derive]
+class Author
+{
+    public function constructor(public string $name) {}
+}
+
+/// A post on the shop's blog.
+#[Core\Json\Derive]
+class Post extends Entity
+{
+    #[Field(skip: true)]
+    public int $views = 0;
+
+    public function constructor(
+        int $key,
+        public "draft"|"live" $state,
+        public Author $author,
+    ) {
+        parent::constructor($key);
+    }
+}
+
+/// A price, with no JSON codec.
+class Price
+{
+    public function constructor(public int $cents) {}
+}
+
+var $post = new Post(1, "live", new Author("Ada"));
+echo Json::encode($post), "\n";
+var $price = new Price(100);
+echo $price->cents, "\n";

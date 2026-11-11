@@ -23,11 +23,19 @@ resolving a name itself, and a consumer that wants every ancestor walks the edge
 `static` is the member's `kind`, never part of its `signature`, which is the member's own spelling as the
 registry writes it.
 
+A user class whose `#[Json\Derive]` codec the checker recorded carries `json`, the codec's object schema.
+It is the schema `nvs build --openapi` writes for that codec, from the same renderer, so the two
+documents never disagree: inherited fields first, each under its wire key, a skipped field absent, and a
+set of allowed values as `{"type": "string", "enum": [...]}`. A nested class is a `$ref` to
+`#/program/schemas/<name>`, and the program object carries a `schemas` map with each class a schema
+reached, once, under OpenAPI's component name; the map is omitted when nothing was reached. A class with a
+hand-written `toJson` and no derive has no `json` key, because nothing knows its shape.
+
 The no-argument form must emit byte-identical output before and after the argument exists: the seam is
 one input added to one document, never a fork.
 
 **Memory:** nothing at run time; this is compile-time output. The document grows by one short string per
-lineage edge.
+lineage edge, and by one schema per derived class plus one per class a `$ref` reaches.
 
 **Declined:**
 - **The names as written.** `Item` means `Shop\Item` only in the file that imported it, so a renderer
@@ -37,3 +45,6 @@ lineage edge.
   renderer could no longer tell a direct parent from an inherited one.
 - **`static` inside `signature`.** The signature is the member's own spelling, the same as the
   registry's, where `kind` already carries `static`; adding it would make the two halves disagree.
+- **A class's raw `#[Json\…]` attributes in place of `json`.** A renderer that reads them repeats the
+  derive rules, and `rule:ide/ast-json-schema-is-frozen` keeps literal text out of machine output.
+- **Both the raw attributes and `json`.** That is two ways to read one fact, and they can disagree.
