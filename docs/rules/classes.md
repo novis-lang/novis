@@ -1519,15 +1519,66 @@ properties pointing at one nested object still point at one object on the other 
 terminates instead of recursing. It never runs a constructor, and no hook fires: the shape that
 crosses is the class's own declared properties, every time.
 
-It refuses what has no meaning on the other side, naming the offending value and its path: a callable,
-which captures a heap and a scope; an `inout` binding, which aliases a specific frame; and an object
-holding a host handle. Declared types make most of that a compile-time refusal at the copy site; the
-run-time check is what a `mixed` carrying one of them needs. An object whose class the receiving side
-cannot resolve is refused by name, never stubbed.
+It refuses what has no meaning on the other side, naming the offending value and its path. An `inout`
+binding aliases a specific frame, and the checker refuses it at the copy site. Six refusals are facts
+about an object's class:
+
+- a callable's class, which captures a heap and a scope;
+- a generator's state class, which is a suspended frame;
+- a class holding a host handle, whose key indexes the sending side's table;
+- every other class the compiler made, known by a `$` in its name, except an anonymous object's
+  `$shape{…}` class, which is data;
+- a class with a `secret` property, named by its first one ([`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary));
+- a class with no instances, `abstract` or an interface, whose name in a payload is forged, since no
+  instance of it was ever encoded.
+
+One function, `ClassDesc::refusal`, answers those six, and it takes the door that asks: a live copy,
+a copy through bytes, or a reflective `construct` ([`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)).
+Every door that makes or copies an instance by name calls it, so the doors cannot come to disagree
+about a class. The bytes door also refuses a `Core` class that does not state the type of each slot,
+because `decode` checks every slot it fills against a stated type
+([`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format)). The live door admits it: it copies an object a `Core`
+member made, so its slots already hold their types.
+
+| Class | `decode` | Live crossing | `construct` | `forClass` |
+|---|---|---|---|---|
+| A class the program declares, the error tree included | made | crosses | made | described |
+| The same with a `secret` property | refused | refused | made | described |
+| An `abstract` class or an interface | refused | has no instance | refused | described |
+| An anonymous object's class, `$shape{…}` | made | crosses | refused | `null` |
+| A function value's class, a generator's state class | refused | refused | refused | `null` |
+| Every other class the compiler made | refused | refused | refused | `null` |
+| A `Core` class that holds a host handle | refused | refused | refused | `null` |
+| A `Core` class that states its slot types | made, each slot checked | crosses | refused | `null` |
+| Every other `Core` class | refused | crosses | refused | `null` |
+
+Both copy directions call it: the walk for every object it copies or encodes, and the decoder for
+every class a payload names. `encode` asks the bytes door, so it refuses what `decode` refuses, with
+the same sentence. Declared types make most of that a compile-time refusal at the copy
+site; the run-time check is what a `mixed` carrying one of them needs. An object whose class the
+receiving side cannot resolve is refused by name, never stubbed.
 
 One walk serves both carriers — arena-to-arena at the isolate boundary, and bytes through
 `Core\Serialize` — so a rule added to it reaches both or neither. Two implementations that agree today
 is the failure that costs.
+
+The crossings are these, and each calls a public function of the graph module:
+
+| Crossing | Carrier | Lands in |
+|---|---|---|
+| `Core\Serialize::encode` and `decode` | bytes | the program that decodes |
+| the memory and the shared cache tier | bytes | the program that reads the entry |
+| the session record | bytes | the request that starts the session |
+| `spawn` in and out, on one core | live | the child, then the parent |
+| `spawn` placed on another core | bytes | the child, then the parent |
+| `Core\Socket::upgrade` and `Core\Sse::upgrade` | live | the connection |
+| the test fixtures | live, or bytes across cores | the test |
+| `Core\Topic::publish` | live on one core, bytes across cores | each subscriber |
+
+Every door that lands a value takes the receiving side
+([`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy)), and a test reads every shipped call of one and fails
+on a call that names none. `Core\Queue::push` is not a crossing: it writes `$args` as JSON, which
+names no class.
 
 <sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`types/callable-values`](types.md#types-callable-values), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling).</sub>
 
@@ -1540,7 +1591,11 @@ is the failure that costs.
 `Core\Serialize::encode($x): bytes` runs the graph copy and encodes the result; `decode` runs it in
 reverse. The accepted format is Novis's own, versioned and self-describing enough to be checked before
 any object is built. A payload without the format marker is refused outright rather than best-effort
-parsed. A payload naming a class the receiving side cannot resolve is refused, naming the class. A
+parsed. A payload naming a class the receiving side cannot resolve is refused, naming the class.
+`decode` refuses every class `encode` refuses, with the same sentence, by asking the function
+[`classes/graph-copy`](classes.md#classes-graph-copy) names once the class resolves. It asks before it compares a property or
+makes an object, so a refused payload builds nothing and its error does not print the class's layout.
+The cost is a few flag reads and one scan of the class's `secret` flags per decoded object. A
 payload whose recorded property set does not exactly match the target class's current declarations —
 one added, removed or retyped — is refused, naming the mismatch, never coerced and never filled with a
 default.
@@ -1553,6 +1608,28 @@ refused, naming the class and the property, so no typed read can see a value of 
 whatever the bytes are. The fields are checked once the whole graph is built, because a
 back-reference can reach an object whose later fields are not filled yet. The cost is one check per
 field on a decode and nothing in memory.
+
+A `Core` class's slots are checked the same way. Every `Core` class with instances and no host handle
+has one row in the roster `SLOT_TYPES`, beside the class descriptors (`nvs_stdlib::instance`). A row
+is the class and either one type per slot, in the type language a member's signature uses, or a
+reason sentence. A slot's type may be `mixed`, a union, or a `Core` enum, which admits only that
+enum's case values. A class with no slots has an empty row. The roster fills the tables the check
+reads, and a debug build checks each `Core` instance it builds against its row. A `Core` class with
+no stated slot types is not written and not read: `encode` and `decode` both refuse it, with one
+sentence, before an object is made. That is the default for a class added later, so it is refused
+until it says what it holds, and a test that walks the registry fails until it has a row.
+
+A row is a reason when a reader relies on more than each slot's type. That is a slot that is an
+index, a length or a key into another slot or into a table of the request or the core; the state of
+a walk, a stream or a queue still running; text written out with no check, such as `Core\Html\Markup`;
+key material; and a value a `Core` member checked when it made the instance and its readers do not
+check again. A reader that checks a value again at each use and throws on a bad one does not rely on
+it, so a `Core\Time\Date` with a month of 13 is read back and its first member throws. Such a class
+is refused with its reason, which ends the refusal's sentence. A live crossing does not
+check slots: it copies an object a `Core` member made, and with `decode` checked and `construct`
+closed, no `Core` instance has a slot of a type its class does not state. The cost is one tag test
+per slot per decoded `Core` object, and one small table per `Core` class, built once per process. A
+program that decodes nothing pays nothing per request.
 
 `decode` is a `tainted` sink with no launderer. The rules above close code execution but not type
 confusion: a payload reconstructing a `User` with `isAdmin` set bypasses the constructor while
@@ -1575,6 +1652,12 @@ loosening of this format.
   ([`security/script-spawn-capability`](security.md#security-script-spawn-capability)); what `decode` builds is inert data.
 - **`decode` passing taint on to its result.** The danger is the reconstructed graph itself, not a
   string that later reaches an output sink, so `decode` is a sink rather than contagious.
+- **A field of slot types on every `Core` class literal.** Most `Core` classes have no slots, and one
+  roster beside the descriptors says it in one place.
+- **A hand-written list of `Core` classes that are "data".** It states nothing `decode` can check.
+- **Each `Core` reader testing its slot before it returns it.** That is one check per member, and a
+  new member would have to remember it. `decode` checks each slot where the bytes come in.
+- **Skipping the slot check for bytes this process wrote.** That is a second decoder to keep in step.
 
 <sub>See also [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization).</sub>
 

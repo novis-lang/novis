@@ -2765,7 +2765,14 @@ class<Shop\Animal> $c = 'Shop\Dog' as class<Shop\Animal>;   // loads src/Dog.nvs
 A qualifier is stripped, as every checked conversion strips one, and here for a narrower reason than
 that row's: the conversion's whole output range is the set of classes declared to be `Animal`s in this
 program's own source. A tainted string cannot widen that set, name a class the source does not
-declare, or reach outside the hierarchy the author wrote down. What survives is a choice among the
+declare, or reach outside the hierarchy the author wrote down. Nor can any string name a class the
+compiler made, such as a generator's state class or an anonymous object's: the set leaves out every
+class `construct` refuses because of its kind ([`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)), so such
+a name throws as an unknown name does. An `abstract` class and an interface stay in it, because a
+static call through such a reference is legal, and `new` over one throws
+([`types/class-reference-sites`](types.md#types-class-reference-sites)). The set is built while compiling and costs nothing at run time.
+Declined: matching on the `$` in a label at run time, which would be a second list of the kinds beside
+the one question every door asks. What survives is a choice among the
 author's own subclasses, which is what a discriminator field is for. That bound is narrower than a
 hand-written `match` over string literals gives, because the compiler cannot tell whether one arm of
 the `match` was mistyped.
@@ -2853,6 +2860,17 @@ class side is a written name and any value there, a `class<T>` included, is `E04
 `new $cls(...)` pays the constructor lookup by name that `new static(...)` already pays, and nothing
 more: the descriptor is in hand, so there is no resolution step. `new Dog()` gains no branch, no field
 and no wider value.
+
+A `class<T>` may hold an `abstract` class or an interface, and `new static(...)` may run on one
+through a static call, so the dynamic `new` **refuses a class with no instances** where it allocates.
+It throws a `LogicError` the program can catch, with the sentence `construct` gives such a class:
+"`Animal` is `abstract` or an interface, so it has no instances, so it cannot be constructed". Nothing
+is allocated and no constructor runs. The allocation reads the class's no-instances bit, the one
+`ClassDesc::refusal` asks ([`classes/graph-copy`](classes.md#classes-graph-copy)). **What it spends:** one byte load and one
+branch per dynamic `new`; a `new` of a class written by name pays nothing, because the checker
+already refused that class there. Declined: leaving it to the `FATAL` the first bodiless call raises.
+A value of a type that has no instances is a broken promise of the type system, and a program cannot
+catch a `FATAL`.
 
 `new $cls(...)` types its arguments against **`T`'s** constructor, exactly as `new static(...)` types
 them against the current class's; that is the only signature the site can see, and the value may be

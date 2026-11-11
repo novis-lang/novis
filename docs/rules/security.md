@@ -110,6 +110,15 @@ object whose class the receiving side cannot resolve is refused with a diagnosti
 never degraded into a stub. A `secret`-typed property is refused there too
 ([`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary)).
 
+The receiving side resolves its own classes first and then every `Core` class, in the order a
+program resolves a class by name. So a `Core\Uri` crosses a `spawn`, an `await` and an `upgrade` as
+it crosses the cache, and a program's class arrives only as the same class, by descriptor. One
+function builds that resolver from the receiving program's table, `Ctx::receiving` for a context,
+and every crossing takes it, so no crossing can leave `Core` out or resolve by name where the live
+carrier needs the same descriptor. A side with no program table declares no program class: such an
+object is refused there, and a `Core` object still arrives. **What it spends:** one more name lookup
+per object at a live crossing, only where the program's table misses.
+
 A value crosses exactly twice, and both crossings are the same walk. In, at the spawn, the `args:`
 value crosses from the parent's ownership root into the child's. Out, at the `await`, the child's
 top-level return value, its captured output and, on failure, its error as data cross back. Nothing
@@ -540,6 +549,22 @@ subclass declares again over its parent's is refused to that subclass by name, s
 carries no declaring class; this errs toward refusing. Constructing
 through reflection calls the constructor under the same check, so a `private` constructor is reached
 from its own class's bodies and from nowhere else.
+
+`construct` makes only a class the program declares and `new` could make. It refuses, with a
+`LogicError`, an `abstract` class, an interface, a `Core` class, an anonymous object's class, and
+every class the compiler made, such as a generator's state class or a function value's class. A
+`Core` instance is made by a `Core` member, and no constructor of one reaches the runtime; an
+anonymous object has no name a program writes. The question is the copy boundary's own,
+`ClassDesc::refusal` asked for the construct door ([`classes/graph-copy`](classes.md#classes-graph-copy)), and a kind it has no
+row for is refused. **What it spends:** one call that reads a few flags and one branch per
+`construct`; a refused `construct` allocates nothing.
+
+Declined:
+
+- **A second predicate beside the copy refusal.** It is two lists of classes to keep in step, and the
+  day they drift a door makes what another refuses.
+- **`forObject` throwing for a generator or a `Core` object.** It takes `name()` away from a log line
+  that names what it holds; the description is read-only, and its `construct` throws instead.
 
 **There is no `setAccessible(true)` and no equivalent.** It is rejected outright rather than left
 undocumented, because an escape hatch for reaching a private member from anywhere is a structural
