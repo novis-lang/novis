@@ -4,27 +4,30 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn name(object, int) -> string {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; int
+    safepoint
     ; stmt s0 @4:5-7:7
     v2 = const.int 1  ; int
     v3 = eq v1, v2  ; bool
-    branch v3 -> bb1 (e0), bb4 (e1)
+    branch v3 -> bb2 (e0), bb5 (e1)
   bb1:
-    v6 = const.str "low"  ; string
-    jump bb3
+    release v0
+    propagate "name() at t.nvs:1"
   bb2:
-    v7 = const.str "high"  ; string
-    jump bb3
+    v6 = const.str "low"  ; string
+    jump bb4
   bb3:
-    v8 = phi [bb1: v6, bb2: v7]  ; string
+    v7 = const.str "high"  ; string
+    jump bb4
+  bb4:
+    v8 = phi [bb2: v6, bb3: v7]  ; string
     release v0
     return v8
-  bb4:
+  bb5:
     v4 = const.int 2  ; int
     v5 = eq v1, v4  ; bool
-    branch v5 -> bb1 (e2), bb5 (e3)
-  bb5:
-    jump bb2
+    branch v5 -> bb2 (e2), bb6 (e3)
+  bb6:
+    jump bb3
 }

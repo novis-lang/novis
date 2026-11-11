@@ -193,7 +193,6 @@ pub(crate) fn lower_anon_fn(
     let mut low = Lowering::new(&label, Some(&label), src, *ret, exprs, checked_types, enums);
     let entry = low.new_block();
     let mut cur = entry;
-    low.emit_safepoint(entry);
 
     let (self_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
     let mut env = Env::default();
@@ -248,6 +247,9 @@ pub(crate) fn lower_anon_fn(
         env.insert(pname, (v, ty));
         param_tys.push(ty);
     }
+    // The entry poll, once the captures and every parameter are bound, so a
+    // stop here releases them (`rule:errors/stack-depth`).
+    low.emit_safepoint(entry, &env);
     for (i, value, class, span) in class_checks {
         cur = check_param_class(&mut low, cur, i, value, &class, span, &mut env);
     }
@@ -712,7 +714,6 @@ pub(crate) fn lower_callable(
     let mut low = Lowering::new(&label, Some(&label), src, ret, exprs, checked_types, enums);
     let entry = low.new_block();
     let mut cur = entry;
-    low.emit_safepoint(entry);
     // A thunk has no statement of its own, so the `(...)` is what
     // `Lowering::frame_label` and a throw location render — the site the
     // reader wrote, rather than the file's first line.
@@ -763,6 +764,9 @@ pub(crate) fn lower_callable(
         args.push(v);
         param_tys.push(*ty);
     }
+    // The entry poll, once every argument is staged, so a stop here releases
+    // them and the receiver (`rule:errors/stack-depth`).
+    low.emit_safepoint(entry, &env);
     // The same guarantee an anonymous function's own parameters get, and for the
     // same reason: `FN_PARAM_TAGS` has four bits per parameter and no room
     // for a class label, so a named-class parameter is checked here or not at

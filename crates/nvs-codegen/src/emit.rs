@@ -1379,7 +1379,15 @@ impl Emitter<'_, '_> {
     /// Only the **soft** address is compared here. Which of
     /// `rule:errors/stack-depth`'s two tiers a crossing is gets decided in the slow path, which is what makes
     /// two tiers cost exactly what one costs at the site.
-    fn emit_stack_check(&mut self, _cur: Block) -> Result<Block, CodegenError> {
+    ///
+    /// A crossing's status goes through [`Self::emit_status_check`] to the
+    /// entry poll's landing block, which releases the arguments the frame
+    /// owns.
+    fn emit_stack_check(
+        &mut self,
+        _cur: Block,
+        on_error: Option<BlockId>,
+    ) -> Result<Block, CodegenError> {
         let offset = i32::try_from(STACK_LIMIT_OFFSET)
             .map_err(|_| internal("the stack-limit word sits past a 2 GiB offset"))?;
         let limit = self
@@ -1397,11 +1405,8 @@ impl Emitter<'_, '_> {
         let callee = self.runtime_ref("nvs_stack_check", RuntimeSig::StackCheck)?;
         let call = self.b.ins().call(callee, &[self.ctx_p, sp]);
         let status = self.b.inst_results(call)[0];
-        let stop = self.b.create_block();
-        self.b.ins().brif(status, stop, &[], cont, &[]);
-
-        self.b.switch_to_block(stop);
-        self.emit_return(status);
+        self.emit_status_check(status, on_error)?;
+        self.b.ins().jump(cont, &[]);
 
         self.b.switch_to_block(cont);
         Ok(cont)
@@ -1416,21 +1421,23 @@ impl Emitter<'_, '_> {
     ///
     /// This is also where the call-stack check rides, at the **first**
     /// safepoint of a non-leaf function — which is the function-entry one,
-    /// since `nvs_ir::lower` emits that before anything else and the entry
-    /// block is first in [`reachable_in_reverse_postorder`]. A loop back
+    /// since `nvs_ir::lower` emits that right after the parameters and the
+    /// entry block is first in [`reachable_in_reverse_postorder`]. A loop back
     /// edge's poll gets no check: going round a loop does not grow the stack.
     ///
-    /// A back edge's poll carries `on_error`, and a stop takes it, so the
-    /// landing block releases the locals the loop holds before the frame
-    /// returns. The function-entry poll has none, because nothing is bound
-    /// there yet, and a stop returns the status directly.
+    /// Every poll carries `on_error`, and a stop takes it, so the landing
+    /// block releases what the frame holds before the frame returns. The
+    /// function-entry poll follows the last parameter, so its landing block
+    /// releases the arguments. The poll's status and the stack check's both
+    /// go through [`Self::emit_status_check`], which does not compile a poll
+    /// with no error edge.
     fn emit_safepoint(
         &mut self,
         cur: Block,
         on_error: Option<BlockId>,
     ) -> Result<Block, CodegenError> {
         if std::mem::take(&mut self.stack_check_pending) {
-            self.emit_stack_check(cur)?;
+            self.emit_stack_check(cur, on_error)?;
         }
         let flags = self
             .b
@@ -1445,16 +1452,8 @@ impl Emitter<'_, '_> {
         let callee = self.runtime_ref("nvs_safepoint", RuntimeSig::Safepoint)?;
         let call = self.b.ins().call(callee, &[self.ctx_p]);
         let status = self.b.inst_results(call)[0];
-        if on_error.is_some() {
-            self.emit_status_check(status, on_error)?;
-            self.b.ins().jump(cont, &[]);
-        } else {
-            let stop = self.b.create_block();
-            self.b.ins().brif(status, stop, &[], cont, &[]);
-
-            self.b.switch_to_block(stop);
-            self.emit_return(status);
-        }
+        self.emit_status_check(status, on_error)?;
+        self.b.ins().jump(cont, &[]);
 
         self.b.switch_to_block(cont);
         Ok(cont)

@@ -714,8 +714,8 @@ pub struct Inst {
     /// [`InstKind::NewDynamic`], [`InstKind::CoreCall`], every
     /// [`InstKind::HelperCall`], [`InstKind::SlotGet`]/[`InstKind::SlotSet`],
     /// [`InstKind::ArrayGet`] in each of [`crate::ir::AbsentKey`]'s shapes,
-    /// [`InstKind::ArrayAppend`], [`InstKind::ArraySpread`], a loop back
-    /// edge's [`InstKind::Safepoint`], **every
+    /// [`InstKind::ArrayAppend`], [`InstKind::ArraySpread`], every
+    /// [`InstKind::Safepoint`], **every
     /// integer arithmetic row** — `+`, `-`, `*`, `/` and `%` over
     /// [`crate::ty::Ty::Int`]/[`crate::ty::Ty::Uint`] as an
     /// [`InstKind::BinOp`], and unary `-` over the same two as an
@@ -732,9 +732,10 @@ pub struct Inst {
     /// cleanup path and nothing else. `None` is for the instructions that
     /// return no status to check: a comparison, the rest of the float rows, an
     /// [`InstKind::Concat`], a constant, a phi, a refcount operation, a
-    /// relabelling. The function-entry [`InstKind::Safepoint`] is the one
-    /// status-returning instruction with `None`: it is the frame's first
-    /// instruction, so there is nothing yet for a landing block to release.
+    /// relabelling. The function-entry [`InstKind::Safepoint`] follows the
+    /// frame's last [`InstKind::Param`], so its landing block releases the
+    /// arguments the callee owns when a stop or a recursion error ends the
+    /// frame there.
     ///
     /// **A status a `catch` cannot act on still gets a landing block**, and
     /// that is the whole reason the rule is phrased over the status rather
@@ -817,15 +818,16 @@ pub enum InstKind {
     /// `rule:testing/debug-probes`
     /// contrasts its own, denser probe grid against. `nvs-codegen` lowers it
     /// to one load of the context's safepoint word and a predicted-not-taken
-    /// branch, and the **function-entry** one — the first in the entry
+    /// branch, and the **function-entry** one — the first poll in the entry
     /// block — also carries `rule:errors/on-limit`'s call-stack compare, so that
     /// check needs no new pass and no new emit site.
     /// Reserving the shape ahead of any of that is the point: inserting it
     /// after the fact means re-walking every already-lowered
     /// function, the same "cheap now, expensive to retrofit" reason
     /// `crate::ids` already gives for `StmtId`/`EdgeId`. Defines no value.
-    /// A back edge's poll carries an [`Inst::on_error`] edge, and the entry
-    /// one does not; that field's doc says why.
+    /// Every poll carries an [`Inst::on_error`] edge, and `nvs-codegen` does
+    /// not compile one without it. The entry poll comes right after the last
+    /// [`InstKind::Param`], so its edge releases the arguments.
     Safepoint,
     /// `rule:errors/a-use-of-deprecated-code-may-log-or-throw`'s check: one
     /// load of the context's deprecation word and a predicted-not-taken branch

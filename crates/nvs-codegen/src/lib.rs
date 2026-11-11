@@ -3165,6 +3165,51 @@ mod tests {
         );
     }
 
+    /// A poll's status goes through the one status check, which needs an
+    /// error edge. A lowering that dropped the entry poll's edge would let a
+    /// stop leave the frame without releasing its arguments
+    /// (`rule:errors/stack-depth`), so the unit does not compile.
+    #[test]
+    fn codegen_refuses_a_poll_with_no_error_edge() {
+        let mut program = lower(
+            "<?nvs
+class Holder {
+    public static function take(string $s): string {
+        return $s . \"!\";
+    }
+}
+echo Holder::take(\"a\");
+",
+        );
+        let take = program
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "Holder::take")
+            .expect("the fixture lowers `Holder::take`");
+        let entry = take.entry;
+        let poll = take
+            .blocks
+            .iter_mut()
+            .find(|b| b.id == entry)
+            .and_then(|b| {
+                b.insts
+                    .iter_mut()
+                    .find(|inst| matches!(inst.kind, nvs_ir::ir::InstKind::Safepoint))
+            })
+            .expect("`Holder::take` polls at its entry");
+        assert!(poll.on_error.is_some(), "the lowering gave the poll an edge");
+        poll.on_error = None;
+
+        let mut jit = UnitBuilder::new(None).expect("this host has a Cranelift backend");
+        let err = jit
+            .compile_all(&program)
+            .expect_err("a poll with no error edge compiled");
+        assert!(
+            format!("{err:?}").contains("no error edge"),
+            "the unit failed for another reason: {err:?}"
+        );
+    }
+
     /// Compiles `source` and hands back the JIT with its tables intact —
     /// stopping short of [`UnitBuilder::finish`], which consumes them.
     fn compiled(source: &str) -> UnitBuilder<JITModule> {

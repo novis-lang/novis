@@ -64,11 +64,11 @@
 //! only has to be a safe *over-approximation* of "might be reassigned",
 //! since a spurious phi is merely redundant, never wrong.
 //!
-//! [`Lowering::emit_safepoint`] reserves an inert [`crate::ir::InstKind::Safepoint`]
-//! at function entry ([`lower_method`]) and on a `while`'s actual back edge
-//! (the last thing appended to the body block before it jumps to the
-//! header) — see that variant's own doc comment for why only the shape is
-//! reserved.
+//! [`Lowering::emit_safepoint`] emits a [`crate::ir::InstKind::Safepoint`]
+//! at function entry, after the last parameter ([`lower_method`]), and on a
+//! `while`'s actual back edge (the last thing appended to the body block
+//! before it jumps to the header). Each poll has the frame's landing block as
+//! its error edge.
 
 use nvs_diagnostics::{SourceFile, SourceId, Span, code};
 use nvs_render::Source;
@@ -1466,11 +1466,6 @@ pub fn lower_method(
     let mut env = Env::default();
     let mut param_tys = Vec::new();
 
-    // Reserved safepoint poll site (recursion) — see `InstKind::Safepoint`'s
-    // own doc comment for why function entry is a fixed site and why this
-    // slice reserves only the shape, not a functional check.
-    low.emit_safepoint(entry);
-
     // The implicit receiver, always parameter index 0 — seeded
     // unconditionally, the same way `nvs_types::check.rs`'s `check_method`
     // seeds `$this` into its own `LocalScope` regardless of a `static`
@@ -1573,6 +1568,9 @@ pub fn lower_method(
         env.insert(pname, (v, bound_ty));
         param_tys.push(bound_ty);
     }
+    // The entry poll and its stack check, once every parameter is bound, so a
+    // stop here releases the arguments (`rule:errors/stack-depth`).
+    low.emit_safepoint(entry, &env);
 
     // `rule:errors/a-use-of-deprecated-code-may-log-or-throw`: a deprecated
     // method checks on entry, so a call through an interface or a dynamic
@@ -1904,7 +1902,6 @@ pub fn lower_property_hook(
     let mut env = Env::default();
     let mut param_tys = vec![Ty::Object];
 
-    low.emit_safepoint(entry);
     let (this_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
     env.insert("this".to_owned(), (this_v, Ty::Object));
     low.this = Some(this_v);
@@ -1924,6 +1921,7 @@ pub fn lower_property_hook(
         env.insert(pname, (v, pty));
         param_tys.push(pty);
     }
+    low.emit_safepoint(entry, &env);
 
     match &hook.body {
         Some(PropertyHookBody::Block(block)) => low.lower_stmts(&block.stmts, &mut cur, &mut env),
@@ -2073,10 +2071,9 @@ pub fn lower_script(
     let mut cur = entry;
     let mut env = Env::default();
 
-    // The same reserved function-entry safepoint poll site `lower_method`
-    // emits — a script body is a function, so it is a fixed site for the same
-    // reason.
-    low.emit_safepoint(entry);
+    // The same function-entry poll `lower_method` emits. A script frame has
+    // no parameters, so its landing block has nothing to release.
+    low.emit_safepoint(entry, &env);
 
     low.lower_script_stmts(stmts, &mut cur, &mut env);
     if !low.is_terminated(cur) {
@@ -3402,33 +3399,25 @@ impl<'a> Lowering<'a> {
             member: self.member.clone(),
         }
     }
-    /// Appends a loop back edge's [`InstKind::Safepoint`] to `b`, with the error
-    /// edge `env` gives every fallible instruction.
+    /// Appends an [`InstKind::Safepoint`] to `b`, with the error edge `env`
+    /// gives every fallible instruction. It is the one emitter of a poll, at a
+    /// function's entry and on a loop's back edge alike.
     ///
     /// A poll that stops the request returns `FATAL` from the middle of the
-    /// loop, and every local the loop holds is still this frame's. The landing
-    /// block releases them, as [`crate::ir::Inst::on_error`]'s doc says every
-    /// status needs.
-    pub(crate) fn emit_back_edge_safepoint(&mut self, b: BlockId, env: &Env) {
+    /// frame, and every local bound in `env` is still this frame's. The
+    /// landing block releases them, as [`crate::ir::Inst::on_error`]'s doc
+    /// says every status needs. At a function's entry `env` holds the
+    /// parameters, so the entry poll is emitted after the last
+    /// [`InstKind::Param`]: a stop there, or the recursion error its stack
+    /// check raises, releases the arguments the callee owns
+    /// (`rule:errors/stack-depth`).
+    pub(crate) fn emit_safepoint(&mut self, b: BlockId, env: &Env) {
         let landing = self.landing_block(env);
         self.block_insts[b.index() as usize].push(Inst {
             result: None,
             ty: None,
             kind: InstKind::Safepoint,
             on_error: Some(landing),
-            raise_site: None,
-        });
-    }
-    /// Appends a function entry's [`InstKind::Safepoint`] to `b`, with no error
-    /// edge: it is the frame's first instruction, so nothing is bound yet for a
-    /// landing block to release. See the variant's own doc comment for why it
-    /// defines no value.
-    pub(crate) fn emit_safepoint(&mut self, b: BlockId) {
-        self.block_insts[b.index() as usize].push(Inst {
-            result: None,
-            ty: None,
-            kind: InstKind::Safepoint,
-            on_error: None,
             raise_site: None,
         });
     }

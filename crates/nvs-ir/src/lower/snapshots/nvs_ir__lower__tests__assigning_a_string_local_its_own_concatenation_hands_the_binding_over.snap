@@ -4,9 +4,9 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, string) -> string {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    safepoint
     ; stmt s0 @4:5-4:19
     v2 = const.str ""  ; string
     ; stmt s1 @5:5-5:26
@@ -15,4 +15,8 @@ fn m(object, string) -> string {
     release v1
     release v0
     return v3
+  bb1:
+    release v1
+    release v0
+    propagate "m() at t.nvs:1"
 }

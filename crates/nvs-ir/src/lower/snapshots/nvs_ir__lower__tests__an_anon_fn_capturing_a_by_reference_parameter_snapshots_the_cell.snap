@@ -5,11 +5,11 @@ expression: "print_program(&p, map.file(file))"
 ---
 fn T::make(classdesc, ref) -> object {
   bb0:
-    safepoint
     v0 = param 0  ; classdesc
     v1 = param 1  ; ref
+    safepoint
     ; stmt s0 @4:5-4:32
-    v2 = new T$fn0() ! bb1  ; object
+    v2 = new T$fn0() ! bb2  ; object
     v3 = const.int 0  ; int
     field.set v2, T$fn0::fn#arity, v3
     v4 = const.int 0  ; int
@@ -19,19 +19,25 @@ fn T::make(classdesc, ref) -> object {
     field.set v2, T$fn0::s, v5
     return v2
   bb1:
+    propagate "T::make() at t.nvs:1"
+  bb2:
     propagate "T::make() at t.nvs:4"
 }
 
 fn T$fn0::invoke(object) -> string {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = field.get v0, T$fn0::s  ; string
     retain v1
+    safepoint
     retain v1
     release v0
     release v1
     return v1
+  bb1:
+    release v0
+    release v1
+    propagate "T$fn0::invoke() at t.nvs:1"
 }
 
 fn <script>() -> tagged {
@@ -40,16 +46,18 @@ fn <script>() -> tagged {
     v0 = const.null  ; null
     v1 = tag v0  ; tagged
     return v1
+  bb1:
+    propagate "<script>() at t.nvs:1"
 }
 
 fn Throwable::constructor(object, string, tagged) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    v2 = param 2  ; tagged
+    safepoint
     retain v1
     field.set v0, Throwable::message, v1
-    v2 = param 2  ; tagged
     retain v2
     field.set v0, Throwable::previous, v2
     v3 = array.new []  ; array
@@ -60,16 +68,21 @@ fn Throwable::constructor(object, string, tagged) -> void {
     release v2
     release v0
     return
+  bb1:
+    release v1
+    release v2
+    release v0
+    propagate "Throwable::constructor()"
 }
 
 fn ParseError::constructor(object, string, tagged) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    v2 = param 2  ; tagged
+    safepoint
     retain v1
     field.set v0, ParseError::message, v1
-    v2 = param 2  ; tagged
     retain v2
     field.set v0, ParseError::previous, v2
     v3 = array.new []  ; array
@@ -82,16 +95,21 @@ fn ParseError::constructor(object, string, tagged) -> void {
     release v2
     release v0
     return
+  bb1:
+    release v1
+    release v2
+    release v0
+    propagate "ParseError::constructor()"
 }
 
 fn Core\Db\DbError::constructor(object, string, tagged) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    v2 = param 2  ; tagged
+    safepoint
     retain v1
     field.set v0, Core\Db\DbError::message, v1
-    v2 = param 2  ; tagged
     retain v2
     field.set v0, Core\Db\DbError::previous, v2
     v3 = array.new []  ; array
@@ -104,16 +122,21 @@ fn Core\Db\DbError::constructor(object, string, tagged) -> void {
     release v2
     release v0
     return
+  bb1:
+    release v1
+    release v2
+    release v0
+    propagate "Core\\Db\\DbError::constructor()"
 }
 
 fn Core\Db\RolledBack::constructor(object, string, tagged) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    v2 = param 2  ; tagged
+    safepoint
     retain v1
     field.set v0, Core\Db\RolledBack::message, v1
-    v2 = param 2  ; tagged
     retain v2
     field.set v0, Core\Db\RolledBack::previous, v2
     v3 = array.new []  ; array
@@ -126,16 +149,21 @@ fn Core\Db\RolledBack::constructor(object, string, tagged) -> void {
     release v2
     release v0
     return
+  bb1:
+    release v1
+    release v2
+    release v0
+    propagate "Core\\Db\\RolledBack::constructor()"
 }
 
 fn Core\Ldap\LdapError::constructor(object, string, tagged) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    v2 = param 2  ; tagged
+    safepoint
     retain v1
     field.set v0, Core\Ldap\LdapError::message, v1
-    v2 = param 2  ; tagged
     retain v2
     field.set v0, Core\Ldap\LdapError::previous, v2
     v3 = array.new []  ; array
@@ -148,4 +176,9 @@ fn Core\Ldap\LdapError::constructor(object, string, tagged) -> void {
     release v2
     release v0
     return
+  bb1:
+    release v1
+    release v2
+    release v0
+    propagate "Core\\Ldap\\LdapError::constructor()"
 }

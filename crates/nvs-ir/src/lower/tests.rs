@@ -135,6 +135,111 @@ fn lower_program(src: &str) -> (crate::ir::Program, SourceMap, SourceId) {
     (p, map, file)
 }
 
+/// Every function kind polls at its entry right after its last parameter,
+/// and every poll has an error edge, so a stop there releases the arguments
+/// (`rule:errors/stack-depth`). The fixture has a script frame, a method, a
+/// property hook, an anonymous function, a method reference, a generator and
+/// two delegation forwards. Every program also has the exception
+/// constructors.
+#[test]
+fn every_function_kind_polls_with_an_error_edge() {
+    let (p, _, _) = lower_program(concat!(
+        "<?nvs\n",
+        "interface Greeter {\n",
+        "  public function greet(string $s): string;\n",
+        "}\n",
+        "class Polite implements Greeter {\n",
+        "  public function greet(string $s): string { return $s; }\n",
+        "}\n",
+        "class Plain implements Greeter by $inner {\n",
+        "  public function constructor(public Polite $inner) {}\n",
+        "}\n",
+        "class Late implements Greeter by $inner {\n",
+        "  public lateinit Polite $inner;\n",
+        "}\n",
+        "class T {\n",
+        "  public int $n = 0;\n",
+        "  public int $twice {\n",
+        "    get => $this->n * 2;\n",
+        "  }\n",
+        "  public function m(string $s): string { return $s; }\n",
+        "  public function count(int $to): Iterator<int> {\n",
+        "    for (int $i = 0; $i < $to; $i++) {\n",
+        "      yield $i;\n",
+        "    }\n",
+        "  }\n",
+        "}\n",
+        "T $t = new T();\n",
+        "var $f = fn(string $s): string => $s;\n",
+        "var $r = $t->m(...);\n",
+        "echo $f(\"a\"), $r(\"b\"), $t->twice;\n",
+    ));
+
+    let mut kinds = std::collections::BTreeSet::new();
+    for f in &p.functions {
+        let entry = f
+            .blocks
+            .iter()
+            .find(|b| b.id == f.entry)
+            .unwrap_or_else(|| panic!("`{}` has no entry block", f.name));
+        // The captures an anonymous function reads may sit between, because
+        // no such read can fail. What matters is that every parameter is
+        // bound and nothing that can stop the frame runs before the poll.
+        let poll = entry
+            .insts
+            .iter()
+            .position(|inst| matches!(inst.kind, InstKind::Safepoint))
+            .unwrap_or_else(|| panic!("`{}`'s entry block has no poll", f.name));
+        assert!(
+            entry.insts[poll..]
+                .iter()
+                .all(|inst| !matches!(inst.kind, InstKind::Param(_))),
+            "`{}` binds a parameter after its entry poll",
+            f.name
+        );
+        assert!(
+            entry.insts[..poll].iter().all(|inst| inst.on_error.is_none()),
+            "`{}` runs a fallible instruction before its entry poll",
+            f.name
+        );
+        for block in &f.blocks {
+            for inst in &block.insts {
+                if matches!(inst.kind, InstKind::Safepoint) {
+                    assert!(
+                        inst.on_error.is_some(),
+                        "`{}` polls with no error edge",
+                        f.name
+                    );
+                }
+            }
+        }
+        let kind = match f.name.rsplit_once("::").map_or("", |(_, member)| member) {
+            "" => "script",
+            "m" => "method",
+            "constructor" if f.name.starts_with("Plain") => "constructor",
+            "constructor" => "exception constructor",
+            "greet" if !f.name.starts_with("Polite") => "delegation forward",
+            FN_INVOKE => "anonymous function or method reference",
+            GEN_ADVANCE | GEN_CURRENT_METHOD | GEN_UNWIND_METHOD | "count" => "generator",
+            "get" if f.name.contains("$twice") => "property hook",
+            _ => "other",
+        };
+        kinds.insert(kind);
+    }
+    for kind in [
+        "script",
+        "method",
+        "constructor",
+        "exception constructor",
+        "delegation forward",
+        "anonymous function or method reference",
+        "generator",
+        "property hook",
+    ] {
+        assert!(kinds.contains(kind), "the fixture lowered no {kind}: {kinds:?}");
+    }
+}
+
 /// `echo "Hello, World!";` as a whole script, lowered: one
 /// synthesized frame, no receiver parameter, a `ConstStr` handed straight
 /// to `Helper::EchoStr`, and the literal released right after the write

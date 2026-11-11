@@ -4,17 +4,20 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, bool, bool) -> bool {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; bool
     v2 = param 2  ; bool
+    safepoint
     ; stmt s0 @4:5-4:21
     v3 = const.bool true  ; bool
-    branch v1 -> bb2 (e0), bb1 (e1)
+    branch v1 -> bb3 (e0), bb2 (e1)
   bb1:
-    jump bb2
+    release v0
+    propagate "m() at t.nvs:1"
   bb2:
-    v4 = phi [bb0: v3, bb1: v2]  ; bool
+    jump bb3
+  bb3:
+    v4 = phi [bb0: v3, bb2: v2]  ; bool
     release v0
     return v4
 }

@@ -4,47 +4,51 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, array) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; array
+    safepoint
     ; stmt s0 @4:5-6:6
     retain v1
     v2 = const.int 0  ; int
-    jump bb1
+    jump bb2
   bb1:
-    v3 = phi [bb0: v2, bb2: v8]  ; int
+    release v1
+    release v0
+    propagate "m() at t.nvs:1"
+  bb2:
+    v3 = phi [bb0: v2, bb3: v8]  ; int
     v4 = array.next_slot v1, v3  ; int
     v5 = const.int 0  ; int
     v6 = ge v4, v5  ; bool
-    branch v6 -> bb2 (e0), bb3 (e1)
-  bb2:
+    branch v6 -> bb3 (e0), bb4 (e1)
+  bb3:
     v7 = const.int 1  ; int
-    v8 = add v4, v7 ! bb4  ; int
+    v8 = add v4, v7 ! bb5  ; int
     v9 = array.key_at v1, v4  ; string
     v10 = array.value_at v1, v4  ; int
     ; stmt s1 @4:41-6:6
     ; stmt s2 @5:7-5:15
-    helper.echo_str v9 ! bb5
+    helper.echo_str v9 ! bb6
     release v9
     safepoint
-    jump bb1
-  bb3:
-    release v1
-    release v1
-    release v0
-    return
+    jump bb2
   bb4:
     release v1
     release v1
     release v0
-    propagate "m() at t.nvs:4"
+    return
   bb5:
+    release v1
+    release v1
+    release v0
+    propagate "m() at t.nvs:4"
+  bb6:
     release v1
     release v1
     release v9
     release v0
     propagate "m() at t.nvs:5"
-  bb6:
+  bb7:
     release v1
     release v1
     release v0

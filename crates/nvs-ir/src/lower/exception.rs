@@ -1146,12 +1146,14 @@ enum ExtraInit {
 ///
 /// The receiver, the message and the `previous` option are all *transferred*
 /// to this frame by the call convention, so all three are released at the exit
-/// — each field takes its own reference first. A tagged `null` retains and
+/// — each field takes its own reference first. A stop at the entry poll
+/// releases the same three. A tagged `null` retains and
 /// releases as a no-op, which `nvs_runtime::nvs_value_retain` decides at run
 /// time rather than this lowering deciding it here.
 fn exception_constructor(class: &str, extra: &[(&str, ExtraInit)]) -> Function {
     let mut ids = IdGen::default();
     let block = ids.next_block();
+    let stopped = ids.next_block();
     let this = ids.next_value();
     let message = ids.next_value();
     let previous = ids.next_value();
@@ -1188,12 +1190,20 @@ fn exception_constructor(class: &str, extra: &[(&str, ExtraInit)]) -> Function {
     };
 
     let mut insts = vec![
-        plain(InstKind::Safepoint),
         defines(this, Ty::Object, InstKind::Param(0)),
         defines(message, Ty::Str, InstKind::Param(1)),
+        defines(previous, Ty::Tagged, InstKind::Param(2)),
+        // The entry poll, once every parameter is bound, so a stop here
+        // releases all three (`rule:errors/stack-depth`).
+        Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::Safepoint,
+            on_error: Some(stopped),
+            raise_site: None,
+        },
         plain(InstKind::Retain { operand: message }),
         store(MESSAGE_FIELD, message),
-        defines(previous, Ty::Tagged, InstKind::Param(2)),
         plain(InstKind::Retain { operand: previous }),
         store(PREVIOUS_FIELD, previous),
         defines(backtrace, Ty::Array, empty_array()),
@@ -1235,11 +1245,24 @@ fn exception_constructor(class: &str, extra: &[(&str, ExtraInit)]) -> Function {
         name: format!("{class}::constructor"),
         params: vec![Ty::Object, Ty::Str, Ty::Tagged],
         ret: Ty::Void,
-        blocks: vec![BasicBlock {
-            id: block,
-            insts,
-            term: Terminator::Return(None),
-        }],
+        blocks: vec![
+            BasicBlock {
+                id: block,
+                insts,
+                term: Terminator::Return(None),
+            },
+            BasicBlock {
+                id: stopped,
+                insts: vec![
+                    plain(InstKind::Release { operand: message }),
+                    plain(InstKind::Release { operand: previous }),
+                    plain(InstKind::Release { operand: this }),
+                ],
+                term: Terminator::Propagate {
+                    frame: format!("{class}::constructor()"),
+                },
+            },
+        ],
         entry: block,
         stmt_spans,
         edge_spans,

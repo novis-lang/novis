@@ -450,6 +450,106 @@ fn a_limit_a_loop_polls_for_releases_the_frames_locals() {
     );
 }
 
+/// The back-edge guard above, over the poll at a function's entry. The first
+/// argument fits under the memory limit, the second one's allocation crosses
+/// it, and the callee's entry poll is the first poll after them. The callee
+/// owns its arguments, so its landing block has to release the first one, or
+/// a request stopped at a call keeps it for the life of the process.
+#[cfg(debug_assertions)]
+#[test]
+fn a_limit_stop_at_a_functions_entry_releases_its_arguments() {
+    /// Each argument's length: one fits under the ceiling, and two do not.
+    const FILLER: usize = 640 << 10;
+    /// The memory limit.
+    const CEILING: usize = 1 << 20;
+
+    let filler = "x".repeat(FILLER);
+    let source = format!(
+        "<?nvs\nclass Holder {{\n    \
+         public static function take(string $a, string $b): int {{\n        \
+         return 1;\n    }}\n}}\n\
+         echo Holder::take(\"{filler}\" . \"!\", \"{filler}\" . \"?\");\n"
+    );
+    let unit = compile(&source).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    unit.install_in(&mut ctx);
+    let entry = unit.script().expect("the script frame was compiled");
+
+    nvs_runtime::prime_empty_array();
+    let before = live_bytes();
+    let spent = allocated_bytes();
+    ctx.set_memory_limit(CEILING);
+    assert_eq!(entry.call(&mut ctx).err(), Some(FATAL));
+    assert!(
+        allocated_bytes() - spent >= FILLER,
+        "the argument was never allocated, so the balance below would prove \
+         nothing"
+    );
+
+    let pending = ctx.take_pending();
+    assert!(
+        pending
+            .as_deref()
+            .is_some_and(|message| message.contains("memory")),
+        "the call stopped for another reason: {pending:?}"
+    );
+    drop(pending);
+    assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b""[..]));
+
+    assert_eq!(
+        live_bytes(),
+        before,
+        "a limit stop at a function's entry left its argument allocated"
+    );
+}
+
+/// The guard above, over the stack check at a function's entry. Each frame
+/// passes the same string on, and the frame the check stops owns one
+/// reference to it. The script catches the `RecursionError` and ends, so the
+/// string is freed only if the stopped frame released its reference.
+///
+/// The window is armed from this frame's address, as
+/// `tests/stack_limit.rs`'s runaway arms it.
+#[cfg(debug_assertions)]
+#[test]
+fn a_recursion_error_releases_the_stopped_frames_arguments() {
+    /// The held string's length, big enough that no other allocation the run
+    /// makes could be mistaken for it.
+    const FILLER: usize = 1 << 16;
+
+    let filler = "x".repeat(FILLER);
+    let source = format!(
+        "<?nvs\nclass Runaway {{\n    public static function down(string $s, int $n): int {{\n        \
+         return Runaway::down($s, $n + 1);\n    }}\n}}\n\
+         string $held = \"{filler}\" . \"!\";\n\
+         try {{\n    echo Runaway::down($held, 0);\n}} catch (RecursionError $e) {{\n    \
+         echo \"caught\";\n}}\n"
+    );
+    let unit = compile(&source).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    unit.install_in(&mut ctx);
+    let entry = unit.script().expect("the script frame was compiled");
+    let here = std::ptr::from_ref(&ctx) as usize;
+    ctx.arm_stack_limit(here, 2 * STACK_RESERVE);
+
+    nvs_runtime::prime_empty_array();
+    let before = live_bytes();
+    let spent = allocated_bytes();
+    assert!(entry.call(&mut ctx).is_ok(), "{:?}", ctx.take_pending());
+    assert!(
+        allocated_bytes() - spent >= FILLER,
+        "the string was never allocated, so the balance below would prove \
+         nothing"
+    );
+    assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b"caught"[..]));
+
+    assert_eq!(
+        live_bytes(),
+        before,
+        "a recursion error left the stopped frame's argument allocated"
+    );
+}
+
 /// Three frames, each holding a `finally` of its own, with the innermost one
 /// ending the script through `Core\Script::finish()`.
 ///

@@ -5,26 +5,31 @@ expression: "print_program(&p, map.file(file))"
 ---
 fn G::two(classdesc) -> object {
   bb0:
-    safepoint
     v0 = param 0  ; classdesc
-    v1 = new G::two$gen() ! bb1  ; object
+    safepoint
+    v1 = new G::two$gen() ! bb2  ; object
     v2 = const.int 0  ; int
     field.set v1, G::two$gen::gen#state, v2
     field.set v1, G::two$gen::gen#unwind, v2
     return v1
   bb1:
     propagate "G::two() at t.nvs:1"
+  bb2:
+    propagate "G::two() at t.nvs:1"
 }
 
 fn G::two$gen::advance(object) -> bool {
   bb0:
-    safepoint
     v0 = param 0  ; object
+    safepoint
     v1 = field.get v0, G::two$gen::gen#state  ; int
     v2 = const.int -1  ; int
     field.set v0, G::two$gen::gen#state, v2
-    switch v1 -> 0: bb1 (e0), 1: bb3 (e1), 2: bb4 (e2), default: bb2 (e3)
+    switch v1 -> 0: bb2 (e0), 1: bb4 (e1), 2: bb5 (e2), default: bb3 (e3)
   bb1:
+    release v0
+    propagate "G::two$gen::advance() at t.nvs:1"
+  bb2:
     ; stmt s0 @4:5-4:20
     v3 = const.str "t"  ; string
     ; stmt s1 @5:5-5:16
@@ -42,11 +47,11 @@ fn G::two$gen::advance(object) -> bool {
     release v3
     v7 = const.bool true  ; bool
     return v7
-  bb2:
+  bb3:
     v16 = const.bool false  ; bool
     release v0
     return v16
-  bb3:
+  bb4:
     v8 = field.get v0, G::two$gen::tag  ; string
     retain v8
     ; stmt s2 @6:5-6:16
@@ -64,7 +69,7 @@ fn G::two$gen::advance(object) -> bool {
     release v8
     v12 = const.bool true  ; bool
     return v12
-  bb4:
+  bb5:
     v13 = field.get v0, G::two$gen::tag  ; string
     retain v13
     v14 = const.int -1  ; int
@@ -77,28 +82,31 @@ fn G::two$gen::advance(object) -> bool {
 
 fn G::two$gen::current(object) -> string {
   bb0:
-    safepoint
     v0 = param 0  ; object
+    safepoint
     v1 = field.get v0, G::two$gen::gen#state  ; int
     v2 = const.int 1  ; int
     v3 = ge v1, v2  ; bool
-    branch v3 -> bb1 (e0), bb2 (e1)
+    branch v3 -> bb2 (e0), bb3 (e1)
   bb1:
+    release v0
+    propagate "G::two$gen::current() at t.nvs:3"
+  bb2:
     v4 = field.get v0, G::two$gen::gen#current  ; string
     retain v4
     release v0
     return v4
-  bb2:
+  bb3:
     release v0
     v5 = const.str "current() outside the iteration protocol: it answers only after advance() returned true"  ; string
     v6 = const.null  ; null
     v7 = tag v6  ; tagged
-    v8 = new LogicError via Throwable::constructor(v5, v7) ! bb3  ; object
+    v8 = new LogicError via Throwable::constructor(v5, v7) ! bb4  ; object
     v9 = source t.nvs:3 G::two$gen::current  ; classdesc
-    throw v8 at v9 -> bb4
-  bb3:
-    propagate "G::two$gen::current() at t.nvs:3"
+    throw v8 at v9 -> bb5
   bb4:
+    propagate "G::two$gen::current() at t.nvs:3"
+  bb5:
     propagate "G::two$gen::current() at t.nvs:3"
 }
 
@@ -108,16 +116,18 @@ fn <script>() -> tagged {
     v0 = const.null  ; null
     v1 = tag v0  ; tagged
     return v1
+  bb1:
+    propagate "<script>() at t.nvs:1"
 }
 
 fn Throwable::constructor(object, string, tagged) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    v2 = param 2  ; tagged
+    safepoint
     retain v1
     field.set v0, Throwable::message, v1
-    v2 = param 2  ; tagged
     retain v2
     field.set v0, Throwable::previous, v2
     v3 = array.new []  ; array
@@ -128,16 +138,21 @@ fn Throwable::constructor(object, string, tagged) -> void {
     release v2
     release v0
     return
+  bb1:
+    release v1
+    release v2
+    release v0
+    propagate "Throwable::constructor()"
 }
 
 fn ParseError::constructor(object, string, tagged) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    v2 = param 2  ; tagged
+    safepoint
     retain v1
     field.set v0, ParseError::message, v1
-    v2 = param 2  ; tagged
     retain v2
     field.set v0, ParseError::previous, v2
     v3 = array.new []  ; array
@@ -150,16 +165,21 @@ fn ParseError::constructor(object, string, tagged) -> void {
     release v2
     release v0
     return
+  bb1:
+    release v1
+    release v2
+    release v0
+    propagate "ParseError::constructor()"
 }
 
 fn Core\Db\DbError::constructor(object, string, tagged) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    v2 = param 2  ; tagged
+    safepoint
     retain v1
     field.set v0, Core\Db\DbError::message, v1
-    v2 = param 2  ; tagged
     retain v2
     field.set v0, Core\Db\DbError::previous, v2
     v3 = array.new []  ; array
@@ -172,16 +192,21 @@ fn Core\Db\DbError::constructor(object, string, tagged) -> void {
     release v2
     release v0
     return
+  bb1:
+    release v1
+    release v2
+    release v0
+    propagate "Core\\Db\\DbError::constructor()"
 }
 
 fn Core\Db\RolledBack::constructor(object, string, tagged) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    v2 = param 2  ; tagged
+    safepoint
     retain v1
     field.set v0, Core\Db\RolledBack::message, v1
-    v2 = param 2  ; tagged
     retain v2
     field.set v0, Core\Db\RolledBack::previous, v2
     v3 = array.new []  ; array
@@ -194,16 +219,21 @@ fn Core\Db\RolledBack::constructor(object, string, tagged) -> void {
     release v2
     release v0
     return
+  bb1:
+    release v1
+    release v2
+    release v0
+    propagate "Core\\Db\\RolledBack::constructor()"
 }
 
 fn Core\Ldap\LdapError::constructor(object, string, tagged) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    v2 = param 2  ; tagged
+    safepoint
     retain v1
     field.set v0, Core\Ldap\LdapError::message, v1
-    v2 = param 2  ; tagged
     retain v2
     field.set v0, Core\Ldap\LdapError::previous, v2
     v3 = array.new []  ; array
@@ -216,4 +246,9 @@ fn Core\Ldap\LdapError::constructor(object, string, tagged) -> void {
     release v2
     release v0
     return
+  bb1:
+    release v1
+    release v2
+    release v0
+    propagate "Core\\Ldap\\LdapError::constructor()"
 }

@@ -11,4 +11,6 @@ fn <script>() -> tagged {
     v2 = const.null  ; null
     v3 = tag v2  ; tagged
     return v3
+  bb1:
+    propagate "<script>() at t.nvs:1"
 }

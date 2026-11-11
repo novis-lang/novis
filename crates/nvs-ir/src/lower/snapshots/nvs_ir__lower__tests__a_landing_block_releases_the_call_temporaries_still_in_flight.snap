@@ -8,39 +8,41 @@ fn <script>() -> tagged {
     ; stmt s0 @2:1-7:2
     ; stmt s1 @3:3-3:43
     v0 = const.str "ff"  ; string
-    v1 = core.call nvs_core_encoding_from_hex(v0) ! bb3  ; bytes
+    v1 = core.call nvs_core_encoding_from_hex(v0) ! bb4  ; bytes
     release v0
     release v1
-    jump bb2
+    jump bb3
   bb1:
+    propagate "<script>() at t.nvs:1"
+  bb2:
     v2 = take.thrown  ; object
     v3 = class.test v2, Throwable  ; bool
-    branch v3 -> bb6 (e0), bb7 (e1)
-  bb2:
+    branch v3 -> bb7 (e0), bb8 (e1)
+  bb3:
     v5 = const.null  ; null
     v6 = tag v5  ; tagged
     return v6
-  bb3:
-    release v0
-    catch -> bb4 else bb5
   bb4:
-    raise.site t.nvs:3
-    jump bb1
+    release v0
+    catch -> bb5 else bb6
   bb5:
-    propagate "<script>() at t.nvs:3"
+    raise.site t.nvs:3
+    jump bb2
   bb6:
+    propagate "<script>() at t.nvs:3"
+  bb7:
     ; stmt s2 @6:3-6:17
     v4 = const.str "caught"  ; string
-    helper.echo_str v4 ! bb8
+    helper.echo_str v4 ! bb9
     release v4
     release v2
-    jump bb2
-  bb7:
-    throw v2 -> bb9
+    jump bb3
   bb8:
+    throw v2 -> bb10
+  bb9:
     release v4
     release v2
     propagate "<script>() at t.nvs:6"
-  bb9:
+  bb10:
     propagate "<script>() at t.nvs:6"
 }

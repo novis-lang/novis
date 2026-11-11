@@ -5,67 +5,70 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn m(object) -> int {
   bb0:
-    safepoint
     v0 = param 0  ; object
+    safepoint
     ; stmt s0 @4:5-8:6
     ; stmt s1 @5:7-5:25
     v1 = class.desc T  ; classdesc
-    v2 = call T::inner(this: v1) ! bb3  ; int
+    v2 = call T::inner(this: v1) ! bb4  ; int
     ; stmt s2 @7:7-7:19
     v3 = const.str "done"  ; string
-    helper.echo_str v3 ! bb6
+    helper.echo_str v3 ! bb7
     release v3
     release v0
     return v2
   bb1:
+    release v0
+    propagate "m() at t.nvs:1"
+  bb2:
     v4 = take.thrown  ; object
     ; stmt s3 @7:7-7:19
     v5 = const.str "done"  ; string
-    helper.echo_str v5 ! bb8
+    helper.echo_str v5 ! bb9
     release v5
-    throw v4 -> bb15
-  bb2:
+    throw v4 -> bb16
+  bb3:
     release v0
     return
-  bb3:
-    catch -> bb4 else bb5
   bb4:
-    raise.site t.nvs:5
-    jump bb1
+    catch -> bb5 else bb6
   bb5:
+    raise.site t.nvs:5
+    jump bb2
+  bb6:
     release v0
     propagate "m() at t.nvs:5"
-  bb6:
+  bb7:
     release v3
     release v0
     propagate "m() at t.nvs:7"
-  bb7:
+  bb8:
     v6 = take.thrown  ; object
     v7 = field.get v6, Throwable::previous  ; tagged
     v8 = is.null v7  ; bool
-    branch v8 -> bb11 (e0), bb12 (e1)
-  bb8:
-    release v5
-    catch -> bb9 else bb10
+    branch v8 -> bb12 (e0), bb13 (e1)
   bb9:
-    raise.site t.nvs:7
-    jump bb7
+    release v5
+    catch -> bb10 else bb11
   bb10:
+    raise.site t.nvs:7
+    jump bb8
+  bb11:
     release v0
     propagate "m() at t.nvs:7"
-  bb11:
+  bb12:
     v9 = tag v4  ; tagged
     field.set v6, Throwable::previous, v9
-    jump bb13
-  bb12:
-    release v4
-    jump bb13
+    jump bb14
   bb13:
-    throw v6 -> bb14
+    release v4
+    jump bb14
   bb14:
+    throw v6 -> bb15
+  bb15:
     release v0
     propagate "m() at t.nvs:7"
-  bb15:
+  bb16:
     release v0
     propagate "m() at t.nvs:7"
 }

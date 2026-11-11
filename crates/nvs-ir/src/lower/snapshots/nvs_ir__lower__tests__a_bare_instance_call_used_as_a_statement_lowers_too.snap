@@ -4,20 +4,23 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn m(object) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
+    safepoint
     ; stmt s0 @7:5-7:26
-    v1 = new Foo() ! bb1  ; object
+    v1 = new Foo() ! bb2  ; object
     ; stmt s1 @8:5-8:19
     retain v1
-    v2 = call Foo::greet(this: v1) ! bb2  ; void
+    v2 = call Foo::greet(this: v1) ! bb3  ; void
     release v1
     release v0
     return
   bb1:
     release v0
-    propagate "m() at t.nvs:7"
+    propagate "m() at t.nvs:1"
   bb2:
+    release v0
+    propagate "m() at t.nvs:7"
+  bb3:
     release v1
     release v0
     propagate "m() at t.nvs:8"

@@ -4,14 +4,17 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn make(object) -> object {
   bb0:
-    safepoint
     v0 = param 0  ; object
+    safepoint
     ; stmt s0 @5:5-5:24
-    v1 = new Foo() ! bb1  ; object
+    v1 = new Foo() ! bb2  ; object
     ; stmt s1 @6:5-6:15
     release v0
     return v1
   bb1:
+    release v0
+    propagate "make() at t.nvs:1"
+  bb2:
     release v0
     propagate "make() at t.nvs:5"
 }

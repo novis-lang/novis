@@ -4,55 +4,59 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, object) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; object
+    safepoint
     ; stmt s0 @4:5-6:6
     retain v1
-    jump bb1
+    jump bb2
   bb1:
+    release v1
+    release v0
+    propagate "m() at t.nvs:1"
+  bb2:
     retain v1
     v2 = class.of v1  ; classdesc
-    v3 = call.virtual v2::advance else <abstract>(this: v1) ! bb2  ; bool
-    branch v3 -> bb3 (e0), bb4 (e1)
-  bb2:
+    v3 = call.virtual v2::advance else <abstract>(this: v1) ! bb3  ; bool
+    branch v3 -> bb4 (e0), bb5 (e1)
+  bb3:
     release v1
     release v1
     release v0
     propagate "m() at t.nvs:4"
-  bb3:
+  bb4:
     retain v1
     v4 = class.of v1  ; classdesc
-    v5 = call.virtual v4::current else <abstract>(this: v1) ! bb5  ; int
+    v5 = call.virtual v4::current else <abstract>(this: v1) ! bb6  ; int
     ; stmt s1 @4:28-6:6
     ; stmt s2 @5:7-5:15
-    v6 = helper.int_to_string v5 ! bb6  ; string
-    helper.echo_str v6 ! bb7
+    v6 = helper.int_to_string v5 ! bb7  ; string
+    helper.echo_str v6 ! bb8
     release v6
     safepoint
-    jump bb1
-  bb4:
-    release v1
-    release v1
-    release v0
-    return
+    jump bb2
   bb5:
     release v1
     release v1
     release v0
-    propagate "m() at t.nvs:4"
+    return
   bb6:
     release v1
     release v1
     release v0
-    propagate "m() at t.nvs:5"
+    propagate "m() at t.nvs:4"
   bb7:
-    release v6
     release v1
     release v1
     release v0
     propagate "m() at t.nvs:5"
   bb8:
+    release v6
+    release v1
+    release v1
+    release v0
+    propagate "m() at t.nvs:5"
+  bb9:
     release v1
     release v1
     release v0

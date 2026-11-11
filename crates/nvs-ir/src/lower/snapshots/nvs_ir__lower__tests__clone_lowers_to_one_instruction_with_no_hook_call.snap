@@ -7,9 +7,9 @@ fn <script>() -> tagged {
     safepoint
     ; stmt s0 @3:1-3:19
     v0 = const.int 1  ; int
-    v1 = new P via P::constructor(v0) ! bb1  ; object
+    v1 = new P via P::constructor(v0) ! bb2  ; object
     ; stmt s1 @4:1-4:19
-    helper.clone_guard v1 ! bb2
+    helper.clone_guard v1 ! bb3
     v2 = clone v1  ; object
     release v1
     release v2
@@ -17,8 +17,10 @@ fn <script>() -> tagged {
     v4 = tag v3  ; tagged
     return v4
   bb1:
-    propagate "<script>() at t.nvs:3"
+    propagate "<script>() at t.nvs:1"
   bb2:
+    propagate "<script>() at t.nvs:3"
+  bb3:
     release v1
     propagate "<script>() at t.nvs:4"
 }

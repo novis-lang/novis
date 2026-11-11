@@ -4,9 +4,9 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, string) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    safepoint
     ; stmt s0 @4:5-4:26
     v2 = array.new []  ; array
     retain v1
@@ -16,4 +16,8 @@ fn m(object, string) -> void {
     release v1
     release v0
     return
+  bb1:
+    release v1
+    release v0
+    propagate "m() at t.nvs:1"
 }

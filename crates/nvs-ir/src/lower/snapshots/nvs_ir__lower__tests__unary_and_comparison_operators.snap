@@ -4,11 +4,11 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn check(object, int) -> bool {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; int
+    safepoint
     ; stmt s0 @4:5-4:25
-    v2 = neg v1 ! bb1  ; int
+    v2 = neg v1 ! bb2  ; int
     v3 = const.int 0  ; int
     v4 = lt v2, v3  ; bool
     ; stmt s1 @5:5-5:18
@@ -16,6 +16,9 @@ fn check(object, int) -> bool {
     release v0
     return v5
   bb1:
+    release v0
+    propagate "check() at t.nvs:1"
+  bb2:
     release v0
     propagate "check() at t.nvs:4"
 }

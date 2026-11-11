@@ -4,12 +4,16 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, object) -> bool {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; object
+    safepoint
     ; stmt s0 @8:5-8:22
     v2 = class.test v1, Dog  ; bool
     release v1
     release v0
     return v2
+  bb1:
+    release v1
+    release v0
+    propagate "m() at t.nvs:1"
 }

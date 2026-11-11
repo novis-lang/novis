@@ -4,9 +4,9 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn tier(object, string) -> int {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    safepoint
     ; stmt s0 @4:5-4:18
     v2 = const.int 0  ; int
     ; stmt s1 @5:5-9:6
@@ -14,19 +14,23 @@ fn tier(object, string) -> int {
     v3 = const.str "a"  ; string
     v4 = eq v1, v3  ; bool
     release v3
-    branch v4 -> bb1 (e0), bb3 (e1)
+    branch v4 -> bb2 (e0), bb4 (e1)
   bb1:
+    release v1
+    release v0
+    propagate "tier() at t.nvs:1"
+  bb2:
     ; stmt s2 @7:9-7:18
     v5 = const.int 1  ; int
     ; stmt s3 @8:9-8:15
-    jump bb2
-  bb2:
-    v6 = phi [bb3: v2, bb1: v5]  ; int
+    jump bb3
+  bb3:
+    v6 = phi [bb4: v2, bb2: v5]  ; int
     release v1
     ; stmt s4 @10:5-10:17
     release v1
     release v0
     return v6
-  bb3:
-    jump bb2
+  bb4:
+    jump bb3
 }

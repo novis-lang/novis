@@ -4,11 +4,14 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn m(object) -> uint {
   bb0:
-    safepoint
     v0 = param 0  ; object
+    safepoint
     ; stmt s0 @4:5-4:17
     v1 = const.uint 1  ; uint
     ; stmt s1 @5:5-5:15
     release v0
     return v1
+  bb1:
+    release v0
+    propagate "m() at t.nvs:1"
 }

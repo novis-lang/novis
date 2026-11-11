@@ -4,19 +4,22 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn m(object) -> int {
   bb0:
-    safepoint
     v0 = param 0  ; object
+    safepoint
     ; stmt s0 @4:5-4:20
     v1 = const.int 1  ; int
     v2 = array.new ["0": v1]  ; array
     ; stmt s1 @5:5-5:27
     v3 = class.of v0  ; classdesc
     retain v2
-    v4 = call T::take(this: v3, v2) ! bb1  ; int
+    v4 = call T::take(this: v3, v2) ! bb2  ; int
     release v2
     release v0
     return v4
   bb1:
+    release v0
+    propagate "m() at t.nvs:1"
+  bb2:
     release v2
     release v0
     propagate "m() at t.nvs:5"

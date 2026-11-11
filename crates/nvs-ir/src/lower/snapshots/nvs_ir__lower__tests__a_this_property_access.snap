@@ -4,10 +4,13 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn m(object) -> int {
   bb0:
-    safepoint
     v0 = param 0  ; object
+    safepoint
     ; stmt s0 @5:5-5:25
     v1 = field.get v0, T::count  ; int
     release v0
     return v1
+  bb1:
+    release v0
+    propagate "m() at t.nvs:1"
 }

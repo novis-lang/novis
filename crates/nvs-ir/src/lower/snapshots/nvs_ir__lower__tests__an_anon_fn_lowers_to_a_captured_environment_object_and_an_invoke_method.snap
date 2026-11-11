@@ -11,7 +11,7 @@ fn <script>() -> tagged {
     ; stmt s1 @3:1-3:15
     v1 = const.int 1  ; int
     ; stmt s2 @4:1-4:37
-    v2 = new Script$fn0() ! bb1  ; object
+    v2 = new Script$fn0() ! bb2  ; object
     v3 = const.int 1  ; int
     field.set v2, Script$fn0::fn#arity, v3
     v4 = const.int 2  ; int
@@ -19,8 +19,8 @@ fn <script>() -> tagged {
     retain v0
     field.set v2, Script$fn0::tag, v0
     ; stmt s3 @5:1-5:12
-    v5 = helper.int_to_string v1 ! bb2  ; string
-    helper.echo_str v5 ! bb3
+    v5 = helper.int_to_string v1 ! bb3  ; string
+    helper.echo_str v5 ! bb4
     release v5
     release v2
     release v0
@@ -28,13 +28,15 @@ fn <script>() -> tagged {
     v7 = tag v6  ; tagged
     return v7
   bb1:
+    propagate "<script>() at t.nvs:1"
+  bb2:
     release v0
     propagate "<script>() at t.nvs:4"
-  bb2:
+  bb3:
     release v2
     release v0
     propagate "<script>() at t.nvs:5"
-  bb3:
+  bb4:
     release v5
     release v2
     release v0
@@ -43,25 +45,29 @@ fn <script>() -> tagged {
 
 fn Script$fn0::invoke(object, int) -> string {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = field.get v0, Script$fn0::tag  ; string
     retain v1
     v2 = param 1  ; int
+    safepoint
     retain v1
     release v0
     release v1
     return v1
+  bb1:
+    release v0
+    release v1
+    propagate "Script$fn0::invoke() at t.nvs:1"
 }
 
 fn Throwable::constructor(object, string, tagged) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    v2 = param 2  ; tagged
+    safepoint
     retain v1
     field.set v0, Throwable::message, v1
-    v2 = param 2  ; tagged
     retain v2
     field.set v0, Throwable::previous, v2
     v3 = array.new []  ; array
@@ -72,16 +78,21 @@ fn Throwable::constructor(object, string, tagged) -> void {
     release v2
     release v0
     return
+  bb1:
+    release v1
+    release v2
+    release v0
+    propagate "Throwable::constructor()"
 }
 
 fn ParseError::constructor(object, string, tagged) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    v2 = param 2  ; tagged
+    safepoint
     retain v1
     field.set v0, ParseError::message, v1
-    v2 = param 2  ; tagged
     retain v2
     field.set v0, ParseError::previous, v2
     v3 = array.new []  ; array
@@ -94,16 +105,21 @@ fn ParseError::constructor(object, string, tagged) -> void {
     release v2
     release v0
     return
+  bb1:
+    release v1
+    release v2
+    release v0
+    propagate "ParseError::constructor()"
 }
 
 fn Core\Db\DbError::constructor(object, string, tagged) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    v2 = param 2  ; tagged
+    safepoint
     retain v1
     field.set v0, Core\Db\DbError::message, v1
-    v2 = param 2  ; tagged
     retain v2
     field.set v0, Core\Db\DbError::previous, v2
     v3 = array.new []  ; array
@@ -116,16 +132,21 @@ fn Core\Db\DbError::constructor(object, string, tagged) -> void {
     release v2
     release v0
     return
+  bb1:
+    release v1
+    release v2
+    release v0
+    propagate "Core\\Db\\DbError::constructor()"
 }
 
 fn Core\Db\RolledBack::constructor(object, string, tagged) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    v2 = param 2  ; tagged
+    safepoint
     retain v1
     field.set v0, Core\Db\RolledBack::message, v1
-    v2 = param 2  ; tagged
     retain v2
     field.set v0, Core\Db\RolledBack::previous, v2
     v3 = array.new []  ; array
@@ -138,16 +159,21 @@ fn Core\Db\RolledBack::constructor(object, string, tagged) -> void {
     release v2
     release v0
     return
+  bb1:
+    release v1
+    release v2
+    release v0
+    propagate "Core\\Db\\RolledBack::constructor()"
 }
 
 fn Core\Ldap\LdapError::constructor(object, string, tagged) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
+    v2 = param 2  ; tagged
+    safepoint
     retain v1
     field.set v0, Core\Ldap\LdapError::message, v1
-    v2 = param 2  ; tagged
     retain v2
     field.set v0, Core\Ldap\LdapError::previous, v2
     v3 = array.new []  ; array
@@ -160,4 +186,9 @@ fn Core\Ldap\LdapError::constructor(object, string, tagged) -> void {
     release v2
     release v0
     return
+  bb1:
+    release v1
+    release v2
+    release v0
+    propagate "Core\\Ldap\\LdapError::constructor()"
 }

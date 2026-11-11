@@ -658,7 +658,6 @@ pub(crate) fn lower_generator_factory(
         enums,
     );
     let entry = low.new_block();
-    low.emit_safepoint(entry);
 
     // Parameter 0 is the receiver for an instance method and the called class
     // for a static one, exactly as `lower_method` seeds it.
@@ -723,6 +722,9 @@ pub(crate) fn lower_generator_factory(
         param_tys.push(bound_ty);
         stored.push((pname, ty));
     }
+    // The entry poll, once every parameter is bound, so a stop here releases
+    // the receiver and the arguments (`rule:errors/stack-depth`).
+    low.emit_safepoint(entry, &env);
     let start = entry;
     let mut cur = entry;
     for check in covariant_checks {
@@ -810,8 +812,11 @@ pub(crate) fn lower_generator_advance(
         enums,
     );
     let entry = low.new_block();
-    low.emit_safepoint(entry);
     let (gen_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
+    // The entry poll. `advance` owns its receiver, so a stop here releases it.
+    let mut entry_env = Env::default();
+    entry_env.insert(GEN_SELF.to_owned(), (gen_v, Ty::Object));
+    low.emit_safepoint(entry, &entry_env);
     let (state_v, _) = low.emit(
         entry,
         Ty::Int,
@@ -982,8 +987,11 @@ pub(crate) fn lower_generator_current(
     // wrote has, so it is what `$e->location` and the backtrace frame name.
     low.cur_stmt_span = m.name;
     let entry = low.new_block();
-    low.emit_safepoint(entry);
     let (gen_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
+    // The entry poll. `current` owns its receiver, so a stop here releases it.
+    let mut entry_env = Env::default();
+    entry_env.insert(GEN_SELF.to_owned(), (gen_v, Ty::Object));
+    low.emit_safepoint(entry, &entry_env);
     let (state_v, _) = low.emit(
         entry,
         Ty::Int,
@@ -1149,8 +1157,10 @@ pub(crate) fn lower_generator_unwind(
         enums,
     );
     let entry = low.new_block();
-    low.emit_safepoint(entry);
     let (gen_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
+    // The entry poll, over an empty `Env`: `unwind` borrows its receiver, so a
+    // stop here has nothing to release.
+    low.emit_safepoint(entry, &Env::default());
     let (state_v, _) = low.emit(
         entry,
         Ty::Int,

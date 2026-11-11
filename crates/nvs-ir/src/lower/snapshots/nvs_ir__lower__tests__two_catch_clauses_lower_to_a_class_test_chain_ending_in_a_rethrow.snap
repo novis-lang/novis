@@ -8,50 +8,52 @@ fn <script>() -> tagged {
     ; stmt s0 @5:1-11:2
     ; stmt s1 @6:3-6:11
     v0 = class.desc T  ; classdesc
-    v1 = call T::go(this: v0) ! bb3  ; void
-    jump bb2
+    v1 = call T::go(this: v0) ! bb4  ; void
+    jump bb3
   bb1:
+    propagate "<script>() at t.nvs:1"
+  bb2:
     v2 = take.thrown  ; object
     v3 = class.test v2, LogicError  ; bool
-    branch v3 -> bb6 (e0), bb7 (e1)
-  bb2:
+    branch v3 -> bb7 (e0), bb8 (e1)
+  bb3:
     v7 = const.null  ; null
     v8 = tag v7  ; tagged
     return v8
-  bb3:
-    catch -> bb4 else bb5
   bb4:
-    raise.site t.nvs:6
-    jump bb1
+    catch -> bb5 else bb6
   bb5:
-    propagate "<script>() at t.nvs:6"
+    raise.site t.nvs:6
+    jump bb2
   bb6:
+    propagate "<script>() at t.nvs:6"
+  bb7:
     ; stmt s2 @8:3-8:16
     v4 = const.str "logic"  ; string
-    helper.echo_str v4 ! bb8
+    helper.echo_str v4 ! bb9
     release v4
     release v2
-    jump bb2
-  bb7:
-    v5 = class.test v2, IOError  ; bool
-    branch v5 -> bb9 (e2), bb10 (e3)
+    jump bb3
   bb8:
+    v5 = class.test v2, IOError  ; bool
+    branch v5 -> bb10 (e2), bb11 (e3)
+  bb9:
     release v4
     release v2
     propagate "<script>() at t.nvs:8"
-  bb9:
+  bb10:
     ; stmt s3 @10:3-10:13
     v6 = const.str "io"  ; string
-    helper.echo_str v6 ! bb11
+    helper.echo_str v6 ! bb12
     release v6
     release v2
-    jump bb2
-  bb10:
-    throw v2 -> bb12
+    jump bb3
   bb11:
+    throw v2 -> bb13
+  bb12:
     release v6
     release v2
     propagate "<script>() at t.nvs:10"
-  bb12:
+  bb13:
     propagate "<script>() at t.nvs:10"
 }

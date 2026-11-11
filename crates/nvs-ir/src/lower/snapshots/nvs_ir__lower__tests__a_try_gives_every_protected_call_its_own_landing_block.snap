@@ -8,46 +8,48 @@ fn <script>() -> tagged {
     ; stmt s0 @5:1-10:2
     ; stmt s1 @6:3-6:11
     v0 = class.desc T  ; classdesc
-    v1 = call T::go(this: v0) ! bb3  ; void
+    v1 = call T::go(this: v0) ! bb4  ; void
     ; stmt s2 @7:3-7:15
     v2 = const.str "fine"  ; string
-    helper.echo_str v2 ! bb6
+    helper.echo_str v2 ! bb7
     release v2
-    jump bb2
+    jump bb3
   bb1:
+    propagate "<script>() at t.nvs:1"
+  bb2:
     v3 = take.thrown  ; object
     v4 = class.test v3, Throwable  ; bool
-    branch v4 -> bb9 (e0), bb10 (e1)
-  bb2:
+    branch v4 -> bb10 (e0), bb11 (e1)
+  bb3:
     v6 = const.null  ; null
     v7 = tag v6  ; tagged
     return v7
-  bb3:
-    catch -> bb4 else bb5
   bb4:
-    raise.site t.nvs:6
-    jump bb1
+    catch -> bb5 else bb6
   bb5:
-    propagate "<script>() at t.nvs:6"
+    raise.site t.nvs:6
+    jump bb2
   bb6:
-    release v2
-    catch -> bb7 else bb8
+    propagate "<script>() at t.nvs:6"
   bb7:
-    raise.site t.nvs:7
-    jump bb1
+    release v2
+    catch -> bb8 else bb9
   bb8:
-    propagate "<script>() at t.nvs:7"
+    raise.site t.nvs:7
+    jump bb2
   bb9:
+    propagate "<script>() at t.nvs:7"
+  bb10:
     ; stmt s3 @9:3-9:20
     v5 = field.get v3, Throwable::message  ; string
-    helper.echo_str v5 ! bb11
+    helper.echo_str v5 ! bb12
     release v3
-    jump bb2
-  bb10:
-    throw v3 -> bb12
+    jump bb3
   bb11:
+    throw v3 -> bb13
+  bb12:
     release v3
     propagate "<script>() at t.nvs:9"
-  bb12:
+  bb13:
     propagate "<script>() at t.nvs:9"
 }

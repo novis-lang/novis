@@ -4,31 +4,34 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, bool, bool) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; bool
     v2 = param 2  ; bool
+    safepoint
     ; stmt s0 @4:5-6:6
-    jump bb1
+    jump bb2
   bb1:
-    v3 = phi [bb0: v1, bb4: v6]  ; bool
-    v4 = const.bool true  ; bool
-    branch v3 -> bb3 (e0), bb2 (e1)
+    release v0
+    propagate "m() at t.nvs:1"
   bb2:
-    jump bb3
+    v3 = phi [bb0: v1, bb5: v6]  ; bool
+    v4 = const.bool true  ; bool
+    branch v3 -> bb4 (e0), bb3 (e1)
   bb3:
-    v5 = phi [bb1: v4, bb2: v2]  ; bool
-    branch v5 -> bb4 (e2), bb5 (e3)
+    jump bb4
   bb4:
+    v5 = phi [bb2: v4, bb3: v2]  ; bool
+    branch v5 -> bb5 (e2), bb6 (e3)
+  bb5:
     ; stmt s1 @4:22-6:6
     ; stmt s2 @5:7-5:18
     v6 = const.bool false  ; bool
     safepoint
-    jump bb1
-  bb5:
+    jump bb2
+  bb6:
     release v0
     return
-  bb6:
+  bb7:
     release v0
     propagate "m() at t.nvs:5"
 }

@@ -7,12 +7,14 @@ fn <script>() -> tagged {
     safepoint
     ; stmt s0 @2:1-2:22
     v0 = const.str "Hello, World!"  ; string
-    helper.echo_str v0 ! bb1
+    helper.echo_str v0 ! bb2
     release v0
     v1 = const.null  ; null
     v2 = tag v1  ; tagged
     return v2
   bb1:
+    propagate "<script>() at t.nvs:1"
+  bb2:
     release v0
     propagate "<script>() at t.nvs:2"
 }

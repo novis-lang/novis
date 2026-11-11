@@ -4,12 +4,12 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, array, string) -> void {
   bb0:
-    safepoint
     v0 = param 0  ; object
     v1 = param 1  ; array
     v2 = param 2  ; string
+    safepoint
     ; stmt s0 @4:5-4:21
-    v3 = array.get v1, v2 ! bb1  ; string
+    v3 = array.get v1, v2 ! bb2  ; string
     retain v3
     release v1
     release v2
@@ -17,6 +17,11 @@ fn m(object, array, string) -> void {
     release v0
     return
   bb1:
+    release v1
+    release v2
+    release v0
+    propagate "m() at t.nvs:1"
+  bb2:
     release v1
     release v2
     release v0

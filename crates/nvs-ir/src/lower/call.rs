@@ -1495,9 +1495,10 @@ impl<'a> Lowering<'a> {
 /// and otherwise throws the `LogicError` `rule:classes/an-unwritten-property-read-throws`
 /// defines.
 ///
-/// A throw from that read is the one place this function's ownership is not
-/// the callee's: no call runs, so its own landing block releases every
-/// argument it was transferred, where the callee would have, and `$this`.
+/// A throw from that read, and a stop at the entry poll, are the places this
+/// function's ownership is not the callee's: no call runs, so their landing
+/// block releases every argument it was transferred, where the callee would
+/// have, and `$this`.
 ///
 /// `None` only when the parameter list is longer than an ABI slot index can
 /// count. Every type it declares erases — including a compiler-owned
@@ -1534,10 +1535,7 @@ pub(crate) fn delegation_forward(
     let mut entry_block = entry;
     let mut params = vec![Ty::Object];
     let mut args = Vec::new();
-    let mut insts = vec![
-        plain(InstKind::Safepoint),
-        defines(this, Ty::Object, InstKind::Param(0)),
-    ];
+    let mut insts = vec![defines(this, Ty::Object, InstKind::Param(0))];
     for (at, param) in delegation.params.iter().enumerate() {
         let ty = super::erase_checked_ty(*param, checked_types);
         let value = ids.next_value();
@@ -1551,13 +1549,38 @@ pub(crate) fn delegation_forward(
         params.push(ty);
         args.push(value);
     }
+    // The block a stop before the call takes: the entry poll's, and the
+    // unwritten-property read's below. No call ran, so each argument's
+    // transferred reference is this frame's to pay back, and so is `$this`.
+    let stopped = ids.next_block();
+    let mut released: Vec<Inst> = args
+        .iter()
+        .zip(params.iter().skip(1))
+        .filter(|(_, param)| param.is_refcounted())
+        .map(|(&arg, _)| plain(InstKind::Release { operand: arg }))
+        .collect();
+    released.push(plain(InstKind::Release { operand: this }));
+    let stopped_block = BasicBlock {
+        id: stopped,
+        insts: released,
+        term: Terminator::Propagate {
+            frame: delegation.frame.clone(),
+        },
+    };
+    let mut guard_blocks = Vec::new();
+    // The entry poll, once every parameter is bound (`rule:errors/stack-depth`).
+    insts.push(Inst {
+        result: None,
+        ty: None,
+        kind: InstKind::Safepoint,
+        on_error: Some(stopped),
+        raise_site: None,
+    });
     // `rule:classes/an-unwritten-property-read-throws`'s guard, which splits the entry block: an unguarded
     // forward keeps the single entry block the rest of this function builds.
-    let mut guard_blocks = Vec::new();
     if never_written {
         let is_init = ids.next_value();
         let unset = ids.next_block();
-        let unset_landing = ids.next_block();
         let body = ids.next_block();
         insts.push(defines(
             is_init,
@@ -1600,26 +1623,10 @@ pub(crate) fn delegation_forward(
                     slot: 0,
                     absent: AbsentKey::Throws,
                 },
-                on_error: Some(unset_landing),
+                on_error: Some(stopped),
                 raise_site: None,
             }],
             term: Terminator::Jump(body),
-        });
-        // No call ran when the read throws, so each argument's transferred
-        // reference is this frame's to pay back, and so is `$this`.
-        let mut released: Vec<Inst> = args
-            .iter()
-            .zip(params.iter().skip(1))
-            .filter(|(_, param)| param.is_refcounted())
-            .map(|(&arg, _)| plain(InstKind::Release { operand: arg }))
-            .collect();
-        released.push(plain(InstKind::Release { operand: this }));
-        guard_blocks.push(BasicBlock {
-            id: unset_landing,
-            insts: released,
-            term: Terminator::Propagate {
-                frame: delegation.frame.clone(),
-            },
         });
         entry_block = body;
     }
@@ -1672,6 +1679,7 @@ pub(crate) fn delegation_forward(
                 frame: delegation.frame.clone(),
             },
         },
+        stopped_block,
     ]);
     Some(Function {
         name: format!("{}::{}", delegation.class, delegation.method),
