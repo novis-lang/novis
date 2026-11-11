@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-test/src/lib.rs, crates/nvs-cli/tests/test_dir.rs, docs/rules/testing/a-directory-of-programs-is-one-test-program.md, docs/rules/packaging/nothing-runs-before-the-program.md]
   - id: 5
     title: nvs test runs no test of a package the program loads
-    status: open
+    status: done
     context: [crates/nvs-types/src/test_inherit.rs, crates/nvs-cli/tests/test_dir.rs, docs/rules/testing/test-attribute.md, docs/rules/testing/hook-inheritance.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -556,20 +556,20 @@ through one shared function, and say so in the help of both commands.
 **Does:** remove the test rows of every class whose file lies in a package below the entry's folder,
 once every class is checked, and say so in the help of `nvs test`.
 
-- [ ] `merge` takes the symbol table and the `Packages` beside the class graph. After the pass over
+- [x] `merge` takes the symbol table and the `Packages` beside the class graph. After the pass over
   the abstract classes, it calls `forget_tests` for each class of `test_classes` whose file
   `Packages::of` places in a package. A class with no symbol, and every class where no `Packages` was
   passed, keeps its rows. Its doc says what the step spends
   (`rule:testing/test-attribute`, `crates/nvs-types/src/test_inherit.rs:247`,
   `crates/nvs-types/src/test_inherit.rs:276`, `crates/nvs-types/src/package.rs:54`,
   `crates/nvs-hir/src/symbol.rs:132`).
-- [ ] `after_walk` takes the `Packages` from `check_files` and passes it, with `module.symbols`, to
+- [x] `after_walk` takes the `Packages` from `check_files` and passes it, with `module.symbols`, to
   `merge` (`crates/nvs-types/src/check.rs:506`, `crates/nvs-types/src/check.rs:380`,
   `crates/nvs-types/src/check.rs:532`, `crates/nvs-types/src/check.rs:266`).
-- [ ] The docs that describe the table are rewritten as a whole: the module doc's section on what
+- [x] The docs that describe the table are rewritten as a whole: the module doc's section on what
   happens after every file is checked, and the doc of `forget_tests`
   (`crates/nvs-types/src/test_inherit.rs:17`, `crates/nvs-types/src/expr_table.rs:2649`).
-- [ ] Fixture `loads-a-package`, four files under `crates/nvs-cli/tests/fixtures/test-dir/`. Every
+- [x] Fixture `loads-a-package`, four files under `crates/nvs-cli/tests/fixtures/test-dir/`. Every
   `.nvs` file passes `nvs fmt --check`.
   `crates/nvs-cli/tests/fixtures/test-dir/loads-a-package/vendor/acme/http/package.toml:1` names
   `Acme\Http`.
@@ -582,25 +582,25 @@ once every class is checked, and say so in the help of `nvs test`.
   `autoload 'Acme\Http\Cases' from 'vendor/acme/http/src/Cases';` and requires
   `vendor/acme/http/src/Client.nvs`. Its class `AppTest` has one test, `usesTheClient`, which calls
   `Client::total`. Its class `AppClientTest` extends `ClientCase` and has one test, `own`.
-- [ ] Test `a_package_class_the_program_loads_runs_no_test`, after the last test of the file
+- [x] Test `a_package_class_the_program_loads_runs_no_test`, after the last test of the file
   (`crates/nvs-cli/tests/test_dir.rs:176`). `nvs test loads-a-package/AppTest.nvs` exits 0, and its
   report names `AppClientTest::inherited`, `AppClientTest::own` and `AppTest::usesTheClient` alone.
   `--list` names the same three, and so does `nvs test loads-a-package`. Today the run by file also
   names `Acme\Http\Client::aPackageTestThatFails` and `Acme\Http\Cases\ClientCase::inherited`, and
   exits 1.
-- [ ] Test `a_package_named_on_the_command_line_runs_its_own_tests`, beside it. It reads each report
+- [x] Test `a_package_named_on_the_command_line_runs_its_own_tests`, beside it. It reads each report
   through `run_test`, because `document` expects a run that passes
   (`crates/nvs-cli/tests/test_dir.rs:50`). `nvs test loads-a-package/vendor/acme/http/src/Client.nvs`
   exits 1 and names `Acme\Http\Client::aPackageTestThatFails`.
   `nvs test loads-a-package/vendor/acme/http` exits 1 and names that test and
   `Acme\Http\Cases\ClientCase::inherited`.
-- [ ] The help of `nvs test` gains one sentence, before the sentence "To run the tests of a package,
+- [x] The help of `nvs test` gains one sentence, before the sentence "To run the tests of a package,
   …" that stage 4 wrote: "`nvs test` does not run the `#[Test]` methods of a package that your program
   loads." (`crates/nvs-cli/src/runner.rs:128`). The page on the test runner gains the same sentence
   at the same place (`website/src/content/docs/tools/test-runner/index.mdx:35`). Both follow
   `AGENTS.md` § *Text an end user reads*. `bun nv render --website` writes the generated files once the
   help text has changed.
-- [ ] Rule fragments. `rule:testing/test-attribute` says the table has no row for a class whose file
+- [x] Rule fragments. `rule:testing/test-attribute` says the table has no row for a class whose file
   lies in a package below the entry's folder, why, and what the lookup spends. Its **Declined:** list
   gains the option that runs a dependency's tests from the application
   (`docs/rules/testing/test-attribute.md:5`, `docs/rules/testing/test-attribute.md:24`).
@@ -621,50 +621,34 @@ once every class is checked, and say so in the help of `nvs test`.
 
 ### State
 
-Stages 1 to 4 are done. Paths, git entries and second manifests are refused at pack, fetch and the
+Stages 1 to 5 are done. Paths, git entries and second manifests are refused at pack, fetch and the
 registry build. `Finder::package_of` takes the outermost named manifest
-(`crates/nvs-types/src/package.rs:171`), and the registry build compares exactly.
+(`crates/nvs-types/src/package.rs:171`), and the registry build compares exactly. `nvs test` and
+`nvs check` walk into no folder below the named one that holds a `package.toml`.
 
 The sweep's findings need no change: nightly run 43001191130 tested `f4c1d5c7e2`, fixed after it by
 `305c04f660`, and `env-secret-proofs` is stale driver state from the retired `defaults-that-work`.
 
-Stage 4: `nvs_test::is_walked` and `nvs_test::PACKAGE_FILE` sit beside `is_cache_dir`, and
-`collect` and `programs_under` both call `is_walked`. The fixture is
-`crates/nvs-cli/tests/fixtures/test-dir/packaged/`, and every `.nvs` file in it passes
-`nvs fmt --check`. Its three tests (`crates/nvs-cli/tests/test_dir.rs:192`), the lib test
-`a_folder_with_a_package_toml_is_not_walked_for_cases` and `the_walk_and_the_compiler_name_the_same_manifest`
-each passed once by name. `test_dir.rs` gained `run(command, args, path)`, which `run_test` calls.
-The help of `nvs test` and `nvs check`, the two website pages and the three rule fragments say it, and
-the chapters, `numbers.json` and the website files are rendered.
-
-The test table still keeps the rows of every class the compile checks, also a class of a package.
+Stage 5: `test_inherit::merge` takes `&module.symbols` and the `Option<&Packages>` that
+`check_files` holds, through `after_walk`, and forgets the `#[Test]` and `#[Property]` rows of every
+class whose symbol's file `Packages::of` places in a package, in the same step as an abstract
+class's. The fixture is `crates/nvs-cli/tests/fixtures/test-dir/loads-a-package/`, and its `.nvs`
+files pass `nvs fmt --check`. `test_dir.rs` gained `report(args, path)`, and its two new tests pass
+(`looper check --name no-test-of-a-loaded-package` is green). `--list --format json` puts its rows
+under `listed`, not `tests`. The help of `nvs test`, the test-runner page and three rule fragments
+say it, and the chapters are rendered. No generated website file carries the `nvs test` help, so
+`bun nv render --website` wrote nothing.
 
 ### Next
 
-Stage 5, over `crates/nvs-types/src/test_inherit.rs`, `crates/nvs-types/src/check.rs`,
-`crates/nvs-types/src/expr_table.rs`, `crates/nvs-cli/tests/test_dir.rs`, a new fixture, the help of
-`nvs test`, one website page and three rule fragments. It waits on no other goal.
+Stage 6, the gate. Start `looper verify` with `run_in_background`, then end the turn and fix every
+failure it names in one pass, then run it once more. Then the goal-end gates from `AGENTS.md`
+§ *In the loop*: `bun nv verify --doc`, `bun nv owners --closes package-files-contained` and
+`bun nv ci --check`. Move each standing decision that only this file holds into a rule or module doc
+before the file is deleted.
 
-- [ ] `merge` (`crates/nvs-types/src/test_inherit.rs:247`) takes the symbol table and an
-  `Option<&Packages>`. After the abstract-class pass (`crates/nvs-types/src/test_inherit.rs:276`) it
-  calls `forget_tests` (`crates/nvs-types/src/expr_table.rs:2651`) for each class whose file
-  `Packages::of` (`crates/nvs-types/src/package.rs:58`) places in a package.
-- [ ] `after_walk` (`crates/nvs-types/src/check.rs:506`) takes the `Packages` from `check_files`
-  (`crates/nvs-types/src/check.rs:250`) and passes it to `merge` at `crates/nvs-types/src/check.rs:532`.
-- [ ] The module doc (`crates/nvs-types/src/test_inherit.rs:17`) and `forget_tests`'s doc
-  (`crates/nvs-types/src/expr_table.rs:2649`), rewritten whole.
-- [ ] `crates/nvs-cli/tests/test_dir.rs:209`: fixture `loads-a-package` and the two tests after
-  `a_package_folder_named_on_the_command_line_is_run`.
-  `nvs test loads-a-package` already skips `vendor/acme/http` by stage 4, so only `AppTest.nvs`'s
-  `require` loads `Client.nvs`.
-- [ ] The help sentence goes before "To run the tests of a package" (`crates/nvs-cli/src/runner.rs:133`),
-  and the same on `website/src/content/docs/tools/test-runner/index.mdx:35`, then
-  `bun nv render --website`.
-- [ ] `docs/rules/testing/test-attribute.md:5`, `docs/rules/testing/hook-inheritance.md:24` and
-  `docs/rules/packaging/nothing-runs-before-the-program.md:21`, then `bun nv rules --render`.
-
-No test is expected red. No tracked layout that `nvs test` or `nvs check` walks holds a
-`package.toml` below the named folder, and no tracked package file has a `#[Test]`.
+No test is expected red. The likeliest red is a suite that loads a package class with a `#[Test]`
+from an entry outside the package; no tracked package file has one.
 
 ### Backlog
 
