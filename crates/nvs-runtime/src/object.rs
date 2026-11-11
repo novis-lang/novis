@@ -658,6 +658,18 @@ pub struct ClassDesc {
     /// reachable only as one of those `Core` instances. **Cost:** one `bool`
     /// per class, once per process, not per instance.
     holds_host_handle: bool,
+    /// Whether the compiler made this class for its own use: a `$` in the
+    /// name, and not an anonymous object's `$shape{…}` class.
+    ///
+    /// A generator's state class, a function value's class and every class a
+    /// later lowering mints carry a `$` label, and no declared class can hold
+    /// one. So a new compiler-made class is refused by
+    /// `rule:classes/graph-copy`'s walk and by the decoder until somebody
+    /// names it as data, which is what [`Self::is_shape`] does for a shape.
+    /// Set once, in [`ClassTable::push_class`], from the name.
+    /// **Cost:** one byte scan of the name per class defined, and one `bool`
+    /// per class, once per process, not per instance.
+    compiler_made: bool,
     /// What frees the state an instance of this class keeps in its context's
     /// tables, run by [`dismantle`] when the instance dies; `None` for every
     /// class but the `Core` ones whose state is native and filed on the
@@ -1594,6 +1606,13 @@ impl ClassDesc {
         self.holds_host_handle
     }
 
+    /// Whether the compiler made this class for its own use — see the field.
+    /// An anonymous object's class is data, so it answers `false`.
+    #[must_use]
+    pub fn is_compiler_made(&self) -> bool {
+        self.compiler_made
+    }
+
     /// How many [`Value`] slots an instance of this class has, including every
     /// ancestor's.
     #[must_use]
@@ -2363,6 +2382,7 @@ impl ClassTable {
         conforms: Vec<*const ClassDesc>,
     ) -> ClassId {
         let id = ClassId(self.classes.len());
+        let compiler_made = name.contains('$') && !name.starts_with("$shape{");
         self.classes.push(Box::new(ClassDesc {
             name,
             fields,
@@ -2392,6 +2412,7 @@ impl ClassTable {
             is_callable: false,
             is_responder: false,
             holds_host_handle: false,
+            compiler_made,
             free: None,
         }));
         id

@@ -370,18 +370,6 @@ fn walk<C: Carrier>(
             let holder = carrier.open_object(class, adopt.then_some(value));
             seen.insert(ptr, holder.clone());
             for index in 0..object.field_count() {
-                if class.field_is_secret(index) {
-                    carrier.discard(holder);
-                    if !adopt {
-                        release(value);
-                    }
-                    return Err(GraphError(format!(
-                        "{}::${} is `secret` and does not cross a copy boundary \
-                         unless it is revealed",
-                        class.name(),
-                        class.field_name(index).unwrap_or("?")
-                    )));
-                }
                 let field = object.field(index);
                 retain(field);
                 let child = match walk(carrier, field, seen, depth + 1) {
@@ -426,9 +414,13 @@ pub(crate) const GENERATOR_REFUSAL: &str =
     "a generator is a suspended frame, so it has no meaning on the other side of a copy boundary";
 
 /// `rule:classes/graph-copy`'s "refuses what has no meaning on the other side", for the shapes that
-/// arrive wearing [`Tag::Object`].
+/// arrive wearing [`Tag::Object`]. It is the one answer to "may this class
+/// cross", and both directions ask it: [`walk`] for every object it copies or
+/// encodes, and [`Reader::object`] for every class a payload names, before it
+/// compares a property or makes an object. So `decode` refuses every class
+/// `encode` refuses, with the same sentence.
 ///
-/// All three refusals are a fact about the class and nothing structural. A
+/// All five refusals are a fact about the class and nothing structural. A
 /// callable is [`ClassDesc::is_callable()`] and not a declared `invoke`, which is
 /// a method name a program may use and refusing on it would make a user class
 /// uncopyable for spelling it. A generator is [`ClassDesc::is_generator()`],
@@ -440,7 +432,14 @@ pub(crate) const GENERATOR_REFUSAL: &str =
 /// `uint` like every other: the key indexes the table of the [`crate::Ctx`]
 /// that opened it ([`crate::Ctx::hold_open_socket`]), so a copy that crossed
 /// would address the *receiving* side's table at that index and read whatever
-/// that side has open there.
+/// that side has open there. A class the compiler made is
+/// [`ClassDesc::is_compiler_made()`]: its slots are the compiler's own state,
+/// and only an anonymous object's class is data. A class with a `secret`
+/// property is refused naming the first one
+/// (`rule:security/secret-crosses-no-boundary`).
+///
+/// **What it spends:** a few flag reads and one scan of the class's `secret`
+/// flags per object copied, encoded or decoded. No allocation.
 pub(crate) fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
     if class.is_callable() {
         return Err(GraphError(
@@ -458,6 +457,21 @@ pub(crate) fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
              opened, so it has no meaning on the other side of a copy boundary \
              — pass what identifies the resource and open it there",
             class.name()
+        )));
+    }
+    if class.is_compiler_made() {
+        return Err(GraphError(format!(
+            "`{}` is a class the compiler made for its own use, so it has no \
+             meaning on the other side of a copy boundary",
+            class.name()
+        )));
+    }
+    if let Some(index) = (0..class.field_count()).find(|&index| class.field_is_secret(index)) {
+        return Err(GraphError(format!(
+            "{}::${} is `secret` and does not cross a copy boundary unless it is \
+             revealed",
+            class.name(),
+            class.field_name(index).unwrap_or("?")
         )));
     }
     Ok(())
@@ -1076,6 +1090,9 @@ impl Reader<'_> {
                       one, and both outlive this decode"
         )]
         let class: &ClassDesc = unsafe { &*desc };
+        // Asked before the property comparison, so a refused class's layout is
+        // never printed and nothing of it is built.
+        refusable(class)?;
         if class.field_count() != recorded.len() {
             return Err(GraphError(format!(
                 "`{name}` declares {} properties and the payload records {}",
@@ -1268,6 +1285,127 @@ mod tests {
     /// The resolver a decode is handed in these tests.
     fn resolver(table: &ClassTable) -> impl Fn(&str) -> Option<*const ClassDesc> + '_ {
         move |name: &str| Some(table.desc(table.id_of(name)?))
+    }
+
+    /// A payload naming `class` with `fields` recorded and each one `null`,
+    /// written byte by byte, because `encode` writes no payload for a class it
+    /// refuses.
+    fn payload_naming(class: &str, fields: &[&str]) -> Vec<u8> {
+        fn blob(out: &mut Vec<u8>, bytes: &[u8]) {
+            out.push(u8::try_from(bytes.len()).expect("a test name is short"));
+            out.extend_from_slice(bytes);
+        }
+        let mut out = MAGIC.to_vec();
+        out.push(VERSION);
+        out.push(node::OBJECT);
+        blob(&mut out, class.as_bytes());
+        out.push(u8::try_from(fields.len()).expect("a test class is small"));
+        for field in fields {
+            blob(&mut out, field.as_bytes());
+        }
+        out.extend(std::iter::repeat_n(node::NULL, fields.len()));
+        out
+    }
+
+    /// One class of every kind [`refusable`] refuses, and one plain class,
+    /// each with one property `x`. The table is leaked, because a descriptor's
+    /// address is its identity and the objects built here outlive no test.
+    fn every_kind() -> &'static ClassTable {
+        let mut table = ClassTable::new();
+        let callable = table.define("{callable}", &["x"], &[]);
+        table.set_callable(callable);
+        table.define("Task$gen", &["x"], &[]);
+        let handle = table.define(r"Core\IO\File", &["x"], &[]);
+        table.set_host_handle(handle);
+        table.define("main$fn0", &["x"], &[]);
+        let wallet = table.define("Wallet", &["x"], &[]);
+        table.set_secret_fields(wallet, vec![true]);
+        table.define("Plain", &["x"], &[]);
+        Box::leak(Box::new(table))
+    }
+
+    /// Decodes `bytes` with a reader this test can look into afterwards, and
+    /// answers the refusal and how many objects the reader made.
+    fn decode_counting(bytes: &[u8], table: &ClassTable) -> (Result<Value, GraphError>, usize) {
+        let resolve = resolver(table);
+        let mut reader = Reader {
+            bytes,
+            at: MAGIC.len() + 1,
+            objects: Vec::new(),
+            resolve: &resolve,
+        };
+        let result = reader.node(0);
+        let made = reader.objects.len();
+        for held in reader.objects.drain(..) {
+            release(held);
+        }
+        (result, made)
+    }
+
+    #[test]
+    fn decode_refuses_every_class_encode_refuses() {
+        let table = every_kind();
+        for name in ["{callable}", "Task$gen", r"Core\IO\File", "main$fn0", "Wallet", "Plain"] {
+            let id = table.id_of(name).expect("the table defines it");
+            #[expect(unsafe_code, reason = "the leaked table outlives the object")]
+            let instance = Value::object(unsafe { NvsObj::new(table.desc(id)) });
+            let encoded = encode(instance).err().map(|why| why.0);
+            let (decoded, made) = decode_counting(&payload_naming(name, &["x"]), table);
+            let decoded = match decoded {
+                Ok(value) => {
+                    release(value);
+                    None
+                }
+                Err(why) => Some(why.0),
+            };
+            assert_eq!(encoded, decoded, "{name}: the two directions disagree");
+            if name == "Plain" {
+                assert!(encoded.is_none(), "a plain class crosses");
+            } else {
+                assert!(encoded.is_some(), "{name} is refused");
+                assert_eq!(made, 0, "{name}: a refused decode built an object");
+            }
+        }
+    }
+
+    #[test]
+    fn a_refused_class_is_refused_before_its_properties_are_compared() {
+        let table = every_kind();
+        let wrong = payload_naming(r"Core\IO\File", &["key", "mode", "extra"]);
+        let Err(GraphError(why)) = decode(&wrong, &resolver(table)) else {
+            panic!("a host-handle class decoded");
+        };
+        assert!(why.contains("holds a handle"), "{why}");
+        assert!(!why.contains("declares"), "the class's layout is not printed: {why}");
+    }
+
+    #[test]
+    fn a_class_the_compiler_made_does_not_cross_and_a_shape_does() {
+        let mut table = ClassTable::new();
+        for name in ["Task$gen", "main$fn0", "main$fcc0", "$shape{n}"] {
+            table.define(name, &["n"], &[]);
+        }
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        for name in ["Task$gen", "main$fn0", "main$fcc0"] {
+            let id = table.id_of(name).expect("defined");
+            #[expect(unsafe_code, reason = "the leaked table outlives the object")]
+            let instance = Value::object(unsafe { NvsObj::new(table.desc(id)) });
+            retain(instance);
+            assert!(copy_graph(instance).is_err(), "{name} crossed the live carrier");
+            assert!(encode(instance).is_err(), "{name} was encoded");
+            assert!(
+                decode(&payload_naming(name, &["n"]), &resolver(table)).is_err(),
+                "{name} was decoded"
+            );
+        }
+        let id = table.id_of("$shape{n}").expect("defined");
+        #[expect(unsafe_code, reason = "the leaked table outlives the object")]
+        let shape = Value::object(unsafe { NvsObj::new(table.desc(id)) });
+        borrow_object(shape).set_field(0, Value::int(3));
+        let bytes = encode(shape).expect("a shape is data");
+        let back = decode(&bytes, &resolver(table)).expect("a shape decodes");
+        assert_eq!(borrow_object(back).field(0).as_int(), Some(3));
+        release(back);
     }
 
     /// `rule:classes/graph-copy`'s "one operation, two carriers", asserted where a second
