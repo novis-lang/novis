@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/dispatch.rs, crates/nvs-runtime/src/object.rs, crates/nvs-stdlib/src/reflect.rs, crates/nvs-stdlib/src/instance.rs, crates/nvs-types/src/layout.rs, docs/rules/security/reflection-enforces-visibility.md, docs/rules/core-classes/reflect.md]
   - id: 3
     title: "a class reference builds only a class `new` could make"
-    status: open
+    status: done
     context: [crates/nvs-codegen/src/lib.rs, crates/nvs-codegen/src/emit.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-runtime/src/object.rs, docs/rules/types/class-reference.md, docs/rules/types/class-reference-sites.md]
   - id: 4
     title: "`decode` checks every slot of a `Core` class it builds"
@@ -606,50 +606,50 @@ no instances.
 builds, one writing subagent writes the attack, the two `.nvst` cases and the `about.md` sentence.
 Its files are disjoint from the session's, and it does not build.
 
-- [ ] `index_conforming` leaves out every class the question refuses because of its kind. It keeps
+- [x] `index_conforming` leaves out every class the question refuses because of its kind. It keeps
   an `abstract` class and an interface (`rule:types/class-reference`,
   `crates/nvs-codegen/src/lib.rs:1598`).
-- [ ] A checked entry point beside `nvs_object_new` reads the no-instances bit before it allocates.
+- [x] A checked entry point beside `nvs_object_new` reads the no-instances bit before it allocates.
   For such a class it allocates nothing and throws a `LogicError` with `construct`'s sentence
   (`rule:types/class-reference-sites`, `crates/nvs-runtime/src/object.rs:4342`,
   `crates/nvs-runtime/src/object.rs:1495`).
-- [ ] `emit_new` calls that entry point when `dynamic` is set and takes the instruction's error
+- [x] `emit_new` calls that entry point when `dynamic` is set and takes the instruction's error
   edge. A `new` of a class written by name keeps `nvs_object_new`. The doc comment is rewritten
   (`rule:types/class-reference-sites`, `crates/nvs-codegen/src/emit.rs:3294`,
   `crates/nvs-codegen/src/emit.rs:3303`, `crates/nvs-codegen/src/emit.rs:903`).
-- [ ] Both lowerings of the dynamic `new` are fallible, with or without a constructor: `new static()`
+- [x] Both lowerings of the dynamic `new` are fallible, with or without a constructor: `new static()`
   and `new $cls()` (`rule:types/class-reference-sites`, `crates/nvs-ir/src/lower/expr.rs:3716`,
   `crates/nvs-ir/src/lower/expr.rs:3810`).
-- [ ] Test `a_run_time_string_names_no_class_the_compiler_made` in the `objects` integration test.
+- [x] Test `a_run_time_string_names_no_class_the_compiler_made` in the `objects` integration test.
   It runs `$name as ?class<Iterator<int>>` over a generator's label and gets `null`, and the same
   conversion over a declared class's name gives the reference (`crates/nvs-codegen/tests/objects.rs:344`).
-- [ ] Test `new_through_a_class_reference_refuses_a_class_with_no_instances`: `new $c()` over the
+- [x] Test `new_through_a_class_reference_refuses_a_class_with_no_instances`: `new $c()` over the
   name of an `abstract` class and of an interface throws a `LogicError` and leaves the memory
   balance as it was. Over the name of a subclass it builds the subclass
   (`crates/nvs-codegen/tests/objects.rs:344`).
-- [ ] Test `new_static_refuses_an_abstract_class`: a static method that returns `new static()`
+- [x] Test `new_static_refuses_an_abstract_class`: a static method that returns `new static()`
   throws when it is called on its `abstract` class, and builds the subclass when called on one
   (`crates/nvs-codegen/tests/objects.rs:344`).
-- [ ] `.nvst` case `a-class-reference-from-a-string-never-names-a-class-the-compiler-made`:
+- [x] `.nvst` case `a-class-reference-from-a-string-never-names-a-class-the-compiler-made`:
   `as class<Iterator<int>>` over a generator's label throws, and `as ?class<Iterator<int>>` gives
   `null`
   (`tests/conformance/class/a-class-reference-from-a-string-never-names-a-class-the-compiler-made.nvst:1`).
-- [ ] `.nvst` case `a-new-of-a-class-known-at-run-time-refuses-a-class-with-no-instances`. It runs
+- [x] `.nvst` case `a-new-of-a-class-known-at-run-time-refuses-a-class-with-no-instances`. It runs
   `new $c()` over the name of an `abstract` class and of an interface, and `new static()` through a
   static call on an `abstract` class. It prints the caught `LogicError` of each, and then builds a
   subclass through each of the three
   (`tests/conformance/class/a-new-of-a-class-known-at-run-time-refuses-a-class-with-no-instances.nvst:1`).
-- [ ] Attack `03-names-of-classes-new-cannot-make.nvs`. It converts its own generator's label with
+- [x] Attack `03-names-of-classes-new-cannot-make.nvs`. It converts its own generator's label with
   `as ?class<Iterator<int>>`, builds an `abstract` class and an interface through a `class<T>`, and
   calls a method on each result. It also reaches `new static()` on an `abstract` class. Every step
   should give `null` or throw. The goal `calls-by-name-are-checked` owns `02` in this folder
   (`rule:testing/feature-proofs`,
   `tests/hostile/lang/types/callable-classes-object-shapes/03-names-of-classes-new-cannot-make.nvs:1`).
-- [ ] `rule:types/class-reference` says a run-time string converts to no class the compiler made.
+- [x] `rule:types/class-reference` says a run-time string converts to no class the compiler made.
   `rule:types/class-reference-sites` says the dynamic `new` refuses a class with no instances, with
   the error, the cost line and the declined choice (`docs/rules/types/class-reference.md:8`,
   `docs/rules/types/class-reference-sites.md:5`, `docs/rules/types/class-reference-sites.md:14`).
-- [ ] The `about.md` of the feature says, in one plain sentence, that `new $c()` throws a
+- [x] The `about.md` of the feature says, in one plain sentence, that `new $c()` throws a
   `LogicError` when the name is an `abstract` class or an interface
   (`docs/examples/lang/types/callable-classes-object-shapes/about.md:9`).
 
@@ -886,37 +886,33 @@ memory cache uses.
 
 ### State
 
-Stages 1 and 2 are done, and their three acceptance checks are green.
+Stages 1, 2 and 3 are done, and their four acceptance checks are green. The sweep's
+`env-secret-proofs` red and nightly run 43001191130's one red are stale: the check was retired, and
+305c04f660 fixed `a_changed_server_timeout_applies_to_the_next_connection` after that run's commit.
 
-`ClassDesc::refusal(Door)` in `crates/nvs-runtime/src/object.rs` is the one question. `Door::Copy`
-refuses a callable, a generator, a host handle, a compiler-made class, a class with no instances and
-a class with a `secret` property. `Door::Construct` refuses a `Core` class, every compiler-made class,
-a shape (`Refusal::Kind`) and a class with no instances (`Refusal::NoInstances`). `refusable` in
-`graph.rs` is now a one-line caller of `Door::Copy`, and `GENERATOR_REFUSAL` moved into `object.rs`.
-The two new bits are `is_core` (set in `nvs_stdlib::instance`'s descriptor loop) and `no_instances`
-(from `ClassLinks::concrete`, through `ClassLayout::no_instances`, `ir::Class::no_instances` and
-`ClassTable::set_no_instances` in codegen). `construct_erased_from` asks before it allocates.
-`forClass` returns `null` on `Refusal::Kind`. The `.nvst` cases, both attacks, the three rule
-fragments, the `construct` card and `about.md` say so.
-
-The `$callable` markers carry `no_instances: true`, since nothing is an instance of them. They are
-refused by kind first. `website/public/llms-full.txt` still has the old `construct` card text.
+`ClassDesc::refusal(Door)` in `crates/nvs-runtime/src/object.rs` is the one question, and its
+`no_instances` and `is_core` bits are set. `index_conforming` (`crates/nvs-codegen/src/lib.rs`) skips
+every `Refusal::Kind` class. A dynamic `new` allocates through `nvs_object_new_dynamic`, and its null
+takes a cold block to `nvs_object_new_refused`, which throws construct's `LogicError`
+(`emit_new_dynamic_alloc`, `crates/nvs-codegen/src/emit.rs`). The IR did not change.
+`website/public/llms-full.txt` still has the old `construct` card text.
 
 Still true: `Core\Topic::publish` copies with no receiving table and keys by the bare name, `spawn
-script` refuses a `Core` value in `args:`, `new $c()` builds an `abstract` class, and `decode` does
-not check a `Core` class's slots.
+script` refuses a `Core` value in `args:`, and `decode` does not check a `Core` class's slots.
 
 No test is expected to go red. To watch at the gate: a test that sends a `$`-named class other than a
 shape across `spawn`, the cache or `Core\Serialize`, and a test that builds a `Core` class, an
 `abstract` class or an interface through `construct_erased_from` (the router's handler, the test
-fixtures in `crates/nvs-runtime/src/dispatch.rs`), are now refused.
+fixtures in `crates/nvs-runtime/src/dispatch.rs`), are now refused. A test or case that converts
+a run-time string to a `class<T>` of a generator's or a callable's class now gets `null` or a throw.
 
 ### Next
 
-Take stage 3 from its first item. It asks the `no_instances` bit stage 2 added
-(`ClassDesc::has_no_instances`, `crates/nvs-runtime/src/object.rs`) at the allocation of a `new`
-whose class is known only at run time, beside `nvs_object_new`, and leaves every kind-refused class
-out of `index_conforming` (`crates/nvs-codegen/src/lib.rs`).
+crates/nvs-runtime/src/object.rs:2317 — take stage 4 from its first item: one `ClassTable` setter
+for a `Core` class's slot types, filling the three per-slot tables `check_slot`
+(`crates/nvs-runtime/src/object.rs:1982`) reads. Stage 3 moved the lines after 3207 of `object.rs`
+down by about 70, so the stage's `object.rs:5932` anchor is now `SlotCheck` at
+`crates/nvs-runtime/src/object.rs:6677`. Anchors at or before line 2535 are unchanged.
 
 ### Backlog
 
