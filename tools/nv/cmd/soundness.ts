@@ -71,6 +71,16 @@
 //   parent's tested arm and once through the untested last one. A method has no union path: a call
 //   through the union is the call through the parent's class, which `parent-variable` already covers.
 //
+// **The qualifier table** is `QUALIFIER_ROWS`: one row per position where a value's type is erased or derived
+// again, which is the checker's `ErasingPosition` (`crates/nvs-types/src/expr/quals.rs`). The positions are
+// a type test, a conversion, a widening to `mixed`, a call with no parameter types (`$fn(...)` and
+// `$fn->call(...)`), a property write through `object`, a read that loses a property's type, an array key,
+// a `Core` member that makes keys, reflection by name, and a `Core` member's type variable. Each row has a
+// `secret` cell and a `tainted` cell, and each cell is the error code its rule gives, at the position or at
+// a sink after it. They are all compile errors, so a row is one file, `qualifier-<position>.errors.nvst`.
+// The lib test `every_position_that_erases_a_type_has_its_soundness_cells` reads each cell's
+// `// cell: <position> <qualifier>` comment, and fails on a position with a missing cell.
+//
 // **The files.** `--write` writes `tests/conformance/soundness/<member>.nvst`, the cells that run, and
 // `<member>.errors.nvst`, the cells that are compile errors, since one error stops a whole program. Each
 // relation's classes are `Parent<n>`, `Child<n>`, `Face<n>`, `Root<n>` and `Other<n>`, numbered by the relation's
@@ -836,6 +846,165 @@ const BUILDERS: Record<Family, (c: Ctx) => Piece> = {
   constant: constantPiece,
 };
 
+// ---- the qualifier table ---------------------------------------------------------------------------
+//
+// One row per position where a value's type is erased or derived again, the checker's
+// `ErasingPosition` (`crates/nvs-types/src/expr/quals.rs`). Each row has a `secret` cell and a `tainted`
+// cell, and a row may have more where the position has more than one form. A cell is a static method
+// whose parameters carry the qualifier, then the position, then a sink where the position itself does
+// not refuse. Its verdict is the code of the error the rule gives, at the body line `at` names.
+// `--write` writes `qualifier-<position>.errors.nvst`, and each cell's `// cell: <position> <qualifier>`
+// comment is what the lib test `every_position_that_erases_a_type_has_its_soundness_cells` reads.
+
+type Qualifier = "secret" | "tainted";
+
+interface QualCell {
+  qual: Qualifier;
+  /** Set where a position has more than one form, such as `call` for `$fn->call(...)`. */
+  form?: string;
+  params: string;
+  body: string[];
+  /** The index in `body` of the line the error points at. */
+  at: number;
+  code: string;
+}
+
+interface QualRow {
+  /** The checker's `ErasingPosition::name`. */
+  id: string;
+  title: string;
+  rule: string;
+  cells: QualCell[];
+}
+
+const SECRET_OUT = "E0790";
+const MISMATCH = "E0401";
+const LOSES_SECRET = "E0894";
+const NO_PARAMETER_TYPE = "E0895";
+const SECRET_KEY = "E0896";
+
+export const QUALIFIER_ROWS: QualRow[] = [
+  {
+    id: "type-test",
+    title: "a type test",
+    rule: "rule:types/type-test",
+    cells: [
+      { qual: "secret", params: "?secret string $x", body: ["if ($x is string) { echo $x; }"], at: 0, code: SECRET_OUT },
+      { qual: "tainted", params: "?tainted string $x", body: ["if ($x is string) { Sink::plain($x); }"], at: 0, code: MISMATCH },
+    ],
+  },
+  {
+    id: "conversion",
+    title: "a conversion",
+    rule: "rule:types/conversion",
+    cells: [
+      { qual: "secret", params: "secret string $x", body: ["int $n = $x as int;"], at: 0, code: LOSES_SECRET },
+      { qual: "tainted", params: "tainted string $x", body: ["Sink::plain($x as string);"], at: 0, code: MISMATCH },
+    ],
+  },
+  {
+    id: "widening",
+    title: "a value placed in `mixed`",
+    rule: "rule:security/secret-qualifier",
+    cells: [
+      { qual: "secret", params: "secret string $x", body: ["mixed $m = $x;"], at: 0, code: MISMATCH },
+      { qual: "tainted", params: "tainted string $x", body: ["mixed $m = $x;", "Sink::plain($m as string);"], at: 1, code: MISMATCH },
+    ],
+  },
+  {
+    id: "untyped-call",
+    title: "a call with no parameter types",
+    rule: "rule:types/callable-signature",
+    cells: [
+      { qual: "secret", params: "callable $f, secret string $x", body: ["$f($x);"], at: 0, code: NO_PARAMETER_TYPE },
+      { qual: "tainted", params: "callable $f, tainted string $x", body: ["$f($x);"], at: 0, code: NO_PARAMETER_TYPE },
+      { qual: "secret", form: "call", params: "callable $f, Holder $h, secret string $x", body: ["$f->call($h, $x);"], at: 0, code: NO_PARAMETER_TYPE },
+      { qual: "tainted", form: "call", params: "callable $f, Holder $h, tainted string $x", body: ["$f->call($h, $x);"], at: 0, code: NO_PARAMETER_TYPE },
+    ],
+  },
+  {
+    id: "erased-write",
+    title: "a property write through `object`",
+    rule: "rule:types/erased-member-access",
+    cells: [
+      { qual: "secret", params: "object $o, secret string $x", body: ["$o->name = $x;"], at: 0, code: MISMATCH },
+      { qual: "tainted", params: "object $o, tainted string $x", body: ["$o->name = $x;"], at: 0, code: NO_PARAMETER_TYPE },
+    ],
+  },
+  {
+    id: "erased-read",
+    title: "a read that loses a property's declared type",
+    rule: "rule:security/secret-qualifier",
+    cells: [
+      { qual: "secret", params: "Holder $h", body: ["$h as {token: string};"], at: 0, code: LOSES_SECRET },
+      { qual: "tainted", params: "mixed $m", body: ["Sink::plain($m->name as string);"], at: 0, code: MISMATCH },
+    ],
+  },
+  {
+    id: "key",
+    title: "an array key",
+    rule: "rule:security/taint-propagation",
+    cells: [
+      { qual: "secret", params: "secret string $x", body: ["array<string> $a = [];", '$a[$x] = "v";'], at: 1, code: SECRET_KEY },
+      { qual: "tainted", params: "tainted string $x", body: ["array<string> $a = [];", '$a[$x] = "v";'], at: 1, code: MISMATCH },
+    ],
+  },
+  {
+    id: "key-making-member",
+    title: "a member that makes keys from values",
+    rule: "rule:security/taint-propagation",
+    cells: [
+      { qual: "secret", params: "array<secret string> $xs", body: ["array<uint> $c = Core\\Arr::countBy($xs);"], at: 0, code: SECRET_KEY },
+      { qual: "tainted", params: "array<tainted string> $xs", body: ["array<uint> $c = Core\\Arr::countBy($xs);"], at: 0, code: MISMATCH },
+    ],
+  },
+  {
+    id: "reflection",
+    title: "reflection by name",
+    rule: "rule:security/taint-propagation",
+    cells: [
+      { qual: "secret", params: "Holder $h, secret string $x", body: ['Core\\Reflect::forObject($h)->set($h, "name", $x);'], at: 0, code: NO_PARAMETER_TYPE },
+      { qual: "tainted", params: "tainted string $x", body: ["Core\\Reflect::forClass($x);"], at: 0, code: MISMATCH },
+    ],
+  },
+  {
+    id: "generic-instantiation",
+    title: "a `Core` member's type variable",
+    rule: "rule:security/secret-propagation",
+    cells: [
+      { qual: "secret", params: "array<secret string> $xs", body: ['echo Core\\Arr::first($xs) ?? "";'], at: 0, code: SECRET_OUT },
+      { qual: "tainted", params: "array<tainted string> $xs", body: ['Sink::plain(Core\\Arr::first($xs) ?? "");'], at: 0, code: MISMATCH },
+    ],
+  },
+];
+
+const QUAL_PRELUDE = [
+  "class Sink {",
+  '    public static function plain(string $s): void { echo $s, "\\n"; }',
+  "}",
+  "class Holder {",
+  '    public secret string $token = "";',
+  '    public tainted string $name = "";',
+  "}",
+];
+
+const qualCellId = (row: QualRow, c: QualCell) => `qualifier/${row.id}/${c.qual}${c.form ? `-${c.form}` : ""}`;
+
+/** One row's program, or one cell's alone. */
+function qualProgram(row: QualRow, cells: QualCell[]): Program {
+  const lines = [...HEADER, ...QUAL_PRELUDE];
+  const errors: Program["errors"] = [];
+  cells.forEach((c, k) => {
+    lines.push("", `// cell: ${row.id} ${c.qual}${c.form ? ` ${c.form}` : ""}`, `class Cell${k + 1} {`);
+    lines.push(`    public static function run(${c.params}): void {`);
+    const start = lines.length;
+    for (const l of c.body) lines.push(`        ${l}`);
+    lines.push("    }", "}");
+    errors.push({ code: c.code, line: start + c.at + 1, cell: qualCellId(row, c) });
+  });
+  return { text: `${lines.join("\n")}\n`, expect: [], errors };
+}
+
 // ---- cells -----------------------------------------------------------------------------------------
 
 export interface Cell {
@@ -947,13 +1116,34 @@ export function files(): Map<string, string> {
       out.set(`${OUT}/${member.id}.errors.nvst`, caseText(title, program(bad), true));
     }
   }
+  for (const row of QUALIFIER_ROWS) {
+    const title = `A \`secret\` and a \`tainted\` value at ${row.title} keep their qualifier, so the position or the sink after it is a compile error at the line it names (generated; \`${row.rule}\`)`;
+    out.set(`${OUT}/qualifier-${row.id}.errors.nvst`, caseText(title, qualProgram(row, row.cells), true));
+  }
+  return out;
+}
+
+/** One cell run alone: its id, its rule, its program, and whether it runs or is a compile error. */
+interface Job {
+  id: string;
+  rule: string;
+  p: Program;
+  runs: boolean;
+}
+
+/** Every cell of both tables, each as a program of its own. */
+function jobs(): Job[] {
+  const out: Job[] = cells().map((c) => ({ id: c.id, rule: c.rule, p: program([c]), runs: runs(c) }));
+  for (const row of QUALIFIER_ROWS) {
+    for (const c of row.cells) out.push({ id: qualCellId(row, c), rule: row.rule, p: qualProgram(row, [c]), runs: false });
+  }
   return out;
 }
 
 // ---- running one cell ------------------------------------------------------------------------------
 
 interface Outcome {
-  cell: Cell;
+  job: Job;
   pass: boolean;
   expected: string;
   got: string;
@@ -963,8 +1153,8 @@ function nvsBinary(): string {
   return process.env.NVS_BIN || covwsNvs();
 }
 
-async function runCell(cell: Cell, dir: string): Promise<Outcome> {
-  const p = program([cell]);
+async function runCell(job: Job, dir: string): Promise<Outcome> {
+  const p = job.p;
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "case.nvs"), p.text);
   const r = await proc([nvsBinary(), "run", "case.nvs"], { cwd: dir, timeoutMs: 120_000 });
@@ -972,22 +1162,22 @@ async function runCell(cell: Cell, dir: string): Promise<Outcome> {
   const stdout = norm(r.stdout);
   const stderr = norm(r.stderr);
   const got = [stdout, stderr].filter(Boolean).join("\n") || `(nothing, exit ${r.code})`;
-  if (runs(cell)) {
+  if (job.runs) {
     const expected = p.expect.join("\n");
-    return { cell, pass: r.code === 0 && stdout === expected, expected, got: r.code === 0 ? got : `exit ${r.code}: ${got}` };
+    return { job, pass: r.code === 0 && stdout === expected, expected, got: r.code === 0 ? got : `exit ${r.code}: ${got}` };
   }
   const e = p.errors[0]!;
   const at = new RegExp(`^error\\[${e.code}\\]: .*\\n\\s*--> [^\\n]*case\\.nvs:${e.line}:\\d+`, "m");
   const expected = `error[${e.code}] at line ${e.line}, and no other error`;
-  return { cell, pass: r.code !== 0 && at.test(stderr) && /aborting due to 1 error\b/.test(stderr), expected, got };
+  return { job, pass: r.code !== 0 && at.test(stderr) && /aborting due to 1 error\b/.test(stderr), expected, got };
 }
 
-async function runAll(list: Cell[]): Promise<Outcome[]> {
+async function runAll(list: Job[]): Promise<Outcome[]> {
   const root = join(ROOT, SCRATCH);
   rmSync(root, { recursive: true, force: true });
   const out: Outcome[] = new Array(list.length);
   let next = 0;
-  const jobs = Math.max(1, cpus().length || 4);
+  const width = Math.max(1, cpus().length || 4);
   const worker = async () => {
     while (next < list.length) {
       const i = next++;
@@ -995,7 +1185,7 @@ async function runAll(list: Cell[]): Promise<Outcome[]> {
     }
   };
   try {
-    await Promise.all(Array.from({ length: Math.min(jobs, list.length) }, worker));
+    await Promise.all(Array.from({ length: Math.min(width, list.length) }, worker));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -1034,7 +1224,7 @@ export async function run(args: string[]): Promise<number> {
     return 2;
   }
 
-  const all = cells();
+  const all = jobs();
   const want = files();
 
   if (flags.has("--write")) {
@@ -1046,10 +1236,11 @@ export async function run(args: string[]): Promise<number> {
   }
 
   if (flags.has("--probe")) {
-    const got = await runAll(all);
+    const list = jobs();
+    const got = await runAll(list);
     const failing = got.filter((o) => !o.pass);
-    for (const o of failing) console.log(`${o.cell.id}  (${o.cell.rule})\n    expected:\n${head(o.expected)}\n    got:\n${head(o.got)}`);
-    console.log(`nv soundness: ${failing.length} of ${all.length} cell(s) fail when run alone`);
+    for (const o of failing) console.log(`${o.job.id}  (${o.job.rule})\n    expected:\n${head(o.expected)}\n    got:\n${head(o.got)}`);
+    console.log(`nv soundness: ${failing.length} of ${list.length} cell(s) fail when run alone`);
     return failing.length ? 1 : 0;
   }
 

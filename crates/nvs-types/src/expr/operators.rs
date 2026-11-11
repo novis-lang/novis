@@ -140,7 +140,13 @@ pub(crate) fn infer_conversion(
     reject_impossible_class_reference_conversion(inner, result, expr.span, ctx, env);
     check_property_key_conversion(inner, ty, result, expr.span, env);
     if env.diags.len() == before {
-        reject_secret_conversion_loss(inner_ty, result, expr.span, env);
+        reject_secret_conversion_loss(
+            inner_ty,
+            result,
+            expr.span,
+            super::quals::ErasingPosition::Conversion,
+            env,
+        );
     }
     apply_qualifier_conversion_rule(inner_ty, result, env.interner)
 }

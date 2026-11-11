@@ -1267,7 +1267,13 @@ pub(crate) fn check_array_literal(
         }
     };
     for (key, key_ty) in keys {
-        super::quals::check_key_qualifier(key, key_ty, array, env);
+        super::quals::check_key_qualifier(
+            key,
+            key_ty,
+            array,
+            super::quals::ErasingPosition::Key,
+            env,
+        );
     }
     array
 }
@@ -1406,7 +1412,13 @@ fn synthesize_items(
     }
     let array = env.interner.array(first);
     for (key, key_ty) in keys {
-        super::quals::check_key_qualifier(key, key_ty, array, env);
+        super::quals::check_key_qualifier(
+            key,
+            key_ty,
+            array,
+            super::quals::ErasingPosition::Key,
+            env,
+        );
     }
     Ok(array)
 }

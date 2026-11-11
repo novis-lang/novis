@@ -664,7 +664,13 @@ pub(crate) fn built_fits(
 /// The help for a `secret` value at a `mixed` position
 /// (`rule:security/secret-qualifier`): `mixed` keeps no `secret`, and
 /// `secret mixed` is the type that does. `None` for every other mismatch.
-fn secret_into_mixed_help(expected: TypeId, actual: TypeId, env: &Env<'_>) -> Option<&'static str> {
+fn secret_into_mixed_help(
+    expected: TypeId,
+    actual: TypeId,
+    position: super::quals::ErasingPosition,
+    env: &Env<'_>,
+) -> Option<&'static str> {
+    debug_assert_eq!(position, super::quals::ErasingPosition::Widening);
     let applies = super::quals::contains_secret(actual, env.interner)
         && super::quals::carries_unchecked(expected, env.interner)
         && !super::quals::contains_secret(expected, env.interner);
@@ -717,7 +723,12 @@ pub(crate) fn mismatch(
         env,
     )?
     .with_primary(span, format!("this is `{actual_desc}`"));
-    if let Some(help) = secret_into_mixed_help(expected, actual, env) {
+    if let Some(help) = secret_into_mixed_help(
+        expected,
+        actual,
+        super::quals::ErasingPosition::Widening,
+        env,
+    ) {
         return Some(diag.with_help(help));
     }
     Some(
@@ -968,9 +979,14 @@ pub(crate) fn check_return(
             format!("this method declares `{expected_desc}` but returns `{actual_desc}`"),
         )
         .with_primary(expr.span, format!("this is `{actual_desc}`"));
-        let help = secret_into_mixed_help(return_ty, actual, env)
-            .map(str::to_owned)
-            .or_else(|| unconverted_array_help(return_ty, actual, env));
+        let help = secret_into_mixed_help(
+            return_ty,
+            actual,
+            super::quals::ErasingPosition::Widening,
+            env,
+        )
+        .map(str::to_owned)
+        .or_else(|| unconverted_array_help(return_ty, actual, env));
         let diag = match help {
             Some(help) => diag.with_help(help),
             None => diag,

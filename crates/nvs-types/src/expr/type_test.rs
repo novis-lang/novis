@@ -72,8 +72,9 @@ use super::members::{
 };
 use super::operators::types_are_disjoint;
 use super::quals::{
-    carries_secret, carries_tainted, carries_unchecked, erased_qualifiers, fields_unchecked,
-    has_fields, reject_untainted_text_from_unchecked, secret_result, tainted_result,
+    ErasingPosition, carries_secret, carries_tainted, carries_unchecked, erased_qualifiers,
+    fields_unchecked, has_fields, reject_untainted_text_from_unchecked, secret_result,
+    tainted_result,
 };
 
 /// Checks `inner is against`, answering `bool` — or the literal `true`/`false`
@@ -125,7 +126,7 @@ fn infer_against_type(
     {
         return env.interner.bool_ty();
     }
-    let tested = keep_subject_qualifiers(subject, tested, env.interner);
+    let tested = keep_subject_qualifiers(subject, tested, ErasingPosition::TypeTest, env.interner);
     if always_holds(subject, tested, env) {
         env.exprs
             .record(expr.span, ExprInfo::SettledTypeTest { answer: true });
@@ -165,7 +166,7 @@ pub(crate) fn accept_shape_conversion(
         return false;
     }
     if reject_untainted_text_from_unchecked(from, to, span, env)
-        || reject_secret_property_in_shape(from, to, span, env)
+        || reject_secret_property_in_shape(from, to, span, ErasingPosition::ErasedRead, env)
     {
         return true;
     }
@@ -205,8 +206,10 @@ fn reject_secret_property_in_shape(
     from: TypeId,
     to: TypeId,
     span: Span,
+    position: ErasingPosition,
     env: &mut Env<'_>,
 ) -> bool {
+    debug_assert_eq!(position, ErasingPosition::ErasedRead);
     let Ty::Shape(fields) = env.interner.get(to).clone() else {
         return false;
     };
@@ -458,8 +461,10 @@ pub(crate) fn always_holds(subject: TypeId, tested: TypeId, env: &mut Env<'_>) -
 pub(crate) fn keep_subject_qualifiers(
     subject: TypeId,
     tested: TypeId,
+    position: ErasingPosition,
     interner: &mut crate::ty::TypeInterner,
 ) -> TypeId {
+    debug_assert_eq!(position, ErasingPosition::TypeTest);
     let tested = if carries_unchecked(subject, interner) || carries_tainted(subject, interner) {
         tainted_result(tested, interner)
     } else {

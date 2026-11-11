@@ -89,6 +89,92 @@
 use super::*;
 use nvs_stdlib::registry::Qual;
 
+/// A position where a value's type is erased or derived again, so a
+/// qualifier on it could be lost (`rule:testing/redeclaration-matrix`'s
+/// qualifier table). Each variant names the check that keeps `secret` and
+/// `tainted` there. A check that serves several positions takes the position
+/// as an argument ([`check_key_qualifier`], and
+/// [`reject_qualified_untyped_value`] through [`UntypedTarget::position`]).
+///
+/// `bun nv soundness` writes a `secret` cell and a `tainted` cell for each
+/// variant to `tests/conformance/soundness/qualifier-<name>.errors.nvst`, and
+/// the lib test `every_position_that_erases_a_type_has_its_soundness_cells`
+/// fails on a variant with a missing cell. So a new position is a new variant,
+/// and the matrix asks for its cells.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum ErasingPosition {
+    /// `$x is T` narrows to `T` with the subject's qualifiers put back
+    /// ([`super::type_test::keep_subject_qualifiers`]).
+    TypeTest,
+    /// `$x as T` keeps both qualifiers where `T` can carry them, and a
+    /// `secret` operand does not convert to a type that cannot
+    /// ([`apply_qualifier_conversion_rule`], [`reject_secret_conversion_loss`]).
+    Conversion,
+    /// A value placed in `mixed`: `secret` enters only `secret mixed`, and
+    /// text out of `mixed` is `tainted` (`super::assign`'s relation).
+    Widening,
+    /// An argument of a call with no static parameter list: a bare
+    /// `callable`, `$fn->call(...)`, a `mixed` receiver or a spread.
+    UntypedCall,
+    /// A property write through `mixed`, `object` or a shape that does not
+    /// list the name.
+    ErasedWrite,
+    /// A read that loses the declared type of a property: a shape conversion
+    /// over a class, and a read through `mixed`.
+    ErasedRead,
+    /// A value used as an array key: a subscript write, a compound write and
+    /// a literal's key.
+    Key,
+    /// A `Core` member that makes keys from values
+    /// ([`nvs_stdlib::registry::ParamText::Keys`]).
+    KeyMakingMember,
+    /// A `Core\Reflect` member that picks code by name, or hands a value to
+    /// code it picked by name.
+    Reflection,
+    /// A `Core` member's type variable bound to a qualified type, such as
+    /// `Core\Arr::first` over `array<secret string>`. The substitution keeps
+    /// the argument's type whole, so the qualifier reaches the result, and no
+    /// check of its own runs there. The matrix's cells are its proof.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "no check runs here; the matrix names it")
+    )]
+    GenericInstantiation,
+}
+
+#[cfg(test)]
+impl ErasingPosition {
+    /// Every position, in the order the matrix writes them.
+    pub(crate) const ALL: [Self; 10] = [
+        Self::TypeTest,
+        Self::Conversion,
+        Self::Widening,
+        Self::UntypedCall,
+        Self::ErasedWrite,
+        Self::ErasedRead,
+        Self::Key,
+        Self::KeyMakingMember,
+        Self::Reflection,
+        Self::GenericInstantiation,
+    ];
+
+    /// The name `bun nv soundness` writes in the cell's file name and comment.
+    pub(crate) const fn name(self) -> &'static str {
+        match self {
+            Self::TypeTest => "type-test",
+            Self::Conversion => "conversion",
+            Self::Widening => "widening",
+            Self::UntypedCall => "untyped-call",
+            Self::ErasedWrite => "erased-write",
+            Self::ErasedRead => "erased-read",
+            Self::Key => "key",
+            Self::KeyMakingMember => "key-making-member",
+            Self::Reflection => "reflection",
+            Self::GenericInstantiation => "generic-instantiation",
+        }
+    }
+}
+
 /// Whether `ty` carries `rule:security/tainted-qualifier`'s `tainted` qualifier — on its own
 /// (`tainted string`/`tainted bytes`) or composed with `secret`
 /// (`secret tainted string`/`secret tainted bytes`, `rule:security/secret-qualifier`). The one
@@ -291,8 +377,13 @@ pub(crate) fn check_key_qualifier(
     key: Span,
     key_ty: TypeId,
     base: TypeId,
+    position: ErasingPosition,
     env: &mut Env<'_>,
 ) -> bool {
+    debug_assert!(matches!(
+        position,
+        ErasingPosition::Key | ErasingPosition::KeyMakingMember
+    ));
     if contains_secret(key_ty, env.interner) {
         let found = env.interner.describe(key_ty);
         env.diags.report(
@@ -974,8 +1065,10 @@ pub(crate) fn reject_secret_conversion_loss(
     from: TypeId,
     to: TypeId,
     span: Span,
+    position: ErasingPosition,
     env: &mut Env<'_>,
 ) {
+    debug_assert_eq!(position, ErasingPosition::Conversion);
     if !carries_secret(from, env.interner) {
         return;
     }
@@ -1292,6 +1385,17 @@ pub(crate) enum UntypedTarget {
     Dispatched,
 }
 
+impl UntypedTarget {
+    /// The [`ErasingPosition`] this target is one form of.
+    pub(crate) const fn position(self) -> ErasingPosition {
+        match self {
+            Self::Callable | Self::ErasedReceiver | Self::Spread => ErasingPosition::UntypedCall,
+            Self::ErasedWrite => ErasingPosition::ErasedWrite,
+            Self::Dispatched => ErasingPosition::Reflection,
+        }
+    }
+}
+
 /// `rule:types/callable-signature`'s and `rule:types/erased-member-access`'s
 /// qualifier half: a value that carries `tainted`, `secret` or text out of
 /// `mixed` does not go where no static type checks it. Answers whether it
@@ -1318,6 +1422,10 @@ pub(crate) fn reject_qualified_untyped_value(
     target: UntypedTarget,
     env: &mut Env<'_>,
 ) -> bool {
+    debug_assert!(matches!(
+        target.position(),
+        ErasingPosition::UntypedCall | ErasingPosition::ErasedWrite | ErasingPosition::Reflection
+    ));
     if env.interner.is_error(ty) {
         return false;
     }
@@ -2530,6 +2638,59 @@ mod tests {
     fn carries(name: &str, interner: &mut TypeInterner) -> bool {
         let ty = interner.class(QName::parse(name));
         carries_tainted(ty, interner)
+    }
+
+    /// `rule:testing/redeclaration-matrix`'s qualifier table: every
+    /// [`ErasingPosition`] has a `secret` cell and a `tainted` cell in the file
+    /// `bun nv soundness --write` writes for it. Each cell says which it is in
+    /// a `// cell: <position> <qualifier>` comment.
+    #[test]
+    fn every_position_that_erases_a_type_has_its_soundness_cells() {
+        // An exhaustive match, so a new variant fails to build until `ALL`
+        // names it.
+        for position in ErasingPosition::ALL {
+            match position {
+                ErasingPosition::TypeTest
+                | ErasingPosition::Conversion
+                | ErasingPosition::Widening
+                | ErasingPosition::UntypedCall
+                | ErasingPosition::ErasedWrite
+                | ErasingPosition::ErasedRead
+                | ErasingPosition::Key
+                | ErasingPosition::KeyMakingMember
+                | ErasingPosition::Reflection
+                | ErasingPosition::GenericInstantiation => {}
+            }
+        }
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/conformance/soundness");
+        let mut missing = Vec::new();
+        for position in ErasingPosition::ALL {
+            let name = position.name();
+            let path = dir.join(format!("qualifier-{name}.errors.nvst"));
+            let text = std::fs::read_to_string(&path).unwrap_or_default();
+            for qualifier in ["secret", "tainted"] {
+                let cell = text.lines().any(|line| {
+                    let mut words = line
+                        .trim()
+                        .strip_prefix("// cell:")
+                        .unwrap_or("")
+                        .split_whitespace();
+                    words.next() == Some(name) && words.next() == Some(qualifier)
+                });
+                if !cell {
+                    missing.push(format!(
+                        "{name} has no `{qualifier}` cell in {}",
+                        path.display()
+                    ));
+                }
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "run `bun nv soundness --write` after adding the row to its qualifier table:\n{}",
+            missing.join("\n")
+        );
     }
 
     #[test]

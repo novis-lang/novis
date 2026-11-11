@@ -709,7 +709,12 @@ fn type_test_residue(
         Some(&ExprInfo::ClassRefTest { base }) => base,
         _ => return None,
     };
-    let residue = crate::expr::type_test::keep_subject_qualifiers(current, residue, env.interner);
+    let residue = crate::expr::type_test::keep_subject_qualifiers(
+        current,
+        residue,
+        crate::expr::quals::ErasingPosition::TypeTest,
+        env.interner,
+    );
     (residue != current).then_some((name, residue))
 }
 

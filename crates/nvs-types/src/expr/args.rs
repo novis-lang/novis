@@ -251,11 +251,23 @@ fn check_key_marks(
         if sig.text_at(param) == ParamText::Keys(KeyOrigin::Values)
             && let Some(keys) = key_values(types[index], env.interner)
         {
-            super::quals::check_key_qualifier(arg.value.span, keys, answer, env);
+            super::quals::check_key_qualifier(
+                arg.value.span,
+                keys,
+                answer,
+                super::quals::ErasingPosition::KeyMakingMember,
+                env,
+            );
         }
     }
     for (span, keys) in std::mem::take(&mut env.key_options) {
-        super::quals::check_key_qualifier(span, keys, answer, env);
+        super::quals::check_key_qualifier(
+            span,
+            keys,
+            answer,
+            super::quals::ErasingPosition::KeyMakingMember,
+            env,
+        );
     }
     let Some(options) = options_param(sig, env.interner) else {
         return;
@@ -291,7 +303,13 @@ fn check_key_marks(
         let cell =
             key_values(types[rows], env.interner).and_then(|row| key_values(row, env.interner));
         if let Some(cell) = cell {
-            super::quals::check_key_qualifier(field.span, cell, answer, env);
+            super::quals::check_key_qualifier(
+                field.span,
+                cell,
+                answer,
+                super::quals::ErasingPosition::KeyMakingMember,
+                env,
+            );
         }
     }
 }

@@ -2129,7 +2129,10 @@ pub(crate) fn report_args_with_no_parameter_list(
 ///
 /// `bind` and `bindTo` take one `?object` and give the receiver's own type
 /// back. `call` takes the same first argument and passes the rest to the
-/// callable, so it gives `mixed`, as a call through bare `callable` does. No
+/// callable, so it gives `mixed`, as a call through bare `callable` does. An
+/// argument after the object that carries a qualifier is refused as at
+/// `$fn(...)` ([`super::quals::reject_qualified_untyped_value`]), unless the
+/// callable's written parameter at that place takes its type. No
 /// scope argument is accepted (`E_ARITY_MISMATCH`): a scope would open another
 /// class's `private` members. Whether the object fits the body is a run-time
 /// test, `nvs_runtime::callable::bind_callable`, because `callable` does not say
@@ -2198,9 +2201,33 @@ fn infer_callable_rebind(
             .with_help(help),
         );
     }
+    let written = match env.interner.get(receiver_ty) {
+        Ty::CallableSig { params, .. } => Some(params.clone()),
+        _ => None,
+    };
     for (i, arg) in list.iter().enumerate() {
         let expected = (i == 0 && !arg.spread).then_some(this_ty);
-        check_expr(&arg.value, expected, live, scope, ctx, env);
+        let ty = check_expr(&arg.value, expected, live, scope, ctx, env);
+        if !call || i == 0 || arg.spread {
+            continue;
+        }
+        // `call` forwards the arguments after the object with no check of
+        // their qualifiers, so a qualified one is refused as at `$fn(...)`.
+        // A written parameter that takes the argument's type is the check.
+        let takes = written
+            .as_ref()
+            .and_then(|p| p.get(i - 1))
+            .is_some_and(|&param| {
+                is_assignable(ty, param, env.interner, env.graph, env.signatures)
+            });
+        if !takes {
+            super::quals::reject_qualified_untyped_value(
+                ty,
+                arg.value.span,
+                super::quals::UntypedTarget::Callable,
+                env,
+            );
+        }
     }
     if fits {
         env.exprs

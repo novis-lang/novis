@@ -17,6 +17,17 @@ and one path a program reaches the member by:
 - **paths:** a variable of the parent's type, of the child's type, of an interface's type, `static::`,
   an erased `object` or `mixed` access, a `property<T>` key, and a first-class callable.
 
+**A second table asks the same question of `secret` and `tainted`.** The checker lists every position
+where a value's type is erased or derived again, as one enum (`ErasingPosition`,
+`crates/nvs-types/src/expr/quals.rs`): a type test, a conversion, a widening to `mixed`, a call with no
+parameter types, a property write through `object`, a read that loses a property's type, an array key, a
+`Core` member that makes keys, reflection by name, and a `Core` member's type variable. Each check that
+keeps a qualifier at one of them is called with its position. The qualifier table has one row per
+position, with a `secret` cell and a `tainted` cell, and each cell is the error code its rule gives at
+the position or at a sink after it. A row is written as `qualifier-<position>.errors.nvst`, and a lib
+test reads the enum and fails naming a position with a missing cell. So a new position cannot skip the
+matrix.
+
 `--write` writes the cells to `tests/conformance/soundness/`, one file per member kind for the cells that
 run and one for the cells that are compile errors. `bun nv verify` runs `--check`, which fails when a
 committed file differs from what `--write` writes, and the `.nvst` step runs the cells like any case. A
