@@ -1,0 +1,65 @@
+--TEST--
+`Core\Serialize::decode` refuses bytes that name a generator's class, a function value's class or an open file's class, and it refuses each one before it compares a property — `rule:classes/serialize-is-a-closed-format`
+--FILE--
+<?nvs
+class Counter
+{
+    public static function upTo(int $n): Iterator<int>
+    {
+        yield $n;
+    }
+}
+
+class Maker
+{
+    public function adder(): callable
+    {
+        return fn(int $x): int => $x + 1;
+    }
+}
+
+class Forge
+{
+    // Returns one byte with the value `$value`.
+    public static function byte(uint $value): bytes
+    {
+        return Core\Bytes::fill(1, $value);
+    }
+
+    // Returns a payload with one object of class `$class` and 0 properties.
+    // The bytes are `NVS`, 27, the version 1, the object node 9, the name and 0.
+    public static function naming(string $class): bytes
+    {
+        bytes $name = $class as bytes;
+        return Core\Bytes::join([
+            'NVS' as bytes,
+            Forge::byte(27),
+            Forge::byte(1),
+            Forge::byte(9),
+            Forge::byte(Core\Bytes::length($name)),
+            $name,
+            Forge::byte(0),
+        ]);
+    }
+
+    public static function decode(string $class): void
+    {
+        bytes $payload = Core\Taint::assertTrustedBytes(Forge::naming($class), 'this program wrote the bytes');
+        try {
+            Core\Serialize::decode($payload);
+            echo "decoded\n";
+        } catch (ParseError $e) {
+            echo $e->message, "\n";
+        }
+    }
+}
+
+// The classes of a generator, of a function value and of an open file.
+// Each class has more than 0 properties, but the error is about the class.
+Forge::decode('Counter::upTo$gen');
+Forge::decode('Maker$fn0');
+Forge::decode('Core\IO\File');
+--EXPECT--
+Core\Serialize::decode(): a generator is a suspended frame, so it has no meaning on the other side of a copy boundary
+Core\Serialize::decode(): a callable captures variables from the code that created it, so it has no meaning on the other side of a copy boundary
+Core\Serialize::decode(): a Core\IO\File holds a handle onto something this side of the boundary opened, so it has no meaning on the other side of a copy boundary — pass what identifies the resource and open it there
