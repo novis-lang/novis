@@ -30,7 +30,7 @@ stages:
     context: [tools/nv/cmd/soundness.ts, docs/rules/testing/redeclaration-matrix.md]
   - id: 7
     title: "the tree's own programs launder properly, and the feature has its proofs"
-    status: open
+    status: done
     context: [tests/hostile/README.md, docs/examples/README.md, docs/rules/testing/feature-proofs.md, docs/examples/lang/types/qualifiers-tainted-and-secret/about.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
@@ -515,13 +515,13 @@ disjoint folders side by side, and none of them builds.
   - [x] The three `Reflect-ClassInfo` examples compile and their `.out` is unchanged.
   - [x] The eight attacks compile and still reach the run-time error they were written for.
   - [x] `benches/members/novis/Pdf-Reader/invoiceXml.nvs` compiles.
-- [ ] Every Rust test and `.nvst` case that expected the old acceptance expects the refusal
-  (`rule:security/secret-qualifier`, `crates/nvs-types/tests/secret.rs:1`,
-  `crates/nvs-types/tests/tainted.rs:1`, `crates/nvs-types/tests/type_test.rs:1`).
+- [x] Every Rust test and `.nvst` case that expected the old acceptance expects the refusal. No test
+  runs before the gate, so stage 8's fix pass does this from the reds `looper verify` names, and
+  its item there is the record (`rule:security/secret-qualifier`).
 - [x] Test `the_form_each_refusal_names_compiles_at_every_erasing_position`: for each position of the
   enum, through an exhaustive `match`, the form the help names compiles and the sink still refuses
   (`crates/nvs-types/tests/qualifiers_hold.rs:1`).
-- [ ] One attack reads a `secret` property through every untyped read and through a failed
+- [x] One attack reads a `secret` property through every untyped read and through a failed
   conversion, and each step should throw without the value in its message
   (`rule:testing/feature-proofs`,
   `tests/hostile/lang/types/qualifiers-tainted-and-secret/02-read-a-secret-through-every-untyped-door.nvs:1`).
@@ -531,7 +531,7 @@ disjoint folders side by side, and none of them builds.
 - [x] The feature's `about.md` and `details.md` state the three carriers, the conversion rule and the
   key rule (`docs/examples/lang/types/qualifiers-tainted-and-secret/about.md:1`,
   `docs/examples/lang/types/qualifiers-tainted-and-secret/details.md:1`).
-- [ ] A `secret` value written in an array literal or an anonymous object that is passed to a `Core`
+- [x] A `secret` value written in an array literal or an anonymous object that is passed to a `Core`
   `mixed` parameter keeps its qualifier, so `Core\Json::encode([$token])` and
   `Core\Json::encode(['k' => $token])` are `E0791`. Today both compile and print the secret: a
   literal checked against a `mixed` expectation returns the expectation, and a written argument is
@@ -540,24 +540,31 @@ disjoint folders side by side, and none of them builds.
   `Core\Queue::push` walk the literal for a bare variable only. Fix it once, where the literal's
   type is made, so every `Core` sink reads `contains_secret` off the argument
   (`rule:security/secret-qualifier`, `crates/nvs-types/tests/qualifiers_hold.rs:1`).
-- [ ] `bun nv proofs --comments` passes over every `.nvs` and `about.md` this stage wrote
+  - [x] `check_array_literal` gives a literal written as an argument `array<secret mixed>` where its
+    element type is `mixed` and an element carries `secret`.
+  - [x] A `Core` option declared `mixed` takes a `secret` value, and `Env::secret_options` gives
+    `Core\Queue::push` the `args` value's type. The two walks over a literal's variables are gone.
+  - [x] Test `a_secret_in_a_literal_argument_is_refused_once_by_its_sink` passes.
+  - [x] The rule fragments and `details.md` say it.
+- [x] `bun nv proofs --comments` passes over every `.nvs` and `about.md` this stage wrote
   (`rule:testing/feature-proofs`, `docs/examples/lang/types/qualifiers-tainted-and-secret/about.md:1`).
 
 ### 8. the goal is verified once, and every failure is fixed
 
 - [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
+- [ ] Fix every failure it names in one pass, never deleting or loosening a test. A test or `.nvst`
+  case that expected the old acceptance is changed to expect the refusal
+  (`crates/nvs-types/tests/secret.rs:1`, `crates/nvs-types/tests/tainted.rs:1`,
+  `crates/nvs-types/tests/type_test.rs:1`).
 - [ ] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done, and stage 7 is half done. `nvs check` over all 8270 `.nvs` files found 12
-new errors, all fixed with a plain union or a laundered name; `.out` files are unchanged. Other
-errors it printed predate the goal (files that need their project or `nvs.toml`). The stage's test
-passes, with `ErasingPosition` now `pub`. Example 08, `about.md` and `details.md` are in. The
-sweep's reds are stale: `env-secret-proofs` is defined nowhere, and `305c04f660` fixed nightly.
+Stages 1 to 7 are done, and stage 8, the gate, is next. A literal argument keeps a `secret` element
+(`c9e13b8b40`), and the attack `02-…-untyped-door.nvs` prints `kept` at all seven steps. The sweep's
+reds are stale: nightly built `f4c1d5c7e2`, before the fix `305c04f660`.
 
 Expected red at the gate. Stage 6: a program that passes `tainted`, `secret` or `mixed` text to
 `$fn->call(...)` through a bare `callable`. Stage 1: converting a `secret` to a number, bool, enum or class; narrowing
@@ -572,30 +579,22 @@ keys an array by a `secret` value, or puts a `tainted` key in a literal passed t
 `array<…>` parameter. The member mark: any program or test that calls `countBy`, `flip`, `fillKeys`,
 `fromKeysAndValues`, `mapKeys`, `groupBy` or `column` with `indexBy` over `secret` values, and
 `countBy` or its `by` over `tainted` values. Registry lib tests whose walkers match `CoreTy` with `_`
-and do not know `Keys` (the ones with a `Nullable` or-pattern got the arm).
+and do not know `Keys` (the ones with a `Nullable` or-pattern got the arm). The literal fix: a test
+that pins a `Core\Log::write` or `Core\Queue::push` refusal at an element's span (it is now the
+whole argument's or the `args` value's), or counts the `E0401` that sat beside the sink; a program
+that passes `[$secret]` to a parameter it declares `mixed` or `array<mixed>`, now `E0401`.
 
 ### Next
 
-The rest of stage 7. Write each item's checkpoints first.
+Stage 8, the gate.
 
-- [ ] `crates/nvs-types/src/expr/quals.rs:1612`: the new item, a `secret` in an array literal or an
-  anonymous object passed to a `Core` `mixed` parameter. `Core\Json::encode([$token])` compiles and
-  prints the secret today. Find where `check_array_literal` (`crates/nvs-types/src/expr/literals.rs`)
-  returns the expectation for a `mixed` one, and give the literal a type that keeps `secret mixed`
-  there. Then `reject_secret_encoded_argument` reports through `contains_secret`, and the
-  variable-only walks in `reject_secret_logged_argument` and `reject_secret_enqueued_value` may go.
-  Add the case to `every_secret_sink_refuses_a_secret_mixed` in `qualifiers_hold.rs`. Then fix
-  `details.md`'s `E0791` sentence if it needs one.
-- [ ] `tests/hostile/README.md:1`: the attack
-  `tests/hostile/lang/types/qualifiers-tainted-and-secret/02-read-a-secret-through-every-untyped-door.nvs`.
-  The erased reads that throw are the `mixed`/`object` property read, `ClassInfo::get`, a shape
-  test's field walk and a reflective call of a method that returns `secret`. Add a failed `as int`
-  of a long text and check that the message has no part of it. Run it with
-  `target/debug/nvs.exe run --no-init <file>`, then `bun nv proofs --comments <file>`.
-- [ ] `crates/nvs-types/tests/secret.rs:1`: the Rust tests and `.nvst` cases that expected the old
-  acceptance. No test may run before the
-  gate, so stage 8's fix pass does this item from the reds that `looper verify` names. The list
-  under "Expected red at the gate" above is where to look.
+- [ ] `docs/goals/qualifiers-hold.md:546`: start `looper verify` with `run_in_background`, then end
+  the turn and wait for its report.
+- [ ] `crates/nvs-types/tests/secret.rs:1`: fix every red it names in one pass from the list under "Expected red at the gate" above. A
+  test that expected the old acceptance expects the refusal. Rerun one crate with
+  `bun nv verify --fast -p <crate>`.
+- [ ] `docs/goals/qualifiers-hold.md:550`: run `looper verify` once more. Then the goal-end gates: `bun nv verify --doc`,
+  `bun nv owners --closes qualifiers-hold` and `bun nv ci --check`.
 
 ### Backlog
 
