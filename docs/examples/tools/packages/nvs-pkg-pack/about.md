@@ -1,15 +1,14 @@
 `nvs pkg pack` builds the archive of a package, the file that other applications download.
 
 The archive contains only these files: every `.nvs` file under `src`, `package.toml`, the license and
-readme files next to `package.toml`, and each file that `[package] files` lists. The command prints each file with its size, the total and the digest of the
-package. The digest is the hash that `package.lock` records.
+readme files next to `package.toml`, and each file that `[package] files` lists. The command prints
+each file with its size, the total and the digest, the hash that `package.lock` records.
 
 The same files always give the same archive and the same digest, on every system. The time, the owner
 and the permissions of a file are not in the archive.
 
 A package must have a license file, such as `LICENSE`. It has at most 5,000 files and at most 16 MiB.
-A symbolic link is not allowed. For a larger file, use `nvs pkg download`.
-A package has one `package.toml`, in its top folder. A second `package.toml` in any folder is an error.
+A symbolic link and a second `package.toml` are not allowed. For a larger file, use `nvs pkg download`.
 
 A package may contain one extension, a `.nvsx` file that `files` lists. The command loads it and
 checks that its class is in the package's namespace.

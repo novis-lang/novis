@@ -299,12 +299,13 @@
   },
   "/guides/how-to-use/project-layout/": {
     "feature": "guides/how-to-use/project-layout.mdx",
-    "hash": "f5e9f35b7849a698",
+    "hash": "08e9a5bffd49bda0",
     "questions": [
       "How should I organize the folders of a Novis web app?",
       "Where do I put the entry file, classes and tests?",
       "Keep tests in a separate tests folder",
-      "Why does Novis not find my nvs.toml?"
+      "Why does Novis not find my nvs.toml?",
+      "Why does nvs test skip a folder with its own package.toml?"
     ]
   },
   "/guides/how-to-use/requests/": {
@@ -18659,14 +18660,14 @@
   },
   "/tools/test-runner/": {
     "feature": "tools/test-runner/index.mdx",
-    "hash": "e3b3c0067cb5c048",
+    "hash": "5fcfc7121bc5ec8d",
     "questions": [
       "How do I write my first test and run it?",
-      "What does the output look like when a test fails?",
       "Run only the tests whose name contains some text",
       "Test a function with many random inputs",
       "What does a survived mutant mean in mutation testing?",
-      "Count the work of a function in a bench"
+      "Count the work of a function in a bench",
+      "Run the tests of a package my program uses"
     ]
   },
   "/tools/test-runner/coverage/": {
