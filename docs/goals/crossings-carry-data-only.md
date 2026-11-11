@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-runtime/src/object.rs, crates/nvs-stdlib/src/instance.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/http.rs, docs/rules/classes/serialize-is-a-closed-format.md]
   - id: 5
     title: "every `Core` class says what its slots hold"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/instance.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/serialize.rs, docs/rules/classes/serialize-is-a-closed-format.md, tests/hostile/README.md]
   - id: 6
     title: "every live crossing asks one receiving side, and a test lists the crossings"
@@ -365,6 +365,18 @@ slot as an index, a length or a key into another slot relies on more than a type
 a row that gives the reason, and it is not read back. Stage 5 decides each class by reading its
 readers. Safe default: a class whose readers were not read gets a reason. Usability cost: such a
 class no longer goes through the cache or `Core\Serialize`. The Backlog names what brings it back.
+
+**A reader that checks a value again and throws on a bad one does not rely on it.** That includes a
+`Fault::fatal`, which ends the request and does not panic. So `Core\Time\Date` with a month of 13, a
+`Core\Ldap\Dn` whose text does not parse and a `Core\Crypto\PublicKey` whose bytes are not a key are
+read back, and their first member throws. A row is a reason where a forged value gives a silent
+wrong answer, a panic, or a way past a check: the state of a walk or a queue, a key into a table of
+the request or the core, text written out unescaped, key material, and a value a `Core` member checked
+once when it made the instance. A `Core` enum in a slot is stated as its enum, and `decode` admits
+only its case values. A `mixed` slot admits every value. **What it spends:** nothing beyond the slot
+check. Usability: `Core\Time`, `Core\Uuid`, `Core\Db\Row`, the reflection descriptions and the
+other data classes go through the cache and `Core\Serialize`. Declined: a reason for every class a
+check could fail on, which would take the dates and times out of the cache.
 
 **A live crossing needs no slot check.** The live carrier copies an object that exists, and only a
 `Core` member or `decode` made it. With `decode` checked and `construct` closed, each slot of it has
@@ -722,38 +734,38 @@ together. Each reports, per class, what fills each slot and how each reader uses
 writes the rows, because they share one file. Once the rows build, one writing subagent writes the
 attack, the `.nvst` case and the reference sentences, and it does not build.
 
-- [ ] The list of classes, from the `Explore` subagent, checked against the registry's own count of
+- [x] The list of classes, from the `Explore` subagent, checked against the registry's own count of
   classes with instances (`crates/nvs-stdlib/src/instance.rs:661`,
   `crates/nvs-stdlib/src/registry.rs:1801`).
-- [ ] Every class on the list gets its row. The row states types when the types are everything its
+- [x] Every class on the list gets its row. The row states types when the types are everything its
   readers rely on, and a reason otherwise, as *Standing decisions* says. A class with no slots gets
   an empty row (`rule:classes/serialize-is-a-closed-format`, `crates/nvs-stdlib/src/instance.rs:143`,
   `crates/nvs-stdlib/src/instance.rs:1216`).
-- [ ] Test `every_core_class_with_instances_says_what_its_slots_hold` in `instance.rs` tests. It
+- [x] Test `every_core_class_with_instances_says_what_its_slots_hold` in `instance.rs` tests. It
   walks the registry's classes with instances and fails naming each one that holds no host handle
   and has no row. It also fails on a row whose class holds a host handle
   (`crates/nvs-stdlib/src/instance.rs:1237`, `crates/nvs-stdlib/src/instance.rs:768`).
-- [ ] Test `a_core_value_a_member_made_decodes_back`: a `Core\Uri` a member made is encoded and
+- [x] Test `a_core_value_a_member_made_decodes_back`: a `Core\Uri` a member made is encoded and
   decoded, and its members return what the first one's did
   (`crates/nvs-stdlib/src/instance.rs:1237`).
-- [ ] `.nvst` case `serialize-decode-checks-a-core-class`. The program encodes a `Core\Uri` and
+- [x] `.nvst` case `serialize-decode-checks-a-core-class`. The program encodes a `Core\Uri` and
   reads it back. It then builds `bytes` that name a `Core` class with a value of the wrong type in
   one slot, and `decode` throws a `ParseError`
   (`tests/conformance/core/serialize-decode-checks-a-core-class.nvst:1`).
-- [ ] Attack `03-bytes-that-name-a-core-class.nvs`. Its payloads name a `Core` class with a value
+- [x] Attack `03-bytes-that-name-a-core-class.nvs`. Its payloads name a `Core` class with a value
   of the wrong type in each slot in turn, and a `Core` class that is not read back. Every step
   should throw, and the program should still be running after the last one
   (`rule:testing/feature-proofs`,
   `tests/hostile/core/Serialize/decode/03-bytes-that-name-a-core-class.nvs:1`).
-- [ ] The fuzz check's class table gains a `Core` class with stated slot types. It fails when
+- [x] The fuzz check's class table gains a `Core` class with stated slot types. It fails when
   `decode` returns an object of it whose slot does not pass the stated type
   (`crates/nvs-fuzz-checks/src/serialize.rs:1`).
-- [ ] The `decode` card and its `about.md` say, in one plain sentence, that bytes with a value of
+- [x] The `decode` card and its `about.md` say, in one plain sentence, that bytes with a value of
   the wrong type in an object are not read. The `encode` card and its `about.md` say that some
   `Core` objects cannot be written (`crates/nvs-stdlib/src/serialize.rs:123`,
   `docs/examples/core/Serialize/decode/about.md:1`, `crates/nvs-stdlib/src/serialize.rs:90`,
   `docs/examples/core/Serialize/encode/about.md:1`).
-- [ ] `rule:classes/serialize-is-a-closed-format` says where the roster is, what a row holds and
+- [x] `rule:classes/serialize-is-a-closed-format` says where the roster is, what a row holds and
   when a row is a reason (`docs/rules/classes/serialize-is-a-closed-format.md:10`).
 
 ### 6. every live crossing asks one receiving side, and a test lists the crossings
@@ -886,46 +898,56 @@ memory cache uses.
 
 ### State
 
-Stages 1 to 4 are done, and stage 4's three acceptance tests pass. The sweep's reds are stale: the
-`env-secret-proofs` check was retired, and run 43001191130's four jobs failed on one test that
-305c04f660 fixed after that run's commit.
+Stages 1 to 5 are done. Stage 5's two acceptance tests pass, and so do the `instance::tests` and
+`time::tests` modules. The sweep's reds were stale: the `env-secret-proofs` check was retired, and
+run 43001191130's four jobs failed on one test that 305c04f660 fixed after that run's commit.
 
-`Door` has three doors: `Copy` (live), `Bytes` (the encoder and `Reader::object`) and `Construct`.
-`Carrier::DOOR` says which one the walk asks (`crates/nvs-runtime/src/graph.rs`). `Door::Bytes`
-refuses a `Core` class without `states_slot_types`, ending with its `bytes_refusal` reason when it
-has one. `ClassTable::set_slot_types` (`crates/nvs-runtime/src/object.rs:2709`) fills the tag, class,
-check and spelling tables from a `Vec<SlotType>`. `SLOT_TYPES` (`crates/nvs-stdlib/src/instance.rs:240`)
-has two rows, `Core\Http\TlsInfo` and `Core\Uri`, and `slot_type` turns a `CoreTy` into a
-`SlotType`. A debug `build` runs `check_fields` on each instance it makes.
+`SLOT_TYPES` (`crates/nvs-stdlib/src/instance.rs:263`) has a row for each of the 91 `Core` classes
+with instances and no host handle: 53 typed and 38 reasons. The reasons are six shared sentences
+above it (`RUNNING_STATE`, `THIS_REQUEST`, `KEY_MATERIAL`, `TRUSTED_TEXT`, `CHECKED_ONCE`,
+`BY_IDENTITY`), and each row says why in a comment. `slot_type` (`crates/nvs-stdlib/src/instance.rs:634`)
+now states `mixed`, a union and a `Core` enum. An enum slot admits the enum's case values as an
+`int` or as an enum case, because members store both. `parse_offset` in `time.rs` checks its sum,
+which a zone id from bytes could overflow. The full `tests/conformance` suite is green after the
+rows, the old expected-red `Core\Time\Date` case included, and the decode attacks pass.
 
 Still true: `Core\Topic::publish` copies with no receiving table and keys by the bare name, `spawn
 script` refuses a `Core` value in `args:`, and `llms-full.txt` has the old `construct` card text.
 
-Expected red until stage 5 gives each class its row: every test or case that puts a `Core` value
-other than a `Uri` or a `TlsInfo` through `Core\Serialize`, either cache tier, a session or a topic,
-such as `tests/conformance/core/serialize-a-core-class-resolves-on-the-way-back.nvst`
-(`Core\Time\Date`). They are fixed by the row, never by changing the test. Also watch, from stage 2
-and 3: a test that sends a `$`-named class other than a shape across a boundary, a test that builds
-a `Core` or `abstract` class through `construct_erased_from`, and a run-time string converted to a
-`class<T>` of a generator's or a callable's class.
+Watch at the gate: a debug `build` checks each `Core` instance against its row, so a row that is
+wrong panics in whatever Rust test or case builds that class. Only the `instance`, `time` and
+conformance runs exercised the rows this session. A panic naming "was built against its stated slot
+types" is fixed in the row, or in the member that filled the slot. Also from stages 2 and 3: a test
+that sends a `$`-named class other than a shape across a boundary, a test that builds a `Core` or
+`abstract` class through `construct_erased_from`, and a run-time string converted to a `class<T>`
+of a generator's or a callable's class.
 
 ### Next
 
-crates/nvs-stdlib/src/instance.rs:240 — take stage 5 from its first item: the `Explore` list of
-every `CoreClass` with instances and no host handle, then the `reader` groups, then one row per
-class in `SLOT_TYPES`. A `CoreTy` a row needs and `slot_type` has no arm for is added to
-`slot_type` and `slot_check` (`crates/nvs-stdlib/src/instance.rs:273`). The first `NotReadBack` row
-removes the `expect(dead_code)` on that variant (`crates/nvs-stdlib/src/instance.rs:224`).
-`every_core_descriptor_states_its_slots_or_is_refused` (`crates/nvs-stdlib/src/instance.rs:1978`)
-already walks every descriptor, so each new row is checked by it.
+crates/nvs-runtime/src/ctx/error.rs:328 — take stage 6 from its first item: one function that builds
+the receiving resolver from a program's table, then `Core`, as `Ctx::class_desc` does. Then move
+every site onto it, `copy_graph_to` first (`crates/nvs-runtime/src/graph.rs:663`), and take the
+table-less `copy_graph` (`crates/nvs-runtime/src/graph.rs:629`) out of the public API. Its
+`a_core_class_that_states_no_slot_types_does_not_decode` test in `instance.rs` calls `copy_graph`,
+so it moves to `copy_graph_to` with it. The site test `every_crossing_site_names_its_receiving_side`
+is red until stage 7, as stage 6 says.
 
 ### Backlog
 
 - `ClassTable::id_of` is a linear scan, and `decode` calls it once per object
   (`crates/nvs-runtime/src/object.rs:2878`).
 - A `Core` class whose roster row is a reason is not written or read by the bytes carrier. A check
-  of its slot values at `decode` would bring it back (`crates/nvs-stdlib/src/instance.rs:143`,
-  `rule:classes/serialize-is-a-closed-format`).
+  of its slot values at `decode` would bring it back (`crates/nvs-stdlib/src/instance.rs:263`,
+  `rule:classes/serialize-is-a-closed-format`). The cheapest are `Core\BigInt`, whose `sign` member
+  reads the sign slot alone and could read it from the value (`crates/nvs-stdlib/src/bigint.rs:1634`),
+  `Core\Test\Response`, whose `text` slot is a cache that `decode` could leave `null`, and
+  `Core\Db\Rows`, which loses the class its rows are read into.
+- `Core\Http\Identity` reads its `fingerprint` slot with `as_bytes`, and its builder writes a string
+  (`crates/nvs-stdlib/src/http.rs:692`, `crates/nvs-stdlib/src/http.rs:771`). A reader reported that
+  every `identity:` option may then throw. Not checked.
+- `Reflect\ClassInfo::constant` finds a class by its `name` slot and does not ask the kind refusal
+  `forClass` asks (`crates/nvs-stdlib/src/reflect.rs:2490`). Its row is a reason, so bytes cannot
+  reach it, but a description `forClass` made never names such a class either way.
 - A `Core` descriptor with no registry row, such as a syntax-tree node, is not read back
   (`crates/nvs-stdlib/src/instance.rs:124`, `crates/nvs-stdlib/src/instance.rs:565`).
 - Row hydration (`queryAs`, `streamAs`) and `Core\Test::double` and `partial` were not traced for an
