@@ -1,0 +1,98 @@
+<?nvs
+// Attack: each assignment computes a value that replaces the place it writes to.
+// Every write should go to a live value, and every line should print what it says.
+// covers: lang:expressions/assignment
+
+class Box
+{
+    public string $c = "";
+
+    public function constructor(string $c)
+    {
+        $this->c = $c;
+    }
+}
+
+class Target
+{
+    public string $s = "";
+    public array<string> $items = [];
+    public Box $box;
+    public array<Box> $boxes = [];
+
+    public function constructor()
+    {
+        $this->box = new Box("");
+        $this->reset();
+    }
+
+    // Writes the old values back before the next step.
+    public function reset(): void
+    {
+        int $n = 1;
+        $this->s = "old-" . $n . "-abcdefghijklmnop";
+        $this->items = ["old-" . $n . "-abcdefghijklmnop"];
+        $this->box = new Box("old-" . $n . "-abcdefghijklmnop");
+        $this->boxes = [];
+    }
+
+    // Replaces every property, then creates many strings and boxes of the same size.
+    public function replace(): string
+    {
+        int $n = 2;
+        $this->s = "new-" . $n . "-abcdefghijklmnop";
+        $this->items = ["new-" . $n . "-abcdefghijklmnop"];
+        $this->box = new Box("new-" . $n . "-abcdefghijklmnop");
+        array<string> $fill = [];
+        for (int $i = 0; $i < 1024; $i++) {
+            $fill[] = "fil-" . $n . "-abcdefghijklmnop";
+            $this->boxes[] = new Box("fil-" . $n . "-abcdefghijklmnop");
+        }
+        return "!";
+    }
+
+    // Returns `true` when every box has the value it was created with.
+    public function boxesIntact(): bool
+    {
+        bool $intact = Core\Str::startsWith($this->box->c, "new-");
+        foreach ($this->boxes as Box $b) {
+            if (!Core\Str::startsWith($b->c, "fil-")) {
+                $intact = false;
+            }
+        }
+        return $intact;
+    }
+}
+
+Target $t = new Target();
+
+// 1. Appends to a property with `.=`, and the value replaces that property.
+$t->s .= $t->replace();
+echo $t->s, "\n";
+$t->reset();
+
+// 2. Appends to an array property, and the value replaces the array.
+$t->items[] = $t->replace();
+echo $t->items[0], " ", $t->items[1], "\n";
+$t->reset();
+
+// 3. Writes an element of an array property, and the value replaces the array.
+$t->items[1] = $t->replace();
+echo $t->items[0], " ", $t->items[1], "\n";
+$t->reset();
+
+// 4. Uses a property as an array key, and the value replaces that property.
+array<string> $m = [];
+$m[$t->s] = $t->replace();
+echo $m["old-1-abcdefghijklmnop"], "\n";
+$t->reset();
+
+// 5. Writes a property of an object property, and the value replaces the object.
+$t->box->c = $t->replace();
+echo $t->boxesIntact() ? "boxes intact\n" : "a box changed\n";
+$t->reset();
+
+// 6. Appends to a string variable with `.=`, and the value replaces the variable.
+string $s = "old-" . "1";
+$s .= ($s = "new-" . "2") . "!";
+echo $s, "\n";
