@@ -22,6 +22,13 @@
       ]
     },
     {
+      "title": "JSON for more class shapes",
+      "text": "`#[Core\\Json\\Derive]` also reads and writes the properties a class inherits. A property can have a set of allowed values. `nvs meta --json` prints the JSON schema of each derived class.",
+      "goals": [
+        "derive-wider-types"
+      ]
+    },
+    {
       "title": "Faster writes to arrays and strings",
       "text": "A write to a nested array, or an append to a string in a property, changes the value in place. The cost no longer grows with the size of the value.",
       "goals": [
