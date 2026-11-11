@@ -26,6 +26,10 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **`looper lint` reads a `### Next` item's anchor on its first line alone.** An item whose
+  `path:line` sits on a continuation line, or behind a bare directory path, fails as "an open
+  `### Next` item has no repo-rooted path:line anchor". Start the item with its anchor, as in
+  `docs/goals/calls-by-name-are-checked.md`'s `### Next`.
 - **A shell heredoc in this harness writes `\\` as one backslash, even under `<<'EOF'`.** A patch
   for `bun nv splice` or a scratch script that holds `"\\\n"` arrives as `"\n"`, so a JS string
   loses its escaped backslash and a test fails for a reason the code does not have. Write any text

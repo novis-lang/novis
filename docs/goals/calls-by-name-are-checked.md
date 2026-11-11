@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/object.rs, crates/nvs-runtime/src/callable.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-stdlib/src/reflect.rs, tests/hostile/README.md]
   - id: 3
     title: "the hook write and a bare callable run the same check, and a test lists the entries"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/object.rs, crates/nvs-runtime/src/callable.rs, crates/nvs-ir/src/lower/anon_fn.rs, docs/rules/types/callable-signature.md, docs/rules/classes/property-hooks.md]
   - id: 4
     title: a private member is reached by name only from the class that declares it
@@ -450,17 +450,17 @@ disk. It does not build.
   (`crates/nvs-runtime/src/callable.rs:251`).
 - [x] Tests `a_hooked_property_write_is_checked_before_its_hook_runs` and
   `a_bare_callable_call_checks_what_its_parameter_declares`.
-- [ ] Test `every_entry_into_compiled_code_has_a_driver` in a new integration test. It reads the
+- [x] Test `every_entry_into_compiled_code_has_a_driver` in a new integration test. It reads the
   shipped files under `crates/*/src`, and its drivers come from stage 1's list
   (`crates/nvs-stdlib/tests/erased_entries.rs:1`; the scan's shape is
   `crates/nvs-stdlib/src/cache.rs:3119`).
-- [ ] `.nvst` cases: a hooked property written by name with each wrong value, and a bare `callable`
+- [x] `.nvst` cases: a hooked property written by name with each wrong value, and a bare `callable`
   called with each. Two existing cases pin today's answer and are rewritten:
   `tests/conformance/core/arr-a-mixed-or-nullable-callback-parameter-is-unchecked.nvst` and
   `tests/conformance/core/arr-a-callback-enum-parameter-checks-the-enum-tag.nvst`.
-- [ ] Attacks: `set/03` under `tests/hostile/core/Reflect-ClassInfo/` for a hooked property, and
+- [x] Attacks: `set/03` under `tests/hostile/core/Reflect-ClassInfo/` for a hooked property, and
   `tests/hostile/lang/types/callable-classes-object-shapes/02` for a bare `callable`.
-- [ ] `rule:types/callable-signature` says a bare `callable` call checks each parameter's whole
+- [x] `rule:types/callable-signature` says a bare `callable` call checks each parameter's whole
   declared type, and its paragraph on what the entry check does not do is rewritten.
   `rule:classes/property-hooks` says a write by name is checked before the hook runs
   (`docs/rules/types/callable-signature.md:28`, `docs/rules/classes/property-hooks.md:13`).
@@ -470,11 +470,11 @@ disk. It does not build.
 **Does:** make `Ctx::reaches` answer a `private` member to its declaring class alone, for a
 property, a method and a constant.
 
-- [ ] `reaches` takes "has that very member" for each kind and applies the private rule the standing
+- [x] `reaches` takes "has that very member" for each kind and applies the private rule the standing
   decision states (`rule:security/reflection-enforces-visibility`,
   `crates/nvs-runtime/src/ctx/visibility.rs:107`, `crates/nvs-runtime/src/ctx/visibility.rs:39`,
   `crates/nvs-runtime/src/ctx/visibility.rs:58`, `crates/nvs-runtime/src/ctx/visibility.rs:79`).
-- [ ] Tests `a_private_member_is_refused_to_a_subclass_by_name`,
+- [x] Tests `a_private_member_is_refused_to_a_subclass_by_name`,
   `a_class_reaches_its_private_member_on_an_instance_of_a_subclass` and
   `a_private_method_declared_again_belongs_to_the_class_that_declared_it`, each over a property, a
   method and a constant where the kind has the case. They sit in `reflect.rs` tests, beside the
@@ -515,48 +515,51 @@ property, a method and a constant.
 
 ### State
 
-Stage 2 is done. Its four `.nvst` cases and the attacks `call/02`, `construct/02` and
-`lang/types/mixed/03` pass on `target/debug/nvs`, and the `call` card and page name both refusals.
+Stage 3 is done. `crates/nvs-stdlib/tests/erased_entries.rs` holds
+`every_entry_into_compiled_code_has_a_driver`, and it passes. Its `DRIVERS` table is the standing
+decision's list plus `construct` (`crates/nvs-runtime/src/object.rs:4940`), which the first run named.
+It also fails on a stale row and on a driver test name no function under `crates/` has. The two
+cases `reflect-a-hooked-property-written-by-name-is-checked-before-its-set-hook-runs.nvst` and
+`a-bare-callable-checks-each-argument-against-its-whole-declared-parameter-type.nvst`, and the attacks
+`set/03` and `callable-classes-object-shapes/02`, pass on `target/debug/nvs.exe`. Both rule fragments
+are rewritten.
 
-Stage 3's mechanism and its two tests are on disk. `write_property`'s hooked branch runs
-`refuse_unfit`, which the unhooked branch shares, before the guard and the hook
-(`crates/nvs-runtime/src/object.rs:5997`). `HookRow::param_tags` is gone with both fills. An
-anonymous function and a method reference record `ParamChecks::pending`, and
-`resolve_pending_checks` turns it into the `invoke` row's checks after the walk
-(`crates/nvs-ir/src/lower/mod.rs:1788`, standing decision). `call_callable_with` runs
-`check_param_types` after the tag step on an unproven call (`crates/nvs-runtime/src/callable.rs:207`).
-`a_hooked_property_write_is_checked_before_its_hook_runs` and
-`a_bare_callable_call_checks_what_its_parameter_declares` pass by name. Three cases that pinned the
-old answer are rewritten and pass: `arr-a-mixed-or-nullable-callback-parameter-is-unchecked` is now
-`arr-a-nullable-callback-parameter-is-checked-against-its-declared-type.nvst`, and
-`out-a-callback-parameter-naming-a-class-checks-the-argument-class-at-entry.nvst` and
-`arr-a-callback-float-parameter-widens-an-int-and-stops-at-2-53.nvst` changed in place.
-`cargo clippy --all-targets` and `cargo fmt --check` are clean.
+Stage 4's mechanism and its three tests are on disk and pass by name. `reaches` takes a `same`
+predicate beside `declares` (`crates/nvs-runtime/src/ctx/visibility.rs:107`). A `private` member
+needs the site to be the subject or its ancestor, to have that very member, and to have no
+supertype with it, which `ClassDesc::any_supertype` asks (`crates/nvs-runtime/src/object.rs:1851`).
+The tests sit after `a_reflective_call_to_a_private_method_from_outside_fails_like_the_ordinary_call`
+in `crates/nvs-stdlib/src/reflect.rs`, on the `family()` fixture. `cargo clippy --all-targets` and
+`cargo fmt --check` are clean.
 
-`bun nv try` runs the `covws` build unless `NVS_BIN` is set, and that build predates stage 2. Run
-new cases with `NVS_BIN=target/debug/nvs.exe`.
+The sweep's `env-secret-proofs` red is stale: no file in the tree defines it, and its log does not
+exist. `bun nv try` runs the `covws` build unless `NVS_BIN` is set. Run new cases with
+`NVS_BIN=target/debug/nvs.exe`; that binary predates stage 4's change, so rebuild it with
+`cargo build` before running stage 4's cases.
 
 ### Next
 
-The rest of stage 3. The stage's `**Split:**` line gives the cases and attacks to one writing
-subagent, which does not build.
+The rest of stage 4, then stage 5. Stage 4's cases and attacks go to one writing subagent, which does
+not build, once `cargo build` has refreshed `target/debug/nvs.exe`.
 
-- [ ] The scan at `crates/nvs-stdlib/src/cache.rs:3119` is the shape for a new test file,
-  `crates/nvs-stdlib/tests/erased_entries.rs`, holding `every_entry_into_compiled_code_has_a_driver`. It reads every shipped file under
-  `crates/*/src` for a `transmute` to `NvsFn` and a call of `call_at`, with the standing decision's drivers.
-- [ ] `.nvst` cases beside `tests/conformance/core/arr-a-callback-enum-parameter-checks-the-enum-tag.nvst:1`:
-  a hooked property written by name (`ClassInfo::set` or a `mixed` receiver) with each wrong value,
-  and a bare `callable` called with each (a class, `?C`, an array element, an enum value).
-- [ ] Attacks beside `tests/hostile/core/Reflect-ClassInfo/set/02-values-of-another-enum-signature-and-class.nvs:1`:
-  `set/03-*.nvs`, and `tests/hostile/lang/types/callable-classes-object-shapes/02-*.nvs`.
-- [ ] `docs/rules/types/callable-signature.md:28` and `docs/rules/classes/property-hooks.md:13` say
-  what the stage item says.
-- [ ] Then stage 4, at `reaches` (`crates/nvs-runtime/src/ctx/visibility.rs:107`).
+- [ ] `.nvst` case beside `tests/conformance/core/reflect-a-hooked-property-written-by-name-is-checked-before-its-set-hook-runs.nvst:1`:
+  inside a subclass, `get`, `set`, `call` and `constant` of the parent's private member each throw;
+  inside the parent, the same four on a subclass instance succeed; an inherited private constructor
+  is refused to the subclass through `construct`.
+- [ ] Attacks beside `tests/hostile/core/Reflect-ClassInfo/set/03-wrong-values-into-properties-with-a-set-hook.nvs:1`:
+  `get/02`, `set/04`, `call/03` and `constant/03`, each in its own member's directory.
+- [ ] `docs/rules/security/reflection-enforces-visibility.md:5` says which class declares a member,
+  and names the redeclared private constant's refusal.
+- [ ] Stage 5 at `crates/nvs-runtime/src/dispatch.rs:424` and `crates/nvs-runtime/src/callable.rs:902`.
 
-Tests that may go red: a `.nvst` or example that hands a bare `callable` an argument its `?T`,
-`?float` or enum parameter does not admit and expected it to run; one that writes an `int` by name to
-a hooked `float` property; one that matched "must be of type Marker, another class given", which a
-bare `callable` call now says as "does not accept an object of class ...".
+Tests that may go red: a `.nvst` or example in which a subclass reads, writes or calls its parent's
+`private` member by name (`ClassInfo` or a `mixed` receiver inside the subclass) and expected it to
+work; one in which a parent's body expected a refusal for its own private member on a subclass
+instance; one that writes an `int` by name to a hooked `float` property.
+
+Two diagnostics the subagent found break the prose rules, for stage 6 or a later goal: a by-name
+write says "declares field `price` as float, so a int cannot be written" ("field", "a int"), and a
+bare `callable` property's refusal says "as object" and names an internal `Script$fn1` class.
 
 ### Backlog
 
