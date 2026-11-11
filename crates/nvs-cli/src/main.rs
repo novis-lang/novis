@@ -2199,8 +2199,7 @@ fn run_run(
                 let (emit, drain) = events::open();
                 ctx.set_body_stream(emit);
                 ctx.mark_event_stream(nvs_runtime::EventStreamDoor::Connection);
-                let inbox = ctx.inbox();
-                publisher = Some((feed, drain, events::Feeds::of(&ctx, inbox)));
+                publisher = Some((feed, drain, ctx.inbox()));
             }
             Err(error) => {
                 eprintln!("error: --events {}: {error}", file.display());
@@ -2229,6 +2228,10 @@ fn run_run(
     if let Some(folder) = folder {
         ctx.set_app_folder(folder.into());
     }
+    // The `--events` publisher reads the configuration only now that the
+    // context has it, so its topics belong to the program's application.
+    let publisher =
+        publisher.map(|(feed, drain, inbox)| (feed, drain, events::Feeds::of(&ctx, inbox)));
     // `rule:testing/debug-surface`: a program `[debug] mode` lets start coverage counts into a
     // table located by file and line, so `Core\Debug::coverage` names what ran. Built only under
     // that ceiling: one counter per statement and edge, and one line per statement, for the run.
