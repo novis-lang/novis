@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-types/src/expr/literals.rs, crates/nvs-types/src/expr/args.rs, crates/nvs-stdlib/src/arr.rs, crates/nvs-stdlib/tests/taint_signatures.rs]
   - id: 6
     title: "one matrix tries a secret and a tainted value at every position that erases a type"
-    status: open
+    status: done
     context: [tools/nv/cmd/soundness.ts, docs/rules/testing/redeclaration-matrix.md]
   - id: 7
     title: "the tree's own programs launder properly, and the feature has its proofs"
@@ -285,6 +285,15 @@ and names the form to write. Each new code gets its card beside `E0824`
 (`crates/nvs-diagnostics/src/code/types_e08.rs:435`). A site that already reports its own code keeps
 it, and the new refusal reports only where nothing else did (`rule:types/one-mistake-reports-once`).
 
+**Built: every check takes its `ErasingPosition`, and asserts it in a debug build.** A check with
+several positions, `check_key_qualifier`, is told which one. `reject_qualified_untyped_value` reads it
+from `UntypedTarget::position`. A check with one position asserts that it was called for it. So every
+variant is built by the code that checks it, and a variant no check builds fails `-D warnings`.
+`GenericInstantiation` is the one variant with no check, since substitution keeps the argument's type
+whole, and its matrix cells are its proof. **What it spends:** nothing in a release build.
+`$fn->call($obj, ...)` is part of `UntypedCall`: an argument after the object that carries a
+qualifier is refused, unless the callable's written parameter takes its type.
+
 **Lanes:** one lane. Stages 1, 2, 3 and 5 all edit `crates/nvs-types/src/expr/quals.rs` and
 `crates/nvs-types/tests/qualifiers_hold.rs`, so they run in order. Stage 4 edits `nvs-runtime`,
 `nvs-ir` and the run-time half of `reflect.rs`. It may run beside stage 5 once stage 3 is committed.
@@ -466,20 +475,20 @@ the members that make keys from values.
 **Does:** give the checker one list of erasing positions, and write the qualifier cells of
 `bun nv soundness` from it.
 
-- [ ] The checker gains one enum of erasing positions, and every check of stages 1 to 5 is called
+- [x] The checker gains one enum of erasing positions, and every check of stages 1 to 5 is called
   with its position (`rule:testing/redeclaration-matrix`, `crates/nvs-types/src/expr/quals.rs:1`).
-- [ ] `bun nv soundness` gains a qualifier table: one row per position, a `secret` cell and a
+- [x] `bun nv soundness` gains a qualifier table: one row per position, a `secret` cell and a
   `tainted` cell each, and a sink after the position. Each cell's verdict is the rule's error code
   (`rule:testing/redeclaration-matrix`, `tools/nv/cmd/soundness.ts:106`).
-- [ ] `bun nv soundness --write` writes `tests/conformance/soundness/qualifier-<position>.errors.nvst`,
+- [x] `bun nv soundness --write` writes `tests/conformance/soundness/qualifier-<position>.errors.nvst`,
   and each cell names its position in a comment the lib test reads
   (`tests/conformance/soundness/qualifier-type-test.errors.nvst:1`).
-- [ ] Lib test `every_position_that_erases_a_type_has_its_soundness_cells` reads the enum and the
+- [x] Lib test `every_position_that_erases_a_type_has_its_soundness_cells` reads the enum and the
   written files, and fails naming a position with a missing cell
   (`crates/nvs-types/src/expr/quals.rs:1`).
-- [ ] Run `bun nv soundness --probe` once, and fix every cell it names. A cell's verdict is never
+- [x] Run `bun nv soundness --probe` once, and fix every cell it names. A cell's verdict is never
   changed to match the binary (`tools/nv/cmd/soundness.ts:8`).
-- [ ] The rule fragment for the matrix describes the qualifier table and its positions
+- [x] The rule fragment for the matrix describes the qualifier table and its positions
   (`docs/rules/testing/redeclaration-matrix.md:1`).
 
 ### 7. the tree's own programs launder properly, and the feature has its proofs
@@ -523,14 +532,15 @@ disjoint folders side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 5 are done, and stage 5's two acceptance checks pass. `check_key_qualifier`
-(`quals.rs`) now always takes the array the key enters. `check_key_marks` (`args.rs`) passes the
-call's answer, after binding and contagion, so a marked member refuses a `tainted` key whose answer
-reads keys back plain (`countBy` over tainted text). A marked option's value is pushed onto
-`Env::key_options` by `check_options_arg` and checked in `check_key_marks`. The sweep's reds are
-stale: nightly `43001191130` is older, and `env-secret-proofs` is defined nowhere in the tree.
+Stages 1 to 6 are done, and stage 6's acceptance check passes. `ErasingPosition` (`quals.rs`) lists
+the ten positions, and each check takes its position. `bun nv soundness` writes ten
+`qualifier-<position>.errors.nvst` files with 22 cells, and `--probe` over the debug build passes all
+487 cells. `$fn->call($obj, ...)` now refuses a qualified argument after the object, unless the
+callable's written parameter takes it (`infer_callable_rebind`, `calls.rs`). The sweep's reds are
+stale: `env-secret-proofs` is defined nowhere, and `305c04f660` fixed nightly `43001191130`'s test.
 
-Expected red at the gate. Stage 1: converting a `secret` to a number, bool, enum or class; narrowing
+Expected red at the gate. Stage 6: a program that passes `tainted`, `secret` or `mixed` text to
+`$fn->call(...)` through a bare `callable`. Stage 1: converting a `secret` to a number, bool, enum or class; narrowing
 `tainted` with `is` into a plain sink. Stage 2: a `secret` into a declared `mixed`; tests expecting
 `$secret as mixed` to be `E0894`. Stage 3: qualified or `mixed` values through a bare `callable`, a
 `mixed` receiver, an erased write, `ClassInfo::set`/`call`/`construct`, or a `Core\Reflect` name.
@@ -546,21 +556,20 @@ and do not know `Keys` (the ones with a `Nullable` or-pattern got the arm).
 
 ### Next
 
-Stage 6, the qualifier matrix. Its first item is the checker's enum of erasing positions, over
-`quals.rs`. Write the item's checkpoints first.
+Stage 7, the tree's own programs and the proofs. Follow its `**Split:**` line: first one `Explore`
+subagent runs `target/debug/nvs.exe check` over every `.nvs` under `docs/examples/`, `tests/hostile/`,
+`benches/members/`, `website/snippets/` and `packages/`, and lists each new error as `path:line` and
+its code. Write the item's checkpoints first.
 
-- [ ] `crates/nvs-types/src/expr/quals.rs:1`: one `pub enum ErasingPosition` with a variant per
-  position the stage names: type test, conversion, widening, untyped call, erased write, erased read,
-  key, key-making member, reflection, generic instantiation. Add `$fn->call(...)` from the backlog as
-  part of untyped call. Each check of stages 1 to 5 takes its position, so the list cannot drift:
-  `reject_qualified_untyped_value` (`UntypedTarget` may fold into it), `check_key_qualifier`,
-  `reject_secret_conversion_loss`, and the type-test qualifier restore in `type_test.rs`.
-- [ ] `tools/nv/cmd/soundness.ts:108`: beside `RELATIONS` and `MEMBERS`, a qualifier table with one
-  row per position, a `secret` and a `tainted` cell each, and a sink after the position. `OUT` is
-  `tests/conformance/soundness`, and the files are `qualifier-<position>.errors.nvst`.
-- [ ] `crates/nvs-types/src/expr/quals.rs:1`: the lib test
-  `every_position_that_erases_a_type_has_its_soundness_cells` reads the enum's variants (an `ALL`
-  array checked by an exhaustive `match`) and the written files.
+- [ ] `docs/examples/README.md:1`: each listed program compiles again with the typed form or
+  `Core\Secret::reveal` / `Core\Taint::assertTrusted`, and its `.out` is unchanged. Writing subagents
+  take disjoint folders.
+- [ ] `crates/nvs-types/tests/qualifiers_hold.rs:1`: test
+  `the_form_each_refusal_names_compiles_at_every_erasing_position`, with an exhaustive `match` over
+  the positions. The cells of `QUALIFIER_ROWS` (`tools/nv/cmd/soundness.ts`) are the refused forms
+  to start from.
+- [ ] `tests/hostile/README.md:1`: the attack the stage names, then the
+  `secret mixed` example, then `about.md` and `details.md`.
 
 ### Backlog
 
@@ -568,9 +577,9 @@ Stage 6, the qualifier matrix. Its first item is the checker's enum of erasing p
   ``has no public property `$nmae` `` (`nvs_property_path_mismatch`, `nvs_string_holes_mismatch`,
   `crates/nvs-runtime/src/helpers.rs`). The whole operand is no longer shown, but a segment is part
   of it. Name the segment by position instead.
-- `$fn->call($obj, $a)` on a `callable` forwards `$a` with no parameter list, and its arguments are not
-  yet asked the stage 3 question (`crates/nvs-types/src/expr/calls.rs`, the `bind`/`call` checker that
-  passes `&[]`). Stage 6's matrix should name it as a position.
+- `$fn->call($obj, $a)` on a typed callable does not check `$a` against the written parameter, only
+  its qualifier (`infer_callable_rebind`, `crates/nvs-types/src/expr/calls.rs`). A plain type
+  mismatch there is found at run time.
 - A `.=` compound write through an erased property is not asked the stage 3 question, only the plain
   `=` (`crates/nvs-types/src/expr/assign.rs:1083`).
 - A third-party extension method that takes a resource may return text built from an earlier
