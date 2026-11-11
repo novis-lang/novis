@@ -4964,7 +4964,12 @@ impl<'a> Positions<'a> {
                     // reference of its own, and the document is released before
                     // the constructor runs.
                     match converted {
-                        Some(value) => self.decoded.append(value),
+                        Some(value) => match outside(field, value) {
+                            None => self.decoded.append(value),
+                            Some(miss) => {
+                                self.issues.push(Issue::here(miss).under(Segment::At(at)));
+                            }
+                        },
                         None => self.issues.push(
                             Issue::here(format!(
                                 "expected {}, found {}",
@@ -5292,10 +5297,37 @@ unsafe fn convert_field<'a>(
             contract.describe(found)
         ));
     };
+    // `rule:types/single-value-types`'s set of allowed values: the base type
+    // is read, and then the value must be one of the set.
+    if let Some(miss) = outside(field, value) {
+        return issue(miss);
+    }
     // [`scalar`] answered with a reference of its own, which is what the
     // object being built needs: the document is released before the
     // constructor runs.
     Step::Done(Ok(value))
+}
+
+/// The issue for `value` when `field` carries a set of allowed values and
+/// `value` is not one of them, or `None` when it is (or there is no set).
+///
+/// On a miss the value is released here, because [`scalar`] handed over a
+/// reference of its own and nothing else will hold it.
+pub(crate) fn outside(field: &nvs_runtime::CodecField, value: Value) -> Option<String> {
+    let allowed = field.allowed.as_ref()?;
+    if allowed.admits(value) {
+        return None;
+    }
+    let miss = allowed.miss(value);
+    #[expect(
+        unsafe_code,
+        reason = "the value is the one reference `scalar` handed over, and the \
+                  field it was read for no longer takes it"
+    )]
+    unsafe {
+        value.release();
+    }
+    Some(miss)
 }
 
 /// One field of a nested class decoded — `rule:core-classes/derive-property-list`'s "another class that
@@ -6005,6 +6037,7 @@ pub(crate) mod tests {
             element: through_a_list.then(|| nvs_runtime::CodecElement::leaf(CodecTy::Class)),
             class: Some("Node".to_owned()),
             cases: None,
+            allowed: None,
             shape: None,
             nullable: true,
             required: true,
@@ -6149,6 +6182,7 @@ pub(crate) mod tests {
                 element: None,
                 class: None,
                 cases: None,
+                allowed: None,
                 shape: None,
                 nullable: false,
                 required: true,
@@ -6363,6 +6397,7 @@ pub(crate) mod tests {
             element: Some(nvs_runtime::CodecElement::leaf(CodecTy::Int)),
             class: None,
             cases: None,
+            allowed: None,
             shape: None,
             nullable: false,
             required: true,
@@ -6824,6 +6859,7 @@ pub(crate) mod tests {
                 element: None,
                 class: None,
                 cases: None,
+                allowed: None,
                 shape: None,
                 nullable: true,
                 required: true,
@@ -6961,6 +6997,7 @@ pub(crate) mod tests {
             element: None,
             class: None,
             cases: None,
+            allowed: None,
             shape: None,
             nullable: false,
             required: true,
@@ -7006,6 +7043,7 @@ pub(crate) mod tests {
             element: None,
             class: class.map(str::to_owned),
             cases: None,
+            allowed: None,
             shape: shape.map(str::to_owned),
             nullable: false,
             required: true,
@@ -7050,6 +7088,7 @@ pub(crate) mod tests {
                 element: None,
                 class: None,
                 cases: None,
+                allowed: None,
                 shape: None,
                 nullable: false,
                 required: true,
@@ -7069,6 +7108,7 @@ pub(crate) mod tests {
                 element: Some(nvs_runtime::CodecElement::leaf(CodecTy::Shape)),
                 class: Some("$shape{n}".to_owned()),
                 cases: None,
+                allowed: None,
                 shape: Some("$codec{n:Int}".to_owned()),
                 nullable: false,
                 required: true,
@@ -7908,6 +7948,7 @@ pub(crate) mod tests {
             element: (ty == CodecTy::List).then(|| nvs_runtime::CodecElement::leaf(CodecTy::Class)),
             class: class.map(str::to_owned),
             cases: None,
+            allowed: None,
             shape: None,
             nullable: true,
             required: false,

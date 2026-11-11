@@ -1,0 +1,31 @@
+--TEST--
+a `#[Json\Derive]` property typed as a union of two kinds, `string|int` or two classes, has no JSON form, and the help names `mixed` and a set of allowed values — `rule:core-classes/derive-property-list`
+--FILE--
+<?nvs
+// covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
+#[Core\Json\Derive]
+class A {
+    public function constructor(public int $n) {}
+}
+
+#[Core\Json\Derive]
+class B {
+    public function constructor(public string $s) {}
+}
+
+#[Core\Json\Derive]
+class Holder {
+    public function constructor(public string|int $id, public A|B $item) {}
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0756]: %s$id%s
+%A
+   = help: %smixed%sset of allowed values%s
+%A
+error[E0756]: %s$item%s
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

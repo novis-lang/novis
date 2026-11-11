@@ -320,7 +320,8 @@ pub(super) fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<V
         };
     }
     let nvs_runtime::CodecTy::List = field.ty else {
-        return converted(field.ty, field.cases.as_ref(), field.class.as_deref(), held);
+        return converted(field.ty, field.cases.as_ref(), field.class.as_deref(), held)
+            .and_then(|value| admitted(field, value));
     };
     let Some(element) = field.element.as_ref() else {
         return Err(
@@ -354,11 +355,26 @@ pub(super) fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<V
                 field.class.as_deref(),
                 one,
             )
+            .and_then(|value| admitted(field, value))
             .map_err(|why| format!("element {slot}: {why}"))?;
         }
         from = slot + 1;
     }
     Ok(held)
+}
+
+/// `value` where `field` carries no set of allowed values or `value` is one of
+/// them, and the issue's message otherwise — `rule:types/single-value-types`'s
+/// membership test, run after [`converted`] read the base type, as the JSON
+/// decoder runs it. A column read into `"draft"|"live"` is checked the same
+/// way a document's key is.
+///
+/// Takes no reference, as [`converted`] takes none, so a miss leaks nothing.
+fn admitted(field: &nvs_runtime::CodecField, value: Value) -> Result<Value, String> {
+    match field.allowed.as_ref() {
+        Some(allowed) if !allowed.admits(value) => Err(allowed.miss(value)),
+        _ => Ok(value),
+    }
 }
 
 /// One value against one wire type: itself where it already is that type, the
@@ -2716,11 +2732,62 @@ mod tests {
             element: None,
             class: None,
             cases: None,
+            allowed: None,
             shape: None,
             nullable: false,
             required: true,
             default: None,
         }
+    }
+
+    /// `rule:types/single-value-types`'s set of allowed values, read out of a
+    /// column: the base type is read first, and a value outside the set is an
+    /// issue worded as the checked conversion's run-time message, for a field
+    /// and for a list's element alike.
+    #[test]
+    fn a_row_decode_checks_an_allowed_value_set() {
+        use nvs_runtime::{AllowedValues, CodecElement, CodecTy};
+
+        let mut status = codec_field("status", 0, CodecTy::Str);
+        status.allowed = Some(AllowedValues::Str(vec![
+            "draft".to_owned(),
+            "live".to_owned(),
+        ]));
+
+        let live = Value::text("live");
+        assert!(
+            hydrated(&status, live).is_ok(),
+            "a value in the set hydrates"
+        );
+        released(live);
+
+        let gone = Value::text("gone");
+        let refused = hydrated(&status, gone).expect_err("a value outside the set is refused");
+        assert_eq!(refused, r#"`"gone"` is not one of `"draft"`, `"live"`"#);
+        released(gone);
+
+        // The base type is still asked first, so a number in a text field is
+        // the ordinary wrong-type issue.
+        let refused = hydrated(&status, Value::int(3)).expect_err("an int is not a string");
+        assert!(refused.contains("`string`"), "{refused}");
+
+        let mut level = codec_field("level", 1, CodecTy::Int);
+        level.allowed = Some(AllowedValues::Int(vec![1, 2, 3]));
+        assert!(hydrated(&level, Value::int(2)).is_ok(), "2 is in the set");
+        let refused = hydrated(&level, Value::int(7)).expect_err("7 is not in the set");
+        assert_eq!(refused, "`7` is not one of `1`, `2`, `3`");
+
+        // An `array<"a"|"b">` column checks every element against the set.
+        let mut tags = codec_field("tags", 2, CodecTy::List);
+        tags.element = Some(CodecElement::leaf(CodecTy::Str));
+        tags.allowed = Some(AllowedValues::Str(vec!["a".to_owned(), "b".to_owned()]));
+        let mut list = NvsArray::new();
+        list.append(Value::text("a"));
+        list.append(Value::text("z"));
+        let held = Value::array(list);
+        let refused = hydrated(&tags, held).expect_err("one element is outside the set");
+        assert_eq!(refused, r#"element 1: `"z"` is not one of `"a"`, `"b"`"#);
+        released(held);
     }
 
     /// `rule:core-classes/db-column-types`'s refusal for

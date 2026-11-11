@@ -6824,6 +6824,7 @@ mod tests {
             element: None,
             class: None,
             cases: None,
+            allowed: None,
             shape: None,
             nullable: false,
             required: true,

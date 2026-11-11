@@ -81,8 +81,7 @@ use nvs_diagnostics::{Diagnostic, SourceFile, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
     AnonObjectField, Attribute, AttributeGroup, CallArgs, ClassDecl, ClassMember, ClassMemberKind,
-    Expr,
-    ExprKind, MemberName, NamespaceDecl, Stmt, StmtKind,
+    Expr, ExprKind, MemberName, NamespaceDecl, Stmt, StmtKind,
 };
 use rustc_hash::FxHashMap;
 

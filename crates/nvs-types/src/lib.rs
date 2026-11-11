@@ -294,7 +294,7 @@ pub use nvs_stdlib::script::{
 pub use partial::{CheckCache, FileOutput};
 
 pub use nvs_stdlib::format::PIECE_SYMBOL as CORE_STR_FORMAT_PIECE;
-pub use nvs_stdlib::{CodecElement, CodecField, CodecTy, EnumCases, FieldDefault};
+pub use nvs_stdlib::{AllowedValues, CodecElement, CodecField, CodecTy, EnumCases, FieldDefault};
 pub use routes::{
     ApiError, ApiScheme, BodyKind, BodyTy, OAuthFlow, ParamIn, RequestBody, Route, RouteParam,
     RouteTable, SchemeKind,

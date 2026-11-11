@@ -1,0 +1,24 @@
+<?nvs
+// A class whose properties are sets of allowed values: a set of strings, a
+// nullable set of strings, a set of ints and a list of a set.
+
+#[Core\Json\Derive]
+class Post
+{
+    public function constructor(
+        public "draft"|"live" $state,
+        public ?"pinned" $flag,
+        public 1|2|3 $level,
+        public array<"a"|"b"> $tags,
+    ) {}
+}
+
+class Posts
+{
+    #[Core\Route(path: '/posts/first', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function first(): Post
+    {
+        return new Post("draft", null, 1, []);
+    }
+}

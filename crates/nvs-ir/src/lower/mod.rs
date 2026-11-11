@@ -503,6 +503,8 @@ fn codec_fields(
                     // The enum roster rides down untouched too, and needs no
                     // resolution at all: it is already the values themselves.
                     cases: field.cases.clone(),
+                    // So does a set of allowed values, for the same reason.
+                    allowed: field.allowed.clone(),
                     // The second label a shape field needs, rendered here
                     // rather than carried down: a contract's key is this
                     // crate's own spelling, and `nvs_types` holds the contract
@@ -4839,6 +4841,7 @@ fn shape_codec_fields(codec: &nvs_types::derive::DerivedCodec) -> Vec<nvs_types:
             // themselves.
             class: field.class.clone(),
             cases: field.cases.clone(),
+            allowed: field.allowed.clone(),
             shape: nested_shape_key(field),
             nullable: field.nullable,
             required: field.required,

@@ -338,9 +338,9 @@ pub use identity::{
     numeric_identical, numeric_ordering, nvs_array_eq, value_hash, value_identical,
 };
 pub use object::{
-    AttributeDesc, COMPARE_TO, CONSTRUCTOR, ClassDesc, ClassId, ClassTable, CodecElement,
-    CodecField, CodecTy, ConstantDesc, ConstantValue, EnumCases, EnumDesc, FIELD_STRIDE,
-    FIELDS_OFFSET, FieldDefault, FreeState, HookRow, MethodRow, NvsObj, OBJ_ALIGN,
+    AllowedValues, AttributeDesc, COMPARE_TO, CONSTRUCTOR, ClassDesc, ClassId, ClassTable,
+    CodecElement, CodecField, CodecTy, ConstantDesc, ConstantValue, EnumCases, EnumDesc,
+    FIELD_STRIDE, FIELDS_OFFSET, FieldDefault, FreeState, HookRow, MethodRow, NvsObj, OBJ_ALIGN,
     OBJ_CLASS_OFFSET, OBJ_REFCOUNT_OFFSET, ObjHeader, ShapeCheck, ShapeCodec, SlotCheck, construct,
     field_offset, immortal_object_bytes, nvs_abstract_method, nvs_class_method,
     nvs_object_class_name, nvs_object_field_get, nvs_object_field_set, nvs_object_is_class,

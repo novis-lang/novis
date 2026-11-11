@@ -23,9 +23,17 @@ Because the two lists are checked to agree at compile time, `fromJson(toJson($x)
 is a property of the mechanism rather than of the care taken writing two functions, and a renamed
 property breaks loudly: every reader of the old key gets a missing-field issue with its path.
 
-A field's type must be codec-reachable — a scalar, one of the named `Core` value types, an enum, an
-inline shape, an `array<T>` or `?T` of one of those, or another class that itself has a codec.
-Anything else is a compile error at the field. Recursion is fine and terminates on the data, and it
+A field's type must be codec-reachable — a scalar, `mixed`, one of the named `Core` value types, an
+enum, a set of allowed values, an inline shape, an `array<T>` or `?T` of one of those, or another
+class that itself has a codec. Anything else is a compile error at the field (`E0756`), whose help
+names `mixed` and a set of allowed values. A set of allowed values is `rule:types/single-value-types`'s
+union whose every non-`null` member is a single-value `string`, or every one a single-value `int`,
+one value included; `"a"|"b"|null` and `?"a"` are nullable as any `?T` is. It is its base type on
+the wire. Encode writes the value and checks nothing, because the static type already holds it to
+the set. Decode reads the base type and then checks membership: a value outside the set is one issue
+under its path, worded as the checked conversion's run-time message (`` `"z"` is not one of `"a"`,
+`"b"` ``) with the same 64-character cut. A row decode runs the same check, and the API document
+writes the set as an `enum` beside the base type. Recursion is fine and terminates on the data, and it
 is the *type* that recurses rather than only the field: an `array<T>` whose `T` is itself an
 `array<…>` or an inline shape is reachable, and a decode reads every level of it. A row is the one
 narrower door, because a column is a single value: `rule:core-classes/db-column-types` maps none to a
@@ -60,6 +68,10 @@ the decode tells them apart by what the document wrote.
   the attribute would still drop its keys in silence.
 - **Refusing a derive on a subclass whose parent has properties.** Every class family would need a
   hand-written codec.
+- **A union of two kinds**, such as `string|int`. A decoder would have to pick a type from the value
+  it read, which is what `mixed` already is, so a second way to say "any of these" adds nothing.
+- **A union of two classes.** A decode cannot tell which constructor to run without a key in the
+  document naming the class, and that key is a naming policy, declined below.
 - **A whole-class naming policy** such as `snake_case`. It is a mode string
   (`rule:core-api/shape-rules` R11), and it makes a wire format depend on a setting rather than on
   the source being read.

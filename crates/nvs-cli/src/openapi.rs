@@ -45,8 +45,9 @@
 use std::collections::BTreeMap;
 
 use nvs_types::{
-    ApiScheme, BodyKind, BodyTy, CodecElement, CodecTy, ConstArg, DerivedCodec, DerivedField,
-    EnumValue, ExprTypeTable, OAuthFlow, ParamIn, Route, RouteParam, RouteTable, SchemeKind,
+    AllowedValues, ApiScheme, BodyKind, BodyTy, CodecElement, CodecTy, ConstArg, DerivedCodec,
+    DerivedField, EnumValue, ExprTypeTable, OAuthFlow, ParamIn, Route, RouteParam, RouteTable,
+    SchemeKind,
 };
 use serde_json::{Map, Value, json};
 
@@ -289,16 +290,16 @@ impl Schemas<'_> {
     }
 
     /// One codec wire type. `field` carries what the wire type leaves out: a
-    /// nested class's label, an enum's values and a shape's own fields, each
-    /// for the terminal element where `ty` is a list.
+    /// nested class's label, an enum's values, a set of allowed values and a
+    /// shape's own fields, each for the terminal element where `ty` is a list.
     fn wire(&mut self, ty: CodecTy, element: Option<&CodecElement>, field: &DerivedField) -> Value {
         match ty {
             CodecTy::Bool => schema(Some("bool"), None, false),
-            CodecTy::Int => schema(Some("int"), None, false),
+            CodecTy::Int => allowed_schema(schema(Some("int"), None, false), field),
             CodecTy::Uint => schema(Some("uint"), None, false),
             CodecTy::Float => schema(Some("float"), None, false),
             CodecTy::Decimal => schema(Some("decimal"), None, false),
-            CodecTy::Str => schema(Some("string"), None, false),
+            CodecTy::Str => allowed_schema(schema(Some("string"), None, false), field),
             CodecTy::Class => field
                 .class
                 .as_deref()
@@ -337,6 +338,20 @@ impl Schemas<'_> {
 /// and `_` there, so each namespace separator becomes a `.`.
 fn component_name(label: &str) -> String {
     label.replace('\\', ".")
+}
+
+/// `base` with `field`'s set of allowed values as its `enum`, where the field
+/// carries one: `"a"|"b"` is `{"type": "string", "enum": ["a", "b"]}`.
+fn allowed_schema(mut base: Value, field: &DerivedField) -> Value {
+    let values: Vec<Value> = match &field.allowed {
+        Some(AllowedValues::Str(texts)) => texts.iter().map(|text| json!(text)).collect(),
+        Some(AllowedValues::Int(numbers)) => numbers.iter().map(|number| json!(number)).collect(),
+        None => return base,
+    };
+    if let Some(object) = base.as_object_mut() {
+        object.insert("enum".to_owned(), Value::Array(values));
+    }
+    base
 }
 
 /// An enum's backing values as an integer schema: `Core\Json` writes a case as

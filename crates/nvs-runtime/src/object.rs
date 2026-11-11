@@ -1065,6 +1065,74 @@ pub struct EnumCases {
     pub values: Vec<i128>,
 }
 
+/// `rule:types/single-value-types`'s set of allowed values, as a derived codec
+/// field carries it: the closed list a decoded `string` or `int` must be one
+/// of.
+///
+/// The field's [`CodecTy`] is the base type, [`CodecTy::Str`] or
+/// [`CodecTy::Int`], so a decoder reads the value exactly as it reads that type
+/// and asks this one more question after. Encode asks nothing: the static type
+/// already holds the value to the set.
+///
+/// The values are in the order the interned union lists them, which is the
+/// order the checked conversion's message names them in. A lookup is a linear scan, since
+/// a set of allowed values is a handful of literals written in a type.
+///
+/// **What it spends**, per `rule:programs/memory-priority`: one list per field
+/// in the unit's own descriptor, O(declarations), and one membership test per
+/// decoded field. Nothing per object.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AllowedValues {
+    /// A set of single-value `string` types, each as its cooked text.
+    Str(Vec<String>),
+    /// A set of single-value `int` types.
+    Int(Vec<i64>),
+}
+
+impl AllowedValues {
+    /// Whether `value` is one of the set. A value of the wrong representation
+    /// is not, which a decoder never meets: it reads the base type first.
+    #[must_use]
+    pub fn admits(&self, value: Value) -> bool {
+        match self {
+            Self::Str(texts) => value
+                .as_str_bytes()
+                .is_some_and(|bytes| texts.iter().any(|text| text.as_bytes() == bytes)),
+            Self::Int(numbers) => value.as_int().is_some_and(|n| numbers.contains(&n)),
+        }
+    }
+
+    /// The issue a decode reports for `value` when [`Self::admits`] is
+    /// `false`, worded as the checked conversion's run-time message is:
+    /// `` `"z"` is not one of `"a"`, `"b"` ``, with the same 64-character cut
+    /// of a long operand.
+    #[must_use]
+    pub fn miss(&self, value: Value) -> String {
+        format!(
+            "{} is not one of {}",
+            crate::helpers::rendered_operand(value),
+            self.rendered()
+        )
+    }
+
+    /// The set as the message names it, each value in backticks.
+    #[must_use]
+    pub fn rendered(&self) -> String {
+        match self {
+            Self::Str(texts) => texts
+                .iter()
+                .map(|text| format!("`{text:?}`"))
+                .collect::<Vec<_>>()
+                .join(", "),
+            Self::Int(numbers) => numbers
+                .iter()
+                .map(|n| format!("`{n}`"))
+                .collect::<Vec<_>>()
+                .join(", "),
+        }
+    }
+}
+
 /// One declared `enum`'s whole shape — its rendered name, which of
 /// `rule:enums/one-backing-type`'s two integer types its cases are constants
 /// of, and every case by name.
@@ -1330,6 +1398,10 @@ pub struct CodecField {
     /// that second case, exactly as [`Self::class`] holds the element's label.
     /// `None` for every other wire type.
     pub cases: Option<EnumCases>,
+    /// The set of allowed values where the declared type is one — `"a"|"b"`
+    /// or `1|2`, with [`Self::ty`] its base type — or where [`Self::element`]'s
+    /// terminal is, on [`Self::cases`]' terms. `None` for every other type.
+    pub allowed: Option<AllowedValues>,
     /// The wire contract's key when [`Self::ty`] is [`CodecTy::Shape`] — or
     /// when [`Self::element`]'s terminal is, an `array<{ n: int }>` naming its
     /// element's contract here exactly as it names that element's class on
@@ -6736,6 +6808,7 @@ mod tests {
             element: None,
             class: None,
             cases: None,
+            allowed: None,
             shape: None,
             nullable: false,
             required: true,

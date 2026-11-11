@@ -417,6 +417,25 @@ fn a_class_response_is_its_codecs_schema_under_a_ref() {
     );
 }
 
+/// A property typed as a set of allowed values is its base type with an
+/// `enum`, for a field, a nullable field and a list's element alike.
+#[test]
+fn an_allowed_value_set_is_an_enum_in_the_schema() {
+    let (doc, err, ok) = build(&fixture("allowed-set"));
+    assert!(ok, "the fixture compiles: {err}");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    assert_eq!(
+        document["components"]["schemas"]["Post"]["properties"],
+        serde_json::json!({
+            "state": {"type": "string", "enum": ["draft", "live"]},
+            "flag": {"type": ["string", "null"], "enum": ["pinned", null]},
+            "level": {"type": "integer", "enum": [1, 2, 3]},
+            "tags": {"type": "array", "items": {"type": "string", "enum": ["a", "b"]}},
+        }),
+        "each set is an `enum` beside its base type:\n{document}"
+    );
+}
+
 /// An `errors` entry whose class has a JSON codec carries that codec's schema
 /// under its status, the same way a `200` does.
 #[test]

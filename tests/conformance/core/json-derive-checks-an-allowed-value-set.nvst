@@ -1,0 +1,56 @@
+--TEST--
+a `#[Json\Derive]` property typed as a set of allowed values encodes as its value, and a decode reports a value outside the set with its path — `rule:core-classes/derive-property-list`, `rule:types/single-value-types`
+--FILE--
+<?nvs
+// covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
+use Core\Json;
+
+#[Core\Json\Derive]
+class Post {
+    public function constructor(
+        public "draft"|"live" $state,
+        public ?"pinned" $flag,
+        public 1|2|3 $level,
+        public array<"a"|"b"> $tags,
+    ) {}
+}
+
+// Each value is written as its base type: a string or a number.
+var $post = new Post("live", "pinned", 2, ["a", "b"]);
+echo Json::encode($post), "\n";
+
+// A decode of the same document builds the same object.
+var $back = Json::decodeAs<Post>(Json::encode($post));
+echo $back->state, " ", $back->flag, " ", $back->level, "\n";
+
+// `?"pinned"` takes `null` as any `?T` does.
+var $plain = Json::decodeAs<Post>("{\"state\":\"draft\",\"flag\":null,\"level\":1,\"tags\":[]}");
+echo $plain->flag == null ? "null" : "set", "\n";
+
+// A value outside a set is one issue, under its own path. A value of the
+// wrong type is the ordinary type issue.
+try {
+    Json::decodeAs<Post>("{\"state\":\"gone\",\"flag\":\"x\",\"level\":7,\"tags\":[\"a\",\"z\"]}");
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    foreach ($bad->issues as {path: string, message: string} $issue) {
+        echo $issue->path, ": ", $issue->message, "\n";
+    }
+}
+try {
+    Json::decodeAs<Post>("{\"state\":3,\"flag\":null,\"level\":1,\"tags\":[]}");
+    echo "not reached\n";
+} catch (ParseError $wrong) {
+    foreach ($wrong->issues as {path: string, message: string} $issue) {
+        echo $issue->path, ": ", $issue->message, "\n";
+    }
+}
+--EXPECT--
+{"state":"live","flag":"pinned","level":2,"tags":["a","b"]}
+live pinned 2
+null
+state: `"gone"` is not one of `"draft"`, `"live"`
+flag: `"x"` is not one of `"pinned"`
+level: `7` is not one of `1`, `2`, `3`
+tags.1: `"z"` is not one of `"a"`, `"b"`
+state: expected string, found a number

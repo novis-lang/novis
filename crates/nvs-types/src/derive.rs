@@ -48,7 +48,7 @@ use nvs_syntax::ast::{
     Modifier, Param, PropertyMember,
 };
 
-use nvs_stdlib::{CodecElement, CodecTy, EnumCases};
+use nvs_stdlib::{AllowedValues, CodecElement, CodecTy, EnumCases};
 
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text, strip_sigil};
@@ -962,8 +962,10 @@ impl Format {
     const fn no_mapping_help(self) -> &'static str {
         match self {
             Self::Json => {
-                "the property's type must be a scalar, an enum, a shape, an `array<T>` or `?T` \
-                 of one of those, or a class that has its own `#[Json\\Derive]`. Write \
+                "a JSON property's type is a scalar, `mixed`, an enum, a set of allowed values \
+                 such as `\"a\"|\"b\"`, or a shape. It may also be a class with its own \
+                 `#[Json\\Derive]`, or an `array<T>` or `?T` of any of these. A union such as \
+                 `string|int` is not one: use `mixed` for a value of any type. Write \
                  `#[Json\\Field(skip: true)]` to leave the property out"
             }
             Self::Db => {
@@ -998,7 +1000,12 @@ pub struct DerivedCodec {
 /// and the row door alike. A parameter that a skipped property names keeps
 /// the `skip` help. Any other is named, because no property fills it at all.
 fn not_constructible_help(codec: &DerivedCodec, format: Format) -> String {
-    if codec.unfilled.is_empty() || codec.unfilled.iter().any(|name| codec.skipped.contains(name)) {
+    if codec.unfilled.is_empty()
+        || codec
+            .unfilled
+            .iter()
+            .any(|name| codec.skipped.contains(name))
+    {
         return match format {
             Format::Json => {
                 "a property with `#[Json\\Field(skip: true)]` is still a constructor parameter, \
@@ -1055,6 +1062,10 @@ pub struct DerivedField {
     /// [`nvs_stdlib::CodecField::cases`], which this is the declaration half
     /// of.
     pub cases: Option<EnumCases>,
+    /// The set of allowed values where the declared type is one, with
+    /// [`Self::ty`] its base type — see [`nvs_stdlib::CodecField::allowed`],
+    /// which this is the declaration half of.
+    pub allowed: Option<AllowedValues>,
     /// The inline shape's own field list where the erasure above produced a
     /// [`CodecTy::Shape`] — the declaration half of
     /// [`nvs_stdlib::CodecField::shape`], whose key `nvs_ir::lower` renders
@@ -1144,6 +1155,7 @@ pub fn shape_codec(
                 element: erased.element,
                 class: erased.class,
                 cases: erased.cases,
+                allowed: erased.allowed,
                 shape: erased.shape,
                 nullable,
                 required: field.required,
@@ -1229,11 +1241,25 @@ fn codec_ty(
                     element: None,
                     class: Some(shape_class_label(&names)),
                     cases: None,
+                    allowed: None,
                     shape: Some(Box::new(codec)),
                 },
             );
         }
         Nested::No => {}
+    }
+    // `rule:types/single-value-types`'s set of allowed values, a single value
+    // included: it is its base type on the wire, and a decode checks the value
+    // is one of the set after reading that base type.
+    if let Some(allowed) = allowed_values(declared, interner) {
+        let ty = match allowed {
+            AllowedValues::Str(_) => CodecTy::Str,
+            AllowedValues::Int(_) => CodecTy::Int,
+        };
+        return Erased {
+            allowed: Some(allowed),
+            ..Erased::wire(ty)
+        };
     }
     match interner.get(declared) {
         Ty::Bool => Erased::wire(CodecTy::Bool),
@@ -1278,6 +1304,7 @@ fn codec_ty(
                 element: None,
                 class: Some(label),
                 cases: None,
+                allowed: None,
                 shape: None,
             }
         }
@@ -1292,6 +1319,7 @@ fn codec_ty(
             element: None,
             class: None,
             cases: enum_cases(name, *backing, enums),
+            allowed: None,
             shape: None,
         },
         _ => Erased::wire(CodecTy::Opaque),
@@ -1331,7 +1359,37 @@ fn list_erasure(
         }),
         class: erased.class,
         cases: erased.cases,
+        allowed: erased.allowed,
         shape: erased.shape,
+    }
+}
+
+/// The set of allowed values `ty` is, or `None` where it is not one.
+///
+/// A set is a union whose every member is a single-value `string`, or whose
+/// every member is a single-value `int`, and one single value is a set of one.
+/// The `null` arm is already stripped by the caller. A union that mixes the two
+/// kinds is not a set here: no one base type reads it, so it stays `E0756`.
+/// The values are in the order the interned union lists them, which is the
+/// order the checked conversion's message names them in.
+fn allowed_values(ty: TypeId, interner: &crate::ty::TypeInterner) -> Option<AllowedValues> {
+    let members: Vec<TypeId> = match interner.get(ty) {
+        Ty::Union(members) => members.clone(),
+        _ => vec![ty],
+    };
+    let mut texts = Vec::new();
+    let mut numbers = Vec::new();
+    for member in members {
+        match interner.get(member) {
+            Ty::SingleValueString(text) => texts.push(text.clone()),
+            Ty::SingleValueInt(number) => numbers.push(*number),
+            _ => return None,
+        }
+    }
+    match (texts.is_empty(), numbers.is_empty()) {
+        (false, true) => Some(AllowedValues::Str(texts)),
+        (true, false) => Some(AllowedValues::Int(numbers)),
+        _ => None,
     }
 }
 
@@ -1372,6 +1430,9 @@ struct Erased {
     /// A [`CodecTy::Enum`]'s accepted backing values, for the field itself or
     /// for a list's terminal element.
     cases: Option<EnumCases>,
+    /// The set of allowed values a `string` or `int` field is, for the field
+    /// itself or for a list's terminal element.
+    allowed: Option<AllowedValues>,
     /// A [`CodecTy::Shape`]'s own field list, read the way [`shape_codec`]
     /// reads a written one.
     shape: Option<Box<DerivedCodec>>,
@@ -1385,6 +1446,7 @@ impl Erased {
             element: None,
             class: None,
             cases: None,
+            allowed: None,
             shape: None,
         }
     }
@@ -1528,11 +1590,11 @@ pub(crate) fn resolve_field_types(
         let property = &site.property;
         let missing = format.no_mapping();
         let diagnostic = Diagnostic::error(
-                code::E_DERIVE_FIELD_NOT_CODEC_REACHABLE,
-                format!("`{class}::${property}` is declared `{spelling}`, {missing}"),
-            )
+            code::E_DERIVE_FIELD_NOT_CODEC_REACHABLE,
+            format!("`{class}::${property}` is declared `{spelling}`, {missing}"),
+        )
         .with_primary(site.span, format.no_mapping_label())
-            .with_help(format.no_mapping_help());
+        .with_help(format.no_mapping_help());
         diags.report(match &site.inherited {
             Some(inherited) => inherited.relabel(diagnostic),
             None => diagnostic,
@@ -2292,6 +2354,9 @@ fn db_reachable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
         | Ty::False
         | Ty::SingleValueString(_)
         | Ty::SingleValueInt(_) => true,
+        // `rule:types/single-value-types`'s set of allowed values: a `TEXT` or
+        // an integer column, checked against the set on the way back in.
+        Ty::Union(_) if allowed_values(ty, interner).is_some() => true,
         // `rule:core-classes/derive-property-list`'s enum, unchanged by the format: what travels is the
         // backing value, range-checked on the way back in.
         Ty::Enum(..) | Ty::EnumCase(..) => true,
@@ -2308,8 +2373,8 @@ fn db_reachable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
         }
         // Everything else: an inline shape and a nested class are objects a
         // row has no column for, `object`, `callable` and `iterable` name no
-        // contract, and a union of two non-`null` arms gives a reader nothing
-        // to pick between.
+        // contract, and any other union of two non-`null` arms gives a reader
+        // nothing to pick between.
         _ => false,
     }
 }
@@ -2359,6 +2424,9 @@ fn json_reachable(
         | Ty::False
         | Ty::SingleValueString(_)
         | Ty::SingleValueInt(_) => true,
+        // `rule:types/single-value-types`'s set of allowed values: its base
+        // type on the wire, checked against the set on the way back in.
+        Ty::Union(_) if allowed_values(ty, interner).is_some() => true,
         // `rule:enums/representation`: an enum travels as its backing value, range-checked on
         // the way back in.
         Ty::Enum(..) | Ty::EnumCase(..) => true,
@@ -2371,8 +2439,10 @@ fn json_reachable(
         Ty::Class(class, _) => class_has_codec(class, signatures, exprs),
         // Everything else: `bytes` has no JSON spelling (`rule:types/bytes` makes it a
         // separate type for that reason), `object`, `callable` and `iterable`
-        // name no contract, and a union of two non-`null` arms gives a
-        // decoder nothing to pick between — `rule:core-classes/derive-property-list` lists none of them.
+        // name no contract, and any other union of two non-`null` arms gives a
+        // decoder nothing to pick between: `string|int` is what `mixed` is
+        // for, and two classes would need a discriminator key —
+        // `rule:core-classes/derive-property-list` lists none of them.
         _ => false,
     }
 }
@@ -2752,11 +2822,12 @@ fn chain_field_order<'d, 'e: 'd>(
 ) -> Vec<ChainField<'d, 'e>> {
     let table: &'e crate::retrieval::AttributeTable<'e> = env.attributes;
     let mut out: Vec<(String, ChainField<'d, 'e>)> = Vec::new();
-    let mut place = |name: String, field: ChainField<'d, 'e>| {
-        match out.iter().position(|(seen, _)| *seen == name) {
-            Some(index) => out[index].1 = field,
-            None => out.push((name, field)),
-        }
+    let mut place = |name: String, field: ChainField<'d, 'e>| match out
+        .iter()
+        .position(|(seen, _)| *seen == name)
+    {
+        Some(index) => out[index].1 = field,
+        None => out.push((name, field)),
     };
     let ancestors = crate::test_inherit::ancestors(class, env.graph);
     for parent in ancestors.iter().rev() {
@@ -2770,12 +2841,24 @@ fn chain_field_order<'d, 'e: 'd>(
                 src,
                 ctx: ctx.clone(),
             };
-            place(name, ChainField { decl: field, owner: Some(owner) });
+            place(
+                name,
+                ChainField {
+                    decl: field,
+                    owner: Some(owner),
+                },
+            );
         }
     }
     for field in field_order(&decl.members, env.src) {
         let name = strip_sigil(span_text(env.src, field.name)).to_owned();
-        place(name, ChainField { decl: field, owner: None });
+        place(
+            name,
+            ChainField {
+                decl: field,
+                owner: None,
+            },
+        );
     }
     out.into_iter().map(|(_, field)| field).collect()
 }
@@ -2958,6 +3041,7 @@ fn codec_field<'e>(
         element: erased.element,
         class: erased.class,
         cases: erased.cases,
+        allowed: erased.allowed,
         shape: erased.shape,
         nullable,
         required,

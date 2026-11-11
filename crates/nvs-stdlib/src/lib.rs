@@ -247,7 +247,7 @@ mod zip;
 /// and `nvs-ir` each produce a stage of it and neither depends on the runtime
 /// directly, so they reach it through this crate, which they already treat as
 /// the home of the `Core` contract.
-pub use nvs_runtime::{CodecElement, CodecField, CodecTy, EnumCases, FieldDefault};
+pub use nvs_runtime::{AllowedValues, CodecElement, CodecField, CodecTy, EnumCases, FieldDefault};
 
 /// `rule:types/string-holes`'s scanner, re-exported for the reason above: the
 /// checker reads a literal with the same scanner the run-time conversion uses.

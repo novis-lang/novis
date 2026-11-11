@@ -3095,7 +3095,7 @@ fn quoted_operand(text: &str) -> String {
 /// `Ty::Uint` or `Ty::Tagged` — so the last arm is a value that arrived
 /// through `mixed` carrying some other tag entirely, which is a miss for the
 /// same reason a wrong string is.
-fn rendered_operand(value: Value) -> String {
+pub(crate) fn rendered_operand(value: Value) -> String {
     let bare = match value.tag() {
         Some(Tag::Str) => {
             return str_operand(&value)

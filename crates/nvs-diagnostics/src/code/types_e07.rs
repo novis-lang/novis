@@ -1062,8 +1062,10 @@ codes! {
     /// which owns that split.
     pub const E_DERIVE_FIELD_NOT_CODEC_REACHABLE: Code = Code::new("E0756").card(
         "The derive attribute cannot convert a property of this type. For example, `bytes` can be \
-         a database column but has no JSON form. Change the property's type, or write the \
-         conversion methods yourself.",
+         a database column but has no JSON form. A union of two kinds, such as `string|int` or \
+         two classes, has no form either. Use `mixed` for a value of any type, or a set of \
+         allowed values such as `\"a\"|\"b\"`. Otherwise change the property's type, or write \
+         the conversion methods yourself.",
     );
 
     /// A class carrying a derive attribute hand-writes every codec half that
