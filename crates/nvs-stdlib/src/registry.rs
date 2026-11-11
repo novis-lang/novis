@@ -927,6 +927,31 @@ pub enum CoreTy {
     /// judged by its elements' types, because each element is a value of its
     /// own.
     Dispatched(&'static CoreTy),
+    /// A position whose values the member turns into the keys of the array it
+    /// returns, such as `Core\Arr::flip`'s elements or `Core\Arr::mapKeys`'s
+    /// callback result. The wrapped type is what it takes, and it interns
+    /// exactly as that type does.
+    ///
+    /// The mark is [`ParamText::Keys`], and the checker reads it there: a key
+    /// is read back as plain text by `Core\Arr::keys`, a `foreach` and a dump,
+    /// so a value carrying `secret` may not reach it
+    /// (`rule:security/taint-propagation`). It sits at the position itself: on
+    /// an array's element, on a callable's result, or on a whole option.
+    /// [`KeyOrigin`] says which values those are. **What it spends:** compile
+    /// time only.
+    Keys(KeyOrigin, &'static CoreTy),
+}
+
+/// Which values a [`CoreTy::Keys`] position turns into keys.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum KeyOrigin {
+    /// The values at this position: an array's elements, or what a callable
+    /// returns.
+    Values,
+    /// This option names a cell of each row of the member's first argument,
+    /// and those cells become keys, as `Core\Arr::column`'s `indexBy` does.
+    /// The keys come from the rows only when the option is given.
+    Cells,
 }
 
 /// A `Core` type alias — `rule:types/type-alias`'s class-scoped member,
@@ -1393,6 +1418,8 @@ impl CoreTy {
             Self::Nullable(inner) => inner.classification(),
             // An alias names the member's own type, whose arms carry the marks.
             Self::Alias(_, inner) => inner.classification(),
+            // A key mark is not a classification: the wrapped type's is.
+            Self::Keys(_, inner) => inner.classification(),
             // `Core\Str::join`'s parts: every entry's bytes are in the answer,
             // so a tainted entry is admitted exactly where the answer can
             // carry the bit, as a contagious `string` parameter is.
@@ -1528,7 +1555,7 @@ impl CoreTy {
             Self::SingleValueInt(value) => value.to_string(),
             Self::Nullable(inner) => format!("?{}", inner.spelled()),
             // The mark is not a type: the wrapped type is what a program writes.
-            Self::Dispatched(inner) => inner.spelled(),
+            Self::Dispatched(inner) | Self::Keys(_, inner) => inner.spelled(),
             // The name the program writes. The type it stands for is on the
             // owner class's card.
             Self::Alias(name, _) => (*name).into(),
@@ -1608,7 +1635,15 @@ impl CoreTy {
             Self::Program(_) => ParamText::Program,
             Self::ClassName(_) => ParamText::ClassName,
             Self::Dispatched(_) => ParamText::Dispatched,
+            Self::Keys(origin, _) => ParamText::Keys(*origin),
             Self::Nullable(inner) | Self::Alias(_, inner) => inner.param_text(),
+            // A key mark on an array's element or on a callable's result is
+            // the parameter's: the checker finds the element or the result in
+            // the argument's own type. No other mark is read through either.
+            Self::Array(inner) | Self::CallableSig(_, inner) => match inner.param_text() {
+                ParamText::Keys(origin) => ParamText::Keys(origin),
+                _ => ParamText::Plain,
+            },
             _ => ParamText::Plain,
         }
     }
@@ -1637,6 +1672,10 @@ pub enum ParamText {
     /// Not text: a value the member hands to a method or a property it picks
     /// by name when the program runs. [`CoreTy::Dispatched`] owns the rule.
     Dispatched,
+    /// Not text: values the member turns into keys of the array it returns.
+    /// For an array argument they are its elements, and for a callable they
+    /// are what it returns. [`CoreTy::Keys`] owns the rule.
+    Keys(KeyOrigin),
 }
 
 impl CoreMethod {
@@ -1738,6 +1777,7 @@ fn collect_written(ty: &CoreTy, found: &mut Vec<&'static str>) {
         }
         CoreTy::Array(inner)
         | CoreTy::Nullable(inner)
+        | CoreTy::Keys(_, inner)
         | CoreTy::Variadic(inner)
         | CoreTy::Iterated(inner)
         | CoreTy::StringHoles(inner, _)
@@ -4375,6 +4415,7 @@ mod tests {
                 }
                 CoreTy::Array(inner)
                 | CoreTy::Nullable(inner)
+                | CoreTy::Keys(_, inner)
                 | CoreTy::Variadic(inner)
                 | CoreTy::Iterated(inner)
                 | CoreTy::StringHoles(inner, _)
@@ -4462,6 +4503,7 @@ mod tests {
                 CoreTy::Shape(_) => true,
                 CoreTy::Array(elem)
                 | CoreTy::Nullable(elem)
+                | CoreTy::Keys(_, elem)
                 | CoreTy::Variadic(elem)
                 | CoreTy::Iterated(elem) => nests_one(elem),
                 CoreTy::Union(members) => members.iter().any(nests_one),
@@ -5097,6 +5139,7 @@ mod tests {
                 CoreTy::ShapeOfCallables(_) => true,
                 CoreTy::Array(elem)
                 | CoreTy::Nullable(elem)
+                | CoreTy::Keys(_, elem)
                 | CoreTy::Variadic(elem)
                 | CoreTy::Iterated(elem) => nests_one(elem),
                 CoreTy::Union(members) => members.iter().any(nests_one),
@@ -5142,6 +5185,7 @@ mod tests {
                 CoreTy::Var(var) => *var == name,
                 CoreTy::Array(elem)
                 | CoreTy::Nullable(elem)
+                | CoreTy::Keys(_, elem)
                 | CoreTy::Variadic(elem)
                 | CoreTy::Iterated(elem)
                 | CoreTy::StringHoles(elem, _)
@@ -5227,6 +5271,7 @@ mod tests {
                 CoreTy::Callable => true,
                 CoreTy::Array(inner)
                 | CoreTy::Nullable(inner)
+                | CoreTy::Keys(_, inner)
                 | CoreTy::Variadic(inner)
                 | CoreTy::Iterated(inner) => bare(inner),
                 CoreTy::Union(members) => members.iter().any(bare),
@@ -6099,6 +6144,7 @@ mod tests {
                 }
                 CoreTy::Array(inner)
                 | CoreTy::Nullable(inner)
+                | CoreTy::Keys(_, inner)
                 | CoreTy::Variadic(inner)
                 | CoreTy::Iterated(inner) => {
                     check(inner, what);
@@ -6427,6 +6473,7 @@ mod tests {
                 }
                 CoreTy::Array(elem)
                 | CoreTy::Nullable(elem)
+                | CoreTy::Keys(_, elem)
                 | CoreTy::Variadic(elem)
                 | CoreTy::Iterated(elem) => check(elem, what),
                 CoreTy::Union(members) => {
@@ -6586,6 +6633,7 @@ mod tests {
                 | CoreTy::SecretTaintedBytes => true,
                 CoreTy::Array(inner)
                 | CoreTy::Nullable(inner)
+                | CoreTy::Keys(_, inner)
                 | CoreTy::Variadic(inner)
                 | CoreTy::Iterated(inner) => secret(inner),
                 CoreTy::Union(members) | CoreTy::InstanceAt(_, members) => {
@@ -6609,6 +6657,7 @@ mod tests {
                 CoreTy::Instance(name) | CoreTy::InstanceAt(name, _) => CARRIERS.contains(name),
                 CoreTy::Array(inner)
                 | CoreTy::Nullable(inner)
+                | CoreTy::Keys(_, inner)
                 | CoreTy::Variadic(inner)
                 | CoreTy::Iterated(inner) => keyed(inner),
                 CoreTy::Union(members) => members.iter().any(keyed),

@@ -67,7 +67,8 @@ fn holds_outside_text(ty: &CoreTy) -> bool {
         CoreTy::Iterated(elem)
         | CoreTy::Nullable(elem)
         | CoreTy::Variadic(elem)
-        | CoreTy::Dispatched(elem) => holds_outside_text(elem),
+        | CoreTy::Dispatched(elem)
+        | CoreTy::Keys(_, elem) => holds_outside_text(elem),
         CoreTy::Union(members) => members.iter().any(holds_outside_text),
         CoreTy::InstanceAt(_, args) => args.iter().any(holds_outside_text),
         CoreTy::Shape(arms) => arms
@@ -165,6 +166,194 @@ fn every_allowed_row_names_a_member_and_a_rule() {
         assert!(
             rule.starts_with("rule:"),
             "`{class_name}::{member}`'s row names `{rule}`, which is not a rule id"
+        );
+    }
+}
+
+/// Where the keys of a member's answer come from, when no parameter carries the key mark
+/// ([`CoreTy::Keys`]).
+#[derive(Clone, Copy)]
+enum KeysFrom {
+    /// The answer is a list: its keys are positions, `"0"`, `"1"` and on.
+    Positions,
+    /// The keys are copied from an array argument's own keys, which were checked when they were
+    /// written.
+    Subject,
+    /// The keys are read out of text the member parses: an argument, the request or the
+    /// configuration. A text parameter refuses a `secret` argument unless it is a `Reveal` one, and
+    /// outside text makes the answer's elements `tainted` or `mixed`, so the checker reads the keys
+    /// as outside text too.
+    Text,
+}
+
+/// The members that return an array without a key mark, each with where its keys come from.
+const KEYS_FROM: &[(&str, &str, KeysFrom)] = {
+    use KeysFrom::{Positions, Subject, Text};
+    &[
+        (r"Core\Str", "split", Positions),
+        (r"Core\Str", "chunk", Positions),
+        (r"Core\Str", "lines", Positions),
+        (r"Core\Str", "graphemes", Positions),
+        (r"Core\Str", "codePoints", Positions),
+        (r"Core\Arr", "filter", Subject),
+        (r"Core\Arr", "map", Subject),
+        (r"Core\Arr", "keys", Positions),
+        (r"Core\Arr", "values", Positions),
+        (r"Core\Arr", "slice", Subject),
+        (r"Core\Arr", "replaceRange", Subject),
+        (r"Core\Arr", "chunk", Subject),
+        (r"Core\Arr", "append", Subject),
+        (r"Core\Arr", "prepend", Subject),
+        (r"Core\Arr", "withoutFirst", Subject),
+        (r"Core\Arr", "withoutLast", Subject),
+        (r"Core\Arr", "withoutNull", Subject),
+        (r"Core\Arr", "padStart", Subject),
+        (r"Core\Arr", "padEnd", Subject),
+        (r"Core\Arr", "reverse", Subject),
+        (r"Core\Arr", "flatten", Positions),
+        (r"Core\Arr", "flattenDeep", Positions),
+        (r"Core\Arr", "sort", Subject),
+        (r"Core\Arr", "sortByKey", Subject),
+        (r"Core\Arr", "fill", Positions),
+        (r"Core\Arr", "from", Positions),
+        (r"Core\Arr", "overlay", Subject),
+        (r"Core\Arr", "overlayDeep", Subject),
+        (r"Core\Arr", "underlay", Subject),
+        (r"Core\Arr", "appendAll", Subject),
+        (r"Core\Arr", "diff", Subject),
+        (r"Core\Arr", "intersect", Subject),
+        (r"Core\Arr", "unique", Subject),
+        (r"Core\Attributes", "all", Positions),
+        (r"Core\Regex", "matchAll", Positions),
+        (r"Core\Regex", "split", Positions),
+        (r"Core\Bytes", "unpack", Positions),
+        (r"Core\Path", "split", Positions),
+        (r"Core\IO", "list", Positions),
+        (r"Core\Random", "sample", Positions),
+        (r"Core\Random", "shuffle", Positions),
+        (r"Core\Random\Seeded", "sample", Positions),
+        (r"Core\Random\Seeded", "shuffle", Positions),
+        (r"Core\Uri", "parseQuery", Text),
+        (r"Core\Router", "methodsFor", Positions),
+        (r"Core\Csv", "parse", Text),
+        (r"Core\Task", "map", Subject),
+        (r"Core\Program", "implementingWith", Positions),
+        (r"Core\Cli", "multiSelect", Positions),
+        (r"Core\Config", "setting", Text),
+        (r"Core\Request", "queryArray", Text),
+        (r"Core\Request", "postArray", Text),
+        (r"Core\Storage", "list", Positions),
+        (r"Core\Jwt", "verify", Text),
+        (r"Core\Signature", "verify", Text),
+        (r"Core\Zip", "entries", Positions),
+        (r"Core\Http\Response", "headers", Positions),
+        (r"Core\Http\Stream", "headers", Positions),
+        (r"Core\Db\Rows", "column", Positions),
+        (r"Core\Ldap\Entry", "strings", Positions),
+        (r"Core\Ldap\Entry", "sids", Positions),
+    ]
+};
+
+/// Whether this type, or any type inside it, carries the key mark.
+fn marks_keys(ty: &CoreTy) -> bool {
+    match ty {
+        CoreTy::Keys(..) => true,
+        CoreTy::Array(inner)
+        | CoreTy::Iterated(inner)
+        | CoreTy::Nullable(inner)
+        | CoreTy::Variadic(inner)
+        | CoreTy::Dispatched(inner)
+        | CoreTy::Alias(_, inner) => marks_keys(inner),
+        CoreTy::CallableSig(params, ret) => params.iter().any(marks_keys) || marks_keys(ret),
+        CoreTy::Union(members) | CoreTy::InstanceAt(_, members) => members.iter().any(marks_keys),
+        CoreTy::Options(options) => options.iter().any(|option| marks_keys(&option.ty)),
+        _ => false,
+    }
+}
+
+/// Whether a parameter of this type can hand the member values it could make keys of: a type
+/// variable, text or a callable, at any depth.
+fn gives_key_values(ty: &CoreTy) -> bool {
+    match ty {
+        CoreTy::Var(_)
+        | CoreTy::Bounded(..)
+        | CoreTy::Written(_)
+        | CoreTy::WrittenReturning(..)
+        | CoreTy::Callable
+        | CoreTy::CallableSig(..)
+        | CoreTy::Mixed => true,
+        _ if ty.is_text_like() => true,
+        CoreTy::Array(inner)
+        | CoreTy::Iterated(inner)
+        | CoreTy::Nullable(inner)
+        | CoreTy::Variadic(inner)
+        | CoreTy::Dispatched(inner)
+        | CoreTy::Keys(_, inner)
+        | CoreTy::Alias(_, inner) => gives_key_values(inner),
+        CoreTy::Union(members) | CoreTy::InstanceAt(_, members) => {
+            members.iter().any(gives_key_values)
+        }
+        CoreTy::Options(options) => options.iter().any(|option| gives_key_values(&option.ty)),
+        _ => false,
+    }
+}
+
+/// Whether this return type is an array, whose keys a program reads back as plain text.
+fn returns_an_array(ty: &CoreTy) -> bool {
+    match ty {
+        CoreTy::Array(_) => true,
+        CoreTy::Nullable(inner) | CoreTy::Alias(_, inner) => returns_an_array(inner),
+        CoreTy::Union(members) => members.iter().any(returns_an_array),
+        _ => false,
+    }
+}
+
+/// `rule:security/taint-propagation`'s key mark: a member that turns values into keys says so
+/// on the position those values come from, and the checker refuses a `secret` one there. This
+/// test is the list, so a new member cannot skip the question.
+#[test]
+fn every_member_that_returns_a_plain_keyed_array_says_where_its_keys_come_from() {
+    let mut open = Vec::new();
+    for class in CLASSES {
+        for member in class.members() {
+            if !returns_an_array(&member.return_ty)
+                || !member.params.iter().any(gives_key_values)
+                || member.params.iter().any(marks_keys)
+            {
+                continue;
+            }
+            let answered = KEYS_FROM
+                .iter()
+                .any(|(name, found, _)| *name == class.name && *found == member.name);
+            if !answered {
+                let params: Vec<String> = member.params.iter().map(CoreTy::spelled).collect();
+                open.push(format!(
+                    "{}::{}({}): {}",
+                    class.name,
+                    member.name,
+                    params.join(", "),
+                    member.return_ty.spelled()
+                ));
+            }
+        }
+    }
+    assert!(
+        open.is_empty(),
+        "each member below returns an array and does not say where its keys come from. Mark the \
+         parameter whose values become keys with `CoreTy::Keys`, or name the member in \
+         `KEYS_FROM`:\n{}",
+        open.join("\n")
+    );
+    for (class_name, member, _) in KEYS_FROM {
+        let found = CLASSES
+            .iter()
+            .find(|class| class.name == *class_name)
+            .and_then(|class| class.members().find(|found| found.name == *member));
+        let found = found
+            .unwrap_or_else(|| panic!("`{class_name}::{member}` in `KEYS_FROM` is not a member"));
+        assert!(
+            !found.params.iter().any(marks_keys),
+            "`{class_name}::{member}` carries the key mark now, so its `KEYS_FROM` row is stale"
         );
     }
 }

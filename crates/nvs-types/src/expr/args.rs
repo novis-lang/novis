@@ -23,7 +23,7 @@
 //! modules, which is the reach it had when `expr` was a single file.
 
 use super::*;
-use nvs_stdlib::registry::Qual;
+use nvs_stdlib::registry::{KeyOrigin, ParamText, Qual};
 
 /// Checks a call's arguments against a resolved [`MethodSig`], when one was
 /// found: works out which parameter each written argument fills, reports
@@ -98,8 +98,14 @@ fn check_arg_list(
     // only the written text and the slot, so it runs before the argument types
     // are known. See [`crate::paths`].
     crate::paths::resolve_args(list, &slots, &sig, env);
+    let reported = env.diags.len();
     if sig.is_generic(env.interner) {
         let (types, sig) = check_generic_args(list, &slots, sig, live, scope, ctx, env);
+        if let Some(sig) = &sig
+            && env.diags.len() == reported
+        {
+            check_key_marks(list, &slots, sig, &types, env);
+        }
         return (types, slots, sig);
     }
     let mut arg_types = Vec::with_capacity(list.len());
@@ -203,7 +209,88 @@ fn check_arg_list(
         }
         arg_types.push(actual);
     }
+    if env.diags.len() == reported {
+        check_key_marks(list, &slots, &sig, &arg_types, env);
+    }
     (arg_types, slots, Some(sig))
+}
+
+/// `nvs_stdlib::registry::CoreTy::Keys`: each argument whose values the member
+/// turns into keys of its answer goes through
+/// [`super::quals::check_key_qualifier`], so a `secret` value never becomes a
+/// key. Called once the whole list is checked, and only when it reported
+/// nothing (`rule:types/one-mistake-reports-once`). An option marked
+/// [`KeyOrigin::Values`] is checked in [`check_options_arg`], where its value's
+/// type is known.
+///
+/// [`KeyOrigin::Cells`] is the option that names a cell of each row of the
+/// first argument. When the call writes it, the cells of those rows are the
+/// keys, so the rows' element type is checked.
+fn check_key_marks(
+    list: &[Arg],
+    slots: &[ArgSlot],
+    sig: &MethodSig,
+    types: &[TypeId],
+    env: &mut Env<'_>,
+) {
+    for (index, (arg, slot)) in list.iter().zip(slots).enumerate() {
+        let ArgSlot::Param(param) = *slot else {
+            continue;
+        };
+        if sig.text_at(param) == ParamText::Keys(KeyOrigin::Values)
+            && let Some(keys) = key_values(types[index], env.interner)
+        {
+            super::quals::check_key_qualifier(arg.value.span, keys, None, env);
+        }
+    }
+    let Some(options) = options_param(sig, env.interner) else {
+        return;
+    };
+    let Ty::CoreShape(shape) = env.interner.get(sig.params[options]) else {
+        return;
+    };
+    let cells: Vec<String> = shape
+        .fields
+        .iter()
+        .filter(|field| field.text == ParamText::Keys(KeyOrigin::Cells))
+        .map(|field| field.name.clone())
+        .collect();
+    let Some(position) = slots
+        .iter()
+        .position(|slot| *slot == ArgSlot::Param(options))
+    else {
+        return;
+    };
+    let ExprKind::AnonObject(fields) = &list[position].value.kind else {
+        return;
+    };
+    let Some(rows) = slots.iter().position(|slot| *slot == ArgSlot::Param(0)) else {
+        return;
+    };
+    for field in fields {
+        if !cells
+            .iter()
+            .any(|name| name == span_text(env.src, field.name))
+        {
+            continue;
+        }
+        let cell =
+            key_values(types[rows], env.interner).and_then(|row| key_values(row, env.interner));
+        if let Some(cell) = cell {
+            super::quals::check_key_qualifier(field.span, cell, None, env);
+        }
+    }
+}
+
+/// The values a [`ParamText::Keys`] argument turns into keys: an array's
+/// elements, or what a callable returns. `None` for a type that names
+/// neither, such as a bare `callable`, whose result is not known here.
+fn key_values(ty: TypeId, interner: &TypeInterner) -> Option<TypeId> {
+    match interner.get(ty) {
+        Ty::Array(elem) => Some(*elem),
+        Ty::CallableSig { ret, .. } => Some(*ret),
+        _ => None,
+    }
 }
 
 /// `rule:statements/inout-is-written-at-the-call`'s call-site marker, both directions, over whichever mapping
@@ -849,6 +936,7 @@ pub(crate) fn check_options_arg(
     };
     let mut written: Vec<WrittenKey<'_>> = Vec::with_capacity(fields.len());
     for field in fields {
+        let before = env.diags.len();
         let name = span_text(env.src, field.name);
         let slot = options.iter().find(|option| option.name == name);
         let declared = slot.map(|option| option.ty);
@@ -860,6 +948,14 @@ pub(crate) fn check_options_arg(
             }
             _ => check_arg(&field.value, declared, live, scope, ctx, env),
         };
+        // `nvs_stdlib::registry::CoreTy::Keys` on a whole option, such as
+        // `Core\Arr::countBy`'s `by`: what the callback returns becomes a key.
+        if slot.is_some_and(|option| option.text == ParamText::Keys(KeyOrigin::Values))
+            && env.diags.len() == before
+            && let Some(keys) = key_values(ty, env.interner)
+        {
+            super::quals::check_key_qualifier(field.value.span, keys, None, env);
+        }
         // A path field — `Db\Settings`' `path` — resolves a written relative path
         // as a path parameter does. See [`crate::paths`].
         if slot.is_some_and(|option| option.text == nvs_stdlib::registry::ParamText::Path) {

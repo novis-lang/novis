@@ -1399,7 +1399,8 @@ mod tests {
             | CoreTy::StringHoles(inner, _)
             | CoreTy::PropertyPath(inner)
             | CoreTy::Alias(_, inner)
-            | CoreTy::Dispatched(inner) => mentions(inner, class),
+            | CoreTy::Dispatched(inner)
+            | CoreTy::Keys(_, inner) => mentions(inner, class),
             CoreTy::InstanceAt(name, args) => {
                 *name == class || args.iter().any(|arg| mentions(arg, class))
             }

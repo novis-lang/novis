@@ -95,7 +95,7 @@ use nvs_runtime::{Ctx, Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, ThrownCla
 use crate::ordering::compare_values;
 use crate::registry::{
     CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
-    ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ErrorDoc, KeyOrigin, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -161,10 +161,7 @@ pub const CLASS: CoreClass = CoreClass {
             // `indexBy` option accepts — [`ARRAY_KEY_CONTAGIOUS`].
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
-                CoreTy::CallableSig(
-                    &[CoreTy::Var("T"), CoreTy::Key],
-                    &CoreTy::Union(ARRAY_KEY_CONTAGIOUS),
-                ),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Key], &KEY_RESULT),
             ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
@@ -178,10 +175,7 @@ pub const CLASS: CoreClass = CoreClass {
             // for the reason `mapKeys` does.
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
-                CoreTy::CallableSig(
-                    &[CoreTy::Var("T"), CoreTy::Key],
-                    &CoreTy::Union(ARRAY_KEY_CONTAGIOUS),
-                ),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Key], &KEY_RESULT),
             ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Var("T"))),
@@ -487,7 +481,7 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "flip",
             names: &["a"],
-            params: &[CoreTy::Array(&CoreTy::Union(ARRAY_KEY))],
+            params: &[CoreTy::Array(&KEY_VALUES)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_arr_flip",
@@ -560,7 +554,7 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "fillKeys",
             names: &["keys", "value"],
-            params: &[CoreTy::Array(&CoreTy::Union(ARRAY_KEY)), CoreTy::Var("T")],
+            params: &[CoreTy::Array(&KEY_VALUES), CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_fill_keys",
@@ -578,10 +572,7 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "fromKeysAndValues",
             names: &["keys", "values"],
-            params: &[
-                CoreTy::Array(&CoreTy::Union(ARRAY_KEY)),
-                CoreTy::Array(&CoreTy::Var("T")),
-            ],
+            params: &[CoreTy::Array(&KEY_VALUES), CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_from_keys_and_values",
@@ -676,7 +667,12 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "countBy",
             names: &["a"],
-            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Options(BY_OPTION)],
+            // Marked even when a `by` is given: a `secret` subject is then
+            // refused although the callback might key it by something else.
+            params: &[
+                CoreTy::Array(&CoreTy::Keys(KeyOrigin::Values, &CoreTy::Var("T"))),
+                CoreTy::Options(COUNT_BY_OPTION),
+            ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Uint),
             symbol: "nvs_core_arr_count_by",
@@ -2130,6 +2126,24 @@ const BY_OPTION: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
+/// [`BY_OPTION`] for `Core\Arr::countBy`, where what the callback returns
+/// becomes a key of the answer, so the option carries the key mark.
+const COUNT_BY_OPTION: &[CoreOption] = &[CoreOption {
+    name: "by",
+    ty: CoreTy::Keys(KeyOrigin::Values, &CoreTy::Callable),
+    default: Const::Null,
+}];
+
+/// An `int|string` whose values become keys of the answer: `flip`'s,
+/// `fillKeys`' and `fromKeysAndValues`' elements. [`CoreTy::Keys`] owns the
+/// rule.
+const KEY_VALUES: CoreTy = CoreTy::Keys(KeyOrigin::Values, &CoreTy::Union(ARRAY_KEY));
+
+/// A callback result that becomes a key of the answer: `mapKeys`' new key
+/// and `groupBy`'s bucket name. [`ARRAY_KEY_CONTAGIOUS`] for the reason
+/// `mapKeys` gives.
+const KEY_RESULT: CoreTy = CoreTy::Keys(KeyOrigin::Values, &CoreTy::Union(ARRAY_KEY_CONTAGIOUS));
+
 /// `{ on?: SetOn, by?: callable, comparator?: callable }` — the bag `Core\Arr`'s
 /// set members share, in the order the ABI passes them.
 ///
@@ -2165,9 +2179,12 @@ const SET_OPTIONS: &[CoreOption] = &[
 /// already is for `{ by?: callable }` — the set-of-allowed-values shape
 /// `Core\Validate::isIp`'s `{ version?: 4|6 }` needed was one instance of that
 /// rule rather than the rule itself.
+///
+/// The cells it names become the answer's keys, which is the key mark's
+/// [`KeyOrigin::Cells`].
 const COLUMN_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "indexBy",
-    ty: CoreTy::Union(ARRAY_KEY_CONTAGIOUS),
+    ty: CoreTy::Keys(KeyOrigin::Cells, &CoreTy::Union(ARRAY_KEY_CONTAGIOUS)),
     default: Const::Null,
 }];
 

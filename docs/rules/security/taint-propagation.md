@@ -70,6 +70,20 @@ A literal written as an argument is checked against the type it takes there, wha
 expects: at a `mixed` parameter it is an `array<mixed>`, whose keys read back tainted, so the key is
 taken. One function in the checker asks the question at every one of these positions, and it asks
 `rule:security/secret-qualifier`'s key question first.
+
+**A `Core` member that turns values into keys says so on the position they come from.** The member
+table marks that position with `CoreTy::Keys`: the elements of `flip`, `fillKeys` and
+`fromKeysAndValues`' keys, `countBy`'s elements and its `by` result, `mapKeys`' and `groupBy`'s callback
+result, and the rows `column`'s `indexBy` names a cell of. The checker sends what reaches it through
+the same key function, so a `secret` value there is `E0896`. It does so once the arguments reported
+nothing. `flip`, `fillKeys` and `fromKeysAndValues` refuse a `tainted` key by their plain `int|string`
+element type. `column` without `indexBy` keys by
+position and takes `secret` cells. `crates/nvs-stdlib/tests/taint_signatures.rs` reads every member
+that returns an array, and fails naming one with no mark and no answer in its `KEYS_FROM` list:
+positions, an array argument's own keys, or keys read out of text the member parses. A bare
+`callable` at `countBy`'s `by` has no known result, so it is not checked. The mark costs compile time
+only.
+
 `unset` adds no key and is not checked. The cost is an update to a key already there, such as a count
 per status read from a row: the checker cannot see that the key exists, so the program compares the
 text with its own keys and writes through the matching one, or passes the key through

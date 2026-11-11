@@ -461,7 +461,9 @@ fn a_secret_value_is_never_an_array_key() {
             let src = key_program("secret string", array, &body);
             let diags = check_src(&src);
             assert!(
-                diags.iter().any(|d| d.code == Some(code::E_SECRET_ARRAY_KEY)),
+                diags
+                    .iter()
+                    .any(|d| d.code == Some(code::E_SECRET_ARRAY_KEY)),
                 "`{array}` took a `secret` key:\n{src}\n{diags:?}"
             );
         }
@@ -474,7 +476,9 @@ fn a_secret_value_is_never_an_array_key() {
         let src = key_program(key, "array<string>", body);
         let diags = check_src(&src);
         assert!(
-            diags.iter().any(|d| d.code == Some(code::E_SECRET_ARRAY_KEY)),
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_SECRET_ARRAY_KEY)),
             "a `{key}` became a key:\n{src}\n{diags:?}"
         );
     }
@@ -482,4 +486,84 @@ fn a_secret_value_is_never_an_array_key() {
     let src = key_program("secret string", "array<secret string>", "$a[\"id\"] = $k;");
     let diags = check_src(&src);
     assert!(!diags.has_errors(), "{src}\n{diags:?}");
+}
+
+/// A program over a key `$k` of type `{Q}`, a list `$s` of type `array<{Q}>`
+/// and rows `$rows` of type `array<array<{Q}>>`.
+fn key_member_program(qualified: &str, body: &str) -> String {
+    format!(
+        "<?nvs\n\
+         class T {{\n\
+         \x20 function m({qualified} $k, array<{qualified}> $s, array<array<{qualified}>> $rows): void {{\n\
+         \x20   {body}\n\
+         \x20 }}\n\
+         }}\n"
+    )
+}
+
+/// Each `Core` member that turns values into keys, called so that those
+/// values are the `{Q}` ones.
+const KEY_MEMBERS: [&str; 8] = [
+    "var $r = Core\\Arr::flip($s);",
+    "var $r = Core\\Arr::fillKeys($s, 1);",
+    "var $r = Core\\Arr::fromKeysAndValues($s, [1]);",
+    "var $r = Core\\Arr::countBy($s);",
+    "var $r = Core\\Arr::countBy([1, 2], { by: fn(int $x): {Q} => $k });",
+    "var $r = Core\\Arr::mapKeys([1, 2], fn(int $x, string $i): {Q} => $k);",
+    "var $r = Core\\Arr::groupBy([1, 2], fn(int $x, string $i): {Q} => $k);",
+    "var $r = Core\\Arr::column($rows, 0, { indexBy: 1 });",
+];
+
+#[test]
+fn a_member_that_makes_keys_from_values_refuses_qualified_values() {
+    for (index, call) in KEY_MEMBERS.iter().enumerate() {
+        let body = call.replace("{Q}", "secret string");
+        let src = key_member_program("secret string", &body);
+        let diags = check_src(&src);
+        let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+        assert!(
+            codes.contains(&code::E_SECRET_ARRAY_KEY) || codes.contains(&code::E_TYPE_MISMATCH),
+            "a `secret` value became a key:\n{src}\n{diags:?}"
+        );
+        // Where the parameter's type takes the value, only the key mark
+        // refuses it: `countBy`'s subject, its `by` result and `column`'s rows.
+        if [3, 4, 7].contains(&index) {
+            assert!(
+                codes.contains(&code::E_SECRET_ARRAY_KEY),
+                "the key mark did not refuse it:\n{src}\n{diags:?}"
+            );
+        }
+        assert!(
+            !(codes.contains(&code::E_SECRET_ARRAY_KEY) && codes.contains(&code::E_TYPE_MISMATCH)),
+            "one mistake reported twice:\n{src}\n{diags:?}"
+        );
+    }
+    // A `tainted` value keys only an array whose type says its keys come
+    // from outside, so the members with a plain key parameter refuse it.
+    for call in &KEY_MEMBERS[..3] {
+        let src = key_member_program("tainted string", call);
+        assert!(
+            check_src(&src).has_errors(),
+            "a `tainted` value became a key:\n{src}"
+        );
+    }
+    // `column` without `indexBy` keys by position, so its cells may be secret,
+    // and a member over plain values compiles.
+    for (qualified, body) in [
+        ("secret string", "var $r = Core\\Arr::column($rows, 0);"),
+        ("string", "var $r = Core\\Arr::countBy($s);"),
+        ("string", "var $r = Core\\Arr::flip($s);"),
+        (
+            "string",
+            "var $r = Core\\Arr::mapKeys([1, 2], fn(int $x, string $i): string => $k);",
+        ),
+        (
+            "string",
+            "var $r = Core\\Arr::column($rows, 0, { indexBy: 1 });",
+        ),
+    ] {
+        let src = key_member_program(qualified, body);
+        let diags = check_src(&src);
+        assert!(!diags.has_errors(), "{src}\n{diags:?}");
+    }
 }
