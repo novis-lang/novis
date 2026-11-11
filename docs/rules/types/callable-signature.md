@@ -13,15 +13,20 @@ a name in the type would imply calling through the value by name, which nothing 
 
 Bare `callable` remains the **top of the callable lattice** — a callable whose signature is unknown.
 Every callable type is assignable to it, calling through one keeps the dynamic path and its
-per-argument tag check, and nothing existing changes meaning. Narrowing is opt-in. Where a call
-reaches a callable whose type names its parameters, the arguments are proven at compile time and the
-per-argument tag check is **not emitted**; the metadata stays on every callable, because bare `callable`
+per-argument check, and nothing existing changes meaning. Narrowing is opt-in. Where a call reaches a
+callable whose type names its parameters, the arguments are proven at compile time and the
+per-argument check is **not run**; the metadata stays on every callable class, because bare `callable`
 still needs it and an anonymous function does not know where it is written which kind of site will call it.
 
 **The reason is safety, not convenience.** A compiled callable reads each argument at its own declared
 representation, so a mismatched argument is reinterpreted: an `int` read as a string pointer is an
-arbitrary dereference, not a fault. A bare `callable` guards that with a runtime tag check per
-argument, per call. A written signature discharges the same guard at compile time, as an error where
+arbitrary dereference, not a fault. A bare `callable` guards that with a runtime check per argument,
+per call, of each parameter's whole declared type: the check a write by name runs against a property
+of that type (`rule:types/erased-member-access`). It reads the callable class's `invoke` method row,
+which carries each parameter's check as any method row does, so a `?C`, an `array<int>`, an enum and
+a `callable(int): string` parameter are each tested as `is` tests them, and the one `int` to `float`
+widening of a parameter declared `float` is kept. A miss throws a `LogicError` that names the
+position and the value given. A written signature discharges the same guard at compile time, as an error where
 the mismatch is written. `Core\Arr::map($ints, fn (string $s): string => $s)` over an `array<int>`
 does not compile.
 
@@ -36,10 +41,13 @@ one place nothing else looked. The body's first block runs the same class test `
 class-declared parameter, and a miss throws a `LogicError`. A parent class and an implemented
 interface accept the instance an exact class does.
 
-Two things the entry check does not do. A `?C` parameter is unchecked on both lines: it erases to a
-tagged value before any class survives, the same nothing `mixed` gets. And the error does not name the
-class that arrived, because no compiled instruction reads an object's class name, and adding one is a
-new value shape for the sake of a message.
+The entry check is for a proven call, which does not run the row check, and for the paths that reach
+the body with no row check at all. A `?C` parameter is not tested at the entry: it erases to a tagged
+value before any class survives. A bare `callable` call tests it from the row, and a written signature
+proves it where the call is written. The entry's error does not name the class that arrived, because
+no compiled instruction reads an object's class name, and adding one is a new value shape for the sake
+of a message. The row check's error names it, because it runs in the runtime, which reads the
+argument's descriptor.
 
 The parameter list needs no trial parse: a `(` after `callable` in a type position can only open a
 parameter list, because a type position has no call syntax to confuse it with.
@@ -53,9 +61,11 @@ more: no type variable can be bounded, and without it `Task::all(5)` would compi
 What it accepts is ordinary assignability, and what it binds is the same structural walk.
 
 - **Memory:** none. A written signature adds no runtime representation, no heap shape and no
-  per-callable growth. The parameter tags and the arity stay on every callable value. The entry
-  check spends one scan of the argument's ancestry per class-declared parameter per call, and
-  allocates nothing.
+  per-callable growth. The parameter tags and the arity stay on every callable value, and the
+  `invoke` row's two small vectors of checks on every callable class, once per process. A bare
+  `callable` call spends one class walk per class-typed argument and one element walk per
+  typed-array argument. The entry check spends one scan of the argument's ancestry per
+  class-declared parameter per call. Neither allocates.
 
 **Declined:**
 - **Angle brackets, `callable<User, string, string>`.** The return type would be positional and
