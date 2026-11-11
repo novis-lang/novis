@@ -632,6 +632,13 @@ pub(crate) fn generator_element(
 
 /// The factory half: allocate the state object, park the receiver and every
 /// argument in it, return it. See [`lower_generator`].
+///
+/// The [`InstKind::New`] takes the `Env` that binds the receiver and the
+/// arguments, so a stop there releases each of them in the factory's landing
+/// block. A state class has no constructor, so its `New` compiles to
+/// `nvs_object_new`, which returns no status, and that edge is not reached
+/// today; the edge is there so a later status cannot leak them. It costs one
+/// cold landing block per generator factory, in code size.
 #[expect(
     clippy::too_many_arguments,
     reason = "the arguments are one declaration's own parts plus the four \

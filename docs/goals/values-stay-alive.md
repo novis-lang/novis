@@ -42,7 +42,7 @@ stages:
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/generator.rs, crates/nvs-ir/src/lower/operand.rs]
   - id: 10
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: operands-hold-their-reads
@@ -756,36 +756,29 @@ is borrowed, and one cold landing block per generator factory. Nothing in memory
 
 ### 10. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 9 are done. Stage 9's last two items landed in `c619a1a392`: a rendered
-`Core\Str::format` and a guarded element store. Their decisions are under *What stage 9's last
-two items settled*. Each new row in `borrowed_reads.rs` fails with its fix switched off, and
-`looper check --name user-code-holds` is green. The sweep's `env-secret-proofs` red is stale
-again: no check of that name exists (`looper check --name env-secret-proofs` matches nothing).
+Every stage is done, and the goal is reached. The first `looper verify` failed only at
+`rules-render`: the rendered `docs/rules/errors.md` was stale after stage 8's edit to
+`helper-abi.md`, and so was `expressions.md` after this session's edit. The second run was green
+in 346s, with no test red. `bun nv verify --doc`, `bun nv owners --closes values-stay-alive` and
+`bun nv ci --check` are green. Stage 9's decisions now live in
+`docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:1` (joins, the
+rendered format, the guarded store) and in `lower_generator_factory`'s doc comment
+(`crates/nvs-ir/src/lower/generator.rs:633`). The sweep's `env-secret-proofs` red is stale: no
+file in the tree names that check.
 
 ### Next
 
-Stage 10, the gate: `looper verify` in the background, the goal-end gates, and the goal file
-deleted once the remaining decisions are moved into `docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:1`
-and `crates/nvs-ir/src/lower/generator.rs:1`.
-
-Expected red at stage 10: an `nvs-codegen` IR snapshot through a generator factory gains a landing
-block, one through a join with an `object` or `mixed` piece gains a retain and release, and one
-through a guarded store moves its retain before the guard call. A guarded element store also
-reads its root property again after the guard, and a rendered format with a later argument
-that can run code gains a retain and release.
+The driver retires the goal: it deletes this file and runs the `after_retire` hooks.
 
 ### Backlog
 
-- Not this goal's: `Core\Str::format('%1$s', $o)` over an object of a class that implements
-  `Stringable` throws "it does not implement `Stringable`" at run time. The rendering in
-  `nvs_stdlib::format` does not reach a compiled class's `toString`. So no test can drive a
-  `toString` from a rendered format yet; the lowering holds the arguments for it anyway. Give it
-  an owner at the goal end with `bun nv owners --closes values-stay-alive`.
+- The `Core\Str::format` over a `Stringable` object bug is now a backlog bullet of
+  `calls-by-name-are-checked` (`docs/goals/calls-by-name-are-checked.md:549`).

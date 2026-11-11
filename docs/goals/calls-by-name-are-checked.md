@@ -555,3 +555,10 @@ either writes an enum, a callable or a `Core` object of another kind.
 - `slot_check` and `test_shape` are two maps from a type to a run-time test
   (`crates/nvs-ir/src/lower/mod.rs:602`, `crates/nvs-ir/src/lower/expr.rs:7881`).
 - An intersection type and `iterable` stay `SlotCheck::Any` (`crates/nvs-ir/src/lower/mod.rs:599`).
+- `Core\Str::format('%1$s', $o)` over an object whose class implements `Stringable` throws "it does
+  not implement `Stringable`" at run time. The rendering in `nvs_stdlib::format` reaches
+  `stringify`, which finds no `toString` for a compiled class, and throws at
+  `crates/nvs-runtime/src/helpers.rs:2049`. It is a call by name to a compiled method, and the
+  lowering already holds every format argument against it (`rule:expressions/an-operand-keeps-its-value-while-later-operands-run`).
+  Once it works, `crates/nvs-codegen/tests/borrowed_reads.rs` gains a row that drives a
+  `toString` from a rendered format.

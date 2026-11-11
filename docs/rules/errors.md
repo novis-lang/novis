@@ -155,6 +155,13 @@ reads the source and fails naming a primitive without the `deny` set. Declined: 
 every primitive, and a status on every primitive's signature. Both cost a call on the hottest paths
 for a fault the build can rule out.
 
+A primitive that takes `Ctx` and returns a status may run its body under `abi::contain_panic` or
+`run_helper`, which contain a panic to one request as the helper wrapper does. Its own body still
+carries the `deny` set, and a function it reaches only through that wrapper is out of the sweep. A
+primitive that returns nothing is never wrapped: it cannot report `FATAL`, and `Ctx::take_fatal` is
+read only at a job seam, so a contained panic would surface later as an ordinary throw the program
+can catch. Such a primitive, and each runtime function it calls directly, carries the set instead.
+
 The wrapper does not stop at the helper. Code with no request beneath it — the accept loop, the
 HTTP reader, the compiled-unit cache index — runs outside `nvs_helper!`, so a worker task's own
 root carries a `catch_unwind` as well. And a panic raised while a panic is unwinding aborts the
