@@ -1556,7 +1556,10 @@ mod tests {
     fn an_uncaught_throw_reaches_the_queue_with_the_error() {
         const SLOTS: [&str; 4] = ["message", "previous", "backtrace", "location"];
         let mut classes = ClassTable::new();
-        let root = classes.define("RuntimeError", &SLOTS, &[]);
+        // A program's `RuntimeError` is a `Throwable`, and the report's
+        // `error` slot states that type.
+        let throwable = classes.define("Throwable", &SLOTS, &[]);
+        let root = classes.define("RuntimeError", &SLOTS, &[throwable]);
         let mut ctx = Ctx::buffered();
         ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), root));
         ctx.set_pending("the store said no");
@@ -1829,7 +1832,10 @@ mod tests {
     fn finish_marker(ctx: &mut Ctx) -> nvs_runtime::Thrown {
         const SLOTS: [&str; 4] = ["message", "previous", "backtrace", "location"];
         let mut classes = ClassTable::new();
-        let root = classes.define("RuntimeError", &SLOTS, &[]);
+        // A program's `RuntimeError` is a `Throwable`, and the report's
+        // `error` slot states that type.
+        let throwable = classes.define("Throwable", &SLOTS, &[]);
+        let root = classes.define("RuntimeError", &SLOTS, &[throwable]);
         classes.define(super::FINISH_MARKER_NAME, &[] as &[&str], &[]);
         ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), root));
         let desc = ctx
@@ -2095,7 +2101,10 @@ mod tests {
 
         const SLOTS: [&str; 4] = ["message", "previous", "backtrace", "location"];
         let mut classes = ClassTable::new();
-        let root = classes.define("RuntimeError", &SLOTS, &[]);
+        // A program's `RuntimeError` is a `Throwable`, and the report's
+        // `error` slot states that type.
+        let throwable = classes.define("Throwable", &SLOTS, &[]);
+        let root = classes.define("RuntimeError", &SLOTS, &[throwable]);
         ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), root));
         ctx.set_pending("the store said no");
         ctx.push_frame("Main::main");

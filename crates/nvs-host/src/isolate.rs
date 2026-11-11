@@ -2341,8 +2341,8 @@ mod tests {
     ///
     /// `nvs_runtime::graph`'s `a_cyclic_value_crosses_without_hanging` pins the
     /// termination at the line that performs it. What a spawn adds is that
-    /// there are *two* walks and they are not the same walk: the argument copy
-    /// names no receiving table, and the answer copy names the parent's — so
+    /// there are *two* walks: the argument copy into the child's root and the
+    /// answer copy into the parent's, both naming the parent's table — so
     /// the cycle has to close on each side, and the second one closes in a root
     /// the child's arena is about to be dropped out from under.
     ///
@@ -2377,7 +2377,13 @@ mod tests {
             args
         });
 
-        let done = run(Isolate::new(program, argument, Output::Capture), &mut ctx)
+        // The child runs the parent's unit, so it receives into the parent's
+        // table: a side with no table declares no program class.
+        let prepared = Prepared {
+            program,
+            classes: ctx.class_table(),
+        };
+        let done = run(Isolate::new(prepared, argument, Output::Capture), &mut ctx)
             .expect("a cycle is not an argument that has no meaning on the other side");
 
         assert!(done.ok, "{:?}", done.error);

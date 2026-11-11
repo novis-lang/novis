@@ -7106,7 +7106,12 @@ mod tests {
         let object = session.obj_ptr().expect("the session is an instance");
         let secure = crate::instance::build(
             &RESPONSE,
-            [Value::int(200), Value::null(), Value::null(), session],
+            [
+                Value::int(200),
+                Value::bytes(NvsStr::new(b"")),
+                Value::array(nvs_runtime::NvsArray::new()),
+                session,
+            ],
         );
         for _ in 0..2 {
             let read = nvs_runtime::call(super::nvs_core_http_response_tls, &mut ctx, &[secure])
