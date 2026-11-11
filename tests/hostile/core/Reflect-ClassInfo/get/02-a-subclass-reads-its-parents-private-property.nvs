@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a subclass reads a private property of its parent by name, many times and on many objects.
+// Every read should throw an error. Only the parent's own methods may read the property.
+
+class Account
+{
+    private string $password = 'p4ss';
+
+    public function check(Account $of): string
+    {
+        try {
+            var $password = Core\Reflect::forObject($of)->get($of, 'password');
+            return 'read';
+        } catch (RuntimeError $refused) {
+            return 'refused';
+        }
+    }
+}
+
+class Guest extends Account
+{
+    public function steal(Account $of): string
+    {
+        try {
+            var $password = Core\Reflect::forObject($of)->get($of, 'password');
+            return 'read';
+        } catch (RuntimeError $refused) {
+            return 'refused';
+        }
+    }
+}
+
+Guest $guest = new Guest();
+
+// 1. The subclass reads the property on itself and on a parent object.
+echo $guest->steal($guest), "\n";
+echo $guest->steal(new Account()), "\n";
+
+// 2. The same read 100000 times. Each error should be freed.
+uint $refused = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if ($guest->steal($guest) == 'refused') {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo $refused, "\n";
+
+// 3. The parent reads the same property on the subclass object. This read works.
+echo $guest->check($guest), "\n";

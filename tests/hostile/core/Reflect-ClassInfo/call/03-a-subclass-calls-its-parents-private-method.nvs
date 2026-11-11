@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a subclass calls a private method of its parent by name, with `ClassInfo` and with a `mixed` variable.
+// Every call should throw an error, and the method should not run.
+
+class Bank
+{
+    private int $balance = 100;
+
+    private function withdraw(int $amount): int
+    {
+        echo "withdraw ran\n";
+        $this->balance = $this->balance - $amount;
+        return $this->balance;
+    }
+
+    public function balance(): int
+    {
+        return $this->balance;
+    }
+}
+
+class Thief extends Bank
+{
+    public function take(Bank $of): string
+    {
+        try {
+            var $left = Core\Reflect::forObject($of)->call($of, 'withdraw', [100]);
+            return 'called';
+        } catch (LogicError $refused) {
+            return 'refused';
+        }
+    }
+
+    public function takeThroughMixed(mixed $of): string
+    {
+        try {
+            var $left = $of->withdraw(100);
+            return 'called';
+        } catch (LogicError $refused) {
+            return 'refused';
+        }
+    }
+}
+
+Thief $thief = new Thief();
+
+// 1. The subclass calls the method on itself and on a parent object.
+echo $thief->take($thief), "\n";
+echo $thief->take(new Bank()), "\n";
+
+// 2. The same call through a `mixed` variable.
+echo $thief->takeThroughMixed($thief), "\n";
+
+// 3. The same call 100000 times. Each error should be freed.
+uint $refused = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if ($thief->take($thief) == 'refused') {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo $refused, "\n";
+echo $thief->balance(), "\n";

@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a subclass writes a private property of its parent by name to make itself an admin.
+// Every write should throw an error, and the property should keep its old value.
+
+class User
+{
+    private bool $admin = false;
+
+    public function isAdmin(): bool
+    {
+        return $this->admin;
+    }
+}
+
+class Intruder extends User
+{
+    public function promote(User $of): string
+    {
+        try {
+            Core\Reflect::forObject($of)->set($of, 'admin', true);
+            return 'written';
+        } catch (RuntimeError $refused) {
+            return 'refused';
+        }
+    }
+}
+
+Intruder $intruder = new Intruder();
+
+// 1. The subclass writes the property on itself and on a parent object.
+echo $intruder->promote($intruder), "\n";
+User $user = new User();
+echo $intruder->promote($user), "\n";
+echo $intruder->isAdmin() ? 'admin' : 'not admin', "\n";
+echo $user->isAdmin() ? 'admin' : 'not admin', "\n";
+
+// 2. The same write 100000 times. Each error should be freed.
+uint $refused = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if ($intruder->promote($intruder) == 'refused') {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo $refused, "\n";
+echo $intruder->isAdmin() ? 'admin' : 'not admin', "\n";

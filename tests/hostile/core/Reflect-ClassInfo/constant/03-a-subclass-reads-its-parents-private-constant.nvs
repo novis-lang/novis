@@ -1,0 +1,71 @@
+<?nvs
+// Attack: a subclass reads a private constant of its parent by name, and also declares a constant with the same name.
+// Every read of the parent's constant should throw an error.
+
+class Signer
+{
+    private const string SALT = 'salt-1';
+
+    public function salt(Signer $of): string
+    {
+        try {
+            var $salt = Core\Reflect::forObject($of)->constant('SALT');
+            return 'read';
+        } catch (RuntimeError $refused) {
+            return 'refused';
+        }
+    }
+}
+
+class Copier extends Signer
+{
+    public function read(Signer $of): string
+    {
+        try {
+            var $salt = Core\Reflect::forObject($of)->constant('SALT');
+            return 'read';
+        } catch (RuntimeError $refused) {
+            return 'refused';
+        }
+    }
+}
+
+// This subclass declares its own private constant with the same name.
+// A read by name of `SALT` from this subclass also throws an error.
+class Shadow extends Signer
+{
+    private const string SALT = 'salt-2';
+
+    public function read(): string
+    {
+        try {
+            var $salt = Core\Reflect::forObject($this)->constant('SALT');
+            return 'read';
+        } catch (RuntimeError $refused) {
+            return 'refused';
+        }
+    }
+}
+
+Copier $copier = new Copier();
+
+// 1. The subclass reads the constant through its own class and through a parent object.
+echo $copier->read($copier), "\n";
+echo $copier->read(new Signer()), "\n";
+
+// 2. A subclass with a constant of the same name reads it.
+echo (new Shadow())->read(), "\n";
+
+// 3. The same read 100000 times. Each error should be freed.
+uint $refused = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if ($copier->read($copier) == 'refused') {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo $refused, "\n";
+
+// 4. The parent reads the constant through the subclass. This read works.
+echo $copier->salt($copier), "\n";

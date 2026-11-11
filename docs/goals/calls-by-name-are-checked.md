@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-runtime/src/object.rs, crates/nvs-runtime/src/callable.rs, crates/nvs-ir/src/lower/anon_fn.rs, docs/rules/types/callable-signature.md, docs/rules/classes/property-hooks.md]
   - id: 4
     title: a private member is reached by name only from the class that declares it
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/visibility.rs, crates/nvs-types/src/layout.rs, crates/nvs-stdlib/src/reflect.rs, docs/rules/security/reflection-enforces-visibility.md]
   - id: 5
     title: a successful call by name allocates nothing
@@ -479,12 +479,12 @@ property, a method and a constant.
   `a_private_method_declared_again_belongs_to_the_class_that_declared_it`, each over a property, a
   method and a constant where the kind has the case. They sit in `reflect.rs` tests, beside the
   private-method fixture (`crates/nvs-stdlib/src/reflect.rs:3163`).
-- [ ] `.nvst` case: inside a subclass, `get`, `set`, `call` and `constant` of the parent's private
+- [x] `.nvst` case: inside a subclass, `get`, `set`, `call` and `constant` of the parent's private
   member each throw. Inside the parent, the same four on an instance of the subclass succeed. A
   private constructor inherited from the parent is refused to the subclass through `construct`.
-- [ ] Attacks: `get/02`, `set/04`, `call/03` and `constant/03` under
+- [x] Attacks: `get/02`, `set/04`, `call/03` and `constant/03` under
   `tests/hostile/core/Reflect-ClassInfo/`. A subclass tries each private member of its parent.
-- [ ] `rule:security/reflection-enforces-visibility` says which class declares a member for this
+- [x] `rule:security/reflection-enforces-visibility` says which class declares a member for this
   test, and names the redeclared constant (`docs/rules/security/reflection-enforces-visibility.md:5`).
 
 ### 5. a successful call by name allocates nothing

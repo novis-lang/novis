@@ -1,0 +1,81 @@
+--TEST--
+A `private` property, method, constant and constructor is reached by name only from the class that declares it: a subclass's body is refused all four through `Core\Reflect\ClassInfo`, and the parent's body reaches them on an instance of the subclass — `rule:security/reflection-enforces-visibility`
+--FILE--
+<?nvs
+// covers: Core\Reflect\ClassInfo::get
+// covers: Core\Reflect\ClassInfo::set
+// covers: Core\Reflect\ClassInfo::call
+// covers: Core\Reflect\ClassInfo::constant
+// covers: Core\Reflect\ClassInfo::construct
+// The same four acts are written in the parent's body and in the subclass's
+// body, and each runs on an instance of the subclass. Only the parent reaches.
+class Vault {
+    private string $key = "k1";
+    private const string CODE = "c1";
+
+    private function open(): string {
+        return "opened " . $this->key;
+    }
+
+    public function fromParent(Vault $of): void {
+        var $info = Core\Reflect::forObject($of);
+        echo "parent get: ", $info->get($of, "key"), "\n";
+        $info->set($of, "key", "k2");
+        echo "parent set: ", $info->get($of, "key"), "\n";
+        echo "parent call: ", $info->call($of, "open", []), "\n";
+        echo "parent constant: ", $info->constant("CODE"), "\n";
+    }
+}
+
+class Branch extends Vault {
+    public function fromChild(Vault $of): void {
+        var $info = Core\Reflect::forObject($of);
+        try { var $v = $info->get($of, "key"); echo "child get reached\n"; } catch (Throwable $e) { Show::error("child get", $e); }
+        try { $info->set($of, "key", "k3"); echo "child set reached\n"; } catch (Throwable $e) { Show::error("child set", $e); }
+        try { var $w = $info->call($of, "open", []); echo "child call reached\n"; } catch (Throwable $e) { Show::error("child call", $e); }
+        try { var $c = $info->constant("CODE"); echo "child constant reached\n"; } catch (Throwable $e) { Show::error("child constant", $e); }
+    }
+}
+
+// A constructor is a method. `Sealed`'s private constructor belongs to `Sealed`,
+// so `Heir` cannot run it by name, even for an `Heir` object.
+class Sealed {
+    public int $n = 0;
+
+    private function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+
+class Heir extends Sealed {
+    public static function build(): void {
+        var $info = Core\Reflect::forClass("Heir");
+        if ($info == null) {
+            echo "unreachable\n";
+            return;
+        }
+        try { mixed $made = $info->construct([1]); echo "child construct reached\n"; } catch (Throwable $e) { Show::error("child construct", $e); }
+    }
+}
+
+// Prints the act and the class of what was thrown.
+class Show {
+    public static function error(string $act, Throwable $e): void {
+        echo $act, " refused: ", Core\Reflect::forObject($e)->name(), "\n";
+    }
+}
+
+Branch $branch = new Branch();
+$branch->fromChild($branch);
+$branch->fromParent($branch);
+Heir::build();
+--EXPECT--
+child get refused: RuntimeError
+child set refused: RuntimeError
+child call refused: LogicError
+child constant refused: RuntimeError
+parent get: k1
+parent set: k2
+parent call: opened k2
+parent constant: c1
+child construct refused: LogicError
