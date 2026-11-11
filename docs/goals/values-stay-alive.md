@@ -38,7 +38,7 @@ stages:
     context: [crates/nvs-runtime/src/throwable.rs, crates/nvs-runtime/src/callable.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/ctx/frames.rs]
   - id: 9
     title: a conversion, a property guard and a generator factory keep what they borrow or own
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/generator.rs, crates/nvs-ir/src/lower/operand.rs]
   - id: 10
     title: "the goal is verified once, and every failure is fixed"
@@ -385,6 +385,18 @@ today, and the sweep test proves a stop anywhere in the factory call leaks nothi
 spends:** one pair per borrowed piece before an `object` or union piece, nothing for a guarded
 store, and one cold landing block per generator factory.
 
+**What stage 9's last two items settled.** A rendered `Core\Str::format` judges each argument
+with `borrowed_arg` against the arguments after it. When any argument's rendering can run code
+(`conversion_runs_code`), every argument still borrowed is retained and staged before the first
+rendering. A guarded element store retains and stages its root array and each borrowed key
+before the guard. A key's retain is the reference the array keeps, so it is not made again.
+After the guard the store reads the root again and releases the held one, so it writes into
+the array the property has once the guard returns, and an unchanged array is not copied.
+Declined: holding the root alone, which writes into a replaced array, and keeping the hold
+through `ArraySet`, which copies the array on every guarded store. **What it spends:** one pair
+per borrowed format argument where a later one can free it, and per guarded element store one
+pair on the root and one field load. A key's retain only moves earlier.
+
 **Lanes:** stages 1 and 2 share the lowering files and run in order. Stage 3 shares `mod.rs` with
 stage 1 and `emit.rs` with stage 4, so stages 1 to 4 run in order. Stage 5 shares `array.rs` with
 stage 4 and runs after it. Stages 6, 7 and 8 touch disjoint runtime files and may run side by side
@@ -728,12 +740,16 @@ that this goal's title rules out, so it stays here and is not handed to a later 
 - [x] The three tests the `user-code-holds` check names exist in
   `crates/nvs-codegen/tests/borrowed_reads.rs` and are green, each run once by name.
   - [x] The `toString` and guard tests fail with their fix switched off.
-- [ ] A rendered `Core\Str::format` holds a borrowed argument against the later arguments and
+- [x] A rendered `Core\Str::format` holds a borrowed argument against the later arguments and
   their rendering (`crates/nvs-ir/src/lower/expr.rs:2548`). Each argument is judged with
   `sole_operand_borrowed`, and nothing judges what follows it. Confirm with a row first.
-- [ ] An element store under a `PropertyGuard` holds a borrowed key and the root array it read
+  - [x] `borrowed_arg` against the later arguments, and a hold before a code-running render.
+  - [x] `a_rendered_format_keeps_each_argument_alive` fails with the fix off, green with it.
+- [x] An element store under a `PropertyGuard` holds a borrowed key and the root array it read
   while the guard runs (`crates/nvs-ir/src/lower/stmt.rs:2025`). The keys are retained only
   after the guard, and the guard can replace the property the root array came from.
+  - [x] Root and borrowed keys retained and staged before the guard; root read again after.
+  - [x] `a_guarded_element_store_keeps_its_key_and_array_alive` fails with the fix off.
 
 **What it spends:** one non-atomic retain and release per conversion or guarded store whose value
 is borrowed, and one cold landing block per generator factory. Nothing in memory.
@@ -748,34 +764,28 @@ is borrowed, and one cold landing block per generator factory. Nothing in memory
 
 ### State
 
-Stages 1 to 8 are done, and their first gate was green. Stage 9's three listed shapes are fixed
-and committed, and the `user-code-holds` tests are green by name. Their decisions are under
-*What stage 9 settled*. The `toString` and guard tests fail with their fix switched off. The
-generator test cannot: a `New` with no constructor returns no status, so its edge is not
-reached today. Building stage 9 found two more shapes of the same kind, added to stage 9 as
-open items, so stage 9 stays open. The sweep's `env-secret-proofs` red is stale: its log does not
-exist and no check of that name matches.
+Stages 1 to 9 are done. Stage 9's last two items landed in `c619a1a392`: a rendered
+`Core\Str::format` and a guarded element store. Their decisions are under *What stage 9's last
+two items settled*. Each new row in `borrowed_reads.rs` fails with its fix switched off, and
+`looper check --name user-code-holds` is green. The sweep's `env-secret-proofs` red is stale
+again: no check of that name exists (`looper check --name env-secret-proofs` matches nothing).
 
 ### Next
 
-Finish stage 9: the two open items, each with a row in `borrowed_reads.rs` that fails with the
-fix switched off (fill after the free, as the guard test does).
-
-- [ ] `crates/nvs-ir/src/lower/expr.rs:2548`: `lower_rendered_format` judges each argument with
-  `sole_operand_borrowed`. Hold it with `borrowed_arg` against the later arguments, and hold
-  every borrowed argument before a rendering that can call `toString`
-  (`Lowering::conversion_runs_code`, `crates/nvs-ir/src/lower/operand.rs:397`).
-- [ ] `crates/nvs-ir/src/lower/stmt.rs:2025`: an element store under a guard retains its borrowed
-  keys only after the guard. Retain and stage them, and the root array, before the guard.
-
-Then stage 10, the gate: `looper verify` in the background, the goal-end gates, and the goal file
+Stage 10, the gate: `looper verify` in the background, the goal-end gates, and the goal file
 deleted once the remaining decisions are moved into `docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:1`
 and `crates/nvs-ir/src/lower/generator.rs:1`.
 
 Expected red at stage 10: an `nvs-codegen` IR snapshot through a generator factory gains a landing
 block, one through a join with an `object` or `mixed` piece gains a retain and release, and one
-through a guarded store moves its retain before the guard call.
+through a guarded store moves its retain before the guard call. A guarded element store also
+reads its root property again after the guard, and a rendered format with a later argument
+that can run code gains a retain and release.
 
 ### Backlog
 
-- Nothing beyond stage 9.
+- Not this goal's: `Core\Str::format('%1$s', $o)` over an object of a class that implements
+  `Stringable` throws "it does not implement `Stringable`" at run time. The rendering in
+  `nvs_stdlib::format` does not reach a compiled class's `toString`. So no test can drive a
+  `toString` from a rendered format yet; the lowering holds the arguments for it anyway. Give it
+  an owner at the goal end with `bun nv owners --closes values-stay-alive`.

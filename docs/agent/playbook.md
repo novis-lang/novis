@@ -278,8 +278,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `PropertyGuard` or `toString` frees is still held by that call's own argument, so it is freed
   when the call returns. A fill inside the call runs first and the test passes with the fix off;
   fill in a later statement. A memory stop cannot reach a `new` with no constructor:
-  `nvs_object_new` returns no status, and the crossing is reported at the next poll.
+  `nvs_object_new` returns no status. See `crates/nvs-codegen/tests/borrowed_reads.rs`.
   `until: gone crates/nvs-codegen/tests/borrowed_reads.rs:fn a_property_guard_cannot_free_the_value_being_stored`
+- **A `PropertyGuard` that stores to its own guarded property runs again, and the test dies of a
+  stack overflow.** Give the guard a flag the program sets just before the store under test, and
+  clear it first thing inside. See `crates/nvs-codegen/tests/borrowed_reads.rs`.
+  `until: gone crates/nvs-codegen/tests/borrowed_reads.rs:fn a_guarded_element_store_keeps_its_key_and_array_alive`
 
 - **A heavy `nvs serve` test answers `503` under a full nextest run, and passes alone.** Every
   server pins its workers to the first CPUs, so a test run's servers all share CPU 0. A starved
