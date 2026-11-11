@@ -287,10 +287,17 @@ it, and the new refusal reports only where nothing else did (`rule:types/one-mis
 
 **Built: every check takes its `ErasingPosition`, and asserts it in a debug build.** A check with
 several positions, `check_key_qualifier`, is told which one. `reject_qualified_untyped_value` reads it
-from `UntypedTarget::position`. A check with one position asserts that it was called for it. So every
-variant is built by the code that checks it, and a variant no check builds fails `-D warnings`.
+from `UntypedTarget::position`. A check with one position asserts that it was called for it.
 `GenericInstantiation` is the one variant with no check, since substitution keeps the argument's type
 whole, and its matrix cells are its proof. **What it spends:** nothing in a release build.
+**Built in stage 7:** `ErasingPosition`, its `ALL` and its `name` are `pub`, so the integration test
+`the_form_each_refusal_names_compiles_at_every_erasing_position` matches every variant. A new
+variant then fails to compile there until its typed form is written, and the lib test fails until
+its matrix cells exist. Declined: keeping it `pub(crate)` so that `dead_code` names a variant no check
+builds. The test was owed in `tests/qualifiers_hold.rs`, which reads only the public API, and the two
+tests hold a new position more firmly than a lint about construction. The help of a bare
+`callable`'s refusal names `callable(<the argument's type>): void`, so a `secret` argument is shown a
+form that takes it.
 `$fn->call($obj, ...)` is part of `UntypedCall`: an argument after the object that carries a
 qualifier is refused, unless the callable's written parameter takes its type.
 
@@ -511,7 +518,7 @@ disjoint folders side by side, and none of them builds.
 - [ ] Every Rust test and `.nvst` case that expected the old acceptance expects the refusal
   (`rule:security/secret-qualifier`, `crates/nvs-types/tests/secret.rs:1`,
   `crates/nvs-types/tests/tainted.rs:1`, `crates/nvs-types/tests/type_test.rs:1`).
-- [ ] Test `the_form_each_refusal_names_compiles_at_every_erasing_position`: for each position of the
+- [x] Test `the_form_each_refusal_names_compiles_at_every_erasing_position`: for each position of the
   enum, through an exhaustive `match`, the form the help names compiles and the sink still refuses
   (`crates/nvs-types/tests/qualifiers_hold.rs:1`).
 - [ ] One attack reads a `secret` property through every untyped read and through a failed

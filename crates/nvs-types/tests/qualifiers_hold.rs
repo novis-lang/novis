@@ -9,6 +9,7 @@ mod common;
 
 use common::*;
 use nvs_diagnostics::code;
+use nvs_types::expr::quals::ErasingPosition;
 
 /// The subject types a type test is tried over: the declared parameter type,
 /// the type it is tested against, the plain sink that must refuse what the
@@ -593,5 +594,236 @@ fn a_member_that_makes_keys_from_values_refuses_qualified_values() {
         let src = key_member_program(qualified, body);
         let diags = check_src(&src);
         assert!(!diags.has_errors(), "{src}\n{diags:?}");
+    }
+}
+
+/// One cell of [`the_form_each_refusal_names_compiles_at_every_erasing_position`]:
+/// the parameters, the form the refusal's help names with a `SINK` mark, the
+/// sink written at the mark, and the code the sink reports.
+struct FormCell {
+    params: &'static str,
+    form: &'static str,
+    sink: &'static str,
+    code: nvs_diagnostics::Code,
+}
+
+/// The `secret` cell and the `tainted` cell of one position. Each form is what
+/// the position's refusal names in its help: the typed form where one exists,
+/// and the launderer where the help names it.
+fn form_cells(position: ErasingPosition) -> [FormCell; 2] {
+    use ErasingPosition as P;
+    let out = code::E_SECRET_OUTPUT;
+    let plain = code::E_TYPE_MISMATCH;
+    match position {
+        P::TypeTest => [
+            FormCell {
+                params: "?secret string $x",
+                form: "secret string $y = \"\"; if ($x is string) { $y = $x; } SINK",
+                sink: "echo $y;",
+                code: out,
+            },
+            FormCell {
+                params: "?tainted string $x",
+                form: "tainted string $y = \"\"; if ($x is string) { $y = $x; } SINK",
+                sink: "Sink::plain($y);",
+                code: plain,
+            },
+        ],
+        P::Conversion => [
+            FormCell {
+                params: "secret string $x",
+                form: "int $n = Core\\Secret::reveal($x, \"reason\") as int; \
+                       secret string $y = $x as string; SINK",
+                sink: "echo $y;",
+                code: out,
+            },
+            FormCell {
+                params: "tainted string $x",
+                form: "tainted string $y = $x as string; SINK",
+                sink: "Sink::plain($y);",
+                code: plain,
+            },
+        ],
+        P::Widening => [
+            FormCell {
+                params: "secret string $x",
+                form: "secret mixed $m = $x; SINK",
+                sink: "echo $m;",
+                code: out,
+            },
+            FormCell {
+                params: "tainted string $x",
+                form: "mixed $m = $x; SINK",
+                sink: "Sink::plain($m as string);",
+                code: plain,
+            },
+        ],
+        P::UntypedCall => [
+            FormCell {
+                params: "secret string $x",
+                form: "callable(secret string): void $f = \
+                       fn(secret string $s): void => { SINK }; $f($x);",
+                sink: "echo $s;",
+                code: out,
+            },
+            FormCell {
+                params: "tainted string $x",
+                form: "callable(tainted string): void $f = \
+                       fn(tainted string $s): void => { SINK }; $f($x);",
+                sink: "Sink::plain($s);",
+                code: plain,
+            },
+        ],
+        P::ErasedWrite => [
+            FormCell {
+                params: "object $o, secret string $x",
+                form: "if ($o is Holder) { $o->token = $x; SINK }",
+                sink: "echo $o->token;",
+                code: out,
+            },
+            FormCell {
+                params: "object $o, tainted string $x",
+                form: "if ($o is Holder) { $o->name = $x; SINK }",
+                sink: "Sink::plain($o->name);",
+                code: plain,
+            },
+        ],
+        P::ErasedRead => [
+            FormCell {
+                params: "Holder $h",
+                form: "secret string $t = $h->token; SINK",
+                sink: "echo $t;",
+                code: out,
+            },
+            FormCell {
+                params: "mixed $m",
+                form: "if ($m is Holder) { tainted string $n = $m->name; SINK }",
+                sink: "Sink::plain($n);",
+                code: plain,
+            },
+        ],
+        P::Key => [
+            FormCell {
+                params: "secret string $x",
+                form: "array<secret string> $a = []; $a[\"k\"] = $x; SINK",
+                sink: "echo $a[\"k\"];",
+                code: out,
+            },
+            FormCell {
+                params: "tainted string $x",
+                form: "array<tainted string> $a = []; $a[$x] = \"v\"; SINK",
+                sink: "Sink::plain($a[$x]);",
+                code: plain,
+            },
+        ],
+        // The help names the launderer, so the sink is the member over the
+        // values that were not laundered.
+        P::KeyMakingMember => [
+            FormCell {
+                params: "array<secret string> $xs",
+                form: "array<string> $plain = Core\\Arr::map($xs, \
+                       fn(secret string $s): string => Core\\Secret::reveal($s, \"reason\")); \
+                       array<uint> $c = Core\\Arr::countBy($plain); SINK",
+                sink: "array<uint> $d = Core\\Arr::countBy($xs);",
+                code: code::E_SECRET_ARRAY_KEY,
+            },
+            FormCell {
+                params: "array<tainted string> $xs",
+                form: "array<string> $plain = Core\\Arr::map($xs, \
+                       fn(tainted string $s): string => Core\\Taint::assertTrusted($s, \"reason\")); \
+                       array<uint> $c = Core\\Arr::countBy($plain); SINK",
+                sink: "array<uint> $d = Core\\Arr::countBy($xs);",
+                code: plain,
+            },
+        ],
+        P::Reflection => [
+            FormCell {
+                params: "Holder $h, secret string $x",
+                form: "$h->token = $x; SINK",
+                sink: "echo $h->token;",
+                code: out,
+            },
+            FormCell {
+                params: "tainted string $x",
+                form: "string $name = Core\\Taint::assertTrusted($x, \"reason\"); \
+                       Core\\Reflect::forClass($name); SINK",
+                sink: "Core\\Reflect::forClass($x);",
+                code: plain,
+            },
+        ],
+        P::GenericInstantiation => [
+            FormCell {
+                params: "array<secret string> $xs",
+                form: "secret string $f = Core\\Arr::first($xs) ?? \"\"; SINK",
+                sink: "echo $f;",
+                code: out,
+            },
+            FormCell {
+                params: "array<tainted string> $xs",
+                form: "tainted string $f = Core\\Arr::first($xs) ?? \"\"; SINK",
+                sink: "Sink::plain($f);",
+                code: plain,
+            },
+        ],
+    }
+}
+
+/// A program with the matrix's `Sink` and `Holder` and one method over
+/// `params` whose body is `body`.
+fn form_program(params: &str, body: &str) -> String {
+    format!(
+        "<?nvs\n\
+         class Sink {{\n\
+         \x20 public static function plain(string $s): void {{ echo $s, \"\\n\"; }}\n\
+         }}\n\
+         class Holder {{\n\
+         \x20 public secret string $token = \"\";\n\
+         \x20 public tainted string $name = \"\";\n\
+         }}\n\
+         class Cell {{\n\
+         \x20 public static function run({params}): void {{\n\
+         \x20   {body}\n\
+         \x20 }}\n\
+         }}\n"
+    )
+}
+
+#[test]
+fn the_form_each_refusal_names_compiles_at_every_erasing_position() {
+    for position in ErasingPosition::ALL {
+        for cell in form_cells(position) {
+            let name = position.name();
+            let src = form_program(cell.params, &cell.form.replace("SINK", ""));
+            let diags = check_src(&src);
+            assert!(
+                !diags.has_errors(),
+                "{name}: the form the help names does not compile:\n{src}\n{diags:?}"
+            );
+            let src = form_program(cell.params, &cell.form.replace("SINK", cell.sink));
+            let diags = check_src(&src);
+            assert!(
+                diags.iter().any(|d| d.code == Some(cell.code)),
+                "{name}: the sink after the form took the value, so the form lost the \
+                 qualifier:\n{src}\n{diags:?}"
+            );
+        }
+    }
+}
+
+/// The help of a call through a bare `callable` names a parameter of the
+/// argument's own type, so the form it names takes the value.
+#[test]
+fn a_bare_callable_refusal_names_a_parameter_of_the_arguments_type() {
+    for qualified in ["secret string", "tainted string"] {
+        let src = form_program(&format!("callable $f, {qualified} $x"), "$f($x);");
+        let diags = check_src(&src);
+        let help = format!("`callable({qualified}): void`");
+        assert!(
+            diags.iter().any(|d| {
+                d.code == Some(code::E_QUALIFIED_VALUE_WITHOUT_PARAMETER_TYPE)
+                    && d.notes.iter().any(|h| h.contains(&help))
+            }),
+            "the help does not name {help}:\n{src}\n{diags:?}"
+        );
     }
 }

@@ -101,8 +101,13 @@ use nvs_stdlib::registry::Qual;
 /// the lib test `every_position_that_erases_a_type_has_its_soundness_cells`
 /// fails on a variant with a missing cell. So a new position is a new variant,
 /// and the matrix asks for its cells.
+///
+/// `pub` because the integration test
+/// `the_form_each_refusal_names_compiles_at_every_erasing_position`
+/// (`tests/qualifiers_hold.rs`) matches every variant, so a new position
+/// fails to compile there until its typed form is written.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum ErasingPosition {
+pub enum ErasingPosition {
     /// `$x is T` narrows to `T` with the subject's qualifiers put back
     /// ([`super::type_test::keep_subject_qualifiers`]).
     TypeTest,
@@ -135,17 +140,12 @@ pub(crate) enum ErasingPosition {
     /// `Core\Arr::first` over `array<secret string>`. The substitution keeps
     /// the argument's type whole, so the qualifier reaches the result, and no
     /// check of its own runs there. The matrix's cells are its proof.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "no check runs here; the matrix names it")
-    )]
     GenericInstantiation,
 }
 
-#[cfg(test)]
 impl ErasingPosition {
     /// Every position, in the order the matrix writes them.
-    pub(crate) const ALL: [Self; 10] = [
+    pub const ALL: [Self; 10] = [
         Self::TypeTest,
         Self::Conversion,
         Self::Widening,
@@ -159,7 +159,8 @@ impl ErasingPosition {
     ];
 
     /// The name `bun nv soundness` writes in the cell's file name and comment.
-    pub(crate) const fn name(self) -> &'static str {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
         match self {
             Self::TypeTest => "type-test",
             Self::Conversion => "conversion",
@@ -1438,31 +1439,40 @@ pub(crate) fn reject_qualified_untyped_value(
     } else {
         return false;
     };
+    // The typed form the help names takes the value's own type, so a `secret`
+    // argument is shown a parameter that takes `secret`.
+    let typed = env.interner.describe(ty);
     let (place, help) = match target {
         UntypedTarget::Callable => (
             "to a `callable` with no parameter types",
-            "Write the parameter types on the `callable`, such as \
-             `callable(tainted string): void`. Or check the value before you pass it.",
+            format!(
+                "Write the parameter types on the `callable`, such as \
+                 `callable({typed}): void`. Or check the value before you pass it."
+            ),
         ),
         UntypedTarget::ErasedReceiver => (
             "to a method of a `mixed` value",
             "The method is known only when the program runs, so its parameter types are not \
-             known. Test the receiver with `$x is ClassName` first.",
+             known. Test the receiver with `$x is ClassName` first."
+                .to_owned(),
         ),
         UntypedTarget::Spread => (
             "with `...` to a `callable` whose parameters do not take it",
-            "Write parameter types that take the value, such as \
-             `callable(tainted string): void`. Or check each element before you pass it.",
+            "Write parameter types that take each element. Or check each element before you \
+             pass it."
+                .to_owned(),
         ),
         UntypedTarget::ErasedWrite => (
             "to a property of a value whose class is not known",
             "The property type is known only when the program runs. Test the receiver with \
-             `$x is ClassName` first.",
+             `$x is ClassName` first."
+                .to_owned(),
         ),
         UntypedTarget::Dispatched => (
             "to a method or property that `Core\\Reflect` picks by name",
             "The parameter type is known only when the program runs. Call the method or \
-             write the property directly, or check the value before you pass it.",
+             write the property directly, or check the value before you pass it."
+                .to_owned(),
         ),
     };
     let label = if what == "`mixed`" {
