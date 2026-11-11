@@ -2512,8 +2512,8 @@ fn a_changed_temp_root_applies_to_the_next_temporary_directory() {
 }
 
 /// The waits are read when a connection is accepted. After a reload shortens
-/// `[server] header_timeout`, a new connection that sends nothing is closed
-/// within the new wait. A connection accepted before the reload keeps the
+/// `[server] header_timeout`, a new connection that begins a head and stops is
+/// closed within the new wait. A connection accepted before the reload keeps the
 /// wait it started with, so a head it began before the reload and finishes
 /// slowly is still answered.
 #[test]
@@ -2535,12 +2535,16 @@ fn a_changed_server_timeout_applies_to_the_next_connection() {
     after
         .set_read_timeout(Some(BOUND))
         .expect("a read timeout can be set");
+    // `header_timeout` starts at a request's first byte. A connection that
+    // sends nothing waits `keepalive_timeout` instead, so this one begins a
+    // head and never finishes it.
+    write!(after, "GET / HTTP/1.1\r\n").expect("the first line is written");
     let started = Instant::now();
     let _ = after.read_to_end(&mut Vec::new());
     let held = started.elapsed();
     assert!(
         held < Duration::from_secs(20),
-        "a connection accepted after the reload was held {held:?} with no head; the server \
+        "a connection accepted after the reload was held {held:?} with an unfinished head; the server \
          wrote: {}",
         server.said()
     );
