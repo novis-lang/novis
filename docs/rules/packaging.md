@@ -1254,16 +1254,22 @@ compiles any other source, and runs none of it.
 
 <a id="packaging-a-package-cannot-reach-its-host"></a>
 
-## A package ships no `nvs.toml`, and none of its `require` or `autoload` paths reaches outside its own directory
+## A package ships no `nvs.toml` and no second `package.toml`, and none of its `require` or `autoload` paths reaches outside its own directory
 
 `rule:packaging/a-package-cannot-reach-its-host`
 
-Two things a package may not do to the tree it lands in.
+Three things a package may not do to the tree it lands in.
 
 **A package may not contain an `nvs.toml`.** Server configuration is root-owned and
 deployment-scoped ([`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest)); a package that shipped one
 would be asking to configure the host it lands on. Fetching an archive containing one is an error
 naming the file, and the registry refuses such an archive at publish.
+
+**A package carries one `package.toml`, its own, at its root.** A second one anywhere below the root,
+in any case of letters, is refused like an `nvs.toml`. The compiler finds a file's package by the
+`package.toml` above it ([`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix)), so a
+second manifest inside a package would hand part of the package's tree to another name, or to none.
+A package that keeps a second manifest as data renames the file.
 
 **A package's files are reachable only from within the package.** A `require` or an `autoload` path
 inside a package that escapes the package's own directory — through `..`, an absolute path or a
@@ -1274,10 +1280,12 @@ same canonicalise-and-prefix-check `spawn script` performs against its granted r
 The path half is `E0661`: each `require` edge and each existing `autoload` root written in a package
 file is canonicalized and must lie under the package's directory (`crates/nvs-types/src/package.rs`).
 
-`nvs pkg pack` refuses a file named `nvs.toml`, in any case, anywhere in the archive, and
-`nvs pkg fetch` refuses an archive that holds one before the package's folder is replaced. Both call
-one check, `pack::check_not_server_config` (`crates/nvs-cli/src/package/pack.rs`), so an archive from
-a mirror or a private registry is held to what the registry's build refuses. The refused fetch
+`nvs pkg pack` refuses a file named `nvs.toml`, in any case, anywhere in the archive, and every
+`package.toml` but the root one. `nvs pkg fetch` refuses an archive that holds one before the
+package's folder is replaced, and a `[[download]]` entry may not be placed at such a path. All of them
+and the registry's build call one check, `pack::check_reserved_file`
+(`crates/nvs-cli/src/package/pack.rs`), so an archive from a mirror or a private registry is held to
+what the registry's build refuses. The refused fetch
 removes the files it unpacked and writes no lock (`crates/nvs-cli/tests/package_fetch.rs`).
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix).</sub>
@@ -1949,7 +1957,8 @@ at the package root, and exactly the files `package.toml`'s `files` list names, 
 - **`files`** is a list of exact paths relative to the package root: no glob, no directory. Each must
   be a regular file at the commit, or the pack fails naming it. A path ending in `.nvs`, and a path the
   default set already carries, is refused, so every line of code arrives through the autoload root,
-  where [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix) checks it. A `.nvsx` component,
+  where [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix) checks it. A `package.toml` below the
+  root and an `nvs.toml` anywhere are refused too ([`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host)). A `.nvsx` component,
   a font, a template or a data table is listed here.
 - **The limits:** the files' sizes add up to at most **16 MiB**, and the archive holds at most
   **5,000** files. Both are constants of the archive format, shared by `nvs pkg pack`, the registry's

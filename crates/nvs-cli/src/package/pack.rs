@@ -5,8 +5,8 @@
 //! allowlist, read by [`file_set`]: every `.nvs` file under `src/`, `package.toml`, the license and
 //! readme files at the root, and the `[package] files` list. Nothing else is read, so a new file in
 //! the directory stays out until somebody lists it. A symlink anywhere the set is read from is
-//! refused rather than followed or skipped, and so is an `nvs.toml`
-//! (`rule:packaging/a-package-cannot-reach-its-host`).
+//! refused rather than followed or skipped, and so is an `nvs.toml` and a `package.toml` below the
+//! root ([`check_reserved_file`], `rule:packaging/a-package-cannot-reach-its-host`).
 //!
 //! **An extension package** is one whose `files` list names a `.nvsx`, and a set with two is
 //! refused. [`check_component`] loads the one file with the loader boot uses and checks that its
@@ -59,6 +59,9 @@ const SRC: &str = "src";
 
 /// The configuration file a package may never carry.
 const SERVER_CONFIG: &str = "nvs.toml";
+
+/// The manifest's file name, which a package carries once, at its root.
+const MANIFEST: &str = nvs_config::grants::FILE;
 
 /// Names Windows reserves for devices, with any extension.
 const RESERVED_NAMES: [&str; 22] = [
@@ -479,13 +482,15 @@ pub(crate) fn check_path(path: &str) -> Result<(), Refusal> {
     Ok(())
 }
 
-/// Whether `path`'s last part is not `nvs.toml` in any case, in any folder: the one check `pack`
-/// and the fetch's unpack both make (`rule:packaging/a-package-cannot-reach-its-host`).
+/// Whether `path` is a file name a package may carry: its last part is not `nvs.toml` in any
+/// case, in any folder, and not `package.toml` in any case unless the whole path is exactly
+/// `package.toml`. `pack`, the fetch's unpack, the registry's build and a download's form all
+/// make this one check (`rule:packaging/a-package-cannot-reach-its-host`).
 ///
 /// # Errors
 ///
-/// The sentence naming the path, when it is a server configuration file.
-pub(crate) fn check_not_server_config(path: &str) -> Result<(), Refusal> {
+/// The sentence naming the path, when it is a server configuration file or a second manifest.
+pub(crate) fn check_reserved_file(path: &str) -> Result<(), Refusal> {
     let file = path.rsplit('/').next().unwrap_or(path);
     if file.eq_ignore_ascii_case(SERVER_CONFIG) {
         return Err(refuse(format!(
@@ -493,16 +498,22 @@ pub(crate) fn check_not_server_config(path: &str) -> Result<(), Refusal> {
              person who runs the server configures it."
         )));
     }
+    if file.eq_ignore_ascii_case(MANIFEST) && path != MANIFEST {
+        return Err(refuse(format!(
+            "`{path}` is a second `{MANIFEST}`. A package has one `{MANIFEST}`, in its top \
+             folder. Delete the file or give it another name."
+        )));
+    }
     Ok(())
 }
 
-/// `entries` sorted by path bytes, each path checked, with no case-only twins, no `nvs.toml`,
-/// and within both limits.
+/// `entries` sorted by path bytes, each path checked, with no case-only twins, no `nvs.toml`, no
+/// `package.toml` below the root, and within both limits.
 fn check_set(entries: &mut [Entry]) -> Result<(), Refusal> {
     entries.sort_by(|a, b| a.path.as_bytes().cmp(b.path.as_bytes()));
     for entry in entries.iter() {
         check_path(&entry.path)?;
-        check_not_server_config(&entry.path)?;
+        check_reserved_file(&entry.path)?;
     }
     let mut folded: Vec<(String, &str)> = entries
         .iter()
@@ -701,6 +712,32 @@ mod tests {
             "folder./a.txt",
         ] {
             assert!(check_path(path).is_err(), "accepted {path:?}");
+        }
+    }
+
+    /// The root `package.toml` passes, and every other `package.toml` and every `nvs.toml` is
+    /// refused, in any case of letters and in any folder.
+    #[test]
+    fn only_the_root_package_toml_is_carried() {
+        assert_eq!(check_reserved_file("package.toml"), Ok(()));
+        assert_eq!(check_reserved_file("data/package.json"), Ok(()));
+        for path in [
+            "src/Inner/package.toml",
+            "Package.toml",
+            "data/PACKAGE.TOML",
+        ] {
+            let refusal = check_reserved_file(path).expect_err(path);
+            assert!(
+                refusal.0.contains("is a second `package.toml`"),
+                "{path}: {refusal}"
+            );
+        }
+        for path in ["nvs.toml", "config/Nvs.Toml"] {
+            let refusal = check_reserved_file(path).expect_err(path);
+            assert!(
+                refusal.0.contains("is a server configuration file"),
+                "{path}: {refusal}"
+            );
         }
     }
 

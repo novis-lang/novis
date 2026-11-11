@@ -1,5 +1,5 @@
 {
-  "title": "A package ships no `nvs.toml`, and none of its `require` or `autoload` paths reaches outside its own directory",
+  "title": "A package ships no `nvs.toml` and no second `package.toml`, and none of its `require` or `autoload` paths reaches outside its own directory",
   "status": "shipped",
   "seeAlso": [
     "packaging/a-package-is-its-digest",

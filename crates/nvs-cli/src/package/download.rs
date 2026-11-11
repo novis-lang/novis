@@ -3,7 +3,8 @@
 //!
 //! **The form is checked wherever an entry is read** ([`check_form`]): HTTPS URLs, a hash of 64
 //! lowercase hex digits, a size above zero, a `license` that is an SPDX identifier when present,
-//! and a path the archive's path rules accept that does not end in `.nvs` and is not under `src/`.
+//! and a path the archive's path rules accept that is no `nvs.toml` and no second `package.toml`,
+//! does not end in `.nvs` and is not under `src/`.
 //! [`pack::file_set`] adds the last rule, a path the archive does not carry, so `nvs pkg pack`,
 //! the registry's build and a git dependency's pack refuse the same entries.
 //!
@@ -113,9 +114,11 @@ pub(crate) fn check_form(downloads: &[Download]) -> Result<(), String> {
 }
 
 /// The path rules of one entry's `path`: a path [`pack::check_path`] accepts, which is the path
-/// of one file inside the package, that does not end in `.nvs` and is not under `src/`.
+/// of one file inside the package, that [`pack::check_reserved_file`] accepts, so it is no
+/// `nvs.toml` and no second `package.toml`, that does not end in `.nvs` and is not under `src/`.
 fn check_path(path: &str) -> Result<(), String> {
     pack::check_path(path).map_err(|refusal| refusal.to_string())?;
+    pack::check_reserved_file(path).map_err(|refusal| refusal.to_string())?;
     if path.to_lowercase().ends_with(".nvs") {
         return Err(format!(
             "the download path `{path}` ends in `.nvs`. Code goes under `src/`, in the archive."
@@ -686,6 +689,18 @@ mod tests {
         }
         let twice = check_form(&[good.clone(), good]).expect_err("a path twice");
         assert!(twice.contains("twice"), "{twice}");
+    }
+
+    /// A download may not be placed as an `nvs.toml` or as a second `package.toml`.
+    #[test]
+    fn a_download_is_never_a_configuration_file() {
+        for (path, said) in [
+            ("nvs.toml", "is a server configuration file"),
+            ("data/package.toml", "is a second `package.toml`"),
+        ] {
+            let why = check_form(&[entry(path, b"toml")]).expect_err(path);
+            assert!(why.contains(said), "{path}: {why}");
+        }
     }
 
     /// A file of the right size and hash is kept in the cache, one past the size is stopped, and

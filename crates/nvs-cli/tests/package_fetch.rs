@@ -13,7 +13,8 @@
 //! literal with an empty grant line, and a write, a `..` out of its set, an unlisted file, another
 //! package's file and a link out of its folder are `E0658`.
 //!
-//! An archive that carries an `nvs.toml` is refused and leaves nothing behind
+//! An archive that carries an `nvs.toml` or a second `package.toml` is refused and leaves
+//! nothing behind
 //! (`rule:packaging/a-package-cannot-reach-its-host`). An extension package is fetched like any
 //! other, its `[[extension]]` entry is printed once, and a program calls it once that entry is in
 //! `nvs.toml` (`rule:packaging/extension-loading-is-root-controlled`).
@@ -408,6 +409,12 @@ fn nothing_a_package_holds_runs_during_fetch_or_vendor() {
     }
 }
 
+/// The words a fetch prints after the name of a server configuration file it refuses.
+const SERVER_CONFIG_SAID: &str = "is a server configuration file";
+
+/// The words a fetch prints after the name of a second `package.toml` it refuses.
+const SECOND_MANIFEST_SAID: &str = "is a second `package.toml`";
+
 /// The files of a package `Acme\Http` that also carries `config` at that path. The server
 /// configuration file is last, so every other file is unpacked before the fetch reaches it.
 fn with_config(config: &str) -> [(&str, &str); 4] {
@@ -422,9 +429,9 @@ fn with_config(config: &str) -> [(&str, &str); 4] {
     ]
 }
 
-/// A fetch that refuses an archive with a server configuration file at `config`, and leaves
-/// no folder, no lock and no autoload file behind.
-fn assert_refused(tree: &Tree, config: &str) {
+/// A fetch that refuses an archive with the reserved file `config`, prints `said` after the
+/// file's name, and leaves no folder, no lock and no autoload file behind.
+fn assert_refused(tree: &Tree, config: &str, said: &str) {
     let out = tree.nvs(&["pkg", "fetch"]);
     assert!(
         !out.status.success(),
@@ -432,7 +439,7 @@ fn assert_refused(tree: &Tree, config: &str) {
         shown(&out)
     );
     assert!(
-        shown(&out).contains(&format!("`{config}` is a server configuration file")),
+        shown(&out).contains(&format!("`{config}` {said}")),
         "{config}: {}",
         shown(&out)
     );
@@ -452,7 +459,7 @@ fn assert_refused(tree: &Tree, config: &str) {
 fn a_fetched_archive_that_carries_an_nvs_toml_is_refused_and_writes_nothing() {
     let tree = Tree::new("package-fetch-nvs-toml", HTTP);
     tree.publish_archive("Acme\\Http", &with_config("nvs.toml"));
-    assert_refused(&tree, "nvs.toml");
+    assert_refused(&tree, "nvs.toml", SERVER_CONFIG_SAID);
 }
 
 // covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor
@@ -464,7 +471,24 @@ fn an_nvs_toml_in_any_case_and_any_folder_is_refused_at_fetch() {
     {
         let tree = Tree::new(&format!("package-fetch-nvs-toml-{n}"), HTTP);
         tree.publish_archive("Acme\\Http", &with_config(config));
-        assert_refused(&tree, config);
+        assert_refused(&tree, config, SERVER_CONFIG_SAID);
+    }
+}
+
+// covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor
+#[test]
+fn a_fetched_archive_that_carries_a_second_package_toml_is_refused_and_writes_nothing() {
+    for (n, manifest) in [
+        "src/Inner/package.toml",
+        "data/Package.TOML",
+        "PACKAGE.toml",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let tree = Tree::new(&format!("package-fetch-second-manifest-{n}"), HTTP);
+        tree.publish_archive("Acme\\Http", &with_config(manifest));
+        assert_refused(&tree, manifest, SECOND_MANIFEST_SAID);
     }
 }
 

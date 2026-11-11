@@ -306,6 +306,20 @@ fn a_listed_nvs_toml_is_refused() {
     );
 }
 
+#[test]
+fn a_listed_second_package_toml_is_refused() {
+    pack_refuses(
+        "package-client-second-manifest",
+        &pack_manifest("\"src/Inner/package.toml\""),
+        |dir| {
+            std::fs::create_dir_all(dir.join("src/Inner")).expect("the test makes its directories");
+            std::fs::write(dir.join("src/Inner/package.toml"), "")
+                .expect("the test writes the file");
+        },
+        "`src/Inner/package.toml` is a second `package.toml`.",
+    );
+}
+
 /// A path rule is checked before the file is looked for, so a name Windows cannot create is
 /// refused on every system.
 #[test]

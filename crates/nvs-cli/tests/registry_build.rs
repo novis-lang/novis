@@ -946,6 +946,28 @@ fn a_class_outside_the_package_namespace_is_refused() {
     );
 }
 
+/// A commit whose `files` lists a second `package.toml` is refused.
+#[test]
+fn a_commit_that_carries_a_second_package_toml_is_refused() {
+    let case = Case::new("registry-build-second-manifest");
+    case.package("", "1.0.0", false);
+    let toml = manifest("1.0.0").replace(
+        "\n\n[capabilities]",
+        "\nfiles = [\"src/Inner/package.toml\"]\n\n[capabilities]",
+    );
+    case.write("package.toml", toml.as_bytes());
+    case.write("src/Inner/package.toml", b"");
+    let commit = case.commit("second manifest");
+    let host = Host::start(&case);
+
+    let (out, json) = case.build(&host, &commit, &[]);
+    refused(
+        &out,
+        &json,
+        "`src/Inner/package.toml` is a second `package.toml`",
+    );
+}
+
 /// An extension package whose source calls the class its component carries builds: the API
 /// compile is typed against the package's one `.nvsx`.
 #[test]

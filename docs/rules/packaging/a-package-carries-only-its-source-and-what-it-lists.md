@@ -7,7 +7,8 @@ at the package root, and exactly the files `package.toml`'s `files` list names, 
 - **`files`** is a list of exact paths relative to the package root: no glob, no directory. Each must
   be a regular file at the commit, or the pack fails naming it. A path ending in `.nvs`, and a path the
   default set already carries, is refused, so every line of code arrives through the autoload root,
-  where `rule:packaging/a-package-file-stays-under-its-declared-prefix` checks it. A `.nvsx` component,
+  where `rule:packaging/a-package-file-stays-under-its-declared-prefix` checks it. A `package.toml` below the
+  root and an `nvs.toml` anywhere are refused too (`rule:packaging/a-package-cannot-reach-its-host`). A `.nvsx` component,
   a font, a template or a data table is listed here.
 - **The limits:** the files' sizes add up to at most **16 MiB**, and the archive holds at most
   **5,000** files. Both are constants of the archive format, shared by `nvs pkg pack`, the registry's

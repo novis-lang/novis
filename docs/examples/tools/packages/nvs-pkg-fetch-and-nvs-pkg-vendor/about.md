@@ -17,7 +17,8 @@ A package may contain an extension. The fetch prints the `[[extension]]` entry t
 you add it to `nvs.toml`.
 
 **Good to know:** a package may read the files it came with, even when its grant line is empty. A
-package that contains an `nvs.toml` file stops the fetch with an error.
+package that contains an `nvs.toml` file stops the fetch with an error. A package that contains a
+second `package.toml` below its top folder also stops the fetch with an error.
 
 **The examples below** show one `require` line, a shared version, a package reading its own file,
 and an extension.

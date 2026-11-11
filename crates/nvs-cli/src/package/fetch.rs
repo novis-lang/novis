@@ -14,8 +14,8 @@
 //! Every entry of the archive is a regular file at a path [`pack::check_path`] accepts, so no
 //! part of it is empty, `.` or `..`, within
 //! [`pack::MAX_FILES`] and [`pack::MAX_BYTES`], so a hostile archive writes nothing outside its
-//! folder, and none is an `nvs.toml` ([`pack::check_not_server_config`],
-//! `rule:packaging/a-package-cannot-reach-its-host`). The folder is written beside its place and renamed into it, so a failed fetch leaves
+//! folder, and none is an `nvs.toml` or a `package.toml` below the root
+//! ([`pack::check_reserved_file`], `rule:packaging/a-package-cannot-reach-its-host`). The folder is written beside its place and renamed into it, so a failed fetch leaves
 //! the old folder whole. `fetch` keeps a folder whose files already pack to the locked digest, so
 //! a second fetch reads no archive. `vendor` writes every folder again from its archive, for a
 //! tree a person changed by hand. A folder
@@ -498,8 +498,9 @@ fn holds(dir: &Path, digest: &blake3::Hash) -> bool {
 /// # Errors
 ///
 /// An entry that is not a regular file, a path [`pack::check_path`] refuses, such as one with
-/// an empty, `.` or `..` part, an `nvs.toml` ([`pack::check_not_server_config`]), an archive over [`pack::MAX_FILES`]
-/// or [`pack::MAX_BYTES`], and a failed write.
+/// an empty, `.` or `..` part, an `nvs.toml` or a `package.toml` below the root
+/// ([`pack::check_reserved_file`]), an archive over [`pack::MAX_FILES`] or [`pack::MAX_BYTES`],
+/// and a failed write.
 pub(crate) fn unpack(archive: &[u8], dir: &Path) -> Result<(), Fault> {
     let mut partial = dir.as_os_str().to_owned();
     partial.push(".partial");
@@ -536,7 +537,7 @@ fn unpack_into(archive: &[u8], into: &Path) -> Result<(), Fault> {
             return Err(bad(format!("`{path}` is not a regular file")));
         }
         pack::check_path(&path).map_err(|refusal| bad(refusal.to_string()))?;
-        pack::check_not_server_config(&path).map_err(|refusal| bad(refusal.to_string()))?;
+        pack::check_reserved_file(&path).map_err(|refusal| bad(refusal.to_string()))?;
         let size = entry.size();
         files += 1;
         bytes += size;
