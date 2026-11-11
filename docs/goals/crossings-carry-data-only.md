@@ -464,27 +464,27 @@ site test would fail on, and stages 7 and 8 both change `topic.rs` and `bus.rs`.
 **Does:** make one function answer whether a class may cross, and call it from the decoder before
 any object is made.
 
-- [ ] `ClassDesc` gains one flag for a compiler-made class: a `$` in the name and not a shape. It is
+- [x] `ClassDesc` gains one flag for a compiler-made class: a `$` in the name and not a shape. It is
   set when the class is defined (`rule:classes/graph-copy`, `crates/nvs-runtime/src/object.rs:1452`,
   `crates/nvs-runtime/src/object.rs:2108`).
-- [ ] `refusable` becomes the one function. It also refuses a compiler-made class and a class with a
+- [x] `refusable` becomes the one function. It also refuses a compiler-made class and a class with a
   `secret` property, naming the property. The walk's own `secret` loop goes
   (`rule:classes/graph-copy`, `crates/nvs-runtime/src/graph.rs:444`,
   `crates/nvs-runtime/src/graph.rs:373`).
-- [ ] `Reader::object` calls it after the resolve and before the property comparison
+- [x] `Reader::object` calls it after the resolve and before the property comparison
   (`rule:classes/serialize-is-a-closed-format`, `crates/nvs-runtime/src/graph.rs:1067`,
   `crates/nvs-runtime/src/graph.rs:1079`).
-- [ ] Test `decode_refuses_every_class_encode_refuses` in `graph.rs` tests. One table holds a class of
+- [x] Test `decode_refuses_every_class_encode_refuses` in `graph.rs` tests. One table holds a class of
   each refused kind and one plain class. For each, `encode` of an instance and `decode` of a payload
   naming it give the same sentence, and `decode` builds no object
   (`crates/nvs-runtime/src/graph.rs:1247`).
-- [ ] Test `a_refused_class_is_refused_before_its_properties_are_compared`: a payload naming a
+- [x] Test `a_refused_class_is_refused_before_its_properties_are_compared`: a payload naming a
   host-handle class with a wrong property count gets the class refusal
   (`crates/nvs-runtime/src/graph.rs:1247`).
-- [ ] Test `a_class_the_compiler_made_does_not_cross_and_a_shape_does`: a `$gen`, a `$fn0` and a `$fcc0`
+- [x] Test `a_class_the_compiler_made_does_not_cross_and_a_shape_does`: a `$gen`, a `$fn0` and a `$fcc0`
   name are refused by both carriers, and a `$shape{n}` instance round-trips
   (`crates/nvs-runtime/src/graph.rs:1247`).
-- [ ] Test `every_core_class_that_holds_a_host_handle_is_refused_by_decode` in `instance.rs` tests. It
+- [x] Test `every_core_class_that_holds_a_host_handle_is_refused_by_decode` in `instance.rs` tests. It
   walks the process's `Core` descriptors, not a list in the test. For each one the function refuses,
   a payload with the class's own slot names is refused with that sentence
   (`crates/nvs-stdlib/src/instance.rs:544`, `crates/nvs-stdlib/src/instance.rs:143`).
@@ -496,13 +496,13 @@ any object is made.
   class with a wrong-kind slot, a host-handle class with a chosen key, and a callable's class. Every
   step should throw (`rule:testing/feature-proofs`,
   `tests/hostile/core/Serialize/decode/02-bytes-that-name-a-class-encode-refuses.nvs:1`).
-- [ ] The fuzz check's class table gains a class of each refused kind, and it fails when `decode`
+- [x] The fuzz check's class table gains a class of each refused kind, and it fails when `decode`
   returns an object of one (`crates/nvs-fuzz-checks/src/serialize.rs:1`).
-- [ ] `rule:classes/serialize-is-a-closed-format` says `decode` refuses every class `encode` refuses,
+- [x] `rule:classes/serialize-is-a-closed-format` says `decode` refuses every class `encode` refuses,
   before any object is made, with the cost line. `rule:classes/graph-copy` lists the five refusals
   and says one function is called by the walk and by the decoder
   (`docs/rules/classes/serialize-is-a-closed-format.md:1`, `docs/rules/classes/graph-copy.md:7`).
-- [ ] The `decode` card's `ParseError` row and the `decode` `about.md` say, in one plain sentence,
+- [x] The `decode` card's `ParseError` row and the `decode` `about.md` say, in one plain sentence,
   that bytes naming a generator, a function value or an open resource are not read
   (`crates/nvs-stdlib/src/serialize.rs:123`, `docs/examples/core/Serialize/decode/about.md:1`,
   `docs/reference/core/Serialize.md:1`).
@@ -886,59 +886,46 @@ memory cache uses.
 
 ### State
 
-Nothing is built yet. `Reader::object` builds any class the program can resolve by name,
-`Core\Topic::publish` copies with no receiving table, and the topic table is keyed by the bare name.
-`spawn script` refuses a `Core` value in `args:`. `ClassInfo::construct` builds any class its name
-resolves to. `new $c()` and `new static()` build an `abstract` class. `decode` builds a `Core`
-class with a value of any type in its slots, and no `Core` class states its slot types.
+Stage 1 is built except its `.nvst` case and its attack. `ClassDesc::is_compiler_made` is a `$` in the
+name and not `$shape{`, set in `ClassTable::push_class`. `refusable` in `graph.rs` refuses a
+callable's class, a generator's state class, a host-handle class, a compiler-made class and a class
+with a `secret` property (naming the first one). The walk's own `secret` loop is gone, and
+`Reader::object` asks `refusable` right after the class resolves, before the property comparison. The
+four acceptance tests of `decode-refuses-what-encode-refuses` pass when run by name. The fuzz table,
+both rule fragments, the `decode` card, its `about.md` and the reference page say so.
+
+The sweep's `env-secret-proofs` red is stale: the check was retired with `derive-wider-types` and no
+longer exists. Nightly run 43001191130 ran at f4c1d5c7e2. Its one red on all four runners,
+`live_config`'s `a_changed_server_timeout_applies_to_the_next_connection`, was fixed by 305c04f660, and
+it passes on this tree.
+
+Still true from the goal's start: `Core\Topic::publish` copies with no receiving table, and the topic
+table is keyed by the bare name. `spawn script` refuses a `Core` value in `args:`.
+`ClassInfo::construct` builds any class its name resolves to. `new $c()` and `new static()` build an
+`abstract` class. `decode` builds a `Core` class with a value of any type in its slots.
+
+No test is expected to go red. One to watch at the gate: a test that sends a `$`-named class other
+than a shape across `spawn`, the cache or `Core\Serialize` is now refused.
 
 ### Next
 
-Stage 1, decode refuses what encode refuses. Files: `crates/nvs-runtime/src/graph.rs`,
-`crates/nvs-runtime/src/object.rs`, `crates/nvs-stdlib/src/instance.rs`,
-`crates/nvs-stdlib/src/serialize.rs`, and the two rule fragments.
+Finish stage 1, then set its status to done and take stage 2.
 
-- [ ] `crates/nvs-runtime/src/object.rs:1452`: `ClassDesc` gains one flag for a compiler-made class.
-  It is a `$` in the name and not a shape, set when the class is defined
-  (`rule:classes/graph-copy`, `crates/nvs-runtime/src/object.rs:2108`).
-- [ ] `crates/nvs-runtime/src/graph.rs:444`: `refusable` becomes the one function. It also refuses a
-  compiler-made class and a class with a `secret` property, naming the property. The walk's own
-  `secret` loop goes (`rule:classes/graph-copy`, `crates/nvs-runtime/src/graph.rs:373`).
-- [ ] `crates/nvs-runtime/src/graph.rs:1067`: `Reader::object` calls it after the resolve and before
-  the property comparison (`rule:classes/serialize-is-a-closed-format`,
-  `crates/nvs-runtime/src/graph.rs:1079`).
-- [ ] `crates/nvs-runtime/src/graph.rs:1247`: test `decode_refuses_every_class_encode_refuses`. One
-  table holds a class of each refused kind and one plain class. For each, `encode` of an instance
-  and `decode` of a payload naming it give the same sentence, and `decode` builds no object.
-- [ ] `crates/nvs-runtime/src/graph.rs:1247`: test
-  `a_refused_class_is_refused_before_its_properties_are_compared`. A payload naming a host-handle
-  class with a wrong property count gets the class refusal.
-- [ ] `crates/nvs-runtime/src/graph.rs:1247`: test
-  `a_class_the_compiler_made_does_not_cross_and_a_shape_does`. A `$gen`, a `$fn0` and a `$fcc0` name
-  are refused by both carriers, and a `$shape{n}` instance round-trips.
-- [ ] `crates/nvs-stdlib/src/instance.rs:544`: test
-  `every_core_class_that_holds_a_host_handle_is_refused_by_decode`. It walks the process's `Core`
-  descriptors, not a list in the test. For each one the function refuses, a payload with the
-  class's own slot names is refused with that sentence (`crates/nvs-stdlib/src/instance.rs:143`).
-- [ ] `tests/conformance/core/serialize-decode-refuses-a-class-the-compiler-made.nvst:1`: a new case.
-  The program builds `bytes` that name its own generator's state class, its own closure's class and
-  `Core\IO\File`. Each `decode` throws a `ParseError`.
-- [ ] `tests/hostile/core/Serialize/decode/02-bytes-that-name-a-class-encode-refuses.nvs:1`: a new
-  attack. Its payloads name a generator's state class with a wrong-kind slot, a host-handle class
-  with a chosen key, and a callable's class. Every step should throw
-  (`rule:testing/feature-proofs`).
-- [ ] `crates/nvs-fuzz-checks/src/serialize.rs:1`: the fuzz check's class table gains a class of each
-  refused kind, and it fails when `decode` returns an object of one.
-- [ ] `docs/rules/classes/serialize-is-a-closed-format.md:1`: the rule says `decode` refuses every
-  class `encode` refuses, before any object is made, with the cost line. `rule:classes/graph-copy`
-  lists the five refusals and says one function is called by the walk and by the decoder
-  (`docs/rules/classes/graph-copy.md:7`).
-- [ ] `crates/nvs-stdlib/src/serialize.rs:123`: the `decode` card's `ParseError` row and the `decode`
-  `about.md` say, in one plain sentence, that bytes naming a generator, a function value or an open
-  resource are not read (`docs/examples/core/Serialize/decode/about.md:1`,
-  `docs/reference/core/Serialize.md:1`).
-
-No existing test is expected to go red in stage 1.
+- [ ] `tests/conformance/core/serialize-decode-refuses-a-class-the-compiler-made.nvst:1`: the program
+  builds `bytes` that name its own generator's state class (`{fn}$gen`), its own closure's class and
+  `Core\IO\File`, and each `decode` throws a `ParseError`. The format is `NVS\x1b`, version byte `1`,
+  node byte `9`, the class name as a LEB128 length and the bytes, the property count, each property
+  name the same way, then one node per property (`0` is `null`). `payload_naming` in the graph tests
+  writes exactly this (`crates/nvs-runtime/src/graph.rs:1293`). The plain way to get a closure's or a
+  generator's label is to read it from the `ParseError` of `encode` on one, or from
+  `nvs_ir::lower::generator` (`{name}$gen`). Write the bytes as `Core\Taint::assertTrustedBytes` over
+  a literal the case builds, as `decode`'s existing cases do.
+- [ ] `tests/hostile/core/Serialize/decode/02-bytes-that-name-a-class-encode-refuses.nvs:1`: payloads
+  naming a generator's state class with a wrong-kind slot, a host-handle class (`Core\IO\File`) with a
+  chosen key, and a callable's class. Every step should throw. Its comments follow AGENTS.md § *Text an
+  end user reads* (`// Attack:` top line), and `bun nv proofs --comments <path>` checks the bounds.
+- [ ] Then stage 2 from its first item (`crates/nvs-runtime/src/object.rs:1452` for the flags,
+  `crates/nvs-runtime/src/graph.rs:444` for the function that moves onto `ClassDesc`).
 
 ### Backlog
 
