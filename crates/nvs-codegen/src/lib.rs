@@ -1300,12 +1300,11 @@ impl Descriptors {
                 .hooks
                 .iter()
                 .filter_map(|(property, label, set)| {
-                    let (symbol, shape) = functions.get(label)?;
+                    let (symbol, _) = functions.get(label)?;
                     Some(nvs_runtime::HookRow {
                         property: property.clone(),
                         set: *set,
                         code: code.address_of(symbol)?,
-                        param_tags: shape.param_tags,
                     })
                 })
                 .collect();
@@ -2751,12 +2750,10 @@ impl UnitBuilder<JITModule> {
                 .iter()
                 .filter_map(|(property, label, set)| {
                     let id = self.functions.get(label)?;
-                    let shape = self.shapes.get(label).map_or(0, |shape| shape.param_tags);
                     Some(nvs_runtime::HookRow {
                         property: property.clone(),
                         set: *set,
                         code: self.module.get_finalized_function(*id),
-                        param_tags: shape,
                     })
                 })
                 .collect();

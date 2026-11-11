@@ -635,6 +635,10 @@ pub struct ParamChecks {
     /// The rest of each parameter's type, or `None` where the tag and the
     /// admitted classes already check all of it.
     pub checks: Vec<Option<SlotCheck>>,
+    /// Each parameter's declared type, recorded where the class layouts are
+    /// not at hand: an anonymous function's and a method reference's `invoke`.
+    /// The program walk turns it into the two lists above and empties it.
+    pub(crate) pending: Vec<Option<nvs_types::TypeId>>,
 }
 
 /// The classes the `try` blocks around one statement catch, under the debug

@@ -254,6 +254,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `NVS_BIN=<repo>/target/debug/nvs.exe bun nv soundness --probe`, with an absolute path, because a
   relative one is not found. See `tools/nv/cmd/soundness.ts`.
   `until: gone tools/nv/cmd/soundness.ts:covws`
+- **`bun nv try` runs the `covws` build too, so a case can pass or crash for an old binary.** A new
+  attack panicked on a hole the change on disk had already closed, and a subagent reported passes
+  from the same stale build. Run it as `NVS_BIN=target/debug/nvs.exe bun nv try <files>` after
+  `cargo build`. See `tools/nv/cmd/try.ts`. `until: gone tools/nv/cmd/try.ts:covwsNvs`
 - **`bun nv proofs --id` reads the roster from `target/release/nvs`, which no build of yours refreshes.**
   A `Core` member added since the last release build prints `no feature '…'`, which reads as a quoting
   mistake. Pass `--nvs target/debug/nvs.exe`, or run `bun nv proofs --record-perf --group '<class>'`,

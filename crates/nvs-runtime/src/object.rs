@@ -806,9 +806,13 @@ pub struct MethodRow {
     pub by_reference: bool,
 }
 
-/// One property hook's compiled address and the shape a caller holding only
-/// tagged values has to check the incoming value against — [`MethodRow`]'s
-/// twin for `rule:classes/property-hooks`' accessors.
+/// One property hook's compiled address, [`MethodRow`]'s twin for
+/// `rule:classes/property-hooks`' accessors.
+///
+/// It carries no parameter check. A `set` hook's parameter accepts the
+/// property's type or the hook does not compile, and every hooked property has
+/// a slot. So a write by name runs [`ClassDesc::check_slot`] before the hook,
+/// and a value that passed it is one the hook reads correctly.
 ///
 /// Its own row type rather than a [`MethodRow`] under a mangled name, because
 /// the two are looked up by different keys and answer different questions: a
@@ -818,7 +822,7 @@ pub struct MethodRow {
 /// lookup, and `nvs_types::signatures::hook_label`'s spelling is a compile-time
 /// fact this crate has no business re-reading.
 ///
-/// **Cost:** the string, the pointer and the two flags per hook per class,
+/// **Cost:** the string, the pointer and the flag per hook per class,
 /// once per process and not per instance — and nothing at all for a class
 /// declaring no hook, which is most of them.
 #[derive(Clone, Debug)]
@@ -834,16 +838,12 @@ pub struct HookRow {
     /// The compiled hook body's address — an ordinary Novis function taking
     /// the receiver in parameter slot 0, exactly as a method does
     /// (`nvs_ir::lower::lower_property_hook`).
-    pub code: *const u8,
-    /// Which runtime [`Tag`] the incoming value must have, in
-    /// [`MethodRow::param_tags`]' encoding verbatim — parameter 0 in the least
-    /// significant nibble, which for a `set` hook is the value being stored.
     ///
     /// No arity rides beside it, unlike a method's, because the language fixes
     /// one: `get` declares no parameter and `set` declares exactly the value
     /// (`rule:classes/property-hooks`), so a caller knows how many arguments it
     /// is passing before it reads the row.
-    pub param_tags: u64,
+    pub code: *const u8,
 }
 
 /// The name of the resume-to-unwind entry point on a generator's state class,
@@ -5992,6 +5992,18 @@ pub fn write_erased_property(
     write_property(ctx, receiver, name, hint, erased, Reach::Checked, value)
 }
 
+/// Refuses a value the slot's declared type does not admit. A `covariant`
+/// property an ancestor would admit the value for gets that rule's sentence.
+fn refuse_unfit(desc: &ClassDesc, slot: usize, name: &str, value: Value) -> Result<(), Fault> {
+    let Err(refused) = desc.check_slot(slot, name, value) else {
+        return Ok(());
+    };
+    if desc.ancestor_admits(slot, name, value) {
+        return Err(covariant_rejected(desc, slot, name, value));
+    }
+    Err(Fault::thrown(refused))
+}
+
 /// [`write_erased_property`]'s body, with what the write may reach.
 fn write_property(
     ctx: &mut Ctx,
@@ -6027,22 +6039,18 @@ fn write_property(
     // to write: this door is the access spelling that had no class to lower
     // against, not a second way of storing.
     if let Some(row) = desc.hook_row(name, true) {
-        // A `covariant` hooked property tests the value before its guard and
-        // its `set` hook run, as a typed write does.
-        if let Some(slot) = found
-            && desc.check_slot(slot, name, value).is_err()
-            && desc.ancestor_admits(slot, name, value)
-        {
-            return Err(covariant_rejected(desc, slot, name, value));
-        }
+        // Every hooked property has a slot (`rule:classes/property-hooks`).
+        let Some(slot) = found else {
+            return Err(Fault::fatal(format!(
+                "internal error: hooked property `{}::${name}` has no slot",
+                desc.name()
+            )));
+        };
+        // The value is checked against the property's declared type before
+        // the guard and the hook run, with the unhooked write's sentences.
+        refuse_unfit(desc, slot, name, value)?;
         guard_erased_write(ctx, desc, receiver, name, value)?;
-        let callee = format!("`{}::${name}::set`", desc.name());
-        // The check converts as well as refuses — a widened `int` has to reach
-        // the hook as the `float` it declares — so it runs over this frame's
-        // own copy, exactly as `dispatch::call_erased_method_from`'s does.
-        let mut passed = [value];
-        crate::callable::check_param_tags(&callee, row.param_tags, &mut passed)?;
-        let answered = crate::dispatch::call_at(ctx, receiver, row.code, &passed)?;
+        let answered = crate::dispatch::call_at(ctx, receiver, row.code, &[value])?;
         #[expect(
             unsafe_code,
             reason = "the hook's return is a fresh reference this frame owns, \
@@ -6054,10 +6062,6 @@ fn write_property(
         if !desc.conforms_to_name("PropertyObserver") {
             return Ok(Value::null());
         }
-        // A hooked property is always backed, so the slot is there to read.
-        let Some(slot) = found else {
-            return Ok(Value::null());
-        };
         #[expect(
             unsafe_code,
             reason = "the slot came out of this object's own descriptor, so it is \
@@ -6084,12 +6088,7 @@ fn write_property(
             desc.name()
         )));
     }
-    if let Err(refused) = desc.check_slot(slot, name, value) {
-        if desc.ancestor_admits(slot, name, value) {
-            return Err(covariant_rejected(desc, slot, name, value));
-        }
-        return Err(Fault::thrown(refused));
-    }
+    refuse_unfit(desc, slot, name, value)?;
     // An anonymous object's class is named for its field names alone, so no
     // declared type belongs to its slots. The value the slot has now is the one
     // thing known to fit the type every typed read of it uses, so the written
@@ -8215,6 +8214,128 @@ mod tests {
         }
         // The refused construction released the instance it allocated.
         assert_eq!(ctx.live_objects(), 0);
+        drop(current);
+    }
+
+    thread_local! {
+        /// How many times [`counting_hook`] ran on this thread.
+        static HOOK_RUNS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    /// A compiled `set` hook that counts its runs and releases the receiver
+    /// and the value the call retained for it.
+    #[expect(
+        unsafe_code,
+        reason = "the call hands this the receiver and the value, each retained"
+    )]
+    unsafe extern "C" fn counting_hook(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        HOOK_RUNS.set(HOOK_RUNS.get() + 1);
+        #[expect(unsafe_code, reason = "arguments 0 and 1 and `out` are the caller's")]
+        unsafe {
+            (*args).release();
+            (*args.add(1)).release();
+            out.write(Value::null());
+        }
+        crate::abi::OK
+    }
+
+    /// `Spot`, `Other` and `Gate`, whose public `spot` property of type `Spot`
+    /// has a `set` hook, installed on a fresh context.
+    fn hooked_ctx() -> Ctx {
+        let mut table = ClassTable::new();
+        let id = table.define("Spot", &[] as &[&str], &[]);
+        table.define("Other", &[] as &[&str], &[]);
+        let gate = table.define("Gate", &["spot"], &[]);
+        table.set_public_fields(gate, vec![true]);
+        table.set_field_types(gate, vec!["Spot".to_owned()]);
+        table.set_field_tags(gate, vec![Some(Tag::Object)]);
+        table.set_field_classes(gate, vec![Some(vec!["Spot".to_owned()])]);
+        table.set_hooks(
+            gate,
+            vec![HookRow {
+                property: "spot".to_owned(),
+                set: true,
+                code: (counting_hook as crate::NvsFn) as *const u8,
+            }],
+        );
+        let mut ctx = Ctx::new(crate::ctx::OutputSink::Sink);
+        ctx.set_runtime_error_class(crate::ErrorClass::new(std::sync::Arc::new(table), id));
+        ctx
+    }
+
+    #[test]
+    fn a_hooked_property_write_is_checked_before_its_hook_runs() {
+        let mut ctx = hooked_ctx();
+        let current = crate::ctx::CurrentCtx::install(&mut ctx);
+        let ctx = &mut ctx;
+        HOOK_RUNS.set(0);
+        let gate = instance_of(ctx, "Gate");
+        let other = instance_of(ctx, "Other");
+        let spot = instance_of(ctx, "Spot");
+        for wrong in [other, Value::int(42), Value::null()] {
+            let written = write_erased_property(ctx, gate, "spot", 0, true, wrong);
+            assert!(written.is_err(), "the hook took {wrong:?}");
+        }
+        assert_eq!(HOOK_RUNS.get(), 0, "no refused value reached the hook");
+        let written = write_erased_property(ctx, gate, "spot", 0, true, spot);
+        assert!(written.is_ok(), "the hook refused a `Spot`: {written:?}");
+        assert_eq!(HOOK_RUNS.get(), 1, "the admitted value reached the hook");
+        #[expect(unsafe_code, reason = "this frame made each of these")]
+        unsafe {
+            for value in [gate, other, spot] {
+                value.release();
+            }
+        }
+        drop(current);
+    }
+
+    #[test]
+    fn a_bare_callable_call_checks_what_its_parameter_declares() {
+        let mut table = ClassTable::new();
+        let id = table.define("Spot", &[] as &[&str], &[]);
+        table.define("Other", &[] as &[&str], &[]);
+        let callable = table.define("{fn}", &["arity", "params"], &[]);
+        table.set_callable(callable);
+        table.set_methods(
+            callable,
+            vec![typed_row(
+                crate::callable::CALLABLE_INVOKE,
+                Some(vec!["Spot".to_owned()]),
+                None,
+                "Spot",
+            )],
+        );
+        let mut ctx = Ctx::new(crate::ctx::OutputSink::Sink);
+        ctx.set_runtime_error_class(crate::ErrorClass::new(std::sync::Arc::new(table), id));
+        let current = crate::ctx::CurrentCtx::install(&mut ctx);
+        let ctx = &mut ctx;
+        let function = instance_of(ctx, "{fn}");
+        let ptr = function.obj_ptr().expect("an object");
+        #[expect(
+            unsafe_code,
+            reason = "this frame made the object, and both slots exist"
+        )]
+        unsafe {
+            field_ptr(ptr, crate::callable::CALLABLE_ARITY_SLOT).write(Value::int(1));
+            field_ptr(ptr, crate::callable::CALLABLE_PARAM_TAGS_SLOT).write(Value::int(i64::from(
+                crate::callable::CALLABLE_PARAM_TAG_ANY,
+            )));
+        }
+        let other = instance_of(ctx, "Other");
+        let spot = instance_of(ctx, "Spot");
+        let message = logic_message(crate::call_callable(ctx, function, &[other]));
+        assert!(
+            message.contains("must be of type `Spot`, an object of class `Other` given"),
+            "{message}"
+        );
+        let answer = crate::call_callable(ctx, function, &[spot]);
+        assert!(answer.is_ok(), "the callable refused a `Spot`: {answer:?}");
+        #[expect(unsafe_code, reason = "this frame made each of these")]
+        unsafe {
+            for value in [function, other, spot] {
+                value.release();
+            }
+        }
         drop(current);
     }
 }

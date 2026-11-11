@@ -1141,6 +1141,12 @@ fn lower_program_as(
             &mut synthesized,
         );
     }
+    let scope = SlotScope {
+        layouts,
+        exprs,
+        checked_types,
+        enums,
+    };
     assert!(
         !files.is_empty(),
         "a program is its entry file plus whatever that reached"
@@ -1168,6 +1174,11 @@ fn lower_program_as(
         functions.push(lowered.function);
         functions.extend(lowered.anon_fns);
         synthesized.extend(lowered.classes);
+    }
+    // An anonymous function's and a method reference's `invoke` recorded its
+    // declared types alone, because its lowering has no class layouts.
+    for function in &mut functions {
+        resolve_pending_checks(&mut function.param_checks, &scope);
     }
     // The functions with no source text — see
     // `synthesized_exception_constructors`. Emitted unconditionally: the
@@ -1755,16 +1766,34 @@ fn method_param_checks(m: &MethodMember, scope: &SlotScope<'_>) -> crate::ir::Pa
                 SlotCheck::Any => (None, None),
                 element => (None, Some(SlotCheck::Array(Box::new(element)))),
             },
-            Some(id) => (
-                admitted_classes(id, scope.layouts, scope.checked_types),
-                deep_check(id, scope),
-            ),
+            Some(id) => param_check(id, scope),
             None => (None, None),
         };
         out.classes.push(classes);
         out.checks.push(check);
     }
     out
+}
+
+/// One parameter's admitted classes and check, for declared type `id`.
+fn param_check(id: TypeId, scope: &SlotScope<'_>) -> (Option<Vec<String>>, Option<SlotCheck>) {
+    (
+        admitted_classes(id, scope.layouts, scope.checked_types),
+        deep_check(id, scope),
+    )
+}
+
+/// Turns [`crate::ir::ParamChecks::pending`] into the admitted classes and
+/// checks, now that the layouts are at hand.
+fn resolve_pending_checks(checks: &mut crate::ir::ParamChecks, scope: &SlotScope<'_>) {
+    if checks.pending.is_empty() {
+        return;
+    }
+    for declared in std::mem::take(&mut checks.pending) {
+        let (classes, check) = declared.map_or((None, None), |id| param_check(id, scope));
+        checks.classes.push(classes);
+        checks.checks.push(check);
+    }
 }
 
 /// One `covariant` parameter's entry test, collected while [`lower_method`]
@@ -5457,15 +5486,12 @@ pub const FN_PARAM_TAG_ANY: u8 = 15;
 /// taken rather than defaulted.
 ///
 /// Because the key is a representation and not a declared type, a `?T`
-/// parameter checks exactly as much as a `mixed` one does — nothing: both
-/// erase to [`Ty::Tagged`], so both take [`FN_PARAM_TAG_ANY`] and `?string $k`
-/// accepts an `int` argument as readily as `mixed $k` does. That is the answer
-/// rather than a hole. A nibble names one tag, so `T`-or-null cannot be
-/// spelled here at all, and it does not need to be: a body lowered against a
-/// tagged slot reads the tag at every use, which is the guarantee the check
-/// exists to give the bodies that do not.
-/// `tests/conformance/core/arr-a-mixed-or-nullable-callback-parameter-is-unchecked.nvst`
-/// pins both halves from Novis.
+/// parameter's nibble checks as much as a `mixed` one's does, which is
+/// nothing: both erase to [`Ty::Tagged`] and take [`FN_PARAM_TAG_ANY`]. A
+/// nibble names one tag, so `T`-or-null cannot be spelled here. The callable's
+/// `invoke` row checks the rest of the declared type on a call that proved
+/// nothing, so `?string $k` refuses an `int`
+/// (`tests/conformance/core/arr-a-nullable-callback-parameter-is-checked-against-its-declared-type.nvst`).
 ///
 /// [`Ty::Object`]'s nibble is the one row where the representation is not the
 /// whole answer. Every class name erases onto it, so this word admits a

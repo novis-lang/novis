@@ -10,7 +10,7 @@
 // one implicit conversion `rule:types/conversion` admits does reach here at all, and that
 // it stops where that rule says it stops rather than where `f64` happens to run
 // out. Every refusal below is `ArithmeticError` per `rule:types/arithmetic` — the
-// neighbouring `arr-a-mixed-or-nullable-callback-parameter-is-unchecked` owns
+// neighbouring `arr-a-nullable-callback-parameter-is-checked-against-its-declared-type` owns
 // the `LogicError` half, which is what happens when no widening exists.
 
 array<int> $ints = [7, 10];
@@ -86,12 +86,12 @@ try { Core\Arr::unique($ints, {by: fn(float $v, float $k) => true}); $one = $one
 catch (LogicError $l) { $one = $one . "n"; }
 echo $one, "\n";
 
-// The widening lives inside the check, so a parameter the check skips does not
-// get it either: `?float` and `mixed` both take the very element a `float`
-// threw on, unwidened, because nothing looked at them.
+// The widening is for a parameter declared `float` alone. Nothing widens inside
+// a union, as a property write does not: `?float` refuses the `int` element with
+// a `LogicError`, and `mixed` takes it unchanged.
 var $skipped = "";
 try { Core\Arr::filter($iOver, fn(?float $v, string $k) => true); $skipped = $skipped . "y"; }
-catch (ArithmeticError $a) { $skipped = $skipped . "n"; }
+catch (LogicError $l) { $skipped = $skipped . "n"; }
 try { Core\Arr::filter($iOver, fn(mixed $v, string $k) => true); $skipped = $skipped . "y"; }
 catch (ArithmeticError $a) { $skipped = $skipped . "n"; }
 echo $skipped, "\n";
@@ -100,4 +100,4 @@ echo $skipped, "\n";
 2|-2
 ynynynn
 nnnn
-yy
+ny

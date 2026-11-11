@@ -229,6 +229,9 @@ pub(crate) fn lower_anon_fn(
     // `cur`, so that each one's throw path sees the *whole* parameter list in
     // `env` and releases the frame rather than the prefix bound so far.
     let mut class_checks: Vec<(usize, ValueId, String, Span)> = Vec::new();
+    // What a bare `callable` call checks each argument against, from the
+    // `invoke` row (`rule:types/callable-signature`).
+    let mut declared = Vec::with_capacity(fn_expr.params.len());
     for (i, p) in fn_expr.params.iter().enumerate() {
         assert!(
             !p.inout,
@@ -238,6 +241,13 @@ pub(crate) fn lower_anon_fn(
              written, as `E0493`"
         );
         let (ty, class, ty_span) = callable_param_ty(p, exprs, checked_types);
+        declared.push(
+            match &p.ty {
+                Some(decl_ty) => exprs.declared_ty(decl_ty.span),
+                None => exprs.declared_ty(p.name),
+            }
+            .filter(|_| !p.variadic && !p.covariant),
+        );
         let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
         let pname = strip_sigil(span_text(src, p.name)).to_owned();
         let (v, _) = low.emit(entry, ty, InstKind::Param(index));
@@ -299,7 +309,10 @@ pub(crate) fn lower_anon_fn(
             edge_spans,
             debug_slots,
             debug_catches,
-            param_checks: crate::ir::ParamChecks::default(),
+            param_checks: crate::ir::ParamChecks {
+                pending: declared,
+                ..crate::ir::ParamChecks::default()
+            },
             debug_returns_secret: super::may_return_secret(fn_expr.return_type.as_ref()),
         },
         std::iter::once(crate::ir::Class {
@@ -749,6 +762,10 @@ pub(crate) fn lower_callable(
 
     let mut args = Vec::with_capacity(params.len());
     let mut class_checks: Vec<(usize, ValueId, String)> = Vec::new();
+    // What a bare `callable` call checks each argument against, from the
+    // `invoke` row. A forwarded method's variadic tail and its `covariant`
+    // parameters are left to the method's own entry.
+    let mut pending = Vec::with_capacity(params.len());
     for (i, ty) in params.iter().enumerate() {
         let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
         let (v, _) = low.emit(entry, *ty, InstKind::Param(index));
@@ -756,6 +773,14 @@ pub(crate) fn lower_callable(
             ThunkTarget::Forward { call, .. } => call.param_tys[i],
             ThunkTarget::Build { param_tys, .. } => param_tys[i],
         };
+        let checked = match target {
+            ThunkTarget::Forward { call, .. } => {
+                !(call.variadic && i + 1 >= call.param_tys.len())
+                    && !call.covariant.get(i).copied().unwrap_or(false)
+            }
+            ThunkTarget::Build { .. } => true,
+        };
+        pending.push(checked.then_some(declared));
         if let Some(class) = checked_class(declared, checked_types) {
             class_checks.push((i, v, class));
         }
@@ -807,7 +832,10 @@ pub(crate) fn lower_callable(
                     edge_spans,
                     debug_slots,
                     debug_catches,
-                    param_checks: crate::ir::ParamChecks::default(),
+                    param_checks: crate::ir::ParamChecks {
+                        pending,
+                        ..crate::ir::ParamChecks::default()
+                    },
                     debug_returns_secret: true,
                 },
                 classes,
@@ -1016,7 +1044,10 @@ pub(crate) fn lower_callable(
             edge_spans,
             debug_slots,
             debug_catches,
-            param_checks: crate::ir::ParamChecks::default(),
+            param_checks: crate::ir::ParamChecks {
+                pending,
+                ..crate::ir::ParamChecks::default()
+            },
             debug_returns_secret: true,
         },
         classes,

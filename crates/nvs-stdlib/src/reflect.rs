@@ -1028,9 +1028,10 @@ const CALL_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "LogicError",
             desc: "`$name` is not `public`, is not a method of the class, or is a `Core` method. \
-                   Or `$arguments` has fewer entries than the method's parameters, or an entry \
-                   has a type that its parameter does not accept. An ordinary call on a `mixed` \
-                   value throws the same error, from the same check.",
+                   Or the method is `static`, or it has an `inout` parameter. Or `$arguments` \
+                   has fewer entries than the method's parameters, or an entry has a type that \
+                   its parameter does not accept. An ordinary call on a `mixed` value throws the \
+                   same error, from the same check.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -3742,7 +3743,6 @@ mod tests {
                 property: "reading".to_owned(),
                 set: false,
                 code: (gauge_reading as NvsFn) as *const u8,
-                param_tags: 0,
             }],
         );
         let classes = std::sync::Arc::new(classes);

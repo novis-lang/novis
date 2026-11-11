@@ -283,7 +283,11 @@ pub fn call_static_bound(
 /// [`Fault::Thrown`] carrying [`crate::ThrownClass::Logic`], naming `callee`,
 /// the argument's position, the parameter's declared type as the row spells it
 /// and what was given.
-fn check_param_types(callee: &str, row: &crate::MethodRow, args: &[Value]) -> Result<(), Fault> {
+pub(crate) fn check_param_types(
+    callee: &str,
+    row: &crate::MethodRow,
+    args: &[Value],
+) -> Result<(), Fault> {
     for (i, &arg) in args.iter().enumerate() {
         let classes = row.param_classes.get(i).and_then(Option::as_deref);
         let check = row.param_checks.get(i).and_then(Option::as_ref);
@@ -298,18 +302,16 @@ fn check_param_types(callee: &str, row: &crate::MethodRow, args: &[Value]) -> Re
             // No tag is passed, so this arm describes the value as the others do.
             Err(crate::object::Mismatch::Tag { .. }) => crate::object::describe_written(arg),
         };
-        let declared = row
-            .param_types
-            .get(i)
-            .filter(|ty| !ty.is_empty())
-            .map_or_else(|| "its declared type".to_owned(), |ty| format!("`{ty}`"));
-        return Err(Fault::thrown_as(
-            crate::ThrownClass::Logic,
-            format!(
-                "argument {} to {callee} must be of type {declared}, {written} given",
+        // A callable's `invoke` row carries no type spellings, so its sentence
+        // names the value alone.
+        let message = match row.param_types.get(i).filter(|ty| !ty.is_empty()) {
+            Some(ty) => format!(
+                "argument {} to {callee} must be of type `{ty}`, {written} given",
                 i + 1
             ),
-        ));
+            None => format!("argument {} to {callee} does not accept {written}", i + 1),
+        };
+        return Err(Fault::thrown_as(crate::ThrownClass::Logic, message));
     }
     Ok(())
 }

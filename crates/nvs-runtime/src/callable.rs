@@ -210,7 +210,7 @@ fn call_callable_with(
     args: &[Value],
     tags: TagCheck,
 ) -> Result<Value, Fault> {
-    let target = invoke_address(callable)?;
+    let row = invoke_row(callable)?;
     let arity = callable_arity(callable)?;
     let args = args.get(..arity).ok_or_else(|| {
         Fault::fatal(format!(
@@ -225,7 +225,7 @@ fn call_callable_with(
                   which `nvs-codegen` fills only with compiled functions of \
                   exactly this signature"
     )]
-    let target: NvsFn = unsafe { std::mem::transmute::<*const u8, NvsFn>(target) };
+    let target: NvsFn = unsafe { std::mem::transmute::<*const u8, NvsFn>(row.code) };
 
     // The slots are the receiver and the trimmed arguments. Up to
     // `INLINE_SLOTS` of them sit in this frame, so a callback costs no
@@ -247,13 +247,16 @@ fn call_callable_with(
     // as a `float` while the caller keeps owning the `int` it passed. Neither
     // tag is refcounted, so the retain below is unaffected by the substitution.
     // A proven site had both done for it where the call was written, and the
-    // slots are already what the callee reads.
+    // slots are already what the callee reads. After the tags, the `invoke`
+    // row's checks test the rest of each declared type: the class, an array's
+    // elements and an enum's case values.
     if tags == TagCheck::Required {
         check_param_tags(
             "a `callable`",
             callable_param_tags(callable)?,
             &mut slots[1..],
         )?;
+        crate::dispatch::check_param_types("a `callable`", row, &slots[1..])?;
     }
     #[expect(
         unsafe_code,
@@ -285,7 +288,7 @@ fn call_callable_with(
 /// `Class::invoke` for the class of `callable`, which is the name its body is
 /// compiled under, or an empty label for a value with no class descriptor.
 ///
-/// Called only after [`invoke_address`] accepted the value, while the caller
+/// Called only after [`invoke_row`] accepted the value, while the caller
 /// still owns its reference.
 fn invoke_label(callable: Value) -> String {
     let Some(ptr) = callable.obj_ptr().filter(|ptr| !ptr.is_null()) else {
@@ -984,8 +987,9 @@ pub(crate) fn check_param_tags(callee: &str, word: u64, args: &mut [Value]) -> R
     Ok(())
 }
 
-/// The compiled address of `callable`'s [`CALLABLE_INVOKE`], or a [`Fault`]
-/// naming what was passed instead.
+/// The method row of `callable`'s [`CALLABLE_INVOKE`], or a [`Fault`] naming
+/// what was passed instead. The row has the compiled address and each
+/// parameter's check.
 ///
 /// What makes a value a callable is its class's
 /// [`ClassDesc::is_callable()`] bit, not the `invoke` in its method table: an
@@ -994,7 +998,7 @@ pub(crate) fn check_param_tags(callee: &str, word: u64, args: &mut [Value]) -> R
 /// `rule:types/callable-values`'s anonymous function. The method lookup that
 /// follows the bit can therefore only fail on a descriptor built wrong, which
 /// is why it reports an internal error rather than a mismatch.
-fn invoke_address(callable: Value) -> Result<*const u8, Fault> {
+fn invoke_row<'a>(callable: Value) -> Result<&'a crate::MethodRow, Fault> {
     let ptr = callable.obj_ptr().ok_or_else(|| {
         Fault::fatal(format!(
             "internal error: a `callable` argument carried tag {} rather than an object",
@@ -1024,7 +1028,7 @@ fn invoke_address(callable: Value) -> Result<*const u8, Fault> {
             class.name()
         )));
     }
-    class.method(CALLABLE_INVOKE).ok_or_else(|| {
+    class.method_row(CALLABLE_INVOKE).ok_or_else(|| {
         Fault::fatal(format!(
             "internal error: `{}` is marked a callable and declares no `{CALLABLE_INVOKE}`",
             class.name()

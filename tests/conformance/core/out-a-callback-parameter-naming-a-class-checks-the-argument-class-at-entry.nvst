@@ -3,7 +3,7 @@ An anonymous function's parameter naming a class is checked against the argument
 --FILE--
 <?nvs
 // The depth claim is *a bound asserted on both sides*, over the one argument
-// shape the neighbouring `arr-a-mixed-or-nullable-callback-parameter-is-unchecked`
+// shape the neighbouring `arr-a-nullable-callback-parameter-is-checked-against-its-declared-type`
 // case cannot reach: an **object**. Two checks stand at a callable's entry and
 // the case asserts where each one stops.
 //
@@ -13,10 +13,12 @@ An anonymous function's parameter naming a class is checked against the argument
 // the tag carries no class label. That draws the first line around objecthood:
 // every non-object representation is refused before the body runs.
 //
-// The class label the nibble cannot hold is read at the body's own first
-// block, one class test per class-declared parameter
-// (`nvs_ir::lower::anon_fn::check_param_class`), which is what draws the
-// second line — around the argument's *ancestry*, not around its exact class.
+// The class label the nibble cannot hold is read from the callable's `invoke`
+// row on a call that proved nothing, before the body runs, and again at the
+// body's own first block (`nvs_ir::lower::anon_fn::check_param_class`). That
+// draws the second line around the argument's *ancestry*, not its exact class.
+// The row check reads the whole declared type, so a `?T` is checked as `T` or
+// `null`.
 // `rule:types/callable-signature` says why the callable's entry is the
 // boundary that pays for it: without it a named-class
 // binding reads and writes at a fixed offset against a label nothing verified,
@@ -53,13 +55,11 @@ array<callable> $filters = [
     // refused here like any other mismatch.
     fn (float $c) => $c,
     fn (?float $c) => $c,
-    // The class pair, and the one place the two lines disagree: `Marker`
-    // shares no ancestry with the carrier and is refused, while `?Marker`
-    // erases to a tagged slot before any class survives and so is not checked
-    // at all — the same nothing `mixed` gets, and for the same reason.
+    // The class pair: `Marker` shares no ancestry with the carrier, so both
+    // halves are refused.
     fn (Marker $c) => $c,
     fn (?Marker $c) => $c,
-    // `rule:types/grammar`'s opaque top, and its one unchecked position.
+    // `rule:types/grammar`'s opaque top, and `mixed`, which admits everything.
     fn (object $c) => $c,
     fn (mixed $c) => $c,
 ];
@@ -77,13 +77,10 @@ foreach ($filters as callable $filter) {
 }
 echo $marks, "\n";
 
-// What each refusal names is the representation the parameter asked for and
-// the one the argument carried — and, for the class row, the class the
-// parameter asked for. What *arrived* is not named on either: no IR
-// instruction reads an object's class name, which
-// `check_param_class`'s own doc comment records as the message's limit. Six
-// refusals, in the order the sweep met them, so a message that grew or lost a
-// side would fail here rather than pass a count.
+// A bare type's refusal names the representation the parameter asked for and
+// the one the argument carried. The row check's refusal names the class that
+// arrived. The refusals are in the order the sweep met them, so a message that
+// grew or lost a side fails here rather than passing a count.
 foreach ($said as string $line) {
     echo $line, "\n";
 }
@@ -140,20 +137,25 @@ final class Holder {
 
 // Nothing the refused rows captured reaches this program's output: the capture
 // level is closed on both edges whichever way the `through` goes. What an
-// accepted one answers is the carrier itself, unconverted — arriving whole
-// under a declaration that names no class below the tag, which is the same
+// accepted one answers is the carrier itself, unconverted, which is the same
 // statement as the `y` above, said where it can be read.
-echo Core\Out::capture(fn (): void => { echo "arrives whole under a nullable class"; }, {through: fn (?Marker $c) => $c}), "\n";
+echo Core\Out::capture(fn (): void => { echo "arrives whole under a nullable class"; }, {through: fn (?Core\Cli\Text $c) => $c}), "\n";
 --EXPECT--
-yynynynynynynyyy
+yynnnnnnnnnnnnyy
 argument 1 to a `callable` must be of type string, object given
+argument 1 to a `callable` does not accept an object of class `Core\Cli\Text`
 argument 1 to a `callable` must be of type int, object given
+argument 1 to a `callable` does not accept an object of class `Core\Cli\Text`
 argument 1 to a `callable` must be of type bool, object given
+argument 1 to a `callable` does not accept an object of class `Core\Cli\Text`
 argument 1 to a `callable` must be of type array, object given
+argument 1 to a `callable` does not accept an object of class `Core\Cli\Text`
 argument 1 to a `callable` must be of type float, object given
-argument 1 to a `callable` must be of type Marker, another class given
+argument 1 to a `callable` does not accept an object of class `Core\Cli\Text`
+argument 1 to a `callable` does not accept an object of class `Core\Cli\Text`
+argument 1 to a `callable` does not accept an object of class `Core\Cli\Text`
 1
 1
 1
-argument 1 to a `callable` must be of type Holder, another class given
+argument 1 to a `callable` does not accept an object of class `Shows`
 arrives whole under a nullable class
