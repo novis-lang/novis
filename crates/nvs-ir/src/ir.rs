@@ -532,6 +532,14 @@ pub struct Class {
     /// **Cost:** one `bool` per class per compiled unit, once per unit, not
     /// per request.
     pub is_callable: bool,
+    /// Whether the class can have no instances: an `abstract` class or an
+    /// interface. `nvs_types::ClassLayout::no_instances` decides it, and
+    /// `nvs-codegen` hands it to `nvs_runtime::ClassTable::set_no_instances`.
+    /// A class the lowering makes has instances, except a marker supertype,
+    /// which is only an identity.
+    ///
+    /// **Cost:** one `bool` per class per compiled unit.
+    pub no_instances: bool,
 }
 
 /// A field slot's declared type in the terms a run-time check needs —

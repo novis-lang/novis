@@ -368,6 +368,47 @@ echo (new Item(\"n\"))->tags[0];
     assert_eq!(thrown.field_type(0), None);
 }
 
+/// A compiled unit tells `construct` what `new` already knew: an `abstract`
+/// class and an interface have no instances, and a generator's class and a
+/// function value's class are the compiler's own. A plain class is made.
+#[test]
+fn a_compiled_unit_says_which_classes_new_could_not_make() {
+    use nvs_runtime::{Door, Refusal};
+    let unit = compile(
+        "<?nvs
+interface Named {
+    public function name(): string;
+}
+abstract class Animal {
+    public int $legs = 4;
+}
+class Dog extends Animal implements Named {
+    public function name(): string { return 'Rex'; }
+    public static function upTo(int $n): Iterator<int> { yield $n; }
+    public function adder(): callable { return fn(int $x): int => $x + 1; }
+}
+echo (new Dog())->name();
+",
+    )
+    .expect("the fixture compiles");
+    let construct = |name: &str| {
+        unit.class_desc(name)
+            .unwrap_or_else(|| panic!("the unit defines {name}"))
+            .refusal(Door::Construct)
+    };
+    for name in ["Named", "Animal"] {
+        assert!(
+            matches!(construct(name), Some(Refusal::NoInstances(_))),
+            "{name} is made"
+        );
+    }
+    for name in ["Dog::upTo$gen", "Dog$fn0"] {
+        assert!(matches!(construct(name), Some(Refusal::Kind(_))), "{name} is made");
+    }
+    assert_eq!(construct("Dog"), None, "a plain class is refused");
+    assert_eq!(construct("LogicError"), None, "the error tree is refused");
+}
+
 /// `rule:core-classes/reflect`'s method half, at the layer that carries it: a
 /// parameter's *name* is spelled where the declaration is and reaches the
 /// runtime descriptor, because `nvs_runtime::MethodRow`'s other two parameter

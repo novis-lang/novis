@@ -591,6 +591,7 @@ pub(crate) fn lower_generator(
         // through `GENERATOR_UNWIND_METHOD` and its own advance entry point,
         // never called as a `callable`.
         is_callable: false,
+        no_instances: false,
     });
     (functions, classes)
 }

@@ -641,16 +641,27 @@ pub unsafe fn with_array_entries<R>(
 /// that is outside every class, and a second one written for this caller would
 /// be the second visibility rule this reuse exists to avoid.
 ///
-/// The allocation is made ahead of the check rather than behind it, which costs
-/// one object on the refusing edge and buys the single check: every failing
-/// path below releases the one reference this frame holds, so nothing is
-/// abandoned. A class declaring no constructor carries no row for one —
-/// `nvs_ir` lowers such a `new` with no target — so the allocation with its
-/// armed defaults *is* the instance, and there is no member whose visibility
-/// could be asked about.
+/// Before anything is allocated, the class is asked
+/// [`ClassDesc::refusal`] for [`crate::Door::Construct`], so this makes only a
+/// class the program declares and `new` could make. A `Core` class, a class
+/// the compiler made, an anonymous object's class, an `abstract` class and an
+/// interface are refused, and a refused call allocates nothing.
+///
+/// The visibility check runs after the allocation, which costs one object on
+/// the refusing edge and buys the single check: every failing path below
+/// releases the one reference this frame holds, so nothing is abandoned. A
+/// class declaring no constructor carries no row for one — `nvs_ir` lowers
+/// such a `new` with no target — so the allocation with its armed defaults
+/// *is* the instance, and there is no member whose visibility could be asked
+/// about.
+///
+/// **What it spends:** one call that reads a few flags, and one branch, per
+/// construction.
 ///
 /// # Errors
 ///
+/// [`Fault::Thrown`] carrying [`crate::ThrownClass::Logic`] when the class may
+/// not be made by name, with the refusal's sentence. Otherwise
 /// [`call_erased_method`]'s, whose doc comment lists them, raised against the
 /// constructor as the callee.
 ///
@@ -670,6 +681,12 @@ pub unsafe fn construct_erased_from(
 ) -> Result<Value, Fault> {
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
     let desc = unsafe { &*class };
+    if let Some(refusal) = desc.refusal(crate::Door::Construct) {
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!("{}, so it cannot be constructed", refusal.sentence()),
+        ));
+    }
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
     let receiver = Value::object(unsafe { NvsObj::new(class) });
     if desc.method_row(crate::object::CONSTRUCTOR).is_none() {

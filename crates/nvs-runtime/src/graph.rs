@@ -88,7 +88,7 @@ use std::collections::HashMap;
 use crate::array::{NvsArray, SlotKey};
 use crate::budget::{ByteWriter, Stopped};
 use crate::decimal::Decimal;
-use crate::object::{ClassDesc, NvsObj, ObjHeader};
+use crate::object::{ClassDesc, Door, NvsObj, ObjHeader};
 use crate::string::NvsStr;
 use crate::value::{Tag, Value};
 
@@ -407,11 +407,6 @@ fn walk<C: Carrier>(
     }
 }
 
-/// What [`refusable`] says of a generator, and what `clone` throws for one
-/// (`crate::object::nvs_clone_guard`): `rule:iteration/generator-stays-in-one-isolate`
-/// makes the two one refusal, so they share one message.
-pub(crate) const GENERATOR_REFUSAL: &str =
-    "a generator is a suspended frame, so it has no meaning on the other side of a copy boundary";
 
 /// `rule:classes/graph-copy`'s "refuses what has no meaning on the other side", for the shapes that
 /// arrive wearing [`Tag::Object`]. It is the one answer to "may this class
@@ -420,7 +415,7 @@ pub(crate) const GENERATOR_REFUSAL: &str =
 /// compares a property or makes an object. So `decode` refuses every class
 /// `encode` refuses, with the same sentence.
 ///
-/// All five refusals are a fact about the class and nothing structural. A
+/// Every refusal is a fact about the class and nothing structural. A
 /// callable is [`ClassDesc::is_callable()`] and not a declared `invoke`, which is
 /// a method name a program may use and refusing on it would make a user class
 /// uncopyable for spelling it. A generator is [`ClassDesc::is_generator()`],
@@ -436,45 +431,19 @@ pub(crate) const GENERATOR_REFUSAL: &str =
 /// [`ClassDesc::is_compiler_made()`]: its slots are the compiler's own state,
 /// and only an anonymous object's class is data. A class with a `secret`
 /// property is refused naming the first one
-/// (`rule:security/secret-crosses-no-boundary`).
+/// (`rule:security/secret-crosses-no-boundary`). A class with no instances, an
+/// `abstract` class or an interface, is refused too: no instance of one was
+/// ever encoded, so bytes that name one are forged.
+///
+/// The answer is [`ClassDesc::refusal`]'s for [`Door::Copy`], so the copy
+/// doors and `Core\Reflect\ClassInfo::construct` ask one function.
 ///
 /// **What it spends:** a few flag reads and one scan of the class's `secret`
 /// flags per object copied, encoded or decoded. No allocation.
 pub(crate) fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
-    if class.is_callable() {
-        return Err(GraphError(
-            "a callable captures variables from the code that created it, so it \
-             has no meaning on the other side of a copy boundary"
-                .to_owned(),
-        ));
-    }
-    if class.is_generator() {
-        return Err(GraphError(GENERATOR_REFUSAL.to_owned()));
-    }
-    if class.holds_host_handle() {
-        return Err(GraphError(format!(
-            "a {} holds a handle onto something this side of the boundary \
-             opened, so it has no meaning on the other side of a copy boundary \
-             — pass what identifies the resource and open it there",
-            class.name()
-        )));
-    }
-    if class.is_compiler_made() {
-        return Err(GraphError(format!(
-            "`{}` is a class the compiler made for its own use, so it has no \
-             meaning on the other side of a copy boundary",
-            class.name()
-        )));
-    }
-    if let Some(index) = (0..class.field_count()).find(|&index| class.field_is_secret(index)) {
-        return Err(GraphError(format!(
-            "{}::${} is `secret` and does not cross a copy boundary unless it is \
-             revealed",
-            class.name(),
-            class.field_name(index).unwrap_or("?")
-        )));
-    }
-    Ok(())
+    class
+        .refusal(Door::Copy)
+        .map_or(Ok(()), |refusal| Err(GraphError(refusal.into_sentence())))
 }
 
 // ============================================================================

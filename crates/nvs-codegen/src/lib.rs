@@ -1813,6 +1813,10 @@ impl Classes {
         if class.is_callable {
             self.table.set_callable(id);
         }
+        // `new`'s own answer, carried down for a class named only at run time.
+        if class.no_instances {
+            self.table.set_no_instances(id);
+        }
         // `rule:routing/a-gate-answers-around-every-handler`'s `Responder`
         // bit, read off the supertype set the front end resolved. The edge
         // above skips the label, because a `Core` contract has no descriptor,

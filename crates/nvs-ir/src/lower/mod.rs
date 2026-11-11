@@ -1270,6 +1270,7 @@ fn lower_program_as(
                 // the codec above skips one.
                 defaults: property_defaults(label, layout, exprs),
                 is_callable: false,
+                no_instances: layout.no_instances,
             }
         })
         .collect();
@@ -1307,6 +1308,7 @@ fn lower_program_as(
         // The marker every callable conforms to is not itself a callable:
         // nothing is ever an instance of it.
         is_callable: false,
+        no_instances: true,
     });
     // One marker supertype per written `callable(...)` signature some `is` in
     // this program tested, each carrying no field and no method for
@@ -1338,6 +1340,7 @@ fn lower_program_as(
         ctor_arity: 0,
         defaults: Vec::new(),
         is_callable: false,
+        no_instances: true,
     }));
     // A shape reached as a *field* has no call site to be lowered at, so the
     // class it decodes into is collected off the derived codecs here. A label a
@@ -2934,6 +2937,7 @@ impl<'a> Lowering<'a> {
             ctor_arity: 0,
             defaults: Vec::new(),
             is_callable: false,
+            no_instances: false,
         });
     }
     /// The synthesized class a `Core` member answering a shape returns,
@@ -4928,6 +4932,7 @@ fn tagged_shape_class(sorted_names: Vec<String>) -> crate::ir::Class {
         ctor_arity: 0,
         defaults: Vec::new(),
         is_callable: false,
+        no_instances: false,
     }
 }
 

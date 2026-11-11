@@ -392,6 +392,7 @@ pub(crate) fn lower_anon_fn(
             // make: the `invoke` above is a method name a program may also
             // declare, so neither reader may look for it.
             is_callable: true,
+            no_instances: false,
         })
         .chain(shapes)
         .collect(),
@@ -1222,6 +1223,7 @@ fn thunk_class(
         // A method reference is a callable over its target, so it
         // carries the bit an anonymous function's class carries.
         is_callable: true,
+        no_instances: false,
     }
 }
 

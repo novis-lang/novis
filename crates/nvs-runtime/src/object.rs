@@ -296,6 +296,65 @@ use crate::abi::Fault;
 use crate::ctx::Ctx;
 use crate::value::{Tag, Value};
 
+/// A door that makes or copies an object of a class it did not see built:
+/// what [`ClassDesc::refusal`] is asked for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Door {
+    /// A copy boundary: `rule:classes/graph-copy`'s walk, in both carriers,
+    /// and the decoder that reads its bytes back.
+    Copy,
+    /// `Core\Reflect\ClassInfo::construct`, which makes an instance from a
+    /// class's name (`rule:security/reflection-enforces-visibility`).
+    Construct,
+}
+
+/// Why a [`Door`] refuses a class, with the sentence that says so.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Refusal {
+    /// What the class is decides it: a `Core` class, an anonymous object's
+    /// class at [`Door::Construct`], or a class the compiler made.
+    /// `Core\Reflect::forClass` answers `null` for every class `construct`
+    /// refuses this way.
+    Kind(String),
+    /// The class is `abstract` or an interface, so it has no instances.
+    NoInstances(String),
+    /// The class has a `secret` property, named by the sentence. Only a copy
+    /// boundary refuses it.
+    Secret(String),
+}
+
+impl Refusal {
+    /// The sentence that says why.
+    #[must_use]
+    pub fn sentence(&self) -> &str {
+        match self {
+            Self::Kind(sentence) | Self::NoInstances(sentence) | Self::Secret(sentence) => {
+                sentence
+            }
+        }
+    }
+
+    /// The sentence that says why, owned.
+    #[must_use]
+    pub fn into_sentence(self) -> String {
+        match self {
+            Self::Kind(sentence) | Self::NoInstances(sentence) | Self::Secret(sentence) => sentence,
+        }
+    }
+}
+
+/// What a copy boundary says of a generator, and what `clone` throws for one
+/// (`crate::object::nvs_clone_guard`): `rule:iteration/generator-stays-in-one-isolate`
+/// makes the two one refusal, so they share one message.
+pub(crate) const GENERATOR_REFUSAL: &str =
+    "a generator is a suspended frame, so it has no meaning on the other side of a copy boundary";
+
+/// The sentence every door gives for an `abstract` class or an interface:
+/// the checker's own words for `new`.
+fn no_instances_sentence(name: &str) -> String {
+    format!("`{name}` is `abstract` or an interface, so it has no instances")
+}
+
 /// What every instance of one class shares: its name, how many field slots it
 /// has, and which other classes and interfaces it is a subtype of.
 ///
@@ -670,6 +729,19 @@ pub struct ClassDesc {
     /// **Cost:** one byte scan of the name per class defined, and one `bool`
     /// per class, once per process, not per instance.
     compiler_made: bool,
+    /// Whether `nvs_stdlib::instance` defined this class: a `Core` class,
+    /// whose slots are that crate's layout and whose instances only a `Core`
+    /// member makes. The six classes of the error tree with a `Core\` name
+    /// are rows of the program's own table and do not carry it.
+    /// [`ClassTable::set_core`] writes it. **Cost:** one `bool` per class,
+    /// once per process, not per instance.
+    is_core: bool,
+    /// Whether the class can have no instances: an `abstract` class or an
+    /// interface. `nvs_ir::ir::Class::no_instances` carries `new`'s own answer
+    /// down, and [`ClassTable::set_no_instances`] writes it. A class a native
+    /// test defines by hand has instances. **Cost:** one `bool` per class,
+    /// once per compiled unit, not per instance.
+    no_instances: bool,
     /// What frees the state an instance of this class keeps in its context's
     /// tables, run by [`dismantle`] when the instance dies; `None` for every
     /// class but the `Core` ones whose state is native and filed on the
@@ -1613,6 +1685,100 @@ impl ClassDesc {
         self.compiler_made
     }
 
+    /// Whether `nvs_stdlib::instance` defined this class — see the field.
+    #[must_use]
+    pub fn is_core(&self) -> bool {
+        self.is_core
+    }
+
+    /// Whether the class can have no instances — see the field.
+    #[must_use]
+    pub fn has_no_instances(&self) -> bool {
+        self.no_instances
+    }
+
+    /// Whether `door` may make or copy an instance of this class by name, and
+    /// the reason when it may not. It is the one question every such door
+    /// asks, so the doors cannot come to disagree about a class.
+    ///
+    /// | Class | [`Door::Copy`] | [`Door::Construct`] |
+    /// |---|---|---|
+    /// | declared by the program | crosses | made |
+    /// | the same with a `secret` property | refused | made |
+    /// | `abstract`, or an interface | refused | refused |
+    /// | an anonymous object's `$shape{…}` class | crosses | refused |
+    /// | a callable's or a generator's class | refused | refused |
+    /// | every other class the compiler made | refused | refused |
+    /// | a `Core` class that holds a host handle | refused | refused |
+    /// | every other `Core` class | crosses | refused |
+    ///
+    /// A copy boundary refuses a callable, a generator, a host handle and a
+    /// compiler-made class because their slots mean nothing on the other side.
+    /// It refuses a class with no instances because no instance of it was ever
+    /// encoded, so bytes that name one are forged.
+    ///
+    /// `construct` makes what `new` makes in a program that declares the
+    /// class. A `Core` instance is made by a `Core` member and no constructor
+    /// of one reaches the runtime, and an anonymous object has no name a
+    /// program writes.
+    ///
+    /// **What it spends:** a few flag reads, and at a copy boundary one scan of
+    /// the `secret` flags. The sentence is built only on a refusal.
+    #[must_use]
+    pub fn refusal(&self, door: Door) -> Option<Refusal> {
+        let name = self.name();
+        let kind = if self.is_callable() {
+            Some(
+                "a callable captures variables from the code that created it, so it has no \
+                 meaning on the other side of a copy boundary"
+                    .to_owned(),
+            )
+        } else if self.is_generator() {
+            Some(GENERATOR_REFUSAL.to_owned())
+        } else if self.holds_host_handle() {
+            Some(format!(
+                "a {name} holds a handle onto something this side of the boundary opened, so it \
+                 has no meaning on the other side of a copy boundary — pass what identifies the \
+                 resource and open it there"
+            ))
+        } else if self.is_compiler_made() {
+            Some(format!(
+                "`{name}` is a class the compiler made for its own use, so it has no meaning on \
+                 the other side of a copy boundary"
+            ))
+        } else {
+            None
+        };
+        match door {
+            Door::Copy => {
+                if let Some(sentence) = kind {
+                    return Some(Refusal::Kind(sentence));
+                }
+                if self.no_instances {
+                    return Some(Refusal::NoInstances(no_instances_sentence(name)));
+                }
+                (0..self.field_count())
+                    .find(|&index| self.field_is_secret(index))
+                    .map(|index| {
+                        Refusal::Secret(format!(
+                            "{name}::${} is `secret` and does not cross a copy boundary unless it \
+                             is revealed",
+                            self.field_name(index).unwrap_or("?")
+                        ))
+                    })
+            }
+            Door::Construct => {
+                if kind.is_some() || self.is_core || self.is_shape() {
+                    return Some(Refusal::Kind(format!(
+                        "`{name}` is not a class this program declares"
+                    )));
+                }
+                self.no_instances
+                    .then(|| Refusal::NoInstances(no_instances_sentence(name)))
+            }
+        }
+    }
+
     /// How many [`Value`] slots an instance of this class has, including every
     /// ancestor's.
     #[must_use]
@@ -2413,6 +2579,8 @@ impl ClassTable {
             is_responder: false,
             holds_host_handle: false,
             compiler_made,
+            is_core: false,
+            no_instances: false,
             free: None,
         }));
         id
@@ -2472,6 +2640,37 @@ impl ClassTable {
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.holds_host_handle = true;
+    }
+
+    /// Marks `id` as a `Core` class — see [`ClassDesc::is_core()`]. A setter
+    /// on [`ClassTable::set_host_handle`]'s terms, and the one caller is
+    /// `nvs_stdlib::instance`, which defines every `Core` descriptor.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_core(&mut self, id: ClassId) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.is_core = true;
+    }
+
+    /// Marks `id` as a class with no instances — see
+    /// [`ClassDesc::has_no_instances()`]. A setter on
+    /// [`ClassTable::set_callable`]'s terms, called by `nvs-codegen` for an
+    /// `abstract` class and an interface.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_no_instances(&mut self, id: ClassId) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.no_instances = true;
     }
 
     /// Fills in `id`'s [`ClassDesc::free`] hook, on
@@ -4781,7 +4980,7 @@ crate::nvs_helper! {
     /// call to a generator, and this throws for one reached any other way: a
     /// `mixed`, an `object` or an `Iterator<T>`.
     ///
-    /// The message is the copy walk's ([`crate::graph::GENERATOR_REFUSAL`]),
+    /// The message is the copy walk's ([`GENERATOR_REFUSAL`]),
     /// because the rule makes `clone` and every copy boundary one refusal.
     /// `args[0]` is an object the caller still owns, and `Ok` is `null`.
     ///
@@ -4798,7 +4997,7 @@ crate::nvs_helper! {
         )]
         let class = unsafe { &*NvsObj::class_of(ptr) };
         if class.is_generator() {
-            let message = format!("clone(): {}", crate::graph::GENERATOR_REFUSAL);
+            let message = format!("clone(): {GENERATOR_REFUSAL}");
             return Err(Fault::thrown_as(crate::ThrownClass::Logic, message));
         }
         Ok(Value::null())
@@ -8472,5 +8671,73 @@ mod tests {
             }
         }
         drop(current);
+    }
+
+    /// How one door answers a class: made or crossed, refused because of
+    /// what the class is, or refused for another reason.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Answer {
+        Yes,
+        Kind,
+        NoInstances,
+        Secret,
+    }
+
+    fn answer(refusal: Option<Refusal>) -> Answer {
+        match refusal {
+            None => Answer::Yes,
+            Some(Refusal::Kind(_)) => Answer::Kind,
+            Some(Refusal::NoInstances(_)) => Answer::NoInstances,
+            Some(Refusal::Secret(_)) => Answer::Secret,
+        }
+    }
+
+    #[test]
+    fn every_class_kind_gets_the_tables_answer_at_each_door() {
+        use Answer::{Kind, NoInstances, Secret, Yes};
+        let mut table = ClassTable::new();
+        table.define("Plain", &["x"], &[]);
+        table.define(r"Core\Db\DbError", &["x"], &[]);
+        let wallet = table.define("Wallet", &["x"], &[]);
+        table.set_secret_fields(wallet, vec![true]);
+        let shape = table.define("Shape", &[] as &[&str], &[]);
+        table.set_no_instances(shape);
+        table.define("$shape{n}", &["n"], &[]);
+        let callable = table.define("Script$fn0", &["x"], &[]);
+        table.set_callable(callable);
+        table.define("Task$gen", &["x"], &[]);
+        table.define("$callable", &[] as &[&str], &[]);
+        let file = table.define(r"Core\IO\File", &["x"], &[]);
+        table.set_host_handle(file);
+        table.set_core(file);
+        let uri = table.define(r"Core\Uri", &["x"], &[]);
+        table.set_core(uri);
+        // The class, then the answer at a copy boundary and at `construct`.
+        // `forClass` answers `null` exactly where `construct` answers `Kind`.
+        let rows = [
+            ("Plain", Yes, Yes),
+            (r"Core\Db\DbError", Yes, Yes),
+            ("Wallet", Secret, Yes),
+            ("Shape", NoInstances, NoInstances),
+            ("$shape{n}", Yes, Kind),
+            ("Script$fn0", Kind, Kind),
+            ("Task$gen", Kind, Kind),
+            ("$callable", Kind, Kind),
+            (r"Core\IO\File", Kind, Kind),
+            (r"Core\Uri", Yes, Kind),
+        ];
+        for (name, copy, construct) in rows {
+            let id = table.id_of(name).expect("the table defines every row");
+            #[expect(unsafe_code, reason = "the table outlives this loop")]
+            let desc = unsafe { &*table.desc(id) };
+            assert_eq!(answer(desc.refusal(Door::Copy)), copy, "{name} at a copy boundary");
+            assert_eq!(answer(desc.refusal(Door::Construct)), construct, "{name} at construct");
+            // The copy walk asks the same function and says the same sentence.
+            assert_eq!(
+                crate::graph::refusable(desc).err().map(|why| why.message().to_owned()),
+                desc.refusal(Door::Copy).map(Refusal::into_sentence),
+                "{name}"
+            );
+        }
     }
 }

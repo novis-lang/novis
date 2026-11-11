@@ -2157,13 +2157,15 @@ nvs_runtime::nvs_helper! {
     /// `Core\Reflect::forClass(string $name): ?Core\Reflect\ClassInfo` —
     /// `rule:core-classes/reflect`'s description, reached by name.
     ///
-    /// The name is resolved against the *running program's* class table
-    /// (`nvs_runtime::Ctx::class_desc`), which is the only table a native
-    /// member can reach and the only one the question is about: a class the
-    /// compiled unit does not carry is a class no value in this program can be
-    /// an instance of. So `Core` classes are not among the answers — they
-    /// declare no properties a walk could name, and their surface is the
-    /// reference cards rather than a description.
+    /// The name is resolved with `nvs_runtime::Ctx::class_desc`, and the
+    /// answer is `null` for every class `construct` refuses because of what it
+    /// is: a `Core` class, an anonymous object's class and every class the
+    /// compiler made (`nvs_runtime::ClassDesc::refusal`). A `Core` class
+    /// declares no properties a walk could name, and its surface is the
+    /// reference cards. An `abstract` class and an interface are still
+    /// described, because their members are the program's own declarations.
+    ///
+    /// **What it spends:** one call that reads a few flags per `forClass`.
     fn nvs_core_reflect_for_class(ctx, args: [1]) {
         let name = text_of(&args[0], "Core\\Reflect::forClass")?;
         let Some(desc) = ctx.class_desc(name) else {
@@ -2175,8 +2177,14 @@ nvs_runtime::nvs_helper! {
                       class table, which outlives this context and is never \
                       rewritten while a member of it is running"
         )]
-        let description = unsafe { describe(&*desc) };
-        Ok(description)
+        let desc = unsafe { &*desc };
+        if matches!(
+            desc.refusal(nvs_runtime::Door::Construct),
+            Some(nvs_runtime::Refusal::Kind(_))
+        ) {
+            return Ok(Value::null());
+        }
+        Ok(describe(desc))
     }
 }
 
@@ -3097,9 +3105,13 @@ nvs_runtime::nvs_helper! {
     /// The class is reached by **name**, because that is what a description
     /// holds: the module doc's first decision keeps a descriptor out of every
     /// slot, so the name goes back through [`nvs_runtime::Ctx::class_desc`] the
-    /// way `forClass` first found it. A description of a `Core`-owned class has
-    /// no entry there and is refused, which is the same answer `forClass` gives
-    /// such a name.
+    /// way `forClass` first found it. Then `nvs_runtime::ClassDesc::refusal`
+    /// is asked for `construct`, before anything is allocated. A `Core` class,
+    /// a class the compiler made and an anonymous object's class get the
+    /// sentence an unknown name gets, which matches `forClass` answering
+    /// `null` for each. An `abstract` class and an interface get the sentence
+    /// the checker gives `new`. `forObject` describes an instance of any
+    /// class, so this is where its description of such a class is refused.
     ///
     /// Ownership is the constructing path's: the entries are this frame's
     /// borrowed slots and the callee retains what it keeps, and the instance
@@ -3124,6 +3136,30 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         };
+        #[expect(
+            unsafe_code,
+            reason = "`class_desc` answers with a pointer into the compiled unit's class table, \
+                      which outlives this context and is never rewritten while a member of it is \
+                      running"
+        )]
+        match unsafe { &*desc }.refusal(nvs_runtime::Door::Construct) {
+            None => {}
+            Some(nvs_runtime::Refusal::NoInstances(sentence)) => {
+                return Err(Fault::thrown_as(
+                    ThrownClass::Logic,
+                    format!("{CLASS_INFO_NAME}::{member}(): {sentence}"),
+                ));
+            }
+            Some(_) => {
+                return Err(Fault::thrown_as(
+                    ThrownClass::Logic,
+                    format!(
+                        "{CLASS_INFO_NAME}::{member}(): `{described}` is not a class this \
+                         program declares, so there is nothing to construct"
+                    ),
+                ));
+            }
+        }
         let site = site_class(args[2]);
         // `crate::arr`'s terms are `call`'s: parameter 1 is `array<mixed>` in
         // `CLASS_INFO` above, so a non-container argument is `E0401` at the
@@ -4142,6 +4178,119 @@ mod tests {
         let absent = call(super::nvs_core_reflect_for_class, &mut ctx, &[unknown])
             .expect("a name no class has is an absence, not a failure");
         assert_eq!(absent.tag(), Some(Tag::Null));
+    }
+
+    /// A context whose program table holds a class of every row
+    /// `nvs_runtime::ClassDesc::refusal` answers, none with a constructor, and
+    /// which reaches the process's `Core` classes too.
+    fn kinds_ctx() -> Ctx {
+        let mut table = ClassTable::new();
+        let plain = table.define("Plain", &["x"], &[]);
+        table.define("LogicError", &[] as &[&str], &[]);
+        table.define(r"Core\Db\DbError", &[] as &[&str], &[]);
+        let wallet = table.define("Wallet", &["x"], &[]);
+        table.set_secret_fields(wallet, vec![true]);
+        let shape = table.define("Shape", &[] as &[&str], &[]);
+        table.set_no_instances(shape);
+        let named = table.define("Named", &[] as &[&str], &[]);
+        table.set_no_instances(named);
+        table.define("$shape{n}", &["n"], &[]);
+        let callable = table.define("Script$fn0", &["x"], &[]);
+        table.set_callable(callable);
+        table.define("Task$gen", &["x"], &[]);
+        table.define("$callable", &[] as &[&str], &[]);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(table), plain));
+        ctx.set_core_classes(crate::instance::core_class_desc);
+        ctx
+    }
+
+    /// Every class `construct` refuses in [`kinds_ctx`].
+    const REFUSED_BY_CONSTRUCT: [&str; 7] = [
+        "Shape",
+        "Named",
+        "$shape{n}",
+        "Script$fn0",
+        "Task$gen",
+        r"Core\Http\TlsInfo",
+        r"Core\Uri",
+    ];
+
+    // covers: Core\Reflect\ClassInfo::construct
+    #[test]
+    fn construct_refuses_a_class_new_could_not_make_and_allocates_nothing() {
+        let mut ctx = kinds_ctx();
+        let none = Value::array(NvsArray::new());
+        for name in REFUSED_BY_CONSTRUCT {
+            let desc = ctx.class_desc(name).expect("the context reaches every class");
+            // `forObject` describes an instance of any class, so the
+            // description `construct` is asked on comes from one.
+            #[expect(
+                unsafe_code,
+                reason = "the descriptor outlives the context, and the instance is \
+                          released below without a slot being read"
+            )]
+            let subject = Value::object(unsafe { NvsObj::new(desc) });
+            let info = call(super::nvs_core_reflect_for_object, &mut ctx, &[subject])
+                .expect("every object has a description");
+            let before = ctx.memory_used();
+            assert_eq!(
+                call(
+                    super::nvs_core_reflect_class_info_construct,
+                    &mut ctx,
+                    &[info, none, OUTSIDE],
+                )
+                .err(),
+                Some(nvs_runtime::THROWN),
+                "{name} is constructed"
+            );
+            let said = ctx.take_pending().expect("a refusal leaves its sentence");
+            assert!(said.contains(name), "{name}: {said}");
+            drop(said);
+            assert_eq!(ctx.memory_used(), before, "{name}: the refusal allocated");
+            #[expect(unsafe_code, reason = "this frame owns one reference to each")]
+            unsafe {
+                info.release();
+                subject.release();
+            }
+        }
+        for name in ["Plain", "LogicError", "Wallet"] {
+            let desc = ctx.class_desc(name).expect("the fixture declares it");
+            #[expect(unsafe_code, reason = "the descriptor belongs to the context's table")]
+            let built = unsafe { nvs_runtime::construct_erased_from(&mut ctx, desc, &[], None) }
+                .unwrap_or_else(|fault| panic!("{name} is refused: {fault:?}"));
+            #[expect(unsafe_code, reason = "this frame owns the fresh instance")]
+            unsafe {
+                built.release();
+            }
+        }
+        #[expect(unsafe_code, reason = "this frame built it")]
+        unsafe {
+            none.release();
+        }
+    }
+
+    // covers: Core\Reflect::forClass
+    #[test]
+    fn for_class_is_null_for_a_core_class_and_a_class_the_compiler_made() {
+        let mut ctx = kinds_ctx();
+        for name in [r"Core\Http\TlsInfo", "Task$gen", "Script$fn0", "$callable", "$shape{n}"] {
+            assert!(ctx.class_desc(name).is_some(), "the context reaches {name}");
+            let asked = Value::text(name);
+            let answer = call(super::nvs_core_reflect_for_class, &mut ctx, &[asked])
+                .expect("asking for a class by name never throws");
+            assert_eq!(answer.tag(), Some(Tag::Null), "{name} is described");
+        }
+        for name in ["Shape", "Named", r"Core\Db\DbError"] {
+            let asked = Value::text(name);
+            let answer = call(super::nvs_core_reflect_for_class, &mut ctx, &[asked])
+                .expect("asking for a class by name never throws");
+            assert_eq!(answer.tag(), Some(Tag::Object), "{name} is not described");
+            #[expect(unsafe_code, reason = "this frame owns the fresh description")]
+            unsafe {
+                answer.release();
+            }
+        }
     }
 
     /// One text-returning `AttributeInfo` member's answer, as an owned string,

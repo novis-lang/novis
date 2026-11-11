@@ -586,6 +586,9 @@ fn descriptors() -> &'static Descriptors {
                 Vec::new()
             };
             let id = table.define(class.name, class.slots, &parents);
+            // Every descriptor this loop defines is a `Core` class, which only
+            // a `Core` member makes (`nvs_runtime::ClassDesc::refusal`).
+            table.set_core(id);
             if class.name == crate::ast::NODE_NAME {
                 node = Some(id);
             }
@@ -1718,5 +1721,28 @@ mod tests {
             );
         }
         assert!(refused > 0, "no `Core` descriptor holds a host handle");
+    }
+
+    /// `construct` makes no `Core` class. The walk is over the process's
+    /// descriptors, so a class added later is covered without a line here.
+    #[test]
+    fn every_core_descriptor_is_refused_by_construct() {
+        let table = descriptors();
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        assert!(!table.by_name.is_empty(), "the process defines no `Core` class");
+        for (name, id) in &table.by_name {
+            let desc = table.table.desc(*id);
+            #[expect(
+                unsafe_code,
+                reason = "the leaked table owns the descriptor for the whole process"
+            )]
+            let built = unsafe { nvs_runtime::construct_erased_from(&mut ctx, desc, &[], None) };
+            match built {
+                Err(nvs_runtime::Fault::Thrown(nvs_runtime::ThrownClass::Logic, said)) => {
+                    assert!(said.contains(name), "{name}: {said}");
+                }
+                other => panic!("{name} was not refused by construct: {other:?}"),
+            }
+        }
     }
 }

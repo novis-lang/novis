@@ -234,6 +234,18 @@ pub struct ClassLayout {
     /// **Cost:** one [`ClassAttribute`] per attach site per class, once per
     /// compiled unit, never per request.
     pub attributes: Vec<ClassAttribute>,
+    /// Whether the class can have no instances: an `abstract` class or an
+    /// interface, the compiler's own interfaces included. The exception tree's
+    /// classes have instances.
+    ///
+    /// The answer is `nvs_hir::ClassLinks::concrete`'s, the one question `new`
+    /// asks, carried down because a class named only at run time is made by
+    /// `Core\Reflect\ClassInfo::construct` and decoded by `Core\Serialize`
+    /// where no class graph exists. `nvs_ir::ir::Class::no_instances` carries
+    /// it on and `nvs_runtime::ClassDesc::has_no_instances` answers it.
+    ///
+    /// **Cost:** one `bool` per class, once per compiled unit.
+    pub no_instances: bool,
 }
 
 /// One attached attribute, as much of it as a reflective description reads
@@ -508,6 +520,10 @@ pub fn build_class_layouts(
         );
     }
 
+    let reserved: Vec<QName> = nvs_hir::interfaces::RESERVED
+        .iter()
+        .map(|(name, _)| QName::parse(name))
+        .collect();
     let mut table = ClassLayoutTable::default();
     for qname in own.keys() {
         let mut slots = Vec::new();
@@ -565,6 +581,10 @@ pub fn build_class_layouts(
                 // Own-only, so there is no flattening walk beside the three
                 // above — `ClassLayout::attributes` owns why.
                 attributes: own_attributes.get(qname).cloned().unwrap_or_default(),
+                // A compiler-declared interface has no link record that says
+                // so, and every other class has the one `new` reads.
+                no_instances: reserved.contains(qname)
+                    || graph.get(qname).is_some_and(|links| !links.concrete),
             },
         );
     }
@@ -1161,6 +1181,25 @@ mod tests {
         assert_eq!(layout.slot_of("y"), Some(1));
         assert_eq!(layout.slot_of("z"), None);
         assert!(layout.conforms.is_empty());
+    }
+
+    #[test]
+    fn an_abstract_class_and_an_interface_are_laid_out_with_no_instances() {
+        let table = layouts(
+            "<?nvs\ninterface Named {\n  public function name(): string;\n}\n\
+             abstract class Animal {\n  public int $legs = 4;\n}\n\
+             class Dog extends Animal implements Named {\n  \
+             public function name(): string { return 'Rex'; }\n}\n\
+             class Plain {\n  public int $x = 0;\n}\n",
+        );
+        for name in ["Named", "Animal", "Stringable"] {
+            let layout = table.get(name).expect("every name has a layout");
+            assert!(layout.no_instances, "{name} has no instances");
+        }
+        for name in ["Dog", "Plain", "LogicError"] {
+            let layout = table.get(name).expect("every name has a layout");
+            assert!(!layout.no_instances, "{name} has instances");
+        }
     }
 
     #[test]
