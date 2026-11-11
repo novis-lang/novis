@@ -632,11 +632,16 @@ fn infer_kind(
             }
             let types = check_args(args, live, scope, ctx, env);
             // A callee that is not callable at all reports that instead
-            // (`rule:types/one-mistake-reports-once`).
-            let dynamic = matches!(
-                env.interner.get(callee_ty),
-                Ty::Callable | Ty::Mixed | Ty::SecretMixed
-            );
+            // (`rule:types/one-mistake-reports-once`). So does a bare name that
+            // names no function: it was reported as `E0320` and answers
+            // `mixed`, but it is not a value a program could have called.
+            let unresolved_name = matches!(callee.kind, ExprKind::ConstFetch(_))
+                && matches!(env.interner.get(callee_ty), Ty::Mixed);
+            let dynamic = !unresolved_name
+                && matches!(
+                    env.interner.get(callee_ty),
+                    Ty::Callable | Ty::Mixed | Ty::SecretMixed
+                );
             let types = if dynamic { types } else { Vec::new() };
             report_args_with_no_parameter_list(args, &types, NoParameterList::Callable, env);
             if matches!(args, CallArgs::MethodRef) {

@@ -312,7 +312,17 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         ctx,
         env,
     );
-    if !built_fits(actual, shape, env.interner, env.graph, env.signatures) {
+    // A payload that is not clean has had its `secret` constant reported as
+    // `E0727`. A field declared `mixed` refuses a `secret` value, and that
+    // would report the same constant again. So the fit reads each `mixed` as
+    // `secret mixed`, and every other mismatch is still reported
+    // (`rule:types/one-mistake-reports-once`).
+    let want = if payload.clean {
+        shape
+    } else {
+        crate::expr::quals::mixed_admitting_secret(shape, env.interner)
+    };
+    if !built_fits(actual, want, env.interner, env.graph, env.signatures) {
         report_mismatch(attr.payload, shape, actual, env);
     }
 }

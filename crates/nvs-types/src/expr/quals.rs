@@ -705,11 +705,14 @@ pub(crate) fn unsecret(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
 /// array's element, a shape's field and a union's member. Every other part is
 /// left as it was, so a `secret` value still does not fit a plain `string`.
 ///
-/// The one reader is a `Core` row's argument. A `Core` parameter declared
-/// `mixed` takes a `secret` value, because each `Core` sink that declares one
-/// refuses the value at the call with its own code, and the credential
-/// positions of `rule:security/secret-sinks-refuse` take it on purpose. A
-/// parameter the program declares `mixed` does not.
+/// The readers are a `Core` row's argument and an extension's argument. A
+/// `Core` or extension parameter declared `mixed` takes a `secret` value,
+/// because the sink that declares one refuses the value at the call with its
+/// own code, and the credential positions of
+/// `rule:security/secret-sinks-refuse` take it on purpose.
+/// [`reject_secret_extension_argument`] asks its question against this type,
+/// so a `secret` argument is admitted there and then refused. A parameter the
+/// program declares `mixed` does not take a `secret` value.
 pub(crate) fn mixed_admitting_secret(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
     match interner.get(ty).clone() {
         Ty::Mixed => interner.secret_mixed(),
@@ -2244,6 +2247,7 @@ pub(crate) fn reject_secret_extension_argument(
     for ((arg, &ty), &slot) in list.iter().zip(arg_types).zip(slots) {
         let admitted = match slot {
             ArgSlot::Param(index) => sig.params.get(index).is_some_and(|&want| {
+                let want = mixed_admitting_secret(want, env.interner);
                 is_assignable(ty, want, env.interner, env.graph, env.signatures)
             }),
             ArgSlot::Spread(_) => true,
@@ -2608,8 +2612,7 @@ mod tests {
                 | ErasingPosition::GenericInstantiation => {}
             }
         }
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../tests/conformance/soundness");
+        let dir = nvs_repo::path("tests/conformance/soundness");
         let mut missing = Vec::new();
         for position in ErasingPosition::ALL {
             let name = position.name();
