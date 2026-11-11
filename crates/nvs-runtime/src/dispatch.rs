@@ -264,8 +264,8 @@ pub fn call_static_bound(
             ),
         ));
     }
-    crate::callable::check_param_tags(label, param_tags, args)?;
-    check_param_types(label, row, args)?;
+    crate::callable::check_param_tags(&label, param_tags, args)?;
+    check_param_types(&label, row, args)?;
     call_at(ctx, Value::class_desc(desc), code, args).map(Some)
 }
 
@@ -284,7 +284,7 @@ pub fn call_static_bound(
 /// the argument's position, the parameter's declared type as the row spells it
 /// and what was given.
 pub(crate) fn check_param_types(
-    callee: &str,
+    callee: &dyn std::fmt::Display,
     row: &crate::MethodRow,
     args: &[Value],
 ) -> Result<(), Fault> {
@@ -492,7 +492,8 @@ fn call_erased_unchecked(
             format!("`{class}` has no method `{name}()`"),
         ));
     };
-    let callee = format!("`{class}::{name}`");
+    // Formatted only by a refusal, so a call that succeeds builds no string.
+    let callee = Callee { class, name };
     if !ctx.method_is_visible_from(desc, row, site) {
         let outside = site.map_or_else(
             || "a `mixed` receiver is outside every class".to_owned(),
@@ -544,10 +545,82 @@ fn call_erased_unchecked(
     // to the declared arity first, exactly as a callable call trims — a site
     // that wrote more than the callee takes is PHP's own answer for a
     // userland call, and an argument nothing declares has no tag to check.
-    let mut passed = args[..arity].to_vec();
-    crate::callable::check_param_tags(&callee, row.param_tags, &mut passed)?;
-    check_param_types(&callee, row, &passed)?;
-    call_at(ctx, receiver, row.code, &passed)
+    // The receiver and the arguments sit in this frame's own array, so a call
+    // that succeeds allocates nothing. Past `MAX_INLINE_ARGS` the tag step
+    // refuses the call anyway, and only that refusal takes a heap vector.
+    let mut inline = [Value::null(); MAX_INLINE_ARGS + 1];
+    let mut spilled;
+    let slots: &mut [Value] = if let Some(room) = inline.get_mut(..=arity) {
+        room
+    } else {
+        spilled = vec![Value::null(); arity + 1];
+        &mut spilled
+    };
+    slots[0] = receiver;
+    slots[1..].copy_from_slice(&args[..arity]);
+    crate::callable::check_param_tags(&callee, row.param_tags, &mut slots[1..])?;
+    check_param_types(&callee, row, &slots[1..])?;
+    call_slots(ctx, row.code, slots)
+}
+
+/// How many arguments a call by name passes from a stack array. It is the
+/// number of parameters a row's tag word records, so a longer call is refused.
+/// **What it spends:** 17 slots, 272 bytes of stack, per call by name.
+pub const MAX_INLINE_ARGS: usize = 16;
+
+/// A method named in a refusal, as `` `Class::name` ``. It is formatted only
+/// when a refusal's sentence is built.
+struct Callee<'a> {
+    class: &'a str,
+    name: &'a str,
+}
+
+impl std::fmt::Display for Callee<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "`{}::{}`", self.class, self.name)
+    }
+}
+
+/// Runs `body` over the live entries of the array at `array`, in slot order,
+/// with the keys left out. Up to [`MAX_INLINE_ARGS`] entries are read into a
+/// stack array, so a call by name with an argument list allocates nothing.
+/// A longer list takes a heap vector.
+///
+/// # Safety
+///
+/// `array` is a live array the caller owns a reference to for the whole call.
+/// The entries are borrowed from it, and nothing here retains or releases them.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of an array no signature can express"
+)]
+pub unsafe fn with_array_entries<R>(
+    array: *mut crate::array::ArrayHeader,
+    body: impl FnOnce(&[Value]) -> R,
+) -> R {
+    // The caller owns a reference to this live array. The handle only reads
+    // it and must not run its own drop.
+    let source = std::mem::ManuallyDrop::new(unsafe { crate::array::NvsArray::from_raw(array) });
+    let mut inline = [Value::null(); MAX_INLINE_ARGS];
+    let mut count = 0;
+    let mut from = 0;
+    while count < MAX_INLINE_ARGS {
+        let Some(slot) = source.next_slot(from) else {
+            break;
+        };
+        from = slot + 1;
+        inline[count] = source.value_at(slot).expect("next_slot names a live entry");
+        count += 1;
+    }
+    if source.next_slot(from).is_none() {
+        return body(&inline[..count]);
+    }
+    let mut spilled = inline.to_vec();
+    while let Some(slot) = source.next_slot(from) {
+        from = slot + 1;
+        spilled.push(source.value_at(slot).expect("next_slot names a live entry"));
+    }
+    body(&spilled)
 }
 
 /// A fresh instance of `class`, built by running its own
@@ -1520,6 +1593,24 @@ pub(crate) fn call_at(
     target: *const u8,
     args: &[Value],
 ) -> Result<Value, Fault> {
+    // Up to `MAX_INLINE_ARGS` arguments sit in this frame, so the call
+    // allocates nothing. Only a longer list takes a heap vector.
+    let mut inline = [Value::null(); MAX_INLINE_ARGS + 1];
+    let mut spilled;
+    let slots: &mut [Value] = if let Some(room) = inline.get_mut(..=args.len()) {
+        room
+    } else {
+        spilled = vec![Value::null(); args.len() + 1];
+        &mut spilled
+    };
+    slots[0] = receiver;
+    slots[1..].copy_from_slice(args);
+    call_slots(ctx, target, slots)
+}
+
+/// [`call_at`] over slots already built: the receiver first, then the
+/// arguments. Each slot is retained here and released by the callee.
+fn call_slots(ctx: &mut Ctx, target: *const u8, slots: &[Value]) -> Result<Value, Fault> {
     #[expect(
         unsafe_code,
         reason = "the address came out of a live descriptor's method table, \
@@ -1527,22 +1618,18 @@ pub(crate) fn call_at(
                   exactly this signature"
     )]
     let target: NvsFn = unsafe { std::mem::transmute::<*const u8, NvsFn>(target) };
-
-    let mut slots = Vec::with_capacity(args.len() + 1);
-    slots.push(receiver);
-    slots.extend_from_slice(args);
     #[expect(
         unsafe_code,
         reason = "every value here is one the caller already owns a reference \
                   to, so each payload is live for the length of this call"
     )]
     unsafe {
-        for slot in &slots {
+        for slot in slots {
             slot.retain();
         }
     }
 
-    crate::abi::call(target, ctx, &slots).map_err(|status| {
+    crate::abi::call(target, ctx, slots).map_err(|status| {
         debug_assert_ne!(status, OK, "call reports Err only for a non-OK status");
         Fault::Pending(status)
     })
@@ -1573,24 +1660,18 @@ crate::nvs_helper! {
         let array = args[2].array_ptr().ok_or_else(|| {
             crate::helpers::wrong_tag("nvs_call_erased_method", crate::Tag::Array, args[2])
         })?;
+        // The caller's reference is the caller's, and the entries are read
+        // without taking it over.
+        let receiver = args[0];
         #[expect(
             unsafe_code,
             reason = "a Tag::Array argument owns a reference to a live \
                       allocation, so it is live for this read"
         )]
-        // The caller's reference is the caller's: this handle reads the table
-        // and must not run its own drop, exactly as `nvs_call_callable_array`'s
-        // subject handle does.
-        let entries = unsafe {
-            let source = std::mem::ManuallyDrop::new(crate::array::NvsArray::from_raw(array));
-            let mut entries = Vec::new();
-            let mut from = 0;
-            while let Some(slot) = source.next_slot(from) {
-                from = slot + 1;
-                entries.push(source.value_at(slot).expect("next_slot names a live entry"));
-            }
-            entries
-        };
-        call_erased_method(ctx, args[0], name, &entries)
+        unsafe {
+            with_array_entries(array, |entries| {
+                call_erased_method(ctx, receiver, name, entries)
+            })
+        }
     }
 }

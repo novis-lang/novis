@@ -252,11 +252,11 @@ fn call_callable_with(
     // elements and an enum's case values.
     if tags == TagCheck::Required {
         check_param_tags(
-            "a `callable`",
+            &"a `callable`",
             callable_param_tags(callable)?,
             &mut slots[1..],
         )?;
-        crate::dispatch::check_param_types("a `callable`", row, &slots[1..])?;
+        crate::dispatch::check_param_types(&"a `callable`", row, &slots[1..])?;
     }
     #[expect(
         unsafe_code,
@@ -918,7 +918,11 @@ pub fn callable_target(callable: Value) -> Result<Option<String>, Fault> {
 /// representation at all — a compiler or runtime bug rather than something a
 /// program can write. Where the word itself comes from is the caller's, and so
 /// are the faults reading it can raise ([`callable_param_tags`]).
-pub(crate) fn check_param_tags(callee: &str, word: u64, args: &mut [Value]) -> Result<(), Fault> {
+pub(crate) fn check_param_tags(
+    callee: &dyn std::fmt::Display,
+    word: u64,
+    args: &mut [Value],
+) -> Result<(), Fault> {
     for (i, arg) in args.iter_mut().enumerate() {
         if i >= CALLABLE_PARAM_TAGS_CAPACITY {
             return Err(Fault::thrown_as(

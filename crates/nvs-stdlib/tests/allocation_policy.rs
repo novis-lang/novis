@@ -612,3 +612,132 @@ fn a_sort_that_renumbers_builds_no_keys() {
          so if it has closed the arity is no longer deciding anything"
     );
 }
+
+// ============================================================================
+// A call by name allocates nothing
+// ============================================================================
+
+/// A compiled method's body: it releases the receiver its caller retained, and
+/// answers `1`. Every argument the test passes is an `int`, which nothing
+/// counts, so the receiver is the one reference to give back.
+#[cfg(debug_assertions)]
+#[expect(
+    unsafe_code,
+    reason = "compiled code's own signature, which a call by name calls through: \
+              the receiver's slot and the address of a live `Value` for the result"
+)]
+unsafe extern "C" fn method_body(
+    _ctx: *mut nvs_runtime::Ctx,
+    args: *const nvs_runtime::Value,
+    out: *mut nvs_runtime::Value,
+) -> i32 {
+    unsafe {
+        (*args).release();
+        *out = nvs_runtime::Value::uint(1);
+    }
+    nvs_runtime::OK
+}
+
+/// The `Core` member registered under `symbol`, as the function it is.
+#[cfg(debug_assertions)]
+fn member(symbol: &str) -> nvs_runtime::NvsFn {
+    let (_, address) = nvs_stdlib::symbols()
+        .into_iter()
+        .find(|(name, _)| *name == symbol)
+        .unwrap_or_else(|| panic!("`{symbol}` is a registered member"));
+    #[expect(
+        unsafe_code,
+        reason = "every registered address is a `Core` member compiled with exactly this signature"
+    )]
+    unsafe {
+        std::mem::transmute::<*const u8, nvs_runtime::NvsFn>(address)
+    }
+}
+
+/// A call by name that succeeds allocates nothing, through `ClassInfo::call`
+/// and through a `mixed` receiver, with one argument and with sixteen. The
+/// count is zero over 8 calls and over 64, so neither a per-call cost nor a
+/// one-time cost hides in it. Each parameter's tag is recorded, so the
+/// argument check runs on every call.
+// covers: Core\Reflect\ClassInfo::call
+#[cfg(debug_assertions)]
+#[test]
+fn a_successful_call_by_name_allocates_nothing() {
+    use nvs_runtime::{ClassTable, Ctx, ErrorClass, MethodRow, NvsFn, NvsObj, Value};
+
+    let int_nibble = u64::from(Value::int(0).tag_byte());
+    let row = |name: &str, arity: u32| MethodRow {
+        name: name.to_owned(),
+        code: (method_body as NvsFn) as *const u8,
+        arity,
+        param_tags: (0..arity).fold(0, |word, at| word | (int_nibble << (at * 4))),
+        param_names: Vec::new(),
+        param_types: Vec::new(),
+        public: true,
+        protected: false,
+        native: false,
+        param_classes: Vec::new(),
+        param_checks: Vec::new(),
+        is_static: false,
+        by_reference: false,
+    };
+    let mut classes = ClassTable::new();
+    let id = classes.define("Counter", &[] as &[&str], &[]);
+    classes.set_methods(id, vec![row("one", 1), row("sixteen", 16)]);
+    let classes = std::sync::Arc::new(classes);
+    let desc = classes.desc(id);
+    let mut ctx = Ctx::buffered();
+    ctx.set_runtime_error_class(ErrorClass::new(classes, id));
+    #[expect(
+        unsafe_code,
+        reason = "the descriptor belongs to the table the context now holds for its whole life, \
+                  and `Counter` declares no fields, so a fresh allocation is a whole instance"
+    )]
+    let subject = Value::object(unsafe { NvsObj::new(desc) });
+    let info = nvs_runtime::call(member("nvs_core_reflect_for_object"), &mut ctx, &[subject])
+        .expect("every object has a description");
+    let reflect_call = member("nvs_core_reflect_class_info_call");
+
+    // Everything a call reads is built before the counter is read.
+    let cases = [("one", list_of(1)), ("sixteen", list_of(16))];
+    let names: Vec<Value> = cases.iter().map(|(name, _)| Value::text(name)).collect();
+    for ((name, list), method) in cases.iter().zip(&names) {
+        for calls in [8, 64] {
+            for door in ["ClassInfo::call", "a `mixed` receiver"] {
+                let before = nvs_runtime::budget::allocations();
+                for _ in 0..calls {
+                    let answer = if door == "ClassInfo::call" {
+                        nvs_runtime::call(
+                            reflect_call,
+                            &mut ctx,
+                            &[info, subject, *method, *list, Value::null()],
+                        )
+                    } else {
+                        nvs_runtime::call(
+                            nvs_runtime::dispatch::nvs_call_erased_method,
+                            &mut ctx,
+                            &[subject, *method, *list],
+                        )
+                    };
+                    assert_eq!(
+                        answer.ok().and_then(|value| value.as_uint()),
+                        Some(1),
+                        "`{name}` through {door} runs the method"
+                    );
+                }
+                let spent = nvs_runtime::budget::allocations() - before;
+                assert_eq!(
+                    spent, 0,
+                    "{calls} calls of `{name}` through {door} made {spent} allocations, and a \
+                     call by name that succeeds owes none"
+                );
+            }
+        }
+    }
+
+    for value in names.into_iter().chain(cases.map(|(_, list)| list)) {
+        release(value);
+    }
+    release(info);
+    release(subject);
+}

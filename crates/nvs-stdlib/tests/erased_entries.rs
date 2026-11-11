@@ -6,7 +6,8 @@
 //! unless the door it goes through checks it, or its caller built the values to fit.
 //!
 //! This test reads the code and is the list. A door into compiled code is one of two shapes: a
-//! `transmute` of an address to `NvsFn`, or a call of `nvs_runtime`'s `dispatch::call_at`. Each
+//! `transmute` of an address to `NvsFn`, or a call of `nvs_runtime`'s `dispatch::call_at` or of
+//! `dispatch::call_slots`, which `call_at` builds its slots for. Each
 //! function that holds one has a row in [`DRIVERS`]. A row names a test that passes wrong-typed
 //! values through that door and expects a throw, or says which checked caller or compiler pass
 //! typed them. A new door without a row fails here, naming the function, and so does a row whose
@@ -111,6 +112,14 @@ const DRIVERS: &[(&str, &str, Driver)] = &[
         ),
     ),
     (
+        "nvs-runtime/src/dispatch.rs",
+        "call_slots",
+        Driver::TypedBy(
+            "the shared call under `call_at`: every caller of it is a door of its own, and has a \
+             row here",
+        ),
+    ),
+    (
         "nvs-codegen/src/lib.rs",
         "raw_function",
         Driver::TypedBy(
@@ -205,8 +214,8 @@ fn every_entry_into_compiled_code_has_a_driver() {
             .expect("under crates")
             .to_string_lossy()
             .replace('\\', "/");
-        // `dispatch::call_at` is `pub(crate)`, so only `nvs-runtime` can call it. A function of
-        // the same name in another crate is not a door.
+        // `dispatch::call_at` is `pub(crate)` and `dispatch::call_slots` is private, so only
+        // `nvs-runtime` can call them. A function of either name in another crate is not a door.
         let calls_at = rel.starts_with("nvs-runtime/src/");
         let lines = shipped(&text);
         for (index, (number, line)) in lines.iter().enumerate() {
@@ -215,7 +224,9 @@ fn every_entry_into_compiled_code_has_a_driver() {
                 continue;
             }
             let transmute = code.contains("transmute") && code.contains("NvsFn");
-            let call = calls_at && code.contains("call_at(") && !code.contains("fn call_at");
+            let call = calls_at
+                && ((code.contains("call_at(") && !code.contains("fn call_at"))
+                    || (code.contains("call_slots(") && !code.contains("fn call_slots")));
             if !(transmute || call) {
                 continue;
             }

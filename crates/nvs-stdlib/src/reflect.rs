@@ -3063,14 +3063,18 @@ nvs_runtime::nvs_helper! {
         // `array` with keys is one whose keys say nothing about the call. The
         // arity the entries are then judged against is the callee's own, which
         // is `call_erased_method`'s question and not asked twice here.
-        let list = crate::arr::borrowed(list);
-        let mut passed = Vec::with_capacity(list.count());
-        let mut slot = 0;
-        while let Some(live) = list.next_slot(slot) {
-            slot = live + 1;
-            passed.push(list.value_at(live).expect("a live slot has a value"));
+        // The entries are read into a stack array, so a call that succeeds
+        // allocates nothing.
+        let subject = args[1];
+        #[expect(
+            unsafe_code,
+            reason = "parameter 2 is an array this frame borrows for the whole call"
+        )]
+        unsafe {
+            nvs_runtime::with_array_entries(list, |passed| {
+                nvs_runtime::call_erased_method_from(ctx, subject, name, passed, site)
+            })
         }
-        nvs_runtime::call_erased_method_from(ctx, args[1], name, &passed, site)
     }
 }
 
@@ -3134,21 +3138,18 @@ nvs_runtime::nvs_helper! {
         // In slot order, keys ignored, exactly as `call` reads its own list: a
         // parameter list is positional, and the count it is judged against is
         // the constructor's own.
-        let list = crate::arr::borrowed(list);
-        let mut passed = Vec::with_capacity(list.count());
-        let mut slot = 0;
-        while let Some(live) = list.next_slot(slot) {
-            slot = live + 1;
-            passed.push(list.value_at(live).expect("a live slot has a value"));
-        }
         #[expect(
             unsafe_code,
-            reason = "`class_desc` answers with a pointer into the compiled unit's class table, which outlives this context and is never rewritten while a member of it is running"
+            reason = "parameter 1 is an array this frame borrows for the whole call, and \
+                      `class_desc` answers with a pointer into the compiled unit's class table, \
+                      which outlives this context and is never rewritten while a member of it is \
+                      running"
         )]
-        let built = unsafe {
-            nvs_runtime::construct_erased_from(ctx, desc, &passed, site)
-        };
-        built
+        unsafe {
+            nvs_runtime::with_array_entries(list, |passed| {
+                nvs_runtime::construct_erased_from(ctx, desc, passed, site)
+            })
+        }
     }
 }
 

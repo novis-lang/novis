@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/visibility.rs, crates/nvs-types/src/layout.rs, crates/nvs-stdlib/src/reflect.rs, docs/rules/security/reflection-enforces-visibility.md]
   - id: 5
     title: a successful call by name allocates nothing
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/callable.rs, crates/nvs-stdlib/src/reflect.rs, crates/nvs-stdlib/tests/allocation_policy.rs]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -305,8 +305,9 @@ case.
 only. The checked arguments sit in a stack array of sixteen values, the bound the tag step already
 refuses past (`crates/nvs-runtime/src/callable.rs:146`). `call_callable_with` holds its slots the
 same way (`crates/nvs-runtime/src/callable.rs:201`). The reflective members hand the `array<mixed>`
-to the runtime, which fills that array from its first live entries. **What it spends:** 256 bytes of
-stack per call by name, and no heap. A count guard proves it with the allocation counter
+to the runtime, which fills that array from its first live entries. **What it spends:** 272 bytes of
+stack for the receiver and sixteen arguments, and 128 bytes for the read list, per call by name, and
+no heap. A list longer than sixteen takes a heap vector, and the tag word then refuses the call. A count guard proves it with the allocation counter
 `crates/nvs-stdlib/tests/allocation_policy.rs:142` uses. It asserts no wall-clock time.
 
 **A callable's `invoke` checks are built after the walk, from types its lowering records.** An
@@ -491,18 +492,18 @@ property, a method and a constant.
 
 **Does:** remove the three allocations of a successful call by name, and guard the count.
 
-- [ ] The refusals of `call_erased_unchecked` and of the shared check format the callee's name where
+- [x] The refusals of `call_erased_unchecked` and of the shared check format the callee's name where
   they are raised. The tag step takes the class and the name, not a formatted string
   (`crates/nvs-runtime/src/dispatch.rs:424`, `crates/nvs-runtime/src/callable.rs:902`).
-- [ ] The checked arguments sit in a stack array of sixteen values
+- [x] The checked arguments sit in a stack array of sixteen values
   (`crates/nvs-runtime/src/dispatch.rs:461`, `crates/nvs-runtime/src/callable.rs:233`).
-- [ ] One runtime door takes the `array<mixed>` and fills that array from its first live entries.
+- [x] One runtime door takes the `array<mixed>` and fills that array from its first live entries.
   `ClassInfo::call` and `ClassInfo::construct` call it
   (`crates/nvs-stdlib/src/reflect.rs:3066`, `crates/nvs-stdlib/src/reflect.rs:3137`).
-- [ ] Test `a_successful_call_by_name_allocates_nothing`: the allocation counter reads zero over 8
+- [x] Test `a_successful_call_by_name_allocates_nothing`: the allocation counter reads zero over 8
   calls and over 64, with one argument and with sixteen, through `ClassInfo::call` and through a
   `mixed` receiver (`crates/nvs-stdlib/tests/allocation_policy.rs:142`).
-- [ ] `rule:types/erased-member-access` states the cost line: no allocation on a call that succeeds,
+- [x] `rule:types/erased-member-access` states the cost line: no allocation on a call that succeeds,
   and 256 bytes of stack (`docs/rules/types/erased-member-access.md:69`).
 
 ### 6. the goal is verified once, and every failure is fixed
@@ -515,65 +516,62 @@ property, a method and a constant.
 
 ### State
 
-Stage 3 is done. `crates/nvs-stdlib/tests/erased_entries.rs` holds
-`every_entry_into_compiled_code_has_a_driver`, and it passes. Its `DRIVERS` table is the standing
-decision's list plus `construct` (`crates/nvs-runtime/src/object.rs:4940`), which the first run named.
-It also fails on a stale row and on a driver test name no function under `crates/` has. The two
-cases `reflect-a-hooked-property-written-by-name-is-checked-before-its-set-hook-runs.nvst` and
-`a-bare-callable-checks-each-argument-against-its-whole-declared-parameter-type.nvst`, and the attacks
-`set/03` and `callable-classes-object-shapes/02`, pass on `target/debug/nvs.exe`. Both rule fragments
-are rewritten.
+Stages 1 to 5 are done. Stage 6, the gate, is next.
 
-Stage 4's mechanism and its three tests are on disk and pass by name. `reaches` takes a `same`
-predicate beside `declares` (`crates/nvs-runtime/src/ctx/visibility.rs:107`). A `private` member
-needs the site to be the subject or its ancestor, to have that very member, and to have no
-supertype with it, which `ClassDesc::any_supertype` asks (`crates/nvs-runtime/src/object.rs:1851`).
-The tests sit after `a_reflective_call_to_a_private_method_from_outside_fails_like_the_ordinary_call`
-in `crates/nvs-stdlib/src/reflect.rs`, on the `family()` fixture. `cargo clippy --all-targets` and
-`cargo fmt --check` are clean.
+Stage 4: `tests/conformance/core/reflect-a-private-member-is-reached-by-name-only-from-the-class-that-declares-it.nvst`
+and the attacks `get/02`, `set/04`, `call/03` and `constant/03` under
+`tests/hostile/core/Reflect-ClassInfo/` pass on `target/debug/nvs.exe`. The rule fragment names
+the declaring class and the redeclared constant's refusal.
 
-The sweep's `env-secret-proofs` red is stale: no file in the tree defines it, and its log does not
-exist. `bun nv try` runs the `covws` build unless `NVS_BIN` is set. Run new cases with
-`NVS_BIN=target/debug/nvs.exe`; that binary predates stage 4's change, so rebuild it with
-`cargo build` before running stage 4's cases.
+Stage 5: a call by name builds its slots in a stack array of seventeen
+(`call_erased_unchecked`, `crates/nvs-runtime/src/dispatch.rs:434`), formats the callee through a
+`Callee` display value only on refusal, and reads an `array<mixed>` through
+`with_array_entries` (`crates/nvs-runtime/src/dispatch.rs:597`), which `ClassInfo::call`,
+`ClassInfo::construct` and `nvs_call_erased_method` use. `call_at` builds stack slots too and
+hands them to `call_slots` (`crates/nvs-runtime/src/dispatch.rs:1613`). `check_param_tags` and
+`check_param_types` take `&dyn Display`. `a_successful_call_by_name_allocates_nothing` is the last
+test in `crates/nvs-stdlib/tests/allocation_policy.rs` and passes. `erased_entries`' scanner now
+knows `call_slots` as a door, with a row of its own, and passes. Clippy and fmt are clean.
+
+The sweep's `env-secret-proofs` red is stale: no file defines it, and its old command
+`bun nv proofs --gate --only 'Core\Env::secret'` exits 0. `bun nv try` and `bun nv proofs --run`
+take `NVS_BIN=target/debug/nvs.exe`; several `--id` flags do not combine, so run one member per
+call.
 
 ### Next
 
-The rest of stage 4, then stage 5. Stage 4's cases and attacks go to one writing subagent, which does
-not build, once `cargo build` has refreshed `target/debug/nvs.exe`.
+Stage 6, the gate (`docs/goals/calls-by-name-are-checked.md`, `### 6.`).
 
-- [ ] `.nvst` case beside `tests/conformance/core/reflect-a-hooked-property-written-by-name-is-checked-before-its-set-hook-runs.nvst:1`:
-  inside a subclass, `get`, `set`, `call` and `constant` of the parent's private member each throw;
-  inside the parent, the same four on a subclass instance succeed; an inherited private constructor
-  is refused to the subclass through `construct`.
-- [ ] Attacks beside `tests/hostile/core/Reflect-ClassInfo/set/03-wrong-values-into-properties-with-a-set-hook.nvs:1`:
-  `get/02`, `set/04`, `call/03` and `constant/03`, each in its own member's directory.
-- [ ] `docs/rules/security/reflection-enforces-visibility.md:5` says which class declares a member,
-  and names the redeclared private constant's refusal.
-- [ ] Stage 5 at `crates/nvs-runtime/src/dispatch.rs:424` and `crates/nvs-runtime/src/callable.rs:902`.
+- [ ] `docs/goals/calls-by-name-are-checked.md:509`: start `looper verify` in the background, and wait.
+- [ ] `docs/goals/calls-by-name-are-checked.md:511`: fix every failure in one pass, then rerun.
+- [ ] `crates/nvs-runtime/src/object.rs:1739`: the two diagnostics below, in the same fix pass.
+- [ ] `AGENTS.md:1`: the goal-end gates, `bun nv verify --doc`, `bun nv owners --closes
+  calls-by-name-are-checked` and `bun nv ci --check`.
 
 Tests that may go red: a `.nvst` or example in which a subclass reads, writes or calls its parent's
-`private` member by name (`ClassInfo` or a `mixed` receiver inside the subclass) and expected it to
-work; one in which a parent's body expected a refusal for its own private member on a subclass
-instance; one that writes an `int` by name to a hooked `float` property.
+`private` member by name and expected it to work; one in which a parent's body expected a refusal for
+its own private member on a subclass instance; one that writes an `int` by name to a hooked `float`
+property; a test that counted the allocations of a call by name or of `call_at`.
 
-Two diagnostics the subagent found break the prose rules, for stage 6 or a later goal: a by-name
-write says "declares field `price` as float, so a int cannot be written" ("field", "a int"), and a
-bare `callable` property's refusal says "as object" and names an internal `Script$fn1` class.
+Two diagnostics break the prose rules: a by-name write says "declares field `price` as float, so a
+int cannot be written" ("field", "a int"), and a bare `callable` property's refusal says "as object"
+and names an internal `Script$fn1` class.
 
 ### Backlog
 
 - An `invoke` row carries no parameter type spellings, so a bare `callable`'s refusal names no
   type. Filling them would also change what reflection lists for a callable's class
   (`crates/nvs-ir/src/lower/anon_fn.rs:374`, `crates/nvs-runtime/src/dispatch.rs:286`).
-- `check_param_class` runs on every call of an anonymous function, a proven one too. Once stage 3's
-  test holds, the row check may make it removable (`crates/nvs-ir/src/lower/anon_fn.rs:454`).
+- `check_param_class` runs on every call of an anonymous function, a proven one too. The row check
+  may make it removable (`crates/nvs-ir/src/lower/anon_fn.rs:454`).
 - A `private` constant a subclass declares again is refused to that subclass by name. A
   declaring-class label on the row would make it exact (`crates/nvs-runtime/src/object.rs:1123`).
 - `slot_check` and `test_shape` are two maps from a type to a run-time test
   (`crates/nvs-ir/src/lower/mod.rs:602`, `crates/nvs-ir/src/lower/expr.rs:7881`).
 - An intersection type and `iterable` stay `SlotCheck::Any`, and a single-value `string` keeps its
   tag alone (`crates/nvs-ir/src/lower/mod.rs:640`).
+- `call_callable_with` keeps eight inline slots (`crates/nvs-runtime/src/callable.rs:201`), so a
+  callable call with more than seven arguments allocates once.
 - `Core\Str::format('%1$s', $o)` over an object whose class implements `Stringable` throws "it does
   not implement `Stringable`" at run time. The rendering in `nvs_stdlib::format` reaches
   `stringify`, which finds no `toString` for a compiled class, and throws at

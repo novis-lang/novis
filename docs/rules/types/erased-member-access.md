@@ -77,7 +77,11 @@ method with an `inout` parameter throws, since a call by name has no variable to
 to.
 
 - **Memory:** the method rows are per class, once per process, and nothing per instance or per call:
-  two small vectors and two bits per method beside the arity and the tag word.
+  two small vectors and two bits per method beside the arity and the tag word. A call by name that
+  succeeds allocates nothing. Its receiver and up to sixteen arguments sit in a stack array of 272
+  bytes, the argument list of `ClassInfo::call`, `ClassInfo::construct` and a `mixed` call is read into
+  another of 128 bytes, and a refusal's sentence is formatted only when it is thrown. A list longer
+  than sixteen is read into a heap vector, and the tag word then refuses the call.
 - **Latency:** a statically typed call pays nothing. A call through `mixed` pays a tag test on the
   receiver, one binary search of the method table by name, a shift, a mask and a compare per argument,
   one class walk per class-typed argument and one element walk per typed-array argument.
