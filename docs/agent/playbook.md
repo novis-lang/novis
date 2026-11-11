@@ -137,6 +137,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **`bun nv try` runs the coverage build's `nvs`, not `target/debug/nvs`, so a runtime change is not
+  in what it prints.** A refusal added to the decoder still showed the old property-count message.
+  Run `cargo build --bin nvs` and then `NVS_BIN=target/debug/nvs.exe bun nv try <file>`, or
+  `target/debug/nvs.exe test <case.nvst>`. See `tools/nv/cmd/try.ts`.
+  `until: gone tools/nv/cmd/try.ts:covwsNvs`
 - **A Docker Desktop restart in the middle of a test run makes the server examples fail with
   "deadline passed" or "failed to fill whole buffer".** Its port proxy still accepts on 15432 and
   16379 while the compose containers are down, so `examples.rs` thinks the servers are up. If
