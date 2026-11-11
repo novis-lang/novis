@@ -14,7 +14,7 @@ stages:
     context: [docs/rules/types/single-value-types.md, crates/nvs-runtime/src/object.rs, crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/db/row.rs, crates/nvs-cli/src/openapi.rs, crates/nvs-diagnostics/src/code/types_e07.rs]
   - id: 3
     title: nvs meta --json carries each derived class's JSON schema
-    status: open
+    status: done
     context: [docs/rules/tooling/meta-json-takes-a-program.md, crates/nvs-cli/src/meta.rs, crates/nvs-cli/src/openapi.rs, crates/nvs-cli/tests/meta.rs]
   - id: 4
     title: the derive feature has its proofs
@@ -229,16 +229,16 @@ fix the `E0756` help.
 
 **Does:** emit the codec's object schema on each derived user class, through OpenAPI's renderer.
 
-- [ ] `Schemas` (or the part of it `object` needs) is callable from `meta.rs` with a `$ref`
+- [x] `Schemas` (or the part of it `object` needs) is callable from `meta.rs` with a `$ref`
   prefix argument, so both documents share one renderer (`crates/nvs-cli/src/openapi.rs:267`).
-- [ ] `user_class_json` adds `json` for a class whose codec the checker recorded
+- [x] `user_class_json` adds `json` for a class whose codec the checker recorded
   (`ExprTypeTable::codec`, `crates/nvs-types/src/expr_table.rs:2426`), and `program_json` adds the
   `schemas` map (`crates/nvs-cli/src/meta.rs:1034`, `:920`).
-- [ ] Fixture `crates/nvs-cli/tests/fixtures/meta/derive.nvs:1` and test
+- [x] Fixture `crates/nvs-cli/tests/fixtures/meta/derive.nvs:1` and test
   `a_derived_class_carries_its_json_schema` in `crates/nvs-cli/tests/meta.rs:1`: an inherited field,
   a renamed key, a skipped field absent, an allowed set as `enum`, a nested class as `$ref`, and a
   class with no codec has no `json` key.
-- [ ] `rule:tooling/meta-json-takes-a-program` states the `json` key, the `schemas` map and the two
+- [x] `rule:tooling/meta-json-takes-a-program` states the `json` key, the `schemas` map and the two
   Declined lines above (`docs/rules/tooling/meta-json-takes-a-program.md:1`).
 
 ### 4. the derive feature has its proofs
@@ -277,18 +277,20 @@ Stages 1 and 2 are done. Stage 1: `chain_field_order` in `crates/nvs-types/src/d
 chain root first, and an inherited field's refusals move to the subclass's attribute
 (`Inherited::relabel`).
 
-Stage 2: `allowed_values` in `crates/nvs-types/src/derive.rs` reads a set of allowed values (one
-single value included), `codec_ty` erases it to `Str` or `Int` with `Erased::allowed`, and both
-reachable tests admit it. The set rides on `DerivedField::allowed` and `nvs_runtime::AllowedValues`
-(`crates/nvs-runtime/src/object.rs`), whose `miss` words the issue with the checked conversion's
-`rendered_operand` (now `pub(crate)` in `helpers.rs`). The JSON decoder checks it in `outside`
-(`crates/nvs-stdlib/src/json.rs`) for a field and a list's element; the row decoder in `admitted`
-(`crates/nvs-stdlib/src/db/row.rs`); OpenAPI in `allowed_schema`. A single value such as `?"a"` used
-to erase to `Opaque` and fault at decode; it is now a set of one. Both stage 2 acceptance checks pass
-(`allowed-sets-encode-and-decode` by suite, `allowed-sets-in-a-row-and-a-schema` by `looper check`).
+Stage 2: `allowed_values` (`crates/nvs-types/src/derive.rs`) reads a set of allowed values, carried
+on `DerivedField::allowed` and `nvs_runtime::AllowedValues`, and checked in `outside` (`json.rs`),
+`admitted` (`db/row.rs`) and `allowed_schema` (OpenAPI). Both stage 2 checks pass.
+
+Stage 3: `Schemas` (`crates/nvs-cli/src/openapi.rs`) is `pub(crate)` with `Schemas::new(exprs,
+prefix)`, `codecs()`, `object` and `into_entries`; OpenAPI passes `#/components/schemas/`, meta
+`#/program/schemas/`. `user_class_json` adds `json` from `ExprTypeTable::codec(&name)`, and
+`program_json` adds `schemas`, omitted when empty. The built-in components' source classes go through
+`collect` with an empty `ExprTypeTable`, so they never get `json`. `meta-carries-the-codec` passes
+(`a_derived_class_carries_its_json_schema`, fixture `crates/nvs-cli/tests/fixtures/meta/derive.nvs`).
 
 The acceptance sweep's `env-secret-proofs` red is stale (no file defines it, and its log does not
-exist), and nightly run 43001191130 ran at f4c1d5c7e2, before 305c04f660 fixed its `live_config` red.
+exist), and nightly run 43001191130 ran at f4c1d5c7e2, before 305c04f660 fixed its only red,
+`live_config`'s `a_changed_server_timeout_applies_to_the_next_connection`, on all four runners.
 
 Expect red at the gate: any test or `.nvst` that pinned `E0756`'s old help or card text (none found by
 grep), any test that pinned a subclass's own-keys-only JSON output, and any `nvs-types` unit test that
@@ -296,10 +298,11 @@ builds a `DerivedCodec` literal without `..Default::default()`.
 
 ### Next
 
-Stage 3, all items: `crates/nvs-cli/src/openapi.rs:211` (`Schemas`) first, made callable from
-`meta.rs` with a `$ref` prefix; then `user_class_json` (`crates/nvs-cli/src/meta.rs:1034`) and
-`program_json` (`crates/nvs-cli/src/meta.rs:920`), the fixture and test, and the rule
-`docs/rules/tooling/meta-json-takes-a-program.md:1`.
+`docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/about.md:1`
+Stage 4, all items, by its `**Split:**`: one writing subagent writes examples 08 to 10 and the attack
+steps; the session writes `about.md`, `details.md`, `docs/reference/lang/90-attributes.md:684` and the
+`nvs meta --json` section of `docs/reference/tools/10-cli.md:960` (the `json` key and `schemas` map),
+then runs `bun nv proofs --comments` and `bun nv proofs --id`.
 
 ### Backlog
 
