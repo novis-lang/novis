@@ -978,8 +978,18 @@ pub(crate) fn check_options_arg(
             Some(option) if option.qual == Some(Qual::Sink) => {
                 check_shape_field(&field.value, option, live, scope, ctx, env)
             }
-            _ => check_arg(&field.value, declared, live, scope, ctx, env),
+            // A `Core` option declared `mixed` takes a `secret` value, as a
+            // `Core` `mixed` parameter does (`mixed_admitting_secret` says
+            // why). A sink that reads the option finds it in
+            // [`Env::secret_options`].
+            _ => {
+                let declared = declared.map(|ty| mixed_admitting_secret(ty, env.interner));
+                check_arg(&field.value, declared, live, scope, ctx, env)
+            }
         };
+        if crate::expr::quals::contains_secret(ty, env.interner) {
+            env.secret_options.insert(field.value.span);
+        }
         // `nvs_stdlib::registry::CoreTy::Keys` on a whole option, such as
         // `Core\Arr::countBy`'s `by`: what the callback returns becomes a key.
         // [`check_key_marks`] checks it once the call's answer is known.

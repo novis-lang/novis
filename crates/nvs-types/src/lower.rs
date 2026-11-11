@@ -1248,6 +1248,7 @@ mod tests {
             in_call_argument: false,
             dispatched_literal: false,
             key_options: Vec::new(),
+            secret_options: rustc_hash::FxHashSet::default(),
             deprecated_uses: None,
         };
         let id = lower_type(&probe_ty, &ctx, &mut env);

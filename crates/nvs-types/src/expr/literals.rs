@@ -1200,16 +1200,26 @@ pub(crate) fn check_array_literal(
     // Each element meets `secret mixed` there, so a `secret` element gets
     // the one refusal below and not a `mixed` mismatch whose help names a
     // type the member cannot take.
+    // An argument's element at `mixed` meets `secret mixed` too, and the
+    // literal keeps the qualifier on its own type below. So the argument is
+    // judged once, as a whole, and not again at the element.
     let elem_expected = match elem_expected {
         Some(elem) if dispatched => Some(super::quals::mixed_admitting_secret(elem, env.interner)),
+        Some(elem) if env.in_call_argument && matches!(env.interner.get(elem), Ty::Mixed) => {
+            Some(env.interner.secret_mixed())
+        }
         other => other,
     };
+    // Whether an element carries `secret`, so a literal written as an argument
+    // keeps it below.
+    let mut holds_secret = false;
     for item in items {
         if item.by_ref {
             report_by_reference_element(item, env);
         }
         if item.spread {
             let subject_ty = check_spread_element(item, elem_expected, live, scope, ctx, env);
+            holds_secret |= super::quals::contains_secret(subject_ty, env.interner);
             if dispatched {
                 reject_qualified_untyped_value(subject_ty, item.value.span, target, env);
             }
@@ -1231,6 +1241,7 @@ pub(crate) fn check_array_literal(
         env.dispatched_literal = nested;
         let elem_ty = check_expr(&item.value, elem_expected, live, scope, ctx, env);
         env.dispatched_literal = false;
+        holds_secret |= super::quals::contains_secret(elem_ty, env.interner);
         if dispatched && !nested && env.diags.len() == before {
             reject_qualified_untyped_value(elem_ty, item.value.span, target, env);
         } else if env.diags.len() == before {
@@ -1259,13 +1270,24 @@ pub(crate) fn check_array_literal(
             env.exprs.record_type(item.value.span, elem);
         }
     }
-    let array = match (expected, elem_expected) {
+    let mut array = match (expected, elem_expected) {
         (Some(id), Some(_)) => id,
         _ => {
             let mixed = env.interner.mixed();
             env.interner.array(mixed)
         }
     };
+    // `rule:security/secret-qualifier`: an argument is not asked the container
+    // question, so a literal written as one keeps a `secret` element as
+    // `array<secret mixed>` where its element type is `mixed`. Every `Core`
+    // sink then reads the qualifier off the argument's type, and a parameter
+    // the program declares `mixed` refuses it. Outside an argument the element
+    // was already refused where it was written.
+    let mixed_elements = matches!(env.interner.get(array), Ty::Array(elem) if matches!(env.interner.get(*elem), Ty::Mixed));
+    if holds_secret && env.in_call_argument && mixed_elements {
+        let secret = env.interner.secret_mixed();
+        array = env.interner.array(secret);
+    }
     for (key, key_ty) in keys {
         super::quals::check_key_qualifier(
             key,

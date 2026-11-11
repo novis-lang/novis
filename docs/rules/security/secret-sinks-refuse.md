@@ -21,8 +21,10 @@ the bytes are what is being debugged.
 
 The log sink is the opposite default from `tainted`, which a log takes freely
 (`rule:security/log-is-not-a-sink`). `Core\Log::write`'s `fields` bag is `array<string, mixed>` on
-purpose, so no parameter type can refuse a `secret` inside it; the checker reads the call site's
-written argument expressions instead. A `Throwable` message requires the plain type because a
+purpose, so no parameter type can refuse a `secret` inside it. The argument's own type is read
+instead: an array literal written as an argument keeps a `secret` element as `array<secret mixed>`
+(`rule:security/secret-qualifier`), so `["token" => $t]` and `["auth" => "Bearer " . $t]` are both
+refused at the call, by every sink that takes `mixed`. A `Throwable` message requires the plain type because a
 credential in an exception message ends up in a stack trace or an error page. The dump placeholder is
 a built-in rule keyed on the declared type, applied the same way to every class, and no class can hook
 or override it.

@@ -690,6 +690,14 @@ pub(crate) struct Env<'a> {
     /// and puts them back, so a call nested in an option never reads another
     /// call's entries.
     pub key_options: Vec<(Span, TypeId)>,
+    /// The span of each option value whose type carries `secret`, such as
+    /// `Core\Queue::push`'s `args`. A `Core` option declared `mixed` takes a
+    /// `secret` value, like every `Core` `mixed` parameter, and the option's
+    /// type is the registry's, so the value's own type is not on the
+    /// argument. A sink that reads an option looks its value's span up here.
+    /// Nothing clears it, since a span identifies its own call site, as
+    /// [`Self::method_name_args`] does.
+    pub secret_options: FxHashSet<Span>,
     /// The uses of deprecated code already warned about in the body being
     /// checked, or `None` where nothing warns: outside a body, and inside a
     /// deprecated declaration or a member of a deprecated class. Opened by

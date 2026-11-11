@@ -289,6 +289,53 @@ fn every_secret_sink_refuses_a_secret_mixed() {
     }
 }
 
+/// A literal written as an argument keeps a `secret` element on its type, so
+/// each sink refuses it once with its own code, and a plain literal compiles.
+#[test]
+fn a_secret_in_a_literal_argument_is_refused_once_by_its_sink() {
+    let sinks = [
+        ("echo Core\\Json::encode([$x]);", code::E_SECRET_ENCODED),
+        (
+            "echo Core\\Json::encode([\"k\" => $x]);",
+            code::E_SECRET_ENCODED,
+        ),
+        (
+            "echo Core\\Json::encode([\"k\" => \"a\" . $x]);",
+            code::E_SECRET_ENCODED,
+        ),
+        (
+            "echo Core\\Json::encode([[1, $x]]);",
+            code::E_SECRET_ENCODED,
+        ),
+        ("echo Core\\Json::encode({k: $x});", code::E_SECRET_ENCODED),
+        (
+            "Core\\Log::write(Core\\Log::Level::Info, \"m\", [\"k\" => $x]);",
+            code::E_SECRET_LOGGED,
+        ),
+        (
+            "Core\\Log::write(Core\\Log::Level::Info, \"m\", [\"k\" => \"a\" . $x]);",
+            code::E_SECRET_LOGGED,
+        ),
+        (
+            "Core\\Queue::push(\"a.nvs\", {args: [\"k\" => \"a\" . $x]});",
+            code::E_SECRET_ENCODED,
+        ),
+        (
+            "Core\\Queue::push(\"a.nvs\", {args: $x});",
+            code::E_SECRET_ENCODED,
+        ),
+    ];
+    for qualified in ["secret string", "secret mixed"] {
+        for (line, want) in sinks {
+            let diags = check_src(&in_function(qualified, line));
+            let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+            assert_eq!(codes, [want], "{qualified}: {line}\n{diags:?}");
+            let plain = check_src(&in_function("string", line));
+            assert!(!plain.has_errors(), "string: {line}\n{plain:?}");
+        }
+    }
+}
+
 /// The qualified types a call or a write with no parameter type is tried
 /// with. `mixed` counts, because text out of it is `tainted`.
 const QUALIFIED: [&str; 3] = ["tainted string", "secret string", "mixed"];

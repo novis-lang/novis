@@ -15,7 +15,11 @@ and a value read back out of either is still `secret`; writing one into an eleme
 declared type does not carry the qualifier is refused where it is written, because that write is the
 last place the bit is visible. A written argument is the one position not asked — three of them take
 a credential legitimately (`rule:security/secret-sinks-refuse`), and what an argument owes is that
-rule.
+rule. So an array literal written as an argument keeps the qualifier on its own type instead: where
+its element type is `mixed`, a `secret` element makes it `array<secret mixed>`. A `Core` sink reads
+that off the argument, a `Core` credential position takes it, and a parameter the program declares
+`mixed` or `array<mixed>` refuses it. A `Core` option declared `mixed`, such as `Core\Queue::push`'s
+`args`, takes a `secret` value as a `Core` `mixed` parameter does, and its sink refuses it.
 
 **A `secret` value is never an array key.** An array's type records nothing about its keys, so
 `Core\Arr::keys`, a `foreach`, a dump and an error message all read a key back as plain text. No

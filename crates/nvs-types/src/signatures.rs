@@ -1035,6 +1035,7 @@ pub fn build_signatures(
             in_call_argument: false,
             dispatched_literal: false,
             key_options: Vec::new(),
+            secret_options: FxHashSet::default(),
             deprecated_uses: None,
         };
         collect_stmts(file.stmts, &[], &FxHashMap::default(), &mut table, &mut env);

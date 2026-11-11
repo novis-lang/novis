@@ -61,9 +61,11 @@
 //! [`reject_secret_enqueued_argument`], which is that same encoder reached
 //! through `Core\Queue::push` rather than written at the call, and
 //! [`reject_secret_logged_argument`], whose open type is `array<mixed>` **by
-//! design** rather than pending. The last two are the ones that also read the
-//! elements of a written literal, because a payload with one credential among
-//! public fields is where the qualifier is in practice.
+//! design** rather than pending. A payload with one credential among public
+//! fields is where the qualifier is in practice, so an array literal written
+//! as an argument keeps a `secret` element on its own type
+//! ([`check_array_literal`](super::literals::check_array_literal)), and each
+//! of these reads it there.
 //!
 //! The last has no member behind it at all: [`reject_secret_output`] is
 //! `rule:security/secret-sinks-refuse`'s terminal-output bullet, asked at `echo`
@@ -1594,15 +1596,12 @@ pub(crate) fn reject_secret_element_write(
 /// fields is the shape this exists for, and refusing only a bare `secret`
 /// argument would leave the common spelling open.
 ///
-/// **What it does not reach is the written array literal**, and that is the
-/// container axis rather than this rule: an `["token" => $s]` with no
-/// expectation on it infers `array<mixed>`
-/// ([`check_array_literal`](super::literals::check_array_literal) joins
-/// nothing), so the qualifier is gone before the call is looked at. The axis
-/// answers it where the value is written instead
-/// ([`reject_secret_into_container`]), which is why the literal cannot be
-/// built one statement earlier and handed over through a variable — and why
-/// this rule needs no second walk over an expression it reads a type off.
+/// A literal written at the call keeps a `secret` element on its own type
+/// ([`check_array_literal`](super::literals::check_array_literal) gives it
+/// `array<secret mixed>` in an argument), so `[$token]`, `['k' => $token]`
+/// and `['k' => "Bearer " . $token]` are refused here too. A literal built
+/// one statement earlier is refused where its element is written
+/// ([`reject_secret_into_container`]).
 ///
 /// The way out is written at the field rather than at the call —
 /// `Core\Secret::reveal(..., "reason")` on the one value that must travel — so
@@ -1907,27 +1906,27 @@ fn class_fields_outside(
 /// encode is inside the member rather than at a call the program wrote.
 ///
 /// A call-site rule for every sibling's reason: `args` is declared `mixed`,
-/// which a `secret string` satisfies, so the written option is the last place
-/// the qualifier is visible at all. It is also the one option asked about, on
-/// [`is_fields_argument`]'s split — `queue` and `key` are `string`s, which a
-/// `secret string` is not assignable to, and the other three are an instant, a
-/// duration and a `uint`, so every one of them is already refused by its own
-/// declared type and a second report here would answer one mistake twice.
+/// which takes a `secret` value at a `Core` option, so the written option is
+/// the last place the qualifier is visible at all. It is also the one option
+/// asked about, on [`is_fields_argument`]'s split — `queue` and `key` are
+/// `string`s, which a `secret string` is not assignable to, and the other
+/// three are an instant, a duration and a `uint`, so every one of them is
+/// already refused by its own declared type and a second report here would
+/// answer one mistake twice.
 ///
-/// **The qualifier is read off the written literal and the scope**, never off
-/// `arg_types`, and that is forced rather than chosen: the bag arrives as the
+/// **The qualifier is read off [`Env::secret_options`]**, never off
+/// `arg_types`: the bag arrives as the
 /// [`Ty::CoreShape`](crate::ty::Ty::CoreShape) the *registry* declared, whose
 /// `args` field is `mixed`, so nothing of the argument's own type survives on
-/// the slot. The reach is [`reject_secret_logged_argument`]'s and so is the
-/// gap it leaves — a payload that arrives *composed* is past this rule, which
-/// is the container axis `rule:security/secret-qualifier` already owns rather
-/// than a hole in this one.
+/// the slot. The options check records each value whose own type carries
+/// `secret`, and a literal written there keeps a `secret` element on its type
+/// ([`check_array_literal`](super::literals::check_array_literal)), so a
+/// composed payload is refused as a bare variable is.
 pub(crate) fn reject_secret_enqueued_argument(
     qname: &QName,
     member: &str,
     args: &CallArgs,
     slots: &[ArgSlot],
-    scope: &LocalScope,
     env: &mut Env<'_>,
 ) {
     if qname.to_string() != r"Core\Queue" || member != "push" {
@@ -1949,57 +1948,19 @@ pub(crate) fn reject_secret_enqueued_argument(
             continue;
         };
         for field in fields {
-            if span_text(env.src, field.name)
+            let is_args = span_text(env.src, field.name)
                 .trim()
                 .trim_end_matches(':')
                 .trim()
-                != "args"
-            {
-                continue;
+                == "args";
+            if is_args && env.secret_options.contains(&field.value.span) {
+                report_secret_enqueued(field.value.span, env);
             }
-            reject_secret_enqueued_value(&field.value, scope, env);
         }
     }
 }
 
-/// [`reject_secret_enqueued_argument`]'s walk over one written payload: a
-/// binding that carries the qualifier, and the same question asked of every
-/// element of an array literal or anonymous object written inline, which is where the
-/// shape the rule exists for — one credential among public fields — is
-/// actually written.
-///
-/// A binding is asked about by name for [`reject_secret_logged_argument`]'s
-/// reason: an inline literal checked against a `mixed` expectation is that
-/// expectation, so nothing of an element's own type reaches here.
-fn reject_secret_enqueued_value(at: &Expr, scope: &LocalScope, env: &mut Env<'_>) {
-    match &at.kind {
-        ExprKind::Variable(span) => {
-            let name = strip_sigil(span_text(env.src, *span));
-            let Some(bound) = scope.narrowed_ty(name).or_else(|| scope.declared_ty(name)) else {
-                return;
-            };
-            if contains_secret(bound, env.interner) {
-                report_secret_enqueued(at.span, env);
-            }
-        }
-        ExprKind::ArrayLiteral(items) => {
-            for item in items {
-                reject_secret_enqueued_value(&item.value, scope, env);
-            }
-        }
-        ExprKind::AnonObject(fields) => {
-            for field in fields {
-                reject_secret_enqueued_value(&field.value, scope, env);
-            }
-        }
-        _ => {}
-    }
-}
-
-/// [`reject_secret_enqueued_argument`]'s one diagnostic, written once because
-/// the rule reaches it from two directions — a payload that carries the
-/// qualifier, and one element of a payload object that does — and the author
-/// is owed the same sentence either way.
+/// [`reject_secret_enqueued_argument`]'s one diagnostic.
 fn report_secret_enqueued(span: Span, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
@@ -2026,23 +1987,17 @@ fn report_secret_enqueued(span: Span, env: &mut Env<'_>) {
 /// is, and nowhere below is. [`is_fields_argument`] owns why the other two
 /// parameters are left to their own declared types.
 ///
-/// **The element half is read off the written literal**, which is what the rule's
-/// "including inside a `fields` array literal" asks for and what no type could
-/// answer: a literal checked against an `array<mixed>` expectation *is* that
-/// expectation ([`check_array_literal`](super::literals::check_array_literal)
-/// hands the expected id straight back), so `["token" => $t]` arrives here as
-/// an `array<mixed>` with nothing left of `$t` on it. So each element that
-/// names a binding is asked about by name instead, against the same scope the
-/// read itself used. An element that *composes* one — `"Bearer " . $t` — is
-/// past this rule, and that is the container axis `rule:security/secret-qualifier` already owns rather
-/// than a hole in this one: the fix there is an element type for a literal,
-/// and it would make this half fall out of [`contains_secret`] like the rest.
+/// **The element half is the literal's own type**, which is what the rule's
+/// "including inside a `fields` array literal" asks for: a literal written as
+/// an argument keeps a `secret` element as `array<secret mixed>`
+/// ([`check_array_literal`](super::literals::check_array_literal)), so
+/// `["token" => $t]` and `["token" => "Bearer " . $t]` both carry the
+/// qualifier here.
 pub(crate) fn reject_secret_logged_argument(
     qname: &QName,
     member: &str,
     args: &CallArgs,
     arg_types: &[TypeId],
-    scope: &LocalScope,
     env: &mut Env<'_>,
 ) {
     if qname.to_string() != r"Core\Log" || member != "write" {
@@ -2057,22 +2012,6 @@ pub(crate) fn reject_secret_logged_argument(
         }
         if contains_secret(ty, env.interner) {
             report_secret_logged(arg.value.span, env);
-            continue;
-        }
-        let ExprKind::ArrayLiteral(items) = &arg.value.kind else {
-            continue;
-        };
-        for item in items {
-            let ExprKind::Variable(span) = &item.value.kind else {
-                continue;
-            };
-            let name = strip_sigil(span_text(env.src, *span));
-            let Some(bound) = scope.narrowed_ty(name).or_else(|| scope.declared_ty(name)) else {
-                continue;
-            };
-            if contains_secret(bound, env.interner) {
-                report_secret_logged(item.value.span, env);
-            }
         }
     }
 }
@@ -2094,10 +2033,7 @@ fn is_fields_argument(index: usize, arg: &Arg, env: &Env<'_>) -> bool {
     }
 }
 
-/// [`reject_secret_logged_argument`]'s one diagnostic, written once because
-/// the rule reaches it from two directions — a whole argument that carries the
-/// qualifier, and one element of a `fields` literal that does — and the author
-/// is owed the same sentence either way.
+/// [`reject_secret_logged_argument`]'s one diagnostic.
 fn report_secret_logged(span: Span, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(

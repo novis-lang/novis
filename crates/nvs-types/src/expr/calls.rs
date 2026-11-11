@@ -788,7 +788,7 @@ pub(crate) fn infer_static_call(
         // why it takes the `scope` the others do not: `fields` stays
         // `array<mixed>`, so an element that names a binding is asked about by
         // name. See [`reject_secret_logged_argument`].
-        reject_secret_logged_argument(owner, name, args, &arg_types, scope, env);
+        reject_secret_logged_argument(owner, name, args, &arg_types, env);
         // `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`'s non-idempotent retry, and this is the only call path
         // that can reach it: every member carrying the obligation is a static
         // one (`nvs_stdlib::http`'s `CLIENT` writes an empty `instance`), so
@@ -855,7 +855,7 @@ pub(crate) fn infer_static_call(
         // the call above's reason and the `scope` for the log sink's — the bag
         // arrives as the declared `CoreShape`, so the written literal is all
         // there is left to read. See [`reject_secret_enqueued_argument`].
-        reject_secret_enqueued_argument(owner, name, args, &slots, scope, env);
+        reject_secret_enqueued_argument(owner, name, args, &slots, env);
         // `rule:security/secret-does-not-cross-an-extension`, at the parameters
         // a type cannot refuse it at: a `mixed`, an array or a shape. Every
         // extension method is static, so this is its one call path. See

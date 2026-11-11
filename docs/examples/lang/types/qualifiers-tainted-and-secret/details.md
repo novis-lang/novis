@@ -25,7 +25,8 @@ An error message is `E0422`. `Core\Debug::dump` and `Core\Debug::render` are `E0
 includes the parameters that take a tainted string, so `Core\Str::length($token)` does not compile.
 
 `==` between two secrets, or between a secret and a plain string, compiles and gives a plain `bool`.
-A declared `array<secret string>` keeps `secret`, so `Core\Json::encode` of it is `E0791`.
+A declared `array<secret string>` keeps `secret`, so `Core\Json::encode` of it is `E0791`. An array
+written in the call is the same: `Core\Json::encode(["token" => $token])` is `E0791` too.
 
 A secret value can be in a `mixed` variable only when you write `secret mixed`.
 `mixed $m = $token;` is `E0401`. A value read from `secret mixed` is secret, and `as string` gives a
