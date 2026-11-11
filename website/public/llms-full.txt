@@ -2560,8 +2560,7 @@ echo Core\Json::encode($a), "\n";
 
 ### `callable`, classes, `object`, shapes
 
-The types for things that are not plain values: a function you can pass around, a class, any
-object, and an object described by the fields it has.
+Types for a function value, a class, any object, and an object described by its fields.
 
 A `callable` is an anonymous function written with `fn`, or a method reference such as
 `Core\Str::length`. A class, interface or enum name is a type, and `object` is the type every
@@ -2569,14 +2568,15 @@ instance fits. A shape describes an object by its fields. `as Point` checks that
 fields and throws an error if not. `is Point` gives `true` or `false`.
 
 To pick a class while the program runs, convert its name with `as class<T>`. A name from a setting
-is checked when it runs, and `as ?class<T>` gives `null` for a wrong name.
+is checked when it runs, and `as ?class<T>` gives `null` for a wrong name. `new $c()` throws a
+`LogicError` when the name is an `abstract` class or an interface.
 
 **Good to know:** a call through a `callable` returns a `mixed` value, so convert the result where
 you use it: `$f(4) as int`.
 
 **The examples below** pass a pricing rule around, check a value against a shape, and pick a
-report class from a name in quotes and from a setting. The last two get the class of an `object`
-back, and show a shape without a name as a compile error.
+report class from a name. The last two get the class of an `object` back, and show a shape without
+a name as a compile error.
 
 A string is never a `callable`. `callable $f = "strlen";` is the error `E0418`. Write a method
 reference such as `Core\Str::length` instead.
@@ -40409,6 +40409,8 @@ program declares, its declared properties assigned directly — no constructor r
 method runs either. A cycle is preserved as a cycle. `decode` answers
 `mixed`, so narrow it with `as`; it refuses foreign bytes, another format version, and a class whose
 declared properties no longer match with `ParseError`, and `encode` throws `LogicError` on a callable.
+`decode` does not read bytes that name a generator, a function value or an open resource, such as a
+file. It throws a `ParseError` for them.
 
 ```nvs
 <?nvs
@@ -40469,7 +40471,7 @@ Turns a value into `bytes` that `decode()` can read back. The value can be a num
 
 **Returns** `bytes` — The bytes. They are `tainted` when `$value` can contain text from outside the program. That is a `tainted` string, or a `mixed` or `object` value, anywhere inside it. In that case, call `Core\Taint::assertTrustedBytes` on the bytes before `decode()`.
 
-**Throws** `LogicError` — `$value` contains a callable, an open file or connection, or an object with a `secret` property. It is also thrown when arrays and objects are nested more than 256 levels deep.
+**Throws** `LogicError` — `$value` contains a callable, an open file or connection, or an object with a `secret` property. It is also thrown when arrays and objects are nested more than 256 levels deep. Some `Core` objects cannot be written either, and the message names the class.
 
 <a id="core-core-serialize-decode"></a>
 #### `Core\Serialize::decode`
@@ -40486,7 +40488,7 @@ Builds the value again from the `bytes` that `encode()` returned. It reads only 
 
 **Returns** `mixed` — The value. An object in it is a new object of the class with the same name in this program, and its constructor does not run.
 
-**Throws** `ParseError` — `$payload` was not written by `encode()`, is incomplete, or has extra bytes at the end. It is also thrown when it names a class this program does not have, or a class whose properties are different now.
+**Throws** `ParseError` — `$payload` was not written by `encode()`, is incomplete, or has extra bytes at the end. It is also thrown when it names a class this program does not have, or a class whose properties are different now. Bytes that name a generator, a function value or an open resource, such as a file, are not read either. Bytes with a value of the wrong type in an object are not read, such as a string where the class has an `int`.
 
 <a id="core-core-validate"></a>
 ### `Core\Validate`
@@ -44604,7 +44606,7 @@ Waits for the next message and returns it. A message comes from the client, or f
 
 **Returns** `?Core\Socket\Message` — The next message, or `null` when the client has closed the connection. A connection script reads in a loop that stops at `null`. `topic()` on the message is `null` for a message from the client, and what the client sent is `tainted`. A connection that falls too far behind its topics is closed, and then this returns `null` too.
 
-**Throws** `LogicError` — The script is not running for a connection, so there is no client to wait for.; `RuntimeError` — The connection broke, or the client sent something the WebSocket protocol does not allow.
+**Throws** `LogicError` — The script is not running for a connection, so there is no client to wait for.; `ParseError` — A published object has a class that this program does not declare, or its properties do not match that class. The error names the topic and the class. The message is removed, so the next call returns the next message.; `RuntimeError` — The connection broke, or the client sent something the WebSocket protocol does not allow.
 
 <a id="core-core-socket-send"></a>
 #### `Core\Socket->send`
@@ -44736,11 +44738,11 @@ Sends a copy of `$value` to every connection that subscribed to `$topic`, and re
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$topic` | `string` (sink) | The name of the topic. As with `subscribe`, it may not be `tainted`, so a name built from user input does not compile. |
-| `$value` | `mixed` | The value to send. Each subscriber gets its own copy, so a change one subscriber makes is not seen by any other. A `tainted` value is still `tainted` when it arrives. A value that contains a `secret` cannot be published. |
+| `$value` | `mixed` | The value to send. Each subscriber gets its own copy, so a change one subscriber makes is not seen by any other. An object arrives as the class with the same name in the subscriber's program. A `tainted` value is still `tainted` when it arrives. A value that contains a `secret` cannot be published. |
 
 **Returns** `uint` — The number of subscribers the value was sent to. It is `0` for a topic nobody joined. Any script can publish, so an ordinary web request can tell the connections that something changed. A connection that publishes to a topic it joined also receives the value. A subscriber with too many unread messages is skipped and not counted. It is being closed, and `publish` never waits for it.
 
-**Throws** `LogicError` — `$topic` is empty or longer than 256 bytes, or `$value` cannot be copied to another connection, such as an object with a `secret` property. The error is thrown even when nobody joined the topic.
+**Throws** `LogicError` — `$topic` is empty or longer than 256 bytes, or `$value` cannot be sent to another connection. Examples are an object with a `secret` property, a function, a generator and an open file. The error is thrown even when nobody joined the topic.
 
 <a id="core-core-topic-unsubscribe"></a>
 #### `Core\Topic::unsubscribe`
@@ -44831,7 +44833,7 @@ Waits for the next value published to a topic this stream subscribed to. It retu
 
 **Returns** `?Core\Sse\Message` — The next message, or `null` when the stream has ended. The `null` ends a `while (var $msg = $sse->receive())` loop. A message has the published value and the name of its topic. A stream that falls too far behind also gets `null`. Its queue is full, so the stream is closed and publishers do not wait for it.
 
-**Throws** `LogicError` — This stream was opened by `stream`, not by `upgrade`. It ends with the request, so no published value can reach it, and there is nothing to wait for.
+**Throws** `LogicError` — This stream was opened by `stream`, not by `upgrade`. It ends with the request, so no published value can reach it, and there is nothing to wait for.; `ParseError` — A published object has a class that this program does not declare, or its properties do not match that class. The error names the topic and the class. The message is removed, so the next call returns the next message.
 
 <a id="core-core-sse-send"></a>
 #### `Core\Sse->send`
@@ -50086,7 +50088,7 @@ Builds an instance of the described class and runs its constructor with `$argume
 
 **Returns** `mixed` — The new instance. Its type is `mixed`. For a class with no constructor, the new instance has the default values that the class declares for its properties.
 
-**Throws** `LogicError` — The constructor is not `public` and this call site is outside the class. Or `$arguments` has fewer entries than the constructor's parameters, or an entry has a type that its parameter does not accept. Or this program does not declare the described class. An ordinary `new` makes the same checks.
+**Throws** `LogicError` — The constructor is not `public` and this call site is outside the class. Or `$arguments` has fewer entries than the constructor's parameters, or an entry has a type that its parameter does not accept. Or this program does not declare the described class. Or the described class is `abstract`, an interface or a class of `Core`, which this method cannot create. An ordinary `new` makes the same checks.
 
 <a id="core-core-reflect-methodinfo"></a>
 ### `Core\Reflect\MethodInfo`

@@ -12099,12 +12099,13 @@
   },
   "/reference/core/reflect-classinfo/construct/": {
     "feature": "Core\\Reflect\\ClassInfo::construct",
-    "hash": "374f3ba2032891c6",
+    "hash": "2b2538193e6b9bff",
     "questions": [
       "How do I create an object from a class name string?",
       "Make a new instance with constructor arguments at runtime",
       "Create the handler named in the configuration",
-      "Dynamic new with a class name"
+      "Dynamic new with a class name",
+      "Why can I not create an abstract class or a Core class from its name?"
     ]
   },
   "/reference/core/reflect-classinfo/get/": {
@@ -13472,24 +13473,26 @@
   },
   "/reference/core/serialize/decode/": {
     "feature": "Core\\Serialize::decode",
-    "hash": "39a579f259246ced",
+    "hash": "1fa1b7146ed637b0",
     "questions": [
       "How do I load an object back from saved bytes?",
       "Rebuild an array or object from stored data",
       "Read a saved list of jobs from a file",
       "Why does loading saved bytes throw a ParseError?",
-      "Is it safe to restore objects from user input?"
+      "Is it safe to restore objects from user input?",
+      "What happens when saved bytes have a property of the wrong type?"
     ]
   },
   "/reference/core/serialize/encode/": {
     "feature": "Core\\Serialize::encode",
-    "hash": "9e535146084b15b7",
+    "hash": "3ddd486bedc58bb6",
     "questions": [
       "How do I turn an object into bytes?",
       "Convert an array to bytes for a cache or file",
       "Take a snapshot of a shopping cart to undo a change later",
       "Which values cannot be saved as bytes?",
-      "Keep shared objects shared after saving and loading"
+      "Keep shared objects shared after saving and loading",
+      "Can I save a Core object such as a date as bytes?"
     ]
   },
   "/reference/core/server/": {
@@ -13738,12 +13741,13 @@
   },
   "/reference/core/socket/receive/": {
     "feature": "Core\\Socket::receive",
-    "hash": "badf7d0985a1cf49",
+    "hash": "a18f75a4083f0449",
     "questions": [
       "How do I read messages from a WebSocket client?",
       "Wait for the next message on a connection",
       "Detect when the client closes the WebSocket",
-      "Read client messages and room messages in one loop"
+      "Read client messages and room messages in one loop",
+      "Why does receive throw a ParseError for a published object?"
     ]
   },
   "/reference/core/socket/send/": {
@@ -13849,12 +13853,13 @@
   },
   "/reference/core/sse/receive/": {
     "feature": "Core\\Sse::receive",
-    "hash": "865e19b4d0d36623",
+    "hash": "e789fe434820fac3",
     "questions": [
       "How do I wait for published updates in an event stream?",
       "Forward every topic update to the browser",
       "Loop over updates until the client disconnects",
-      "Send deployment steps to a live status page"
+      "Send deployment steps to a live status page",
+      "Skip a published update whose class the stream cannot read"
     ]
   },
   "/reference/core/sse/retry/": {
@@ -15857,22 +15862,24 @@
   },
   "/reference/core/topic/publish/": {
     "feature": "Core\\Topic::publish",
-    "hash": "cff9cbdbac467053",
+    "hash": "33d71b21e9af46d1",
     "questions": [
       "How do I broadcast a value to all subscribers of a channel?",
       "Notify open dashboards from a normal web request",
       "Send an update to everyone in a chat room",
-      "Count how many connections received a message"
+      "Count how many connections received a message",
+      "Which class does a published object have when it arrives?"
     ]
   },
   "/reference/core/topic/subscribe/": {
     "feature": "Core\\Topic::subscribe",
-    "hash": "130964e829d46c86",
+    "hash": "7abc911879936151",
     "questions": [
       "How do I join a WebSocket connection to a channel?",
       "Listen for messages on a named channel",
       "Receive updates for one order on the customer page",
-      "Add a user to a chat room"
+      "Add a user to a chat room",
+      "Do two applications on one server share topic names?"
     ]
   },
   "/reference/core/topic/unsubscribe/": {

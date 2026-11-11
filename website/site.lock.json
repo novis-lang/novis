@@ -63,7 +63,7 @@
     "lang:classes/objects-are-handles": "fdf600b7a1be0f56",
     "lang:classes/what-a-class-cannot-declare": "70c4bdd2b92ec0ba",
     "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "c2da7dcab6b5a909",
-    "lang:types/callable-classes-object-shapes": "fa07e7065adaae95"
+    "lang:types/callable-classes-object-shapes": "440d08c900aa4b4f"
   },
   "syntax/classes/properties.mdx": {
     "lang:classes/lateinit": "b2fca72bdd0b6ae9",

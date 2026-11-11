@@ -37719,7 +37719,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "The constructor is not <code>public</code> and this call site is outside the class. Or <code>$arguments</code> has fewer entries than the constructor's parameters, or an entry has a type that its parameter does not accept. Or this program does not declare the described class. An ordinary <code>new</code> makes the same checks."
+                "descHtml": "The constructor is not <code>public</code> and this call site is outside the class. Or <code>$arguments</code> has fewer entries than the constructor's parameters, or an entry has a type that its parameter does not accept. Or this program does not declare the described class. Or the described class is <code>abstract</code>, an interface or a class of <code>Core</code>, which this method cannot create. An ordinary <code>new</code> makes the same checks."
               }
             ]
           },
@@ -41865,7 +41865,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "<code>$value</code> contains a callable, an open file or connection, or an object with a <code>secret</code> property. It is also thrown when arrays and objects are nested more than 256 levels deep."
+                "descHtml": "<code>$value</code> contains a callable, an open file or connection, or an object with a <code>secret</code> property. It is also thrown when arrays and objects are nested more than 256 levels deep. Some <code>Core</code> objects cannot be written either, and the message names the class."
               }
             ]
           },
@@ -41904,7 +41904,7 @@
             "errors": [
               {
                 "error": "ParseError",
-                "descHtml": "<code>$payload</code> was not written by <code>encode()</code>, is incomplete, or has extra bytes at the end. It is also thrown when it names a class this program does not have, or a class whose properties are different now."
+                "descHtml": "<code>$payload</code> was not written by <code>encode()</code>, is incomplete, or has extra bytes at the end. It is also thrown when it names a class this program does not have, or a class whose properties are different now. Bytes that name a generator, a function value or an open resource, such as a file, are not read either. Bytes with a value of the wrong type in an object are not read, such as a string where the class has an <code>int</code>."
               }
             ]
           },
@@ -41917,7 +41917,7 @@
       "url": "/reference/core/serialize/",
       "summaryBlocks": [
         {
-          "html": "<p>Turns a value into <code>bytes</code> and back. <code>encode()</code> writes the bytes, and <code>decode()</code> builds the same value again from them. Use it to save a value in a file or a cache and read it later.</p>\n<p><code>Core\\Serialize::encode</code> copies the whole value graph under a value into <code>bytes</code> in Novis's own closed format, and <code>decode</code> rebuilds it: an object comes back as an instance of the class this program declares, its declared properties assigned directly — no constructor runs, and no hook method runs either. A cycle is preserved as a cycle. <code>decode</code> answers <code>mixed</code>, so narrow it with <code>as</code>; it refuses foreign bytes, another format version, and a class whose declared properties no longer match with <code>ParseError</code>, and <code>encode</code> throws <code>LogicError</code> on a callable.</p>"
+          "html": "<p>Turns a value into <code>bytes</code> and back. <code>encode()</code> writes the bytes, and <code>decode()</code> builds the same value again from them. Use it to save a value in a file or a cache and read it later.</p>\n<p><code>Core\\Serialize::encode</code> copies the whole value graph under a value into <code>bytes</code> in Novis's own closed format, and <code>decode</code> rebuilds it: an object comes back as an instance of the class this program declares, its declared properties assigned directly — no constructor runs, and no hook method runs either. A cycle is preserved as a cycle. <code>decode</code> answers <code>mixed</code>, so narrow it with <code>as</code>; it refuses foreign bytes, another format version, and a class whose declared properties no longer match with <code>ParseError</code>, and <code>encode</code> throws <code>LogicError</code> on a callable. <code>decode</code> does not read bytes that name a generator, a function value or an open resource, such as a file. It throws a <code>ParseError</code> for them.</p>"
         },
         {
           "code": "<?nvs\nclass Slot\n{\n    public function constructor(public int $n)\n    {}\n}\nclass Ring\n{\n    public int $id = 0;\n    public ?Ring $self;\n    public function constructor(int $id)\n    {\n        $this->id = $id;\n        $this->self = null;\n    }\n}\n\nbytes $blob = Core\\Serialize::encode(new Slot(7));\nSlot $back = Core\\Serialize::decode($blob) as Slot;\necho 'n=', $back->n, \"\\n\";\n\nvar $ring = new Ring(1);\n$ring->self = $ring;\nRing $copy = Core\\Serialize::decode(Core\\Serialize::encode($ring)) as Ring;\necho 'cycle=', ($copy->self?->id ?? 0), \"\\n\";\n\ntry {\n    Core\\Serialize::decode(\"O:4:\\\"Slot\\\":1:{s:1:\\\"n\\\";i:7;}\" as bytes);\n} catch (ParseError $e) {\n    echo \"refused\\n\";\n}",
@@ -42895,6 +42895,10 @@
                 "descHtml": "The script is not running for a connection, so there is no client to wait for."
               },
               {
+                "error": "ParseError",
+                "descHtml": "A published object has a class that this program does not declare, or its properties do not match that class. The error names the topic and the class. The message is removed, so the next call returns the next message."
+              },
+              {
                 "error": "RuntimeError",
                 "descHtml": "The connection broke, or the client sent something the WebSocket protocol does not allow."
               }
@@ -43263,6 +43267,10 @@
               {
                 "error": "LogicError",
                 "descHtml": "This stream was opened by <code>stream</code>, not by <code>upgrade</code>. It ends with the request, so no published value can reach it, and there is nothing to wait for."
+              },
+              {
+                "error": "ParseError",
+                "descHtml": "A published object has a class that this program does not declare, or its properties do not match that class. The error names the topic and the class. The message is removed, so the next call returns the next message."
               }
             ]
           },
@@ -50880,14 +50888,14 @@
               },
               {
                 "name": "value",
-                "descHtml": "The value to send. Each subscriber gets its own copy, so a change one subscriber makes is not seen by any other. A <code>tainted</code> value is still <code>tainted</code> when it arrives. A value that contains a <code>secret</code> cannot be published."
+                "descHtml": "The value to send. Each subscriber gets its own copy, so a change one subscriber makes is not seen by any other. An object arrives as the class with the same name in the subscriber's program. A <code>tainted</code> value is still <code>tainted</code> when it arrives. A value that contains a <code>secret</code> cannot be published."
               }
             ],
             "returnHtml": "The number of subscribers the value was sent to. It is <code>0</code> for a topic nobody joined. Any script can publish, so an ordinary web request can tell the connections that something changed. A connection that publishes to a topic it joined also receives the value. A subscriber with too many unread messages is skipped and not counted. It is being closed, and <code>publish</code> never waits for it.",
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "<code>$topic</code> is empty or longer than 256 bytes, or <code>$value</code> cannot be copied to another connection, such as an object with a <code>secret</code> property. The error is thrown even when nobody joined the topic."
+                "descHtml": "<code>$topic</code> is empty or longer than 256 bytes, or <code>$value</code> cannot be sent to another connection. Examples are an object with a <code>secret</code> property, a function, a generator and an open file. The error is thrown even when nobody joined the topic."
               }
             ]
           },
