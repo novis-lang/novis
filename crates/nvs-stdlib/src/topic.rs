@@ -800,11 +800,7 @@ fn queue_into(inbox: &Inbox, topic: &str, payload: &Arc<[u8]>) -> bool {
 /// under it, so the topic belongs to that program's application ([`key_of`]).
 /// `None` is a program with no configuration.
 #[must_use]
-pub fn publish_text(
-    config: Option<Arc<nvs_config::Snapshot>>,
-    topic: &str,
-    text: &str,
-) -> u64 {
+pub fn publish_text(config: Option<Arc<nvs_config::Snapshot>>, topic: &str, text: &str) -> u64 {
     let mut publisher = Ctx::buffered();
     if let Some(config) = config {
         publisher.set_config(config);
@@ -1758,12 +1754,18 @@ mod tests {
         let mut from_shop = publisher_in("/srv/shop", 1);
         assert_eq!(publish(&mut from_shop, "room:apps", "for the shop"), Ok(1));
         drained(&mut shop, "room:apps");
-        assert!(blog.take_delivery().is_none(), "the blog read the shop's topic");
+        assert!(
+            blog.take_delivery().is_none(),
+            "the blog read the shop's topic"
+        );
 
         let mut from_blog = publisher_in("/srv/blog", 1);
         assert_eq!(publish(&mut from_blog, "room:apps", "for the blog"), Ok(1));
         drained(&mut blog, "room:apps");
-        assert!(shop.take_delivery().is_none(), "the shop read the blog's topic");
+        assert!(
+            shop.take_delivery().is_none(),
+            "the shop read the blog's topic"
+        );
     }
 
     /// A connection keeps the unit it opened with, so a publisher of the next
@@ -1773,7 +1775,10 @@ mod tests {
         let mut subscriber = connected_in("/srv/shop");
         call(nvs_core_topic_subscribe, &mut subscriber, "room:reload").expect("it joins");
         let mut reloaded = publisher_in("/srv/shop", 2);
-        assert_eq!(publish(&mut reloaded, "room:reload", "after the reload"), Ok(1));
+        assert_eq!(
+            publish(&mut reloaded, "room:reload", "after the reload"),
+            Ok(1)
+        );
         drained(&mut subscriber, "room:reload");
     }
 
@@ -1804,6 +1809,9 @@ mod tests {
         published.send(()).expect("the subscribers are waiting");
         let blog_missed = subscribers.join().expect("the subscribers finished");
         assert_eq!(reached, Ok(1), "only the shop's subscriber is counted");
-        assert!(blog_missed, "the blog read the shop's topic on another core");
+        assert!(
+            blog_missed,
+            "the blog read the shop's topic on another core"
+        );
     }
 }
