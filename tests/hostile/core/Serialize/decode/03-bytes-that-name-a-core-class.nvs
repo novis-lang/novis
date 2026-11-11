@@ -1,0 +1,127 @@
+<?nvs
+// Attack: a program decodes bytes it wrote by hand. They name `Core` classes and have
+// a value of the wrong type, or a class that is never read from bytes.
+// Every `decode` below should throw a `ParseError`.
+
+class Forge
+{
+    // Returns one byte with the value `$value`.
+    public static function byte(uint $value): bytes
+    {
+        return Core\Bytes::fill(1, $value);
+    }
+
+    // Returns the length of `$text` as one byte, then the text.
+    public static function text(string $text): bytes
+    {
+        bytes $raw = $text as bytes;
+        return Core\Bytes::join([Forge::byte(Core\Bytes::length($raw)), $raw]);
+    }
+
+    // Returns a payload with one object of class `$class`. It has a property
+    // for each name in `$names`, and `$values` is the bytes of their values.
+    public static function object(string $class, array<string> $names, bytes $values): bytes
+    {
+        array<bytes> $parts = ['NVS' as bytes, Forge::byte(27), Forge::byte(1), Forge::byte(9)];
+        $parts[] = Forge::text($class);
+        $parts[] = Forge::byte(Core\Arr::count($names));
+        foreach ($names as string $name) {
+            $parts[] = Forge::text($name);
+        }
+        $parts[] = $values;
+        return Core\Bytes::join($parts);
+    }
+
+    // Returns the bytes of the whole number `$value`, from 0 to 255.
+    public static function int(uint $value): bytes
+    {
+        return Core\Bytes::join([Forge::byte(2), Forge::byte($value), Core\Bytes::fill(7, 0)]);
+    }
+
+    // Returns the bytes of the `uint` number `$value`, from 0 to 255.
+    public static function uint(uint $value): bytes
+    {
+        return Core\Bytes::join([Forge::byte(3), Forge::byte($value), Core\Bytes::fill(7, 0)]);
+    }
+
+    // Returns the bytes of the string `$value`.
+    public static function string(string $value): bytes
+    {
+        return Core\Bytes::join([Forge::byte(6), Forge::text($value)]);
+    }
+
+    // Returns the bytes of `null`.
+    public static function none(): bytes
+    {
+        return Forge::byte(0);
+    }
+
+    // Returns a payload with one `Core\Uri`. The property at `$wrong` has
+    // `$value`, and every other property has a value of its own type.
+    public static function uri(int $wrong, bytes $value): bytes
+    {
+        array<bytes> $fits = [
+            Forge::string('https://example.com/a'),
+            Forge::string('https'),
+            Forge::none(),
+            Forge::string('example.com'),
+            Forge::int(80),
+            Forge::string('/a'),
+            Forge::none(),
+            Forge::none(),
+        ];
+        array<bytes> $values = [];
+        int $at = 0;
+        foreach ($fits as bytes $fit) {
+            $values[] = $at == $wrong ? $value : $fit;
+            $at = $at + 1;
+        }
+        return Forge::object(
+            'Core\Uri',
+            ['text', 'scheme', 'userInfo', 'host', 'port', 'path', 'query', 'fragment'],
+            Core\Bytes::join($values),
+        );
+    }
+
+    // Decodes `$payload` and prints whether it threw a `ParseError`.
+    // The error is caught, so the next step still runs.
+    public static function decode(bytes $payload): void
+    {
+        bytes $trusted = Core\Taint::assertTrustedBytes($payload, 'this attack wrote the bytes');
+        try {
+            Core\Serialize::decode($trusted);
+            echo "decoded\n";
+        } catch (ParseError $e) {
+            echo "ParseError\n";
+        }
+    }
+}
+
+// Step 1: each property of a `Core\Uri` in turn has a value of the wrong type.
+// The port gets a string, and every other property gets a whole number.
+int $slot = 0;
+while ($slot < 8) {
+    bytes $wrong = $slot == 4 ? Forge::string('80') : Forge::int(1);
+    echo 'step 1, property ', $slot + 1, ': ';
+    Forge::decode(Forge::uri($slot, $wrong));
+    $slot = $slot + 1;
+}
+
+// Step 2: the port is a `uint`, and the property needs an `int` or `null`.
+echo 'step 2: ';
+Forge::decode(Forge::uri(4, Forge::uint(80)));
+
+// Step 3: the path is `null`, and the property needs a string.
+echo 'step 3: ';
+Forge::decode(Forge::uri(5, Forge::none()));
+
+// Step 4: a `Core\Html\Markup`, whose text is printed with no escaping.
+// Only `Core` functions may make one, so `decode` should throw.
+echo 'step 4: ';
+Forge::decode(Forge::object(
+    'Core\Html\Markup',
+    ['text'],
+    Forge::string('<script>alert(1)</script>'),
+));
+
+echo "still running\n";

@@ -182,6 +182,27 @@ pub fn call(function: NvsFn, ctx: &mut Ctx, args: &[Value]) -> Option<Owned> {
     nvs_runtime::call(function, ctx, args).ok().map(Owned)
 }
 
+/// `Ok` when `value` is not an object, or when every slot of the object fits
+/// the type its class states (`nvs_runtime::NvsObj::check_fields`); otherwise
+/// that check's sentence. The value is borrowed, and its reference is the
+/// caller's.
+///
+/// # Errors
+///
+/// The sentence for the first slot whose value does not fit.
+pub fn check_fields(value: Value) -> Result<(), String> {
+    let Some(ptr) = value.obj_ptr() else {
+        return Ok(());
+    };
+    #[expect(
+        unsafe_code,
+        reason = "a Tag::Object value owns a reference to a live allocation, \
+                  and the handle is never dropped"
+    )]
+    let object = std::mem::ManuallyDrop::new(unsafe { nvs_runtime::NvsObj::from_raw(ptr) });
+    object.check_fields()
+}
+
 /// `head` read as an outbound call's reply head, or `None` where it is refused.
 #[must_use]
 pub fn reply_head(head: &[u8]) -> Option<ReplyHead> {

@@ -19,13 +19,23 @@ whatever the bytes are. The fields are checked once the whole graph is built, be
 back-reference can reach an object whose later fields are not filled yet. The cost is one check per
 field on a decode and nothing in memory.
 
-A `Core` class's slots are checked the same way. Each `Core` class that crosses as bytes states the
-type of each slot, in one roster beside the class descriptors (`nvs_stdlib::instance`), and the
-roster fills the tables the check reads. A `Core` class with no stated slot types is not written and
-not read: `encode` and `decode` both refuse it, with one sentence, before an object is made. That is
-the default for a class added later, so it is refused until it says what it holds. A class whose
-readers rely on more than each slot's type, such as one slot being an index into another, gets a
-reason in the roster in place of types, and is refused with that reason. A live crossing does not
+A `Core` class's slots are checked the same way. Every `Core` class with instances and no host handle
+has one row in the roster `SLOT_TYPES`, beside the class descriptors (`nvs_stdlib::instance`). A row
+is the class and either one type per slot, in the type language a member's signature uses, or a
+reason sentence. A slot's type may be `mixed`, a union, or a `Core` enum, which admits only that
+enum's case values. A class with no slots has an empty row. The roster fills the tables the check
+reads, and a debug build checks each `Core` instance it builds against its row. A `Core` class with
+no stated slot types is not written and not read: `encode` and `decode` both refuse it, with one
+sentence, before an object is made. That is the default for a class added later, so it is refused
+until it says what it holds, and a test that walks the registry fails until it has a row.
+
+A row is a reason when a reader relies on more than each slot's type. That is a slot that is an
+index, a length or a key into another slot or into a table of the request or the core; the state of
+a walk, a stream or a queue still running; text written out with no check, such as `Core\Html\Markup`;
+key material; and a value a `Core` member checked when it made the instance and its readers do not
+check again. A reader that checks a value again at each use and throws on a bad one does not rely on
+it, so a `Core\Time\Date` with a month of 13 is read back and its first member throws. Such a class
+is refused with its reason, which ends the refusal's sentence. A live crossing does not
 check slots: it copies an object a `Core` member made, and with `decode` checked and `construct`
 closed, no `Core` instance has a slot of a type its class does not state. The cost is one tag test
 per slot per decoded `Core` object, and one small table per `Core` class, built once per process. A

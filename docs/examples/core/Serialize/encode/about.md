@@ -7,7 +7,8 @@ arrays and objects. If two places point to the same object, they still point to 
 moment.
 
 Some values cannot be turned into bytes: a callable, an open file or connection, and an object with a
-`secret` property. For these values, `encode()` throws a `LogicError`.
+`secret` property. For these values, `encode()` throws a `LogicError`. Some `Core` objects cannot be
+turned into bytes either. The message of the `LogicError` names their class.
 
 **Good to know:** the bytes use a format that only Novis reads.
 

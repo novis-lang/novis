@@ -649,8 +649,7 @@ fn slot_type(ty: &CoreTy) -> Option<SlotType> {
             None,
             Some(SlotCheck::Array(Box::new(slot_check(inner)?))),
         ),
-        CoreTy::Enum(_) => (Some(Tag::Int), None, Some(slot_check(ty)?)),
-        CoreTy::Mixed | CoreTy::Union(_) => (None, None, Some(slot_check(ty)?)),
+        CoreTy::Enum(_) | CoreTy::Mixed | CoreTy::Union(_) => (None, None, Some(slot_check(ty)?)),
         _ => (Some(scalar_tag(ty)?), None, None),
     };
     Some(SlotType {
@@ -675,7 +674,8 @@ fn slot_check(ty: &CoreTy) -> Option<SlotCheck> {
         CoreTy::Union(members) => {
             SlotCheck::AnyOf(members.iter().map(slot_check).collect::<Option<_>>()?)
         }
-        // A `Core` enum in a slot is its case's `int`, one of the enum's own.
+        // A `Core` enum in a slot is one of the enum's own case values. A member
+        // stores either the case a program passed, or its `int`.
         CoreTy::Enum(name) => {
             let mut cases: Vec<u64> = registry::core_enum(name)?
                 .cases
@@ -684,7 +684,10 @@ fn slot_check(ty: &CoreTy) -> Option<SlotCheck> {
                 .collect();
             cases.sort_unstable();
             cases.dedup();
-            SlotCheck::Values(Tag::Int, cases)
+            SlotCheck::AnyOf(vec![
+                SlotCheck::Values(Tag::Int, cases.clone()),
+                SlotCheck::Values(Tag::EnumInt, cases),
+            ])
         }
         _ => SlotCheck::Tag(scalar_tag(ty)?),
     })

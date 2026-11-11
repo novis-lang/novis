@@ -32,6 +32,16 @@ fn classes() -> ClassTable {
     table
 }
 
+/// The descriptor for `name`: the table's own class, or `Core\Uri`, a `Core`
+/// class that states the type of each of its eight slots.
+fn class_desc(table: &ClassTable, name: &str) -> Option<*const ClassDesc> {
+    table.id_of(name).map(|id| table.desc(id)).or_else(|| {
+        (name == nvs_stdlib::uri::NAME)
+            .then_some(name)
+            .and_then(nvs_stdlib::core_class_desc)
+    })
+}
+
 /// Re-encodes `value`, consuming the caller's reference to it.
 ///
 /// `encode` refuses every class the table marks, so this fails when `decode`
@@ -52,7 +62,8 @@ fn encoded(value: nvs_runtime::Value) -> Vec<u8> {
 /// is a memory-safety hole rather than a wrong answer. The table also holds a
 /// callable's class, a generator's state class, a host-handle class, a class
 /// the compiler made and a class with a `secret` property, which `decode` must
-/// refuse by name, as `encode` does.
+/// refuse by name, as `encode` does. `Core\Uri` resolves too, and a decoded
+/// object of it must hold a value of its stated type in every slot.
 ///
 /// It runs inside a context, as a request decodes: a payload whose objects form
 /// a cycle keeps them alive past the last release, and the context's teardown
@@ -60,13 +71,17 @@ fn encoded(value: nvs_runtime::Value) -> Vec<u8> {
 /// outlive the run and be reported as a leak that no request has.
 pub fn serialize(data: &[u8]) {
     let table = classes();
-    let resolve =
-        |name: &str| -> Option<*const ClassDesc> { table.id_of(name).map(|id| table.desc(id)) };
+    let resolve = |name: &str| class_desc(&table, name);
     let mut ctx = Ctx::new(OutputSink::Sink);
     ctx.enter(|| {
         let Ok(once) = decode(data, &resolve) else {
             return;
         };
+        if once.class_name().as_deref() == Some(nvs_stdlib::uri::NAME)
+            && let Err(why) = nvs_stdlib::fuzz::check_fields(once)
+        {
+            panic!("`decode` built a `Core\\Uri` whose slot does not fit its stated type: {why}");
+        }
         let first = encoded(once);
         let twice = decode(&first, &resolve).expect("a payload `encode` wrote decodes again");
         let second = encoded(twice);
