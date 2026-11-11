@@ -131,7 +131,8 @@ mod mutation;
 /// The path decides which one runs. A `.nvs` file is a program, and its
 /// `#[Test]` methods run. A folder with `.nvs` files is one program made of
 /// every `.nvs` file in it and in its subfolders. A subfolder that has its
-/// own `package.toml` is not read. To run the tests of a package, give
+/// own `package.toml` is not read. `nvs test` does not run the `#[Test]`
+/// methods of a package that your program loads. To run the tests of a package, give
 /// `nvs test` the folder of that package. Run `nvs test .` in your
 /// project folder to run every test in the project. The entry file is in
 /// that folder, so its `autoload` line loads your classes for every test.

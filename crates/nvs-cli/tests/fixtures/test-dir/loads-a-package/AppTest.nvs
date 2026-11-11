@@ -1,0 +1,25 @@
+<?nvs
+autoload 'Acme\Http\Cases' from 'vendor/acme/http/src/Cases';
+require 'vendor/acme/http/src/Client.nvs';
+
+use Acme\Http\Cases\ClientCase;
+use Acme\Http\Client;
+use Core\Test;
+
+final class AppTest
+{
+    #[Test]
+    public function usesTheClient(): void
+    {
+        Test::assertSame(3, Client::total());
+    }
+}
+
+final class AppClientTest extends ClientCase
+{
+    #[Test]
+    public function own(): void
+    {
+        Test::assertSame(2, 1 + 1);
+    }
+}

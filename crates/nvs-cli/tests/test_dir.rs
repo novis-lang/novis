@@ -216,3 +216,60 @@ fn a_package_folder_named_on_the_command_line_is_run() {
         .unwrap_or_else(|error| panic!("`--format json` printed a document: {error}\n{out}"));
     assert_eq!(names(&document, "tests"), ["ToolTest::fails"]);
 }
+
+/// The `--format json` document of a run that may fail, and whether it passed.
+fn report(args: &[&str], path: &Path) -> (Value, bool) {
+    let (out, err, ok) = run_test(args, path);
+    let document = serde_json::from_str(&out)
+        .unwrap_or_else(|error| panic!("`--format json` printed a document: {error}\n{out}{err}"));
+    (document, ok)
+}
+
+/// `loads-a-package/AppTest.nvs` requires `Client.nvs` of the package
+/// `Acme\Http` and autoloads its `Cases` folder. The package's failing test and
+/// its base class's own test do not run. `AppClientTest`, which extends the
+/// package's `ClientCase`, runs the test it inherits under its own name.
+#[test]
+fn a_package_class_the_program_loads_runs_no_test() {
+    let want = [
+        "AppClientTest::inherited",
+        "AppClientTest::own",
+        "AppTest::usesTheClient",
+    ];
+    let entry = fixture("loads-a-package/AppTest.nvs");
+    let (by_file, ok) = report(&["--format", "json"], &entry);
+    assert!(ok, "a test of the package ran: {by_file}");
+    assert_eq!(names(&by_file, "tests"), want);
+    let (listed, _) = report(&["--list", "--format", "json"], &entry);
+    assert_eq!(names(&listed, "listed"), want);
+    let (by_folder, ok) = report(&["--format", "json"], &fixture("loads-a-package"));
+    assert!(ok, "a test of the package ran: {by_folder}");
+    assert_eq!(names(&by_folder, "tests"), want);
+}
+
+/// A file or the folder of the package named on the command line is the entry,
+/// so the package's own tests run, and the failing one fails the run.
+#[test]
+fn a_package_named_on_the_command_line_runs_its_own_tests() {
+    let (by_file, ok) = report(
+        &["--format", "json"],
+        &fixture("loads-a-package/vendor/acme/http/src/Client.nvs"),
+    );
+    assert!(!ok, "the package's failing test ran: {by_file}");
+    assert_eq!(
+        names(&by_file, "tests"),
+        ["Acme\\Http\\Client::aPackageTestThatFails"]
+    );
+    let (by_folder, ok) = report(
+        &["--format", "json"],
+        &fixture("loads-a-package/vendor/acme/http"),
+    );
+    assert!(!ok, "the package's failing test ran: {by_folder}");
+    assert_eq!(
+        names(&by_folder, "tests"),
+        [
+            "Acme\\Http\\Cases\\ClientCase::inherited",
+            "Acme\\Http\\Client::aPackageTestThatFails",
+        ]
+    );
+}

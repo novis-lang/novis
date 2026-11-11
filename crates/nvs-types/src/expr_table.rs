@@ -2646,8 +2646,9 @@ impl ExprTypeTable {
         }
     }
 
-    /// Removes the `#[Test]` and `#[Property]` tables of the class labelled `label`, which the
-    /// runner never constructs. Its fixtures and hooks stay for its subclasses to read.
+    /// Removes the `#[Test]` and `#[Property]` tables of the class labelled `label`, so the
+    /// runner runs none of them for that class: an abstract class, or a class of a package the
+    /// program loads. Its fixtures and hooks stay for its subclasses to read.
     pub(crate) fn forget_tests(&mut self, label: &str) {
         self.tests.remove(label);
         self.properties.remove(label);

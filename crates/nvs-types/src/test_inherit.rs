@@ -20,9 +20,17 @@
 //! recorded ones and its own, once every class has recorded its own. The
 //! nearest declaration of a name wins, and keeps the place the first
 //! declaration of that name had, so an inherited test is reported where its
-//! base class declared it. An abstract class's tests then leave the table: the
-//! runner never constructs one, and each concrete subclass runs them under its
-//! own name.
+//! base class declared it.
+//!
+//! Two kinds of class then lose their `#[Test]` and `#[Property]` rows, and
+//! keep their fixtures and hooks for their subclasses to read. An abstract
+//! class loses them because the runner never constructs one. A class whose
+//! file lies in a package below the entry's folder loses them because a
+//! package's tests run from the package's own folder
+//! (`rule:testing/test-attribute`). In both cases each concrete subclass of
+//! the application runs the tests it inherits under its own name. A package's
+//! class keeps its rows where no [`Packages`] is passed, as the editor passes
+//! none, and where its symbol cannot be found.
 //!
 //! An inherited fixture or class hook is `static`, and its compiled function
 //! is the declaring class's, so each row names that class
@@ -35,11 +43,12 @@
 //! class with no marked ancestor records nothing.
 
 use nvs_diagnostics::{Code, Diagnostic, code};
-use nvs_hir::{ClassGraph, QName};
+use nvs_hir::{ClassGraph, QName, SymbolTable};
 use nvs_syntax::ast::{ClassDecl, ClassMemberKind};
 use rustc_hash::FxHashSet;
 
 use crate::expr_table::ExprTypeTable;
+use crate::package::Packages;
 use crate::property::PropertyCase;
 use crate::test_hooks::TestHooks;
 use crate::testing::{Fixture, TestCase, attribute_named};
@@ -243,8 +252,18 @@ pub(crate) fn check_class(
 }
 
 /// Builds every recorded subclass's tables out of its ancestors' and its own,
-/// then removes each abstract class's tests. See the module docs.
-pub(crate) fn merge(graph: &ClassGraph, exprs: &mut ExprTypeTable) {
+/// then removes the tests of each abstract class and of each class whose file
+/// `packages` places in a package. See the module docs.
+///
+/// **What it spends:** one symbol lookup and one file lookup per class that has
+/// a `#[Test]` or `#[Property]` row, once per compile, where `packages` is
+/// given. Nothing at run time.
+pub(crate) fn merge(
+    graph: &ClassGraph,
+    symbols: &SymbolTable,
+    packages: Option<&Packages>,
+    exprs: &mut ExprTypeTable,
+) {
     let mut built = Vec::new();
     for (class, ancestors) in exprs.take_test_lineages() {
         let mut tests: Vec<TestCase> = Vec::new();
@@ -273,17 +292,23 @@ pub(crate) fn merge(graph: &ClassGraph, exprs: &mut ExprTypeTable) {
     for (class, tests, properties, fixtures, hooks) in built {
         exprs.replace_test_tables(&class, tests, properties, fixtures, hooks);
     }
-    let abstract_classes: Vec<String> = exprs
+    let not_run: Vec<String> = exprs
         .test_classes()
         .into_iter()
         .filter(|label| {
-            graph
-                .get(&QName::parse(label))
-                .is_some_and(|links| !links.concrete)
+            let name = QName::parse(label);
+            let in_a_package = || {
+                packages.is_some_and(|packages| {
+                    symbols
+                        .get(&name)
+                        .is_some_and(|symbol| packages.of(symbol.decl_span.file).is_some())
+                })
+            };
+            graph.get(&name).is_some_and(|links| !links.concrete) || in_a_package()
         })
         .map(str::to_owned)
         .collect();
-    for label in abstract_classes {
+    for label in not_run {
         exprs.forget_tests(&label);
     }
 }

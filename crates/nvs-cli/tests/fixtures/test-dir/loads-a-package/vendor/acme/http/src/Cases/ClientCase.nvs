@@ -1,0 +1,13 @@
+<?nvs
+namespace Acme\Http\Cases;
+
+use Core\Test;
+
+class ClientCase
+{
+    #[Test]
+    public function inherited(): void
+    {
+        Test::assertSame(4, 2 + 2);
+    }
+}

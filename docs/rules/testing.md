@@ -22,6 +22,18 @@ shape a test method has, asked once. Each row also carries the span of its metho
 about that test already points — because that is the one fact about a test nothing downstream can
 recompute, and it is what locates a test in a report and in an editor's test tree.
 
+**The table keeps no `#[Test]` or `#[Property]` row for a class whose file lies in a package below
+the entry's folder** ([`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix) places the
+file). A program loads a dependency to call it, not to test it, and a failing or slow test of
+somebody else's code would otherwise fail or slow the application's suite, whether the class came
+through `require`, `autoload` or a `discover` glob. The rows leave once every class is checked, in
+the step that drops an abstract class's tests, so the package's fixtures and hooks stay, and a
+subclass in the application runs every test it inherits ([`testing/hook-inheritance`](testing.md#testing-hook-inheritance)). A
+package's tests run when its folder, or a file in it, is the entry, because a `package.toml` in the
+entry's folder or above it is the application's. The editor places no file in a package, so its
+test tree keeps the rows. Cost: one symbol lookup and one file lookup per class that has a row, once
+per compile; nothing at run time.
+
 `#[Test]`'s payload is an options bag — `skip`, `at`, `seed`, `db`, `server`, `retries`,
 `because`, `timeout` ([`testing/a-test-has-a-wall-time-limit`](testing.md#testing-a-test-has-a-wall-time-limit)) and `tags`
 ([`testing/tags-and-shards-select-what-runs`](testing.md#testing-tags-and-shards-select-what-runs)) — every field optional and every field checked at its own type. An option the roster does
@@ -39,6 +51,9 @@ so a single `use Core\Test;` places both.
   already uses.
 - **A `test*` naming convention.** The compiler reads no meaning out of spelling
   ([`core-api/identifier-casing`](core-api.md#core-api-identifier-casing)), and a method misspelled `tsetFoo` would silently be nothing.
+- **An option that runs a dependency's tests from the application.** A package's tests run from the
+  package's own folder, where its manifest is the application's. A switch would put back the one
+  case this rule removes, for a run any developer gets by naming the folder.
 
 <sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict).</sub>
 
@@ -411,7 +426,9 @@ is the duplicate [`testing/fixtures`](testing.md#testing-fixtures) already refus
 `#[Property]` it inherits, around its own hooks and with its own fixtures, and reports it under its own
 name, so `ShopTest` running a test written in `DatabaseTest` reports `ShopTest::itConnects`. One
 contract test written once in a base class then runs against every implementation. A base class that is
-not abstract is a test class of its own as well, and runs its tests once for itself.
+not abstract is a test class of its own as well, and runs its tests once for itself. A base class
+in a package the program loads is not: it runs no test for itself under the application's entry
+([`testing/test-attribute`](testing.md#testing-test-attribute)), and each subclass in the application runs every test it inherits.
 
 **Declined:**
 - **Several hooks of one kind, run in declaration order.** The order would be a rule every reader must

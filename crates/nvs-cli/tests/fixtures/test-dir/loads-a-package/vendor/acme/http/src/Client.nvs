@@ -1,0 +1,18 @@
+<?nvs
+namespace Acme\Http;
+
+use Core\Test;
+
+final class Client
+{
+    public static function total(): int
+    {
+        return 3;
+    }
+
+    #[Test]
+    public function aPackageTestThatFails(): void
+    {
+        Test::assertSame(5, 2 + 2);
+    }
+}

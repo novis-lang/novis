@@ -390,6 +390,7 @@ fn check_files(
             decode: &decode_sites,
             encode: &encode_sites,
         },
+        packages,
         interner,
         exprs,
         diags,
@@ -510,6 +511,7 @@ fn after_walk(
     commands: crate::commands::CommandTable,
     links: &[crate::links::LinkSite],
     sites: &Sites<'_>,
+    packages: Option<&crate::package::Packages>,
     interner: &mut TypeInterner,
     exprs: &mut ExprTypeTable,
     diags: &mut Diagnostics,
@@ -529,7 +531,8 @@ fn after_walk(
     crate::commands::check_table(&commands, diags);
     // `rule:testing/hook-inheritance`'s tables are built once every class has
     // recorded its own, since a base class may be declared in a later file.
-    crate::test_inherit::merge(&module.graph, exprs);
+    // `rule:testing/test-attribute`'s package classes lose their tests here too.
+    crate::test_inherit::merge(&module.graph, &module.symbols, packages, exprs);
     // The slots a constructor may leave unset while a hook or an observer
     // runs, for the same reason: they combine each class's constructor with
     // every constructor its ancestors declare.

@@ -23,4 +23,6 @@ nothing (`crates/nvs-cli/tests/package_fetch.rs`). `nvs build` compiles a vendor
 compiles any other source, and runs none of it. `nvs test <dir>` and `nvs check <dir>` load no file
 of a package below the folder unless the program loads it: the folder walk does not go into a
 folder that holds a `package.toml`, so a package's own test files and top-level statements are not
-swept into the program (`rule:testing/a-directory-of-programs-is-one-test-program`).
+swept into the program (`rule:testing/a-directory-of-programs-is-one-test-program`). A package
+class the program does load runs no `#[Test]` method either: the test table keeps no row for it
+(`rule:testing/test-attribute`).

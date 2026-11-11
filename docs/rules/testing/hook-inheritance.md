@@ -22,7 +22,9 @@ is the duplicate `rule:testing/fixtures` already refuses. Each subclass runs eve
 `#[Property]` it inherits, around its own hooks and with its own fixtures, and reports it under its own
 name, so `ShopTest` running a test written in `DatabaseTest` reports `ShopTest::itConnects`. One
 contract test written once in a base class then runs against every implementation. A base class that is
-not abstract is a test class of its own as well, and runs its tests once for itself.
+not abstract is a test class of its own as well, and runs its tests once for itself. A base class
+in a package the program loads is not: it runs no test for itself under the application's entry
+(`rule:testing/test-attribute`), and each subclass in the application runs every test it inherits.
 
 **Declined:**
 - **Several hooks of one kind, run in declaration order.** The order would be a rule every reader must
