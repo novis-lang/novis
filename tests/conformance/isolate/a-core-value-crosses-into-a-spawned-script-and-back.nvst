@@ -1,0 +1,27 @@
+--TEST--
+A `Core` value crosses a `spawn script` method entry in both directions: a `Core\Uri` in `args:` reaches the child as a `Core\Uri`, and the one the child returns arrives in the parent as one — `rule:security/isolate-values-cross-by-copy`
+--FILE nvs.toml--
+[capabilities.script]
+spawn = true
+--FILE--
+<?nvs
+// The child gets a `Core\Uri`, reads it and returns a new one.
+final class Links {
+    public static function next(Core\Uri $base): Core\Uri {
+        echo "child host=", $base->host(), "\n";
+        return $base->resolve(reference: "c");
+    }
+}
+
+var $base = Core\Uri::parse("https://example.test/a/b");
+var $done = await spawn script Links::next with(args: ["base" => $base], output: "capture");
+echo "ok=", $done->ok ? "true" : "false", "\n";
+echo $done->output;
+
+// The parent reads the returned value as a `Core\Uri`.
+var $back = $done->value as Core\Uri;
+echo "parent=", $back->toString(), "\n";
+--EXPECT--
+ok=true
+child host=example.test
+parent=https://example.test/a/c

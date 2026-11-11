@@ -46,3 +46,21 @@ receiving side cannot resolve is refused by name, never stubbed.
 One walk serves both carriers — arena-to-arena at the isolate boundary, and bytes through
 `Core\Serialize` — so a rule added to it reaches both or neither. Two implementations that agree today
 is the failure that costs.
+
+The crossings are these, and each calls a public function of the graph module:
+
+| Crossing | Carrier | Lands in |
+|---|---|---|
+| `Core\Serialize::encode` and `decode` | bytes | the program that decodes |
+| the memory and the shared cache tier | bytes | the program that reads the entry |
+| the session record | bytes | the request that starts the session |
+| `spawn` in and out, on one core | live | the child, then the parent |
+| `spawn` placed on another core | bytes | the child, then the parent |
+| `Core\Socket::upgrade` and `Core\Sse::upgrade` | live | the connection |
+| the test fixtures | live, or bytes across cores | the test |
+| `Core\Topic::publish` | live on one core, bytes across cores | each subscriber |
+
+Every door that lands a value takes the receiving side
+(`rule:security/isolate-values-cross-by-copy`), and a test reads every shipped call of one and fails
+on a call that names none. `Core\Queue::push` is not a crossing: it writes `$args` as JSON, which
+names no class.

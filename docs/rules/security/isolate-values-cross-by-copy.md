@@ -10,6 +10,15 @@ object whose class the receiving side cannot resolve is refused with a diagnosti
 never degraded into a stub. A `secret`-typed property is refused there too
 (`rule:security/secret-crosses-no-boundary`).
 
+The receiving side resolves its own classes first and then every `Core` class, in the order a
+program resolves a class by name. So a `Core\Uri` crosses a `spawn`, an `await` and an `upgrade` as
+it crosses the cache, and a program's class arrives only as the same class, by descriptor. One
+function builds that resolver from the receiving program's table, `Ctx::receiving` for a context,
+and every crossing takes it, so no crossing can leave `Core` out or resolve by name where the live
+carrier needs the same descriptor. A side with no program table declares no program class: such an
+object is refused there, and a `Core` object still arrives. **What it spends:** one more name lookup
+per object at a live crossing, only where the program's table misses.
+
 A value crosses exactly twice, and both crossings are the same walk. In, at the spawn, the `args:`
 value crosses from the parent's ownership root into the child's. Out, at the `await`, the child's
 top-level return value, its captured output and, on failure, its error as data cross back. Nothing
