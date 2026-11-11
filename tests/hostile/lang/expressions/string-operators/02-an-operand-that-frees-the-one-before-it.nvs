@@ -19,14 +19,14 @@ class Version implements Comparable
 
 class Target
 {
-    public string $s = "";
+    public string $s = '';
     public array<string> $items = [];
     public Version $v;
     public Core\Time\Date $d;
 
     public function constructor()
     {
-        $this->v = new Version("");
+        $this->v = new Version('');
         $this->d = Core\Time\Date::at(1999, 1, 1);
         $this->reset();
     }
@@ -35,9 +35,9 @@ class Target
     public function reset(): void
     {
         int $n = 1;
-        $this->s = "old-" . $n . "-abcdefghijklmnop";
-        $this->items = ["old-" . $n . "-abcdefghijklmnop"];
-        $this->v = new Version("old-" . $n . "-abcdefghijklmnop");
+        $this->s = 'old-' . $n . '-abcdefghijklmnop';
+        $this->items = ['old-' . $n . '-abcdefghijklmnop'];
+        $this->v = new Version('old-' . $n . '-abcdefghijklmnop');
         $this->d = Core\Time\Date::at(1999, 1, 1);
     }
 
@@ -45,21 +45,21 @@ class Target
     public function replace(): string
     {
         int $n = 2;
-        $this->s = "new-" . $n . "-abcdefghijklmnop";
-        $this->items = ["new-" . $n . "-abcdefghijklmnop"];
-        $this->v = new Version("new-" . $n . "-abcdefghijklmnop");
+        $this->s = 'new-' . $n . '-abcdefghijklmnop';
+        $this->items = ['new-' . $n . '-abcdefghijklmnop'];
+        $this->v = new Version('new-' . $n . '-abcdefghijklmnop');
         $this->d = Core\Time\Date::at(2002, 2, 2);
         array<string> $fill = [];
         for (int $i = 0; $i < 1024; $i++) {
-            $fill[] = "fil-" . $n . "-abcdefghijklmnop";
+            $fill[] = 'fil-' . $n . '-abcdefghijklmnop';
         }
-        return "!";
+        return '!';
     }
 
     public function same(): string
     {
         $this->replace();
-        return "old-1-abcdefghijklmnop";
+        return 'old-1-abcdefghijklmnop';
     }
 
     public function zero(): int
@@ -71,19 +71,19 @@ class Target
     public function yearFormat(): string
     {
         $this->replace();
-        return "yyyy";
+        return 'yyyy';
     }
 
     public function tagKey(): property<Version>
     {
         $this->replace();
-        return "tag" as property<Version>;
+        return 'tag' as property<Version>;
     }
 
     public function sameVersion(): Version
     {
         $this->replace();
-        return new Version("old-1-abcdefghijklmnop");
+        return new Version('old-1-abcdefghijklmnop');
     }
 }
 

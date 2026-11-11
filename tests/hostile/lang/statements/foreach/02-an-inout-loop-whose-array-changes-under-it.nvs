@@ -12,7 +12,7 @@ try {
         $v = 'w';
     }
 } catch (LogicError $e) {
-    echo "step 1: ", $e->message, "\n";
+    echo 'step 1: ', $e->message, "\n";
 }
 
 // 2. The body replaces the array with an empty one, then writes the loop variable.
@@ -23,7 +23,7 @@ try {
         $v = 'w';
     }
 } catch (LogicError $e) {
-    echo "step 2: ", $e->message, "\n";
+    echo 'step 2: ', $e->message, "\n";
 }
 
 // 3. Each visit removes the entry before it, then writes the loop variable.
@@ -42,4 +42,4 @@ foreach ($c as string $k => inout string $v) {
     $prev = $k;
     $visits++;
 }
-echo "step 3: ", $visits, " ", Core\Json::encode($c), "\n";
+echo 'step 3: ', $visits, ' ', Core\Json::encode($c), "\n";

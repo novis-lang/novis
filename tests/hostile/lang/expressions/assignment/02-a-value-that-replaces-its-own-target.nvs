@@ -5,7 +5,7 @@
 
 class Box
 {
-    public string $c = "";
+    public string $c = '';
 
     public function constructor(string $c)
     {
@@ -15,14 +15,14 @@ class Box
 
 class Target
 {
-    public string $s = "";
+    public string $s = '';
     public array<string> $items = [];
     public Box $box;
     public array<Box> $boxes = [];
 
     public function constructor()
     {
-        $this->box = new Box("");
+        $this->box = new Box('');
         $this->reset();
     }
 
@@ -30,9 +30,9 @@ class Target
     public function reset(): void
     {
         int $n = 1;
-        $this->s = "old-" . $n . "-abcdefghijklmnop";
-        $this->items = ["old-" . $n . "-abcdefghijklmnop"];
-        $this->box = new Box("old-" . $n . "-abcdefghijklmnop");
+        $this->s = 'old-' . $n . '-abcdefghijklmnop';
+        $this->items = ['old-' . $n . '-abcdefghijklmnop'];
+        $this->box = new Box('old-' . $n . '-abcdefghijklmnop');
         $this->boxes = [];
     }
 
@@ -40,23 +40,23 @@ class Target
     public function replace(): string
     {
         int $n = 2;
-        $this->s = "new-" . $n . "-abcdefghijklmnop";
-        $this->items = ["new-" . $n . "-abcdefghijklmnop"];
-        $this->box = new Box("new-" . $n . "-abcdefghijklmnop");
+        $this->s = 'new-' . $n . '-abcdefghijklmnop';
+        $this->items = ['new-' . $n . '-abcdefghijklmnop'];
+        $this->box = new Box('new-' . $n . '-abcdefghijklmnop');
         array<string> $fill = [];
         for (int $i = 0; $i < 1024; $i++) {
-            $fill[] = "fil-" . $n . "-abcdefghijklmnop";
-            $this->boxes[] = new Box("fil-" . $n . "-abcdefghijklmnop");
+            $fill[] = 'fil-' . $n . '-abcdefghijklmnop';
+            $this->boxes[] = new Box('fil-' . $n . '-abcdefghijklmnop');
         }
-        return "!";
+        return '!';
     }
 
     // Returns `true` when every box has the value it was created with.
     public function boxesIntact(): bool
     {
-        bool $intact = Core\Str::startsWith($this->box->c, "new-");
+        bool $intact = Core\Str::startsWith($this->box->c, 'new-');
         foreach ($this->boxes as Box $b) {
-            if (!Core\Str::startsWith($b->c, "fil-")) {
+            if (!Core\Str::startsWith($b->c, 'fil-')) {
                 $intact = false;
             }
         }
@@ -73,18 +73,18 @@ $t->reset();
 
 // 2. Appends to an array property, and the value replaces the array.
 $t->items[] = $t->replace();
-echo $t->items[0], " ", $t->items[1], "\n";
+echo $t->items[0], ' ', $t->items[1], "\n";
 $t->reset();
 
 // 3. Writes an element of an array property, and the value replaces the array.
 $t->items[1] = $t->replace();
-echo $t->items[0], " ", $t->items[1], "\n";
+echo $t->items[0], ' ', $t->items[1], "\n";
 $t->reset();
 
 // 4. Uses a property as an array key, and the value replaces that property.
 array<string> $m = [];
 $m[$t->s] = $t->replace();
-echo $m["old-1-abcdefghijklmnop"], "\n";
+echo $m['old-1-abcdefghijklmnop'], "\n";
 $t->reset();
 
 // 5. Writes a property of an object property, and the value replaces the object.
@@ -93,6 +93,6 @@ echo $t->boxesIntact() ? "boxes intact\n" : "a box changed\n";
 $t->reset();
 
 // 6. Appends to a string variable with `.=`, and the value replaces the variable.
-string $s = "old-" . "1";
-$s .= ($s = "new-" . "2") . "!";
+string $s = 'old-' . '1';
+$s .= ($s = 'new-' . '2') . '!';
 echo $s, "\n";

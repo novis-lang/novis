@@ -14,7 +14,7 @@ foreach ($walked as string $key => int $value) {
     unset($walked[$key]);
     $sum = $sum + $value;
 }
-echo "step 1: ", $sum, " ", Core\Arr::count($walked), "\n";
+echo 'step 1: ', $sum, ' ', Core\Arr::count($walked), "\n";
 
 // 2. Keys at the largest and the smallest number. A read of a key that is
 // not there throws an error, and the program catches it.
@@ -24,9 +24,9 @@ $edges[-9223372036854775807] = 2;
 $edges[0] = 3;
 try {
     int $absent = $edges[9223372036854775806];
-    echo "step 2: ", $absent, "\n";
+    echo 'step 2: ', $absent, "\n";
 } catch (RuntimeError $missing) {
-    echo "step 2: ", $edges[9223372036854775807] + $edges[-9223372036854775807], "\n";
+    echo 'step 2: ', $edges[9223372036854775807] + $edges[-9223372036854775807], "\n";
 }
 
 // 3. An append after the largest key. There is no next key, so it throws
@@ -34,7 +34,7 @@ try {
 try {
     $edges[] = 4;
 } catch (LogicError $full) {
-    echo "step 3: ", Core\Arr::count($edges), "\n";
+    echo 'step 3: ', Core\Arr::count($edges), "\n";
 }
 
 // 4. A list loses entries in the middle and at the end. Then it gets new
@@ -52,14 +52,14 @@ uint $keys = 0;
 foreach ($list as string $key => int $value) {
     $keys = $keys + Core\Str::length($key);
 }
-echo "step 4: ", Core\Arr::count($list), " ", $keys, "\n";
+echo 'step 4: ', Core\Arr::count($list), ' ', $keys, "\n";
 
 // 5. An array with holes is copied into a new array with `...`. Keys that
 // are numbers get new numbers, and the other keys stay.
 array<int> $holes = ['a' => 1, '5' => 2, 'b' => 3, '9223372036854775807' => 4];
 unset($holes['a']);
 array<int> $spread = [...$holes, ...$holes];
-echo "step 5: ", Core\Json::encode($spread), "\n";
+echo 'step 5: ', Core\Json::encode($spread), "\n";
 
 // 6. Two arrays with the same entries are compared with `==`. One of them
 // has holes from removals, and the other was built in order.
@@ -73,4 +73,4 @@ for (int $n = 0; $n < 1000; $n++) {
 for (int $m = 0; $m < 1000; $m++) {
     unset($removed['gone' . $m]);
 }
-echo "step 6: ", $built == $removed ? 'equal' : 'different', "\n";
+echo 'step 6: ', $built == $removed ? 'equal' : 'different', "\n";
