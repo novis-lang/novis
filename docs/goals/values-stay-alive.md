@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-ir/src/lower/control.rs, crates/nvs-runtime/src/array.rs, docs/rules/statements/inout-is-the-by-reference-spelling.md, docs/rules/iteration/foreach-subjects.md]
   - id: 5
     title: the array primitives hold no panic a program reaches
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/identity.rs, crates/nvs-runtime/src/string.rs]
   - id: 6
     title: the string, value and arithmetic primitives hold no panic a program reaches
@@ -512,23 +512,30 @@ primitive and one line on what input reaches it. It also names every bare `exter
 `crates/nvs-stdlib/src/` and `crates/nvs-host/src/` whose body runs outside `run_helper`. The
 session writes each group under its stage as checkpoints, so stages 6 to 8 start from the list.
 
-- [ ] Correct `rule:errors/helper-abi`: a primitive has no wrapper, a panic in one aborts the
+- [x] Correct `rule:errors/helper-abi`: a primitive has no wrapper, a panic in one aborts the
   process, and no program shape may reach one (`docs/rules/errors/helper-abi.md:1`). Correct the
   same sentence in the runtime's docs (`crates/nvs-runtime/src/lib.rs:23`,
   `crates/nvs-runtime/src/abi.rs:13`).
-- [ ] Write `crates/nvs-runtime/tests/primitives_never_panic.rs:1`. One function finds every bare
+- [x] Write `crates/nvs-runtime/tests/primitives_never_panic.rs:1`. One function finds every bare
   `extern "C" fn` in a source file and checks for the `deny` attribute. The four tests call it over
   their file groups, and `every_primitive_denies_a_panic_in_its_own_body` walks the whole directory.
-- [ ] The fifteen primitives in `array.rs` and `nvs_array_eq` get the attribute. Each site the list
+- [x] The fifteen primitives in `array.rs` and `nvs_array_eq` get the attribute. Each site the list
   names becomes an error or an `#[expect]` with its reason (`rule:errors/helper-abi`,
   `crates/nvs-runtime/src/array.rs:1863`, `crates/nvs-runtime/src/identity.rs:180`).
-- [ ] The table methods those primitives call get the same treatment: `remove`, `rename`, `compact`,
+- [x] The table methods those primitives call get the same treatment: `remove`, `rename`, `compact`,
   `make_unique` and the position reads (`crates/nvs-runtime/src/array.rs:884`,
   `crates/nvs-runtime/src/array.rs:900`, `crates/nvs-runtime/src/array.rs:914`,
   `crates/nvs-runtime/src/array.rs:1534`).
-- [ ] Attack `tests/hostile/lang/expressions/arrays-in-expressions/02-every-array-operation-at-its-edge.nvs`:
+- [x] Attack `tests/hostile/lang/expressions/arrays-in-expressions/02-every-array-operation-at-its-edge.nvs`:
   one step per site the list marked reachable
   (`rule:testing/feature-proofs`, `tests/hostile/lang/expressions/arrays-in-expressions/02-every-array-operation-at-its-edge.nvs:1`).
+
+**What the list found.** No array site is reachable from a valid program. The sites the subagent
+marked reachable each need a null array pointer (`NvsArray::from_raw`, and `nvs_array_eq` with one
+null operand) or a cursor position the loop did not take (`nvs_array_key_at`, `nvs_array_value_at`).
+Compiled code passes neither, and stage 4's loop retains the array it walks. So the attack takes each
+operation to the edge a program can reach: removal during a walk, the largest and smallest keys, an
+append past the last key, a spread of an array with gaps, and `==` over arrays with gaps.
 
 ### 6. the string, value and arithmetic primitives hold no panic a program reaches
 
@@ -543,6 +550,20 @@ session writes each group under its stage as checkpoints, so stages 6 to 8 start
 - [ ] The comment above the string primitives says how the rule is held
   (`crates/nvs-runtime/src/string.rs:1289`).
 
+The list's sites, for the checkpoints:
+
+- `nvs_str_new` reaches the layout `expect` at `crates/nvs-runtime/src/string.rs:458` on a huge
+  length.
+- `nvs_str_concat` and `nvs_str_concat_n` reach `concat_onto`'s two `expect`s and two
+  `debug_assert`s (`crates/nvs-runtime/src/string.rs:1362`). Check whether `_concat_n` reaches it.
+- `nvs_str_concat_parts` reaches the length-sum `expect` at `crates/nvs-runtime/src/string.rs:1779`
+  and `StrPart::of`'s two `unreachable!` (`crates/nvs-runtime/src/string.rs:1669`).
+- `nvs_str_append` reaches the length-sum `expect` at `crates/nvs-runtime/src/string.rs:1892`.
+- `nvs_str_retain` reaches the refcount-overflow `expect` at `crates/nvs-runtime/src/string.rs:1995`.
+- `nvs_value_release` reaches `release_value` and `step_field` (`crates/nvs-runtime/src/release.rs:57`),
+  which reach `drop_one`. `array.rs`'s `drop_one` already has the `deny` set.
+- `nvs_float_pow` has no panic site.
+
 ### 7. the object primitives hold no panic a program reaches
 
 **Does:** clear the object group from stage 5's list.
@@ -555,6 +576,18 @@ session writes each group under its stage as checkpoints, so stages 6 to 8 start
 - [ ] Attack `tests/hostile/lang/classes/properties/02-every-slot-read-and-write-at-its-edge.nvs`:
   one step per site the list marked reachable
   (`rule:testing/feature-proofs`, `tests/hostile/lang/classes/properties/02-every-slot-read-and-write-at-its-edge.nvs:1`).
+
+The list's sites, for the checkpoints. The subagent did not read the bodies from
+`crates/nvs-runtime/src/object.rs:4525` to `crates/nvs-runtime/src/object.rs:5230`,
+`nvs_object_clone` or `nvs_object_release`, so the stage reads those first.
+
+- `nvs_object_new` reaches the `obj_layout` `expect` at `crates/nvs-runtime/src/object.rs:3650`.
+- `nvs_object_retain` reaches the refcount `expect` at `crates/nvs-runtime/src/object.rs:4110`.
+- `nvs_object_field_get` and `nvs_object_field_set` reach `field_ptr`
+  (`crates/nvs-runtime/src/object.rs:4070`). Its bound is a debug-only `assert!`, so a release build
+  has no check on the index at all. Decide whether the index is proven at compile time.
+- The slot and key primitives reach `key_name`, `read_erased_property`, `slot_state` and
+  `write_property` (`crates/nvs-runtime/src/object.rs:5229`, `crates/nvs-runtime/src/object.rs:5662`).
 
 ### 8. every other primitive holds no panic a program reaches
 
@@ -572,6 +605,22 @@ session writes each group under its stage as checkpoints, so stages 6 to 8 start
 - [ ] `every_primitive_denies_a_panic_in_its_own_body` is green over the whole directory
   (`crates/nvs-runtime/tests/primitives_never_panic.rs:1`).
 
+The list's sites, for the checkpoints. The subagent searched these bodies for panic calls and did
+not trace their callees or their arithmetic.
+
+- `nvs_call_callable` and `nvs_call_callable_proven` run through `run_helper`. `invoke_native`
+  (`crates/nvs-runtime/src/callable.rs:1095`) runs a body it is given with no `catch_unwind`.
+- `nvs_extension_call` runs through `run_helper`. Its `CURRENT` borrow is at
+  `crates/nvs-runtime/src/extension.rs:125`.
+- No panic call is in the bodies of `nvs_deprecated_use`, the three `nvs_debug_*`, `nvs_safepoint`,
+  `nvs_stack_check`, the four `nvs_probe_*` and the five in `throwable.rs`.
+- `crates/nvs-stdlib/src/test.rs:5220` `trampoline` reads `*args` before `run_helper`'s guard.
+- `crates/nvs-stdlib/src/program.rs:287` and `crates/nvs-stdlib/src/attributes.rs:150` abort by
+  design: no compiled program calls them.
+- Every other bare `extern "C" fn` in `nvs-stdlib` and `nvs-host` is inside a test module.
+- The test counts a declaration at the top level of a file, or one with `no_mangle`. The indented
+  ones in `deferred.rs`, `ctx/hooks.rs`, `ctx/isolate.rs` and `object.rs`'s tests are not counted.
+
 ### 9. the goal is verified once, and every failure is fixed
 
 - [ ] Run `looper verify` over the whole goal.
@@ -582,37 +631,39 @@ session writes each group under its stage as checkpoints, so stages 6 to 8 start
 
 ### State
 
-Stages 1 to 4 are done. An `inout` loop retains the array it began with under `foreach#N` and walks
-it, and every write to `$v` is one fallible `nvs_array_inout_write` call
-(`crates/nvs-runtime/src/array.rs`, `Helper::ArrayInoutWrite`). The four `foreach_inout` tests pass,
-including a live-bytes balance on the throwing path. The new conformance case, the changed row of
-`a-foreach-by-reference-writes-through-to-its-array.nvst` and the attack `02-…` were run with
-`bun nv try` on the debug binary and print what they expect. `nvs_array_key_at` and
-`nvs_array_value_at` already carry stage 5's `deny` set. The rulebook was re-rendered, which also
-picked up stale renders of `errors.md` and `expressions.md`. The sweep's `env-secret-proofs` red is
-stale: a retired goal's check with no log, named nowhere in the tree.
+Stages 1 to 5 are done. Every array primitive and `nvs_array_eq` carries the `deny` set. So do the
+`Table`, `Hashed` and `NvsArray` impl blocks, as one attribute on each impl, and `bump` and
+`drop_one`. Indexing became `get`, and `+ 1` became `saturating_add` where the value is a vector
+position. Each site that stays is an `#[expect]` whose reason starts "no program reaches this".
+`crates/nvs-runtime/tests/primitives_never_panic.rs` reads the source. Its array test and its
+self-test pass. Its string, object and whole-directory tests fail by design, naming what stages 6
+to 8 owe. `rule:errors/helper-abi` now says what a primitive is and how the rule is held, and the
+rulebook was re-rendered. The attack `02-every-array-operation-at-its-edge.nvs` exits 0 under
+`bun nv try`. The subagent's list is under stages 6, 7 and 8. The sweep's `env-secret-proofs` red is
+stale: no such check and no log exist in the tree, so it comes from looper's service.
 
 ### Next
 
-Stage 5: the array primitives hold no panic a program reaches. Follow its `**Split:**` line first:
-an `Explore` subagent lists every panic site reachable from a bare `extern "C" fn`.
+Stages 6, 7 and 8 touch disjoint files and may run side by side. Take stage 6 first: the string,
+value and arithmetic primitives.
 
-- [ ] `docs/rules/errors/helper-abi.md:1`, `crates/nvs-runtime/src/lib.rs:23` and
-  `crates/nvs-runtime/src/abi.rs:13`: say a primitive has no wrapper and no program may reach a
-  panic in one.
-- [ ] `crates/nvs-runtime/tests/primitives_never_panic.rs:1`: the source-reading test and its four
-  groups.
-- [ ] `crates/nvs-runtime/src/array.rs:1906` to `crates/nvs-runtime/src/array.rs:2404`: the `deny`
-  set on each array primitive and `nvs_array_eq` (`crates/nvs-runtime/src/identity.rs:180`). Copy
-  the attribute block from `nvs_array_key_at` (`crates/nvs-runtime/src/array.rs:2433`).
-- [ ] `crates/nvs-runtime/src/array.rs:884`: the table methods those primitives call.
-- [ ] `tests/hostile/lang/expressions/arrays-in-expressions/02-every-array-operation-at-its-edge.nvs:1`:
-  the attack.
+- [ ] `crates/nvs-runtime/src/string.rs:1307` to `crates/nvs-runtime/src/string.rs:2019`: the
+  `deny` set on the eight string primitives, and on the functions they call: `concat_onto`,
+  `join_parts`, `append_onto`, `StrPart::of` and the layout helper at
+  `crates/nvs-runtime/src/string.rs:458`. Copy the block from `nvs_array_count` in `array.rs`.
+- [ ] `crates/nvs-runtime/src/value.rs:895`, `crates/nvs-runtime/src/value.rs:928` and
+  `crates/nvs-runtime/src/arith.rs:32`: the same set.
+- [ ] `crates/nvs-runtime/src/string.rs:1289`: the comment says how the rule is held.
+- [ ] `crates/nvs-runtime/tests/primitives_never_panic.rs:127`: run
+  `cargo test --test primitives_never_panic -- the_string_and_value_primitives` once.
 
-Expected red: a test or conformance case that prints a backtrace through a `RecursionError` or a
-limit stop at a function's entry now shows the stopped frame too. Any `nvs-codegen` test that
-compares an IR dump through an `inout` loop. Any conformance case or example that appends to the
-subject of an `inout` loop and expected the new entry visited. The stage-9 gate reads each.
+Expected red: `the_string_and_value_primitives_deny_a_panic_in_their_own_body`,
+`the_object_primitives_deny_a_panic_in_their_own_body` and
+`every_primitive_denies_a_panic_in_its_own_body`, until stages 6 to 8 land. A test or conformance
+case that prints a backtrace through a `RecursionError` or a limit stop at a function's entry now
+shows the stopped frame too. Any `nvs-codegen` test that compares an IR dump through an `inout`
+loop. Any conformance case or example that appends to the subject of an `inout` loop and expected
+the new entry visited. The stage-9 gate reads each.
 
 ### Backlog
 
