@@ -553,12 +553,11 @@ disjoint folders side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 6 are done, and stage 6's acceptance check passes. `ErasingPosition` (`quals.rs`) lists
-the ten positions, and each check takes its position. `bun nv soundness` writes ten
-`qualifier-<position>.errors.nvst` files with 22 cells, and `--probe` over the debug build passes all
-487 cells. `$fn->call($obj, ...)` now refuses a qualified argument after the object, unless the
-callable's written parameter takes it (`infer_callable_rebind`, `calls.rs`). The sweep's reds are
-stale: `env-secret-proofs` is defined nowhere, and `305c04f660` fixed nightly `43001191130`'s test.
+Stages 1 to 6 are done, and stage 7 is half done. `nvs check` over all 8270 `.nvs` files found 12
+new errors, all fixed with a plain union or a laundered name; `.out` files are unchanged. Other
+errors it printed predate the goal (files that need their project or `nvs.toml`). The stage's test
+passes, with `ErasingPosition` now `pub`. Example 08, `about.md` and `details.md` are in. The
+sweep's reds are stale: `env-secret-proofs` is defined nowhere, and `305c04f660` fixed nightly.
 
 Expected red at the gate. Stage 6: a program that passes `tainted`, `secret` or `mixed` text to
 `$fn->call(...)` through a bare `callable`. Stage 1: converting a `secret` to a number, bool, enum or class; narrowing
@@ -577,20 +576,26 @@ and do not know `Keys` (the ones with a `Nullable` or-pattern got the arm).
 
 ### Next
 
-Stage 7, the tree's own programs and the proofs. Follow its `**Split:**` line: first one `Explore`
-subagent runs `target/debug/nvs.exe check` over every `.nvs` under `docs/examples/`, `tests/hostile/`,
-`benches/members/`, `website/snippets/` and `packages/`, and lists each new error as `path:line` and
-its code. Write the item's checkpoints first.
+The rest of stage 7. Write each item's checkpoints first.
 
-- [ ] `docs/examples/README.md:1`: each listed program compiles again with the typed form or
-  `Core\Secret::reveal` / `Core\Taint::assertTrusted`, and its `.out` is unchanged. Writing subagents
-  take disjoint folders.
-- [ ] `crates/nvs-types/tests/qualifiers_hold.rs:1`: test
-  `the_form_each_refusal_names_compiles_at_every_erasing_position`, with an exhaustive `match` over
-  the positions. The cells of `QUALIFIER_ROWS` (`tools/nv/cmd/soundness.ts`) are the refused forms
-  to start from.
-- [ ] `tests/hostile/README.md:1`: the attack the stage names, then the
-  `secret mixed` example, then `about.md` and `details.md`.
+- [ ] `crates/nvs-types/src/expr/quals.rs:1612`: the new item, a `secret` in an array literal or an
+  anonymous object passed to a `Core` `mixed` parameter. `Core\Json::encode([$token])` compiles and
+  prints the secret today. Find where `check_array_literal` (`crates/nvs-types/src/expr/literals.rs`)
+  returns the expectation for a `mixed` one, and give the literal a type that keeps `secret mixed`
+  there. Then `reject_secret_encoded_argument` reports through `contains_secret`, and the
+  variable-only walks in `reject_secret_logged_argument` and `reject_secret_enqueued_value` may go.
+  Add the case to `every_secret_sink_refuses_a_secret_mixed` in `qualifiers_hold.rs`. Then fix
+  `details.md`'s `E0791` sentence if it needs one.
+- [ ] `tests/hostile/README.md:1`: the attack
+  `tests/hostile/lang/types/qualifiers-tainted-and-secret/02-read-a-secret-through-every-untyped-door.nvs`.
+  The erased reads that throw are the `mixed`/`object` property read, `ClassInfo::get`, a shape
+  test's field walk and a reflective call of a method that returns `secret`. Add a failed `as int`
+  of a long text and check that the message has no part of it. Run it with
+  `target/debug/nvs.exe run --no-init <file>`, then `bun nv proofs --comments <file>`.
+- [ ] `crates/nvs-types/tests/secret.rs:1`: the Rust tests and `.nvst` cases that expected the old
+  acceptance. No test may run before the
+  gate, so stage 8's fix pass does this item from the reds that `looper verify` names. The list
+  under "Expected red at the gate" above is where to look.
 
 ### Backlog
 
