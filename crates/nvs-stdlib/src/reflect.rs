@@ -4223,7 +4223,9 @@ mod tests {
         let mut ctx = kinds_ctx();
         let none = Value::array(NvsArray::new());
         for name in REFUSED_BY_CONSTRUCT {
-            let desc = ctx.class_desc(name).expect("the context reaches every class");
+            let desc = ctx
+                .class_desc(name)
+                .expect("the context reaches every class");
             // `forObject` describes an instance of any class, so the
             // description `construct` is asked on comes from one.
             #[expect(
@@ -4275,7 +4277,13 @@ mod tests {
     #[test]
     fn for_class_is_null_for_a_core_class_and_a_class_the_compiler_made() {
         let mut ctx = kinds_ctx();
-        for name in [r"Core\Http\TlsInfo", "Task$gen", "Script$fn0", "$callable", "$shape{n}"] {
+        for name in [
+            r"Core\Http\TlsInfo",
+            "Task$gen",
+            "Script$fn0",
+            "$callable",
+            "$shape{n}",
+        ] {
             assert!(ctx.class_desc(name).is_some(), "the context reaches {name}");
             let asked = Value::text(name);
             let answer = call(super::nvs_core_reflect_for_class, &mut ctx, &[asked])

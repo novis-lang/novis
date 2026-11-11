@@ -403,7 +403,10 @@ echo (new Dog())->name();
         );
     }
     for name in ["Dog::upTo$gen", "Dog$fn0"] {
-        assert!(matches!(construct(name), Some(Refusal::Kind(_))), "{name} is made");
+        assert!(
+            matches!(construct(name), Some(Refusal::Kind(_))),
+            "{name} is made"
+        );
     }
     assert_eq!(construct("Dog"), None, "a plain class is refused");
     assert_eq!(construct("LogicError"), None, "the error tree is refused");

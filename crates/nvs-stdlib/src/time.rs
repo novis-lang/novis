@@ -3554,7 +3554,9 @@ fn parse_offset(text: &str) -> Option<Offset> {
     }
     // Checked, because a zone id read back from bytes is any text: a large
     // `hours` overflows the sum before `Offset` can refuse it.
-    let total = hours.checked_mul(3_600)?.checked_add(minutes * 60 + seconds)?;
+    let total = hours
+        .checked_mul(3_600)?
+        .checked_add(minutes * 60 + seconds)?;
     Offset::from_seconds(sign * total).ok()
 }
 
