@@ -18,7 +18,7 @@ stages:
     context: [docs/rules/tooling/meta-json-takes-a-program.md, crates/nvs-cli/src/meta.rs, crates/nvs-cli/src/openapi.rs, crates/nvs-cli/tests/meta.rs]
   - id: 4
     title: the derive feature has its proofs
-    status: open
+    status: done
     context: [docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/about.md, docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/details.md, docs/reference/lang/90-attributes.md, tests/hostile/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/01-documents-a-client-sent-to-break-the-decoder.nvs]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -163,6 +163,15 @@ because a field is skipped, the help stays. When the codec has fewer fields than
 parameters for any other reason, the help says which parameters no field fills. Stage 1 fixes this
 once inherited fields make the common case go away (`crates/nvs-types/src/derive.rs:1595`, `:1777`).
 
+**A `mixed` field decodes a JSON `null`, in a document and in a row.** Found writing example 10:
+`mixed` holds `null` without spelling it (`rule:core-api/a-nullable-field-omits-as-the-never-written-marker`),
+`mixed $x = null` compiles, and the encoder writes a `mixed` field's `null`, so the old refusal broke
+the round trip the rule declines an asymmetric encoder for. Both decoders treat a `mixed` field as a
+`?T` row (`crates/nvs-stdlib/src/json.rs:convert_field`, `crates/nvs-stdlib/src/db/row.rs:hydrated`),
+and `rule:core-api/required-optional-and-nullable` says so. A missing key is still an issue.
+Declined: keeping the refusal, which makes "`mixed` holds any JSON value" false for one value.
+**What it spends:** one tag test per `null` field on decode; nothing per object.
+
 **Chain position:** right behind `calls-by-name-are-checked`, by the user's call (2026-11-11). It
 shares `crates/nvs-stdlib/src/json.rs` with `fitted-dependencies`, which runs much later and rebases
 onto this.
@@ -249,18 +258,18 @@ fix the `E0756` help.
 § *Text an end user reads*. The session writes `about.md`, `details.md` and the reference, and checks
 the comments with `bun nv proofs --comments`.
 
-- [ ] Example `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/08-a-subclass-writes-its-parents-keys-first.nvs:1`.
-- [ ] Example `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/09-a-property-with-a-set-of-allowed-values.nvs:1`.
-- [ ] Example `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/10-a-property-that-holds-any-json-value.nvs:1`.
-- [ ] The attack gains a step that sends a value outside an allowed set and one that sends a parent's
+- [x] Example `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/08-a-subclass-writes-its-parents-keys-first.nvs:1`.
+- [x] Example `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/09-a-property-with-a-set-of-allowed-values.nvs:1`.
+- [x] Example `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/10-a-property-that-holds-any-json-value.nvs:1`.
+- [x] The attack gains a step that sends a value outside an allowed set and one that sends a parent's
   key with the wrong type, each refused with its path
   (`tests/hostile/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/01-documents-a-client-sent-to-break-the-decoder.nvs:1`).
-- [ ] `about.md` and `details.md` say what a subclass encodes, what a set of allowed values does and
+- [x] `about.md` and `details.md` say what a subclass encodes, what a set of allowed values does and
   that `mixed` holds any JSON value
   (`docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/about.md:1`).
-- [ ] The reference section says the same (`docs/reference/lang/90-attributes.md:684`), and the
+- [x] The reference section says the same (`docs/reference/lang/90-attributes.md:684`), and the
   `nvs meta` reference names the `json` key.
-- [ ] `bun nv proofs --id 'lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec'`
+- [x] `bun nv proofs --id 'lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec'`
   owes nothing, and the website renders (`bun nv render --website`).
 
 ### 5. the goal is verified once, and every failure is fixed
@@ -273,36 +282,26 @@ the comments with `bun nv proofs --comments`.
 
 ### State
 
-Stages 1 and 2 are done. Stage 1: `chain_field_order` in `crates/nvs-types/src/derive.rs` walks the
-chain root first, and an inherited field's refusals move to the subclass's attribute
-(`Inherited::relabel`).
+Stages 1 to 4 are done, and every stage's acceptance check passed when run. `bun nv proofs --id`
+exits 0. Its one line is the perf record gone stale because the reference chapter changed, which
+`bun nv benches --owed` pays at a release.
 
-Stage 2: `allowed_values` (`crates/nvs-types/src/derive.rs`) reads a set of allowed values, carried
-on `DerivedField::allowed` and `nvs_runtime::AllowedValues`, and checked in `outside` (`json.rs`),
-`admitted` (`db/row.rs`) and `allowed_schema` (OpenAPI). Both stage 2 checks pass.
+A `mixed` field now decodes a JSON `null` (Standing decisions), pinned by
+`tests/conformance/core/json-derive-decodes-null-into-a-mixed-property.nvst`.
 
-Stage 3: `Schemas` (`crates/nvs-cli/src/openapi.rs`) is `pub(crate)` with `Schemas::new(exprs,
-prefix)`, `codecs()`, `object` and `into_entries`; OpenAPI passes `#/components/schemas/`, meta
-`#/program/schemas/`. `user_class_json` adds `json` from `ExprTypeTable::codec(&name)`, and
-`program_json` adds `schemas`, omitted when empty. The built-in components' source classes go through
-`collect` with an empty `ExprTypeTable`, so they never get `json`. `meta-carries-the-codec` passes
-(`a_derived_class_carries_its_json_schema`, fixture `crates/nvs-cli/tests/fixtures/meta/derive.nvs`).
-
-The acceptance sweep's `env-secret-proofs` red is stale (no file defines it, and its log does not
-exist), and nightly run 43001191130 ran at f4c1d5c7e2, before 305c04f660 fixed its only red,
-`live_config`'s `a_changed_server_timeout_applies_to_the_next_connection`, on all four runners.
+The sweep's `env-secret-proofs` red is stale (nothing defines it), and nightly run 43001191130 ran
+at f4c1d5c7e2, before 305c04f660 fixed its only red (`live_config`) on all four runners.
 
 Expect red at the gate: any test or `.nvst` that pinned `E0756`'s old help or card text (none found by
-grep), any test that pinned a subclass's own-keys-only JSON output, and any `nvs-types` unit test that
-builds a `DerivedCodec` literal without `..Default::default()`.
+grep), any test that pinned a subclass's own-keys-only JSON output, any `nvs-types` unit test that
+builds a `DerivedCodec` literal without `..Default::default()`, and any test that pinned a `mixed`
+field refusing `null` (`null is not permitted` for a `mixed` field, in `json.rs` or `db/row.rs` tests).
 
 ### Next
 
-`docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/about.md:1`
-Stage 4, all items, by its `**Split:**`: one writing subagent writes examples 08 to 10 and the attack
-steps; the session writes `about.md`, `details.md`, `docs/reference/lang/90-attributes.md:684` and the
-`nvs meta --json` section of `docs/reference/tools/10-cli.md:960` (the `json` key and `schemas` map),
-then runs `bun nv proofs --comments` and `bun nv proofs --id`.
+`docs/goals/derive-wider-types.md:266` Stage 5, the gate: start `looper verify` with
+`run_in_background`, fix every failure it names in one pass, run it once more, then the goal-end
+gates (`bun nv verify --doc`, `bun nv owners --closes derive-wider-types`, `bun nv ci --check`).
 
 ### Backlog
 
