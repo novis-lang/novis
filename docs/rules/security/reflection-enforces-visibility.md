@@ -17,6 +17,22 @@ carries no declaring class; this errs toward refusing. Constructing
 through reflection calls the constructor under the same check, so a `private` constructor is reached
 from its own class's bodies and from nowhere else.
 
+`construct` makes only a class the program declares and `new` could make. It refuses, with a
+`LogicError`, an `abstract` class, an interface, a `Core` class, an anonymous object's class, and
+every class the compiler made, such as a generator's state class or a function value's class. A
+`Core` instance is made by a `Core` member, and no constructor of one reaches the runtime; an
+anonymous object has no name a program writes. The question is the copy boundary's own,
+`ClassDesc::refusal` asked for the construct door (`rule:classes/graph-copy`), and a kind it has no
+row for is refused. **What it spends:** one call that reads a few flags and one branch per
+`construct`; a refused `construct` allocates nothing.
+
+Declined:
+
+- **A second predicate beside the copy refusal.** It is two lists of classes to keep in step, and the
+  day they drift a door makes what another refuses.
+- **`forObject` throwing for a generator or a `Core` object.** It takes `name()` away from a log line
+  that names what it holds; the description is read-only, and its `construct` throws instead.
+
 **There is no `setAccessible(true)` and no equivalent.** It is rejected outright rather than left
 undocumented, because an escape hatch for reaching a private member from anywhere is a structural
 privilege-escalation path, and security does not get spent on convenience. The cost is that a

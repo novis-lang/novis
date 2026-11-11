@@ -11,6 +11,11 @@ Reflective access **enforces the same checks ordinary code would**: there is no
 reflective write runs the property observer an ordinary write would run. The refusal is
 distinguishable from a misspelling, which is what makes the answer useful rather than merely safe.
 
+`forClass` describes a class the program declares, an `abstract` class and an interface. It returns
+`null` for a `Core` class, an anonymous object's `$shape{…}` class and every class the compiler made,
+the names `construct` refuses as not declared (`rule:security/reflection-enforces-visibility`).
+`forObject` describes any object, those included, so `name()` works on whatever a program holds.
+
 What it costs is that a serializer or a container cannot reach state its author did not expose. That
 is the trade: the alternative is a reflection API that makes every access modifier in the language
 advisory.

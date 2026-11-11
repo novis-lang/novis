@@ -1,0 +1,105 @@
+<?nvs
+// Attack: `construct` tries to create objects that `new` cannot create. These are a generator,
+// a function value, a `Core` object, an `abstract` class and an interface. Every step should
+// give `null` or throw an error that is caught, so the next step still runs.
+
+class Counter
+{
+    public static function upTo(int $n): Iterator<int>
+    {
+        int $i = 0;
+        while ($i < $n) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+class Maker
+{
+    public function adder(): callable
+    {
+        return fn(int $x): int => $x + 1;
+    }
+}
+
+abstract class Shape
+{
+    abstract public function area(): float;
+}
+
+interface Named
+{
+    public function name(): string;
+}
+
+class Attempt
+{
+    // Calls `construct` with no arguments. Returns the object, or `null` after it prints the error.
+    public static function make(Core\Reflect\ClassInfo $info): mixed
+    {
+        try {
+            return $info->construct([]);
+        } catch (Throwable $e) {
+            echo 'error: ', $e->message, "\n";
+            return null;
+        }
+    }
+
+    // Prints what `forClass` returns for `$class`.
+    public static function find(string $class): void
+    {
+        var $info = Core\Reflect::forClass($class);
+        if ($info == null) {
+            echo $class, ": null\n";
+        } else {
+            echo $class, ": described\n";
+        }
+    }
+}
+
+// 1. Creates the class of a generator by its name, then iterates the result.
+string $generatorClass = Core\Reflect::forObject(Counter::upTo(3))->name();
+Attempt::find($generatorClass);
+mixed $generator = Attempt::make(Core\Reflect::forObject(Counter::upTo(3)));
+if ($generator is Iterator<int>) {
+    foreach ($generator as int $value) {
+        echo 'iterated ', $value, "\n";
+    }
+}
+
+// 2. Creates the class of a function value, then calls the result.
+string $functionClass = Core\Reflect::forObject((new Maker())->adder())->name();
+Attempt::find($functionClass);
+mixed $function = Attempt::make(Core\Reflect::forObject((new Maker())->adder()));
+if ($function is callable) {
+    echo 'called ', $function(1), "\n";
+}
+
+// 3. Creates `Core\Http\TlsInfo` and `Core\Uri` by name.
+Attempt::find('Core\Http\TlsInfo');
+Attempt::find('Core\Uri');
+
+// 4. Creates a second `Core\Uri` from the description of one, then calls a method of it.
+Core\Uri $uri = Core\Uri::parse('https://example.com/a');
+mixed $copy = Attempt::make(Core\Reflect::forObject($uri));
+if ($copy is Core\Uri) {
+    echo 'called ', $copy->toString(), "\n";
+}
+
+// 5. Creates an `abstract` class and an interface, then calls their methods.
+var $shape = Core\Reflect::forClass('Shape');
+if ($shape != null) {
+    mixed $madeShape = Attempt::make($shape);
+    if ($madeShape is Shape) {
+        echo 'called ', $madeShape->area(), "\n";
+    }
+}
+var $named = Core\Reflect::forClass('Named');
+if ($named != null) {
+    mixed $madeNamed = Attempt::make($named);
+    if ($madeNamed is Named) {
+        echo 'called ', $madeNamed->name(), "\n";
+    }
+}
+echo "done\n";

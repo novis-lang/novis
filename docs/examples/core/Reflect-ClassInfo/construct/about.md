@@ -8,6 +8,9 @@ class with no constructor parameters. The result has the type `mixed`, so conver
 cannot be used from outside its class. Too few arguments, or an argument of the wrong type, throws
 a `LogicError` and no object is created. You cannot switch the visibility check off.
 
+You cannot create an `abstract` class, an interface or a class of `Core` this way. For each of
+them, `construct` throws a `LogicError`.
+
 **The examples below** show an object created from a class name, the errors for a private
 constructor and a missing argument, and a program that creates the handler its configuration
 names.

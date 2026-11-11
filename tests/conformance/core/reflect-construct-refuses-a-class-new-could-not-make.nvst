@@ -1,0 +1,114 @@
+--TEST--
+`Core\Reflect::forClass` returns `null` for a class the compiler made and for a `Core` class, and `construct` refuses each of those, an `abstract` class and an interface, while it still builds a plain class and an error class — `rule:security/reflection-enforces-visibility`
+--FILE--
+<?nvs
+class Counter
+{
+    public static function upTo(int $n): Iterator<int>
+    {
+        yield $n;
+    }
+}
+
+class Maker
+{
+    public function adder(): callable
+    {
+        return fn(int $x): int => $x + 1;
+    }
+}
+
+abstract class Shape
+{
+}
+
+interface Named
+{
+}
+
+class Point
+{
+    public int $x;
+
+    public function constructor(int $x)
+    {
+        $this->x = $x;
+    }
+}
+
+class Probe
+{
+    // Prints what `forClass` returns for `$class`.
+    public static function find(string $class): void
+    {
+        var $info = Core\Reflect::forClass($class);
+        if ($info == null) {
+            echo $class, ": null\n";
+        } else {
+            echo $class, ": described\n";
+        }
+    }
+
+    // Calls `construct` on `$info` and prints the result or the error.
+    public static function build(Core\Reflect\ClassInfo $info, array<mixed> $arguments): void
+    {
+        try {
+            mixed $made = $info->construct($arguments);
+            echo 'made ', Core\Reflect::forObject($made)->name(), "\n";
+        } catch (LogicError $e) {
+            echo $e->message, "\n";
+        }
+    }
+}
+
+// The names of a generator's class, a function value's class and an anonymous object's class.
+var $anonymous = { a: 1 };
+string $generator = Core\Reflect::forObject(Counter::upTo(1))->name();
+string $function = Core\Reflect::forObject((new Maker())->adder())->name();
+string $shape = Core\Reflect::forObject($anonymous)->name();
+
+array<string> $names = [$generator, $function, $shape, 'Core\Http\TlsInfo', 'Shape', 'Named', 'Point'];
+foreach ($names as string $name) {
+    Probe::find($name);
+}
+
+// `forObject` describes each object, and `construct` on that description throws.
+Probe::build(Core\Reflect::forObject(Counter::upTo(1)), []);
+Probe::build(Core\Reflect::forObject((new Maker())->adder()), []);
+Probe::build(Core\Reflect::forObject($anonymous), []);
+
+// `forClass` still describes an `abstract` class and an interface. `construct` throws for both.
+var $abstract = Core\Reflect::forClass('Shape');
+if ($abstract != null) {
+    Probe::build($abstract, []);
+}
+var $interface = Core\Reflect::forClass('Named');
+if ($interface != null) {
+    Probe::build($interface, []);
+}
+
+// A class the program declares, and an error class, are still built.
+// The constructor of `LogicError` has two parameters: the message and the previous error.
+var $point = Core\Reflect::forClass('Point');
+if ($point != null) {
+    Probe::build($point, [3]);
+}
+var $error = Core\Reflect::forClass('LogicError');
+if ($error != null) {
+    Probe::build($error, ['built', null]);
+}
+--EXPECT--
+Counter::upTo$gen: null
+Maker$fn0: null
+$shape{a}: null
+Core\Http\TlsInfo: null
+Shape: described
+Named: described
+Point: described
+Core\Reflect\ClassInfo::construct(): `Counter::upTo$gen` is not a class this program declares, so there is nothing to construct
+Core\Reflect\ClassInfo::construct(): `Maker$fn0` is not a class this program declares, so there is nothing to construct
+Core\Reflect\ClassInfo::construct(): `$shape{a}` is not a class this program declares, so there is nothing to construct
+Core\Reflect\ClassInfo::construct(): `Shape` is `abstract` or an interface, so it has no instances
+Core\Reflect\ClassInfo::construct(): `Named` is `abstract` or an interface, so it has no instances
+made Point
+made LogicError

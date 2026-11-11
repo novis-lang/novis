@@ -1060,7 +1060,8 @@ const CONSTRUCT_DOC: MethodDoc = MethodDoc {
         desc: "The constructor is not `public` and this call site is outside the class. Or \
                `$arguments` has fewer entries than the constructor's parameters, or an entry has \
                a type that its parameter does not accept. Or this program does not declare the \
-               described class. An ordinary `new` makes the same checks.",
+               described class. Or the described class is `abstract`, an interface or a class of \
+               `Core`, which this method cannot create. An ordinary `new` makes the same checks.",
     }],
 };
 
