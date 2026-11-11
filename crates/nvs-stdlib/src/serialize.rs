@@ -103,7 +103,8 @@ const ENCODE_DOC: MethodDoc = MethodDoc {
         error: "LogicError",
         desc: "`$value` contains a callable, an open file or connection, or an object with a \
                `secret` property. It is also thrown when arrays and objects are nested more \
-               than 256 levels deep.",
+               than 256 levels deep. Some `Core` objects cannot be written either, and the \
+               message names the class.",
     }],
 };
 
@@ -125,7 +126,9 @@ const DECODE_DOC: MethodDoc = MethodDoc {
         desc: "`$payload` was not written by `encode()`, is incomplete, or has extra bytes at \
                the end. It is also thrown when it names a class this program does not have, or \
                a class whose properties are different now. Bytes that name a generator, a \
-               function value or an open resource, such as a file, are not read either.",
+               function value or an open resource, such as a file, are not read either. Bytes \
+               with a value of the wrong type in an object are not read, such as a string where \
+               the class has an `int`.",
     }],
 };
 

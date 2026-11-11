@@ -3552,7 +3552,9 @@ fn parse_offset(text: &str) -> Option<Offset> {
     if fields.next().is_some() || !(0..60).contains(&minutes) || !(0..60).contains(&seconds) {
         return None;
     }
-    let total = hours.checked_mul(3_600)? + minutes * 60 + seconds;
+    // Checked, because a zone id read back from bytes is any text: a large
+    // `hours` overflows the sum before `Offset` can refuse it.
+    let total = hours.checked_mul(3_600)?.checked_add(minutes * 60 + seconds)?;
     Offset::from_seconds(sign * total).ok()
 }
 
@@ -5303,6 +5305,8 @@ mod tests {
         assert!(parse_offset("+02").is_none());
         assert!(parse_offset("+02:60").is_none());
         assert!(parse_offset("+99:00").is_none());
+        // A zone id read back from bytes can be any text, so the sum is checked.
+        assert!(parse_offset("+596523:15:00").is_none());
         assert!(resolve_zone("+02:00").is_some());
         assert!(resolve_zone("Nowhere/Nothing").is_none());
     }

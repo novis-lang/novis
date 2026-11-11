@@ -216,13 +216,36 @@ enum Slots {
     /// Why the class is not written to bytes or read from them: a reader
     /// relies on more than each slot's type, such as one slot being an index
     /// into another. The sentence ends the refusal `decode` and `encode` give.
-    #[expect(
-        dead_code,
-        reason = "no row gives a reason yet: every class whose readers were not \
-                  read has no row, which the bytes carrier refuses the same way"
-    )]
     NotReadBack(&'static str),
 }
+
+/// The reason of a class whose slots are the state of a walk, a stream or a
+/// queue that is still running.
+const RUNNING_STATE: &str =
+    "It contains the state of something that is still running, and bytes cannot rebuild that.";
+
+/// The reason of a class whose instance belongs to the request or the scope
+/// that made it, such as a handle to its response stream or its route.
+const THIS_REQUEST: &str =
+    "It belongs to the request that made it, and another request cannot use it.";
+
+/// The reason of a class whose slots hold a private key, a shared key or a
+/// password.
+const KEY_MATERIAL: &str = "It contains a key or a password, and those are not written to bytes.";
+
+/// The reason of a class whose text is written out with no check, because
+/// only a `Core` member makes one.
+const TRUSTED_TEXT: &str =
+    "Its text is used without a check, so only a `Core` function may make one.";
+
+/// The reason of a class whose slots a `Core` member checked when it made the
+/// instance, and whose readers do not check them again.
+const CHECKED_ONCE: &str =
+    "Its parts are checked when it is made, and bytes cannot show that they were.";
+
+/// The reason of a class that finds the objects it holds by their identity.
+const BY_IDENTITY: &str =
+    "It finds its objects by their identity, and a copy contains new objects.";
 
 /// Every `Core` class that says what its slots hold — the roster behind
 /// [`ClassDesc::states_slot_types`], which `rule:classes/serialize-is-a-closed-format`'s
@@ -263,6 +286,344 @@ const SLOT_TYPES: &[(&CoreClass, Slots)] = &[
             CoreTy::Nullable(&CoreTy::Str),
         ]),
     ),
+    // `sign` reads the sign slot alone, so a sign that disagrees with the
+    // magnitude gives a wrong answer.
+    (&crate::bigint::CLASS, Slots::NotReadBack(CHECKED_ONCE)),
+    // `text` and `group` look keys up and throw where one is missing.
+    (
+        &crate::regex::MATCH,
+        Slots::Typed(&[CoreTy::Array(&CoreTy::Nullable(&CoreTy::Str)), CoreTy::Int]),
+    ),
+    // The pattern is compiled again at each use, under the same limits, and a
+    // flag that does not fit throws.
+    (&crate::regex::PATTERN, Slots::Typed(&[CoreTy::Str, CoreTy::Int])),
+    (&crate::io::LINES, Slots::Typed(&[CoreTy::Array(&CoreTy::Str)])),
+    (&crate::io::STDIN_STREAM, Slots::NotReadBack(RUNNING_STATE)),
+    (&crate::io::WALK, Slots::Typed(&[CoreTy::Array(&CoreTy::Str)])),
+    (
+        &crate::io::METADATA,
+        Slots::Typed(&[
+            CoreTy::Uint,
+            CoreTy::Instance(r"Core\Time\Instant"),
+            CoreTy::Bool,
+            CoreTy::Bool,
+        ]),
+    ),
+    (
+        &crate::process::RESULT,
+        Slots::Typed(&[CoreTy::Int, CoreTy::Bytes, CoreTy::Bytes]),
+    ),
+    // The time readers check each range and throw on a value out of it, and a
+    // zone id is looked up again at each use.
+    (&crate::time::INSTANT, Slots::Typed(&[CoreTy::Int, CoreTy::Int])),
+    (
+        &crate::time::DATETIME,
+        Slots::Typed(&[CoreTy::Int, CoreTy::Int, CoreTy::Str]),
+    ),
+    (
+        &crate::time::DATE,
+        Slots::Typed(&[CoreTy::Int, CoreTy::Int, CoreTy::Int]),
+    ),
+    (
+        &crate::time::TIME_OF_DAY,
+        Slots::Typed(&[CoreTy::Int, CoreTy::Int, CoreTy::Int, CoreTy::Int]),
+    ),
+    (&crate::time::DURATION, Slots::Typed(&[CoreTy::Int])),
+    (&crate::time::ZONE, Slots::Typed(&[CoreTy::Str])),
+    (&crate::objmap::CLASS, Slots::NotReadBack(BY_IDENTITY)),
+    (&crate::objset::CLASS, Slots::NotReadBack(BY_IDENTITY)),
+    // Its entries are kept in heap order, and its comparator is a function.
+    (&crate::heap::CLASS, Slots::NotReadBack(RUNNING_STATE)),
+    // Every `int` is a state a seed could give.
+    (&crate::random::SEEDED, Slots::Typed(&[CoreTy::Int])),
+    (&crate::uuid::CLASS, Slots::Typed(&[CoreTy::Uint, CoreTy::Uint])),
+    // Every pair of chunks and `open` is one a program reaches with `update`.
+    (
+        &crate::hash::STREAM,
+        Slots::Typed(&[
+            CoreTy::Enum(crate::hash::DIGEST_NAME),
+            CoreTy::Array(&CoreTy::Union(&[CoreTy::Bytes, CoreTy::Str])),
+            CoreTy::Bool,
+        ]),
+    ),
+    // `row` is a key into this unit's route table, and `access` is the
+    // access rule a gate reads.
+    (&crate::router::MATCH, Slots::NotReadBack(THIS_REQUEST)),
+    // `text` is a cache of `body`, and `body()` returns it unchecked.
+    (&crate::test::RESPONSE, Slots::NotReadBack(CHECKED_ONCE)),
+    (
+        &crate::test::SENT_REQUEST,
+        Slots::Typed(&[
+            CoreTy::Enum(crate::router::METHOD_NAME),
+            CoreTy::Str,
+            CoreTy::Array(&CoreTy::Str),
+            CoreTy::Bytes,
+        ]),
+    ),
+    (
+        &crate::test::hooks::OUTCOME,
+        Slots::Typed(&[
+            CoreTy::Str,
+            CoreTy::Str,
+            CoreTy::Int,
+            CoreTy::Bool,
+            CoreTy::Array(&CoreTy::Str),
+        ]),
+    ),
+    (
+        &crate::test::hooks::SUMMARY,
+        Slots::Typed(&[
+            CoreTy::Str,
+            CoreTy::Int,
+            CoreTy::Int,
+            CoreTy::Int,
+            CoreTy::Int,
+            CoreTy::Array(&CoreTy::Str),
+        ]),
+    ),
+    // Its waiting tasks are found by the object, and `capacity` must be one
+    // or more.
+    (&crate::channel::CLASS, Slots::NotReadBack(RUNNING_STATE)),
+    (
+        &crate::script::EXIT_REPORT,
+        Slots::Typed(&[
+            CoreTy::Enum(crate::script::EXIT_REASON_NAME),
+            CoreTy::Int,
+            CoreTy::Nullable(&CoreTy::Instance("Throwable")),
+            CoreTy::Int,
+        ]),
+    ),
+    // `echo` writes `text` to the terminal as it is.
+    (&crate::cli::TEXT, Slots::NotReadBack(TRUSTED_TEXT)),
+    // An unknown kind reads as an index, and each channel is masked.
+    (&crate::cli::COLOR, Slots::Typed(&[CoreTy::Int, CoreTy::Uint])),
+    (
+        &crate::cli::STYLE,
+        Slots::Typed(&[
+            CoreTy::Nullable(&CoreTy::Instance(r"Core\Cli\Color")),
+            CoreTy::Nullable(&CoreTy::Instance(r"Core\Cli\Color")),
+            CoreTy::Int,
+        ]),
+    ),
+    // `depth` is a key into the core's stack of live regions.
+    (&crate::cli::LIVE, Slots::NotReadBack(THIS_REQUEST)),
+    (&crate::cli::PROGRESS, Slots::NotReadBack(THIS_REQUEST)),
+    (
+        &crate::request::MOUNT,
+        Slots::Typed(&[CoreTy::Str, CoreTy::Array(&CoreTy::Str)]),
+    ),
+    (&crate::request::BODY_STREAM, Slots::NotReadBack(RUNNING_STATE)),
+    (&crate::request::FILES, Slots::NotReadBack(RUNNING_STATE)),
+    // `ordinal` is a key into this request's multipart walk.
+    (&crate::request::PART, Slots::NotReadBack(THIS_REQUEST)),
+    (&crate::request::PART_CONTENT, Slots::NotReadBack(RUNNING_STATE)),
+    (&crate::response::STREAM, Slots::NotReadBack(THIS_REQUEST)),
+    (
+        &crate::socket::MESSAGE,
+        Slots::Typed(&[
+            CoreTy::Nullable(&CoreTy::Str),
+            CoreTy::Nullable(&CoreTy::Str),
+            CoreTy::Nullable(&CoreTy::Bytes),
+            CoreTy::Mixed,
+        ]),
+    ),
+    (&crate::sse::CLASS, Slots::NotReadBack(THIS_REQUEST)),
+    (&crate::sse::MESSAGE, Slots::Typed(&[CoreTy::Str, CoreTy::Mixed])),
+    // The key is read again at each use, and a bad one throws.
+    (
+        &crate::crypto::PUBLIC_KEY,
+        Slots::Typed(&[CoreTy::Bytes, CoreTy::Enum(crate::crypto::KEY_KIND_NAME)]),
+    ),
+    (&crate::crypto::KEY_PAIR, Slots::NotReadBack(KEY_MATERIAL)),
+    // `of` checks the id's length, the count and the key, and the getters
+    // return the slots unchecked.
+    (&crate::passkey::CREDENTIAL, Slots::NotReadBack(CHECKED_ONCE)),
+    // `read` checks the endpoint's scheme, and the key lengths.
+    (&crate::webpush::SUBSCRIPTION, Slots::NotReadBack(CHECKED_ONCE)),
+    (&crate::webpush::SENT, Slots::Typed(&[CoreTy::Int, CoreTy::Bool])),
+    // The set is the keys a token is verified with, capped when it is read.
+    (&crate::jwt::KEY_SET, Slots::NotReadBack(CHECKED_ONCE)),
+    (&crate::jwe::KEY, Slots::NotReadBack(KEY_MATERIAL)),
+    // HTML output writes the text with no escaping.
+    (&crate::html::MARKUP, Slots::NotReadBack(TRUSTED_TEXT)),
+    (&crate::markdown::UPDATE, Slots::NotReadBack(TRUSTED_TEXT)),
+    // `source` checks each name and escapes each text again as it writes.
+    (
+        &crate::xml::NODE,
+        Slots::Typed(&[
+            CoreTy::Enum(crate::xml::KIND_NAME),
+            CoreTy::Str,
+            CoreTy::Str,
+            CoreTy::Array(&CoreTy::Str),
+            CoreTy::Array(&CoreTy::Instance(r"Core\Xml\Node")),
+            CoreTy::Nullable(&CoreTy::Str),
+        ]),
+    ),
+    // `cursor` slices the document, so a wrong one panics.
+    (&crate::xml::READER, Slots::NotReadBack(RUNNING_STATE)),
+    // `written` is the document so far, written out with no escaping.
+    (&crate::xml::WRITER, Slots::NotReadBack(RUNNING_STATE)),
+    (
+        &crate::compress::COMPRESSOR,
+        Slots::Typed(&[
+            CoreTy::Enum(crate::compress::CODEC_NAME),
+            CoreTy::Array(&CoreTy::Union(&[CoreTy::Bytes, CoreTy::Str])),
+            CoreTy::Bool,
+        ]),
+    ),
+    // Its two limits were bounded by the server's ceiling when it was made.
+    (&crate::compress::DECOMPRESSOR, Slots::NotReadBack(CHECKED_ONCE)),
+    // Its addresses passed the network rules, and a request trusts them.
+    (&crate::http::TARGET, Slots::NotReadBack(CHECKED_ONCE)),
+    (&crate::http::IDENTITY, Slots::NotReadBack(KEY_MATERIAL)),
+    (
+        &crate::http::RESPONSE,
+        Slots::Typed(&[
+            CoreTy::Int,
+            CoreTy::Bytes,
+            CoreTy::Array(&CoreTy::Array(&CoreTy::Str)),
+            CoreTy::Nullable(&CoreTy::Instance(r"Core\Http\TlsInfo")),
+        ]),
+    ),
+    (
+        &crate::http::stream::EVENT,
+        Slots::Typed(&[
+            CoreTy::Str,
+            CoreTy::Nullable(&CoreTy::Str),
+            CoreTy::Nullable(&CoreTy::Str),
+        ]),
+    ),
+    // `path` picks the local file a request uploads.
+    (&crate::http::PART, Slots::NotReadBack(CHECKED_ONCE)),
+    (
+        &crate::net::MESSAGE,
+        Slots::Typed(&[CoreTy::Bytes, CoreTy::Str, CoreTy::Uint]),
+    ),
+    // `tier` says which store it reaches, and `shared()` checks the grant.
+    (&crate::cache::STORE, Slots::NotReadBack(CHECKED_ONCE)),
+    (&crate::cache::SECRET_ENTRY, Slots::NotReadBack(KEY_MATERIAL)),
+    (
+        &crate::ratelimit::DECISION,
+        Slots::Typed(&[
+            CoreTy::Bool,
+            CoreTy::Uint,
+            CoreTy::Uint,
+            CoreTy::Nullable(&CoreTy::Instance(r"Core\Time\Duration")),
+        ]),
+    ),
+    // `constant` finds a class by `name`, and `forClass` describes only some.
+    (&crate::reflect::CLASS_INFO, Slots::NotReadBack(CHECKED_ONCE)),
+    (
+        &crate::reflect::METHOD_INFO,
+        Slots::Typed(&[
+            CoreTy::Str,
+            CoreTy::Bool,
+            CoreTy::Uint,
+            CoreTy::Array(&CoreTy::Instance(r"Core\Reflect\ParameterInfo")),
+        ]),
+    ),
+    (
+        &crate::reflect::PROPERTY_INFO,
+        Slots::Typed(&[CoreTy::Str, CoreTy::Bool, CoreTy::Nullable(&CoreTy::Str)]),
+    ),
+    (
+        &crate::reflect::PARAMETER_INFO,
+        Slots::Typed(&[CoreTy::Str, CoreTy::Nullable(&CoreTy::Str)]),
+    ),
+    (
+        &crate::reflect::CONSTANT_INFO,
+        Slots::Typed(&[CoreTy::Str, CoreTy::Bool, CoreTy::Bool]),
+    ),
+    // `field` throws where the two arrays do not line up.
+    (
+        &crate::reflect::ATTRIBUTE_INFO,
+        Slots::Typed(&[
+            CoreTy::Str,
+            CoreTy::Str,
+            CoreTy::Str,
+            CoreTy::Array(&CoreTy::Str),
+            CoreTy::Array(&CoreTy::Mixed),
+        ]),
+    ),
+    // `valueOf` throws where the two arrays do not line up.
+    (
+        &crate::reflect::ENUM_INFO,
+        Slots::Typed(&[
+            CoreTy::Str,
+            CoreTy::Array(&CoreTy::Str),
+            CoreTy::Array(&CoreTy::Union(&[CoreTy::Int, CoreTy::Uint])),
+            CoreTy::Bool,
+        ]),
+    ),
+    // `nodes()` walks the children with no bound, and bytes can make them a
+    // cycle.
+    (&crate::ast::NODE, Slots::NotReadBack(CHECKED_ONCE)),
+    // `class` is the class its rows are read into, which bytes cannot carry.
+    (&crate::db::ROWS, Slots::NotReadBack(CHECKED_ONCE)),
+    (&crate::db::ROW, Slots::Typed(&[CoreTy::Array(&CoreTy::Mixed)])),
+    (
+        &crate::db::WRITE,
+        Slots::Typed(&[
+            CoreTy::Uint,
+            CoreTy::Nullable(&CoreTy::Uint),
+            CoreTy::Nullable(&CoreTy::Uint),
+        ]),
+    ),
+    (
+        &crate::db::COLUMN,
+        Slots::Typed(&[
+            CoreTy::Str,
+            CoreTy::Enum(r"Core\Db\Column::Type"),
+            CoreTy::Bool,
+        ]),
+    ),
+    // Each value is bound as a parameter, never written into the SQL.
+    (&crate::db::IN_LIST, Slots::Typed(&[CoreTy::Array(&CoreTy::Mixed)])),
+    // Each use reads the array again with `fromArray`'s checks.
+    (&crate::db::SCHEMA, Slots::Typed(&[CoreTy::Array(&CoreTy::Mixed)])),
+    (
+        &crate::db::PLAN,
+        Slots::Typed(&[CoreTy::Array(&CoreTy::Instance(r"Core\Db\Plan\Step"))]),
+    ),
+    (
+        &crate::db::STEP,
+        Slots::Typed(&[
+            CoreTy::Enum(crate::db::GRADE_NAME),
+            CoreTy::Str,
+            CoreTy::Str,
+            CoreTy::Bool,
+        ]),
+    ),
+    (
+        &crate::ldap::ENTRY,
+        Slots::Typed(&[CoreTy::Str, CoreTy::Array(&CoreTy::Array(&CoreTy::Bytes))]),
+    ),
+    // A search writes the filter's bytes into the request as they are.
+    (&crate::ldap::FILTER, Slots::NotReadBack(TRUSTED_TEXT)),
+    // `modify` does not check the attribute name again, and an unknown kind
+    // reads as a replace.
+    (&crate::ldap::CHANGE, Slots::NotReadBack(CHECKED_ONCE)),
+    // Each reader parses the text again and throws on a bad one.
+    (&crate::ldap::DN, Slots::Typed(&[CoreTy::Str])),
+    (&crate::ldap::SID, Slots::Typed(&[CoreTy::Bytes])),
+    (
+        &crate::ldap::ACCOUNT_FLAGS,
+        Slots::Typed(&[CoreTy::Int, CoreTy::Nullable(&CoreTy::Int), CoreTy::Bool]),
+    ),
+    (&crate::ldap::GROUP_TYPE, Slots::Typed(&[CoreTy::Int])),
+    // `parse` checks the token and the length that `toString` relies on.
+    (&crate::queue::ID, Slots::NotReadBack(CHECKED_ONCE)),
+    (
+        &crate::queue::STATS,
+        Slots::Typed(&[
+            CoreTy::Uint,
+            CoreTy::Uint,
+            CoreTy::Uint,
+            CoreTy::Uint,
+            CoreTy::Uint,
+            CoreTy::Uint,
+        ]),
+    ),
 ];
 
 /// `ty` as a slot's stated type in run-time terms: its one tag, the classes an
@@ -288,6 +649,8 @@ fn slot_type(ty: &CoreTy) -> Option<SlotType> {
             None,
             Some(SlotCheck::Array(Box::new(slot_check(inner)?))),
         ),
+        CoreTy::Enum(_) => (Some(Tag::Int), None, Some(slot_check(ty)?)),
+        CoreTy::Mixed | CoreTy::Union(_) => (None, None, Some(slot_check(ty)?)),
         _ => (Some(scalar_tag(ty)?), None, None),
     };
     Some(SlotType {
@@ -306,6 +669,23 @@ fn slot_check(ty: &CoreTy) -> Option<SlotCheck> {
             SlotCheck::AnyOf(vec![SlotCheck::Tag(Tag::Null), slot_check(inner)?])
         }
         CoreTy::Array(inner) => SlotCheck::Array(Box::new(slot_check(inner)?)),
+        // A slot stated as `mixed` admits every value, and its readers check
+        // what they read.
+        CoreTy::Mixed => SlotCheck::Any,
+        CoreTy::Union(members) => {
+            SlotCheck::AnyOf(members.iter().map(slot_check).collect::<Option<_>>()?)
+        }
+        // A `Core` enum in a slot is its case's `int`, one of the enum's own.
+        CoreTy::Enum(name) => {
+            let mut cases: Vec<u64> = registry::core_enum(name)?
+                .cases
+                .iter()
+                .map(|(_, value)| value.cast_unsigned())
+                .collect();
+            cases.sort_unstable();
+            cases.dedup();
+            SlotCheck::Values(Tag::Int, cases)
+        }
         _ => SlotCheck::Tag(scalar_tag(ty)?),
     })
 }
@@ -1772,7 +2152,7 @@ mod tests {
         let forged = unsafe { NvsObj::new(table.desc(forged_id)) };
         forged.set_field(0, Value::text("x"));
         let forged = Value::object(forged);
-        let other = build(&crate::regex::MATCH, [Value::null(), Value::int(7)]);
+        let other = build(&crate::bigint::CLASS, [Value::null(), Value::int(7)]);
         let genuine = build(
             &RESPONSE,
             [
@@ -1829,7 +2209,7 @@ mod tests {
     /// caller releases that one reference and nothing else does.
     #[test]
     fn a_built_instance_owns_one_reference_and_its_slots() {
-        let value = build(&crate::regex::MATCH, [Value::null(), Value::int(7)]);
+        let value = build(&crate::bigint::CLASS, [Value::null(), Value::int(7)]);
         let ptr = value.obj_ptr().expect("a built instance is an object");
         assert_eq!(slot(ptr, 1).as_int(), Some(7));
         #[expect(
@@ -1942,9 +2322,50 @@ mod tests {
         release_all([version, decoded]);
     }
 
+    /// A `Core\Uri` that `Core\Uri::parse` made goes through the bytes carrier
+    /// and back, and each member returns on the copy what it returned on the
+    /// first one.
+    #[test]
+    fn a_core_value_a_member_made_decodes_back() {
+        use nvs_runtime::{Ctx, OutputSink, call};
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let text = Value::text("https://user@example.com:8443/a/b?x=1#top");
+        let made = call(crate::uri::nvs_core_uri_parse, &mut ctx, &[text]).expect("a URI reference");
+        release_all([text]);
+        // `encode` consumes one reference, so it gets one of its own.
+        #[expect(unsafe_code, reason = "this frame owns `made`")]
+        unsafe {
+            made.retain();
+        }
+        let bytes = nvs_runtime::encode(made).expect("a `Core\\Uri` states its slot types");
+        let resolve = |wanted: &str| core_class_desc(wanted);
+        let back = nvs_runtime::decode(&bytes, &resolve).expect("the bytes `encode` wrote decode");
+        assert!(is_instance(back, &crate::uri::CLASS), "the copy is a `Core\\Uri`");
+        let members: [(&str, nvs_runtime::NvsFn); 6] = [
+            ("scheme", crate::uri::nvs_core_uri_scheme),
+            ("host", crate::uri::nvs_core_uri_host),
+            ("port", crate::uri::nvs_core_uri_port),
+            ("path", crate::uri::nvs_core_uri_path),
+            ("query", crate::uri::nvs_core_uri_query),
+            ("fragment", crate::uri::nvs_core_uri_fragment),
+        ];
+        for (member, helper) in members {
+            let first = call(helper, &mut ctx, &[made]).expect("a `Uri` member");
+            let copy = call(helper, &mut ctx, &[back]).expect("a `Uri` member");
+            assert!(
+                first.as_text() == copy.as_text() && first.as_int() == copy.as_int(),
+                "`{member}` returns what it returned on the first one"
+            );
+            assert!(first.as_text().is_some() || first.as_int().is_some(), "`{member}` has a value");
+            release_all([first, copy]);
+        }
+        release_all([made, back]);
+    }
+
     #[test]
     fn a_core_class_that_states_no_slot_types_does_not_decode() {
-        let class = &crate::regex::MATCH;
+        // Its row gives a reason, which ends the sentence.
+        let class = &crate::bigint::CLASS;
         let desc = desc_of(class);
         assert!(
             !desc.states_slot_types() && !desc.holds_host_handle(),
@@ -1970,6 +2391,14 @@ mod tests {
         let copied = nvs_runtime::copy_graph(built).expect("a live copy still crosses");
         assert!(is_instance(copied, class), "the copy is a {}", class.name);
         release_all([copied]);
+    }
+
+    /// Whether `name`'s [`SLOT_TYPES`] row states slot `index` as `mixed`.
+    fn stated_mixed(name: &str, index: usize) -> bool {
+        SLOT_TYPES.iter().any(|(class, slots)| {
+            class.name == name
+                && matches!(slots, Slots::Typed(types) if matches!(types.get(index), Some(CoreTy::Mixed)))
+        })
     }
 
     /// Walks every descriptor the process defined, the ones with no registry
@@ -2000,6 +2429,10 @@ mod tests {
                     .into_iter()
                     .find(|value| desc.check_slot(index, slot_name, *value).is_err())
                 else {
+                    // A slot its row states as `mixed` admits every value.
+                    if stated_mixed(name, index) {
+                        continue;
+                    }
                     neither.push(format!("{name}::{slot_name} admits a float and a bool"));
                     continue;
                 };
@@ -2012,6 +2445,36 @@ mod tests {
             }
         }
         assert!(neither.is_empty(), "{}", neither.join("\n"));
+    }
+
+    /// Walks the registry's classes with instances, not a list written here, so
+    /// a class added later fails here until its row says what it holds.
+    #[test]
+    fn every_core_class_with_instances_says_what_its_slots_hold() {
+        let held = |class: &CoreClass| HOST_HANDLE_CLASSES.iter().any(|h| h.name == class.name);
+        let row = |class: &CoreClass| SLOT_TYPES.iter().find(|(c, _)| c.name == class.name);
+        let mut missing = Vec::new();
+        let mut checked = 0;
+        for class in registry::CLASSES.iter().filter(|class| has_instances(class)) {
+            checked += 1;
+            match (held(class), row(class)) {
+                (true, Some(_)) => {
+                    missing.push(format!("{} holds a host handle and has a row", class.name));
+                }
+                (false, None) => {
+                    missing.push(format!("{} has no row: [{}]", class.name, class.slots.join(", ")));
+                }
+                _ => {}
+            }
+        }
+        for (class, slots) in SLOT_TYPES {
+            assert!(has_instances(class), "{} has a row and no instances", class.name);
+            if let Slots::Typed(types) = slots {
+                assert_eq!(types.len(), class.slots.len(), "{}'s row has one type per slot", class.name);
+            }
+        }
+        assert!(checked > 0, "the registry has classes with instances");
+        assert!(missing.is_empty(), "{}", missing.join("\n"));
     }
 
     /// Walks every descriptor the process defined, not a list written here, so
