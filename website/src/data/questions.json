@@ -12068,10 +12068,10 @@
   },
   "/reference/core/reflect-classinfo/call/": {
     "feature": "Core\\Reflect\\ClassInfo::call",
-    "hash": "ba6a598883c964eb",
+    "hash": "8fd442a1555fe2c6",
     "questions": [
       "How do I call a method when its name is in a string?",
-      "Call a method dynamically by name with arguments",
+      "What happens when an argument has the wrong type?",
       "Run the method named by a command line argument",
       "Can I call a private method from outside the class?"
     ]

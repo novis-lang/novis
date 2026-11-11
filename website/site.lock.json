@@ -79,7 +79,7 @@
     "PropertyObserver": "c06bfdacbad721bd"
   },
   "syntax/classes/property-names.mdx": {
-    "lang:types/property-keys": "44cb8907f2781b25",
+    "lang:types/property-keys": "eef8fc6f2e44d2af",
     "lang:types/property-paths": "c65182df61963dd2",
     "lang:types/strings-with-holes": "0d75b78ffeab7e40"
   },
@@ -243,7 +243,7 @@
   },
   "syntax/testing/writing-tests.mdx": {
     "lang:testing/a-test-is-a-method-marked-test": "4fd5d3629c19f24d",
-    "lang:testing/bench-and-nvs-test-bench": "b97f530724f889e5",
+    "lang:testing/bench-and-nvs-test-bench": "bfa3534c52a89d69",
     "lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup": "facf911a09a2e45e",
     "lang:testing/running-tests-nvs-test": "60bf36930e87485b",
     "lang:testing/test-options": "4bbccf20a7433053"
@@ -401,7 +401,7 @@
   },
   "tools/test-runner/index.mdx": {
     "lang:testing/a-test-is-a-method-marked-test": "4fd5d3629c19f24d",
-    "lang:testing/bench-and-nvs-test-bench": "b97f530724f889e5",
+    "lang:testing/bench-and-nvs-test-bench": "bfa3534c52a89d69",
     "lang:testing/core-test-property-generated-inputs": "efc5ffb061d342e8",
     "lang:testing/running-tests-nvs-test": "60bf36930e87485b",
     "lang:testing/test-options": "4bbccf20a7433053",

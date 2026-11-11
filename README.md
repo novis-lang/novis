@@ -134,6 +134,7 @@ The work is in the order it is planned. The order can change.
 2. **Faster writes to arrays and strings.** A write to a nested array, or an append to a string in a property, changes the value in place. The cost no longer grows with the size of the value.
 3. **A request path that scales with cores.** Each core keeps its own copy of what every request reads. Static files are read on a separate thread.
 4. **A JSON reader and writer made for Novis.** `Core\Json` reads and writes Novis values directly. The `nvs` binary also becomes smaller.
+5. **Scheduled jobs that run on server events.** A `[[schedule]]` entry can run its script when the server starts, stops or reloads. It can also run when a scheduled job or a queue job fails.
 <!-- roadmap:end -->
 
 ## Contributing
