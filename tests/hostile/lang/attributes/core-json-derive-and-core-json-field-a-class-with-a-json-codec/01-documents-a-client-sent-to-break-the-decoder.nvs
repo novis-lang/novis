@@ -72,3 +72,51 @@ while ($round < 10000) {
     $round = $round + 1;
 }
 echo 'repeated: ', $total, "\n";
+
+#[Core\Json\Derive]
+class Page
+{
+    public function constructor(public "draft"|"live" $state) {}
+}
+
+// 7. A value that is not in the set of allowed values.
+try {
+    Json::decodeAs<Page>("{\"state\":\"deleted\"}");
+    echo "outside the set: built\n";
+} catch (ParseError $bad) {
+    foreach ($bad->issues as { path: string, message: string } $issue) {
+        echo 'outside the set: ', $issue->path, ': ', $issue->message, "\n";
+    }
+}
+
+class Entity
+{
+    public uint $id;
+
+    public function constructor(uint $id)
+    {
+        $this->id = $id;
+    }
+}
+
+#[Core\Json\Derive]
+class Article extends Entity
+{
+    public string $title;
+
+    public function constructor(uint $id, string $title)
+    {
+        $this->title = $title;
+        parent::constructor($id);
+    }
+}
+
+// 8. A string for the parent's `id` property, sent to a subclass.
+try {
+    Json::decodeAs<Article>("{\"id\":\"admin\",\"title\":\"x\"}");
+    echo "parent key: built\n";
+} catch (ParseError $bad) {
+    foreach ($bad->issues as { path: string, message: string } $issue) {
+        echo 'parent key: ', $issue->path, ': ', $issue->message, "\n";
+    }
+}

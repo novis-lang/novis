@@ -1,0 +1,39 @@
+<?nvs
+// Shows a subclass with a JSON codec, which writes its parent's properties first and then its own.
+
+use Core\Json;
+use Core\Json\Field;
+
+// The parent class does not need `#[Core\Json\Derive]`.
+// Its `#[Field]` still renames the key in every subclass.
+class Entity
+{
+    #[Field(name: "id")]
+    public int $key;
+
+    public function constructor(int $key)
+    {
+        $this->key = $key;
+    }
+}
+
+#[Core\Json\Derive]
+class Post extends Entity
+{
+    public string $title;
+
+    // The constructor has a parameter for each property, including the inherited one.
+    public function constructor(int $key, string $title)
+    {
+        $this->title = $title;
+        parent::constructor($key);
+    }
+}
+
+// The key of `Entity` comes first. This prints {"id":7,"title":"hello"}.
+var $post = new Post(7, "hello");
+echo Json::encode($post), "\n";
+
+// A decode calls the constructor of `Post`. This prints `7 hello`.
+var $back = Json::decodeAs<Post>("{\"id\":7,\"title\":\"hello\"}");
+echo $back->key, " ", $back->title, "\n";

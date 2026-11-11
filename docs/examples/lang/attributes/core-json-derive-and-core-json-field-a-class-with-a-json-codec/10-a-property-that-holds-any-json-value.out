@@ -1,0 +1,6 @@
+{"kind":"login","data":{"user":"ana","roles":["admin"]}}
+{"kind":"scores","data":[1,2.5,true]}
+{"kind":"count","data":42}
+{"kind":"note","data":"hello"}
+{"kind":"empty","data":null}
+{"user":"ana","roles":["admin"]}

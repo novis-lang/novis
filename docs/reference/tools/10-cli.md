@@ -980,7 +980,7 @@ generated from. `--json` is required. Its seven top-level keys:
   card joins the two on `(class, member)`; a member absent from it is ungated.
 
 Given an entry point, the command also parses and resolves that program, and adds an eighth key,
-`program`, holding its own `classes`, `enums` and `types` (its `type` aliases) in the same shape. A declaration's `doc` is the
+`program`, holding its own `classes`, `enums` and `types` (its `type` aliases) in the same shape, and `schemas` when a class's JSON schema refers to another class. A declaration's `doc` is the
 `///` comment above it: its prose as `short`, and its `@see` and `@example` tags as lists. The
 seven registry keys are byte for byte the same as without the entry point. For a file declaring
 one documented class:
@@ -988,6 +988,19 @@ one documented class:
 ```text
 $ nvs meta --json cart.nvs
 …,"program":{"classes":[{"doc":{"short":"A shopping cart."},"members":[{"doc":{"short":"Adds items to the cart."},"kind":"instance","name":"add","signature":"add(uint $count = 1): uint","visibility":"public"}],"name":"Cart"}]}}
+```
+
+A class with `#[Core\Json\Derive]` also has a `json` key. It is the JSON schema of the document the
+class encodes to, the same schema `nvs build --openapi` writes. It has the inherited keys, the
+renamed keys, and no skipped keys. Its `required` list gives the keys in the order they are written.
+A set of allowed values is a `string` or `integer` with an `enum` list. A property whose type is
+another derived class is a `$ref` to `#/program/schemas/<name>`. The `program` object then has a
+`schemas` map with that schema, once for each class. A class with a `toJson` method you wrote
+yourself has no `json` key. For a `Post` with an inherited `id`, an allowed set and an `Author`:
+
+```text
+$ nvs meta --json shop.nvs
+…,"json":{"properties":{"author":{"$ref":"#/program/schemas/Shop.Author"},"id":{"type":"integer"},"state":{"enum":["draft","live"],"type":"string"}},"required":["id","state","author"],"type":"object"},…,"schemas":{"Shop.Author":{"properties":{"name":{"type":"string"}},"required":["name"],"type":"object"}}}}
 ```
 
 # nvs ast

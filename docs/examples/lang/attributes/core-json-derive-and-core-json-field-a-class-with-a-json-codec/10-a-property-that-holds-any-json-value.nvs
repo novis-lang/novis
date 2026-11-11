@@ -1,0 +1,28 @@
+<?nvs
+// Shows a `mixed` property, which accepts any JSON value, `null` included.
+
+use Core\Json;
+
+#[Core\Json\Derive]
+class Event
+{
+    public function constructor(public string $kind, public mixed $data) {}
+}
+
+// Each document has a different JSON value under "data".
+// An encode of the decoded object writes each value back unchanged.
+array<string> $documents = [
+    "{\"kind\":\"login\",\"data\":{\"user\":\"ana\",\"roles\":[\"admin\"]}}",
+    "{\"kind\":\"scores\",\"data\":[1,2.5,true]}",
+    "{\"kind\":\"count\",\"data\":42}",
+    "{\"kind\":\"note\",\"data\":\"hello\"}",
+    "{\"kind\":\"empty\",\"data\":null}",
+];
+foreach ($documents as string $document) {
+    echo Json::encode(Json::decodeAs<Event>($document)), "\n";
+}
+
+// `Json::encode` also works on the property alone.
+// This prints {"user":"ana","roles":["admin"]}.
+var $login = Json::decodeAs<Event>($documents[0]);
+echo Json::encode($login->data), "\n";

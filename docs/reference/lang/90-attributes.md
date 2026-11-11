@@ -683,32 +683,50 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 # `#[Core\Json\Derive]` and `#[Core\Json\Field]`: a class with a JSON codec
 
 `#[Core\Json\Derive]` on a class gives it a JSON encoder and a JSON decoder. `Core\Json::encode` then
-accepts instances of that class, and `Core\Json::decodeAs` builds one from JSON text. A class without
-the attribute is not allowed at either call.
+accepts instances of that class, and `Core\Json::decodeAs` builds one from JSON text.
 
-The fields of the document are the class's declared properties, in the order they are written.
-`#[Core\Json\KeepKeyOrder]` keeps this order when `nvs code order` sorts the class. Each
-of these properties is also a constructor parameter of the same name and type, because a decode calls your
-constructor. `#[Core\Json\Field]` changes one property. `name:` writes it under a different key, and
-`skip: true` leaves it out of the document.
+The fields of the document are the class's properties, in the order they are written. A subclass
+also has the properties of its parent classes, and they come first. Each property is also a
+constructor parameter of the same name and type, because a decode calls your constructor.
+`#[Core\Json\Field]` renames one property's key or leaves it out.
 
-A decode checks the whole document before it builds anything. If a field is missing, has the wrong
-type, or is `null` where that is not allowed, the decode throws a `ParseError`. The error lists every
-bad field at once.
+A property can have a set of allowed values, such as `"draft"|"live"`. A `mixed` property takes any
+JSON value.
 
-The examples show a class encoded as JSON, a renamed key and a skipped property, and a request body
-read into an object. Then they show each check of a decode, a property with no constructor parameter,
-an enum and an array in a decode, and a key order that must not change.
+A decode checks the whole document before it builds anything. If a field is missing or has the
+wrong type, the decode throws a `ParseError`. The error lists every bad field at once.
 
-The document has one key for each instance property that the class itself declares. A `private` or
-`protected` property has a key too. A property promoted in the `constructor` has its key in the place
-where it is written. A `static` property has no key, and neither does a property the class inherits.
-A `readonly` property has a key. A class with no such property is `E0758`.
+The examples show an encode, a renamed key, a request body and each check of a decode. They also
+show an enum, a fixed key order, a subclass, a set of allowed values and a `mixed` property.
 
-A property may be a number, a `string`, a `bool`, an enum, an inline shape, an `array<T>` of these, or
-`?T` of these. It may also be another class with `#[Core\Json\Derive]`. A class without the attribute
-is `E0756`. An enum case is written in JSON as its number. A `float` is written with a fraction, so
-`2` in a `float` property encodes as `2.0`.
+The document has one key for each instance property of the class. A `private` or `protected`
+property has a key too. A property promoted in the `constructor` has its key in the place where it
+is written. A `static` property has no key. A `readonly` property has a key. A class with no such
+property is `E0758`.
+
+A subclass also has a key for each property of its parent classes. The keys of the top parent come
+first, then the keys of each class below it, and the subclass's own keys come last. A parent does
+not need `#[Core\Json\Derive]`. A `#[Core\Json\Field]` on a parent's property renames or skips that
+key in every subclass. The subclass's constructor needs a parameter for each inherited key, as for
+its own properties. If one is missing, the error is reported at the subclass's attribute. A
+property that a subclass declares again is one key, at the parent's position. A parent from `Core`
+gives no keys.
+
+A property may be a number, a `string`, a `bool`, `mixed`, an enum or a set of allowed values. It
+may also be an inline shape, an `array<T>` of these, or `?T` of these. Another class with
+`#[Core\Json\Derive]` is allowed too. A class without the attribute is `E0756`. An enum case is written in JSON as
+its number. A `float` is written with a fraction, so `2` in a `float` property encodes as `2.0`.
+
+A `mixed` property takes any JSON value: an object, an array, a string, a number, a `bool` or `null`.
+An encode writes the value back as it is.
+
+A set of allowed values is a type such as `"draft"|"live"` or `1|2|3`. All values are strings, or
+all are numbers. It is written in JSON as the plain string or number. A decode checks that the value
+is in the set. `"gone"` gives the issue `` `"gone"` is not one of `"draft"`, `"live"` ``. A long
+value is cut to 64 characters in the message. `?"pinned"` and `"a"|"b"|null` also accept `null`.
+
+Any other type with `|` is `E0756`. Examples are `string|int`, a mix of string and number values,
+and two classes. Use `mixed` for a value that can have more than one type.
 
 A `secret` property is decoded like any other property. Encoding its class does not compile, and is
 `E0462`. A `lateinit` property is `E0463`. `#[Core\Json\Field(skip: true)]` leaves either one out. A property with no constructor parameter of the same name is
@@ -1073,6 +1091,138 @@ echo Core\Json::encode(new Message('chat', 'hello', 1700)), "\n";
 
 ```output
 {"type":"chat","text":"hello","sentAt":1700}
+```
+
+## Example 08: a subclass writes its parents keys first
+
+```nvs
+<?nvs
+// Shows a subclass with a JSON codec, which writes its parent's properties first and then its own.
+
+use Core\Json;
+use Core\Json\Field;
+
+// The parent class does not need `#[Core\Json\Derive]`.
+// Its `#[Field]` still renames the key in every subclass.
+class Entity
+{
+    #[Field(name: "id")]
+    public int $key;
+
+    public function constructor(int $key)
+    {
+        $this->key = $key;
+    }
+}
+
+#[Core\Json\Derive]
+class Post extends Entity
+{
+    public string $title;
+
+    // The constructor has a parameter for each property, including the inherited one.
+    public function constructor(int $key, string $title)
+    {
+        $this->title = $title;
+        parent::constructor($key);
+    }
+}
+
+// The key of `Entity` comes first. This prints {"id":7,"title":"hello"}.
+var $post = new Post(7, "hello");
+echo Json::encode($post), "\n";
+
+// A decode calls the constructor of `Post`. This prints `7 hello`.
+var $back = Json::decodeAs<Post>("{\"id\":7,\"title\":\"hello\"}");
+echo $back->key, " ", $back->title, "\n";
+```
+
+```output
+{"id":7,"title":"hello"}
+7 hello
+```
+
+## Example 09: a property with a set of allowed values
+
+```nvs
+<?nvs
+// Shows a property that accepts only a fixed set of values, and what a decode does with a value outside it.
+
+use Core\Json;
+
+#[Core\Json\Derive]
+class Post
+{
+    // `$state` is "draft" or "live". `$level` is 1, 2 or 3.
+    public function constructor(public "draft"|"live" $state, public 1|2|3 $level) {}
+}
+
+// Each value is written as a plain string or number.
+// This prints {"state":"live","level":2}.
+echo Json::encode(new Post("live", 2)), "\n";
+
+// This prints `draft 1`.
+var $post = Json::decodeAs<Post>("{\"state\":\"draft\",\"level\":1}");
+echo $post->state, " ", $post->level, "\n";
+
+// "gone" and 7 are not in their sets, so the decode throws a `ParseError`.
+// It has one issue for each property, with the allowed values.
+try {
+    Json::decodeAs<Post>("{\"state\":\"gone\",\"level\":7}");
+} catch (ParseError $bad) {
+    foreach ($bad->issues as { path: string, message: string } $issue) {
+        echo $issue->path, ': ', $issue->message, "\n";
+    }
+}
+```
+
+```output
+{"state":"live","level":2}
+draft 1
+state: `"gone"` is not one of `"draft"`, `"live"`
+level: `7` is not one of `1`, `2`, `3`
+```
+
+## Example 10: a property that holds any json value
+
+```nvs
+<?nvs
+// Shows a `mixed` property, which accepts any JSON value, `null` included.
+
+use Core\Json;
+
+#[Core\Json\Derive]
+class Event
+{
+    public function constructor(public string $kind, public mixed $data) {}
+}
+
+// Each document has a different JSON value under "data".
+// An encode of the decoded object writes each value back unchanged.
+array<string> $documents = [
+    "{\"kind\":\"login\",\"data\":{\"user\":\"ana\",\"roles\":[\"admin\"]}}",
+    "{\"kind\":\"scores\",\"data\":[1,2.5,true]}",
+    "{\"kind\":\"count\",\"data\":42}",
+    "{\"kind\":\"note\",\"data\":\"hello\"}",
+    "{\"kind\":\"empty\",\"data\":null}",
+];
+foreach ($documents as string $document) {
+    echo Json::encode(Json::decodeAs<Event>($document)), "\n";
+}
+
+// `Json::encode` also works on the property alone.
+// This prints {"user":"ana","roles":["admin"]}.
+var $login = Json::decodeAs<Event>($documents[0]);
+echo Json::encode($login->data), "\n";
+```
+
+```output
+{"kind":"login","data":{"user":"ana","roles":["admin"]}}
+{"kind":"scores","data":[1,2.5,true]}
+{"kind":"count","data":42}
+{"kind":"note","data":"hello"}
+{"kind":"empty","data":null}
+{"user":"ana","roles":["admin"]}
 ```
 
 # `#[Core\Route]` and `#[Core\Access]`: the route table
