@@ -42,11 +42,16 @@ fn disassembling_names_each_frame_and_shows_the_code_that_would_have_run() {
 fn two_identical_string_literals_share_one_data_object() {
     // The two fixtures differ only in whether the second literal repeats the
     // first, so the shared one names one data symbol fewer and the same number
-    // of addresses.
+    // of addresses. A `userextnameN` is numbered per function, so only the
+    // script's own section is counted: a name in another function is a
+    // different symbol even when its number is the same.
     let symbols = |source: &str| {
         let text = nvs_codegen::clif(&lower(source)).expect("the fixture compiles");
         let names: Vec<&str> = text
             .lines()
+            .skip_while(|line| *line != "; <script>")
+            .skip(1)
+            .take_while(|line| !line.starts_with("; "))
             .filter_map(|line| line.split_once("= symbol ").map(|(_, name)| name.trim()))
             .collect();
         let distinct: std::collections::BTreeSet<&str> = names.iter().copied().collect();
