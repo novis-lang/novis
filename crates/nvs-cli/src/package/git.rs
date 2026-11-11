@@ -989,6 +989,10 @@ pub(crate) mod tests {
         )
         .expect_err("it is stopped");
         drop(done);
+        // Under load the limit can end before the clone connects, and the host's `accept`
+        // would then wait forever. One connection of the test's own ends that wait; when
+        // the clone did connect, it sits in the backlog unread.
+        let _ = std::net::TcpStream::connect(("127.0.0.1", port));
         host.join().expect("the test's host ends");
         assert!(fault.0.contains("took longer than 1 seconds"), "{fault}");
     }
