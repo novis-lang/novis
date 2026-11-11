@@ -1,6 +1,6 @@
   CatalogBench
     ✓ oneHundredLookups
-      count: statements=402 calls=200 allocations=205 bytes=8902 gc=0
+      count: statements=402 calls=200 allocations=204 bytes=8870 gc=0
     - importTheWholeCatalog
       skipped: the import file is not in this repository
 

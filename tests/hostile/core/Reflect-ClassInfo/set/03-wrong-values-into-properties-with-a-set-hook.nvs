@@ -18,23 +18,38 @@ class Rock
 class Holder
 {
     public float $price {
-        set(float $v) { echo "hook price\n"; $this->price = $v; }
+        set(float $v) {
+            echo "hook price\n";
+            $this->price = $v;
+        }
     }
+
     public Level $level {
-        set(Level $v) { echo "hook level\n"; $this->level = $v; }
+        set(Level $v) {
+            echo "hook level\n";
+            $this->level = $v;
+        }
     }
+
     public callable(int): string $label {
-        set(callable(int): string $v) { echo "hook label\n"; $this->label = $v; }
+        set(callable(int): string $v) {
+            echo "hook label\n";
+            $this->label = $v;
+        }
     }
+
     public Pet $pet {
-        set(Pet $v) { echo "hook pet\n"; $this->pet = $v; }
+        set(Pet $v) {
+            echo "hook pet\n";
+            $this->pet = $v;
+        }
     }
 
     public function constructor()
     {
         $this->price = 1.5;
         $this->level = Level::Low;
-        $this->label = fn (int $n): string => 'number ' . $n;
+        $this->label = fn(int $n): string => 'number ' . $n;
         $this->pet = new Pet();
     }
 }
@@ -69,7 +84,7 @@ try {
     echo "refused\n";
 }
 try {
-    $any->label = fn (string $s): string => Core\Str::upper($s);
+    $any->label = fn(string $s): string => Core\Str::upper($s);
     echo "written\n";
 } catch (RuntimeError $refused) {
     echo "refused\n";

@@ -37676,7 +37676,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "<code>$name</code> is not <code>public</code>, is not a method of the class, or is a <code>Core</code> method. Or <code>$arguments</code> has fewer entries than the method's parameters, or an entry has a type that its parameter does not accept. An ordinary call on a <code>mixed</code> value throws the same error, from the same check."
+                "descHtml": "<code>$name</code> is not <code>public</code>, is not a method of the class, or is a <code>Core</code> method. Or the method is <code>static</code>, or it has an <code>inout</code> parameter. Or <code>$arguments</code> has fewer entries than the method's parameters, or an entry has a type that its parameter does not accept. An ordinary call on a <code>mixed</code> value throws the same error, from the same check."
               },
               {
                 "error": "RuntimeError",

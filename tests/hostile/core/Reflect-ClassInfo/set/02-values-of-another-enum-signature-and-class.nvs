@@ -13,7 +13,7 @@ class Holder
 
     public function constructor()
     {
-        $this->label = fn (int $n): string => 'number ' . $n;
+        $this->label = fn(int $n): string => 'number ' . $n;
         $this->day = Core\Time\Date::at(2024, 1, 2);
     }
 }
@@ -35,7 +35,7 @@ echo match ($holder->level) {
 
 // 2. A function that takes a string is written where a function that takes an int is declared.
 try {
-    $info->set($holder, 'label', fn (string $s): string => Core\Str::upper($s));
+    $info->set($holder, 'label', fn(string $s): string => Core\Str::upper($s));
     echo "written\n";
 } catch (RuntimeError $refused) {
     echo "refused\n";

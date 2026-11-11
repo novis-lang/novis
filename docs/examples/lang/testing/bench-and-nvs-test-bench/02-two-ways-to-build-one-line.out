@@ -1,7 +1,7 @@
   CsvLineBench
     ✓ byLoop
-      count: statements=1406 calls=2 allocations=423 bytes=32373 gc=0
+      count: statements=1406 calls=2 allocations=422 bytes=32357 gc=0
     ✓ byJoin
-      count: statements=406 calls=3 allocations=418 bytes=30336 gc=0
+      count: statements=406 calls=3 allocations=417 bytes=30320 gc=0
 
   0 failed, 2 passed, 0 skipped, 0 flaky

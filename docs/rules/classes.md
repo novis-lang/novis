@@ -688,6 +688,13 @@ accepts the property's type without a conversion, or the hook does not compile (
 is checked against the property's type and handed to the hook unchanged, so `set (float $v)` on an
 `int` property would read the `int` as a `float`. A wider type such as `?int` or `mixed` compiles.
 
+A write by name runs the same check before the hook does. `Core\Reflect\ClassInfo::set` and a write
+through an erased receiver ([`types/erased-member-access`](types.md#types-erased-member-access)) test the value against the property's
+declared type, as they do for a property with no hook, and a miss throws the same `RuntimeError`
+before the hook runs. The hook then gets the value unchanged. So nothing widens there: an `int`
+written by name to a `float` property is refused, hook or no hook. The hook carries no check of its
+own, because a value the property's type admits is one its parameter reads correctly.
+
 Novis keeps the backing slot for every hooked property, so there is no split between virtual and
 backed properties. That spends one slot on a property whose `get` computes its answer, and buys one
 storage model instead of two — and a `set` hook that commits a value discharges that property's

@@ -2337,7 +2337,7 @@ final class SlugTest
 ```output
   SlugTest
     ✓ slugsOfOneHundredTitles
-      count: statements=302 calls=400 allocations=505 bytes=26674 gc=0
+      count: statements=302 calls=400 allocations=504 bytes=26658 gc=0
 
   0 failed, 1 passed, 0 skipped, 0 flaky
 ```
@@ -2404,9 +2404,9 @@ final class CsvLineBench
 ```output
   CsvLineBench
     ✓ byLoop
-      count: statements=1406 calls=2 allocations=423 bytes=32373 gc=0
+      count: statements=1406 calls=2 allocations=422 bytes=32357 gc=0
     ✓ byJoin
-      count: statements=406 calls=3 allocations=418 bytes=30336 gc=0
+      count: statements=406 calls=3 allocations=417 bytes=30320 gc=0
 
   0 failed, 2 passed, 0 skipped, 0 flaky
 ```
@@ -2469,7 +2469,7 @@ final class CatalogBench
 ```output
   CatalogBench
     ✓ oneHundredLookups
-      count: statements=402 calls=200 allocations=205 bytes=8902 gc=0
+      count: statements=402 calls=200 allocations=204 bytes=8870 gc=0
     - importTheWholeCatalog
       skipped: the import file is not in this repository
 

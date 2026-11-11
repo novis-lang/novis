@@ -5030,7 +5030,7 @@ try {
 an int
 null
 `"password"` is not one of `User`'s public declared properties: `$age`, `$email`
-`User` declares field `age` as int, so a string cannot be written to it
+`User` declares property `age` as `int`, so a string cannot be written to it
 ```
 
 #### Example 06: a parent key on a child object
@@ -30660,7 +30660,7 @@ final class SlugTest
 ```output
   SlugTest
     ✓ slugsOfOneHundredTitles
-      count: statements=302 calls=400 allocations=505 bytes=26674 gc=0
+      count: statements=302 calls=400 allocations=504 bytes=26658 gc=0
 
   0 failed, 1 passed, 0 skipped, 0 flaky
 ```
@@ -30727,9 +30727,9 @@ final class CsvLineBench
 ```output
   CsvLineBench
     ✓ byLoop
-      count: statements=1406 calls=2 allocations=423 bytes=32373 gc=0
+      count: statements=1406 calls=2 allocations=422 bytes=32357 gc=0
     ✓ byJoin
-      count: statements=406 calls=3 allocations=418 bytes=30336 gc=0
+      count: statements=406 calls=3 allocations=417 bytes=30320 gc=0
 
   0 failed, 2 passed, 0 skipped, 0 flaky
 ```
@@ -30792,7 +30792,7 @@ final class CatalogBench
 ```output
   CatalogBench
     ✓ oneHundredLookups
-      count: statements=402 calls=200 allocations=205 bytes=8902 gc=0
+      count: statements=402 calls=200 allocations=204 bytes=8870 gc=0
     - importTheWholeCatalog
       skipped: the import file is not in this repository
 
@@ -49917,7 +49917,7 @@ Calls the `$name` method of `$object` with `$arguments`. The visibility rules ar
 
 **Returns** `mixed` — Whatever the method returned. Its type is `mixed`, whatever type the method declares.
 
-**Throws** `LogicError` — `$name` is not `public`, is not a method of the class, or is a `Core` method. Or `$arguments` has fewer entries than the method's parameters, or an entry has a type that its parameter does not accept. An ordinary call on a `mixed` value throws the same error, from the same check.; `RuntimeError` — `$object` is not an object at all. A `$object` that is an object but not an instance of the described class is the `LogicError` above.
+**Throws** `LogicError` — `$name` is not `public`, is not a method of the class, or is a `Core` method. Or the method is `static`, or it has an `inout` parameter. Or `$arguments` has fewer entries than the method's parameters, or an entry has a type that its parameter does not accept. An ordinary call on a `mixed` value throws the same error, from the same check.; `RuntimeError` — `$object` is not an object at all. A `$object` that is an object but not an instance of the described class is the `LogicError` above.
 
 <a id="core-core-reflect-classinfo-construct"></a>
 #### `Core\Reflect\ClassInfo->construct`

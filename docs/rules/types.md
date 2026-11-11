@@ -2123,15 +2123,20 @@ a name in the type would imply calling through the value by name, which nothing 
 
 Bare `callable` remains the **top of the callable lattice** — a callable whose signature is unknown.
 Every callable type is assignable to it, calling through one keeps the dynamic path and its
-per-argument tag check, and nothing existing changes meaning. Narrowing is opt-in. Where a call
-reaches a callable whose type names its parameters, the arguments are proven at compile time and the
-per-argument tag check is **not emitted**; the metadata stays on every callable, because bare `callable`
+per-argument check, and nothing existing changes meaning. Narrowing is opt-in. Where a call reaches a
+callable whose type names its parameters, the arguments are proven at compile time and the
+per-argument check is **not run**; the metadata stays on every callable class, because bare `callable`
 still needs it and an anonymous function does not know where it is written which kind of site will call it.
 
 **The reason is safety, not convenience.** A compiled callable reads each argument at its own declared
 representation, so a mismatched argument is reinterpreted: an `int` read as a string pointer is an
-arbitrary dereference, not a fault. A bare `callable` guards that with a runtime tag check per
-argument, per call. A written signature discharges the same guard at compile time, as an error where
+arbitrary dereference, not a fault. A bare `callable` guards that with a runtime check per argument,
+per call, of each parameter's whole declared type: the check a write by name runs against a property
+of that type ([`types/erased-member-access`](types.md#types-erased-member-access)). It reads the callable class's `invoke` method row,
+which carries each parameter's check as any method row does, so a `?C`, an `array<int>`, an enum and
+a `callable(int): string` parameter are each tested as `is` tests them, and the one `int` to `float`
+widening of a parameter declared `float` is kept. A miss throws a `LogicError` that names the
+position and the value given. A written signature discharges the same guard at compile time, as an error where
 the mismatch is written. `Core\Arr::map($ints, fn (string $s): string => $s)` over an `array<int>`
 does not compile.
 
@@ -2146,10 +2151,13 @@ one place nothing else looked. The body's first block runs the same class test `
 class-declared parameter, and a miss throws a `LogicError`. A parent class and an implemented
 interface accept the instance an exact class does.
 
-Two things the entry check does not do. A `?C` parameter is unchecked on both lines: it erases to a
-tagged value before any class survives, the same nothing `mixed` gets. And the error does not name the
-class that arrived, because no compiled instruction reads an object's class name, and adding one is a
-new value shape for the sake of a message.
+The entry check is for a proven call, which does not run the row check, and for the paths that reach
+the body with no row check at all. A `?C` parameter is not tested at the entry: it erases to a tagged
+value before any class survives. A bare `callable` call tests it from the row, and a written signature
+proves it where the call is written. The entry's error does not name the class that arrived, because
+no compiled instruction reads an object's class name, and adding one is a new value shape for the sake
+of a message. The row check's error names it, because it runs in the runtime, which reads the
+argument's descriptor.
 
 The parameter list needs no trial parse: a `(` after `callable` in a type position can only open a
 parameter list, because a type position has no call syntax to confuse it with.
@@ -2163,9 +2171,11 @@ more: no type variable can be bounded, and without it `Task::all(5)` would compi
 What it accepts is ordinary assignability, and what it binds is the same structural walk.
 
 - **Memory:** none. A written signature adds no runtime representation, no heap shape and no
-  per-callable growth. The parameter tags and the arity stay on every callable value. The entry
-  check spends one scan of the argument's ancestry per class-declared parameter per call, and
-  allocates nothing.
+  per-callable growth. The parameter tags and the arity stay on every callable value, and the
+  `invoke` row's two small vectors of checks on every callable class, once per process. A bare
+  `callable` call spends one class walk per class-typed argument and one element walk per
+  typed-array argument. The entry check spends one scan of the argument's ancestry per
+  class-declared parameter per call. Neither allocates.
 
 **Declined:**
 - **Angle brackets, `callable<User, string, string>`.** The return type would be positional and
@@ -2623,8 +2633,10 @@ For all three:
   silent value or a `null`. A receiver whose tag turns out not to be an object is one more
   catchable throw.
 - **Write:** the same missing-name throw, plus a check of the incoming value against the field's
-  *real*, concrete declared type, throwing on a mismatch. A write through an erased view can **never
-  create a field**. An anonymous object has no declared class, and its slot carries no declared
+  *real*, concrete declared type, throwing on a mismatch. The check tests what `is` tests: an enum
+  field takes a case value of that enum, a `callable` field takes a callable, a written signature
+  takes a callable that fits it, and a field of a `Core` class takes an instance of that class. A
+  write through an erased view can **never create a field**. An anonymous object has no declared class, and its slot carries no declared
   type, so its write is checked against the value the field has now: the new value has the same
   exact type, an object's class is the current one's or a subclass of it, a nested anonymous object
   passes the same check field by field, and each array element has the shape of some current element.
@@ -2665,22 +2677,36 @@ half does not, because a property read has a name-keyed fetch to defer to and a 
 `mixed` is the one receiver left out, since [`types/unions-and-mixed`](types.md#types-unions-and-mixed) makes it the one unchecked
 position.
 
-**A call through `mixed` is checked against the callee's declared shape.** The receiver's descriptor
-carries, for each method, its arity and the representation each parameter requires, and the
-arguments are tested by the same per-argument check a bare `callable` call runs, so the
-`int`-into-`float` widening ([`types/implicit-widening`](types.md#types-implicit-widening)) is applied in one place. Nothing is
+**A call through `mixed` is checked against each parameter's declared type.** The receiver's
+descriptor carries, for each method, its arity, the representation each parameter requires, and the
+rest of each parameter's type as a property slot carries it. The representation is tested by the same
+per-argument check a bare `callable` call runs, so the `int`-into-`float` widening
+([`types/implicit-widening`](types.md#types-implicit-widening)) is applied in one place. The rest is tested by the check a write by
+name runs, so an argument passes what `$x is T` passes: an object of an admitted class, an array whose
+every element fits, an enum value one of the enum's cases has. A variadic parameter receives one array
+and each element is checked. A `covariant` parameter is checked by the method's own entry test.
+`Core\Reflect\ClassInfo`'s `call` and `construct` and an isolate's entry run the same check. Nothing is
 converted on the way in or out: the arguments are already tagged values, and the result comes back
 tagged for the `mixed` the call's own type is. Every failure is a catchable throw on
 [`errors/propagation`](errors.md#errors-propagation)'s error edge, worded as the diagnostic that names the same mistake where a
 static type shows it: a receiver whose tag is not an object (`E0477`), a class with no such method
-(`E0405`), and an argument count or representation the callee does not admit (`E0402`, `E0401`). Two
-more shapes throw instead of dispatching. A non-`public` method throws, since a `mixed` receiver is
-outside every class. A `Core`-owned method throws, since its native convention borrows argument 0
-where a compiled method owns its parameters.
+(`E0405`), and an argument count or type the callee does not admit (`E0402`, `E0401`), as a
+`LogicError`. Four more shapes throw instead of dispatching. A non-`public` method throws, since a
+`mixed` receiver is outside every class. A `Core`-owned method throws, since its native convention
+borrows argument 0 where a compiled method owns its parameters. A `static` method throws, since it has
+no object to be called on, and an isolate's entry that is not `static` throws for the same reason. A
+method with an `inout` parameter throws, since a call by name has no variable to write the value back
+to.
 
-- **Memory:** the method rows are per class, once per process, and nothing per instance or per call.
-  A statically typed call pays nothing. A call through `mixed` pays a tag test on the receiver, one
-  binary search of the method table by name, and a shift, a mask and a compare per argument.
+- **Memory:** the method rows are per class, once per process, and nothing per instance or per call:
+  two small vectors and two bits per method beside the arity and the tag word. A call by name that
+  succeeds allocates nothing. Its receiver and up to sixteen arguments sit in a stack array of 272
+  bytes, the argument list of `ClassInfo::call`, `ClassInfo::construct` and a `mixed` call is read into
+  another of 128 bytes, and a refusal's sentence is formatted only when it is thrown. A list longer
+  than sixteen is read into a heap vector, and the tag word then refuses the call.
+- **Latency:** a statically typed call pays nothing. A call through `mixed` pays a tag test on the
+  receiver, one binary search of the method table by name, a shift, a mask and a compare per argument,
+  one class walk per class-typed argument and one element walk per typed-array argument.
 
 **Declined:**
 - **Dispatching a method call through `object` or a shape.** Refusing is the reversible choice: a

@@ -26,7 +26,7 @@ class Runner
 
 // 1. An object of an unrelated class is passed where a `Pet` is declared.
 try {
-    Runner::run(fn (Pet $p): string => { echo "body ran\n"; return $p->name; }, new Rock());
+    Runner::run(fn(Pet $p): string => { echo "body ran\n"; return $p->name; }, new Rock());
     echo "called\n";
 } catch (LogicError $refused) {
     echo "refused\n";
@@ -34,7 +34,7 @@ try {
 
 // 2. The same object is passed where a `?Pet` is declared.
 try {
-    Runner::run(fn (?Pet $p): string => { echo "body ran\n"; return 'p'; }, new Rock());
+    Runner::run(fn(?Pet $p): string => { echo "body ran\n"; return 'p'; }, new Rock());
     echo "called\n";
 } catch (LogicError $refused) {
     echo "refused\n";
@@ -43,7 +43,7 @@ try {
 // 3. An array with a string in it is passed where an `array<int>` is declared.
 array<mixed> $mixed = [1, 'two', 3];
 try {
-    Runner::run(fn (array<int> $a): int => { echo "body ran\n"; return $a[1] + 1; }, $mixed);
+    Runner::run(fn(array<int> $a): int => { echo "body ran\n"; return $a[1] + 1; }, $mixed);
     echo "called\n";
 } catch (LogicError $refused) {
     echo "refused\n";
@@ -51,7 +51,7 @@ try {
 
 // 4. A case of another enum is passed where a `Level` is declared. Its value 3 is not a value of `Level`.
 try {
-    Runner::run(fn (Level $l): int => { echo "body ran\n"; return $l as int; }, Color::Blue);
+    Runner::run(fn(Level $l): int => { echo "body ran\n"; return $l as int; }, Color::Blue);
     echo "called\n";
 } catch (LogicError $refused) {
     echo "refused\n";
@@ -59,7 +59,7 @@ try {
 
 // 5. A string is passed where a `?float` is declared.
 try {
-    Runner::run(fn (?float $x): float => { echo "body ran\n"; return ($x ?? 0.0) * 2.0; }, 'text');
+    Runner::run(fn(?float $x): float => { echo "body ran\n"; return ($x ?? 0.0) * 2.0; }, 'text');
     echo "called\n";
 } catch (LogicError $refused) {
     echo "refused\n";
