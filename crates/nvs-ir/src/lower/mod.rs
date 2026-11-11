@@ -5165,6 +5165,17 @@ pub(crate) enum Stored<'a> {
     Value(ValueId, Ty),
 }
 
+impl<'a> Stored<'a> {
+    /// The expressions the store lowers after its target's receiver and keys:
+    /// the value, or nothing for a value already in hand.
+    pub(crate) fn later(&self) -> &[&'a Expr] {
+        match self {
+            Stored::Expr(e) => std::slice::from_ref(e),
+            Stored::Value(..) => &[],
+        }
+    }
+}
+
 /// Whether a property record reads through a `get` hook, which makes the read
 /// a call and its result a fresh producer.
 pub(crate) fn is_get_hook(record: &ExprInfo) -> bool {

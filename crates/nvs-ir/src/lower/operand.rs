@@ -64,6 +64,16 @@ pub enum OperandSite {
     /// The receiver of `$o->$name` or `$o->{expr}`, read by the property
     /// read after the name.
     KeyedReceiver,
+    /// The receiver of a property store, `$a->b->c = e`, written after the
+    /// value runs. A shape and a keyed store's receiver are the same site.
+    StoreReceiver,
+    /// The receiver of the array an element store writes, `$o->arr[k] = e`
+    /// and `$o->arr[] = e`, and of a compound store's target: the array is
+    /// read and written after the keys and the value run.
+    StoreBase,
+    /// A key of an element store, `$m[$o->key] = e`, or the name of a keyed
+    /// property store, stored after the later keys and the value run.
+    StoreKey,
 }
 
 impl OperandSite {
@@ -79,7 +89,20 @@ impl OperandSite {
         OperandSite::Ordering,
         OperandSite::Receiver,
         OperandSite::KeyedReceiver,
+        OperandSite::StoreReceiver,
+        OperandSite::StoreBase,
+        OperandSite::StoreKey,
     ];
+
+    /// Whether the site is a store's, which `nvs-codegen`'s `borrowed_stores`
+    /// test proves; every other site is `borrowed_reads`'s.
+    #[must_use]
+    pub fn is_store(self) -> bool {
+        matches!(
+            self,
+            OperandSite::StoreReceiver | OperandSite::StoreBase | OperandSite::StoreKey
+        )
+    }
 }
 
 /// Who owns an operand once [`Lowering::borrowed_operand`] has judged it.
@@ -289,6 +312,70 @@ impl Lowering<'_> {
         self.hold_borrowed(site, e, v, later, cur)
     }
 
+    /// Holds the receiver of the slot a store writes while `later` runs, and
+    /// stages it, so the store reads and writes the object it began with.
+    ///
+    /// `target` is the store's target: `$o->p`, or an element path whose root
+    /// is `$o->arr`. The receiver is `$o`. It is lowered and retained here only
+    /// when it is a borrow a later operand can free, and is then this frame's
+    /// temporary: the caller's `temporaries_mark` and `staged_mark` bracket
+    /// releases and unstages it. Every other receiver is left to be lowered
+    /// where the store reads it, which costs nothing.
+    pub(crate) fn hold_store_receiver(
+        &mut self,
+        site: OperandSite,
+        target: &Expr,
+        later: &[&Expr],
+        env: &mut super::Env,
+        cur: &mut BlockId,
+    ) {
+        let mut root = target.unparenthesized();
+        while let ExprKind::Index { base, .. } = &root.kind {
+            root = base.unparenthesized();
+        }
+        let ExprKind::PropertyAccess {
+            object,
+            nullsafe: false,
+            ..
+        } = &root.kind
+        else {
+            return;
+        };
+        if later.is_empty()
+            || self.staged(object.span).is_some()
+            || !self.aliasing_read(object)
+            || !self.later_can_free(object, later)
+        {
+            return;
+        }
+        let (v, ty) = self.lower_expr(object, None, env, cur);
+        if ty.is_refcounted() && !self.hold_borrowed(site, object, v, later, *cur) {
+            self.own_temporary(v);
+        }
+        self.stage(object.span, v, ty);
+    }
+
+    /// Holds the key `e` of an element store, lowered to `(v, ty)` with its
+    /// `aliasing` answer, while `later` runs: the later keys and the value.
+    ///
+    /// A held key becomes this frame's temporary and is released with the
+    /// store's other temporaries. Its `aliasing` answer stays `true`, so the
+    /// store still retains the reference the array keeps.
+    pub(crate) fn hold_store_key(
+        &mut self,
+        e: &Expr,
+        (v, ty, aliasing): (ValueId, Ty, bool),
+        later: &[&Expr],
+        cur: BlockId,
+    ) {
+        if aliasing
+            && ty.is_refcounted()
+            && !self.hold_borrowed(OperandSite::StoreKey, e, v, later, cur)
+        {
+            self.own_temporary(v);
+        }
+    }
+
     /// Whether the borrowed base of `base[key]` is held while `key` runs.
     ///
     /// [`Self::lower_index`] holds it through [`Self::hold_borrowed`], whose
@@ -341,7 +428,7 @@ impl Lowering<'_> {
     /// assignment, `++`, `--` or an `inout` argument anywhere inside it.
     /// [`Self::collect_reassigned_in_expr`] is the one scan for that, and the
     /// loop header's phis read the same answer.
-    fn writes_local(&self, x: &Expr, name: &str) -> bool {
+    pub(crate) fn writes_local(&self, x: &Expr, name: &str) -> bool {
         let mut seen = FxHashSet::default();
         let mut out = Vec::new();
         self.collect_reassigned_in_expr(x, &mut seen, &mut out);

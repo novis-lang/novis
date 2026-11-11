@@ -146,6 +146,8 @@ fn statement(site: OperandSite, read: &str) -> Option<String> {
             Some("echo $h->v->{$h->tagKey()} . \"!\";\n".to_owned())
         }
         OperandSite::KeyedReceiver => None,
+        // `borrowed_stores.rs` runs the store sites.
+        site if site.is_store() => None,
         other => panic!("borrowed_reads has no program for {other:?}; add one"),
     }
 }

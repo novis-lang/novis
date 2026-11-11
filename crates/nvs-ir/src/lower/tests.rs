@@ -5214,7 +5214,10 @@ fn every_borrow_judgment_passes_the_one_operand_lowering() {
             }
         }
     }
-    assert!(read > 10, "found only {read} lowering source files under {dir:?}");
+    assert!(
+        read > 10,
+        "found only {read} lowering source files under {dir:?}"
+    );
     assert!(
         outside.is_empty(),
         "a borrow judged outside the one operand lowering: {outside:?}"

@@ -6591,11 +6591,32 @@ impl<'a> Lowering<'a> {
         // `Self::lower_shape_property_assign` takes its own: `InstKind::KeySet`
         // checks the tag where it checks the name.
         let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
-        if receiver_ty.is_refcounted() && !self.sole_operand_borrowed(object) {
+        // The name and the value run after the receiver, and the name runs
+        // before the value: a borrow either can free is held.
+        let name = match property {
+            MemberName::Variable(e) | MemberName::Expr(e) => Some(e.as_ref()),
+            _ => None,
+        };
+        let mut later: Vec<&Expr> = name.into_iter().collect();
+        later.extend_from_slice(value.later());
+        let owner = self.borrowed_operand(
+            OperandSite::StoreReceiver,
+            object,
+            (object_v, receiver_ty),
+            &later,
+            *cur,
+        );
+        if receiver_ty.is_refcounted() && owner != OperandOwner::Slot {
             self.own_temporary(object_v);
         }
         let mut staged = false;
         let key_v = self.lower_key_name(property, env, cur, &mut staged);
+        if let Some(name) = name
+            && !staged
+        {
+            let aliasing = self.sole_operand_borrowed(name);
+            self.hold_store_key(name, (key_v, Ty::Str, aliasing), value.later(), *cur);
+        }
         let (v, vty, aliasing) = self.lower_stored(value, Some(field_ty), env, cur);
         let v = self.coerce(*cur, v, vty, field_ty, env);
         if field_ty.is_refcounted() && !aliasing {
@@ -6654,7 +6675,14 @@ impl<'a> Lowering<'a> {
         // same rule for the same reason: an unchecked untag over a `mixed`
         // holding an `int` is a pointer the runtime would then store through.
         let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
-        if receiver_ty.is_refcounted() && !self.sole_operand_borrowed(object) {
+        let owner = self.borrowed_operand(
+            OperandSite::StoreReceiver,
+            object,
+            (object_v, receiver_ty),
+            value.later(),
+            *cur,
+        );
+        if receiver_ty.is_refcounted() && owner != OperandOwner::Slot {
             self.own_temporary(object_v);
         }
         let (v, vty, aliasing) = self.lower_stored(value, Some(field_ty), env, cur);

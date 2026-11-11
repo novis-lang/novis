@@ -571,7 +571,11 @@ impl<'a> Lowering<'a> {
             // A `Ty::Ref` binding (`inout $x`) names the caller's slot rather than
             // an SSA value, so it is not a holder this can re-point; it falls
             // through to the rewrite, which stores through the address.
-            if let Some(&(current, Ty::Str)) = env.get(&name) {
+            // The append reads the binding before `value` runs, so a value that
+            // writes the local takes the rewrite below, which holds the read.
+            if let Some(&(current, Ty::Str)) = env.get(&name)
+                && !self.writes_local(value, &name)
+            {
                 self.lower_string_append(name, current, value, env, cur);
                 return;
             }
@@ -679,6 +683,10 @@ impl<'a> Lowering<'a> {
         let temporaries = self.temporaries_mark();
         let addresses = self.staged_mark();
         self.stage_target_address(target, env, cur);
+        // A receiver the right-hand side can replace is held, so the target is
+        // read from and written to the same object.
+        let later: Vec<&Expr> = rhs.into_iter().collect();
+        self.hold_store_receiver(OperandSite::StoreBase, target, &later, env, cur);
         assert!(
             self.reevaluable_target(target),
             "nvs-ir stages a compound assignment's target address before rewriting it to \
@@ -1127,8 +1135,12 @@ impl<'a> Lowering<'a> {
             // A `Ty::Ref` binding (`inout $x`) names the caller's slot rather
             // than an SSA value, so it is not a holder this can re-point — the
             // same exclusion the `.=` spelling makes.
+            // Both shapes below read the binding before the value runs and hand
+            // its reference on, so a value that writes the local takes the
+            // general store instead, which reads the binding after the value.
             if let Some(&(current, Ty::Str)) = env.get(&name)
                 && self.concat_spine_opens_with(value, &name)
+                && !self.writes_local(value, &name)
             {
                 self.lower_string_self_concat(name, current, value, env, cur);
                 return;
@@ -1141,6 +1153,7 @@ impl<'a> Lowering<'a> {
                 } = &value.kind
                 && matches!(&lhs.kind, ExprKind::Variable(span)
                     if strip_sigil(span_text(self.src, *span)) == name)
+                && !self.writes_local(rhs, &name)
                 && let Some(ExprInfo::CarrierComposition { append, .. }) =
                     self.exprs.lookup(value.span)
             {
@@ -1174,9 +1187,10 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) {
+        // `current` stays the binding's value while `rhs` runs, because
+        // `Self::lower_reassignment` takes this path only when `rhs` does not
+        // write the local.
         let (rv, _) = self.lower_expr(rhs, Some(Ty::Object), env, cur);
-        // A store reads its target and its value. Stage 2 of the
-        // values-stay-alive goal orders this one so the value runs first.
         let operands = [
             (self.sole_operand_borrowed(lhs), current),
             (self.sole_operand_borrowed(rhs), rv),
@@ -1684,12 +1698,18 @@ impl<'a> Lowering<'a> {
                     let (object_v, receiver_ty) = self.untag_receiver(object_v, receiver_ty, *cur);
                     // A receiver that is a fresh producer — `Box::make()->name = v`
                     // — has no other owner, so this frame releases it after the
-                    // store, and a throw before that releases it too.
+                    // store, and a throw before that releases it too. A borrowed
+                    // receiver the value can replace is held the same way, so the
+                    // store writes the object it read.
                     let receiver_mark = self.temporaries_mark();
-                    // A store reads its target and its value. Stage 2 of the
-                    // values-stay-alive goal orders this one so the value runs first.
-                    let fresh_receiver =
-                        receiver_ty.is_refcounted() && !self.sole_operand_borrowed(object);
+                    let owner = self.borrowed_operand(
+                        OperandSite::StoreReceiver,
+                        object,
+                        (object_v, receiver_ty),
+                        stored.later(),
+                        *cur,
+                    );
+                    let fresh_receiver = receiver_ty.is_refcounted() && owner != OperandOwner::Slot;
                     if fresh_receiver {
                         self.own_temporary(object_v);
                     }
@@ -1910,15 +1930,29 @@ impl<'a> Lowering<'a> {
                 let temporaries = self.temporaries_mark();
                 let addresses = self.staged_mark();
                 self.stage_target_address(root, env, cur);
-                let silenced = self.silence_root_get(target);
-                let (root_v, _) = self.lower_expr(root, None, env, cur);
-                self.silenced_gets.truncate(silenced);
-                // Every key, then the value: left to right, each exactly
-                // once, and every retain deferred until nothing that can
-                // throw is left to lower. An intermediate level may itself be
+                // What runs after the root's receiver, in order: every key,
+                // then the value. A borrowed receiver or key one of them can
+                // free is held until the store
+                // (`rule:expressions/an-operand-keeps-its-value-while-later-operands-run`).
+                let mut later: Vec<&Expr> = levels
+                    .iter()
+                    .filter_map(|level| match &level.kind {
+                        ExprKind::Index { index, .. } => index.as_deref(),
+                        _ => None,
+                    })
+                    .chain(index.as_deref())
+                    .collect();
+                later.extend_from_slice(stored.later());
+                self.hold_store_receiver(OperandSite::StoreBase, root, &later, env, cur);
+                // Every key, then the value, then the array: left to right,
+                // each exactly once, and every retain deferred until nothing
+                // that can throw is left to lower. The array is read last, so
+                // a value that replaces it is written into the array that is
+                // there when the store runs. An intermediate level may itself be
                 // an *append* (`$g[][0] = 1;`) and then has no key at all —
                 // the `None`s below are that level, and the descent and the
                 // climb each have one arm for it.
+                let mut keys_lowered = 0;
                 let mut inner_keys: Vec<Option<(ValueId, bool)>> = Vec::with_capacity(levels.len());
                 // Each key with its representation, `None` for an append, in
                 // path order: the `$keys` a `PropertyGuard` is given.
@@ -1931,7 +1965,14 @@ impl<'a> Lowering<'a> {
                     let key = match index {
                         None => None,
                         Some(key) => {
+                            keys_lowered += 1;
                             let (key_v, key_ty, key_aliasing) = self.lower_array_key(key, env, cur);
+                            self.hold_store_key(
+                                key,
+                                (key_v, key_ty, key_aliasing),
+                                &later[keys_lowered..],
+                                *cur,
+                            );
                             guard_keys.push(Some((key_v, key_ty)));
                             Some((key_v, key_aliasing))
                         }
@@ -1944,7 +1985,14 @@ impl<'a> Lowering<'a> {
                 let outer_key = match index {
                     None => None,
                     Some(index) => {
+                        keys_lowered += 1;
                         let (key_v, key_ty, key_aliasing) = self.lower_array_key(index, env, cur);
+                        self.hold_store_key(
+                            index,
+                            (key_v, key_ty, key_aliasing),
+                            &later[keys_lowered..],
+                            *cur,
+                        );
                         guard_keys.push(Some((key_v, key_ty)));
                         Some((key_v, key_aliasing))
                     }
@@ -1953,6 +2001,16 @@ impl<'a> Lowering<'a> {
                     guard_keys.push(None);
                 }
                 let (v, vty, aliasing) = self.lower_stored(stored, Some(elem_ty), env, cur);
+                // A fresh value is this frame's while the array is read, so a
+                // read that throws releases it.
+                let value_mark = self.temporaries_mark();
+                if vty.is_refcounted() && !aliasing {
+                    self.own_temporary(v);
+                }
+                let silenced = self.silence_root_get(target);
+                let (root_v, _) = self.lower_expr(root, None, env, cur);
+                self.silenced_gets.truncate(silenced);
+                self.forget_temporaries_since(value_mark);
                 // Into the element's representation before any retain, for
                 // the reason the `inout` arm above states: `$mixed[] = $n`
                 // with `int $n` is otherwise a refcount on a plain integer.
