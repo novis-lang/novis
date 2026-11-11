@@ -7,30 +7,22 @@
 //! `TextDocumentIdentifier` goes in and a list of `{range, kind}` comes back,
 //! `kind` being an open string, so a later qualifier adds a spelling.
 //!
-//! # Decision: three kinds on one list, not a list per kind
+//! # Decision: two kinds on one list, not a list per kind
 //!
-//! [`SECRET_LITERAL`] is bytes to conceal, [`TAINTED_DECLARATION`] is a name
-//! to mark and [`DOC_COMMENT`] is a line to draw a background behind, and they
-//! are not the same instruction: the first is drawn by default because a
-//! credential on a shared screen is an incident, the second only where
-//! `nvs.taint.mark` asks for it (`rule:ide/tainted-has-no-default-decoration`),
-//! and the third in whatever colour the theme gives `nvs.docComment.background`.
-//! They travel on one request because the set is closed and an open `kind` is
-//! the room it leaves, and on one *list* because a client that reads a field
-//! per kind must be taught a new field for every later qualifier, while a
-//! client reading kinds already carries them.
+//! [`SECRET_LITERAL`] is bytes to conceal and [`TAINTED_DECLARATION`] is a name
+//! to mark, and they are not the same instruction: one is drawn by default
+//! because a credential on a shared screen is an incident, and the other only
+//! where `nvs.taint.mark` asks for it
+//! (`rule:ide/tainted-has-no-default-decoration`). They travel on one
+//! request because the set is closed and an open `kind` is the room it leaves,
+//! and on one *list* because a client that reads a field per kind must be
+//! taught a new field for every later qualifier, while a client reading kinds
+//! already carries them.
 //!
 //! What that costs the client is one rule, and it runs in the safe direction: a
 //! kind it does not recognise is concealed, and only the spellings it knows to
 //! be markers are exempt. An unknown spelling then covers bytes that needed no
 //! covering, rather than leaving bytes uncovered that did.
-//!
-//! That rule is why [`DOC_COMMENT`] alone is gated. A client built before it
-//! would conceal every `///` line, so the kind is answered only to a client
-//! that listed it in `experimental.redactionKinds`
-//! ([`crate::settings::Client::doc_comments`]). The two older kinds are
-//! answered to every client, because every client that asks knows them. A
-//! later kind that is not a concealment is gated the same way.
 //!
 //! It is **not** the semantic-token channel with a modifier on it, even though
 //! [`crate::semantic`] already carries `secret` there. That channel degrades by
@@ -71,16 +63,13 @@
 //! [`nvs_syntax::SyntaxIndex`] builds and drops, built a second time by
 //! [`nvs_types::redaction`] rather than cached, because an analysis rebuilds
 //! the tree either way (`rule:ide/a-full-reanalysis-stays-under-a-bound`).
-//! Then one [`Span`] per concealed range, and one per `///` line for a client
-//! that declared [`DOC_COMMENT`], read off the trivia the analysis already
-//! kept. All are O(nodes in the entry document) and all are dropped with the
-//! answer. If that walk ever shows up
+//! Then one [`Span`] per concealed range. Both are O(nodes in the entry
+//! document) and both are dropped with the answer. If that walk ever shows up
 //! in the bound, the move is the one `nvs_syntax::index`'s own doc names: emit
 //! the nodes to a sink the consumers share, not to match the grammar a second
 //! time.
 
 use nvs_diagnostics::{PositionEncoding, Span};
-use nvs_syntax::TriviaKind;
 use nvs_types::expr::quals::is_tainted;
 use nvs_types::redaction::secret_literals;
 
@@ -116,15 +105,6 @@ pub const SECRET_LITERAL: &str = "secretLiteral";
 /// client's rule is in this module's own decision above.
 pub const TAINTED_DECLARATION: &str = "taintedDeclaration";
 
-/// One `///` line, from its first slash to the last character of its text,
-/// drawn with a background and never concealed.
-///
-/// The lexer's own [`TriviaKind::DocComment`], so a `///` inside a string or
-/// inline HTML is no doc comment here, as it is none to the compiler
-/// (`rule:tooling/doc-comment-is-three-slashes`). Answered only to a client
-/// that declared it, for the reason this module's decision gives.
-pub const DOC_COMMENT: &str = "docComment";
-
 /// Every range of the entry document of `analysed` the client draws over, in
 /// `encoding`.
 ///
@@ -139,15 +119,8 @@ pub const DOC_COMMENT: &str = "docComment";
 /// means *nothing to conceal here*; a client that is sent no answer at all
 /// holds the last one it had, and the two must not be confused
 /// (`rule:ide/redaction-ranges-come-from-the-server`).
-///
-/// `doc_comments` adds a [`DOC_COMMENT`] range per `///` line, and is the
-/// client's [`crate::settings::Client::doc_comments`].
 #[must_use]
-pub fn for_document(
-    analysed: &Analysed,
-    encoding: PositionEncoding,
-    doc_comments: bool,
-) -> Vec<Redaction> {
+pub fn for_document(analysed: &Analysed, encoding: PositionEncoding) -> Vec<Redaction> {
     let Some(loaded) = analysed
         .loaded
         .iter()
@@ -166,13 +139,6 @@ pub fn for_document(
                     .map(|span| (span, TAINTED_DECLARATION)),
             )
             .collect();
-    if doc_comments {
-        answered.extend(
-            doc_comment_lines(analysed, file.text())
-                .into_iter()
-                .map(|span| (span, DOC_COMMENT)),
-        );
-    }
     answered.sort_by_key(|(span, kind)| (span.start, span.end, *kind));
     answered.dedup();
     answered
@@ -180,27 +146,6 @@ pub fn for_document(
         .map(|(span, kind)| Redaction {
             range: range_at(file, span, encoding),
             kind: kind.to_owned(),
-        })
-        .collect()
-}
-
-/// Every `///` line of the entry document, without the trailing whitespace a
-/// line may carry, a `\r` included.
-fn doc_comment_lines(analysed: &Analysed, text: &str) -> Vec<Span> {
-    analysed
-        .trivia
-        .iter()
-        .filter(|trivium| trivium.kind == TriviaKind::DocComment)
-        .map(|trivium| {
-            let span = trivium.span;
-            let line = text
-                .get(span.start as usize..span.end as usize)
-                .unwrap_or_default();
-            let trimmed = u32::try_from(line.trim_end().len()).unwrap_or(0);
-            Span {
-                end: span.start + trimmed,
-                ..span
-            }
         })
         .collect()
 }

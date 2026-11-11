@@ -1534,13 +1534,6 @@ later, and turned off it removes every rule whose value is still the one it wrot
 palette in `editors/vscode/src/colours.ts`. The setting's description says both, with a `command:`
 link that switches to the bundled theme, because the Settings editor runs such a link in one click.
 
-The one colour id the extension contributes, `nvs.docComment.background`, is transparent by default
-under the dark, light and both high-contrast themes, so under any other theme nothing is drawn behind a
-`///` line. `Novis Dark` and `Novis Light` set it to their own doc comment green at 10% and 8% opacity.
-A user changes or removes it in `workbench.colorCustomizations`, and no `nvs.*` setting copies it: an
-`nvs.*` setting only turns on or off something Novis draws, and VS Code's colour settings already set
-any colour for any theme.
-
 The extension does turn semantic highlighting on for `.nvs` documents, with the `configurationDefaults`
 entry `"[nvs]": { "editor.semanticHighlighting.enabled": true }`. VS Code's own default,
 `configuredByTheme`, lets a theme that sets `"semanticHighlighting": false` discard every semantic
@@ -1564,6 +1557,15 @@ no other language's highlighting changes, and a user's own `[nvs]` setting wins 
 - **An `nvs.*` setting that copies a colour.** VS Code's `editor.tokenColorCustomizations`,
   `editor.semanticTokenColorCustomizations` and `workbench.colorCustomizations` already set any colour,
   for one theme too, and the editor pages show how.
+- **A tinted background behind each `///` doc comment line.** Both Novis themes drew one, at 8% and 10%
+  of their doc comment colour, and it read worse than a plain comment. A doc comment is drawn like
+  every comment: in its theme's foreground colour, on the editor's own background, and the extension
+  contributes no colour id.
+- **A smaller font, vertical padding or rounded corners behind a `///` line.** The stable VS Code
+  decoration API has no font size and no line height. The CSS-in-`textDecoration` trick moves the
+  cursor and the selection away from the text, and a VS Code update can break it.
+- **Changing `///` to `/** */` doc comments to look lighter.** A PHP docblock looks lighter because
+  most of its lines are empty, not because of its marker.
 
 **Built:** the grammar's allowlist test (`editors/vscode/test/grammar/allowlist.test.ts`), the standard
 legend, the `semanticTokenScopes` contribution, the semantic highlighting default, no colour defaults,
@@ -1574,8 +1576,7 @@ removes. Both themes draw every bracket level in their `editor.foreground`, an u
 their `invalid` colour, and an inlay hint in their comment colour on a transparent background, and the
 contributions suite asserts it. `RETIRED` in `editors/vscode/src/colours.ts` keeps every palette the
 setting wrote in an earlier version, so a rule written before an update is still the setting's to
-replace or remove. The contributions suite asserts `nvs.docComment.background`'s transparent defaults
-and that both Novis themes set it in their doc comment green.
+replace or remove.
 
 <sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration).</sub>
 
@@ -3698,22 +3699,15 @@ typed, is the one that loses the credential. Where the server cannot attribute a
 nothing for it and the value is visible. That gap is the honest one: over-redacting a document that does
 not parse would conceal arbitrary spans of a file somebody is trying to fix.
 
-The answer carries three kinds. `secretLiteral` is bytes to conceal, `taintedDeclaration` is a name to
-mark ([`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration)), and `docComment` is one `///` line, from its first
-slash to the last character of its text, which the client draws on the background colour
-`nvs.docComment.background` and never conceals. A client conceals every kind it does not know, which
-is the safe direction for a credential, so a kind that is not a concealment is answered only to a
-client that lists it in `experimental.redactionKinds` at `initialize`. An older client would otherwise
-blur every doc comment. The VS Code client declares `["docComment"]`, and the `.lspt` runner declares
-nothing. The `docComment` ranges are the lexer's doc comment trivia, so a `///` inside a string or
-inline HTML has none, and the client scans no line of its own.
+The answer carries two kinds. `secretLiteral` is bytes to conceal and `taintedDeclaration` is a name to
+mark ([`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration)). A client conceals every kind it does not know,
+which is the safe direction for a credential.
 
 The cost is a second decoration mechanism beside the semantic-token one, with two contracts to keep
 apart and two ways for one token to be described.
 
 - **Memory:** none on the request path. The server answers a range list per open document, and the
-  client keeps the last answer for each. A client that declared `docComment` holds one more range per
-  `///` line.
+  client keeps the last answer for each.
 
 **Declined:**
 
@@ -3726,15 +3720,6 @@ apart and two ways for one token to be described.
   editable text document, with no language-server edits, no diff, no version-control integration and no
   format-on-save, which is a far larger loss than the exposure it closes; and it substitutes the buffer,
   which [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only) rules out.
-- **`docComment` ranges on `nvs/regions`.** That request means "these bytes are not Novis", and Novis
-  completion and hover stop inside such a region.
-- **A client line scan for `///`.** It is a second lexer in the client, and it is wrong inside a string
-  and inline HTML.
-- **A smaller font, vertical padding or rounded corners behind a `///` line.** The stable VS Code
-  decoration API has no font size and no line height. The CSS-in-`textDecoration` trick moves the
-  cursor and the selection away from the text, and a VS Code update can break it.
-- **Changing `///` to `/** */` doc comments to look lighter.** A PHP docblock looks lighter because
-  most of its lines are empty, not because of its marker.
 - **A chapter of its own for security in the editor.** It splits the editor across two homes, and every
   rule in each would need a pointer to the other. The editor's chapter is the one home for the editor,
   and its security rules sit together at its end.

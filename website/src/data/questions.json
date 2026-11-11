@@ -1508,14 +1508,14 @@
   },
   "/reference/cli/the-vs-code-extension/": {
     "feature": "tools:editor/the-vs-code-extension",
-    "hash": "4c247566a1997aaf",
+    "hash": "32911fc92f4c97bc",
     "questions": [
       "How do I install Novis support in Visual Studio Code?",
       "Syntax colours and autocomplete for .nvs files in VS Code",
       "Point VS Code at a specific copy of the nvs binary",
       "Why are passwords blurred in my editor?",
       "Install the Novis extension in VSCodium from Open VSX",
-      "Change or remove the background behind doc comments in the Novis theme"
+      "Change the colour of doc comments in the Novis theme"
     ]
   },
   "/reference/config/app/": {
@@ -18616,7 +18616,7 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "5cfc300234efd5c5",
+    "hash": "f589583f4bc5111c",
     "questions": [
       "Install the Novis extension from the Marketplace, Open VSX or a .vsix file",
       "Rename a method in every file of my project at once",

@@ -1,6 +1,5 @@
 // What this client draws over the ranges `nvs/redactions` answers: a blur over the bytes of a
-// `secret`, a glyph after the name of a `tainted` declaration where the user asked for one, and a
-// background behind each `///` line in the theme's `nvs.docComment.background` colour.
+// `secret`, and a glyph after the name of a `tainted` declaration where the user asked for one.
 //
 // Two decorations because the two kinds are two instructions, not two colours of one. The blur is on
 // by default and unconditional (`rule:ide/redaction-ranges-come-from-the-server`); the glyph is
@@ -89,7 +88,6 @@ const held = new Concealment();
 let last: Drawn[] = [];
 let concealing: TextEditorDecorationType | undefined;
 let marking: TextEditorDecorationType | undefined;
-let shading: TextEditorDecorationType | undefined;
 let serving: LanguageClient | undefined;
 
 /**
@@ -105,11 +103,9 @@ let serving: LanguageClient | undefined;
 export function install(context: ExtensionContext): void {
   concealing = bar();
   marking = glyph();
-  shading = shade();
   context.subscriptions.push(
     concealing,
     marking,
-    shading,
     workspace.onDidChangeTextDocument((event) => void ask(event.document)),
     workspace.onDidCloseTextDocument((document) => held.forget(document.uri.toString())),
     window.onDidChangeVisibleTextEditors((editors) => shown(editors)),
@@ -228,20 +224,6 @@ function glyph(): TextEditorDecorationType {
   });
 }
 
-/**
- * The background behind one `///` line, from the slashes to the end of its text.
- *
- * The colour is the contributed id `nvs.docComment.background`, transparent by default, so only a
- * theme that sets it draws anything (`rule:ide/novis-ships-names-not-colours`). No setting turns it
- * off: a user sets the colour to `#00000000` in `workbench.colorCustomizations`.
- */
-function shade(): TextEditorDecorationType {
-  return window.createTextEditorDecorationType({
-    backgroundColor: new ThemeColor("nvs.docComment.background"),
-    rangeBehavior: DecorationRangeBehavior.ClosedClosed,
-  });
-}
-
 /** Draw on the editors that just became visible, and ask for any document nothing is held for. */
 function shown(editors: readonly TextEditor[]): void {
   draw();
@@ -275,12 +257,11 @@ async function ask(document: TextDocument): Promise<void> {
   draw();
 }
 
-/** Put the three decorations on every visible editor, each as far as its own setting asks. */
+/** Put both decorations on every visible editor, each as far as its own setting asks. */
 function draw(): void {
   const bar = concealing;
   const mark = marking;
-  const back = shading;
-  if (bar === undefined || mark === undefined || back === undefined) {
+  if (bar === undefined || mark === undefined) {
     return;
   }
   const drawing: Drawn[] = [];
@@ -294,7 +275,6 @@ function draw(): void {
     const marked = settings.get<string>("taint.mark", "off") === "off" ? [] : marks(uri);
     editor.setDecorations(bar, concealed);
     editor.setDecorations(mark, marked);
-    editor.setDecorations(back, held.backgrounds(uri).map(span));
     drawing.push({
       document: uri,
       column: editor.viewColumn,

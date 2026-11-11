@@ -388,7 +388,7 @@
   },
   "tools/editor/index.mdx": {
     "tools:editor/nvs-lsp": "544c0fc48f1a6c6f",
-    "tools:editor/the-vs-code-extension": "4c247566a1997aaf"
+    "tools:editor/the-vs-code-extension": "32911fc92f4c97bc"
   },
   "tools/formatter/index.mdx": {
     "tools:cli/nvs-fmt": "40c3168ce48f141c"

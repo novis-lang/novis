@@ -29,13 +29,6 @@ later, and turned off it removes every rule whose value is still the one it wrot
 palette in `editors/vscode/src/colours.ts`. The setting's description says both, with a `command:`
 link that switches to the bundled theme, because the Settings editor runs such a link in one click.
 
-The one colour id the extension contributes, `nvs.docComment.background`, is transparent by default
-under the dark, light and both high-contrast themes, so under any other theme nothing is drawn behind a
-`///` line. `Novis Dark` and `Novis Light` set it to their own doc comment green at 10% and 8% opacity.
-A user changes or removes it in `workbench.colorCustomizations`, and no `nvs.*` setting copies it: an
-`nvs.*` setting only turns on or off something Novis draws, and VS Code's colour settings already set
-any colour for any theme.
-
 The extension does turn semantic highlighting on for `.nvs` documents, with the `configurationDefaults`
 entry `"[nvs]": { "editor.semanticHighlighting.enabled": true }`. VS Code's own default,
 `configuredByTheme`, lets a theme that sets `"semanticHighlighting": false` discard every semantic
@@ -59,6 +52,15 @@ no other language's highlighting changes, and a user's own `[nvs]` setting wins 
 - **An `nvs.*` setting that copies a colour.** VS Code's `editor.tokenColorCustomizations`,
   `editor.semanticTokenColorCustomizations` and `workbench.colorCustomizations` already set any colour,
   for one theme too, and the editor pages show how.
+- **A tinted background behind each `///` doc comment line.** Both Novis themes drew one, at 8% and 10%
+  of their doc comment colour, and it read worse than a plain comment. A doc comment is drawn like
+  every comment: in its theme's foreground colour, on the editor's own background, and the extension
+  contributes no colour id.
+- **A smaller font, vertical padding or rounded corners behind a `///` line.** The stable VS Code
+  decoration API has no font size and no line height. The CSS-in-`textDecoration` trick moves the
+  cursor and the selection away from the text, and a VS Code update can break it.
+- **Changing `///` to `/** */` doc comments to look lighter.** A PHP docblock looks lighter because
+  most of its lines are empty, not because of its marker.
 
 **Built:** the grammar's allowlist test (`editors/vscode/test/grammar/allowlist.test.ts`), the standard
 legend, the `semanticTokenScopes` contribution, the semantic highlighting default, no colour defaults,
@@ -69,5 +71,4 @@ removes. Both themes draw every bracket level in their `editor.foreground`, an u
 their `invalid` colour, and an inlay hint in their comment colour on a transparent background, and the
 contributions suite asserts it. `RETIRED` in `editors/vscode/src/colours.ts` keeps every palette the
 setting wrote in an earlier version, so a rule written before an update is still the setting's to
-replace or remove. The contributions suite asserts `nvs.docComment.background`'s transparent defaults
-and that both Novis themes set it in their doc comment green.
+replace or remove.

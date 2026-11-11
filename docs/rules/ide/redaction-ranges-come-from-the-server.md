@@ -42,22 +42,15 @@ typed, is the one that loses the credential. Where the server cannot attribute a
 nothing for it and the value is visible. That gap is the honest one: over-redacting a document that does
 not parse would conceal arbitrary spans of a file somebody is trying to fix.
 
-The answer carries three kinds. `secretLiteral` is bytes to conceal, `taintedDeclaration` is a name to
-mark (`rule:ide/tainted-has-no-default-decoration`), and `docComment` is one `///` line, from its first
-slash to the last character of its text, which the client draws on the background colour
-`nvs.docComment.background` and never conceals. A client conceals every kind it does not know, which
-is the safe direction for a credential, so a kind that is not a concealment is answered only to a
-client that lists it in `experimental.redactionKinds` at `initialize`. An older client would otherwise
-blur every doc comment. The VS Code client declares `["docComment"]`, and the `.lspt` runner declares
-nothing. The `docComment` ranges are the lexer's doc comment trivia, so a `///` inside a string or
-inline HTML has none, and the client scans no line of its own.
+The answer carries two kinds. `secretLiteral` is bytes to conceal and `taintedDeclaration` is a name to
+mark (`rule:ide/tainted-has-no-default-decoration`). A client conceals every kind it does not know,
+which is the safe direction for a credential.
 
 The cost is a second decoration mechanism beside the semantic-token one, with two contracts to keep
 apart and two ways for one token to be described.
 
 - **Memory:** none on the request path. The server answers a range list per open document, and the
-  client keeps the last answer for each. A client that declared `docComment` holds one more range per
-  `///` line.
+  client keeps the last answer for each.
 
 **Declined:**
 
@@ -70,15 +63,6 @@ apart and two ways for one token to be described.
   editable text document, with no language-server edits, no diff, no version-control integration and no
   format-on-save, which is a far larger loss than the exposure it closes; and it substitutes the buffer,
   which `rule:ide/redaction-covers-bytes-only` rules out.
-- **`docComment` ranges on `nvs/regions`.** That request means "these bytes are not Novis", and Novis
-  completion and hover stop inside such a region.
-- **A client line scan for `///`.** It is a second lexer in the client, and it is wrong inside a string
-  and inline HTML.
-- **A smaller font, vertical padding or rounded corners behind a `///` line.** The stable VS Code
-  decoration API has no font size and no line height. The CSS-in-`textDecoration` trick moves the
-  cursor and the selection away from the text, and a VS Code update can break it.
-- **Changing `///` to `/** */` doc comments to look lighter.** A PHP docblock looks lighter because
-  most of its lines are empty, not because of its marker.
 - **A chapter of its own for security in the editor.** It splits the editor across two homes, and every
   rule in each would need a pointer to the other. The editor's chapter is the one home for the editor,
   and its security rules sit together at its end.

@@ -1227,10 +1227,9 @@ fn answer(
             }
         }
         redactions::METHOD => match serde_json::from_value::<TextDocumentIdentifier>(params) {
-            Ok(document) => Response::new_ok(
-                id,
-                redaction_ranges(documents, encoding, settings, &document.uri),
-            ),
+            Ok(document) => {
+                Response::new_ok(id, redaction_ranges(documents, encoding, &document.uri))
+            }
             Err(error) => unreadable(id, &method, &error),
         },
         regions::METHOD => match regions::Params::from_value(params) {
@@ -3000,17 +2999,14 @@ fn code_actions(
 /// "nothing to conceal" must be an answer.
 ///
 /// The walk is [`redactions::for_document`], which the `.lspt` suite calls too,
-/// so what an editor conceals and what a case freezes cannot drift apart. The
-/// `docComment` kind goes only to a client that declared it
-/// ([`crate::settings::Client::doc_comments`]).
+/// so what an editor conceals and what a case freezes cannot drift apart.
 fn redaction_ranges(
     documents: &Documents,
     encoding: PositionEncoding,
-    settings: &Settings,
     uri: &Uri,
 ) -> Vec<serde_json::Value> {
     documents.analysed(uri).map_or_else(Vec::new, |analysed| {
-        redactions::for_document(&analysed, encoding, settings.client.doc_comments)
+        redactions::for_document(&analysed, encoding)
             .into_iter()
             .map(|item| serde_json::json!({ "range": item.range, "kind": item.kind }))
             .collect()

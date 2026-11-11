@@ -229,20 +229,23 @@ ignores the folder. Then run **Novis: Restart Language Server**.
 
 ## Change a Novis colour
 
-The VS Code setting `workbench.colorCustomizations` changes any colour. You can also change a colour
-for one theme only.
+The VS Code setting `editor.tokenColorCustomizations` changes the colour of a token. You can also
+change a colour for one theme only.
 
-The themes Novis Dark and Novis Light draw a light background behind each `///` doc comment line.
-The name of this colour is `nvs.docComment.background`. This setting changes it in Novis Dark:
+This setting changes the colour of `///` doc comments in the theme Novis Dark:
 
 ```json fragment
-"workbench.colorCustomizations": {
-  "[Novis Dark]": { "nvs.docComment.background": "#5F826B33" }
+"editor.tokenColorCustomizations": {
+  "[Novis Dark]": {
+    "textMateRules": [
+      { "scope": "comment.line.documentation", "settings": { "foreground": "#7A9E86" } }
+    ]
+  }
 }
 ```
 
-The value `#00000000` is transparent. It turns the background off. In all other themes, the value is
-`#00000000`.
+The settings `editor.semanticTokenColorCustomizations` and `workbench.colorCustomizations` work the
+same way.
 
 ## Tainted and secret variables
 
