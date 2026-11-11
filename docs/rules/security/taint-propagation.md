@@ -76,8 +76,14 @@ table marks that position with `CoreTy::Keys`: the elements of `flip`, `fillKeys
 `fromKeysAndValues`' keys, `countBy`'s elements and its `by` result, `mapKeys`' and `groupBy`'s callback
 result, and the rows `column`'s `indexBy` names a cell of. The checker sends what reaches it through
 the same key function, so a `secret` value there is `E0896`. It does so once the arguments reported
-nothing. `flip`, `fillKeys` and `fromKeysAndValues` refuse a `tainted` key by their plain `int|string`
-element type. `column` without `indexBy` keys by
+nothing. The array the keys enter is the call's answer, after the call binds its type variables and
+any contagious argument marks it. So a `tainted` value enters only an answer whose keys read back
+tainted, the rule every other key position follows. `column` with `indexBy` over
+`array<array<tainted string>>` compiles, since it gives `array<tainted string>`. `countBy` over
+`array<tainted string>` does not, since it gives `array<uint>`, and the program checks its values first
+or writes `Core\Taint::assertTrusted`. `mapKeys`' and `groupBy`'s callback types already refuse a
+`tainted` result. `flip`, `fillKeys` and `fromKeysAndValues` refuse a `tainted` key by their plain
+`int|string` element type. `column` without `indexBy` keys by
 position and takes `secret` cells. `crates/nvs-stdlib/tests/taint_signatures.rs` reads every member
 that returns an array, and fails naming one with no mark and no answer in its `KEYS_FROM` list:
 positions, an array argument's own keys, or keys read out of text the member parses. A bare

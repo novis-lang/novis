@@ -282,16 +282,15 @@ pub(crate) fn keys_from_outside(ty: TypeId, interner: &TypeInterner) -> bool {
 ///   [`keys_from_outside`] reads as the program's own
 ///   (`rule:security/taint-propagation`). The program writes the qualifier on
 ///   the element type, or checks the key, as
-///   [`reject_untainted_text_from_unchecked`] asks of a shape. `base` is
-///   `None` where the array is the result of a member whose return type
-///   decides that question ([`check_key_making_argument`]).
+///   [`reject_untainted_text_from_unchecked`] asks of a shape. At a member
+///   that makes keys, `base` is the call's answer.
 ///
 /// Returns whether it reported, so a caller judging an element can report
 /// one mistake once.
 pub(crate) fn check_key_qualifier(
     key: Span,
     key_ty: TypeId,
-    base: Option<TypeId>,
+    base: TypeId,
     env: &mut Env<'_>,
 ) -> bool {
     if contains_secret(key_ty, env.interner) {
@@ -310,9 +309,6 @@ pub(crate) fn check_key_qualifier(
         );
         return true;
     }
-    let Some(base) = base else {
-        return false;
-    };
     if !carries_tainted(key_ty, env.interner)
         || !matches!(env.interner.get(base), Ty::Array(_))
         || keys_from_outside(base, env.interner)

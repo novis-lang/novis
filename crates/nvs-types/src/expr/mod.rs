@@ -836,7 +836,7 @@ fn infer_kind(
                 base_ty
             };
             if let Some((key, key_ty)) = written_key {
-                quals::check_key_qualifier(key, key_ty, Some(base_ty), env);
+                quals::check_key_qualifier(key, key_ty, base_ty, env);
             }
             // A `mixed` base is `rule:types/conversion`'s one unchecked position, so
             // `rule:types/erased-member-access`'s deferral applies to a subscript exactly as it

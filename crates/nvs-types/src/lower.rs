@@ -1247,6 +1247,7 @@ mod tests {
             body_writers: crate::response::BodyWriters::default(),
             in_call_argument: false,
             dispatched_literal: false,
+            key_options: Vec::new(),
             deprecated_uses: None,
         };
         let id = lower_type(&probe_ty, &ctx, &mut env);

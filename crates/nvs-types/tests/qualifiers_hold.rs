@@ -547,10 +547,38 @@ fn a_member_that_makes_keys_from_values_refuses_qualified_values() {
             "a `tainted` value became a key:\n{src}"
         );
     }
+    // Where the parameter takes it, the key mark refuses a `tainted` value
+    // whose answer reads its keys back plain: `countBy` gives `array<uint>`,
+    // and `mapKeys` and `groupBy` over `[1, 2]` give arrays of `int`.
+    for call in &KEY_MEMBERS[3..7] {
+        let body = call.replace("{Q}", "tainted string");
+        let src = key_member_program("tainted string", &body);
+        let diags = check_src(&src);
+        let refused: Vec<_> = diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_TYPE_MISMATCH))
+            .collect();
+        assert_eq!(
+            refused.len(),
+            1,
+            "a `tainted` key entered a plain-keyed answer:\n{src}\n{diags:?}"
+        );
+    }
     // `column` without `indexBy` keys by position, so its cells may be secret,
-    // and a member over plain values compiles.
+    // and a member over plain values compiles. A `tainted` key enters an
+    // answer whose elements are tainted, since its keys read back as outside
+    // text: `column` over tainted rows. `mapKeys` over tainted text compiles
+    // with a plain key. Its callback type refuses a `tainted` key.
     for (qualified, body) in [
         ("secret string", "var $r = Core\\Arr::column($rows, 0);"),
+        (
+            "tainted string",
+            "var $r = Core\\Arr::mapKeys($s, fn(tainted string $x, tainted string $i): int => 1);",
+        ),
+        (
+            "tainted string",
+            "var $r = Core\\Arr::column($rows, 0, { indexBy: 1 });",
+        ),
         ("string", "var $r = Core\\Arr::countBy($s);"),
         ("string", "var $r = Core\\Arr::flip($s);"),
         (

@@ -63,7 +63,9 @@ pub(crate) fn check_args_typed(
     // [`Env::in_call_argument`], which is set here because this is the one
     // place that knows an expression is an argument at all.
     let outer = std::mem::replace(&mut env.in_call_argument, true);
+    let outer_keys = std::mem::take(&mut env.key_options);
     let checked = check_arg_list(list, sig, call_span, live, scope, ctx, env);
+    env.key_options = outer_keys;
     env.in_call_argument = outer;
     checked
 }
@@ -217,15 +219,20 @@ fn check_arg_list(
 
 /// `nvs_stdlib::registry::CoreTy::Keys`: each argument whose values the member
 /// turns into keys of its answer goes through
-/// [`super::quals::check_key_qualifier`], so a `secret` value never becomes a
-/// key. Called once the whole list is checked, and only when it reported
-/// nothing (`rule:types/one-mistake-reports-once`). An option marked
-/// [`KeyOrigin::Values`] is checked in [`check_options_arg`], where its value's
-/// type is known.
+/// [`super::quals::check_key_qualifier`], with the call's answer as the array
+/// the keys enter. So a `secret` value never becomes a key, and a `tainted`
+/// one enters only an answer whose keys read back tainted, such as the
+/// `array<tainted string>` that `Core\Arr::mapKeys` gives over tainted
+/// elements. `Core\Arr::countBy` over tainted text gives `array<uint>`, so
+/// it does not compile. Called once the whole list is checked, and only when
+/// it reported nothing (`rule:types/one-mistake-reports-once`). `sig` is the
+/// signature after the call bound its type variables.
 ///
-/// [`KeyOrigin::Cells`] is the option that names a cell of each row of the
-/// first argument. When the call writes it, the cells of those rows are the
-/// keys, so the rows' element type is checked.
+/// An option marked [`KeyOrigin::Values`] is recorded in [`Env::key_options`]
+/// by [`check_options_arg`], where its value's type is known, and checked
+/// here. [`KeyOrigin::Cells`] is the option that names a cell of each row of
+/// the first argument. When the call writes it, the cells of those rows are
+/// the keys, so the rows' element type is checked.
 fn check_key_marks(
     list: &[Arg],
     slots: &[ArgSlot],
@@ -233,6 +240,10 @@ fn check_key_marks(
     types: &[TypeId],
     env: &mut Env<'_>,
 ) {
+    let answer = match carries_contagion(sig, slots, types, env.interner) {
+        true => super::quals::contagious_result(Some(sig), sig.return_ty, env.interner),
+        false => sig.return_ty,
+    };
     for (index, (arg, slot)) in list.iter().zip(slots).enumerate() {
         let ArgSlot::Param(param) = *slot else {
             continue;
@@ -240,8 +251,11 @@ fn check_key_marks(
         if sig.text_at(param) == ParamText::Keys(KeyOrigin::Values)
             && let Some(keys) = key_values(types[index], env.interner)
         {
-            super::quals::check_key_qualifier(arg.value.span, keys, None, env);
+            super::quals::check_key_qualifier(arg.value.span, keys, answer, env);
         }
+    }
+    for (span, keys) in std::mem::take(&mut env.key_options) {
+        super::quals::check_key_qualifier(span, keys, answer, env);
     }
     let Some(options) = options_param(sig, env.interner) else {
         return;
@@ -277,7 +291,7 @@ fn check_key_marks(
         let cell =
             key_values(types[rows], env.interner).and_then(|row| key_values(row, env.interner));
         if let Some(cell) = cell {
-            super::quals::check_key_qualifier(field.span, cell, None, env);
+            super::quals::check_key_qualifier(field.span, cell, answer, env);
         }
     }
 }
@@ -950,11 +964,12 @@ pub(crate) fn check_options_arg(
         };
         // `nvs_stdlib::registry::CoreTy::Keys` on a whole option, such as
         // `Core\Arr::countBy`'s `by`: what the callback returns becomes a key.
+        // [`check_key_marks`] checks it once the call's answer is known.
         if slot.is_some_and(|option| option.text == ParamText::Keys(KeyOrigin::Values))
             && env.diags.len() == before
             && let Some(keys) = key_values(ty, env.interner)
         {
-            super::quals::check_key_qualifier(field.value.span, keys, None, env);
+            env.key_options.push((field.value.span, keys));
         }
         // A path field — `Db\Settings`' `path` — resolves a written relative path
         // as a path parameter does. See [`crate::paths`].
