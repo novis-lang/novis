@@ -99,7 +99,7 @@ echo 'read ', $i, ' entries, total ', $total, "\n";
 ```
 
 ```output
-skipped nine: cannot convert string "nine" to `int`
+skipped nine: cannot convert a `string` of 4 bytes to `int`
 read 3 entries, total 42
 ```
 
@@ -1309,7 +1309,7 @@ null
 ```nvs error
 <?nvs
 // Shows that a variable of the type `"read"|"write"` only accepts those two words.
-// `"delete"` is not one of them, so this program does not compile.
+// a `string` of 6 bytes is not one of them, so this program does not compile.
 // proof: compile-error
 
 "read"|"write" $mode = 'read';
@@ -2749,7 +2749,7 @@ echo ($word as ?int) ?? -1, ' ', ($f as ?int) ?? -1, ' ', ($digits as ?int) ?? -
 1|||
 cannot convert `float` 3.9 to `int`
 cannot convert `int` -1 to `uint`
-cannot convert string "abc" to `int`
+cannot convert a `string` of 3 bytes to `int`
 -1 -1 42
 ```
 
@@ -2796,7 +2796,7 @@ try {
 
 ```output
 woof a Dog
-cannot convert `Cat` to `class<Animal>`: it does not name a class that is a `Animal`
+cannot convert a `string` to `class<Animal>`: it does not name a class that is a `Animal`
 ```
 
 ## Example 06: a configured class with a default
@@ -3166,7 +3166,7 @@ try {
 37 age
 an int
 null
-`"password"` is not one of `User`'s public declared properties: `$age`, `$email`
+a `string` of 8 bytes is not one of `User`'s public declared properties: `$age`, `$email`
 `User` declares property `age` as `int`, so a string cannot be written to it
 ```
 
@@ -3476,10 +3476,10 @@ foreach ($fields as string $field) {
 
 ```output
 valid: customer.name
-`"customer.age"` is not a property path of `Order`: `Customer` has no public property `$age`
-`"customer.password"` is not a property path of `Order`: `Customer` has no public property `$password`
-`"total.amount"` is not a property path of `Order`: `Order`'s property `$total` is not an object, so the path cannot continue after it
-`"customer."` is not a property path of `Order`: it has an empty part
+a `string` of 12 bytes is not a property path of `Order`: `Customer` has no public property `$age`
+a `string` of 17 bytes is not a property path of `Order`: `Customer` has no public property `$password`
+a `string` of 12 bytes is not a property path of `Order`: `Order`'s property `$total` is not an object, so the path cannot continue after it
+a `string` of 9 bytes is not a property path of `Order`: it has an empty part
 ```
 
 ## Example 05: a wrong path written in the code
@@ -3708,7 +3708,7 @@ try {
 valid: {status} = 'paid'
 not valid: {price} > 10
 not valid: {total > 10
-`"{total.amount} > 1"` is not a string with holes of `Order`: in the hole `{total.amount}`, `Order`'s property `$total` is not an object, so the path cannot continue after it
+a `string` of 18 bytes is not a string with holes of `Order`: in the hole `{total.amount}`, `Order`'s property `$total` is not an object, so the path cannot continue after it
 ```
 
 ## Example 04: a wrong hole written in the code

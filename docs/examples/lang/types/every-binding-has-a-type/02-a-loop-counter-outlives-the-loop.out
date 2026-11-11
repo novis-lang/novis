@@ -1,2 +1,2 @@
-skipped nine: cannot convert string "nine" to `int`
+skipped nine: cannot convert a `string` of 4 bytes to `int`
 read 3 entries, total 42

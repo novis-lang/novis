@@ -39,5 +39,5 @@ echo $total * 2, "\n";
 ["11","3","7"] 21
 ["7","3","11"]
 ["11","3","7"]
-cannot convert string "seven" to `int`
+cannot convert a `string` of 5 bytes to `int`
 42

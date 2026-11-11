@@ -735,10 +735,9 @@ and the checked conversion runs a membership test against the small, closed, com
 A failed conversion names the accepted set, generated from the type: ``` `"z"` is not one of `"a"`,
 `"b"`, `"c"` ``` (`E0469`). That is a **compile** error where the operand settles the question by
 itself — the target a closed set, the operand naming one value — and otherwise the ordinary checked
-conversion answered at run time. The run-time message shows at most the first 64 characters of a
-`string` operand, then `…` and the operand's length in bytes, because the operand is often what a
-request sent and a message that repeated all of it would copy that into every log line that records
-it. A `tainted` or `secret` value needs the same laundering it would need
+conversion answered at run time. The run-time message names a `string` operand by its type and its
+length in bytes, ``a `string` of 1 byte is not one of `"a"`, `"b"` ``, and never shows its text
+([`types/conversion`](types.md#types-conversion)). A `tainted` or `secret` value needs the same laundering it would need
 to leave `mixed` for any other typed binding; neither qualifier gets a rule of its own here.
 
 There is **no `float` single-value type**, because float equality is imprecise enough that a type
@@ -1444,6 +1443,10 @@ tainted string $q = $doc['q'] as string;
 `mixed` never absorbs implicitly in the other direction: `int $n = $m;` where `$m` is `mixed` is a
 diagnostic, not a runtime check.
 
+`mixed` holds anything except a `secret` value. `secret mixed` is the `mixed` that may hold one, and
+it is the only one ([`security/secret-qualifier`](security.md#security-secret-qualifier)). It takes every value, an element read out of it
+is `secret mixed`, and text out of it through `as` or `is` is `secret tainted string`.
+
 `mixed` is a hole by design, and a program written entirely in it runs at dynamic typing's speed with
 dynamic typing's failure modes. The compiler does not keep `mixed` at the boundaries; review does, and
 every step out of it is an `as` a reviewer can see.
@@ -1788,6 +1791,16 @@ This is the whole conversion surface:
 | any row above, under a qualifier | a successful checked conversion to a non-text type strips `tainted` and `secret`; a text result keeps both, and `as` is never a launderer for a value that keeps its type |
 | any row above, out of `mixed` | the one place a qualifier is added: a text result is `tainted` wherever its type can carry it, and a non-text result is clean ([`security/taint-propagation`](security.md#security-taint-propagation)) |
 
+**A failed conversion never shows a text operand.** The message names a `string` or `bytes` operand
+by its type and its length in bytes: ``cannot convert a `string` of 3 bytes to `int` ``, and
+``a `string` of 3 bytes is not one of `"a"`, `"b"` ``. A `class<T>` target names it as
+``a `string` ``. A number is still shown, because no number is `secret` or `tainted`. The qualifiers
+are erased before a value exists, so the run time cannot tell a credential or request text from a
+literal, and the rule holds for every text operand. **What it spends:** nothing on a conversion that
+succeeds, and a message of a few bytes on one that fails. The usability cost is that the message for
+a plain string no longer shows the text. A program that needs it catches the error and prints the
+value it holds.
+
 A shape target has no second test: `as` runs the walk `is` runs, the object tag first and then one
 presence probe and one tagged read per named field. So `as` succeeds exactly where `is` gives
 `true`, and an `int` field fails a `float` one, because the walk compares the tag the slot holds
@@ -1818,6 +1831,9 @@ conversion whose operand needs one.
 **Declined:**
 - **PHP's lossy casts kept beside `as`.** The lossy one would win by being shorter to type
   ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
+- **A flag from the checker telling the run time which text operands are qualified**, with a second
+  message per conversion. That is a fix at every conversion site, and every new conversion would have
+  to remember it.
 
 <sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed).</sub>
 
@@ -2165,6 +2181,17 @@ proves it where the call is written. The entry's error does not name the class t
 no compiled instruction reads an object's class name, and adding one is a new value shape for the sake
 of a message. The row check's error names it, because it runs in the runtime, which reads the
 argument's descriptor.
+
+**A call with no parameter list refuses a qualified argument where it is written** (`E0895`). The
+run-time check tests each argument's representation, and neither `tainted` nor `secret` has one, so a
+callee's plain `string` parameter would take the value as trusted text. An argument that carries
+`tainted`, `secret` or `mixed` anywhere in it does not compile through a bare `callable`, or through
+the method call on a `mixed` receiver that [`types/erased-member-access`](types.md#types-erased-member-access) defers. `mixed` counts,
+because text out of it is `tainted` ([`security/taint-propagation`](security.md#security-taint-propagation)). The form that compiles writes
+the parameter types, such as `callable(tainted string): void` or `callable(mixed): void`, and the
+signature then checks each argument. A `...` argument into a written signature is refused the same
+way unless every parameter takes its element type, because the call site cannot pair an element with
+its parameter. It costs nothing at run time.
 
 The parameter list needs no trial parse: a `(` after `callable` in a type position can only open a
 parameter list, because a type position has no call syntax to confuse it with.
@@ -2650,6 +2677,13 @@ For all three:
   This refuses some writes the declared type allows: a `{pet: ?Dog}` field that is `null` takes only
   `null`, an empty array takes only an empty array, and an absent optional field takes nothing. It
   spends nothing per object, which a declared type carried by each anonymous object would.
+- **Qualifiers:** the run-time check of a write and of a call's arguments tests representations,
+  and neither `tainted` nor `secret` has one. So a value that carries `tainted`, `secret` or `mixed`
+  does not compile as the value of a write through an erased receiver, as an argument of a call
+  through `mixed`, or as a value argument of `Core\Reflect\ClassInfo::set`, `call` and `construct`
+  (`E0895`). An array literal at `call` or `construct` is judged element by element. A `secret`
+  value written through `mixed` is already the `mixed` refusal of [`security/secret-qualifier`](security.md#security-secret-qualifier),
+  and reports nothing more. The form that compiles narrows the receiver with `$x is ClassName`.
 - **Visibility:** an erased receiver is outside every class, so a read or write of a property that
   is not `public` throws, as a call of a method that is not `public` through `mixed` does. That
   holds inside the property's own class too, whose code reaches the property through a variable of

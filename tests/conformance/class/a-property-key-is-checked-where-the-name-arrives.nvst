@@ -75,5 +75,5 @@ name
 name
 null
 some
-`"legs"` is not one of `Animal`'s public declared properties: `$name`
-`"secret"` is not one of `Vault`'s public declared properties: `$label`
+a `string` of 4 bytes is not one of `Animal`'s public declared properties: `$name`
+a `string` of 6 bytes is not one of `Vault`'s public declared properties: `$label`

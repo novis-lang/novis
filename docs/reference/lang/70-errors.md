@@ -918,7 +918,7 @@ try {
 the port setting is unusable
 caused by: undefined array key `port`
 the port setting is unusable
-caused by: cannot convert string "eight" to `int`
+caused by: cannot convert a `string` of 5 bytes to `int`
 ```
 
 ## Example 03: cleaning up around every row

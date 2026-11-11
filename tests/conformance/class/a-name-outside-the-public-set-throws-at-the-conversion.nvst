@@ -47,6 +47,6 @@ echo $maybe == null ? "null" : "some", "\n";
 // covers: lang:types/property-keys
 --EXPECT--
 10
-`"balances"` is not one of `Account`'s public declared properties: `$balance`, `$owner`
-`"note"` is not one of `Account`'s public declared properties: `$balance`, `$owner`
+a `string` of 8 bytes is not one of `Account`'s public declared properties: `$balance`, `$owner`
+a `string` of 4 bytes is not one of `Account`'s public declared properties: `$balance`, `$owner`
 null

@@ -3039,8 +3039,9 @@ union whose every non-`null` member is a single-value `string`, or every one a s
 one value included; `"a"|"b"|null` and `?"a"` are nullable as any `?T` is. It is its base type on
 the wire. Encode writes the value and checks nothing, because the static type already holds it to
 the set. Decode reads the base type and then checks membership: a value outside the set is one issue
-under its path, worded as the checked conversion's run-time message (`` `"z"` is not one of `"a"`,
-`"b"` ``) with the same 64-character cut. A row decode runs the same check, and the API document
+under its path, worded as the checked conversion's run-time message (``a `string` of 1 byte is not
+one of `"a"`, `"b"` ``), which names the value by its length and never shows its text
+([`types/conversion`](types.md#types-conversion)). A row decode runs the same check, and the API document
 writes the set as an `enum` beside the base type. Recursion is fine and terminates on the data, and it
 is the *type* that recurses rather than only the field: an `array<T>` whose `T` is itself an
 `array<…>` or an inline shape is reachable, and a decode reads every level of it. A row is the one

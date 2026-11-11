@@ -54,12 +54,12 @@ echo $a == $b ? "equal" : "different", "\n";
 {total} > 3 AND json = '{{}}'
 valid: {{nmae}} = {customer.name}
 not null
-`"{customer.nmae} = 1"` is not a string with holes of `Order`: in the hole `{customer.nmae}`, `Customer` has no public property `$nmae`
+a `string` of 19 bytes is not a string with holes of `Order`: in the hole `{customer.nmae}`, `Customer` has no public property `$nmae`
 null
-`"{total.amount} = 1"` is not a string with holes of `Order`: in the hole `{total.amount}`, `Order`'s property `$total` is not an object, so the path cannot continue after it
+a `string` of 18 bytes is not a string with holes of `Order`: in the hole `{total.amount}`, `Order`'s property `$total` is not an object, so the path cannot continue after it
 null
-`"{total = 1"` is not a string with holes of `Order`: a `{` has no `}` after it
+a `string` of 10 bytes is not a string with holes of `Order`: a `{` has no `}` after it
 null
-`"{{total} = 1"` is not a string with holes of `Order`: a `}` closes no hole
+a `string` of 12 bytes is not a string with holes of `Order`: a `}` closes no hole
 null
 equal

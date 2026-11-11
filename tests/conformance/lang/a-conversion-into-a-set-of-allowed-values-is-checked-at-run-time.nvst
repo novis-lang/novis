@@ -49,7 +49,7 @@ echo Mode::settled(), "\n";
 --EXPECT--
 picked a
 picked c
-threw: `"z"` is not one of `"a"`, `"b"`, `"c"`
+threw: a `string` of 1 byte is not one of `"a"`, `"b"`, `"c"`
 threw: `1` is not one of `"a"`, `"b"`, `"c"`
 level 2
 threw: `9` is not one of `1`, `2`, `3`

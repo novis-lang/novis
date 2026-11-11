@@ -3,5 +3,5 @@
 1|||
 cannot convert `float` 3.9 to `int`
 cannot convert `int` -1 to `uint`
-cannot convert string "abc" to `int`
+cannot convert a `string` of 3 bytes to `int`
 -1 -1 42

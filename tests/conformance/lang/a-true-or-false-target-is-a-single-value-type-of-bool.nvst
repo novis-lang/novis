@@ -73,7 +73,7 @@ echo Flag::inferred(), "\n";
 on 1|
 threw: `false` is not one of `true`
 threw: `1` is not one of `true`
-threw: `"true"` is not one of `true`
+threw: a `string` of 4 bytes is not one of `true`
 off |
 threw: `true` is not one of `false`
 truthy 1|

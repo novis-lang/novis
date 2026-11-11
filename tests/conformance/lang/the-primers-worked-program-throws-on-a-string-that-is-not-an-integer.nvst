@@ -34,11 +34,11 @@ foreach ($refused as string $text) {
 --EXPECT--
 ["11","3","7"] 21
 ["7","3","11"]
-cannot convert string "seven" to `int`
+cannot convert a `string` of 5 bytes to `int`
 null
-cannot convert string "7.0" to `int`
+cannot convert a `string` of 3 bytes to `int`
 null
-cannot convert string " 7" to `int`
+cannot convert a `string` of 2 bytes to `int`
 null
-cannot convert string "" to `int`
+cannot convert a `string` of 0 bytes to `int`
 null

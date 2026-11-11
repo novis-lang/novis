@@ -1736,7 +1736,7 @@ crate::nvs_helper! {
         let text = numeric_text(bytes, "nvs_str_to_int", args[0])?;
         row::str_to_int(text)
             .map(Value::int)
-            .ok_or_else(|| does_not_fit(&format!("string {text:?}"), "int"))
+            .ok_or_else(|| does_not_fit(&text_operand(text.len()), "int"))
     }
 }
 
@@ -1749,7 +1749,7 @@ crate::nvs_helper! {
         let text = numeric_text(bytes, "nvs_str_to_uint", args[0])?;
         row::str_to_uint(text)
             .map(Value::uint)
-            .ok_or_else(|| does_not_fit(&format!("string {text:?}"), "uint"))
+            .ok_or_else(|| does_not_fit(&text_operand(text.len()), "uint"))
     }
 }
 
@@ -1762,7 +1762,7 @@ crate::nvs_helper! {
         let text = numeric_text(bytes, "nvs_str_to_float", args[0])?;
         row::str_to_float(text)
             .map(Value::float)
-            .ok_or_else(|| does_not_fit(&format!("string {text:?}"), "float"))
+            .ok_or_else(|| does_not_fit(&text_operand(text.len()), "float"))
     }
 }
 
@@ -3057,40 +3057,25 @@ crate::nvs_helper! {
     }
 }
 
-/// How many characters of a `string` operand [`quoted_operand`] repeats in a
-/// failed membership test's message.
+/// A text operand of a failed conversion, as its message names it: by type
+/// and length in bytes, never by its content (`rule:types/conversion`).
 ///
-/// The operand is whatever the request sent, so a message that repeated all
-/// of it would copy a megabyte name into the exception and into every log
-/// line that records it. Sixty-four characters is longer than any property
-/// name, enum backing text or allowed literal a reader needs to recognise,
-/// and short enough that the message stays one log line. `Debug` escaping
-/// writes at most ten bytes per character (`\u{10ffff}`), so the shown part
-/// is at most 640 bytes whatever arrived.
-const SHOWN_OPERAND_CHARS: usize = 64;
-
-/// A `string` operand as the message shows it, backticks included: `Debug`
-/// quoting over at most [`SHOWN_OPERAND_CHARS`] characters, so a control
-/// character stays visible as its escape. A longer operand is cut on a
-/// character boundary, and the closing quote is followed by `…` and the
-/// whole operand's length in bytes: `` `"ownerowner…"…` (1000000 bytes) ``.
-///
-/// **Memory:** it runs only when a conversion has already failed, so a
-/// conversion that succeeds pays nothing. A failed one builds a message of
-/// at most about 700 bytes for its operand, where a whole copy would be
-/// the operand's own size again, escapes included.
-fn quoted_operand(text: &str) -> String {
-    match text.char_indices().nth(SHOWN_OPERAND_CHARS) {
-        None => format!("`{text:?}`"),
-        Some((end, _)) => format!("`{:?}…` ({} bytes)", &text[..end], text.len()),
+/// The run time has no qualifier to read, so a `secret` or `tainted` operand
+/// looks like any other string here. Naming the content would put a
+/// credential or request text into the exception and every log line that
+/// records it. **Memory:** a few bytes, built only after a conversion failed.
+pub(crate) fn text_operand(len: usize) -> String {
+    if len == 1 {
+        "a `string` of 1 byte".to_owned()
+    } else {
+        format!("a `string` of {len} bytes")
     }
 }
 
 /// One operand of a failed
 /// `rule:types/single-value-types`
-/// membership test, rendered the way its compile-time diagnostic renders it,
-/// backticks included: a `string` double-quoted ([`quoted_operand`]), an
-/// integer bare. Only the representations a set of allowed values can name
+/// membership test, rendered for its message: a `string` by its length alone
+/// ([`text_operand`]), an integer bare and in backticks. Only the representations a set of allowed values can name
 /// reach this — `nvs-codegen` boxed the operand from `Ty::Str`, `Ty::Int`,
 /// `Ty::Uint` or `Ty::Tagged` — so the last arm is a value that arrived
 /// through `mixed` carrying some other tag entirely, which is a miss for the
@@ -3098,8 +3083,7 @@ fn quoted_operand(text: &str) -> String {
 pub(crate) fn rendered_operand(value: Value) -> String {
     let bare = match value.tag() {
         Some(Tag::Str) => {
-            return str_operand(&value)
-                .map_or_else(|| "`a non-UTF-8 `bytes` value`".to_owned(), quoted_operand);
+            return text_operand(value.as_str_bytes().map_or(0, <[u8]>::len));
         }
         Some(Tag::Int) => value.as_int().map_or_else(String::new, |n| n.to_string()),
         Some(Tag::Uint) => value.as_uint().map_or_else(String::new, |n| n.to_string()),
@@ -3951,29 +3935,11 @@ mod tests {
             .expect("a truthiness helper produces a bool")
     }
 
-    /// A failed membership test repeats a short operand whole and cuts a long
-    /// one at [`SHOWN_OPERAND_CHARS`] characters, naming its length in bytes.
-    /// The multi-byte case puts a three-byte character across the byte that a
-    /// cut by bytes would land on, so a cut that is not on a character
-    /// boundary panics here.
+    /// A failed membership test names a text operand by its length alone,
+    /// however long it is (`rule:types/conversion`).
     #[test]
-    fn a_failed_conversion_repeats_at_most_a_bounded_head_of_its_operand() {
-        assert_eq!(quoted_operand("own\ner"), "`\"own\\ner\"`");
-        let whole = "a".repeat(SHOWN_OPERAND_CHARS);
-        assert_eq!(quoted_operand(&whole), format!("`{whole:?}`"));
-
+    fn a_failed_conversion_names_its_text_operand_by_length_alone() {
         let long = "owner".repeat(200_000);
-        let shown = quoted_operand(&long);
-        let head = &long[..SHOWN_OPERAND_CHARS];
-        assert_eq!(shown, format!("`{head:?}…` (1000000 bytes)"));
-
-        let wide = format!("{}{}", "a".repeat(SHOWN_OPERAND_CHARS - 1), "€".repeat(4));
-        let head = format!("{}€", "a".repeat(SHOWN_OPERAND_CHARS - 1));
-        assert_eq!(
-            quoted_operand(&wide),
-            format!("`{head:?}…` ({} bytes)", wide.len())
-        );
-
         let mut ctx = Ctx::buffered();
         let operand = Value::text(&long);
         let accepted = Value::text("`Account`'s public declared properties");
@@ -3984,11 +3950,7 @@ mod tests {
         assert_eq!(
             ctx.take_pending().as_deref(),
             Some(
-                format!(
-                    "`{:?}…` (1000000 bytes) is not one of `Account`'s public declared properties",
-                    &long[..SHOWN_OPERAND_CHARS]
-                )
-                .as_str()
+                "a `string` of 1000000 bytes is not one of `Account`'s public declared properties"
             ),
         );
         #[expect(

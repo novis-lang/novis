@@ -43,7 +43,7 @@ echo Pick::counted(2), "\n";
 echo Pick::widened("beta"), "\n";
 --EXPECT--
 picked alpha|
-threw: `"1"` is not one of `1`, `"alpha"`
+threw: a `string` of 1 byte is not one of `1`, `"alpha"`
 counted 1|
 threw: `2` is not one of `1`, `"alpha"`
 widened beta|

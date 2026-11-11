@@ -51,7 +51,7 @@ string $good = "Angled";
 class<Formatter> $ok = $good as class<Formatter>;
 echo (new $ok())->render("done"), "\n";
 --EXPECT--
-cannot convert `Nothing` to `class<Formatter>`: it does not name a class that is a `Formatter`
-cannot convert `Ledger` to `class<Formatter>`: it does not name a class that is a `Formatter`
+cannot convert a `string` to `class<Formatter>`: it does not name a class that is a `Formatter`
+cannot convert a `string` to `class<Formatter>`: it does not name a class that is a `Formatter`
 cannot convert `Formatter` to `class<Angled>`: it does not name a class that is a `Angled`
 done

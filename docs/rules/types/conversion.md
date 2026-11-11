@@ -32,6 +32,16 @@ This is the whole conversion surface:
 | any row above, under a qualifier | a successful checked conversion to a non-text type strips `tainted` and `secret`; a text result keeps both, and `as` is never a launderer for a value that keeps its type |
 | any row above, out of `mixed` | the one place a qualifier is added: a text result is `tainted` wherever its type can carry it, and a non-text result is clean (`rule:security/taint-propagation`) |
 
+**A failed conversion never shows a text operand.** The message names a `string` or `bytes` operand
+by its type and its length in bytes: ``cannot convert a `string` of 3 bytes to `int` ``, and
+``a `string` of 3 bytes is not one of `"a"`, `"b"` ``. A `class<T>` target names it as
+``a `string` ``. A number is still shown, because no number is `secret` or `tainted`. The qualifiers
+are erased before a value exists, so the run time cannot tell a credential or request text from a
+literal, and the rule holds for every text operand. **What it spends:** nothing on a conversion that
+succeeds, and a message of a few bytes on one that fails. The usability cost is that the message for
+a plain string no longer shows the text. A program that needs it catches the error and prints the
+value it holds.
+
 A shape target has no second test: `as` runs the walk `is` runs, the object tag first and then one
 presence probe and one tagged read per named field. So `as` succeeds exactly where `is` gives
 `true`, and an `int` field fails a `float` one, because the walk compares the tag the slot holds
@@ -62,3 +72,6 @@ conversion whose operand needs one.
 **Declined:**
 - **PHP's lossy casts kept beside `as`.** The lossy one would win by being shorter to type
   (`rule:types/no-legacy-cast`).
+- **A flag from the checker telling the run time which text operands are qualified**, with a second
+  message per conversion. That is a fix at every conversion site, and every new conversion would have
+  to remember it.

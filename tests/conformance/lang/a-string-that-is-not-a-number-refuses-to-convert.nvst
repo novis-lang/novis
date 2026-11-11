@@ -33,11 +33,11 @@ echo Convert::toFloat("nope"), "\n";
 --EXPECT--
 42
 -7
-threw: cannot convert string "abc" to `int`
-threw: cannot convert string " 42" to `int`
-threw: cannot convert string "42 " to `int`
-threw: cannot convert string "" to `int`
-threw: cannot convert string "0x1A" to `int`
-threw: cannot convert string "12.0" to `int`
+threw: cannot convert a `string` of 3 bytes to `int`
+threw: cannot convert a `string` of 3 bytes to `int`
+threw: cannot convert a `string` of 3 bytes to `int`
+threw: cannot convert a `string` of 0 bytes to `int`
+threw: cannot convert a `string` of 4 bytes to `int`
+threw: cannot convert a `string` of 4 bytes to `int`
 1000
-threw: cannot convert string "nope" to `float`
+threw: cannot convert a `string` of 4 bytes to `float`

@@ -49,8 +49,8 @@ try {
 {"state":"live","flag":"pinned","level":2,"tags":["a","b"]}
 live pinned 2
 null
-state: `"gone"` is not one of `"draft"`, `"live"`
-flag: `"x"` is not one of `"pinned"`
+state: a `string` of 4 bytes is not one of `"draft"`, `"live"`
+flag: a `string` of 1 byte is not one of `"pinned"`
 level: `7` is not one of `1`, `2`, `3`
-tags.1: `"z"` is not one of `"a"`, `"b"`
+tags.1: a `string` of 1 byte is not one of `"a"`, `"b"`
 state: expected string, found a number

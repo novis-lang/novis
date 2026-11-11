@@ -1188,7 +1188,8 @@ impl<'a> Lowering<'a> {
 
     /// The message [`Self::lower_class_reference`]'s refused edge throws with,
     /// emitted into `refused`: "cannot convert `X` to `class<T>`", where `X` is
-    /// the string operand or the narrowed descriptor's class name.
+    /// the narrowed descriptor's class name. A `string` operand is named as
+    /// "a `string`" and never quoted (`rule:types/conversion`).
     ///
     /// The operand is only read. A `string` operand stays the statement's
     /// temporary, which the landing block releases, and a descriptor is not
@@ -1202,26 +1203,33 @@ impl<'a> Lowering<'a> {
         base: &str,
         env: &mut Env,
     ) -> ValueId {
+        // A `string` operand is never quoted (`rule:types/conversion`): it may
+        // be a secret or request text, and the run time cannot tell.
+        if !matches!(subject_ty, Ty::ClassDesc) {
+            let (message, _) = self.emit(
+                refused,
+                Ty::Str,
+                InstKind::ConstStr(format!(
+                    "cannot convert a `string` to `class<{base}>`: it does not name a class that \
+                     is a `{base}`"
+                )),
+            );
+            return message;
+        }
         let (opening, _) = self.emit(
             refused,
             Ty::Str,
             InstKind::ConstStr("cannot convert `".to_owned()),
         );
-        let (named, fresh) = match subject_ty {
-            Ty::ClassDesc => {
-                let (name, _) = self.emit_fallible(
-                    refused,
-                    Ty::Str,
-                    InstKind::HelperCall {
-                        helper: Helper::ClassDescName,
-                        args: vec![subject],
-                    },
-                    env,
-                );
-                (name, true)
-            }
-            _ => (subject, false),
-        };
+        let (named, _) = self.emit_fallible(
+            refused,
+            Ty::Str,
+            InstKind::HelperCall {
+                helper: Helper::ClassDescName,
+                args: vec![subject],
+            },
+            env,
+        );
         let (closing, _) = self.emit(
             refused,
             Ty::Str,
@@ -1240,9 +1248,7 @@ impl<'a> Lowering<'a> {
                 ],
             },
         );
-        if fresh {
-            self.emit_release(refused, named);
-        }
+        self.emit_release(refused, named);
         self.emit_release(refused, closing);
         message
     }

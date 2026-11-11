@@ -74,7 +74,7 @@ box! 0 null
 8 6
 42 84
 null
-caught: cannot convert string "4.5" to `int`
+caught: cannot convert a `string` of 3 bytes to `int`
 same
 -1
 4 15
