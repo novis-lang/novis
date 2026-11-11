@@ -26,18 +26,18 @@ final class AuthorizationCodeTest
 
         Uri $uri = Uri::parse($start->url);
         Test::assertTrue(Str::startsWith($start->url, AuthorizationCodeTest::AUTHORIZE . '?'));
-        Test::assertSame(AuthorizationCodeTest::param($uri,'response_type'), 'code');
-        Test::assertSame(AuthorizationCodeTest::param($uri,'client_id'), 'cli');
-        Test::assertSame(AuthorizationCodeTest::param($uri,'redirect_uri'), AuthorizationCodeTest::BACK);
-        Test::assertSame(AuthorizationCodeTest::param($uri,'scope'), 'openid profile');
-        Test::assertSame(AuthorizationCodeTest::param($uri,'state'), $start->state);
-        Test::assertSame(AuthorizationCodeTest::param($uri,'code_challenge_method'), 'S256');
-        Test::assertSame(AuthorizationCodeTest::param($uri,'dpop_jkt'), $dpop->thumbprint());
+        Test::assertSame(AuthorizationCodeTest::param($uri, 'response_type'), 'code');
+        Test::assertSame(AuthorizationCodeTest::param($uri, 'client_id'), 'cli');
+        Test::assertSame(AuthorizationCodeTest::param($uri, 'redirect_uri'), AuthorizationCodeTest::BACK);
+        Test::assertSame(AuthorizationCodeTest::param($uri, 'scope'), 'openid profile');
+        Test::assertSame(AuthorizationCodeTest::param($uri, 'state'), $start->state);
+        Test::assertSame(AuthorizationCodeTest::param($uri, 'code_challenge_method'), 'S256');
+        Test::assertSame(AuthorizationCodeTest::param($uri, 'dpop_jkt'), $dpop->thumbprint());
 
         // The challenge is the SHA-256 hash of the verifier (RFC 7636).
         string $verifier = Secret::reveal($start->codeVerifier, 'the test hashes the verifier');
         string $challenge = Encoding::toBase64Url(Hash::of($verifier, Hash::Digest::Sha256));
-        Test::assertSame(AuthorizationCodeTest::param($uri,'code_challenge'), $challenge);
+        Test::assertSame(AuthorizationCodeTest::param($uri, 'code_challenge'), $challenge);
 
         // Each sign-in has its own state.
         var $other = AuthorizationCode::start($client, AuthorizationCodeTest::AUTHORIZE, AuthorizationCodeTest::BACK, '');

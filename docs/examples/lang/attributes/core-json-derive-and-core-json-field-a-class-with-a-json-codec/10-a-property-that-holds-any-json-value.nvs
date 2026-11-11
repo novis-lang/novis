@@ -6,7 +6,8 @@ use Core\Json;
 #[Core\Json\Derive]
 class Event
 {
-    public function constructor(public string $kind, public mixed $data) {}
+    public function constructor(public string $kind, public mixed $data)
+    {}
 }
 
 // Each document has a different JSON value under "data".

@@ -1106,7 +1106,7 @@ use Core\Json\Field;
 // Its `#[Field]` still renames the key in every subclass.
 class Entity
 {
-    #[Field(name: "id")]
+    #[Field(name: 'id')]
     public int $key;
 
     public function constructor(int $key)
@@ -1129,12 +1129,12 @@ class Post extends Entity
 }
 
 // The key of `Entity` comes first. This prints {"id":7,"title":"hello"}.
-var $post = new Post(7, "hello");
+var $post = new Post(7, 'hello');
 echo Json::encode($post), "\n";
 
 // A decode calls the constructor of `Post`. This prints `7 hello`.
 var $back = Json::decodeAs<Post>("{\"id\":7,\"title\":\"hello\"}");
-echo $back->key, " ", $back->title, "\n";
+echo $back->key, ' ', $back->title, "\n";
 ```
 
 ```output
@@ -1154,16 +1154,17 @@ use Core\Json;
 class Post
 {
     // `$state` is "draft" or "live". `$level` is 1, 2 or 3.
-    public function constructor(public "draft"|"live" $state, public 1|2|3 $level) {}
+    public function constructor(public "draft"|"live" $state, public 1|2|3 $level)
+    {}
 }
 
 // Each value is written as a plain string or number.
 // This prints {"state":"live","level":2}.
-echo Json::encode(new Post("live", 2)), "\n";
+echo Json::encode(new Post('live', 2)), "\n";
 
 // This prints `draft 1`.
 var $post = Json::decodeAs<Post>("{\"state\":\"draft\",\"level\":1}");
-echo $post->state, " ", $post->level, "\n";
+echo $post->state, ' ', $post->level, "\n";
 
 // "gone" and 7 are not in their sets, so the decode throws a `ParseError`.
 // It has one issue for each property, with the allowed values.
@@ -1194,7 +1195,8 @@ use Core\Json;
 #[Core\Json\Derive]
 class Event
 {
-    public function constructor(public string $kind, public mixed $data) {}
+    public function constructor(public string $kind, public mixed $data)
+    {}
 }
 
 // Each document has a different JSON value under "data".

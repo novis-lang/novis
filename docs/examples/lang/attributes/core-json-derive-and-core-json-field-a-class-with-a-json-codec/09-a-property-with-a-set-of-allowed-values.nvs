@@ -7,16 +7,17 @@ use Core\Json;
 class Post
 {
     // `$state` is "draft" or "live". `$level` is 1, 2 or 3.
-    public function constructor(public "draft"|"live" $state, public 1|2|3 $level) {}
+    public function constructor(public "draft"|"live" $state, public 1|2|3 $level)
+    {}
 }
 
 // Each value is written as a plain string or number.
 // This prints {"state":"live","level":2}.
-echo Json::encode(new Post("live", 2)), "\n";
+echo Json::encode(new Post('live', 2)), "\n";
 
 // This prints `draft 1`.
 var $post = Json::decodeAs<Post>("{\"state\":\"draft\",\"level\":1}");
-echo $post->state, " ", $post->level, "\n";
+echo $post->state, ' ', $post->level, "\n";
 
 // "gone" and 7 are not in their sets, so the decode throws a `ParseError`.
 // It has one issue for each property, with the allowed values.

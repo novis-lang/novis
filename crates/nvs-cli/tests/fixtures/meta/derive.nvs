@@ -11,7 +11,7 @@ use Core\Json\Field;
 /// Anything the shop stores under a number.
 class Entity
 {
-    #[Field(name: "id")]
+    #[Field(name: 'id')]
     public int $key;
 
     public function constructor(int $key)
@@ -24,7 +24,8 @@ class Entity
 #[Core\Json\Derive]
 class Author
 {
-    public function constructor(public string $name) {}
+    public function constructor(public string $name)
+    {}
 }
 
 /// A post on the shop's blog.
@@ -38,7 +39,8 @@ class Post extends Entity
         int $key,
         public "draft"|"live" $state,
         public Author $author,
-    ) {
+    )
+    {
         parent::constructor($key);
     }
 }
@@ -46,10 +48,11 @@ class Post extends Entity
 /// A price, with no JSON codec.
 class Price
 {
-    public function constructor(public int $cents) {}
+    public function constructor(public int $cents)
+    {}
 }
 
-var $post = new Post(1, "live", new Author("Ada"));
+var $post = new Post(1, 'live', new Author('Ada'));
 echo Json::encode($post), "\n";
 var $price = new Price(100);
 echo $price->cents, "\n";

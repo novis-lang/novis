@@ -76,7 +76,8 @@ echo 'repeated: ', $total, "\n";
 #[Core\Json\Derive]
 class Page
 {
-    public function constructor(public "draft"|"live" $state) {}
+    public function constructor(public "draft"|"live" $state)
+    {}
 }
 
 // 7. A value that is not in the set of allowed values.

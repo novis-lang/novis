@@ -93,7 +93,7 @@ final class Client
         ?DPoP $dpop = $this->dpop;
         if ($dpop != null) {
             $headers['DPoP'] = $dpop->proof($method, $url, $token->accessToken);
-        } else if ($token->type == 'DPoP') {
+        } elseif ($token->type == 'DPoP') {
             throw new RuntimeError('this token is bound to a DPoP key, so the client needs `withDPoP`');
         }
         if ($json == null) {

@@ -10,7 +10,8 @@ class Post
         public ?"pinned" $flag,
         public 1|2|3 $level,
         public array<"a"|"b"> $tags,
-    ) {}
+    )
+    {}
 }
 
 class Posts
@@ -19,6 +20,6 @@ class Posts
     #[Core\Access(allow: Core\Audience::Public)]
     public function first(): Post
     {
-        return new Post("draft", null, 1, []);
+        return new Post('draft', null, 1, []);
     }
 }

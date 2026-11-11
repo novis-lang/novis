@@ -20,6 +20,7 @@ tree docs/examples
 tree editors/vscode/test
 tree examples
 tree extensions
+tree packages
 tree tests
 tree website/guides
 tree website/snippets

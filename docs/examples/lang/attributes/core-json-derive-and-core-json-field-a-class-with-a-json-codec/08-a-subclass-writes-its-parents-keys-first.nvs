@@ -8,7 +8,7 @@ use Core\Json\Field;
 // Its `#[Field]` still renames the key in every subclass.
 class Entity
 {
-    #[Field(name: "id")]
+    #[Field(name: 'id')]
     public int $key;
 
     public function constructor(int $key)
@@ -31,9 +31,9 @@ class Post extends Entity
 }
 
 // The key of `Entity` comes first. This prints {"id":7,"title":"hello"}.
-var $post = new Post(7, "hello");
+var $post = new Post(7, 'hello');
 echo Json::encode($post), "\n";
 
 // A decode calls the constructor of `Post`. This prints `7 hello`.
 var $back = Json::decodeAs<Post>("{\"id\":7,\"title\":\"hello\"}");
-echo $back->key, " ", $back->title, "\n";
+echo $back->key, ' ', $back->title, "\n";

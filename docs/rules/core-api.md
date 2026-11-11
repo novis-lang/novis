@@ -1133,7 +1133,9 @@ they are separate questions, and both already have a spelling.
 
 Nullability is a property of the **type** and optionality is a property of the constructor parameter's
 **default**; neither borrows the other's meaning. Encoding is the plain inverse: every field is always
-emitted, including a `null` one.
+emitted, including a `null` one. A `mixed` field reads as a `?T` row: `mixed` holds `null` without
+spelling it, as [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker) says, and the
+encoder writes a `mixed` field's `null`, so a decode refusing it would break the round trip.
 
 Every row is answered at every door that reads a derived codec, a row's columns included: the default
 is evaluated while compiling into a constant that rides on the field itself

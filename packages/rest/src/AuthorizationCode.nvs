@@ -68,7 +68,7 @@ final class AuthorizationCode
         if ($refresh is Token) {
             $refreshToken = $refresh->refreshToken;
             $scope = $refresh->scope;
-        } else if ($refresh is string) {
+        } elseif ($refresh is string) {
             $refreshToken = $refresh;
         }
         if ($refreshToken == null) {
