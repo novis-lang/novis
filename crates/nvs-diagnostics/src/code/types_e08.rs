@@ -1186,4 +1186,18 @@ codes! {
          Write the pattern without lookaround and without backreferences. Or set \
          `backtracking` to `warn` or `allow`.",
     );
+
+    /// A `secret` value converted to a type that has no `secret` form, such as
+    /// `int`, `bool`, an enum or a class (`rule:security/secret-propagation`).
+    /// A successful conversion proves the value's shape. It proves nothing
+    /// about who may read it, so `as` never drops the qualifier. The same code
+    /// refuses a conversion to a shape that reads a `secret` property of a
+    /// class.
+    pub const E_SECRET_CONVERSION_LOSES_SECRET: Code = Code::new("E0894").card(
+        "A `secret` value can only be converted to a type that can be `secret`. Those types \
+         are `string`, `bytes` and arrays of them. `int`, `bool`, an enum and a class have no \
+         `secret` form. To convert the value, write `Core\\Secret::reveal($value, \"reason\") \
+         as int`. A shape cannot read a `secret` property of a class. Read the property \
+         directly.",
+    );
 }

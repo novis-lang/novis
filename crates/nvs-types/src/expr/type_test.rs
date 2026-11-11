@@ -72,8 +72,8 @@ use super::members::{
 };
 use super::operators::types_are_disjoint;
 use super::quals::{
-    carries_unchecked, fields_unchecked, has_fields, reject_untainted_text_from_unchecked,
-    tainted_result,
+    carries_secret, carries_tainted, carries_unchecked, erased_qualifiers, fields_unchecked,
+    has_fields, reject_untainted_text_from_unchecked, secret_result, tainted_result,
 };
 
 /// Checks `inner is against`, answering `bool` — or the literal `true`/`false`
@@ -125,11 +125,7 @@ fn infer_against_type(
     {
         return env.interner.bool_ty();
     }
-    let tested = if carries_unchecked(subject, env.interner) {
-        tainted_result(tested, env.interner)
-    } else {
-        tested
-    };
+    let tested = keep_subject_qualifiers(subject, tested, env.interner);
     if always_holds(subject, tested, env) {
         env.exprs
             .record(expr.span, ExprInfo::SettledTypeTest { answer: true });
@@ -168,7 +164,9 @@ pub(crate) fn accept_shape_conversion(
     if !matches!(env.interner.get(to), Ty::Shape(_)) || qualified_atom(to, true, env).is_some() {
         return false;
     }
-    if reject_untainted_text_from_unchecked(from, to, span, env) {
+    if reject_untainted_text_from_unchecked(from, to, span, env)
+        || reject_secret_property_in_shape(from, to, span, env)
+    {
         return true;
     }
     if always_holds(from, to, env) {
@@ -193,6 +191,63 @@ pub(crate) fn accept_shape_conversion(
     env.exprs
         .record(span, ExprInfo::ShapeConversion { shape: to });
     true
+}
+
+/// `rule:security/secret-qualifier`: a shape conversion over a known class
+/// does not compile when a field of the shape names a `secret` property. A
+/// shape cannot have a `secret` field, so the converted value would hold the
+/// property as plain text. Reports [`code::E_SECRET_CONVERSION_LOSES_SECRET`]
+/// at the first such field and answers whether it reported.
+///
+/// `from` is a class or a union with class members. A property the class does
+/// not declare is not secret here, since nothing marks it so.
+fn reject_secret_property_in_shape(
+    from: TypeId,
+    to: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) -> bool {
+    let Ty::Shape(fields) = env.interner.get(to).clone() else {
+        return false;
+    };
+    let classes: Vec<(nvs_hir::QName, Vec<TypeId>)> = env
+        .interner
+        .union_members(from)
+        .into_iter()
+        .filter_map(|member| match env.interner.get(member) {
+            Ty::Class(qname, args) => Some((qname.clone(), args.clone())),
+            _ => None,
+        })
+        .collect();
+    for (qname, args) in classes {
+        for field in &fields {
+            let Some(declared) =
+                crate::signatures::resolve_property(&qname, &field.name, env.signatures, env.graph)
+            else {
+                continue;
+            };
+            let declared = crate::generics::with_class_args(&qname, &args, declared, env.interner);
+            if !super::quals::carries_secret(declared, env.interner) {
+                continue;
+            }
+            let name = &field.name;
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_SECRET_CONVERSION_LOSES_SECRET,
+                    format!(
+                        "the property `{qname}::${name}` is `secret`, so a shape cannot read it"
+                    ),
+                )
+                .with_primary(span, "converted here")
+                .with_help(format!(
+                    "a shape cannot have a `secret` field. Remove `{name}` from the shape, and \
+                     read the property from the object as `$value->{name}`"
+                )),
+            );
+            return true;
+        }
+    }
+    false
 }
 
 /// `$x is $cls` — the value arm, `rule:types/class-reference-sites`' third
@@ -349,9 +404,14 @@ fn qualified_atom(tested: TypeId, secret_only: bool, env: &Env<'_>) -> Option<Ty
 ///
 /// Assignability answers this for every row of `rule:types/type-test`'s table
 /// bar one, since a type that is a subtype of the target *is* the target at run
-/// time: a `Dog` holds an `Animal`, a `"a"` holds a `string`, a `tainted
-/// string` holds a `string` (the qualifier being erased), and a shape with more
-/// fields holds the shape with fewer.
+/// time: a `Dog` holds an `Animal`, a `"a"` holds a `string`, and a shape with
+/// more fields holds the shape with fewer.
+///
+/// The question is about run time, where no qualifier exists, so both sides are
+/// compared with `tainted` and `secret` erased ([`erased_qualifiers`]). A
+/// `tainted string` and a `secret string` each hold a `string`. Assignability
+/// alone would answer `false` there, since it never drops a qualifier. The fold
+/// keeps the subject's type, so the qualifier stays on the variable.
 ///
 /// The exception is the one implicit conversion the language has
 /// (`rule:types/conversion`): an `int` *occupies* a `float` position by
@@ -378,7 +438,35 @@ pub(crate) fn always_holds(subject: TypeId, tested: TypeId, env: &mut Env<'_>) -
     {
         return false;
     }
-    is_assignable(subject, tested, env.interner, env.graph, env.signatures)
+    let subject = erased_qualifiers(subject, env.interner);
+    let tested = erased_qualifiers(tested, env.interner);
+    subject == tested || is_assignable(subject, tested, env.interner, env.graph, env.signatures)
+}
+
+/// `tested` with the qualifiers of `subject` put back on it, so that narrowing
+/// to it never drops one (`rule:types/type-test`, `rule:types/narrowing`).
+///
+/// `tainted` is set wherever [`tainted_result`] can set it when the subject
+/// carries `tainted` or text out of `mixed`, and `secret` wherever
+/// [`secret_result`] can set it when the subject carries `secret`. So
+/// `?tainted string is string` narrows to `tainted string`, and
+/// `array<secret string> is array<string>` to `array<secret string>`. A tested
+/// type with no text in it, such as `int`, is returned unchanged.
+pub(crate) fn keep_subject_qualifiers(
+    subject: TypeId,
+    tested: TypeId,
+    interner: &mut crate::ty::TypeInterner,
+) -> TypeId {
+    let tested = if carries_unchecked(subject, interner) || carries_tainted(subject, interner) {
+        tainted_result(tested, interner)
+    } else {
+        tested
+    };
+    if carries_secret(subject, interner) {
+        secret_result(tested, interner)
+    } else {
+        tested
+    }
 }
 
 /// Whether no value of `subject` holds a `tested` — the `false` fold, and

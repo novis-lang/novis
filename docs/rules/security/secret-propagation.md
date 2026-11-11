@@ -7,16 +7,25 @@ tracks on its own. The operand is read as far as `tainted` is read: a `?secret s
 `?secret string as string` is `secret string`, `array<secret string> as array<string>` is
 `array<secret string>`.
 
-A successful checked `as` conversion **removes `secret`**, mirroring the `tainted` rule for grammar
-and implementation consistency rather than because the underlying justification transfers — it does
-not. A shape proof says nothing about confidentiality, so a numeric credential that round-trips
-through `as uint` becomes a plain, loggable, displayable value with no diagnostic. **That is a known,
-accepted gap**, chosen for consistency and recorded here rather than discovered later.
+**A `secret` value converts only to a type that can carry `secret`**: `string`, `bytes`, and a
+nullable, an array or a union with one of them. `$secret as int`, `as uint`, `as float`, `as bool`, an
+enum, a class and `mixed` do not compile (`E0894`), and the help names
+`Core\Secret::reveal($value, "reason") as int`. A shape conversion over a class whose shape names a
+`secret` property is the same refusal, since a shape field cannot be `secret`. A shape proof says
+nothing about confidentiality, so the checked conversion that launders `tainted`
+(`rule:security/launderers-are-sink-named`) does not launder `secret`. A numeric credential pays one
+conspicuous call, and the reason it gives is read where the value stops being secret.
 
 Conversions between `string` and `bytes` preserve `secret` in either direction, the same way they
 preserve `tainted`.
 
+- **Memory and latency:** none. The check runs in the compiler, and the qualifier is erased before
+  codegen.
+
 **Declined:**
-- **A checked conversion keeps `secret` while it strips `tainted`.** It is the technically correct
-  answer, since a shape proof does not reduce confidentiality. It is held back for consistency between
-  the two axes, and is the change to make if numeric credentials are seen leaking past a conversion.
+- **A successful checked conversion removes `secret`, as it removes `tainted`.** It kept the two axes
+  alike, and it let a numeric credential that round-trips through `as uint` become a plain, loggable
+  value with no diagnostic.
+- **A `secret` form of every scalar type.** It adds a qualified `int`, `uint`, `float`, `decimal` and
+  `bool`, a rule for every operator, and a class for every numeric `Core` parameter. That is language
+  surface no program has needed, and `Core\Secret::reveal` covers the numeric credential.

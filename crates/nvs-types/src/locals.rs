@@ -687,6 +687,12 @@ pub(crate) fn narrowed_property(
 /// A `class<T>` operand narrows the subject to **`T`**, which is sound because
 /// the reference holds a `T` or an implementor of one
 /// (`rule:types/class-reference-sites`).
+///
+/// **The narrowed type keeps every qualifier the variable had.** The checker
+/// already records a tested type with the subject's qualifiers on it, and this
+/// puts them back once more against the variable's current type. So
+/// `?tainted string` narrows to `tainted string` and never to `string`, whatever
+/// recorded the test (`rule:types/narrowing`).
 fn type_test_residue(
     cond: &Expr,
     when: bool,
@@ -703,6 +709,7 @@ fn type_test_residue(
         Some(&ExprInfo::ClassRefTest { base }) => base,
         _ => return None,
     };
+    let residue = crate::expr::type_test::keep_subject_qualifiers(current, residue, env.interner);
     (residue != current).then_some((name, residue))
 }
 

@@ -11,6 +11,12 @@ answered: `"7" as ?int` is `7`, because `string → int` is a conversion row, wh
 `false`, because a `string` is not an `int`. One asks what a value can *become*, the other what it
 *is*.
 
+**A test keeps the subject's qualifiers.** The checker puts the subject's `tainted` and `secret` back
+on the tested type before it folds or narrows, so `?tainted string is string` narrows to
+`tainted string`, and `secret string is string` folds to `true` and leaves the variable `secret`. A
+qualifier is erased at run time, so the answer is the same. Only the type the true edge proves
+changes, and `is` is never a way to drop a qualifier.
+
 ```nvs
 mixed $m = Core\Request::json();
 if ($m is int) {

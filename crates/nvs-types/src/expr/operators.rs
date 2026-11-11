@@ -127,6 +127,7 @@ pub(crate) fn infer_conversion(
     // nothing to the table below — `rule:expressions/nullable-conversion-availability` is what judges it, over the
     // `T` inside the sugar, and it refuses one row the plain form has no
     // reason to look at.
+    let before = env.diags.len();
     if is_written_nullable(ty) {
         reject_unavailable_nullable_conversion(inner_ty, result, expr.span, env);
     } else {
@@ -138,6 +139,9 @@ pub(crate) fn infer_conversion(
     reject_impossible_literal_conversion(inner, inner_ty, result, expr.span, env);
     reject_impossible_class_reference_conversion(inner, result, expr.span, ctx, env);
     check_property_key_conversion(inner, ty, result, expr.span, env);
+    if env.diags.len() == before {
+        reject_secret_conversion_loss(inner_ty, result, expr.span, env);
+    }
     apply_qualifier_conversion_rule(inner_ty, result, env.interner)
 }
 

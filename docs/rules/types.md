@@ -1575,6 +1575,12 @@ answered: `"7" as ?int` is `7`, because `string → int` is a conversion row, wh
 `false`, because a `string` is not an `int`. One asks what a value can *become*, the other what it
 *is*.
 
+**A test keeps the subject's qualifiers.** The checker puts the subject's `tainted` and `secret` back
+on the tested type before it folds or narrows, so `?tainted string is string` narrows to
+`tainted string`, and `secret string is string` folds to `true` and leaves the variable `secret`. A
+qualifier is erased at run time, so the answer is the same. Only the type the true edge proves
+changes, and `is` is never a way to drop a qualifier.
+
 ```nvs
 mixed $m = Core\Request::json();
 if ($m is int) {
@@ -1736,7 +1742,8 @@ program the copy into a local it would otherwise write before every test, at one
 per narrowed property read.
 
 Narrowing never changes a binding's declared type ([`types/declaration`](types.md#types-declaration)); it changes what the
-checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
+checker knows about it on one path. It never removes a qualifier either: a binding narrows to a type
+that keeps every `tainted` and `secret` it had ([`types/type-test`](types.md#types-type-test)). A value that has to *stay* narrowed is a second binding at the
 type you want, or a checked `as` ([`types/conversion`](types.md#types-conversion)).
 
 <sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites).</sub>

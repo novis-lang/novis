@@ -5643,8 +5643,14 @@ fn array_element_tags(id: TypeId, checked_types: &TypeInterner) -> Option<u64> {
             CheckedTy::Uint => Ty::Uint,
             CheckedTy::Float => Ty::Float,
             CheckedTy::Decimal => Ty::Decimal,
-            CheckedTy::String | CheckedTy::TaintedString => Ty::Str,
-            CheckedTy::Bytes | CheckedTy::TaintedBytes => Ty::Bytes,
+            CheckedTy::String
+            | CheckedTy::TaintedString
+            | CheckedTy::SecretString
+            | CheckedTy::SecretTaintedString => Ty::Str,
+            CheckedTy::Bytes
+            | CheckedTy::TaintedBytes
+            | CheckedTy::SecretBytes
+            | CheckedTy::SecretTaintedBytes => Ty::Bytes,
             CheckedTy::Mixed => Ty::Tagged,
             CheckedTy::Array(_) => Ty::Array,
             _ => return None,

@@ -44,5 +44,6 @@ program the copy into a local it would otherwise write before every test, at one
 per narrowed property read.
 
 Narrowing never changes a binding's declared type (`rule:types/declaration`); it changes what the
-checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
+checker knows about it on one path. It never removes a qualifier either: a binding narrows to a type
+that keeps every `tainted` and `secret` it had (`rule:types/type-test`). A value that has to *stay* narrowed is a second binding at the
 type you want, or a checked `as` (`rule:types/conversion`).

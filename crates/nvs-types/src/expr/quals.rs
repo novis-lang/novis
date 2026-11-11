@@ -9,10 +9,11 @@
 //! independently, exactly like `rule:types/declaration`'s `mixed`-arithmetic precedent.
 //! [`apply_qualifier_conversion_rule`] is the conversion half: a checked
 //! conversion to `uint`/`int`/`float`/`bool`/an enum's backing type launders
-//! both qualifiers for free, since none of those targets carry either to begin
-//! with (a known, accepted gap for `secret`: unlike `tainted`,
-//! "shape-proof implies safe" doesn't actually transfer — see `rule:security/secret-propagation`'s
-//! own *Alternatives rejected*), while `bytes`/`string` (including the
+//! `tainted`, since none of those targets carry it and the shape is proven.
+//! A `secret` operand does not convert to such a target at all
+//! ([`reject_secret_conversion_loss`], `rule:security/secret-propagation`),
+//! because a shape proof says nothing about confidentiality. `bytes`/`string`
+//! (including the
 //! identity-shaped `tainted string as string`/`secret string as string`, which
 //! would otherwise be a silent bypass) keep both qualifiers across either
 //! direction, per `rule:types/conversion`.
@@ -567,6 +568,34 @@ pub(crate) fn unsecret(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
     }
 }
 
+/// The same type with `tainted` and `secret` cleared at every atom, inside an
+/// array's element and in every member of a union. This is the type a value
+/// has at run time, where no qualifier exists.
+///
+/// The one reader is [`crate::expr::type_test::always_holds`], which asks a
+/// question about run time. A type that leaves the checker is never built
+/// from it, so nothing is laundered.
+pub(crate) fn erased_qualifiers(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
+    if let Some(is_bytes) = qualifiable_base(ty, interner) {
+        return qualified_scalar(is_bytes, false, false, interner);
+    }
+    match interner.get(ty).clone() {
+        Ty::StringHoles { key, .. } => interner.string_holes(key, false),
+        Ty::Array(elem) => {
+            let elem = erased_qualifiers(elem, interner);
+            interner.array(elem)
+        }
+        Ty::Union(members) => {
+            let members: Vec<TypeId> = members
+                .iter()
+                .map(|&member| erased_qualifiers(member, interner))
+                .collect();
+            interner.make_union(members)
+        }
+        _ => ty,
+    }
+}
+
 /// The same type with `secret` set wherever the type can carry it — the atom
 /// itself, an array's element, or every member of a union — and unchanged
 /// where it cannot. [`tainted_result`]'s twin one axis over: a conversion out
@@ -799,10 +828,10 @@ pub(crate) fn admits_secret_argument(qual: Option<Qual>) -> bool {
 /// `rule:security/taint-propagation` / `rule:security/secret-propagation`: what an `as` conversion's result carries on
 /// the `tainted`/`secret` axes. A checked conversion that already throws on
 /// a malformed shape — `uint`, `int`, `float`, `bool`, an enum's backing
-/// type — removes both qualifiers on success for free, since none of those
-/// targets carry either to begin with (`rule:security/secret-propagation`'s known, accepted gap:
-/// this strips `secret` too, even though "shape-proof implies safety" only
-/// ever justified it for `tainted`). Otherwise `to` is itself one of the
+/// type — removes `tainted` on success for free, since none of those targets
+/// carry it to begin with. A `secret` operand never reaches such a target:
+/// [`reject_secret_conversion_loss`] refuses the conversion first, so the
+/// result type here never drops `secret`. Otherwise `to` is itself one of the
 /// eight `string`/`bytes` atoms, and `from`'s qualifiers cross into it
 /// unconditionally — including the identity-shaped `tainted string as
 /// string`/`secret string as string`, which are not themselves
@@ -849,6 +878,46 @@ pub(crate) fn apply_qualifier_conversion_rule(
     } else {
         to
     }
+}
+
+/// `rule:security/secret-propagation`: a `secret` operand converts only to a
+/// target that can carry `secret`. That is a target where [`secret_result`]
+/// sets a bit, such as `string`, `?bytes` or `array<string>`. `as int`, `as
+/// bool`, an enum, a class and `mixed` have no `secret` form, so the
+/// conversion does not compile ([`code::E_SECRET_CONVERSION_LOSES_SECRET`]).
+/// The help names `Core\Secret::reveal`, the one call that removes the
+/// qualifier and says why.
+///
+/// A shape proof says nothing about confidentiality, so `tainted`'s launderer
+/// does not apply here. The caller asks this only where no other refusal
+/// reported the conversion (`rule:types/one-mistake-reports-once`).
+pub(crate) fn reject_secret_conversion_loss(
+    from: TypeId,
+    to: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) {
+    if !carries_secret(from, env.interner) {
+        return;
+    }
+    let kept = secret_result(to, env.interner);
+    if carries_secret(kept, env.interner) {
+        return;
+    }
+    let described_from = env.interner.describe(from);
+    let described_to = env.interner.describe(to);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_SECRET_CONVERSION_LOSES_SECRET,
+            format!("`{described_from}` cannot be converted to `{described_to}`"),
+        )
+        .with_primary(span, "converted here")
+        .with_help(format!(
+            "`{described_to}` has no `secret` form, so the value would stop being secret. To \
+             convert it, write `Core\\Secret::reveal($value, \"reason\") as {described_to}`. The \
+             reason says why the value may be used as plain data."
+        )),
+    );
 }
 
 /// `rule:security/secret-sinks-refuse`: a `secret`-qualified value converted `as Core\Html\Markup`

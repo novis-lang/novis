@@ -65,15 +65,19 @@ fn a_secret_tainted_operand_poisons_both_axes_through_concatenation() {
 }
 
 #[test]
-fn a_checked_conversion_strips_secret_the_same_way_it_strips_tainted() {
-    // `rule:security/secret-propagation`'s known, accepted gap: "shape-proof implies safe"
-    // never actually justified stripping `secret`, but the rule is kept
-    // for consistency with `tainted` anyway.
+fn a_checked_conversion_to_a_type_with_no_secret_form_is_refused() {
+    // `rule:security/secret-propagation`: a shape proof says nothing about
+    // who may read a value, so `as uint` keeps nothing and does not compile.
     let diags = check_in_method(
         "secret tainted string $s = \"literal\" as secret tainted string;\n\
          uint $n = $s as uint;\n",
     );
-    assert!(!diags.has_errors(), "{diags:?}");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_SECRET_CONVERSION_LOSES_SECRET)),
+        "{diags:?}"
+    );
 }
 
 #[test]

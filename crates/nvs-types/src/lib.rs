@@ -97,9 +97,9 @@
 //!   over one representation, and [`expr::quals`] owns both: the sinks that
 //!   refuse them, the concatenation and interpolation that poison a result on
 //!   each axis independently, and the conversions that launder — a checked
-//!   `as uint`/`int`/`float`/`bool`/enum-backing-type conversion clears both
-//!   (a known, accepted gap for `secret`, per
-//!   `rule:security/secret-propagation`), while `bytes`/`string` keep both
+//!   `as uint`/`int`/`float`/`bool`/enum-backing-type conversion clears
+//!   `tainted` and refuses a `secret` operand
+//!   (`rule:security/secret-propagation`), while `bytes`/`string` keep both
 //!   across either direction, the identity-shaped `as string` included.
 //!   `rule:security/secret-comparison-is-constant-time` is the one part that
 //!   leaves this crate: the qualifier does not survive `nvs_ir::ty::Ty`, so

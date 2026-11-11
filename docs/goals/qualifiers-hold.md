@@ -6,7 +6,7 @@ context: [crates/nvs-types/src/expr/quals.rs, docs/rules/security/secret-qualifi
 stages:
   - id: 1
     title: a type test and a cast keep the qualifier
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/type_test.rs, crates/nvs-types/src/locals.rs, docs/rules/security/secret-propagation.md, docs/rules/types/type-test.md]
   - id: 2
     title: "mixed keeps a secret only where secret mixed is written"
@@ -280,27 +280,27 @@ Stage 6 needs every check in place, and stage 7 needs stage 6's enum.
 **Does:** make `is` narrow a qualified subject to a qualified type, and refuse a `secret` conversion
 whose target cannot carry `secret`.
 
-- [ ] `infer_against_type` puts the subject's qualifiers on `tested` before both folds:
+- [x] `infer_against_type` puts the subject's qualifiers on `tested` before both folds:
   `tainted_result` when the subject carries `tainted` or unchecked text, `secret_result` when it
   carries `secret` (`rule:types/type-test`, `crates/nvs-types/src/expr/type_test.rs:128`).
-- [ ] `always_holds` folds `tainted string is string` to `true`, as its doc comment says, and the
+- [x] `always_holds` folds `tainted string is string` to `true`, as its doc comment says, and the
   comment is rewritten to match (`rule:types/type-test`, `crates/nvs-types/src/expr/type_test.rs:361`).
-- [ ] `type_test_residue` never narrows a variable to a type with fewer qualifiers than it had
+- [x] `type_test_residue` never narrows a variable to a type with fewer qualifiers than it had
   (`rule:types/narrowing`, `crates/nvs-types/src/locals.rs:690`).
-- [ ] `accept_shape_conversion` refuses a shape field whose property is `secret` when the operand is a
+- [x] `accept_shape_conversion` refuses a shape field whose property is `secret` when the operand is a
   known class (`rule:security/secret-qualifier`, `crates/nvs-types/src/expr/type_test.rs:162`).
-- [ ] A conversion from a `secret` operand to a target where `secret_result` can set no bit does not
+- [x] A conversion from a `secret` operand to a target where `secret_result` can set no bit does not
   compile, with a new code and the `Core\Secret::reveal` help (`rule:security/secret-propagation`,
   `crates/nvs-types/src/expr/quals.rs:832`, `crates/nvs-diagnostics/src/code/types_e08.rs:435`).
-- [ ] Test `a_type_test_narrows_a_qualified_subject_to_a_type_that_keeps_the_qualifier`: `if`, a
+- [x] Test `a_type_test_narrows_a_qualified_subject_to_a_type_that_keeps_the_qualifier`: `if`, a
   ternary and `match (true)`, over `secret string`, `tainted string`, `?tainted string`,
   `string|tainted string`, `tainted bytes` and `array<tainted string>`, each followed by a sink
   (`crates/nvs-types/tests/qualifiers_hold.rs:1`).
-- [ ] Tests `a_secret_value_converts_only_to_a_type_that_can_carry_secret` and
+- [x] Tests `a_secret_value_converts_only_to_a_type_that_can_carry_secret` and
   `a_shape_conversion_over_a_class_refuses_a_secret_property` (`crates/nvs-types/tests/qualifiers_hold.rs:1`).
-- [ ] `rule:security/secret-propagation` loses its accepted-gap paragraph and its Declined entry, and
+- [x] `rule:security/secret-propagation` loses its accepted-gap paragraph and its Declined entry, and
   gains the conversion rule and the declined `secret` scalars (`docs/rules/security/secret-propagation.md:10`).
-- [ ] `rule:types/type-test` and `rule:types/narrowing` each gain one sentence: a test keeps the
+- [x] `rule:types/type-test` and `rule:types/narrowing` each gain one sentence: a test keeps the
   subject's qualifiers (`docs/rules/types/type-test.md:1`, `docs/rules/types/narrowing.md:46`).
 
 ### 2. mixed keeps a secret only where secret mixed is written
@@ -492,41 +492,46 @@ disjoint folders side by side, and none of them builds.
 
 ### State
 
-Nothing is built yet. The tree holds the checks 6776ed3d35 added: a `tainted` key is refused at a
-write and in a declared literal, and a `secret` value is refused into an array element. Every other
-position in § *Why* compiles today. `crates/nvs-types/tests/qualifiers_hold.rs` does not exist.
+Stage 1 is done and its check is green. A type test puts the subject's qualifiers back on the tested
+type (`keep_subject_qualifiers`, `crates/nvs-types/src/expr/type_test.rs`), and `type_test_residue`
+calls it once more against the variable's current type. `always_holds` compares the two sides with
+`erased_qualifiers` (`crates/nvs-types/src/expr/quals.rs`). A `secret` operand converted to a type
+with no `secret` form is `E0894` (`E_SECRET_CONVERSION_LOSES_SECRET`,
+`reject_secret_conversion_loss`), asked only where no other refusal of the conversion reported. A
+shape conversion over a class that names a `secret` property is `E0894` too
+(`reject_secret_property_in_shape`). `nvs-ir`'s two type-test maps take the `secret` atoms
+(`crates/nvs-ir/src/lower/expr.rs` `test_shape`, `crates/nvs-ir/src/lower/mod.rs` param tag word).
+`crates/nvs-types/tests/secret.rs`'s old accepted-gap test now expects `E0894`.
+
+Expected red at the gate: any `.nvst` case, example or test that converts a `secret` value to a
+number, a bool, an enum or a class, or that narrows a `tainted` value with `is` and then passes it to
+a plain `string` sink. Stage 7 updates them.
 
 ### Next
 
-Stage 1, over `crates/nvs-types/src/expr/type_test.rs`, `crates/nvs-types/src/locals.rs`,
-`crates/nvs-types/src/expr/quals.rs` and `crates/nvs-types/tests/qualifiers_hold.rs`. No existing
-test is expected to go red before the gate, except cases that convert a `secret` value to a number.
+Stage 2, over `crates/nvs-types/src/ty.rs`, `crates/nvs-types/src/lower.rs`,
+`crates/nvs-types/src/expr/quals.rs`, `crates/nvs-types/src/expr/assign.rs` and
+`crates/nvs-types/tests/qualifiers_hold.rs`. Follow the stage's `**Split:**` line first: an `Explore`
+subagent lists every match on `Ty::Mixed` below the checker.
 
-- [ ] `crates/nvs-types/src/expr/type_test.rs:128`: `infer_against_type` puts the subject's
-  qualifiers on `tested` before both folds. It uses `tainted_result` when the subject carries
-  `tainted` or unchecked text, and `secret_result` when it carries `secret` (`rule:types/type-test`).
-- [ ] `crates/nvs-types/src/expr/type_test.rs:361`: `always_holds` folds `tainted string is string`
-  to `true`, as its doc comment says, and the comment is rewritten to match (`rule:types/type-test`).
-- [ ] `crates/nvs-types/src/locals.rs:690`: `type_test_residue` never narrows a variable to a type
-  with fewer qualifiers than it had (`rule:types/narrowing`).
-- [ ] `crates/nvs-types/src/expr/type_test.rs:162`: `accept_shape_conversion` refuses a shape field
-  whose property is `secret` when the operand is a known class (`rule:security/secret-qualifier`).
-- [ ] `crates/nvs-types/src/expr/quals.rs:832`: a conversion from a `secret` operand to a target
-  where `secret_result` can set no bit does not compile. It has a new code and the
-  `Core\Secret::reveal` help (`rule:security/secret-propagation`,
-  `crates/nvs-diagnostics/src/code/types_e08.rs:435`).
-- [ ] `crates/nvs-types/tests/qualifiers_hold.rs:1`: test
-  `a_type_test_narrows_a_qualified_subject_to_a_type_that_keeps_the_qualifier`. It covers `if`, a
-  ternary and `match (true)`, over `secret string`, `tainted string`, `?tainted string`,
-  `string|tainted string`, `tainted bytes` and `array<tainted string>`, each followed by a sink.
+- [ ] `crates/nvs-types/src/ty.rs:130`, `crates/nvs-types/src/lower.rs:44`: `Ty` gains the
+  `secret mixed` atom, and the type grammar accepts `secret mixed`.
+- [ ] `crates/nvs-types/src/expr/quals.rs:429`: `is_secret`, `contains_secret`, `carries_secret`,
+  `unsecret`, `secret_result` and `erased_qualifiers` know the atom, and `secret_result(mixed)` is
+  `secret mixed`. Check `reject_secret_conversion_loss`: `$s as mixed` is refused today, and with the
+  atom it should compile as `secret mixed`.
+- [ ] `crates/nvs-types/src/expr/assign.rs:216`: `assignable` refuses a value that contains `secret`
+  into `mixed` and into a union with a `mixed` member, and accepts it into `secret mixed`. The message
+  names `secret mixed`, and a sink that reports its own code still reports that one alone.
+- [ ] `crates/nvs-types/src/expr/quals.rs:861`: text out of `secret mixed` through `as` and `is` is
+  `secret tainted` (`apply_qualifier_conversion_rule`, `keep_subject_qualifiers`).
+- [ ] `crates/nvs-ir/src/lower/expr.rs:4540`: every site the subagent listed treats `secret mixed` as
+  `mixed` below the checker.
 - [ ] `crates/nvs-types/tests/qualifiers_hold.rs:1`: tests
-  `a_secret_value_converts_only_to_a_type_that_can_carry_secret` and
-  `a_shape_conversion_over_a_class_refuses_a_secret_property`.
-- [ ] `docs/rules/security/secret-propagation.md:10`: `rule:security/secret-propagation` loses its
-  accepted-gap paragraph and its Declined entry. It gains the conversion rule and the declined
-  `secret` scalars.
-- [ ] `docs/rules/types/type-test.md:1`, `docs/rules/types/narrowing.md:46`: `rule:types/type-test`
-  and `rule:types/narrowing` each gain one sentence: a test keeps the subject's qualifiers.
+  `a_secret_value_enters_mixed_only_where_secret_mixed_is_written`,
+  `text_out_of_secret_mixed_is_secret_and_tainted` and `every_secret_sink_refuses_a_secret_mixed`.
+- [ ] `docs/rules/security/secret-qualifier.md:1`, `docs/rules/types/unions-and-mixed.md:1`: name the
+  three carriers and `secret mixed`.
 
 ### Backlog
 
