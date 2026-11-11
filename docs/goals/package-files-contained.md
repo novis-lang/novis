@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-cli/src/package/fetch.rs, crates/nvs-cli/src/package/download.rs, crates/nvs-cli/tests/package_fetch.rs, docs/rules/packaging/a-package-cannot-reach-its-host.md]
   - id: 3
     title: "the outermost package decides a file's namespace, and the registry build compares exactly"
-    status: open
+    status: done
     context: [crates/nvs-types/src/package.rs, crates/nvs-cli/tests/package_grants.rs, crates/nvs-cli/src/package/build.rs, docs/rules/security/an-unmatched-namespace-holds-the-application.md]
   - id: 4
     title: nvs test and nvs check walk into no package below the folder they were given
@@ -463,19 +463,19 @@ and make the registry build's namespace check exact.
 inside the folder of a package: a folder whose own `package.toml` has a `[package] name`. The answer is
 `path:NN` and one line each. The tracked tree holds none, as the standing decision says.
 
-- [ ] `Finder::package_of` does not end at a manifest. It notes each folder that holds a
+- [x] `Finder::package_of` does not end at a manifest. It notes each folder that holds a
   `package.toml` on the way to `stop`, then reads them from the outermost inward and takes the first
   that names a package. A manifest with no name is passed over, and one below the package found is
   never read. `dirs` keeps the answer of every folder walked
   (`rule:packaging/a-package-file-stays-under-its-declared-prefix`,
   `crates/nvs-types/src/package.rs:174`, `crates/nvs-types/src/package.rs:163`).
-- [ ] The autoload-site lookup takes the one package whose folder holds the site's base, since no
+- [x] The autoload-site lookup takes the one package whose folder holds the site's base, since no
   package's folder is inside another's (`rule:packaging/a-package-cannot-reach-its-host`,
   `crates/nvs-types/src/package.rs:129`).
-- [ ] The module doc is rewritten as a whole: the outermost named manifest below the entry's folder
+- [x] The module doc is rewritten as a whole: the outermost named manifest below the entry's folder
   wins, a manifest with no name ends nothing, and the cost line names the folders between a package
   and the entry (`crates/nvs-types/src/package.rs:5`, `crates/nvs-types/src/package.rs:28`).
-- [ ] Tests `a_second_manifest_with_no_name_does_not_end_the_namespace_check` and
+- [x] Tests `a_second_manifest_with_no_name_does_not_end_the_namespace_check` and
   `a_second_manifest_with_a_name_makes_no_second_package`, after the last test of the file
   (`crates/nvs-cli/tests/package_grants.rs:201`). Each layout has `main.nvs`, which requires
   `vendor/acme/http/src/Inner/Run.nvs`, and `vendor/acme/http/package.toml` naming `Acme\Http`. In the
@@ -484,14 +484,14 @@ inside the folder of a package: a folder whose own `package.toml` has a `[packag
   naming the package `Acme\Http`. Each has its control: the same layout with `Run.nvs` in
   `namespace Acme\Http\Inner;` compiles. `code_with_no_package_name_gets_no_file_check` stays as it is
   (`crates/nvs-cli/tests/package_grants.rs:117`).
-- [ ] Every layout the subagent named moves its inner package beside the outer one.
-- [ ] `inside` compares exactly: both `to_lowercase` calls go, and its doc says so
+- [x] Every layout the subagent named moves its inner package beside the outer one.
+- [x] `inside` compares exactly: both `to_lowercase` calls go, and its doc says so
   (`rule:classes/names-resolve-case-sensitively`, `crates/nvs-cli/src/package/build.rs:385`,
   `crates/nvs-cli/src/package/build.rs:380`).
-- [ ] Test `a_namespace_that_differs_only_in_case_is_refused`, beside
+- [x] Test `a_namespace_that_differs_only_in_case_is_refused`, beside
   `a_class_outside_the_package_namespace_is_refused`: `src/Other.nvs` declares `namespace Acme\HTTP;`
   in the package `Acme\Http` (`crates/nvs-cli/tests/registry_build.rs:931`).
-- [ ] Attacks, each marked `// hostile: expect-refusal`, each with its files under the folder's
+- [x] Attacks, each marked `// hostile: expect-refusal`, each with its files under the folder's
   `vendor/acme/http/`:
   `tests/hostile/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/03-a-second-package-toml-with-no-name.nvs:1`
   requires `vendor/acme/http/src/Inner/Run.nvs`, which declares `namespace Acme\HTTP;` beside a
@@ -499,7 +499,7 @@ inside the folder of a package: a folder whose own `package.toml` has a `[packag
   `tests/hostile/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/04-a-second-package-toml-with-another-name.nvs:1`
   requires `vendor/acme/http/src/Loose/Run.nvs`, which declares `namespace Free\Hands;` beside a
   `package.toml` that names `Free\Hands`. Every new `.nvs` file passes `nvs fmt --check`.
-- [ ] Rule fragment: the last paragraph says the outermost named manifest between the file and the
+- [x] Rule fragment: the last paragraph says the outermost named manifest between the file and the
   entry's folder decides, a manifest with no name ends nothing, and a package inside another package's
   folder moves beside it. The second paragraph no longer says a file belongs to a package by its
   autoload root
@@ -621,46 +621,52 @@ once every class is checked, and say so in the help of `nvs test`.
 
 ### State
 
-Stages 1 and 2 are done. `pack::check_path` is the one judge of a package path, and `Walk::entries`
-refuses a git tree entry that is not one name. `pack::check_reserved_file` refuses an `nvs.toml` in
-any folder and every `package.toml` but the root one, in any case of letters. `pack`, the unpack, the
-registry build and `download::check_path` call it. The five acceptance tests of stage 2 passed once
-by name. The rule chapter is rendered, and the rule's title now names the second `package.toml`
-(`data/rules/packaging/a-package-cannot-reach-its-host.json:2`).
+Stages 1, 2 and 3 are done. `pack::check_path` is the one judge of a package path, `Walk::entries`
+refuses a git tree entry that is not one name, and `pack::check_reserved_file` refuses every
+`package.toml` but the root one.
 
-The sweep's findings were the same as the last session's and need no change. Nightly run
-43001191130 tested `f4c1d5c7e2`, and its red test was fixed after it by `305c04f660`.
-`env-secret-proofs` is defined nowhere in the tree and has no log: stale driver state from the
-retired goal `defaults-that-work`.
+`Finder::package_of` now walks to the entry's folder, notes each folder with a `package.toml`, and
+reads them from the outermost inward. The first named one wins, a manifest with no name ends nothing,
+and one below the winner is never read. `dirs` keeps each folder's answer: a folder above the winner
+answers `None` (`crates/nvs-types/src/package.rs:171`). The autoload-site lookup takes the one package
+that holds the site (`crates/nvs-types/src/package.rs:129`). The registry build's `inside` compares
+exactly (`crates/nvs-cli/src/package/build.rs:381`). The three stage-3 tests passed once by name, and
+attacks `03` and `04` pass under `bun nv proofs --id 'tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor'
+--run`. The rule fragment has its **Declined:** entry and the chapter is rendered.
 
-`Finder::package_of` still ends at the first `package.toml`. `inside` in the registry build still
-compares lower-cased. `programs_under` and `nvs_test::collect` walk every folder but a linked one and
-a cache. The test table keeps the rows of every class the compile checks, also a class of a package.
+The `**Split:**` subagent found no tracked `package.toml` inside a named package's folder. The three
+nested manifests tests write (`crates/nvs-cli/tests/package_client.rs:316`,
+`crates/nvs-cli/tests/registry_build.rs:990`, `crates/nvs-cli/tests/package_fetch.rs:482`) are
+refusal cases of stage 2, so no layout moved.
+
+The sweep's findings need no change: nightly run 43001191130 tested `f4c1d5c7e2`, fixed after it by
+`305c04f660`, and `env-secret-proofs` is stale driver state from the retired `defaults-that-work`.
+
+`programs_under` and `nvs_test::collect` still walk every folder but a linked one and a cache. The
+test table keeps the rows of every class the compile checks, also a class of a package.
 
 ### Next
 
-Stage 3, over `crates/nvs-types/src/package.rs`, `crates/nvs-cli/src/package/build.rs`,
-`crates/nvs-cli/tests/package_grants.rs`, `crates/nvs-cli/tests/registry_build.rs`, two attacks and
-one rule fragment. It waits on no other goal. Start with the stage's `**Split:**` subagent.
+Stage 4, over `crates/nvs-test/src/lib.rs`, `crates/nvs-cli/src/main.rs`,
+`crates/nvs-cli/src/runner.rs`, `crates/nvs-cli/src/check.rs`, `crates/nvs-cli/tests/test_dir.rs`,
+two website pages and three rule fragments. It waits on no other goal.
 
-- [ ] `crates/nvs-types/src/package.rs:174`: `Finder::package_of` walks to `stop` and takes the
-  outermost named manifest; `dirs` (`crates/nvs-types/src/package.rs:168`) keeps every folder's answer.
-- [ ] `crates/nvs-types/src/package.rs:129`: the autoload-site lookup, and the module doc
-  (`crates/nvs-types/src/package.rs:5`).
-- [ ] `crates/nvs-cli/tests/package_grants.rs:201`: the two tests after the last one, each with its
-  control.
-- [ ] `crates/nvs-cli/src/package/build.rs:385`: `inside` drops both `to_lowercase` calls
-  (`crates/nvs-cli/src/package/build.rs:396`).
-- [ ] `crates/nvs-cli/tests/registry_build.rs:931`: test
-  `a_namespace_that_differs_only_in_case_is_refused`, after
-  `a_commit_that_carries_a_second_package_toml_is_refused` (`crates/nvs-cli/tests/registry_build.rs:951`).
-- [ ] `tests/hostile/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/03-a-second-package-toml-with-no-name.nvs:1`
-  and `04-a-second-package-toml-with-another-name.nvs`.
-- [ ] `docs/rules/packaging/a-package-file-stays-under-its-declared-prefix.md:26`: the fragment, then
-  `bun nv rules --render`.
+- [ ] `crates/nvs-test/src/lib.rs:274`: `is_walked` and `PACKAGE_FILE` beside `is_cache_dir`.
+- [ ] `crates/nvs-test/src/lib.rs:255` and `crates/nvs-cli/src/main.rs:3393`: both walks call it, in
+  `collect` (`crates/nvs-test/src/lib.rs:237`) and `programs_under` (`crates/nvs-cli/src/main.rs:3370`).
+- [ ] The lib test in `nvs-test`'s tests (`crates/nvs-test/src/lib.rs:490`), the constant test in
+  `crates/nvs-cli/src/runner.rs:5629`'s module, and the three tests after
+  `crates/nvs-cli/tests/test_dir.rs:176`.
+- [ ] The help of `nvs test` (`crates/nvs-cli/src/runner.rs:128`) and `nvs check`
+  (`crates/nvs-cli/src/check.rs:61`), the two website pages, then `bun nv render --website`.
+- [ ] `docs/rules/testing/a-directory-of-programs-is-one-test-program.md:1` and the two other
+  fragments the stage names (
+  `docs/rules/testing/report-formats.md:46`, `docs/rules/packaging/nothing-runs-before-the-program.md:21`),
+  then `bun nv rules --render`.
 
-No test is expected red: stage 2 changed only the words `assert_refused` matches, and every caller
-of it passes the words it expects.
+No test is expected red. Stage 3 changed where a file's package is found only for a layout with a
+second manifest inside a package's folder, and no tracked layout or test layout outside the new
+tests has one.
 
 ### Backlog
 
