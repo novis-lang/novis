@@ -1,0 +1,96 @@
+--TEST--
+A method call through a `mixed` receiver checks each argument against the declared type of its parameter: an object of another class, an array with a wrong element, a variadic with a wrong element and an enum value no case has each throw a `LogicError`, and so does a call to a `static` method or to a method with an `inout` parameter — `rule:types/erased-member-access`
+--FILE--
+<?nvs
+// The receiver is `mixed`, so the program checks each argument when the call
+// runs, the way `is` checks it. A value of the wrong type throws a `LogicError`
+// before the method runs.
+enum Rank: int { Low = 1, High = 7 }
+enum Other: int { One = 1, Three = 3 }
+
+class Spot { public int $x = 5; }
+class Stranger { public string $name = "stranger"; }
+
+class Crate {
+    public function take(Spot $s): int { return $s->x; }
+    public function maybe(?Spot $s): string { return $s == null ? "none" : "spot"; }
+    public function total(array<int> $ints): int { return $ints[0] + $ints[1]; }
+    public function rank(Rank $r): string { return $r == Rank::High ? "High" : "Low"; }
+    public function rest(int $first, int ...$more): int { return $first + $more[0] + $more[1]; }
+    public static function make(int $k): int { return $k; }
+    public function bump(inout int $n): void { $n = $n + 1; }
+}
+
+mixed $m = new Crate();
+
+// Values of the declared types. A variadic parameter takes its values as one array.
+echo $m->take(new Spot()), "\n";
+echo $m->maybe(null), "\n";
+echo $m->maybe(new Spot()), "\n";
+echo $m->total([1, 2]), "\n";
+echo $m->rank(Rank::High), "\n";
+echo $m->rest(1, [2, 3]), "\n";
+
+// An object of another class where `Spot` is declared.
+try {
+    echo $m->take(new Stranger()), "\n";
+} catch (LogicError $e) {
+    echo "Spot: LogicError", "\n";
+}
+
+// An object of another class where `?Spot` is declared.
+try {
+    echo $m->maybe(new Stranger()), "\n";
+} catch (LogicError $e) {
+    echo "?Spot: LogicError", "\n";
+}
+
+// A string inside an array where `array<int>` is declared.
+try {
+    echo $m->total([1, "two"]), "\n";
+} catch (LogicError $e) {
+    echo "array<int>: LogicError", "\n";
+}
+
+// A string among the values of `int ...$more`.
+try {
+    echo $m->rest(1, [2, "three"]), "\n";
+} catch (LogicError $e) {
+    echo "int ...: LogicError", "\n";
+}
+
+// `Other::Three` is 3, and `Rank` has no case with that value.
+try {
+    echo $m->rank(Other::Three), "\n";
+} catch (LogicError $e) {
+    echo "Rank: LogicError", "\n";
+}
+
+// A `static` method has no object to be called on.
+try {
+    echo $m->make(4), "\n";
+} catch (LogicError $e) {
+    echo "static: LogicError", "\n";
+}
+
+// A call through `mixed` has no variable that an `inout` parameter could write back to.
+try {
+    $m->bump(1);
+    echo "bump called", "\n";
+} catch (LogicError $e) {
+    echo "inout: LogicError", "\n";
+}
+--EXPECT--
+5
+none
+spot
+3
+High
+6
+Spot: LogicError
+?Spot: LogicError
+array<int>: LogicError
+int ...: LogicError
+Rank: LogicError
+static: LogicError
+inout: LogicError

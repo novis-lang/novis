@@ -1,0 +1,88 @@
+<?nvs
+// Attack: `construct` passes values of the wrong type to a constructor that reads a
+// property, calls a method and adds numbers. Each call should throw an error, and no object is created.
+
+class Wallet
+{
+    public int $balance = 10;
+
+    public function double(): int
+    {
+        return $this->balance * 2;
+    }
+}
+
+// A class with a property of the same name, but the property is a string.
+class FakeWallet
+{
+    public string $balance = 'a lot of money';
+
+    public function double(): string
+    {
+        return $this->balance;
+    }
+}
+
+class Account
+{
+    public int $total = 0;
+
+    public function constructor(Wallet $wallet, ?Wallet $backup, array<int> $amounts)
+    {
+        $this->total = $wallet->balance;
+        if ($backup != null) {
+            $this->total = $this->total + $backup->double();
+        }
+        foreach ($amounts as int $amount) {
+            $this->total = $this->total + $amount;
+        }
+    }
+}
+
+var $found = Core\Reflect::forClass('Account');
+if ($found != null) {
+    Core\Reflect\ClassInfo $account = $found;
+
+    // 1. Passes a `FakeWallet` where a `Wallet` is declared. The constructor reads its `balance`.
+    try {
+        $account->construct([new FakeWallet(), null, [1]]);
+        echo "step 1 built\n";
+    } catch (Throwable $error) {
+        echo "step 1 refused\n";
+    }
+
+    // 2. Passes a `FakeWallet` and a string where `?Wallet` is declared. The constructor calls `double()`.
+    array<mixed> $notWallets = [new FakeWallet(), 'wallet'];
+    foreach ($notWallets as mixed $notWallet) {
+        try {
+            $account->construct([new Wallet(), $notWallet, [1]]);
+            echo "step 2 built\n";
+        } catch (Throwable $error) {
+            echo "step 2 refused\n";
+        }
+    }
+
+    // 3. Passes arrays that contain a string, a float and an object where `array<int>` is declared.
+    array<array<mixed>> $lists = [[1, 'two'], [1, 2.5], [1, new Wallet()], [1, null]];
+    foreach ($lists as array<mixed> $list) {
+        try {
+            $account->construct([new Wallet(), null, $list]);
+            echo "step 3 built\n";
+        } catch (Throwable $error) {
+            echo "step 3 refused\n";
+        }
+    }
+
+    // 4. Passes a string where a `Wallet` is declared, 100000 times. Each error should be freed.
+    uint $refused = 0;
+    uint $i = 0;
+    while ($i < 100000) {
+        try {
+            $account->construct(['wallet', null, [1]]);
+        } catch (Throwable $error) {
+            $refused = $refused + 1;
+        }
+        $i = $i + 1;
+    }
+    echo $refused, "\n";
+}

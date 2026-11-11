@@ -1,0 +1,109 @@
+<?nvs
+// Attack: `call` passes values of the wrong type to methods that read a property,
+// call a method or add numbers. Each call should throw an error before the method runs.
+
+class Wallet
+{
+    public int $balance = 10;
+
+    public function double(): int
+    {
+        return $this->balance * 2;
+    }
+}
+
+// A class with a property of the same name, but the property is a string.
+class FakeWallet
+{
+    public string $balance = 'a lot of money';
+
+    public function double(): string
+    {
+        return $this->balance;
+    }
+}
+
+class Bank
+{
+    public function read(Wallet $wallet): int
+    {
+        return $wallet->balance + 1;
+    }
+
+    public function ask(?Wallet $wallet): int
+    {
+        if ($wallet == null) {
+            return 0;
+        }
+        return $wallet->double() + 1;
+    }
+
+    public function add(array<int> $amounts): int
+    {
+        int $sum = 0;
+        foreach ($amounts as int $amount) {
+            $sum = $sum + $amount;
+        }
+        return $sum;
+    }
+
+    public function addAll(int ...$amounts): int
+    {
+        int $sum = 0;
+        foreach ($amounts as int $amount) {
+            $sum = $sum + $amount;
+        }
+        return $sum;
+    }
+}
+
+var $bank = new Bank();
+var $info = Core\Reflect::forObject($bank);
+
+// 1. Passes a `FakeWallet` where a `Wallet` is declared. The method reads its `balance`.
+try {
+    echo $info->call($bank, 'read', [new FakeWallet()]), "\n";
+} catch (Throwable $error) {
+    echo "step 1 refused\n";
+}
+
+// 2. Passes a `FakeWallet`, a string and a number where `?Wallet` is declared. The method calls `double()`.
+array<mixed> $notWallets = [new FakeWallet(), 'wallet', 42];
+foreach ($notWallets as mixed $notWallet) {
+    try {
+        echo $info->call($bank, 'ask', [$notWallet]), "\n";
+    } catch (Throwable $error) {
+        echo "step 2 refused\n";
+    }
+}
+
+// 3. Passes arrays that contain a string, a float and an object where `array<int>` is declared.
+array<array<mixed>> $lists = [[1, 'two'], [1, 2.5], [1, new Wallet()], [1, null]];
+foreach ($lists as array<mixed> $list) {
+    try {
+        echo $info->call($bank, 'add', [$list]), "\n";
+    } catch (Throwable $error) {
+        echo "step 3 refused\n";
+    }
+}
+
+// 4. Passes a string among the values of a variadic `int` parameter.
+try {
+    echo $info->call($bank, 'addAll', [[1, 2, 'three']]), "\n";
+} catch (Throwable $error) {
+    echo "step 4 refused\n";
+}
+
+// 5. Passes a `FakeWallet` 100000 times. Each error should be freed.
+uint $refused = 0;
+uint $i = 0;
+FakeWallet $fake = new FakeWallet();
+while ($i < 100000) {
+    try {
+        $info->call($bank, 'read', [$fake]);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo $refused, "\n";

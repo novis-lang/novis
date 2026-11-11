@@ -1,0 +1,55 @@
+--TEST--
+A `spawn script` method entry checks each `args:` entry against the declared type of its parameter: an object of another class, an array with a wrong element and an enum value no case has each end the child with a `LogicError` before the method runs — `rule:security/isolate-shares-nothing`
+--FILE nvs.toml--
+# `spawn script` needs `script.spawn`, and a case with no configuration cannot spawn.
+[capabilities.script]
+spawn = true
+--FILE--
+<?nvs
+// The child checks each argument the way `is` checks it. A value of the wrong
+// type ends the child with a `LogicError`, so `ok` is false and the method
+// prints nothing. An entry cannot declare a variadic parameter, so this case
+// has none.
+enum Rank: int { Low = 1, High = 7 }
+enum Other: int { One = 1, Three = 3 }
+
+class Spot { public int $x = 5; }
+class Stranger { public string $name = "stranger"; }
+
+final class Job {
+    public static function run(Spot $s, ?Spot $maybe, array<int> $ints, Rank $rank): int {
+        echo "ran\n";
+        return $s->x + $ints[0] + ($rank == Rank::High ? 100 : 0);
+    }
+}
+
+// Values of the declared types.
+var $good = await spawn script Job::run
+    with(args: ["s" => new Spot(), "maybe" => null, "ints" => [10], "rank" => Rank::High], output: "capture");
+echo "right: ok=", $good->ok ? "true" : "false", " value=", $good->value as int, " output=", $good->output;
+
+// An object of another class where `Spot` is declared.
+var $spot = await spawn script Job::run
+    with(args: ["s" => new Stranger(), "maybe" => null, "ints" => [10], "rank" => Rank::High], output: "capture");
+echo "Spot: ok=", $spot->ok ? "true" : "false", " ", $spot->error?->class, " output=", $spot->output, "\n";
+
+// An object of another class where `?Spot` is declared.
+var $maybe = await spawn script Job::run
+    with(args: ["s" => new Spot(), "maybe" => new Stranger(), "ints" => [10], "rank" => Rank::High], output: "capture");
+echo "?Spot: ok=", $maybe->ok ? "true" : "false", " ", $maybe->error?->class, " output=", $maybe->output, "\n";
+
+// A string inside an array where `array<int>` is declared.
+var $ints = await spawn script Job::run
+    with(args: ["s" => new Spot(), "maybe" => null, "ints" => ["ten"], "rank" => Rank::High], output: "capture");
+echo "array<int>: ok=", $ints->ok ? "true" : "false", " ", $ints->error?->class, " output=", $ints->output, "\n";
+
+// `Other::Three` is 3, and `Rank` has no case with that value.
+var $rank = await spawn script Job::run
+    with(args: ["s" => new Spot(), "maybe" => null, "ints" => [10], "rank" => Other::Three], output: "capture");
+echo "Rank: ok=", $rank->ok ? "true" : "false", " ", $rank->error?->class, " output=", $rank->output, "\n";
+--EXPECT--
+right: ok=true value=115 output=ran
+Spot: ok=false LogicError output=
+?Spot: ok=false LogicError output=
+array<int>: ok=false LogicError output=
+Rank: ok=false LogicError output=
