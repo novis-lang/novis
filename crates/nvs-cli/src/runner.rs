@@ -2218,30 +2218,29 @@ impl Job {
             ));
             ctx.set_debug_flags(ctx.debug_flags() | nvs_runtime::DebugFlags::PROFILE);
         }
-        let receiving = ctx.class_table();
-        let (outcome, snapshots, rows) =
-            match nvs_runtime::CrossedFixtures::decode(&fixtures, receiving.as_ref()) {
-                Ok(crossed) => run_in_isolate(
-                    &unit,
-                    &mut ctx,
-                    &test,
-                    &case,
-                    row.as_deref(),
-                    crossed,
-                    &shared.routes,
-                ),
-                // Not reachable for bytes encoded against the same unit's
-                // table, and reported rather than unwrapped: nothing has run.
-                Err(refused) => (
-                    Outcome::failed(format!(
-                        "internal error: `{}::{}`'s `#[Fixture]` could not be read on the core \
+        let decoded = nvs_runtime::CrossedFixtures::decode(&fixtures, &ctx.receiving());
+        let (outcome, snapshots, rows) = match decoded {
+            Ok(crossed) => run_in_isolate(
+                &unit,
+                &mut ctx,
+                &test,
+                &case,
+                row.as_deref(),
+                crossed,
+                &shared.routes,
+            ),
+            // Not reachable for bytes encoded against the same unit's
+            // table, and reported rather than unwrapped: nothing has run.
+            Err(refused) => (
+                Outcome::failed(format!(
+                    "internal error: `{}::{}`'s `#[Fixture]` could not be read on the core \
                          the test runs on: {refused}",
-                        test.class, case.method
-                    )),
-                    Vec::new(),
-                    None,
-                ),
-            };
+                    test.class, case.method
+                )),
+                Vec::new(),
+                None,
+            ),
+        };
         drop(watched);
         drop(clock);
         let outcome = match limit {

@@ -1136,8 +1136,7 @@ fn record(ctx: &Ctx, member: &str) -> Result<NvsArray, Fault> {
         return Ok(NvsArray::new());
     }
 
-    let resolve = |name: &str| ctx.class_desc(name);
-    let decoded = nvs_runtime::decode(&session.record, &resolve).map_err(|why| {
+    let decoded = nvs_runtime::decode(&session.record, &ctx.receiving()).map_err(|why| {
         Fault::thrown_as(ThrownClass::Parse, format!("{NAME}::{member}(): {why}"))
     })?;
     match decoded.array_ptr() {

@@ -108,7 +108,8 @@
 
 use nvs_runtime::sse::{DECLARED_HEADERS, Event, MEDIA_TYPE};
 use nvs_runtime::{
-    Ctx, Delivery, EventStreamDoor, Fault, Tag, ThrownClass, Upgrade, Value, copy_graph_to,
+    Ctx, Delivery, EventStreamDoor, Fault, Receiving, Tag, ThrownClass, Upgrade, Value,
+    copy_graph_to,
 };
 
 use crate::registry::{
@@ -596,7 +597,8 @@ nvs_runtime::nvs_helper! {
         // crossing itself is `crate::socket`'s, and
         // `an_args_value_that_cannot_cross_is_refused_before_the_slot_is_filled`
         // there is the `#[test]` that asserts this arm of it.
-        let crossed = copy_graph_to(retained(args[1]), prepared.classes.as_ref()).map_err(|refused| {
+        let into = Receiving::of(prepared.classes.as_ref(), ctx.core_classes());
+        let crossed = copy_graph_to(retained(args[1]), &into).map_err(|refused| {
             Fault::thrown_as(
                 ThrownClass::Logic,
                 format!("`Core\\Sse::upgrade`'s `args:` cannot cross into a connection: {refused}"),

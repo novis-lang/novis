@@ -108,6 +108,13 @@ impl ErrorClass {
         self.table.desc(self.id)
     }
 
+    /// The whole table this handle is a class of, as a borrow live for as long
+    /// as the handle is: what [`crate::graph::Receiving`] resolves names in.
+    #[must_use]
+    pub fn table(&self) -> &ClassTable {
+        &self.table
+    }
+
     /// A handle on another class of the *same* table, by name — how
     /// [`Ctx::error_desc`] reaches `ParseError` from the
     /// `RuntimeError` the embedder installed.
@@ -326,11 +333,19 @@ impl Ctx {
     /// descriptors are one table leaked for the process.
     #[must_use]
     pub fn class_desc(&self, name: &str) -> Option<*const ClassDesc> {
-        self.runtime_error_class
-            .as_ref()
-            .and_then(|class| class.sibling(name))
-            .map(|class| class.desc())
-            .or_else(|| (self.core_classes?)(name))
+        self.receiving().resolve(name)
+    }
+
+    /// This program as the receiving side of a crossing: its own table first,
+    /// then `Core`, the order [`Self::class_desc`] asks in.
+    ///
+    /// The one function every door that lands a value in a program takes its
+    /// resolver from (`rule:security/isolate-values-cross-by-copy`), so a
+    /// `Core` value crosses at a `spawn` and an `upgrade` as it does through the
+    /// cache.
+    #[must_use]
+    pub fn receiving(&self) -> crate::graph::Receiving<'_> {
+        crate::graph::Receiving::of(self.runtime_error_class.as_ref(), self.core_classes)
     }
 
     /// A new instance of the anonymous-object class `label` the running

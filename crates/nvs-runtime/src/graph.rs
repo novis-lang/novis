@@ -89,7 +89,7 @@ use std::collections::HashMap;
 use crate::array::{NvsArray, SlotKey};
 use crate::budget::{ByteWriter, Stopped};
 use crate::decimal::Decimal;
-use crate::object::{ClassDesc, Door, NvsObj, ObjHeader};
+use crate::object::{ClassDesc, ClassTable, Door, NvsObj, ObjHeader};
 use crate::string::NvsStr;
 use crate::value::{Tag, Value};
 
@@ -159,13 +159,67 @@ impl std::fmt::Display for GraphError {
     }
 }
 
-/// The receiving side of a copy, as the one question the walk asks of it: does
-/// this program declare the class this name spells, and at what address?
+/// The receiving side of a crossing, as the one question both carriers ask of
+/// it: which class does this name spell there, and at what address?
 ///
-/// The same shape [`decode`] takes for the same question, named here because a
-/// carrier holds one and an `Option` of it is past what a signature should
-/// spell out twice.
-pub type Receiving<'a> = &'a dyn Fn(&str) -> Option<*const ClassDesc>;
+/// `rule:security/isolate-values-cross-by-copy`'s receiving side resolves its
+/// own classes and every `Core` class, in that order — the order
+/// [`crate::Ctx::class_desc`] asks in, because that method is
+/// [`crate::Ctx::receiving`] asked once. Every door that lands a value in a
+/// program takes one of these, [`copy_graph_to`] and [`decode`] alike, so no
+/// call site writes its own resolver and none can leave `Core` out.
+///
+/// A side with no program table declares no program class: an object of one is
+/// refused there, and a `Core` object still arrives. The `Core` table is one
+/// leaked for the process, so a `Core\Uri` on either side is one descriptor and
+/// the live carrier's identity test admits it.
+///
+/// **What it spends:** two words, and at a live crossing one more name lookup
+/// per object whose class the program's table does not hold.
+#[derive(Clone, Copy, Debug)]
+pub struct Receiving<'a> {
+    table: Option<&'a ClassTable>,
+    core: Option<crate::ctx::CoreClasses>,
+}
+
+impl<'a> Receiving<'a> {
+    /// The receiving side of the program whose class table is `classes`, with
+    /// `core` the process's `Core` resolver. Either may be absent: a program
+    /// nobody compiled has no table, and a context nobody wired has no `Core`.
+    #[must_use]
+    pub fn of(
+        classes: Option<&'a crate::ErrorClass>,
+        core: Option<crate::ctx::CoreClasses>,
+    ) -> Self {
+        Self::over(classes.map(crate::ErrorClass::table), core)
+    }
+
+    /// [`Self::of`] over a table borrowed directly, which is how a test that
+    /// defines its classes by hand names them.
+    #[must_use]
+    pub fn over(table: Option<&'a ClassTable>, core: Option<crate::ctx::CoreClasses>) -> Self {
+        Self { table, core }
+    }
+
+    /// A side that resolves no class at all, so every object is refused there.
+    #[must_use]
+    pub fn nothing() -> Self {
+        Self {
+            table: None,
+            core: None,
+        }
+    }
+
+    /// The descriptor `name` spells on this side: the program's table first,
+    /// then `Core`.
+    #[must_use]
+    pub fn resolve(&self, name: &str) -> Option<*const ClassDesc> {
+        self.table
+            .and_then(|table| table.desc_of(name))
+            .map(std::ptr::from_ref)
+            .or_else(|| (self.core?)(name))
+    }
+}
 
 /// What one node of a walked graph becomes.
 ///
@@ -413,7 +467,6 @@ fn walk<C: Carrier>(
     }
 }
 
-
 /// `rule:classes/graph-copy`'s "refuses what has no meaning on the other side", for the shapes that
 /// arrive wearing [`Tag::Object`]. It is the one answer to "may this class
 /// cross", and both directions ask it: [`walk`] for every object it copies or
@@ -462,12 +515,11 @@ pub(crate) fn refusable(class: &ClassDesc, door: Door) -> Result<(), GraphError>
 /// representation.
 ///
 /// `receiving` is the class table the copy lands in, when the crossing has one
-/// — the isolate boundary's, in both directions. `None` is
-/// a copy that does not leave the program that made it (`clone`), where every
-/// class is by construction the receiving side's own, or one into a program
-/// nobody compiled.
+/// — every live crossing's, in both directions. `None` asks nothing of the
+/// receiving side, and its one shipped caller is the topic's local delivery,
+/// which `every_crossing_site_names_its_receiving_side` names.
 struct Live<'a> {
-    receiving: Option<Receiving<'a>>,
+    receiving: Option<&'a Receiving<'a>>,
 }
 
 impl Carrier for Live<'_> {
@@ -499,7 +551,7 @@ impl Carrier for Live<'_> {
             return Ok(());
         };
         let name = class.name();
-        match receiving(name) {
+        match receiving.resolve(name) {
             Some(desc) if std::ptr::eq(desc, std::ptr::from_ref(class)) => Ok(()),
             Some(_) => Err(GraphError(format!(
                 "`{name}` on the receiving side is a different class, so an \
@@ -618,57 +670,45 @@ impl Carrier for Live<'_> {
     }
 }
 
-/// The graph copy's live carrier, as one call. **Consumes one reference to `value`** and
-/// returns one, which is the same allocation wherever a move at refcount 1 let
-/// it be adopted.
+/// The graph copy's live carrier, as one call, *into* the program `receiving`
+/// stands for. **Consumes one reference to `value`** and returns one, which is
+/// the same allocation wherever a move at refcount 1 let it be adopted.
+///
+/// Every live crossing is this call: `spawn` in and out on one core, both
+/// `upgrade` members and the test fixtures.
 ///
 /// # Errors
 ///
-/// [`GraphError`] naming the value that has no meaning on the other side, or
-/// the `secret` property that may not cross unrevealed.
-pub fn copy_graph(value: Value) -> Result<Value, GraphError> {
-    copy_graph_into(value, None)
-}
-
-/// The same copy, made *into* a program whose class table `receiving` answers
-/// for — [`Live::admit`] is the whole of the difference.
-///
-/// One function with an `Option` rather than two, because a caller that has a
-/// receiving table and a caller that does not are the same crossing otherwise,
-/// and the walk may not learn which one it is running under.
-///
-/// # Errors
-///
-/// Everything [`copy_graph`] refuses, plus an object whose class the receiving
-/// side does not have — `rule:classes/graph-copy`'s third bullet, which [`Live::admit`]
-/// owns the reading of.
-pub fn copy_graph_into(
-    value: Value,
-    receiving: Option<Receiving<'_>>,
-) -> Result<Value, GraphError> {
+/// [`GraphError`] naming the value that has no meaning on the other side, the
+/// `secret` property that may not cross unrevealed, or an object whose class
+/// the receiving side does not have — `rule:classes/graph-copy`'s
+/// unresolvable class, which [`Live::admit`] owns the reading of.
+pub fn copy_graph_to(value: Value, receiving: &Receiving<'_>) -> Result<Value, GraphError> {
     let mut seen = Seen::new();
-    walk(&mut Live { receiving }, value, &mut seen, 0)
+    walk(
+        &mut Live {
+            receiving: Some(receiving),
+        },
+        value,
+        &mut seen,
+        0,
+    )
 }
 
-/// The same copy, into the program whose class table `classes` is a handle on
-/// — the isolate boundary's form for the argument at the spawn, where the
-/// child's table arrives beside its program.
+/// The live copy that asks nothing of the receiving side: every refusal of
+/// [`copy_graph_to`] except the unresolvable class.
 ///
-/// `None` is a crossing into a program nobody compiled, which has no table to
-/// ask, and is [`copy_graph`].
+/// Its one shipped caller is `Core\Topic::publish`'s delivery to a subscriber
+/// on the same core, which `every_crossing_site_names_its_receiving_side`
+/// names until that delivery carries bytes.
 ///
 /// # Errors
 ///
-/// Everything [`copy_graph_into`] refuses.
-pub fn copy_graph_to(
-    value: Value,
-    classes: Option<&crate::ErrorClass>,
-) -> Result<Value, GraphError> {
-    let Some(classes) = classes else {
-        return copy_graph(value);
-    };
-    let resolve = |name: &str| -> Option<*const ClassDesc> { Some(classes.sibling(name)?.desc()) };
-    copy_graph_into(value, Some(&resolve))
+/// What [`copy_graph_to`] refuses, less the unresolvable class.
+#[doc(hidden)]
+pub fn copy_graph_unreceived(value: Value) -> Result<Value, GraphError> {
+    let mut seen = Seen::new();
+    walk(&mut Live { receiving: None }, value, &mut seen, 0)
 }
 
 // ============================================================================
@@ -913,8 +953,8 @@ struct Reader<'a> {
     at: usize,
     /// Every object built so far, by the index [`Encode::open_object`] gave it.
     objects: Vec<Value>,
-    /// The program's class table, asked by name.
-    resolve: &'a dyn Fn(&str) -> Option<*const ClassDesc>,
+    /// The receiving side, asked by name.
+    receiving: &'a Receiving<'a>,
 }
 
 /// Every object the reader registered still holds the reference it was built
@@ -1059,7 +1099,7 @@ impl Reader<'_> {
                     .map_err(|_| GraphError("a property name is not UTF-8".to_owned()))?,
             );
         }
-        let desc = (self.resolve)(&name).ok_or_else(|| {
+        let desc = self.receiving.resolve(&name).ok_or_else(|| {
             GraphError(format!(
                 "`{name}` is not a class this program declares or `Core` owns"
             ))
@@ -1111,10 +1151,9 @@ impl Reader<'_> {
 
 /// `rule:classes/serialize-is-a-closed-format`'s `Core\Serialize::decode`: the closed format read back, or a refusal.
 ///
-/// `resolve` answers with the descriptor for a class name, from whichever table
-/// holds it: [`crate::Ctx::class_desc`] is the resolver every call site passes,
-/// and it asks the compiled unit's own classes first and the `Core` library's
-/// second.
+/// `receiving` answers with the descriptor for a class name: the receiving
+/// program's own classes first and the `Core` library's second. A context's is
+/// [`crate::Ctx::receiving`].
 ///
 /// # Errors
 ///
@@ -1123,10 +1162,7 @@ impl Reader<'_> {
 /// recorded property set is not the class's current one, whose `string` node
 /// or array key is not UTF-8, or whose field value does not fit the field's
 /// declared type. Nothing partially built is ever handed back.
-pub fn decode(
-    bytes: &[u8],
-    resolve: &dyn Fn(&str) -> Option<*const ClassDesc>,
-) -> Result<Value, GraphError> {
+pub fn decode(bytes: &[u8], receiving: &Receiving<'_>) -> Result<Value, GraphError> {
     if bytes.len() < MAGIC.len() + 1 || &bytes[..MAGIC.len()] != MAGIC {
         return Err(GraphError(
             "the payload does not carry Novis's serialization marker".to_owned(),
@@ -1142,7 +1178,7 @@ pub fn decode(
         bytes,
         at: MAGIC.len() + 1,
         objects: Vec::new(),
-        resolve,
+        receiving,
     };
     let value = reader.node(0)?;
     // Each field is checked against its declared type once the whole graph is
@@ -1263,9 +1299,15 @@ mod tests {
         Value::object(object)
     }
 
-    /// The resolver a decode is handed in these tests.
-    fn resolver(table: &ClassTable) -> impl Fn(&str) -> Option<*const ClassDesc> + '_ {
-        move |name: &str| Some(table.desc(table.id_of(name)?))
+    /// The receiving side a decode is handed in these tests.
+    fn resolver(table: &ClassTable) -> Receiving<'_> {
+        Receiving::over(Some(table), None)
+    }
+
+    /// A live copy into a side that asks nothing, for the tests that are about
+    /// the walk's refusals and not about the receiving side.
+    fn copy_graph(value: Value) -> Result<Value, GraphError> {
+        copy_graph_unreceived(value)
     }
 
     /// A payload naming `class` with `fields` recorded and each one `null`,
@@ -1313,7 +1355,7 @@ mod tests {
             bytes,
             at: MAGIC.len() + 1,
             objects: Vec::new(),
-            resolve: &resolve,
+            receiving: &resolve,
         };
         let result = reader.node(0);
         let made = reader.objects.len();
@@ -1326,7 +1368,14 @@ mod tests {
     #[test]
     fn decode_refuses_every_class_encode_refuses() {
         let table = every_kind();
-        for name in ["{callable}", "Task$gen", r"Core\IO\File", "main$fn0", "Wallet", "Plain"] {
+        for name in [
+            "{callable}",
+            "Task$gen",
+            r"Core\IO\File",
+            "main$fn0",
+            "Wallet",
+            "Plain",
+        ] {
             let id = table.id_of(name).expect("the table defines it");
             #[expect(unsafe_code, reason = "the leaked table outlives the object")]
             let instance = Value::object(unsafe { NvsObj::new(table.desc(id)) });
@@ -1349,6 +1398,142 @@ mod tests {
         }
     }
 
+    /// A fresh instance of `name` in `table`, its one property left `null`.
+    fn instance_of(table: &'static ClassTable, name: &str) -> Value {
+        let id = table.id_of(name).expect("the table defines it");
+        #[expect(unsafe_code, reason = "the leaked table outlives the object")]
+        let object = unsafe { NvsObj::new(table.desc(id)) };
+        Value::object(object)
+    }
+
+    /// What one door answers for an instance of `name`: the refusal's message,
+    /// or `None` where the value crossed.
+    type Driver = fn(&'static ClassTable, &str) -> Option<String>;
+
+    /// The answer of a door that returns a value, which is released.
+    fn answered(result: Result<Value, GraphError>) -> Option<String> {
+        result.map(release).err().map(|why| why.0)
+    }
+
+    /// One driver for each public function of this module's shipped half.
+    const DRIVERS: &[(&str, Driver)] = &[
+        ("copy_graph_to", |table, name| {
+            answered(copy_graph_to(instance_of(table, name), &resolver(table)))
+        }),
+        ("copy_graph_unreceived", |table, name| {
+            answered(copy_graph_unreceived(instance_of(table, name)))
+        }),
+        ("encode", |table, name| {
+            encode(instance_of(table, name)).err().map(|why| why.0)
+        }),
+        ("encode_within", |table, name| {
+            encode_within(instance_of(table, name), 1 << 20)
+                .err()
+                .map(|why| why.0)
+        }),
+        ("decode", |table, name| {
+            answered(decode(&payload_naming(name, &["x"]), &resolver(table)))
+        }),
+    ];
+
+    #[test]
+    fn every_door_of_the_graph_module_refuses_the_same_classes() {
+        let source = include_str!("graph.rs");
+        let shipped = source
+            .split("#[cfg(test)]\nmod tests")
+            .next()
+            .expect("the file has a shipped half");
+        let doors: Vec<&str> = shipped
+            .lines()
+            .filter_map(|line| line.strip_prefix("pub fn "))
+            .map(|rest| rest.split(['(', '<']).next().unwrap_or(rest))
+            .collect();
+        assert!(
+            doors.contains(&"decode"),
+            "the scan found the doors: {doors:?}"
+        );
+        for door in &doors {
+            assert!(
+                DRIVERS.iter().any(|(name, _)| name == door),
+                "`graph::{door}` is a public door with no driver here, so nothing proves it \
+                 refuses what the others refuse"
+            );
+        }
+        let table = every_kind();
+        for name in [
+            "{callable}",
+            "Task$gen",
+            r"Core\IO\File",
+            "main$fn0",
+            "Wallet",
+            "Plain",
+        ] {
+            let expected = encode(instance_of(table, name)).err().map(|why| why.0);
+            assert_eq!(
+                expected.is_none(),
+                name == "Plain",
+                "{name}: encode's answer"
+            );
+            for (door, drive) in DRIVERS {
+                assert_eq!(
+                    drive(table, name),
+                    expected,
+                    "`{door}` disagrees about {name}"
+                );
+            }
+        }
+    }
+
+    thread_local! {
+        /// This thread's stand-in for the process's `Core` table: one class
+        /// marked `Core`, leaked as the real one is.
+        static CORE: &'static ClassTable = {
+            let mut table = ClassTable::new();
+            let id = table.define(r"Core\Sample", &["x"], &[]);
+            table.set_core(id);
+            Box::leak(Box::new(table))
+        };
+    }
+
+    /// The `Core` resolver a context is wired with, over [`CORE`].
+    fn core_lookup(name: &str) -> Option<*const ClassDesc> {
+        CORE.with(|table| table.desc_of(name).map(std::ptr::from_ref))
+    }
+
+    #[test]
+    fn a_core_value_crosses_a_live_boundary_into_any_program() {
+        let core: &'static ClassTable = CORE.with(|table| *table);
+        let program = table();
+        let elsewhere: &'static ClassTable = Box::leak(Box::new(table()));
+        for (what, into) in [
+            (
+                "a program's side",
+                Receiving::over(Some(&program), Some(core_lookup)),
+            ),
+            (
+                "a side with no program table",
+                Receiving::over(None, Some(core_lookup)),
+            ),
+        ] {
+            let value = instance_of(core, r"Core\Sample");
+            borrow_object(value).set_field(0, Value::int(7));
+            let crossed = copy_graph_to(value, &into).expect("a `Core` value crosses");
+            let class = borrow_object(crossed).class();
+            assert!(
+                std::ptr::eq(class, core.desc_of(r"Core\Sample").expect("defined")),
+                "{what}: the copy keeps the one `Core` descriptor"
+            );
+            assert_eq!(borrow_object(crossed).field(0).as_int(), Some(7), "{what}");
+            release(crossed);
+
+            let other = node(elsewhere, Value::int(1));
+            let Err(GraphError(why)) = copy_graph_to(other, &into) else {
+                panic!("{what}: another program's `Node` crossed");
+            };
+            assert!(why.contains("`Node`"), "{what}: {why}");
+        }
+    }
+
     #[test]
     fn a_refused_class_is_refused_before_its_properties_are_compared() {
         let table = every_kind();
@@ -1357,7 +1542,10 @@ mod tests {
             panic!("a host-handle class decoded");
         };
         assert!(why.contains("holds a handle"), "{why}");
-        assert!(!why.contains("declares"), "the class's layout is not printed: {why}");
+        assert!(
+            !why.contains("declares"),
+            "the class's layout is not printed: {why}"
+        );
     }
 
     #[test]
@@ -1372,7 +1560,10 @@ mod tests {
             #[expect(unsafe_code, reason = "the leaked table outlives the object")]
             let instance = Value::object(unsafe { NvsObj::new(table.desc(id)) });
             retain(instance);
-            assert!(copy_graph(instance).is_err(), "{name} crossed the live carrier");
+            assert!(
+                copy_graph(instance).is_err(),
+                "{name} crossed the live carrier"
+            );
             assert!(encode(instance).is_err(), "{name} was encoded");
             assert!(
                 decode(&payload_naming(name, &["n"]), &resolver(table)).is_err(),
@@ -1737,7 +1928,7 @@ mod tests {
     /// carriers, so a case backed by `0` is still a case on the other side.
     #[test]
     fn an_enum_case_keeps_its_tag_through_both_carriers() {
-        let resolve = |_: &str| -> Option<*const ClassDesc> { None };
+        let resolve = Receiving::nothing();
         for (case, plain) in [
             (Value::enum_int(0), Value::int(0)),
             (Value::enum_int(-3), Value::int(-3)),
@@ -1764,7 +1955,7 @@ mod tests {
     /// bytes are written out by hand, so renumbering a node fails here.
     #[test]
     fn a_record_written_before_the_enum_nodes_decodes_as_before() {
-        let resolve = |_: &str| -> Option<*const ClassDesc> { None };
+        let resolve = Receiving::nothing();
         let mut int = b"NVS\x1b\x01\x02".to_vec();
         int.extend_from_slice(&(-3_i64).to_le_bytes());
         let back = decode(&int, &resolve).expect("an old `int` record decodes");
@@ -1908,7 +2099,7 @@ mod tests {
     /// read takes them as text. A `bytes` node with the same bytes decodes.
     #[test]
     fn a_string_that_is_not_utf8_is_refused_and_bytes_are_not() {
-        let resolve = |_: &str| -> Option<*const ClassDesc> { None };
+        let resolve = Receiving::nothing();
         let payload = |body: &[u8]| {
             let mut bytes = MAGIC.to_vec();
             bytes.push(VERSION);

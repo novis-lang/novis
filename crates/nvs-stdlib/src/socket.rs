@@ -208,8 +208,8 @@
 use nvs_runtime::host::Narrowing;
 use nvs_runtime::script::{Prepared, Program, ResolveError};
 use nvs_runtime::{
-    Closing, Ctx, Delivery, Fault, NvsStr, PeerFrame, Received, Tag, ThrownClass, Upgrade, Value,
-    copy_graph_to,
+    Closing, Ctx, Delivery, Fault, NvsStr, PeerFrame, Received, Receiving, Tag, ThrownClass,
+    Upgrade, Value, copy_graph_to,
 };
 
 use crate::registry::{
@@ -1003,9 +1003,10 @@ nvs_runtime::nvs_helper! {
         // No case can reach this: it stands after the slot, and a `.nvst` case
         // runs a script no connection offered one to.
         // `an_args_value_that_cannot_cross_is_refused_before_the_slot_is_filled`
-        // is the `#[test]` that asserts it instead. The receiving table is the
-        // one the connection's code was compiled against.
-        let crossed = copy_graph_to(retained(args[1]), prepared.classes.as_ref()).map_err(|refused| {
+        // is the `#[test]` that asserts it instead. The receiving side is the
+        // table the connection's code was compiled against, then `Core`.
+        let into = Receiving::of(prepared.classes.as_ref(), ctx.core_classes());
+        let crossed = copy_graph_to(retained(args[1]), &into).map_err(|refused| {
             Fault::thrown_as(
                 ThrownClass::Logic,
                 format!("`Core\\Socket::upgrade`'s `args:` cannot cross into a connection: {refused}"),

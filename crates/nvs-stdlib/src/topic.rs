@@ -212,7 +212,7 @@
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-use nvs_runtime::{Ctx, Delivery, Fault, Inbox, ThrownClass, Value, budget, copy_graph};
+use nvs_runtime::{Ctx, Delivery, Fault, Inbox, ThrownClass, Value, budget, copy_graph_unreceived};
 
 use crate::registry::{
     ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -643,7 +643,7 @@ fn subscribers_of(topic: &str) -> Vec<Rc<Inbox>> {
 /// boundary: a resource, or a `secret`, which `rule:security/secret-qualifier` says may never be
 /// published.
 fn cross(value: Value) -> Result<Value, Fault> {
-    copy_graph(retained(value)).map_err(|refused| {
+    copy_graph_unreceived(retained(value)).map_err(|refused| {
         Fault::thrown_as(
             ThrownClass::Logic,
             format!("`Core\\Topic::publish` cannot publish this value: {refused}"),
@@ -693,7 +693,7 @@ pub(crate) fn deliver_from_other_cores(ctx: &Ctx) {
     let drained = crate::bus::take_all();
     for envelope in drained.envelopes() {
         let subscribers = subscribers_of(envelope.topic());
-        let resolve = |name: &str| ctx.class_desc(name);
+        let resolve = ctx.receiving();
         let mut size = envelope.payload().len();
         for inbox in &subscribers {
             // The same bounds the local walk keeps, asked before the decode for

@@ -2762,8 +2762,7 @@ nvs_runtime::nvs_helper! {
         let Some(payload) = held else {
             return Ok(Value::null());
         };
-        let resolve = |name: &str| ctx.class_desc(name);
-        nvs_runtime::decode(&payload, &resolve).map_err(|why| {
+        nvs_runtime::decode(&payload, &ctx.receiving()).map_err(|why| {
             Fault::thrown_as(ThrownClass::Parse, format!("{STORE_NAME}::get(): {why}"))
         })
     }

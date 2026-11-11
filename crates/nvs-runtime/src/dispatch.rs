@@ -1266,7 +1266,11 @@ impl CrossedFixtures {
     /// the **parent's** fault in `nvs_host::Isolate`'s own sense: the value was
     /// built before any test isolate existed, so nothing has run yet and the
     /// caller reports it against the test that asked for it.
-    pub fn copy(from: &Fixtures, needs: &[String]) -> Option<Result<Self, crate::GraphError>> {
+    pub fn copy(
+        from: &Fixtures,
+        needs: &[String],
+        receiving: &crate::Receiving<'_>,
+    ) -> Option<Result<Self, crate::GraphError>> {
         let borrowed = from.values(needs)?;
         let mut built = Vec::with_capacity(borrowed.len());
         for value in borrowed {
@@ -1281,7 +1285,7 @@ impl CrossedFixtures {
             unsafe {
                 value.retain();
             }
-            match crate::graph::copy_graph(value) {
+            match crate::graph::copy_graph_to(value, receiving) {
                 Ok(crossed) => built.push(crossed),
                 // Whatever crossed already is this type's, so the partial copy
                 // is dropped rather than leaked: `built` is moved into a `Self`
@@ -1331,8 +1335,8 @@ impl CrossedFixtures {
     }
 
     /// [`Self::encode`]'s bytes read back into this thread's arena, against
-    /// `receiving`, the class table of the context the test runs under: the
-    /// half of [`Self::copy`] that runs on the core the test runs on.
+    /// `receiving`, the context the test runs under ([`crate::Ctx::receiving`]):
+    /// the half of [`Self::copy`] that runs on the core the test runs on.
     ///
     /// # Errors
     ///
@@ -1340,16 +1344,11 @@ impl CrossedFixtures {
     /// hold. What decoded before it is released.
     pub fn decode(
         encoded: &[Vec<u8>],
-        receiving: Option<&crate::ErrorClass>,
+        receiving: &crate::Receiving<'_>,
     ) -> Result<Self, crate::GraphError> {
-        let resolve = |name: &str| {
-            receiving
-                .and_then(|table| table.sibling(name))
-                .map(|class| class.desc())
-        };
         let mut built = Vec::with_capacity(encoded.len());
         for bytes in encoded {
-            match crate::graph::decode(bytes, &resolve) {
+            match crate::graph::decode(bytes, receiving) {
                 Ok(value) => built.push(value),
                 Err(refused) => {
                     drop(Self { built });

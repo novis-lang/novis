@@ -58,12 +58,9 @@
 
 use std::time::Duration;
 
-use nvs_runtime::graph::GraphError;
+use nvs_runtime::graph::{GraphError, Receiving};
 use nvs_runtime::host::{Completion, Entry, Failure, Narrowing, Output, Running};
-use nvs_runtime::{
-    ClassDesc, Ctx, DeclaredHeader, ErrorClass, OpenSpawn, OutputSink, PlacedIsolate, SpawnForm,
-    Value,
-};
+use nvs_runtime::{Ctx, DeclaredHeader, OpenSpawn, OutputSink, PlacedIsolate, SpawnForm, Value};
 
 use crate::isolate::{cancelled_completion, close_spawn, hand_over, refused_completion, run_here};
 use crate::worker::{Answer, Destination, Posted};
@@ -260,8 +257,11 @@ fn cross(crossing: Crossing) -> Crossed {
     };
     // The argument is read into the table the child's code was compiled
     // against: a path's own unit's, or for a method entry the one that crossed.
-    let into = prepared.classes.as_ref().or(receiving.as_ref());
-    let value = match nvs_runtime::graph::decode(&argument, &resolver(into)) {
+    let into = Receiving::of(
+        prepared.classes.as_ref().or(receiving.as_ref()),
+        child.core_classes(),
+    );
+    let value = match nvs_runtime::graph::decode(&argument, &into) {
         Ok(value) => value,
         // The argument was accepted by the walk on the parent's core and refused
         // by the reader on this one, which is this program disagreeing with its
@@ -340,11 +340,11 @@ fn crossed_failure(message: &str) -> Crossed {
 /// An empty payload is `null` rather than a short read: [`crossed_failure`]
 /// writes one for every ending that has no answer, and a failure's `value` is
 /// `null` by [`Completion::value`]'s own contract.
-fn received(crossed: Crossed, receiving: Option<&ErrorClass>) -> Completion {
+fn received(crossed: Crossed, receiving: &Receiving<'_>) -> Completion {
     let value = if crossed.value.is_empty() {
         Value::null()
     } else {
-        nvs_runtime::graph::decode(&crossed.value, &resolver(receiving)).unwrap_or_else(|_| {
+        nvs_runtime::graph::decode(&crossed.value, receiving).unwrap_or_else(|_| {
             // Unreachable from a child that encoded successfully against a table
             // this one shares, and answered as a failure rather than asserted:
             // a child may not end its parent, and the message the walk wrote is
@@ -379,19 +379,6 @@ fn received(crossed: Crossed, receiving: Option<&ErrorClass>) -> Completion {
     }
 }
 
-/// [`nvs_runtime::graph::decode`]'s class resolver over a table handle.
-///
-/// The handle keeps the table alive for as long as the Rust closure can be called,
-/// which is what makes the descriptor addresses it hands out valid without any
-/// lifetime on the pointer — [`ErrorClass`]'s own doc owns that.
-fn resolver(table: Option<&ErrorClass>) -> impl Fn(&str) -> Option<*const ClassDesc> {
-    move |name| {
-        table
-            .and_then(|table| table.sibling(name))
-            .map(|of| of.desc())
-    }
-}
-
 /// A child running on another core, and the whole of what its parent holds.
 ///
 /// [`crate::isolate`]'s `Started` for a child on a stack this core cannot see:
@@ -411,8 +398,9 @@ impl Running for Placed {
         // is the one call where the parent's context is in hand, and the answer
         // is decoded on this stack rather than on the child's.
         let receiving = ctx.class_table();
+        let into = Receiving::of(receiving.as_ref(), ctx.core_classes());
         let completion = match self.posted.collect() {
-            Answer::Value(crossed) => received(crossed, receiving.as_ref()),
+            Answer::Value(crossed) => received(crossed, &into),
             // Contained at the far core's own task root and crossed as a value,
             // which is `rule:security/isolate-shares-nothing`'s failure-is-a-value
             // applied to a boundary that is also a thread: resuming the panic
@@ -447,7 +435,7 @@ mod tests {
     use super::*;
     use crate::reactor::{self, Reactor, run_until_idle};
     use crate::scheduler::Scheduler;
-    use nvs_runtime::{ClassTable, DebugFlags, FieldDefault, TaskRoot, TraceKind};
+    use nvs_runtime::{ClassTable, DebugFlags, ErrorClass, FieldDefault, TaskRoot, TraceKind};
     use std::cell::RefCell;
     use std::rc::Rc;
 

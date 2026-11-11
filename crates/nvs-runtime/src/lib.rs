@@ -331,7 +331,7 @@ pub use dispatch::{
 pub use drain::{Drain, DrainWake};
 pub use fmt::php_float_to_string;
 pub use graph::{
-    GraphError, copy_graph, copy_graph_into, copy_graph_to, decode, encode, encode_within,
+    GraphError, Receiving, copy_graph_to, copy_graph_unreceived, decode, encode, encode_within,
 };
 pub use helpers::{stringify, symbols, to_float, to_int, to_uint, value_to_string, value_truthy};
 pub use identity::{
@@ -342,12 +342,12 @@ pub use object::{
     CodecElement, CodecField, CodecTy, ConstantDesc, ConstantValue, Door, EnumCases, EnumDesc,
     FIELD_STRIDE, FIELDS_OFFSET, FieldDefault, FreeState, HookRow, MethodRow, NvsObj, OBJ_ALIGN,
     OBJ_CLASS_OFFSET, OBJ_REFCOUNT_OFFSET, ObjHeader, Refusal, ShapeCheck, ShapeCodec, SlotCheck,
-    SlotType, construct,
-    field_offset, immortal_object_bytes, nvs_abstract_method, nvs_class_method,
-    nvs_object_class_name, nvs_object_field_get, nvs_object_field_set, nvs_object_is_class,
-    nvs_object_key_get, nvs_object_key_set, nvs_object_new, nvs_object_release, nvs_object_retain,
-    nvs_object_slot_get, nvs_object_slot_optional_get, nvs_object_slot_probe, nvs_object_slot_set,
-    nvs_value_is_class, read_erased_property_owned, write_erased_property,
+    SlotType, construct, field_offset, immortal_object_bytes, nvs_abstract_method,
+    nvs_class_method, nvs_object_class_name, nvs_object_field_get, nvs_object_field_set,
+    nvs_object_is_class, nvs_object_key_get, nvs_object_key_set, nvs_object_new,
+    nvs_object_release, nvs_object_retain, nvs_object_slot_get, nvs_object_slot_optional_get,
+    nvs_object_slot_probe, nvs_object_slot_set, nvs_value_is_class, read_erased_property_owned,
+    write_erased_property,
 };
 pub use peer::{
     Closing, Delivery, INBOX_CAP, Inbox, Interrupt, PeerError, PeerFrame, PeerSocket, Received,

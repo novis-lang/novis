@@ -1,4 +1,6 @@
-use nvs_runtime::{ClassDesc, ClassTable, Ctx, OutputSink, SlotCheck, Tag, decode, encode};
+use nvs_runtime::{
+    ClassDesc, ClassTable, Ctx, OutputSink, Receiving, SlotCheck, Tag, decode, encode,
+};
 
 /// `Dog`, `Cat`, a typed `Owner`, and one class of every kind `encode`
 /// refuses, each with the one property `name`.
@@ -32,14 +34,12 @@ fn classes() -> ClassTable {
     table
 }
 
-/// The descriptor for `name`: the table's own class, or `Core\Uri`, a `Core`
-/// class that states the type of each of its eight slots.
-fn class_desc(table: &ClassTable, name: &str) -> Option<*const ClassDesc> {
-    table.id_of(name).map(|id| table.desc(id)).or_else(|| {
-        (name == nvs_stdlib::uri::NAME)
-            .then_some(name)
-            .and_then(nvs_stdlib::core_class_desc)
-    })
+/// The `Core` side of the receiving side: `Core\Uri` alone, a `Core` class
+/// that states the type of each of its eight slots.
+fn core_uri(name: &str) -> Option<*const ClassDesc> {
+    (name == nvs_stdlib::uri::NAME)
+        .then_some(name)
+        .and_then(nvs_stdlib::core_class_desc)
 }
 
 /// Re-encodes `value`, consuming the caller's reference to it.
@@ -71,7 +71,7 @@ fn encoded(value: nvs_runtime::Value) -> Vec<u8> {
 /// outlive the run and be reported as a leak that no request has.
 pub fn serialize(data: &[u8]) {
     let table = classes();
-    let resolve = |name: &str| class_desc(&table, name);
+    let resolve = Receiving::over(Some(&table), Some(core_uri));
     let mut ctx = Ctx::new(OutputSink::Sink);
     ctx.enter(|| {
         let Ok(once) = decode(data, &resolve) else {

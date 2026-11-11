@@ -114,7 +114,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Instant;
 
-use nvs_runtime::graph::{GraphError, copy_graph_into, copy_graph_to};
+use nvs_runtime::graph::{GraphError, Receiving, copy_graph_to};
 use nvs_runtime::script::Prepared;
 use nvs_runtime::{
     Ctx, ErrorClass, EventStreamDoor, Fault, Inbound, Limit, OpenSpawn, OutputSink, PeerSocket,
@@ -721,7 +721,7 @@ impl Isolate {
             (None, Form::Method) => ctx.class_table(),
             (None, Form::Path) => None,
         };
-        let crossed = copy_graph_to(args, into.as_ref())?;
+        let crossed = copy_graph_to(args, &Receiving::of(into.as_ref(), ctx.core_classes()))?;
         // Taken here rather than at the join, because the answer crosses on the
         // child's own stack and this context is borrowed by then
         // (`Ctx::class_table`).
@@ -1533,13 +1533,13 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     }
     // Out, at the await. A refusal here is the child's, so it is a failure
     // value rather than an `Err` — the module doc owns the asymmetry. The
-    // parent's table is named, so `rule:classes/graph-copy`'s third bullet is asked here
-    // and not only of the payload carrier. A parent with no table declares no
-    // class, so every object in the answer is refused.
-    let resolve = |name: &str| -> Option<*const nvs_runtime::ClassDesc> {
-        Some(receiving?.sibling(name)?.desc())
-    };
-    match copy_graph_into(answer, Some(&resolve)) {
+    // parent's table is named, so `rule:classes/graph-copy`'s unresolvable class is
+    // asked here and not only of the payload carrier. A parent with no table
+    // declares no program class, so such an object in the answer is refused,
+    // and a `Core` object still crosses. The child's `Core` resolver is the
+    // parent's, which it inherited.
+    let into = Receiving::of(receiving, isolate_ctx.core_classes());
+    match copy_graph_to(answer, &into) {
         Ok(value) => Completion {
             ok: true,
             value,

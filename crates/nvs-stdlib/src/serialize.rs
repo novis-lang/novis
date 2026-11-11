@@ -178,11 +178,10 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             ))
         })?.to_vec();
-        // The resolver is the program's own class table, so a payload naming a
-        // class this program does not declare is refused, naming the class
-        // (`rule:classes/serialize-is-a-closed-format`).
-        let resolve = |name: &str| ctx.class_desc(name);
-        nvs_runtime::decode(&payload, &resolve).map_err(|why| {
+        // The receiving side is the program's own class table, then `Core`, so
+        // a payload naming a class this program does not declare is refused,
+        // naming the class (`rule:classes/serialize-is-a-closed-format`).
+        nvs_runtime::decode(&payload, &ctx.receiving()).map_err(|why| {
             Fault::thrown_as(
                 ThrownClass::Parse,
                 format!("Core\\Serialize::decode(): {why}"),

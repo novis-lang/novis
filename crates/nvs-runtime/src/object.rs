@@ -335,9 +335,7 @@ impl Refusal {
     #[must_use]
     pub fn sentence(&self) -> &str {
         match self {
-            Self::Kind(sentence) | Self::NoInstances(sentence) | Self::Secret(sentence) => {
-                sentence
-            }
+            Self::Kind(sentence) | Self::NoInstances(sentence) | Self::Secret(sentence) => sentence,
         }
     }
 
@@ -7940,7 +7938,8 @@ mod tests {
         // The shape `nvs_host`'s `finish` is in: the copy runs while the
         // *receiving* context is the one installed.
         let across = crate::ctx::CurrentCtx::install(&mut destination);
-        let crossed = crate::graph::copy_graph(value).expect("an `Animal` crosses");
+        let into = crate::graph::Receiving::over(Some(&table), None);
+        let crossed = crate::graph::copy_graph_to(value, &into).expect("an `Animal` crosses");
         assert_eq!(
             source.live_objects(),
             0,
@@ -8917,8 +8916,16 @@ mod tests {
             #[expect(unsafe_code, reason = "the table outlives this loop")]
             let desc = unsafe { &*table.desc(id) };
             assert_eq!(answer(desc.refusal(Door::Bytes)), bytes, "{name} at decode");
-            assert_eq!(answer(desc.refusal(Door::Copy)), live, "{name} at a live crossing");
-            assert_eq!(answer(desc.refusal(Door::Construct)), construct, "{name} at construct");
+            assert_eq!(
+                answer(desc.refusal(Door::Copy)),
+                live,
+                "{name} at a live crossing"
+            );
+            assert_eq!(
+                answer(desc.refusal(Door::Construct)),
+                construct,
+                "{name} at construct"
+            );
             // The copy walk asks the same function and says the same sentence.
             for door in [Door::Bytes, Door::Copy] {
                 assert_eq!(
