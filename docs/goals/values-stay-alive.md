@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-ir/src/lower/call.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/operator.rs, crates/nvs-syntax/src/ast.rs]
   - id: 2
     title: a store keeps its target alive while its value runs code
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/mutate.rs, crates/nvs-ir/src/lower/call.rs]
   - id: 3
     title: a stop at a function's entry releases what the callee owns
@@ -224,6 +224,17 @@ are lowered as held operands, then `e`, and only then the slot is read and writt
 order of side effects does not change. **What it spends:** the same pair per held operand, and only
 when `e` can run code. Safe default: where a form cannot re-read its slot, it holds the receiver.
 
+**What stage 2 settled while building it.** A property store holds its borrowed receiver
+against the value and writes that object, and a compound store stages the held receiver before it
+reads the target, so it reads and writes one object (`Lowering::hold_store_receiver`). An element
+store holds the root's receiver and every borrowed key, lowers the value, and only then reads the
+root array, so it writes into the array the property holds once the value has run, as PHP does. A
+held key keeps its `aliasing` answer, so the store still retains the reference the array keeps,
+and the hold is released with the store's temporaries: one extra pair, only when held. The
+string-local `.=` and `$s = $s . e` fast paths and the carrier self-append take the general store
+when the value writes the local. The `mutate.rs` anchor was wrong: every element store is
+`lower_store`'s `Index` arm.
+
 **A `Core` member that suspends is covered by the same hold.** The caller's hold lasts until the
 member returns, so another task of the request cannot free a borrowed argument during the wait. No
 member needs a hold of its own for an argument.
@@ -382,19 +393,19 @@ The session writes the list under this stage as checkpoints.
 **Does:** lower the value of every store form before the target's slot is read, with the receiver
 chain and key held by stage 1's function.
 
-- [ ] `lower_store` holds the receiver chain and the key, lowers the value, then reads the slot
+- [x] `lower_store` holds the receiver chain and the key, lowers the value, then reads the slot
   (`docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:1`,
   `crates/nvs-ir/src/lower/stmt.rs:1328`).
-- [ ] `lower_read_modify_write` does the same for `.=` and every compound form
+- [x] `lower_read_modify_write` does the same for `.=` and every compound form
   (`crates/nvs-ir/src/lower/stmt.rs:668`).
-- [ ] The element stores `$o->arr[] = e`, `$o->arr[k] = e` and `$m[$o->key] = e` do the same
+- [x] The element stores `$o->arr[] = e`, `$o->arr[k] = e` and `$m[$o->key] = e` do the same
   (`crates/nvs-ir/src/lower/mutate.rs:1`, `crates/nvs-ir/src/lower/stmt.rs:1328`).
-- [ ] Add each store form to `OperandSite`, so stage 1's source test covers it
+- [x] Add each store form to `OperandSite`, so stage 1's source test covers it
   (`crates/nvs-ir/src/lower/operand.rs:37`).
-- [ ] Test `every_store_form_keeps_its_target_alive_while_the_value_runs_code` in
+- [x] Test `every_store_form_keeps_its_target_alive_while_the_value_runs_code` in
   `crates/nvs-codegen/tests/borrowed_stores.rs:1`. It runs the five forms from *Why*, each with a
   value that replaces the target, and reads the storage back. It fails naming the form.
-- [ ] Attack `tests/hostile/lang/expressions/assignment/02-a-value-that-replaces-its-own-target.nvs`
+- [x] Attack `tests/hostile/lang/expressions/assignment/02-a-value-that-replaces-its-own-target.nvs`
   (`rule:testing/feature-proofs`, `tests/hostile/lang/expressions/assignment/02-a-value-that-replaces-its-own-target.nvs:1`).
 
 ### 3. a stop at a function's entry releases what the callee owns
@@ -550,39 +561,39 @@ session writes each group under its stage as checkpoints, so stages 6 to 8 start
 
 ### State
 
-Stage 1 is done. `aliasing_read` is a private method of `crates/nvs-ir/src/lower/operand.rs`.
-Every caller goes through `sole_operand_borrowed` (one operand, nothing after it),
-`borrowed_operand` (returns `OperandOwner::{Fresh, Slot, Held}`) or `borrowed_arg`.
-`every_borrow_judgment_passes_the_one_operand_lowering` and
-`a_read_followed_only_by_literals_and_locals_takes_no_reference` are green, and so is
-`borrowed_reads.rs`. The attack `02-an-operand-that-frees-the-one-before-it.nvs` prints the old
-value on every line. The stage-2 store sites in `stmt.rs` (`lower_carrier_self_append` and the
-field store in `lower_store`) carry a comment saying stage 2 orders them; delete it there. The
-sweep's `env-secret-proofs` red is stale: a retired goal's check with no log, named nowhere in
-the tree.
+Stages 1 and 2 are done. Three store sites joined `OperandSite` (`StoreReceiver`, `StoreBase`,
+`StoreKey`, with `OperandSite::is_store`). `borrowed_reads.rs` skips them, and
+`crates/nvs-codegen/tests/borrowed_stores.rs` runs the five forms. It is green, and with the hold
+switched off its key row and its nested-receiver row fail. The attack
+`02-a-value-that-replaces-its-own-target.nvs` prints a live value on every line. The rule fragment
+`an-operand-keeps-its-value-while-later-operands-run.md` states the store half. The sweep's
+`env-secret-proofs` red is stale: a retired goal's check with no log, named nowhere in the tree.
 
 ### Next
 
-Stage 2: a store evaluates its value before it reads its target's storage. Read the standing
-decision *A store evaluates its value before it reads its target's storage* first.
+Stage 3: a stop at a function's entry releases what the callee owns. Read the standing decision
+*A stop at the entry poll or the stack check takes the frame's landing block* first.
 
-- [ ] `crates/nvs-ir/src/lower/stmt.rs:1328` `lower_store`: hold the receiver chain and the key with
-  `borrowed_operand` against the value, lower the value, then read the slot. Add one
-  `OperandSite` variant per store form (`crates/nvs-ir/src/lower/operand.rs:37`).
-- [ ] `crates/nvs-ir/src/lower/stmt.rs:668` `lower_read_modify_write`: the same for `.=` and every
-  compound form; `crates/nvs-ir/src/lower/stmt.rs:1082` `lower_string_self_concat` and
-  `crates/nvs-ir/src/lower/stmt.rs:1168` `lower_carrier_self_append` with it.
-- [ ] `crates/nvs-ir/src/lower/mutate.rs:1`: the element stores `$o->arr[] = e`,
-  `$o->arr[k] = e` and `$m[$o->key] = e`.
-- [ ] `crates/nvs-codegen/tests/borrowed_stores.rs:1`: the five forms, modelled on
-  `crates/nvs-codegen/tests/borrowed_reads.rs:17`'s `Holder`; then the attack
-  `tests/hostile/lang/expressions/assignment/02-a-value-that-replaces-its-own-target.nvs:1`.
+- [ ] `crates/nvs-ir/src/lower/mod.rs:3423`: delete the edge-less entry-poll emitter. Every entry
+  polls through the back-edge emitter (`crates/nvs-ir/src/lower/mod.rs:3409`) after its last
+  `Param`.
+- [ ] `crates/nvs-ir/src/lower/mod.rs:1469`: the method, anonymous-function and generator entries
+  and the two hand-built functions, at the anchors stage 3's items list.
+- [ ] `crates/nvs-codegen/src/emit.rs:4402`: the poll's and the stack check's status go through
+  `emit_status_check`.
+- [ ] `crates/nvs-codegen/tests/throwing.rs:1`: the tests
+  `every_function_kind_polls_with_an_error_edge`, `codegen_refuses_a_poll_with_no_error_edge` and
+  the two `throwing.rs` tests stage 3 names.
 
-Expected red: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` where a `.` spine, a string
-hole, a comparison operand, a `match` subject, an index base or a `Core` argument reads a property
-before a call. Each one gains a `retain` at the read, and the stage-9 gate accepts them after
-reading each diff. Stages 2 and 3 change more snapshots.
+Expected red: IR snapshots under `crates/nvs-ir/src/lower/snapshots/`. Stage 1 adds a `retain`
+where a `.` spine, a string hole, a comparison, a `match` subject, an index base or a `Core`
+argument reads a property before a call. Stage 2 moves every element store's root read after the
+value, so most `$a[k] = e` snapshots reorder, and adds a `retain` where a store's receiver or key
+is held. Stage 3 changes every function's entry. The stage-9 gate accepts them after reading each
+diff.
 
 ### Backlog
 
 - A user `__toString` called by a conversion may free its own borrowed receiver.
+- A `PropertyGuard` or covariant-property check runs user code after a store's value is read and
+  before the store retains it. A borrowed value that code frees is not held.
