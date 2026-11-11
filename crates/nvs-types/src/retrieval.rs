@@ -80,7 +80,8 @@
 use nvs_diagnostics::{Diagnostic, SourceFile, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    AnonObjectField, Attribute, AttributeGroup, CallArgs, ClassMember, ClassMemberKind, Expr,
+    AnonObjectField, Attribute, AttributeGroup, CallArgs, ClassDecl, ClassMember, ClassMemberKind,
+    Expr,
     ExprKind, MemberName, NamespaceDecl, Stmt, StmtKind,
 };
 use rustc_hash::FxHashMap;
@@ -158,9 +159,24 @@ pub(crate) struct AttributeTable<'a> {
     classes: FxHashMap<QName, ClassAttrs<'a>>,
     /// Every class declaration's own [`Scope`], indexed by [`Site::scope`].
     scopes: Vec<Scope>,
+    /// Every class declaration, with its file and the index of its [`Scope`].
+    /// `crate::derive` reads a parent's properties through it, and the parent
+    /// may be declared in another file.
+    decls: FxHashMap<QName, (&'a ClassDecl, &'a SourceFile, usize)>,
 }
 
-impl AttributeTable<'_> {
+impl<'a> AttributeTable<'a> {
+    /// `class`'s declaration, the file it is written in, and the scope its
+    /// names resolve through. `None` for a class with no source, such as a
+    /// `Core` class.
+    pub(crate) fn class_decl(
+        &self,
+        class: &QName,
+    ) -> Option<(&'a ClassDecl, &'a SourceFile, Ctx<'_>)> {
+        let (decl, src, scope) = self.decls.get(class)?;
+        Some((*decl, *src, site_ctx(&self.scopes[*scope])))
+    }
+
     /// Whether `class`'s own method `method` carries the compiler-recognized
     /// attribute `want`, each attribute resolved in the file and scope it was
     /// written in. `crate::test_inherit` asks it of an ancestor that another
@@ -219,7 +235,7 @@ fn collect<'a>(
     let mut current_ns = namespace.to_vec();
     let mut current_imports = imports.clone();
     for stmt in stmts {
-        let (name, attributes, members) = match &stmt.kind {
+        let (name, attributes, members, class) = match &stmt.kind {
             StmtKind::NamespaceDecl(NamespaceDecl { name, body, .. }) => {
                 let new_ns = name.as_ref().map_or_else(Vec::new, |n| {
                     QName::parse(span_text(src, n.span)).segments().to_vec()
@@ -240,8 +256,8 @@ fn collect<'a>(
                 current_imports.insert(target.short_name().to_owned(), target);
                 continue;
             }
-            StmtKind::ClassDecl(decl) => (&decl.name, &decl.attributes, &decl.members),
-            StmtKind::InterfaceDecl(decl) => (&decl.name, &decl.attributes, &decl.members),
+            StmtKind::ClassDecl(decl) => (&decl.name, &decl.attributes, &decl.members, Some(decl)),
+            StmtKind::InterfaceDecl(decl) => (&decl.name, &decl.attributes, &decl.members, None),
             _ => continue,
         };
         let qname = QName::join(&current_ns, span_text(src, name.span));
@@ -251,6 +267,9 @@ fn collect<'a>(
             imports: current_imports.clone(),
             class: qname.clone(),
         });
+        if let Some(decl) = class {
+            table.decls.insert(qname.clone(), (decl, src, scope));
+        }
         let entry = table.classes.entry(qname).or_default();
         push(&mut entry.own, attributes, src, scope);
         collect_members(entry, members, src, scope);

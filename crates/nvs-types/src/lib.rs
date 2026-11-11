@@ -344,6 +344,7 @@ pub struct ProgramFile<'a> {
 /// [`nvs_hir::members`]'s `Ctx`, for the same reason: this changes as the
 /// walk descends into a new namespace or class body, while [`Env`]'s tables
 /// stay fixed for the whole run.
+#[derive(Clone)]
 pub(crate) struct Ctx<'a> {
     pub namespace: &'a [String],
     pub imports: &'a FxHashMap<String, QName>,

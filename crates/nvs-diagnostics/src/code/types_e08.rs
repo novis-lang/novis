@@ -338,7 +338,8 @@ codes! {
     ///
     /// `rule:core-classes/derive-property-list` sanctions `#[Json\Field(skip: true)]`
     /// on a property, and a skipped property that stayed a constructor
-    /// parameter is the one way to leave a position no key fills. The class is
+    /// parameter leaves a position no key fills. A parameter that names no
+    /// property in the class chain leaves one too, and the help names it. The class is
     /// well formed for every other purpose it has — it still encodes, and the
     /// program can still build one itself — so this is a refusal of the
     /// **call**, exactly as [`E_QUERY_AS_NOT_A_ROW_CLASS`] is at the row door
@@ -351,7 +352,9 @@ codes! {
     pub const E_DECODED_CLASS_NOT_CONSTRUCTIBLE: Code = Code::new("E0820").card(
         "This class cannot be built from a document, because a `constructor` parameter has no \
          field to fill it. This happens when a property has `#[Json\\Field(skip: true)]` and is \
-         still a constructor parameter. Remove that parameter, or remove `skip: true`.",
+         still a constructor parameter. Remove that parameter, or remove `skip: true`. It also \
+         happens when no property has the parameter's name. The help names each such \
+         parameter. Declare a property with that name, or remove the parameter.",
     );
     /// A member that builds an instance out of a document names a class that
     /// declared no JSON codec at all.

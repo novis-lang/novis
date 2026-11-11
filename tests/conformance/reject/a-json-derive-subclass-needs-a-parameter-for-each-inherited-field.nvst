@@ -1,0 +1,32 @@
+--TEST--
+an inherited `#[Json\Derive]` field must be a constructor parameter of the subclass, reported at the subclass's attribute with a label on the parent's property — `rule:core-classes/derive-property-list`
+--FILE--
+<?nvs
+// covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
+class Entity {
+    public int $id;
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+#[Core\Json\Derive]
+class Post extends Entity {
+    public string $title;
+    public function constructor(string $title) {
+        $this->title = $title;
+        parent::constructor(0);
+    }
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0460]: `$id` has no constructor parameter, so `#[Json\Derive]` cannot decode it
+   --> case.nvs:4:16
+%A
+10 | #[Core\Json\Derive]
+   |   ^^^^^^^^^^^^^^^^ `Post` gets this property from `Entity`
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

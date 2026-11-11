@@ -1,6 +1,14 @@
-Fields are the class's own declared properties, in declaration order, private ones included.
-Visibility is an access-control decision and has no business deciding a wire format; declaration
-order fixes encode order, so output is byte-deterministic across runs and machines.
+Fields are every instance property in the class chain, the root parent's first, each class's in
+declaration order, private ones included. A parent counts whether it carries the derive itself or
+not, and its own `Field` attribute renames or skips the field for every subclass. A property a
+subclass declares again is one slot, so it is one field: at its topmost declaration's position, with
+the nearest declaration's type and `Field` attribute. A parent with no source, such as a `Core`
+class, gives no fields. Visibility is an access-control decision and has no business deciding a wire
+format; declaration order fixes encode order, so output is byte-deterministic across runs and
+machines. Every rule below holds for an inherited field as for an own one, against the subclass's
+constructor, and a key is unique across the whole chain. A refusal of an inherited field is reported
+at the subclass's attribute, with a second label on the parent's property, because the subclass is
+the class being derived.
 
 **Every non-skipped field must also be a constructor parameter of the same name and type**, or the
 derive is a compile error at the attribute. For a class written with promoted parameters the two
@@ -48,6 +56,10 @@ the decode tells them apart by what the document wrote.
 - **Deriving from the constructor's parameters alone.** The encoder has nothing to read for a
   parameter that is not promoted, and the two halves would come from two lists that can disagree
   in silence, which is the failure hand-written codecs already have.
+- **Only parents that carry the derive count.** It is a second rule to learn, and a parent without
+  the attribute would still drop its keys in silence.
+- **Refusing a derive on a subclass whose parent has properties.** Every class family would need a
+  hand-written codec.
 - **A whole-class naming policy** such as `snake_case`. It is a mode string
   (`rule:core-api/shape-rules` R11), and it makes a wire format depend on a setting rather than on
   the source being read.

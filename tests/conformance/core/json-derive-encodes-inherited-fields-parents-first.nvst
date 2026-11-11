@@ -1,0 +1,63 @@
+--TEST--
+a `#[Json\Derive]` class's fields are every instance property in its class chain, the root parent's first, and a parent's `#[Json\Field]` applies to every subclass — `rule:core-classes/derive-property-list`
+--FILE--
+<?nvs
+// covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
+use Core\Json;
+use Core\Json\Field;
+
+// The root carries no derive itself. Its properties are still fields of every
+// derived subclass, and its `#[Field]` renames one of them.
+class Entity {
+    #[Field(name: "id")]
+    public int $key;
+    public function constructor(int $key) {
+        $this->key = $key;
+    }
+}
+
+#[Core\Json\Derive]
+class Post extends Entity {
+    public string $title;
+    public function constructor(int $key, string $title) {
+        $this->title = $title;
+        parent::constructor($key);
+    }
+}
+
+// Two levels down: the root's field, then the parent's, then its own.
+#[Core\Json\Derive]
+class Article extends Post {
+    public function constructor(int $key, string $title, public array<string> $tags) {
+        parent::constructor($key, $title);
+    }
+}
+
+var $article = new Article(7, "hello", ["a", "b"]);
+echo Json::encode($article), "\n";
+
+// A decode is an ordinary `new`, so the inherited fields arrive through the
+// subclass's constructor and the object encodes back to the same bytes.
+var $back = Json::decodeAs<Article>(Json::encode($article));
+echo Json::encode($back) == Json::encode($article) ? "same" : "differs", "\n";
+echo $back->key, " ", $back->title, " ", Core\Arr::count($back->tags), "\n";
+
+// A list declared as the parent writes each object with its own class's keys.
+array<Post> $posts = [new Post(1, "one"), new Article(2, "two", ["x"])];
+echo Json::encode($posts), "\n";
+
+// A subclass may declare an inherited property again, as a promoted
+// parameter. It is one property, so it is one key, at the parent's position.
+#[Core\Json\Derive]
+class Note extends Entity {
+    public function constructor(public int $key, public string $body) {
+        parent::constructor($key);
+    }
+}
+echo Json::encode(new Note(3, "text")), "\n";
+--EXPECT--
+{"id":7,"title":"hello","tags":["a","b"]}
+same
+7 hello 2
+[{"id":1,"title":"one"},{"id":2,"title":"two","tags":["x"]}]
+{"key":3,"body":"text"}

@@ -15,6 +15,8 @@ written order, and every other member of the class is ordered as usual. The orde
 constructor after every property, so when a promoted parameter comes before a declared property in the
 field order, no member order keeps it: the class is then left exactly as written, and `nvs code order`
 prints one note naming it.
+Inherited fields always come first, in their parents' order, and neither the attribute nor `nvs code
+order` moves them: both order the class's own members.
 
 An empty `reason` compiles. Review judges a reason, and a check cannot.
 

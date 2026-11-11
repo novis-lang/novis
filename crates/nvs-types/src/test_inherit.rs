@@ -69,7 +69,7 @@ pub(crate) struct Inherited {
 
 /// `class`'s ancestors through `extends`, nearest first. A cycle is
 /// `nvs_hir`'s refusal, so the walk stops at the first class it meets twice.
-fn ancestors(class: &QName, graph: &ClassGraph) -> Vec<QName> {
+pub(crate) fn ancestors(class: &QName, graph: &ClassGraph) -> Vec<QName> {
     let mut out: Vec<QName> = Vec::new();
     let mut next = graph.get(class).and_then(|links| links.extends.first());
     while let Some(parent) = next {

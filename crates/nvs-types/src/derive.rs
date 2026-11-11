@@ -986,6 +986,43 @@ pub struct DerivedCodec {
     /// generated decoder has to fill before it can run one. Zero for a class
     /// that declares none, which [`check_class_format`] has already reported.
     pub ctor_arity: usize,
+    /// The constructor parameters no field fills, `$`-sigil stripped, in
+    /// parameter order. A decode cannot build the object while one is left.
+    pub unfilled: Vec<String>,
+    /// The properties a `Field(skip: true)` leaves out, `$`-sigil stripped.
+    /// Read by [`not_constructible_help`] alone.
+    pub skipped: Vec<String>,
+}
+
+/// The help of a decode that cannot build `codec`'s class, at the JSON door
+/// and the row door alike. A parameter that a skipped property names keeps
+/// the `skip` help. Any other is named, because no property fills it at all.
+fn not_constructible_help(codec: &DerivedCodec, format: Format) -> String {
+    if codec.unfilled.is_empty() || codec.unfilled.iter().any(|name| codec.skipped.contains(name)) {
+        return match format {
+            Format::Json => {
+                "a property with `#[Json\\Field(skip: true)]` is still a constructor parameter, \
+                 and the JSON has no key for it. Remove the `skip`. Or assign the property in \
+                 the constructor body, and remove it from the parameters"
+            }
+            Format::Db => {
+                "a property with `#[Db\\Field(skip: true)]` is still a constructor parameter, \
+                 and the row has no column for it. Give it a column and remove the `skip`. Or \
+                 build the object yourself from a `Core\\Db\\Row`"
+            }
+        }
+        .to_owned();
+    }
+    let names: Vec<String> = codec
+        .unfilled
+        .iter()
+        .map(|name| format!("`${name}`"))
+        .collect();
+    format!(
+        "no property fills the constructor parameter(s) {}. Declare a property with the same \
+         name, or remove the parameter",
+        names.join(", ")
+    )
 }
 
 /// One field of a [`DerivedCodec`], as read off the *declaration*.
@@ -1121,6 +1158,7 @@ pub fn shape_codec(
     Some(DerivedCodec {
         ctor_arity: fields.len(),
         fields,
+        ..DerivedCodec::default()
     })
 }
 
@@ -1402,6 +1440,56 @@ pub struct CodecFieldSite {
     /// Which format's type map answers for it — the two disagree, and a class
     /// carrying both attributes records the same property twice.
     format: Format,
+    /// Set when a parent declares the property, so a refusal is reported at
+    /// the deriving class's attribute.
+    inherited: Option<Inherited>,
+}
+
+/// Where a refusal of an inherited field is reported: at the attribute of the
+/// class being derived, with a second label on the parent's property.
+#[derive(Clone, Debug)]
+pub struct Inherited {
+    /// The deriving class's `#[Json\Derive]` or `#[Db\Derive]`.
+    attribute: Span,
+    /// The deriving class.
+    class: String,
+    /// The parent that declares the property.
+    owner: String,
+}
+
+impl Inherited {
+    /// `diagnostic` with each primary label made a secondary one, and the
+    /// attribute made the primary label.
+    fn relabel(&self, mut diagnostic: Diagnostic) -> Diagnostic {
+        for label in &mut diagnostic.labels {
+            label.style = nvs_diagnostics::LabelStyle::Secondary;
+        }
+        let Self {
+            attribute,
+            class,
+            owner,
+        } = self;
+        diagnostic.labels.insert(
+            0,
+            nvs_diagnostics::Label {
+                span: *attribute,
+                message: format!("`{class}` gets this property from `{owner}`"),
+                style: nvs_diagnostics::LabelStyle::Primary,
+            },
+        );
+        diagnostic
+    }
+}
+
+/// Moves every diagnostic reported since `before` to the deriving class's
+/// attribute — see [`Inherited`].
+fn report_at_subclass(before: usize, inherited: &Inherited, env: &mut Env<'_>) {
+    for diagnostic in env.diags.iter_mut().skip(before) {
+        *diagnostic = inherited.relabel(std::mem::replace(
+            diagnostic,
+            Diagnostic::new(nvs_diagnostics::Severity::Error, ""),
+        ));
+    }
 }
 
 /// `rule:core-classes/derive-property-list`'s "a field's type must be codec-reachable", once every
@@ -1439,14 +1527,16 @@ pub(crate) fn resolve_field_types(
         let class = &site.class;
         let property = &site.property;
         let missing = format.no_mapping();
-        diags.report(
-            Diagnostic::error(
+        let diagnostic = Diagnostic::error(
                 code::E_DERIVE_FIELD_NOT_CODEC_REACHABLE,
                 format!("`{class}::${property}` is declared `{spelling}`, {missing}"),
             )
-            .with_primary(site.span, format.no_mapping_label())
-            .with_help(format.no_mapping_help()),
-        );
+        .with_primary(site.span, format.no_mapping_label())
+            .with_help(format.no_mapping_help());
+        diags.report(match &site.inherited {
+            Some(inherited) => inherited.relabel(diagnostic),
+            None => diagnostic,
+        });
     }
 }
 
@@ -1594,9 +1684,7 @@ pub(crate) fn check_row_sites(
                     "`{class}`'s mapping fills {mapped} of its constructor's {arity} \
                      parameter(s), so `{member}` cannot build one"
                 ),
-                "a property with `#[Db\\Field(skip: true)]` is still a constructor parameter, \
-                 and the row has no column for it. Give it a column and remove the `skip`. Or \
-                 build the object yourself from a `Core\\Db\\Row`",
+                &not_constructible_help(codec, Format::Db),
                 diags,
             );
         }
@@ -1778,11 +1866,7 @@ pub(crate) fn check_json_sites(
                     ),
                 )
                 .with_primary(site.span, "written here")
-                .with_help(
-                    "a property with `#[Json\\Field(skip: true)]` is still a constructor \
-                     parameter, and the JSON has no key for it. Remove the `skip`. Or assign \
-                     the property in the constructor body, and remove it from the parameters",
-                ),
+                .with_help(not_constructible_help(codec, Format::Json)),
             );
         }
     }
@@ -2463,17 +2547,41 @@ fn check_class_format(
     // Each kept field's wire key and the name it was declared at, for
     // [`check_unique_key`].
     let mut keys: Vec<(String, Span)> = Vec::new();
-    for field in field_order(&decl.members, env.src) {
-        let at = field.name;
-        match codec_field(&field, class, format, params, ctx, env) {
-            FieldOutcome::Kept(field) => {
-                check_unique_key(&field.key, at, &keys, format, env);
-                keys.push((field.key.clone(), at));
-                codec.fields.push(*field);
+    let own_src = env.src;
+    for field in chain_field_order(decl, class, env) {
+        let at = field.decl.name;
+        let inherited = field.owner.as_ref().map(|owner| Inherited {
+            attribute,
+            class: class.to_string(),
+            owner: owner.class.to_string(),
+        });
+        let before = env.diags.len();
+        let outcome = codec_field(&field, inherited.as_ref(), class, format, params, ctx, env);
+        env.src = own_src;
+        if let Some(inherited) = &inherited {
+            report_at_subclass(before, inherited, env);
+        }
+        match outcome {
+            FieldOutcome::Kept(kept) => {
+                let before = env.diags.len();
+                check_unique_key(&kept.key, at, &keys, format, env);
+                if let Some(inherited) = &inherited {
+                    report_at_subclass(before, inherited, env);
+                }
+                keys.push((kept.key.clone(), at));
+                codec.fields.push(*kept);
             }
-            FieldOutcome::Skipped => {}
+            FieldOutcome::Skipped(name) => codec.skipped.push(name),
             FieldOutcome::Refused => refused = true,
         }
+    }
+    if let Some(params) = params {
+        codec.unfilled = params
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| !codec.fields.iter().any(|f| f.param == Some(*index)))
+            .map(|(_, param)| strip_sigil(span_text(env.src, param.name)).to_owned())
+            .collect();
     }
     // `rule:core-classes/derive-property-list`'s field list is the declared property list, so no property is an
     // empty wire contract — `rule:core-classes/derive-generates-what-is-missing`'s rule about an attribute with no effect,
@@ -2585,8 +2693,9 @@ fn attribute_span(
 enum FieldOutcome {
     /// A field, in declaration order, in the wire contract.
     Kept(Box<DerivedField>),
-    /// `rule:core-classes/derive-property-list`'s `#[Json\Field(skip: true)]`.
-    Skipped,
+    /// `rule:core-classes/derive-property-list`'s `#[Json\Field(skip: true)]`,
+    /// with the property's name, `$`-sigil stripped.
+    Skipped(String),
     /// Refused, with the diagnostic already reported: by
     /// `rule:core-classes/derive-property-list` or `rule:security/derived-codec-qualifiers`.
     Refused,
@@ -2626,6 +2735,64 @@ pub fn field_order<'a>(
         }
     }
     fields
+}
+
+/// `rule:core-classes/derive-property-list`'s field list over the whole class
+/// chain: each ancestor's [`field_order`], the root first, then `decl`'s own.
+///
+/// A parent counts whether it derives a codec itself or not. A parent with no
+/// source declaration, such as a `Core` class, gives no fields. A property
+/// declared again lower in the chain is one slot, so it is one field: it keeps
+/// the position of its topmost declaration, and the nearest declaration's
+/// type and `Field` attribute.
+fn chain_field_order<'d, 'e: 'd>(
+    decl: &'d ClassDecl,
+    class: &QName,
+    env: &Env<'e>,
+) -> Vec<ChainField<'d, 'e>> {
+    let table: &'e crate::retrieval::AttributeTable<'e> = env.attributes;
+    let mut out: Vec<(String, ChainField<'d, 'e>)> = Vec::new();
+    let mut place = |name: String, field: ChainField<'d, 'e>| {
+        match out.iter().position(|(seen, _)| *seen == name) {
+            Some(index) => out[index].1 = field,
+            None => out.push((name, field)),
+        }
+    };
+    let ancestors = crate::test_inherit::ancestors(class, env.graph);
+    for parent in ancestors.iter().rev() {
+        let Some((parent_decl, src, ctx)) = table.class_decl(parent) else {
+            continue;
+        };
+        for field in field_order(&parent_decl.members, src) {
+            let name = strip_sigil(span_text(src, field.name)).to_owned();
+            let owner = Owner {
+                class: parent.clone(),
+                src,
+                ctx: ctx.clone(),
+            };
+            place(name, ChainField { decl: field, owner: Some(owner) });
+        }
+    }
+    for field in field_order(&decl.members, env.src) {
+        let name = strip_sigil(span_text(env.src, field.name)).to_owned();
+        place(name, ChainField { decl: field, owner: None });
+    }
+    out.into_iter().map(|(_, field)| field).collect()
+}
+
+/// One entry of [`chain_field_order`]: a field declaration, and the parent
+/// that declares it when the class being derived does not.
+struct ChainField<'d, 'e> {
+    decl: FieldDecl<'d>,
+    owner: Option<Owner<'e>>,
+}
+
+/// A parent's declaration of an inherited field: the parent, the file it is
+/// written in, and the scope its names resolve through.
+struct Owner<'e> {
+    class: QName,
+    src: &'e SourceFile,
+    ctx: Ctx<'e>,
 }
 
 /// One declaration, as `rule:core-classes/derive-property-list`'s field list reads it.
@@ -2681,18 +2848,32 @@ impl<'a> FieldDecl<'a> {
 }
 
 /// One declaration's [`DerivedField`], or why it is not one.
-fn codec_field(
-    p: &FieldDecl<'_>,
+///
+/// An inherited declaration is read in its parent's file and scope, and its
+/// constructor parameter in the deriving class's. The caller puts `env.src`
+/// back to the deriving class's file.
+fn codec_field<'e>(
+    field: &ChainField<'_, 'e>,
+    inherited: Option<&Inherited>,
     class: &QName,
     format: Format,
     params: Option<&[Param]>,
     ctx: &Ctx<'_>,
-    env: &mut Env<'_>,
+    env: &mut Env<'e>,
 ) -> FieldOutcome {
+    let p = &field.decl;
+    let own_src = env.src;
+    let decl_ctx: &Ctx<'_> = match &field.owner {
+        Some(owner) => {
+            env.src = owner.src;
+            &owner.ctx
+        }
+        None => ctx,
+    };
     let name = strip_sigil(span_text(env.src, p.name)).to_owned();
-    let overrides = field_overrides(p.attributes, format, ctx, env);
+    let overrides = field_overrides(p.attributes, format, decl_ctx, env);
     if overrides.skip {
-        return FieldOutcome::Skipped;
+        return FieldOutcome::Skipped(name);
     }
     let derive = format.attribute();
     let skip = format.skip_hint();
@@ -2713,7 +2894,16 @@ fn codec_field(
         );
         return FieldOutcome::Refused;
     }
-    let declared = crate::lower::lower_optional_type(p.ty, ctx, env);
+    // A parent's property type was lowered once, where the parent is checked,
+    // and its diagnostics were reported there.
+    let signed = field.owner.as_ref().and_then(|owner| {
+        let signatures = env.signatures.get(&owner.class)?;
+        signatures.properties.get(&name).copied()
+    });
+    let declared = match signed {
+        Some(ty) => ty,
+        None => crate::lower::lower_optional_type(p.ty, decl_ctx, env),
+    };
     // `rule:security/derived-codec-qualifiers`: a row is read and written by the
     // same derive, so a `secret` property is refused where it is declared. A
     // JSON field is kept: its decoder fills it, and [`check_encode_sites`]
@@ -2732,6 +2922,7 @@ fn codec_field(
         );
         return FieldOutcome::Refused;
     }
+    env.src = own_src;
     let resolved = check_constructor_parameter(p.name, &name, declared, format, params, ctx, env);
     let param = resolved.as_ref().map(|bound| bound.index);
     // A refused declaration reads as required rather than as optional: the
@@ -2757,6 +2948,7 @@ fn codec_field(
         span: p.name,
         declared: carried,
         format,
+        inherited: inherited.cloned(),
     });
     let erased = codec_ty(carried, env.interner, env.enums);
     FieldOutcome::Kept(Box::new(DerivedField {
