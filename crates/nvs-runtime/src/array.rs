@@ -1850,6 +1850,14 @@ pub(crate) unsafe fn drop_one(ptr: *mut ArrayHeader) -> bool {
     unsafe_code,
     reason = "reaching zero exactly once is the caller's obligation to state"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 pub(crate) unsafe fn dismantle(ptr: *mut ArrayHeader, work: &mut Vec<crate::release::Dying>) {
     #[expect(
         unsafe_code,

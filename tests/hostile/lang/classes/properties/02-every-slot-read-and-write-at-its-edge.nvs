@@ -1,0 +1,95 @@
+<?nvs
+// Attack: each property read and write gets an object at the edge of what it
+// accepts. The program reads the first and last property, shares one object
+// many times, and reads names that do not exist. Every step should finish or
+// throw an error it catches.
+
+class Base
+{
+    public int $a1 = 1;
+    public int $a2 = 2;
+    public int $a3 = 3;
+    public int $a4 = 4;
+    public int $a5 = 5;
+    public int $a6 = 6;
+    private int $hidden = 7;
+}
+
+final class Wide extends Base
+{
+    public int $b1 = 11;
+    public int $b2 = 12;
+    public int $b3 = 13;
+    public int $b4 = 14;
+    public int $b5 = 15;
+    public ?Wide $child = null;
+    public lateinit string $late;
+}
+
+// 1. The first and the last property of a parent and a child class are
+// written and read. A variable of the parent type reads the child object.
+Wide $wide = new Wide();
+$wide->a1 = 100;
+$wide->a6 = 600;
+$wide->b5 = 1500;
+Base $asBase = $wide;
+echo "step 1: ", $asBase->a1 + $asBase->a6 + $wide->b1 + $wide->b5, "\n";
+
+// 2. One object is stored two hundred thousand times in an array. The array
+// is deleted, and the object can still be read.
+Wide $shared = new Wide();
+array<Wide> $copies = [];
+for (int $i = 0; $i < 200000; $i++) {
+    $copies[] = $shared;
+}
+echo "step 2: ", Core\Arr::count($copies), "\n";
+$copies = [];
+echo "step 2: ", $shared->b5, "\n";
+
+// 3. An object with a child is cloned, and the original is deleted. The
+// clone has the same child, and the child can still be read.
+Wide $parent = new Wide();
+Wide $child = new Wide();
+$child->b1 = 99;
+$parent->child = $child;
+$child = new Wide();
+Wide $copy = clone $parent;
+$parent = new Wide();
+echo "step 3: ", $copy->child?->b1 ?? 0, "\n";
+
+// 4. A `mixed` variable reads and writes a property the class does not have,
+// and a private property. Each one throws an error, and the program catches it.
+mixed $m = new Wide();
+try {
+    mixed $missing = $m->missing;
+    echo "step 4: BAD, the read gave ", $missing, "\n";
+} catch (Throwable $missingRead) {
+    echo "step 4: the read of a missing property threw an error\n";
+}
+try {
+    $m->missing = 1;
+    echo "step 4: BAD, the write of a missing property worked\n";
+} catch (Throwable $missingWrite) {
+    echo "step 4: the write of a missing property threw an error\n";
+}
+try {
+    mixed $hidden = $m->hidden;
+    echo "step 4: BAD, the read gave ", $hidden, "\n";
+} catch (Throwable $privateRead) {
+    echo "step 4: the read of a private property threw an error\n";
+}
+
+// 5. `is` tests for properties that are missing, private or never written.
+// Each test gives `false`.
+echo "step 5: ", $m is {missing: int} ? "BAD" : "false", " ",
+    $m is {hidden: int} ? "BAD" : "false", " ",
+    $m is tainted {late: string} ? "BAD" : "false", "\n";
+
+// 6. A `mixed` variable reads a `lateinit` property that was never written.
+// This throws a `LogicError`, and the program catches it.
+try {
+    mixed $late = $m->late;
+    echo "step 6: BAD, the read gave ", $late, "\n";
+} catch (LogicError $unwritten) {
+    echo "step 6: the read of an unwritten property threw a LogicError\n";
+}

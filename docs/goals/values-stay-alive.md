@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-runtime/src/string.rs, crates/nvs-runtime/src/value.rs, crates/nvs-runtime/src/arith.rs]
   - id: 7
     title: the object primitives hold no panic a program reaches
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/object.rs]
   - id: 8
     title: every other primitive holds no panic a program reaches
@@ -319,6 +319,18 @@ member's `try_build` still throws a catchable error. **What it spends:** nothing
 allocates. The kept `expect`s are the refcount overflow in `nvs_str_retain`, `str_layout` over a
 capacity that has a layout, and `Piece::of`'s two miscompile arms.
 
+**What stage 7 settled while building it.** There are sixteen object primitives, not seventeen.
+Five of them (`nvs_object_slot_get`, `_optional_get`, `_set`, `nvs_object_key_get` and `_set`) run
+their body through `run_helper`, whose `catch_unwind` already contains a panic to one request. So
+`key_name`, `read_erased_property` and `write_property` are out of the sweep, as a helper written
+through `nvs_helper!` is. `slot_state` and `hidden` carry the set, because `nvs_object_slot_probe`
+calls them with no wrapper. `field_ptr`'s index is proven at compile time: `nvs-codegen` takes it
+from the same `ir::Class::fields` list that built the descriptor, and a subclass's slots extend
+its parent's. So the bound stays debug-only, and a release build pays no load or compare on a
+field access. The kept `expect`s are `obj_layout` over a compiled class's property count,
+`field_offset`'s two overflow arms, and the refcount overflow in `bump`. `drop_one` decrements
+with `checked_sub`, as `array::drop_one` does. **What it spends:** nothing at run time.
+
 **Lanes:** stages 1 and 2 share the lowering files and run in order. Stage 3 shares `mod.rs` with
 stage 1 and `emit.rs` with stage 4, so stages 1 to 4 run in order. Stage 5 shares `array.rs` with
 stage 4 and runs after it. Stages 6, 7 and 8 touch disjoint runtime files and may run side by side
@@ -583,14 +595,20 @@ The list's sites, for the checkpoints:
 
 **Does:** clear the object group from stage 5's list.
 
-- [ ] The seventeen primitives in `object.rs` get the attribute, and each listed site is resolved
+- [x] The seventeen primitives in `object.rs` get the attribute, and each listed site is resolved
   (`rule:errors/helper-abi`, `crates/nvs-runtime/src/object.rs:4342`,
   `crates/nvs-runtime/src/object.rs:6251`).
-- [ ] The release path they share with arrays gets the same treatment
+  - [x] The sixteen primitives carry the set.
+  - [x] Each helper a primitive calls with no wrapper carries the set.
+  - [x] Each site clippy names is resolved, and `field_ptr`'s index is decided.
+- [x] The release path they share with arrays gets the same treatment
   (`crates/nvs-runtime/src/release.rs:57`).
-- [ ] Attack `tests/hostile/lang/classes/properties/02-every-slot-read-and-write-at-its-edge.nvs`:
+  - [x] `object::drop_one`, `release_graph` and both `dismantle`s carry the set.
+- [x] Attack `tests/hostile/lang/classes/properties/02-every-slot-read-and-write-at-its-edge.nvs`:
   one step per site the list marked reachable
   (`rule:testing/feature-proofs`, `tests/hostile/lang/classes/properties/02-every-slot-read-and-write-at-its-edge.nvs:1`).
+  - [x] Six steps written, and `bun nv try` prints every step with no `BAD`.
+  - [x] `bun nv proofs --comments` passes on it.
 
 The list's sites, for the checkpoints. The subagent did not read the bodies from
 `crates/nvs-runtime/src/object.rs:4525` to `crates/nvs-runtime/src/object.rs:5230`,
@@ -646,35 +664,32 @@ not trace their callees or their arithmetic.
 
 ### State
 
-Stages 1 to 6 are done. Every array, string, value and arithmetic primitive carries the `deny`
-set, and so does each function the lists showed they call. Stage 6 made every string length sum
-saturate. `NvsStr::alloc_or_refusal` puts a capacity with no layout to the ceiling as an ask of
-`usize::MAX`, so a capped request is refused there (the decision is under "What stage 6 settled").
-`release_value` and `step_field` in `release.rs` already carry the set, so stage 7's second item
-owes only `object::drop_one` and the two `dismantle`s. The test
-`the_string_and_value_primitives_deny_a_panic_in_their_own_body` passes. Clippy is clean over the
-workspace. The sweep's `env-secret-proofs` red is stale: no such check and no log exist in the
-tree, so it comes from looper's service.
+Stages 1 to 7 are done. Every array, string, value, arithmetic and object primitive carries the
+`deny` set, and so does each function it calls with no `run_helper` around it. Stage 7's
+decisions are under "What stage 7 settled": five slot and key primitives are contained by
+`run_helper`, and `field_ptr`'s index stays checked in debug builds alone. The attack
+`tests/hostile/lang/classes/properties/02-every-slot-read-and-write-at-its-edge.nvs` passes under
+`bun nv try`, and `the_object_primitives_deny_a_panic_in_their_own_body` passes. Clippy is clean
+over the workspace. The sweep's `env-secret-proofs` red is stale: no such check and no log exist
+in the tree, so it comes from looper's service.
 
 ### Next
 
-Stages 7 and 8 touch disjoint files and may run side by side. Take stage 7: the object primitives.
+Take stage 8: every other primitive. Read the bodies first, then put the set on each.
 
-- [ ] `crates/nvs-runtime/src/object.rs:4342` to `crates/nvs-runtime/src/object.rs:5197`, and
-  `crates/nvs-runtime/src/object.rs:6251`: the `deny` set on the seventeen primitives. Copy the
-  block from `nvs_str_concat` in `string.rs`.
-- [ ] The helpers they call: `obj_layout` (`crates/nvs-runtime/src/object.rs:3647`), `field_ptr`
-  (`crates/nvs-runtime/src/object.rs:4070`), `drop_one` (`crates/nvs-runtime/src/object.rs:4144`),
-  `dismantle` (`crates/nvs-runtime/src/object.rs:4237`) and `array::dismantle`.
-- [ ] `crates/nvs-runtime/src/object.rs:4070`: decide whether `field_ptr`'s index is proven at
-  compile time, and record it.
-- [ ] `tests/hostile/lang/classes/properties/02-every-slot-read-and-write-at-its-edge.nvs:1`: the
-  attack the stage names, then `bun nv try` on it.
-- [ ] `crates/nvs-runtime/tests/primitives_never_panic.rs:135`: run
-  `cargo test --test primitives_never_panic -- the_object_primitives` once.
+- [ ] `crates/nvs-runtime/src/throwable.rs:1025`, `:1078`, `:1154`, `:1185` and `:1225`: the five
+  raise and trace primitives, and the helpers each calls.
+- [ ] `crates/nvs-runtime/src/callable.rs:345` and `:389` run through `run_helper`. Decide whether
+  `invoke_native` (`crates/nvs-runtime/src/callable.rs:1095`) moves its body under `run_helper`.
+  `crates/nvs-runtime/src/extension.rs:101` and its `CURRENT` borrow at `:125`.
+- [ ] `crates/nvs-runtime/src/ctx/safepoint.rs:1185` and `:1397`, `crates/nvs-runtime/src/ctx/frames.rs:444`,
+  `:468` and `:517`, `crates/nvs-runtime/src/ctx/trace.rs:767`, `:802`, `:1371` and `:1408`, and
+  `crates/nvs-runtime/src/ctx/deprecated.rs:89`.
+- [ ] `crates/nvs-stdlib/src/test.rs:5220`: `trampoline` reads `*args` before `run_helper`'s guard.
+- [ ] `crates/nvs-runtime/tests/primitives_never_panic.rs:140`: run
+  `cargo test --test primitives_never_panic` once, and it is green.
 
-Expected red: `the_object_primitives_deny_a_panic_in_their_own_body` and
-`every_primitive_denies_a_panic_in_its_own_body`, until stages 6 to 8 land. A test or conformance
+Expected red: `every_primitive_denies_a_panic_in_its_own_body`, until stage 8 lands. A test or conformance
 case that prints a backtrace through a `RecursionError` or a limit stop at a function's entry now
 shows the stopped frame too. Any `nvs-codegen` test that compares an IR dump through an `inout`
 loop. Any conformance case or example that appends to the subject of an `inout` loop and expected

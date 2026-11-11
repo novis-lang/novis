@@ -1499,6 +1499,14 @@ impl ClassDesc {
     /// How many [`Value`] slots an instance of this class has, including every
     /// ancestor's.
     #[must_use]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn field_count(&self) -> usize {
         self.fields.len()
     }
@@ -1518,6 +1526,14 @@ impl ClassDesc {
     /// [`ClassDesc::method`]'s binary search exists because a dispatch has no
     /// equivalent hint.
     #[must_use]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn field_slot(&self, name: &str, hint: usize) -> Option<usize> {
         if self.fields.get(hint).is_some_and(|field| field == name) {
             return Some(hint);
@@ -1748,6 +1764,14 @@ impl ClassDesc {
         reason = "comparing addresses reads nothing, but the caller still owes \
                   the liveness of the descriptor it names"
     )]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub unsafe fn conforms_to(&self, other: *const ClassDesc) -> bool {
         std::ptr::eq(self, other) || self.conforms.contains(&other)
     }
@@ -1788,6 +1812,14 @@ impl ClassDesc {
     /// no default body has no code, and [`nvs_class_method`]'s caller supplies
     /// the statically resolved target as the fallback.
     #[must_use]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn method(&self, name: &str) -> Option<*const u8> {
         self.method_row(name).map(|row| row.code)
     }
@@ -3482,6 +3514,14 @@ impl Drop for Detach<'_> {
 ///
 /// Not `unsafe` to call from this module for [`bump`]'s reason: every caller
 /// here already holds a live handle.
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 fn field_count(ptr: *mut ObjHeader) -> usize {
     #[expect(
         unsafe_code,
@@ -3599,6 +3639,19 @@ pub const FIELD_STRIDE: usize = std::mem::size_of::<Value>();
 ///
 /// If the offset overflows a `usize`, which no real class reaches.
 #[must_use]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
+#[expect(
+    clippy::panic,
+    reason = "no program reaches this: every index is a slot of a compiled \
+              class, and a class's property count is far below the bound"
+)]
 pub const fn field_offset(index: usize) -> usize {
     match index.checked_mul(FIELD_STRIDE) {
         Some(scaled) => match FIELDS_OFFSET.checked_add(scaled) {
@@ -3644,8 +3697,22 @@ pub fn immortal_object_bytes(slots: &[Tag]) -> Vec<u8> {
 }
 
 /// The allocation shape for an instance with `field_count` slots.
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 fn obj_layout(field_count: usize) -> Layout {
     let size = field_offset(field_count);
+    #[expect(
+        clippy::expect_used,
+        reason = "no program reaches this: the alignment is a power of two, and \
+                  `field_count` is the declared property count of a compiled \
+                  class, so the size is far below `isize::MAX`"
+    )]
     Layout::from_size_align(size, std::mem::align_of::<ObjHeader>())
         .expect("an object layout is always valid: alignment is a power of two")
 }
@@ -3693,6 +3760,14 @@ impl NvsObj {
         unsafe_code,
         reason = "the descriptor's liveness is the caller's obligation to state"
     )]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub unsafe fn new(class: *const ClassDesc) -> Self {
         #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
         let object = unsafe { Self::alloc(class) };
@@ -3722,6 +3797,14 @@ impl NvsObj {
     #[expect(
         unsafe_code,
         reason = "the descriptor's liveness is the caller's obligation to state"
+    )]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
     )]
     unsafe fn alloc(class: *const ClassDesc) -> Self {
         #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
@@ -3790,6 +3873,14 @@ impl NvsObj {
 
     /// How many field slots this instance has.
     #[must_use]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn field_count(&self) -> usize {
         #[expect(
             unsafe_code,
@@ -3832,6 +3923,14 @@ impl NvsObj {
     ///
     /// If `index` is out of range for this object's class.
     #[must_use]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn field(&self, index: usize) -> Value {
         assert!(
             index < self.field_count(),
@@ -3888,6 +3987,14 @@ impl NvsObj {
     /// # Panics
     ///
     /// If `index` is out of range for this object's class.
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn set_field(&self, index: usize, value: Value) {
         assert!(
             index < self.field_count(),
@@ -4019,6 +4126,14 @@ impl NvsObj {
         unsafe_code,
         reason = "the pointee's liveness is the caller's obligation to state"
     )]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub unsafe fn class_of(ptr: *const ObjHeader) -> *const ClassDesc {
         #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
         unsafe {
@@ -4067,6 +4182,14 @@ impl fmt::Debug for NvsObj {
     reason = "the pointee's liveness and the slot's existence are the caller's \
               obligation to state"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 unsafe fn field_ptr(ptr: *mut ObjHeader, index: usize) -> *mut Value {
     // A debug-only bound, and deliberately not a release one. `nvs-codegen`
     // resolves the slot at compile time from the same `ir::Class::fields` list
@@ -4107,6 +4230,14 @@ unsafe fn field_ptr(ptr: *mut ObjHeader, index: usize) -> *mut Value {
 /// Not itself `unsafe` to *call* from this module because every caller here
 /// already holds a live handle; the pointer dereference is the usual "a live
 /// allocation" obligation stated at each call site.
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 fn bump(ptr: *mut ObjHeader) {
     #[expect(
         unsafe_code,
@@ -4120,6 +4251,11 @@ fn bump(ptr: *mut ObjHeader) {
     if count == crate::IMMORTAL_REFCOUNT {
         return;
     }
+    #[expect(
+        clippy::expect_used,
+        reason = "no program reaches this: every reference is a stored pointer, \
+                  and the address space cannot hold `usize::MAX` of them"
+    )]
     header.refcount.set(
         count
             .checked_add(1)
@@ -4141,6 +4277,14 @@ fn bump(ptr: *mut ObjHeader) {
     unsafe_code,
     reason = "owning the reference is the caller's obligation to state"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 pub(crate) unsafe fn drop_one(ptr: *mut ObjHeader) -> bool {
     #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
     let header = unsafe { &*ptr };
@@ -4150,7 +4294,14 @@ pub(crate) unsafe fn drop_one(ptr: *mut ObjHeader) -> bool {
     if count == crate::IMMORTAL_REFCOUNT {
         return false;
     }
-    let remaining = count - 1;
+    #[expect(
+        clippy::expect_used,
+        reason = "no program reaches this: the caller owns a reference, so the \
+                  count is at least one"
+    )]
+    let remaining = count
+        .checked_sub(1)
+        .expect("a released object holds the caller's reference");
     header.refcount.set(remaining);
     remaining == 0
 }
@@ -4168,6 +4319,14 @@ pub(crate) unsafe fn drop_one(ptr: *mut ObjHeader) -> bool {
 #[expect(
     unsafe_code,
     reason = "owning the reference is the caller's obligation to state"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 pub unsafe fn release_graph(root: *mut ObjHeader) {
     if root.is_null() {
@@ -4233,6 +4392,14 @@ pub unsafe fn release_graph(root: *mut ObjHeader) {
 #[expect(
     unsafe_code,
     reason = "reaching zero exactly once is the caller's obligation to state"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::release::Dying>) {
     #[expect(
@@ -4338,6 +4505,14 @@ unsafe fn unwind_abandoned(ptr: *mut ObjHeader, target: *const u8) -> bool {
     reason = "compiled code passes a descriptor pointer whose liveness the \
               signature cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_new(class: *const ClassDesc) -> *mut ObjHeader {
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
@@ -4368,6 +4543,14 @@ pub unsafe extern "C" fn nvs_object_new(class: *const ClassDesc) -> *mut ObjHead
     unsafe_code,
     reason = "compiled code passes a raw object pointer whose liveness the \
               signature cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_clone(ptr: *mut ObjHeader) -> *mut ObjHeader {
@@ -4477,6 +4660,14 @@ crate::nvs_helper! {
     reason = "compiled code passes a raw object pointer whose liveness the \
               signature cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_retain(ptr: *mut ObjHeader) {
     if ptr.is_null() {
@@ -4496,6 +4687,14 @@ pub unsafe extern "C" fn nvs_object_retain(ptr: *mut ObjHeader) {
     unsafe_code,
     reason = "compiled code passes a raw object pointer whose ownership the \
               signature cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_release(ptr: *mut ObjHeader) {
@@ -4520,6 +4719,14 @@ pub unsafe extern "C" fn nvs_object_release(ptr: *mut ObjHeader) {
     unsafe_code,
     reason = "compiled code passes an object pointer and a descriptor pointer \
               whose liveness the signature cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_is_class(
@@ -4554,6 +4761,14 @@ pub unsafe extern "C" fn nvs_object_is_class(
     unsafe_code,
     reason = "compiled code passes a value by address and a descriptor pointer, \
               neither of whose liveness the signature can express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_value_is_class(
@@ -4598,6 +4813,14 @@ pub unsafe extern "C" fn nvs_value_is_class(
     unsafe_code,
     reason = "compiled code passes a descriptor pointer and a data-section \
               byte range whose liveness the signature cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_class_method(
@@ -4764,6 +4987,14 @@ crate::nvs_helper! {
     reason = "compiled code passes a raw object pointer whose liveness the \
               signature cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_class_name(
     ptr: *const ObjHeader,
@@ -4788,6 +5019,14 @@ pub unsafe extern "C" fn nvs_object_class_name(
     unsafe_code,
     reason = "compiled code passes a raw object pointer and a slot index that \
               the signature cannot bound"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_field_get(ptr: *mut ObjHeader, index: usize) -> Value {
@@ -4848,6 +5087,14 @@ pub unsafe extern "C" fn nvs_object_field_get(ptr: *mut ObjHeader, index: usize)
     unsafe_code,
     reason = "compiled code passes a value by address and a static byte \
               range, neither of which the signature can bound"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_slot_get(
@@ -4920,6 +5167,14 @@ pub unsafe extern "C" fn nvs_object_slot_get(
     reason = "compiled code passes a value by address and a static byte \
               range, neither of which the signature can bound"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_slot_optional_get(
     ctx: *mut Ctx,
@@ -4984,6 +5239,14 @@ pub unsafe extern "C" fn nvs_object_slot_optional_get(
     unsafe_code,
     reason = "compiled code passes a value by address and a static byte \
               range, neither of which the signature can bound"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_slot_probe(
@@ -5078,6 +5341,14 @@ pub unsafe extern "C" fn nvs_object_slot_probe(
     reason = "compiled code passes a static byte range and two values by \
               address, neither of which the signature can bound"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_slot_set(
     ctx: *mut Ctx,
@@ -5150,6 +5421,14 @@ pub unsafe extern "C" fn nvs_object_slot_set(
     reason = "compiled code passes three values by address, none of which the \
               signature can bound"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_key_get(
     ctx: *mut Ctx,
@@ -5192,6 +5471,14 @@ pub unsafe extern "C" fn nvs_object_key_get(
     unsafe_code,
     reason = "compiled code passes four values by address, none of which the \
               signature can bound"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_key_set(
@@ -5337,6 +5624,14 @@ enum Reach {
 /// write, and a shape class a `Core` member mints natively is never told its
 /// public bits, so [`ClassDesc::field_is_public`]'s safe `false` is the wrong
 /// answer for it.
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 fn hidden(desc: &ClassDesc, slot: Option<usize>, reach: Reach) -> bool {
     matches!(reach, Reach::Public)
         && !desc.is_shape()
@@ -5576,6 +5871,14 @@ enum SlotState {
     unsafe_code,
     reason = "the object and its descriptor are a pairing only the caller can \
               establish"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 unsafe fn slot_state(ptr: *mut ObjHeader, slot: Option<usize>) -> SlotState {
     let Some(slot) = slot else {
@@ -6246,6 +6549,14 @@ pub(crate) fn describe_argument(value: Value) -> String {
     reason = "compiled code passes a raw object pointer, a slot index the \
               signature cannot bound, and a value whose ownership it cannot \
               express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_field_set(ptr: *mut ObjHeader, index: usize, value: Value) {
