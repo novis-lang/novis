@@ -525,12 +525,21 @@ disjoint folders side by side, and none of them builds.
   conversion, and each step should throw without the value in its message
   (`rule:testing/feature-proofs`,
   `tests/hostile/lang/types/qualifiers-tainted-and-secret/02-read-a-secret-through-every-untyped-door.nvs:1`).
-- [ ] One example shows `secret mixed`, with its `.out`
+- [x] One example shows `secret mixed`, with its `.out`
   (`rule:testing/feature-proofs`,
   `docs/examples/lang/types/qualifiers-tainted-and-secret/08-a-secret-in-a-mixed-value.nvs:1`).
-- [ ] The feature's `about.md` and `details.md` state the three carriers, the conversion rule and the
+- [x] The feature's `about.md` and `details.md` state the three carriers, the conversion rule and the
   key rule (`docs/examples/lang/types/qualifiers-tainted-and-secret/about.md:1`,
   `docs/examples/lang/types/qualifiers-tainted-and-secret/details.md:1`).
+- [ ] A `secret` value written in an array literal or an anonymous object that is passed to a `Core`
+  `mixed` parameter keeps its qualifier, so `Core\Json::encode([$token])` and
+  `Core\Json::encode(['k' => $token])` are `E0791`. Today both compile and print the secret: a
+  literal checked against a `mixed` expectation returns the expectation, and a written argument is
+  not asked the container question (`reject_secret_encoded_argument`,
+  `crates/nvs-types/src/expr/quals.rs:1612`, and `check_array_literal`). `Core\Log::write` and
+  `Core\Queue::push` walk the literal for a bare variable only. Fix it once, where the literal's
+  type is made, so every `Core` sink reads `contains_secret` off the argument
+  (`rule:security/secret-qualifier`, `crates/nvs-types/tests/qualifiers_hold.rs:1`).
 - [ ] `bun nv proofs --comments` passes over every `.nvs` and `about.md` this stage wrote
   (`rule:testing/feature-proofs`, `docs/examples/lang/types/qualifiers-tainted-and-secret/about.md:1`).
 

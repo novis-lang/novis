@@ -10,8 +10,9 @@ A tainted string cannot be a regular expression, a format template or a date pat
 assigned to a plain `string` either. A secret value does not compile with `echo`, in an error
 message, in a debug dump or in `Core\Json::encode`.
 
-**Good to know:** a conversion such as `as int` gives a plain value, because the result is a number.
-`Core\Secret::reveal` is the only method that gives a plain string from a secret one. You give it the
-reason as its second argument.
+`secret` can also go before `mixed`. A secret value can be in a `mixed` variable only
+when you write `secret mixed`. A secret value cannot be an array key, and `as int` does not compile
+with it. `Core\Secret::reveal` is the only method that gives a plain value from a secret one. You
+give it the reason as its second argument.
 
 Examples 04 to 07 show each kind of mistake, and none of them compiles.
