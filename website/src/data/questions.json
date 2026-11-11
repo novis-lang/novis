@@ -17870,14 +17870,14 @@
   },
   "/syntax/attributes/json/": {
     "feature": "syntax/attributes/json.mdx",
-    "hash": "43e3743a8858b17f",
+    "hash": "029b48a055ed1589",
     "questions": [
       "How do I let a class be converted to and from JSON?",
-      "Use a different JSON key name for one property",
       "How do I leave a property out of the JSON output?",
       "Why does decoding JSON into my class throw an error?",
-      "Which property types work when I build an object from JSON?",
-      "How do I keep the JSON keys in the order I wrote the properties?"
+      "How do I keep the JSON keys in the order I wrote the properties?",
+      "Does the JSON of a subclass include the properties of its parent class?",
+      "Only accept a few fixed values for one property when decoding JSON"
     ]
   },
   "/syntax/attributes/routes/": {

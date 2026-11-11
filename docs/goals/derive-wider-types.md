@@ -22,7 +22,7 @@ stages:
     context: [docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/about.md, docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/details.md, docs/reference/lang/90-attributes.md, tests/hostile/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/01-documents-a-client-sent-to-break-the-decoder.nvs]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: inherited-fields-encode-and-decode
@@ -274,34 +274,38 @@ the comments with `bun nv proofs --comments`.
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done, and every stage's acceptance check passed when run. `bun nv proofs --id`
-exits 0. Its one line is the perf record gone stale because the reference chapter changed, which
-`bun nv benches --owed` pays at a release.
+Every stage is done, and every stage's acceptance check passed when run. The sweep's `env-secret-proofs` red is stale: `looper check --name env-secret-proofs` finds no
+such check. Nightly run 43001191130 ran at f4c1d5c7e2. Its only red on all four runners was
+`live_config`'s `a_changed_server_timeout_applies_to_the_next_connection`, which 305c04f660 fixed.
 
-A `mixed` field now decodes a JSON `null` (Standing decisions), pinned by
-`tests/conformance/core/json-derive-decodes-null-into-a-mixed-property.nvst`.
+The gate's first verify found three things, all fixed in one pass:
+- the rendered rule chapters were stale (`bun nv rules --render`);
+- the new examples, fixtures, attack and three reference blocks were not in the formatter's
+  layout (`bun nv nvs-fmt`). `packages/` was outside every corpus tree, so it is now
+  `tree packages` in `tools/data/nvs-fmt-corpus.txt` and its three files are formatted;
+- `package::git::tests::a_silent_host_is_stopped_by_the_time_limit` hung under coverage. When the
+  time limit ended before the clone connected, the host's `accept` waited forever. The test now
+  makes one connection of its own before it joins the host.
 
-The sweep's `env-secret-proofs` red is stale (nothing defines it), and nightly run 43001191130 ran
-at f4c1d5c7e2, before 305c04f660 fixed its only red (`live_config`) on all four runners.
-
-Expect red at the gate: any test or `.nvst` that pinned `E0756`'s old help or card text (none found by
-grep), any test that pinned a subclass's own-keys-only JSON output, any `nvs-types` unit test that
-builds a `DerivedCodec` literal without `..Default::default()`, and any test that pinned a `mixed`
-field refusing `null` (`null is not permitted` for a `mixed` field, in `json.rs` or `db/row.rs` tests).
+The second `looper verify` is green. The goal-end gates are green: `bun nv verify --doc` (every
+link resolves), `bun nv owners --closes derive-wider-types` (no gap) and `bun nv ci --check`. For
+`ci --check`, the 15 features whose files changed have new perf figures, the JSON syntax page and
+the `nvs meta --json` page have new questions and stamps, and the roadmap lists the JSON theme
+before the security theme, as the chain does. Docker was not running, so the site guard skipped
+the snippets that need `postgres`. No test is expected red.
 
 ### Next
 
-`docs/goals/derive-wider-types.md:266` Stage 5, the gate: start `looper verify` with
-`run_in_background`, fix every failure it names in one pass, run it once more, then the goal-end
-gates (`bun nv verify --doc`, `bun nv owners --closes derive-wider-types`, `bun nv ci --check`).
+Nothing in this goal. The retire hooks rebuild `target/release/nvs`, and the roadmap theme in
+`website/src/data/roadmap.json` goes when the goal leaves the chain.
 
 ### Backlog
 
