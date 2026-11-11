@@ -1648,6 +1648,7 @@ pub struct ExprTypeTable {
     property_defaults: FxHashMap<String, Vec<(String, crate::defaults::ConstArg)>>,
     property_default_types: FxHashMap<Span, TypeId>,
     property_types: FxHashMap<String, Vec<(String, TypeId)>>,
+    secret_returns: FxHashMap<String, Vec<String>>,
     property_keys: FxHashMap<String, Vec<(String, TypeId)>>,
     lateinit_properties: FxHashMap<String, Vec<String>>,
     pipeline_armed: FxHashMap<String, Vec<String>>,
@@ -1832,6 +1833,7 @@ impl ExprTypeTable {
             property_defaults,
             property_default_types,
             property_types,
+            secret_returns,
             property_keys,
             lateinit_properties,
             pipeline_armed,
@@ -1889,6 +1891,7 @@ impl ExprTypeTable {
         self.property_defaults.extend(property_defaults);
         self.property_default_types.extend(property_default_types);
         self.property_types.extend(property_types);
+        self.secret_returns.extend(secret_returns);
         self.property_keys.extend(property_keys);
         self.lateinit_properties.extend(lateinit_properties);
         self.pipeline_armed.extend(pipeline_armed);
@@ -3065,6 +3068,24 @@ impl ExprTypeTable {
 
     /// Every class's declared property types, in no particular order:
     /// [`Self::property_types`] over every class at once.
+    /// Records the class labelled `label`'s **own** methods whose declared
+    /// return type carries `secret`, sorted by name.
+    pub(crate) fn record_secret_returns(&mut self, label: String, names: Vec<String>) {
+        self.secret_returns.insert(label, names);
+    }
+
+    /// The class labelled `label`'s own methods whose declared return type
+    /// carries `secret`, sorted by name.
+    ///
+    /// **Own only**, on [`Self::property_types`]' terms: `nvs_ir::lower` joins
+    /// it against each flattened method's declaring class, so an override that
+    /// returns a plain type is not on the list. `rule:security/secret-sinks-refuse`'s
+    /// erased call is the one reader.
+    #[must_use]
+    pub fn secret_returns(&self, label: &str) -> &[String] {
+        self.secret_returns.get(label).map_or(&[], Vec::as_slice)
+    }
+
     pub(crate) fn all_property_types(&self) -> impl Iterator<Item = TypeId> + '_ {
         self.property_types
             .values()

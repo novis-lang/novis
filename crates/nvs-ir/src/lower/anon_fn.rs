@@ -328,6 +328,7 @@ pub(crate) fn lower_anon_fn(
             // shape type and no erased view reaches it. See `ir::Class`.
             field_reprs: Vec::new(),
             secret_fields: Vec::new(),
+            secret_returns: Vec::new(),
             // Left empty on `secret_fields`' terms: a capture is not a declared
             // property, so no keyword decided either bit — and an unreachable
             // slot reading as unreadable is the direction `field_is_public`
@@ -1182,6 +1183,7 @@ fn thunk_class(
         .collect(),
         field_reprs: Vec::new(),
         secret_fields: Vec::new(),
+        secret_returns: Vec::new(),
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
         readonly_fields: Vec::new(),

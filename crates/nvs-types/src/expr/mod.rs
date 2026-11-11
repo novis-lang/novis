@@ -125,6 +125,14 @@ pub fn type_is_secret(ty: TypeId, interner: &TypeInterner) -> bool {
     quals::is_secret(ty, interner)
 }
 
+/// Whether a value of type `ty` may contain a `secret` anywhere: the atom, a
+/// nullable or union member, an element or a shape field. [`type_is_secret`]
+/// asks only the atom. The erased read and the erased call ask this wider
+/// question, because `?secret string` is still a secret when it is not `null`.
+pub fn type_contains_secret(ty: TypeId, interner: &TypeInterner) -> bool {
+    quals::contains_secret(ty, interner)
+}
+
 /// Checks `expr`, optionally against `expected`, returning the type it was
 /// found (or, for an array literal checked against a target, declared) to
 /// have. Reports `E_TYPE_MISMATCH` when `expected` is given and not

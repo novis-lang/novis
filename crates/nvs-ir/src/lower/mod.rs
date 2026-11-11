@@ -559,7 +559,7 @@ fn field_slots(
             }
             image[slot] = Some((
                 erase_checked_ty(*ty, checked_types),
-                nvs_types::expr::type_is_secret(*ty, checked_types),
+                nvs_types::expr::type_contains_secret(*ty, checked_types),
                 admitted_classes(*ty, layouts, checked_types),
                 deep_check(*ty, &scope),
             ));
@@ -1204,6 +1204,17 @@ fn lower_program_as(
                 // `secret` bit off the same join.
                 field_reprs: slots.reprs,
                 secret_fields: slots.secret,
+                // The methods whose declared return carries `secret`, each
+                // read off the class that declares the winning entry, so an
+                // override's own return type decides.
+                secret_returns: layout
+                    .methods
+                    .iter()
+                    .filter(|(name, declaring, ..)| {
+                        exprs.secret_returns(declaring).contains(name)
+                    })
+                    .map(|(name, ..)| name.clone())
+                    .collect(),
                 // `rule:security/reflection-enforces-visibility`'s visibility bit, copied across with the slot
                 // order it is aligned to — `nvs_types::layout` decided it where
                 // the declaration's keyword still exists.
@@ -1290,6 +1301,7 @@ fn lower_program_as(
         fields: Vec::new(),
         field_reprs: Vec::new(),
         secret_fields: Vec::new(),
+        secret_returns: Vec::new(),
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
         readonly_fields: Vec::new(),
@@ -1324,6 +1336,7 @@ fn lower_program_as(
         fields: Vec::new(),
         field_reprs: Vec::new(),
         secret_fields: Vec::new(),
+        secret_returns: Vec::new(),
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
         readonly_fields: Vec::new(),
@@ -2905,6 +2918,7 @@ impl<'a> Lowering<'a> {
             // $secret}` literal is `nvs_stdlib::debug`'s own known gap rather
             // than a bit this could set.
             secret_fields: vec![false; field_count],
+            secret_returns: Vec::new(),
             // `rule:types/anonymous-object` gives an anonymous object no visibility keyword to write
             // and no class to be private to: every slot was written by the
             // literal that built it and every one is readable, which is the one
@@ -4916,6 +4930,7 @@ fn tagged_shape_class(sorted_names: Vec<String>) -> crate::ir::Class {
         fields: sorted_names,
         field_reprs: vec![Ty::Tagged; field_count],
         secret_fields: vec![false; field_count],
+        secret_returns: Vec::new(),
         public_fields: vec![true; field_count],
         protected_fields: vec![false; field_count],
         readonly_fields: Vec::new(),

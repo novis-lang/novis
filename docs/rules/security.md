@@ -1627,6 +1627,15 @@ grammars the library parses are all instructions by it
 ([`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink)), and a member nobody classified fails closed
 ([`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted)).
 
+**A name that picks code is an instruction.** Every `Core\Reflect` parameter whose text picks a class,
+a method, a property, a constant, an enum or an enum case is a sink: `Reflect::forClass`,
+`ClassInfo::constant`, the `$name` of `get`, `set` and `call`, `EnumInfo::of`, `EnumInfo::valueOf` and
+`AttributeInfo::field`. A request path segment passed there would choose what runs.
+`ClassInfo::hasProperty` and `hasMethod` stay neutral, because they return a `bool` and run nothing.
+A dispatcher compares the text with its own list, or writes `Core\Taint::assertTrusted` with its
+reason. `crates/nvs-stdlib/tests/taint_signatures.rs` fails on a `Core\Reflect` text parameter that
+is not a sink on a member that returns anything but a `bool`.
+
 **Declined:**
 - **Denying `tainted` at the process boundary, so it may leave only through a typed carrier.** Strictly
   stronger and wrong: it refuses a file's contents, an outbound request body, a bound database parameter
@@ -2407,7 +2416,8 @@ an `add` of the new in one Modify, the user's own change, which AD checks agains
 
 `rule:security/secret-qualifier`
 
-`secret` is a second, independent compile-time qualifier on `string` and `bytes`. It and `tainted` are
+`secret` is a second, independent compile-time qualifier on three carriers: `string`, `bytes` and
+`mixed`. It and `tainted` are
 independent bits rather than a combined enum: a value can be plain, `tainted`, `secret`, or `secret
 tainted`. When both are spelled together, **`secret` comes first** — the only accepted order, and
 `tainted secret string` is a diagnostic naming the required order rather than a second valid spelling
@@ -2424,6 +2434,17 @@ declared type does not carry the qualifier is refused where it is written, becau
 last place the bit is visible. A written argument is the one position not asked — three of them take
 a credential legitimately ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), and what an argument owes is that
 rule.
+
+**A `secret` value enters `mixed` only where `secret mixed` is written.** `mixed $m = $secret;` does
+not compile, and its help names `secret mixed`. The refusal is in the assignment relation, so it holds
+at every placement: a declaration, an assignment, a property, a return, a parameter, a `foreach`
+variable, and `array<secret string>` into `array<mixed>`. `secret mixed` takes any value, and a value
+read out of it is `secret` too: an element read is `secret mixed`, and text out of it through `as` or
+`is` is `secret tainted string`, since text out of any `mixed` is `tainted`. Every sink refuses it. A
+`Core` parameter declared `mixed` still takes a `secret` argument, because each `Core` sink that
+declares one refuses the value at the call with its own code
+([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)). There is no `tainted mixed`: `mixed` already carries `tainted`.
+`secret mixed` is `mixed` below the checker, so it costs nothing at run time.
 
 Two orthogonal questions — trust and confidentiality — get their own checked axis instead of being
 conflated into one. `tainted` asks whether a value's shape is safe for a sink; `secret` asks where the
@@ -2566,6 +2587,18 @@ written argument expressions instead. A `Throwable` message requires the plain t
 credential in an exception message ends up in a stack trace or an error page. The dump placeholder is
 a built-in rule keyed on the declared type, applied the same way to every class, and no class can hook
 or override it.
+
+**An erased read never returns a `secret` property, and an erased call never runs a method that
+returns one.** A read through `mixed`, `object` or a shape type, `Core\Reflect\ClassInfo::get`, and a
+shape test's field read all give `mixed`, which has no `secret`. So a property whose declared type
+contains `secret` (`secret string`, `?secret string`, `array<secret string>`) throws a `LogicError`
+there. A call through `mixed` and `ClassInfo::call` of a method whose declared return type contains
+`secret` throws the same way. The message names the class and the property or method, and never the
+value. The checker refuses a shape conversion over a known class with a `secret` property where it is
+written ([`types/conversion`](types.md#types-conversion)). **What it spends:** one bit test per erased read, on a path that
+already looks the name up, and one sorted-name lookup per erased call. A read or call through a
+variable of the class pays nothing. Each class keeps the names of its methods that return a `secret`,
+once per process and not per request.
 
 **Three positions are deliberately not on the list**: bound database parameters, a process argv, and
 an outbound request's headers and body. A credential legitimately needs to reach a driver, a

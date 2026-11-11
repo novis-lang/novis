@@ -527,6 +527,7 @@ pub(crate) fn lower_generator(
         // A generator's frame is never a `SlotSet` receiver — see `ir::Class`.
         field_reprs: Vec::new(),
         secret_fields: Vec::new(),
+        secret_returns: Vec::new(),
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
         readonly_fields: Vec::new(),

@@ -568,6 +568,7 @@ fn after_walk(
     // first, because a write by name tests a signature-typed property's value
     // against the same marker.
     record_property_types(signatures, exprs);
+    record_secret_returns(signatures, interner, exprs);
     crate::callables::resolve(exprs, interner, &module.graph, signatures);
     // The route table crosses to `nvs-ir` here rather than being dropped:
     // `rule:routing/api-document-is-generated-from-the-route-table` emits the
@@ -634,6 +635,32 @@ fn record_property_types(signatures: &crate::SignatureTable, exprs: &mut ExprTyp
             .collect();
         types.sort_by(|a, b| a.0.cmp(&b.0));
         exprs.record_property_types(qname.to_string(), types);
+    }
+}
+
+/// Copies every class's own methods whose declared return type carries
+/// `secret` into the expression table, for [`record_property_types`]' reason:
+/// the qualifier is erased below the checker, and
+/// `rule:security/secret-sinks-refuse`'s erased call asks it of a method at
+/// run time. A `?secret string`, an `array<secret string>` and a shape with a
+/// `secret` field all count, since the value the call returns contains one.
+fn record_secret_returns(
+    signatures: &crate::SignatureTable,
+    interner: &crate::ty::TypeInterner,
+    exprs: &mut ExprTypeTable,
+) {
+    for (qname, sig) in signatures.iter() {
+        let mut names: Vec<String> = sig
+            .methods
+            .iter()
+            .filter(|(_, method)| crate::expr::type_contains_secret(method.return_ty, interner))
+            .map(|(name, _)| name.clone())
+            .collect();
+        if names.is_empty() {
+            continue;
+        }
+        names.sort();
+        exprs.record_secret_returns(qname.to_string(), names);
     }
 }
 

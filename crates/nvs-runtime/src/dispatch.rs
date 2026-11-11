@@ -504,6 +504,18 @@ fn call_erased_unchecked(
             format!("{callee} is not public, and {outside}"),
         ));
     }
+    // `rule:security/secret-sinks-refuse`'s erased call: the call answers
+    // `mixed`, which carries no `secret`, so a method whose declared return
+    // carries it is not called at all.
+    if desc.method_returns_secret(name) {
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!(
+                "{callee} returns a secret value. It cannot be called through `mixed` or \
+                 `Core\\Reflect`. Call it through a variable of its class."
+            ),
+        ));
+    }
     if row.native {
         return Err(Fault::thrown_as(
             crate::ThrownClass::Logic,

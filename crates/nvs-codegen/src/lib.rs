@@ -1871,6 +1871,12 @@ impl Classes {
             self.table
                 .set_secret_fields(id, class.secret_fields.clone());
         }
+        // `rule:security/secret-sinks-refuse`'s erased call, read off the
+        // method's name at run time.
+        if !class.secret_returns.is_empty() {
+            self.table
+                .set_secret_returns(id, class.secret_returns.clone());
+        }
         // `rule:security/reflection-enforces-visibility`'s visibility bit, at the one granularity a reflective
         // read can ask: the slot it is about to open. Guarded on the same length
         // agreement, for the same synthesized classes.

@@ -510,6 +510,18 @@ pub struct ClassDesc {
     /// [`ClassTable::set_secret_fields`]. **Cost:** one `bool` per field per
     /// class, once per process, not per instance.
     secret_fields: Vec<bool>,
+    /// The names of the methods this class answers whose declared return type
+    /// carries `secret`, sorted. **Empty** for a class nothing has told, which
+    /// reads as "no method returns a secret".
+    ///
+    /// `rule:security/secret-sinks-refuse`'s erased call reads it: a call
+    /// through `mixed` or `Core\Reflect\ClassInfo::call` returns `mixed`, which
+    /// drops the qualifier, so such a call throws instead
+    /// ([`ClassDesc::method_returns_secret`]). `nvs_types` decides it for
+    /// [`Self::secret_fields`]' reason. Filled by
+    /// [`ClassTable::set_secret_returns`]. **Cost:** one `String` per such
+    /// method per class, once per process, and nothing for a class without one.
+    secret_returns: Vec<String>,
     /// Whether each field slot is readable from outside this class, in slot
     /// order. **Empty** for a class nothing has told, and an empty list reads
     /// as "no slot is readable" rather than as "unknown" — see
@@ -1206,8 +1218,8 @@ impl AllowedValues {
 
     /// The issue a decode reports for `value` when [`Self::admits`] is
     /// `false`, worded as the checked conversion's run-time message is:
-    /// `` `"z"` is not one of `"a"`, `"b"` ``, with the same 64-character cut
-    /// of a long operand.
+    /// `` a `string` of 1 byte is not one of `"a"`, `"b"` ``. The operand is
+    /// named by its length alone (`rule:types/conversion`).
     #[must_use]
     pub fn miss(&self, value: Value) -> String {
         format!(
@@ -1901,6 +1913,15 @@ impl ClassDesc {
     #[must_use]
     pub fn has_secret_field(&self) -> bool {
         self.secret_fields.contains(&true)
+    }
+
+    /// Whether the method `name` of this class declares a return type that
+    /// carries `secret` — [`Self::secret_returns`] asked of one name.
+    #[must_use]
+    pub fn method_returns_secret(&self, name: &str) -> bool {
+        self.secret_returns
+            .binary_search_by(|held| held.as_str().cmp(name))
+            .is_ok()
     }
 
     /// Whether slot `index` is readable from outside this class — `rule:security/reflection-enforces-visibility`
@@ -2599,6 +2620,7 @@ impl ClassTable {
             defaults: Vec::new(),
             field_tags: Vec::new(),
             secret_fields: Vec::new(),
+            secret_returns: Vec::new(),
             public_fields: Vec::new(),
             protected_fields: Vec::new(),
             readonly_fields: Vec::new(),
@@ -2832,6 +2854,23 @@ impl ClassTable {
             secret.len()
         );
         desc.secret_fields = secret;
+    }
+
+    /// Fills in the names of `id`'s methods whose declared return carries
+    /// `secret` — see [`ClassDesc::secret_returns`]. The list is sorted here,
+    /// so a caller hands it over in any order.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_secret_returns(&mut self, id: ClassId, mut names: Vec<String>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        names.sort_unstable();
+        names.dedup();
+        desc.secret_returns = names;
     }
 
     /// Fills in `id`'s per-slot visibility bits — see
@@ -6208,6 +6247,20 @@ fn read_erased_property_hinted(
     // Before the hook, since a hooked property has a visibility of its own.
     if hidden(desc, slot, reach) {
         return Err(hidden_property(desc, slot, name, "read"));
+    }
+    // `rule:security/secret-sinks-refuse`'s erased read: the read answers
+    // `mixed`, which carries no `secret`, so a `secret` slot throws here, the
+    // hook included. The message names the property and never its value.
+    if slot.is_some_and(|slot| desc.field_is_secret(slot)) {
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!(
+                "`{}::${name}` is secret. A secret property cannot be read through `mixed`, \
+                 `object`, a shape type or `Core\\Reflect`. Read it through a variable of its \
+                 class.",
+                desc.name()
+            ),
+        ));
     }
     // Before the slot, and for [`write_erased_property`]'s reason in the other
     // direction: where a property declares a `get`, the slot is that hook's to

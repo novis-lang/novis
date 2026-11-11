@@ -27,6 +27,18 @@ credential in an exception message ends up in a stack trace or an error page. Th
 a built-in rule keyed on the declared type, applied the same way to every class, and no class can hook
 or override it.
 
+**An erased read never returns a `secret` property, and an erased call never runs a method that
+returns one.** A read through `mixed`, `object` or a shape type, `Core\Reflect\ClassInfo::get`, and a
+shape test's field read all give `mixed`, which has no `secret`. So a property whose declared type
+contains `secret` (`secret string`, `?secret string`, `array<secret string>`) throws a `LogicError`
+there. A call through `mixed` and `ClassInfo::call` of a method whose declared return type contains
+`secret` throws the same way. The message names the class and the property or method, and never the
+value. The checker refuses a shape conversion over a known class with a `secret` property where it is
+written (`rule:types/conversion`). **What it spends:** one bit test per erased read, on a path that
+already looks the name up, and one sorted-name lookup per erased call. A read or call through a
+variable of the class pays nothing. Each class keeps the names of its methods that return a `secret`,
+once per process and not per request.
+
 **Three positions are deliberately not on the list**: bound database parameters, a process argv, and
 an outbound request's headers and body. A credential legitimately needs to reach a driver, a
 subprocess or an outbound call, and refusing there would make the qualifier unusable for its own

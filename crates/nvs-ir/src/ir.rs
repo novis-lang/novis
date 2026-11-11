@@ -331,6 +331,13 @@ pub struct Class {
     /// `field_slots`. **Cost:** one `bool` per field slot per class, once per
     /// compiled unit, not per request.
     pub secret_fields: Vec<bool>,
+    /// The names of the methods this class answers whose declared return type
+    /// carries `secret`, or **empty**. `nvs-codegen` hands it to
+    /// `nvs_runtime::ClassTable::set_secret_returns`, and an erased or
+    /// reflective call of such a method throws
+    /// (`rule:security/secret-sinks-refuse`). **Cost:** one `String` per such
+    /// method per class, once per compiled unit.
+    pub secret_returns: Vec<String>,
     /// Whether each field slot is readable from outside this class, in
     /// [`Self::fields`]' own order — or **empty**, which means "nothing told
     /// this class", never "no slot is readable".
