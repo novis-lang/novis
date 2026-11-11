@@ -105,13 +105,32 @@
 //! [AGENTS.md](/AGENTS.md)'s memory rule actually asks for. Leaked
 //! rather than dropped because a dangling descriptor is a use-after-free and
 //! the bytes are bounded by a compile-time roster.
+//!
+//! # Decision: a `Core` class states its slot types, or it does not cross as bytes
+//!
+//! `Core\Serialize::decode` and the cache and session that read bytes check
+//! each slot of an object they build against its stated type
+//! (`rule:classes/serialize-is-a-closed-format`). A program's class has its
+//! types from the checker. A `Core` class has them from [`SLOT_TYPES`], one
+//! roster beside [`HOST_HANDLE_CLASSES`] whose row is one [`CoreTy`] per slot,
+//! turned into the descriptor's tables by [`slot_type`]. A class with no row is
+//! refused by the bytes carrier in both directions, and still crosses a live
+//! boundary. A debug [`build`] checks each instance against its row, so every
+//! test that makes one proves the row.
+//!
+//! **What it spends:** one tag, an optional class list, an optional check tree
+//! and a spelling per slot of each typed class, built once with the
+//! descriptors and leaked with them. Nothing per request. A decode pays one
+//! check per slot of each `Core` object it builds.
 
 use std::sync::OnceLock;
 
 use nvs_runtime::sequence;
-use nvs_runtime::{ClassDesc, ClassTable, Fault, NvsObj, ObjHeader, Tag, Value};
+use nvs_runtime::{
+    ClassDesc, ClassTable, Fault, NvsObj, ObjHeader, SlotCheck, SlotType, Tag, Value,
+};
 
-use crate::registry::{self, CoreClass};
+use crate::registry::{self, CoreClass, CoreTy};
 
 /// `Core`-owned classes with instances that no program can name, and so with
 /// no [`registry::CLASSES`] row: a runtime artifact rather than surface.
@@ -188,6 +207,123 @@ const HOST_HANDLE_CLASSES: &[&CoreClass] = &[
 /// not belong. Every class here is a [`HOST_HANDLE_CLASSES`] entry too.
 const FREES_STATE: &[(&CoreClass, nvs_runtime::FreeState)] =
     &[(&crate::markdown::LIVE, crate::markdown::free_live)];
+
+/// What one [`SLOT_TYPES`] row says about a `Core` class's slots.
+enum Slots {
+    /// The type of each slot, in slot order. `decode` checks each slot of an
+    /// instance it builds against it, as it checks a program's properties.
+    Typed(&'static [CoreTy]),
+    /// Why the class is not written to bytes or read from them: a reader
+    /// relies on more than each slot's type, such as one slot being an index
+    /// into another. The sentence ends the refusal `decode` and `encode` give.
+    #[expect(
+        dead_code,
+        reason = "no row gives a reason yet: every class whose readers were not \
+                  read has no row, which the bytes carrier refuses the same way"
+    )]
+    NotReadBack(&'static str),
+}
+
+/// Every `Core` class that says what its slots hold — the roster behind
+/// [`ClassDesc::states_slot_types`], which `rule:classes/serialize-is-a-closed-format`'s
+/// bytes carrier asks in both directions.
+///
+/// **A class with no row is not written to bytes or read from them.** That is
+/// the safe default: a class added later is refused by `Core\Serialize`, the
+/// cache and the session until its row says what each slot holds. A class with
+/// no slots needs a row too, an empty one. A row's types are read from the code
+/// that fills the slots, and a debug build checks them on every [`build`].
+///
+/// A row is [`Slots::Typed`] only when the types are everything a reader of the
+/// slots relies on. Each `CoreTy` a row uses needs an arm in [`slot_type`], and
+/// a row whose length is not the slot count stops the table's build.
+const SLOT_TYPES: &[(&CoreClass, Slots)] = &[
+    // `tls_info_of` fills all four from a handshake's session.
+    (
+        &crate::http::TLS_INFO,
+        Slots::Typed(&[
+            CoreTy::Str,
+            CoreTy::Str,
+            CoreTy::Bool,
+            CoreTy::Array(&CoreTy::Bytes),
+        ]),
+    ),
+    // `crate::uri`'s `built` fills all eight from one parsed reference: the
+    // text, then each part, `null` where the text has none.
+    (
+        &crate::uri::CLASS,
+        Slots::Typed(&[
+            CoreTy::Str,
+            CoreTy::Nullable(&CoreTy::Str),
+            CoreTy::Nullable(&CoreTy::Str),
+            CoreTy::Nullable(&CoreTy::Str),
+            CoreTy::Nullable(&CoreTy::Int),
+            CoreTy::Str,
+            CoreTy::Nullable(&CoreTy::Str),
+            CoreTy::Nullable(&CoreTy::Str),
+        ]),
+    ),
+];
+
+/// `ty` as a slot's stated type in run-time terms: its one tag, the classes an
+/// object in it must be, the rest of the type as a [`SlotCheck`], and its
+/// spelling. `None` for a type with no arm here. No arm means "any value", so a
+/// row that names such a type stops the table's build rather than passing
+/// every value.
+fn slot_type(ty: &CoreTy) -> Option<SlotType> {
+    let spelled = ty.spelled();
+    let (tag, classes, check) = match ty {
+        CoreTy::Instance(name) => (Some(Tag::Object), Some(vec![(*name).to_owned()]), None),
+        CoreTy::Nullable(CoreTy::Instance(name)) => (None, Some(vec![(*name).to_owned()]), None),
+        CoreTy::Nullable(inner) => (
+            None,
+            None,
+            Some(SlotCheck::AnyOf(vec![
+                SlotCheck::Tag(Tag::Null),
+                slot_check(inner)?,
+            ])),
+        ),
+        CoreTy::Array(inner) => (
+            Some(Tag::Array),
+            None,
+            Some(SlotCheck::Array(Box::new(slot_check(inner)?))),
+        ),
+        _ => (Some(scalar_tag(ty)?), None, None),
+    };
+    Some(SlotType {
+        tag,
+        classes,
+        check,
+        spelled,
+    })
+}
+
+/// `ty` as one [`SlotCheck`] tree, for a type inside an array or a `?T`.
+fn slot_check(ty: &CoreTy) -> Option<SlotCheck> {
+    Some(match ty {
+        CoreTy::Instance(name) => SlotCheck::Class((*name).to_owned()),
+        CoreTy::Nullable(inner) => {
+            SlotCheck::AnyOf(vec![SlotCheck::Tag(Tag::Null), slot_check(inner)?])
+        }
+        CoreTy::Array(inner) => SlotCheck::Array(Box::new(slot_check(inner)?)),
+        _ => SlotCheck::Tag(scalar_tag(ty)?),
+    })
+}
+
+/// The one tag a value of scalar type `ty` has, or `None` where `ty` is not
+/// one of these scalars.
+fn scalar_tag(ty: &CoreTy) -> Option<Tag> {
+    Some(match ty {
+        CoreTy::Bool => Tag::Bool,
+        CoreTy::Int => Tag::Int,
+        CoreTy::Uint => Tag::Uint,
+        CoreTy::Float => Tag::Float,
+        CoreTy::Decimal => Tag::Decimal,
+        CoreTy::Str => Tag::Str,
+        CoreTy::Bytes => Tag::Bytes,
+        _ => return None,
+    })
+}
 
 /// Every member compiled code reaches on a `Core` instance **by name** — one
 /// row per class, `(member, symbol)`.
@@ -652,6 +788,32 @@ fn descriptors() -> &'static Descriptors {
                 found.table.set_free(id, *free);
             }
         }
+        // `rule:classes/serialize-is-a-closed-format`: what each slot holds,
+        // for every descriptor of the name. A class with no row keeps neither
+        // mark, so the bytes carrier refuses it.
+        for (class, slots) in SLOT_TYPES {
+            let ids: Vec<_> = found.ids_named(class.name).collect();
+            for id in ids {
+                match slots {
+                    Slots::Typed(types) => {
+                        let stated = types
+                            .iter()
+                            .map(|ty| {
+                                slot_type(ty).unwrap_or_else(|| {
+                                    panic!(
+                                        "{}'s slot type `{}` has no run-time form",
+                                        class.name,
+                                        ty.spelled()
+                                    )
+                                })
+                            })
+                            .collect();
+                        found.table.set_slot_types(id, stated);
+                    }
+                    Slots::NotReadBack(reason) => found.table.set_bytes_refusal(id, reason),
+                }
+            }
+        }
         Box::leak(Box::new(found))
     })
 }
@@ -855,6 +1017,13 @@ pub(crate) fn build<const N: usize>(class: &'static CoreClass, slots: [Value; N]
     let object = unsafe { NvsObj::new(descriptor(class)) };
     for (index, value) in slots.into_iter().enumerate() {
         object.set_field(index, value);
+    }
+    // A [`SLOT_TYPES`] row is proved by every test that builds the class: a
+    // slot this crate filled with another type is a wrong row or a wrong
+    // build. A release build pays nothing.
+    #[cfg(debug_assertions)]
+    if let Err(wrong) = object.check_fields() {
+        panic!("{} was built against its stated slot types: {wrong}", class.name);
     }
     Value::object(object)
 }
@@ -1678,18 +1847,171 @@ mod tests {
     /// name and slots and none of the marks, because `encode` writes nothing
     /// for a class it refuses.
     fn payload_naming(desc: &ClassDesc) -> Vec<u8> {
+        payload_holding(desc, (0..desc.field_count()).map(|_| Value::null()).collect())
+    }
+
+    /// [`payload_naming`], with `values` in the slots in slot order. Takes
+    /// over each value's reference.
+    fn payload_holding(desc: &ClassDesc, values: Vec<Value>) -> Vec<u8> {
         let fields: Vec<&str> = (0..desc.field_count())
             .map(|index| desc.field_name(index).unwrap_or_default())
             .collect();
+        assert_eq!(values.len(), fields.len(), "one value per slot of {}", desc.name());
         let mut twins = ClassTable::new();
         let id = twins.define(desc.name(), &fields, &[]);
         let twins: &'static ClassTable = Box::leak(Box::new(twins));
         #[expect(unsafe_code, reason = "the leaked table outlives the object")]
         let object = unsafe { nvs_runtime::NvsObj::new(twins.desc(id)) };
-        for index in 0..fields.len() {
-            object.set_field(index, Value::null());
+        for (index, value) in values.into_iter().enumerate() {
+            object.set_field(index, value);
         }
         nvs_runtime::encode(Value::object(object)).expect("the twin has no marks, so it encodes")
+    }
+
+    /// The process's descriptor for `class`, borrowed.
+    fn desc_of(class: &'static CoreClass) -> &'static ClassDesc {
+        #[expect(
+            unsafe_code,
+            reason = "the leaked table owns the descriptor for the whole process"
+        )]
+        unsafe {
+            &*descriptor(class)
+        }
+    }
+
+    /// Releases each value this frame owns one reference to.
+    fn release_all(values: impl IntoIterator<Item = Value>) {
+        #[expect(unsafe_code, reason = "the caller owns one reference to each")]
+        unsafe {
+            for value in values {
+                value.release();
+            }
+        }
+    }
+
+    /// The four slots of a `Core\Http\TlsInfo` as a handshake fills them.
+    fn tls_slots() -> Vec<Value> {
+        let mut chain = nvs_runtime::NvsArray::new();
+        chain.append(Value::bytes(nvs_runtime::NvsStr::new(b"\x30\x82")));
+        vec![
+            Value::text("TLSv1.3"),
+            Value::text("TLS_AES_128_GCM_SHA256"),
+            Value::bool(true),
+            Value::array(chain),
+        ]
+    }
+
+    #[test]
+    fn decode_checks_every_slot_of_a_core_class() {
+        let tls = &crate::http::TLS_INFO;
+        let desc = desc_of(tls);
+        assert!(desc.states_slot_types(), "{} states its slot types", tls.name);
+        let resolve = |wanted: &str| core_class_desc(wanted);
+        // One value of another kind for each slot, in slot order. The chain's
+        // is an array of the wrong element type.
+        let wrong = || {
+            let mut texts = nvs_runtime::NvsArray::new();
+            texts.append(Value::text("not bytes"));
+            [
+                Value::int(13),
+                Value::bool(false),
+                Value::text("yes"),
+                Value::array(texts),
+            ]
+        };
+        for (index, slot_name) in tls.slots.iter().enumerate() {
+            let mut values = tls_slots();
+            let mut others = Vec::from(wrong());
+            let replaced = std::mem::replace(&mut values[index], others.remove(index));
+            release_all(others);
+            release_all([replaced]);
+            let bytes = payload_holding(desc, values);
+            let Err(why) = nvs_runtime::decode(&bytes, &resolve) else {
+                panic!("{} decoded with a wrong `{slot_name}`", tls.name);
+            };
+            let why = why.to_string();
+            assert!(
+                why.contains(tls.name) && why.contains(&format!("`{slot_name}`")),
+                "the refusal of a wrong `{slot_name}` names the class and the slot: {why}"
+            );
+        }
+        let bytes = payload_holding(desc, tls_slots());
+        let decoded = nvs_runtime::decode(&bytes, &resolve).expect("the stated kinds decode");
+        let version = read_slot(&[decoded], tls, 0, "version").expect("a `TlsInfo` receiver");
+        assert_eq!(version.as_text(), Some("TLSv1.3"));
+        release_all([version, decoded]);
+    }
+
+    #[test]
+    fn a_core_class_that_states_no_slot_types_does_not_decode() {
+        let class = &crate::regex::MATCH;
+        let desc = desc_of(class);
+        assert!(
+            !desc.states_slot_types() && !desc.holds_host_handle(),
+            "{} is a `Core` class with no row that may cross a live boundary",
+            class.name
+        );
+        let sentence = format!("`{}` cannot be written to bytes or read from bytes", class.name);
+        let resolve = |wanted: &str| core_class_desc(wanted);
+        let Err(decoded) = nvs_runtime::decode(&payload_naming(desc), &resolve) else {
+            panic!("{} decoded with no stated slot types", class.name);
+        };
+        assert!(decoded.to_string().contains(&sentence), "{decoded}");
+        let built = build(class, [Value::null(), Value::int(7)]);
+        // `encode` consumes one reference, so it gets one of its own.
+        #[expect(unsafe_code, reason = "this frame owns `built`")]
+        unsafe {
+            built.retain();
+        }
+        let Err(encoded) = nvs_runtime::encode(built) else {
+            panic!("{} encoded with no stated slot types", class.name);
+        };
+        assert_eq!(encoded.to_string(), decoded.to_string(), "both directions say one sentence");
+        let copied = nvs_runtime::copy_graph(built).expect("a live copy still crosses");
+        assert!(is_instance(copied, class), "the copy is a {}", class.name);
+        release_all([copied]);
+    }
+
+    /// Walks every descriptor the process defined, the ones with no registry
+    /// row included, and holds no list of its own.
+    #[test]
+    fn every_core_descriptor_states_its_slots_or_is_refused() {
+        let table = descriptors();
+        let resolve = |wanted: &str| core_class_desc(wanted);
+        let mut neither = Vec::new();
+        for (name, id) in &table.by_name {
+            #[expect(
+                unsafe_code,
+                reason = "the leaked table owns the descriptor for the whole process"
+            )]
+            let desc = unsafe { &*table.table.desc(*id) };
+            if !desc.states_slot_types() {
+                if nvs_runtime::decode(&payload_naming(desc), &resolve).is_ok() {
+                    neither.push(format!("{name} states no slot types and decoded"));
+                }
+                continue;
+            }
+            for index in 0..desc.field_count() {
+                let slot_name = desc.field_name(index).unwrap_or_default();
+                // A value of another kind than the slot states: the first of
+                // these that the stated type does not admit.
+                let candidates = [Value::float(0.5), Value::bool(true)];
+                let Some(wrong) = candidates
+                    .into_iter()
+                    .find(|value| desc.check_slot(index, slot_name, *value).is_err())
+                else {
+                    neither.push(format!("{name}::{slot_name} admits a float and a bool"));
+                    continue;
+                };
+                let values = (0..desc.field_count())
+                    .map(|at| if at == index { wrong } else { Value::null() })
+                    .collect();
+                if nvs_runtime::decode(&payload_holding(desc, values), &resolve).is_ok() {
+                    neither.push(format!("{name}::{slot_name} decoded a value of another kind"));
+                }
+            }
+        }
+        assert!(neither.is_empty(), "{}", neither.join("\n"));
     }
 
     /// Walks every descriptor the process defined, not a list written here, so

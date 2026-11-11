@@ -17,9 +17,13 @@ about an object's class:
 - a class with no instances, `abstract` or an interface, whose name in a payload is forged, since no
   instance of it was ever encoded.
 
-One function, `ClassDesc::refusal`, answers those six, and it takes the door that asks: a copy, or a
-reflective `construct` (`rule:security/reflection-enforces-visibility`). Every door that makes or
-copies an instance by name calls it, so the doors cannot come to disagree about a class:
+One function, `ClassDesc::refusal`, answers those six, and it takes the door that asks: a live copy,
+a copy through bytes, or a reflective `construct` (`rule:security/reflection-enforces-visibility`).
+Every door that makes or copies an instance by name calls it, so the doors cannot come to disagree
+about a class. The bytes door also refuses a `Core` class that does not state the type of each slot,
+because `decode` checks every slot it fills against a stated type
+(`rule:classes/serialize-is-a-closed-format`). The live door admits it: it copies an object a `Core`
+member made, so its slots already hold their types.
 
 | Class | `decode` | Live crossing | `construct` | `forClass` |
 |---|---|---|---|---|
@@ -30,10 +34,12 @@ copies an instance by name calls it, so the doors cannot come to disagree about 
 | A function value's class, a generator's state class | refused | refused | refused | `null` |
 | Every other class the compiler made | refused | refused | refused | `null` |
 | A `Core` class that holds a host handle | refused | refused | refused | `null` |
-| Every other `Core` class | made | crosses | refused | `null` |
+| A `Core` class that states its slot types | made, each slot checked | crosses | refused | `null` |
+| Every other `Core` class | refused | crosses | refused | `null` |
 
 Both copy directions call it: the walk for every object it copies or encodes, and the decoder for
-every class a payload names. Declared types make most of that a compile-time refusal at the copy
+every class a payload names. `encode` asks the bytes door, so it refuses what `decode` refuses, with
+the same sentence. Declared types make most of that a compile-time refusal at the copy
 site; the run-time check is what a `mixed` carrying one of them needs. An object whose class the
 receiving side cannot resolve is refused by name, never stubbed.
 

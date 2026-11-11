@@ -75,12 +75,13 @@
 //! a case costs no byte beyond the node byte every scalar already writes.
 //!
 //! A decoded `Core` instance is a `mixed` a program gets back by naming its
-//! class. The value is rebuilt under its own descriptor — a `Core\Time\Date`
-//! arrives back as one, slots intact, because [`crate::Ctx::class_desc`] asks
-//! the `Core` resolver after the program's table — and both spellings that
-//! read a descriptor answer for it: `$v is Core\Time\Date` and
-//! `$v as Core\Time\Date`, the second throwing where the first answers
-//! `false`. The address they test against is the one
+//! class. Only a `Core` class that states its slot types is written or read as
+//! bytes ([`Door::Bytes`]), and each slot is checked against them. The value is
+//! rebuilt under its own descriptor — a `Core\Uri` arrives back as one, slots
+//! intact, because [`crate::Ctx::class_desc`] asks the `Core` resolver after
+//! the program's table — and both spellings that read a descriptor answer for
+//! it: `$v is Core\Uri` and `$v as Core\Uri`, the second throwing where the
+//! first answers `false`. The address they test against is the one
 //! `nvs_stdlib::class_descriptors` publishes for the process.
 
 use std::collections::HashMap;
@@ -175,6 +176,11 @@ trait Carrier {
     /// [`Encode`] produces the node's index, which is what a back-reference
     /// names.
     type Node: Clone;
+
+    /// The door [`refusable`] asks for this carrier: [`Door::Copy`] for the
+    /// live carrier and [`Door::Bytes`] for the encoder, which refuses a
+    /// `Core` class that `decode` could not check slot by slot.
+    const DOOR: Door;
 
     /// May this allocation be reused rather than rebuilt? See the module docs
     /// on a move at refcount 1 being the semantics rather than an optimisation.
@@ -362,7 +368,7 @@ fn walk<C: Carrier>(
             let class: &ClassDesc = unsafe { &*object.class() };
             // A refused object is released like every other refused node, so
             // the walk consumes its reference on this path as well.
-            if let Err(why) = refusable(class).and_then(|()| carrier.admit(class)) {
+            if let Err(why) = refusable(class, C::DOOR).and_then(|()| carrier.admit(class)) {
                 release(value);
                 return Err(why);
             }
@@ -435,14 +441,16 @@ fn walk<C: Carrier>(
 /// `abstract` class or an interface, is refused too: no instance of one was
 /// ever encoded, so bytes that name one are forged.
 ///
-/// The answer is [`ClassDesc::refusal`]'s for [`Door::Copy`], so the copy
-/// doors and `Core\Reflect\ClassInfo::construct` ask one function.
+/// The answer is [`ClassDesc::refusal`]'s for `door`, so the copy doors and
+/// `Core\Reflect\ClassInfo::construct` ask one function. `door` is
+/// [`Door::Copy`] for the live carrier and [`Door::Bytes`] for the encoder and
+/// the decoder, which also refuse a `Core` class that states no slot types.
 ///
 /// **What it spends:** a few flag reads and one scan of the class's `secret`
 /// flags per object copied, encoded or decoded. No allocation.
-pub(crate) fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
+pub(crate) fn refusable(class: &ClassDesc, door: Door) -> Result<(), GraphError> {
     class
-        .refusal(Door::Copy)
+        .refusal(door)
         .map_or(Ok(()), |refusal| Err(GraphError(refusal.into_sentence())))
 }
 
@@ -464,6 +472,8 @@ struct Live<'a> {
 
 impl Carrier for Live<'_> {
     type Node = Value;
+
+    const DOOR: Door = Door::Copy;
 
     /// `rule:classes/graph-copy`'s unresolvable-class refusal, at the live
     /// carrier: **the same class, not a class
@@ -724,6 +734,8 @@ impl Encode {
 impl Carrier for Encode {
     /// The node's own index, which is only ever read for an object.
     type Node = usize;
+
+    const DOOR: Door = Door::Bytes;
 
     fn adopt(&mut self, _value: Value) -> bool {
         false
@@ -1061,7 +1073,7 @@ impl Reader<'_> {
         let class: &ClassDesc = unsafe { &*desc };
         // Asked before the property comparison, so a refused class's layout is
         // never printed and nothing of it is built.
-        refusable(class)?;
+        refusable(class, Door::Bytes)?;
         if class.field_count() != recorded.len() {
             return Err(GraphError(format!(
                 "`{name}` declares {} properties and the payload records {}",

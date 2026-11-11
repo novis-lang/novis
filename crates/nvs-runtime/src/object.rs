@@ -300,9 +300,16 @@ use crate::value::{Tag, Value};
 /// what [`ClassDesc::refusal`] is asked for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Door {
-    /// A copy boundary: `rule:classes/graph-copy`'s walk, in both carriers,
-    /// and the decoder that reads its bytes back.
+    /// A live copy boundary: `rule:classes/graph-copy`'s walk into another
+    /// heap, which copies an object that exists.
     Copy,
+    /// A copy boundary through bytes: the walk that encodes, and the decoder
+    /// that reads the bytes back. It refuses what [`Door::Copy`] refuses, and
+    /// a `Core` class that does not state its slot types
+    /// ([`ClassDesc::states_slot_types`]), because `decode` checks each slot
+    /// of what it builds against its stated type
+    /// (`rule:classes/serialize-is-a-closed-format`).
+    Bytes,
     /// `Core\Reflect\ClassInfo::construct`, which makes an instance from a
     /// class's name (`rule:security/reflection-enforces-visibility`).
     Construct,
@@ -742,6 +749,19 @@ pub struct ClassDesc {
     /// test defines by hand has instances. **Cost:** one `bool` per class,
     /// once per compiled unit, not per instance.
     no_instances: bool,
+    /// Whether a `Core` class stated the type of each of its slots, in the
+    /// three tables [`Self::check_slot`] reads. [`ClassTable::set_slot_types`]
+    /// writes it, and a class a program declares has its tables from the
+    /// checker and never reads it. [`Door::Bytes`] refuses a `Core` class
+    /// without it, so `decode` builds no `Core` instance whose slots it cannot
+    /// check. **Cost:** one `bool` per class, once per process.
+    states_slot_types: bool,
+    /// Why a `Core` class with slots is not written to bytes or read from
+    /// them, where `nvs_stdlib::instance`'s roster gives a reason instead of
+    /// slot types: its readers rely on more than each slot's type.
+    /// [`ClassTable::set_bytes_refusal`] writes it. **Cost:** one pointer and
+    /// length per class, once per process.
+    bytes_refusal: Option<&'static str>,
     /// What frees the state an instance of this class keeps in its context's
     /// tables, run by [`dismantle`] when the instance dies; `None` for every
     /// class but the `Core` ones whose state is native and filed on the
@@ -1697,25 +1717,35 @@ impl ClassDesc {
         self.no_instances
     }
 
+    /// Whether a `Core` class stated the type of each slot — see the field.
+    #[must_use]
+    pub fn states_slot_types(&self) -> bool {
+        self.states_slot_types
+    }
+
     /// Whether `door` may make or copy an instance of this class by name, and
     /// the reason when it may not. It is the one question every such door
     /// asks, so the doors cannot come to disagree about a class.
     ///
-    /// | Class | [`Door::Copy`] | [`Door::Construct`] |
-    /// |---|---|---|
-    /// | declared by the program | crosses | made |
-    /// | the same with a `secret` property | refused | made |
-    /// | `abstract`, or an interface | refused | refused |
-    /// | an anonymous object's `$shape{…}` class | crosses | refused |
-    /// | a callable's or a generator's class | refused | refused |
-    /// | every other class the compiler made | refused | refused |
-    /// | a `Core` class that holds a host handle | refused | refused |
-    /// | every other `Core` class | crosses | refused |
+    /// | Class | [`Door::Bytes`] | [`Door::Copy`] | [`Door::Construct`] |
+    /// |---|---|---|---|
+    /// | declared by the program | crosses | crosses | made |
+    /// | the same with a `secret` property | refused | refused | made |
+    /// | `abstract`, or an interface | refused | refused | refused |
+    /// | an anonymous object's `$shape{…}` class | crosses | crosses | refused |
+    /// | a callable's or a generator's class | refused | refused | refused |
+    /// | every other class the compiler made | refused | refused | refused |
+    /// | a `Core` class that holds a host handle | refused | refused | refused |
+    /// | a `Core` class that states its slot types | crosses | crosses | refused |
+    /// | every other `Core` class | refused | crosses | refused |
     ///
     /// A copy boundary refuses a callable, a generator, a host handle and a
     /// compiler-made class because their slots mean nothing on the other side.
     /// It refuses a class with no instances because no instance of it was ever
-    /// encoded, so bytes that name one are forged.
+    /// encoded, so bytes that name one are forged. The bytes carrier also
+    /// refuses a `Core` class that does not state its slot types, because
+    /// `decode` checks every slot it fills against a stated type. The live
+    /// carrier copies an object a `Core` member made, so it needs no check.
     ///
     /// `construct` makes what `new` makes in a program that declares the
     /// class. A `Core` instance is made by a `Core` member and no constructor
@@ -1750,9 +1780,16 @@ impl ClassDesc {
             None
         };
         match door {
-            Door::Copy => {
+            Door::Copy | Door::Bytes => {
                 if let Some(sentence) = kind {
                     return Some(Refusal::Kind(sentence));
+                }
+                if door == Door::Bytes && self.is_core && !self.states_slot_types {
+                    let refused = format!("`{name}` cannot be written to bytes or read from bytes");
+                    return Some(Refusal::Kind(match self.bytes_refusal {
+                        Some(reason) => format!("{refused}. {reason}"),
+                        None => refused,
+                    }));
                 }
                 if self.no_instances {
                     return Some(Refusal::NoInstances(no_instances_sentence(name)));
@@ -2581,6 +2618,8 @@ impl ClassTable {
             compiler_made,
             is_core: false,
             no_instances: false,
+            states_slot_types: false,
+            bytes_refusal: None,
             free: None,
         }));
         id
@@ -2655,6 +2694,60 @@ impl ClassTable {
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.is_core = true;
+    }
+
+    /// States the type of each of `id`'s slots, for a `Core` class: fills the
+    /// three tables [`ClassDesc::check_slot`] reads and the spelling its
+    /// sentence prints, and sets [`ClassDesc::states_slot_types`]. So
+    /// `decode` checks a `Core` class's slots with the check it makes for a
+    /// program's properties. The one caller is `nvs_stdlib::instance`.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table, or if `types` is not one entry
+    /// per slot, on [`Self::set_field_classes`]' terms.
+    pub fn set_slot_types(&mut self, id: ClassId, types: Vec<SlotType>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        assert!(
+            types.len() == desc.fields.len(),
+            "`{}` has {} field slots but {} stated slot types",
+            desc.name,
+            desc.fields.len(),
+            types.len()
+        );
+        let mut tags = Vec::with_capacity(types.len());
+        let mut classes = Vec::with_capacity(types.len());
+        let mut checks = Vec::with_capacity(types.len());
+        let mut spelled = Vec::with_capacity(types.len());
+        for slot in types {
+            tags.push(slot.tag);
+            classes.push(slot.classes);
+            checks.push(slot.check);
+            spelled.push(slot.spelled);
+        }
+        desc.field_tags = tags;
+        desc.field_classes = classes;
+        desc.field_checks = checks;
+        desc.field_types = spelled;
+        desc.states_slot_types = true;
+    }
+
+    /// Records why `id`, a `Core` class, is not written to bytes or read from
+    /// them — see [`ClassDesc::bytes_refusal`]. The sentence ends the
+    /// refusal [`Door::Bytes`] gives.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_bytes_refusal(&mut self, id: ClassId, reason: &'static str) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.bytes_refusal = Some(reason);
     }
 
     /// Marks `id` as a class with no instances — see
@@ -6669,6 +6762,21 @@ pub(crate) fn check_declared(
     Ok(())
 }
 
+/// One slot's stated type, for [`ClassTable::set_slot_types`]: the three
+/// parts [`ClassDesc::check_slot`] reads, and the type as a sentence spells it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SlotType {
+    /// The one tag a value must have, or `None` where the type has several.
+    pub tag: Option<Tag>,
+    /// The classes an object must conform to, where the type is only classes
+    /// and `null`.
+    pub classes: Option<Vec<String>>,
+    /// The rest of the type, where the tag and the classes do not say it all.
+    pub check: Option<SlotCheck>,
+    /// The type as a refusal prints it, such as `?string`.
+    pub spelled: String,
+}
+
 /// A field slot's declared type in run-time terms — [`ClassDesc::field_checks`].
 ///
 /// Each arm is what a value must be to pass. The tree has the declared type's
@@ -8777,32 +8885,50 @@ mod tests {
         table.set_core(file);
         let uri = table.define(r"Core\Uri", &["x"], &[]);
         table.set_core(uri);
-        // The class, then the answer at a copy boundary and at `construct`.
-        // `forClass` answers `null` exactly where `construct` answers `Kind`.
+        table.set_slot_types(
+            uri,
+            vec![SlotType {
+                tag: Some(Tag::Str),
+                classes: None,
+                check: None,
+                spelled: "string".to_owned(),
+            }],
+        );
+        let rows_class = table.define(r"Core\Db\Rows", &["x"], &[]);
+        table.set_core(rows_class);
+        // The class, then the answer at `decode`, at a live crossing and at
+        // `construct`. `forClass` answers `null` exactly where `construct`
+        // answers `Kind`.
         let rows = [
-            ("Plain", Yes, Yes),
-            (r"Core\Db\DbError", Yes, Yes),
-            ("Wallet", Secret, Yes),
-            ("Shape", NoInstances, NoInstances),
-            ("$shape{n}", Yes, Kind),
-            ("Script$fn0", Kind, Kind),
-            ("Task$gen", Kind, Kind),
-            ("$callable", Kind, Kind),
-            (r"Core\IO\File", Kind, Kind),
-            (r"Core\Uri", Yes, Kind),
+            ("Plain", Yes, Yes, Yes),
+            (r"Core\Db\DbError", Yes, Yes, Yes),
+            ("Wallet", Secret, Secret, Yes),
+            ("Shape", NoInstances, NoInstances, NoInstances),
+            ("$shape{n}", Yes, Yes, Kind),
+            ("Script$fn0", Kind, Kind, Kind),
+            ("Task$gen", Kind, Kind, Kind),
+            ("$callable", Kind, Kind, Kind),
+            (r"Core\IO\File", Kind, Kind, Kind),
+            (r"Core\Uri", Yes, Yes, Kind),
+            (r"Core\Db\Rows", Kind, Yes, Kind),
         ];
-        for (name, copy, construct) in rows {
+        for (name, bytes, live, construct) in rows {
             let id = table.id_of(name).expect("the table defines every row");
             #[expect(unsafe_code, reason = "the table outlives this loop")]
             let desc = unsafe { &*table.desc(id) };
-            assert_eq!(answer(desc.refusal(Door::Copy)), copy, "{name} at a copy boundary");
+            assert_eq!(answer(desc.refusal(Door::Bytes)), bytes, "{name} at decode");
+            assert_eq!(answer(desc.refusal(Door::Copy)), live, "{name} at a live crossing");
             assert_eq!(answer(desc.refusal(Door::Construct)), construct, "{name} at construct");
             // The copy walk asks the same function and says the same sentence.
-            assert_eq!(
-                crate::graph::refusable(desc).err().map(|why| why.message().to_owned()),
-                desc.refusal(Door::Copy).map(Refusal::into_sentence),
-                "{name}"
-            );
+            for door in [Door::Bytes, Door::Copy] {
+                assert_eq!(
+                    crate::graph::refusable(desc, door)
+                        .err()
+                        .map(|why| why.message().to_owned()),
+                    desc.refusal(door).map(Refusal::into_sentence),
+                    "{name} at {door:?}"
+                );
+            }
         }
     }
 }

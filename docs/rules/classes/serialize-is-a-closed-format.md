@@ -19,6 +19,18 @@ whatever the bytes are. The fields are checked once the whole graph is built, be
 back-reference can reach an object whose later fields are not filled yet. The cost is one check per
 field on a decode and nothing in memory.
 
+A `Core` class's slots are checked the same way. Each `Core` class that crosses as bytes states the
+type of each slot, in one roster beside the class descriptors (`nvs_stdlib::instance`), and the
+roster fills the tables the check reads. A `Core` class with no stated slot types is not written and
+not read: `encode` and `decode` both refuse it, with one sentence, before an object is made. That is
+the default for a class added later, so it is refused until it says what it holds. A class whose
+readers rely on more than each slot's type, such as one slot being an index into another, gets a
+reason in the roster in place of types, and is refused with that reason. A live crossing does not
+check slots: it copies an object a `Core` member made, and with `decode` checked and `construct`
+closed, no `Core` instance has a slot of a type its class does not state. The cost is one tag test
+per slot per decoded `Core` object, and one small table per `Core` class, built once per process. A
+program that decodes nothing pays nothing per request.
+
 `decode` is a `tainted` sink with no launderer. The rules above close code execution but not type
 confusion: a payload reconstructing a `User` with `isAdmin` set bypasses the constructor while
 satisfying every check. Bytes that arrived from outside are refused at compile time. `encode` is an
@@ -40,3 +52,9 @@ loosening of this format.
   (`rule:security/script-spawn-capability`); what `decode` builds is inert data.
 - **`decode` passing taint on to its result.** The danger is the reconstructed graph itself, not a
   string that later reaches an output sink, so `decode` is a sink rather than contagious.
+- **A field of slot types on every `Core` class literal.** Most `Core` classes have no slots, and one
+  roster beside the descriptors says it in one place.
+- **A hand-written list of `Core` classes that are "data".** It states nothing `decode` can check.
+- **Each `Core` reader testing its slot before it returns it.** That is one check per member, and a
+  new member would have to remember it. `decode` checks each slot where the bytes come in.
+- **Skipping the slot check for bytes this process wrote.** That is a second decoder to keep in step.
