@@ -2541,7 +2541,10 @@ impl<'a> Lowering<'a> {
     ///
     /// Each argument is lowered and accounted as a helper's borrowed argument,
     /// so a fresh one is staged and released once the result is joined, and a
-    /// placeholder that throws releases it on the way out. The template is a
+    /// placeholder that throws releases it on the way out. A borrowed argument
+    /// is held against the arguments after it, and every borrowed argument is
+    /// held before the rendering when an argument's rendering can run
+    /// `toString` ([`Self::conversion_runs_code`]). The template is a
     /// constant and argument 0, the `at` of `Core\Str::format`'s intrinsic
     /// row, so it is not evaluated. The result is one
     /// [`InstKind::Concat`] over one allocation per placeholder.
@@ -2553,12 +2556,31 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let arguments = self.temporaries_mark();
+        let written: Vec<&Expr> = args.iter().skip(1).map(|arg| &arg.value).collect();
         let mut values = Vec::with_capacity(args.len());
-        for arg in args.iter().skip(1) {
-            let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
-            let aliasing = self.sole_operand_borrowed(&arg.value);
+        let mut borrowed = Vec::with_capacity(args.len());
+        let mut renders_code = false;
+        for (i, e) in written.iter().enumerate() {
+            let (v, ty) = self.lower_expr(e, None, env, cur);
+            let later = written.get(i + 1..).unwrap_or_default();
+            let site = OperandSite::Argument;
+            let borrowed_ownership = ArgOwnership::Borrowed;
+            let aliasing = self.borrowed_arg(site, e, (v, ty), borrowed_ownership, later, *cur);
             self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
+            renders_code |= self.conversion_runs_code(e, ty);
+            if aliasing && ty.is_refcounted() {
+                borrowed.push(v);
+            }
             values.push(v);
+        }
+        // Rendering an `object` or a union argument can run `toString`, and
+        // that code can free the storage any borrowed argument was read from.
+        // Each one is held, so the rendering reads what the call read.
+        if renders_code {
+            for v in borrowed {
+                self.emit_retain(*cur, v);
+                self.own_temporary(v);
+            }
         }
         let mark = self.temporaries_mark();
         let mut lowered: Vec<(ConcatPart, bool)> = Vec::with_capacity(pieces.len());

@@ -363,6 +363,98 @@ $b->s = "old-" . $n . "-abcdefghijklmnop";
     );
 }
 
+/// A rendered `Core\Str::format` reads every argument first and renders them
+/// after. A later argument replaces the storage an earlier argument was read
+/// from. The earlier argument keeps its value.
+#[test]
+fn a_rendered_format_keeps_each_argument_alive() {
+    let prelude = r#"<?nvs
+class Holder {
+    public string $s = "";
+
+    public function replace(): void {
+        int $n = 2;
+        $this->s = "new-" . $n . "-abcdefghijklmnop";
+        array<string> $fill = [];
+        for (int $i = 0; $i < 1024; $i++) {
+            $fill[] = "fil-" . $n . "-abcdefghijklmnop";
+        }
+    }
+
+    public function bang(): string {
+        $this->replace();
+        return "!";
+    }
+}
+
+int $n = 1;
+Holder $h = new Holder();
+$h->s = "old-" . $n . "-abcdefghijklmnop";
+"#;
+    // An argument number makes the template a rendered one. Rendering an
+    // object with `%s` throws today, so no row reaches a `toString` yet; the
+    // lowering holds every borrowed argument before such a rendering anyway.
+    let statement = "echo Core\\Str::format('%1$s%2$s', $h->s, $h->bang());\n";
+    let output = output_of(&format!("{prelude}{statement}"));
+    assert_eq!(
+        output, "old-1-abcdefghijklmnop!",
+        "a rendered format lost an argument a later argument freed"
+    );
+}
+
+/// A `PropertyGuard` on an element store replaces the array the store read
+/// and the property its key was read from. The store writes the key it read
+/// into the array the property has once the guard has run.
+#[test]
+fn a_guarded_element_store_keeps_its_key_and_array_alive() {
+    let program = r#"<?nvs
+class Box implements PropertyGuard {
+    public string $k = "";
+    public array<string> $items = [];
+    public bool $armed = false;
+
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
+        // The guard's own store to `items` runs the guard again.
+        if ($name != "items" || !$this->armed) {
+            return;
+        }
+        $this->armed = false;
+        int $n = 2;
+        $this->k = "new-" . $n . "-abcdefghijklmnop";
+        array<string> $fresh = [];
+        $fresh["new-" . $n . "-abcdefghijklmnop"] = "new";
+        $this->items = $fresh;
+        array<string> $fill = [];
+        array<array<string>> $rows = [];
+        for (int $i = 0; $i < 1024; $i++) {
+            $fill[] = "fil-" . $n . "-abcdefghijklmnop";
+            $rows[] = ["fil-" . $n . "-abcdefghijklmnop" => "fil"];
+        }
+    }
+
+    public function beforePropertyUnset(string $name, array<string> $keys): void {}
+}
+
+int $n = 1;
+Box $b = new Box();
+$b->k = "old-" . $n . "-abcdefghijklmnop";
+array<string> $start = [];
+$start["old-" . $n . "-abcdefghijklmnop"] = "start";
+$b->items = $start;
+$start = [];
+$b->armed = true;
+$b->items[$b->k] = "v";
+foreach ($b->items as string $key => string $value) {
+    echo $key . "=" . $value . ";";
+}
+"#;
+    let output = output_of(program);
+    assert_eq!(
+        output, "new-2-abcdefghijklmnop=new;old-1-abcdefghijklmnop=v;",
+        "a guarded element store lost its key or its array"
+    );
+}
+
 /// A memory stop anywhere in a call of a generator factory releases the
 /// arguments the factory owns.
 ///

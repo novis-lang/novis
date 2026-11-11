@@ -1989,7 +1989,7 @@ impl<'a> Lowering<'a> {
                     }
                     inner_keys.push(key);
                 }
-                let outer_key = match index {
+                let mut outer_key = match index {
                     None => None,
                     Some(index) => {
                         keys_lowered += 1;
@@ -2024,6 +2024,23 @@ impl<'a> Lowering<'a> {
                 let v = self.coerce(*cur, v, vty, elem_ty, env);
                 let guarded = self.element_guard_of(root).is_some();
                 let aliasing = self.hold_guarded_value(guarded, v, elem_ty, aliasing, *cur);
+                // The guard runs program code, which can replace the property
+                // the root array and a borrowed key were read from. Each one
+                // is retained and staged while it runs. A key's retain is the
+                // reference the array keeps, so it is not made again below.
+                let held = self.temporaries_mark();
+                if guarded {
+                    self.emit_retain(*cur, root_v);
+                    self.own_temporary(root_v);
+                    let keys = inner_keys.iter_mut().chain(std::iter::once(&mut outer_key));
+                    for (key_v, key_aliasing) in keys.flatten() {
+                        if *key_aliasing {
+                            self.emit_retain(*cur, *key_v);
+                            self.own_temporary(*key_v);
+                            *key_aliasing = false;
+                        }
+                    }
+                }
                 // `PropertyGuard` runs before any row is touched, with the
                 // new element and its key path.
                 self.emit_element_guard(
@@ -2034,6 +2051,20 @@ impl<'a> Lowering<'a> {
                     env,
                     cur,
                 );
+                // The store writes the array the property has once the guard
+                // has run, so the root is read again. The held reference is
+                // released after that read, so an unchanged array is not
+                // shared when `ArraySet` writes it and is not copied.
+                let root_v = if guarded {
+                    let silenced = self.silence_root_get(target);
+                    let (current, _) = self.lower_expr(root, None, env, cur);
+                    self.silenced_gets.truncate(silenced);
+                    self.forget_temporaries_since(held);
+                    self.emit_release(*cur, root_v);
+                    current
+                } else {
+                    root_v
+                };
                 for key in &inner_keys {
                     if let Some((key_v, true)) = *key {
                         self.emit_retain(*cur, key_v);
