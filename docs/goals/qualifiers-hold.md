@@ -428,30 +428,38 @@ the members that make keys from values.
 - [x] The function refuses a key whose type contains `secret` in every array, with a new code
   (`rule:security/secret-qualifier`, `crates/nvs-types/src/expr/quals.rs:277`,
   `crates/nvs-diagnostics/src/code/types_e08.rs:435`).
-- [ ] The registry gains the key mark, and the generic call path calls the key function for a marked
+- [x] The registry gains the key mark, and the generic call path calls the key function for a marked
   parameter or callback result (`rule:security/taint-propagation`,
   `crates/nvs-stdlib/src/registry.rs:1`, `crates/nvs-types/src/expr/args.rs:1722`).
-- [ ] The seven members carry the mark: `countBy` and its `by` option, `flip`, `fillKeys`,
+- [x] The seven members carry the mark: `countBy` and its `by` option, `flip`, `fillKeys`,
   `fromKeysAndValues`, `mapKeys`, `groupBy` and `column`'s `indexBy`
   (`crates/nvs-stdlib/src/arr.rs:677`, `crates/nvs-stdlib/src/arr.rs:2127`,
   `crates/nvs-stdlib/src/arr.rs:488`, `crates/nvs-stdlib/src/arr.rs:561`,
   `crates/nvs-stdlib/src/arr.rs:579`, `crates/nvs-stdlib/src/arr.rs:156`,
   `crates/nvs-stdlib/src/arr.rs:175`, `crates/nvs-stdlib/src/arr.rs:2169`).
-- [ ] Test `every_member_that_returns_a_plain_keyed_array_says_where_its_keys_come_from` walks every
+- [x] Test `every_member_that_returns_a_plain_keyed_array_says_where_its_keys_come_from` walks every
   class of the registry and fails naming a member without the answer
   (`crates/nvs-stdlib/tests/taint_signatures.rs:150`).
-- [ ] Tests `a_tainted_key_is_checked_at_every_key_position`, `a_secret_value_is_never_an_array_key`
+- [x] Tests `a_tainted_key_is_checked_at_every_key_position`, `a_secret_value_is_never_an_array_key`
   and `a_member_that_makes_keys_from_values_refuses_qualified_values`
   (`crates/nvs-types/tests/qualifiers_hold.rs:1`).
   - [x] `a_tainted_key_is_checked_at_every_key_position` passes
   - [x] `a_secret_value_is_never_an_array_key` passes
-  - [ ] `a_member_that_makes_keys_from_values_refuses_qualified_values` passes
-- [ ] `rule:security/taint-propagation` names the argument literal and the member mark, and
+  - [x] `a_member_that_makes_keys_from_values_refuses_qualified_values` passes
+- [x] `rule:security/taint-propagation` names the argument literal and the member mark, and
   `rule:security/secret-qualifier` states the key rule (`docs/rules/security/taint-propagation.md:65`,
   `docs/rules/security/secret-qualifier.md:11`).
   - [x] the argument literal in `rule:security/taint-propagation`
   - [x] the key rule in `rule:security/secret-qualifier`
-  - [ ] the member mark in `rule:security/taint-propagation`
+  - [x] the member mark in `rule:security/taint-propagation`
+- [ ] A marked member refuses a `tainted` value whose key would land in an answer whose keys read
+  back plain, such as `Core\Arr::countBy` over `array<tainted string>`, which answers `array<uint>`
+  (`rule:security/taint-propagation`, `crates/nvs-types/src/expr/args.rs:check_key_marks`).
+  - [ ] `check_key_marks` and the option check in `check_options_arg` pass the call's answer type
+    as `base` to `check_key_qualifier`
+  - [ ] `a_member_that_makes_keys_from_values_refuses_qualified_values` gains the `tainted` rows of
+    `countBy`, its `by`, `mapKeys` over plain elements, and `column`'s `indexBy`, and passes
+  - [ ] `rule:security/taint-propagation`'s member-mark paragraph states the `tainted` half
 
 ### 6. one matrix tries a secret and a tainted value at every position that erases a type
 
@@ -515,17 +523,13 @@ disjoint folders side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done and green. Stage 5's first slice landed: `check_key_qualifier`
-(`crates/nvs-types/src/expr/quals.rs`) replaces `reject_tainted_key_write` at its three callers. It
-reports `E0896` (`E_SECRET_ARRAY_KEY`) for a key containing `secret` in every array, then `E0401` for
-a `tainted` key into a plain-keyed array. `base: None` skips the `tainted` half, for the member mark.
-`check_array_literal` checks every key against the literal's own result type, so a literal at a
-`mixed` parameter (`array<mixed>`) is checked too. Both new tests pass, and both rule fragments state it.
-
-The sweep's reds were stale, and nothing needs fixing. Nightly `43001191130` built `f4c1d5c7e2`. Its one red was
-`a_changed_server_timeout_applies_to_the_next_connection` in `crates/nvs-cli/tests/live_config.rs`, and
-`305c04f660` fixed it later. No file defines `env-secret-proofs`, so looper's service keeps a check
-that the tree does not have.
+Stages 1 to 4 are done. In stage 5, `check_key_qualifier` (`quals.rs`) checks every key position,
+and the member mark is in. `CoreTy::Keys(KeyOrigin, &CoreTy)` is read as `ParamText::Keys`, which
+`param_text` finds through an array's element and a callable's result. `check_key_marks`
+(`args.rs:229`) runs after both argument paths when the list reported nothing, and a whole option is
+checked in `check_options_arg` (`args.rs:947`). `KEYS_FROM` in `taint_signatures.rs` answers 61
+members, and its tests pass. The mark checks only `secret`: `countBy` over `array<tainted string>`
+answers `array<uint>` with plain keys. The sweep's reds are stale (nightly `43001191130` is older).
 
 Expected red at the gate. Stage 1: converting a `secret` to a number, bool, enum or class; narrowing
 `tainted` with `is` into a plain sink. Stage 2: a `secret` into a declared `mixed`; tests expecting
@@ -536,32 +540,31 @@ Stage 4: any output the grep missed that quotes a conversion's string operand; a
 showed a `?secret string`. `website/public/llms-full.txt` and `docs/reference/` were edited by hand.
 `bun nv proofs --record-perf` was not run. Stage 7 updates the programs. Stage 5: any program that
 keys an array by a `secret` value, or puts a `tainted` key in a literal passed to a plain-keyed
-`array<…>` parameter.
+`array<…>` parameter. The member mark: any program or test that calls `countBy`, `flip`, `fillKeys`,
+`fromKeysAndValues`, `mapKeys`, `groupBy` or `column` with `indexBy` over `secret` values. Registry
+lib tests whose walkers match `CoreTy` with `_` and do not know `Keys` (the ones with a `Nullable`
+or-pattern got the arm).
 
 ### Next
 
-Stage 5's second slice, the member mark, over `registry.rs`, `arr.rs`, `core_lib.rs`, `args.rs` and
-the two test files. The shape is decided (see `## Standing decisions`, the key mark):
+Stage 5's last item, the `tainted` half of the member mark, over `args.rs` and `qualifiers_hold.rs`.
+Decided: a `tainted` value at a marked position enters only an answer whose keys read back tainted,
+the rule every other key position follows. **What it spends:** compile time only. Cost: `countBy`
+over outside text needs `array<tainted string>`-shaped answers it cannot have, so such a program
+checks its values first or uses `Core\Taint::assertTrusted`.
 
-- [ ] `crates/nvs-stdlib/src/registry.rs:929`: a transparent `CoreTy::Keys(KeyOrigin, &CoreTy)` beside
-  `Dispatched`, with `KeyOrigin::Values` (the values at this position become keys) and
-  `KeyOrigin::Cells` (this option names a cell of each row of the subject, and those cells become
-  keys). Add its arm wherever `CoreTy::Dispatched(` is matched (`ast.rs:1402`, `xml.rs:4503`,
-  `xml.rs:4575`, `registry.rs:1531`, `core_lib.rs:906`, `taint_signatures.rs:70`), then run
-  `cargo clippy --all-targets` (playbook trap).
-- [ ] `crates/nvs-stdlib/src/arr.rs:488`: the mark on `flip`, `fillKeys` and `fromKeysAndValues`'s element
-  (`Array(&Keys(Values, &Union(ARRAY_KEY)))`), on `mapKeys`'s and `groupBy`'s callback result, on
-  `countBy`'s element and on its own `by` option (a new `COUNT_BY_OPTION`, since `BY_OPTION` is shared
-  with `unique`), and `Keys(Cells, …)` on `COLUMN_OPTIONS`' `indexBy`.
-- [ ] `crates/nvs-types/src/expr/args.rs:1722`: after the arguments bind, for each marked position
-  call `check_key_qualifier(span, ty, None, env)` with the argument's type there: the element, the
-  callable's return, or for `Cells` the subject's bound row element when the option is given. Report
-  only when the argument reported nothing (`rule:types/one-mistake-reports-once`).
-- [ ] `crates/nvs-types/tests/qualifiers_hold.rs:395`: tests
-  `a_member_that_makes_keys_from_values_refuses_qualified_values` and
-  `every_member_that_returns_a_plain_keyed_array_says_where_its_keys_come_from`
-  (`crates/nvs-stdlib/tests/taint_signatures.rs:150`), and the mark in
-  `rule:security/taint-propagation`.
+- [ ] `crates/nvs-types/src/expr/args.rs:229`: `check_key_marks` takes the substituted `sig.return_ty`
+  and passes it as `base`. `check_key_qualifier`'s `tainted` half then refuses where
+  `keys_from_outside(base)` is false. Find what a `Contagious` result makes of the answer first
+  (`tainted_result`), so `mapKeys` over `array<tainted string>` keeps compiling.
+- [ ] `crates/nvs-types/src/expr/args.rs:947`: the option check needs the answer type too. Pass it
+  down from `check_arg_list` through a field on `Env` set around the options argument, as
+  `dispatched_literal` is, or move the option check into `check_key_marks` by recording each
+  option value's type in `check_options_arg`.
+- [ ] `crates/nvs-types/tests/qualifiers_hold.rs:488`: `tainted` rows in
+  `a_member_that_makes_keys_from_values_refuses_qualified_values` for `countBy`, its `by`, `mapKeys`
+  over `array<int>`, and `indexBy`, plus `mapKeys` over `array<tainted string>` compiling. Then the
+  member-mark paragraph in `docs/rules/security/taint-propagation.md` states it, and stage 5 is done.
 
 ### Backlog
 
