@@ -237,6 +237,14 @@ member that makes keys. A `tainted` key still enters an array whose element type
 or `mixed`. **What it spends:** compile time only. Declined, as the rule already declines it: a key
 qualifier on the array type.
 
+**The key mark is a transparent `CoreTy::Keys(KeyOrigin, &CoreTy)` wrapper, like
+`CoreTy::Dispatched`.** A field on `CoreMethod` would change every row literal in the registry. A
+wrapper sits exactly at the position whose values become keys. `KeyOrigin::Cells` covers `column`'s
+`indexBy`, whose own value is a cell name. The keys come from the subject's cells only when the option
+is given. So `column` without `indexBy` still takes `secret` cells. `countBy`'s element is marked
+even when a `by` is given. That refuses a `secret` subject that a `by` would have keyed by something
+else, which is the safe direction. **What it spends:** compile time only.
+
 **A member that turns values into keys is marked once in the member table.** The mark sits on the
 parameter or the callback result whose values become keys. The checker reads it in the generic call
 path and calls the key function. The marked members are `Core\Arr::countBy`, `flip`, `fillKeys`,
@@ -410,14 +418,14 @@ where `Core\Serialize::encode` reads a property's `secret` bit.
 **Does:** route every key position through one function, refuse a `secret` key everywhere, and mark
 the members that make keys from values.
 
-- [ ] One function checks a key's qualifier against the array it enters, and it replaces
+- [x] One function checks a key's qualifier against the array it enters, and it replaces
   `reject_tainted_key_write` at its three callers (`rule:security/taint-propagation`,
   `crates/nvs-types/src/expr/quals.rs:277`, `crates/nvs-types/src/expr/literals.rs:1202`,
   `crates/nvs-types/src/expr/literals.rs:1382`, `crates/nvs-types/src/expr/mod.rs:818`).
-- [ ] An array literal in argument position reaches it, whatever type the parameter expects. Today the
+- [x] An array literal in argument position reaches it, whatever type the parameter expects. Today the
   check runs only when `expected` is an array (`rule:security/taint-propagation`,
   `crates/nvs-types/src/expr/literals.rs:1201`, `crates/nvs-types/src/expr/args.rs:1717`).
-- [ ] The function refuses a key whose type contains `secret` in every array, with a new code
+- [x] The function refuses a key whose type contains `secret` in every array, with a new code
   (`rule:security/secret-qualifier`, `crates/nvs-types/src/expr/quals.rs:277`,
   `crates/nvs-diagnostics/src/code/types_e08.rs:435`).
 - [ ] The registry gains the key mark, and the generic call path calls the key function for a marked
@@ -435,9 +443,15 @@ the members that make keys from values.
 - [ ] Tests `a_tainted_key_is_checked_at_every_key_position`, `a_secret_value_is_never_an_array_key`
   and `a_member_that_makes_keys_from_values_refuses_qualified_values`
   (`crates/nvs-types/tests/qualifiers_hold.rs:1`).
+  - [x] `a_tainted_key_is_checked_at_every_key_position` passes
+  - [x] `a_secret_value_is_never_an_array_key` passes
+  - [ ] `a_member_that_makes_keys_from_values_refuses_qualified_values` passes
 - [ ] `rule:security/taint-propagation` names the argument literal and the member mark, and
   `rule:security/secret-qualifier` states the key rule (`docs/rules/security/taint-propagation.md:65`,
   `docs/rules/security/secret-qualifier.md:11`).
+  - [x] the argument literal in `rule:security/taint-propagation`
+  - [x] the key rule in `rule:security/secret-qualifier`
+  - [ ] the member mark in `rule:security/taint-propagation`
 
 ### 6. one matrix tries a secret and a tainted value at every position that erases a type
 
@@ -501,13 +515,17 @@ disjoint folders side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done and green. Stage 4: an erased read of a `secret` slot throws
-(`read_erased_property_hinted`), and an erased or reflective call of a method on
-`ClassDesc::secret_returns` throws (`call_erased_unchecked`). The list flows from
-`record_secret_returns` (`nvs-types/src/check.rs`) through `ir::Class::secret_returns`. The slot bit
-now uses `type_contains_secret`, so `?secret string` counts. A failed conversion names text as "a
-`string` of N bytes" (`text_operand`), and `class<T>` as "a `string`". The JSON and row decoders share
-`rendered_operand`. The 64-character case is renamed `a-failed-conversion-message-names-a-text-operand-by-its-length.nvst`.
+Stages 1 to 4 are done and green. Stage 5's first slice landed: `check_key_qualifier`
+(`crates/nvs-types/src/expr/quals.rs`) replaces `reject_tainted_key_write` at its three callers. It
+reports `E0896` (`E_SECRET_ARRAY_KEY`) for a key containing `secret` in every array, then `E0401` for
+a `tainted` key into a plain-keyed array. `base: None` skips the `tainted` half, for the member mark.
+`check_array_literal` checks every key against the literal's own result type, so a literal at a
+`mixed` parameter (`array<mixed>`) is checked too. Both new tests pass, and both rule fragments state it.
+
+The sweep's reds were stale, and nothing needs fixing. Nightly `43001191130` built `f4c1d5c7e2`. Its one red was
+`a_changed_server_timeout_applies_to_the_next_connection` in `crates/nvs-cli/tests/live_config.rs`, and
+`305c04f660` fixed it later. No file defines `env-secret-proofs`, so looper's service keeps a check
+that the tree does not have.
 
 Expected red at the gate. Stage 1: converting a `secret` to a number, bool, enum or class; narrowing
 `tainted` with `is` into a plain sink. Stage 2: a `secret` into a declared `mixed`; tests expecting
@@ -516,22 +534,34 @@ Expected red at the gate. Stage 1: converting a `secret` to a number, bool, enum
 Stage 4: any output the grep missed that quotes a conversion's string operand; any read of a
 `secret` property through `mixed`, `object`, a shape or `ClassInfo::get`; a dump or encoder test that
 showed a `?secret string`. `website/public/llms-full.txt` and `docs/reference/` were edited by hand.
-`bun nv proofs --record-perf` was not run. Stage 7 updates the programs.
+`bun nv proofs --record-perf` was not run. Stage 7 updates the programs. Stage 5: any program that
+keys an array by a `secret` value, or puts a `tainted` key in a literal passed to a plain-keyed
+`array<…>` parameter.
 
 ### Next
 
-Stage 5, over `quals.rs`, `literals.rs`, `registry.rs` and `qualifiers_hold.rs`.
+Stage 5's second slice, the member mark, over `registry.rs`, `arr.rs`, `core_lib.rs`, `args.rs` and
+the two test files. The shape is decided (see `## Standing decisions`, the key mark):
 
-- [ ] `crates/nvs-types/src/expr/quals.rs:277`: one key function replaces `reject_tainted_key_write`
-  at its callers (`crates/nvs-types/src/expr/literals.rs:1202`, `crates/nvs-types/src/expr/literals.rs:1382`,
-  `crates/nvs-types/src/expr/mod.rs:818`).
-- [ ] `crates/nvs-diagnostics/src/code/types_e08.rs:435`: the same function refuses a key containing
-  `secret` in every array, with a new code whose card sits beside `E0824`.
-- [ ] `crates/nvs-stdlib/src/registry.rs:1374`: the key mark beside `classification`, on `countBy`,
-  `flip`, `fillKeys`, `fromKeysAndValues`, `mapKeys`, `groupBy` and `column`'s `indexBy`, read in
-  the generic call path.
-- [ ] `crates/nvs-types/tests/qualifiers_hold.rs:374`: the stage's tests after this one, the registry
-  walk in `crates/nvs-stdlib/tests/taint_signatures.rs`, and `rule:security/taint-propagation`.
+- [ ] `crates/nvs-stdlib/src/registry.rs:929`: a transparent `CoreTy::Keys(KeyOrigin, &CoreTy)` beside
+  `Dispatched`, with `KeyOrigin::Values` (the values at this position become keys) and
+  `KeyOrigin::Cells` (this option names a cell of each row of the subject, and those cells become
+  keys). Add its arm wherever `CoreTy::Dispatched(` is matched (`ast.rs:1402`, `xml.rs:4503`,
+  `xml.rs:4575`, `registry.rs:1531`, `core_lib.rs:906`, `taint_signatures.rs:70`), then run
+  `cargo clippy --all-targets` (playbook trap).
+- [ ] `crates/nvs-stdlib/src/arr.rs:488`: the mark on `flip`, `fillKeys` and `fromKeysAndValues`'s element
+  (`Array(&Keys(Values, &Union(ARRAY_KEY)))`), on `mapKeys`'s and `groupBy`'s callback result, on
+  `countBy`'s element and on its own `by` option (a new `COUNT_BY_OPTION`, since `BY_OPTION` is shared
+  with `unique`), and `Keys(Cells, …)` on `COLUMN_OPTIONS`' `indexBy`.
+- [ ] `crates/nvs-types/src/expr/args.rs:1722`: after the arguments bind, for each marked position
+  call `check_key_qualifier(span, ty, None, env)` with the argument's type there: the element, the
+  callable's return, or for `Cells` the subject's bound row element when the option is given. Report
+  only when the argument reported nothing (`rule:types/one-mistake-reports-once`).
+- [ ] `crates/nvs-types/tests/qualifiers_hold.rs:395`: tests
+  `a_member_that_makes_keys_from_values_refuses_qualified_values` and
+  `every_member_that_returns_a_plain_keyed_array_says_where_its_keys_come_from`
+  (`crates/nvs-stdlib/tests/taint_signatures.rs:150`), and the mark in
+  `rule:security/taint-propagation`.
 
 ### Backlog
 
