@@ -7,9 +7,12 @@
       "text": "A review of the whole runtime found places where a safety rule did not apply. Each place gets a fix and a test.",
       "goals": [
         "values-stay-alive",
+        "calls-by-name-are-checked",
         "crossings-carry-data-only",
+        "package-files-contained",
         "qualifiers-hold",
         "package-authority-closed",
+        "registry-waits-hold",
         "limits-hold",
         "waits-are-bounded",
         "sessions-scoped",

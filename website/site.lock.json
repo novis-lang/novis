@@ -117,7 +117,7 @@
     "lang:iteration/core-collections-are-iterable": "4a6b87163505a766",
     "lang:iteration/materialising-a-sequence-core-arr-from": "5e061e3648d5291e",
     "lang:iteration/what-foreach-walks": "bca9e2261343bd32",
-    "lang:statements/foreach": "c85ebde6771ef336"
+    "lang:statements/foreach": "fe28fcf56682a90c"
   },
   "syntax/control-flow/if.mdx": {
     "lang:statements/expression-statements-blocks-and-declarations": "28bf5c3d9056fb1f",
