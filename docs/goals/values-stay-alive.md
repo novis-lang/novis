@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: "no valid program reads freed memory, leaks at a stop or aborts the process"
-summary: "Reached when a borrowed read holds its value across every later operand that can free it, a stop at a function's entry frees what the callee owns, an `inout` loop survives any change to its array, and no program shape reaches a panic inside a runtime primitive."
+summary: "Reached when a borrowed read holds its value across every later operand that can free it, a stop at a function's entry frees what the callee owns, an `inout` loop survives any change to its array, a `toString()` conversion, a property guard and a generator factory's memory stop neither free early nor leak, and no program shape reaches a panic inside a runtime primitive."
 context: [crates/nvs-ir/src/lower/mod.rs, crates/nvs-runtime/src/abi.rs, docs/rules/errors/helper-abi.md]
 stages:
   - id: 1
@@ -37,6 +37,10 @@ stages:
     status: done
     context: [crates/nvs-runtime/src/throwable.rs, crates/nvs-runtime/src/callable.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/ctx/frames.rs]
   - id: 9
+    title: a conversion, a property guard and a generator factory keep what they borrow or own
+    status: open
+    context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/generator.rs, crates/nvs-ir/src/lower/operand.rs]
+  - id: 10
     title: "the goal is verified once, and every failure is fixed"
     status: open
     gate: true
@@ -118,6 +122,15 @@ checks:
     timeout: 1800
     tests:
       - every_primitive_denies_a_panic_in_its_own_body
+  - id: user-code-holds
+    stage: 9
+    name: "a toString conversion, a property guard and a generator factory's memory stop free nothing early and leak nothing"
+    run: [cargo, test, --test, borrowed_reads, --, a_to_string_conversion_keeps_its_receiver_alive, a_property_guard_cannot_free_the_value_being_stored, a_memory_stop_in_a_generator_factory_releases_its_arguments]
+    timeout: 1800
+    tests:
+      - a_to_string_conversion_keeps_its_receiver_alive
+      - a_property_guard_cannot_free_the_value_being_stored
+      - a_memory_stop_in_a_generator_factory_releases_its_arguments
 ---
 
 # no valid program reads freed memory, leaks at a stop or aborts the process
@@ -347,6 +360,13 @@ forced unwind that tears a cancelled task down still passes through it, because
 `contained_panic` resumes that unwind. The `nvs-stdlib` trampoline and `answered_arity` carry the
 set, because both run before `run_helper`'s guard. **What it spends:** nothing at run time;
 `catch_unwind` costs nothing on the path that does not panic.
+
+**The backlog's three shapes stay in this goal.** The first gate found them still open: a
+`toString()` conversion that may free its own receiver, a property guard that may free the value
+being stored, and a generator factory that leaks its parameters at a memory stop. Each is a freed
+read or a leak the title rules out, and no goal ahead on the chain is about value lifetimes. So
+stage 9 closes them and the gate runs again as stage 10. Declined: parking them with a later goal,
+which ships a known use-after-free to buy an earlier `DONE`.
 
 **Lanes:** stages 1 and 2 share the lowering files and run in order. Stage 3 shares `mod.rs` with
 stage 1 and `emit.rs` with stage 4, so stages 1 to 4 run in order. Stage 5 shares `array.rs` with
@@ -671,7 +691,26 @@ not trace their callees or their arithmetic.
 - The test counts a declaration at the top level of a file, or one with `no_mangle`. The indented
   ones in `deferred.rs`, `ctx/hooks.rs`, `ctx/isolate.rs` and `object.rs`'s tests are not counted.
 
-### 9. the goal is verified once, and every failure is fixed
+### 9. a conversion, a property guard and a generator factory keep what they borrow or own
+
+**Does:** close the three shapes the gate session found still open. Each is a freed read or a leak
+that this goal's title rules out, so it stays here and is not handed to a later goal.
+
+- [ ] A `toString()` that an implicit conversion calls cannot free its own borrowed receiver. The
+  conversion holds the receiver through the call, the way `Lowering::hold_borrowed` holds an
+  operand (`crates/nvs-ir/src/lower/expr.rs:1114`, `crates/nvs-ir/src/lower/operand.rs:242`).
+- [ ] A `PropertyGuard` or a covariant-property check that runs user code after a store's value is
+  read holds that value until the store retains it (`crates/nvs-ir/src/lower/stmt.rs:1617`,
+  `crates/nvs-ir/src/lower/stmt.rs:1749`, `crates/nvs-ir/src/lower/expr.rs:5485`).
+- [ ] A generator factory's state-object `New` has a landing block that releases the parameters
+  the factory still owns (`crates/nvs-ir/src/lower/generator.rs:738`).
+- [ ] The three tests the `user-code-holds` check names exist in
+  `crates/nvs-codegen/tests/borrowed_reads.rs` and are green, each run once by name.
+
+**What it spends:** one non-atomic retain and release per conversion or guarded store whose value
+is borrowed, and one cold landing block per generator factory. Nothing in memory.
+
+### 10. the goal is verified once, and every failure is fixed
 
 - [ ] Run `looper verify` over the whole goal.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
@@ -681,42 +720,39 @@ not trace their callees or their arithmetic.
 
 ### State
 
-Stages 1 to 8 are done. Every primitive in `crates/nvs-runtime/src/` carries the `deny` set, and
-`cargo test --test primitives_never_panic` is green, all five tests. Stage 8's decisions are under
-"What stage 8 settled": `nvs_debug_throw`, `nvs_deprecated_use` and `invoke_native` now run under
-`abi::contain_panic`, and the ten void primitives carry the set with their direct callees. Clippy
-is clean over the workspace and `cargo fmt --check` passes. The sweep's `env-secret-proofs` red is
-stale: no file defines the check, and its old command `bun nv proofs --gate --only
-'Core\Env::secret'` reports nothing owed.
+Stages 1 to 8 are done, and the first gate over them is green. `looper verify` found three reds,
+each fixed and committed: the statements chapter was not re-rendered after stage 4, five hostile
+cases were not formatted, and `unit_layout`'s shared-literal test pooled CLIF's per-function
+`userextnameN` names across functions. The goal-end gates are green too: `bun nv verify --doc`,
+`bun nv owners --closes values-stay-alive` and `bun nv ci --check`. `ci --check` also needed the
+perf figures for `lang:statements` and the three `Core\Test` classes recorded again, the foreach page
+restamped, three chain goals added to the roadmap, and the follow-up to another session's
+keepalive commit (`llms-full.txt` and the server page's questions). `rule:errors/helper-abi` now
+holds stage 8's reasoning about wrapped and void primitives. The goal was not ended: its backlog
+had three freed-read and leak shapes that the title rules out, so they became stage 9. The gate
+moved to stage 10. The sweep's `env-secret-proofs` red is stale: `looper check --name
+env-secret-proofs` reports that no check matches.
 
 ### Next
 
-Take stage 9, the gate: `looper verify` over the whole goal, started with `run_in_background`, then
-fix every failure in one pass and run it once more. Then the goal-end gates AGENTS.md names:
-`bun nv verify --doc`, `bun nv owners --closes values-stay-alive`, `bun nv ci --check`. Move each
-decision only this file holds into `docs/rules/errors/helper-abi.md` or a module doc before the
-file is deleted.
+Take stage 9: the three shapes, then the three tests the `user-code-holds` check names, each run
+once by name. Stages 9 and 10 share no file with the finished stages' open work.
 
-- [ ] `looper verify`, in the background, over the goal's crates (`crates/nvs-ir/src/lower/mod.rs:1`,
-  `crates/nvs-runtime/src/abi.rs:1`).
-- [ ] Each red it names, fixed in one pass (`crates/nvs-runtime/tests/primitives_never_panic.rs:1`).
-  The likely reds are below.
-- [ ] `looper verify` once more, green (`crates/nvs-runtime/src/abi.rs:1`).
-- [ ] The three goal-end gates, each red fixed (`docs/goals/values-stay-alive.md:1`).
-- [ ] The standing decisions moved to `docs/rules/errors/helper-abi.md:1` and the module docs, and
-  the goal file deleted.
+- [ ] `crates/nvs-ir/src/lower/expr.rs:1114`: a `toString()` conversion holds its borrowed
+  receiver through the call, as `crates/nvs-ir/src/lower/operand.rs:242` holds an operand.
+- [ ] `crates/nvs-ir/src/lower/stmt.rs:1617`: a property guard or covariant check holds the value
+  being stored until the store retains it, and so does `crates/nvs-ir/src/lower/stmt.rs:1749`.
+- [ ] `crates/nvs-ir/src/lower/generator.rs:738`: the generator factory's state-object `New` gets a
+  landing block over the parameters it owns.
+- [ ] The three tests in `crates/nvs-codegen/tests/borrowed_reads.rs:1`, green by name.
 
-Expected red: a test or conformance
-case that prints a backtrace through a `RecursionError` or a limit stop at a function's entry now
-shows the stopped frame too. Any `nvs-codegen` test that compares an IR dump through an `inout`
-loop. Any conformance case or example that appends to the subject of an `inout` loop and expected
-the new entry visited. The stage-9 gate reads each.
+Then stage 10, the gate: `looper verify` in the background, the goal-end gates, and the goal file
+deleted once the remaining decisions are moved into `docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:1`
+and `crates/nvs-ir/src/lower/generator.rs:1`.
+
+Expected red at stage 10: an `nvs-codegen` IR snapshot through a generator factory gains a landing
+block, and one through a `toString()` conversion or a guarded store gains a retain and release.
 
 ### Backlog
 
-- A user `__toString` called by a conversion may free its own borrowed receiver.
-- A `PropertyGuard` or covariant-property check runs user code after a store's value is read and
-  before the store retains it. A borrowed value that code frees is not held.
-- A generator factory's state-object `New` takes an empty `Env` as its error edge
-  (`crates/nvs-ir/src/lower/generator.rs:738`). A memory stop there leaks the parameters, which are
-  still the factory's.
+- Nothing beyond stage 9.
