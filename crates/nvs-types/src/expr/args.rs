@@ -610,7 +610,10 @@ impl Admitted {
     /// Whether the narrowed comparison is worth making at all: a qualifier
     /// to clear, or a `Core` walk to widen.
     fn any(self, want: TypeId, env: &Env<'_>) -> bool {
-        self.tainted || self.secret || (self.core && !walk_params(want, env).is_empty())
+        self.tainted
+            || self.secret
+            || (self.core
+                && (!walk_params(want, env).is_empty() || carries_unchecked(want, env.interner)))
     }
 }
 
@@ -669,7 +672,14 @@ fn check_arg_admitting_quals(
     };
     let tainted_walk = walks != expected
         && is_assignable(compared, walks, env.interner, env.graph, env.signatures);
-    if !tainted_walk && !(admitted.core && reads_any_walk(compared, expected, env)) {
+    // A `Core` row's `mixed` takes a `secret` value, which plain `mixed` does
+    // not (`mixed_admitting_secret` says why).
+    let core_secret = admitted.core && {
+        let widened = mixed_admitting_secret(expected, env.interner);
+        widened != expected
+            && is_assignable(compared, widened, env.interner, env.graph, env.signatures)
+    };
+    if !tainted_walk && !core_secret && !(admitted.core && reads_any_walk(compared, expected, env)) {
         report_mismatch(value.span, expected, actual, env);
     }
     actual

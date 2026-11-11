@@ -200,7 +200,7 @@ pub(crate) fn carries_secret(ty: TypeId, interner: &TypeInterner) -> bool {
 /// every place it is used as a `string` (`rule:types/one-mistake-reports-once`).
 pub(crate) fn carries_unchecked(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
-        Ty::Mixed => true,
+        Ty::Mixed | Ty::SecretMixed => true,
         Ty::Array(elem) => carries_unchecked(*elem, interner),
         Ty::Union(members) => members
             .iter()
@@ -213,7 +213,7 @@ pub(crate) fn carries_unchecked(ty: TypeId, interner: &TypeInterner) -> bool {
 /// either among its members.
 fn holds_array(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
-        Ty::Array(_) | Ty::Mixed => true,
+        Ty::Array(_) | Ty::Mixed | Ty::SecretMixed => true,
         Ty::Union(members) => members.iter().any(|&member| holds_array(member, interner)),
         _ => false,
     }
@@ -223,7 +223,7 @@ fn holds_array(ty: TypeId, interner: &TypeInterner) -> bool {
 /// `mixed`, or a union with `mixed` itself among its members.
 fn unchecked_outside_arrays(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
-        Ty::Mixed => true,
+        Ty::Mixed | Ty::SecretMixed => true,
         Ty::Union(members) => members
             .iter()
             .any(|&member| unchecked_outside_arrays(member, interner)),
@@ -259,7 +259,7 @@ pub(crate) fn fields_unchecked(ty: TypeId, interner: &TypeInterner) -> bool {
 pub(crate) fn keys_from_outside(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
         // The error type is not `mixed` here, for [`carries_unchecked`]'s reason.
-        Ty::Mixed | Ty::Iterable => true,
+        Ty::Mixed | Ty::SecretMixed | Ty::Iterable => true,
         Ty::Array(elem) => carries_unchecked(*elem, interner) || carries_tainted(*elem, interner),
         _ => false,
     }
@@ -423,14 +423,18 @@ fn field_from_outside(from: TypeId, name: &str, wanted: TypeId, env: &mut Env<'_
 }
 
 /// Whether `ty` carries `rule:security/secret-qualifier`'s `secret` qualifier — on its own or
-/// composed with `tainted`. The `secret`-axis counterpart of [`is_tainted`];
+/// composed with `tainted`, or as `secret mixed`. The `secret`-axis counterpart of [`is_tainted`];
 /// the two are independent bits, so a caller checking one never implies
 /// anything about the other. `pub` for [`is_tainted`]'s reason.
 #[must_use]
 pub fn is_secret(ty: TypeId, interner: &TypeInterner) -> bool {
     matches!(
         interner.get(ty),
-        Ty::SecretString | Ty::SecretBytes | Ty::SecretTaintedString | Ty::SecretTaintedBytes
+        Ty::SecretString
+            | Ty::SecretBytes
+            | Ty::SecretTaintedString
+            | Ty::SecretTaintedBytes
+            | Ty::SecretMixed
     )
 }
 
@@ -564,6 +568,44 @@ pub(crate) fn unsecret(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
             let tainted = is_tainted(ty, interner);
             qualified_scalar(is_bytes, tainted, false, interner)
         }
+        _ if matches!(interner.get(ty), Ty::SecretMixed) => interner.mixed(),
+        _ => ty,
+    }
+}
+
+/// The same type with every `mixed` replaced by `secret mixed`: the atom, an
+/// array's element, a shape's field and a union's member. Every other part is
+/// left as it was, so a `secret` value still does not fit a plain `string`.
+///
+/// The one reader is a `Core` row's argument. A `Core` parameter declared
+/// `mixed` takes a `secret` value, because each `Core` sink that declares one
+/// refuses the value at the call with its own code, and the credential
+/// positions of `rule:security/secret-sinks-refuse` take it on purpose. A
+/// parameter the program declares `mixed` does not.
+pub(crate) fn mixed_admitting_secret(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
+    match interner.get(ty).clone() {
+        Ty::Mixed => interner.secret_mixed(),
+        Ty::Array(elem) => {
+            let elem = mixed_admitting_secret(elem, interner);
+            interner.array(elem)
+        }
+        Ty::Shape(fields) => {
+            let fields = fields
+                .into_iter()
+                .map(|mut field| {
+                    field.ty = mixed_admitting_secret(field.ty, interner);
+                    field
+                })
+                .collect();
+            interner.shape(fields)
+        }
+        Ty::Union(members) => {
+            let members: Vec<TypeId> = members
+                .iter()
+                .map(|&member| mixed_admitting_secret(member, interner))
+                .collect();
+            interner.make_union(members)
+        }
         _ => ty,
     }
 }
@@ -580,6 +622,7 @@ pub(crate) fn erased_qualifiers(ty: TypeId, interner: &mut TypeInterner) -> Type
         return qualified_scalar(is_bytes, false, false, interner);
     }
     match interner.get(ty).clone() {
+        Ty::SecretMixed => interner.mixed(),
         Ty::StringHoles { key, .. } => interner.string_holes(key, false),
         Ty::Array(elem) => {
             let elem = erased_qualifiers(elem, interner);
@@ -600,13 +643,15 @@ pub(crate) fn erased_qualifiers(ty: TypeId, interner: &mut TypeInterner) -> Type
 /// itself, an array's element, or every member of a union — and unchanged
 /// where it cannot. [`tainted_result`]'s twin one axis over: a conversion out
 /// of a `?secret string` or an `array<secret string>` keeps the bit across
-/// `as string`, `as ?string` and `as array<string>`.
+/// `as string`, `as ?string` and `as array<string>`. `mixed` is set to
+/// `secret mixed`, the third carrier.
 pub(crate) fn secret_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
     if let Some(is_bytes) = qualifiable_base(ty, interner) {
         let tainted = is_tainted(ty, interner);
         return qualified_scalar(is_bytes, tainted, true, interner);
     }
     match interner.get(ty).clone() {
+        Ty::Mixed => interner.secret_mixed(),
         Ty::Array(elem) => {
             let elem = secret_result(elem, interner);
             interner.array(elem)
@@ -766,7 +811,7 @@ pub(crate) fn admits_tainted_argument(
 /// question: a union with a class in it has fields the mark does not reach.
 fn all_unchecked(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
-        Ty::Mixed => true,
+        Ty::Mixed | Ty::SecretMixed => true,
         Ty::Array(elem) => all_unchecked(*elem, interner),
         _ => false,
     }
@@ -1536,7 +1581,7 @@ fn walks_outside_text(
     }
     match env.interner.get(ty).clone() {
         // The error type is not `mixed` here, for [`carries_unchecked`]'s reason.
-        Ty::Mixed | Ty::Object | Ty::Iterable | Ty::TypeVar(_) => true,
+        Ty::Mixed | Ty::SecretMixed | Ty::Object | Ty::Iterable | Ty::TypeVar(_) => true,
         Ty::Array(elem) => walks_outside_text(elem, seen, env),
         Ty::Shape(fields) => fields
             .iter()

@@ -834,14 +834,19 @@ fn infer_kind(
             // An error-type base already reported, so a read or a write
             // through it reports nothing and its element is the error type
             // too (`rule:types/one-mistake-reports-once`).
-            let deferred_to_the_tag = matches!(env.interner.get(base_ty), Ty::Mixed)
-                && !env.write_target_levels.contains_key(&expr.span);
+            let deferred_to_the_tag =
+                matches!(env.interner.get(base_ty), Ty::Mixed | Ty::SecretMixed)
+                    && !env.write_target_levels.contains_key(&expr.span);
             let mixed = env.interner.mixed();
+            let secret_mixed = env.interner.secret_mixed();
             let error = env.interner.error();
+            // A read out of `secret mixed` is `secret mixed` too
+            // (`rule:security/secret-propagation`).
             let elem_ty = match env.interner.get(base_ty) {
                 Ty::Array(elem) => Some(*elem),
                 Ty::Error => Some(error),
                 Ty::Mixed if deferred_to_the_tag => Some(mixed),
+                Ty::SecretMixed if deferred_to_the_tag => Some(secret_mixed),
                 _ => None,
             };
             match elem_ty {

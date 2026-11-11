@@ -840,6 +840,7 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
         // stays disjoint from every other one, `int` included.
         Ty::Enum(qname, _) | Ty::EnumCase(qname, _, _) => EqDomain::Enum(qname),
         Ty::Mixed
+        | Ty::SecretMixed
         | Ty::Error
         | Ty::Iterable
         | Ty::Void

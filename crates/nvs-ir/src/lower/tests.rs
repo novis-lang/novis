@@ -4828,6 +4828,7 @@ fn lower_decl_type_answers_every_type_atom_the_grammar_has() {
             Some(Ty::Object),
         ),
         (TypeAtom::Mixed, Some(Ty::Tagged)),
+        (TypeAtom::SecretMixed, Some(Ty::Tagged)),
         (TypeAtom::Void, Some(Ty::Void)),
         (TypeAtom::Never, Some(Ty::Void)),
         (TypeAtom::True, Some(Ty::Bool)),
@@ -4852,7 +4853,7 @@ fn lower_decl_type_answers_every_type_atom_the_grammar_has() {
     ];
     assert_eq!(
         atoms.len(),
-        35,
+        36,
         "one row per `nvs_syntax::ast::TypeAtom` variant — write the row in the slice that \
          writes the arm"
     );
@@ -4938,6 +4939,7 @@ fn erase_checked_ty_answers_every_checked_type_a_value_can_have() {
         (CheckedTy::PropertyKey(class), Ty::Str),
         (CheckedTy::Object, Ty::Object),
         (CheckedTy::Mixed, Ty::Tagged),
+        (CheckedTy::SecretMixed, Ty::Tagged),
         (CheckedTy::Never, Ty::Void),
         (CheckedTy::True, Ty::Bool),
         (CheckedTy::False, Ty::Bool),
@@ -4980,7 +4982,7 @@ fn erase_checked_ty_answers_every_checked_type_a_value_can_have() {
     ];
     assert_eq!(
         rows.len(),
-        36,
+        37,
         "one row per `nvs_types::ty::Ty` variant a value can have — every variant but \
          `CoreShape`, which the assertion below owns"
     );

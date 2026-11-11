@@ -1059,6 +1059,7 @@ fn walk_type(ty: &Type, src: &SourceFile, out: &mut Harvest) {
             | TypeAtom::Array(None)
             | TypeAtom::Object
             | TypeAtom::Mixed
+            | TypeAtom::SecretMixed
             | TypeAtom::Void
             | TypeAtom::Never
             | TypeAtom::True

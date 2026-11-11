@@ -735,6 +735,7 @@ impl<'a> Api<'_, 'a> {
                 format!("{{{}}}", fields.into_iter().collect::<Vec<_>>().join(", "))
             }
             TypeAtom::Mixed => "mixed".to_owned(),
+            TypeAtom::SecretMixed => "secret mixed".to_owned(),
             TypeAtom::Void => "void".to_owned(),
             TypeAtom::Never => "never".to_owned(),
             TypeAtom::True => "true".to_owned(),

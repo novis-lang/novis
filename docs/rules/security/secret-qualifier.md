@@ -1,4 +1,5 @@
-`secret` is a second, independent compile-time qualifier on `string` and `bytes`. It and `tainted` are
+`secret` is a second, independent compile-time qualifier on three carriers: `string`, `bytes` and
+`mixed`. It and `tainted` are
 independent bits rather than a combined enum: a value can be plain, `tainted`, `secret`, or `secret
 tainted`. When both are spelled together, **`secret` comes first** — the only accepted order, and
 `tainted secret string` is a diagnostic naming the required order rather than a second valid spelling
@@ -15,6 +16,17 @@ declared type does not carry the qualifier is refused where it is written, becau
 last place the bit is visible. A written argument is the one position not asked — three of them take
 a credential legitimately (`rule:security/secret-sinks-refuse`), and what an argument owes is that
 rule.
+
+**A `secret` value enters `mixed` only where `secret mixed` is written.** `mixed $m = $secret;` does
+not compile, and its help names `secret mixed`. The refusal is in the assignment relation, so it holds
+at every placement: a declaration, an assignment, a property, a return, a parameter, a `foreach`
+variable, and `array<secret string>` into `array<mixed>`. `secret mixed` takes any value, and a value
+read out of it is `secret` too: an element read is `secret mixed`, and text out of it through `as` or
+`is` is `secret tainted string`, since text out of any `mixed` is `tainted`. Every sink refuses it. A
+`Core` parameter declared `mixed` still takes a `secret` argument, because each `Core` sink that
+declares one refuses the value at the call with its own code
+(`rule:security/secret-sinks-refuse`). There is no `tainted mixed`: `mixed` already carries `tainted`.
+`secret mixed` is `mixed` below the checker, so it costs nothing at run time.
 
 Two orthogonal questions — trust and confidentiality — get their own checked axis instead of being
 conflated into one. `tainted` asks whether a value's shape is safe for a sink; `secret` asks where the

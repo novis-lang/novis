@@ -8282,7 +8282,10 @@ pub(super) fn test_shape(
                     // [`TestShape::All`], which answers `true`. `mixed` has no
                     // row of its own because the checker settles every test
                     // whose whole type it is.
-                    value: Box::new(if matches!(checked_types.get(field.ty), CheckedTy::Mixed) {
+                    value: Box::new(if matches!(
+                        checked_types.get(field.ty),
+                        CheckedTy::Mixed | CheckedTy::SecretMixed
+                    ) {
                         TestShape::All(Vec::new())
                     } else {
                         test_shape(field.ty, exprs, checked_types, enums)?
@@ -8346,7 +8349,12 @@ pub(super) fn test_shape(
         CheckedTy::Object => Ty::Object,
         // A bare `array` is `array<mixed>` (`nvs_types::lower::lower_type`),
         // and every value carrying `Tag::Array` holds one.
-        CheckedTy::Array(element) if matches!(checked_types.get(*element), CheckedTy::Mixed) => {
+        CheckedTy::Array(element)
+            if matches!(
+                checked_types.get(*element),
+                CheckedTy::Mixed | CheckedTy::SecretMixed
+            ) =>
+        {
             Ty::Array
         }
         // A named element type is the walk instead. Where one tag word says the

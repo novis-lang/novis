@@ -135,6 +135,9 @@ pub enum TypeAtom {
     /// `secret tainted bytes` — `rule:security/secret-qualifier`, the `Bytes` counterpart of
     /// [`Self::SecretTaintedString`].
     SecretTaintedBytes,
+    /// `secret mixed` — `rule:security/secret-qualifier`'s third carrier. A
+    /// `mixed` that may hold a `secret` value, and the only `mixed` that may.
+    SecretMixed,
     /// `array`, or `array<T>` when a type argument is given.
     Array(Option<Box<Type>>),
     /// `class<T>` — `rule:types/class-reference`'s class reference, whose value is the

@@ -204,6 +204,7 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
             env.interner.shape(out)
         }
         TypeAtom::Mixed => env.interner.mixed(),
+        TypeAtom::SecretMixed => env.interner.secret_mixed(),
         TypeAtom::Void => env.interner.void(),
         TypeAtom::Never => env.interner.never(),
         TypeAtom::True => env.interner.true_ty(),

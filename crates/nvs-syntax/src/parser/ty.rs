@@ -540,14 +540,15 @@ impl<'src, 'd> Parser<'src, 'd> {
                     TypeKind::Atom(TypeAtom::Bytes) => TypeAtom::SecretBytes,
                     TypeKind::Atom(TypeAtom::TaintedString) => TypeAtom::SecretTaintedString,
                     TypeKind::Atom(TypeAtom::TaintedBytes) => TypeAtom::SecretTaintedBytes,
+                    TypeKind::Atom(TypeAtom::Mixed) => TypeAtom::SecretMixed,
                     _ => {
                         self.diags.report(
                             Diagnostic::error(
                                 code::E_SECRET_NON_SCALAR,
-                                "`secret` only qualifies `string`/`bytes`",
+                                "`secret` only qualifies `string`, `bytes` and `mixed`",
                             )
-                            .with_primary(span, "not a scalar `secret` can qualify")
-                            .with_help("write `secret string` or `secret bytes`"),
+                            .with_primary(span, "`secret` cannot be written before this type")
+                            .with_help("write `secret string`, `secret bytes` or `secret mixed`"),
                         );
                         return Type {
                             kind: inner.kind,

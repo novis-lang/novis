@@ -83,6 +83,7 @@ fn widened(interner: &mut TypeInterner, id: TypeId, depth: u32) -> Option<TypeId
         | Ty::SecretBytes
         | Ty::SecretTaintedString
         | Ty::SecretTaintedBytes
+        | Ty::SecretMixed
         | Ty::ClassRef(_)
         | Ty::Object
         | Ty::Never

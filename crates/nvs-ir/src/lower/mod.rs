@@ -4630,7 +4630,7 @@ pub(crate) fn lower_decl_type(
         // `mixed` — `rule:types/grammar`. See `Ty::Tagged`'s own doc comment for
         // exactly how much this representation does and doesn't do yet: a
         // local/parameter/return/call-argument round-trips, nothing else.
-        TypeKind::Atom(TypeAtom::Mixed) => Ty::Tagged,
+        TypeKind::Atom(TypeAtom::Mixed | TypeAtom::SecretMixed) => Ty::Tagged,
         TypeKind::Paren(inner) => lower_decl_type(inner, exprs, checked_types),
         // `rule:security/tainted-qualifier` and `rule:security/secret-qualifier`:
         // a qualifier is a bit on the *checker's* type and adds no runtime
@@ -5158,7 +5158,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // already gives `TypeAtom::Array(_)`, see `Ty::Array`'s own doc
         // comment for why this crate has no lowering decision that needs it.
         CheckedTy::Array(_) => Ty::Array,
-        CheckedTy::Mixed => Ty::Tagged,
+        CheckedTy::Mixed | CheckedTy::SecretMixed => Ty::Tagged,
         // The type of a place that already reported an error. A program with
         // an error does not compile, so lowering never meets it, and a debug
         // build stops here to say so. A release build lowers it as `mixed`.
@@ -5651,7 +5651,7 @@ fn array_element_tags(id: TypeId, checked_types: &TypeInterner) -> Option<u64> {
             | CheckedTy::TaintedBytes
             | CheckedTy::SecretBytes
             | CheckedTy::SecretTaintedBytes => Ty::Bytes,
-            CheckedTy::Mixed => Ty::Tagged,
+            CheckedTy::Mixed | CheckedTy::SecretMixed => Ty::Tagged,
             CheckedTy::Array(_) => Ty::Array,
             _ => return None,
         };

@@ -128,6 +128,10 @@ pub enum Ty {
     Object,
     /// `mixed` — the one unchecked position.
     Mixed,
+    /// `secret mixed` — `mixed` that may hold a `secret` value
+    /// (`rule:security/secret-qualifier`). Plain `mixed` never does. It is
+    /// `mixed` below the checker, so it costs nothing at run time.
+    SecretMixed,
     /// The type of a place that has already reported its diagnostic —
     /// `rule:types/one-mistake-reports-once`. No program writes it. It prints
     /// as `mixed`, is assignable to and from every type, and never reaches
@@ -700,6 +704,7 @@ impl TypeInterner {
             }
             Ty::Object => "object".to_owned(),
             Ty::Mixed | Ty::Error => "mixed".to_owned(),
+            Ty::SecretMixed => "secret mixed".to_owned(),
             Ty::Void => "void".to_owned(),
             Ty::Never => "never".to_owned(),
             Ty::True => "true".to_owned(),
@@ -904,6 +909,12 @@ impl TypeInterner {
     #[must_use]
     pub fn mixed(&mut self) -> TypeId {
         self.intern(Ty::Mixed)
+    }
+
+    /// The interned `secret mixed` singleton.
+    #[must_use]
+    pub fn secret_mixed(&mut self) -> TypeId {
+        self.intern(Ty::SecretMixed)
     }
 
     /// The interned error-type singleton — the type a recovery site returns

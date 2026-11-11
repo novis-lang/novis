@@ -1236,6 +1236,7 @@ fn push_atom(kids: &mut Vec<Node>, atom: &TypeAtom) {
         | TypeAtom::SecretTaintedBytes
         | TypeAtom::Object
         | TypeAtom::Mixed
+        | TypeAtom::SecretMixed
         | TypeAtom::Void
         | TypeAtom::Never
         | TypeAtom::True

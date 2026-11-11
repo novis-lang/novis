@@ -34,6 +34,10 @@ tainted string $q = $doc['q'] as string;
 `mixed` never absorbs implicitly in the other direction: `int $n = $m;` where `$m` is `mixed` is a
 diagnostic, not a runtime check.
 
+`mixed` holds anything except a `secret` value. `secret mixed` is the `mixed` that may hold one, and
+it is the only one (`rule:security/secret-qualifier`). It takes every value, an element read out of it
+is `secret mixed`, and text out of it through `as` or `is` is `secret tainted string`.
+
 `mixed` is a hole by design, and a program written entirely in it runs at dynamic typing's speed with
 dynamic typing's failure modes. The compiler does not keep `mixed` at the boundaries; review does, and
 every step out of it is an `as` a reviewer can see.

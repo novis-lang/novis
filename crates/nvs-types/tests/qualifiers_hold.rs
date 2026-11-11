@@ -161,3 +161,124 @@ fn a_shape_conversion_over_a_class_refuses_a_secret_property() {
     let diags = check_src(&program("$a as {name: string};"));
     assert!(!diags.has_errors(), "{diags:?}");
 }
+
+/// A class with one method over a `secret string $x` and an
+/// `array<secret string> $xs`, plus a `{M}` property, a `{M}` parameter and a
+/// `{M}` return. `{M}` is replaced by the type under test.
+fn placement_program(mixed: &str, body: &str) -> String {
+    format!(
+        "<?nvs\n\
+         class T {{\n\
+         \x20 public {mixed} $p;\n\
+         \x20 function constructor(): void {{ $this->p = 0; }}\n\
+         \x20 function take({mixed} $v): void {{}}\n\
+         \x20 function give(secret string $x): {mixed} {{ return $x; }}\n\
+         \x20 function m(secret string $x, array<secret string> $xs): void {{\n\
+         \x20   {body}\n\
+         \x20 }}\n\
+         }}\n"
+    )
+    .replace("{M}", mixed)
+}
+
+#[test]
+fn a_secret_value_enters_mixed_only_where_secret_mixed_is_written() {
+    let bodies = [
+        "{M} $m = $x;",
+        "{M} $m = 1; $m = $x;",
+        "$this->p = $x;",
+        "$this->take($x);",
+        "foreach ($xs as {M} $v) { $this->take($v); }",
+        "array<{M}> $a = $xs;",
+        "array<{M}> $a = [$x];",
+        "?{M} $m = $x;",
+        "{M} $m = {token: $x};",
+    ];
+    // The return is in the class itself, so a plain `mixed` program has its
+    // one refusal there even with an empty body.
+    let diags = check_src(&placement_program("mixed", ""));
+    let names_secret_mixed =
+        |d: &&nvs_diagnostics::Diagnostic| d.notes.iter().any(|note| note.contains("secret mixed"));
+    assert!(
+        diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_BAD_RETURN_TYPE))
+            .any(|d| names_secret_mixed(&d)),
+        "the return took a secret:\n{diags:?}"
+    );
+    let at_return = diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_TYPE_MISMATCH))
+        .count();
+    for body in bodies {
+        let src = placement_program("mixed", body);
+        let diags = check_src(&src);
+        let mismatches: Vec<_> = diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_TYPE_MISMATCH))
+            .collect();
+        assert!(
+            mismatches.len() > at_return,
+            "plain `mixed` took a secret:\n{src}\n{diags:?}"
+        );
+        assert!(
+            mismatches.iter().all(names_secret_mixed),
+            "the refusal does not name `secret mixed`:\n{src}\n{diags:?}"
+        );
+        let src = placement_program("secret mixed", body);
+        let diags = check_src(&src);
+        assert!(
+            !diags.has_errors(),
+            "`secret mixed` refused a secret:\n{src}\n{diags:?}"
+        );
+    }
+    // A value with no secret in it still fits plain `mixed`.
+    let diags = check_src(&placement_program("mixed", "mixed $m = \"a\"; $this->take(1);").replace(
+        "return $x;",
+        "return 1;",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn text_out_of_secret_mixed_is_secret_and_tainted() {
+    for (line, refused) in [
+        ("string $s = $m as string;", true),
+        ("secret string $s = $m as string;", true),
+        ("tainted string $s = $m as string;", true),
+        ("secret tainted string $s = $m as string;", false),
+        ("?secret tainted string $s = $m as ?string;", false),
+        ("if ($m is string) { string $s = $m; }", true),
+        ("if ($m is string) { secret tainted string $s = $m; }", false),
+        ("mixed $n = $m[\"k\"];", true),
+        ("secret mixed $n = $m[\"k\"];", false),
+        ("mixed $n = $m;", true),
+        ("int $n = $m as int;", true),
+        ("secret mixed $n = $m as mixed;", false),
+    ] {
+        let src = in_function("secret mixed", &line.replace("$m", "$x"));
+        let diags = check_src(&src);
+        assert_eq!(diags.has_errors(), refused, "{line}\n{diags:?}");
+    }
+}
+
+#[test]
+fn every_secret_sink_refuses_a_secret_mixed() {
+    for line in [
+        "echo $m;",
+        "print $m;",
+        "echo \"a{$m}\";",
+        "string $s = Core\\Json::encode($m);",
+        "bytes $b = Core\\Serialize::encode($m);",
+        "Core\\Session::set(\"k\", $m);",
+        "throw new LogicException($m as string);",
+    ] {
+        let src = in_function("secret mixed", &line.replace("$m", "$x"));
+        let diags = check_src(&src);
+        assert!(
+            diags.iter().all(|d| d.code != Some(code::E_UNDEFINED_VARIABLE)),
+            "{line}\n{diags:?}"
+        );
+        assert!(diags.has_errors(), "a sink took a `secret mixed`: {line}");
+    }
+}

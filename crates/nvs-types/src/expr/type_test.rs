@@ -419,7 +419,10 @@ fn qualified_atom(tested: TypeId, secret_only: bool, env: &Env<'_>) -> Option<Ty
 /// decomposed here rather than left to [`is_assignable`] so that the exception
 /// is reached at every atom, not only at the top.
 pub(crate) fn always_holds(subject: TypeId, tested: TypeId, env: &mut Env<'_>) -> bool {
-    if matches!(env.interner.get(tested), Ty::Mixed | Ty::Error) {
+    if matches!(
+        env.interner.get(tested),
+        Ty::Mixed | Ty::SecretMixed | Ty::Error
+    ) {
         return true;
     }
     if subject == tested {

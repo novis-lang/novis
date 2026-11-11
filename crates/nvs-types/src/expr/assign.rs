@@ -213,17 +213,29 @@ fn assignable(
     }
     // A union with a `mixed` member accepts what `mixed` does. `?T` substituted
     // with `T = mixed` is the union `null|mixed`, and that is where it is met.
+    //
+    // `rule:security/secret-qualifier`: `secret mixed` accepts every value,
+    // and plain `mixed` every value with no `secret` in it. A `secret` value
+    // at a `mixed` target goes on to the member-wise check below, so a union
+    // that names the value's own qualified type still takes it.
+    let unchecked_member = |member: TypeId, interner: &TypeInterner| match interner.get(member) {
+        Ty::Mixed => Some(false),
+        Ty::SecretMixed => Some(true),
+        _ => None,
+    };
     let mixed_target = match interner.get(to) {
-        Ty::Mixed => true,
         Ty::Union(members) => members
             .iter()
-            .any(|member| matches!(interner.get(*member), Ty::Mixed)),
-        _ => false,
+            .filter_map(|&member| unchecked_member(member, interner))
+            .max(),
+        _ => unchecked_member(to, interner),
     };
-    if mixed_target {
-        return true;
+    match mixed_target {
+        Some(true) => return true,
+        Some(false) if !super::quals::contains_secret(from, interner) => return true,
+        _ => {}
     }
-    if matches!(interner.get(from), Ty::Mixed) {
+    if matches!(interner.get(from), Ty::Mixed | Ty::SecretMixed) {
         return false;
     }
     // `rule:types/single-value-types`'s first four rows, all at once. `single_value_base` widens a
@@ -649,6 +661,19 @@ pub(crate) fn built_fits(
     })
 }
 
+/// The help for a `secret` value at a `mixed` position
+/// (`rule:security/secret-qualifier`): `mixed` keeps no `secret`, and
+/// `secret mixed` is the type that does. `None` for every other mismatch.
+fn secret_into_mixed_help(expected: TypeId, actual: TypeId, env: &Env<'_>) -> Option<&'static str> {
+    let applies = super::quals::contains_secret(actual, env.interner)
+        && super::quals::carries_unchecked(expected, env.interner)
+        && !super::quals::contains_secret(expected, env.interner);
+    applies.then_some(
+        "`mixed` cannot contain a `secret` value. Declare the type as `secret mixed`, or \
+         reveal the value with `Core\\Secret::reveal($value, \"reason\")`",
+    )
+}
+
 pub(crate) fn report_mismatch(span: Span, expected: TypeId, actual: TypeId, env: &mut Env<'_>) {
     if let Some(diag) = mismatch(span, expected, actual, env) {
         env.diags.report(diag);
@@ -692,6 +717,9 @@ pub(crate) fn mismatch(
         env,
     )?
     .with_primary(span, format!("this is `{actual_desc}`"));
+    if let Some(help) = secret_into_mixed_help(expected, actual, env) {
+        return Some(diag.with_help(help));
+    }
     Some(
         match missing_required_keys(expected, actual, env).as_slice() {
             [] => match unconverted_field(expected, actual, env) {
@@ -940,7 +968,10 @@ pub(crate) fn check_return(
             format!("this method declares `{expected_desc}` but returns `{actual_desc}`"),
         )
         .with_primary(expr.span, format!("this is `{actual_desc}`"));
-        let diag = match unconverted_array_help(return_ty, actual, env) {
+        let help = secret_into_mixed_help(return_ty, actual, env)
+            .map(str::to_owned)
+            .or_else(|| unconverted_array_help(return_ty, actual, env));
+        let diag = match help {
             Some(help) => diag.with_help(help),
             None => diag,
         };
