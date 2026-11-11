@@ -5217,6 +5217,14 @@ const TRAMPOLINES: [nvs_runtime::NvsFn; METHOD_CEILING] = [
               method ABI, so a trampoline's signature is that ABI and its \
               pointer contract cannot be expressed in the type"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 unsafe extern "C" fn trampoline<const SLOT: usize>(
     ctx: *mut Ctx,
     args: *const Value,
@@ -5224,11 +5232,12 @@ unsafe extern "C" fn trampoline<const SLOT: usize>(
 ) -> i32 {
     // `run_helper` is told how many slots to read before the body runs, and a
     // trampoline's count is its own row's — so the receiver, which is slot 0
-    // of every method call, is read here to find it.
+    // of every method call, is read here to find it. This read runs before
+    // `run_helper`'s guard, so it and `answered_arity` deny every panic.
     let receiver = unsafe { *args };
     let arity = answered_arity(receiver, SLOT);
     unsafe {
-        nvs_runtime::run_helper(ctx, args, arity + 1, out, |ctx, args| {
+        nvs_runtime::run_helper(ctx, args, arity.saturating_add(1), out, |ctx, args| {
             answer(SLOT, ctx, args)
         })
     }
@@ -5239,6 +5248,14 @@ unsafe extern "C" fn trampoline<const SLOT: usize>(
 ///
 /// `0` for a receiver that is not an object, or whose class has no such row,
 /// which leaves [`answer`] the one slot it needs in order to report either.
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 fn answered_arity(receiver: Value, slot: usize) -> usize {
     let Some(object) = receiver.obj_ptr() else {
         return 0;

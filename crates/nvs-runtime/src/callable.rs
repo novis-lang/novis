@@ -341,6 +341,14 @@ fn invoke_label(callable: Value) -> String {
     reason = "the helper ABI's pointer contract, discharged exactly where \
               `nvs_helper!` discharges it for every fixed-arity helper"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_call_callable(
     ctx: *mut Ctx,
@@ -384,6 +392,14 @@ pub unsafe extern "C" fn nvs_call_callable(
     unsafe_code,
     reason = "the helper ABI's pointer contract, discharged exactly where \
               `nvs_helper!` discharges it for every fixed-arity helper"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_call_callable_proven(
@@ -1085,6 +1101,12 @@ pub fn native_callable<B: NativeBody>() -> Value {
 /// [`native_callable`]'s `invoke`: the callee side of [`call_callable`]'s
 /// contract, which releases the one reference it is handed — the receiver,
 /// since the callable declares no parameters — and answers `null`.
+///
+/// The body runs inside [`crate::abi::contain_panic`], so a panic in it ends
+/// this one request with a `FATAL`, as a panic in a helper body does. The
+/// receiver is released and `out` written on that path too. A forced unwind
+/// that tears a cancelled task down still passes through, because it is not
+/// this body's to contain.
 #[expect(
     unsafe_code,
     reason = "`call_callable` passes the live context of the call, one live value \
@@ -1100,9 +1122,12 @@ unsafe extern "C" fn invoke_native<B: NativeBody>(
     // SAFETY: as the reason above says; nothing else uses the context while
     // the call runs.
     unsafe {
-        B::run(&mut *ctx);
+        let status = crate::abi::contain_panic(ctx, |ctx| {
+            B::run(ctx);
+            OK
+        });
         (*args).release();
         *out = Value::null();
+        status
     }
-    OK
 }

@@ -659,10 +659,13 @@ where
 /// Runs `slow` inside `catch_unwind`, and turns a panic into the request's
 /// `FATAL`.
 ///
-/// For the slow paths compiled code branches to outside the helper ABI:
-/// `crate::nvs_safepoint` and `crate::nvs_stack_check`. Both are `extern "C"`,
-/// so an unwind out of them would abort the process. `rule:errors/helper-abi`
-/// is why a panic stops one request and never the worker.
+/// For the primitives that take a context and return a status, outside the
+/// helper ABI: `crate::nvs_safepoint`, `crate::nvs_stack_check`,
+/// `crate::nvs_debug_site`, `crate::nvs_debug_throw` and
+/// `crate::nvs_deprecated_use`, and the `invoke` of a native callable. Each is
+/// `extern "C"`, so an unwind out of it would abort the process.
+/// `rule:errors/helper-abi` is why a panic stops one request and never the
+/// worker.
 ///
 /// # Safety
 ///

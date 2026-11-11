@@ -442,6 +442,14 @@ impl Ctx {
     /// An object that already exists is returned untouched, and its message is
     /// never read: [`Self::push_frame`] runs once per frame a throw unwinds
     /// through, so a read there would copy the whole message at every frame.
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     fn promote_pending(&mut self, pending: Pending) -> Option<Thrown> {
         let thrown = match pending {
             Pending::Thrown(thrown) => thrown,
@@ -536,6 +544,14 @@ impl Ctx {
     /// falls back to when it is handed no site — so any frame
     /// [`Self::raise_sited`] marked as provisional belongs to a failure this
     /// one replaces, and the mark goes with it.
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn raise(&mut self, thrown: Thrown) {
         self.pending = Some(Pending::Thrown(thrown));
         self.throw_reported = false;
@@ -557,6 +573,14 @@ impl Ctx {
     ///
     /// `fresh` is false for that same re-raise, and keeps the mark that the
     /// exception has already stopped a debugger ([`super::nvs_debug_throw`]).
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub(crate) fn raise_sited(&mut self, thrown: Thrown, seeded: bool, fresh: bool) {
         self.pending = Some(Pending::Thrown(thrown));
         if fresh {
@@ -638,6 +662,14 @@ impl Ctx {
         unsafe_code,
         reason = "the carrier's liveness is the caller's obligation and cannot \
                   be expressed in the signature"
+    )]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
     )]
     pub unsafe fn seed_raise_site(&mut self, blob: *const u8) {
         let Some(pending) = self.pending.take() else {
@@ -956,6 +988,14 @@ impl Ctx {
     /// it, and the pre-check in front of the message's string would refuse it.
     /// The report would then be an object with an empty message.
     #[must_use]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn take_thrown(&mut self) -> Thrown {
         self.pending_fatal = false;
         let Some(pending) = self.pending.take() else {
@@ -985,6 +1025,14 @@ impl Ctx {
     /// is leaving, and this one is the compiler's, which knows the label a
     /// script frame carries and a site blob does not
     /// ([`Self::raise_sited`]).
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn push_frame(&mut self, label: &str) {
         let Some(pending) = self.pending.take() else {
             return;

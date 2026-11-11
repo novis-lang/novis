@@ -1181,6 +1181,14 @@ pub(super) struct TreeShare {
     reason = "compiled code passes the context pointer; the contract cannot be \
               expressed in the signature"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
     // The whole slow path is contained, because it runs Rust that can panic:
@@ -1392,6 +1400,14 @@ fn safepoint_slow_path(ctx: &mut Ctx) -> i32 {
     unsafe_code,
     reason = "compiled code passes the context pointer; the contract cannot be \
               expressed in the signature"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_stack_check(ctx: *mut Ctx, sp: u64) -> i32 {

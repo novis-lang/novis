@@ -97,6 +97,14 @@ impl std::fmt::Debug for Installed {
     reason = "the helper ABI's pointer contract, discharged exactly where \
               `nvs_helper!` discharges it for every fixed-arity helper"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_extension_call(
     ctx: *mut Ctx,

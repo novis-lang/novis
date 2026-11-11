@@ -480,6 +480,14 @@ impl Thrown {
         reason = "the descriptor's liveness is the caller's obligation and \
                   cannot be expressed in the signature"
     )]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub unsafe fn new(class: *const ClassDesc, message: &str) -> Self {
         #[expect(unsafe_code, reason = "forwarding this function's own contract")]
         unsafe {
@@ -521,6 +529,14 @@ impl Thrown {
         unsafe_code,
         reason = "the descriptor's liveness and the value's reference are both \
                   the caller's obligation and cannot be expressed in the signature"
+    )]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
     )]
     pub unsafe fn new_as(
         class: *const ClassDesc,
@@ -837,6 +853,14 @@ impl Thrown {
     /// that is not an array, answers `false` on the same terms
     /// [`Self::frames`] returns nothing on: there is no frame there to find.
     #[must_use]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn has_frame(&self) -> bool {
         let Some(obj) = self.borrow() else {
             return false;
@@ -866,6 +890,14 @@ impl Thrown {
     ///
     /// An object with too few fields, or a slot holding something that is not
     /// an array, is left exactly as it stands and answers `false`.
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     fn with_backtrace(&self, write: impl FnOnce(&mut NvsArray)) -> bool {
         let Some(obj) = self.borrow() else {
             return false;
@@ -892,6 +924,14 @@ impl Thrown {
 
     /// Appends one frame label to the `backtrace` property, in place, and
     /// answers whether it was recorded.
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn push_frame(&self, label: &str) -> bool {
         self.with_backtrace(|frames| frames.append(Value::text(label)))
     }
@@ -903,6 +943,14 @@ impl Thrown {
     /// Appends where there is no frame to overwrite, so a caller that reaches
     /// this for an exception the raise seeded nothing on still records the
     /// frame it was called with.
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn replace_innermost_frame(&self, label: &str) {
         self.with_backtrace(|frames| {
             let value = Value::text(label);
@@ -949,6 +997,14 @@ impl Thrown {
     #[expect(
         unsafe_code,
         reason = "the blob's liveness is the caller's obligation to state — it is a compiled unit's own data section"
+    )]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
     )]
     pub unsafe fn capture_site(&self, blob: *const u8) -> bool {
         let Some(obj) = self.borrow() else {
@@ -1021,6 +1077,14 @@ impl Drop for Thrown {
               address in its own data section; the contract cannot be \
               expressed in the signature"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_raise(ctx: *mut Ctx, thrown: *mut ObjHeader, source: *const u8) {
     #[expect(
@@ -1073,6 +1137,14 @@ pub unsafe extern "C" fn nvs_raise(ctx: *mut Ctx, thrown: *mut ObjHeader, source
     unsafe_code,
     reason = "compiled code passes the context and descriptor pointers plus a \
               pointer, a length and a site carrier into its own data section"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_raise_new(
@@ -1150,6 +1222,14 @@ pub unsafe extern "C" fn nvs_raise_new(
     reason = "compiled code passes its context pointer and a carrier into its \
               own data section"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_raise_site(ctx: *mut Ctx, source: *const u8) {
     #[expect(
@@ -1180,6 +1260,14 @@ pub unsafe extern "C" fn nvs_raise_site(ctx: *mut Ctx, source: *const u8) {
     unsafe_code,
     reason = "compiled code passes the context pointer plus a pointer and a \
               length into its own data section"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_trace_push(ctx: *mut Ctx, label: *const u8, len: usize, status: i32) {
@@ -1220,6 +1308,14 @@ pub unsafe extern "C" fn nvs_trace_push(ctx: *mut Ctx, label: *const u8, len: us
     unsafe_code,
     reason = "compiled code passes the context pointer; the contract cannot be \
               expressed in the signature"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_take_thrown(ctx: *mut Ctx) -> *mut ObjHeader {

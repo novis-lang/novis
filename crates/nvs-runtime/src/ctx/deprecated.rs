@@ -85,6 +85,14 @@ impl Ctx {
     reason = "compiled code passes the context pointer and two byte ranges; \
               the contract cannot be expressed in the signature"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_deprecated_use(
     ctx: *mut Ctx,
@@ -93,19 +101,21 @@ pub unsafe extern "C" fn nvs_deprecated_use(
     at: *const u8,
     at_len: usize,
 ) -> i32 {
-    #[expect(
-        unsafe_code,
-        reason = "the caller guarantees the context and both ranges are valid; \
-                  the only thing that can panic here is the allocator, which \
-                  aborts rather than unwinding into the JIT frame above"
-    )]
-    let (ctx, text, site) = unsafe {
-        (
-            &mut *ctx,
-            text_of(message, message_len),
-            text_of(at, at_len),
-        )
-    };
+    #[expect(unsafe_code, reason = "the caller guarantees both ranges are valid")]
+    let (text, site) = unsafe { (text_of(message, message_len), text_of(at, at_len)) };
+    // Contained like `nvs_safepoint`: the log record is Rust that can panic,
+    // and an unwind into the JIT frame above would abort the process.
+    #[expect(unsafe_code, reason = "the caller's contract, passed on unchanged")]
+    unsafe {
+        crate::abi::contain_panic(ctx, |ctx| {
+            deprecated_use_body(ctx, text, &site, message as usize)
+        })
+    }
+}
+
+/// [`nvs_deprecated_use`]'s body, run inside its `catch_unwind`. `key` is the
+/// address of the site's own message bytes, which names the site.
+fn deprecated_use_body(ctx: &mut Ctx, text: Cow<'_, str>, site: &str, key: usize) -> i32 {
     match ctx.on_deprecated() {
         OnDeprecated::Ignore => crate::OK,
         OnDeprecated::Throw => {
@@ -113,7 +123,7 @@ pub unsafe extern "C" fn nvs_deprecated_use(
             crate::THROWN
         }
         OnDeprecated::Log => {
-            if ctx.deprecated_logged.insert(message as usize) {
+            if ctx.deprecated_logged.insert(key) {
                 let line = match site.is_empty() {
                     true => text.into_owned(),
                     false => format!("{text} At {site}."),

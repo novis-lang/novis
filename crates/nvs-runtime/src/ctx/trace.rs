@@ -341,6 +341,14 @@ impl Ctx {
     /// Counts one hit for the statement `stmt` names in this context's
     /// [`StmtHits`] table — [`nvs_probe_stmt`]'s whole effect under
     /// [`DebugFlags::COVERAGE`]. A context with no table counts nothing.
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn record_stmt_hit(&self, stmt: u32) {
         if let Some(hits) = &self.stmt_hits {
             hits.record(stmt);
@@ -350,6 +358,14 @@ impl Ctx {
     /// Counts one hit for the conditional edge `edge` names in this context's
     /// [`StmtHits`] table — [`nvs_probe_edge`]'s whole effect under
     /// [`DebugFlags::BRANCH`]. A context with no table counts nothing.
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn record_edge_hit(&self, edge: u32) {
         if let Some(hits) = &self.stmt_hits {
             hits.record_edge(edge);
@@ -455,6 +471,14 @@ impl Ctx {
 
     /// A call to `callee` begins, in the running profile — [`nvs_probe_call_enter`]'s effect
     /// under [`DebugFlags::PROFILE`]. With no profile running it reads no clock.
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn profile_enter(&mut self, callee: &str) {
         if let Some(track) = &mut self.debug_sinks.profile {
             track.enter(callee);
@@ -463,6 +487,14 @@ impl Ctx {
 
     /// The innermost call in the running profile returns — [`nvs_probe_call_exit`]'s effect
     /// under [`DebugFlags::PROFILE`].
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn profile_exit(&mut self) {
         if let Some(track) = &mut self.debug_sinks.profile {
             track.exit();
@@ -476,6 +508,14 @@ impl Ctx {
     /// The call goes to the [`TraceSink`] `Core\Debug::startTrace` opened, as
     /// one line when it returns, and never into [`Ctx::trace`]. With no sink it
     /// is written nowhere and reads no clock.
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn record_trace(&mut self, callee: &str, status: Option<i32>) {
         if let Some(sink) = &mut self.debug_sinks.trace {
             match status {
@@ -763,6 +803,14 @@ impl Ctx {
     reason = "compiled code passes the context pointer; the contract cannot be \
               expressed in the signature"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_probe_stmt(ctx: *mut Ctx, stmt: u32) {
     #[expect(
@@ -777,7 +825,7 @@ pub unsafe extern "C" fn nvs_probe_stmt(ctx: *mut Ctx, stmt: u32) {
         ctx.record_stmt_hit(stmt);
     }
     if ctx.debug.contains(DebugFlags::COUNT) {
-        ctx.counted_stmts += 1;
+        ctx.counted_stmts = ctx.counted_stmts.saturating_add(1);
     }
 }
 
@@ -797,6 +845,14 @@ pub unsafe extern "C" fn nvs_probe_stmt(ctx: *mut Ctx, stmt: u32) {
     unsafe_code,
     reason = "compiled code passes the context pointer; the contract cannot be \
               expressed in the signature"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_probe_edge(ctx: *mut Ctx, edge: u32) {
@@ -1195,6 +1251,14 @@ fn zeroed(len: usize) -> Box<[std::sync::atomic::AtomicU64]> {
 
 /// Counts one hit at `index`. A number past the end is ignored: it can only
 /// come from a unit the table was not sized for.
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 fn bump(counters: &[std::sync::atomic::AtomicU64], index: u32) {
     if let Some(counter) = counters.get(index as usize) {
         counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -1333,6 +1397,14 @@ impl StmtHits {
     reason = "compiled code passes a pointer and a length; the contract cannot \
               be expressed in the signature"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 unsafe fn callee_label<'a>(name: *const u8, len: usize) -> Cow<'a, str> {
     if len == 0 {
         return Cow::Borrowed("");
@@ -1367,6 +1439,14 @@ unsafe fn callee_label<'a>(name: *const u8, len: usize) -> Cow<'a, str> {
     reason = "compiled code passes the context pointer and a static byte \
               range; neither contract can be expressed in the signature"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_probe_call_enter(ctx: *mut Ctx, name: *const u8, len: usize) {
     #[expect(
@@ -1383,7 +1463,7 @@ pub unsafe extern "C" fn nvs_probe_call_enter(ctx: *mut Ctx, name: *const u8, le
         ctx.profile_enter(&label);
     }
     if ctx.debug.contains(DebugFlags::COUNT) {
-        ctx.counted_calls += 1;
+        ctx.counted_calls = ctx.counted_calls.saturating_add(1);
     }
 }
 
@@ -1403,6 +1483,14 @@ pub unsafe extern "C" fn nvs_probe_call_enter(ctx: *mut Ctx, name: *const u8, le
     unsafe_code,
     reason = "compiled code passes the context pointer and a static byte \
               range; neither contract can be expressed in the signature"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_probe_call_exit(

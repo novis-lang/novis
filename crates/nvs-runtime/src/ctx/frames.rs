@@ -112,6 +112,14 @@ pub struct Frames<'a> {
 impl<'a> Iterator for Frames<'a> {
     type Item = Frame<'a>;
 
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     fn next(&mut self) -> Option<Frame<'a>> {
         if self.next.is_null() {
             return None;
@@ -291,6 +299,14 @@ impl Ctx {
     /// The records of every call in flight compiled under the debug switch,
     /// innermost first. Empty for a context running no such code.
     #[must_use]
+    #[deny(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )]
     pub fn frames(&self) -> Frames<'_> {
         Frames {
             next: self.frames,
@@ -440,6 +456,14 @@ impl SiteTable {
     reason = "compiled code passes the context pointer; the contract cannot be \
               expressed in the signature"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_debug_site(ctx: *mut Ctx) -> i32 {
     #[expect(unsafe_code, reason = "the caller's contract, passed on unchanged")]
@@ -464,6 +488,14 @@ pub unsafe extern "C" fn nvs_debug_site(ctx: *mut Ctx) -> i32 {
     reason = "compiled code passes the context and its out-slot; the contract cannot be \
               expressed in the signature"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_debug_return(ctx: *mut Ctx, out: *const Value, secret: i32) {
     #[expect(unsafe_code, reason = "the caller's contract, passed on unchanged")]
@@ -475,7 +507,7 @@ pub unsafe extern "C" fn nvs_debug_return(ctx: *mut Ctx, out: *const Value, secr
     let Some(function) = frames.next().map(|frame| frame.function) else {
         return;
     };
-    let depth = 1 + frames.count();
+    let depth = frames.count().saturating_add(1);
     if depth != step.depth {
         return;
     }
@@ -491,7 +523,7 @@ pub unsafe extern "C" fn nvs_debug_return(ctx: *mut Ctx, out: *const Value, secr
     };
     ctx.step = Some(Step {
         kind,
-        depth: depth - 1,
+        depth: depth.saturating_sub(1),
     });
 }
 
@@ -513,17 +545,30 @@ pub unsafe extern "C" fn nvs_debug_return(ctx: *mut Ctx, out: *const Value, secr
     reason = "compiled code passes the context pointer; the contract cannot be \
               expressed in the signature"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_debug_throw(ctx: *mut Ctx, status: i32) -> i32 {
+    // Contained like `nvs_debug_site`: the stop handler is Rust that can
+    // panic, and an unwind into the JIT frame above would abort the process.
     #[expect(unsafe_code, reason = "the caller's contract, passed on unchanged")]
-    let ctx = unsafe { &mut *ctx };
-    if status != crate::THROWN || ctx.throw_reported {
-        return status;
-    }
-    ctx.throw_reported = true;
-    match ctx.run_debug_stop(StopCause::Throw) {
-        crate::OK => status,
-        ended => ended,
+    unsafe {
+        crate::abi::contain_panic(ctx, |ctx| {
+            if status != crate::THROWN || ctx.throw_reported {
+                return status;
+            }
+            ctx.throw_reported = true;
+            match ctx.run_debug_stop(StopCause::Throw) {
+                crate::OK => status,
+                ended => ended,
+            }
+        })
     }
 }
 

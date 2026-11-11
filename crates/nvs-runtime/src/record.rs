@@ -73,6 +73,14 @@ use crate::value::{Tag, Value};
 /// and the same value dumped are the same node, with the record's
 /// transformations applied once and in one place.
 #[must_use]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 pub fn node(value: Value) -> Node {
     node_of(value, &Caps::default(), 0, &mut Seen::default())
 }
