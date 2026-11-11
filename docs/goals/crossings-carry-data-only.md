@@ -809,35 +809,35 @@ none, and pin both with tests that read the code.
 **Does:** make the bus carry one encoding per publish on every path, and decode it at the
 subscriber's own `receive()`.
 
-- [ ] `Delivery` holds the shared encoded payload, not a `Value`, and needs no context to drop. The
+- [x] `Delivery` holds the shared encoded payload, not a `Value`, and needs no context to drop. The
   context's teardown and `take_delivery` follow (`rule:core-classes/topic`,
   `crates/nvs-runtime/src/peer.rs:109`, `crates/nvs-runtime/src/ctx/mod.rs:1774`,
   `crates/nvs-runtime/src/ctx/isolate.rs:211`).
-- [ ] `publish` encodes once before the walk and queues the one buffer to each local subscriber and
+- [x] `publish` encodes once before the walk and queues the one buffer to each local subscriber and
   to `hand_off`. `cross` and the `copy_graph` import go. Each queue is asked for room with the
   buffer's length (`rule:core-classes/topic`, `crates/nvs-stdlib/src/topic.rs:794`,
   `crates/nvs-stdlib/src/topic.rs:645`, `crates/nvs-stdlib/src/topic.rs:666`,
   `crates/nvs-stdlib/src/bus.rs:299`).
-- [ ] `deliver_from_other_cores` moves each envelope into the local queues and decodes nothing. Its
+- [x] `deliver_from_other_cores` moves each envelope into the local queues and decodes nothing. Its
   `return` on the budget and its `break` on a class go (`crates/nvs-stdlib/src/topic.rs:689`,
   `crates/nvs-stdlib/src/topic.rs:708`, `crates/nvs-stdlib/src/topic.rs:711`).
-- [ ] Both doors' `receive()` decode the payload with the connection's own resolver. A refused
+- [x] Both doors' `receive()` decode the payload with the connection's own resolver. A refused
   payload throws a `ParseError` naming the topic and the class, and the message is off the queue
   (`rule:classes/graph-copy`, `crates/nvs-stdlib/src/socket.rs:1069`,
   `crates/nvs-stdlib/src/socket.rs:1197`, `crates/nvs-stdlib/src/sse.rs:801`,
   `crates/nvs-stdlib/src/sse.rs:855`).
-- [ ] The existing tests that build a `Delivery` from a `Value` follow
+- [x] The existing tests that build a `Delivery` from a `Value` follow
   (`crates/nvs-stdlib/src/topic.rs:1106`, `crates/nvs-stdlib/src/topic.rs:1206`,
   `crates/nvs-stdlib/src/socket.rs:1445`, `crates/nvs-stdlib/src/socket.rs:1670`,
   `crates/nvs-stdlib/src/sse.rs:1518`).
-- [ ] Test `a_published_object_arrives_as_the_subscribers_own_class`: two class tables declare one
+- [x] Test `a_published_object_arrives_as_the_subscribers_own_class`: two class tables declare one
   name, and the subscriber's object has the subscriber table's descriptor
   (`crates/nvs-stdlib/src/topic.rs:870`).
-- [ ] Test `a_subscriber_that_lacks_the_class_catches_an_error_and_reads_the_next_message`
+- [x] Test `a_subscriber_that_lacks_the_class_catches_an_error_and_reads_the_next_message`
   (`crates/nvs-stdlib/src/topic.rs:870`).
-- [ ] Test `a_message_one_subscriber_cannot_read_still_reaches_the_others`, on the local path and
+- [x] Test `a_message_one_subscriber_cannot_read_still_reaches_the_others`, on the local path and
   through the drain (`crates/nvs-stdlib/src/topic.rs:870`).
-- [ ] Test `a_publish_encodes_once_however_many_subscribed`: a counter in the test reads the same
+- [x] Test `a_publish_encodes_once_however_many_subscribed`: a counter in the test reads the same
   number of encodes and payload allocations for two subscribers and for eight
   (`crates/nvs-stdlib/src/topic.rs:870`).
 - [ ] Attack `03-an-object-a-generator-and-an-open-file.nvs`, with its `.nvsp`. A connection joins a
@@ -845,10 +845,10 @@ subscriber's own `receive()`.
   object should arrive as its own class and the other three should throw
   (`rule:testing/feature-proofs`,
   `tests/hostile/core/Topic/publish/03-an-object-a-generator-and-an-open-file.nvs:1`).
-- [ ] The module docs of `topic.rs` and `bus.rs` are rewritten for one carrier
+- [x] The module docs of `topic.rs` and `bus.rs` are rewritten for one carrier
   (`crates/nvs-stdlib/src/topic.rs:123`, `crates/nvs-stdlib/src/topic.rs:142`,
   `crates/nvs-stdlib/src/bus.rs:1`).
-- [ ] `rule:core-classes/topic` says a value is encoded once, each subscriber decodes it into its own
+- [x] `rule:core-classes/topic` says a value is encoded once, each subscriber decodes it into its own
   classes, and what a subscriber that cannot gets, with the cost line
   (`docs/rules/core-classes/topic.md:4`).
 - [ ] The `publish` card and its `about.md` say an object arrives as the subscriber's class of the
@@ -898,15 +898,13 @@ memory cache uses.
 
 ### State
 
-Stages 1 to 6 are done. The sweep's reds were stale again: no `env-secret-proofs` check exists,
-and run 43001191130 predates 305c04f660.
+Stages 1 to 6 are done, and stage 7 has two items left. The sweep's reds were stale again: no
+`env-secret-proofs` check exists, and run 43001191130 is at f4c1d5c7e2, 63 commits behind.
 
-`graph::Receiving` (`crates/nvs-runtime/src/graph.rs:180`) is the one resolver, built for a
-context by `Ctx::receiving` (`crates/nvs-runtime/src/ctx/error.rs:347`). `copy_graph_to` and
-`decode` take one, and every site does. `copy_graph` and `copy_graph_into` are gone. The topic's
-local copy calls `copy_graph_unreceived` (`crates/nvs-runtime/src/graph.rs:709`), which stage 7
-deletes. Both stage 6 lib tests and the new `.nvst` case pass. `cargo test --test crossings` is
-red on `topic.rs:646` alone, as expected until stage 7.
+`Delivery` holds an `Arc<[u8]>`, freed inside `Detached` (`crates/nvs-runtime/src/peer.rs:119`).
+`Inbox::push` returns `bool`; `push_sized`, the inbox's tree, `budget::hand_to` and
+`copy_graph_unreceived` are gone. `publish` encodes once (`crates/nvs-stdlib/src/topic.rs:658`),
+and `topic::decoded` decodes for both doors. The 24 topic and bus tests and `--test crossings` pass.
 
 Expect at the gate: a side with no program table now refuses a program object. A Rust test that
 hands a Rust-written program an object goes red; pass the object's table. The full conformance run
@@ -925,11 +923,18 @@ of a generator's or a callable's class.
 
 ### Next
 
-crates/nvs-runtime/src/peer.rs:109 — take stage 7 from its first item: `Delivery` holds the shared
-encoded payload. Then `publish` encodes once (`crates/nvs-stdlib/src/topic.rs:645`), `cross` and
-`copy_graph_unreceived` go (delete the function from `graph.rs`, its re-export in
-`crates/nvs-runtime/src/lib.rs`, and its driver in `graph.rs`'s `DRIVERS`), and each `receive()`
-decodes with `ctx.receiving()`. Then `cargo test --test crossings` goes green.
+tests/hostile/core/Topic/publish/03-an-object-a-generator-and-an-open-file.nvs:1 — write the attack
+with its `.nvsp`, copying the shape of `01-huge-deep-and-secret-values.nvs` beside it (the
+`.nvsp` is one comment line: the client sends nothing and closes). Publish a class the script
+declares, then read it back with `$conn->receive()` and check `$message->value() is Note`. Then a
+generator, an `fn() => 1` closure and an open file, each in a `try` catching `LogicError`. Run it
+with `bun nv proofs --id 'Core\Topic::publish'`. Then finish the last item:
+`docs/examples/core/Topic/publish/about.md:1` gets one sentence that an object arrives as the
+subscriber's class of the same name, and the `receive` cards of both doors name the `ParseError`
+(`crates/nvs-stdlib/src/socket.rs:1190`, `crates/nvs-stdlib/src/sse.rs:841`). Both are end-user
+prose. Then set stage 7 done and take stage 8, whose anchors moved: `publish` is at
+`crates/nvs-stdlib/src/topic.rs:801`, and the drain is `deliver_from_other_cores` with
+`queue_into` beside it.
 
 ### Backlog
 
