@@ -551,52 +551,67 @@ disjoint folders side by side, and none of them builds.
 
 ### 8. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test. A test or `.nvst`
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test. A test or `.nvst`
   case that expected the old acceptance is changed to expect the refusal
   (`crates/nvs-types/tests/secret.rs:1`, `crates/nvs-types/tests/tainted.rs:1`,
   `crates/nvs-types/tests/type_test.rs:1`).
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` once more, and it is green.
+- [ ] The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes qualifiers-hold`
+  and `bun nv ci --check` (`docs/agent/commands.md:1`).
+  - [x] `bun nv verify --doc` and `bun nv owners --closes qualifiers-hold` pass.
+  - [x] The website render and the qualifier `about.md` bound pass.
+  - [ ] The stale perf figures are recorded, one chapter group at a time, with
+    `bun nv proofs --record-perf --group <g>`, and `bun nv proofs --gate --limit 0` passes.
+  - [ ] Each stale syntax page is reread and restamped with `bun nv site --stamp`, and each stale
+    reflection page's questions are rewritten and stamped with `bun nv site --questions --stamp`.
+  - [ ] `bun nv ci --check` is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done, and stage 8, the gate, is next. A literal argument keeps a `secret` element
-(`c9e13b8b40`), and the attack `02-…-untyped-door.nvs` prints `kept` at all seven steps. The sweep's
-reds are stale: nightly built `f4c1d5c7e2`, before the fix `305c04f660`.
+Stages 1 to 7 are done. In stage 8, `looper verify` is green (`a631f0ba07`, `2a47679766`,
+`b19ffcb318`, `af628215d7`), and `bun nv verify --doc` and `bun nv owners --closes qualifiers-hold`
+pass. Three checker bugs the gate found are fixed. A `secret` argument to an extension's `mixed`
+parameter compiled with no error, and it now gets the extension refusal. An unknown free function
+no longer counts as a bare `callable` call. An attribute payload's `secret` constant is reported
+once. Eighteen `.nvst` cases and two Rust tests now expect the refusals. The run-time cases now pass
+a value that carries no qualifier.
 
-Expected red at the gate. Stage 6: a program that passes `tainted`, `secret` or `mixed` text to
-`$fn->call(...)` through a bare `callable`. Stage 1: converting a `secret` to a number, bool, enum or class; narrowing
-`tainted` with `is` into a plain sink. Stage 2: a `secret` into a declared `mixed`; tests expecting
-`$secret as mixed` to be `E0894`. Stage 3: qualified or `mixed` values through a bare `callable`, a
-`mixed` receiver, an erased write, `ClassInfo::set`/`call`/`construct`, or a `Core\Reflect` name.
-Stage 4: any output the grep missed that quotes a conversion's string operand; any read of a
-`secret` property through `mixed`, `object`, a shape or `ClassInfo::get`; a dump or encoder test that
-showed a `?secret string`. `website/public/llms-full.txt` and `docs/reference/` were edited by hand, and
-`bun nv proofs --record-perf` was not run. Stage 7 updates the programs. Stage 5: any program that
-keys an array by a `secret` value, or puts a `tainted` key in a literal passed to a plain-keyed
-`array<…>` parameter. The member mark: any program or test that calls `countBy`, `flip`, `fillKeys`,
-`fromKeysAndValues`, `mapKeys`, `groupBy` or `column` with `indexBy` over `secret` values, and
-`countBy` or its `by` over `tainted` values. Registry lib tests whose walkers match `CoreTy` with `_`
-and do not know `Keys` (the ones with a `Nullable` or-pattern got the arm). The literal fix: a test
-that pins a `Core\Log::write` or `Core\Queue::push` refusal at an element's span (it is now the
-whole argument's or the `args` value's), or counts the `E0401` that sat beside the sink; a program
-that passes `[$secret]` to a parameter it declares `mixed` or `array<mixed>`, now `E0401`.
+`bun nv ci --check` is still red, in two parts. First, `feature proofs`: 98 features have stale perf
+figures. The cause is the edits to `crates/nvs-stdlib/src/arr.rs` and to the type, error and
+attribute chapters. Second, `website stale guard`: the syntax pages it names need their stamps, and nine
+`Core\Reflect` pages need their questions. The nightly CI reds from the sweep were built before
+this goal's fixes. The `env-secret-proofs` check is not in the tree, and `looper check` finds no
+check of that name, so it is stale.
+
+Expected red: none in `looper verify`. In `bun nv ci --check`, only the two parts above.
 
 ### Next
 
-Stage 8, the gate.
+The goal-end gates. These are the last open items before `DONE`.
 
-- [ ] `docs/goals/qualifiers-hold.md:546`: start `looper verify` with `run_in_background`, then end
-  the turn and wait for its report.
-- [ ] `crates/nvs-types/tests/secret.rs:1`: fix every red it names in one pass from the list under "Expected red at the gate" above. A
-  test that expected the old acceptance expects the refusal. Rerun one crate with
-  `bun nv verify --fast -p <crate>`.
-- [ ] `docs/goals/qualifiers-hold.md:550`: run `looper verify` once more. Then the goal-end gates: `bun nv verify --doc`,
-  `bun nv owners --closes qualifiers-hold` and `bun nv ci --check`.
+- [ ] `docs/goals/qualifiers-hold.md:564`: run `bun nv proofs --gate --limit 0` to list the stale
+  perf figures. Record them one chapter group at a time with `bun nv proofs --record-perf --group <g>`,
+  and commit each group.
+- [ ] `docs/goals/qualifiers-hold.md:566`: reread and stamp each page that `bun nv site --check stale`
+  names under `website/src/content/docs/syntax/`, such as `values/as.mdx`,
+  `values/tainted-and-secret.mdx`, `classes/property-names.mdx` and `errors/throw-and-catch.mdx`.
+  Each page gets `bun nv site --stamp <page>`. Then rewrite the questions of each `/reference/core/reflect…/` page
+  that `bun nv site --check questions` names, and stamp each with `bun nv site --questions --stamp <url>`.
+- [ ] `docs/goals/qualifiers-hold.md:560`: run `bun nv ci --check`, and fix each red. Then write
+  `DONE`.
 
 ### Backlog
+
+- An array literal of the program's own ints, such as `[1, 2]`, passed to a method of a `mixed`
+  receiver is refused as `E0895`, which calls it `mixed` text. The refusal is in the safe direction,
+  but `rule:security/taint-propagation` says such a literal carries no outside text. The literal is
+  checked against a `mixed` expectation (`report_args_with_no_parameter_list`,
+  `crates/nvs-types/src/expr/calls.rs`, with `check_array_literal`).
+  `tests/conformance/lang/a-call-through-a-mixed-receiver-checks-each-argument-against-its-parameters-type.nvst`
+  passes typed variables in its place.
 
 - A property-path or string-with-holes failure still names the bad segment's text, such as
   ``has no public property `$nmae` `` (`nvs_property_path_mismatch`, `nvs_string_holes_mismatch`,
