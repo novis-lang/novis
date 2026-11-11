@@ -1319,7 +1319,9 @@ an HTTP/1.1 client retries on a closed kept-alive connection, a WebSocket peer r
 away` close and reconnects, and an event stream's client comes back after the wait its `retry:`
 line gave it. A stop that waited a period out for an idle connection would take the whole period
 for a browser's one open connection, or a WebSocket's whole idle wait for a peer that had gone
-quiet. What is not cut is a program between one `receive` and the next: its `send` completes on its
+quiet. A connection that has not sent its first request is not idle in this sense: that request may
+already be on its way, and a client does not retry a request on a connection it never used, so the
+period bounds it as it bounds a head. What is not cut is a program between one `receive` and the next: its `send` completes on its
 own clock, and its next `receive` is where it learns the server is going away. A program that only
 sends is work in progress with nothing to finish, so the period is its bound: from the moment the
 connection first saw the drain plus the connection block's period, its next `send` closes the

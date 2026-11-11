@@ -64,10 +64,11 @@
 //! - **Refresh on progress.** A poll that actually moved bytes re-arms the same
 //!   phase, which is what makes the body, write and keep-alive waits idle. A
 //!   `Pending` refreshes nothing.
-//! - **Fix the head's end once.** A head starts at accept, or at the first byte
-//!   after a keep-alive wait, and its deadline is fixed then
-//!   (`ConnectionIo::head_ends`). Progress does not refresh it, and a drain
-//!   that begins mid-head can only bring it closer.
+//! - **Fix the head's end once.** A head starts at its first byte, and its
+//!   deadline is fixed then (`ConnectionIo::head_ends`). Progress does not
+//!   refresh it, and a drain that begins mid-head can only bring it closer.
+//!   Before that byte the connection waits `keepalive_timeout`, for its first
+//!   request ([`Phase::Opened`]) as for every later one ([`Phase::KeepAlive`]).
 //!
 //! **Not every phase change is visible here.** A first
 //! byte after a response ends the keep-alive wait, and a read attempted while a
@@ -127,7 +128,7 @@ pub const SCRATCH: usize = 8 * 1024;
 
 /// Which of `rule:http-server/the-server-block-is-boot-class`'s waits bounds this connection right now.
 ///
-/// A connection is always in exactly one of these, starting in [`Phase::Head`]
+/// A connection is always in exactly one of these, starting in [`Phase::Opened`]
 /// from the moment it is accepted. Every phase but one is bounded by a socket
 /// wait, and that one, [`Phase::Run`], is bounded by the request's own
 /// `wall_time`: there is no unbounded state to fall into, which is the whole of
@@ -135,6 +136,20 @@ pub const SCRATCH: usize = 8 * 1024;
 /// stated as a type.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Phase {
+    /// Accepted, and idle before the first request's first byte —
+    /// `keepalive_timeout`, the wait before every later request too.
+    ///
+    /// The wait is not the header wait, because a proxy keeps a connection it
+    /// dialled and has not used yet for as long as its own keep-alive allows.
+    /// A shorter wait closes a connection the proxy still believes is live,
+    /// and the request it then sends on it is answered `502` and, for a
+    /// `POST`, never retried.
+    ///
+    /// It is not [`Phase::KeepAlive`] because a drain does not close it at
+    /// once: a request may already be on its way on a connection this new,
+    /// and a client does not retry a `POST` on a connection it never used. A
+    /// drain bounds it by the drain period, as it bounds a head.
+    Opened,
     /// Reading a request head — `header_timeout`, the one wait that is a total
     /// for the whole head rather than an idle wait.
     Head,
@@ -193,11 +208,11 @@ impl Phase {
     /// which the request's own `wall_time` bounds.
     fn wait_in(self, waits: &Waits) -> Option<Duration> {
         match self {
+            Phase::Opened | Phase::KeepAlive => Some(waits.keepalive),
             Phase::Head => Some(waits.header),
             Phase::Body => Some(waits.body_idle),
             Phase::Run => None,
             Phase::Write => Some(waits.write_idle),
-            Phase::KeepAlive => Some(waits.keepalive),
         }
     }
 
@@ -239,7 +254,7 @@ pub struct ConnectionIo {
     /// that is the first to see the drain does re-arm without progress.
     armed: Option<(Phase, bool)>,
     /// The instant the head being read must be complete by, fixed when that
-    /// head starts: at accept, or at the first byte after a keep-alive wait.
+    /// head starts, which is at its first byte.
     head_ends: Option<Instant>,
     /// When this connection first saw the drain — [`DrainSeen`].
     drain_seen: DrainSeen,
@@ -269,7 +284,7 @@ impl ConnectionIo {
         Self {
             stream,
             waits,
-            phase: Rc::new(Cell::new(Phase::Head)),
+            phase: Rc::new(Cell::new(Phase::Opened)),
             armed: None,
             head_ends: None,
             drain_seen: DrainSeen::default(),
@@ -488,11 +503,11 @@ impl Read for ConnectionIo {
             let scratch = &mut scratch.get_or_insert_with(Scratch::new).0;
             match this.stream.poll_read(&mut scratch[..want]) {
                 Poll::Ready(Ok(read)) => {
-                    // The first byte after a response is the next request's head,
-                    // which ends the keep-alive wait and fixes that head's deadline.
-                    // In the head itself this arming moves nothing.
+                    // A request's first byte starts its head, which ends the
+                    // keep-alive wait and fixes that head's deadline. In the head
+                    // itself this arming moves nothing.
                     if read > 0 {
-                        if this.phase.get() == Phase::KeepAlive {
+                        if matches!(this.phase.get(), Phase::Opened | Phase::KeepAlive) {
                             this.phase.set(Phase::Head);
                         }
                         this.arm(true);
@@ -716,7 +731,8 @@ mod tests {
     /// without a line here is a variant with no assertion about its wait, and
     /// the `match` in [`Phase::wait_in`] is what makes the omission a compile
     /// error rather than a silent hole.
-    const EVERY_PHASE: [Phase; 5] = [
+    const EVERY_PHASE: [Phase; 6] = [
+        Phase::Opened,
         Phase::Head,
         Phase::Body,
         Phase::Run,
@@ -780,6 +796,7 @@ mod tests {
         assert_eq!(
             bounds,
             vec![
+                Some(distinct.keepalive),
                 Some(distinct.header),
                 Some(distinct.body_idle),
                 None,
@@ -821,6 +838,19 @@ mod tests {
     #[test]
     fn a_head_keeps_one_deadline_while_its_bytes_arrive() {
         let (mut io, _far) = adapter(Waits::default());
+        assert_eq!(
+            io.phase().get(),
+            Phase::Opened,
+            "a new connection does not start by waiting for its first byte"
+        );
+        io.arm(false);
+        let first_byte = deadline(&mut io).expect("a new connection was armed with no deadline");
+        assert!(
+            first_byte >= Instant::now() + Waits::default().keepalive - Duration::from_secs(1),
+            "a new connection waits for its first byte under a wait shorter than the keep-alive one"
+        );
+        // The first byte starts the head, as `poll_read` sets it.
+        io.phase().set(Phase::Head);
         io.arm(false);
         let head_ends = deadline(&mut io).expect("a head was armed with no deadline");
         std::thread::sleep(Duration::from_millis(5));

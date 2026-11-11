@@ -81,7 +81,11 @@ grow past the rest, the server stops the request that grew, with an error that s
 memory is full.
 
 `header_timeout` is the total time a client has to send a whole request head. The clock starts
-when the connection opens, or at the first byte of the next request on a kept-alive connection.
+at the first byte of the request. Before that byte, the connection waits up to `keepalive_timeout`.
+This is the same for the first request on a new connection and for every later request.
+`keepalive_timeout` must be longer than the idle timeout your proxy uses for its connections to
+the server. Otherwise the proxy can send a request on a connection that the server is closing, and
+the client gets a `502` error.
 The other three waits are idle waits: each starts again whenever bytes move. None of the four can be
 turned off. `[server.connection]`
 bounds a connection that was upgraded out of a request — a WebSocket, or an event stream — with

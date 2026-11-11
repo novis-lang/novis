@@ -12138,13 +12138,17 @@ pub(crate) mod tests {
         );
     }
 
-    /// `rule:http-server/the-server-block-is-boot-class`'s header wait, as the connection it ends: a peer that opens
-    /// a socket and says nothing holds a coroutine to hear nothing, and the
-    /// clock is the only thing that can notice. Asserted as a **closed**
-    /// connection rather than as a status — [`crate::io`]'s docs § *The clock*
-    /// own why a peer that never framed a request is owed no response.
+    /// `rule:http-server/four-idle-waits-all-finite`'s wait before a first
+    /// byte, as the connection it ends: a peer that opens a socket and says
+    /// nothing holds a coroutine to hear nothing, and the clock is the only
+    /// thing that can notice. The wait is the keep-alive one, as it is before
+    /// every later request, and the header wait is left far above the client's
+    /// patience so a connection still bounded by it fails here. Asserted as a
+    /// **closed** connection rather than as a status — [`crate::io`]'s docs
+    /// § *The clock* own why a peer that never framed a request is owed no
+    /// response.
     #[test]
-    fn a_connection_that_sends_no_head_is_closed_by_the_header_wait() {
+    fn a_connection_that_sends_no_head_is_closed_by_the_keepalive_wait() {
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
             .expect("the OS refused a port");
         let addr = listener
@@ -12161,7 +12165,8 @@ pub(crate) mod tests {
         });
 
         let waits = Waits {
-            header: Duration::from_millis(60),
+            header: Duration::from_secs(30),
+            keepalive: Duration::from_millis(60),
             ..Waits::default()
         };
         let mut sched = nvs_host::Scheduler::new();
@@ -12184,11 +12189,78 @@ pub(crate) mod tests {
         let (closed, seen) = client.join().expect("the client thread panicked");
         assert!(
             closed,
-            "a connection that said nothing outlived its header wait"
+            "a connection that said nothing outlived its keep-alive wait"
         );
         assert!(
             seen.is_empty(),
             "a connection that framed no request was answered anyway: {seen}"
+        );
+    }
+
+    /// The case behind the wait above: a proxy dials a connection, keeps it
+    /// unused in its pool for as long as its own keep-alive allows, and then
+    /// sends a request on it. The connection is silent for longer than the
+    /// header wait, and its request is still answered, because the header
+    /// wait starts at the first byte. A connection closed at the header wait
+    /// is a request the proxy answers `502`, and one it does not retry when
+    /// the request is a `POST`.
+    ///
+    /// The accept loop begins its drain once it has taken this one connection,
+    /// so the case also holds that a drain does not close a new connection at
+    /// once, as it closes a kept-alive one: its first request may already be
+    /// on its way, and the drain period bounds it.
+    #[test]
+    fn a_connection_silent_past_the_header_wait_is_still_answered() {
+        const SILENT: Duration = Duration::from_millis(300);
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            std::thread::sleep(SILENT);
+            // A write into a connection the server already closed can still
+            // succeed locally, so the answer is what the case reads.
+            let _ = socket.write_all(
+                b"POST /late HTTP/1.1\r\nHost: localhost\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}",
+            );
+            let mut seen = String::new();
+            let _ = socket.read_to_string(&mut seen);
+            seen
+        });
+
+        let waits = Waits {
+            header: Duration::from_millis(60),
+            keepalive: Duration::from_secs(30),
+            ..Waits::default()
+        };
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &echo_the_path(),
+                waits,
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let seen = client.join().expect("the client thread panicked");
+        assert!(
+            seen.contains("hello /late"),
+            "a connection silent for {SILENT:?} was closed by the {:?} header wait: {seen:?}",
+            waits.header
         );
     }
 
