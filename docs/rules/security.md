@@ -1554,6 +1554,30 @@ and is genuinely trusted, or the text of a `Stringable` object pulled out of one
 the only evidence, `$m[$key] = …` with a `tainted` key into an array whose element type carries
 neither `tainted` nor `mixed` is `E0401` at the key. So are `??=`, every compound write, a nested
 level such as `$m[$key]["n"] = …`, and a literal's `[$key => …]` against its declared or inferred type.
+A literal written as an argument is checked against the type it takes there, whatever the parameter
+expects: at a `mixed` parameter it is an `array<mixed>`, whose keys read back tainted, so the key is
+taken. One function in the checker asks the question at every one of these positions, and it asks
+[`security/secret-qualifier`](security.md#security-secret-qualifier)'s key question first.
+
+**A `Core` member that turns values into keys says so on the position they come from.** The member
+table marks that position with `CoreTy::Keys`: the elements of `flip`, `fillKeys` and
+`fromKeysAndValues`' keys, `countBy`'s elements and its `by` result, `mapKeys`' and `groupBy`'s callback
+result, and the rows `column`'s `indexBy` names a cell of. The checker sends what reaches it through
+the same key function, so a `secret` value there is `E0896`. It does so once the arguments reported
+nothing. The array the keys enter is the call's answer, after the call binds its type variables and
+any contagious argument marks it. So a `tainted` value enters only an answer whose keys read back
+tainted, the rule every other key position follows. `column` with `indexBy` over
+`array<array<tainted string>>` compiles, since it gives `array<tainted string>`. `countBy` over
+`array<tainted string>` does not, since it gives `array<uint>`, and the program checks its values first
+or writes `Core\Taint::assertTrusted`. `mapKeys`' and `groupBy`'s callback types already refuse a
+`tainted` result. `flip`, `fillKeys` and `fromKeysAndValues` refuse a `tainted` key by their plain
+`int|string` element type. `column` without `indexBy` keys by
+position and takes `secret` cells. `crates/nvs-stdlib/tests/taint_signatures.rs` reads every member
+that returns an array, and fails naming one with no mark and no answer in its `KEYS_FROM` list:
+positions, an array argument's own keys, or keys read out of text the member parses. A bare
+`callable` at `countBy`'s `by` has no known result, so it is not checked. The mark costs compile time
+only.
+
 `unset` adds no key and is not checked. The cost is an update to a key already there, such as a count
 per status read from a row: the checker cannot see that the key exists, so the program compares the
 text with its own keys and writes through the matching one, or passes the key through
@@ -2433,7 +2457,19 @@ and a value read back out of either is still `secret`; writing one into an eleme
 declared type does not carry the qualifier is refused where it is written, because that write is the
 last place the bit is visible. A written argument is the one position not asked — three of them take
 a credential legitimately ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), and what an argument owes is that
-rule.
+rule. So an array literal written as an argument keeps the qualifier on its own type instead: where
+its element type is `mixed`, a `secret` element makes it `array<secret mixed>`. A `Core` sink reads
+that off the argument, a `Core` credential position takes it, and a parameter the program declares
+`mixed` or `array<mixed>` refuses it. A `Core` option declared `mixed`, such as `Core\Queue::push`'s
+`args`, takes a `secret` value as a `Core` `mixed` parameter does, and its sink refuses it.
+
+**A `secret` value is never an array key.** An array's type records nothing about its keys, so
+`Core\Arr::keys`, a `foreach`, a dump and an error message all read a key back as plain text. No
+element type can change that, so a key whose type contains `secret` is `E0896` in every array,
+`array<secret string>` and `array<mixed>` included. It is asked at every position a value becomes a
+key, the same positions [`security/taint-propagation`](security.md#security-taint-propagation) lists for a `tainted` key: a subscript write,
+every compound write, and a literal's key in every position, an argument's included. The cost is that
+a program keys by something that is not secret, such as an id, and keeps the secret in the element.
 
 **A `secret` value enters `mixed` only where `secret mixed` is written.** `mixed $m = $secret;` does
 not compile, and its help names `secret mixed`. The refusal is in the assignment relation, so it holds
@@ -2582,8 +2618,10 @@ the bytes are what is being debugged.
 
 The log sink is the opposite default from `tainted`, which a log takes freely
 ([`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink)). `Core\Log::write`'s `fields` bag is `array<string, mixed>` on
-purpose, so no parameter type can refuse a `secret` inside it; the checker reads the call site's
-written argument expressions instead. A `Throwable` message requires the plain type because a
+purpose, so no parameter type can refuse a `secret` inside it. The argument's own type is read
+instead: an array literal written as an argument keeps a `secret` element as `array<secret mixed>`
+([`security/secret-qualifier`](security.md#security-secret-qualifier)), so `["token" => $t]` and `["auth" => "Bearer " . $t]` are both
+refused at the call, by every sink that takes `mixed`. A `Throwable` message requires the plain type because a
 credential in an exception message ends up in a stack trace or an error page. The dump placeholder is
 a built-in rule keyed on the declared type, applied the same way to every class, and no class can hook
 or override it.

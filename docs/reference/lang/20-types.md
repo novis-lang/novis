@@ -1309,7 +1309,7 @@ null
 ```nvs error
 <?nvs
 // Shows that a variable of the type `"read"|"write"` only accepts those two words.
-// a `string` of 6 bytes is not one of them, so this program does not compile.
+// `"delete"` is not one of them, so this program does not compile.
 // proof: compile-error
 
 "read"|"write" $mode = 'read';
@@ -4707,15 +4707,17 @@ A tainted string cannot be a regular expression, a format template or a date pat
 assigned to a plain `string` either. A secret value does not compile with `echo`, in an error
 message, in a debug dump or in `Core\Json::encode`.
 
-**Good to know:** a conversion such as `as int` gives a plain value, because the result is a number.
-`Core\Secret::reveal` is the only method that gives a plain string from a secret one. You give it the
-reason as its second argument.
+`secret` can also go before `mixed`. A secret value can be in a `mixed` variable only
+when you write `secret mixed`. A secret value cannot be an array key, and `as int` does not compile
+with it. `Core\Secret::reveal` is the only method that gives a plain value from a secret one. You
+give it the reason as its second argument.
 
 Examples 04 to 07 show each kind of mistake, and none of them compiles.
 
-You can write `tainted`, `secret` or both, in the order `secret tainted string`. They go only before
-`string` and `bytes`. `tainted int` and `tainted secret string` are syntax errors (`E0102`). You can
-use them on a parameter, a local variable, a property and a return type.
+You can write `tainted`, `secret` or both, in the order `secret tainted string`. They go before
+`string` and `bytes`, and `secret` also goes before `mixed`. `tainted int` and
+`tainted secret string` are syntax errors (`E0102`). You can use them on a parameter, a local
+variable, a property and a return type.
 
 A tainted string stays tainted through `.` and interpolation. It also stays tainted through every
 `Core` method that returns text built from it, such as `Core\Str::upper`, `trim` and `split`. A method that
@@ -4725,10 +4727,12 @@ parameter that is an instruction does not take a tainted string. That is a regul
 parameter of type `string` that is not listed as taking one. Each of these is `E0401`, and so is
 `string $plain = $input;` for a tainted `$input`.
 
-`as int`, `as uint`, `as float`, `as bool` and `as` an enum give a plain value. `as string` and
-`as bytes` keep `tainted` and `secret`, so `string $s = $input as string;` is `E0401`. Two methods
-give a plain string that is safe for one use: `Core\Regex::quote` for a pattern and
-`Core\Uri::encodeComponent` for a link.
+For a tainted string, `as int`, `as uint`, `as float`, `as bool` and `as` an enum give a plain
+value. For a secret string, each of these is `E0894`. Write `Core\Secret::reveal($value, "reason")
+as int` instead. `as string` and `as bytes` keep `tainted` and `secret`, so
+`string $s = $input as string;` is `E0401`. A type test keeps them too: after `$x is string`, a
+`?tainted string` is a `tainted string`. Two methods give a plain string that is safe for one use:
+`Core\Regex::quote` for a pattern and `Core\Uri::encodeComponent` for a link.
 
 A secret string stays secret through `.` and interpolation, separately from `tainted`. These do not
 compile with a secret value. `echo` and `print` are `E0790`, also for `echo "Bearer {$token}"`.
@@ -4738,8 +4742,15 @@ includes the parameters that take a tainted string, so `Core\Str::length($token)
 
 `==` between two secrets, or between a secret and a plain string, compiles and gives a plain `bool`.
 A declared `array<secret string>` keeps `secret`, so `Core\Json::encode` of it is `E0791`. An array
-written in the code is an `array<mixed>`, and it has no `secret` elements. So
-`Core\Json::encode([$token])` compiles and prints the value.
+written in the call is the same: `Core\Json::encode(["token" => $token])` is `E0791` too.
+
+A secret value can be in a `mixed` variable only when you write `secret mixed`.
+`mixed $m = $token;` is `E0401`. A value read from `secret mixed` is secret, and `as string` gives a
+`secret tainted string`. A secret value is never an array key, in any array. `$a[$token] = 1;` is
+`E0896`, because `Core\Arr::keys` and `foreach` give the keys back as plain text. Keep the secret in
+the element instead. A secret or tainted value cannot go to a `callable` with no parameter types, or
+to `Core\Reflect\ClassInfo::set`, `call` and `construct`. That is `E0895`. Write the parameter
+types, such as `callable(secret string): void`.
 
 `Core\Secret::reveal($value, $reason)` gives a plain string, and `Core\Secret::revealBytes` gives
 plain `bytes`. It removes only `secret`. For a `secret tainted string`, the result is a
@@ -4975,6 +4986,48 @@ error[E0791]: a `secret`-qualified value cannot be passed to `Core\Json::encode`
 
 error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+## Example 08: a secret in a mixed value
+
+```nvs
+<?nvs
+// Shows how to keep a secret in a `mixed` value: you write `secret mixed`.
+
+class Settings
+{
+    // A setting can be a number, some text or a secret.
+    // `secret mixed` can contain every one of them.
+    public static function find(string $name): secret mixed
+    {
+        secret string $apiKey = 'sk-test-4471';
+        if ($name == 'apiKey') {
+            return $apiKey;
+        }
+        if ($name == 'port') {
+            return 8080;
+        }
+        return 'mail.example.com';
+    }
+}
+
+// A value read from `secret mixed` is secret too.
+// `as string` gives a `secret tainted string`, so `echo` does not compile with it.
+secret tainted string $key = Settings::find('apiKey') as string;
+
+// `Core\Secret::reveal` gives a plain value. The reason says why you may use it.
+tainted string $shown = Core\Secret::reveal($key, 'show the length only');
+echo 'The key has ', Core\Str::length($shown), " characters\n";
+
+// A conversion to a number needs `Core\Secret::reveal` first.
+// This prints `8080`.
+secret tainted string $port = Settings::find('port') as string;
+echo Core\Secret::reveal($port, 'a port number is not confidential') as int, "\n";
+```
+
+```output
+The key has 12 characters
+8080
 ```
 
 # What does not exist

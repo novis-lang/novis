@@ -1180,7 +1180,7 @@ try {
 ```output
 {"state":"live","level":2}
 draft 1
-state: `"gone"` is not one of `"draft"`, `"live"`
+state: a `string` of 4 bytes is not one of `"draft"`, `"live"`
 level: `7` is not one of `1`, `2`, `3`
 ```
 
