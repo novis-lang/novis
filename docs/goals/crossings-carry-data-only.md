@@ -38,7 +38,7 @@ stages:
     context: [crates/nvs-stdlib/src/topic.rs, crates/nvs-stdlib/src/bus.rs, crates/nvs-stdlib/src/cache.rs, crates/nvs-cli/src/events.rs, docs/rules/core-classes/topic.md]
   - id: 9
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: decode-refuses-what-encode-refuses
@@ -891,44 +891,33 @@ memory cache uses.
 
 ### 9. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 8 are done, and stage 9, the gate, is next. The sweep's reds were stale again: no
-`env-secret-proofs` check exists, and run 43001191130 is at f4c1d5c7e2, far behind.
+All nine stages are done, and the goal is reached. The sweep's reds were stale: no
+`env-secret-proofs` check exists, and nightly run 43001191130 tested f4c1d5c7e2.
 
-Every topic is keyed by `key_of` (`crates/nvs-stdlib/src/topic.rs:467`), and the stage 7 and 8
-checks pass. The publish attacks pass under `bun nv proofs --run --id 'Core\Topic::publish'`; the
-first no longer ends at a `FATAL`, because a full queue now refuses the copy.
+`looper verify` is green at 6625054931. The gate fixed generated files (the types chapter and the
+rule chapters), one formatted attack file and four Rust tests that built a value the goal now
+refuses. `bun nv verify --doc`, `bun nv owners --closes crossings-carry-data-only` and
+`bun nv ci --check` are green after that. The site's data and question entries were rendered and
+stamped, and every stale perf figure was recorded.
 
-Expect at the gate: a side with no program table now refuses a program object. A Rust test that
-hands a Rust-written program an object goes red; pass the object's table. The full conformance run
-had one red, `tests/conformance/core/task-after-response-deadline-of-zero-or-less-is-already-over.nvst`,
-which passes alone, so it looks like a timing flake under load. A test outside `topic.rs` that
-looks a topic up in `SUBSCRIBERS` or the bus by its bare name goes red; build the key with
-`key_of`. `llms-full.txt` has the old `construct` card text, and the `receive` cards changed too.
-The `publish` bench is stale since `topic.rs` changed.
-
-Watch at the gate: a debug `build` checks each `Core` instance against its row, so a row that is
-wrong panics in whatever Rust test or case builds that class. A panic naming "was built against its
-stated slot types" is fixed in the row, or in the member that filled the slot. Also from stages 2
-and 3: a test that sends a `$`-named class other than a shape across a boundary, a test that builds
-a `Core` or `abstract` class through `construct_erased_from`, and a run-time string converted to a
-`class<T>` of a generator's or a callable's class.
+Each decision that only this file held now lives in `docs/rules/classes/graph-copy.md`,
+`docs/rules/classes/serialize-is-a-closed-format.md`, `docs/rules/core-classes/topic.md`,
+`docs/rules/security/reflection-enforces-visibility.md` or
+`docs/rules/security/isolate-values-cross-by-copy.md`. The rest were already in a module doc or
+`docs/rules/types/class-reference-sites.md`.
 
 ### Next
 
-docs/goals/crossings-carry-data-only.md:894 — stage 9. Start `looper verify` with
-`run_in_background`, then end the turn and wait for its report. Fix every failure it names in one
-pass, rerunning one crate with `bun nv verify --fast -p <crate>`. Then run it once more. Before
-`DONE`, run the goal-end gates AGENTS.md names: `bun nv verify --doc`,
-`bun nv owners --closes crossings-carry-data-only` and `bun nv ci --check`. Move each decision only
-the goal's prose holds into a rule or a module doc before the file is deleted.
+docs/goals/README.md:1 — the goal is reached. The loop retires it and moves to
+`package-files-contained`. Carry the Backlog below to the goal that owns each item.
 
 ### Backlog
 
