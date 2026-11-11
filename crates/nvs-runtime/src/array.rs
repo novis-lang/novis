@@ -392,6 +392,10 @@ impl Hasher for PassDigest {
 /// holds per entry, and so the stride that prices the index's growth.
 const INDEX_BUCKET: usize = size_of::<Filed>() + size_of::<usize>() + 1;
 
+/// What one entry of the hash form takes: its place in the order and its
+/// bucket in the index.
+const HASHED_ENTRY: usize = size_of::<Option<Entry>>() + INDEX_BUCKET;
+
 /// The slots a store's first allocation takes, however few are asked of it.
 const FIRST_SLOTS: usize = 4;
 
@@ -438,6 +442,17 @@ fn packed_index(key: &[u8]) -> Option<usize> {
     usize::try_from(integer_key(key)?).ok()
 }
 
+/// The `deny` set reaches every method here, because the array primitives
+/// call them: `rule:errors/helper-abi` says no program may reach a panic in a
+/// primitive.
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 impl Table {
     /// Records that `key` was used, so a later `$a[]` append does not collide
     /// with it — PHP 8.3's rule, which counts a negative key too.
@@ -486,9 +501,7 @@ impl Table {
     fn hashed_mut(&mut self) -> &mut Hashed {
         if let Shape::Packed(values) = &mut self.shape {
             let packed = std::mem::take(values);
-            let room = packed
-                .capacity()
-                .saturating_mul(size_of::<Option<Entry>>() + INDEX_BUCKET);
+            let room = packed.capacity().saturating_mul(HASHED_ENTRY);
             let reserve = if crate::budget::affords(room) {
                 packed.capacity()
             } else {
@@ -505,6 +518,10 @@ impl Table {
             }
             self.shape = Shape::Hashed(hashed);
         }
+        #[expect(
+            clippy::unreachable,
+            reason = "no program reaches this: the packed form was converted just above"
+        )]
         let Shape::Hashed(hashed) = &mut self.shape else {
             unreachable!("the packed form was converted just above")
         };
@@ -537,11 +554,7 @@ impl Table {
         if let Shape::Packed(values) = &mut self.shape
             && let Some(slot) = packed_index(key.as_bytes()).filter(|slot| *slot <= values.len())
         {
-            if slot == values.len() {
-                values.push(value);
-                return None;
-            }
-            return Some(std::mem::replace(&mut values[slot], value));
+            return replace_or_push(values, slot, value);
         }
         self.hashed_mut().set(key, value)
     }
@@ -588,11 +601,7 @@ impl Table {
                 .ok()
                 .filter(|slot| *slot <= values.len())
         {
-            if slot == values.len() {
-                values.push(value);
-                return None;
-            }
-            return Some(std::mem::replace(&mut values[slot], value));
+            return replace_or_push(values, slot, value);
         }
         let key = NvsStr::new(index.to_string().as_bytes());
         self.hashed_mut().set(key, value)
@@ -684,9 +693,7 @@ impl Table {
     fn separation_cost(&self) -> usize {
         match &self.shape {
             Shape::Packed(values) => values.len().saturating_mul(size_of::<Value>()),
-            Shape::Hashed(hashed) => hashed
-                .live
-                .saturating_mul(size_of::<Option<Entry>>() + INDEX_BUCKET),
+            Shape::Hashed(hashed) => hashed.live.saturating_mul(HASHED_ENTRY),
         }
     }
 
@@ -701,7 +708,7 @@ impl Table {
         if let Shape::Packed(values) = &mut self.shape {
             match packed_index(key.bytes()).filter(|slot| *slot < values.len()) {
                 None => return None,
-                Some(slot) if slot + 1 == values.len() => return values.pop(),
+                Some(slot) if Some(slot) == values.len().checked_sub(1) => return values.pop(),
                 Some(_) => {}
             }
         }
@@ -743,11 +750,12 @@ impl Table {
     /// packed — [`SlotKey`] says which callers that is for.
     fn slot_key(&self, slot: usize) -> Option<SlotKey> {
         match &self.shape {
-            Shape::Packed(values) => (slot < values.len()).then(|| {
-                SlotKey::Index(
-                    i64::try_from(slot).expect("a packed array is bounded by isize::MAX"),
-                )
-            }),
+            // A vector holds at most `isize::MAX` entries, so every position
+            // fits an `i64`.
+            Shape::Packed(values) => (slot < values.len())
+                .then(|| i64::try_from(slot).ok())
+                .flatten()
+                .map(SlotKey::Index),
             Shape::Hashed(hashed) => hashed.at(slot).map(|entry| SlotKey::Str(entry.key.clone())),
         }
     }
@@ -772,7 +780,13 @@ impl Table {
                 .and_then(Option::as_mut)
                 .map(|entry| &mut entry.value),
         };
-        std::mem::replace(stored.expect("replace_at is only given a live slot"), value)
+        #[expect(
+            clippy::expect_used,
+            reason = "no program reaches this: `NvsArray::map_values` gives it a \
+                      slot `next_slot` named in a copy nothing else can name"
+        )]
+        let stored = stored.expect("replace_at is only given a live slot");
+        std::mem::replace(stored, value)
     }
 
     /// A separated copy: the same entries in the same shape and the same
@@ -821,12 +835,47 @@ impl Table {
     }
 }
 
+/// Writes `value` at `slot` of a packed vector and gives back the value it
+/// replaced, or appends it where `slot` is one past the end. The caller has
+/// already checked that `slot` is at most the length.
+fn replace_or_push(values: &mut Vec<Value>, slot: usize, value: Value) -> Option<Value> {
+    if let Some(held) = values.get_mut(slot) {
+        return Some(std::mem::replace(held, value));
+    }
+    values.push(value);
+    None
+}
+
+/// The `deny` set reaches every method here for [`Table`]'s reason.
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 impl Hashed {
     /// The value at `key`, borrowed: no reference is added, the same way
     /// `nvs_ir::ir::InstKind::FieldGet` reads a property.
     fn get(&self, key: KeyRef<'_>) -> Option<Value> {
         let slot = self.find(key)?;
-        self.entries[slot].as_ref().map(|entry| entry.value)
+        self.at(slot).map(|entry| entry.value)
+    }
+
+    /// The live entry the index files at `slot`.
+    fn indexed_mut(&mut self, slot: usize) -> &mut Entry {
+        #[expect(
+            clippy::expect_used,
+            reason = "no program reaches this: the index files a slot only while \
+                      its entry is live, and `remove` and `compact` keep the two in step"
+        )]
+        let entry = self
+            .entries
+            .get_mut(slot)
+            .and_then(Option::as_mut)
+            .expect("an indexed slot is always live");
+        entry
     }
 
     /// The position `key` is indexed at, hashing it only if its digest is not
@@ -845,15 +894,15 @@ impl Hashed {
         let slot = self.entries.len();
         match self.index.entry(Filed(key.clone())) {
             std::collections::hash_map::Entry::Occupied(found) => {
-                let entry = self.entries[*found.get()]
-                    .as_mut()
-                    .expect("an indexed slot is always live");
+                let at = *found.get();
+                let entry = self.indexed_mut(at);
                 Some(std::mem::replace(&mut entry.value, value))
             }
             std::collections::hash_map::Entry::Vacant(room) => {
                 room.insert(slot);
                 self.entries.push(Some(Entry { key, value }));
-                self.live += 1;
+                // `live` counts entries of a vector, so it stays far below `usize::MAX`.
+                self.live = self.live.saturating_add(1);
                 None
             }
         }
@@ -865,9 +914,7 @@ impl Hashed {
         let Some(slot) = self.find(key) else {
             return Err(value);
         };
-        let entry = self.entries[slot]
-            .as_mut()
-            .expect("an indexed slot is always live");
+        let entry = self.indexed_mut(slot);
         Ok(std::mem::replace(&mut entry.value, value))
     }
 
@@ -883,13 +930,20 @@ impl Hashed {
     /// outnumber the live entries — see this module's docs.
     fn remove(&mut self, key: KeyRef<'_>) -> Option<Value> {
         let slot = self.index.remove(&key as &dyn Lookup)?;
-        let entry = self.entries[slot]
-            .take()
+        #[expect(
+            clippy::expect_used,
+            reason = "no program reaches this: the index files a slot only while \
+                      its entry is live, and this removes the two together"
+        )]
+        let entry = self
+            .entries
+            .get_mut(slot)
+            .and_then(Option::take)
             .expect("an indexed slot is always live");
-        self.live -= 1;
+        self.live = self.live.saturating_sub(1);
         let value = entry.value;
         drop(entry.key);
-        if self.entries.len() > 8 && self.entries.len() >= self.live * 2 {
+        if self.entries.len() > 8 && self.entries.len() >= self.live.saturating_mul(2) {
             self.compact();
         }
         Some(value)
@@ -902,9 +956,7 @@ impl Hashed {
             return false;
         };
         self.index.insert(Filed(to.clone()), slot);
-        let entry = self.entries[slot]
-            .as_mut()
-            .expect("an indexed slot is always live");
+        let entry = self.indexed_mut(slot);
         drop(std::mem::replace(&mut entry.key, to));
         true
     }
@@ -914,16 +966,20 @@ impl Hashed {
     fn compact(&mut self) {
         self.entries.retain(Option::is_some);
         self.index.clear();
-        for (slot, entry) in self.entries.iter().enumerate() {
-            let key = &entry.as_ref().expect("holes were just dropped").key;
-            self.index.insert(Filed(key.clone()), slot);
+        // The holes are gone, so the n-th live entry is at position n.
+        for (slot, entry) in self.entries.iter().flatten().enumerate() {
+            self.index.insert(Filed(entry.key.clone()), slot);
         }
     }
 
     /// The position of the first live entry at or after `from`, or `None` when
     /// there is none — one `foreach` step.
     fn next_slot(&self, from: usize) -> Option<usize> {
-        (from..self.entries.len()).find(|slot| self.entries[*slot].is_some())
+        self.entries
+            .iter()
+            .enumerate()
+            .skip(from)
+            .find_map(|(slot, entry)| entry.is_some().then_some(slot))
     }
 
     /// The live entry at `slot`, if there is one.
@@ -1044,6 +1100,15 @@ pub struct NvsArray {
     ptr: NonNull<ArrayHeader>,
 }
 
+/// The `deny` set reaches every method here for [`Table`]'s reason.
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 impl NvsArray {
     /// A fresh empty array with a reference count of one.
     #[must_use]
@@ -1487,6 +1552,11 @@ impl NvsArray {
         *copy.header().table.borrow_mut() = self.header().table.borrow().separate();
         let mut from = 0;
         while let Some(slot) = copy.next_slot(from) {
+            #[expect(
+                clippy::expect_used,
+                reason = "no program reaches this: the copy is this call's own, \
+                          so nothing removes the entry `next_slot` named"
+            )]
             let value = copy
                 .value_at(slot)
                 .expect("next_slot only names live entries");
@@ -1501,7 +1571,7 @@ impl NvsArray {
                     crate::release::release_value(old);
                 }
             }
-            from = slot + 1;
+            from = slot.saturating_add(1);
         }
         Ok(Some(copy))
     }
@@ -1514,14 +1584,10 @@ impl NvsArray {
         let mut keys = Vec::with_capacity(table.len());
         let mut slot = 0;
         while let Some(live) = table.next_slot(slot) {
-            keys.push(
-                table
-                    .key_at(live)
-                    .expect("next_slot only names live entries")
-                    .as_bytes()
-                    .to_vec(),
-            );
-            slot = live + 1;
+            if let Some(key) = table.key_at(live) {
+                keys.push(key.as_bytes().to_vec());
+            }
+            slot = live.saturating_add(1);
         }
         keys
     }
@@ -1589,9 +1655,13 @@ impl NvsArray {
         reason = "reclaiming a reference is the caller's obligation to state"
     )]
     pub unsafe fn from_raw(ptr: *mut ArrayHeader) -> Self {
-        Self {
-            ptr: NonNull::new(ptr).expect("an Novis array pointer is never null"),
-        }
+        #[expect(
+            clippy::expect_used,
+            reason = "no program reaches this: compiled code never holds a null \
+                      array pointer, and a nullable array is a tagged value"
+        )]
+        let ptr = NonNull::new(ptr).expect("an Novis array pointer is never null");
+        Self { ptr }
     }
 
     /// How many owners hold the array `ptr` refers to.
@@ -1700,19 +1770,31 @@ impl fmt::Debug for ArrayRef<'_> {
 ///
 /// Not itself `unsafe` to *call* from this module because every caller here
 /// already holds a live handle.
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 fn bump(ptr: *mut ArrayHeader) {
     #[expect(
         unsafe_code,
         reason = "every caller in this module holds a live reference to `ptr`"
     )]
     let header = unsafe { &*ptr };
-    header.refcount.set(
-        header
-            .refcount
-            .get()
-            .checked_add(1)
-            .expect("an Novis array's reference count cannot overflow a usize"),
-    );
+    #[expect(
+        clippy::expect_used,
+        reason = "no program reaches this: each reference is a pointer stored in \
+                  memory, and memory cannot hold `usize::MAX` of them"
+    )]
+    let count = header
+        .refcount
+        .get()
+        .checked_add(1)
+        .expect("an Novis array's reference count cannot overflow a usize");
+    header.refcount.set(count);
 }
 
 /// Drops one reference to the array at `ptr`, reporting whether that was the
@@ -1729,10 +1811,27 @@ fn bump(ptr: *mut ArrayHeader) {
     unsafe_code,
     reason = "owning the reference is the caller's obligation to state"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 pub(crate) unsafe fn drop_one(ptr: *mut ArrayHeader) -> bool {
     #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
     let header = unsafe { &*ptr };
-    let remaining = header.refcount.get() - 1;
+    #[expect(
+        clippy::expect_used,
+        reason = "no program reaches this: the caller owns a reference, so the \
+                  count is at least one"
+    )]
+    let remaining = header
+        .refcount
+        .get()
+        .checked_sub(1)
+        .expect("a released array holds the caller's reference");
     header.refcount.set(remaining);
     remaining == 0
 }
@@ -1799,12 +1898,8 @@ pub(crate) unsafe fn borrowed_values(ptr: *mut ArrayHeader) -> Vec<Value> {
     let mut values = Vec::with_capacity(table.len());
     let mut slot = 0;
     while let Some(live) = table.next_slot(slot) {
-        values.push(
-            table
-                .value_at(live)
-                .expect("next_slot only names live entries"),
-        );
-        slot = live + 1;
+        values.extend(table.value_at(live));
+        slot = live.saturating_add(1);
     }
     values
 }
@@ -1859,6 +1954,14 @@ thread_local! {
     reason = "exporting an unmangled symbol is what makes compiled code able \
               to call this at all"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub extern "C" fn nvs_array_new() -> *mut ArrayHeader {
     EMPTY.with(|slot| {
@@ -1902,6 +2005,14 @@ pub fn prime_empty_array() {
     reason = "compiled code passes a raw array pointer whose liveness the \
               signature cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_retain(ptr: *mut ArrayHeader) {
     if ptr.is_null() {
@@ -1921,6 +2032,14 @@ pub unsafe extern "C" fn nvs_array_retain(ptr: *mut ArrayHeader) {
     unsafe_code,
     reason = "compiled code passes a raw array pointer whose ownership the \
               signature cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_release(ptr: *mut ArrayHeader) {
@@ -1991,6 +2110,14 @@ pub(crate) unsafe fn entry_at_index(array: *mut ArrayHeader, index: i64) -> Opti
     reason = "compiled code passes two raw pointers whose liveness the \
               signature cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_get(
     array: *mut ArrayHeader,
@@ -2024,6 +2151,14 @@ pub unsafe extern "C" fn nvs_array_get(
     reason = "compiled code passes two raw pointers whose liveness the \
               signature cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_get_index(array: *mut ArrayHeader, index: i64, out: *mut Value) {
     #[expect(unsafe_code, reason = "the caller guarantees every pointee is live")]
@@ -2043,6 +2178,14 @@ pub unsafe extern "C" fn nvs_array_get_index(array: *mut ArrayHeader, index: i64
     unsafe_code,
     reason = "compiled code passes two raw pointers whose liveness the \
               signature cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_has_key(array: *mut ArrayHeader, key: *const StrHeader) -> bool {
@@ -2075,6 +2218,14 @@ pub unsafe extern "C" fn nvs_array_has_key(array: *mut ArrayHeader, key: *const 
     unsafe_code,
     reason = "compiled code passes raw pointers whose ownership the signature \
               cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_set(
@@ -2121,6 +2272,14 @@ pub unsafe extern "C" fn nvs_array_set(
     unsafe_code,
     reason = "compiled code passes raw pointers whose ownership the signature \
               cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_set_index(
@@ -2179,6 +2338,14 @@ pub unsafe extern "C" fn nvs_array_set_index(
     unsafe_code,
     reason = "compiled code passes a raw pointer and a value whose ownership \
               the signature cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_append(
@@ -2258,6 +2425,14 @@ pub unsafe extern "C" fn nvs_array_append(
     reason = "compiled code passes raw pointers whose ownership the signature \
               cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_spread(
     ctx: *mut crate::Ctx,
@@ -2284,7 +2459,7 @@ pub unsafe extern "C" fn nvs_array_spread(
         let mut over_ceiling = false;
         let mut from = 0;
         while let Some(slot) = source.next_slot(from) {
-            from = slot + 1;
+            from = slot.saturating_add(1);
             // Asked once per entry and ahead of the retain, so a spread of a
             // large subject is bounded entry by entry rather than as the one
             // operation a program wrote. What the destination already took is
@@ -2294,23 +2469,22 @@ pub unsafe extern "C" fn nvs_array_spread(
                 over_ceiling = true;
                 break;
             }
-            let value = source.value_at(slot).expect("next_slot names a live entry");
-            let key = source.slot_key(slot).expect("next_slot names a live entry");
-            value.retain();
-            let renumbered = match &key {
-                SlotKey::Index(_) => true,
-                SlotKey::Str(key) => integer_key(key.as_bytes()).is_some(),
+            // The subject is held live for the call, and this loop runs no
+            // program code, so the entry `next_slot` named is still there.
+            let (Some(value), Some(key)) = (source.value_at(slot), source.slot_key(slot)) else {
+                continue;
             };
-            if renumbered {
-                if let Err(value) = handle.try_append(value) {
-                    refused = Some(value);
-                    break;
+            value.retain();
+            match key {
+                SlotKey::Str(key) if integer_key(key.as_bytes()).is_none() => {
+                    handle.set(key, value)
                 }
-            } else {
-                let SlotKey::Str(key) = key else {
-                    unreachable!("an index key is renumbered above");
-                };
-                handle.set(key, value);
+                SlotKey::Index(_) | SlotKey::Str(_) => {
+                    if let Err(value) = handle.try_append(value) {
+                        refused = Some(value);
+                        break;
+                    }
+                }
             }
         }
         out.write(handle.into_raw());
@@ -2346,6 +2520,14 @@ pub unsafe extern "C" fn nvs_array_spread(
     reason = "compiled code passes raw pointers whose ownership the signature \
               cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_unset(
     array: *mut ArrayHeader,
@@ -2375,11 +2557,20 @@ pub unsafe extern "C" fn nvs_array_unset(
     reason = "compiled code passes a raw array pointer whose liveness the \
               signature cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_count(array: *const ArrayHeader) -> i64 {
     #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
     let live = unsafe { (*array).table.borrow().len() };
-    i64::try_from(live).expect("an array cannot hold more than i64::MAX entries")
+    // A vector holds at most `isize::MAX` entries, so the count always fits.
+    i64::try_from(live).unwrap_or(i64::MAX)
 }
 
 /// The position of the first live entry at or after `from`, or `-1` when there
@@ -2400,13 +2591,20 @@ pub unsafe extern "C" fn nvs_array_count(array: *const ArrayHeader) -> i64 {
     reason = "compiled code passes a raw array pointer whose liveness the \
               signature cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_next_slot(array: *const ArrayHeader, from: usize) -> i64 {
     #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
     let slot = unsafe { (*array).table.borrow().next_slot(from) };
-    slot.map_or(-1, |slot| {
-        i64::try_from(slot).expect("an array cannot hold more than i64::MAX entries")
-    })
+    // A vector holds at most `isize::MAX` entries, so every position fits.
+    slot.and_then(|slot| i64::try_from(slot).ok()).unwrap_or(-1)
 }
 
 /// The key at `slot`, as a fresh reference the caller owns — `foreach`'s

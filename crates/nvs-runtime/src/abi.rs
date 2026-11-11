@@ -18,6 +18,11 @@
 //! rather than `extern "C-unwind"` and the `catch_unwind` wrapper are each a
 //! silent, per-helper correctness cliff, and a macro cannot forget either.
 //!
+//! A *primitive*, a bare `extern "C" fn` with no `Ctx`, has no wrapper, so a
+//! panic in one aborts the process. No program may reach one: each primitive
+//! denies clippy's panic lints in its own body, as `rule:errors/helper-abi`
+//! says, and `tests/primitives_never_panic.rs` reads the source to hold it.
+//!
 //! # Containment has two boundaries, and this module holds both
 //!
 //! The helper wrapper is the **inner** one, and it only ever sees a fault

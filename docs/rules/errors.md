@@ -143,6 +143,18 @@ one helper at a time, and `catch_unwind` costs nothing when no panic occurs.
 every workspace profile: `panic = "abort"` would turn every containable runtime bug into a process
 kill, which is request isolation lost.
 
+A **primitive** has no wrapper. It is a bare `extern "C" fn` that compiled code calls directly, such
+as an array read or a refcount step, and it takes no `Ctx`, so it has no `FATAL` to report. A panic
+in one aborts the process, and after it the runtime's state is unknown, so no program shape may reach
+one. Each primitive, and each runtime function it calls, carries `#[deny(clippy::expect_used,
+clippy::unwrap_used, clippy::panic, clippy::unreachable, clippy::indexing_slicing,
+clippy::arithmetic_side_effects)]`. A site that stays is written `#[expect(<lint>, reason = "no
+program reaches this: ...")]`. An operation that must report an error moves to a helper written
+through `nvs_helper!`, with a landing block. `crates/nvs-runtime/tests/primitives_never_panic.rs`
+reads the source and fails naming a primitive without the `deny` set. Declined: `catch_unwind` in
+every primitive, and a status on every primitive's signature. Both cost a call on the hottest paths
+for a fault the build can rule out.
+
 The wrapper does not stop at the helper. Code with no request beneath it — the accept loop, the
 HTTP reader, the compiled-unit cache index — runs outside `nvs_helper!`, so a worker task's own
 root carries a `catch_unwind` as well. And a panic raised while a panic is unwinding aborts the

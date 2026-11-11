@@ -139,6 +139,14 @@ use crate::value::{Tag, Value};
 /// the vector with the first pair instead cost one allocation per call, which
 /// `benches/members/core/Arr/contains.nvs` counted once per entry.
 #[must_use]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 pub fn value_identical(left: Value, right: Value) -> bool {
     let mut worklist = Vec::new();
     if !shallow_identical(left, right, &mut worklist) {
@@ -176,6 +184,14 @@ pub fn value_identical(left: Value, right: Value) -> bool {
     reason = "compiled code passes two raw array pointers whose liveness the \
               signature cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_eq(lhs: *mut ArrayHeader, rhs: *mut ArrayHeader) -> bool {
     value_identical(Value::from_array_ptr(lhs), Value::from_array_ptr(rhs))
@@ -183,6 +199,14 @@ pub unsafe extern "C" fn nvs_array_eq(lhs: *mut ArrayHeader, rhs: *mut ArrayHead
 
 /// One pair's verdict, pushing an array's entries onto `worklist` rather than
 /// descending into them.
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 fn shallow_identical(left: Value, right: Value, worklist: &mut Vec<(Value, Value)>) -> bool {
     match (left.tag(), right.tag()) {
         (Some(Tag::Null), Some(Tag::Null)) => true,
@@ -223,6 +247,14 @@ fn shallow_identical(left: Value, right: Value, worklist: &mut Vec<(Value, Value
 
 /// Whether two distinct array allocations hold the same entries in the same
 /// order, queueing each value pair rather than comparing it here.
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 fn entries_identical(
     left: *mut ArrayHeader,
     right: *mut ArrayHeader,
@@ -250,8 +282,8 @@ fn entries_identical(
                     return false;
                 };
                 worklist.push((left_value, right_value));
-                left_from = left_slot + 1;
-                right_from = right_slot + 1;
+                left_from = left_slot.saturating_add(1);
+                right_from = right_slot.saturating_add(1);
             }
             // Unreachable while the counts agree, and cheaper to answer than
             // to argue about.

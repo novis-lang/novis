@@ -1,0 +1,76 @@
+<?nvs
+// Attack: each array operation gets the input at the edge of what it accepts.
+// Keys are the largest and smallest numbers, arrays have holes, and loops remove
+// entries while they run. Every step should finish or throw an error it catches.
+
+// 1. A loop removes every entry while it reads each key and value.
+// The array becomes empty while the loop is still running.
+array<int> $walked = [];
+for (int $i = 0; $i < 5000; $i++) {
+    $walked['k' . $i] = $i;
+}
+int $sum = 0;
+foreach ($walked as string $key => int $value) {
+    unset($walked[$key]);
+    $sum = $sum + $value;
+}
+echo "step 1: ", $sum, " ", Core\Arr::count($walked), "\n";
+
+// 2. Keys at the largest and the smallest number. A read of a key that is
+// not there throws an error, and the program catches it.
+array<int> $edges = [];
+$edges[9223372036854775807] = 1;
+$edges[-9223372036854775807] = 2;
+$edges[0] = 3;
+try {
+    int $absent = $edges[9223372036854775806];
+    echo "step 2: ", $absent, "\n";
+} catch (RuntimeError $missing) {
+    echo "step 2: ", $edges[9223372036854775807] + $edges[-9223372036854775807], "\n";
+}
+
+// 3. An append after the largest key. There is no next key, so it throws
+// a `LogicError`, and the program catches it.
+try {
+    $edges[] = 4;
+} catch (LogicError $full) {
+    echo "step 3: ", Core\Arr::count($edges), "\n";
+}
+
+// 4. A list loses entries in the middle and at the end. Then it gets new
+// entries, and its keys are read in a loop.
+array<int> $list = [];
+for (int $j = 0; $j < 100; $j++) {
+    $list[] = $j;
+}
+for (int $r = 0; $r < 100; $r = $r + 3) {
+    unset($list[$r as string]);
+}
+unset($list['99']);
+$list[] = 100;
+uint $keys = 0;
+foreach ($list as string $key => int $value) {
+    $keys = $keys + Core\Str::length($key);
+}
+echo "step 4: ", Core\Arr::count($list), " ", $keys, "\n";
+
+// 5. An array with holes is copied into a new array with `...`. Keys that
+// are numbers get new numbers, and the other keys stay.
+array<int> $holes = ['a' => 1, '5' => 2, 'b' => 3, '9223372036854775807' => 4];
+unset($holes['a']);
+array<int> $spread = [...$holes, ...$holes];
+echo "step 5: ", Core\Json::encode($spread), "\n";
+
+// 6. Two arrays with the same entries are compared with `==`. One of them
+// has holes from removals, and the other was built in order.
+array<int> $built = [];
+array<int> $removed = [];
+for (int $n = 0; $n < 1000; $n++) {
+    $built['k' . $n] = $n;
+    $removed['k' . $n] = $n;
+    $removed['gone' . $n] = $n;
+}
+for (int $m = 0; $m < 1000; $m++) {
+    unset($removed['gone' . $m]);
+}
+echo "step 6: ", $built == $removed ? 'equal' : 'different', "\n";

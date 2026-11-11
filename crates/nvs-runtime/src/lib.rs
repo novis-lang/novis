@@ -27,7 +27,9 @@
 //!    `Cargo.toml`. It is the *inner* of two boundaries: [`run_task`] is the
 //!    outer one, at the root of a worker's task, where a fault with no helper
 //!    frame beneath it is caught and [`TaskRoot`] decides whether the worker
-//!    survives it (`abi`'s own module docs own the pair).
+//!    survives it (`abi`'s own module docs own the pair). A primitive — a
+//!    bare `extern "C" fn` such as an array read — has no wrapper, so no
+//!    program may reach a panic in one (`rule:errors/helper-abi`).
 //! 2. **The value representation** is `value.rs`'s module doc: a 16-byte
 //!    tagged [`Value`]. Not NaN-boxed —
 //!    PHP semantics need the full `i64` range.
