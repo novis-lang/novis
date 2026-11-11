@@ -139,14 +139,33 @@ pub(crate) fn start(
     sched: &mut nvs_host::Scheduler,
     feed: Feed,
     drain: Drain,
-    inbox: Rc<nvs_runtime::Inbox>,
+    feeds: Feeds,
     ended: Rc<Cell<Option<Result<(), i32>>>>,
 ) {
     sched.spawn(
         nvs_runtime::Ctx::stdout(),
         nvs_runtime::TaskRoot::Worker,
-        move |_| publish(feed, drain, &inbox, || ended.get().is_some()),
+        move |_| publish(feed, drain, &feeds, || ended.get().is_some()),
     );
+}
+
+/// The program the publisher feeds: its delivery queue, and its configuration,
+/// which names the application its topics belong to.
+pub(crate) struct Feeds {
+    pub(crate) inbox: Rc<nvs_runtime::Inbox>,
+    pub(crate) config: Option<std::sync::Arc<nvs_config::Snapshot>>,
+}
+
+impl Feeds {
+    /// The queue and the configuration of the program `ctx` runs.
+    pub(crate) fn of(ctx: &nvs_runtime::Ctx, inbox: Rc<nvs_runtime::Inbox>) -> Self {
+        Self {
+            inbox,
+            config: ctx
+                .config()
+                .map(|config| std::sync::Arc::clone(config.snapshot())),
+        }
+    }
 }
 
 /// Starts the event stream a request's `Core\Sse::upgrade` prepared, publishes
@@ -161,11 +180,11 @@ pub(crate) fn start(
 pub(crate) fn connect(ctx: &mut nvs_runtime::Ctx, upgrade: nvs_runtime::Upgrade, feed: Feed) {
     let (program, args, narrowing) = upgrade.into_parts();
     let (emit, drain) = open();
-    let inbox = Rc::new(nvs_runtime::Inbox::default());
+    let feeds = Feeds::of(ctx, Rc::new(nvs_runtime::Inbox::default()));
     let started = nvs_host::Isolate::new(program, args, nvs_host::Output::Inherit)
         .narrowed_by(narrowing)
         .over_event_stream(emit)
-        .delivering_into(Rc::clone(&inbox))
+        .delivering_into(Rc::clone(&feeds.inbox))
         .start(ctx);
     let running = match started {
         Ok(running) => running,
@@ -174,7 +193,7 @@ pub(crate) fn connect(ctx: &mut nvs_runtime::Ctx, upgrade: nvs_runtime::Upgrade,
             return;
         }
     };
-    publish(feed, drain, &inbox, || running.finished());
+    publish(feed, drain, &feeds, || running.finished());
     let mut done = running.join(ctx);
     done.discard_value();
     if let Some(failure) = done.error {
@@ -188,7 +207,7 @@ pub(crate) fn connect(ctx: &mut nvs_runtime::Ctx, upgrade: nvs_runtime::Upgrade,
 /// The publisher's whole loop: print what the program wrote, and feed it the
 /// next value each time it waits for one, until `ended` says the program is
 /// over.
-fn publish(mut feed: Feed, drain: Drain, inbox: &nvs_runtime::Inbox, ended: impl Fn() -> bool) {
+fn publish(mut feed: Feed, drain: Drain, feeds: &Feeds, ended: impl Fn() -> bool) {
     let mut drain = Some(drain);
     loop {
         if let Some(drain) = drain.as_mut() {
@@ -197,10 +216,11 @@ fn publish(mut feed: Feed, drain: Drain, inbox: &nvs_runtime::Inbox, ended: impl
         if ended() {
             return;
         }
-        if inbox.is_empty() && inbox.is_waiting() {
+        if feeds.inbox.is_empty() && feeds.inbox.is_waiting() {
             match feed.values.pop_front() {
                 Some(next) => {
-                    let _reached = nvs_stdlib::publish_text(&next.topic, &next.value);
+                    let _reached =
+                        nvs_stdlib::publish_text(feeds.config.clone(), &next.topic, &next.value);
                 }
                 // The client going away, which is what `receive` reads as the
                 // end of the stream.

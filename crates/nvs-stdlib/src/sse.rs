@@ -1574,7 +1574,7 @@ mod tests {
             &[topic],
         )
         .expect("an event stream's isolate is a connection and may subscribe");
-        assert_eq!(crate::topic::publish_text("room:farewell", "last word"), 1);
+        assert_eq!(crate::topic::publish_text(None, "room:farewell", "last word"), 1);
 
         // The connection's half going away is the client disconnecting.
         drop(

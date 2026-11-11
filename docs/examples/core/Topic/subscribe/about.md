@@ -5,7 +5,8 @@ A topic is a name, such as `room:lobby` or `order:1042`. After `subscribe`, a va
 publishes to the topic arrives at the next `receive()` of this connection. The message's `topic()`
 returns the name, so you can tell it apart from a message the client sent. Only a script that
 `Core\Socket::upgrade` or `Core\Sse::upgrade` started can subscribe. When a connection ends, it
-leaves all its topics without any extra code.
+leaves all its topics without any extra code. When one server runs two applications, each has its
+own topics, so the same name in both does not connect them.
 
 **Good to know:** the topic name may not come from user input. Build it from values your program
 checked, such as the id of the signed-in user. A name has at most 256 bytes. One connection can

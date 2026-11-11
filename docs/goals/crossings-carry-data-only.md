@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-stdlib/src/topic.rs, crates/nvs-stdlib/src/bus.rs, crates/nvs-runtime/src/peer.rs, crates/nvs-stdlib/src/socket.rs, crates/nvs-stdlib/src/sse.rs, docs/rules/core-classes/topic.md]
   - id: 8
     title: a topic name belongs to one application
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/topic.rs, crates/nvs-stdlib/src/bus.rs, crates/nvs-stdlib/src/cache.rs, crates/nvs-cli/src/events.rs, docs/rules/core-classes/topic.md]
   - id: 9
     title: "the goal is verified once, and every failure is fixed"
@@ -862,31 +862,31 @@ subscriber's own `receive()`.
 **Does:** key every topic by its application, on one core and across cores, with the identity the
 memory cache uses.
 
-- [ ] One function builds the key from `application(ctx)`, a NUL byte and the checked name. All three
+- [x] One function builds the key from `application(ctx)`, a NUL byte and the checked name. All three
   members use it for the table, the reported counts and the hand-off
   (`rule:core-classes/topic`, `crates/nvs-stdlib/src/cache.rs:1580`,
   `crates/nvs-stdlib/src/topic.rs:412`, `crates/nvs-stdlib/src/topic.rs:485`,
   `crates/nvs-stdlib/src/topic.rs:570`, `crates/nvs-stdlib/src/topic.rs:607`,
   `crates/nvs-stdlib/src/bus.rs:258`, `crates/nvs-stdlib/src/bus.rs:279`).
-- [ ] A delivery carries the bare name to the program, on the local path and from the envelope
+- [x] A delivery carries the bare name to the program, on the local path and from the envelope
   (`crates/nvs-stdlib/src/topic.rs:834`, `crates/nvs-stdlib/src/topic.rs:717`,
   `crates/nvs-stdlib/src/bus.rs:112`).
-- [ ] `publish_text` takes the application of the program it feeds, and both `--events` paths pass it
+- [x] `publish_text` takes the application of the program it feeds, and both `--events` paths pass it
   (`crates/nvs-stdlib/src/topic.rs:743`, `crates/nvs-stdlib/src/lib.rs:290`,
   `crates/nvs-cli/src/events.rs:203`, `crates/nvs-cli/src/main.rs:2202`).
-- [ ] Test `two_applications_with_one_topic_name_do_not_reach_each_other`: two contexts under two
+- [x] Test `two_applications_with_one_topic_name_do_not_reach_each_other`: two contexts under two
   `[[app]]` blocks, one name, and a publish from each reaches its own subscriber alone
   (`crates/nvs-stdlib/src/topic.rs:870`).
-- [ ] Test `a_topic_reaches_its_application_across_a_reload`: a subscriber of one generation receives
+- [x] Test `a_topic_reaches_its_application_across_a_reload`: a subscriber of one generation receives
   what a publisher of the next generation of the same block publishes
   (`crates/nvs-stdlib/src/topic.rs:870`).
-- [ ] Test `a_value_published_on_another_core_reaches_only_its_application`, through `hand_off` and
+- [x] Test `a_value_published_on_another_core_reaches_only_its_application`, through `hand_off` and
   the drain (`crates/nvs-stdlib/src/topic.rs:870`, `crates/nvs-stdlib/src/bus.rs:452`).
-- [ ] The table's ceiling paragraph in the module doc states the new byte bound
+- [x] The table's ceiling paragraph in the module doc states the new byte bound
   (`crates/nvs-stdlib/src/topic.rs:58`).
-- [ ] `rule:core-classes/topic` says a topic name belongs to one application and what the key costs
+- [x] `rule:core-classes/topic` says a topic name belongs to one application and what the key costs
   (`docs/rules/core-classes/topic.md:13`).
-- [ ] The `subscribe` `about.md` says, in one sentence, that two applications on one server do not
+- [x] The `subscribe` `about.md` says, in one sentence, that two applications on one server do not
   share topics (`docs/examples/core/Topic/subscribe/about.md:1`).
 
 ### 9. the goal is verified once, and every failure is fixed
@@ -899,43 +899,36 @@ memory cache uses.
 
 ### State
 
-Stages 1 to 6 are done, and stage 7 has two items left. The sweep's reds were stale again: no
-`env-secret-proofs` check exists, and run 43001191130 is at f4c1d5c7e2, 63 commits behind.
+Stages 1 to 8 are done, and stage 9, the gate, is next. The sweep's reds were stale again: no
+`env-secret-proofs` check exists, and run 43001191130 is at f4c1d5c7e2, far behind.
 
-`Delivery` holds an `Arc<[u8]>`, freed inside `Detached` (`crates/nvs-runtime/src/peer.rs:119`).
-`Inbox::push` returns `bool`; `push_sized`, the inbox's tree, `budget::hand_to` and
-`copy_graph_unreceived` are gone. `publish` encodes once (`crates/nvs-stdlib/src/topic.rs:658`),
-and `topic::decoded` decodes for both doors. The 24 topic and bus tests and `--test crossings` pass.
+Every topic is keyed by `key_of` (`crates/nvs-stdlib/src/topic.rs:467`), and the stage 7 and 8
+checks pass. The publish attacks pass under `bun nv proofs --run --id 'Core\Topic::publish'`; the
+first no longer ends at a `FATAL`, because a full queue now refuses the copy.
 
 Expect at the gate: a side with no program table now refuses a program object. A Rust test that
 hands a Rust-written program an object goes red; pass the object's table. The full conformance run
 had one red, `tests/conformance/core/task-after-response-deadline-of-zero-or-less-is-already-over.nvst`,
-which passes alone, so it looks like a timing flake under load.
-
-Still true: the topic keys by the bare name; `llms-full.txt` has the old `construct` card text.
+which passes alone, so it looks like a timing flake under load. A test outside `topic.rs` that
+looks a topic up in `SUBSCRIBERS` or the bus by its bare name goes red; build the key with
+`key_of`. `llms-full.txt` has the old `construct` card text, and the `receive` cards changed too.
+The `publish` bench is stale since `topic.rs` changed.
 
 Watch at the gate: a debug `build` checks each `Core` instance against its row, so a row that is
-wrong panics in whatever Rust test or case builds that class. Only the `instance`, `time` and
-conformance runs exercised the rows this session. A panic naming "was built against its stated slot
-types" is fixed in the row, or in the member that filled the slot. Also from stages 2 and 3: a test
-that sends a `$`-named class other than a shape across a boundary, a test that builds a `Core` or
-`abstract` class through `construct_erased_from`, and a run-time string converted to a `class<T>`
-of a generator's or a callable's class.
+wrong panics in whatever Rust test or case builds that class. A panic naming "was built against its
+stated slot types" is fixed in the row, or in the member that filled the slot. Also from stages 2
+and 3: a test that sends a `$`-named class other than a shape across a boundary, a test that builds
+a `Core` or `abstract` class through `construct_erased_from`, and a run-time string converted to a
+`class<T>` of a generator's or a callable's class.
 
 ### Next
 
-tests/hostile/core/Topic/publish/03-an-object-a-generator-and-an-open-file.nvs:1 — write the attack
-with its `.nvsp`, copying the shape of `01-huge-deep-and-secret-values.nvs` beside it (the
-`.nvsp` is one comment line: the client sends nothing and closes). Publish a class the script
-declares, then read it back with `$conn->receive()` and check `$message->value() is Note`. Then a
-generator, an `fn() => 1` closure and an open file, each in a `try` catching `LogicError`. Run it
-with `bun nv proofs --id 'Core\Topic::publish'`. Then finish the last item:
-`docs/examples/core/Topic/publish/about.md:1` gets one sentence that an object arrives as the
-subscriber's class of the same name, and the `receive` cards of both doors name the `ParseError`
-(`crates/nvs-stdlib/src/socket.rs:1190`, `crates/nvs-stdlib/src/sse.rs:841`). Both are end-user
-prose. Then set stage 7 done and take stage 8, whose anchors moved: `publish` is at
-`crates/nvs-stdlib/src/topic.rs:801`, and the drain is `deliver_from_other_cores` with
-`queue_into` beside it.
+docs/goals/crossings-carry-data-only.md:894 — stage 9. Start `looper verify` with
+`run_in_background`, then end the turn and wait for its report. Fix every failure it names in one
+pass, rerunning one crate with `bun nv verify --fast -p <crate>`. Then run it once more. Before
+`DONE`, run the goal-end gates AGENTS.md names: `bun nv verify --doc`,
+`bun nv owners --closes crossings-carry-data-only` and `bun nv ci --check`. Move each decision only
+the goal's prose holds into a rule or a module doc before the file is deleted.
 
 ### Backlog
 

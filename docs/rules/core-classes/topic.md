@@ -36,6 +36,14 @@ most 256 bytes; past either, the member throws a `LogicError` and the table is u
 subscribers have all ended is swept by a later insert even when nobody names it again, so the table
 is O(live connections) and never O(connections served).
 
+**A topic name belongs to one application.** Two `[[app]]` blocks served by one process may use the
+same name, and a publish in one never reaches a subscriber of the other, on this core or on any
+other. The table and the hand-off between cores key a topic by the application's path, a NUL byte
+and the name: the identity the memory cache uses, without the generation, because a connection
+outlives a reload. The program still reads the bare name in `Message->topic`, and the 256-byte bound
+is on that name. `nvs run --events` publishes under the configuration of the program it feeds. **What
+it spends:** one key built per member call, and the path's bytes once more in each table row.
+
 There is no way to broadcast without it and no way for one connection to reach another directly,
 which is what keeps a connection an isolate rather than a thread with a socket. Cross-machine fan-out
 is not the runtime's: a fleet bridges topics to a broker in application code.

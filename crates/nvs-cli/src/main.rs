@@ -2199,7 +2199,8 @@ fn run_run(
                 let (emit, drain) = events::open();
                 ctx.set_body_stream(emit);
                 ctx.mark_event_stream(nvs_runtime::EventStreamDoor::Connection);
-                publisher = Some((feed, drain, ctx.inbox()));
+                let inbox = ctx.inbox();
+                publisher = Some((feed, drain, events::Feeds::of(&ctx, inbox)));
             }
             Err(error) => {
                 eprintln!("error: --events {}: {error}", file.display());
@@ -2496,8 +2497,8 @@ fn run_run(
         }
     });
 
-    if let Some((feed, drain, inbox)) = publisher {
-        events::start(&mut sched, feed, drain, inbox, std::rc::Rc::clone(&status));
+    if let Some((feed, drain, feeds)) = publisher {
+        events::start(&mut sched, feed, drain, feeds, std::rc::Rc::clone(&status));
     }
 
     // And the workers, after the task above rather than before it. The order is

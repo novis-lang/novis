@@ -63,9 +63,12 @@
 //! do: a connection may be in at most [`nvs_runtime::TOPIC_CAP`] rows at once,
 //! and a name is at most [`NAME_CAP`] bytes. Past either, the member throws a
 //! `LogicError` the script can catch, and the table is unchanged. **What it
-//! spends:** at most `TOPIC_CAP × NAME_CAP` bytes of names, plus a row each,
-//! per live connection, which is a quarter of a megabyte and O(live
-//! connections). They are numbers rather than settings because nothing an
+//! spends:** a row's key is its application's path, a NUL byte and the name
+//! ([`key_of`]), so at most `TOPIC_CAP × (NAME_CAP + 2 + twice the path)`
+//! bytes of keys, plus a row each, per live connection. For a path of a
+//! hundred bytes that is under half a megabyte, and it is O(live
+//! connections). The path is the operator's, so no program makes it longer.
+//! They are numbers rather than settings because nothing an
 //! application does on purpose comes near either, and a setting is one more
 //! thing an operator can raise past what the table should hold.
 //!
@@ -448,6 +451,49 @@ fn topic_of<'a>(argument: &'a Value, member: &str) -> Result<&'a str, Fault> {
     Ok(name)
 }
 
+/// The key `name` is filed under for the program `ctx` runs: its application,
+/// a NUL byte, then the name. The table, the counts each core reports and the
+/// envelope between cores all use it, so two applications in one process that
+/// use one name never meet (`rule:core-classes/topic`).
+///
+/// The application is `crate::cache::application`'s, the identity the memory
+/// cache uses. The generation is left out, because a connection outlives a
+/// reload. The application is a path, so it holds no NUL, and the first NUL in
+/// a key ends it. A path that is not UTF-8 is written as hex behind its own
+/// first byte, so no two applications share a key.
+///
+/// **What it spends:** one allocation per member call, the length of the
+/// application's path plus the name.
+fn key_of(ctx: &Ctx, name: &str) -> String {
+    let application = crate::cache::application(ctx);
+    let mut key = String::with_capacity(application.len() * 2 + 2 + name.len());
+    match std::str::from_utf8(application) {
+        Ok(text) => {
+            key.push('u');
+            key.push_str(text);
+        }
+        Err(_) => {
+            key.push('x');
+            for byte in application {
+                key.push(char::from(HEX[usize::from(byte >> 4)]));
+                key.push(char::from(HEX[usize::from(byte & 0x0f)]));
+            }
+        }
+    }
+    key.push('\0');
+    key.push_str(name);
+    key
+}
+
+/// The digits [`key_of`] writes a path that is not UTF-8 in.
+const HEX: &[u8; 16] = b"0123456789abcdef";
+
+/// The name a program wrote, out of the key [`key_of`] made of it. A
+/// delivery carries this, so `Message->topic` reads the bare name.
+fn bare(key: &str) -> &str {
+    key.split_once('\0').map_or(key, |(_, name)| name)
+}
+
 /// This connection's delivery queue, for the member that is about to put it in
 /// the table or take it out.
 ///
@@ -721,8 +767,9 @@ pub(crate) fn deliver_from_other_cores() {
     // decision, which is why this is not a `for` over an owned `Vec`.
     let drained = crate::bus::take_all();
     for envelope in drained.envelopes() {
+        let name = bare(envelope.topic());
         for inbox in &subscribers_of(envelope.topic()) {
-            queue_into(inbox, envelope.topic(), envelope.payload());
+            queue_into(inbox, name, envelope.payload());
         }
     }
 }
@@ -748,9 +795,20 @@ fn queue_into(inbox: &Inbox, topic: &str, payload: &Arc<[u8]>) -> bool {
 /// runs meets the same fan-out, the same encoding and the same bound as a
 /// connection published to by another. A name the member would refuse reaches
 /// nobody and answers `0`.
+///
+/// `config` is the configuration of the program it feeds. The publish runs
+/// under it, so the topic belongs to that program's application ([`key_of`]).
+/// `None` is a program with no configuration.
 #[must_use]
-pub fn publish_text(topic: &str, text: &str) -> u64 {
+pub fn publish_text(
+    config: Option<Arc<nvs_config::Snapshot>>,
+    topic: &str,
+    text: &str,
+) -> u64 {
     let mut publisher = Ctx::buffered();
+    if let Some(config) = config {
+        publisher.set_config(config);
+    }
     let name = Value::text(topic);
     let payload = Value::text(text);
     let reached = nvs_runtime::call(nvs_core_topic_publish, &mut publisher, &[name, payload]);
@@ -776,7 +834,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_topic_subscribe(ctx, args: [1]) {
         let topic = topic_of(&args[0], "subscribe")?;
         let inbox = connection_inbox(ctx, "subscribe")?;
-        join(topic, &inbox)?;
+        join(&key_of(ctx, topic), &inbox)?;
         Ok(Value::null())
     }
 }
@@ -801,14 +859,15 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_topic_publish(ctx, args: [2]) {
         let topic = topic_of(&args[0], "publish")?;
         let payload = encoded(args[1])?;
+        let key = key_of(ctx, topic);
         let mut delivered: u64 = 0;
-        for inbox in &subscribers_of(topic) {
+        for inbox in &subscribers_of(&key) {
             if queue_into(inbox, topic, &payload) {
                 delivered += 1;
             }
         }
-        if crate::bus::subscribers_elsewhere(topic) > 0 {
-            delivered += crate::bus::hand_off(topic, &payload, ctx.memory_limit());
+        if crate::bus::subscribers_elsewhere(&key) > 0 {
+            delivered += crate::bus::hand_off(&key, &payload, ctx.memory_limit());
         }
         // The last reference this request holds goes back to the balance the
         // buffer was made on.
@@ -828,7 +887,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_topic_unsubscribe(ctx, args: [1]) {
         let topic = topic_of(&args[0], "unsubscribe")?;
         let inbox = connection_inbox(ctx, "unsubscribe")?;
-        leave(topic, &inbox);
+        leave(&key_of(ctx, topic), &inbox);
         Ok(Value::null())
     }
 }
@@ -859,7 +918,7 @@ mod tests {
     /// subscribers and a publish reaching them cannot disagree about which
     /// entries are still alive.
     fn subscriber_count(topic: &str) -> usize {
-        subscribers_of(topic).len()
+        subscribers_of(&super::key_of(&Ctx::buffered(), topic)).len()
     }
 
     /// A peer that says nothing and records the close it was told to send.
@@ -1041,7 +1100,7 @@ mod tests {
         let rows = super::SUBSCRIBERS.with_borrow(|table| {
             table
                 .keys()
-                .filter(|name| name.starts_with("swept:"))
+                .filter(|key| super::bare(key).starts_with("swept:"))
                 .count()
         });
         assert!(
@@ -1662,5 +1721,89 @@ mod tests {
             inbox.overflowed(),
             "a refusal past the bytes closes the subscriber"
         );
+    }
+
+    /// A configuration serving the `[[app]]` block at `app`, at `generation`.
+    fn serving(app: &str, generation: u64) -> Arc<nvs_config::Snapshot> {
+        Arc::new(nvs_config::Snapshot {
+            blocks: vec![std::path::PathBuf::from(app)],
+            generation,
+            ..Default::default()
+        })
+    }
+
+    /// A connection of the application at `app`.
+    fn connected_in(app: &str) -> Ctx {
+        let mut ctx = connected();
+        ctx.set_config(serving(app, 1));
+        ctx
+    }
+
+    /// A publisher that is not a connection, of the application at `app`.
+    fn publisher_in(app: &str, generation: u64) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(serving(app, generation));
+        ctx
+    }
+
+    /// Two applications in one process use one topic name, and a publish from
+    /// each reaches its own subscriber alone. The program reads the bare name.
+    #[test]
+    fn two_applications_with_one_topic_name_do_not_reach_each_other() {
+        let mut shop = connected_in("/srv/shop");
+        let mut blog = connected_in("/srv/blog");
+        call(nvs_core_topic_subscribe, &mut shop, "room:apps").expect("one joins");
+        call(nvs_core_topic_subscribe, &mut blog, "room:apps").expect("and another");
+
+        let mut from_shop = publisher_in("/srv/shop", 1);
+        assert_eq!(publish(&mut from_shop, "room:apps", "for the shop"), Ok(1));
+        drained(&mut shop, "room:apps");
+        assert!(blog.take_delivery().is_none(), "the blog read the shop's topic");
+
+        let mut from_blog = publisher_in("/srv/blog", 1);
+        assert_eq!(publish(&mut from_blog, "room:apps", "for the blog"), Ok(1));
+        drained(&mut blog, "room:apps");
+        assert!(shop.take_delivery().is_none(), "the shop read the blog's topic");
+    }
+
+    /// A connection keeps the unit it opened with, so a publisher of the next
+    /// generation of the same block still reaches it.
+    #[test]
+    fn a_topic_reaches_its_application_across_a_reload() {
+        let mut subscriber = connected_in("/srv/shop");
+        call(nvs_core_topic_subscribe, &mut subscriber, "room:reload").expect("it joins");
+        let mut reloaded = publisher_in("/srv/shop", 2);
+        assert_eq!(publish(&mut reloaded, "room:reload", "after the reload"), Ok(1));
+        drained(&mut subscriber, "room:reload");
+    }
+
+    /// The hand-off between cores carries the application too: a publish on
+    /// one core reaches the subscriber of its application on another, and not
+    /// the subscriber of another application there.
+    #[test]
+    fn a_value_published_on_another_core_reaches_only_its_application() {
+        let (joined, listening) = std::sync::mpsc::channel();
+        let (published, sent) = std::sync::mpsc::channel::<()>();
+        let subscribers = std::thread::spawn(move || {
+            let mut shop = connected_in("/srv/shop");
+            let mut blog = connected_in("/srv/blog");
+            call(nvs_core_topic_subscribe, &mut shop, "room:far-apps").expect("one joins");
+            call(nvs_core_topic_subscribe, &mut blog, "room:far-apps").expect("and another");
+            joined.send(()).expect("the publisher is waiting");
+            sent.recv()
+                .expect("the publisher says when it has published");
+
+            super::deliver_from_other_cores();
+            drained(&mut shop, "room:far-apps");
+            blog.take_delivery().is_none()
+        });
+
+        listening.recv().expect("the subscribers have joined");
+        let mut from_shop = publisher_in("/srv/shop", 1);
+        let reached = publish(&mut from_shop, "room:far-apps", "for the shop");
+        published.send(()).expect("the subscribers are waiting");
+        let blog_missed = subscribers.join().expect("the subscribers finished");
+        assert_eq!(reached, Ok(1), "only the shop's subscriber is counted");
+        assert!(blog_missed, "the blog read the shop's topic on another core");
     }
 }

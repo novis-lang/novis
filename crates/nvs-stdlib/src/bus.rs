@@ -5,7 +5,8 @@
 //! [`crate::topic`] owns the bus a program sees: the per-core subscriber table,
 //! `Core\Topic`'s three members, and the bytes each subscriber is handed. This module is
 //! the transport underneath it and knows nothing about either. What crosses a
-//! core boundary here is a topic's **name** and the **bytes**
+//! core boundary here is a topic's **key**, which `crate::topic` makes of the
+//! application and the name and this module only compares, and the **bytes**
 //! `rule:classes/graph-copy`'s
 //! [`nvs_runtime::encode`] made of the published value — never a
 //! [`nvs_runtime::Value`], which is refcounted on the core that made it, so a
