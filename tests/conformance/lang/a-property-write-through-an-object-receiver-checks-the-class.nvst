@@ -47,10 +47,10 @@ echo Holder::write($h, "mode", Mode::Write), "\n";
 --EXPECT--
 written
 written
-`Holder` declares field `shape` as `?Shape`, so an object of class `Holder` cannot be written to it
-`Holder` declares field `shape` as `?Shape`, so an int cannot be written to it
+`Holder` declares property `shape` as `?Shape`, so an object of class `Holder` cannot be written to it
+`Holder` declares property `shape` as `?Shape`, so an int cannot be written to it
 written
-`Holder` declares field `circle` as `Circle`, so an object of class `Square` cannot be written to it
+`Holder` declares property `circle` as `Circle`, so an object of class `Square` cannot be written to it
 written
-`Holder` declares field `either` as `Circle|Square|null`, so an object of class `Holder` cannot be written to it
+`Holder` declares property `either` as `Circle|Square|null`, so an object of class `Holder` cannot be written to it
 written

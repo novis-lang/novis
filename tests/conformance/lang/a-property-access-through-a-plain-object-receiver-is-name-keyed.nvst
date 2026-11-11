@@ -82,6 +82,6 @@ echo Erased::missingWrite($point), "\n";
 wrote
 left
 right 0
-`Erased` declares field `count` as int, so a string cannot be written to it
+`Erased` declares property `count` as `int`, so a string cannot be written to it
 `Erased` has no field `nope`
 `$shape{label,x}` has no field `nope`

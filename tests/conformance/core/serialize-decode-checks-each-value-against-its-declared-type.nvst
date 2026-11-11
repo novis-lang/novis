@@ -109,9 +109,9 @@ bytes $raw = Core\Serialize::encode(Core\Bytes::fill(2, 255));
 Forge::decode($raw);
 Forge::decode(Forge::change($raw, 5, Core\Bytes::fill(1, 6)));
 --EXPECT--
-Core\Serialize::decode(): `Box` declares field `size` as int, so a string cannot be written to it
-Core\Serialize::decode(): `Home` declares field `pet` as `Dog`, so an object of class `Cat` cannot be written to it
+Core\Serialize::decode(): `Box` declares property `size` as `int`, so a string cannot be written to it
+Core\Serialize::decode(): `Home` declares property `pet` as `Dog`, so an object of class `Cat` cannot be written to it
 decoded
-Core\Serialize::decode(): `Pack` declares field `pets` as `array<Dog>`, so an array holding an object of class `Cat` cannot be written to it
+Core\Serialize::decode(): `Pack` declares property `pets` as `array<Dog>`, so an array holding an object of class `Cat` cannot be written to it
 decoded
 Core\Serialize::decode(): a `string` node is not UTF-8

@@ -55,4 +55,4 @@ echo Move::widen(new Count()), "\n";
 5 2
 5 9
 a right
-`Count` declares field `n` as int, so a string cannot be written to it
+`Count` declares property `n` as `int`, so a string cannot be written to it

@@ -1764,7 +1764,7 @@ mod tests {
             (
                 "a wrong scalar",
                 owner(Value::text("two"), "Dog", "Dog"),
-                "field `count` as int",
+                "property `count` as `int`",
             ),
             (
                 "an object of the wrong class",

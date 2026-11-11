@@ -52,11 +52,11 @@ echo $n->pet->legs, " ", $n->pets[1]->legs, " ", $n->home->pet->legs, "\n";
 written
 field `pet` of an anonymous object is an object of class `Puppy`, so an object of class `Animal` cannot be written to it
 field `pet` of an anonymous object is an object of class `Puppy`, so an object of class `Animal` cannot be written to it
-`$shape{home,pet,pets,tag}` declares field `pet` as object, so a null cannot be written to it
+field `pet` of an anonymous object has the type `object`, so `null` cannot be written to it
 written
 field `pets` of an anonymous object is an array, so an array holding an object of class `Animal` cannot be written to it
 written
-field `home` of an anonymous object is an object of class `$shape{pet}`, so an object whose `pet` is an object of class `Animal` cannot be written to it
+field `home` of an anonymous object is an anonymous object, so an object whose `pet` is an object of class `Animal` cannot be written to it
 written
-field `tag` of an anonymous object is a null, so a string cannot be written to it
+field `tag` of an anonymous object is `null`, so a string cannot be written to it
 4 4 4

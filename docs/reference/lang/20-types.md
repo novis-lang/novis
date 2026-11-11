@@ -3167,7 +3167,7 @@ try {
 an int
 null
 `"password"` is not one of `User`'s public declared properties: `$age`, `$email`
-`User` declares field `age` as int, so a string cannot be written to it
+`User` declares property `age` as `int`, so a string cannot be written to it
 ```
 
 ## Example 06: a parent key on a child object

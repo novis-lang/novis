@@ -52,17 +52,17 @@ Dog $d = $k->dogs[1];
 echo $d->legs, " ", $k->home->pet->legs, " ", Core\Arr::count($k->dogs), "\n";
 --EXPECT--
 written
-`Kennel` declares field `dogs` as `array<Dog>`, so an array holding an object of class `Animal` cannot be written to it
-`Kennel` declares field `dogs` as `array<Dog>`, so an array holding a string cannot be written to it
+`Kennel` declares property `dogs` as `array<Dog>`, so an array holding an object of class `Animal` cannot be written to it
+`Kennel` declares property `dogs` as `array<Dog>`, so an array holding a string cannot be written to it
 written
-`Kennel` declares field `home` as `{pet: Dog}`, so an object whose `pet` is an object of class `Animal` cannot be written to it
-`Kennel` declares field `home` as `{pet: Dog}`, so an object with no field `pet` cannot be written to it
+`Kennel` declares property `home` as `{pet: Dog}`, so an object whose `pet` is an object of class `Animal` cannot be written to it
+`Kennel` declares property `home` as `{pet: Dog}`, so an object with no field `pet` cannot be written to it
 written
 written
-`Kennel` declares field `either` as `int|Dog`, so an object of class `Animal` cannot be written to it
-`Kennel` declares field `either` as `int|Dog`, so a string cannot be written to it
+`Kennel` declares property `either` as `int|Dog`, so an object of class `Animal` cannot be written to it
+`Kennel` declares property `either` as `int|Dog`, so a string cannot be written to it
 written
-`Kennel` declares field `count` as `?int`, so a float cannot be written to it
+`Kennel` declares property `count` as `?int`, so a float cannot be written to it
 written
-`Kennel` declares field `spare` as `?array<Dog>`, so an array holding an object of class `Animal` cannot be written to it
+`Kennel` declares property `spare` as `?array<Dog>`, so an array holding an object of class `Animal` cannot be written to it
 4 4 2

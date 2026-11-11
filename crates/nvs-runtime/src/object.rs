@@ -1733,29 +1733,43 @@ impl ClassDesc {
             Ok(()) => return Ok(()),
             Err(refused) => refused,
         };
-        let class = self.name();
-        Err(match refused {
-            Mismatch::Tag { declared, actual } => format!(
-                "`{class}` declares field `{name}` as {}, so a {} cannot be written to it",
-                declared.describe(),
-                actual.map_or("malformed value", Tag::describe)
+        // The declared type as the source wrote it, where the class recorded
+        // it. Otherwise the tag or the admitted classes say what they can.
+        let (declared, written) = match refused {
+            Mismatch::Tag { declared } => (
+                self.field_type(index).map_or_else(
+                    || format!("`{}`", declared.describe()),
+                    |ty| format!("`{ty}`"),
+                ),
+                describe_written(value),
             ),
-            Mismatch::Class(written) => {
-                let declared = self
-                    .field_type(index)
-                    .map_or_else(|| classes.unwrap_or_default().join("|"), str::to_owned);
+            Mismatch::Class(written) => (
                 format!(
-                    "`{class}` declares field `{name}` as `{declared}`, so {written} cannot be \
-                     written to it"
-                )
-            }
-            Mismatch::Rest(written) => {
-                let declared = self.field_type(index).unwrap_or("its declared type");
-                format!(
-                    "`{class}` declares field `{name}` as `{declared}`, so {written} cannot be \
-                     written to it"
-                )
-            }
+                    "`{}`",
+                    self.field_type(index)
+                        .map_or_else(|| classes.unwrap_or_default().join("|"), str::to_owned)
+                ),
+                written,
+            ),
+            Mismatch::Rest(written) => (
+                self.field_type(index)
+                    .map_or_else(|| "its declared type".to_owned(), |ty| format!("`{ty}`")),
+                written,
+            ),
+        };
+        // An anonymous object's class name is internal, and its members are
+        // fields (`rule:types/erased-member-access`).
+        Err(if self.is_shape() {
+            format!(
+                "field `{name}` of an anonymous object has the type {declared}, so {written} \
+                 cannot be written to it"
+            )
+        } else {
+            format!(
+                "`{}` declares property `{name}` as {declared}, so {written} cannot be written \
+                 to it",
+                self.name()
+            )
         })
     }
 
@@ -6237,9 +6251,9 @@ fn guard_erased_write(
 /// Which step of [`check_declared`] refused a value, and what to say about it.
 #[derive(Debug)]
 pub(crate) enum Mismatch {
-    /// The value's tag is not the declared one. `actual` is `None` for a byte
-    /// that denotes no representation.
-    Tag { declared: Tag, actual: Option<Tag> },
+    /// The value's tag, or a byte that denotes no representation, is not the
+    /// declared one.
+    Tag { declared: Tag },
     /// The value is neither `null` nor an object of an admitted class. The
     /// text describes the value.
     Class(String),
@@ -6267,11 +6281,10 @@ pub(crate) fn check_declared(
     check: Option<&SlotCheck>,
     value: Value,
 ) -> Result<(), Mismatch> {
-    if let Some(declared) = tag {
-        let actual = value.exact_tag();
-        if actual != Some(declared) {
-            return Err(Mismatch::Tag { declared, actual });
-        }
+    if let Some(declared) = tag
+        && value.exact_tag() != Some(declared)
+    {
+        return Err(Mismatch::Tag { declared });
     }
     // The tag cannot tell one class from another, so a type declared as
     // classes also checks the object's own class. Anything else that is not
@@ -6284,7 +6297,7 @@ pub(crate) fn check_declared(
                 .iter()
                 .any(|label| class.conforms_to_name(label))
                 .then_some(())
-                .ok_or_else(|| format!("an object of class `{}`", class.name()))
+                .ok_or_else(|| describe_object(class))
         }) {
             Some(Ok(())) => {}
             Some(Err(written)) => return Err(Mismatch::Class(written)),
@@ -6537,12 +6550,26 @@ fn same_shape(current: Value, value: Value, seen: &mut Vec<(usize, usize)>) -> R
     Ok(())
 }
 
-/// "an object of class `Animal`" or "a string": what a refused write names.
-pub(crate) fn describe_written(value: Value) -> String {
-    with_class(value, |class| {
+/// "an object of class `Animal`", "a function" for an anonymous function or a
+/// method reference, or "an anonymous object". A program never wrote the class
+/// name of the last two.
+pub(crate) fn describe_object(class: &ClassDesc) -> String {
+    if class.is_callable() {
+        "a function".to_owned()
+    } else if class.is_shape() {
+        "an anonymous object".to_owned()
+    } else {
         format!("an object of class `{}`", class.name())
-    })
-    .unwrap_or_else(|| {
+    }
+}
+
+/// "an object of class `Animal`", "`null`" or "a string": what a refused
+/// write names.
+pub(crate) fn describe_written(value: Value) -> String {
+    with_class(value, describe_object).unwrap_or_else(|| {
+        if value.tag() == Some(Tag::Null) {
+            return "`null`".to_owned();
+        }
         let tag = value.tag().map_or("malformed value", Tag::describe);
         if tag.starts_with("an ") {
             tag.to_owned()
@@ -6615,10 +6642,7 @@ fn covariant_rejected(desc: &ClassDesc, index: usize, name: &str, value: Value) 
 /// What `value` is, for a message a program reads: "an object of class `Cat`",
 /// "`null`", or "a value of type `string`".
 pub(crate) fn describe_argument(value: Value) -> String {
-    with_class(value, |class| {
-        format!("an object of class `{}`", class.name())
-    })
-    .unwrap_or_else(|| match value.tag() {
+    with_class(value, describe_object).unwrap_or_else(|| match value.tag() {
         Some(Tag::Null) => "`null`".to_owned(),
         Some(tag) => format!("a value of type `{}`", tag.describe()),
         None => "a malformed value".to_owned(),
