@@ -783,6 +783,27 @@ pub struct MethodRow {
     /// caller reaching this table without a class in hand refuses on, rather
     /// than a shape it could believe.
     pub native: bool,
+    /// The labels of the classes an object argument must conform to, per
+    /// declared parameter, or `None` where the type is not only classes and
+    /// `null`. [`ClassDesc::field_classes`]' twin for a parameter.
+    ///
+    /// Either [`Self::arity`] long or **empty**, where empty means nothing
+    /// told this row, so a call by name checks the tags alone.
+    pub param_classes: Vec<Option<Vec<String>>>,
+    /// The rest of each declared parameter's type, or `None` where the tag and
+    /// [`Self::param_classes`] already check all of it — on
+    /// [`Self::param_classes`]' terms, and [`ClassDesc::field_checks`]' twin.
+    ///
+    /// **Cost:** with [`Self::param_classes`], two vectors per method per
+    /// class, once per process. A call by name pays one class walk per
+    /// class-typed argument and one element walk per typed-array argument.
+    pub param_checks: Vec<Option<SlotCheck>>,
+    /// Whether the method is `static`. A call by name on an object refuses a
+    /// static row, and an isolate's entry refuses a row that is not static.
+    pub is_static: bool,
+    /// Whether a parameter is declared `inout`. A call by name has no variable
+    /// to write back to, so it refuses such a row.
+    pub by_reference: bool,
 }
 
 /// One property hook's compiled address and the shape a caller holding only
@@ -1702,35 +1723,40 @@ impl ClassDesc {
     ///
     /// The sentence above, when `value` does not fit.
     pub fn check_slot(&self, index: usize, name: &str, value: Value) -> Result<(), String> {
-        if let Some(declared) = self.field_tag(index) {
-            let actual = value.exact_tag();
-            if actual != Some(declared) {
-                return Err(format!(
-                    "`{}` declares field `{name}` as {}, so a {} cannot be written to it",
-                    self.name(),
-                    declared.describe(),
-                    actual.map_or("malformed value", Tag::describe)
-                ));
+        let classes = self.field_classes(index);
+        let refused = match check_declared(
+            self.field_tag(index),
+            classes,
+            self.field_check(index),
+            value,
+        ) {
+            Ok(()) => return Ok(()),
+            Err(refused) => refused,
+        };
+        let class = self.name();
+        Err(match refused {
+            Mismatch::Tag { declared, actual } => format!(
+                "`{class}` declares field `{name}` as {}, so a {} cannot be written to it",
+                declared.describe(),
+                actual.map_or("malformed value", Tag::describe)
+            ),
+            Mismatch::Class(written) => {
+                let declared = self
+                    .field_type(index)
+                    .map_or_else(|| classes.unwrap_or_default().join("|"), str::to_owned);
+                format!(
+                    "`{class}` declares field `{name}` as `{declared}`, so {written} cannot be \
+                     written to it"
+                )
             }
-        }
-        // The tag cannot tell one class from another, so a slot declared as
-        // classes also checks the object's own class. Anything else that is not
-        // `null` is refused here too: a `?Node` slot has no single tag to check.
-        if let Some(admitted) = self.field_classes(index) {
-            check_admitted_class(self, index, name, admitted, value)?;
-        }
-        // An array's elements, a shape's fields and a union's arms are not in the
-        // tag at all, and a typed read trusts every one of them.
-        if let Some(check) = self.field_check(index)
-            && let Err(written) = check.admits(value)
-        {
-            let declared = self.field_type(index).unwrap_or("its declared type");
-            return Err(format!(
-                "`{}` declares field `{name}` as `{declared}`, so {written} cannot be written to it",
-                self.name()
-            ));
-        }
-        Ok(())
+            Mismatch::Rest(written) => {
+                let declared = self.field_type(index).unwrap_or("its declared type");
+                format!(
+                    "`{class}` declares field `{name}` as `{declared}`, so {written} cannot be \
+                     written to it"
+                )
+            }
+        })
     }
 
     /// Whether an ancestor that declares slot `index` takes `value`, which
@@ -6192,44 +6218,69 @@ fn guard_erased_write(
     Ok(())
 }
 
-/// Refuses `value` for field `name`, at `slot` of `desc`, unless it is `null` or an object
-/// whose class conforms to one of `admitted` — [`ClassDesc::field_classes`]'
-/// check, made by [`ClassDesc::check_slot`] after the tag check.
+/// Which step of [`check_declared`] refused a value, and what to say about it.
+#[derive(Debug)]
+pub(crate) enum Mismatch {
+    /// The value's tag is not the declared one. `actual` is `None` for a byte
+    /// that denotes no representation.
+    Tag { declared: Tag, actual: Option<Tag> },
+    /// The value is neither `null` nor an object of an admitted class. The
+    /// text describes the value.
+    Class(String),
+    /// The rest of the type refused the value. The text describes the part of
+    /// the value that does not pass.
+    Rest(String),
+}
+
+/// `Ok` when `value` fits a declared type given as its one tag, the classes
+/// it admits and the rest of the type: a property slot's
+/// ([`ClassDesc::check_slot`]) or a parameter's ([`MethodRow::param_classes`]).
+/// A `None` step checks nothing.
 ///
-/// `null` passes here because a slot that does not admit it has the single
-/// tag [`Tag::Object`], which the tag check has already compared.
-fn check_admitted_class(
-    desc: &ClassDesc,
-    slot: usize,
-    name: &str,
-    admitted: &[String],
+/// The steps run in that order. The class step passes `null`, because a type
+/// that does not admit it has the single tag [`Tag::Object`]. Each refusal is
+/// described here and worded by the caller, so a value that passes allocates
+/// nothing.
+///
+/// # Errors
+///
+/// The step that refused the value, as a [`Mismatch`].
+pub(crate) fn check_declared(
+    tag: Option<Tag>,
+    classes: Option<&[String]>,
+    check: Option<&SlotCheck>,
     value: Value,
-) -> Result<(), String> {
-    if value.tag() == Some(Tag::Null) {
-        return Ok(());
-    }
-    let written = match value.obj_ptr() {
-        Some(ptr) if !ptr.is_null() => {
-            #[expect(
-                unsafe_code,
-                reason = "the caller owns a reference to this value, so the \
-                          object is live and its descriptor is too"
-            )]
-            let class = unsafe { &*NvsObj::class_of(ptr) };
-            if admitted.iter().any(|label| class.conforms_to_name(label)) {
-                return Ok(());
-            }
-            format!("an object of class `{}`", class.name())
+) -> Result<(), Mismatch> {
+    if let Some(declared) = tag {
+        let actual = value.exact_tag();
+        if actual != Some(declared) {
+            return Err(Mismatch::Tag { declared, actual });
         }
-        _ => describe_written(value),
-    };
-    let declared = desc
-        .field_type(slot)
-        .map_or_else(|| admitted.join("|"), str::to_owned);
-    Err(format!(
-        "`{}` declares field `{name}` as `{declared}`, so {written} cannot be written to it",
-        desc.name()
-    ))
+    }
+    // The tag cannot tell one class from another, so a type declared as
+    // classes also checks the object's own class. Anything else that is not
+    // `null` is refused here too: a `?Node` has no single tag to check.
+    if let Some(admitted) = classes
+        && value.tag() != Some(Tag::Null)
+    {
+        match with_class(value, |class| {
+            admitted
+                .iter()
+                .any(|label| class.conforms_to_name(label))
+                .then_some(())
+                .ok_or_else(|| format!("an object of class `{}`", class.name()))
+        }) {
+            Some(Ok(())) => {}
+            Some(Err(written)) => return Err(Mismatch::Class(written)),
+            None => return Err(Mismatch::Class(describe_written(value))),
+        }
+    }
+    // An array's elements, a shape's fields and a union's arms are not in the
+    // tag at all, and a typed read trusts every one of them.
+    if let Some(check) = check {
+        check.admits(value).map_err(Mismatch::Rest)?;
+    }
+    Ok(())
 }
 
 /// A field slot's declared type in run-time terms — [`ClassDesc::field_checks`].
@@ -6615,6 +6666,10 @@ mod tests {
             public: true,
             protected: false,
             native: false,
+            param_classes: Vec::new(),
+            param_checks: Vec::new(),
+            is_static: false,
+            by_reference: false,
         }
     }
 
@@ -6872,6 +6927,10 @@ mod tests {
                     public: true,
                     protected: false,
                     native: false,
+                    param_classes: Vec::new(),
+                    param_checks: Vec::new(),
+                    is_static: false,
+                    by_reference: false,
                 },
                 // The superclass's own `greet`, appended after it exactly as
                 // `nvs_types::layout` flattens a chain — the override wins.
@@ -6885,6 +6944,10 @@ mod tests {
                     public: false,
                     protected: false,
                     native: false,
+                    param_classes: Vec::new(),
+                    param_checks: Vec::new(),
+                    is_static: false,
+                    by_reference: false,
                 },
                 MethodRow {
                     name: "hidden".to_owned(),
@@ -6896,6 +6959,10 @@ mod tests {
                     public: false,
                     protected: false,
                     native: false,
+                    param_classes: Vec::new(),
+                    param_checks: Vec::new(),
+                    is_static: false,
+                    by_reference: false,
                 },
             ],
         );
@@ -7872,6 +7939,281 @@ mod tests {
             vec![Some(Tag::Null)],
             "the unwind was entered once, and found no freed local"
         );
+        assert_eq!(ctx.live_objects(), 0);
+        drop(current);
+    }
+
+    // -----------------------------------------------------------------------
+    // A call by name checks each argument (`rule:types/erased-member-access`)
+    // -----------------------------------------------------------------------
+
+    /// A compiled method that takes its arguments and returns `null`. It
+    /// releases the receiver, which is the one counted value every call here
+    /// passes it.
+    #[expect(
+        unsafe_code,
+        reason = "the dispatch hands this the receiver it retained in argument 0"
+    )]
+    unsafe extern "C" fn takes_anything(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        #[expect(unsafe_code, reason = "argument 0 and `out` are the caller's")]
+        unsafe {
+            (*args).release();
+            out.write(Value::null());
+        }
+        crate::abi::OK
+    }
+
+    /// One row of `takes_anything`, one parameter, whose tag step admits
+    /// anything, so what refuses is the class or the rest of the type.
+    fn typed_row(
+        name: &str,
+        classes: Option<Vec<String>>,
+        check: Option<SlotCheck>,
+        declared: &str,
+    ) -> MethodRow {
+        MethodRow {
+            arity: 1,
+            param_tags: u64::from(crate::callable::CALLABLE_PARAM_TAG_ANY),
+            param_names: vec!["value".to_owned()],
+            param_types: vec![declared.to_owned()],
+            param_classes: vec![classes],
+            param_checks: vec![check],
+            ..row(name, (takes_anything as crate::NvsFn) as *const u8)
+        }
+    }
+
+    /// `Spot`, `Other` and `Holder`, whose methods each take one typed
+    /// parameter, installed on a fresh context the way a compiled unit is.
+    fn typed_ctx() -> Ctx {
+        let spot = || Some(vec!["Spot".to_owned()]);
+        let mut table = ClassTable::new();
+        let id = table.define("Spot", &[] as &[&str], &[]);
+        table.define("Other", &[] as &[&str], &[]);
+        let holder = table.define("Holder", &[] as &[&str], &[]);
+        let ints = Some(SlotCheck::Array(Box::new(SlotCheck::Tag(Tag::Int))));
+        table.set_methods(
+            holder,
+            vec![
+                typed_row("put", spot(), None, "Spot"),
+                typed_row("maybe", spot(), None, "?Spot"),
+                typed_row(
+                    "spots",
+                    None,
+                    Some(SlotCheck::Array(Box::new(SlotCheck::Class(
+                        "Spot".to_owned(),
+                    )))),
+                    "array<Spot>",
+                ),
+                typed_row("rest", None, ints, "int"),
+                typed_row(
+                    "rank",
+                    None,
+                    Some(SlotCheck::Values(Tag::EnumInt, vec![1, 7])),
+                    "Rank",
+                ),
+                MethodRow {
+                    is_static: true,
+                    ..typed_row("make", spot(), None, "Spot")
+                },
+                MethodRow {
+                    by_reference: true,
+                    ..typed_row("swap", None, None, "int")
+                },
+                typed_row(CONSTRUCTOR, spot(), None, "Spot"),
+            ],
+        );
+        let mut ctx = Ctx::new(crate::ctx::OutputSink::Sink);
+        ctx.set_runtime_error_class(crate::ErrorClass::new(std::sync::Arc::new(table), id));
+        ctx
+    }
+
+    /// A new instance of `class`, which `ctx` holds.
+    fn instance_of(ctx: &Ctx, class: &str) -> Value {
+        let desc = ctx.class_desc(class).expect("the fixture declares it");
+        #[expect(unsafe_code, reason = "the context keeps the table alive")]
+        Value::object(unsafe { NvsObj::new(desc) })
+    }
+
+    /// An array holding `items`.
+    fn array_of(items: &[Value]) -> Value {
+        let mut array = NvsArray::new();
+        for &item in items {
+            array.append(item);
+        }
+        Value::array(array)
+    }
+
+    /// The message of a `LogicError`, or a panic naming what came instead.
+    fn logic_message(result: Result<Value, crate::abi::Fault>) -> String {
+        match result {
+            Err(crate::abi::Fault::Thrown(crate::ThrownClass::Logic, message)) => {
+                message.into_owned()
+            }
+            Err(other) => panic!("expected a `LogicError`, got {other:?}"),
+            Ok(_) => panic!("expected a `LogicError`, and the call ran"),
+        }
+    }
+
+    #[test]
+    fn a_call_by_name_refuses_an_argument_its_parameter_does_not_admit() {
+        let mut ctx = typed_ctx();
+        let current = crate::ctx::CurrentCtx::install(&mut ctx);
+        let ctx = &mut ctx;
+        let holder = instance_of(ctx, "Holder");
+        let other = instance_of(ctx, "Other");
+        let spot = instance_of(ctx, "Spot");
+        let wrong_element = array_of(&[Value::int(1)]);
+        let wrong_rest = array_of(&[Value::int(1), Value::null()]);
+        let cases = [
+            (
+                "put",
+                other,
+                "argument 1 to `Holder::put` must be of type `Spot`, an object of class `Other` given",
+            ),
+            (
+                "maybe",
+                other,
+                "must be of type `?Spot`, an object of class `Other` given",
+            ),
+            (
+                "spots",
+                wrong_element,
+                "must be of type `array<Spot>`, an array holding",
+            ),
+            (
+                "rest",
+                wrong_rest,
+                "must be of type `int`, an array holding",
+            ),
+            ("rank", Value::enum_int(3), "must be of type `Rank`"),
+        ];
+        for (method, argument, expected) in cases {
+            let message = logic_message(crate::dispatch::call_erased_method(
+                ctx,
+                holder,
+                method,
+                &[argument],
+            ));
+            assert!(message.contains(expected), "`{method}`: {message}");
+        }
+        // What the parameter admits still reaches the method.
+        for (method, argument) in [
+            ("put", spot),
+            ("maybe", Value::null()),
+            ("rest", array_of(&[Value::int(1), Value::int(2)])),
+            ("rank", Value::enum_int(7)),
+        ] {
+            let answer = crate::dispatch::call_erased_method(ctx, holder, method, &[argument]);
+            assert!(
+                answer.is_ok(),
+                "`{method}` refused what it admits: {answer:?}"
+            );
+            if method == "rest" {
+                #[expect(unsafe_code, reason = "this frame made the array")]
+                unsafe {
+                    argument.release();
+                }
+            }
+        }
+        #[expect(unsafe_code, reason = "this frame made each of these")]
+        unsafe {
+            for value in [holder, other, spot, wrong_element, wrong_rest] {
+                value.release();
+            }
+        }
+        drop(current);
+    }
+
+    #[test]
+    fn a_static_method_is_refused_by_name() {
+        let mut ctx = typed_ctx();
+        let current = crate::ctx::CurrentCtx::install(&mut ctx);
+        let ctx = &mut ctx;
+        let holder = instance_of(ctx, "Holder");
+        let spot = instance_of(ctx, "Spot");
+        let message = logic_message(crate::dispatch::call_erased_method(
+            ctx,
+            holder,
+            "make",
+            &[spot],
+        ));
+        assert!(message.contains("is a `static` method"), "{message}");
+        #[expect(unsafe_code, reason = "this frame made both")]
+        unsafe {
+            holder.release();
+            spot.release();
+        }
+        drop(current);
+    }
+
+    #[test]
+    fn a_by_reference_parameter_is_refused_by_name() {
+        let mut ctx = typed_ctx();
+        let current = crate::ctx::CurrentCtx::install(&mut ctx);
+        let ctx = &mut ctx;
+        let holder = instance_of(ctx, "Holder");
+        let message = logic_message(crate::dispatch::call_erased_method(
+            ctx,
+            holder,
+            "swap",
+            &[Value::int(1)],
+        ));
+        assert!(message.contains("takes an `inout` parameter"), "{message}");
+        #[expect(unsafe_code, reason = "this frame made it")]
+        unsafe {
+            holder.release();
+        }
+        drop(current);
+    }
+
+    #[test]
+    fn an_isolate_entry_refuses_an_argument_its_parameter_does_not_admit() {
+        let mut ctx = typed_ctx();
+        let current = crate::ctx::CurrentCtx::install(&mut ctx);
+        let ctx = &mut ctx;
+        let other = instance_of(ctx, "Other");
+        let entry = crate::dispatch::call_static_bound(ctx, "Holder::make", &mut [other])
+            .map(|answer| answer.unwrap_or_else(Value::null));
+        let message = logic_message(entry);
+        assert!(
+            message.contains("an object of class `Other` given"),
+            "{message}"
+        );
+        // A method that is not `static` is no entry at all.
+        let entry = crate::dispatch::call_static_bound(ctx, "Holder::put", &mut [other])
+            .map(|answer| answer.unwrap_or_else(Value::null));
+        let message = logic_message(entry);
+        assert!(message.contains("is not a `static` method"), "{message}");
+        #[expect(unsafe_code, reason = "this frame made it")]
+        unsafe {
+            other.release();
+        }
+        drop(current);
+    }
+
+    #[test]
+    fn construct_checks_its_arguments_as_call_does() {
+        let mut ctx = typed_ctx();
+        let current = crate::ctx::CurrentCtx::install(&mut ctx);
+        let ctx = &mut ctx;
+        let other = instance_of(ctx, "Other");
+        let holder = ctx.class_desc("Holder").expect("the fixture declares it");
+        #[expect(unsafe_code, reason = "the context keeps the table alive")]
+        let built = unsafe { crate::dispatch::construct_erased_from(ctx, holder, &[other], None) };
+        let message = logic_message(built);
+        assert!(
+            message.contains("argument 1 to `Holder::constructor` must be of type `Spot`"),
+            "{message}"
+        );
+        #[expect(unsafe_code, reason = "this frame made it")]
+        unsafe {
+            other.release();
+        }
+        // The refused construction released the instance it allocated.
         assert_eq!(ctx.live_objects(), 0);
         drop(current);
     }

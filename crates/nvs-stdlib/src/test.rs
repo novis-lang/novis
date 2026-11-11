@@ -4530,6 +4530,10 @@ pub(crate) fn descriptor_for(
             // `nvs_ir::ir::InstKind::CallVirtual`, which transfers its
             // arguments — this module's *the rows are not native*.
             native: false,
+            param_classes: Vec::new(),
+            param_checks: Vec::new(),
+            is_static: false,
+            by_reference: false,
         });
     }
     #[expect(
@@ -6011,6 +6015,10 @@ mod tests {
                 public: true,
                 protected: false,
                 native: false,
+                param_classes: Vec::new(),
+                param_checks: Vec::new(),
+                is_static: false,
+                by_reference: false,
             }],
         );
         table.set_callable(id);
@@ -6191,6 +6199,10 @@ mod tests {
                 public: true,
                 protected: false,
                 native: false,
+                param_classes: Vec::new(),
+                param_checks: Vec::new(),
+                is_static: false,
+                by_reference: false,
             }
         }
 
@@ -7923,6 +7935,10 @@ mod tests {
                 public: true,
                 protected: false,
                 native: false,
+                param_classes: Vec::new(),
+                param_checks: Vec::new(),
+                is_static: false,
+                by_reference: false,
             }],
         );
         table.set_callable(id);

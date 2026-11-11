@@ -1209,7 +1209,7 @@ impl Descriptors {
                     function.name.clone(),
                     (
                         function_symbol(index, &function.name),
-                        MethodShape::of(&function.params),
+                        MethodShape::of_function(function),
                     ),
                 )
             })
@@ -1283,6 +1283,10 @@ impl Descriptors {
                             // Every row here is a compiled Novis function, for the
                             // reason its JIT counterpart gives.
                             native: false,
+                            param_classes: shape.param_classes.clone(),
+                            param_checks: shape.param_checks.clone(),
+                            is_static: shape.is_static,
+                            by_reference: shape.by_reference,
                         })
                     },
                 )
@@ -1337,7 +1341,7 @@ impl Descriptors {
         let shapes = self
             .functions
             .iter()
-            .map(|(label, (_, shape))| (label.clone(), *shape))
+            .map(|(label, (_, shape))| (label.clone(), shape.clone()))
             .collect();
         self.classes.table.keep_code(Arc::new(code));
         Unit {
@@ -1485,17 +1489,26 @@ struct Classes {
 }
 
 /// One compiled function's declared shape, as
-/// `nvs_runtime::MethodRow` carries it: how many parameters it takes and which
-/// runtime tag each one requires.
+/// `nvs_runtime::MethodRow` carries it: how many parameters it takes, which
+/// runtime tag each one requires, the rest of each one's type, and whether the
+/// function is `static` or takes an `inout` parameter.
 ///
 /// The receiver is subtracted here and nowhere else. `nvs_ir::ir::Function`'s
 /// parameter 0 is the implicit `$this` (that field's own doc comment), while a
 /// row describes what a *call site* writes — so a caller compares its argument
 /// count against this and fills the callee's slots from 1.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct MethodShape {
     arity: u32,
     param_tags: u64,
+    /// `nvs_ir::ir::ParamChecks::classes`, verbatim.
+    param_classes: Vec<Option<Vec<String>>>,
+    /// `nvs_ir::ir::ParamChecks::checks`, in the runtime's terms.
+    param_checks: Vec<Option<nvs_runtime::SlotCheck>>,
+    /// Parameter 0 carries the called class rather than a receiver.
+    is_static: bool,
+    /// A declared parameter is a `Ty::Ref`, which an `inout` one is.
+    by_reference: bool,
 }
 
 impl MethodShape {
@@ -1509,7 +1522,31 @@ impl MethodShape {
         Self {
             arity: u32::try_from(declared.len()).unwrap_or(u32::MAX),
             param_tags: nvs_ir::lower::pack_param_tags(declared.iter().copied()),
+            param_classes: Vec::new(),
+            param_checks: Vec::new(),
+            is_static: matches!(params.first(), Some(nvs_ir::Ty::ClassDesc)),
+            by_reference: declared.contains(&nvs_ir::Ty::Ref),
         }
+    }
+
+    /// [`Self::of`] over `function`'s parameters, with each parameter's
+    /// classes and check from `nvs_ir::ir::Function::param_checks`.
+    ///
+    /// The lists are kept only when they are as long as the arity, which is
+    /// the row's own terms: an empty list means nothing told the row.
+    fn of_function(function: &nvs_ir::Function) -> Self {
+        let mut shape = Self::of(&function.params);
+        let checks = &function.param_checks;
+        let arity = shape.arity as usize;
+        if checks.classes.len() == arity && checks.checks.len() == arity && arity > 0 {
+            shape.param_classes.clone_from(&checks.classes);
+            shape.param_checks = checks
+                .checks
+                .iter()
+                .map(|check| check.as_ref().map(runtime_slot_check))
+                .collect();
+        }
+        shape
     }
 }
 
@@ -2461,7 +2498,7 @@ impl<M: Module> UnitBuilder<M> {
                 })?;
             self.functions.insert(function.name.clone(), id);
             self.shapes
-                .insert(function.name.clone(), MethodShape::of(&function.params));
+                .insert(function.name.clone(), MethodShape::of_function(function));
             if let Some(slots) = &function.debug_slots {
                 self.debug_slots
                     .insert(function.name.clone(), slots.clone());
@@ -2682,7 +2719,7 @@ impl UnitBuilder<JITModule> {
                         // The shape is recorded under the very label the address
                         // is, in the one pass that saw the function, so the two
                         // halves of a row cannot describe two different callees.
-                        let shape = self.shapes.get(&label).copied().unwrap_or_default();
+                        let shape = self.shapes.get(&label).cloned().unwrap_or_default();
                         Some(nvs_runtime::MethodRow {
                             name: method.clone(),
                             code: self.module.get_finalized_function(*id),
@@ -2697,6 +2734,10 @@ impl UnitBuilder<JITModule> {
                             // owns its parameters — `nvs-stdlib` is the only
                             // producer of a native one.
                             native: false,
+                            param_classes: shape.param_classes,
+                            param_checks: shape.param_checks,
+                            is_static: shape.is_static,
+                            by_reference: shape.by_reference,
                         })
                     },
                 )
@@ -2710,12 +2751,12 @@ impl UnitBuilder<JITModule> {
                 .iter()
                 .filter_map(|(property, label, set)| {
                     let id = self.functions.get(label)?;
-                    let shape = self.shapes.get(label).copied().unwrap_or_default();
+                    let shape = self.shapes.get(label).map_or(0, |shape| shape.param_tags);
                     Some(nvs_runtime::HookRow {
                         property: property.clone(),
                         set: *set,
                         code: self.module.get_finalized_function(*id),
-                        param_tags: shape.param_tags,
+                        param_tags: shape,
                     })
                 })
                 .collect();

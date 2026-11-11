@@ -299,6 +299,7 @@ pub(crate) fn lower_anon_fn(
             edge_spans,
             debug_slots,
             debug_catches,
+            param_checks: crate::ir::ParamChecks::default(),
             debug_returns_secret: super::may_return_secret(fn_expr.return_type.as_ref()),
         },
         std::iter::once(crate::ir::Class {
@@ -806,6 +807,7 @@ pub(crate) fn lower_callable(
                     edge_spans,
                     debug_slots,
                     debug_catches,
+                    param_checks: crate::ir::ParamChecks::default(),
                     debug_returns_secret: true,
                 },
                 classes,
@@ -1014,6 +1016,7 @@ pub(crate) fn lower_callable(
             edge_spans,
             debug_slots,
             debug_catches,
+            param_checks: crate::ir::ParamChecks::default(),
             debug_returns_secret: true,
         },
         classes,

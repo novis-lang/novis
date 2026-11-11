@@ -6026,6 +6026,10 @@ pub(crate) mod tests {
                 public: true,
                 protected: false,
                 native: false,
+                param_classes: Vec::new(),
+                param_checks: Vec::new(),
+                is_static: false,
+                by_reference: false,
             }],
         );
         let table: &'static ClassTable = Box::leak(Box::new(table));
@@ -6791,6 +6795,10 @@ pub(crate) mod tests {
                 public: true,
                 protected: false,
                 native: false,
+                param_classes: Vec::new(),
+                param_checks: Vec::new(),
+                is_static: false,
+                by_reference: false,
             }],
         )
     }

@@ -3847,6 +3847,10 @@ mod tests {
                 public: true,
                 protected: false,
                 native: false,
+                param_classes: Vec::new(),
+                param_checks: Vec::new(),
+                is_static: true,
+                by_reference: false,
             }],
         );
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -4771,6 +4775,12 @@ mod tests {
                 public: true,
                 protected: false,
                 native: false,
+                param_classes: Vec::new(),
+                param_checks: Vec::new(),
+                // The handlers the routes reach as static methods, and the
+                // `parse` hooks, are called through `call_static`.
+                is_static: matches!(name, "show" | "list" | "search" | "tagged" | "parse"),
+                by_reference: false,
             }
         }
 

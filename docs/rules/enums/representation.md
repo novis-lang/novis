@@ -5,11 +5,11 @@ nothing further to carry.
 
 Materialized into a tagged value — a `mixed`, an `array<mixed>` element, an erased parameter — a
 case takes an **enum tag of its own**, one per backing type: `EnumInt` over an `int` payload and
-`EnumUint` over a `uint` one. A condition, a type test, an anonymous function parameter's check and a declared
-slot's write check read that tag, so a case in a `mixed` is always truthy (`rule:enums/truthiness`),
-`is int` is `false` for it and `is` an enum is `false` for a plain integer. A type test and a declared
-slot's write check also test the payload against the enum's case values, so a value no case has is
-refused. A case of another enum with the same backing passes when this enum has a case of that value,
+`EnumUint` over a `uint` one. A condition, a type test, an anonymous function parameter's check, a declared
+slot's write check and a call by name's argument check read that tag, so a case in a `mixed` is always
+truthy (`rule:enums/truthiness`), `is int` is `false` for it and `is` an enum is `false` for a plain
+integer. A type test, a declared slot's write check and a call by name's argument check also test the
+payload against the enum's case values, so a value no case has is refused. A case of another enum with the same backing passes when this enum has a case of that value,
 and it is this enum's case from then on, as `$any as Rank` converts an integer. Every reader that only
 decodes the value — printing, conversion and the `==` comparison — reads it as its backing integer. The tag
 names no enum, so two enums with the same backing are not told apart in a `mixed`. `Core\Serialize`

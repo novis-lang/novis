@@ -1006,10 +1006,17 @@ fn lower_program_as(
         exprs: &ExprTypeTable,
         checked_types: &TypeInterner,
         enums: &EnumTable,
+        layouts: &ClassLayoutTable,
         tests: Tests,
         out: &mut Vec<Function>,
         synthesized: &mut Vec<crate::ir::Class>,
     ) {
+        let scope = SlotScope {
+            layouts,
+            exprs,
+            checked_types,
+            enums,
+        };
         for stmt in stmts {
             match &stmt.kind {
                 // A namespace scopes names, not storage — the label each
@@ -1024,6 +1031,7 @@ fn lower_program_as(
                     exprs,
                     checked_types,
                     enums,
+                    layouts,
                     tests,
                     out,
                     synthesized,
@@ -1061,16 +1069,22 @@ fn lower_program_as(
                                 // made inside test code. See `mutate::within`.
                                 let test_code = exprs.is_test_code(label);
                                 if nvs_syntax::ast::is_generator_body(body) {
-                                    let (fns, classes) = mutate::within(test_code, || {
+                                    let (mut fns, classes) = mutate::within(test_code, || {
                                         lower_generator(label, m, src, exprs, checked_types, enums)
                                     });
+                                    // The factory is the function a call reaches.
+                                    if let Some(factory) = fns.iter_mut().find(|f| f.name == label)
+                                    {
+                                        factory.param_checks = method_param_checks(m, &scope);
+                                    }
                                     out.extend(fns);
                                     synthesized.extend(classes);
                                     continue;
                                 }
-                                let lowered = mutate::within(test_code, || {
+                                let mut lowered = mutate::within(test_code, || {
                                     lower_method(label, m, src, exprs, checked_types, enums)
                                 });
+                                lowered.function.param_checks = method_param_checks(m, &scope);
                                 out.push(lowered.function);
                                 out.extend(lowered.anon_fns);
                                 synthesized.extend(lowered.classes);
@@ -1121,6 +1135,7 @@ fn lower_program_as(
             exprs,
             checked_types,
             enums,
+            layouts,
             tests,
             &mut functions,
             &mut synthesized,
@@ -1712,10 +1727,44 @@ pub fn lower_method(
             debug_slots,
             debug_returns_secret,
             debug_catches,
+            // Filled by the caller, which holds the layouts the class arm reads.
+            param_checks: crate::ir::ParamChecks::default(),
         },
         anon_fns,
         classes,
     }
+}
+
+/// [`crate::ir::Function::param_checks`] for method `m`: each declared
+/// parameter's admitted classes and check, from the builder a property slot's
+/// come from ([`field_slots`]).
+///
+/// A variadic parameter receives one array, so its check is an array of the
+/// declared element type. A `covariant` parameter has neither entry: its own
+/// entry test runs on every call. An `inout` parameter has neither, because a
+/// call by name cannot pass one.
+fn method_param_checks(m: &MethodMember, scope: &SlotScope<'_>) -> crate::ir::ParamChecks {
+    let mut out = crate::ir::ParamChecks::default();
+    for p in &m.params {
+        let declared =
+            p.ty.as_ref()
+                .and_then(|ty| scope.exprs.declared_ty(ty.span))
+                .filter(|_| !p.covariant && !p.inout);
+        let (classes, check) = match declared {
+            Some(element) if p.variadic => match slot_check(element, scope) {
+                SlotCheck::Any => (None, None),
+                element => (None, Some(SlotCheck::Array(Box::new(element)))),
+            },
+            Some(id) => (
+                admitted_classes(id, scope.layouts, scope.checked_types),
+                deep_check(id, scope),
+            ),
+            None => (None, None),
+        };
+        out.classes.push(classes);
+        out.checks.push(check);
+    }
+    out
 }
 
 /// One `covariant` parameter's entry test, collected while [`lower_method`]
@@ -2073,6 +2122,7 @@ pub fn lower_property_hook(
             debug_slots,
             debug_returns_secret,
             debug_catches,
+            param_checks: crate::ir::ParamChecks::default(),
         },
         anon_fns,
         classes,
@@ -2190,6 +2240,7 @@ pub fn lower_script(
             debug_slots,
             debug_returns_secret,
             debug_catches,
+            param_checks: crate::ir::ParamChecks::default(),
         },
         anon_fns,
         classes,
@@ -5428,6 +5479,11 @@ pub const FN_PARAM_TAG_ANY: u8 = 15;
 /// named-class property access, and
 /// `tests/conformance/core/out-a-callback-parameter-naming-a-class-checks-the-argument-class-at-entry.nvst`
 /// pins both lines — this one around objecthood, that one around ancestry.
+///
+/// On a method row, what a nibble cannot name is the row's own check: each
+/// parameter's admitted classes and the rest of its type
+/// ([`crate::ir::Function::param_checks`]), which a call by name runs after
+/// this word's tag step.
 pub fn param_tag_nibble(ty: Ty) -> u8 {
     match ty {
         // `Ref` and `ClassDesc` ride in the payload of an otherwise-`null`

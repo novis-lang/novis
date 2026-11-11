@@ -373,28 +373,28 @@ and the by-reference bit, and run the one check in `call_erased_unchecked` and `
 modules. One writing subagent adds the new fields to them after the struct change. The `.nvst` cases
 and the attacks go to a second writing subagent once the check is on disk. Neither builds.
 
-- [ ] `ir::Function` carries, per declared parameter, the admitted classes and the check.
+- [x] `ir::Function` carries, per declared parameter, the admitted classes and the check.
   `lower_method` fills them with stage 1's builder: a variadic as an array of its element type, and
   none for a `covariant` or an `inout` parameter (`rule:types/erased-member-access`,
   `crates/nvs-ir/src/ir.rs:559`, `crates/nvs-ir/src/lower/mod.rs:1503`).
-- [ ] `MethodShape` carries the two lists, a static bit read off parameter 0 and a by-reference bit
+- [x] `MethodShape` carries the two lists, a static bit read off parameter 0 and a by-reference bit
   read off the parameter list. `MethodRow` gains the four fields, filled on both paths
   (`crates/nvs-codegen/src/lib.rs:1496`, `crates/nvs-codegen/src/lib.rs:1271`,
   `crates/nvs-codegen/src/lib.rs:2683`, `crates/nvs-runtime/src/object.rs:699`).
-- [ ] Every other `MethodRow {` literal gains the fields, from the subagent's list.
-- [ ] One runtime function runs the tag step, the class step and the rest-of-type step for a slot or
+- [x] Every other `MethodRow {` literal gains the fields, from the subagent's list.
+- [x] One runtime function runs the tag step, the class step and the rest-of-type step for a slot or
   a parameter. `check_slot` calls it, and its sentences stay as they are
   (`crates/nvs-runtime/src/object.rs:1683`, `crates/nvs-runtime/src/object.rs:5893`,
   `crates/nvs-runtime/src/callable.rs:902`).
-- [ ] `call_erased_unchecked` runs it over the trimmed arguments, and refuses a static row and a
+- [x] `call_erased_unchecked` runs it over the trimmed arguments, and refuses a static row and a
   by-reference row beside the native row. Its doc comment's paragraph on variadic and `inout` is
   rewritten (`rule:types/erased-member-access`, `crates/nvs-runtime/src/dispatch.rs:435`,
   `crates/nvs-runtime/src/dispatch.rs:461`, `crates/nvs-runtime/src/dispatch.rs:299`).
-- [ ] `call_static_bound` runs it, and refuses a by-reference row and a row that is not static
+- [x] `call_static_bound` runs it, and refuses a by-reference row and a row that is not static
   (`rule:security/isolate-shares-nothing`, `crates/nvs-runtime/src/dispatch.rs:236`).
-- [ ] Test `a_method_row_carries_each_parameters_check_and_its_two_bits` in the codegen tests
+- [x] Test `a_method_row_carries_each_parameters_check_and_its_two_bits` in the codegen tests
   (`crates/nvs-codegen/tests/objects.rs:427`).
-- [ ] Tests in `object.rs` tests, beside the method-row tests, since `dispatch.rs` has no test
+- [x] Tests in `object.rs` tests, beside the method-row tests, since `dispatch.rs` has no test
   module. `a_call_by_name_refuses_an_argument_its_parameter_does_not_admit` drives another class,
   another class for `?C`, a wrong element, a wrong variadic element and a value no case has, each
   as a `LogicError`. `a_static_method_is_refused_by_name`,
@@ -407,7 +407,7 @@ and the attacks go to a second writing subagent once the check is on disk. Neith
 - [ ] Attacks: `call/02`, `construct/02` under `tests/hostile/core/Reflect-ClassInfo/`, and
   `tests/hostile/lang/types/mixed/03`. Each passes a wrong value and then makes the method use it.
   Every step should throw (`rule:testing/feature-proofs`).
-- [ ] `rule:types/erased-member-access` says a call through `mixed` is checked against each
+- [x] `rule:types/erased-member-access` says a call through `mixed` is checked against each
   parameter's declared type, lists the two new refusals and states the cost.
   `rule:enums/representation` says a parameter's check by name tests the enum's case values, as
   the slot's write check already does (`docs/rules/enums/representation.md:8`). The comment on
@@ -505,53 +505,55 @@ property, a method and a constant.
 
 ### State
 
-Stage 1 is done. A write by name to a declared slot tests what `is` tests: `SlotCheck::Values`
-(a tag and sorted payload values) covers an enum, an enum case, a single-value `int` and `true` or
-`false`, and the class arm covers `callable`, a written signature, a `Core` class with instances
-and a `Core` interface's implementors (`slot_check`, `crates/nvs-ir/src/lower/mod.rs:640`). A
-single-value `string` keeps its tag alone. The checker now makes a marker class for every signature
-a declared property type names, not only for a tested one (`resolve`,
-`crates/nvs-types/src/callables.rs:65`), and the tested set is sorted by label. Both stage-1 tests
-pass by name, and the new `.nvst` case and attack pass on a fresh debug binary. Every entry into
-compiled code is listed, with who typed its arguments, under the standing decision *The entries
-are these*.
+Stage 2's mechanism, its tests and its rule text are on disk. `lower_program_as`'s walk fills
+`ir::Function::param_checks` for every method and a generator's factory (`method_param_checks`,
+`crates/nvs-ir/src/lower/mod.rs:1746`). `MethodShape::of_function` carries the lists and the two
+bits to `MethodRow`'s four new fields on both paths (`crates/nvs-codegen/src/lib.rs:1537`), and
+every other `MethodRow` literal has them. `check_declared` (`crates/nvs-runtime/src/object.rs:6248`)
+runs the tag, class and rest-of-type steps, and `check_slot` calls it with its sentences unchanged.
+`check_param_types` (`crates/nvs-runtime/src/dispatch.rs:286`) runs it per argument after
+`check_param_tags`, in `call_erased_unchecked` and `call_static_bound`. Each refuses a static or a
+by-reference row as the standing decision says, and `call_static_bound` refuses a row that is not
+static. The codegen test and the five `object.rs` tests pass by name. `cargo clippy --all-targets`
+and `cargo fmt --check` are clean. `rule:types/erased-member-access`, `rule:enums/representation`
+and `param_tag_nibble`'s comment are rewritten.
 
-The sweep's `env-secret-proofs` red is stale: `looper check --name env-secret-proofs` answers "no
-check matches", and no file in the tree names it.
+The sweep's `env-secret-proofs` red is stale: no file in the tree defines it, and its log does not exist.
 
-Stage 2 onward is open: a call by name checks representations only, a hooked write ignores a failed
-slot check, a static or `inout` method is reached by name, and a subclass reaches its parent's
-`private` members by name.
+`cargo build --tests` fails in `nvs-ext`'s `image_guest` on a `nvs_image` rlib built for Linux in
+`target/debug` (a WSL run left it). It is not this goal's change. `cargo clean -p nvs-image` or a
+`bun nv linux-test` rerun may clear it.
 
 ### Next
 
-Stage 2, a method row carries each parameter's type, and a call by name checks it. Files:
-`crates/nvs-ir/src/ir.rs`, `crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-codegen/src/lib.rs`,
-`crates/nvs-runtime/src/object.rs`, `crates/nvs-runtime/src/dispatch.rs`,
-`crates/nvs-runtime/src/callable.rs`, `crates/nvs-stdlib/src/reflect.rs`. Follow the stage's
-`**Split:**` line.
+The rest of stage 2: its `.nvst` cases, attacks and cards. The stage's `**Split:**` line gives the
+cases and attacks to one writing subagent, which does not build. Then stage 3.
 
-- [ ] `crates/nvs-ir/src/lower/mod.rs:1527`: `lower_method` fills, per declared parameter, the
-  admitted classes and the check, through `SlotScope` and `deep_check` (`crates/nvs-ir/src/lower/mod.rs:583`).
-  A variadic is an array of its element type; a `covariant` or `inout` parameter has none. The lists
-  ride on `ir::Function` (`crates/nvs-ir/src/ir.rs:563`).
-- [ ] `crates/nvs-codegen/src/lib.rs:1496`: `MethodShape` carries the lists and the two bits, and
-  `MethodRow` (`crates/nvs-runtime/src/object.rs:704`) gains four fields, filled on both paths. An
-  `Explore` subagent lists every other `MethodRow {` literal, and a writing subagent fills them.
-- [ ] `crates/nvs-runtime/src/object.rs:1699`: one runtime function runs the tag, class and
-  rest-of-type steps for a slot or a parameter. `check_slot` calls it with its sentences unchanged,
-  and `check_param_tags` (`crates/nvs-runtime/src/callable.rs:918`) stays the tag step.
-- [ ] `crates/nvs-runtime/src/dispatch.rs:363`: `call_erased_unchecked` runs it, and so does
-  `call_static_bound` (`crates/nvs-runtime/src/dispatch.rs:215`). Each refuses a static row and a
-  by-reference row as the stage says.
-- [ ] `docs/rules/enums/representation.md:8`: the stage's tests, `.nvst` cases, attacks, rule text
-  and cards. The rule item now also owes this rule's parameter sentence.
+- [ ] `tests/conformance/core/reflect-call-judges-the-argument-list-against-the-callees-own-arity.nvst:1`
+  is the nearest case. New `.nvst` cases there and under `tests/conformance/lang/`, one per door:
+  `ClassInfo::call`, `ClassInfo::construct`, a `mixed` receiver and a `spawn script` entry. Each
+  passes another class, another class for `?C`, a wrong element, a wrong variadic element and a value
+  no case has, and prints the error's class (`LogicError`). The `call` case also names a static
+  method and a method with an `inout` parameter.
+- [ ] `tests/hostile/core/Reflect-ClassInfo/call/01-bad-names-bad-arguments-and-deep-calls.nvs:1`
+  is the shape. Attacks `tests/hostile/core/Reflect-ClassInfo/call/02-*.nvs`,
+  `tests/hostile/core/Reflect-ClassInfo/construct/02-*.nvs` and
+  `tests/hostile/lang/types/mixed/03-*.nvs`, beside each tree's `01`. Each passes a wrong value and
+  then makes the method use it.
+- [ ] The `call` and `construct` cards (`crates/nvs-stdlib/src/reflect.rs:3044`,
+  `crates/nvs-stdlib/src/reflect.rs:3102`) and `docs/examples/core/Reflect-ClassInfo/call/about.md`,
+  `docs/examples/core/Reflect-ClassInfo/construct/about.md`: one plain sentence each, held to
+  AGENTS.md § *Text an end user reads*.
+- [ ] Stage 3: `write_property`'s hooked branch (`crates/nvs-runtime/src/object.rs:5996`) calls
+  `check_slot` first, and the `invoke` row gets
+  `param_checks` from `anon_fn.rs`'s three `ParamChecks::default()` literals
+  (`crates/nvs-ir/src/lower/anon_fn.rs:292`).
 
-Tests that may go red: an IR or `--dump-ir` snapshot that lists marker descriptors, since a
-signature a property declares now has one and the markers are sorted by label; and
-`tests/conformance/lang/a-property-write-through-a-mixed-receiver-checks-the-whole-declared-type.nvst`
-or `tests/conformance/core/reflect-set-round-trips-through-get-for-every-visible-property.nvst` if
-either writes an enum, a callable or a `Core` object of another kind.
+Tests that may go red: a conformance case or an example that calls a `static` method through
+`ClassInfo::call` or a `mixed` receiver, or an `inout` method by name; a `.nvst` that passes an
+argument of the wrong class or a wrong element by name and expected it to run; an isolate test whose
+entry row is not `static` (the router's `row` helper sets the bit by name,
+`crates/nvs-stdlib/src/router.rs`); the IR or `--dump-ir` snapshots stage 1 named.
 
 ### Backlog
 

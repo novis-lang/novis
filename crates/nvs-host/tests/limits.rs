@@ -341,6 +341,10 @@ fn callable_taking(invoke: nvs_runtime::NvsFn, arity: i64) -> Value {
             public: true,
             protected: false,
             native: false,
+            param_classes: Vec::new(),
+            param_checks: Vec::new(),
+            is_static: false,
+            by_reference: false,
         }],
     );
     table.set_callable(id);

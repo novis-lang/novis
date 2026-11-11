@@ -55,22 +55,32 @@ half does not, because a property read has a name-keyed fetch to defer to and a 
 `mixed` is the one receiver left out, since `rule:types/unions-and-mixed` makes it the one unchecked
 position.
 
-**A call through `mixed` is checked against the callee's declared shape.** The receiver's descriptor
-carries, for each method, its arity and the representation each parameter requires, and the
-arguments are tested by the same per-argument check a bare `callable` call runs, so the
-`int`-into-`float` widening (`rule:types/implicit-widening`) is applied in one place. Nothing is
+**A call through `mixed` is checked against each parameter's declared type.** The receiver's
+descriptor carries, for each method, its arity, the representation each parameter requires, and the
+rest of each parameter's type as a property slot carries it. The representation is tested by the same
+per-argument check a bare `callable` call runs, so the `int`-into-`float` widening
+(`rule:types/implicit-widening`) is applied in one place. The rest is tested by the check a write by
+name runs, so an argument passes what `$x is T` passes: an object of an admitted class, an array whose
+every element fits, an enum value one of the enum's cases has. A variadic parameter receives one array
+and each element is checked. A `covariant` parameter is checked by the method's own entry test.
+`Core\Reflect\ClassInfo`'s `call` and `construct` and an isolate's entry run the same check. Nothing is
 converted on the way in or out: the arguments are already tagged values, and the result comes back
 tagged for the `mixed` the call's own type is. Every failure is a catchable throw on
 `rule:errors/propagation`'s error edge, worded as the diagnostic that names the same mistake where a
 static type shows it: a receiver whose tag is not an object (`E0477`), a class with no such method
-(`E0405`), and an argument count or representation the callee does not admit (`E0402`, `E0401`). Two
-more shapes throw instead of dispatching. A non-`public` method throws, since a `mixed` receiver is
-outside every class. A `Core`-owned method throws, since its native convention borrows argument 0
-where a compiled method owns its parameters.
+(`E0405`), and an argument count or type the callee does not admit (`E0402`, `E0401`), as a
+`LogicError`. Four more shapes throw instead of dispatching. A non-`public` method throws, since a
+`mixed` receiver is outside every class. A `Core`-owned method throws, since its native convention
+borrows argument 0 where a compiled method owns its parameters. A `static` method throws, since it has
+no object to be called on, and an isolate's entry that is not `static` throws for the same reason. A
+method with an `inout` parameter throws, since a call by name has no variable to write the value back
+to.
 
-- **Memory:** the method rows are per class, once per process, and nothing per instance or per call.
-  A statically typed call pays nothing. A call through `mixed` pays a tag test on the receiver, one
-  binary search of the method table by name, and a shift, a mask and a compare per argument.
+- **Memory:** the method rows are per class, once per process, and nothing per instance or per call:
+  two small vectors and two bits per method beside the arity and the tag word.
+- **Latency:** a statically typed call pays nothing. A call through `mixed` pays a tag test on the
+  receiver, one binary search of the method table by name, a shift, a mask and a compare per argument,
+  one class walk per class-typed argument and one element walk per typed-array argument.
 
 **Declined:**
 - **Dispatching a method call through `object` or a shape.** Refusing is the reversible choice: a

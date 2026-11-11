@@ -466,6 +466,10 @@ fn dispatch_table(class: &str) -> Vec<nvs_runtime::MethodRow> {
                     public: true,
                     protected: false,
                     native: true,
+                    param_classes: Vec::new(),
+                    param_checks: Vec::new(),
+                    is_static: false,
+                    by_reference: false,
                 })
                 .collect()
         })

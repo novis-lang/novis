@@ -612,6 +612,29 @@ pub struct Function {
     /// it at a throw to tell whether a frame catches the exception
     /// (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`).
     pub debug_catches: Vec<DebugCatch>,
+    /// What a value with no static type must be to enter each declared
+    /// parameter, read by a call by name (`rule:types/erased-member-access`).
+    /// Empty for a function nothing filled it for.
+    pub param_checks: ParamChecks,
+}
+
+/// Each declared parameter's admitted classes and the rest of its type, the
+/// receiver excluded, in [`Class::field_classes`]' and [`Class::field_checks`]'
+/// terms: a [`Function::param_checks`].
+///
+/// Either both lists are as long as the declared parameters or both are empty.
+/// A variadic parameter's entry checks the one array the call passes for it,
+/// element by element. A `covariant` or `inout` parameter has neither entry.
+///
+/// **What it spends:** two small vectors per method, once per process.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ParamChecks {
+    /// The labels of the classes an object argument must conform to, per
+    /// parameter, or `None` where the type is not only classes and `null`.
+    pub classes: Vec<Option<Vec<String>>>,
+    /// The rest of each parameter's type, or `None` where the tag and the
+    /// admitted classes already check all of it.
+    pub checks: Vec<Option<SlotCheck>>,
 }
 
 /// The classes the `try` blocks around one statement catch, under the debug

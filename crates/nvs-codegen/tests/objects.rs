@@ -609,6 +609,60 @@ echo (new Louder(\"!\"))->accept(\"a\", 1);
     assert!(synthesized.param_names.is_empty());
 }
 
+/// `rule:types/erased-member-access`: a method row carries what a call by name
+/// checks each argument against, beside the two bits it refuses a row on. A
+/// parameter's classes and check come from the builder a property slot's do.
+#[test]
+fn a_method_row_carries_each_parameters_check_and_its_two_bits() {
+    use nvs_runtime::{SlotCheck, Tag};
+    let unit = compile(
+        "<?nvs
+enum Rank {
+    Low = 1,
+    High = 7,
+}
+class Spot {}
+class Crate {
+    public function put(Spot $s, ?Spot $maybe, array<int> $ints, Rank $rank, int ...$rest): void {}
+    public function swap(inout int $n): void { $n = 1; }
+    public static function make(int $k): int { return $k; }
+}
+(new Crate())->put(new Spot(), null, [1], Rank::Low, 2, 3);
+echo Crate::make(4);
+",
+    )
+    .expect("the fixture compiles");
+
+    let class = unit.class_desc("Crate").expect("the class is declared");
+    let put = class.method_row("put").expect("its own method");
+    let spot = Some(vec!["Spot".to_owned()]);
+    assert_eq!(put.param_classes, [spot.clone(), spot, None, None, None]);
+    let ints = Some(SlotCheck::Array(Box::new(SlotCheck::Tag(Tag::Int))));
+    assert_eq!(
+        put.param_checks,
+        [
+            None,
+            None,
+            ints.clone(),
+            Some(SlotCheck::Values(Tag::EnumInt, vec![1, 7])),
+            // The variadic receives one array, so each element is checked.
+            ints,
+        ]
+    );
+    assert!(!put.is_static && !put.by_reference);
+
+    let swap = class.method_row("swap").expect("its own method");
+    assert!(swap.by_reference && !swap.is_static);
+    // An `inout` parameter has no check: the row is refused before one runs.
+    assert_eq!(swap.param_checks, [None]);
+    assert_eq!(swap.param_classes, [None]);
+
+    let make = class.method_row("make").expect("its own method");
+    assert!(make.is_static && !make.by_reference);
+    // An `int` is checked by its tag alone, so the lists name nothing more.
+    assert_eq!(make.param_checks, [None]);
+}
+
 #[test]
 fn a_throw_out_of_a_frame_holding_an_object_releases_it() {
     // The landing block's cleanup, for an object rather than a string: the

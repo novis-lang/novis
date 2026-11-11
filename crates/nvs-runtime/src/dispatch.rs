@@ -208,8 +208,10 @@ pub unsafe fn call_static_on(
 /// # Errors
 ///
 /// [`Fault::Thrown`] carrying [`crate::ThrownClass::Logic`] for an argument
-/// count the entry does not declare, for a native row, and for an argument
-/// whose tag the parameter does not admit — every one of them the ordinary
+/// count the entry does not declare, for a native row, for a method that is
+/// not `static` or takes an `inout` parameter, and for an argument the
+/// parameter's declared type does not admit ([`check_param_types`]) — every one
+/// of them the ordinary
 /// named-argument error `rule:security/isolate-shares-nothing` says a bad `args:` map is, raised at the
 /// spawn. [`Fault::Pending`] when the entry itself throws.
 pub fn call_static_bound(
@@ -231,14 +233,26 @@ pub fn call_static_bound(
     let Some(row) = (unsafe { &*desc }).method_row(method) else {
         return Ok(None);
     };
-    // Copied out rather than held: the row lives in the class table and the
-    // call below takes the context mutably.
-    let (code, arity, param_tags, native) =
-        (row.code, row.arity as usize, row.param_tags, row.native);
-    if native {
+    let (code, arity, param_tags) = (row.code, row.arity as usize, row.param_tags);
+    if row.native {
         return Err(Fault::thrown_as(
             crate::ThrownClass::Logic,
             format!("`{label}` is a `Core`-owned member and cannot be an isolate's entry"),
+        ));
+    }
+    if !row.is_static {
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!("`{label}` is not a `static` method, so it cannot be an isolate's entry"),
+        ));
+    }
+    if row.by_reference {
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!(
+                "`{label}` takes an `inout` parameter, so it cannot be an isolate's entry: \
+                 nothing can receive the value it writes back"
+            ),
         ));
     }
     if args.len() != arity {
@@ -251,7 +265,53 @@ pub fn call_static_bound(
         ));
     }
     crate::callable::check_param_tags(label, param_tags, args)?;
+    check_param_types(label, row, args)?;
     call_at(ctx, Value::class_desc(desc), code, args).map(Some)
+}
+
+/// The class step and the rest-of-type step for each argument a call by name
+/// passes, after [`crate::callable`]'s `check_param_tags` ran the tag step:
+/// [`crate::object::check_declared`] against [`crate::MethodRow::param_classes`]
+/// and [`crate::MethodRow::param_checks`]. A row nothing told checks nothing
+/// here.
+///
+/// An argument that passes allocates nothing. The sentence is formatted only
+/// for an argument that does not.
+///
+/// # Errors
+///
+/// [`Fault::Thrown`] carrying [`crate::ThrownClass::Logic`], naming `callee`,
+/// the argument's position, the parameter's declared type as the row spells it
+/// and what was given.
+fn check_param_types(callee: &str, row: &crate::MethodRow, args: &[Value]) -> Result<(), Fault> {
+    for (i, &arg) in args.iter().enumerate() {
+        let classes = row.param_classes.get(i).and_then(Option::as_deref);
+        let check = row.param_checks.get(i).and_then(Option::as_ref);
+        if classes.is_none() && check.is_none() {
+            continue;
+        }
+        let written = match crate::object::check_declared(None, classes, check, arg) {
+            Ok(()) => continue,
+            Err(
+                crate::object::Mismatch::Class(written) | crate::object::Mismatch::Rest(written),
+            ) => written,
+            // No tag is passed, so this arm describes the value as the others do.
+            Err(crate::object::Mismatch::Tag { .. }) => crate::object::describe_written(arg),
+        };
+        let declared = row
+            .param_types
+            .get(i)
+            .filter(|ty| !ty.is_empty())
+            .map_or_else(|| "its declared type".to_owned(), |ty| format!("`{ty}`"));
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!(
+                "argument {} to {callee} must be of type {declared}, {written} given",
+                i + 1
+            ),
+        ));
+    }
+    Ok(())
 }
 
 /// `$m->name(...)` on a **`mixed`** receiver — `nvs_ir::Helper::CallErasedMethod`'s
@@ -294,12 +354,21 @@ pub fn call_static_bound(
 /// - too few arguments for the arity the row records, which is
 ///   [`crate::callable`]'s own wording for a `callable`;
 /// - an argument whose tag is not the one the parameter requires, and which
-///   `rule:types/conversion`'s `int`-into-`float` widening does not reconcile.
+///   `rule:types/conversion`'s `int`-into-`float` widening does not reconcile;
+/// - an argument the parameter's declared type does not admit: an object of
+///   another class, an array with a wrong element, an enum value no case has.
+///   This tests what `$x is T` tests ([`check_param_types`]);
+/// - a `static` method, which has no object to be called on;
+/// - a method with an `inout` parameter, which has no variable at a call by
+///   name to write back to.
 ///
-/// A variadic or `inout` parameter list is **not** refused here and needs no
-/// row of its own: both are packed and written back at the *call site*, which
-/// is a shape `nvs_types` refuses where it is written (`E0714`) or a callee
-/// this row simply describes by its declared count.
+/// A variadic parameter receives one array, and each of its elements is checked
+/// against the declared element type. A `covariant` parameter is checked by the
+/// method's own entry test.
+///
+/// **What it costs:** one class walk per class-typed argument and one element
+/// walk per typed-array argument. A call whose receiver has a static type
+/// pays nothing.
 ///
 /// Plus [`Fault::Pending`] when the member itself throws, carrying that call's
 /// own status so the exception reaches the request unchanged.
@@ -442,6 +511,21 @@ fn call_erased_unchecked(
             ),
         ));
     }
+    if row.is_static {
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!("{callee} is a `static` method, so it cannot be called on an object"),
+        ));
+    }
+    if row.by_reference {
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!(
+                "{callee} takes an `inout` parameter, so it cannot be called by name: nothing \
+                 can receive the value it writes back"
+            ),
+        ));
+    }
     let arity = row.arity as usize;
     if args.len() < arity {
         return Err(Fault::thrown_as(
@@ -460,6 +544,7 @@ fn call_erased_unchecked(
     // userland call, and an argument nothing declares has no tag to check.
     let mut passed = args[..arity].to_vec();
     crate::callable::check_param_tags(&callee, row.param_tags, &mut passed)?;
+    check_param_types(&callee, row, &passed)?;
     call_at(ctx, receiver, row.code, &passed)
 }
 

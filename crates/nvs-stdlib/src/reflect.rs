@@ -3225,6 +3225,10 @@ mod tests {
             // refused, and `protected` would hand it to one.
             protected: false,
             native: false,
+            param_classes: Vec::new(),
+            param_checks: Vec::new(),
+            is_static: false,
+            by_reference: false,
         };
         classes.set_methods(id, vec![row("open", true), row("sealed", false)]);
         let classes = std::sync::Arc::new(classes);
@@ -3392,6 +3396,10 @@ mod tests {
                 public: false,
                 protected: false,
                 native: false,
+                param_classes: Vec::new(),
+                param_checks: Vec::new(),
+                is_static: false,
+                by_reference: false,
             }],
         );
         let classes = std::sync::Arc::new(classes);
@@ -3548,6 +3556,10 @@ mod tests {
                     public: true,
                     protected: false,
                     native: false,
+                    param_classes: Vec::new(),
+                    param_checks: Vec::new(),
+                    is_static: false,
+                    by_reference: false,
                 }],
             );
         }
@@ -4452,6 +4464,10 @@ mod tests {
             public,
             protected: false,
             native: false,
+            param_classes: Vec::new(),
+            param_checks: Vec::new(),
+            is_static: false,
+            by_reference: false,
         };
         classes.set_methods(
             router,
@@ -5818,6 +5834,10 @@ mod tests {
             public,
             protected,
             native: false,
+            param_classes: Vec::new(),
+            param_checks: Vec::new(),
+            is_static: false,
+            by_reference: false,
         };
         classes.set_methods(
             mailer,

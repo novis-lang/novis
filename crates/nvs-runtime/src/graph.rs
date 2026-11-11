@@ -1292,6 +1292,10 @@ mod tests {
                 public: true,
                 protected: false,
                 native: false,
+                param_classes: Vec::new(),
+                param_checks: Vec::new(),
+                is_static: false,
+                by_reference: false,
             }],
         );
         callables.set_callable(id);
@@ -1354,6 +1358,10 @@ mod tests {
                 public: true,
                 protected: false,
                 native: false,
+                param_classes: Vec::new(),
+                param_checks: Vec::new(),
+                is_static: false,
+                by_reference: false,
             }],
         );
         #[expect(unsafe_code, reason = "the table outlives the object")]
