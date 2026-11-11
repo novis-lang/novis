@@ -3062,6 +3062,14 @@ impl ExprTypeTable {
         self.property_types.get(label).map_or(&[], Vec::as_slice)
     }
 
+    /// Every class's declared property types, in no particular order:
+    /// [`Self::property_types`] over every class at once.
+    pub(crate) fn all_property_types(&self) -> impl Iterator<Item = TypeId> + '_ {
+        self.property_types
+            .values()
+            .flat_map(|types| types.iter().map(|(_, ty)| *ty))
+    }
+
     /// Whether [`Self::property_keys`] already has the class labelled `label`.
     pub(crate) fn has_property_keys(&self, label: &str) -> bool {
         self.property_keys.contains_key(label)

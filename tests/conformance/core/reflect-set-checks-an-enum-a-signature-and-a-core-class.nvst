@@ -1,0 +1,70 @@
+--TEST--
+`Core\Reflect\ClassInfo::set` checks a value against an enum type, a written callable signature and a `Core` class the way `is` does — `rule:security/reflection-enforces-visibility`
+--FILE--
+<?nvs
+// covers: Core\Reflect\ClassInfo::set
+// A write by name checks the value the way `is` checks it. A value of the wrong
+// kind throws a `RuntimeError`.
+enum Rank: int { Low = 1, High = 7 }
+enum Other: int { One = 1, Three = 3 }
+
+class Holder {
+    public Rank $rank = Rank::Low;
+    public callable(int): string $label;
+    public Core\Time\Date $day;
+
+    public function constructor() {
+        $this->label = fn (int $n): string => "n=" . $n;
+        $this->day = Core\Time\Date::at(2000, 6, 15);
+    }
+}
+
+var $holder = new Holder();
+var $described = Core\Reflect::forObject($holder);
+
+// `Other::Three` is 3, and `Rank` has no case with that value.
+try {
+    $described->set($holder, "rank", Other::Three);
+    echo "rank written", "\n";
+} catch (RuntimeError $refused) {
+    echo "rank: RuntimeError", "\n";
+}
+
+// The parameter is `string`, so the signature does not fit `callable(int): string`.
+try {
+    $described->set($holder, "label", fn (string $s): string => $s);
+    echo "label written", "\n";
+} catch (RuntimeError $refused) {
+    echo "label: RuntimeError", "\n";
+}
+
+// A `TimeOfDay` is an object of another `Core` class.
+try {
+    $described->set($holder, "day", Core\Time\TimeOfDay::at(1, 2));
+    echo "day written", "\n";
+} catch (RuntimeError $refused) {
+    echo "day: RuntimeError", "\n";
+}
+
+// The refused writes stored nothing.
+echo $holder->rank == Rank::Low ? "Low" : "changed", "\n";
+echo ($holder->label)(1), "\n";
+echo $holder->day->format("yyyy-MM-dd"), "\n";
+
+// A value that fits is stored and reads back.
+$described->set($holder, "rank", Rank::High);
+$described->set($holder, "label", fn (int $n): string => "#" . $n);
+$described->set($holder, "day", Core\Time\Date::at(2024, 1, 2));
+echo $holder->rank == Rank::High ? "High" : "not High", "\n";
+echo ($holder->label)(5), "\n";
+echo $holder->day->format("yyyy-MM-dd"), "\n";
+--EXPECT--
+rank: RuntimeError
+label: RuntimeError
+day: RuntimeError
+Low
+n=1
+2000-06-15
+High
+#5
+2024-01-02

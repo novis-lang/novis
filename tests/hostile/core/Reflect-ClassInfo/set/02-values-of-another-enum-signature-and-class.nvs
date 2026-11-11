@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a program writes values of the wrong kind into typed properties by name.
+// Every write should throw an error, and each property should keep its old value.
+
+enum Level: int { Low = 1, High = 7 }
+enum Color: int { Red = 1, Blue = 3 }
+
+class Holder
+{
+    public Level $level = Level::Low;
+    public callable(int): string $label;
+    public Core\Time\Date $day;
+
+    public function constructor()
+    {
+        $this->label = fn (int $n): string => 'number ' . $n;
+        $this->day = Core\Time\Date::at(2024, 1, 2);
+    }
+}
+
+Holder $holder = new Holder();
+var $info = Core\Reflect::forObject($holder);
+
+// 1. A case of another enum is written. Its value 3 is not a value of `Level`.
+try {
+    $info->set($holder, 'level', Color::Blue);
+    echo "written\n";
+} catch (RuntimeError $refused) {
+    echo "refused\n";
+}
+echo match ($holder->level) {
+    Level::Low => 'Low',
+    Level::High => 'High',
+}, "\n";
+
+// 2. A function that takes a string is written where a function that takes an int is declared.
+try {
+    $info->set($holder, 'label', fn (string $s): string => Core\Str::upper($s));
+    echo "written\n";
+} catch (RuntimeError $refused) {
+    echo "refused\n";
+}
+echo ($holder->label)(42), "\n";
+
+// 3. A time of day is written where a date is declared.
+try {
+    $info->set($holder, 'day', Core\Time\TimeOfDay::at(1, 2));
+    echo "written\n";
+} catch (RuntimeError $refused) {
+    echo "refused\n";
+}
+echo $holder->day->format('yyyy-MM-dd'), "\n";

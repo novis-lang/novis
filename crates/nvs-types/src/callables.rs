@@ -28,9 +28,15 @@
 //! wider parameter or a narrower return included, those being the directions
 //! that rule makes sound.
 //!
+//! A declared property's type is tested too. A write by name checks the
+//! written value the way `is` does (`rule:types/erased-member-access`), so a
+//! signature written in a property's type gets its marker even where no `is`
+//! names it.
+//!
 //! **What it spends** (`rule:programs/memory-priority`): nothing per request
 //! or per task. Per compiled unit, one field-less descriptor per tested
-//! signature, and one conformance edge per anonymous function that satisfies one.
+//! signature and per signature a property declares, and one conformance edge
+//! per anonymous function that satisfies one.
 //!
 //! # Why it is one pass at the end
 //!
@@ -72,6 +78,12 @@ pub(crate) fn resolve(
     for test in exprs.tested_types().collect::<Vec<_>>() {
         collect_signatures(test, interner, &mut tested);
     }
+    for declared in exprs.all_property_types().collect::<Vec<_>>() {
+        collect_signatures(declared, interner, &mut tested);
+    }
+    // The property table is a hash map, so the order is made total here: a
+    // unit lowers to the same descriptors in the same order every time.
+    tested.sort_unstable_by_key(|sig| marker_label(*sig, interner));
     if tested.is_empty() {
         return;
     }

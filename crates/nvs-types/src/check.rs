@@ -560,7 +560,10 @@ fn after_walk(
     // `rule:types/type-test`'s `is callable(int): string` asks which of the
     // program's anonymous functions satisfy a written signature, which is the same
     // deferral one more time: the `is` and the literal it answers about need
-    // not be in the same file. See `crate::callables`.
+    // not be in the same file. See `crate::callables`. The property types go
+    // first, because a write by name tests a signature-typed property's value
+    // against the same marker.
+    record_property_types(signatures, exprs);
     crate::callables::resolve(exprs, interner, &module.graph, signatures);
     // The route table crosses to `nvs-ir` here rather than being dropped:
     // `rule:routing/api-document-is-generated-from-the-route-table` emits the
@@ -570,7 +573,6 @@ fn after_walk(
     // The command table crosses the same way and at the same point: `Core\Command`'s
     // dispatch, its usage text and its completions are all generated from it.
     exprs.record_commands(commands);
-    record_property_types(signatures, exprs);
     // Declaration-side property types, for the one consumer that asks at a
     // declaration rather than at an access — see
     // `ExprTypeTable::property_default_ty`.
