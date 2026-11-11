@@ -1804,7 +1804,7 @@
   },
   "/reference/config/server/": {
     "feature": "tools:server/the-server-block",
-    "hash": "145cf9bfff0cf218",
+    "hash": "1f12734b8fffb5f0",
     "questions": [
       "Change the port the web server listens on",
       "Listen on a Unix socket behind nginx",
