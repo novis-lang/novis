@@ -1216,4 +1216,18 @@ codes! {
          types, such as `callable(tainted string): void`. Or test the value with \
          `$x is ClassName` first. Or check the text before you pass it.",
     );
+    /// A value whose type contains `secret`, used as an array key: in a
+    /// subscript write, in a key of an array literal, or as the values or
+    /// callback results of a `Core\Arr` member that turns them into keys.
+    ///
+    /// An array's type records nothing about its keys, so `Core\Arr::keys`, a
+    /// `foreach`, a dump and an error message all read a key back as plain
+    /// text. No element type can change that, so the key is refused in every
+    /// array, `array<secret string>` included.
+    pub const E_SECRET_ARRAY_KEY: Code = Code::new("E0896").card(
+        "A `secret` value cannot be an array key. The keys of an array are always read back \
+         as plain text, for example by `Core\\Arr::keys` and by `foreach`. Use a key that is \
+         not secret, such as an id or a name. Keep the secret in the element value, with an \
+         element type such as `array<secret string>`.",
+    );
 }

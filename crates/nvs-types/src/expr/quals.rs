@@ -265,22 +265,59 @@ pub(crate) fn keys_from_outside(ty: TypeId, interner: &TypeInterner) -> bool {
     }
 }
 
-/// `rule:security/taint-propagation`'s key half at a write: `$m[$key] = …`
-/// with a `tainted` key, into an array `base` whose keys [`keys_from_outside`]
-/// reads as the program's own, is `E0401` at the key.
+/// The one check of a key's qualifier, asked at every position a value
+/// becomes an array key: a subscript write and every compound write, a key
+/// of an array literal whatever position the literal is in, and the values
+/// or callback results of a `Core` member the registry marks as making keys
+/// ([`nvs_stdlib::registry::Param::keys`]). Every write spelling reaches it
+/// but `unset`, which adds no key.
 ///
-/// An array's type records no qualifier on its keys, so a write is the one
-/// place a key from outside can enter an array that reads its keys back as
-/// plain `string`, at a `foreach` and through `Core\Arr::keys`. The program
-/// writes the qualifier on the element type, or checks the key, as
-/// [`reject_untainted_text_from_unchecked`] asks of a shape. Every write
-/// spelling reaches this but `unset`, which adds no key.
-pub(crate) fn reject_tainted_key_write(key: Span, key_ty: TypeId, base: TypeId, env: &mut Env<'_>) {
+/// An array's type records no qualifier on its keys, so `Core\Arr::keys`, a
+/// `foreach`, a dump and an error message read a key back as plain text.
+///
+/// - **A key whose type contains `secret` is `E0896` in every array**
+///   (`rule:security/secret-qualifier`). No element type changes how a key
+///   is read back, so there is no array it may enter.
+/// - **A `tainted` key is `E0401`** where `base` is an array whose keys
+///   [`keys_from_outside`] reads as the program's own
+///   (`rule:security/taint-propagation`). The program writes the qualifier on
+///   the element type, or checks the key, as
+///   [`reject_untainted_text_from_unchecked`] asks of a shape. `base` is
+///   `None` where the array is the result of a member whose return type
+///   decides that question ([`check_key_making_argument`]).
+///
+/// Returns whether it reported, so a caller judging an element can report
+/// one mistake once.
+pub(crate) fn check_key_qualifier(
+    key: Span,
+    key_ty: TypeId,
+    base: Option<TypeId>,
+    env: &mut Env<'_>,
+) -> bool {
+    if contains_secret(key_ty, env.interner) {
+        let found = env.interner.describe(key_ty);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_SECRET_ARRAY_KEY,
+                format!("a `secret` value cannot be an array key, found `{found}`"),
+            )
+            .with_primary(key, "this key is `secret`")
+            .with_help(
+                "the keys of an array are read back as plain text, for example by \
+                 `Core\\Arr::keys` and by `foreach`. Use a key that is not secret, and keep the \
+                 secret in the element value",
+            ),
+        );
+        return true;
+    }
+    let Some(base) = base else {
+        return false;
+    };
     if !carries_tainted(key_ty, env.interner)
         || !matches!(env.interner.get(base), Ty::Array(_))
         || keys_from_outside(base, env.interner)
     {
-        return;
+        return false;
     }
     let array = env.interner.describe(base);
     env.diags.report(
@@ -298,6 +335,7 @@ pub(crate) fn reject_tainted_key_write(key: Span, key_ty: TypeId, base: TypeId, 
              `Core\\Taint::assertTrusted($key, \"reason\")`",
         ),
     );
+    true
 }
 
 /// Whether `ty` names a shape with a text field written without `tainted` —

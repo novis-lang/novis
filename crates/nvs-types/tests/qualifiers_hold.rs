@@ -401,3 +401,85 @@ fn an_erased_property_write_refuses_a_qualified_value() {
         assert!(!diags.has_errors(), "{src}\n{diags:?}");
     }
 }
+
+/// A program over a key `$k` of type `{K}` and an array `$a` of type `{A}`,
+/// with a method `take` whose parameter is `{A}` and a method `any` whose
+/// parameter is `mixed`.
+fn key_program(key: &str, array: &str, body: &str) -> String {
+    format!(
+        "<?nvs\n\
+         class T {{\n\
+         \x20 function take({array} $a): void {{}}\n\
+         \x20 function any(mixed $m): void {{}}\n\
+         \x20 function m({key} $k, {array} $a): void {{\n\
+         \x20   {body}\n\
+         \x20 }}\n\
+         }}\n"
+    )
+}
+
+/// Every position a value becomes a key of an array the program writes: a
+/// subscript write, two compound writes, a literal against a declared type,
+/// an inferred literal and a literal in argument position.
+const KEY_POSITIONS: [&str; 6] = [
+    "$a[$k] = \"v\";",
+    "$a[$k] .= \"v\";",
+    "$a[$k] ??= \"v\";",
+    "{A} $b = [$k => \"v\"];",
+    "var $b = [$k => \"v\"]; $this->take($b);",
+    "$this->take([$k => \"v\"]);",
+];
+
+#[test]
+fn a_tainted_key_is_checked_at_every_key_position() {
+    for position in KEY_POSITIONS {
+        let body = position.replace("{A}", "array<string>");
+        let src = key_program("tainted string", "array<string>", &body);
+        let diags = check_src(&src);
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "a plain-keyed array took a `tainted` key:\n{src}\n{diags:?}"
+        );
+        // An element type that carries `tainted` says the keys may come from
+        // outside, so the same key is taken. An inferred literal of plain
+        // values is `array<string>`, so it has no such form to try.
+        if position.starts_with("var") {
+            continue;
+        }
+        let body = position.replace("{A}", "array<tainted string>");
+        let src = key_program("tainted string", "array<tainted string>", &body);
+        let diags = check_src(&src);
+        assert!(!diags.has_errors(), "{src}\n{diags:?}");
+    }
+}
+
+#[test]
+fn a_secret_value_is_never_an_array_key() {
+    for array in ["array<string>", "array<secret string>", "array<mixed>"] {
+        for position in KEY_POSITIONS {
+            let body = position.replace("{A}", array);
+            let src = key_program("secret string", array, &body);
+            let diags = check_src(&src);
+            assert!(
+                diags.iter().any(|d| d.code == Some(code::E_SECRET_ARRAY_KEY)),
+                "`{array}` took a `secret` key:\n{src}\n{diags:?}"
+            );
+        }
+    }
+    // A literal handed to a `mixed` parameter, and a `?secret string` key.
+    for (key, body) in [
+        ("secret string", "$this->any([$k => 1]);"),
+        ("?secret string", "$a[$k ?? \"\"] = \"v\";"),
+    ] {
+        let src = key_program(key, "array<string>", body);
+        let diags = check_src(&src);
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_SECRET_ARRAY_KEY)),
+            "a `{key}` became a key:\n{src}\n{diags:?}"
+        );
+    }
+    // The value of an element may be secret where the element type says so.
+    let src = key_program("secret string", "array<secret string>", "$a[\"id\"] = $k;");
+    let diags = check_src(&src);
+    assert!(!diags.has_errors(), "{src}\n{diags:?}");
+}

@@ -66,6 +66,10 @@ and is genuinely trusted, or the text of a `Stringable` object pulled out of one
 the only evidence, `$m[$key] = …` with a `tainted` key into an array whose element type carries
 neither `tainted` nor `mixed` is `E0401` at the key. So are `??=`, every compound write, a nested
 level such as `$m[$key]["n"] = …`, and a literal's `[$key => …]` against its declared or inferred type.
+A literal written as an argument is checked against the type it takes there, whatever the parameter
+expects: at a `mixed` parameter it is an `array<mixed>`, whose keys read back tainted, so the key is
+taken. One function in the checker asks the question at every one of these positions, and it asks
+`rule:security/secret-qualifier`'s key question first.
 `unset` adds no key and is not checked. The cost is an update to a key already there, such as a count
 per status read from a row: the checker cannot see that the key exists, so the program compares the
 text with its own keys and writes through the matching one, or passes the key through

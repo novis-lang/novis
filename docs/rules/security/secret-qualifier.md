@@ -17,6 +17,14 @@ last place the bit is visible. A written argument is the one position not asked 
 a credential legitimately (`rule:security/secret-sinks-refuse`), and what an argument owes is that
 rule.
 
+**A `secret` value is never an array key.** An array's type records nothing about its keys, so
+`Core\Arr::keys`, a `foreach`, a dump and an error message all read a key back as plain text. No
+element type can change that, so a key whose type contains `secret` is `E0896` in every array,
+`array<secret string>` and `array<mixed>` included. It is asked at every position a value becomes a
+key, the same positions `rule:security/taint-propagation` lists for a `tainted` key: a subscript write,
+every compound write, and a literal's key in every position, an argument's included. The cost is that
+a program keys by something that is not secret, such as an id, and keeps the secret in the element.
+
 **A `secret` value enters `mixed` only where `secret mixed` is written.** `mixed $m = $secret;` does
 not compile, and its help names `secret mixed`. The refusal is in the assignment relation, so it holds
 at every placement: a declaration, an assignment, a property, a return, a parameter, a `foreach`

@@ -622,7 +622,7 @@ pub(crate) struct Env<'a> {
     /// written in the file).
     pub write_target_levels: FxHashMap<Span, bool>,
     /// Whether the write target being checked is an `unset`'s, which removes
-    /// a key and adds none, so `crate::expr::quals::reject_tainted_key_write`
+    /// a key and adds none, so `crate::expr::quals::check_key_qualifier`
     /// skips its levels.
     pub unset_target: bool,
     /// Every read this run has seen under a `??`, an `isset` or an `empty`,

@@ -1193,6 +1193,10 @@ pub(crate) fn check_array_literal(
     // a literal inside an element's own call is not judged by it.
     let dispatched = std::mem::take(&mut env.dispatched_literal);
     let target = super::quals::UntypedTarget::Dispatched;
+    // Every key is checked once the literal's own type is known, below, so
+    // the check runs in every position, an argument's included, and not only
+    // where `expected` names an array.
+    let mut keys: Vec<(Span, TypeId)> = Vec::new();
     // Each element meets `secret mixed` there, so a `secret` element gets
     // the one refusal below and not a `mixed` mismatch whose help names a
     // type the member cannot take.
@@ -1214,9 +1218,7 @@ pub(crate) fn check_array_literal(
         if let Some(key) = &item.key {
             let key_ty = check_expr(key, None, live, scope, ctx, env);
             check_array_key_type(key_ty, key.span, env);
-            if let Some(array) = expected {
-                super::quals::reject_tainted_key_write(key.span, key_ty, array, env);
-            }
+            keys.push((key.span, key_ty));
         }
         // `rule:security/secret-qualifier`'s container axis, at the element
         // that is about to lose the bit: this literal joins no element types,
@@ -1257,13 +1259,17 @@ pub(crate) fn check_array_literal(
             env.exprs.record_type(item.value.span, elem);
         }
     }
-    match (expected, elem_expected) {
+    let array = match (expected, elem_expected) {
         (Some(id), Some(_)) => id,
         _ => {
             let mixed = env.interner.mixed();
             env.interner.array(mixed)
         }
+    };
+    for (key, key_ty) in keys {
+        super::quals::check_key_qualifier(key, key_ty, Some(array), env);
     }
+    array
 }
 
 /// The one `array<T>` member of a union `expected`, or `expected` itself
@@ -1400,7 +1406,7 @@ fn synthesize_items(
     }
     let array = env.interner.array(first);
     for (key, key_ty) in keys {
-        super::quals::reject_tainted_key_write(key, key_ty, array, env);
+        super::quals::check_key_qualifier(key, key_ty, Some(array), env);
     }
     Ok(array)
 }
