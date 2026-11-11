@@ -3172,7 +3172,7 @@ null
 ```nvs error
 <?nvs
 // Shows that a variable of the type `"read"|"write"` only accepts those two words.
-// a `string` of 6 bytes is not one of them, so this program does not compile.
+// `"delete"` is not one of them, so this program does not compile.
 // proof: compile-error
 
 "read"|"write" $mode = 'read';
@@ -6559,26 +6559,27 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 ### Qualifiers: `tainted` and `secret`
 
 `tainted` and `secret` are two words you can write before `string` or `bytes`. `tainted string` is
-text from outside your program, such as a form field or a command-line argument. `secret string` is
-a confidential value, such as a password or an API key.
+text from outside your program, such as a form field. `secret string` is a confidential value, such
+as a password or an API key.
 
-A value is tainted or secret only where a declaration says so. A string built from it with `.` or
-interpolation is tainted or secret too. The compiler checks both words before the program runs, so
-they do not make the program slower.
+A string built from such a value with `.` or interpolation is tainted or secret too. The compiler
+checks both words, so they do not make the program slower.
 
 A tainted string cannot be a regular expression, a format template or a date pattern. It cannot be
 assigned to a plain `string` either. A secret value does not compile with `echo`, in an error
 message, in a debug dump or in `Core\Json::encode`.
 
-**Good to know:** a conversion such as `as int` gives a plain value, because the result is a number.
-`Core\Secret::reveal` is the only method that gives a plain string from a secret one. You give it the
-reason as its second argument.
+`secret` can also go before `mixed`. A plain `mixed` variable cannot contain a secret value. A
+secret value cannot be an array key, and `as int` does not compile with it.
+`Core\Secret::reveal($value, "reason")` is the only method that gives a plain value from a secret
+one.
 
 Examples 04 to 07 show each kind of mistake, and none of them compiles.
 
-You can write `tainted`, `secret` or both, in the order `secret tainted string`. They go only before
-`string` and `bytes`. `tainted int` and `tainted secret string` are syntax errors (`E0102`). You can
-use them on a parameter, a local variable, a property and a return type.
+You can write `tainted`, `secret` or both, in the order `secret tainted string`. They go before
+`string` and `bytes`, and `secret` also goes before `mixed`. `tainted int` and
+`tainted secret string` are syntax errors (`E0102`). You can use them on a parameter, a local
+variable, a property and a return type.
 
 A tainted string stays tainted through `.` and interpolation. It also stays tainted through every
 `Core` method that returns text built from it, such as `Core\Str::upper`, `trim` and `split`. A method that
@@ -6588,10 +6589,12 @@ parameter that is an instruction does not take a tainted string. That is a regul
 parameter of type `string` that is not listed as taking one. Each of these is `E0401`, and so is
 `string $plain = $input;` for a tainted `$input`.
 
-`as int`, `as uint`, `as float`, `as bool` and `as` an enum give a plain value. `as string` and
-`as bytes` keep `tainted` and `secret`, so `string $s = $input as string;` is `E0401`. Two methods
-give a plain string that is safe for one use: `Core\Regex::quote` for a pattern and
-`Core\Uri::encodeComponent` for a link.
+For a tainted string, `as int`, `as uint`, `as float`, `as bool` and `as` an enum give a plain
+value. For a secret string, each of these is `E0894`. Write `Core\Secret::reveal($value, "reason")
+as int` instead. `as string` and `as bytes` keep `tainted` and `secret`, so
+`string $s = $input as string;` is `E0401`. A type test keeps them too: after `$x is string`, a
+`?tainted string` is a `tainted string`. Two methods give a plain string that is safe for one use:
+`Core\Regex::quote` for a pattern and `Core\Uri::encodeComponent` for a link.
 
 A secret string stays secret through `.` and interpolation, separately from `tainted`. These do not
 compile with a secret value. `echo` and `print` are `E0790`, also for `echo "Bearer {$token}"`.
@@ -6601,8 +6604,15 @@ includes the parameters that take a tainted string, so `Core\Str::length($token)
 
 `==` between two secrets, or between a secret and a plain string, compiles and gives a plain `bool`.
 A declared `array<secret string>` keeps `secret`, so `Core\Json::encode` of it is `E0791`. An array
-written in the code is an `array<mixed>`, and it has no `secret` elements. So
-`Core\Json::encode([$token])` compiles and prints the value.
+written in the call is the same: `Core\Json::encode(["token" => $token])` is `E0791` too.
+
+A secret value can be in a `mixed` variable only when you write `secret mixed`.
+`mixed $m = $token;` is `E0401`. A value read from `secret mixed` is secret, and `as string` gives a
+`secret tainted string`. A secret value is never an array key, in any array. `$a[$token] = 1;` is
+`E0896`, because `Core\Arr::keys` and `foreach` give the keys back as plain text. Keep the secret in
+the element instead. A secret or tainted value cannot go to a `callable` with no parameter types, or
+to `Core\Reflect\ClassInfo::set`, `call` and `construct`. That is `E0895`. Write the parameter
+types, such as `callable(secret string): void`.
 
 `Core\Secret::reveal($value, $reason)` gives a plain string, and `Core\Secret::revealBytes` gives
 plain `bytes`. It removes only `secret`. For a `secret tainted string`, the result is a
@@ -6838,6 +6848,48 @@ error[E0791]: a `secret`-qualified value cannot be passed to `Core\Json::encode`
 
 error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+#### Example 08: a secret in a mixed value
+
+```nvs
+<?nvs
+// Shows how to keep a secret in a `mixed` value: you write `secret mixed`.
+
+class Settings
+{
+    // A setting can be a number, some text or a secret.
+    // `secret mixed` can contain every one of them.
+    public static function find(string $name): secret mixed
+    {
+        secret string $apiKey = 'sk-test-4471';
+        if ($name == 'apiKey') {
+            return $apiKey;
+        }
+        if ($name == 'port') {
+            return 8080;
+        }
+        return 'mail.example.com';
+    }
+}
+
+// A value read from `secret mixed` is secret too.
+// `as string` gives a `secret tainted string`, so `echo` does not compile with it.
+secret tainted string $key = Settings::find('apiKey') as string;
+
+// `Core\Secret::reveal` gives a plain value. The reason says why you may use it.
+tainted string $shown = Core\Secret::reveal($key, 'show the length only');
+echo 'The key has ', Core\Str::length($shown), " characters\n";
+
+// A conversion to a number needs `Core\Secret::reveal` first.
+// This prints `8080`.
+secret tainted string $port = Settings::find('port') as string;
+echo Core\Secret::reveal($port, 'a port number is not confidential') as int, "\n";
+```
+
+```output
+The key has 12 characters
+8080
 ```
 
 ### What does not exist
@@ -26326,7 +26378,7 @@ An encode writes the value back as it is.
 
 A set of allowed values is a type such as `"draft"|"live"` or `1|2|3`. All values are strings, or
 all are numbers. It is written in JSON as the plain string or number. A decode checks that the value
-is in the set. `"gone"` gives the issue `` a `string` of 4 bytes is not one of `"draft"`, `"live"` ``. A long
+is in the set. `"gone"` gives the issue `` `"gone"` is not one of `"draft"`, `"live"` ``. A long
 value is cut to 64 characters in the message. `?"pinned"` and `"a"|"b"|null` also accept `null`.
 
 Any other type with `|` is `E0756`. Examples are `string|int`, a mix of string and number values,
@@ -49830,7 +49882,7 @@ Describes the class with the name `$name`. You do not need an object of that cla
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The class's name as its declaration writes it, with the namespace and with no `\` at the start. `Core\Reflect\ClassInfo::name` returns this name. |
+| `$name` | `string` (sink) | The class's name as its declaration writes it, with the namespace and with no `\` at the start. `Core\Reflect\ClassInfo::name` returns this name. The text cannot be `tainted`. Check text from a request with `Core\Taint::assertTrusted` first. |
 
 **Returns** `?Core\Reflect\ClassInfo` — A description of that class. The result is `null` if the running program declares no class with that name. This is not an error.
 
@@ -49985,7 +50037,7 @@ Returns the value of the class constant `$name`. The visibility rules are the sa
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The constant's name, as the declaration writes it, with no class name and no `::`. |
+| `$name` | `string` (sink) | The constant's name, as the declaration writes it, with no class name and no `::`. The text cannot be `tainted`. Check text from a request with `Core\Taint::assertTrusted` first. |
 
 **Returns** `mixed` — The value, computed at compile time. It is a `string`, `int`, `bool` or `float`, the same type as the value in the declaration.
 
@@ -50029,7 +50081,7 @@ Reads the `$name` property of `$object`. The visibility rules are the same as fo
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$object` | `mixed` | An instance of the described class. The description is of a class and does not contain an object, so you pass the object to read here. |
-| `$name` | `string` (neutral) | The property's name without the `$`, as `properties` returns it. |
+| `$name` | `string` (sink) | The property's name without the `$`, as `properties` returns it. The text cannot be `tainted`. Check text from a request with `Core\Taint::assertTrusted` first. |
 
 **Returns** `mixed` — The property's value. Its type is `mixed`, whatever type the property declares.
 
@@ -50047,8 +50099,8 @@ Writes the `$name` property of `$object`, and then runs the `PropertyObserver`, 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$object` | `mixed` | An instance of the described class. You pass it here for the same reason as in `get`. |
-| `$name` | `string` (neutral) | The property's name without the `$`, as `properties` returns it. |
-| `$value` | `mixed` | The value to store. It is checked against the type that the object's class declares for the property, because that type is not known at compile time. |
+| `$name` | `string` (sink) | The property's name without the `$`, as `properties` returns it. The text cannot be `tainted`. Check text from a request with `Core\Taint::assertTrusted` first. |
+| `$value` | `mixed` | The value to store. It is checked against the type that the object's class declares for the property, because that type is not known at compile time. A `tainted` or `secret` value, or a `mixed` value, does not compile here. |
 
 **Returns** `void` — Nothing. A following `get` returns the stored value, and the observer is told about that value.
 
@@ -50066,8 +50118,8 @@ Calls the `$name` method of `$object` with `$arguments`. The visibility rules ar
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$object` | `mixed` | An instance of the described class. The description is of a class and does not contain an object, so you pass the object to call here. |
-| `$name` | `string` (neutral) | The method's name without the `()`, as the declaration writes it. |
-| `$arguments` | `array<mixed>` | One entry for each declared parameter, in order. Keys are ignored. Entries after the last parameter are ignored. This argument is required even when the method has no parameters. In that case, pass `[]`. |
+| `$name` | `string` (sink) | The method's name without the `()`, as the declaration writes it. The text cannot be `tainted`. Check text from a request with `Core\Taint::assertTrusted` first. |
+| `$arguments` | `array<mixed>` | One entry for each declared parameter, in order. Keys are ignored. Entries after the last parameter are ignored. This argument is required even when the method has no parameters. In that case, pass `[]`. A `tainted` or `secret` value, or a `mixed` value, does not compile here. |
 
 **Returns** `mixed` — Whatever the method returned. Its type is `mixed`, whatever type the method declares.
 
@@ -50084,7 +50136,7 @@ Builds an instance of the described class and runs its constructor with `$argume
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$arguments` | `array<mixed>` | One entry for each declared constructor parameter, in order. Keys are ignored. Entries after the last parameter are ignored. This argument is required even when the class declares no constructor. In that case, pass `[]`. |
+| `$arguments` | `array<mixed>` | One entry for each declared constructor parameter, in order. Keys are ignored. Entries after the last parameter are ignored. This argument is required even when the class declares no constructor. In that case, pass `[]`. A `tainted` or `secret` value, or a `mixed` value, does not compile here. |
 
 **Returns** `mixed` — The new instance. Its type is `mixed`. For a class with no constructor, the new instance has the default values that the class declares for its properties.
 
@@ -50334,7 +50386,7 @@ Returns one payload field's value, computed at compile time.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The field's name, as `fields` returns it. |
+| `$name` | `string` (sink) | The field's name, as `fields` returns it. The text cannot be `tainted`. Check text from a request with `Core\Taint::assertTrusted` first. |
 
 **Returns** `mixed` — The value as a `string`, `int`, `bool` or `float`. These are the four types a payload field can have here.
 
@@ -50364,7 +50416,7 @@ Returns a description of the enum with the name `$name`. An enum has no methods 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The full name of the enum, with its namespace and with no `\` at the start. `Status::class` gives this name. |
+| `$name` | `string` (sink) | The full name of the enum, with its namespace and with no `\` at the start. `Status::class` gives this name. The text cannot be `tainted`. Check text from a request with `Core\Taint::assertTrusted` first. |
 
 **Returns** `?Core\Reflect\EnumInfo` — A `Core\Reflect\EnumInfo` for that enum. The result is `null` if the program has no enum with that name, and also for the name of a class.
 
@@ -50401,7 +50453,7 @@ Returns the value of one case of the enum.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$case` | `string` (neutral) | The name of the case, as `cases` gives it. The name is case-sensitive. |
+| `$case` | `string` (sink) | The name of the case, as `cases` gives it. The name is case-sensitive. The text cannot be `tainted`. Check text from a request with `Core\Taint::assertTrusted` first. |
 
 **Returns** `int|uint` — The value of the case. It is a `uint` if `isUnsigned` returns `true`, and an `int` otherwise. Use `as uint` or `as int` to store it in a variable of that type.
 

@@ -64,7 +64,7 @@
 //! design** rather than pending. A payload with one credential among public
 //! fields is where the qualifier is in practice, so an array literal written
 //! as an argument keeps a `secret` element on its own type
-//! ([`check_array_literal`](super::literals::check_array_literal)), and each
+//! ([`check_array_literal`]), and each
 //! of these reads it there.
 //!
 //! The last has no member behind it at all: [`reject_secret_output`] is

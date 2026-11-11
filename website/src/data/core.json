@@ -37011,7 +37011,7 @@
             "params": [
               {
                 "name": "name",
-                "descHtml": "The class's name as its declaration writes it, with the namespace and with no <code>\\</code> at the start. <code>Core\\Reflect\\ClassInfo::name</code> returns this name."
+                "descHtml": "The class's name as its declaration writes it, with the namespace and with no <code>\\</code> at the start. <code>Core\\Reflect\\ClassInfo::name</code> returns this name. The text cannot be <code>tainted</code>. Check text from a request with <code>Core\\Taint::assertTrusted</code> first."
               }
             ],
             "returnHtml": "A description of that class. The result is <code>null</code> if the running program declares no class with that name. This is not an error."
@@ -37245,7 +37245,7 @@
             "params": [
               {
                 "name": "name",
-                "descHtml": "The field's name, as <code>fields</code> returns it."
+                "descHtml": "The field's name, as <code>fields</code> returns it. The text cannot be <code>tainted</code>. Check text from a request with <code>Core\\Taint::assertTrusted</code> first."
               }
             ],
             "returnHtml": "The value as a <code>string</code>, <code>int</code>, <code>bool</code> or <code>float</code>. These are the four types a payload field can have here.",
@@ -37425,7 +37425,7 @@
             "params": [
               {
                 "name": "name",
-                "descHtml": "The constant's name, as the declaration writes it, with no class name and no <code>::</code>."
+                "descHtml": "The constant's name, as the declaration writes it, with no class name and no <code>::</code>. The text cannot be <code>tainted</code>. Check text from a request with <code>Core\\Taint::assertTrusted</code> first."
               }
             ],
             "returnHtml": "The value, computed at compile time. It is a <code>string</code>, <code>int</code>, <code>bool</code> or <code>float</code>, the same type as the value in the declaration.",
@@ -37531,7 +37531,7 @@
               },
               {
                 "name": "name",
-                "descHtml": "The property's name without the <code>$</code>, as <code>properties</code> returns it."
+                "descHtml": "The property's name without the <code>$</code>, as <code>properties</code> returns it. The text cannot be <code>tainted</code>. Check text from a request with <code>Core\\Taint::assertTrusted</code> first."
               }
             ],
             "returnHtml": "The property's value. Its type is <code>mixed</code>, whatever type the property declares.",
@@ -37594,11 +37594,11 @@
               },
               {
                 "name": "name",
-                "descHtml": "The property's name without the <code>$</code>, as <code>properties</code> returns it."
+                "descHtml": "The property's name without the <code>$</code>, as <code>properties</code> returns it. The text cannot be <code>tainted</code>. Check text from a request with <code>Core\\Taint::assertTrusted</code> first."
               },
               {
                 "name": "value",
-                "descHtml": "The value to store. It is checked against the type that the object's class declares for the property, because that type is not known at compile time."
+                "descHtml": "The value to store. It is checked against the type that the object's class declares for the property, because that type is not known at compile time. A <code>tainted</code> or <code>secret</code> value, or a <code>mixed</code> value, does not compile here."
               }
             ],
             "returnHtml": "Nothing. A following <code>get</code> returns the stored value, and the observer is told about that value.",
@@ -37665,11 +37665,11 @@
               },
               {
                 "name": "name",
-                "descHtml": "The method's name without the <code>()</code>, as the declaration writes it."
+                "descHtml": "The method's name without the <code>()</code>, as the declaration writes it. The text cannot be <code>tainted</code>. Check text from a request with <code>Core\\Taint::assertTrusted</code> first."
               },
               {
                 "name": "arguments",
-                "descHtml": "One entry for each declared parameter, in order. Keys are ignored. Entries after the last parameter are ignored. This argument is required even when the method has no parameters. In that case, pass <code>[]</code>."
+                "descHtml": "One entry for each declared parameter, in order. Keys are ignored. Entries after the last parameter are ignored. This argument is required even when the method has no parameters. In that case, pass <code>[]</code>. A <code>tainted</code> or <code>secret</code> value, or a <code>mixed</code> value, does not compile here."
               }
             ],
             "returnHtml": "Whatever the method returned. Its type is <code>mixed</code>, whatever type the method declares.",
@@ -37712,7 +37712,7 @@
             "params": [
               {
                 "name": "arguments",
-                "descHtml": "One entry for each declared constructor parameter, in order. Keys are ignored. Entries after the last parameter are ignored. This argument is required even when the class declares no constructor. In that case, pass <code>[]</code>."
+                "descHtml": "One entry for each declared constructor parameter, in order. Keys are ignored. Entries after the last parameter are ignored. This argument is required even when the class declares no constructor. In that case, pass <code>[]</code>. A <code>tainted</code> or <code>secret</code> value, or a <code>mixed</code> value, does not compile here."
               }
             ],
             "returnHtml": "The new instance. Its type is <code>mixed</code>. For a class with no constructor, the new instance has the default values that the class declares for its properties.",
@@ -37850,7 +37850,7 @@
             "params": [
               {
                 "name": "name",
-                "descHtml": "The full name of the enum, with its namespace and with no <code>\\</code> at the start. <code>Status::class</code> gives this name."
+                "descHtml": "The full name of the enum, with its namespace and with no <code>\\</code> at the start. <code>Status::class</code> gives this name. The text cannot be <code>tainted</code>. Check text from a request with <code>Core\\Taint::assertTrusted</code> first."
               }
             ],
             "returnHtml": "A <code>Core\\Reflect\\EnumInfo</code> for that enum. The result is <code>null</code> if the program has no enum with that name, and also for the name of a class."
@@ -37919,7 +37919,7 @@
             "params": [
               {
                 "name": "case",
-                "descHtml": "The name of the case, as <code>cases</code> gives it. The name is case-sensitive."
+                "descHtml": "The name of the case, as <code>cases</code> gives it. The name is case-sensitive. The text cannot be <code>tainted</code>. Check text from a request with <code>Core\\Taint::assertTrusted</code> first."
               }
             ],
             "returnHtml": "The value of the case. It is a <code>uint</code> if <code>isUnsigned</code> returns <code>true</code>, and an <code>int</code> otherwise. Use <code>as uint</code> or <code>as int</code> to store it in a variable of that type.",
