@@ -1,10 +1,19 @@
 use nvs_runtime::{ClassDesc, ClassTable, Ctx, OutputSink, SlotCheck, Tag, decode, encode};
 
-/// `Dog`, `Cat` and a typed `Owner`.
+/// `Dog`, `Cat`, a typed `Owner`, and one class of every kind `encode`
+/// refuses, each with the one property `name`.
 fn classes() -> ClassTable {
     let mut table = ClassTable::new();
     table.define("Dog", &["name"], &[]);
     table.define("Cat", &["name"], &[]);
+    let callable = table.define("{callable}", &["name"], &[]);
+    table.set_callable(callable);
+    table.define("Task$gen", &["name"], &[]);
+    let handle = table.define(r"Core\IO\File", &["name"], &[]);
+    table.set_host_handle(handle);
+    table.define("main$fn0", &["name"], &[]);
+    let wallet = table.define("Wallet", &["name"], &[]);
+    table.set_secret_fields(wallet, vec![true]);
     let owner = table.define("Owner", &["count", "pet", "pets"], &[]);
     table.set_field_tags(
         owner,
@@ -24,8 +33,11 @@ fn classes() -> ClassTable {
 }
 
 /// Re-encodes `value`, consuming the caller's reference to it.
+///
+/// `encode` refuses every class the table marks, so this fails when `decode`
+/// returned an object of one.
 fn encoded(value: nvs_runtime::Value) -> Vec<u8> {
-    encode(value).expect("a value `decode` built encodes again")
+    encode(value).expect("a value `decode` built holds no class `encode` refuses")
 }
 
 /// `Core\Serialize::decode` must not panic on any payload, and whatever it
@@ -37,7 +49,10 @@ fn encoded(value: nvs_runtime::Value) -> Vec<u8> {
 /// `Dog`. So the fuzzer reaches the per-field type checks that keep a decoded
 /// object from holding a value its slot does not admit
 /// (`rule:classes/serialize-is-a-closed-format`), which is where a missed check
-/// is a memory-safety hole rather than a wrong answer.
+/// is a memory-safety hole rather than a wrong answer. The table also holds a
+/// callable's class, a generator's state class, a host-handle class, a class
+/// the compiler made and a class with a `secret` property, which `decode` must
+/// refuse by name, as `encode` does.
 ///
 /// It runs inside a context, as a request decodes: a payload whose objects form
 /// a cycle keeps them alive past the last release, and the context's teardown
