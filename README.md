@@ -130,12 +130,11 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **JSON for more class shapes.** *Working on it now.* `#[Core\Json\Derive]` also reads and writes the properties a class inherits. A property can have a set of allowed values. `nvs meta --json` prints the JSON schema of each derived class.
-2. **Fixes from a security review.** A review of the whole runtime found places where a safety rule did not apply. Each place gets a fix and a test.
-3. **Faster writes to arrays and strings.** A write to a nested array, or an append to a string in a property, changes the value in place. The cost no longer grows with the size of the value.
-4. **A request path that scales with cores.** Each core keeps its own copy of what every request reads. Static files are read on a separate thread.
-5. **A JSON reader and writer made for Novis.** `Core\Json` reads and writes Novis values directly. The `nvs` binary also becomes smaller.
-6. **Scheduled jobs that run on server events.** A `[[schedule]]` entry can run its script when the server starts, stops or reloads. It can also run when a scheduled job or a queue job fails.
+1. **Fixes from a security review.** *Working on it now.* A review of the whole runtime found places where a safety rule did not apply. Each place gets a fix and a test.
+2. **Faster writes to arrays and strings.** A write to a nested array, or an append to a string in a property, changes the value in place. The cost no longer grows with the size of the value.
+3. **A request path that scales with cores.** Each core keeps its own copy of what every request reads. Static files are read on a separate thread.
+4. **A JSON reader and writer made for Novis.** `Core\Json` reads and writes Novis values directly. The `nvs` binary also becomes smaller.
+5. **Scheduled jobs that run on server events.** A `[[schedule]]` entry can run its script when the server starts, stops or reloads. It can also run when a scheduled job or a queue job fails.
 <!-- roadmap:end -->
 
 ## Contributing
