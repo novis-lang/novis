@@ -10,7 +10,7 @@ stages:
     context: [docs/rules/core-classes/keep-key-order-freezes-a-derived-classs-keys.md, crates/nvs-ir/src/lower/mod.rs, crates/nvs-diagnostics/src/code/types_e08.rs, tests/conformance/core/json-derive-encodes-declared-fields.nvst, tests/conformance/reject/a-json-derive-field-needs-a-matching-constructor-parameter.nvst]
   - id: 2
     title: a set of allowed values is codec-reachable
-    status: open
+    status: done
     context: [docs/rules/types/single-value-types.md, crates/nvs-runtime/src/object.rs, crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/db/row.rs, crates/nvs-cli/src/openapi.rs, crates/nvs-diagnostics/src/code/types_e07.rs]
   - id: 3
     title: nvs meta --json carries each derived class's JSON schema
@@ -202,26 +202,26 @@ reads stage 1 and 2's codec and runs after them. Stage 4's examples and attack r
 **Does:** admit a set of allowed values in both formats, check it on decode, show it in OpenAPI, and
 fix the `E0756` help.
 
-- [ ] `json_reachable` and `db_reachable` admit a union whose non-`null` arms are all single-value
+- [x] `json_reachable` and `db_reachable` admit a union whose non-`null` arms are all single-value
   strings or all single-value ints (`crates/nvs-types/src/derive.rs:2253`, `:2189`).
-- [ ] `codec_ty` erases it to `Str` or `Int` and fills a new `allowed` list on `DerivedField`
+- [x] `codec_ty` erases it to `Str` or `Int` and fills a new `allowed` list on `DerivedField`
   (`crates/nvs-types/src/derive.rs:1171`, `:997`), carried to `nvs_runtime::CodecField::allowed`
   (`crates/nvs-runtime/src/object.rs:1301`) through the IR join and codegen.
-- [ ] The JSON decoder checks membership after the base read and records one issue with its path
+- [x] The JSON decoder checks membership after the base read and records one issue with its path
   (`crates/nvs-stdlib/src/json.rs:5473`).
-- [ ] The row decoder runs the same check (`crates/nvs-stdlib/src/db/row.rs:409`), with the test
+- [x] The row decoder runs the same check (`crates/nvs-stdlib/src/db/row.rs:409`), with the test
   `a_row_decode_checks_an_allowed_value_set` in its `#[cfg(test)]` module
   (`crates/nvs-stdlib/src/db/row.rs:1267`).
-- [ ] The OpenAPI renderer writes the set as `enum` beside the base type
+- [x] The OpenAPI renderer writes the set as `enum` beside the base type
   (`crates/nvs-cli/src/openapi.rs:291`), with the test `an_allowed_value_set_is_an_enum_in_the_schema`
   in `crates/nvs-cli/tests/openapi.rs:1`.
-- [ ] The `E0756` help and card name `mixed` and a set of allowed values
+- [x] The `E0756` help and card name `mixed` and a set of allowed values
   (`crates/nvs-types/src/derive.rs:965`, `crates/nvs-diagnostics/src/code/types_e07.rs:1063`).
-- [ ] Conformance cases `tests/conformance/core/json-derive-checks-an-allowed-value-set.nvst:1`
+- [x] Conformance cases `tests/conformance/core/json-derive-checks-an-allowed-value-set.nvst:1`
   (encode, decode, a value outside the set reported with its path, `?"a"` takes `null`) and
   `tests/conformance/reject/a-json-derive-refuses-a-union-of-two-kinds.nvst:1` (`string|int` and
   `A|B` are `E0756`, and the help names `mixed`).
-- [ ] `rule:core-classes/derive-property-list`'s reachable list names a set of allowed values and
+- [x] `rule:core-classes/derive-property-list`'s reachable list names a set of allowed values and
   `mixed`, and its Declined list gains the union of two kinds and the union of two classes
   (`docs/rules/core-classes/derive-property-list.md:1`).
 
@@ -273,25 +273,36 @@ the comments with `bun nv proofs --comments`.
 
 ### State
 
-Stage 1 is done. `chain_field_order` in `crates/nvs-types/src/derive.rs` walks the chain root first;
-an inherited field is read in its parent's file and scope, checked against the subclass's
-constructor, and its refusals are moved to the subclass's attribute (`Inherited::relabel`). The IR
-join needed no change: it joins by property name against the flattened layout. `E0820`'s help names
-each unfilled parameter when no skipped property explains it (`not_constructible_help`), at the
-JSON door and the row door. Both stage 1 cases pass, run by name. The acceptance sweep's
-`env-secret-proofs` red is stale (no file defines it; `bun nv proofs --gate --only 'Core\Env::secret'`
-owes nothing), and the nightly CI's one red, `live_config`
-`a_changed_server_timeout_applies_to_the_next_connection`, ran at f4c1d5c7e2 and is fixed on `main` by
-305c04f660.
+Stages 1 and 2 are done. Stage 1: `chain_field_order` in `crates/nvs-types/src/derive.rs` walks the
+chain root first, and an inherited field's refusals move to the subclass's attribute
+(`Inherited::relabel`).
 
-Expect red at the gate: any test that pinned a subclass's own-keys-only JSON output or an `E0820` for a
-subclass whose constructor takes a parent's property (none found by grep), and any `nvs-types` unit
-test that builds a `DerivedCodec` literal without `..Default::default()`.
+Stage 2: `allowed_values` in `crates/nvs-types/src/derive.rs` reads a set of allowed values (one
+single value included), `codec_ty` erases it to `Str` or `Int` with `Erased::allowed`, and both
+reachable tests admit it. The set rides on `DerivedField::allowed` and `nvs_runtime::AllowedValues`
+(`crates/nvs-runtime/src/object.rs`), whose `miss` words the issue with the checked conversion's
+`rendered_operand` (now `pub(crate)` in `helpers.rs`). The JSON decoder checks it in `outside`
+(`crates/nvs-stdlib/src/json.rs`) for a field and a list's element; the row decoder in `admitted`
+(`crates/nvs-stdlib/src/db/row.rs`); OpenAPI in `allowed_schema`. A single value such as `?"a"` used
+to erase to `Opaque` and fault at decode; it is now a set of one. Both stage 2 acceptance checks pass
+(`allowed-sets-encode-and-decode` by suite, `allowed-sets-in-a-row-and-a-schema` by `looper check`).
+
+The acceptance sweep's `env-secret-proofs` red is stale (no file defines it, and its log does not
+exist), and nightly run 43001191130 ran at f4c1d5c7e2, before 305c04f660 fixed its `live_config` red.
+
+Expect red at the gate: any test or `.nvst` that pinned `E0756`'s old help or card text (none found by
+grep), any test that pinned a subclass's own-keys-only JSON output, and any `nvs-types` unit test that
+builds a `DerivedCodec` literal without `..Default::default()`.
 
 ### Next
 
-Stage 2, all items: `crates/nvs-types/src/derive.rs:2253` (`json_reachable`) first, then `codec_ty`,
-the runtime `CodecField::allowed`, the JSON and row decoders, OpenAPI and the `E0756` help. They share
-the codec type path end to end.
+Stage 3, all items: `crates/nvs-cli/src/openapi.rs:211` (`Schemas`) first, made callable from
+`meta.rs` with a `$ref` prefix; then `user_class_json` (`crates/nvs-cli/src/meta.rs:1034`) and
+`program_json` (`crates/nvs-cli/src/meta.rs:920`), the fixture and test, and the rule
+`docs/rules/tooling/meta-json-takes-a-program.md:1`.
 
 ### Backlog
+
+- `true` and `false` as a derived field's type are reachable but still erase to `Opaque`, so a decode
+  of one faults (`codec_ty`, `crates/nvs-types/src/derive.rs`). Erase them to `Bool` with a
+  membership check of one, the way a single `string` value now works.
