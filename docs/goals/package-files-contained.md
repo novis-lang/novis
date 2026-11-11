@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-types/src/test_inherit.rs, crates/nvs-cli/tests/test_dir.rs, docs/rules/testing/test-attribute.md, docs/rules/testing/hook-inheritance.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: one-judge-of-a-package-path
@@ -613,47 +613,37 @@ once every class is checked, and say so in the help of `nvs test`.
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done. Paths, git entries and second manifests are refused at pack, fetch and the
-registry build. `Finder::package_of` takes the outermost named manifest
-(`crates/nvs-types/src/package.rs:171`), and the registry build compares exactly. `nvs test` and
-`nvs check` walk into no folder below the named one that holds a `package.toml`.
+Every stage is done, and the goal is reached. `looper verify` named one failure, and no test was red.
+The impact key found a climbing literal in `crates/nvs-cli/src/package/git.rs` and made the binary
+wide. It is a tree entry name the git walk must refuse, so `tools/data/impact-data-literals.txt`
+lists it. The second `looper verify` is green.
 
-The sweep's findings need no change: nightly run 43001191130 tested `f4c1d5c7e2`, fixed after it by
-`305c04f660`, and `env-secret-proofs` is stale driver state from the retired `defaults-that-work`.
+The goal-end gates are green. `bun nv verify --doc` is green, and `bun nv owners --closes
+package-files-contained` names no gap. `bun nv ci --check` needed four fixes. The fetch and pack
+`about.md` files are under 200 words again, and the test-runner paragraph about folders is now two.
+The test-runner and project-layout pages have new questions and were stamped. The two Declined
+entries only this file held now live in `docs/rules/packaging/a-package-cannot-reach-its-host.md`
+and in the doc of `Walk::entries` (`crates/nvs-cli/src/package/git.rs:696`).
 
-Stage 5: `test_inherit::merge` takes `&module.symbols` and the `Option<&Packages>` that
-`check_files` holds, through `after_walk`, and forgets the `#[Test]` and `#[Property]` rows of every
-class whose symbol's file `Packages::of` places in a package, in the same step as an abstract
-class's. The fixture is `crates/nvs-cli/tests/fixtures/test-dir/loads-a-package/`, and its `.nvs`
-files pass `nvs fmt --check`. `test_dir.rs` gained `report(args, path)`, and its two new tests pass
-(`looper check --name no-test-of-a-loaded-package` is green). `--list --format json` puts its rows
-under `listed`, not `tests`. The help of `nvs test`, the test-runner page and three rule fragments
-say it, and the chapters are rendered. No generated website file carries the `nvs test` help, so
-`bun nv render --website` wrote nothing.
+The sweep's findings needed no change. Nightly run 43001191130 tested `f4c1d5c7e2`, and
+`305c04f660` fixed it after that run. `env-secret-proofs` is stale driver state from the retired
+`defaults-that-work`, and it has no log.
 
 ### Next
 
-Stage 6, the gate. Start `looper verify` with `run_in_background`, then end the turn and fix every
-failure it names in one pass, then run it once more. Then the goal-end gates from `AGENTS.md`
-§ *In the loop*: `bun nv verify --doc`, `bun nv owners --closes package-files-contained` and
-`bun nv ci --check`. Move each standing decision that only this file holds into a rule or module doc
-before the file is deleted.
-
-No test is expected red. The likeliest red is a suite that loads a package class with a `#[Test]`
-from an entry outside the package; no tracked package file has one.
+Nothing. The goal is reached, and the driver retires this file.
 
 ### Backlog
 
-- `nvs pkg fetch` does not run `pack::check_component` on a fetched `.nvsx`
-  (`crates/nvs-cli/src/package/pack.rs:11`).
-- `rule:security/an-unmatched-namespace-holds-the-application`'s Declined list does not speak about a
-  file inside a package's folder whose namespace matches no line
-  (`docs/rules/security/an-unmatched-namespace-holds-the-application.md:25`).
+- `crates/nvs-cli/src/package/pack.rs:11`: `nvs pkg fetch` does not run `pack::check_component` on
+  a fetched `.nvsx`.
+- `docs/rules/security/an-unmatched-namespace-holds-the-application.md:25`: the Declined list does not
+  speak about a file inside a package's folder whose namespace matches no line.
