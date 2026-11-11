@@ -10,13 +10,13 @@ callable(int, string): string $join = fn (int $n, string $s): string => $s . $n;
 // held to. What the callee answers with does not depend on its arguments,
 // though, so the call reads the signature's declared return type and a
 // `string` slot takes it with no conversion written.
-array<mixed> $args = [7, "row "];
+array<int|string> $args = [7, "row "];
 string $out = $join(...$args);
 echo $out, "\n";
 
 // A spread beside a written argument is the same call: still no parameter list
 // to match against, still the declared `string`.
-array<mixed> $tail = ["seat "];
+array<string> $tail = ["seat "];
 echo $join(3, ...$tail), "\n";
 --EXPECT--
 row 7

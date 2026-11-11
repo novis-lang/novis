@@ -7,6 +7,8 @@ A property write through a `mixed` receiver checks an array's elements, a shape'
 // A value of the declared type is written. Any other value throws an error.
 class Animal { public string $name = "tom"; }
 class Dog extends Animal { public int $legs = 4; }
+// A write through `mixed` does not take a `mixed` value, so `Value` lists every value below.
+type Value = ?(int|float|string|Animal|array<Animal|string>|{pet: Animal}|{cat: Animal});
 
 class Kennel {
     public array<Dog> $dogs = [];
@@ -17,7 +19,7 @@ class Kennel {
 
     public function constructor() { $this->home = {pet: new Dog()}; }
 
-    public static function write(mixed $m, string $field, mixed $value): string {
+    public static function write(mixed $m, string $field, Value $value): string {
         try {
             if ($field == "dogs") { $m->dogs = $value; }
             if ($field == "home") { $m->home = $value; }

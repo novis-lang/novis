@@ -281,9 +281,12 @@ fn a_plain_value_passed_to_a_throwable_is_fine() {
 fn a_secret_stored_into_an_array_element_is_refused_at_compile_time() {
     // `rule:security/secret-qualifier`'s container axis. An array literal
     // joins no element types, so the placed `array<T>`'s own `T` is the whole
-    // of what carries the qualifier past the bracket — and the two later
-    // spellings of the same write are here because a refusal one statement or
-    // one character wide is not a refusal.
+    // of what carries the qualifier past the bracket. An element written into
+    // `array<mixed>` is checked against `mixed` by the assignment relation,
+    // which refuses a `secret` value with `E0401` and names `secret mixed`.
+    // That is one mistake, so the container refusal is not asked as well. The
+    // two later spellings of the same write are here because a refusal one
+    // statement or one character wide is not a refusal.
     for written in [
         "array<mixed> $bag = [$token];",
         "array<mixed> $bag = [];\n         $bag[\"t\"] = $token;",
@@ -292,10 +295,10 @@ fn a_secret_stored_into_an_array_element_is_refused_at_compile_time() {
         let diags = check_in_method(&format!(
             "secret string $token = \"literal\";\n         {written}\n"
         ));
+        assert_eq!(diags.error_count(), 1, "{written}: {diags:?}");
         assert!(
-            diags
-                .iter()
-                .any(|d| d.code == Some(code::E_SECRET_INTO_CONTAINER)),
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)
+                && d.notes.iter().any(|n| n.contains("secret mixed"))),
             "{written}: {diags:?}"
         );
     }
@@ -356,14 +359,25 @@ fn a_secret_stored_into_a_shape_field_is_refused_where_the_field_is_declared_wid
     );
     assert!(!declared.has_errors(), "{declared:?}");
 
-    // Nothing is declared over this literal, so nothing is asked of it: its
-    // own inferred field type is `secret string`, and the widening a `mixed`
-    // binding then does is the one every `mixed` binding in the language does.
+    // The literal's own inferred field type is `secret string`. A `secret`
+    // value enters `mixed` only where `secret mixed` is written, so the plain
+    // `mixed` variable refuses it with `E0401`, and `secret mixed` takes it.
     let inferred = check_in_method(
         "secret string $token = \"literal\";\n\
          mixed $bag = {token: $token};\n",
     );
-    assert!(!inferred.has_errors(), "{inferred:?}");
+    assert!(
+        inferred
+            .iter()
+            .any(|d| d.code == Some(code::E_TYPE_MISMATCH)
+                && d.notes.iter().any(|n| n.contains("secret mixed"))),
+        "{inferred:?}"
+    );
+    let kept = check_in_method(
+        "secret string $token = \"literal\";\n\
+         secret mixed $bag = {token: $token};\n",
+    );
+    assert!(!kept.has_errors(), "{kept:?}");
 }
 
 #[test]

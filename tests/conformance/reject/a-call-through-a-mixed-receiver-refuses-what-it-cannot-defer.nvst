@@ -15,7 +15,7 @@ final class Box {
 mixed $m = new Box();
 $m->value(1);
 
-array<mixed> $rest = [1];
+array<int> $rest = [1];
 $m->value(...$rest);
 
 // A `name:` argument has nothing to resolve against, exactly as through a

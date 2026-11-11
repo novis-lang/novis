@@ -60,7 +60,7 @@ echo Core\Str::join(Core\Arr::keys(Core\Arr::countBy($map, {by: fn(int $v, ?stri
 
 // The refusal names the argument and what was given.
 try {
-    Core\Arr::countBy($map, {by: fn(?bool $v, mixed $k) => $k as string});
+    Core\Arr::countBy($map, {by: fn(?bool $v, ?string $k) => $k as string});
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }

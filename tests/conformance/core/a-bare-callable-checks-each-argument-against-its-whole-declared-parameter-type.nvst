@@ -3,18 +3,20 @@ A call of a value declared only `callable` checks each argument against the whol
 --FILE--
 <?nvs
 // `Runner::run` takes a bare `callable`, so the compiler cannot check its arguments.
+// `Arg` has no `mixed` in it, because a bare `callable` does not take `mixed`.
 // Each body prints `body` when it runs.
 enum Level: int { Low = 1, High = 7 }
 // `Blue`'s value 3 is not a value of `Level`. `Red`'s value 1 is.
 enum Color: int { Red = 1, Blue = 3 }
 class Pet { public string $name = "pet"; }
 class Rock { public int $weight = 9; }
+type Arg = ?(Pet|Rock|Color|array<int|string>|string);
 
 class Runner {
-    public static function run(callable $f, mixed $v): mixed {
+    public static function run(callable $f, Arg $v): mixed {
         return $f($v);
     }
-    public static function attempt(callable $f, mixed $v): void {
+    public static function attempt(callable $f, Arg $v): void {
         try {
             mixed $r = Runner::run($f, $v);
             echo "ran\n";
@@ -31,7 +33,7 @@ Runner::attempt(fn (?Pet $p): string => { echo "body\n"; return "p"; }, new Rock
 Runner::attempt(fn (?Pet $p): string => { echo "body\n"; return "p"; }, null);
 
 // Each element of the array is checked against `int`.
-array<mixed> $mixedList = [1, "two", 3];
+array<int|string> $mixedList = [1, "two", 3];
 Runner::attempt(fn (array<int> $a): uint => { echo "body\n"; return Core\Arr::count($a); }, $mixedList);
 
 // An enum parameter is checked by the case value: two enums with one backing

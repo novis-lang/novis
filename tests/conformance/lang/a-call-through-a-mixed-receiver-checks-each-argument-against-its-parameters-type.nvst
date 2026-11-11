@@ -22,14 +22,19 @@ class Crate {
 }
 
 mixed $m = new Crate();
+// A method of a `mixed` value does not take a `mixed` argument, so each array has a written type.
+array<int> $pair = [1, 2];
+array<int|string> $withText = [1, "two"];
+array<int> $tail = [2, 3];
+array<int|string> $tailWithText = [2, "three"];
 
 // Values of the declared types. A variadic parameter takes its values as one array.
 echo $m->take(new Spot()), "\n";
 echo $m->maybe(null), "\n";
 echo $m->maybe(new Spot()), "\n";
-echo $m->total([1, 2]), "\n";
+echo $m->total($pair), "\n";
 echo $m->rank(Rank::High), "\n";
-echo $m->rest(1, [2, 3]), "\n";
+echo $m->rest(1, $tail), "\n";
 
 // An object of another class where `Spot` is declared.
 try {
@@ -47,14 +52,14 @@ try {
 
 // A string inside an array where `array<int>` is declared.
 try {
-    echo $m->total([1, "two"]), "\n";
+    echo $m->total($withText), "\n";
 } catch (LogicError $e) {
     echo "array<int>: LogicError", "\n";
 }
 
 // A string among the values of `int ...$more`.
 try {
-    echo $m->rest(1, [2, "three"]), "\n";
+    echo $m->rest(1, $tailWithText), "\n";
 } catch (LogicError $e) {
     echo "int ...: LogicError", "\n";
 }

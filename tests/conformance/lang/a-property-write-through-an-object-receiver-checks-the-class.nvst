@@ -12,6 +12,8 @@ class Circle implements Shape { public int $r = 1; }
 class Big extends Circle {}
 class Square implements Shape { public int $s = 2; }
 enum Mode: int { Read = 1, Write = 2 }
+// A write through `object` does not take a `mixed` value, so `Value` lists every value below.
+type Value = ?(int|Shape|Holder|Mode);
 
 class Holder {
     public ?Shape $shape = null;
@@ -21,7 +23,7 @@ class Holder {
 
     public function constructor() { $this->circle = new Circle(); }
 
-    public static function write(object $o, string $field, mixed $value): string {
+    public static function write(object $o, string $field, Value $value): string {
         try {
             if ($field == "shape") { $o->shape = $value; }
             if ($field == "circle") { $o->circle = $value; }

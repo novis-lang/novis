@@ -50,7 +50,8 @@ class Probe
     }
 
     // Calls `construct` on `$info` and prints the result or the error.
-    public static function build(Core\Reflect\ClassInfo $info, array<mixed> $arguments): void
+    // `construct` does not take `mixed` arguments, so the list has a written type.
+    public static function build(Core\Reflect\ClassInfo $info, array<?(int|string)> $arguments): void
     {
         try {
             mixed $made = $info->construct($arguments);

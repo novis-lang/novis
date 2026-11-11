@@ -35,10 +35,13 @@ if ($list != null) {
         Check::show("element", $mode);
     }
     // A function with a `Mode` parameter checks the value when it is called.
-    // It throws an error for a plain `int`.
+    // It throws an error for a plain `int`. A bare `callable` does not take
+    // `mixed`, so the test narrows the value to `int|Mode` first.
     callable $name = fn(Mode $m): string => $m == Mode::On ? "on" : "off";
     foreach ($list->modes as mixed $mode) {
-        echo "called: ", $name($mode) as string, "\n";
+        if ($mode is int|Mode) {
+            echo "called: ", $name($mode) as string, "\n";
+        }
     }
 }
 

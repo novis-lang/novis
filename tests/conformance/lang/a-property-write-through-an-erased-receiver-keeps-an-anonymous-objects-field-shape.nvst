@@ -10,9 +10,11 @@ class Dog extends Animal { public int $legs = 4; }
 class Puppy extends Dog {}
 
 type Narrow = {pet: Dog, pets: array<Dog>, home: {pet: Dog}, tag: ?string};
+// A write through `object` or `mixed` does not take a `mixed` value, so `Value` lists every value below.
+type Value = ?(string|Animal|array<Animal>|{pet: Animal});
 
 class Write {
-    public static function throughObject(object $o, mixed $value): string {
+    public static function throughObject(object $o, Value $value): string {
         try {
             $o->pet = $value;
             return "written";
@@ -21,7 +23,7 @@ class Write {
         }
     }
 
-    public static function throughMixed(mixed $m, string $field, mixed $value): string {
+    public static function throughMixed(mixed $m, string $field, Value $value): string {
         try {
             if ($field == "pet") { $m->pet = $value; }
             if ($field == "pets") { $m->pets = $value; }

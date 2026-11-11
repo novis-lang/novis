@@ -103,12 +103,14 @@ try {
 ///
 /// `$forward` is what carries the bare `callable` to a member that declares
 /// its callback's signature (`rule:types/callable-signature`): the position
-/// hands a `mixed`, which is what the forwarder declares, and the argument
-/// that gets refused is the one it passes on. Declared once and outside every
-/// loop below, so the leak guard is still measuring one callable's walk.
+/// gives a `mixed`, which is what the forwarder declares. A `mixed` argument
+/// to a bare `callable` does not compile (`rule:types/callable-signature`),
+/// so the forwarder passes on only an `int`, which carries no qualifier and
+/// still is not the `string` the callable wants. Declared once and outside
+/// every loop below, so the leak guard is still measuring one callable's walk.
 const MISMATCH: &str = "<?nvs
 callable $wantsString = fn (string $s): bool => $s != \"zzz\";
-callable(mixed, tainted string): bool $forward = fn (mixed $m): bool => $wantsString($m) as bool;
+callable(mixed, tainted string): bool $forward = fn (mixed $m): bool => $m is int ? $wantsString($m) as bool : true;
 array<mixed> $mixed = [\"a\", \"b\", 3];
 ";
 
