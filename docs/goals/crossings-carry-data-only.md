@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-codegen/src/lib.rs, crates/nvs-codegen/src/emit.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-runtime/src/object.rs, docs/rules/types/class-reference.md, docs/rules/types/class-reference-sites.md]
   - id: 4
     title: "`decode` checks every slot of a `Core` class it builds"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/object.rs, crates/nvs-stdlib/src/instance.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/http.rs, docs/rules/classes/serialize-is-a-closed-format.md]
   - id: 5
     title: "every `Core` class says what its slots hold"
@@ -661,50 +661,50 @@ if the instruction's printed form changes, and then it follows in the same slice
 **Does:** let a `Core` descriptor state its slot types in the tables `check_slot` reads, refuse a
 `Core` class that states none at the bytes carrier, and give the first two classes their rows.
 
-- [ ] `ClassTable` gains one setter for a `Core` class's slot types. It fills the three per-slot
+- [x] `ClassTable` gains one setter for a `Core` class's slot types. It fills the three per-slot
   tables and sets one flag, and `ClassDesc` gains the flag's reader beside `holds_host_handle`
   (`rule:classes/serialize-is-a-closed-format`, `crates/nvs-runtime/src/object.rs:2317`,
   `crates/nvs-runtime/src/object.rs:2513`, `crates/nvs-runtime/src/object.rs:2535`,
   `crates/nvs-runtime/src/object.rs:1495`).
-- [ ] The question's door tells the bytes carrier from the live carrier. At the bytes carrier it
+- [x] The question's door tells the bytes carrier from the live carrier. At the bytes carrier it
   refuses a `Core` class whose flag is not set, and the live carrier admits it. `Reader::object`
   and the encoder's `admit` both ask (`rule:classes/graph-copy`,
   `crates/nvs-runtime/src/graph.rs:444`, `crates/nvs-runtime/src/graph.rs:1067`,
   `crates/nvs-runtime/src/graph.rs:213`, `crates/nvs-runtime/src/graph.rs:741`).
-- [ ] `nvs_stdlib::instance` gains the roster of slot types beside `HOST_HANDLE_CLASSES`. A row is a
+- [x] `nvs_stdlib::instance` gains the roster of slot types beside `HOST_HANDLE_CLASSES`. A row is a
   class and either one `CoreTy` per slot or the reason the class is not read back. The table's build
   hands each typed row to the setter, for every descriptor of the name
   (`rule:classes/serialize-is-a-closed-format`, `crates/nvs-stdlib/src/instance.rs:143`,
   `crates/nvs-stdlib/src/instance.rs:636`, `crates/nvs-stdlib/src/instance.rs:513`).
-- [ ] One function in `instance.rs` turns a `CoreTy` into a tag, the admitted classes and a
+- [x] One function in `instance.rs` turns a `CoreTy` into a tag, the admitted classes and a
   `SlotCheck`. It has an arm for each `CoreTy` a row uses and no arm that means "any value" by
   default (`crates/nvs-stdlib/src/registry.rs:242`, `crates/nvs-runtime/src/object.rs:5932`,
   `crates/nvs-runtime/src/object.rs:1683`).
-- [ ] `Core\Http\TlsInfo` and `Core\Uri` get the first two rows, read from the code that fills
+- [x] `Core\Http\TlsInfo` and `Core\Uri` get the first two rows, read from the code that fills
   their slots (`crates/nvs-stdlib/src/http.rs:2066`, `crates/nvs-stdlib/src/http.rs:3739`,
   `crates/nvs-stdlib/src/uri.rs:677`).
-- [ ] In a debug build, `build` asserts that each slot value passes its class's stated type. So
+- [x] In a debug build, `build` asserts that each slot value passes its class's stated type. So
   every test that makes a `Core` instance proves the row, and a release build pays nothing
   (`crates/nvs-stdlib/src/instance.rs:834`).
-- [ ] Test `decode_checks_every_slot_of_a_core_class` in `instance.rs` tests. For each slot of
+- [x] Test `decode_checks_every_slot_of_a_core_class` in `instance.rs` tests. For each slot of
   `Core\Http\TlsInfo` in turn, a payload with a value of another kind in that slot is refused, and
   the sentence names the class and the slot. A payload with the stated kinds decodes, and
   `version()` returns its string (`crates/nvs-stdlib/src/instance.rs:1237`).
-- [ ] Test `a_core_class_that_states_no_slot_types_does_not_decode`: a payload naming such a class
+- [x] Test `a_core_class_that_states_no_slot_types_does_not_decode`: a payload naming such a class
   is refused before an object is made, `encode` of an instance gives the same sentence, and a live
   copy of the instance still crosses (`crates/nvs-stdlib/src/instance.rs:1237`).
-- [ ] Test `every_core_descriptor_states_its_slots_or_is_refused`. It walks every descriptor of the
+- [x] Test `every_core_descriptor_states_its_slots_or_is_refused`. It walks every descriptor of the
   process's table, the ones with no registry row included, and holds no list of its own. A
   descriptor with stated types refuses a wrong-kind value in each slot. Every other descriptor is
   refused by `decode` whatever its payload holds. The test fails naming each descriptor that does
   neither (`crates/nvs-stdlib/src/instance.rs:1237`, `crates/nvs-stdlib/src/instance.rs:544`).
-- [ ] Stage 2's table test gains the two `Core` rows that differ at `decode`
+- [x] Stage 2's table test gains the two `Core` rows that differ at `decode`
   (`crates/nvs-runtime/src/object.rs:6266`).
-- [ ] `rule:classes/serialize-is-a-closed-format` says `decode` checks a `Core` class's slots as it
+- [x] `rule:classes/serialize-is-a-closed-format` says `decode` checks a `Core` class's slots as it
   checks a program's properties, and that a `Core` class with no stated slot types is not written
   or read, with the cost line and the declined choices. `rule:classes/graph-copy` holds the two new
   rows (`docs/rules/classes/serialize-is-a-closed-format.md:10`, `docs/rules/classes/graph-copy.md:7`).
-- [ ] The module doc of `instance.rs` states what the slot tables spend, beside what the
+- [x] The module doc of `instance.rs` states what the slot tables spend, beside what the
   descriptors spend (`crates/nvs-stdlib/src/instance.rs:102`).
 
 Until stage 5 lands, every `Core` class but the two is refused by the bytes carrier. Tests that put
@@ -886,33 +886,38 @@ memory cache uses.
 
 ### State
 
-Stages 1, 2 and 3 are done, and their four acceptance checks are green. The sweep's
-`env-secret-proofs` red and nightly run 43001191130's one red are stale: the check was retired, and
-305c04f660 fixed `a_changed_server_timeout_applies_to_the_next_connection` after that run's commit.
+Stages 1 to 4 are done, and stage 4's three acceptance tests pass. The sweep's reds are stale: the
+`env-secret-proofs` check was retired, and run 43001191130's four jobs failed on one test that
+305c04f660 fixed after that run's commit.
 
-`ClassDesc::refusal(Door)` in `crates/nvs-runtime/src/object.rs` is the one question, and its
-`no_instances` and `is_core` bits are set. `index_conforming` (`crates/nvs-codegen/src/lib.rs`) skips
-every `Refusal::Kind` class. A dynamic `new` allocates through `nvs_object_new_dynamic`, and its null
-takes a cold block to `nvs_object_new_refused`, which throws construct's `LogicError`
-(`emit_new_dynamic_alloc`, `crates/nvs-codegen/src/emit.rs`). The IR did not change.
-`website/public/llms-full.txt` still has the old `construct` card text.
+`Door` has three doors: `Copy` (live), `Bytes` (the encoder and `Reader::object`) and `Construct`.
+`Carrier::DOOR` says which one the walk asks (`crates/nvs-runtime/src/graph.rs`). `Door::Bytes`
+refuses a `Core` class without `states_slot_types`, ending with its `bytes_refusal` reason when it
+has one. `ClassTable::set_slot_types` (`crates/nvs-runtime/src/object.rs:2709`) fills the tag, class,
+check and spelling tables from a `Vec<SlotType>`. `SLOT_TYPES` (`crates/nvs-stdlib/src/instance.rs:240`)
+has two rows, `Core\Http\TlsInfo` and `Core\Uri`, and `slot_type` turns a `CoreTy` into a
+`SlotType`. A debug `build` runs `check_fields` on each instance it makes.
 
 Still true: `Core\Topic::publish` copies with no receiving table and keys by the bare name, `spawn
-script` refuses a `Core` value in `args:`, and `decode` does not check a `Core` class's slots.
+script` refuses a `Core` value in `args:`, and `llms-full.txt` has the old `construct` card text.
 
-No test is expected to go red. To watch at the gate: a test that sends a `$`-named class other than a
-shape across `spawn`, the cache or `Core\Serialize`, and a test that builds a `Core` class, an
-`abstract` class or an interface through `construct_erased_from` (the router's handler, the test
-fixtures in `crates/nvs-runtime/src/dispatch.rs`), are now refused. A test or case that converts
-a run-time string to a `class<T>` of a generator's or a callable's class now gets `null` or a throw.
+Expected red until stage 5 gives each class its row: every test or case that puts a `Core` value
+other than a `Uri` or a `TlsInfo` through `Core\Serialize`, either cache tier, a session or a topic,
+such as `tests/conformance/core/serialize-a-core-class-resolves-on-the-way-back.nvst`
+(`Core\Time\Date`). They are fixed by the row, never by changing the test. Also watch, from stage 2
+and 3: a test that sends a `$`-named class other than a shape across a boundary, a test that builds
+a `Core` or `abstract` class through `construct_erased_from`, and a run-time string converted to a
+`class<T>` of a generator's or a callable's class.
 
 ### Next
 
-crates/nvs-runtime/src/object.rs:2317 — take stage 4 from its first item: one `ClassTable` setter
-for a `Core` class's slot types, filling the three per-slot tables `check_slot`
-(`crates/nvs-runtime/src/object.rs:1982`) reads. Stage 3 moved the lines after 3207 of `object.rs`
-down by about 70, so the stage's `object.rs:5932` anchor is now `SlotCheck` at
-`crates/nvs-runtime/src/object.rs:6677`. Anchors at or before line 2535 are unchanged.
+crates/nvs-stdlib/src/instance.rs:240 — take stage 5 from its first item: the `Explore` list of
+every `CoreClass` with instances and no host handle, then the `reader` groups, then one row per
+class in `SLOT_TYPES`. A `CoreTy` a row needs and `slot_type` has no arm for is added to
+`slot_type` and `slot_check` (`crates/nvs-stdlib/src/instance.rs:273`). The first `NotReadBack` row
+removes the `expect(dead_code)` on that variant (`crates/nvs-stdlib/src/instance.rs:224`).
+`every_core_descriptor_states_its_slots_or_is_refused` (`crates/nvs-stdlib/src/instance.rs:1978`)
+already walks every descriptor, so each new row is checked by it.
 
 ### Backlog
 
