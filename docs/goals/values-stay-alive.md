@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/mutate.rs, crates/nvs-ir/src/lower/call.rs]
   - id: 3
     title: a stop at a function's entry releases what the callee owns
-    status: open
+    status: done
     context: [crates/nvs-codegen/src/emit.rs, crates/nvs-ir/src/ir.rs, crates/nvs-codegen/tests/throwing.rs, docs/rules/errors/stack-depth.md]
   - id: 4
     title: an inout loop walks the array it began with and writes by key
@@ -249,6 +249,16 @@ cold landing block per compiled function, in code size. The path where nothing i
 load and one branch. Declined: a sweep at request end, which does not exist and would hide the
 next leak.
 
+**What stage 3 settled while building it.** The one emitter is `Lowering::emit_safepoint(b, env)`,
+for an entry and a back edge alike. An anonymous function reads its captures, and a method
+reference stages its receiver, before the poll. Those reads cannot fail, so the invariant the
+lowering test holds is: every `Param` comes before the poll, and no instruction with an error edge
+comes before it. A generator's `advance` and `current` own their receiver, so their poll's `Env`
+holds it; `unwind` borrows its receiver, so its poll's `Env` is empty. The delegation forward's poll
+and its unwritten-field read share one landing block, which releases each argument and `$this`. The
+exception constructors get a landing block that releases their three parameters. A stop at an entry
+now pushes the stopped frame onto a backtrace, as every other landing block does.
+
 **An `inout` loop walks the array it began with, and a write to `$v` goes to the subject by key.**
 No rule states what a write through `$v` does once its entry is gone, so this goal decides it. The
 loop retains its subject when it starts and reads positions from that array alone, as the by-value
@@ -413,34 +423,34 @@ chain and key held by stage 1's function.
 **Does:** bind the parameters before the entry poll, give that poll and the stack check the frame's
 landing block, and make codegen refuse a poll with no error edge.
 
-- [ ] Delete the edge-less emitter. Every entry emits its poll through the back-edge emitter, after
+- [x] Delete the edge-less emitter. Every entry emits its poll through the back-edge emitter, after
   its last `Param` and before any other instruction (`rule:errors/stack-depth`,
   `crates/nvs-ir/src/lower/mod.rs:3423`, `crates/nvs-ir/src/lower/mod.rs:3409`).
-- [ ] The three method entries (`crates/nvs-ir/src/lower/mod.rs:1469`,
+- [x] The three method entries (`crates/nvs-ir/src/lower/mod.rs:1469`,
   `crates/nvs-ir/src/lower/mod.rs:1904`, `crates/nvs-ir/src/lower/mod.rs:2076`).
-- [ ] The two anonymous-function entries (`crates/nvs-ir/src/lower/anon_fn.rs:196`,
+- [x] The two anonymous-function entries (`crates/nvs-ir/src/lower/anon_fn.rs:196`,
   `crates/nvs-ir/src/lower/anon_fn.rs:715`).
-- [ ] The four generator entries (`crates/nvs-ir/src/lower/generator.rs:661`,
+- [x] The four generator entries (`crates/nvs-ir/src/lower/generator.rs:661`,
   `crates/nvs-ir/src/lower/generator.rs:813`, `crates/nvs-ir/src/lower/generator.rs:985`,
   `crates/nvs-ir/src/lower/generator.rs:1152`).
-- [ ] The two hand-built functions, whose landing block releases the receiver and each argument
+- [x] The two hand-built functions, whose landing block releases the receiver and each argument
   (`crates/nvs-ir/src/lower/call.rs:1491`, `crates/nvs-ir/src/lower/exception.rs:1191`).
-- [ ] Codegen: the poll and the stack check send their status through `emit_status_check`, and the
+- [x] Codegen: the poll and the stack check send their status through `emit_status_check`, and the
   direct return is deleted (`crates/nvs-codegen/src/emit.rs:1451`,
   `crates/nvs-codegen/src/emit.rs:1400`, `crates/nvs-codegen/src/emit.rs:4402`).
-- [ ] Rewrite the two doc comments that say nothing is bound at entry
+- [x] Rewrite the two doc comments that say nothing is bound at entry
   (`crates/nvs-ir/src/ir.rs:735`, `crates/nvs-codegen/src/emit.rs:1423`).
-- [ ] Tests `a_limit_stop_at_a_functions_entry_releases_its_arguments` and
+- [x] Tests `a_limit_stop_at_a_functions_entry_releases_its_arguments` and
   `a_recursion_error_releases_the_stopped_frames_arguments`, beside the back-edge guard. Each calls
   a method that holds a large string argument and compares live bytes before and after
   (`crates/nvs-codegen/tests/throwing.rs:398`).
-- [ ] Tests `every_function_kind_polls_with_an_error_edge` in the lowering tests and
+- [x] Tests `every_function_kind_polls_with_an_error_edge` in the lowering tests and
   `codegen_refuses_a_poll_with_no_error_edge` in `nvs-codegen`. The first lowers one fixture with
   every function kind above and walks every `Safepoint`
   (`crates/nvs-ir/src/lower/tests.rs:1`, `crates/nvs-codegen/src/emit.rs:1427`).
-- [ ] `rule:errors/stack-depth` gains one sentence: a stop at entry releases the frame's arguments
+- [x] `rule:errors/stack-depth` gains one sentence: a stop at entry releases the frame's arguments
   (`docs/rules/errors/stack-depth.md:5`).
-- [ ] Update the IR snapshots the moved poll changes, with `cargo test --lib` run once for
+- [x] Update the IR snapshots the moved poll changes, with `cargo test --lib` run once for
   `nvs-ir`'s snapshot tests (`crates/nvs-ir/src/lower/tests.rs:1`).
 
 ### 4. an inout loop walks the array it began with and writes by key
@@ -561,39 +571,39 @@ session writes each group under its stage as checkpoints, so stages 6 to 8 start
 
 ### State
 
-Stages 1 and 2 are done. Three store sites joined `OperandSite` (`StoreReceiver`, `StoreBase`,
-`StoreKey`, with `OperandSite::is_store`). `borrowed_reads.rs` skips them, and
-`crates/nvs-codegen/tests/borrowed_stores.rs` runs the five forms. It is green, and with the hold
-switched off its key row and its nested-receiver row fail. The attack
-`02-a-value-that-replaces-its-own-target.nvs` prints a live value on every line. The rule fragment
-`an-operand-keeps-its-value-while-later-operands-run.md` states the store half. The sweep's
+Stages 1 to 3 are done. Every function polls at its entry through
+`Lowering::emit_safepoint(b, env)` once its parameters are bound, and the edge-less emitter is gone.
+Codegen sends the poll's and the stack check's status through `emit_status_check`. The two
+`throwing.rs` tests fail with the fix stashed and pass with it. `every_function_kind_polls_with_an_error_edge`
+and `codegen_refuses_a_poll_with_no_error_edge` pass. The 160 IR snapshots were accepted after
+reading samples: each shows the moved poll, the entry's landing block that renumbers the blocks
+after it, and the stage 1 and stage 2 changes the earlier handoff named. The sweep's
 `env-secret-proofs` red is stale: a retired goal's check with no log, named nowhere in the tree.
 
 ### Next
 
-Stage 3: a stop at a function's entry releases what the callee owns. Read the standing decision
-*A stop at the entry poll or the stack check takes the frame's landing block* first.
+Stage 4: an `inout` loop walks the array it began with and writes by key. Read the standing decision
+*An `inout` loop walks the array it began with* first.
 
-- [ ] `crates/nvs-ir/src/lower/mod.rs:3423`: delete the edge-less entry-poll emitter. Every entry
-  polls through the back-edge emitter (`crates/nvs-ir/src/lower/mod.rs:3409`) after its last
-  `Param`.
-- [ ] `crates/nvs-ir/src/lower/mod.rs:1469`: the method, anonymous-function and generator entries
-  and the two hand-built functions, at the anchors stage 3's items list.
-- [ ] `crates/nvs-codegen/src/emit.rs:4402`: the poll's and the stack check's status go through
-  `emit_status_check`.
-- [ ] `crates/nvs-codegen/tests/throwing.rs:1`: the tests
-  `every_function_kind_polls_with_an_error_edge`, `codegen_refuses_a_poll_with_no_error_edge` and
-  the two `throwing.rs` tests stage 3 names.
+- [ ] `docs/rules/iteration/an-inout-loop-walks-the-array-it-began-with.md:1`: the rule fragment,
+  and the pointer from `docs/rules/statements/inout-is-the-by-reference-spelling.md:16`.
+- [ ] `crates/nvs-ir/src/lower/control.rs:1130`: retain the subject at the loop's start, as the
+  by-value loop does (`crates/nvs-ir/src/lower/control.rs:1045`).
+- [ ] `crates/nvs-runtime/src/array.rs:2425`: the write helper through `nvs_helper!`, and its
+  `Helper` row (`crates/nvs-ir/src/ir.rs:2488`).
+- [ ] `crates/nvs-ir/src/lower/control.rs:1363`: `write_through_element` emits the helper.
+- [ ] `crates/nvs-codegen/tests/foreach_inout.rs:1`: the four tests stage 4 names, then the
+  conformance cases, the attack and the `about.md` line.
 
-Expected red: IR snapshots under `crates/nvs-ir/src/lower/snapshots/`. Stage 1 adds a `retain`
-where a `.` spine, a string hole, a comparison, a `match` subject, an index base or a `Core`
-argument reads a property before a call. Stage 2 moves every element store's root read after the
-value, so most `$a[k] = e` snapshots reorder, and adds a `retain` where a store's receiver or key
-is held. Stage 3 changes every function's entry. The stage-9 gate accepts them after reading each
-diff.
+Expected red: a test or conformance case that prints a backtrace through a `RecursionError` or a
+limit stop at a function's entry now shows the stopped frame too. Any `nvs-codegen` test that
+compares an IR dump. The stage-9 gate reads each.
 
 ### Backlog
 
 - A user `__toString` called by a conversion may free its own borrowed receiver.
 - A `PropertyGuard` or covariant-property check runs user code after a store's value is read and
   before the store retains it. A borrowed value that code frees is not held.
+- A generator factory's state-object `New` takes an empty `Env` as its error edge
+  (`crates/nvs-ir/src/lower/generator.rs:738`). A memory stop there leaks the parameters, which are
+  still the factory's.
