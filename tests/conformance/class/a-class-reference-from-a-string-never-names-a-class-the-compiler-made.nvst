@@ -1,0 +1,46 @@
+--TEST--
+A string built at run time converts to no class reference of a class the compiler made, and a declared class still converts (`rule:types/class-reference`)
+--FILE--
+<?nvs
+// A generator function returns an `Iterator<int>`.
+final class Counter {
+    public static function upTo(int $n): Iterator<int> { yield $n; }
+}
+
+// A class written in the program that is an `Iterator<int>`.
+final class Seq implements Iterator<int> {
+    private int $n = 0;
+    public function advance(): bool {
+        $this->n = $this->n + 1;
+        return $this->n < 3;
+    }
+    public function current(): int {
+        return $this->n;
+    }
+}
+
+// This text is the name the compiler gives the generator's class.
+// No class reference can be made from it.
+string $made = 'Counter::upTo' . '$gen';
+string $declared = 'Seq';
+
+try {
+    class<Iterator<int>> $bad = $made as class<Iterator<int>>;
+    echo "unreachable ", (new $bad())->current(), "\n";
+} catch (RuntimeError $e) {
+    echo "checked throws\n";
+}
+
+?class<Iterator<int>> $a = $made as ?class<Iterator<int>>;
+echo "nullable ", $a == null ? "null" : "set", "\n";
+
+// The name of a declared class converts with both forms.
+?class<Iterator<int>> $b = $declared as ?class<Iterator<int>>;
+echo "declared ", $b == null ? "null" : "set", "\n";
+class<Iterator<int>> $c = $declared as class<Iterator<int>>;
+echo "checked declared ", (new $c())->current(), "\n";
+--EXPECT--
+checked throws
+nullable null
+declared set
+checked declared 0

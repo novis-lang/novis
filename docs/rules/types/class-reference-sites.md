@@ -15,6 +15,17 @@ class side is a written name and any value there, a `class<T>` included, is `E04
 more: the descriptor is in hand, so there is no resolution step. `new Dog()` gains no branch, no field
 and no wider value.
 
+A `class<T>` may hold an `abstract` class or an interface, and `new static(...)` may run on one
+through a static call, so the dynamic `new` **refuses a class with no instances** where it allocates.
+It throws a `LogicError` the program can catch, with the sentence `construct` gives such a class:
+"`Animal` is `abstract` or an interface, so it has no instances, so it cannot be constructed". Nothing
+is allocated and no constructor runs. The allocation reads the class's no-instances bit, the one
+`ClassDesc::refusal` asks (`rule:classes/graph-copy`). **What it spends:** one byte load and one
+branch per dynamic `new`; a `new` of a class written by name pays nothing, because the checker
+already refused that class there. Declined: leaving it to the `FATAL` the first bodiless call raises.
+A value of a type that has no instances is a broken promise of the type system, and a program cannot
+catch a `FATAL`.
+
 `new $cls(...)` types its arguments against **`T`'s** constructor, exactly as `new static(...)` types
 them against the current class's; that is the only signature the site can see, and the value may be
 any implementor of `T`. So the site is refused **at the `new`**, naming the subclass, when any

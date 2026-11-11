@@ -1,0 +1,62 @@
+<?nvs
+// Attack: the program tries to create objects of classes that have no instances.
+// Each name should give `null` or throw an error, and no object should be created.
+
+final class Counter
+{
+    public static function upTo(int $n): Iterator<int>
+    {
+        yield $n;
+    }
+}
+
+interface Named
+{
+    public function name(): string;
+}
+
+abstract class Animal
+{
+    public function name(): string
+    {
+        return 'animal';
+    }
+
+    public static function make(): Animal
+    {
+        return new static();
+    }
+}
+
+// 1. Converts the name of its own generator's class. The result should be `null`.
+string $made = 'Counter::upTo' . '$gen';
+?class<Iterator<int>> $gen = $made as ?class<Iterator<int>>;
+echo 'generator: ', $gen == null ? 'null' : 'set', "\n";
+
+// 2. Creates an `abstract` class through a class reference and calls a method. This should throw.
+string $abstract = 'Animal';
+class<Animal> $a = $abstract as class<Animal>;
+try {
+    Animal $x = new $a();
+    echo 'abstract: built ', $x->name(), "\n";
+} catch (Throwable $e) {
+    echo 'abstract: ', $e->message, "\n";
+}
+
+// 3. Creates an interface through a class reference and calls a method. This should throw.
+string $interface = 'Named';
+class<Named> $n = $interface as class<Named>;
+try {
+    Named $y = new $n();
+    echo 'interface: built ', $y->name(), "\n";
+} catch (Throwable $e) {
+    echo 'interface: ', $e->message, "\n";
+}
+
+// 4. Runs `new static()` on the `abstract` class. This should throw.
+try {
+    Animal $z = Animal::make();
+    echo 'static: built ', $z->name(), "\n";
+} catch (Throwable $e) {
+    echo 'static: ', $e->message, "\n";
+}

@@ -38,7 +38,14 @@ class<Shop\Animal> $c = 'Shop\Dog' as class<Shop\Animal>;   // loads src/Dog.nvs
 A qualifier is stripped, as every checked conversion strips one, and here for a narrower reason than
 that row's: the conversion's whole output range is the set of classes declared to be `Animal`s in this
 program's own source. A tainted string cannot widen that set, name a class the source does not
-declare, or reach outside the hierarchy the author wrote down. What survives is a choice among the
+declare, or reach outside the hierarchy the author wrote down. Nor can any string name a class the
+compiler made, such as a generator's state class or an anonymous object's: the set leaves out every
+class `construct` refuses because of its kind (`rule:security/reflection-enforces-visibility`), so such
+a name throws as an unknown name does. An `abstract` class and an interface stay in it, because a
+static call through such a reference is legal, and `new` over one throws
+(`rule:types/class-reference-sites`). The set is built while compiling and costs nothing at run time.
+Declined: matching on the `$` in a label at run time, which would be a second list of the kinds beside
+the one question every door asks. What survives is a choice among the
 author's own subclasses, which is what a discriminator field is for. That bound is narrower than a
 hand-written `match` over string literals gives, because the compiler cannot tell whether one arm of
 the `match` was mistyped.

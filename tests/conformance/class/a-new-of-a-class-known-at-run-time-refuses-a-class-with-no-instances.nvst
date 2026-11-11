@@ -1,0 +1,61 @@
+--TEST--
+`new $c()` over an `abstract` class or an interface, and `new static()` called on an `abstract` class, throw a `LogicError`; over a subclass each builds the subclass (`rule:types/class-reference-sites`)
+--FILE--
+<?nvs
+interface Named {
+    public function name(): string;
+}
+
+abstract class Animal {
+    public function name(): string { return 'animal'; }
+    public static function make(): Animal { return new static(); }
+}
+
+class Dog extends Animal implements Named {
+    public function constructor() {}
+    public function name(): string { return 'Rex'; }
+}
+
+string $abstract = 'Animal';
+string $interface = 'Named';
+string $concrete = 'Dog';
+class<Animal> $a = $abstract as class<Animal>;
+class<Named> $n = $interface as class<Named>;
+
+// An `abstract` class has no instances, so `new` throws.
+try {
+    Animal $x = new $a();
+    echo "built ", $x->name(), "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// An interface has no instances either.
+try {
+    Named $y = new $n();
+    echo "built ", $y->name(), "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// `Animal::make()` runs `new static()` with `static` set to `Animal`.
+try {
+    Animal $z = Animal::make();
+    echo "built ", $z->name(), "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// Each of the three builds a `Dog` when the class is `Dog`.
+class<Animal> $d = $concrete as class<Animal>;
+class<Named> $dn = $concrete as class<Named>;
+echo (new $d())->name(), "\n";
+echo (new $dn())->name(), "\n";
+echo Dog::make()->name(), "\n";
+--EXPECT--
+`Animal` is `abstract` or an interface, so it has no instances, so it cannot be constructed
+`Named` is `abstract` or an interface, so it has no instances, so it cannot be constructed
+`Animal` is `abstract` or an interface, so it has no instances, so it cannot be constructed
+Rex
+Rex
+Rex
