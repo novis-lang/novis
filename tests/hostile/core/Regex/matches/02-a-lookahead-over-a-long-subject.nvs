@@ -1,0 +1,16 @@
+<?nvs
+// Attack: a lookahead pattern searches a long run of one letter. The pattern needs
+// few steps, but it reads the whole rest of the text at every position. The search
+// should stop at the CPU time limit.
+// hostile: ends-early 2 FATAL
+
+// 1. The same pattern on a short text. This prints "false".
+echo Core\Regex::matches(Core\Str::repeat('a', 1000), '(?=a*b)a') ? 'true' : 'false', "\n";
+
+// 2. Lower the CPU time limit to 200ms, then search 200000 letters `a`.
+//    The search reads about 20 GB, so the program stops with a fatal error.
+echo "step 2\n";
+Core\Config::set('limits.cpu_time', '200ms');
+string $long = Core\Str::repeat('a', 200000);
+echo Core\Regex::matches($long, '(?=a*b)a') ? 'true' : 'false', "\n";
+echo "the search ran to its end\n";

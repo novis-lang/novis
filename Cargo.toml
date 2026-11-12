@@ -629,6 +629,8 @@ unicode-width = { version = "0.2", default-features = false }
 # itself, so the two share one syntax and one Unicode table set rather than
 # disagreeing about what a pattern means. Both pure Rust, no C, no build
 # script. `crates/nvs-stdlib/src/regex.rs` owns why these two and not others.
+# `fancy-regex` builds from the patched copy in `vendor/` (the
+# `[patch.crates-io]` table at the end of this file).
 # `regex-automata` is the engine inside `regex`, already in the tree at the
 # version `regex` pins; it is named directly only to read the size of the
 # capture table a search allocates, which `regex` does not expose. Its
@@ -1333,3 +1335,14 @@ html5ever = { path = "vendor/html5ever" }
 # `pulldown-cmark` row above resolves to this copy unchanged, and upgrading
 # means carrying the patches onto the new release.
 pulldown-cmark = { path = "vendor/pulldown-cmark" }
+# The published 0.19.2 with one patch, for
+# `rule:http-server/time-is-bounded-inside-a-helper`: the backtracking VM counts
+# its work, one unit per instruction and one per 64 bytes of a delegated
+# search's span, and calls a poll function set on the builder every 4,096
+# units. A poll that returns `true` ends the search with
+# `RuntimeError::Interrupted`. `crates/nvs-stdlib/src/regex.rs` sets it to read
+# the request's deadline, so a backtracking search stops at the CPU limit. No
+# release has it. The version stays 0.19.2, so the `fancy-regex` row above and
+# `jsonschema`'s own resolve to this copy unchanged, and upgrading means
+# carrying the patch onto the new release.
+fancy-regex = { path = "vendor/fancy-regex" }

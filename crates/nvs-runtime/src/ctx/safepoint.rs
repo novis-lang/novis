@@ -401,6 +401,15 @@ impl Ctx {
         self.deadline.load(std::sync::atomic::Ordering::Relaxed) != 0
     }
 
+    /// A handle on the word [`Self::deadline_expired`] reads, for a poll that
+    /// is called with no context: a third-party engine's callback, such as the
+    /// backtracking regex tier's (`nvs_stdlib::regex`). The word is the tree's,
+    /// so it is nonzero once the deadline has passed. Cost: one reference count.
+    #[must_use]
+    pub fn deadline_word(&self) -> std::sync::Arc<std::sync::atomic::AtomicU64> {
+        std::sync::Arc::clone(&self.deadline)
+    }
+
     /// Marks this request's deadline as passed, so the next poll inside a
     /// long-running helper observes it.
     ///

@@ -1,0 +1,16 @@
+<?nvs
+// Attack: patterns that are slow in many other regex engines search a long run of
+// one letter. These patterns need no lookahead, so each search reads the text a
+// few times. Every search should end well inside a CPU time limit of 2s.
+
+Core\Config::set('limits.cpu_time', '2s');
+string $long = Core\Str::repeat('a', 200000);
+
+// 1. A repeated group inside a repeated group, with no `b` to find. This prints "false".
+echo Core\Regex::matches($long, '(a+)+b') ? 'true' : 'false', "\n";
+
+// 2. The text of the lookahead attack, without the lookahead. This prints "false".
+echo Core\Regex::matches($long, 'a*b') ? 'true' : 'false', "\n";
+
+// 3. Each letter is one match, so this finds 200000 matches. This prints 200000.
+echo Core\Arr::count(Core\Regex::matchAll($long, 'a')), "\n";

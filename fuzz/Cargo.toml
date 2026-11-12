@@ -155,8 +155,10 @@ debug = 1
 
 # A separate workspace reads no `[patch]` table but its own, so the root one's
 # rows are repeated here. Without them `nvs-stdlib` builds against the published
-# `html5ever` and `pulldown-cmark`, which do not have the fields and the step
-# counter `crates/nvs-stdlib/src/html.rs` and `markdown.rs` use. `crates/nvs-runtime/tests/manifest_policy.rs` checks the two agree.
+# `html5ever`, `pulldown-cmark` and `fancy-regex`, which do not have the fields,
+# the step counter and the poll `crates/nvs-stdlib/src/html.rs`, `markdown.rs`
+# and `regex.rs` use. `crates/nvs-runtime/tests/manifest_policy.rs` checks the two agree.
 [patch.crates-io]
 html5ever = { path = "../vendor/html5ever" }
 pulldown-cmark = { path = "../vendor/pulldown-cmark" }
+fancy-regex = { path = "../vendor/fancy-regex" }

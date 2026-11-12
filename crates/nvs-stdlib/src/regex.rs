@@ -941,7 +941,69 @@ enum Compiled {
     Linear(regex::Regex),
     /// That rule's budgeted backtracking tier, reached only because the linear
     /// engine refused this pattern.
-    Backtracking(fancy_regex::Regex),
+    Backtracking(Backtracker),
+}
+
+/// A backtracking program, run only under a request's deadline.
+///
+/// `rule:http-server/time-is-bounded-inside-a-helper`: one backtracking search
+/// is one helper call, and its step budget bounds backtracks, not work. A
+/// lookahead tried at every position of a long subject spends few steps and
+/// scans the subject at each one. So the vendored engine counts its work and
+/// calls [`deadline_passed`] every 4,096 units (`vendor/fancy-regex/src/vm.rs`).
+/// That function has no context, so [`Self::under`] puts the request's
+/// deadline word in [`DEADLINE`] for the length of the call. A passed
+/// deadline ends the search with `RuntimeError::Interrupted`, and
+/// [`budget_exhausted`] turns it into the CPU or wall-time `FATAL`.
+///
+/// **What it spends:** one reference count and two thread-local writes per
+/// call, one add and one compare per instruction, and one thread-local read
+/// and one relaxed load per poll. No memory.
+#[derive(Debug)]
+struct Backtracker {
+    re: fancy_regex::Regex,
+}
+
+thread_local! {
+    /// The deadline word of the request whose backtracking search runs on
+    /// this thread, set by [`Backtracker::under`] for that call only.
+    static DEADLINE: std::cell::RefCell<Option<std::sync::Arc<std::sync::atomic::AtomicU64>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// The poll function the backtracking engine calls: whether the deadline of
+/// the search running on this thread has passed. With no search in
+/// [`Backtracker::under`], it is `false`.
+fn deadline_passed() -> bool {
+    DEADLINE.with(|word| {
+        word.borrow()
+            .as_ref()
+            .is_some_and(|word| word.load(std::sync::atomic::Ordering::Relaxed) != 0)
+    })
+}
+
+impl Backtracker {
+    /// Runs `search` with this program while the engine's poll reads `ctx`'s
+    /// deadline. An iterator the search returns runs the engine as it is
+    /// read, so it is read to its end inside `search`.
+    fn under<T>(&self, ctx: &Ctx, search: impl FnOnce(&fancy_regex::Regex) -> T) -> T {
+        /// Puts back the word that was there before, on every way out.
+        struct Restore(Option<std::sync::Arc<std::sync::atomic::AtomicU64>>);
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                let before = self.0.take();
+                DEADLINE.with(|word| *word.borrow_mut() = before);
+            }
+        }
+        let before = DEADLINE.with(|word| word.replace(Some(ctx.deadline_word())));
+        let _restore = Restore(before);
+        search(&self.re)
+    }
+
+    /// Every group's name, indexed by group number. No search runs.
+    fn capture_names(&self) -> fancy_regex::CaptureNames<'_> {
+        self.re.capture_names()
+    }
 }
 
 /// One [`CACHE`] entry: the four things that key a compiled program, what a
@@ -1379,14 +1441,15 @@ fn backtracking(pattern: &str, spelled: &str, budget: Backtrack) -> Result<Compi
         Backtrack::Denied if parsed.is_ok() => return Err(denied(pattern)),
         Backtrack::Denied => BACKTRACK_BUDGET,
     };
-    Ok(Compiled::Backtracking(
-        fancy_regex::RegexBuilder::new(spelled)
+    Ok(Compiled::Backtracking(Backtracker {
+        re: fancy_regex::RegexBuilder::new(spelled)
             .backtrack_limit(steps)
+            .poll(deadline_passed)
             .build()
             .map_err(|err| {
                 format!("`{pattern}` is not a pattern either engine can compile: {err}")
             })?,
-    ))
+    }))
 }
 
 /// Whether the backtracking tier may be built, and with how many steps — the
@@ -1519,11 +1582,26 @@ pub fn prepared_tier(code: i64) -> Option<Tier> {
 /// section is that PHP's `pcre.backtrack_limit` turns a hang into a wrong
 /// answer, and this turns it into a `Throwable` the request can catch.
 ///
+/// The request's deadline is asked first. A search the engine's poll stopped
+/// ([`Backtracker`]) ended because the deadline passed, and that is the CPU or
+/// wall-time `FATAL` through [`polled`], never this throw. A deadline that
+/// passed just as the step budget ran out is the `FATAL` too: the request is
+/// over either way.
+///
 /// A `fancy_regex::Error` that is *not* the budget is still a throw: at this
 /// point the pattern has already compiled, so the only remaining runtime
 /// failures are the budget and a stack overflow in the backtracker, and both
 /// mean "this pattern cannot be run against this subject."
-fn budget_exhausted(member: &str, pattern: &str, budget: usize, err: &fancy_regex::Error) -> Fault {
+fn budget_exhausted(
+    ctx: &Ctx,
+    member: &str,
+    pattern: &str,
+    budget: usize,
+    err: &fancy_regex::Error,
+) -> Fault {
+    if let Err(fatal) = polled(ctx, member) {
+        return fatal;
+    }
     Fault::thrown(format!(
         "Core\\Regex::{member}(): `{pattern}` exhausted the backtracking budget of \
          {budget} steps against this subject ({err})"
@@ -1828,8 +1906,8 @@ nvs_runtime::nvs_helper! {
         let found = match &*compiled(pattern, given.flags, "matches", &budget)? {
             Compiled::Linear(re) => re.is_match(subject),
             Compiled::Backtracking(re) => re
-                .is_match(subject)
-                .map_err(|err| budget_exhausted("matches", pattern, budget.steps(), &err))?,
+                .under(ctx, |re| re.is_match(subject))
+                .map_err(|err| budget_exhausted(ctx, "matches", pattern, budget.steps(), &err))?,
         };
         Ok(Value::bool(found))
     }
@@ -1868,11 +1946,16 @@ fn kept<'a>(found: &mut Vec<Captured<'a>>, groups: Captured<'a>) -> Result<(), F
 
 /// One poll of the request's deadline, between two matches of the linear tier.
 ///
-/// The linear tier has no step budget, and its cost is the pattern's size
-/// times the subject's. So `matchAll`, `replace`, `replaceWith` and `split`
-/// poll once per match, and a passed deadline is the CPU or wall-time `FATAL`.
-/// The backtracking tier is bounded by `[regex] backtracking` instead. Cost:
-/// one relaxed load per match.
+/// What bounds each tier inside one search differs. The linear tier reads
+/// each byte of the subject a bounded number of times and never backtracks,
+/// so one search costs at most the pattern's compiled size times the subject's
+/// length, and both are bounded. It needs no poll inside a search. Between
+/// matches it adds up, so `matchAll`, `replace`, `replaceWith` and `split`
+/// poll here once per match. The backtracking tier is bounded twice: its step
+/// budget, `[limits] max_regex_steps`, bounds backtracks and throws, and the
+/// engine's own poll ([`Backtracker`]) bounds its work by the deadline, inside
+/// one search. A passed deadline is the CPU or wall-time `FATAL` on both
+/// tiers. Cost: one relaxed load per match.
 fn polled(ctx: &Ctx, member: &str) -> Result<(), Fault> {
     if ctx.deadline_expired() {
         return nvs_runtime::poll_deadline(ctx, &format!("Core\\Regex::{member}"));
@@ -2019,8 +2102,8 @@ nvs_runtime::nvs_helper! {
                 .captures_at(subject, start)
                 .map(|caps| linear_groups(&caps)),
             Compiled::Backtracking(re) => re
-                .captures_from_pos(subject, start)
-                .map_err(|err| budget_exhausted("match", pattern, budget.steps(), &err))?
+                .under(ctx, |re| re.captures_from_pos(subject, start))
+                .map_err(|err| budget_exhausted(ctx, "match", pattern, budget.steps(), &err))?
                 .map(|caps| backtracking_groups(&caps)),
         };
         Ok(found.map_or_else(Value::null, |captured| {
@@ -2066,16 +2149,18 @@ nvs_runtime::nvs_helper! {
                     out.append(built_match(&mut offsets, &names, &linear_groups(&caps)));
                 }
             }
-            Compiled::Backtracking(re) => {
+            Compiled::Backtracking(re) => re.under(ctx, |re| {
                 for caps in re.captures_iter(subject) {
                     if nvs_runtime::budget::refused() {
                         return Err(over_memory("matchAll"));
                     }
-                    let caps =
-                        caps.map_err(|err| budget_exhausted("matchAll", pattern, budget.steps(), &err))?;
+                    let caps = caps.map_err(|err| {
+                        budget_exhausted(ctx, "matchAll", pattern, budget.steps(), &err)
+                    })?;
                     out.append(built_match(&mut offsets, &names, &backtracking_groups(&caps)));
                 }
-            }
+                Ok(())
+            })?,
         }
         Ok(Value::array(out))
     }
@@ -2240,10 +2325,11 @@ nvs_runtime::nvs_helper! {
                     cursor = whole.end();
                 }
             }
-            Compiled::Backtracking(re) => {
+            Compiled::Backtracking(re) => re.under(ctx, |re| {
                 for caps in re.captures_iter(subject).take(count) {
-                    let caps =
-                        caps.map_err(|err| budget_exhausted("replace", pattern, budget.steps(), &err))?;
+                    let caps = caps.map_err(|err| {
+                        budget_exhausted(ctx, "replace", pattern, budget.steps(), &err)
+                    })?;
                     let Some(whole) = caps.get(0) else { continue };
                     let gap = &subject[cursor..whole.start()];
                     expand(&mut out, gap, &pieces, |number| {
@@ -2251,7 +2337,8 @@ nvs_runtime::nvs_helper! {
                     })?;
                     cursor = whole.end();
                 }
-            }
+                Ok::<(), Fault>(())
+            })?,
         }
         grow(&mut out, subject.len() - cursor, "Core\\Regex::replace")?;
         out.push_str(&subject[cursor..]);
@@ -2343,13 +2430,15 @@ nvs_runtime::nvs_helper! {
                     kept(&mut found, linear_groups(&caps))?;
                 }
             }
-            Compiled::Backtracking(re) => {
+            Compiled::Backtracking(re) => re.under(ctx, |re| {
                 for caps in re.captures_iter(subject).take(count) {
-                    let caps =
-                        caps.map_err(|err| budget_exhausted("replaceWith", pattern, budget.steps(), &err))?;
+                    let caps = caps.map_err(|err| {
+                        budget_exhausted(ctx, "replaceWith", pattern, budget.steps(), &err)
+                    })?;
                     kept(&mut found, backtracking_groups(&caps))?;
                 }
-            }
+                Ok::<(), Fault>(())
+            })?,
         }
 
         // Every piece of the result is asked for by `grow` before it is
@@ -2406,14 +2495,16 @@ fn each_piece<'a>(
             }
         }
         Compiled::Backtracking(re) => {
-            for piece in re.splitn(subject, pieces) {
-                if !each(
-                    piece
-                        .map_err(|err| budget_exhausted("split", pattern, budget.steps(), &err))?,
-                ) {
-                    break;
+            re.under(ctx, |re| {
+                for piece in re.splitn(subject, pieces) {
+                    if !each(piece.map_err(|err| {
+                        budget_exhausted(ctx, "split", pattern, budget.steps(), &err)
+                    })?) {
+                        break;
+                    }
                 }
-            }
+                Ok::<(), Fault>(())
+            })?
         }
     }
     Ok(())
@@ -2869,16 +2960,18 @@ mod tests {
             panic!("a backreference is not a pattern the linear engine expresses")
         };
         assert!(
-            re.is_match("aa").is_ok(),
+            re.re.is_match("aa").is_ok(),
             "a short subject finishes inside the budget"
         );
 
         let subject = format!("{}b", "a".repeat(40));
-        let err = re.is_match(&subject).expect_err("exhausts the budget");
+        let err = re.re.is_match(&subject).expect_err("exhausts the budget");
 
         // The budget the program was built with is the one the throw names,
         // so a message can never quote a bound that is not the enforced one.
-        let Fault::Thrown(class, message) = budget_exhausted("matches", CATASTROPHIC, STEPS, &err)
+        let ctx = Ctx::buffered();
+        let Fault::Thrown(class, message) =
+            budget_exhausted(&ctx, "matches", CATASTROPHIC, STEPS, &err)
         else {
             panic!(
                 "an exhausted step budget is an ordinary catchable throw, not a resource-limit fatal"
@@ -2907,10 +3000,10 @@ mod tests {
         };
         let subject = format!("{}b", "a".repeat(40));
 
-        let predicate = re.is_match(&subject);
+        let predicate = re.re.is_match(&subject);
         assert!(predicate.is_err(), "answered {predicate:?} rather than Err");
-        assert!(re.find(&subject).is_err(), "found a first match");
-        assert!(re.captures(&subject).is_err(), "captured a first match");
+        assert!(re.re.find(&subject).is_err(), "found a first match");
+        assert!(re.re.captures(&subject).is_err(), "captured a first match");
     }
 
     /// A compiled pattern is held, so a loop over one pattern compiles it
@@ -2977,7 +3070,7 @@ mod tests {
 
         let matched = |held: &Compiled, subject: &str| match held {
             Compiled::Linear(re) => re.is_match(subject),
-            Compiled::Backtracking(re) => re.is_match(subject).expect("within budget"),
+            Compiled::Backtracking(re) => re.re.is_match(subject).expect("within budget"),
         };
         assert!(!matched(&plain, "flagged-AAA"));
         assert!(matched(&folded, "flagged-AAA"));
@@ -3003,6 +3096,7 @@ mod tests {
             match &*held {
                 Compiled::Linear(re) => re.find(subject).map(|found| found.as_str().to_owned()),
                 Compiled::Backtracking(re) => re
+                    .re
                     .find(subject)
                     .expect("within budget")
                     .map(|found| found.as_str().to_owned()),
@@ -3711,6 +3805,146 @@ mod tests {
         }
     }
 
+    /// A pattern the backtracking tier takes that spends few steps and much
+    /// work: at every position of a run of `a`s, the lookahead scans the rest
+    /// of the run for a `b` that is not there. One backtrack per position, and
+    /// a scan of the subject's length at each.
+    const LOOKAHEAD: &str = r"(?=a*b)a";
+
+    /// `LOOKAHEAD`'s subject: a run of `a`s, long enough that one scan of it
+    /// is more than one poll's worth of work.
+    fn long_run() -> String {
+        "a".repeat(1 << 18)
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: a backtracking
+    /// search reads the request's deadline from inside the engine. With the
+    /// deadline passed it stops with the engine's interrupt, and with time
+    /// left the same search runs to its answer. Outside [`Backtracker::under`]
+    /// the poll reads no request.
+    #[test]
+    #[cfg_attr(miri, ignore = "scans megabytes, which Miri runs for minutes")]
+    fn a_backtracking_search_stops_at_an_expired_deadline() {
+        let Compiled::Backtracking(re) = tiered(LOOKAHEAD, NO_FLAGS, None).expect("compiles")
+        else {
+            panic!("a lookahead is not a pattern the linear engine expresses")
+        };
+        let subject = long_run();
+
+        let expired = Ctx::buffered();
+        expired.expire_deadline();
+        let stopped = re.under(&expired, |re| re.is_match(&subject));
+        assert!(
+            matches!(
+                stopped,
+                Err(fancy_regex::Error::RuntimeError(
+                    fancy_regex::RuntimeError::Interrupted
+                ))
+            ),
+            "{stopped:?}"
+        );
+        assert!(!deadline_passed(), "the word is the call's alone");
+
+        let live = Ctx::buffered();
+        let short = "a".repeat(4096);
+        assert!(matches!(
+            re.under(&live, |re| re.is_match(&short)),
+            Ok(false)
+        ));
+    }
+
+    thread_local! {
+        /// How many times [`counted`] was called on this thread.
+        static POLLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    /// A poll that counts its calls and never stops the search.
+    fn counted() -> bool {
+        POLLS.with(|polls| polls.set(polls.get() + 1));
+        false
+    }
+
+    /// The polls a search of `LOOKAHEAD` over `length` `a`s makes.
+    fn polls_over(length: usize) -> usize {
+        let re = fancy_regex::RegexBuilder::new(LOOKAHEAD)
+            .backtrack_limit(STEPS)
+            .poll(counted)
+            .build()
+            .expect("compiles");
+        POLLS.with(|polls| polls.set(0));
+        assert!(!re.is_match(&"a".repeat(length)).expect("within budget"));
+        POLLS.with(std::cell::Cell::get)
+    }
+
+    /// The engine polls by the work it does, and a scan is work. `LOOKAHEAD`
+    /// over `n` `a`s scans about `n * n / 2` bytes with one backtrack per
+    /// position, so doubling `n` scans four times the bytes. The polls follow
+    /// the bytes: about one per 4,096 units of 64 bytes, and four times as
+    /// many at twice the length.
+    #[test]
+    #[cfg_attr(miri, ignore = "scans megabytes, which Miri runs for minutes")]
+    fn the_backtracking_tier_polls_in_step_with_the_bytes_it_scans() {
+        let unit = 64 * 4096;
+        let (short, long) = (4096, 8192);
+        let scanned = |n: usize| n * n / 2;
+        let (few, many) = (polls_over(short), polls_over(long));
+        assert!(
+            few >= scanned(short) / unit / 2,
+            "{few} polls over {short} bytes"
+        );
+        assert!(
+            few <= scanned(short) / unit * 2 + 2,
+            "{few} polls over {short} bytes"
+        );
+        assert!(
+            many >= few * 3,
+            "{few} polls, then {many} at twice the length"
+        );
+        assert!(
+            many <= few * 5 + 2,
+            "{few} polls, then {many} at twice the length"
+        );
+    }
+
+    /// `rule:core-classes/regex-two-tiers`'s two endings stay apart. A search
+    /// the deadline stopped is the CPU or wall-time `FATAL`, which no `catch`
+    /// sees. A spent step budget is the catchable throw. When both are true,
+    /// the deadline wins: the request is over.
+    #[test]
+    #[cfg_attr(miri, ignore = "scans megabytes, which Miri runs for minutes")]
+    fn a_deadline_inside_a_backtracking_search_is_fatal_and_a_spent_budget_is_thrown() {
+        let run = |ctx: &mut Ctx, subject: &str, pattern: &str| {
+            let args = [Value::text(subject), Value::text(pattern)];
+            let status = nvs_runtime::call(nvs_core_regex_matches, ctx, &args);
+            #[expect(unsafe_code, reason = "this frame owns the two strings it built")]
+            unsafe {
+                args[0].release();
+                args[1].release();
+            }
+            status.map(|_| ())
+        };
+        let exhausting = format!("{}b", "a".repeat(40));
+
+        let mut expired = context();
+        expired.expire_deadline();
+        assert_eq!(
+            run(&mut expired, &long_run(), LOOKAHEAD),
+            Err(nvs_runtime::FATAL)
+        );
+        let mut expired = context();
+        expired.expire_deadline();
+        assert_eq!(
+            run(&mut expired, &exhausting, CATASTROPHIC),
+            Err(nvs_runtime::FATAL)
+        );
+
+        let mut live = context();
+        assert_eq!(
+            run(&mut live, &exhausting, CATASTROPHIC),
+            Err(nvs_runtime::THROWN)
+        );
+    }
+
     /// The step budget the cases above build their patterns under. It is the
     /// shipped [`BACKTRACK_BUDGET`], except under Miri. There, a thousand
     /// steps take about four seconds, so the cases exhaust a thousand.
@@ -3778,7 +4012,7 @@ mod tests {
             panic!("a backreference is not a pattern the linear engine expresses")
         };
         assert!(
-            re.is_match(&format!("{}b", "a".repeat(40))).is_err(),
+            re.re.is_match(&format!("{}b", "a".repeat(40))).is_err(),
             "a narrowed budget is the one the engine runs under"
         );
 
