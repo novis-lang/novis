@@ -1560,14 +1560,15 @@
   },
   "/reference/config/capabilities/": {
     "feature": "tools:config/capabilities",
-    "hash": "63fdbd30b20ed916",
+    "hash": "7f6601052e5181f2",
     "questions": [
       "How do I allow a program to read files from a folder?",
       "Why does writing a file throw a RuntimeError about a capability?",
       "Let a script connect only to certain hosts",
       "Allow running another program or starting a subprocess",
       "Restrict which directories a script may write to",
-      "Which permissions does a program have by default?"
+      "Which permissions does a program have by default?",
+      "Let a package read environment variables"
     ]
   },
   "/reference/config/debug/": {
@@ -1628,13 +1629,14 @@
   },
   "/reference/config/extension-grants-what-a-component-may-reach/": {
     "feature": "tools:config/extension-grants-what-a-component-may-reach",
-    "hash": "fc4e3c4ebd70e1fe",
+    "hash": "67cdaa782c04bf86",
     "questions": [
       "How do I let an extension read files in a folder?",
       "Allow an extension to send HTTP requests to one host",
       "What files and hosts can an extension access?",
       "See which permissions an extension requests before granting them",
-      "Why can an extension not write to a folder I allowed?"
+      "Why can an extension not write to a folder I allowed?",
+      "Which grant does a package need to call an extension?"
     ]
   },
   "/reference/config/http/": {
@@ -3730,13 +3732,14 @@
   },
   "/reference/core/config/restore/": {
     "feature": "Core\\Config::restore",
-    "hash": "3d5afc73a26d7403",
+    "hash": "ad8d681539354804",
     "questions": [
       "How do I undo a setting change I made?",
       "Reset a setting back to the config file value",
       "Put a changed limit back to its default",
       "Revert a per-request configuration change",
-      "Restore the original value of a setting"
+      "Restore the original value of a setting",
+      "Can a package undo a limit my application set?"
     ]
   },
   "/reference/core/config/secret/": {
@@ -3752,14 +3755,15 @@
   },
   "/reference/core/config/set/": {
     "feature": "Core\\Config::set",
-    "hash": "7335683a3ae289af",
+    "hash": "1a91563e01f2c1dc",
     "questions": [
       "How do I change a configuration setting at runtime?",
       "Raise the memory limit for one request",
       "Override a config value for this request only",
       "Increase the time limit for a slow job",
       "Why did changing a setting return false?",
-      "Can a command-line script raise its own memory limit?"
+      "Can a command-line script raise its own memory limit?",
+      "Can a package change my application's settings?"
     ]
   },
   "/reference/core/config/setting/": {

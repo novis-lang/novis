@@ -5,5 +5,6 @@ card 1 6:23
   - `fs.write`: only the directories `Core\IO::temporaryDir` makes (default)
   - `script.spawn`: files in this file's directory, outside its temporary directories (default)
   - `net.connect`: `api.example.com`
+  - `env`: every environment variable (default)
 
   No other grant is given.
