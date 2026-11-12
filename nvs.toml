@@ -797,6 +797,12 @@ entry = "tests/hostile/core/Db-Connection/query/04-one-sql-server-value-larger-t
 connect = ["mssql"]
 
 [[app]]
+entry = "tests/hostile/core/Db-Connection/query/05-a-secret-the-database-quotes-in-its-error.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
 entry = "benches/members/core/Db-Connection/query.nvs"
 
 [app.capabilities.db]
