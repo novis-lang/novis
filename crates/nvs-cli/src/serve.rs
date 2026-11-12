@@ -1698,14 +1698,16 @@ fn seal_the_spool(draining: &nvs_server::Draining) {
     while !draining.is_draining() {
         if let Some(at) = nvs_runtime::spool::seal_due() {
             if matches!(
-                nvs_host::park_until(at),
+                nvs_host::park_until_past(at, nvs_host::PastWallTime::ServerTask),
                 nvs_runtime::host::Woken::Cancelled
             ) {
                 break;
             }
             continue;
         }
-        let resumed = nvs_host::suspend_current(nvs_host::Waiting::Parked);
+        let resumed = nvs_host::suspend_current(nvs_host::Waiting::ParkedPast(
+            nvs_host::PastWallTime::ServerTask,
+        ));
         if resumed.cancelled() || !resumed.suspended() {
             break;
         }

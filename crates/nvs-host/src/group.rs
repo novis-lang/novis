@@ -123,7 +123,7 @@ use crate::isolate::Isolate;
 
 use crate::reactor;
 use crate::scheduler::{
-    TaskId, Waiting, Wake, cancel_task, current_task, spawn_child, suspend_current,
+    PastWallTime, TaskId, Waiting, Wake, cancel_task, current_task, spawn_child, suspend_current,
 };
 
 /// This crate's scheduler, seen through [`nvs_runtime::host`]'s seam.
@@ -626,7 +626,7 @@ fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>
         // 3. Park until a child reports, the deadline lands, or this task is
         //    itself cancelled.
         let armed = arm_deadline(ending, expires);
-        let resumed = suspend_current(Waiting::Parked);
+        let resumed = suspend_current(Waiting::ParkedPast(PastWallTime::Join));
         let suspended = resumed.suspended();
         if armed {
             disarm_deadline();

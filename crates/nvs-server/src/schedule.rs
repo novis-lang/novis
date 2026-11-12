@@ -126,7 +126,9 @@ use jiff::tz::TimeZone;
 use nvs_config::capability::Cap;
 use nvs_config::schedule::{Cron, zone_of};
 use nvs_config::tree::{Capabilities, LimitSet, Schedule};
-use nvs_host::{Completion, Isolate, TaskId, Waiting, Wake, spawn_child, suspend_current};
+use nvs_host::{
+    Completion, Isolate, PastWallTime, TaskId, Waiting, Wake, spawn_child, suspend_current,
+};
 use nvs_runtime::host::{Narrowing, Woken};
 use nvs_runtime::{Ctx, OutputSink, TaskRoot};
 
@@ -676,11 +678,11 @@ where
         // returns on either, where `sleep` deliberately re-arms past a wake because its caller
         // asked for an instant. So the interval stays the bound and the ending is the answer.
         let woken = if entries.iter().any(Armed::held) {
-            nvs_host::timer::wait_until(Instant::now() + wait)
+            nvs_host::wait_until_past(Instant::now() + wait, PastWallTime::ServerTask)
         } else if wait.is_zero() {
             Woken::Elapsed
         } else {
-            nvs_host::sleep(wait)
+            nvs_host::park_until_past(Instant::now() + wait, PastWallTime::ServerTask)
         };
         if matches!(woken, Woken::Cancelled) {
             break;
@@ -727,7 +729,8 @@ where
                             nvs_host::cancel_task(task);
                         }
                         while entry.busy() {
-                            let resumed = suspend_current(Waiting::Parked);
+                            let resumed =
+                                suspend_current(Waiting::ParkedPast(PastWallTime::ServerTask));
                             // Cancelled: this ticker is being torn down and the fire goes with it.
                             // Not suspended: there is no core, so nothing could ever finish and
                             // this would spin. Either way the entry stays busy and the fire below
@@ -798,7 +801,7 @@ where
     // with it — including, on a shutdown, the nightly job that was three minutes into an hour of
     // work. It parks instead, and each fire's guard wakes it on the way out.
     while outstanding.get() > 0 {
-        let resumed = suspend_current(Waiting::Parked);
+        let resumed = suspend_current(Waiting::ParkedPast(PastWallTime::ServerTask));
         // Cancelled: the caller is being torn down and the fires go with it, which is that
         // rule's own answer for a cancelled caller and not something to wait out. Not suspended: there is no core to hand back, so
         // there is no turn in which a fire could ever finish and this would spin.

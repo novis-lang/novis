@@ -80,7 +80,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::task::{Context, Poll, Waker};
 
 use crate::reactor::{self, RemoteWake};
-use crate::scheduler::{Waiting, current_task, suspend_current};
+use crate::scheduler::{PastWallTime, Waiting, current_task, suspend_current};
 
 /// Drives `future` to completion on this task, giving the core back whenever it
 /// answers `Pending`.
@@ -100,7 +100,11 @@ use crate::scheduler::{Waiting, current_task, suspend_current};
 /// is queued; this module's docs and `rule:concurrency/one-future-per-connection` own why that is the whole
 /// definition of the seam.
 pub fn block_on<F: Future>(future: F) -> Option<F::Output> {
-    let signal = Arc::new(Signal::here());
+    // Every caller is a connection's or a server task's own drive, which its
+    // phase deadlines bound, so its park outlives a request's `wall_time`.
+    let signal = Arc::new(Signal::here(Waiting::ParkedPast(
+        PastWallTime::ConnectionDrive,
+    )));
     let waker = Waker::from(Arc::clone(&signal));
     let mut cx = Context::from_waker(&waker);
     let mut future = pin!(future);
@@ -144,7 +148,8 @@ pub fn block_on<F: Future>(future: F) -> Option<F::Output> {
 /// What it spends beyond [`block_on`]: one `RemoteWake` issued and collected
 /// per yield on a core, and nothing held between yields.
 pub fn block_on_yielding<F: Future>(future: F, mut between: impl FnMut() -> bool) -> F::Output {
-    let signal = Arc::new(Signal::here());
+    // A guest call is the request's own wait, so it parks bounded.
+    let signal = Arc::new(Signal::here(Waiting::Parked));
     let waker = Waker::from(Arc::clone(&signal));
     let mut cx = Context::from_waker(&waker);
     let mut future = pin!(future);
@@ -178,6 +183,9 @@ struct Signal {
     woken: AtomicBool,
     /// Where a park goes and what ends it. Decided once, when the drive starts.
     route: Route,
+    /// What a park on a core tells the scheduler: a connection's drive names
+    /// why it outlives `wall_time`, and a guest call does not.
+    waiting: Waiting,
 }
 
 /// Where a drive can be standing, and what a park means in each place.
@@ -197,8 +205,9 @@ enum Route {
 }
 
 impl Signal {
-    /// Reads which route this thread is on, right now.
-    fn here() -> Self {
+    /// Reads which route this thread is on, right now, for a drive that parks
+    /// as `waiting`.
+    fn here(waiting: Waiting) -> Self {
         let route = match current_task() {
             // Borrowed and dropped on the spot, only to ask whether this thread
             // has one at all — the permission itself is taken per park, in
@@ -212,6 +221,7 @@ impl Signal {
         Self {
             woken: AtomicBool::new(false),
             route,
+            waiting,
         }
     }
 
@@ -232,7 +242,7 @@ impl Signal {
                     // `rule:concurrency/one-permission-per-drive`.
                     return true;
                 }
-                let resumed = suspend_current(Waiting::Parked);
+                let resumed = suspend_current(self.waiting);
                 // `NotSuspended` is unreachable here — `current_task` answered
                 // when the route was chosen, and a task does not lose its
                 // scheduler — so this reads only the one answer that matters.
@@ -267,7 +277,7 @@ impl Signal {
                     // the wake.
                     let _ = wake.wake();
                 }
-                let _ = suspend_current(Waiting::Parked);
+                let _ = suspend_current(self.waiting);
             }
             Route::Yield => {
                 let _ = suspend_current(Waiting::Yielded);

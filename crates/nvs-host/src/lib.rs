@@ -165,16 +165,16 @@ pub use reactor::{
     Installed, Interest, Reactor, RemoteWake, run_until_idle, wake_at_drain, wake_this_task,
 };
 pub use scheduler::{
-    Finished, RunReport, Scheduler, TaskId, Waiting, Wake, cancel_task, children_still_running,
-    current_task, detach_current, running_beneath, spawn_child, spawn_child_next, spawn_root,
-    suspend, suspend_current,
+    Finished, PastWallTime, RunReport, Scheduler, TaskId, Waiting, Wake, cancel_task,
+    children_still_running, current_task, detach_current, running_beneath, spawn_child,
+    spawn_child_next, spawn_root, suspend, suspend_current,
 };
 pub use slice::SliceClock;
 pub use stack::{
     SPARE_STACK_SIZE, Suspendable, TASK_STACK_SIZE, on_spare_stack, on_spare_stack_within,
     suspendable,
 };
-pub use timer::{DeadlineView, Timers, park_until, sleep};
+pub use timer::{DeadlineView, Timers, park_until, park_until_past, sleep, wait_until_past};
 pub use watchdog::{Registration, RunningRequest, Shed, Stall, Watchdog, this_core_is_wedged};
 
 /// One OS thread, pinned to one CPU, running one [`Scheduler`].

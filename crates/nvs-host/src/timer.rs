@@ -82,7 +82,7 @@ use std::time::{Duration, Instant};
 use nvs_runtime::host::Woken;
 
 use crate::reactor;
-use crate::scheduler::{TaskId, TaskMap, Waiting, current_task, suspend_current};
+use crate::scheduler::{PastWallTime, TaskId, TaskMap, Waiting, current_task, suspend_current};
 
 /// The sentinel [`Published::earliest`] carries when no deadline is filed.
 ///
@@ -249,6 +249,17 @@ impl Timers {
 /// Off a core the thread sleeps instead; this module's docs say why that is not
 /// the parking rule being bent.
 pub fn park_until(at: Instant) -> Woken {
+    park_until_as(at, Waiting::Parked)
+}
+
+/// [`park_until`] for a wait that outlives the running tree's `wall_time`,
+/// with the reason it does. A server task that waits on the clock calls this,
+/// so the funnel that bounds a park leaves its wait alone.
+pub fn park_until_past(at: Instant, why: PastWallTime) -> Woken {
+    park_until_as(at, Waiting::ParkedPast(why))
+}
+
+fn park_until_as(at: Instant, waiting: Waiting) -> Woken {
     loop {
         let now = Instant::now();
         if now >= at {
@@ -258,7 +269,7 @@ pub fn park_until(at: Instant) -> Woken {
         if let Some(me) = current_task()
             && reactor::with_current(|reactor| reactor.timers().arm(me, at)).is_some()
         {
-            let resumed = suspend_current(Waiting::Parked);
+            let resumed = suspend_current(waiting);
             parked = resumed.suspended();
             if !parked || resumed.cancelled() {
                 // Nothing suspended, so nothing is coming back for that
@@ -303,6 +314,16 @@ pub fn sleep(duration: Duration) -> Woken {
 /// not about to look up. Off a core the thread sleeps out the remainder, since
 /// nothing that could wake it is running either.
 pub fn wait_until(at: Instant) -> Woken {
+    wait_until_as(at, Waiting::Parked)
+}
+
+/// [`wait_until`] for a wait that outlives the running tree's `wall_time`,
+/// with the reason it does.
+pub fn wait_until_past(at: Instant, why: PastWallTime) -> Woken {
+    wait_until_as(at, Waiting::ParkedPast(why))
+}
+
+fn wait_until_as(at: Instant, waiting: Waiting) -> Woken {
     let now = Instant::now();
     if now >= at {
         return Woken::Elapsed;
@@ -313,7 +334,7 @@ pub fn wait_until(at: Instant) -> Woken {
         std::thread::sleep(at - now);
         return Woken::Elapsed;
     };
-    let resumed = suspend_current(Waiting::Parked);
+    let resumed = suspend_current(waiting);
     // Always, and not only on the paths that failed: a deadline that fired is
     // already off the reactor, and one that did not would otherwise stay filed
     // against a task that has gone back to work — this module's one-timer-per-

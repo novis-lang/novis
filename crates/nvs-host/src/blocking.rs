@@ -79,7 +79,7 @@ use std::time::{Duration, Instant};
 use crate::affinity::cpus;
 use crate::cpuclock::ThreadClock;
 use crate::reactor;
-use crate::scheduler::{Waiting, current_task, suspend_current};
+use crate::scheduler::{PastWallTime, Waiting, current_task, suspend_current};
 
 /// A unit of work handed off the core.
 type Job = Box<dyn FnOnce(&Release<'_>) + Send + 'static>;
@@ -581,7 +581,7 @@ where
         if let Some(at) = deadline {
             reactor::with_current(|reactor| reactor.timers().arm(me, at));
         }
-        let resumed = suspend_current(Waiting::Parked);
+        let resumed = suspend_current(Waiting::ParkedPast(PastWallTime::BlockingJob));
         if deadline.is_some() {
             // Always: a timer that fired is already off the reactor, and one
             // that did not would stay filed against a task that went on.
@@ -773,7 +773,7 @@ impl<Q, A> Pinned<Q, A> {
                 // the park is what is repeated — [`run`]'s loop exactly.
                 Err(mpsc::TryRecvError::Empty) => {}
             }
-            if !suspend_current(Waiting::Parked).suspended() {
+            if !suspend_current(Waiting::ParkedPast(PastWallTime::BlockingJob)).suspended() {
                 std::thread::yield_now();
             }
         }

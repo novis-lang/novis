@@ -132,7 +132,10 @@ impl Exporters {
                 let _woken = nvs_host::wake_at_drain(draining.bit());
                 if !draining.is_draining()
                     && matches!(
-                        nvs_host::timer::wait_until(Instant::now() + POLL),
+                        nvs_host::wait_until_past(
+                            Instant::now() + POLL,
+                            nvs_host::PastWallTime::ServerTask
+                        ),
                         Woken::Cancelled
                     )
                 {

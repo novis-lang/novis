@@ -203,7 +203,49 @@ pub enum Waiting {
     /// as the scheduler lives — which is a bug in the caller, not something
     /// the run queue can detect, since "arranged to wake" is a fact about the
     /// reactor and not about the queue.
+    ///
+    /// This is the default for every wait, and `rule:concurrency/the-parking-contract`
+    /// bounds it by the wall deadline of the tree whose turn the stack is.
     Parked,
+    /// Parked exactly as [`Waiting::Parked`], by a wait that outlives the
+    /// running tree's `wall_time` and says why.
+    ///
+    /// The scheduler files it as it files `Parked`. The reason is read by the
+    /// funnel that bounds a park, and by `tests/park_sites.rs`, which holds each
+    /// reason to the files listed for it, so a new wait is bounded unless its
+    /// author names one.
+    ParkedPast(PastWallTime),
+}
+
+/// Why a wait outlives the `wall_time` of the tree that is running it.
+///
+/// The variants are the whole list. A site whose reason is not one of these
+/// parks as [`Waiting::Parked`] and is bounded. Each reason carries no data,
+/// so the argument costs nothing at run time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PastWallTime {
+    /// A task that serves no request: an accept loop, a ticker, a spool
+    /// sealer, the receptionist, a queue worker's idle wait. It has no
+    /// request deadline to be bounded by.
+    ServerTask,
+    /// The connection's own task: a future driven on its coroutine, or its
+    /// wait for the program's answer. The connection's phase deadlines bound
+    /// the first, and the program's own stop ends the second.
+    ConnectionDrive,
+    /// A wait for the task's own children. Each child is bounded, and a parent
+    /// that left first would break
+    /// `rule:concurrency/nothing-is-still-running-when-a-call-returns`.
+    Join,
+    /// A wait for a job on the blocking pool. A job off the core cannot be
+    /// resumed, so it is handed its own instant.
+    BlockingJob,
+    /// A debugger stop, which suspends the request's deadlines by
+    /// `rule:testing/a-stop-pauses-the-whole-task-tree`.
+    DebugStop,
+    /// The drive of resource destructors at request end, which arms its own
+    /// instant.
+    RequestEnd,
 }
 
 /// What a suspension told the scheduler, which is [`Waiting`] plus the one
@@ -1141,7 +1183,7 @@ impl Scheduler {
                         }
                         match suspended.waiting {
                             Waiting::Yielded => self.ready.push_back(task),
-                            Waiting::Parked => {
+                            Waiting::Parked | Waiting::ParkedPast(_) => {
                                 // A cancelled task that parks is one the sweep
                                 // below has to see, even when its mark is older
                                 // than the last sweep: it may have been told

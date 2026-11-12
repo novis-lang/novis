@@ -151,7 +151,7 @@ use std::time::{Duration, Instant};
 
 use nvs_config::queue::QueueBounds;
 use nvs_config::tree::Database;
-use nvs_runtime::host::{Woken, with_current};
+use nvs_runtime::host::Woken;
 use nvs_stdlib::queue::Bell;
 
 /// How long a worker's own handshake may take.
@@ -359,7 +359,7 @@ impl Workers {
             .as_ref()
             .and_then(|draining| nvs_host::wake_at_drain(draining.bit()));
         loop {
-            let woken = nvs_host::timer::wait_until(deadline);
+            let woken = nvs_host::wait_until_past(deadline, nvs_host::PastWallTime::ServerTask);
             if woken == Woken::Cancelled
                 || self.bell.rings() != heard
                 || self.stopping()
@@ -1946,13 +1946,11 @@ fn millis(at: i64) -> Vec<u8> {
 
 /// Parks this task for `length`, reporting how the wait ended.
 ///
-/// With no host on the thread there is nothing to hand the core back to, so the wait is a blocking
-/// one — `Core\Time::sleep`'s own reading, and unreachable here, since a worker is only ever a task.
+/// A worker serves no request while it waits for work, so the wait names that it outlives
+/// `wall_time`. Off a core the thread sleeps, which is unreachable here, since a worker is only
+/// ever a task.
 fn pause(length: Duration) -> Woken {
-    with_current(|host| host.sleep(length)).unwrap_or_else(|| {
-        std::thread::sleep(length);
-        Woken::Elapsed
-    })
+    nvs_host::park_until_past(Instant::now() + length, nvs_host::PastWallTime::ServerTask)
 }
 
 /// One driver's half of [`open`]: resolve the block as that driver's target, open it, and hand back

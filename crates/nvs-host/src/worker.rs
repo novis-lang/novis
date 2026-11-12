@@ -140,7 +140,8 @@ use crate::Worker;
 use crate::affinity::cpus;
 use crate::reactor::{self, Reactor, RemoteWake, run_until_idle};
 use crate::scheduler::{
-    Scheduler, TaskId, Waiting, cancel_task, current_task, spawn_child, suspend_current,
+    PastWallTime, Scheduler, TaskId, Waiting, cancel_task, current_task, spawn_child,
+    suspend_current,
 };
 
 /// What a placement answered with.
@@ -486,7 +487,7 @@ impl<T> Posted<T> {
             if let Some(answer) = lock(&self.slot).take() {
                 return answer;
             }
-            let resumed = suspend_current(Waiting::Parked);
+            let resumed = suspend_current(Waiting::ParkedPast(PastWallTime::Join));
             if resumed.cancelled() {
                 // The cancellation goes across and this call keeps
                 // waiting for the acknowledgement, which arrives as the child's
@@ -1270,7 +1271,7 @@ fn receive(inbox: &Arc<Inbox>, ending: Option<&Drain>) {
             inbox.close();
             return;
         }
-        suspend_current(Waiting::Parked);
+        suspend_current(Waiting::ParkedPast(PastWallTime::ServerTask));
     }
 }
 

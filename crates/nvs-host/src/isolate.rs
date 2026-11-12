@@ -121,7 +121,9 @@ use nvs_runtime::{
     SpawnForm, SseSlot, TaskRoot, UpgradeSlot, Value,
 };
 
-use crate::scheduler::{TaskId, Waiting, Wake, cancel_task, spawn_child_ordered, suspend_current};
+use crate::scheduler::{
+    PastWallTime, TaskId, Waiting, Wake, cancel_task, spawn_child_ordered, suspend_current,
+};
 use crate::stack::Role;
 use crate::watchdog::Registration;
 
@@ -999,7 +1001,7 @@ impl Started {
     /// the one cancellation this loop can issue is not issued twice.
     fn park_until_done(&self, mut cancelling: bool) {
         while !self.done.get() {
-            let resumed = suspend_current(Waiting::Parked);
+            let resumed = suspend_current(Waiting::ParkedPast(PastWallTime::Join));
             if !resumed.suspended() {
                 // Nothing suspended, so the core was never handed back and the
                 // child cannot make progress; looping would spin. The same

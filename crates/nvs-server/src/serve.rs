@@ -101,8 +101,8 @@ use hyper::service::service_fn;
 use hyper::{HeaderMap, Request, Response, StatusCode};
 use nvs_config::Waits;
 use nvs_host::{
-    Completion, Isolate, NvsConnection, NvsListener, Output, Running, Waiting, Wake, block_on,
-    spawn_child, suspend_current,
+    Completion, Isolate, NvsConnection, NvsListener, Output, PastWallTime, Running, Waiting, Wake,
+    block_on, spawn_child, suspend_current,
 };
 use nvs_runtime::host::Woken;
 use nvs_runtime::stream;
@@ -1373,7 +1373,7 @@ impl Drop for Peer {
                     let _ = wake.wake();
                 }));
             }
-            let resumed = suspend_current(Waiting::Parked);
+            let resumed = suspend_current(Waiting::ParkedPast(PastWallTime::ConnectionDrive));
             // Taken back by this task, which settles it without a wake.
             drop(self.tree.unwatch_wall_time());
             if !resumed.suspended() || resumed.cancelled() {
@@ -3576,7 +3576,7 @@ where
     // not a lost wakeup: one core runs one task at a time, so no child can
     // finish between the read of the tally and the suspend below.
     while outstanding.get() > 0 {
-        let resumed = suspend_current(Waiting::Parked);
+        let resumed = suspend_current(Waiting::ParkedPast(PastWallTime::ServerTask));
         // Cancelled: the caller is being torn down and the children go with it,
         // which is that rule's own answer and not something to wait out. Not
         // suspended: there is no core to hand back, so there is no turn in

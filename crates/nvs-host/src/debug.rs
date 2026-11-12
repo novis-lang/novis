@@ -98,7 +98,7 @@ use nvs_runtime::{
 use rustc_hash::FxHashMap;
 
 use crate::reactor::RemoteWake;
-use crate::scheduler::{TaskId, Waiting};
+use crate::scheduler::{PastWallTime, TaskId, Waiting};
 
 /// Where one stop site is in the source: the file a breakpoint names, and its
 /// 1-based line.
@@ -815,7 +815,9 @@ impl Shared {
             if let Some(wake) = crate::reactor::wake_this_task() {
                 state.parked.push(wake);
                 drop(state);
-                if crate::scheduler::suspend_current(Waiting::Parked).cancelled() {
+                if crate::scheduler::suspend_current(Waiting::ParkedPast(PastWallTime::DebugStop))
+                    .cancelled()
+                {
                     return match ctx.cancel() {
                         Fault::Pending(status) => status,
                         _ => nvs_runtime::FATAL,
