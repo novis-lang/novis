@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/tests/capability.rs, crates/nvs-stdlib/src/classes.rs, docs/rules/testing/capability-completeness-test.md, docs/rules/security/capability-declaration-is-one-table.md]
   - id: 4
     title: an extension member and an extension's own source ask the namespace
-    status: open
+    status: done
     context: [crates/nvs-types/src/ext_lib.rs, crates/nvs-ext/src/manifest.rs, crates/nvs-hir/src/symbol.rs, docs/rules/security/extension-grants-are-an-intersection.md, docs/rules/packaging/an-extension-package-carries-two-payloads.md]
   - id: 5
     title: a package sets only its own limits and restores only what a package set
@@ -420,37 +420,37 @@ third-party extension's carried source to its own grant line.
 **Split:** an `Explore` subagent lists every example, case and fixture that calls an extension class
 from a namespace with a `[grants]` line, and every third-party `.nvsx` fixture that carries source.
 
-- [ ] `ext_lib::seed` records, for each manifest class, the capabilities its `requests` imply and
+- [x] `ext_lib::seed` records, for each manifest class, the capabilities its `requests` imply and
   whether a built-in component declares it (`rule:security/extension-grants-are-an-intersection`,
   `crates/nvs-types/src/ext_lib.rs:1`, `crates/nvs-ext/src/manifest.rs:395`,
   `crates/nvs-hir/src/symbol.rs:50`).
-- [ ] `reject_ungranted_call` asks those capabilities for an extension class
+- [x] `reject_ungranted_call` asks those capabilities for an extension class
   (`crates/nvs-types/src/capability.rs:261`).
-- [ ] `authority_of` returns an empty line for a namespace under a third-party extension's own, where
+- [x] `authority_of` returns an empty line for a namespace under a third-party extension's own, where
   no `[grants]` line matches and also where the table is empty
   (`rule:packaging/an-extension-package-carries-two-payloads`, `crates/nvs-types/src/capability.rs:243`).
-- [ ] The `E0658` note for an implied line says no line names the namespace, and its help prints the
+- [x] The `E0658` note for an implied line says no line names the namespace, and its help prints the
   line to write in `package.toml` (`crates/nvs-types/src/capability.rs:301`). The text follows
   `AGENTS.md` § *Text an end user reads*.
-- [ ] The loader refuses carried source beside a manifest class that has one segment
+- [x] The loader refuses carried source beside a manifest class that has one segment
   (`crates/nvs-ext/src/load.rs:857`).
-- [ ] `nvs ext inspect` prints the capabilities a calling package needs
+- [x] `nvs ext inspect` prints the capabilities a calling package needs
   (`rule:security/extension-grants-are-an-intersection`, `crates/nvs-cli/src/ext.rs:412`).
-- [ ] Five tests named in check `extensions-ask-the-namespace`
+- [x] Five tests named in check `extensions-ask-the-namespace`
   (`crates/nvs-cli/tests/package_grants.rs:65`). Safe default: where loading an extension needs
   fixtures of `crates/nvs-cli/tests/live_config.rs`, the tests go there and the check's `run` follows.
-- [ ] Case `tests/conformance/ext/a-package-calls-an-extension-only-with-its-capabilities.nvst:1`.
-- [ ] Attacks in `tests/hostile/tools/config/extension-grants-what-a-component-may-reach/`, each marked
+- [x] Case `tests/conformance/ext/a-package-calls-an-extension-only-with-its-capabilities.nvst:1`.
+- [x] Attacks in `tests/hostile/tools/config/extension-grants-what-a-component-may-reach/`, each marked
   `// hostile: expect-refusal`, under the next free numbers:
-  `02-a-package-with-no-grant-reads-through-the-component.nvs:1` and
-  `03-the-extensions-own-source-opens-a-file.nvs:1`. The folder gains a `package.toml` with an empty
+  `04-a-package-with-no-grant-reads-through-the-component.nvs:1` and
+  `05-the-extensions-own-source-opens-a-file.nvs:1`. The folder gains a `package.toml` with an empty
   line.
-- [ ] Rule fragments reworded: the third set is the caller's grant line, asked while compiling
+- [x] Rule fragments reworded: the third set is the caller's grant line, asked while compiling
   (`docs/rules/security/extension-grants-are-an-intersection.md:1`). Carried source is a package and
   holds only what a line names, and a built-in keeps its authority
   (`docs/rules/packaging/an-extension-package-carries-two-payloads.md:10`). Third-party extension
   source is never unmatched (`docs/rules/security/an-unmatched-namespace-holds-the-application.md:5`).
-- [ ] The example's `about.md` says a calling package needs the capability, and every caller the
+- [x] The example's `about.md` says a calling package needs the capability, and every caller the
   subagent named gets its line.
 
 ### 5. a package sets only its own limits and restores only what a package set
@@ -498,47 +498,39 @@ and the application's value to return to.
 
 ### State
 
-Stages 1, 2 and 3 are done, and checks `env-needs-a-grant`, `env-door-asks`,
-`spawn-asks-the-namespace` and `the-table-is-closed` are green. Stage 3 added `NEEDS_NONE`
-(`crates/nvs-stdlib/src/registry.rs:2669`) with 154 classes and their reasons, beside
-`CAPABILITIES` (`:2027`), whose doc is rewritten. `Core\Debug`, `Core\Request\Part` and
-`Core\Http\Stream` gained member rows, as § *Standing decisions* records. `door_calls`
-(`crates/nvs-stdlib/tests/capability.rs:658`) is the one scan, and
-`every_door_names_the_capability_its_member_declares` (`:755`),
-`no_class_with_a_reason_for_none_calls_a_door` (`:888`) and
-`every_construct_that_reaches_a_door_names_its_capability` (`:957`, which also reads
-`crates/nvs-runtime/src`) read it. `every_core_class_has_capability_rows_or_a_reason_for_none` is at
-`:362`. `nvs meta` renders the list as `needsNone`, and `crates/nvs-cli/tests/meta.rs` checks it.
-Two tests stage 1 left red, which forgot that `env` is granted where its key is not written, are
-fixed in `crates/nvs-config/tests/capability.rs` and `crates/nvs-stdlib/tests/capability.rs`.
+Stages 1 to 4 are done, and their five checks are green, `extensions-ask-the-namespace` included.
+Stage 4: `ext_lib::implied_capabilities` (`crates/nvs-types/src/ext_lib.rs:234`) reads a manifest's
+requests into `ClassSignature::requests`, and `seed` records each third-party extension's namespace
+(`crates/nvs-types/src/signatures.rs:926`). `Authority::Implied`
+(`crates/nvs-types/src/capability.rs:271`) is the empty line `authority_of` (`:302`) returns there,
+and `reject_ungranted` (`:322`) prints the line to write. New fixtures are `courier` under
+`tests/conformance/ext/fixtures/` and `notes` beside attacks `04-` and `05-`, as `01-` to `03-`
+were taken. The tests at `crates/nvs-cli/tests/package_grants.rs:511` run `nvs check` in the app
+folder so its `nvs.toml` loads. No in-tree caller of an extension sits under a grant line.
 
 The sweep's reds are stale: `env-secret-proofs` was retired, and nightly 43001191130 predates
-`305c04f660`. `cargo fmt` rewrites `crates/nvs-config/src/defaults.rs` here although HEAD's copy is
-unchanged; restore it with `git checkout`, and let `bun nv ci --check` judge at the goal end.
+`305c04f660`. `cargo fmt` rewrites `crates/nvs-config/src/defaults.rs` although HEAD's copy is
+unchanged; restore it with `git checkout`.
 
-Expected red: a conformance case or example that calls `Core\Debug::startTrace`,
-`Core\Debug::startProfile` or a `saveTo` from a namespace with a `[grants]` line, if any exists. A
-grep of `.nvs` files under a `vendor/` or `packages/` folder found none. Only the capability and
-meta suites ran here.
+Expected red: a case or example that calls `Core\Debug::startTrace`, `startProfile` or a `saveTo`
+from a granted namespace, or whose application code declares a namespace under a third-party
+extension's (such as `namespace Shop;` beside `ledger`) and calls a capability member. None was
+found. Stage 4 ran only the tests it wrote, the `fixtures` suite, the new case and its proofs.
 
 ### Next
 
-Stage 4, over `crates/nvs-types/src/ext_lib.rs`, `crates/nvs-types/src/capability.rs`,
-`crates/nvs-ext/src/manifest.rs` and `crates/nvs-cli/tests/package_grants.rs`. The `Explore`
-subagent of the stage's **Split:** goes out first.
+Stage 5, over `crates/nvs-config/src/request.rs`, `crates/nvs-stdlib/src/config.rs` and
+`crates/nvs-types/src/capability.rs`.
 
-- [ ] `ext_lib::seed` (`crates/nvs-types/src/ext_lib.rs:178`) records each manifest class's implied
-  capabilities from `requests` (`crates/nvs-ext/src/manifest.rs:395`) and whether a built-in
-  component declares it (`crates/nvs-hir/src/symbol.rs:50`).
-- [ ] `reject_ungranted_call` (`crates/nvs-types/src/capability.rs:224`) asks them for an
-  extension class, through `reject_ungranted` (`:281`).
-- [ ] `authority_of` (`crates/nvs-types/src/capability.rs:266`) returns an empty line under a
-  third-party extension's namespace, with or without a grant table.
-- [ ] The `E0658` note and help, the one-segment refusal in `crates/nvs-ext/src/load.rs:857`, and
-  `nvs ext inspect` (`crates/nvs-cli/src/ext.rs:412`).
-- [ ] `crates/nvs-cli/tests/package_grants.rs:65`: the five tests of check
-  `extensions-ask-the-namespace`, then the attacks under
-  `tests/hostile/tools/config/extension-grants-what-a-component-may-reach/`.
+- [ ] `set_as_package` (`crates/nvs-config/src/request.rs:380`) returns `false` outside `limits.`,
+  with test `a_package_sets_no_key_outside_limits`.
+- [ ] `restore` (`crates/nvs-config/src/request.rs:563`) gains a package form, and the overlay
+  keeps the application's value under a package's, with its two tests.
+- [ ] `Core\Config::restore` (`crates/nvs-stdlib/src/config.rs:584`) joins `PREPARED_MEMBERS`
+  (`crates/nvs-stdlib/src/registry.rs:3971`), and `prepare_config_set`
+  (`crates/nvs-types/src/capability.rs:176`) prepares it too.
+- [ ] The rule fragment `docs/rules/security/package-authority-is-granted-one-line-at-a-time.md:26`,
+  the case, and attacks `08-` and `09-` in that feature's hostile folder.
 
 ### Backlog
 
