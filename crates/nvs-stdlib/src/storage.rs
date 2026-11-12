@@ -852,6 +852,7 @@ mod tests {
     /// is no source: its output is about the input's size, and the request's
     /// allocator counts it.
     #[test]
+    #[cfg_attr(miri, ignore = "scans megabytes, which Miri runs for minutes")]
     fn no_member_reads_a_whole_source_outside_the_bounded_reader() {
         /// A file and the start of a function in it, each with why its whole
         /// reads are of a value the request holds.

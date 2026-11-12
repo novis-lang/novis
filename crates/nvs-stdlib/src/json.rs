@@ -5959,6 +5959,10 @@ pub(crate) mod tests {
     /// message stays short and a control character in the key arrives as
     /// `\n` and not as a line break.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the document is longer than an in-place parse, and the spare stack's guard page needs `mprotect`, which Miri does not emulate"
+    )]
     fn a_long_json_key_is_quoted_escaped_and_short() {
         let key = format!("k\\n{}", "é".repeat(1 << 16));
         let document = format!(r#"{{"{key}":1,"{key}":2}}"#);

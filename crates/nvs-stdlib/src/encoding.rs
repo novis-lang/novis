@@ -1681,6 +1681,7 @@ mod tests {
     /// the deadline's FATAL over a large valid input once the deadline has
     /// passed. A member this test does not know fails it.
     #[test]
+    #[cfg_attr(miri, ignore = "encodes 2 MiB with every encoding, which Miri runs for minutes")]
     fn every_encoding_stops_at_an_expired_deadline() {
         let size = PIECE * nvs_runtime::DEADLINE_POLL_BATCH * 2;
         let symbols = "a".repeat(size);
