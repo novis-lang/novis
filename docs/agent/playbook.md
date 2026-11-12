@@ -26,6 +26,10 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **`bun nv splice --patch` writes a `\\` in a patch's NEW block as one `\`.** A Rust string such as
+  `"Core\\Env::get"` lands as `"Core\Env::get"`, and the build fails with `unknown character escape`.
+  Write a `Core` name in a patch as a raw string, `r"Core\Env::get"`, or make that edit with Edit.
+  See `tools/nv/cmd/splice.ts`. `until: gone tools/nv/cmd/splice.ts`
 - **A scratch script's `String.replace` or `replaceAll` with a string replacement reads `` $` ``,
   `$'` and `$&` in it as patterns.** An anchor such as "without the `` `$` ``," copied into the
   replacement inserts the whole text before the match, and one edit of

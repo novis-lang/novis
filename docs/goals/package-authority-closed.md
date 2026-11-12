@@ -6,8 +6,8 @@ context: [crates/nvs-types/src/capability.rs, crates/nvs-stdlib/src/cap.rs, crat
 stages:
   - id: 1
     title: a package needs the env grant to read the process environment
-    status: open
-    context: [crates/nvs-config/src/capability.rs, crates/nvs-config/src/defaults.rs, crates/nvs-runtime/src/environment.rs, crates/nvs-stdlib/src/env.rs, docs/rules/security/capability-roster-is-closed.md]
+    status: done
+    context: [crates/nvs-config/src/capability.rs, crates/nvs-config/src/defaults.rs, crates/nvs-runtime/src/capability.rs, crates/nvs-stdlib/src/env.rs, docs/rules/security/capability-roster-is-closed.md]
   - id: 2
     title: "spawn script, a queued job and an upgrade ask the calling namespace"
     status: open
@@ -102,7 +102,7 @@ nothing. The completeness test holds only a class that already has one row
 (`crates/nvs-stdlib/tests/capability.rs:298`). A class with no row at all is never looked at.
 
 - **The environment.** `Core\Env::get`, `secret` and `all` have no row, and their door asks nothing
-  (`crates/nvs-stdlib/src/env.rs:560`, `:589`, `:613`, `crates/nvs-runtime/src/environment.rs:49`).
+  (`crates/nvs-stdlib/src/env.rs:560`, `:589`, `:613`, `crates/nvs-runtime/src/capability.rs:1826`).
   A package with an empty line reads every variable of the server process. `get` returns a `tainted
   string`, and any `Core` escape member makes it plain. `crates/nvs-stdlib/src/env.rs:10` records the
   missing door as a decision. Its reason covers the operator's own application, not a package.
@@ -175,6 +175,16 @@ variable. It gets the `env` row and its door asks. `Core\Config::get`, `all` and
 rows when the session has confirmed that none returns a secret directive's value to a package. One
 that does gets the `env` row. `set` and `restore` get `None` rows, because the package word of the
 last decision below holds them. **What it spends:** one authority check per `Core\Config::secret`.
+
+**From a package, every `Core\Config::get` needs `env`, because the namespace check is per member.**
+`get` returns a secret directive's value, such as `db.main.password`, unredacted, and its prepared
+word already requires a literal name for one. `all` redacts each secret directive, and `setting`
+reads `[settings]` alone, so both have `None` rows. At run time `get` asks `env` only for a secret
+key, so the application and an isolate pay nothing for any other key. **What it spends:** one
+`is_secret_key` test per `get`, which the member already made. Usability: a package that reads
+`limits.memory` needs `"env"` on its line. Declined for now: a check that asks `env` only where the
+literal name is a secret key. It is a second source of capability needs beside the one table, and
+stage 3 closes that table. The backlog keeps it.
 
 **Starting a script is `script.spawn`, for the construct and for every member that names a script.**
 `spawn script` asks the calling namespace in both forms, the path form and the `Class::method` form.
@@ -268,44 +278,44 @@ configuration reference, `default.toml`, the capabilities example and its `about
 snapshots and the editor's completion data. A second one lists every package namespace in the tree
 that calls `Core\Env::get`, `secret`, `all` or `Core\Config::secret`, with its `package.toml`.
 
-- [ ] `Cap::Env` joins the roster: the variant, `ALL`, `name`, `grant` and `grant_mut`, and
+- [x] `Cap::Env` joins the roster: the variant, `ALL`, `name`, `grant` and `grant_mut`, and
   `Capabilities` gains `env` (`rule:security/capability-roster-is-closed`,
   `crates/nvs-config/src/capability.rs:66`, `crates/nvs-config/src/capability.rs:673`,
   `crates/nvs-config/src/capability.rs:833`, `crates/nvs-config/src/tree.rs:323`).
-- [ ] `defaults::capability` returns `Granted::Everything` for `env` on every kind of run, and its doc
+- [x] `defaults::capability` returns `Granted::Everything` for `env` on every kind of run, and its doc
   says so (`rule:config/no-configuration-file-is-a-complete-configuration`,
   `crates/nvs-config/src/defaults.rs:426`). Test `env_is_granted_on_every_run_where_its_key_is_not_written`
   sits in that crate's lib tests.
-- [ ] The two readers become the doors `capability::env_var` and `capability::env_vars`. Each takes
+- [x] The two readers become the doors `capability::env_var` and `capability::env_vars`. Each takes
   the context and the member and asks `env` unscoped. `environment.rs` is deleted
-  (`rule:security/capability-check-at-the-door`, `crates/nvs-runtime/src/environment.rs:49`,
+  (`rule:security/capability-check-at-the-door`, `crates/nvs-runtime/src/capability.rs:1826`,
   `crates/nvs-runtime/src/capability.rs:2035`). Test `an_isolate_that_dropped_env_reads_no_variable`
   sits in `crates/nvs-runtime/src/capability.rs`.
-- [ ] `Core\Env::get`, `secret` and `all` pass their context and member to the door, and the module doc
+- [x] `Core\Env::get`, `secret` and `all` pass their context and member to the door, and the module doc
   is rewritten as a whole (`rule:security/tainted-sources`, `crates/nvs-stdlib/src/env.rs:560`,
   `crates/nvs-stdlib/src/env.rs:589`, `crates/nvs-stdlib/src/env.rs:613`,
   `crates/nvs-stdlib/src/env.rs:10`). The lib test at `crates/nvs-stdlib/src/env.rs:752` follows.
-- [ ] `Core\Config::secret` asks `env` at its door (`rule:config/a-secret-is-a-file-whose-content-is-the-value`,
+- [x] `Core\Config::secret` asks `env` at its door (`rule:config/a-secret-is-a-file-whose-content-is-the-value`,
   `crates/nvs-stdlib/src/config.rs:424`). The session confirms what `get`, `all` and `setting` return
   for a secret directive and records it in the row's comment.
-- [ ] Rows in `CAPABILITIES`: `Core\Env` with `env` for `get`, `secret` and `all`, and `None` for
+- [x] Rows in `CAPABILITIES`: `Core\Env` with `env` for `get`, `secret` and `all`, and `None` for
   `mode` and `context`. `Core\Config` with `env` for `secret` and a row for each other member
   (`rule:security/capability-declaration-is-one-table`, `crates/nvs-stdlib/src/registry.rs:1975`). The
   door lists in the test gain the two doors (`crates/nvs-stdlib/tests/capability.rs:436`).
-- [ ] Tests `a_package_with_an_empty_grant_line_does_not_read_the_environment` and
+- [x] Tests `a_package_with_an_empty_grant_line_does_not_read_the_environment` and
   `the_application_reads_the_environment_with_no_line_written`
   (`rule:security/package-authority-is-granted-one-line-at-a-time`,
   `crates/nvs-cli/tests/package_grants.rs:65`). The first covers `get`, `secret`, `all` and
   `Core\Config::secret`, and expects `E0658` naming `env` for each.
-- [ ] Case `tests/conformance/cap/grants-a-package-reads-the-environment-only-with-env.nvst:1`: a
+- [x] Case `tests/conformance/cap/grants-a-package-reads-the-environment-only-with-env.nvst:1`: a
   package namespace with `["env"]` reads a variable, and one with `[]` does not compile.
-- [ ] Attack `tests/hostile/tools/packages/grants-what-each-namespace-may-do/03-read-the-process-environment.nvs:1`,
+- [x] Attack `tests/hostile/tools/packages/grants-what-each-namespace-may-do/03-read-the-process-environment.nvs:1`,
   marked `// hostile: expect-refusal`. Its package class calls `Core\Env::all()` under the empty line.
-- [ ] Rule fragments: the roster names `env` and why no older capability fits
+- [x] Rule fragments: the roster names `env` and why no older capability fits
   (`docs/rules/security/capability-roster-is-closed.md:1`). The package rule lists the environment
   among what a package cannot read (`docs/rules/security/package-authority-is-granted-one-line-at-a-time.md:8`).
   `rule:security/request-state-throws-in-an-isolate` no longer says the environment needs no grant.
-- [ ] Every roster listing the first subagent named gains `env`, and every package the second one named
+- [x] Every roster listing the first subagent named gains `env`, and every package the second one named
   gains `"env"` on its line. `bun nv proofs --id` names what the new capability still owes.
 
 ### 2. spawn script, a queued job and an upgrade ask the calling namespace
@@ -467,44 +477,39 @@ and the application's value to return to.
 
 ### State
 
-Nothing is built yet. The tree holds the table `registry::CAPABILITIES` with no row for `Core\Env`,
-`Core\Config`, `Core\Socket` or `Core\Sse`, and a roster with no `env`. The check
-`reject_ungranted_call` is the only place a namespace's line is asked.
+Stage 1 is done (`7a6e8cce23`, `39d6b5259a`), and checks `env-needs-a-grant` and `env-door-asks`
+are green. `Cap::Env` is on the roster as `env`, the one name with no family. `Cap::header` spells
+the table a grant goes under, so a refusal of `env` points at `[capabilities]`, and the four places
+that spelled `[capabilities.<family>]` by hand call it. `nvs_runtime::environment` is deleted: its
+readers are the doors `capability::env_var` and `env_vars` (`crates/nvs-runtime/src/capability.rs:1826`).
+`Core\Config::get` has the `env` row and asks `env` at run time for a secret directive alone (see
+the standing decision on it). No in-tree package reads the environment, so no grant line changed.
+
+The sweep's reds were stale. The nightly run built `f4c1d5c7`, and its one failing test,
+`live_config::a_changed_server_timeout_applies_to_the_next_connection`, was fixed after it by
+`305c04f660`. No `env-secret-proofs` check exists in the tree.
+
+Expected red: none.
 
 ### Next
 
-Stage 1, over `crates/nvs-config/src/capability.rs`, `crates/nvs-runtime/src/capability.rs`,
-`crates/nvs-stdlib/src/env.rs`, `crates/nvs-stdlib/src/registry.rs` and
-`crates/nvs-cli/tests/package_grants.rs`. Two `Explore` subagents go out first, as the stage's
-**Split:** says.
+Stage 2, over `crates/nvs-types/src/capability.rs`, `crates/nvs-types/src/expr/isolate.rs`,
+`crates/nvs-stdlib/src/registry.rs` and `crates/nvs-cli/tests/package_grants.rs`. One `Explore`
+subagent goes out first, as the stage's **Split:** says.
 
-- [ ] `crates/nvs-config/src/capability.rs:66`: `Cap::Env` joins the roster, named `env`. The variant,
-  `ALL`, `name`, `grant` and `grant_mut` gain it, and `Capabilities` gains `env`
-  (`rule:security/capability-roster-is-closed`, `crates/nvs-config/src/capability.rs:673`,
-  `crates/nvs-config/src/capability.rs:833`, `crates/nvs-config/src/tree.rs:323`).
-- [ ] `crates/nvs-config/src/defaults.rs:426`: `defaults::capability` returns `Granted::Everything`
-  for `env` on every kind of run, with test `env_is_granted_on_every_run_where_its_key_is_not_written`.
-- [ ] `crates/nvs-runtime/src/environment.rs:49`: the two readers become the doors
-  `capability::env_var` and `capability::env_vars`, which ask `env` unscoped. Test
-  `an_isolate_that_dropped_env_reads_no_variable` (`crates/nvs-runtime/src/capability.rs:2035`).
-- [ ] `crates/nvs-stdlib/src/env.rs:560`: `Core\Env::get`, `secret` and `all` pass their context and
-  member, and the module doc is rewritten (`crates/nvs-stdlib/src/env.rs:10`).
-- [ ] `Core\Config::secret` asks `env` at its door (`crates/nvs-stdlib/src/config.rs:424`).
-- [ ] `crates/nvs-stdlib/src/registry.rs:1975`: rows for `Core\Env` and `Core\Config` in
-  `CAPABILITIES`, and the two doors on the test's door list
-  (`crates/nvs-stdlib/tests/capability.rs:436`).
-- [ ] `crates/nvs-cli/tests/package_grants.rs:65`: tests
-  `a_package_with_an_empty_grant_line_does_not_read_the_environment` and
-  `the_application_reads_the_environment_with_no_line_written`.
-- [ ] Case `tests/conformance/cap/grants-a-package-reads-the-environment-only-with-env.nvst:1`.
-- [ ] Attack `tests/hostile/tools/packages/grants-what-each-namespace-may-do/03-read-the-process-environment.nvs:1`.
-- [ ] Rule fragments `docs/rules/security/capability-roster-is-closed.md:1` and
-  `docs/rules/security/package-authority-is-granted-one-line-at-a-time.md:8`, and the sentence in
-  `rule:security/request-state-throws-in-an-isolate`.
-- [ ] `crates/nvs-config/src/capability.rs:703`: every roster listing and every package the subagents
-  named gains `env`.
-
-Expected red until stage 1 lands its callers: any in-tree package that reads `Core\Env`.
+- [ ] `crates/nvs-types/src/capability.rs:160`: `authority_of` replaces the three repeated tests in
+  `prepare_config_set`, `prepare_cap_has` and `reject_ungranted_call` (`:194`, `:235`).
+- [ ] `crates/nvs-types/src/expr/isolate.rs:154`: `check_spawn_script` asks `script.spawn` of the
+  namespace, both forms.
+- [ ] `CONSTRUCT_CAPABILITIES` beside `CAPABILITIES` (`crates/nvs-stdlib/src/registry.rs:2033`).
+- [ ] `Core\Queue::push` gets `script.spawn` (`crates/nvs-stdlib/src/registry.rs:2506`), and
+  `Core\Socket` and `Core\Sse` enter the table.
+- [ ] `script::resolve` takes the member (`crates/nvs-runtime/src/script.rs:477`), and the door scan
+  reads it as a `script.spawn` door (`crates/nvs-stdlib/tests/capability.rs:436`).
+- [ ] `crates/nvs-cli/tests/package_grants.rs:286`: the four tests of check `spawn-asks-the-namespace`.
+  `reads_the_environment` there is the shape to copy.
+- [ ] `tests/hostile/tools/packages/grants-what-each-namespace-may-do/03-read-the-process-environment.nvs:1`:
+  attacks `04` to `07` beside it, the case, and the rule fragments the stage names.
 
 ### Backlog
 
@@ -513,6 +518,9 @@ Expected red until stage 1 lands its callers: any in-tree package that reads `Co
 - The package client is the goal `package-files-contained`, the registry is `registry-waits-hold`, and
   reflection is `calls-by-name-are-checked` and `crossings-carry-data-only`.
 - `require` of an application file from a package namespace was not traced.
+- A package's `Core\Config::get` of a key that is not a secret directive needs `env` only because a
+  grant line is asked per member. Asking it only for a literal secret key would let a package read
+  `limits.*` with no line (`crates/nvs-types/src/capability.rs:235`).
 
 The open items `qualifiers-hold` left when it was retired:
 
