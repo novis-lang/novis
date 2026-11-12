@@ -815,9 +815,20 @@ impl Wire<'_> {
     ///
     /// # Errors
     ///
-    /// [`Wire::fill`]'s, or a body whose terminator is not where its length says
-    /// it is.
+    /// [`Wire::fill`]'s, a body whose terminator is not where its length says
+    /// it is, or a body the request cannot afford to hold.
+    ///
+    /// The body's length is asked of the request's memory ceiling before any of
+    /// it is read. A refusal records the breach, so the member that called this
+    /// ends with the memory `FATAL` and never the text below. One compare per
+    /// bulk reply.
     fn exact(&mut self, len: usize) -> Result<Vec<u8>, String> {
+        nvs_runtime::affordable(Some(len), "a shared store's reply").map_err(|_| {
+            format!(
+                "{} answered {len} bytes, more than the request's memory limit has left",
+                self.target
+            )
+        })?;
         while self.buf.len() < self.at + len + 2 {
             self.fill()?;
         }

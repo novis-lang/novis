@@ -39,6 +39,14 @@ whose piece was asked first, and `no_member_reads_a_whole_source_outside_the_bou
 one that does not. A stored object of any size stops at the ceiling inside the read. The cost is one
 compare per growth.
 
+**A read that is not a byte source asks for its piece before it holds it.** The HTTP client's
+buffered body asks for each 8 KiB pull, under its own reply ceiling. A shared store's bulk reply,
+which `Core\Cache` and `Core\Session` both read, asks for its length once the reply ceiling has
+passed it. The session file store's query gives a record only when it fits the request's headroom,
+and asks for the length of one that does not. The memory cache tier asks for an entry's length
+before it copies the entry. A refusal records the breach, so each ends with the memory `FATAL`.
+The cost is one compare per pull, per reply or per hit.
+
 **A primitive that carries no `ctx` refuses by returning a degenerate value, and acquires no status
 channel to say so.** `nvs_str_append` answers its target unchanged, which exactly balances the one
 reference it consumes; `nvs_str_concat` and `nvs_str_concat_n` answer the immortal empty string,

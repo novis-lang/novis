@@ -135,20 +135,55 @@ fn expiry(now: i64, lifetime: Duration) -> i64 {
 ///
 /// # Errors
 ///
-/// SQLite's refusal, which `start` throws as an `IOError` and never reads as absent.
+/// SQLite's refusal, which `start` throws as an `IOError` and never reads as absent. A record
+/// larger than the request's memory has left is that error too, and its refusal is recorded, so
+/// the member ends with the memory `FATAL`.
+///
+/// The record is asked of the request's memory ceiling before it is held. The query reads the
+/// record's length and gives the record only when it fits the request's headroom, so a record
+/// that does not fit is never read out of the file. `save` always writes a blob, so the length
+/// is in bytes. What this spends: one length read per load, in the same statement.
 pub(crate) fn load(path: &Path, id: &str) -> io::Result<Option<Vec<u8>>> {
     let now = crate::queue::now_millis();
+    let room = nvs_runtime::budget::headroom()
+        .and_then(|room| i64::try_from(room).ok())
+        .unwrap_or(i64::MAX);
     with(path, |held| {
         let mut rows = held.conn.query(
-            "SELECT record FROM nvs_session WHERE id = ?1 AND expires_at > ?2",
-            vec![SqliteValue::Text(id.to_owned()), SqliteValue::Int(now)],
+            "SELECT length(record), CASE WHEN length(record) <= ?3 THEN record END \
+             FROM nvs_session WHERE id = ?1 AND expires_at > ?2",
+            vec![
+                SqliteValue::Text(id.to_owned()),
+                SqliteValue::Int(now),
+                SqliteValue::Int(room),
+            ],
         )?;
-        Ok(rows.next_row().map(|row| match row.into_iter().next() {
+        let Some(row) = rows.next_row() else {
+            return Ok(None);
+        };
+        let mut row = row.into_iter();
+        let length = match row.next() {
+            Some(SqliteValue::Int(length)) => usize::try_from(length).unwrap_or(usize::MAX),
+            // An empty record is zero bytes, which SQLite may hand back as `NULL`.
+            _ => 0,
+        };
+        let record = match row.next() {
             Some(SqliteValue::Blob(record)) => record,
             Some(SqliteValue::Text(record)) => record.into_bytes(),
-            // An empty record is zero bytes, which SQLite may hand back as `NULL`.
             _ => Vec::new(),
-        }))
+        };
+        if record.len() < length {
+            nvs_runtime::affordable(Some(length), "Core\\Session").map_err(|_| {
+                io::Error::other(
+                    "the stored session is larger than the request's memory limit has left",
+                )
+            })?;
+            // The headroom was read before the query, which allocates too.
+            return Err(io::Error::other(
+                "the stored session did not fit the memory the request had left",
+            ));
+        }
+        Ok(Some(record))
     })
 }
 

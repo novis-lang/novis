@@ -1262,13 +1262,31 @@ fn memory_put(key: &[u8], payload: Vec<u8>, lifetime: Lifetime, cap: Option<usiz
 /// That is also why eviction is by write age rather than by use — a policy that
 /// reordered anything on a read would need the lock this one does not take.
 ///
-/// Crate-visible for the cases of the modules that keep state here.
-pub(crate) fn memory_get(key: &[u8]) -> Option<Vec<u8>> {
-    shard_of(key)
+/// **The entry's length is asked of the request's memory ceiling before the
+/// copy**, so an entry another request stored under a larger limit stops this
+/// one at its ceiling and is never copied. One compare per hit.
+///
+/// # Errors
+///
+/// The memory `FATAL`, from [`nvs_runtime::affordable`], for an entry the
+/// request cannot afford to hold.
+fn memory_get(key: &[u8], member: &str) -> Result<Option<Vec<u8>>, Fault> {
+    let shard = shard_of(key)
         .read()
-        .expect("a cache shard's lock is never poisoned")
-        .get(key)
-        .map(<[u8]>::to_vec)
+        .expect("a cache shard's lock is never poisoned");
+    let Some(entry) = shard.get(key) else {
+        return Ok(None);
+    };
+    nvs_runtime::affordable(Some(entry.len()), member)?;
+    Ok(Some(entry.to_vec()))
+}
+
+/// [`memory_get`] for a test, which arms no ceiling and so is refused nothing.
+///
+/// Crate-visible for the cases of the modules that keep state here.
+#[cfg(test)]
+pub(crate) fn memory_held(key: &[u8]) -> Option<Vec<u8>> {
+    memory_get(key, "test").expect("a test arms no memory ceiling")
 }
 
 /// Takes `key`'s entry out of this process's tier, whether or not there was one.
@@ -1836,7 +1854,7 @@ fn opened(ctx: &Ctx, at: &Sealing<'_>) -> Result<Option<Held<Value>>, Fault> {
     } = at;
     let stored = sealed_key(key);
     let held = match tier {
-        Tier::Memory => memory_get(&scoped(ctx, &stored)),
+        Tier::Memory => memory_get(&scoped(ctx, &stored), member)?,
         Tier::Shared => on_shared(ctx.wall_bound(), STORE_NAME, member, |open| {
             open.get(&stored)
         })?,
@@ -2756,7 +2774,7 @@ nvs_runtime::nvs_helper! {
         let key = key_of(args, 1, "get")?.as_bytes().to_vec();
 
         let held = match tier {
-            Tier::Memory => memory_get(&scoped(ctx, &key)),
+            Tier::Memory => memory_get(&scoped(ctx, &key), r"Core\Cache\Store::get")?,
             Tier::Shared => on_shared(ctx.wall_bound(), STORE_NAME, "get", |open| open.get(&key))?,
         };
         let Some(payload) = held else {
@@ -2995,8 +3013,9 @@ pub(crate) mod tests {
         CLASS, Ctx, DEFAULT_FILL_WAIT, DEFAULT_MAX_SIZE, ENTRY_OVERHEAD, Entries, FILL_WAIT,
         GET_DOC, Lifetime, MAX_SIZE, MEMORY, MEMORY_DOC, SEAL_DOMAIN, SECRET_ENTRY, SHARDS,
         SHARED_DOC, Value, bound, charged, dial_of, elected, endpoint, memory_cap, memory_forget,
-        memory_get, memory_put, memory_update, nvs_core_cache_secret_entry_of, open_configured,
-        scoped, sealed_key, sealed_plaintext, sealed_value, shard_cap, shard_of, wait_of, waited,
+        memory_get, memory_held, memory_put, memory_update, nvs_core_cache_secret_entry_of,
+        open_configured, scoped, sealed_key, sealed_plaintext, sealed_value, shard_cap, shard_of,
+        wait_of, waited,
     };
 
     /// Closes this thread's connection to the shared store, so a test's fake store sees the end
@@ -3103,7 +3122,7 @@ pub(crate) mod tests {
         let payload = nvs_runtime::encode(Value::int(7)).expect("an `int` crosses any boundary");
         memory_put(b"the-same-walk", payload.clone(), Lifetime::Forever, None);
         assert_eq!(
-            memory_get(b"the-same-walk"),
+            memory_held(b"the-same-walk"),
             Some(payload),
             "an entry is the carrier's own bytes, byte for byte"
         );
@@ -3182,10 +3201,10 @@ pub(crate) mod tests {
     fn an_entry_may_be_absent_at_any_time_and_the_contract_says_so() {
         let _serial = TIER.lock().expect("the tier's cases run one at a time");
 
-        assert_eq!(memory_get(b"absent-by-construction"), None);
+        assert_eq!(memory_held(b"absent-by-construction"), None);
 
         memory_put(b"present", b"payload".to_vec(), Lifetime::Forever, None);
-        assert_eq!(memory_get(b"present"), Some(b"payload".to_vec()));
+        assert_eq!(memory_held(b"present"), Some(b"payload".to_vec()));
 
         assert!(
             GET_DOC.ret.contains("null") && GET_DOC.ret.contains("missing at any time"),
@@ -3198,6 +3217,29 @@ pub(crate) mod tests {
                 .all(|error| error.error != "RuntimeError"),
             "absence is an answer, never a throw"
         );
+    }
+
+    /// `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`:
+    /// an entry another request stored is asked of this request's memory
+    /// ceiling before it is copied, so an entry larger than the memory left
+    /// is refused and never held.
+    #[test]
+    fn a_memory_entry_larger_than_the_memory_left_is_refused_before_it_is_copied() {
+        const LIMIT: usize = 256 << 10;
+        const KEY: &[u8] = b"larger-than-the-limit";
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+        memory_put(KEY, vec![1_u8; 8 * LIMIT], Lifetime::Forever, None);
+
+        let mut ctx = Ctx::buffered();
+        ctx.rebase_memory();
+        ctx.set_memory_limit(LIMIT);
+        let read = memory_get(KEY, "test");
+        let peak = ctx.memory_peak();
+        ctx.clear_memory_ceiling();
+        memory_forget(KEY);
+
+        assert!(read.is_err(), "the entry is past the limit");
+        assert!(peak < LIMIT, "nothing of the entry was copied: peak {peak}");
     }
 
     /// `rule:concurrency/the-memory-tier-is-one-store-per-process`: exceeding the
@@ -3273,11 +3315,11 @@ pub(crate) mod tests {
         let _serial = TIER.lock().expect("the tier's cases run one at a time");
         memory_put(KEY, b"gone".to_vec(), Lifetime::Forever, None);
         memory_forget(KEY);
-        assert_eq!(memory_get(KEY), None);
+        assert_eq!(memory_held(KEY), None);
         // A key nothing is under is already forgotten, so this is the state the
         // call above reached rather than a second one.
         memory_forget(KEY);
-        assert_eq!(memory_get(KEY), None);
+        assert_eq!(memory_held(KEY), None);
     }
 
     /// The module doc's *the read judges, and never writes*: an entry past its
@@ -3485,7 +3527,7 @@ pub(crate) mod tests {
             let theirs =
                 nvs_runtime::encode(Value::int(13)).expect("an `int` crosses any boundary");
             memory_put(b"one-map-theirs", theirs.clone(), Lifetime::Forever, None);
-            (memory_get(b"one-map-mine"), theirs)
+            (memory_held(b"one-map-mine"), theirs)
         })
         .join()
         .expect("the second core's thread runs to completion");
@@ -3495,7 +3537,7 @@ pub(crate) mod tests {
             "a second core read nothing this one wrote, so the map is not the process's"
         );
         assert_eq!(
-            memory_get(b"one-map-theirs"),
+            memory_held(b"one-map-theirs"),
             Some(written_there),
             "this core read nothing the second wrote, and one store answers both ways"
         );
@@ -3505,7 +3547,7 @@ pub(crate) mod tests {
             .expect("a cache shard's lock is never poisoned");
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
-            let _ = tx.send(memory_get(b"one-map-mine").is_some());
+            let _ = tx.send(memory_held(b"one-map-mine").is_some());
         });
         assert_eq!(
             rx.recv_timeout(WAIT),
@@ -3589,7 +3631,7 @@ pub(crate) mod tests {
             worker.join().expect("a stepping thread runs to completion");
         }
 
-        let total = memory_get(KEY).expect("the counter was written");
+        let total = memory_held(KEY).expect("the counter was written");
         let counted = u64::from_be_bytes(total.try_into().expect("eight bytes"));
         assert_eq!(
             usize::try_from(counted).expect("a count of steps fits a `usize`"),
@@ -3647,8 +3689,8 @@ pub(crate) mod tests {
         let second = nvs_runtime::encode(Value::int(2)).expect("an `int` crosses any boundary");
         memory_put(&one, first.clone(), Lifetime::Forever, None);
         memory_put(&two, second.clone(), Lifetime::Forever, None);
-        assert_eq!(memory_get(&one), Some(first));
-        assert_eq!(memory_get(&two), Some(second));
+        assert_eq!(memory_held(&one), Some(first));
+        assert_eq!(memory_held(&two), Some(second));
     }
 
     /// `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`: an
@@ -3781,7 +3823,7 @@ pub(crate) mod tests {
             WRITES * CHUNK
         );
         let survived = (0..WRITES)
-            .filter(|step| memory_get(format!("memory-sweep-{step:04}").as_bytes()).is_some())
+            .filter(|step| memory_held(format!("memory-sweep-{step:04}").as_bytes()).is_some())
             .count();
         assert!(
             survived > 0 && survived <= 2 * SHARDS,
@@ -4146,7 +4188,7 @@ pub(crate) mod tests {
 
         memory_put(&later, vec![b'w'; ENTRY], Lifetime::Forever, room);
         assert_eq!(
-            memory_get(KEY),
+            memory_held(KEY),
             None,
             "the write forgot nothing, so no release happened to be credited"
         );
@@ -4596,7 +4638,8 @@ pub(crate) mod tests {
 
         let _serial = TIER.lock().expect("the tier's cases run one at a time");
         memory_put(&sealed_key(KEY), plain, Lifetime::Forever, None);
-        let held = memory_get(&sealed_key(KEY)).expect("the tier was given no lifetime to run out");
+        let held =
+            memory_held(&sealed_key(KEY)).expect("the tier was given no lifetime to run out");
 
         assert_eq!(
             sealed_value(&held, 999).map(|held| held.value),

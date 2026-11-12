@@ -1184,9 +1184,17 @@ impl Incoming {
     ///
     /// # Errors
     ///
-    /// [`Incoming::pull`]'s, and a `RuntimeError` for a body past `ceiling`.
+    /// [`Incoming::pull`]'s, a `RuntimeError` for a body past `ceiling`, and the
+    /// memory `FATAL` for a pull the request cannot afford to hold.
+    ///
+    /// Each pull's room is asked of the request's memory ceiling before the
+    /// pull holds it, so a reply under `ceiling` but over what the request has
+    /// left stops at the ceiling inside the read. One compare per pull.
     pub(crate) fn whole(&mut self, ceiling: usize) -> Result<Vec<u8>, Fault> {
-        while self.pull()? {
+        while {
+            nvs_runtime::affordable(Some(STEP), self.member())?;
+            self.pull()?
+        } {
             if self.held().len() > ceiling {
                 return Err(Fault::thrown(format!(
                     "{}: the reply passed {ceiling} bytes, which is as much of one another host \

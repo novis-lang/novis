@@ -1694,7 +1694,7 @@ mod tests {
         opened, opened_from, record, save, sealed_into, sealed_key, ttl, write_back,
     };
     use crate::cache::redis::Connection;
-    use crate::cache::{Dial, Target, memory_get};
+    use crate::cache::{Dial, Target, memory_held};
 
     /// The block that chooses the shared tier, which every case driving it through a member writes.
     const SHARED_BLOCK: &str = "[session]\nbackend = \"shared\"\n";
@@ -1871,7 +1871,7 @@ mod tests {
             "the record is in the shared store"
         );
         assert_eq!(
-            memory_get(&key_of(ID)),
+            memory_held(&key_of(ID)),
             None,
             "and nowhere in the memory tier `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` refuses it"
         );
