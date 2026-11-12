@@ -8,7 +8,17 @@ host's copy of a value the guest passes or returns is bounded by what the reques
 to it while the host holds it, so a result is as large as the request can afford and no larger. A
 host import that allocates a size the guest chose asks what the request has left before it allocates:
 random bytes, and `as-bytes` on a lent file or a byte string. A size past it ends the call at the
-memory limit, and nothing is allocated. An
+memory limit, and nothing is allocated.
+
+**The epoch tick asks the request's memory beside its CPU deadline.** Whatever put the request over
+its ceiling — a logged line it holds until the call returns, a crossing value, an import that
+allocated — the next tick ends the call at the memory limit. So every import, present and future, is
+bounded without a charge of its own: between two ticks of 1 ms a guest makes the host allocate at
+most what its imports allocate in that time, which for the log is the lines it writes in 1 ms. A
+send or a read the guest asks for after the crossing is answered with a failure and does nothing,
+and that answer wakes the guest, so a guest waiting on the host meets the same tick. Each
+instance's resource table holds at most `nvs_ext::handle::MOST` streams, pollables and descriptors,
+so a guest cannot grow it by asking in a loop. An
 extension therefore cannot starve its neighbours — a stronger
 guarantee than a built-in native function currently has, because it is enforced by the sandbox rather
 than by discipline.
@@ -22,6 +32,8 @@ in flight.
 
 What it spends: the guest's linear memory, charged to the calling request and freed when the request
 ends — O(in-flight). The pooling allocator reserves address space per slot, not committed memory.
+The memory question at each tick is three thread-local reads per running guest, and nothing per
+allocation.
 A result crosses as one host value per element before it is converted, tens of bytes for each byte
 of a `list<u8>`, so a PDF of a few megabytes briefly holds over a hundred megabytes of the request's
 memory. That is the
@@ -34,7 +46,12 @@ a host import asks first (`crates/nvs-ext/tests/wasi.rs`, `crates/nvs-ext/tests/
 `nvs serve` hand a guest, `nvs_cli::extensions::Spent`, is the request's own: its CPU deadline is the
 `CPU_LIMIT` flag the watchdog raises on the request tree, against everything the request has run since
 it started, and each growth is charged to the memory count the runtime keeps for the request, under the
-same `[limits] memory` ceiling as the program's own values. A limit's outcome is a `FATAL` naming the
+same `[limits] memory` ceiling as the program's own values. Its `memory_spent` reads the counters the
+allocator raises `MEMORY_LIMIT` from, on the request's own thread, so a collection that brought the
+request back under is not a stop (`a_guest_is_interrupted_once_its_request_is_over_the_memory_ceiling`,
+`a_guest_that_logs_without_end_is_stopped_at_the_memory_ceiling`,
+`a_guest_cannot_fill_the_resource_table_past_its_cap`, and the attack
+`tests/hostile/config/limits/02-an-extension-that-writes-to-the-log-without-end.nvs`). A limit's outcome is a `FATAL` naming the
 limit as `onLimit` receives it (`crates/nvs-ext/tests/failure.rs`), and the request's limit handler
 runs before it, in `nvs run`
 (`tests/conformance/ext/an-extension-that-reaches-the-memory-limit-runs-the-limit-handler.nvst`) and

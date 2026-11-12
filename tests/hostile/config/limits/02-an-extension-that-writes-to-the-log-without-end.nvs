@@ -1,0 +1,16 @@
+<?nvs
+// Attack: an extension writes lines of 1 MiB to the log and never returns.
+// The lines use the memory of the request, so the memory limit should stop it.
+// hostile: timeout-ms 30000
+// hostile: ends-early 2 FATAL
+
+use Shop\Chatter;
+
+// 1. Prints the memory limit of this program. This prints `32M`.
+echo "step 1\n";
+echo Core\Config::get('limits.memory') . "\n";
+
+// 2. Calls the method that writes without end. The request stops at its memory limit.
+echo "step 2\n";
+Chatter::talk();
+echo "the extension returned\n";

@@ -1,0 +1,10 @@
+{
+  "manifest": 1,
+  "world": "1.0.0",
+  "class": "Shop\\Chatter",
+  "interface": "shop:chatter/api",
+  "methods": [
+    {"name": "talk", "params": [],
+     "help": "Writes a line of 1 MiB to the log, again and again, and never returns."}
+  ]
+}

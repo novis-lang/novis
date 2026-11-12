@@ -919,6 +919,10 @@ impl Budget for Logged {
         self.meter.cpu_spent()
     }
 
+    fn memory_spent(&self) -> bool {
+        self.meter.memory_spent()
+    }
+
     fn charge(&self, bytes: i64) -> bool {
         self.meter.charge(bytes)
     }
@@ -1075,6 +1079,10 @@ struct Lends {
 impl Budget for Lends {
     fn cpu_spent(&self) -> bool {
         self.meter.cpu_spent()
+    }
+
+    fn memory_spent(&self) -> bool {
+        self.meter.memory_spent()
     }
 
     fn charge(&self, bytes: i64) -> bool {

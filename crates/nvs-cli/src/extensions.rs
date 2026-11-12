@@ -489,6 +489,9 @@ impl Drop for Calls {
     }
 }
 
+/// The answer to a guest's send or read made once its request is over its memory ceiling.
+const OVER: &str = "the request is over its memory limit";
+
 /// A request's budget for its guests: the request's own CPU deadline and memory count, and its
 /// own log, clock, generator and configuration.
 ///
@@ -523,6 +526,10 @@ impl Drop for Calls {
 /// the few keys the request set for itself, the `grants:` list of the isolate that
 /// made the request, each logged line until the call that wrote it returns, each outbound
 /// request until it is sent, and each read until it is served.
+///
+/// A request over its memory ceiling gets no more host work for its guests. A send or a read
+/// asked after the crossing is answered with [`OVER`] and does nothing, and the answer wakes the
+/// guest, so the next epoch tick ends the call as the memory limit.
 pub(crate) struct Spent {
     /// Weak, because the tree keeps this budget: a strong view would be a cycle, and the tree
     /// and its instance would never be dropped. A tree that has ended reads as spent.
@@ -588,7 +595,11 @@ impl Spent {
             std::mem::take(&mut *self.outbound.lock().unwrap_or_else(PoisonError::into_inner));
         let any = !queued.is_empty();
         for (request, answer) in queued {
-            answer.fill(sent(ctx, request));
+            answer.fill(if self.memory_spent() {
+                Err(Unsent::Refused(OVER.to_owned()))
+            } else {
+                sent(ctx, request)
+            });
         }
         any
     }
@@ -603,6 +614,10 @@ impl Spent {
             let source = usize::try_from(id)
                 .ok()
                 .and_then(|id| lent.get(id).copied());
+            if self.memory_spent() {
+                lender.fill(Err(OVER.to_owned()));
+                continue;
+            }
             lender.fill(match source {
                 None => Err(format!("no source was lent to this call as {id}")),
                 Some(source) => match source.as_bytes() {
@@ -659,6 +674,15 @@ impl Budget for Spent {
         self.tree
             .flags()
             .is_none_or(|flags| flags.contains(SafepointFlags::CPU_LIMIT))
+    }
+
+    /// The verdict behind the `MEMORY_LIMIT` flag the allocator raises at the crossing: the
+    /// running request holds more than its ceiling, or an allocation of it was refused. It reads
+    /// the counters rather than the flag, because a collection may bring the request back under
+    /// before the flag is cleared. A guest runs on its request's own thread, so these are the
+    /// request's counters.
+    fn memory_spent(&self) -> bool {
+        nvs_runtime::budget::over_ceiling() || nvs_runtime::budget::refused()
     }
 
     /// A growth the request cannot afford charges nothing and records no refusal of its own, so
@@ -1502,6 +1526,43 @@ mod tests {
             late.cpu_spent(),
             "a first call after the deadline has no time left"
         );
+    }
+
+    /// A guest that logs without end holds its lines on the request until the call returns, so
+    /// the lines are the request's memory. Once they pass the ceiling the budget reports it, which
+    /// is what the next epoch tick ends the call on, and a send asked after that is not sent.
+    #[test]
+    fn a_guest_that_logs_without_end_is_stopped_at_the_memory_ceiling() {
+        const MOST: usize = 64;
+        let mut ctx = Ctx::buffered();
+        ctx.set_memory_limit(16 << 20);
+        let spent = Spent::of(&ctx);
+        assert!(!spent.memory_spent());
+
+        let line = "x".repeat(1 << 20);
+        let mut logged = 0;
+        while !spent.memory_spent() && logged < MOST {
+            spent.log(Level::Debug, "Shop\\Loop", &line);
+            logged += 1;
+        }
+        assert!(spent.memory_spent(), "{logged} lines of 1 MiB were held");
+        assert!(logged < MOST, "{logged}");
+
+        let outbound = spent.send(Outgoing {
+            method: "GET".to_owned(),
+            url: "http://example.com/".to_owned(),
+            headers: Vec::new(),
+            body: None,
+            connect: vec!["example.com".to_owned()],
+        });
+        assert!(spent.sends(&mut ctx));
+        let answer = drive(outbound, || false);
+        assert!(
+            matches!(&answer, Err(Unsent::Refused(message)) if message == OVER),
+            "{answer:?}"
+        );
+        drop(spent);
+        ctx.clear_memory_ceiling();
     }
 
     /// A guest's growth is charged to the memory count the runtime keeps for the request, and

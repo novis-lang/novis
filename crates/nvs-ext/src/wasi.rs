@@ -172,8 +172,10 @@ impl Context {
     /// A context whose output goes to `budget`'s log under `channel`, whose preopens are
     /// `reach`'s roots, and whose requests may go to `reach`'s hosts.
     pub(crate) fn new(budget: Arc<dyn Budget>, channel: &str, reach: &Effective) -> Self {
+        let mut table = ResourceTable::new();
+        table.set_max_capacity(crate::handle::MOST);
         Self {
-            table: ResourceTable::new(),
+            table,
             budget,
             channel: Arc::from(channel),
             preopens: files::roots(reach),
@@ -509,5 +511,30 @@ impl insecure::Host for Context {
 impl insecure_seed::Host for Context {
     fn insecure_seed(&mut self) -> wasmtime::Result<(u64, u64)> {
         Ok((self.u64(), self.u64()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use super::Context;
+    use crate::call::Meter;
+    use crate::grants::Effective;
+    use crate::handle::MOST;
+
+    /// Every stream and pollable a guest asks for is an entry of its instance's table, and the
+    /// table holds at most [`MOST`]. The next one fails, so a guest that asks in a loop cannot
+    /// grow host memory past that bound.
+    #[test]
+    fn a_guest_cannot_fill_the_resource_table_past_its_cap() {
+        let budget = Arc::new(Meter::new(Duration::from_secs(60), None));
+        let mut context = Context::new(budget, "Shop\\Loop", &Effective::default());
+        let mut held = Vec::with_capacity(MOST);
+        for _ in 0..MOST {
+            held.push(context.log().expect("a stream under the cap"));
+        }
+        assert!(context.log().is_err(), "a stream past the cap");
     }
 }

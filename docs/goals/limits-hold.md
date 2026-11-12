@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-stdlib/src/hash.rs, crates/nvs-stdlib/src/sort.rs, crates/nvs-stdlib/src/encoding.rs]
   - id: 6
     title: a guest stops once its request is over the memory ceiling
-    status: open
+    status: done
     context: [crates/nvs-ext/src/call.rs, crates/nvs-cli/src/extensions.rs, crates/nvs-ext/src/world.rs, docs/rules/packaging/a-guest-runs-under-the-requests-budget.md]
   - id: 7
     title: "a crossing value is counted once, and the pool has a place for every request"
@@ -87,7 +87,7 @@ checks:
   - id: guest-stops-at-the-ceiling
     stage: 6
     name: a running guest is interrupted at the tick after its request passed the memory ceiling
-    run: [cargo, test, --lib, --, a_guest_is_interrupted_once_its_request_is_over_the_memory_ceiling, a_guest_that_logs_without_end_is_stopped_at_the_memory_ceiling, a_guest_cannot_fill_the_resource_table_past_its_cap]
+    run: [cargo, test, --lib, --bin, nvs, --, a_guest_is_interrupted_once_its_request_is_over_the_memory_ceiling, a_guest_that_logs_without_end_is_stopped_at_the_memory_ceiling, a_guest_cannot_fill_the_resource_table_past_its_cap]
     timeout: 1800
     tests:
       - a_guest_is_interrupted_once_its_request_is_over_the_memory_ceiling
@@ -96,7 +96,7 @@ checks:
   - id: counted-once-and-a-place-for-each
     stage: 7
     name: "a crossing value is charged to its request once, and the pool is sized for every request in flight"
-    run: [cargo, test, --lib, --, a_crossing_value_is_charged_to_its_request_once, the_pool_has_a_place_for_every_request_in_flight_times_every_class]
+    run: [cargo, test, --lib, --bin, nvs, --, a_crossing_value_is_charged_to_its_request_once, the_pool_has_a_place_for_every_request_in_flight_times_every_class]
     timeout: 1800
     tests:
       - a_crossing_value_is_charged_to_its_request_once
@@ -194,13 +194,17 @@ between two matches of `matchAll`, `replace`, `replaceWith` and `split`. Stage 2
 attack that runs the same subject through a linear pattern.
 
 **A guest is stopped by the epoch tick, which asks the memory ceiling beside the CPU flag.** `Budget`
-gains `memory_spent`. For a served request it reads the flag the allocator raises when the request
-crosses its ceiling. The callback at `crates/nvs-ext/src/call.rs:1326` sets `Limit::Memory` and
-interrupts. `drive`'s `between` step asks the same after it sends and reads. This needs no new
-mechanism: the tick, the flag and `Limit::Memory` exist. It bounds every present and future import
-to what a guest can make the host allocate in one tick of 1 ms. **What it spends:** one relaxed load
-per tick per running guest. The resource table is also capped near `handle::MOST`. Declined: a
-charge in every import. A new import would forget it.
+gains `memory_spent`, a required method as `cpu_spent` is, so no budget can leave it out. For a
+served request `Spent` reads the counters the allocator raises `MEMORY_LIMIT` from
+(`budget::over_ceiling` or `budget::refused`), on the request's own thread. The flag alone stays
+raised after a collection brought the request back under, so the counters are the verdict. The
+epoch callback sets `Limit::Memory` and interrupts. `drive` runs its future to the end, so the
+`between` step cannot end a call: once the request is over, a send or a read the guest asks for
+is answered with a failure and does nothing, and that answer wakes the guest for the tick that
+ends it. It bounds every present and future import to what a guest can make the host allocate in
+one tick of 1 ms. **What it spends:** three thread-local reads per tick per running guest. Each
+instance's WASI resource table is capped at `handle::MOST` through `set_max_capacity`. Declined:
+a charge in every import. A new import would forget it.
 
 **The CPU check for an iteration count lives in `pbkdf2_sha256`.** It takes the context and the
 member's name, and calls `cpu_affords` before the first HMAC
@@ -497,24 +501,24 @@ cap the resource table.
 **Split:** an `Explore` subagent finds the fixture components the tests of `crates/nvs-ext` and
 `crates/nvs-cli` load, and whether a case under `tests/hostile/` can load a third-party component.
 
-- [ ] `Budget` gains `memory_spent`, and `Meter` reports it from a figure a test sets
+- [x] `Budget` gains `memory_spent`, and `Meter` reports it from a figure a test sets
   (`rule:packaging/a-guest-runs-under-the-requests-budget`, `crates/nvs-ext/src/call.rs:121`,
   `crates/nvs-ext/src/call.rs:540`).
-- [ ] `Spent` answers it from the flag the allocator raises at the crossing
+- [x] `Spent` answers it from the flag the allocator raises at the crossing
   (`crates/nvs-cli/src/extensions.rs:658`).
-- [ ] The epoch callback sets `Limit::Memory` and interrupts when it is `true`
+- [x] The epoch callback sets `Limit::Memory` and interrupts when it is `true`
   (`crates/nvs-ext/src/call.rs:1324`).
-- [ ] `drive`'s `between` step asks it after sends and reads
+- [x] `drive`'s `between` step asks it after sends and reads
   (`crates/nvs-cli/src/extensions.rs:877`, `crates/nvs-cli/src/extensions.rs:925`).
-- [ ] The resource table gets a capacity near `handle::MOST` (`crates/nvs-ext/src/wasi.rs:176`).
-- [ ] Tests `a_guest_is_interrupted_once_its_request_is_over_the_memory_ceiling`,
+- [x] The resource table gets a capacity near `handle::MOST` (`crates/nvs-ext/src/wasi.rs:176`).
+- [x] Tests `a_guest_is_interrupted_once_its_request_is_over_the_memory_ceiling`,
   `a_guest_that_logs_without_end_is_stopped_at_the_memory_ceiling` and
   `a_guest_cannot_fill_the_resource_table_past_its_cap` (`crates/nvs-ext/src/call.rs:540`,
   `crates/nvs-cli/src/extensions.rs:1513`).
-- [ ] Attack: where a hostile case can load a third-party component, a guest logs 1 MiB lines in a
+- [x] Attack: where a hostile case can load a third-party component, a guest logs 1 MiB lines in a
   loop and the case ends `FATAL` at the memory limit. Where none can, the second test above is the
   attack and the handoff says so (`tests/hostile/README.md:117`).
-- [ ] The rule fragment says the tick asks memory, and what a guest can allocate in one tick
+- [x] The rule fragment says the tick asks memory, and what a guest can allocate in one tick
   (`docs/rules/packaging/a-guest-runs-under-the-requests-budget.md:1`).
 
 ### 7. a crossing value is counted once, and the pool has a place for every request
@@ -553,17 +557,18 @@ cap the resource table.
 
 ### State
 
-Stages 1 to 5 are done. `nvs_runtime::DeadlineBatch` (`crates/nvs-runtime/src/abi.rs`) is the
-batch counter for a loop another crate drives, and the native sort's key function counts through
-it. `sort::natural` and `sort::by_bytes` take the context and run before `arr.rs` builds the
-comparison closure that holds `ctx`. `Core\Hash` feeds every walk through `fed` in 4 KiB
-pieces. `Core\Encoding` converts every member in pieces, and `decode_argument` takes the
-context, so `Core\IO::readText` polls too. Two attacks end `FATAL` at step 2, read off a run.
-Nine gap records name the walks elsewhere (`data/gaps/nvs-stdlib/*-walk-polls-no-deadline.json`).
+Stages 1 to 6 are done. A guest's epoch tick asks `Budget::memory_spent` beside `cpu_spent`
+and ends the call as `Limit::Memory`. `Spent` answers it from the allocator's counters, and a
+send or read asked after the crossing is answered with `OVER` (`crates/nvs-cli/src/extensions.rs`).
+The WASI resource table is capped at `handle::MOST`. The attack
+`tests/hostile/config/limits/02-an-extension-that-writes-to-the-log-without-end.nvs` loads the
+new proof fixture `chatter` and ends `FATAL` at step 2, read off a run. With the tick's memory
+question disabled the same run aborted the process on a failed allocation. `nvs-cli` has no lib
+target, so the stage 6 and 7 checks run `cargo test --lib --bin nvs`.
 
-A `Fault`'s message is `nvs_runtime::Message`, made only through the six constructors in
-`abi.rs`, each clipping past `MESSAGE_BYTES` (8 KiB). `crate::tests::out_of_cpu`
-(`crates/nvs-stdlib/src/lib.rs`) gives a CPU-refusal unit test its reading.
+`Core\Hash`, `Core\Encoding` and the native sort poll (stage 5). Nine gap records name the
+walks elsewhere (`data/gaps/nvs-stdlib/*-walk-polls-no-deadline.json`). A `Fault`'s message is
+clipped at 8 KiB in its constructors (stage 4).
 
 The sweep's reds are the ones the last two sessions read: no check named `env-secret-proofs`
 exists, and nightly 43001191130's one failure,
@@ -573,14 +578,16 @@ later nightly shows it again, it belongs to `waits-are-bounded`.
 
 ### Next
 
-- `crates/nvs-ext/src/call.rs:1324`: stage 6 starts at the epoch callback, which asks
-  `memory_spent` beside `cpu_spent` and sets `Limit::Memory`.
-- `crates/nvs-ext/src/call.rs:1326`: `Budget` gains `memory_spent`, read from the flag the
-  allocator raises, and `drive`'s `between` step asks it too.
-- `crates/nvs-ext/src/handle.rs:85`: the resource table's cap near `handle::MOST`, for
-  `a_guest_cannot_fill_the_resource_table_past_its_cap`.
+- `crates/nvs-ext/src/call.rs:1470`: stage 7 starts by deleting `Sent::heap` and `Got::heap`,
+  then `on_heap` and `lifted` (`:1645`, `:1651`), and asking `memory_spent` after lowering and
+  after lifting.
+- `crates/nvs-ext/src/typed.rs:228`: the `Heap` trait and its impls go, with the `Charge` of
+  `crates/nvs-ext/src/wasi/http.rs` and `Handles.grown` (`crates/nvs-ext/src/handle.rs:85`).
+- `crates/nvs-cli/src/extensions.rs:271`: `size_pool` computes `max_in_flight` times the classes,
+  and `MOST_SLOTS` (`:127`) goes. Read the installed wasmtime 50.0.1's pooling allocator first.
 
-Tests that may go red at the gate: from stage 5, `Core\Encoding`'s offset tests
+Tests that may go red at the gate: from stage 6, every `Budget` impl outside the tree's own
+tests, since `memory_spent` is required. From stage 5, `Core\Encoding`'s offset tests
 (`decoding_answers_the_text_and_names_the_offset_it_stopped_at`, the UTF-16 lone surrogate case),
 since a member now decodes through `encoding_rs` in pieces and names an offset only through the
 whole-value fallback. A conformance `.out` of an encoding throw, for the same reason. Earlier: `crates/nvs-host/tests/limits.rs`'s two `handler_isolate`

@@ -1,0 +1,10 @@
+package shop:chatter;
+
+/// The attack fixture `Shop\Chatter`. It writes to the request's log without end,
+/// so a case can measure a request's memory limit against a guest.
+interface api {
+    use nvs:ext/types@1.0.0.{error};
+
+    /// Writes a line of 1 MiB to the log, again and again, and never returns.
+    talk: func() -> result<_, error>;
+}

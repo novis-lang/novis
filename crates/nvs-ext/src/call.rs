@@ -16,8 +16,11 @@
 //! [`Request::call`] is a future the request's coroutine polls
 //! (`rule:packaging/a-guest-call-yields-on-its-core`). wasmtime runs the guest on its own fiber, and
 //! the future is pending in two cases: a host import returned a pending future, or an epoch tick
-//! reached the guest. At each tick the guest asks [`Budget::cpu_spent`]; a spent budget traps the
-//! call as [`Limit::Cpu`], and otherwise the call yields once so the core's other tasks run. The
+//! reached the guest. At each tick the guest asks [`Budget::cpu_spent`] and
+//! [`Budget::memory_spent`]; a spent budget traps the call as [`Limit::Cpu`] or [`Limit::Memory`],
+//! and otherwise the call yields once so the core's other tasks run. The memory question bounds
+//! every import to what it can make the host allocate in one tick, however the request got over
+//! its ceiling. The
 //! waker is whatever polls the future, which on a server is the core's `RemoteWake`.
 //!
 //! **Memory** (`rule:packaging/a-guest-runs-under-the-requests-budget`). Every growth of a guest's
@@ -121,6 +124,12 @@ pub const TICK: Duration = Duration::from_millis(1);
 pub trait Budget: Send + Sync {
     /// Whether the request has used all of its CPU time.
     fn cpu_spent(&self) -> bool;
+
+    /// Whether the request now holds more memory than its ceiling, however it got there: a host
+    /// import that allocated, a logged line, a crossing value. The epoch tick and the step between
+    /// two polls of a call ask it, and a `true` ends the call as [`Limit::Memory`]. It is required,
+    /// as [`Budget::cpu_spent`] is, so a budget cannot forget it.
+    fn memory_spent(&self) -> bool;
 
     /// Charges `bytes` of guest linear memory to the request, or gives them back when negative.
     /// Returns `false`, and charges nothing, when the request cannot afford them.
@@ -542,6 +551,7 @@ pub struct Meter {
     deadline: Instant,
     memory: Option<u64>,
     charged: AtomicI64,
+    over: AtomicBool,
 }
 
 impl Meter {
@@ -554,7 +564,14 @@ impl Meter {
             deadline: started + cpu,
             memory,
             charged: AtomicI64::new(0),
+            over: AtomicBool::new(false),
         }
+    }
+
+    /// Sets what [`Budget::memory_spent`] reports, as a request's allocator would at the crossing
+    /// of its ceiling. A meter counts only what is charged to it, so a test sets this figure.
+    pub fn set_memory_spent(&self, over: bool) {
+        self.over.store(over, Ordering::Release);
     }
 
     /// The bytes charged now.
@@ -567,6 +584,10 @@ impl Meter {
 impl Budget for Meter {
     fn cpu_spent(&self) -> bool {
         Instant::now() >= self.deadline
+    }
+
+    fn memory_spent(&self) -> bool {
+        self.over.load(Ordering::Acquire)
     }
 
     fn charge(&self, bytes: i64) -> bool {
@@ -1327,6 +1348,10 @@ impl Request {
                 guest.reached = Some(Limit::Cpu);
                 return Ok(UpdateDeadline::Interrupt);
             }
+            if guest.budget.memory_spent() {
+                guest.reached = Some(Limit::Memory);
+                return Ok(UpdateDeadline::Interrupt);
+            }
             Ok(UpdateDeadline::Yield(1))
         });
         let instance = match self
@@ -1667,5 +1692,92 @@ impl Drop for Held<'_> {
         for waker in waiters {
             waker.wake();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::future::Future;
+    use std::path::PathBuf;
+    use std::pin::pin;
+    use std::sync::Arc;
+    use std::task::{Context, Poll, Wake, Waker};
+    use std::thread::{self, Thread};
+    use std::time::{Duration, Instant};
+
+    use wasmtime::component::Component;
+
+    use super::{Failure, Host, Limit, Meter};
+    use crate::load::{Extension, pin as pin_of};
+    use crate::manifest::Manifest;
+    use crate::source::{FORMAT, Source};
+
+    /// A component whose one method loops forever, so only a tick ends it.
+    const LOOPS: &str = r#"(component
+  (core module $m
+    (func (export "forever") (loop $again (br $again))))
+  (core instance $i (instantiate $m))
+  (func $forever (canon lift (core func $i "forever")))
+  (instance $api (export "forever" (func $forever)))
+  (export "shop:loop/api" (instance $api)))"#;
+
+    struct Unpark(Thread);
+
+    impl Wake for Unpark {
+        fn wake(self: Arc<Self>) {
+            self.0.unpark();
+        }
+    }
+
+    /// `call` run to its end on this thread.
+    fn block_on<T>(call: impl Future<Output = T>) -> T {
+        let waker = Waker::from(Arc::new(Unpark(thread::current())));
+        let mut cx = Context::from_waker(&waker);
+        let mut call = pin!(call);
+        loop {
+            if let Poll::Ready(value) = call.as_mut().poll(&mut cx) {
+                return value;
+            }
+            thread::park_timeout(Duration::from_millis(1));
+        }
+    }
+
+    /// A guest that allocates nothing of its own is still stopped once its request is over the
+    /// ceiling, whatever put it there. The epoch tick asks the budget, and the call ends as the
+    /// memory limit while the CPU deadline is far away.
+    #[test]
+    fn a_guest_is_interrupted_once_its_request_is_over_the_memory_ceiling() {
+        let host = Host::new(2, |_| Ok(())).expect("the host starts");
+        let bytes = wat::parse_str(LOOPS).expect("the test component compiles");
+        let manifest = r#"{"manifest": 1, "world": "1.0.0", "class": "Shop\\Loop", "interface": "shop:loop/api", "methods": [{"name": "forever", "params": [], "returns": "void"}]}"#;
+        let extension = Extension {
+            path: PathBuf::from("loop.nvsx"),
+            sha256: pin_of(&bytes),
+            memory: None,
+            grants: nvs_config::extension::Granted::default(),
+            component: Component::new(host.engine(), &bytes).expect("the component compiles"),
+            manifest: Manifest::parse(manifest.as_bytes()).expect("the manifest reads"),
+            source: Source {
+                source: FORMAT,
+                files: Vec::new(),
+            },
+        };
+        let meter = Arc::new(Meter::new(Duration::from_secs(60), None));
+        let request = host.request(Arc::clone(&meter) as Arc<dyn super::Budget>);
+        // The figure is set before the call, so the loop starts and only a tick can end it.
+        meter.set_memory_spent(true);
+        let started = Instant::now();
+        let out = block_on(request.call(&extension, "forever", &[]));
+        assert_eq!(out, Err(Failure::Limit(Limit::Memory)));
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "{:?}",
+            started.elapsed()
+        );
+        assert_eq!(
+            request.instances(),
+            0,
+            "the failed call dropped its instance"
+        );
     }
 }

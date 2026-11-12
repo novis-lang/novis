@@ -294,6 +294,10 @@ impl Budget for Watched {
         self.meter.cpu_spent()
     }
 
+    fn memory_spent(&self) -> bool {
+        self.meter.memory_spent()
+    }
+
     fn charge(&self, bytes: i64) -> bool {
         self.meter.charge(bytes)
     }

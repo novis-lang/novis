@@ -344,6 +344,10 @@ impl Budget for Recorder {
         false
     }
 
+    fn memory_spent(&self) -> bool {
+        false
+    }
+
     fn charge(&self, _bytes: i64) -> bool {
         true
     }
