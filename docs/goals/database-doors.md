@@ -396,25 +396,25 @@ the terminal. Second, every test and `.nvst` case that pins a message holding a 
 **Does:** let the checker prove that a statement call binds no `secret`, carry that proof in the
 call's site word, and keep the server's text on the error for exactly those calls.
 
-- [ ] `reject_secret_into_container` notes a `secret` value written inside a call argument before it
+- [x] `reject_secret_into_container` notes a `secret` value written inside a call argument before it
   returns. The note is per call, and a nested call may only widen it
   (`rule:security/secret-sinks-refuse`, `crates/nvs-types/src/expr/quals.rs:1171`).
-- [ ] After a `QUERY_SITE_MEMBERS` call's arguments are checked, the checker records "plain binds"
+- [x] After a `QUERY_SITE_MEMBERS` call's arguments are checked, the checker records "plain binds"
   for the call's span when no note was made and no argument type contains `secret`
   (`crates/nvs-types/src/expr/calls.rs:786`, `crates/nvs-stdlib/src/registry.rs:3473`,
   `crates/nvs-types/src/expr_table.rs:2934`).
-- [ ] `QuerySiteConst` carries the recorded fact, and codegen sets one bit above the 32-bit id for
+- [x] `QuerySiteConst` carries the recorded fact, and codegen sets one bit above the 32-bit id for
   it. The callable-reference thunk keeps the zero word (`crates/nvs-ir/src/lower/mod.rs:3100`,
   `crates/nvs-ir/src/ir.rs:1106`, `crates/nvs-codegen/src/emit.rs:925`,
   `crates/nvs-ir/src/lower/anon_fn.rs:863`).
-- [ ] Each statement helper masks the id for the trace and passes the bit to `statement_failure`,
+- [x] Each statement helper masks the id for the trace and passes the bit to `statement_failure`,
   which keeps the server's text when the bit is set or no value was bound
   (`crates/nvs-stdlib/src/db/bind.rs:180`, `crates/nvs-runtime/src/ctx/trace.rs:387`).
-- [ ] Tests `a_statement_call_with_no_secret_bind_sets_the_plain_binds_bit` and
+- [x] Tests `a_statement_call_with_no_secret_bind_sets_the_plain_binds_bit` and
   `a_secret_anywhere_in_the_bound_values_clears_the_plain_binds_bit` in
   `crates/nvs-ir/src/lower/tests.rs:3999`. The second covers a variable, a property read, a
   concatenation, a nested literal for `executeMany`, and an `array<secret string>` argument.
-- [ ] Tests `a_secret_bound_value_leaves_the_servers_text_out_of_the_error` and
+- [x] Tests `a_secret_bound_value_leaves_the_servers_text_out_of_the_error` and
   `a_statement_reached_through_a_callable_leaves_the_servers_text_out` in
   `crates/nvs-stdlib/src/db/bind.rs:180`. Each asserts the message keeps the `SQLSTATE` and the
   driver code.
@@ -552,38 +552,50 @@ into the Novis string.
 
 ### State
 
-Stages 1 and 2 are done. Their checks `defaults-are-literals`, `message-holds-no-server-text` and
-`server-text-is-tainted` are green.
+Stages 1 and 2 are done. Stage 3's code and its four tests are in. The attack and the two rule
+fragments are left. The sweep items were stale a fourth time: no `env-secret-proofs.log` exists, and
+Miri run `43201099245` predates `7568aaa0fb`.
 
-The run's sweep items were stale a third time: no `env-secret-proofs.log` exists, and the nightly
-Miri run `43201099245` tested `578534cc7c`, before `7568aaa0fb` skipped those tests under Miri.
+How stage 3 works. `Env::secret_in_arguments` (`crates/nvs-types/src/lib.rs`) is set by
+`reject_secret_into_container` (`crates/nvs-types/src/expr/quals.rs`) when it meets a `secret` inside
+a call argument. `check_args_typed` (`crates/nvs-types/src/expr/args.rs:65`) takes the note per list,
+adds any argument type that contains `secret`, files the call span in `Env::secret_argument_calls`,
+and widens the outer note. `note_plain_binds` (`crates/nvs-types/src/expr/calls.rs`) runs on all
+three method-call paths and records `ExprTable::plain_binds`. `QuerySiteConst` has `plain_binds`,
+and codegen ORs in `nvs_stdlib::registry::QUERY_SITE_PLAIN_BINDS` (bit 32). `QueryWatch::at` masks
+the id with `QUERY_SITE_ID_MASK`. `Statement::at(site)` reads the bit, and every helper passes
+`Statement::withholds_text()` to `statement_failure`. `executeMany` reads it with
+`bind::plain_binds(args[4])`. The stream walk's later step errors still pass `true`, which is the
+closed default. The message now ends "...because the statement may have bound a `secret` value."
 
-Stage 2's last slice: `connect_failed` (`crates/nvs-stdlib/src/db/open.rs:186`) is the one place a
-failed handshake or SQLite open becomes its `IOError`. It writes `ServerError.message` to one `Warn`
-record when the error came from a server, and every open site in `open_named`, `nvs_core_db_open`
-and `sqlite_settings` calls it. `floor::uncaught` needed no change: `Thrown::properties` walks every
-slot past `Throwable`'s four by its descriptor name, so `serverMessage` is in the report's
-`properties`, after `message`. It prints `null` when absent, as every other nullable property does.
-The new case `tests/conformance/core/db-an-uncaught-db-error-shows-the-servers-message-beside-its-own.nvst`
-pins that report. `about.md` for `Db-DbError` explains `serverMessage`, and the rule chapters are
-rendered again.
+**A checker fix came with it.** `[[$secret]]` passed to `executeMany` was `E0401`, so a credential
+could not be bound through it. `check_array_literal` (`crates/nvs-types/src/expr/literals.rs:1206`)
+now checks an argument's elements against `mixed_admitting_secret(elem)`. After the loop, a literal
+that holds a `secret` is retyped with `mixed_admitting_secret`, and one that holds none with the new
+`mixed_without_secret`. A program's own `array<array<mixed>>` parameter still refuses the secret, at
+the argument.
 
 ### Next
 
-Stage 3, in item order. Files: `crates/nvs-types/src/expr/quals.rs`, `crates/nvs-types/src/expr/calls.rs`,
-`crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-stdlib/src/db/bind.rs`.
+Finish stage 3, then stage 4.
 
-- [ ] `crates/nvs-types/src/expr/quals.rs:1171`: `reject_secret_into_container` notes a `secret`
-  value written inside a call argument, per call, widened by a nested call.
-- [ ] `crates/nvs-types/src/expr/calls.rs:786`: after a `QUERY_SITE_MEMBERS` call's arguments are
-  checked, record "plain binds" for its span when no note was made and no argument type holds `secret`.
-- [ ] `crates/nvs-ir/src/lower/mod.rs:3100`: `QuerySiteConst` carries the fact, and codegen sets one
-  bit above the 32-bit id. The callable thunk keeps the zero word.
-- [ ] `crates/nvs-stdlib/src/db/bind.rs:180`: each statement helper masks the id for the trace and
-  passes the bit to `statement_failure`.
-- [ ] `crates/nvs-ir/src/lower/tests.rs:3999`: the two lowering tests the stage names, then the two
-  `bind.rs` tests, the SQLite attack and the two rule fragments.
+- [ ] `nvs.toml:425`: the attack `tests/hostile/core/Db-Connection/query/05-a-secret-the-database-quotes-in-its-error.nvs`.
+  It was written and removed, because `Core\Db::connect('notes')` needs a grant. A `nvs.toml` app
+  block grants `connect = ["notes"]` (`nvs.toml:425-440` and `:674-685` show the shape). Add one for
+  the new file. The case binds `secret string $token = 'sk-8f2c41'` into
+  `select json_extract('{}', ?)`, because SQLite quotes a bad JSON path in its error. It does this
+  three ways: `[$token]`, `executeMany` with `[[$token]]`, and `['path ' . $token]`. Each step catches
+  `Core\Db\DbError` and prints whether `message` or `serverMessage ?? ''` contains the plain copy.
+  Declare `bool $leaked = false;` once, since catch blocks share scope (`E0406`). Run it with
+  `bun nv proofs --id 'Core\Db\Connection::query' --run`.
+- [ ] `docs/rules/security/secret-sinks-refuse.md:30` and `docs/rules/core-classes/db-error.md:11`:
+  say that a bound `secret` removes the server's text, name the bit and its cost, and fix
+  `db-error.md:20`, which still says "bound a value". Then render the rule chapters again.
+- [ ] `docs/goals/database-doors.md:394`: set stage 3 to done once `secret-binds-are-known` is
+  green. Then start stage 4.
 
-Expected red: none known. `bun nv affected --run` was not run, as stage 2 checks with a build alone.
+Expected red: snapshot tests that print a query site may now print ` plain` after the span
+(`crates/nvs-ir/src/print.rs`). Any test that pins the old "bound a value." sentence will fail too.
+`bun nv affected --run` was not run.
 
 ### Backlog
