@@ -1251,10 +1251,21 @@ impl Ctx {
         )))
     }
 
+    /// Whether the request is past its wall deadline and outside a limit
+    /// handler's open slice: [`crate::run_helper`]'s question for a member
+    /// that failed. One load for a request with no `wall_time`, and one clock
+    /// read under one.
+    pub(crate) fn past_wall_bound(&self) -> bool {
+        self.tree
+            .wall_deadline()
+            .is_some_and(|at| std::time::Instant::now() >= at)
+            && !self.in_wall_slice()
+    }
+
     /// Runs `rule:errors/on-limit`'s handler for a request past its
     /// `[limits] wall_time`, and gives the [`crate::Fault`] the helper that
     /// found it returns. The safepoint poll's branch, for a helper:
-    /// `Core\Time::sleep` is the one caller.
+    /// `Core\Time::sleep` and [`crate::run_helper`] are the callers.
     pub fn wall_time_breach(&mut self) -> crate::Fault {
         // Claimed before the handler lowers the flag, so the clock's own raise
         // has either landed already or will not come
@@ -1781,5 +1792,42 @@ mod tests {
         assert!(ctx.over_output_limit());
         assert!(ctx.safepoint_flags().contains(SafepointFlags::OUTPUT_LIMIT));
         assert!(ctx.output_breach().is_some());
+    }
+
+    /// `rule:errors/on-limit`: a limit handler runs in a wall-time slice, and
+    /// a park inside it ends at the slice's end, not at the wall deadline that
+    /// has already passed. Past the slice's end the funnel raises the flag
+    /// alone, because the stop was claimed when the handler started.
+    #[test]
+    fn a_limit_handler_that_parks_is_bounded_by_its_slice_end() {
+        let ctx = high_water_ctx("[limits]\nwall_time = \"1h\"\n");
+        let wall = ctx
+            .tree
+            .wall_deadline()
+            .expect("a request with a `wall_time` has a deadline");
+        let outside = crate::budget::ArmedStack::take();
+        crate::budget::begin_turn(&ctx.tree);
+        let parked = crate::budget::ArmedStack::take();
+        assert_eq!(parked.bound(), Some(wall), "a park outside a handler");
+        parked.resume();
+
+        ctx.tree.open_wall_slice(1);
+        let slice_end = ctx
+            .tree
+            .wall_slice_ends_at()
+            .expect("the handler's slice is open");
+        assert!(slice_end < wall);
+        let parked = crate::budget::ArmedStack::take();
+        assert_eq!(parked.bound(), Some(slice_end), "a park inside the handler");
+        assert_eq!(crate::budget::turn_bound(), None, "the stack is off the thread");
+        parked.stop_at_bound();
+        assert!(ctx.safepoint_flags().contains(SafepointFlags::WALL_TIME));
+        assert!(
+            !ctx.safepoint_view().wall_time_stopped(),
+            "the slice's end took the claim the handler's entry owns"
+        );
+        parked.resume();
+        drop(crate::budget::ArmedStack::take());
+        outside.restore();
     }
 }

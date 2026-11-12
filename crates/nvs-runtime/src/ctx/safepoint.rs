@@ -578,15 +578,36 @@ impl Ctx {
     /// inventing a second one — the status and its message keep one home, and
     /// what comes back is what the poll compiled code was going to make anyway
     /// would have said, only without the statements in between.
+    ///
+    /// A wait the park funnel ended at the wall deadline raised
+    /// [`SafepointFlags::WALL_TIME`] first. That is a stop and not a
+    /// cancellation, so this records none: the poll runs the
+    /// `Core\Fatal::onLimit` handler and ends the request with the wall-time
+    /// `FATAL` (`rule:errors/on-limit`), and a group still tells a stopped
+    /// child from a failed one. A poll that answered `OK` all the same, a raise
+    /// lowered inside a handler's slice, is a cancellation after all.
     pub fn cancel(&mut self) -> crate::Fault {
-        self.cancelled = true;
+        if !self.safepoint_flags().contains(SafepointFlags::WALL_TIME) {
+            self.cancelled = true;
+        }
+        let mut status = self.poll_now();
+        if status == crate::OK {
+            self.cancelled = true;
+            status = self.poll_now();
+        }
+        crate::Fault::Pending(status)
+    }
+
+    /// One run of the safepoint poll on this context.
+    fn poll_now(&mut self) -> i32 {
         #[expect(
             unsafe_code,
             reason = "the pointer is a reborrow of this `&mut self`, which is \
                       live for the whole call"
         )]
-        let status = unsafe { nvs_safepoint(&raw mut *self) };
-        crate::Fault::Pending(status)
+        unsafe {
+            nvs_safepoint(&raw mut *self)
+        }
     }
 
     /// The active `rule:testing/debug-probes`
@@ -1077,10 +1098,44 @@ impl TreeState {
         }
     }
 
+    /// The instant a park of this tree ends at, by `rule:errors/on-limit`: the
+    /// open wall-time slice's end while a limit handler runs in one, the wall
+    /// deadline otherwise, and `None` for a tree with no `wall_time` or one a
+    /// debugger holds. One load for a tree with no `wall_time`.
+    pub(crate) fn park_bound(&self) -> Option<std::time::Instant> {
+        if self.wall_time.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+            return None;
+        }
+        self.wall_slice_ends_at().or_else(|| self.wall_deadline())
+    }
+
+    /// Stops the tree for a park that reached [`Self::park_bound`]: the claim
+    /// the watchdog takes at the wall deadline, and the raise of
+    /// [`SafepointFlags::WALL_TIME`]. Past a slice's end the claim is already
+    /// taken, and the raise alone stops the handler at the poll.
+    pub(crate) fn stop_past_park_bound(&self) {
+        if self.wall_slice_ends_at().is_none() {
+            let first = {
+                let mut claimed = self
+                    .wall_stop
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                !std::mem::replace(&mut *claimed, true)
+            };
+            if first {
+                write_wall_sweep_line(self.wall_deadline());
+            }
+        }
+        self.word.fetch_or(
+            SafepointFlags::WALL_TIME.bits(),
+            std::sync::atomic::Ordering::Relaxed,
+        );
+    }
+
     /// Opens a wall-time slice `reserve` nanoseconds long, starting now, and
     /// wakes whoever waits on the wall deadline, so `nvs run`'s clock reads where
     /// the slice ends. A `reserve` of `0` opens nothing.
-    pub(super) fn open_wall_slice(&self, reserve: u64) {
+    pub(crate) fn open_wall_slice(&self, reserve: u64) {
         if reserve == 0 {
             return;
         }
@@ -1328,6 +1383,12 @@ fn safepoint_slow_path(ctx: &mut Ctx) -> i32 {
             crate::host::with_current(|host| host.yield_slice())
         };
         if woken == Some(crate::host::Woken::Cancelled) {
+            // The park funnel ends a yield past the wall bound with the flag
+            // raised: that is the wall time's stop, and its branch above runs
+            // the handler and gives the `FATAL` (`rule:errors/on-limit`).
+            if ctx.safepoint_flags().contains(SafepointFlags::WALL_TIME) {
+                return safepoint_slow_path(ctx);
+            }
             ctx.cancelled = true;
         }
     }

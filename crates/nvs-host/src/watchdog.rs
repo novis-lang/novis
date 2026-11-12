@@ -184,6 +184,12 @@
 //! handler as the CPU half's next sweep does. `nvs run` also times its one
 //! request with a clock of its own, which stops it at the instant.
 //!
+//! A raised flag reaches only a task that runs, and a parked one reaches no
+//! poll. So the sweep does not end a parked request: the park funnel does,
+//! on the core, at the instant. `yield_on` files the tree's wall deadline as
+//! the parked task's timer, and a wake past it claims the same stop and
+//! answers the wait `Cancelled` (`rule:errors/on-limit`).
+//!
 //! **What it spends:** one load of the tree's `wall_time` per published request
 //! per sweep, on this thread, and nothing on the request path.
 //!
@@ -2633,7 +2639,10 @@ mod tests {
     /// waiting on the world spends wall time and none of what is sampled, so a
     /// wait several times its own ceiling is left alone where a spin that
     /// length is stopped — `rule:errors/on-limit`, and `crate::cpuclock`'s
-    /// *CPU time, never wall clock*.
+    /// *CPU time, never wall clock*. The sweep leaves a parked request alone
+    /// under its `wall_time` too: the park funnel in `yield_on` ends that wait
+    /// at the wall deadline on the core itself, and this case has no
+    /// `wall_time` at all.
     #[test]
     fn a_core_parked_on_io_past_the_same_wall_time_is_not_flagged() {
         let (tx, _rx) = mpsc::channel();

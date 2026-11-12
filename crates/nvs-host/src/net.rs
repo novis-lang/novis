@@ -3250,4 +3250,46 @@ mod tests {
             "a core is waiting inside `accept` for a connection another core already took"
         );
     }
+
+    /// `rule:concurrency/the-parking-contract`: a read in a request past its
+    /// wall deadline is ended by the park funnel, and the stream returns its
+    /// terminal error for the `Cancelled` it was given. Nothing is left filed.
+    #[test]
+    fn a_stream_wait_past_the_wall_deadline_returns_its_error() {
+        let (mut server, client) = connected_pair();
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        let table: toml::Table = "[limits]\nwall_time = \"1ns\"\n"
+            .parse()
+            .expect("the case writes valid TOML");
+        let mut request = ctx();
+        request.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        }));
+        let at = request
+            .safepoint_view()
+            .wall_deadline()
+            .expect("a request with a `wall_time` has a deadline");
+        // One nanosecond, so this ends at once.
+        while Instant::now() < at {
+            std::hint::spin_loop();
+        }
+
+        let kind = Rc::new(Cell::new(None));
+        let seen = Rc::clone(&kind);
+        sched.spawn(request, TaskRoot::Request, move |_ctx| {
+            let mut buf = [0_u8; 8];
+            seen.set(server.read(&mut buf).err().map(|error| error.kind()));
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(kind.get(), Some(io::ErrorKind::ConnectionAborted));
+        assert_eq!(with_current(|reactor| reactor.timers().len()), Some(0));
+        drop(client);
+    }
 }

@@ -851,6 +851,18 @@ where
             // reason the comment ahead of the body gives: there is no result
             // `Value` to release here.
             Some(breach) => report_memory_breach(ctx, breach),
+            // A member that failed past the wall deadline reports the wall
+            // time and not its own error, after the memory question. Its wait
+            // had no `Ctx` to end through, such as a socket read inside a
+            // driver, so the park funnel ended it with an I/O error, and that
+            // error is a stop and not something a `catch` may carry on from
+            // (`rule:errors/on-limit`). A `Fault::Pending` was checked in the
+            // callee's frame. Cost: one load, and one clock read under a
+            // `wall_time`, per member call that fails.
+            None if !matches!(fault, Fault::Pending(_)) && ctx.past_wall_bound() => {
+                let breach = ctx.wall_time_breach();
+                record_fault(ctx, breach)
+            }
             None => record_fault(ctx, fault),
         })
     }));
@@ -1909,5 +1921,71 @@ mod tests {
     fn a_member_with_no_ceiling_is_not_held_to_the_backstop() {
         let mut ctx = Ctx::buffered();
         assert!(call(nvs_test_grows_past_its_ceiling, &mut ctx, &[]).is_ok());
+    }
+
+    /// A context whose request has `[limits] wall_time = "<wall_time>"`.
+    fn timed(wall_time: &str) -> Ctx {
+        let table: toml::Table = format!("[limits]\nwall_time = \"{wall_time}\"\n")
+            .parse()
+            .expect("the case writes valid TOML");
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        }));
+        ctx
+    }
+
+    /// `rule:errors/on-limit`'s one ending for a wait the park funnel ended:
+    /// the funnel claimed the wall stop, and the member's `Ctx::cancel` runs
+    /// the handler and gives the wall-time `FATAL`. It records no
+    /// cancellation, so a group reads a stopped child.
+    #[test]
+    fn a_wait_that_ended_at_the_wall_deadline_runs_the_handler_then_is_fatal() {
+        let mut ctx = timed("1h");
+        assert!(ctx.safepoint_view().stop_at_wall_time());
+
+        let fault = ctx.cancel();
+        assert!(matches!(fault, Fault::Pending(FATAL)), "{fault:?}");
+        assert_eq!(ctx.limit_reached(), Some(crate::Limit::WallTime));
+        assert!(!ctx.cancelled(), "the wall time's stop was recorded as a cancellation");
+        let message = ctx.pending().expect("a FATAL carries a message").into_owned();
+        assert!(message.starts_with(Ctx::WALL_TIME_EXCEEDED), "{message}");
+
+        // With no wall stop, the same call is a cancellation.
+        let mut cancelled = Ctx::buffered();
+        assert!(matches!(cancelled.cancel(), Fault::Pending(FATAL)));
+        assert!(cancelled.cancelled());
+        assert_eq!(cancelled.limit_reached(), None);
+    }
+
+    /// A member whose wait had no `Ctx` to end through fails with its own
+    /// error once the funnel ended it. Past the wall deadline that error is
+    /// reported as the wall-time `FATAL`, which no `catch` sees.
+    #[test]
+    fn a_member_that_fails_past_the_wall_deadline_reports_the_wall_time_fatal() {
+        let mut ctx = timed("1ns");
+        let at = ctx
+            .safepoint_view()
+            .wall_deadline()
+            .expect("a request with a `wall_time` has a deadline");
+        // One nanosecond, so this ends at once.
+        while std::time::Instant::now() < at {
+            std::hint::spin_loop();
+        }
+
+        assert_eq!(call(nvs_test_throws, &mut ctx, &[]).err(), Some(FATAL));
+        assert_eq!(ctx.limit_reached(), Some(crate::Limit::WallTime));
+        let message = ctx.pending().expect("a FATAL carries a message").into_owned();
+        assert!(message.starts_with(Ctx::WALL_TIME_EXCEEDED), "{message}");
+
+        // Inside the wall time the member's own error is what the caller sees.
+        let mut early = timed("1h");
+        assert_eq!(call(nvs_test_throws, &mut early, &[]).err(), Some(THROWN));
+        assert_eq!(early.limit_reached(), None);
     }
 }

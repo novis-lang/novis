@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-host/src/block_on.rs, crates/nvs-host/src/blocking.rs, crates/nvs-host/src/group.rs, docs/rules/concurrency/the-parking-contract.md]
   - id: 2
     title: the park funnel bounds every wait
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/budget.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/abi.rs, crates/nvs-host/src/net.rs]
   - id: 3
     title: "the hand clamps are deleted, crate by crate"
@@ -335,37 +335,37 @@ A second lists every park site that ignores `Resumed::Cancelled` and parks again
 **Does:** make `yield_on` end a `Parked` wait at the tree's bound, and give that ending the limit's
 handler and `FATAL` at `Ctx::cancel` and at `run_helper`.
 
-- [ ] `ArmedStack` answers its turn's bound: the open handler slice's end, or the tree's wall
+- [x] `ArmedStack` answers its turn's bound: the open handler slice's end, or the tree's wall
   deadline, or none (`rule:errors/on-limit`, `crates/nvs-runtime/src/budget.rs:658`,
   `crates/nvs-runtime/src/ctx/safepoint.rs:1033`, `crates/nvs-runtime/src/ctx/safepoint.rs:1046`).
-- [ ] `yield_on` reads the bound for `Waiting::Parked`, merges it into the task's one timer entry,
+- [x] `yield_on` reads the bound for `Waiting::Parked`, merges it into the task's one timer entry,
   restores the site's entry on resume, and past the bound claims the wall stop and answers
   `Resumed::Cancelled`. A bound already passed parks nothing (`rule:errors/on-limit`,
   `crates/nvs-host/src/scheduler.rs:1899`, `crates/nvs-host/src/scheduler.rs:1942`,
   `crates/nvs-runtime/src/ctx/safepoint.rs:746`).
-- [ ] `Ctx::cancel` under a claimed wall stop gives the handler and the wall-time `FATAL`, and records
+- [x] `Ctx::cancel` under a claimed wall stop gives the handler and the wall-time `FATAL`, and records
   no cancellation. The session reads the poll's branch order first (`rule:errors/on-limit`,
   `crates/nvs-runtime/src/ctx/safepoint.rs:560`, `crates/nvs-runtime/src/ctx/safepoint.rs:1226`).
-- [ ] `run_helper`'s error arm reports the wall-time breach for a member that failed past the wall
+- [x] `run_helper`'s error arm reports the wall-time breach for a member that failed past the wall
   deadline, after the memory question (`rule:errors/on-limit`, `crates/nvs-runtime/src/abi.rs:615`,
   `crates/nvs-runtime/src/ctx/limits.rs:1254`).
-- [ ] `NvsStream::wait_until_ready` and the connect wait return their error on the funnel's
+- [x] `NvsStream::wait_until_ready` and the connect wait return their error on the funnel's
   `Cancelled` with no change, and the test below pins it (`rule:concurrency/the-parking-contract`,
   `crates/nvs-host/src/net.rs:1471`, `crates/nvs-host/src/net.rs:1334`).
-- [ ] Tests in `crates/nvs-host/src/scheduler.rs:1958` and `crates/nvs-host/src/timer.rs:356`:
+- [x] Tests in `crates/nvs-host/src/scheduler.rs:1958` and `crates/nvs-host/src/timer.rs:356`:
   `a_park_with_no_deadline_ends_at_its_trees_wall_deadline`,
   `a_park_with_a_later_deadline_ends_at_the_wall_deadline_on_one_timer_entry`,
   `a_named_wait_stays_parked_past_the_wall_deadline`,
   `a_limit_handler_that_parks_is_bounded_by_its_slice_end` and
   `a_park_under_no_wall_time_arms_no_timer_entry`. Each counts timer entries and reads the answer, with
   a deadline already passed or moved by the test (`rule:errors/on-limit`).
-- [ ] Tests `a_wait_that_ended_at_the_wall_deadline_runs_the_handler_then_is_fatal` and
+- [x] Tests `a_wait_that_ended_at_the_wall_deadline_runs_the_handler_then_is_fatal` and
   `a_member_that_fails_past_the_wall_deadline_reports_the_wall_time_fatal` in
   `crates/nvs-runtime/src/abi.rs:1` tests (`rule:errors/on-limit`).
-- [ ] `rule:errors/on-limit` gains the paragraph: every park ends at the wall deadline in the funnel,
+- [x] `rule:errors/on-limit` gains the paragraph: every park ends at the wall deadline in the funnel,
   the one ending, the reasons a wait may outlive it, and what it spends. Its Declined list gains the
   sweep over parked tasks. `bun nv rules --check` is then clean (`docs/rules/errors/on-limit.md:39`).
-- [ ] The watchdog's module doc and the doc of `a_core_parked_on_io_past_the_same_wall_time_is_not_flagged`
+- [x] The watchdog's module doc and the doc of `a_core_parked_on_io_past_the_same_wall_time_is_not_flagged`
   say the funnel ends a parked request (`crates/nvs-host/src/watchdog.rs:173`).
 
 ### 3. the hand clamps are deleted, crate by crate
@@ -556,30 +556,39 @@ and end a guest call that parks past the wall deadline.
 
 ### State
 
-Stage 1 is done. `Waiting::ParkedPast(PastWallTime)` exists with six reasons, the clock waits have
-`park_until_past` and `wait_until_past`, and every wait that outlives `wall_time` names its reason.
-`crates/nvs-host/tests/park_sites.rs` holds each reason to its files and the suspend to `yield_on`,
-and both its tests pass. Nothing is bounded yet: `yield_on` still reads no deadline, and the tree
-still clamps each wait by hand. Both connection doors still start an unwatched isolate.
+Stages 1 and 2 are done. `yield_on` (`crates/nvs-host/src/scheduler.rs:1901`) bounds every
+`Waiting::Parked` by `ArmedStack::bound`: the open handler slice's end, else the tree's wall deadline
+(`TreeState::park_bound`, `crates/nvs-runtime/src/ctx/safepoint.rs:1105`). `merge_bound` (`:1997`)
+files it as the task's one timer entry when it is earlier, and puts the site's entry back on resume.
+Past the bound the funnel claims the stop (`stop_past_park_bound`, `safepoint.rs:1116`) and answers
+`Cancelled`. `Ctx::cancel` records no cancellation under a raised `WALL_TIME` and runs the poll, and
+the poll's yield branch hands a funnel stop to the wall branch. `run_helper` reports a non-pending
+member error past the wall deadline as the wall-time `FATAL` (`Ctx::past_wall_bound`,
+`crates/nvs-runtime/src/ctx/limits.rs:1258`). The rule and the watchdog docs say so. The seven
+`the-funnel-bounds-a-park` tests pass, with
+`a_stream_wait_past_the_wall_deadline_returns_its_error` in `crates/nvs-host/src/net.rs`, and both
+`park_sites` tests still pass. The hand clamps are all still in place, so each member is now bounded
+twice, which stage 3 removes.
 
-The sweep's two reds were already settled on disk. `env-secret-proofs` is not a check in this tree,
-and 305c04f660 fixed `a_changed_server_timeout_applies_to_the_next_connection` after the commit the
-nightly run tested.
+The sweep's reds were already settled on disk again. `env-secret-proofs` is not a check in this tree,
+and nightly run 43001191130 tested f4c1d5c7e2, before 305c04f660 fixed
+`a_changed_server_timeout_applies_to_the_next_connection`.
 
 ### Next
 
-Stage 2, the park funnel bounds every wait. Its items are under `### 2.` above, with their anchors.
-Its files are `crates/nvs-runtime/src/budget.rs:658`, `crates/nvs-runtime/src/ctx/safepoint.rs:560`,
-`:746` and `:1226`, `crates/nvs-runtime/src/abi.rs:615`, `crates/nvs-host/src/scheduler.rs:1899` and
-`crates/nvs-host/src/timer.rs:356`, and `docs/rules/errors/on-limit.md:39`.
+Stage 3, the hand clamps are deleted. Its items, batches and anchors are under `### 3.` above, and it
+follows its `**Split:**` line: four writing subagents on disjoint files, then the session's own part.
 
-- The funnel reads the bound only for `Waiting::Parked`. `Waiting::ParkedPast(_)` keeps the site's own
-  timer entry, and `a_named_wait_stays_parked_past_the_wall_deadline` pins that.
-- `Host::park` (`crates/nvs-host/src/group.rs:196`) stays `Parked`, so every `Core` member's wait is
-  bounded the moment the funnel lands. The standing decision on `Host::park` says why.
-- Expected red after stage 2: a test that parks a task under a passed `wall_time` and expects it to
-  wait on, if one exists. `a_core_parked_on_io_past_the_same_wall_time_is_not_flagged`
-  (`crates/nvs-host/src/watchdog.rs:173`) is the first to read.
+- `crates/nvs-runtime/src/ctx/limits.rs:366`: first, a child placed on another core runs no tree turn
+  there, so `ArmedStack::bound` is `None` and its parks are bounded only by the hand clamps. Before the
+  clamps go, give that stack its bound from the view the child published
+  (`crates/nvs-host/src/watchdog.rs:668`), the standing decision's safe default.
+- `crates/nvs-runtime/src/ctx/limits.rs:1052` is `wall_time_left`, `:1064` `within_wall_time`, `:1071`
+  `wall_bound` (renamed `off_core_deadline`), `:1079` `wall_clamp` and `:1091` `wall_time_fault`.
+- Expected red, read at stage 7: a test that expects a member's own catchable timeout under a passed
+  `wall_time`, such as a `DbError` from a statement wait, now gets the wall-time `FATAL` from
+  `run_helper`. A test that cancels a context while `WALL_TIME` is raised and expects `cancelled()`
+  now reads `false`. No such test was found in this session, and none was run outside the new ones.
 
 ### Backlog
 

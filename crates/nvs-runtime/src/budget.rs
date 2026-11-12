@@ -731,6 +731,24 @@ impl ArmedStack {
         COUNTERS.with(|c| c.peak.set(self.peak.wrapping_add(foreign)));
     }
 
+    /// The instant a park of this stack ends at: the open handler slice's
+    /// end, or the wall deadline of the tree whose turn the stack is, or
+    /// `None` for a stack on no tree's turn or a tree with no `wall_time`
+    /// (`rule:errors/on-limit`). `nvs_host`'s `yield_on` reads it for every
+    /// `Waiting::Parked`. One load for a tree with no `wall_time`.
+    #[must_use]
+    pub fn bound(&self) -> Option<std::time::Instant> {
+        self.turn.as_deref().and_then(crate::TreeState::park_bound)
+    }
+
+    /// Stops the tree whose turn this stack is for a park that reached
+    /// [`Self::bound`], as the watchdog stops it at the wall deadline.
+    pub fn stop_at_bound(&self) {
+        if let Some(tree) = &self.turn {
+            tree.stop_past_park_bound();
+        }
+    }
+
     /// Whether the stack this came off had a safepoint word armed.
     ///
     /// For the assertion a caller cannot otherwise make: a thread between
@@ -740,6 +758,30 @@ impl ArmedStack {
     pub fn is_armed(&self) -> bool {
         !self.armed.word.is_null()
     }
+}
+
+/// [`ArmedStack::bound`] for the stack running now, read after a resume,
+/// when the arming is back on the thread. The bound may have moved while the
+/// stack was parked, since `Core\Config::set` moves `wall_time`.
+#[must_use]
+pub fn turn_bound() -> Option<std::time::Instant> {
+    TURN.with(|cell| {
+        let turn = cell.take();
+        let bound = turn.as_deref().and_then(crate::TreeState::park_bound);
+        cell.set(turn);
+        bound
+    })
+}
+
+/// [`ArmedStack::stop_at_bound`] for the stack running now.
+pub fn stop_turn_at_bound() {
+    TURN.with(|cell| {
+        let turn = cell.take();
+        if let Some(tree) = &turn {
+            tree.stop_past_park_bound();
+        }
+        cell.set(turn);
+    });
 }
 
 /// The [`FOREIGN`] offset that puts this thread in `tree`'s units: its

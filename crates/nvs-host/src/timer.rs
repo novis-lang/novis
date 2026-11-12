@@ -181,6 +181,14 @@ impl Timers {
         true
     }
 
+    /// The deadline filed for `id`, or `None`. The park funnel reads it to
+    /// merge the tree's wall bound into the task's one entry, and to put the
+    /// site's entry back on resume.
+    #[must_use]
+    pub fn armed_for(&self, id: TaskId) -> Option<Instant> {
+        self.armed.get(&id).copied()
+    }
+
     /// The earliest deadline filed, which is what the next poll waits for.
     #[must_use]
     pub fn next_due(&self) -> Option<Instant> {
@@ -356,8 +364,8 @@ fn wait_until_as(at: Instant, waiting: Waiting) -> Woken {
 mod tests {
     use super::*;
     use crate::reactor::{Reactor, install, run_until_idle, with_current};
-    use crate::scheduler::{Scheduler, Wake};
-    use nvs_runtime::{Ctx, OutputSink, TaskRoot};
+    use crate::scheduler::{PastWallTime, Scheduler, Wake, Waiting, suspend_current};
+    use nvs_runtime::{Ctx, OutputSink, SafepointFlags, TaskRoot};
     use std::cell::RefCell;
     use std::rc::Rc;
 
@@ -678,5 +686,186 @@ mod tests {
         let start = Instant::now();
         sleep(Duration::from_millis(10));
         assert!(start.elapsed() >= Duration::from_millis(10));
+    }
+
+    /// A context whose request has `[limits] wall_time = "<wall_time>"`.
+    fn timed(wall_time: &str) -> Ctx {
+        let table: toml::Table = format!("[limits]\nwall_time = \"{wall_time}\"\n")
+            .parse()
+            .expect("the case writes valid TOML");
+        let mut request = ctx();
+        request.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        }));
+        request
+    }
+
+    /// Spins until the clock has passed `request`'s wall deadline. The case
+    /// gives it a `wall_time` of one nanosecond, so this ends at once.
+    fn past_its_wall_deadline(request: &Ctx) {
+        let at = request
+            .safepoint_view()
+            .wall_deadline()
+            .expect("a request with a `wall_time` has a deadline");
+        while Instant::now() < at {
+            std::hint::spin_loop();
+        }
+    }
+
+    /// `rule:errors/on-limit`: a park with no timer of its own, in a request
+    /// past its wall deadline, ends at once with `Cancelled`. The funnel claims
+    /// the wall stop and raises the flag, and it leaves no timer entry.
+    #[test]
+    fn a_park_with_no_deadline_ends_at_its_trees_wall_deadline() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        let request = timed("1ns");
+        past_its_wall_deadline(&request);
+        let view = request.safepoint_view();
+
+        let answer = Rc::new(RefCell::new(None));
+        let seen = Rc::clone(&answer);
+        sched.spawn(request, TaskRoot::Request, move |_ctx| {
+            let parked = suspend_current(Waiting::Parked).cancelled();
+            // A clock wait under the same bound ends the same way.
+            let slept = matches!(
+                park_until(Instant::now() + Duration::from_secs(3600)),
+                Woken::Cancelled
+            );
+            *seen.borrow_mut() = Some(parked && slept);
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(
+            *answer.borrow(),
+            Some(true),
+            "a park past the wall deadline was not ended"
+        );
+        assert!(view.flags().contains(SafepointFlags::WALL_TIME));
+        assert!(view.wall_time_stopped(), "the funnel did not claim the stop");
+        assert_eq!(with_current(|reactor| reactor.timers().len()), Some(0));
+    }
+
+    /// A site's own deadline later than the wall deadline is replaced by the
+    /// wall deadline for the park, on the task's one timer entry. On resume the
+    /// site reads its own entry again.
+    #[test]
+    fn a_park_with_a_later_deadline_ends_at_the_wall_deadline_on_one_timer_entry() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        let request = timed("1h");
+        let wall = request
+            .safepoint_view()
+            .wall_deadline()
+            .expect("a request with a `wall_time` has a deadline");
+        let own = wall + Duration::from_secs(3600);
+
+        let handed = Rc::new(RefCell::new(None));
+        let waiter = Rc::clone(&handed);
+        let restored = Rc::new(RefCell::new(None));
+        let read_back = Rc::clone(&restored);
+        sched.spawn(request, TaskRoot::Request, move |_ctx| {
+            let me = crate::current_task().expect("a task is running");
+            *waiter.borrow_mut() = Wake::current();
+            with_current(|reactor| reactor.timers().arm(me, own));
+            let woken = suspend_current(Waiting::Parked);
+            assert!(!woken.cancelled(), "a wake before the bound ended the request");
+            *read_back.borrow_mut() =
+                with_current(|reactor| reactor.timers().armed_for(me)).flatten();
+            with_current(|reactor| reactor.timers().disarm(me));
+        });
+        let filed = Rc::new(RefCell::new(None));
+        let counted = Rc::clone(&filed);
+        sched.spawn(ctx(), TaskRoot::Request, move |_ctx| {
+            *counted.borrow_mut() = with_current(|reactor| {
+                let timers = reactor.timers();
+                (timers.len(), timers.next_due())
+            });
+            handed
+                .borrow()
+                .as_ref()
+                .expect("the waiter parked without handing its wake over")
+                .wake();
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(
+            *filed.borrow(),
+            Some((1, Some(wall))),
+            "the park did not wait on the wall deadline alone"
+        );
+        assert_eq!(*restored.borrow(), Some(own), "the site's entry was not put back");
+        assert_eq!(with_current(|reactor| reactor.timers().len()), Some(0));
+    }
+
+    /// A wait that names why it outlives `wall_time` is not bounded by it: it
+    /// parks in a request past its deadline, and a wake ends it.
+    #[test]
+    fn a_named_wait_stays_parked_past_the_wall_deadline() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        let request = timed("1ns");
+        past_its_wall_deadline(&request);
+        let view = request.safepoint_view();
+
+        let handed = Rc::new(RefCell::new(None));
+        let waiter = Rc::clone(&handed);
+        let answer = Rc::new(RefCell::new(None));
+        let seen = Rc::clone(&answer);
+        sched.spawn(request, TaskRoot::Request, move |_ctx| {
+            *waiter.borrow_mut() = Wake::current();
+            let woken = suspend_current(Waiting::ParkedPast(PastWallTime::ServerTask));
+            *seen.borrow_mut() = Some((woken.suspended(), woken.cancelled()));
+        });
+        let parked = Rc::new(RefCell::new(None));
+        let counted = Rc::clone(&parked);
+        sched.spawn(ctx(), TaskRoot::Request, move |_ctx| {
+            *counted.borrow_mut() = with_current(|reactor| reactor.timers().len());
+            handed
+                .borrow()
+                .as_ref()
+                .expect("the waiter parked without handing its wake over")
+                .wake();
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(*answer.borrow(), Some((true, false)), "the named wait was ended");
+        assert_eq!(*parked.borrow(), Some(0), "the named wait was given a bound");
+        assert!(!view.flags().contains(SafepointFlags::WALL_TIME));
+    }
+
+    /// A request with no `wall_time` pays no timer entry for a park.
+    #[test]
+    fn a_park_under_no_wall_time_arms_no_timer_entry() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let handed = Rc::new(RefCell::new(None));
+        let waiter = Rc::clone(&handed);
+        let answer = Rc::new(RefCell::new(None));
+        let seen = Rc::clone(&answer);
+        sched.spawn(ctx(), TaskRoot::Request, move |_ctx| {
+            *waiter.borrow_mut() = Wake::current();
+            *seen.borrow_mut() = Some(suspend_current(Waiting::Parked).cancelled());
+        });
+        let parked = Rc::new(RefCell::new(None));
+        let counted = Rc::clone(&parked);
+        sched.spawn(ctx(), TaskRoot::Request, move |_ctx| {
+            *counted.borrow_mut() = with_current(|reactor| reactor.timers().len());
+            handed
+                .borrow()
+                .as_ref()
+                .expect("the waiter parked without handing its wake over")
+                .wake();
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(*answer.borrow(), Some(false));
+        assert_eq!(*parked.borrow(), Some(0), "a park with no bound filed a timer");
     }
 }

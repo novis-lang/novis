@@ -172,11 +172,13 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, VecDeque};
 use std::marker::PhantomData;
 use std::rc::Rc;
+use std::time::Instant;
 
 use corosensei::{Coroutine, CoroutineResult, Yielder};
 use nvs_runtime::{Ctx, TaskPanic, TaskRoot};
 use rustc_hash::FxHashMap;
 
+use crate::reactor;
 use crate::stack::{Role, Stacks};
 use crate::tsan::Fiber;
 
@@ -1939,6 +1941,27 @@ fn yield_on(raw: *const (), waiting: Waiting, tree: Option<usize>) -> Resumed {
     // reason. The resume charges what other trees allocated meanwhile to them:
     // [`nvs_runtime::budget::ArmedStack`] owns it.
     let armed = nvs_runtime::budget::ArmedStack::take();
+    // The park funnel (`rule:errors/on-limit`): a `Parked` wait ends at the
+    // bound of the tree whose turn this stack is. A named wait keeps the
+    // site's own entry, and a yield is runnable already.
+    let bound = match waiting {
+        Waiting::Parked => armed.bound(),
+        Waiting::Yielded | Waiting::ParkedPast(_) => None,
+    };
+    let me = running.map(|running| running.id);
+    let mut site = None;
+    if let Some(bound) = bound {
+        if Instant::now() >= bound {
+            // Past the bound already, so nothing parks.
+            armed.stop_at_bound();
+            armed.resume();
+            current.restore();
+            nvs_runtime::HelperFrame::restore(frames);
+            RUNNING.set(running);
+            return Resumed::Cancelled;
+        }
+        site = me.and_then(|me| merge_bound(me, bound));
+    }
     let resume = yielder.suspend(Suspended {
         waiting,
         unwindable: frames == 0,
@@ -1948,10 +1971,50 @@ fn yield_on(raw: *const (), waiting: Waiting, tree: Option<usize>) -> Resumed {
     current.restore();
     nvs_runtime::HelperFrame::restore(frames);
     RUNNING.set(running);
+    if let (Some(site), Some(me)) = (site, me) {
+        restore_site_entry(me, site);
+    }
     match resume {
+        Resume::Run
+            if bound.is_some()
+                && nvs_runtime::budget::turn_bound().is_some_and(|at| Instant::now() >= at) =>
+        {
+            nvs_runtime::budget::stop_turn_at_bound();
+            Resumed::Cancelled
+        }
         Resume::Run => Resumed::Woken,
         Resume::Cancelled => Resumed::Cancelled,
     }
+}
+
+/// Files `bound` as task `me`'s one timer entry when it is earlier than the
+/// entry the park site filed, and answers the site's entry to put back on
+/// resume: `Some(None)` where the site filed none, and `None` where nothing
+/// was changed. A thread with no reactor changes nothing.
+///
+/// **Cost:** one map read per bounded park, and a timer insert and removal
+/// only where the bound is the earlier instant. No memory.
+fn merge_bound(me: TaskId, bound: Instant) -> Option<Option<Instant>> {
+    reactor::with_current(|reactor| {
+        let timers = reactor.timers();
+        let site = timers.armed_for(me);
+        site.is_none_or(|at| bound < at).then(|| {
+            timers.arm(me, bound);
+            site
+        })
+    })
+    .flatten()
+}
+
+/// Puts back the entry [`merge_bound`] replaced, or drops the bound where the
+/// site filed none, so the site reads its own timer as it left it.
+fn restore_site_entry(me: TaskId, site: Option<Instant>) {
+    reactor::with_current(|reactor| match site {
+        Some(at) => reactor.timers().arm(me, at),
+        None => {
+            reactor.timers().disarm(me);
+        }
+    });
 }
 
 #[cfg(test)]
