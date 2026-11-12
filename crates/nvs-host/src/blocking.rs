@@ -515,6 +515,18 @@ where
     with_pool(|pool| {
         pool.submit_releasing(move |release: &Release<'_>| {
             let before = nvs_runtime::budget::live_bytes();
+            if matches!(*lock(&answer), Slot::Abandoned) {
+                // The task stopped waiting while the job sat in the queue, so
+                // `f` never runs. The thread goes back to the pool, what `f`
+                // holds is freed here with its charge put back, and the wake
+                // goes out as after any job. One uncontended lock per job.
+                release.release();
+                drop(f);
+                let left = nvs_runtime::budget::live_bytes().wrapping_sub(before);
+                nvs_runtime::budget::carry(left.wrapping_neg());
+                drop(wake);
+                return;
+            }
             let started = cpu_now();
             JOB_STARTED.set(started);
             let outcome = std::panic::catch_unwind(AssertUnwindSafe(f));
@@ -893,6 +905,43 @@ mod tests {
                 .expect("a queued job never ran");
         }
         assert_eq!(pool.threads(), 1);
+    }
+
+    /// `rule:http-server/a-core-is-never-blocked-on-a-syscall`: a job whose
+    /// task stopped waiting while it sat in the queue never runs. The pool has
+    /// one thread, a first job holds it, and the second job's deadline passes
+    /// in the queue. A third job, queued behind it, shows the thread went on.
+    #[test]
+    fn a_job_abandoned_in_the_queue_is_skipped_when_it_is_dequeued() {
+        POOL.with_borrow_mut(|slot| *slot = Some(BlockingPool::new(1)));
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        let ran = Arc::new(AtomicUsize::new(0));
+        let (go, wait) = mpsc::channel::<()>();
+        let answers = Rc::new(Cell::new((None, None)));
+
+        let first = Rc::clone(&answers);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            run(move || wait.recv().ok());
+            let after = run(|| 3_u32);
+            first.set((first.get().0, Some(after)));
+        });
+        let body = Arc::clone(&ran);
+        let second = Rc::clone(&answers);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let skipped = run_until(Instant::now(), move || body.fetch_add(1, Ordering::SeqCst));
+            second.set((Some(skipped), second.get().1));
+            go.send(()).expect("the first job is still waiting");
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(answers.get(), (Some(None), Some(3)));
+        assert_eq!(
+            ran.load(Ordering::SeqCst),
+            0,
+            "the abandoned job's body ran"
+        );
+        assert_eq!(pool_size().0, 1, "the pool started a second thread");
     }
 
     #[test]

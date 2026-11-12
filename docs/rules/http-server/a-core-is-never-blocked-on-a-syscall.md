@@ -4,6 +4,13 @@ The runtime is one single-threaded scheduler pinned per core, and a request neve
 
 **A job's CPU time is the request's.** The pool thread reads its own CPU clock before and after each job, and each answer a pinned thread gives, and the task adds the difference to its request's charge when the answer lands. `[limits] cpu_time` then counts a slow statement or a large file hashed off the core exactly as it counts the same work on it (`rule:security/isolate-budget-is-the-trees`). That is two clock reads per job, and one more word per published request tree.
 
+**A job its task gave up on in the queue is skipped.** A task that waits with a deadline stops
+waiting when the deadline passes, and marks the job abandoned. The pool thread reads that mark before
+it runs the job: an abandoned job frees what it holds, releases its thread and sends its wake, and its
+body never runs. So a queue of abandoned work does not hold the pool's threads past the requests that
+queued it. A job that has started still runs to its end, which the bound covers. What it spends: one
+uncontended lock per job on the pool thread.
+
 The bound is stated because the default it replaces is not: an unbounded pool of threads that each reserve a stack is a footprint that grows with a workload's blocking fan-out rather than with its concurrency. What the pool spends, per `rule:programs/memory-priority`: at most that many OS thread stacks per worker, resident only in what a job touches, plus one boxed Rust `FnOnce` per job in flight.
 
 **Declined:**
