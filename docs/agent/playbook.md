@@ -298,6 +298,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **A `#[cfg(test)]` helper above a module's `mod tests` cuts every source scan of that file
+  short.** Many scans, the capability guard among them, read a file up to its first
+  `#[cfg(test)]` line, so they never see the shipped code below such a helper. Put a test helper
+  inside the test module, as `cache::tests::memory_held` is (`crates/nvs-stdlib/src/cache.rs`).
+  `until: gone crates/nvs-stdlib/tests/capability.rs:line.trim_start() != "#[cfg(test)]"`
 - **A use-after-free test on Windows needs about a thousand same-size allocations after the free.**
   The Windows heap does not hand a freed block back at once, so a fill of 16 strings left the freed
   property's bytes intact and the test passed with the fix switched off. Fill with 1024, never
