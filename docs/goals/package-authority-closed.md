@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-types/src/expr/isolate.rs, crates/nvs-runtime/src/script.rs, crates/nvs-stdlib/src/socket.rs, docs/rules/security/script-spawn-capability.md]
   - id: 3
     title: every Core class has capability rows or a reason for none
-    status: open
+    status: done
     context: [crates/nvs-stdlib/tests/capability.rs, crates/nvs-stdlib/src/classes.rs, docs/rules/testing/capability-completeness-test.md, docs/rules/security/capability-declaration-is-one-table.md]
   - id: 4
     title: an extension member and an extension's own source ask the namespace
@@ -261,6 +261,27 @@ outside the request and has no decision here, the session uses the nearest roste
 none fits, the class gets its `NEEDS_NONE` row saying what it reaches, and a gap record under
 `data/gaps/` names it. This follows the security priority first and the simplicity priority second.
 
+**Stage 3's classification, as built.** Four classes reach a door through a member of their own,
+and they have member rows now. `Core\Debug::startTrace` needs `debug.trace` and `startProfile`
+needs `debug.profile`. `Core\Request\Part::saveTo` and `Core\Http\Stream::saveTo` need `fs.write`,
+through `crate::io::stream_to_disk`. Every other member of those classes has a `None` row. The other
+154 classes are on `NEEDS_NONE`. A class that works on what a granted member opened, such as
+`Core\Db\Connection` or `Core\Http\Socket`, says which member opened it. `Core\Session` is on
+`NEEDS_NONE` although its `shared` store asks `cache.shared` in `cache.rs`: the session is the
+request's own, in the store the operator named in `[session]`, and the operator's grant is still
+asked at that door. `Core\Os` and `Core\Topic` get no gap record, because their module docs already
+decide that nothing about them is a grant. `Core\Script`'s door is the `spawn script` construct's,
+and none of its three members reaches one. **What it spends:** nothing at run time. A package that
+calls one of the four new rows needs that word on its line. Declined: `cache.shared` rows on every
+`Core\Session` member. A package reading the current user's session reads request data, and the
+rows would ask for it on the file store too.
+
+**A door call is a class's or a construct's by its label.** The scan reads the label off the call's
+last argument. A `Core\X::y` label is that member's. Any other written label is a construct's, held
+to `CONSTRUCT_CAPABILITIES`, with backticks trimmed, because `script.rs` prints the construct as
+code. A forwarded label belongs to the classes of the module the call is in and the modules above
+it. The class of a module is read off `classes.rs`, which `bun nv render` writes one line per class.
+
 **Lanes:** one lane, in order. Stages 1, 2 and 3 share `crates/nvs-stdlib/src/registry.rs`. Stages 2,
 4 and 5 share `crates/nvs-types/src/capability.rs`. Stage 5 also shares
 `crates/nvs-config/src/request.rs` and `crates/nvs-stdlib/src/config.rs` with goal `limits-hold`,
@@ -372,23 +393,23 @@ or calls `Core\Queue::push`, `Core\Socket::upgrade` or `Core\Sse::upgrade`, with
 socket, a process, the terminal, a shared store or another isolate, as `file.rs:NN`. The session
 writes the rows.
 
-- [ ] `NEEDS_NONE: &[(&str, &str)]` beside `CAPABILITIES`, with one row and one reason for each class
+- [x] `NEEDS_NONE: &[(&str, &str)]` beside `CAPABILITIES`, with one row and one reason for each class
   whose members reach no door. The doc of `CAPABILITIES` is rewritten as a whole
   (`rule:security/capability-declaration-is-one-table`, `crates/nvs-stdlib/src/registry.rs:1912`,
   `crates/nvs-stdlib/src/classes.rs:14`).
-- [ ] A class the subagents show reaching outside the request gets member rows with the nearest roster
+- [x] A class the subagents show reaching outside the request gets member rows with the nearest roster
   capability. Where none fits, it gets its `NEEDS_NONE` row and a gap record
   (`rule:security/capability-roster-is-closed`, `crates/nvs-stdlib/src/registry.rs:1975`).
-- [ ] Test `every_core_class_has_capability_rows_or_a_reason_for_none`. It reads `CLASSES` and fails
+- [x] Test `every_core_class_has_capability_rows_or_a_reason_for_none`. It reads `CLASSES` and fails
   naming each class in neither list, in both, or with an empty reason
   (`rule:testing/capability-completeness-test`, `crates/nvs-stdlib/tests/capability.rs:298`).
-- [ ] Test `no_class_with_a_reason_for_none_calls_a_door`. It runs the door scan over the module of each
+- [x] Test `no_class_with_a_reason_for_none_calls_a_door`. It runs the door scan over the module of each
   `NEEDS_NONE` class and fails naming the call (`crates/nvs-stdlib/tests/capability.rs:585`).
-- [ ] Test `every_construct_that_reaches_a_door_names_its_capability`. A door call whose label is not a
+- [x] Test `every_construct_that_reaches_a_door_names_its_capability`. A door call whose label is not a
   `Core` member must be in `CONSTRUCT_CAPABILITIES` (`crates/nvs-stdlib/tests/capability.rs:544`).
-- [ ] `cap::needs` and its doc say a class in `NEEDS_NONE` needs nothing, and a class in neither list
+- [x] `cap::needs` and its doc say a class in `NEEDS_NONE` needs nothing, and a class in neither list
   cannot exist (`crates/nvs-stdlib/src/cap.rs:187`). `nvs meta` renders `NEEDS_NONE` with its reasons.
-- [ ] Rule fragments rewritten to the two lists: `docs/rules/testing/capability-completeness-test.md:1`
+- [x] Rule fragments rewritten to the two lists: `docs/rules/testing/capability-completeness-test.md:1`
   and `docs/rules/security/capability-declaration-is-one-table.md:1`.
 
 ### 4. an extension member and an extension's own source ask the namespace
@@ -477,46 +498,47 @@ and the application's value to return to.
 
 ### State
 
-Stages 1 and 2 are done. Stage 2 is `9c2cd549d0` and the proofs commit after it, and check
-`spawn-asks-the-namespace` is green. `authority_of` (`crates/nvs-types/src/capability.rs:266`)
-returns `Authority::Application` or `Authority::Line`, and `prepare_config_set`, `prepare_cap_has`
-and `reject_ungranted_call` call it. `reject_ungranted` takes the capabilities and the text naming
-what needs them, and `check_spawn_script` calls it with `cap::construct_needs("spawn script")`,
-at the whole construct's span, so an optional `script.spawn` becomes a guard like a call's.
-`CONSTRUCT_CAPABILITIES` (`crates/nvs-stdlib/src/registry.rs:2615`) holds the one construct row,
-and `nvs meta` renders it as `constructs`. `Core\Queue::push`, `Core\Socket::upgrade` and
-`Core\Sse::upgrade` have `script.spawn` rows. Every other member of both upgrade classes has a
-`None` row. `script::resolve` takes the member, and the door scan reads `script::resolve(` and
-`socket::entry_program(` as `script.spawn` doors (`SPAWN_DOORS`,
-`crates/nvs-stdlib/tests/capability.rs:485`). The `Explore` subagent found no in-tree package that
-spawns, enqueues or upgrades, so no grant line changed.
+Stages 1, 2 and 3 are done, and checks `env-needs-a-grant`, `env-door-asks`,
+`spawn-asks-the-namespace` and `the-table-is-closed` are green. Stage 3 added `NEEDS_NONE`
+(`crates/nvs-stdlib/src/registry.rs:2669`) with 154 classes and their reasons, beside
+`CAPABILITIES` (`:2027`), whose doc is rewritten. `Core\Debug`, `Core\Request\Part` and
+`Core\Http\Stream` gained member rows, as § *Standing decisions* records. `door_calls`
+(`crates/nvs-stdlib/tests/capability.rs:658`) is the one scan, and
+`every_door_names_the_capability_its_member_declares` (`:755`),
+`no_class_with_a_reason_for_none_calls_a_door` (`:888`) and
+`every_construct_that_reaches_a_door_names_its_capability` (`:957`, which also reads
+`crates/nvs-runtime/src`) read it. `every_core_class_has_capability_rows_or_a_reason_for_none` is at
+`:362`. `nvs meta` renders the list as `needsNone`, and `crates/nvs-cli/tests/meta.rs` checks it.
+Two tests stage 1 left red, which forgot that `env` is granted where its key is not written, are
+fixed in `crates/nvs-config/tests/capability.rs` and `crates/nvs-stdlib/tests/capability.rs`.
 
-The sweep's reds are stale, as last session found. Check `env-secret-proofs` was retired and has
-no log, and nightly run 43001191130 built a tree before `305c04f660` fixed its one failing test.
+The sweep's reds are stale: `env-secret-proofs` was retired, and nightly 43001191130 predates
+`305c04f660`. `cargo fmt` rewrites `crates/nvs-config/src/defaults.rs` here although HEAD's copy is
+unchanged; restore it with `git checkout`, and let `bun nv ci --check` judge at the goal end.
 
-`cargo fmt` rewrites `crates/nvs-config/src/defaults.rs` on this machine although HEAD's copy is
-unchanged. This session restored it with `git checkout` each time and committed nothing there.
-`bun nv ci --check` at the goal end tells whether CI's rustfmt agrees.
-
-Expected red: none. Only the tests changed here ran, by name.
+Expected red: a conformance case or example that calls `Core\Debug::startTrace`,
+`Core\Debug::startProfile` or a `saveTo` from a namespace with a `[grants]` line, if any exists. A
+grep of `.nvs` files under a `vendor/` or `packages/` folder found none. Only the capability and
+meta suites ran here.
 
 ### Next
 
-Stage 3, over `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-stdlib/src/cap.rs` and
-`crates/nvs-stdlib/tests/capability.rs`. Three `reader` subagents go out first, one per third of
-`CLASSES` (`crates/nvs-stdlib/src/classes.rs:14`), as the stage's **Split:** says.
+Stage 4, over `crates/nvs-types/src/ext_lib.rs`, `crates/nvs-types/src/capability.rs`,
+`crates/nvs-ext/src/manifest.rs` and `crates/nvs-cli/tests/package_grants.rs`. The `Explore`
+subagent of the stage's **Split:** goes out first.
 
-- [ ] `NEEDS_NONE` beside `CAPABILITIES` (`crates/nvs-stdlib/src/registry.rs:2033`), and the
-  table's doc rewritten as a whole.
-- [ ] `crates/nvs-stdlib/tests/capability.rs:298`: `every_core_class_has_capability_rows_or_a_reason_for_none`
-  beside `every_capability_bearing_member_declares_its_capability`.
-- [ ] `crates/nvs-stdlib/tests/capability.rs:595`: `no_class_with_a_reason_for_none_calls_a_door`
-  reuses the scan of `every_door_names_the_capability_its_member_declares`, with `SPAWN_DOORS`.
-- [ ] `crates/nvs-stdlib/tests/capability.rs:554`: `every_construct_that_reaches_a_door_names_its_capability`.
-  A door call whose member text is not a `Core` member, such as `spawn script`, must be in
-  `CONSTRUCT_CAPABILITIES`. `member_named` returns `None` for those, so the test reads the literal
-  before that filter.
-- [ ] `cap::needs` (`crates/nvs-stdlib/src/cap.rs:203`) and `nvs meta`, then the two rule fragments.
+- [ ] `ext_lib::seed` (`crates/nvs-types/src/ext_lib.rs:178`) records each manifest class's implied
+  capabilities from `requests` (`crates/nvs-ext/src/manifest.rs:395`) and whether a built-in
+  component declares it (`crates/nvs-hir/src/symbol.rs:50`).
+- [ ] `reject_ungranted_call` (`crates/nvs-types/src/capability.rs:224`) asks them for an
+  extension class, through `reject_ungranted` (`:281`).
+- [ ] `authority_of` (`crates/nvs-types/src/capability.rs:266`) returns an empty line under a
+  third-party extension's namespace, with or without a grant table.
+- [ ] The `E0658` note and help, the one-segment refusal in `crates/nvs-ext/src/load.rs:857`, and
+  `nvs ext inspect` (`crates/nvs-cli/src/ext.rs:412`).
+- [ ] `crates/nvs-cli/tests/package_grants.rs:65`: the five tests of check
+  `extensions-ask-the-namespace`, then the attacks under
+  `tests/hostile/tools/config/extension-grants-what-a-component-may-reach/`.
 
 ### Backlog
 
@@ -525,6 +547,16 @@ Stage 3, over `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-stdlib/src/cap.rs
 - The package client is the goal `package-files-contained`, the registry is `registry-waits-hold`, and
   reflection is `calls-by-name-are-checked` and `crossings-carry-data-only`.
 - `require` of an application file from a package namespace was not traced.
+- What stage 3's readers found and no item covers. `Core\Ldap\Connection::authenticate` dials again
+  with no `require`: for a `connect`-made connection it resolves the host anew through `walk`, with
+  no address policy (`crates/nvs-stdlib/src/ldap/mod.rs:495`, `:598`). `Core\Cli`'s prompt opens
+  the terminal device by name with `std::fs` and no door (`crates/nvs-runtime/src/terminal.rs:632`).
+  `Core\Session`'s file store opens SQLite in the data folder with no door
+  (`crates/nvs-stdlib/src/session/sqlite.rs:111`). `Core\Crypto` signs with `ring`'s
+  `SystemRandom`, which a test seed does not reach (`crates/nvs-stdlib/src/crypto.rs:2794`, `:3027`).
+- The scan of `no_class_with_a_reason_for_none_calls_a_door` sees a door called in a class's module.
+  A `NEEDS_NONE` class that reaches a door through a helper in another module, with a forwarded
+  label, is not seen.
 - A package's `Core\Config::get` of a key that is not a secret directive needs `env` only because a
   grant line is asked per member. Asking it only for a literal secret key would let a package read
   `limits.*` with no line (`crates/nvs-types/src/capability.rs:224`).
