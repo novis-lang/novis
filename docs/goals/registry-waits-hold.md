@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-cli/src/package/index.rs, crates/nvs-cli/src/package/resolve.rs, crates/nvs-cli/src/package/proof.rs, docs/rules/packaging/the-registry-keeps-an-append-only-log.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: a-waiting-retraction-waits
@@ -559,96 +559,42 @@ message, and leave only a locked fetch outside the bound.
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done. Each stage's own tests ran once by name and passed; nothing else ran.
+Every stage is done. The goal-end gates are all green: `looper verify`, `bun nv verify --doc`,
+`bun nv owners --closes registry-waits-hold` (no gap) and `bun nv ci --check`.
 
-Stage 5: `Stamp::too_old` (`crates/nvs-cli/src/package/index.rs:287`) writes the age refusal.
-`Registry::index` judges each host's file with it after `checked`, still tries a fresh host after
-an old one, and starts its error with the first old file's message, the host lines after it.
-`Registries::new` sets the bound, `for_the_lock` clears it (`crates/nvs-cli/src/package/resolve.rs:168`),
-and `fetch` calls it under `--locked`. `Seen::advisories` takes `oldest` and refuses an old feed
-after `covers`; `audit` passes `Registries::oldest`. `nvs registry log advisories` takes `--at`.
-The three tests passed; the attack `02-an-old-advisory-feed.nvs` ran clean on the debug binary. The
-reference page, both about pages and the rule fragment are written, and the rules and website are
-rendered.
+The gate found three failures, and `904748b0a6` fixed them:
 
-The sweep's reds were not re-read this session: the last two handoffs traced `env-secret-proofs` to a
-check that no longer exists and nightly 43001191130 to a test `305c04f660` rewrote. Stage 6's gate
-names any that still stand.
+- The browser case `an owner cancels a waiting retraction` claimed the vendor `Wiki`, which the
+  freeze case's account already owns. It now claims `Mail`
+  (`tools/nv/test/registry-browser.test.ts:635`), and it passed under `NV_BROWSER=1`.
+- The attack `02-a-retraction-that-enters-the-log-early.nvs` was not in the formatter's layout.
+- The module doc of `crates/nvs-cli/src/package/minimum.rs` linked to the removed
+  `Registries::selecting`. It now links to `Registries::new`.
+
+The sweep's reds are stale. No check named `env-secret-proofs` exists in the tree. Nightly
+43001191130 ran at `f4c1d5c7e2`, before `305c04f660` fixed
+`a_changed_server_timeout_applies_to_the_next_connection`.
+
+Every standing decision has its home in a rule:
+`rule:packaging/a-known-bad-version-is-retracted-not-deleted`,
+`rule:packaging/the-registry-keeps-an-append-only-log` and
+`rule:packaging/an-account-stays-active-by-proof-not-by-token`. The write-first transaction check
+is documented in `crates/nvs-cli/tests/registry_sources.rs`.
 
 ### Next
 
-Stage 6, the gate. Start `looper verify` with `run_in_background`, fix every failure it names in one
-pass, and run it once more. Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes
-registry-waits-hold` and `bun nv ci --check`. Before `DONE`, move the standing decisions only this
-file holds into their rules (most already are: `rule:packaging/a-known-bad-version-is-retracted-not-deleted`
-and `rule:packaging/the-registry-keeps-an-append-only-log`).
+Nothing. The goal is reached, and the driver retires it.
 
-- [ ] `crates/nvs-cli/src/package/index.rs:291` and the rest of the goal: `looper verify`, each
-  failure fixed, then once more.
-- [ ] `tools/nv/test/registry-browser.test.ts:632`, the browser case of stage 4, has never run;
-  `bun nv deep` or CI's browser job runs it.
-- [ ] `docs/goals/registry-waits-hold.md:156`: the goal-end gates above, each red fixed, and these
-  decisions moved.
-
-Expected red: none. No fixture signs at a fixed time, so the bound now on by default reaches no other
-test.
+Expected red: none.
 
 ### Backlog
 
-- `Publish::publish` answers a retry before it checks the token's scope
-  (`apps/registry/src/Publish.nvs:74`). Owner: `rule:packaging/publishing-never-overwrites`.
-- Adding a passkey from a recovery-code session writes no notice (`apps/registry/src/App.nvs:319`).
-  Owner: `rule:packaging/an-owner-is-notified-without-email`.
-
-The open items `package-authority-closed` left when it was retired:
-
-- Grant enforcement through a callable, a `mixed` receiver, inheritance and namespace identity is not
-  reviewed. Owner: `rule:security/authority-is-the-enclosing-namespace`.
-- `require` of an application file from a package namespace was not traced.
-- `Core\Ldap\Connection::authenticate` dials again with no `require`: for a `connect`-made connection
-  it resolves the host anew through `walk`, with no address policy
-  (`crates/nvs-stdlib/src/ldap/mod.rs:495`, `:598`).
-- `Core\Cli`'s prompt opens the terminal device by name with `std::fs` and no door
-  (`crates/nvs-runtime/src/terminal.rs:632`).
-- `Core\Session`'s file store opens SQLite in the data folder with no door
-  (`crates/nvs-stdlib/src/session/sqlite.rs:111`).
-- `Core\Crypto` signs with `ring`'s `SystemRandom`, which a test seed does not reach
-  (`crates/nvs-stdlib/src/crypto.rs:2794`, `:3027`).
-- The scan of `no_class_with_a_reason_for_none_calls_a_door` sees a door called in a class's module.
-  A `NEEDS_NONE` class that reaches a door through a helper in another module, with a forwarded
-  label, is not seen (`crates/nvs-stdlib/tests/capability.rs`).
-- A package's `Core\Config::get` of a key that is not a secret directive needs `env` only because a
-  grant line is asked per member. Asking it only for a literal secret key would let a package read
-  `limits.*` with no line (`crates/nvs-types/src/capability.rs:224`).
-- An array literal of the program's own ints, such as `[1, 2]`, passed to a method of a `mixed`
-  receiver is refused as `E0895`, which calls it `mixed` text. The refusal is in the safe direction,
-  but `rule:security/taint-propagation` says such a literal carries no outside text
-  (`report_args_with_no_parameter_list`, `crates/nvs-types/src/expr/calls.rs`, with
-  `check_array_literal`).
-- A property-path or string-with-holes failure still names the bad segment's text, such as
-  ``has no public property `$nmae` `` (`nvs_property_path_mismatch`, `nvs_string_holes_mismatch`,
-  `crates/nvs-runtime/src/helpers.rs`). Name the segment by position instead.
-- `$fn->call($obj, $a)` on a typed callable checks only `$a`'s qualifier against the written
-  parameter, not its type (`infer_callable_rebind`, `crates/nvs-types/src/expr/calls.rs`).
-- A `.=` compound write through an erased property is not asked the untyped-write question, only the
-  plain `=` (`crates/nvs-types/src/expr/assign.rs:1083`).
-- A third-party extension method that takes a resource may return text built from an earlier
-  `tainted` argument as plain text (`crates/nvs-types/src/ext_lib.rs:290`). Not traced to a run.
-- `slot_check` and `test_shape` are two maps from a type to a run-time test. An intersection type
-  and `iterable` stay `SlotCheck::Any` in the first, and a single-value `string` keeps its tag alone
-  (`crates/nvs-ir/src/lower/mod.rs:602`, `crates/nvs-ir/src/lower/expr.rs:7881`).
-- A callable's `invoke` row carries no parameter type spellings, so a bare `callable`'s refusal
-  names no type (`crates/nvs-ir/src/lower/anon_fn.rs:374`, `crates/nvs-runtime/src/dispatch.rs:286`).
-- `check_param_class` runs on every call of an anonymous function, a proven one too
-  (`crates/nvs-ir/src/lower/anon_fn.rs:454`).
-- `Core\Str::format('%1$s', $o)` over a `Stringable` object throws "it does not implement
-  `Stringable`": `stringify` finds no compiled `toString` (`crates/nvs-runtime/src/helpers.rs:2049`).
-  Once it works, `crates/nvs-codegen/tests/borrowed_reads.rs` gains a row for it.
+Every open item moved to the backlog of `limits-hold`.
