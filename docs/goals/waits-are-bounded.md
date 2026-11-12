@@ -580,8 +580,10 @@ and end a guest call that parks past the wall deadline.
   fragment or a module doc before `DONE`.
   - [x] The two stale question sets are rewritten and stamped.
   - [ ] The stale perf records are measured again with `bun nv proofs --record-perf`.
+    - [x] 309 of the 318 are measured (add9c4d400).
+    - [ ] The nine `Core\Session` records are measured with Docker running.
   - [ ] `bun nv ci --check` is green.
-  - [ ] Each standing decision is found in a rule fragment or module doc, or moved there.
+  - [x] Each standing decision is found in a rule fragment or module doc, or moved there.
 
 ## Handoff
 
@@ -590,39 +592,30 @@ and end a guest call that parks past the wall deadline.
 Stage 7: `looper verify` is green over the whole goal (0246cf0f3a, b87424507a), and
 `bun nv owners --closes waits-are-bounded` names no gap. `bun nv verify --doc` is green.
 
-- The gate fixed three things. The rulebook pages were stale (`bun nv rules --render`).
-  `a_bounded_blocking_call_stops_waiting_at_its_deadline` (`crates/nvs-host/src/blocking.rs:998`)
-  raced stage 4's skip under load. It now checks that a job that started runs to its end, and one
-  still queued at the deadline is skipped. `crates/nvs-host/tests/park_sites.rs:282` reads
-  `crates/` through `nvs_repo::path`.
-- The nine gap records this goal owned are built (b87424507a). `Core\Json`, `Xml`, `Html`, `Csv`,
-  `Multipart`, `Zip`, `Bytes`, `Str` and `Markdown` poll the deadline in their walks, each with an
-  expired-deadline test that Miri skips.
-- `a_short_read_that_came_with_a_hang_up_reads_once_more` passes in WSL.
-- `bun nv ci --check` was red on two things. The question sets of `/guides/how-to-use/limits/` and
-  `/guides/production/limits-and-logs/` are rewritten and stamped in
-  `website/src/data/questions.json`. The feature proofs gate owed 318 stale perf records over the
-  files this goal changed. `bun nv proofs --record-perf` measured most of them, then threw at a
-  bench that needs `redis` while Docker was not running (`tools/nv/proofs/perf.ts:287`). It wrote
-  no record, so `data/perf/` is unchanged.
+- `bun nv proofs --record-perf` skips a bench whose service this host cannot run, says why, and
+  writes what it measured even when a later bench throws (985570fab7). It measured 309 of the 318
+  stale records (add9c4d400).
+- `bun nv ci --check` is red on one thing alone: the feature proofs gate owes the nine
+  `Core\Session` perf records, which need `redis`. Docker Desktop did not start on this host, by
+  `Start-Process` or by `cmd start`, so this session could not measure them. Every other pre-push
+  check is ok.
+- Each standing decision is stated in a rule fragment or module doc (9284f7e0c6). The gaps were
+  filled in `docs/rules/errors/on-limit.md`, the `BOUND` doc in `crates/nvs-runtime/src/budget.rs`,
+  `run_until` in `crates/nvs-host/src/blocking.rs` and `drive` in `crates/nvs-cli/src/extensions.rs`.
 - The sweep's reds were stale. The Miri jobs ran on 578534cc, before 7568aaa0fb, and their failed
-  tests are the ones it skips. `env-secret-proofs`'s command exits 0 with nothing owed.
+  tests are the ones it skips. `looper check --name env-secret-proofs` finds no such check.
 
 ### Next
 
-Stage 7's last item, the goal-end gates.
+Stage 7's last item. It needs Docker running on this host.
 
-- `tools/nv/proofs/perf.ts:287`: a bench whose service is not answering throws out of
-  `recordPerf` and loses every figure measured before it. Make it skip that bench and say so, as
-  `bun nv site --check` skips a snippet. Then run `bun nv proofs --record-perf` with Docker running,
-  and commit `data/perf/`.
-- `docs/goals/waits-are-bounded.md:572`: run `bun nv ci --check` and fix each red.
-- `docs/goals/waits-are-bounded.md:152`: for each standing decision, find the rule fragment or
-  module doc that states it (`bun nv brief --where <keyword>`), and move what only this file says.
-  The list is wide, so give it to a `reader` subagent.
+- `docs/goals/waits-are-bounded.md:582`: start Docker Desktop, then run
+  `bun nv proofs --record-perf --only 'Core\Session::start' 'Core\Session::get' ...` over the nine
+  `Core\Session` members (or plain `--record-perf`, which measures only what is owed). Commit
+  `data/perf/members.ndjson`.
+- `docs/goals/waits-are-bounded.md:585`: run `bun nv ci --check` and see it green.
 - Then write `DONE`.
-- Expected red: none. A test that reads a large JSON, XML, HTML, CSV, multipart, zip, bytes, string
-  or Markdown value after `expire_deadline()` now ends with the `FATAL`.
+- Expected red: none.
 
 ### Backlog
 
