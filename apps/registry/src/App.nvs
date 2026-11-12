@@ -861,8 +861,8 @@ final class App
     }
 
     // Retracts a version with a reason. With a passkey sign-in in the last 15 minutes, the index
-    // shows it at once. With a token alone, it shows seven days later, and an owner's passkey can
-    // retract it at once in that time.
+    // shows it at once. With a token alone, it shows seven days later. In that time an owner with a
+    // passkey can retract it at once, or cancel it through `cancel`.
     #[Route(path: '/api/packages/{vendor}/{name}/retract', method: Method::Post)]
     #[Access(allow: Visitor::Anyone)]
     public static function retract(tainted string $vendor, tainted string $name): void
@@ -912,7 +912,7 @@ final class App
             bool $sent = App::flush($db);
             string $text = $from == $now
                 ? 'Version ' . $version . ' is retracted.'
-                : 'Version ' . $version . ' is retracted from ' . Core\Time::fromEpoch($from)->toIso() . '. An owner can retract it now with a passkey on the website.';
+                : 'Version ' . $version . ' is retracted from ' . Core\Time::fromEpoch($from)->toIso() . '. An owner can retract it now or cancel it with a passkey on the website.';
             Response::json({ message: $text, sent: $sent });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a version, a reason and fixedIn.');
@@ -921,7 +921,8 @@ final class App
 
     // Sends an advisory about a range of versions, such as `1.0.0..1.2.0`, with a summary.
     // With a passkey sign-in in the last 15 minutes, the feed lists it at once. With a token alone,
-    // it is listed seven days later, and an owner can send it again with a passkey to list it at once.
+    // it is listed seven days later. In that time an owner with a passkey can send it again to list it
+    // at once, or cancel it through `cancel`.
     #[Route(path: '/api/packages/{vendor}/{name}/advisory', method: Method::Post)]
     #[Access(allow: Visitor::Anyone)]
     public static function advise(tainted string $vendor, tainted string $name): void
@@ -967,11 +968,82 @@ final class App
             bool $sent = App::flush($db);
             string $text = $from == $now
                 ? 'The advisory ' . $id . ' is in the feed.'
-                : 'The advisory ' . $id . ' is in the feed from ' . Core\Time::fromEpoch($from)->toIso() . '. An owner can send it again now with a passkey on the website.';
+                : 'The advisory ' . $id . ' is in the feed from ' . Core\Time::fromEpoch($from)->toIso() . '. An owner can send it again now or cancel it with a passkey on the website.';
             Response::json({ id: $id, message: $text, sent: $sent });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with versions and a summary.');
         }
+    }
+
+    // Cancels a waiting retraction or advisory. The body is `{"version": "1.4.0"}` for a retraction
+    // or `{"advisory": "acme/http-1"}` for an advisory. Only an owner with a passkey sign-in in the
+    // last 15 minutes can cancel, and a token is never read. An entry whose time has come is in the
+    // public log, or will be at the next run, and it is not cancelled.
+    #[Route(path: '/api/packages/{vendor}/{name}/cancel', method: Method::Post)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function cancel(tainted string $vendor, tainted string $name): void
+    {
+        var $db = Schema::open();
+        var $releases = new Releases($db);
+        ?string $key = $releases->packageOf($vendor, $name);
+        if ($key == null) {
+            App::fail(404, 'There is no such package.');
+            return;
+        }
+        if (!App::ownsWithPasskey($db, $key)) {
+            App::fail(403, 'Sign in with a passkey as an owner of the package first.');
+            return;
+        }
+        try {
+            var $asked = Request::jsonAs<CancelRequest>();
+            if (($asked->version == null) == ($asked->advisory == null)) {
+                App::fail(422, 'Send a version or the id of an advisory, and not both.');
+                return;
+            }
+            string $text = '';
+            if ($asked->version != null) {
+                ?string $version = App::versionOf($asked->version ?? '');
+                if ($version == null || !$releases->cancelRetraction($key, $version)) {
+                    if ($version != null && $releases->isRetracted($key, $version)) {
+                        App::fail(409, 'This retraction is in the public log already. It cannot be cancelled.');
+                    } else {
+                        App::fail(404, 'No retraction of this version is waiting.');
+                    }
+                    return;
+                }
+                $text = 'The retraction of version ' . $version . ' is cancelled.';
+            } else {
+                ?string $id = App::advisoryOf($asked->advisory ?? '', $key);
+                if ($id == null || !$releases->cancelAdvisory($key, $id)) {
+                    if ($id != null && $releases->hasAdvisory($key, $id)) {
+                        App::fail(409, 'This advisory is in the public log already. It cannot be cancelled.');
+                    } else {
+                        App::fail(404, 'No advisory with this id is waiting.');
+                    }
+                    return;
+                }
+                $text = 'The advisory ' . $id . ' is cancelled.';
+            }
+            Notices::ofSite($db, Site::load())->send();
+            Response::json({ message: $text });
+        } catch (ParseError $error) {
+            App::fail(400, 'The body must be JSON with a version or the id of an advisory.');
+        }
+    }
+
+    // Checks that a sent text is the id of an advisory of the package `$key`, such as `acme/http-1`.
+    // It returns the id, or `null` when the text has another form.
+    private static function advisoryOf(tainted string $text, string $key): ?string
+    {
+        string $prefix = Index::slug($key) . '-';
+        if (!Str::startsWith($text, $prefix)) {
+            return null;
+        }
+        tainted string $number = Str::slice($text, Str::length($prefix) as int);
+        if ($number == '' || Str::length($number) > 9 || Str::startsWith($number, '0') || Str::trim($number, { characters: '0123456789' }) != '') {
+            return null;
+        }
+        return $prefix . (Core\Taint::assertTrusted($number, 'an advisory number is up to nine digits') as int);
     }
 
     // Signs the visitor out.

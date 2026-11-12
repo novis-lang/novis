@@ -91,6 +91,39 @@ final class AdvisoriesTest
         }
     }
 
+    // A cancelled advisory keeps its id, so the next advisory gets a new number.
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function anOwnerCancelsAWaitingAdvisoryAndItsIdIsNotUsedAgain(): void
+    {
+        string $folder = AdvisoriesTest::folder();
+        try {
+            var $db = AdvisoriesTest::database();
+            AdvisoriesTest::release($db, '1.1.0');
+            var $releases = new Releases($db);
+            int $later = Time::now()->toEpochSeconds() + 7 * 86400;
+            var $range = AdvisoriesTest::range('1.0.0..1.2.0');
+            Test::assertSame($releases->advise(AdvisoriesTest::KEY, $range, 'It leaks headers.', $later), 'acme/http-1');
+            Test::assertSame($releases->advise(AdvisoriesTest::KEY, AdvisoriesTest::range('1.2.0..'), 'It is slow.', $later), 'acme/http-2');
+            Test::assertTrue($releases->cancelAdvisory(AdvisoriesTest::KEY, 'acme/http-1'));
+            Test::assertTrue(!$releases->cancelAdvisory(AdvisoriesTest::KEY, 'acme/http-1'));
+            Test::assertTrue(!$releases->hasAdvisory(AdvisoriesTest::KEY, 'acme/http-1'));
+            // The same advisory sent again is a new advisory with a new id.
+            Test::assertSame($releases->advise(AdvisoriesTest::KEY, $range, 'It leaks headers.', $later), 'acme/http-3');
+            var $notices = $db->query("select count(*) from notices where kind = 'cancel' and package = ?", [AdvisoriesTest::KEY]);
+            Test::assertSame($notices->value() as int, 1);
+
+            // Seven days later the log has the second and the third advisory, and not the first.
+            Test::advance(Duration::days(7));
+            Test::assertTrue(new Index($db, AdvisoriesTest::log($folder), AdvisoriesTest::site($folder, ''))->flush());
+            array<string> $lines = AdvisoriesTest::logged($folder);
+            Test::assertSame(Core\Arr::count($lines), 2);
+            Test::assertTrue(Str::contains($lines[0], '"id":"acme/http-2"'));
+            Test::assertTrue(Str::contains($lines[1], '"id":"acme/http-3"'));
+        } finally {
+            AdvisoriesTest::remove($folder);
+        }
+    }
+
     #[Test]
     public function aRangeHasTwoVersionsAndTheFirstIsLower(): void
     {

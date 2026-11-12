@@ -6,7 +6,11 @@ existing lockfile still builds. Deletion is not offered.
 token-only release waits (`rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`). One
 confirmed with an owner's passkey on the website takes effect at once. A stolen token can therefore not
 retract a good release, or announce a false advisory, before every owner has been notified
-(`rule:packaging/an-owner-is-notified-without-email`) and has had time to answer.
+(`rule:packaging/an-owner-is-notified-without-email`) and has had time to answer. Before its time an
+owner with a recent passkey cancels it (`POST /api/packages/<vendor>/<name>/cancel`): its waiting log
+entry is deleted, so the log never has it, and a `cancel` notice to the owners is the record. A token
+cancels nothing, and an entry whose time has come is not cancelled. A cancelled advisory keeps its row,
+so its id is never given to another.
 
 **`nvs pkg audit`** reads the lock, never the network's idea of the graph, and checks it against
 the registry's signed advisory feed. The feed has one entry per retraction, withhold and advisory, signed

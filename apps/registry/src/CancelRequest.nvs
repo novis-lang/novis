@@ -1,0 +1,17 @@
+<?nvs
+namespace Registry;
+
+// The JSON that cancels a waiting retraction or advisory: the version, such as `{"version": "1.4.0"}`,
+// or the id of the advisory, such as `{"advisory": "acme/http-1"}`. Exactly one of the two is set.
+#[Core\Json\Derive]
+final class CancelRequest
+{
+    public ?tainted string $version;
+    public ?tainted string $advisory;
+
+    public function constructor(?tainted string $version = null, ?tainted string $advisory = null)
+    {
+        $this->version = $version;
+        $this->advisory = $advisory;
+    }
+}

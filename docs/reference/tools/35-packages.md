@@ -714,7 +714,7 @@ With a token, the retraction starts seven days later. Every owner gets a message
 make it start at once with a passkey on the website:
 
 ```text
-Version 1.4.0 is retracted from 2026-11-04T09:12:00Z. An owner can retract it now with a passkey on the website.
+Version 1.4.0 is retracted from 2026-11-04T09:12:00Z. An owner can retract it now or cancel it with a passkey on the website.
 ```
 
 `nvs pkg unlist` hides a package, or one version of it, from search and listings. Without a
@@ -760,7 +760,7 @@ gets a message. An owner can send the same advisory again with a passkey on the 
 it is in the list at once. The registry gives each advisory an id, such as `acme/http-1`:
 
 ```text
-The advisory acme/http-1 is in the feed from 2026-11-04T09:12:00Z. An owner can send it again now with a passkey on the website.
+The advisory acme/http-1 is in the feed from 2026-11-04T09:12:00Z. An owner can send it again now or cancel it with a passkey on the website.
 ```
 
 <!-- src: `rule:packaging/a-known-bad-version-is-retracted-not-deleted`, `rule:security/an-unmatched-namespace-holds-the-application` -->

@@ -163,6 +163,36 @@ final class ReleasesTest
         }
     }
 
+    // An owner cancels a retraction sent with a token. Seven days later the log has no entry for it,
+    // and the version is still released.
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function anOwnerCancelsAWaitingRetractionAndTheLogNeverHasIt(): void
+    {
+        string $folder = ReleasesTest::folder();
+        try {
+            var $db = ReleasesTest::database();
+            ReleasesTest::release($db, ReleasesTest::KEY, '0.0.9', null);
+            var $releases = new Releases($db);
+            Test::assertTrue($releases->retract(ReleasesTest::KEY, '0.0.9', 'It deletes files.', null, ReleasesTest::now() + ReleasesTest::WEEK));
+            Test::assertTrue($releases->cancelRetraction(ReleasesTest::KEY, '0.0.9'));
+            // Nothing waits now, so a second cancel returns `false`.
+            Test::assertTrue(!$releases->cancelRetraction(ReleasesTest::KEY, '0.0.9'));
+
+            Test::advance(Duration::seconds(ReleasesTest::WEEK));
+            Test::assertSame(ReleasesTest::state($db, $folder), '"released"');
+            Test::assertSame(ReleasesTest::logged($folder), []);
+            var $notices = $db->query("select count(*) from notices where kind = 'cancel' and package = ?", [ReleasesTest::KEY]);
+            Test::assertSame($notices->value() as int, 1);
+
+            // A retraction whose time has come is not cancelled.
+            Test::assertTrue($releases->retract(ReleasesTest::KEY, '0.0.9', 'It is slow.', null, ReleasesTest::now()));
+            Test::assertTrue(!$releases->cancelRetraction(ReleasesTest::KEY, '0.0.9'));
+            Test::assertSame(ReleasesTest::state($db, $folder), '{"retracted":{"reason":"It is slow."}}');
+        } finally {
+            ReleasesTest::remove($folder);
+        }
+    }
+
     #[Test(at: '2026-03-01T12:00:00Z')]
     public function aWithheldVersionKeepsItsDigestAndShowsTheReason(): void
     {
@@ -296,6 +326,48 @@ final class ReleasesTest
         tainted string $token = IndexTest::token($browser, $vendor);
         var $anonymous = new BrowserTest()->send(Method::Post, $path, '{"repository":"https://git.example.com/b.git","directory":""}', $token);
         Test::assertTrue($anonymous->status() != 200);
+    }
+
+    // A token cannot cancel a retraction, and neither can a visitor who is not an owner.
+    // The owner who signed in with a passkey can.
+    #[Test]
+    public function aTokenCancelsNothing(): void
+    {
+        var $browser = new BrowserTest();
+        $browser->newAccount();
+        string $vendor = 'V' . Random::token(4);
+        tainted string $token = IndexTest::token($browser, $vendor);
+        IndexTest::publishWith($token, $vendor, '0.0.9');
+        string $path = '/api/packages/' . $vendor . '/http/';
+        string $body = '{"version":"0.0.9","reason":"It deletes files.","fixedIn":""}';
+        Test::assertSame(new BrowserTest()->send(Method::Post, $path . 'retract', $body, $token)->status(), 200);
+
+        var $byToken = new BrowserTest()->send(Method::Post, $path . 'cancel', '{"version":"0.0.9"}', $token);
+        Test::assertSame($byToken->status(), 403);
+        var $stranger = new BrowserTest();
+        $stranger->newAccount();
+        Test::assertSame($stranger->post($path . 'cancel', { version: '0.0.9' })->status(), 403);
+
+        Test::assertSame($browser->post($path . 'cancel', { version: '0.0.9', advisory: 'x' })->status(), 422);
+        var $done = $browser->post($path . 'cancel', { version: '0.0.9' });
+        Test::assertSame($done->status(), 200);
+        Test::assertSame(($done->json() as array<mixed>)['message'] as tainted string, 'The retraction of version 0.0.9 is cancelled.');
+        Test::assertSame($browser->post($path . 'cancel', { version: '0.0.9' })->status(), 404);
+    }
+
+    // A retraction an owner sent with a passkey starts at once, so it is in the log and cannot be cancelled.
+    #[Test]
+    public function anEntryInTheLogIsNotCancelled(): void
+    {
+        var $browser = new BrowserTest();
+        $browser->newAccount();
+        string $vendor = 'V' . Random::token(4);
+        tainted string $token = IndexTest::token($browser, $vendor);
+        IndexTest::publishWith($token, $vendor, '0.0.9');
+        string $path = '/api/packages/' . $vendor . '/http/';
+        Test::assertSame($browser->post($path . 'retract', { version: '0.0.9', reason: 'It deletes files.', fixedIn: '' })->status(), 200);
+        var $refused = $browser->post($path . 'cancel', { version: '0.0.9' });
+        Test::assertSame($refused->status(), 409);
     }
 
     #[Test]

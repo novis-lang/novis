@@ -30,7 +30,7 @@ const GOOD: &str = "nvsreg_0123456789abcdef0123456789abcdef0123456789abcdef01234
 
 /// What the host answers a retraction sent with a token.
 const RETRACTED: &str = "Version 1.4.0 is retracted from 2026-11-04T00:00:00Z. An owner can \
-                         retract it now with a passkey on the website.";
+                         retract it now or cancel it with a passkey on the website.";
 
 /// What the host answers an unlist sent with a token.
 const CONFIRM: &str =

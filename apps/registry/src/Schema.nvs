@@ -183,12 +183,18 @@ final class Schema
         }
         // The advisories of each package. `id` is the package and a number, such as `acme/http-1`.
         // `versions` is a range such as `1.0.0..1.2.0`. `shows_at` is the time the advisory goes into
-        // the log and the feed. `event` is the id of its row in `events`. Cost: one short row per advisory.
+        // the log and the feed. `event` is the id of its row in `events`. `cancelled_at` is the time an
+        // owner cancelled it before it went into the log, or null. A cancelled row stays, so its id is
+        // never given to another advisory. Cost: one short row per advisory, cancelled ones too.
         $db->execute(
             'create table if not exists advisories (id text primary key, package text not null, versions text not null, '
-                . 'summary text not null, shows_at integer not null, event integer)',
+                . 'summary text not null, shows_at integer not null, event integer, cancelled_at integer)',
             [],
         );
+        // A database made before `cancelled_at` has an `advisories` table without it.
+        if ($db->query('select 1 from pragma_table_info(?) where name = ?', ['advisories', 'cancelled_at'])->count() == 0) {
+            $db->execute('alter table advisories add column cancelled_at integer', []);
+        }
         // One message to the owners for each event, such as a publish, a token or an unlist.
         // `vendor` is the vendor in lower case, or null for a token of a vendor nobody owns yet.
         // `account` is the account the event is about, such as an owner who was removed, or null.

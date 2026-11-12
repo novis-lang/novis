@@ -93,6 +93,17 @@ final class Events
         return ($write->lastId() ?? 0) as int;
     }
 
+    // An owner cancelled a waiting retraction of `$version`, or the waiting advisory `$advisory`.
+    // Exactly one of the two is set. The log gets no entry, because the cancelled one never entered it.
+    // The owners get the message now, and the message is the record of the cancel.
+    public static function cancelled(Transaction $tx, string $key, ?string $version, ?string $advisory): void
+    {
+        string $text = $advisory == null
+            ? 'An owner cancelled the retraction of `' . Notices::nameOf($tx, $key) . '` ' . ($version ?? '') . '. It did not start.'
+            : 'An owner cancelled the advisory ' . $advisory . '. It was not listed.';
+        Notices::add($tx, Notices::vendorOf($key), null, 'cancel', $key, $version, $text);
+    }
+
     // An account became an owner of a vendor, or stopped being one. `$change` is `added` or `removed`.
     // The log names packages, so there is one entry for each package of the vendor.
     public static function ownership(Connection|Transaction $db, string $vendor, string $account, string $change): void
