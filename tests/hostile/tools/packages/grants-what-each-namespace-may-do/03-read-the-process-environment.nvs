@@ -1,0 +1,9 @@
+<?nvs
+// Attack: a package reads every environment variable. Passwords and keys are often stored there.
+// The package's grant line does not list `env`, so this program should not compile.
+// hostile: expect-refusal
+
+autoload 'Acme\Settings' from './vendor/acme/settings/src';
+
+// 1. A class of `Acme\Settings` calls `Core\Env::all()` to read every variable.
+echo Acme\Settings\Reader::count(), "\n";

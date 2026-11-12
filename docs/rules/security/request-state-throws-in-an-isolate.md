@@ -10,8 +10,9 @@ program asked a question its own situation has no answer to, and no correct prog
 A child that genuinely needs facts from the request that spawned it receives them as ordinary
 arguments, deep-copied like any other value crossing the boundary
 (`rule:security/isolate-values-cross-by-copy`). `Core\Env` and `Core\Cli` are not restricted this way:
-environment variables and process arguments are process-wide facts already governed by the capability
-and config-overlay machinery. `Core\Server::isDraining` is the same exemption inside a class that is
+environment variables and process arguments are process-wide facts, not a request's. Reading an
+environment variable needs the capability `env` (`rule:security/capability-roster-is-closed`), so a
+child spawned with a `grants:` list that leaves `env` out reads no variable. `Core\Server::isDraining` is the same exemption inside a class that is
 otherwise restricted: whether a shutdown has begun is a fact about the process rather than about a
 request, so it answers in a child exactly as it answers in a CLI program, and the members of that
 class that read the request are restricted with the other two.

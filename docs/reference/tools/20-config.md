@@ -220,6 +220,9 @@ configuration loads, and a name that is not found stops the load. Write a folder
 Every run may spawn a script inside its app folder, except below a folder whose name starts with `.`
 or a directory `Core\IO::temporaryDir` made. A script anywhere else needs a `script.spawn` line.
 
+Every run may read environment variables. A package may read them only when its `[grants]` line
+lists `"env"`.
+
 The default for every other capability is **denied** until a grant is written. A written key
 replaces its default, so `false` and an empty list both deny. The roster is closed:
 
@@ -237,6 +240,8 @@ replaces its default, so `false` and an empty list both deny. The roster is clos
 | `db.schema` | issuing DDL — `Core\Db\Schema::applySafe` and its risky twin | the block names |
 | `mail.send` | sending through a `[mail.<name>]` block | the block names |
 | `cache.shared` | reaching the store `[cache.shared] url` names — `Core\Cache::shared()` and `Core\RateLimit::consume` | unscoped: a deployment has one shared store |
+| `queue.purge` | removing a queue's rows — `Core\Queue::delete` and `purge` | the queue names |
+| `env` | reading environment variables — `Core\Env::get`, `secret` and `all` — and `Core\Config::secret` | unscoped; write `env = true` under `[capabilities]` |
 
 A capability whose member has not landed yet is still accepted here rather than refused, so a grant
 written today keeps meaning the same thing on the build that starts asking for it.

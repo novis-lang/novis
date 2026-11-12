@@ -1,0 +1,50 @@
+--TEST--
+a package namespace reads the process environment only where its `[grants]` line lists `env`: `Core\Env::get`, `secret`, `all` and `Core\Config::secret` each need it, and a line that lists `env` compiles all four — `rule:security/package-authority-is-granted-one-line-at-a-time`, `rule:security/capability-roster-is-closed`
+--ENV--
+NVS_CASE_PRESENT=here
+--FILE--
+<?nvs
+// This file is in the namespace `Acme\Http`. Its `[grants]` line lists `env`,
+// so these four calls compile.
+namespace Acme\Http;
+
+autoload 'Acme\Cache' from './cache';
+
+var $one = Core\Env::get("NVS_CASE_PRESENT");
+var $key = Core\Env::secret("NVS_CASE_PRESENT");
+var $all = Core\Env::all();
+var $token = Core\Config::secret("token");
+echo Acme\Cache\Store::load(), "\n";
+--FILE cache/Store.nvs--
+<?nvs
+// The line for `Acme\Cache` is empty, so none of these four calls compiles.
+namespace Acme\Cache;
+
+final class Store
+{
+    public static function load(): int
+    {
+        var $one = Core\Env::get("NVS_CASE_PRESENT");
+        var $key = Core\Env::secret("NVS_CASE_PRESENT");
+        var $token = Core\Config::secret("token");
+        return Core\Arr::count(Core\Env::all());
+    }
+}
+--FILE package.toml--
+# covers: tools:packages/grants-what-each-namespace-may-do
+[grants]
+'Acme\Http\*' = ["env"]
+'Acme\Cache' = []
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0658]: the namespace `Acme\Cache` does not have the capability `env`
+%A
+error[E0658]: the namespace `Acme\Cache` does not have the capability `env`
+%A
+error[E0658]: the namespace `Acme\Cache` does not have the capability `env`
+%A
+error[E0658]: the namespace `Acme\Cache` does not have the capability `env`
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

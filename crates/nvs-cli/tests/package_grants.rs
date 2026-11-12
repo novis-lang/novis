@@ -274,3 +274,72 @@ fn a_second_manifest_with_a_name_makes_no_second_package() {
         "the inner manifest names no package of its own:\n{stderr}"
     );
 }
+
+/// The four members that read the process environment or a deployment credential, one call each.
+const ENV_READS: &str = "var $one = Core\\Env::get('HOME');\n\
+                         var $key = Core\\Env::secret('HOME');\n\
+                         var $all = Core\\Env::all();\n\
+                         var $token = Core\\Config::secret('token');\n";
+
+/// `ENV_READS` in a method of `Acme\Http\Client`, an entry that calls it, and `grants` as the
+/// application's `package.toml` where it is `Some`.
+fn reads_the_environment(grants: Option<&str>) -> (String, bool) {
+    let class = format!(
+        "<?nvs\nnamespace Acme\\Http;\n\nfinal class Client\n{{\n    \
+         public static function read(): void\n    {{\n{ENV_READS}    }}\n}}\n"
+    );
+    let entry = "<?nvs\nautoload 'Acme\\Http' from 'vendor/acme/http/src';\n\n\
+                 Acme\\Http\\Client::read();\n";
+    let mut files = vec![
+        ("main.nvs", entry),
+        ("vendor/acme/http/src/Client.nvs", class.as_str()),
+        (
+            "vendor/acme/http/package.toml",
+            "[package]\nname = 'Acme\\Http'\nversion = \"1.0.0\"\n",
+        ),
+    ];
+    if let Some(grants) = grants {
+        files.push(("package.toml", grants));
+    }
+    let (_root, app) = layout(&files);
+    check(&app.join("main.nvs"))
+}
+
+// covers: tools:packages/grants-what-each-namespace-may-do
+#[test]
+fn a_package_with_an_empty_grant_line_does_not_read_the_environment() {
+    let (stderr, ok) = reads_the_environment(Some("[grants]\n'Acme\\Http\\*' = []\n"));
+    assert!(!ok, "a package with an empty line reads the environment:\n{stderr}");
+    for member in [
+        "Core\\Env::get",
+        "Core\\Env::secret",
+        "Core\\Env::all",
+        "Core\\Config::secret",
+    ] {
+        assert!(
+            stderr.contains(&format!("`{member}` needs `env`")),
+            "`{member}` is not refused for `env`:\n{stderr}"
+        );
+    }
+    assert_eq!(stderr.matches("error[E0658]").count(), 4, "{stderr}");
+
+    let (stderr, ok) = reads_the_environment(Some("[grants]\n'Acme\\Http\\*' = [\"env\"]\n"));
+    assert!(ok, "a line that lists `env` reads the environment:\n{stderr}");
+}
+
+// covers: tools:packages/grants-what-each-namespace-may-do
+#[test]
+fn the_application_reads_the_environment_with_no_line_written() {
+    let entry = format!("<?nvs\n{ENV_READS}");
+    for grants in [None, Some("[grants]\n'Acme\\Http\\*' = []\n")] {
+        let (_root, app) = match grants {
+            Some(grants) => layout(&[("main.nvs", &entry), ("package.toml", grants)]),
+            None => layout(&[("main.nvs", &entry)]),
+        };
+        let (stderr, ok) = check(&app.join("main.nvs"));
+        assert!(
+            ok,
+            "the application reads the environment with no line for it ({grants:?}):\n{stderr}"
+        );
+    }
+}

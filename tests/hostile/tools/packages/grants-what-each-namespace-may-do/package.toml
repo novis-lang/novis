@@ -2,3 +2,4 @@
 'Shop\*' = ["fs.read"]
 'Acme\Disk\*' = []
 'Acme\Zip\*' = []
+'Acme\Settings\*' = []

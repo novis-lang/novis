@@ -155,6 +155,12 @@
 # grants nothing until you write it.
 # ----------------------------------------------------------------------------------------------
 
+[capabilities]
+# Whether a program may read environment variables: `Core\Env::get`, `secret` and `all`, and
+# `Core\Config::secret`. When the key is not written, the application reads them on every kind of
+# run. A package reads them only when its `[grants]` line lists "env".
+#env = false                          # default: true
+
 [capabilities.script]
 # The folders a `spawn script` target may be in. Being able to read a file is not permission to
 # run it, so this does not follow from `fs.read` (`rule:security/script-spawn-capability`).

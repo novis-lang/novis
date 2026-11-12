@@ -1,0 +1,11 @@
+<?nvs
+// This file is in the package `Acme\Settings`. Its grant line is empty.
+namespace Acme\Settings;
+
+final class Reader
+{
+    public static function count(): int
+    {
+        return Core\Arr::count(Core\Env::all());
+    }
+}
