@@ -105,7 +105,7 @@ pub enum Fault {
     /// `catch (ParseError $e)` and not only by `catch (Throwable $e)`.
     /// [`Fault::thrown`] means [`crate::ThrownClass::Runtime`], which is what a
     /// failure with nothing more specific to say is.
-    Thrown(crate::ThrownClass, std::borrow::Cow<'static, str>),
+    Thrown(crate::ThrownClass, Message),
     /// [`Self::Thrown`], plus one value for a property the thrown class
     /// declares beyond `Throwable`'s four — named by its slot index, so every
     /// such property reaches its slot through this one variant.
@@ -138,11 +138,11 @@ pub enum Fault {
     /// only by a throw that fills a slot at all.
     ThrownWithSlots(
         crate::ThrownClass,
-        std::borrow::Cow<'static, str>,
+        Message,
         Box<[(usize, crate::Value)]>,
     ),
     /// Unrecoverable; becomes [`FATAL`].
-    Fatal(std::borrow::Cow<'static, str>),
+    Fatal(Message),
     /// A callee this helper invoked already failed and already recorded what
     /// failed in [`Ctx`] — return its status unchanged.
     ///
@@ -251,8 +251,9 @@ pub(crate) fn names_a_rule_id(message: &str) -> bool {
     })
 }
 
-/// `message`, checked in a debug build to name no rule id — the one check
-/// every [`Fault`] constructor runs on the words it carries.
+/// `message` as a [`Message`], checked in a debug build to name no rule id.
+/// Every [`Fault`] constructor passes the words it carries through here, and
+/// nothing else can make a [`Message`].
 ///
 /// **Why:** a [`Fault`]'s message is what a program's `catch` reads, what its
 /// log prints and what the person running it sees in a `FATAL` line. That
@@ -263,19 +264,159 @@ pub(crate) fn names_a_rule_id(message: &str) -> bool {
 ///
 /// A debug assertion and not a test over the sources, because most messages
 /// are built with `format!` and only exist at run time. `#[track_caller]`
-/// makes the failure name the line that built the message. A [`Fault`]
-/// written as a variant directly, without these constructors, is not checked.
+/// makes the failure name the line that built the message.
 ///
-/// **What it spends:** nothing in a release build. A debug build scans the
-/// message once per constructed fault.
+/// It also clips the message to [`MESSAGE_BYTES`], on a character boundary,
+/// then `…`. A message is copied into the exception object, into a log line
+/// and into a `FATAL` report, so its size is bounded once here, where every
+/// fault is made. [`quoted`] bounds the *build* of a message, which this cannot
+/// reach: the text was already formatted when it arrives.
+///
+/// **What it spends:** one length compare per fault in a release build. A
+/// debug build also scans the message once.
 #[track_caller]
-fn plain(message: std::borrow::Cow<'static, str>) -> std::borrow::Cow<'static, str> {
+fn plain(message: std::borrow::Cow<'static, str>) -> Message {
     debug_assert!(
         !names_a_rule_id(&message),
         "an error a program sees names no rule id, because the program's user reads it and \
          rule ids are internal; say what happened in plain words instead: {message}"
     );
-    message
+    Message(clipped(message))
+}
+
+/// How many bytes of a [`Fault`]'s message are kept, at most, before the `…`.
+///
+/// 8 KiB is longer than any message the runtime writes on its own, and a long
+/// `Core\Test` comparison still fits. What passes it is text a caller chose.
+pub const MESSAGE_BYTES: usize = 8 * 1024;
+
+/// `message` cut to [`MESSAGE_BYTES`] on a character boundary, then `…`.
+fn clipped(message: std::borrow::Cow<'static, str>) -> std::borrow::Cow<'static, str> {
+    if message.len() <= MESSAGE_BYTES {
+        return message;
+    }
+    let mut end = MESSAGE_BYTES;
+    while !message.is_char_boundary(end) {
+        end -= 1;
+    }
+    match message {
+        std::borrow::Cow::Borrowed(text) => {
+            std::borrow::Cow::Owned(format!("{}…", &text[..end]))
+        }
+        std::borrow::Cow::Owned(mut text) => {
+            text.truncate(end);
+            text.push('…');
+            std::borrow::Cow::Owned(text)
+        }
+    }
+}
+
+/// The text of a [`Fault`], which only this module builds.
+///
+/// The field is private, so a [`Fault`] can only be made through its
+/// constructors, and every message passes [`plain`]'s check and clip. A reader
+/// takes the text through [`Message::as_str`], `Deref` or `Display`, and a
+/// fault that is passed on keeps its message through `Into<Cow<str>>`.
+#[derive(Clone, PartialEq, Eq)]
+pub struct Message(std::borrow::Cow<'static, str>);
+
+impl Message {
+    /// The text.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// The text as an owned `String`.
+    #[must_use]
+    pub fn into_owned(self) -> String {
+        self.0.into_owned()
+    }
+
+    /// The text as it is held.
+    #[must_use]
+    pub fn into_cow(self) -> std::borrow::Cow<'static, str> {
+        self.0
+    }
+}
+
+impl std::ops::Deref for Message {
+    type Target = str;
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<str> for Message {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::borrow::Borrow<str> for Message {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::fmt::Debug for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&*self.0, f)
+    }
+}
+
+impl PartialEq<str> for Message {
+    fn eq(&self, other: &str) -> bool {
+        *self.0 == *other
+    }
+}
+
+impl PartialEq<&str> for Message {
+    fn eq(&self, other: &&str) -> bool {
+        *self.0 == **other
+    }
+}
+
+impl PartialEq<String> for Message {
+    fn eq(&self, other: &String) -> bool {
+        *self.0 == **other
+    }
+}
+
+impl PartialEq<Message> for String {
+    fn eq(&self, other: &Message) -> bool {
+        **self == *other.0
+    }
+}
+
+impl PartialEq<Message> for str {
+    fn eq(&self, other: &Message) -> bool {
+        *self == *other.0
+    }
+}
+
+impl PartialEq<Message> for &str {
+    fn eq(&self, other: &Message) -> bool {
+        **self == *other.0
+    }
+}
+
+impl From<Message> for std::borrow::Cow<'static, str> {
+    fn from(message: Message) -> Self {
+        message.0
+    }
+}
+
+impl From<Message> for String {
+    fn from(message: Message) -> Self {
+        message.0.into_owned()
+    }
 }
 
 /// How many bytes of a caller's text an error message quotes, at most.
@@ -297,20 +438,46 @@ pub fn quoted(text: &str) -> Quoted<'_> {
 }
 
 /// [`quoted`]'s value, which writes the excerpt where it is formatted.
-#[derive(Clone, Copy, Debug)]
+///
+/// `{}` writes the excerpt as it is, and `{:?}` writes it as a Rust string
+/// literal, quotes and escapes included, so a control character in a caller's
+/// text cannot reach a log line raw.
+#[derive(Clone, Copy)]
 pub struct Quoted<'a>(&'a str);
 
-impl std::fmt::Display for Quoted<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Quoted<'_> {
+    /// The part of the text that is shown, and whether it was cut.
+    fn excerpt(&self) -> (&str, bool) {
         if self.0.len() <= QUOTED_BYTES {
-            return f.write_str(self.0);
+            return (self.0, false);
         }
         let mut end = QUOTED_BYTES;
         while !self.0.is_char_boundary(end) {
             end -= 1;
         }
-        f.write_str(&self.0[..end])?;
-        f.write_str("…")
+        (&self.0[..end], true)
+    }
+}
+
+impl std::fmt::Debug for Quoted<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (shown, cut) = self.excerpt();
+        f.write_str("\"")?;
+        for c in shown.chars() {
+            std::fmt::Display::fmt(&c.escape_debug(), f)?;
+        }
+        f.write_str(if cut { "…\"" } else { "\"" })
+    }
+}
+
+impl std::fmt::Display for Quoted<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (shown, cut) = self.excerpt();
+        f.write_str(shown)?;
+        if cut {
+            f.write_str("…")?;
+        }
+        Ok(())
     }
 }
 
@@ -1193,6 +1360,63 @@ mod tests {
             quoted(&"a".repeat(QUOTED_BYTES)).to_string().len(),
             QUOTED_BYTES
         );
+    }
+
+    /// `{:?}` writes the excerpt as a string literal, so a control character
+    /// in a caller's text arrives escaped, and a long one is still cut.
+    #[test]
+    fn a_debug_quote_escapes_the_excerpt() {
+        assert_eq!(format!("{:?}", quoted("a\nb\"c")), "\"a\\nb\\\"c\"");
+        let shown = format!("{:?}", quoted(&"\u{1}".repeat(1 << 20)));
+        assert!(shown.len() < QUOTED_BYTES * 8, "{shown}");
+        assert!(shown.ends_with("…\""), "{shown}");
+    }
+
+    /// The text inside every message-carrying variant.
+    fn text_of(fault: &Fault) -> &str {
+        match fault {
+            Fault::Thrown(_, message)
+            | Fault::ThrownWithSlots(_, message, _)
+            | Fault::Fatal(message) => message,
+            Fault::Pending(_) => panic!("a pending fault carries no message"),
+        }
+    }
+
+    /// Each of the six constructors keeps a short message as it is, and cuts
+    /// one past [`MESSAGE_BYTES`] to that length, then `…`.
+    #[test]
+    fn every_fault_constructor_clips_a_long_message() {
+        let made: [fn(String) -> Fault; 6] = [
+            Fault::thrown,
+            |m| Fault::thrown_as(crate::ThrownClass::Logic, m),
+            |m| Fault::thrown_with_slot(crate::ThrownClass::Runtime, m, 0, Value::null()),
+            |m| Fault::thrown_with_slots(crate::ThrownClass::Runtime, m, Vec::new()),
+            |m| Fault::thrown_with_issues(crate::ThrownClass::Runtime, m, Value::null()),
+            Fault::fatal,
+        ];
+        for make in made {
+            let short = make("a short message".to_owned());
+            assert_eq!(text_of(&short), "a short message");
+
+            let exact = make("x".repeat(MESSAGE_BYTES));
+            assert_eq!(text_of(&exact).len(), MESSAGE_BYTES);
+
+            let long = make("x".repeat(MESSAGE_BYTES * 4));
+            let text = text_of(&long);
+            assert_eq!(text.len(), MESSAGE_BYTES + "…".len());
+            assert!(text.ends_with("x…"));
+        }
+    }
+
+    /// A cut never splits a character: a message of 3-byte characters is cut
+    /// at the last whole one before [`MESSAGE_BYTES`].
+    #[test]
+    fn a_clipped_message_ends_on_a_character_boundary() {
+        let fault = Fault::thrown("€".repeat(MESSAGE_BYTES));
+        let text = text_of(&fault);
+        let kept = text.strip_suffix('…').expect("a long message ends with `…`");
+        assert!(kept.len() <= MESSAGE_BYTES && kept.len() > MESSAGE_BYTES - 3);
+        assert!(kept.chars().all(|c| c == '€'), "the cut split a character");
     }
 
     /// A message in plain words passes [`plain`]'s check and is carried as it
