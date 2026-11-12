@@ -61439,10 +61439,19 @@ Every `nvs pkg` command that reads a registry does these checks:
   with a wrong signature, or a time more than an hour in the future, is not used. `nvs pkg` then
   tries the next file host.
 
-`nvs pkg add`, `nvs pkg update` and `nvs pkg outdated` also need an index file signed in the last
-seven days. They choose versions, and an old file could hide a newer release or a retraction. A
-build from `package.lock` and `nvs pkg fetch --locked` choose nothing, so they still work when the
-registry is down.
+Every `nvs pkg` command that reads a registry also needs an index file signed in the last seven
+days. An old file could hide a newer release or a retraction. The registry signs its files again
+every day. `nvs pkg audit` also needs a list of advisories signed in the last seven days.
+`nvs pkg fetch --locked` and `nvs pkg vendor --locked` are the two exceptions. They choose nothing,
+so they still work when the registry signs no new files.
+
+When every file host has only an old index file, the command stops with this error:
+
+```text
+The index of `Acme\Http` from the registry `https://registry.example.com` is too old to use.
+It was signed on 2026-10-28 14:05 UTC, and `nvs pkg` needs a file signed in the last seven days.
+Try again later. `nvs pkg fetch --locked` still downloads the versions in `package.lock`.
+```
 
 The `nvs registry` commands are for the people who run a registry. `nvs registry key` makes the
 signing key and prints the public key for `[registries]`. `nvs registry log append` reads one JSON
@@ -61706,6 +61715,15 @@ The registry publishes its advisories in the file `log/advisories`, signed with 
 transparency log. Every advisory is also an entry in the log. The command reads the whole log and
 compares the two. When the file leaves out an advisory that the log has, the command stops with an
 error. A registry cannot hide an advisory from you without the change showing.
+
+The file must be signed in the last seven days. An older file may not list a new advisory, so the
+command stops with an error:
+
+```text
+The advisory feed of the registry `https://registry.example.com` is too old to use.
+It was signed on 2026-10-28 14:05 UTC, and `nvs pkg audit` needs a feed signed in the last seven days.
+The command cannot tell you that no advisory applies. Try again later.
+```
 
 A registry can name a second copy of its log's checkpoint, on another host. The command checks that
 both copies show the same log, and prints a line when they do:

@@ -2318,10 +2318,21 @@ with. The service signs every index file again each day. The client refuses an i
 signature does not verify, whose checkpoint is not consistent with the stored one, or whose time is
 more than an hour ahead of the client's clock, and tries the next file host
 ([`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration)). A validly signed checkpoint that is not
-consistent stays the fork error, and no other host is tried. `nvs pkg add`, `nvs pkg update` and
-`nvs pkg outdated` refuse an index file signed more than seven days ago and name the registry and the
-time. A build from the lock and `nvs pkg fetch --locked` select nothing, need only digests and
-inclusion, and work through any outage.
+consistent stays the fork error, and no other host is tried. **Every command that is not a locked
+build refuses an index file, or the advisory feed, signed more than seven days ago**, and its error
+names the registry, the signing time in UTC, the seven days and what to do next. A host with a fresh
+file is still tried after one with an old file. The age is judged where a file is opened, by one
+function (`Stamp::too_old`), never per command, so a new command cannot forget it as `nvs pkg audit`
+once did. `nvs pkg fetch --locked` and `nvs pkg vendor --locked` select nothing, need only digests
+and inclusion, and work through any outage; the error for an old index file names `--locked`. The
+root file is never refused for its age, so the kept copy finds the file hosts through an outage, and
+`nvs registry log verify` checks a log of any age.
+
+An old feed is refused for the same reason an old index file is: a host that serves the feed and the
+log from before a retraction shows a log that is consistent and lists nothing. Audit then ends with an
+error that says it cannot tell the reader that no advisory applies, where it would have reported
+nothing found. **Costs:** nothing in time or memory. While a registry signs nothing for more than
+seven days, `nvs pkg audit` and every command but a locked fetch fail.
 
 The index is what tells a client which version is released, pending, retracted or withheld. A host
 that could change it could skip the seven-day window or show a withheld version as released, and one
@@ -2364,7 +2375,9 @@ daily signing writes every index file again, one small file per package per stor
   client downloads a file that grows with the number of packages. A daily signature on each file
   bounds a rollback with nothing extra to download.
 - **Refusing every command on an old index.** A long outage would then break every build, while the
-  lock already holds what a build needs.
+  lock already holds what a build needs. A locked fetch or vendor is the one command that still works.
+- **A bound only on a fetch that writes a new lock entry.** The age would then be judged inside
+  resolution, per version, and the next command would be forgotten as `nvs pkg audit` was.
 - **A time line of the registry's own in the checkpoint.** The checkpoint stays C2SP's, and the time
   is in the index file, whose format is the registry's.
 - **The key the registry serves.** Whoever controls the files would then also choose the key.

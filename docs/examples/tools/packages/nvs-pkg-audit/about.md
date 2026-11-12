@@ -7,7 +7,8 @@ it in CI. `--json` prints the same report as JSON.
 The registry publishes its advisories in a signed file. Every advisory is also an entry in the
 registry's transparency log, and the command compares the two. A registry cannot hide an advisory
 without the command stopping with an error. When the registry names a second copy of its log's
-checkpoint on another host, the command checks that both copies show the same log.
+checkpoint on another host, the command checks that both copies show the same log. A list of
+advisories signed more than seven days ago also stops the command with an error.
 
 **Good to know:** the command also warns about code in a namespace that no line of `[grants]`
 matches. That code has every permission of your application. A warning does not change the exit

@@ -1,0 +1,76 @@
+<?nvs
+// Attack: a file host keeps serving an old advisory feed, so a new retraction is not shown.
+// The client needs a feed signed in the last seven days, so every old or changed feed below should be stopped.
+
+// The key of the registry's log. The client knows the public key from its configuration.
+Core\Crypto\KeyPair $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+// The time on the client's clock, in Unix seconds, and one day in seconds.
+int $now = 1793000000;
+int $day = 24 * 60 * 60;
+
+// The checks a client runs on the time of an advisory feed.
+class FeedAge
+{
+    // Writes a feed signed at `$signedAt` that lists `$advisories` advisories.
+    public static function write(int $signedAt, int $advisories): string
+    {
+        return '{"schema":1,"advisories":' . $advisories . ',"signed_at":' . $signedAt . '}';
+    }
+
+    // Checks the signature and the time of a feed, and returns how many advisories it lists.
+    // A feed signed more than seven days ago, or more than one hour in the future, throws an error.
+    public static function check(string $feed, bytes $signature, Core\Crypto\PublicKey $public, int $now): int
+    {
+        Core\Crypto::verify($feed as bytes, $signature, $public);
+        array<mixed> $file = Core\Json::decode($feed) as array<mixed>;
+        int $signedAt = $file['signed_at'] as int;
+        if ($signedAt < $now - 7 * 24 * 60 * 60) {
+            throw new RuntimeError('the feed is too old to use. It was signed more than seven days ago');
+        }
+        if ($signedAt > $now + 60 * 60) {
+            throw new RuntimeError('the feed is signed more than an hour after the client clock');
+        }
+        return $file['advisories'] as int;
+    }
+}
+
+Core\Crypto\PublicKey $public = $key->publicKey();
+
+// 1. The host serves a feed from eight days ago. The retraction came later, so this feed lists no advisory.
+// Each step below catches its error, so the next step still runs.
+string $old = FeedAge::write($now - 8 * $day, 0);
+bytes $oldSignature = Core\Crypto::sign($old as bytes, $key);
+try {
+    FeedAge::check($old, $oldSignature, $public, $now);
+    echo "1. the old feed was accepted\n";
+} catch (Throwable $e) {
+    echo '1. stopped: ', $e->message, "\n";
+}
+
+// 2. The host changes the time in the old feed to now, and keeps the old signature.
+string $moved = FeedAge::write($now, 0);
+try {
+    FeedAge::check($moved, $oldSignature, $public, $now);
+    echo "2. the feed with a changed time was accepted\n";
+} catch (Throwable $e) {
+    echo "2. stopped: the signature does not match the feed\n";
+}
+
+// 3. The feed was signed with a time one year in the future, so it never gets old.
+string $future = FeedAge::write($now + 365 * $day, 0);
+try {
+    FeedAge::check($future, Core\Crypto::sign($future as bytes, $key), $public, $now);
+    echo "3. the feed from the future was accepted\n";
+} catch (Throwable $e) {
+    echo '3. stopped: ', $e->message, "\n";
+}
+
+// 4. The registry signs a new feed today. It lists the retraction, and the check passes.
+string $today = FeedAge::write($now, 1);
+try {
+    int $found = FeedAge::check($today, Core\Crypto::sign($today as bytes, $key), $public, $now);
+    echo '4. the feed from today has ', $found, " advisory\n";
+} catch (Throwable $e) {
+    echo '4. the feed from today was not accepted: ', $e->message, "\n";
+}

@@ -10,8 +10,8 @@ of the log it saw last time. Each archive it uses is in the log. Each index file
 signature. A file or an archive that fails a check is not used. A log that does not contain the
 old entries stops the command with an error.
 
-`nvs pkg add`, `nvs pkg update` and `nvs pkg outdated` also need an index file signed in the last
-seven days.
+Every command also needs an index file signed in the last seven days, except
+`nvs pkg fetch --locked` and `nvs pkg vendor --locked`.
 
 **The examples below** show a program reading a checkpoint, checking its signature with the key from
 `[registries]`, and computing its root hash from the entries.
