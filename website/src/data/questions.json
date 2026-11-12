@@ -1566,7 +1566,6 @@
       "Why does writing a file throw a RuntimeError about a capability?",
       "Let a script connect only to certain hosts",
       "Allow running another program or starting a subprocess",
-      "Restrict which directories a script may write to",
       "Which permissions does a program have by default?",
       "Let a package read environment variables"
     ]
@@ -3759,7 +3758,6 @@
     "questions": [
       "How do I change a configuration setting at runtime?",
       "Raise the memory limit for one request",
-      "Override a config value for this request only",
       "Increase the time limit for a slow job",
       "Why did changing a setting return false?",
       "Can a command-line script raise its own memory limit?",
