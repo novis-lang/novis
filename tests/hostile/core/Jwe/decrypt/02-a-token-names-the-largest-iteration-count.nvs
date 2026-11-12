@@ -1,0 +1,27 @@
+<?nvs
+// Attack: a token asks for the largest number of password rounds while the CPU time
+// limit is small. The program should stop before the rounds start.
+// hostile: ends-early 3 FATAL
+
+Core\Jwe\Key $password = Core\Jwe\Key::password('correct horse battery staple');
+
+// 1. Build a token header with 2000000 rounds. That is the largest count `decrypt` allows.
+string $salt = Core\Encoding::toBase64Url(Core\Str::repeat('s', 16) as bytes);
+string $header = '{"alg":"PBES2-HS256+A128KW","enc":"A256GCM","p2c":2000000,"p2s":"' . $salt . '"}';
+string $key = Core\Encoding::toBase64Url(Core\Str::repeat('k', 40) as bytes);
+string $iv = Core\Encoding::toBase64Url(Core\Str::repeat('i', 12) as bytes);
+string $body = Core\Encoding::toBase64Url(Core\Str::repeat('b', 16) as bytes);
+string $token = Core\Encoding::toBase64Url($header as bytes) . '.' . $key . '.' . $iv . '.' . $body . '.' . $body;
+echo "step 1: done\n";
+
+// 2. Lower the CPU time limit to 30ms.
+Core\Config::set('limits.cpu_time', '30ms');
+echo "step 2: done\n";
+
+// 3. Open the token. The rounds need about 120ms, so the program stops with a fatal error.
+echo "step 3\n";
+try {
+    Core\Jwe::decrypt($token, [$password]);
+} catch (RuntimeError $wrong) {
+}
+echo "the rounds ran to their end\n";

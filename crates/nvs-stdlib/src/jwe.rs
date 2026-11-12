@@ -568,16 +568,27 @@ fn text_at<'a>(
 /// algorithm name, a zero octet, and then the salt input off the wire: two
 /// tokens under one password and one salt input still derive different keys if
 /// their `alg` differs.
-fn pbes2_key(password: &[u8], salt_input: &[u8], iterations: u32) -> [u8; crypto::KW_128_KEY_LEN] {
+///
+/// # Errors
+///
+/// [`crypto::pbkdf2_sha256`]'s CPU-time `FATAL`, named after `who`, when the
+/// request has too little left for `iterations`.
+fn pbes2_key(
+    ctx: &mut nvs_runtime::Ctx,
+    who: &str,
+    password: &[u8],
+    salt_input: &[u8],
+    iterations: u32,
+) -> Result<[u8; crypto::KW_128_KEY_LEN], Fault> {
     let mut salt = Vec::with_capacity(PBES2.len() + 1 + salt_input.len());
     salt.extend_from_slice(PBES2.as_bytes());
     salt.push(0);
     salt.extend_from_slice(salt_input);
 
-    let derived = crypto::pbkdf2_sha256(password, &salt, iterations);
+    let derived = crypto::pbkdf2_sha256(ctx, who, password, &salt, iterations)?;
     let mut kek = [0_u8; crypto::KW_128_KEY_LEN];
     kek.copy_from_slice(&derived[..crypto::KW_128_KEY_LEN]);
-    kek
+    Ok(kek)
 }
 
 /// The content-encryption key an `ECDH-ES` agreement answers, through
@@ -731,13 +742,15 @@ fn direct() -> String {
 ///
 /// # Errors
 ///
-/// A [`Fault::fatal`] where the wrap fails, which no program reaches.
+/// The CPU-time `FATAL` when the request cannot afford the derivation, and a
+/// [`Fault::fatal`] where the wrap fails, which no program reaches.
 fn wrapped(
+    ctx: &mut nvs_runtime::Ctx,
     password: &[u8],
     salt: &[u8; P2S_LEN],
     cek: &[u8; crypto::KEY_LEN],
 ) -> Result<(String, String), Fault> {
-    let kek = pbes2_key(password, salt, P2C);
+    let kek = pbes2_key(ctx, "Core\\Jwe::encrypt()", password, salt, P2C)?;
     // Unreachable from source: `wrap_key` refuses only a key-encryption key
     // that is neither 16 nor 32 octets, and `pbes2_key` answers exactly 16 of
     // them.
@@ -936,7 +949,7 @@ nvs_runtime::nvs_helper! {
                     rng.fill_bytes(&mut salt);
                     rng.fill_bytes(&mut cek);
                 });
-                let (protected, encrypted_key) = wrapped(material, &salt, &cek)?;
+                let (protected, encrypted_key) = wrapped(ctx, material, &salt, &cek)?;
                 (protected, encrypted_key, cek)
             }
             USE_RECIPIENT | USE_OWN => {
@@ -975,7 +988,7 @@ nvs_runtime::nvs_helper! {
     /// and the payload is answered only under a tag that held — so the most
     /// expensive path, a PBES2 derivation, is reached only by a token that
     /// already claims to be one.
-    fn nvs_core_jwe_decrypt(_ctx, args: [2]) {
+    fn nvs_core_jwe_decrypt(ctx, args: [2]) {
         let token = text_at(args, 0, "decrypt", "$token")?;
         // Unreachable from source: the row declares `array<Jwe\Key>`, so
         // `nvs_types` refuses another tag at `E0401`.
@@ -1032,7 +1045,7 @@ nvs_runtime::nvs_helper! {
             ring.push((*picked, material_of(held, "decrypt")?, *kind));
         }
 
-        let Some(plain) = plaintext(&ring, token)? else {
+        let Some(plain) = plaintext(ctx, &ring, token)? else {
             return Err(refused());
         };
         // A tag that held proves who sealed the payload, not that it is text:
@@ -1098,8 +1111,10 @@ fn public_half(
 /// # Errors
 ///
 /// The [`Fault::fatal`] [`public_half`] raises for material that does not read
-/// back.
+/// back, and the CPU-time `FATAL` for a request that cannot afford the
+/// derivation a token's `p2c` names.
 fn content_key(
+    ctx: &mut nvs_runtime::Ctx,
     picked: i64,
     material: &[u8],
     kind: Option<KeyKind>,
@@ -1134,7 +1149,9 @@ fn content_key(
             let Ok(wrapped) = URL_SAFE_NO_PAD.decode(encrypted_key) else {
                 return Ok(None);
             };
-            let kek = pbes2_key(material, &salt, iterations);
+            // The token chose the count, so the request's CPU time is asked
+            // before the first HMAC.
+            let kek = pbes2_key(ctx, "Core\\Jwe::decrypt()", material, &salt, iterations)?;
             Ok(crypto::unwrap_key(&kek, &wrapped))
         }
         USE_OWN => {
@@ -1192,8 +1209,10 @@ fn content_key(
 /// # Errors
 ///
 /// A [`Fault`] for a request that cannot afford the plaintext, and the fatals
-/// [`content_key`] raises for material that does not read back.
+/// [`content_key`] raises for material that does not read back or a derivation
+/// the request cannot afford.
 fn plaintext(
+    ctx: &mut nvs_runtime::Ctx,
     ring: &[(i64, &[u8], Option<KeyKind>)],
     token: &str,
 ) -> Result<Option<Vec<u8>>, Fault> {
@@ -1232,7 +1251,7 @@ fn plaintext(
     nvs_runtime::affordable(Some(ciphertext.len()), "Core\\Jwe::decrypt")?;
 
     for (picked, material, kind) in ring {
-        let Some(cek) = content_key(*picked, material, *kind, &header, encrypted_key)? else {
+        let Some(cek) = content_key(ctx, *picked, material, *kind, &header, encrypted_key)? else {
             continue;
         };
         // Unreachable from source: every branch of `content_key` answers 32
@@ -1258,6 +1277,92 @@ fn plaintext(
 mod tests {
     use super::*;
     use crate::tests::vectors as webcrypto;
+
+    /// [`super::plaintext`] for a request under no CPU limit, which is every
+    /// case but the one that asks the limit.
+    fn plaintext(
+        ring: &[(i64, &[u8], Option<KeyKind>)],
+        token: &str,
+    ) -> Result<Option<Vec<u8>>, Fault> {
+        super::plaintext(&mut nvs_runtime::Ctx::buffered(), ring, token)
+    }
+
+    /// [`super::content_key`] for a request under no CPU limit.
+    fn content_key(
+        picked: i64,
+        material: &[u8],
+        kind: Option<KeyKind>,
+        header: &serde_json::Map<String, serde_json::Value>,
+        encrypted_key: &str,
+    ) -> Result<Option<[u8; crypto::KEY_LEN]>, Fault> {
+        super::content_key(
+            &mut nvs_runtime::Ctx::buffered(),
+            picked,
+            material,
+            kind,
+            header,
+            encrypted_key,
+        )
+    }
+
+    /// [`super::wrapped`] for a request under no CPU limit.
+    fn wrapped(
+        password: &[u8],
+        salt: &[u8; P2S_LEN],
+        cek: &[u8; crypto::KEY_LEN],
+    ) -> Result<(String, String), Fault> {
+        super::wrapped(&mut nvs_runtime::Ctx::buffered(), password, salt, cek)
+    }
+
+    /// A password token whose header names `p2c` iterations, with a salt and
+    /// a wrapped key of the right sizes and a body no key opens.
+    fn naming(p2c: u64) -> String {
+        let protected = URL_SAFE_NO_PAD.encode(format!(
+            r#"{{"alg":"{PBES2}","enc":"{ENC}","p2c":{p2c},"p2s":"{}"}}"#,
+            URL_SAFE_NO_PAD.encode([7_u8; P2S_LEN])
+        ));
+        compact(
+            &protected,
+            &URL_SAFE_NO_PAD.encode([0_u8; crypto::KEY_LEN + 8]),
+            &URL_SAFE_NO_PAD.encode([0_u8; crypto::GCM_NONCE_LEN]),
+            &[0_u8; TAG_LEN + 4],
+        )
+        .expect("a short token is affordable")
+    }
+
+    /// `p2c` is chosen by whoever sent the token, so the derivation it names
+    /// is checked against the request's CPU time before the first HMAC. A
+    /// request with none left is stopped with the CPU-time `FATAL`, and a count
+    /// past the ceiling never reaches the check: it opens nothing.
+    #[test]
+    fn a_token_chosen_iteration_count_is_checked_against_the_cpu_time_left() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        crate::tests::out_of_cpu(&mut ctx);
+        let ring = [(USE_PASSWORD, b"correct horse".as_slice(), None)];
+
+        for p2c in [crypto::MIN_ITERATIONS, crypto::MAX_ITERATIONS] {
+            let fault = super::plaintext(&mut ctx, &ring, &naming(u64::from(p2c)))
+                .expect_err("no CPU time is left for the derivation");
+            let Fault::Fatal(message) = fault else {
+                panic!("{p2c} iterations: a CPU-time stop is fatal, got {fault:?}");
+            };
+            assert!(
+                message.starts_with("Core\\Jwe::decrypt(): ")
+                    && message.contains(nvs_runtime::Ctx::CPU_TIME_EXCEEDED),
+                "{p2c} iterations: {message}"
+            );
+        }
+
+        assert_eq!(
+            super::plaintext(
+                &mut ctx,
+                &ring,
+                &naming(u64::from(crypto::MAX_ITERATIONS) + 1)
+            )
+            .expect("a count past the ceiling derives nothing"),
+            None
+        );
+    }
 
     /// One of the set's octet strings as the fixed-width array a seam takes.
     fn fixed<const N: usize>(octets: &[u8], what: &str) -> [u8; N] {

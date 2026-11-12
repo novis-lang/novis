@@ -1705,14 +1705,35 @@ pub(crate) fn gcm_open_under(
     Ok(cipher.decrypt(&Nonce::<Aes256Gcm>::from(*nonce), body).ok())
 }
 
-/// PBKDF2-HMAC-SHA256 over `password` and `salt`, `iterations` times.
+/// PBKDF2-HMAC-SHA256 over `password` and `salt`, `iterations` times, once the
+/// request has the CPU time for it.
 ///
-/// The derivation with no bounds on it. [`derive_key`] is this plus the two the
-/// module doc states, and the split is what lets RFC 7914 § 11's published
-/// vectors — one iteration, a four-octet salt — run against the same code a
-/// member reaches rather than against a copy of it.
-pub(crate) fn pbkdf2_sha256(password: &[u8], salt: &[u8], iterations: u32) -> [u8; DERIVED_LEN] {
-    pbkdf2::pbkdf2_hmac_array::<Sha256, DERIVED_LEN>(password, salt, iterations)
+/// The one door to the derivation, so every caller is checked: `who` is the
+/// member, and the count times [`PBKDF2_NS_PER_ITERATION`] is asked of
+/// [`nvs_runtime::Ctx::cpu_affords`] before the first HMAC
+/// (`rule:http-server/time-is-bounded-inside-a-helper`). A token's `p2c` and a
+/// program's `$iterations` reach it alike. The count bounds are
+/// [`derive_key`]'s and PBES2's, and the split is what lets RFC 7914 § 11's
+/// published vectors — one iteration, a four-octet salt — run against the same
+/// code a member reaches rather than against a copy of it.
+///
+/// # Errors
+///
+/// The CPU-time `FATAL` when the request has too little left.
+pub(crate) fn pbkdf2_sha256(
+    ctx: &mut nvs_runtime::Ctx,
+    who: &str,
+    password: &[u8],
+    salt: &[u8],
+    iterations: u32,
+) -> Result<[u8; DERIVED_LEN], Fault> {
+    ctx.cpu_affords(
+        std::time::Duration::from_nanos(u64::from(iterations) * PBKDF2_NS_PER_ITERATION),
+        who,
+    )?;
+    Ok(pbkdf2::pbkdf2_hmac_array::<Sha256, DERIVED_LEN>(
+        password, salt, iterations,
+    ))
 }
 
 /// A key stretched out of something a person chose, with both bounds checked
@@ -1727,9 +1748,10 @@ pub(crate) fn pbkdf2_sha256(password: &[u8], salt: &[u8], iterations: u32) -> [u
 ///
 /// # Errors
 ///
-/// A `LogicError` naming the bound that was missed. `who` is the member, spelled
-/// `Core\Class::member`.
+/// A `LogicError` naming the bound that was missed, and [`pbkdf2_sha256`]'s
+/// CPU-time `FATAL`. `who` is the member, spelled `Core\Class::member`.
 pub(crate) fn derive_key(
+    ctx: &mut nvs_runtime::Ctx,
     password: &[u8],
     salt: &[u8],
     iterations: u64,
@@ -1764,7 +1786,7 @@ pub(crate) fn derive_key(
     // rather than wrapped into a plausible one on the way in. Past the check
     // above it is three orders of magnitude below `u32::MAX`.
     let rounds = u32::try_from(iterations).expect("the ceiling is far below u32::MAX");
-    Ok(pbkdf2_sha256(password, salt, rounds))
+    pbkdf2_sha256(ctx, &format!("{who}()"), password, salt, rounds)
 }
 
 /// HKDF-SHA256 over `material`, answering [`DERIVED_LEN`] octets.
@@ -3169,16 +3191,9 @@ nvs_runtime::nvs_helper! {
         let password = text_of(args, 0, "deriveKey")?;
         let salt = bytes_of(args, 1, "deriveKey")?;
         let iterations = rounds_of(args, 2, "deriveKey")?;
-        // The caller picks the count, so its time is checked before the first
-        // HMAC. A count past the ceiling is `derive_key`'s error, not this one.
-        if iterations <= u64::from(MAX_ITERATIONS) {
-            ctx.cpu_affords(
-                std::time::Duration::from_nanos(iterations * PBKDF2_NS_PER_ITERATION),
-                "Core\\Crypto::deriveKey()",
-            )?;
-        }
 
         let key = derive_key(
+            ctx,
             password.as_bytes(),
             salt,
             iterations,
@@ -4163,6 +4178,113 @@ mod tests {
     use super::*;
     use crate::tests::vectors as webcrypto;
 
+    /// [`pbkdf2_sha256`] for a request under no CPU limit.
+    fn derived(password: &[u8], salt: &[u8], iterations: u32) -> [u8; DERIVED_LEN] {
+        pbkdf2_sha256(
+            &mut nvs_runtime::Ctx::buffered(),
+            "test",
+            password,
+            salt,
+            iterations,
+        )
+        .expect("a request under no CPU limit affords every count")
+    }
+
+    /// [`derive_key`] for a request under no CPU limit.
+    fn bounded(
+        password: &[u8],
+        salt: &[u8],
+        iterations: u64,
+        who: &str,
+    ) -> Result<[u8; DERIVED_LEN], Fault> {
+        derive_key(
+            &mut nvs_runtime::Ctx::buffered(),
+            password,
+            salt,
+            iterations,
+            who,
+        )
+    }
+
+    /// Every member that reaches PBKDF2 is stopped before the first HMAC once
+    /// its request has no CPU time left: the derivation itself, `deriveKey`,
+    /// and `Core\Jwe`'s encrypt and decrypt under a password. The check sits in
+    /// [`pbkdf2_sha256`], so a door added later is checked too.
+    #[cfg_attr(
+        miri,
+        ignore = "the token this case opens is sealed with PBKDF2 at the iteration floor, which \
+                  takes hours under Miri"
+    )]
+    #[test]
+    fn every_door_to_the_key_derivation_is_refused_with_no_cpu_time_left() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let payload = Value::text("note");
+        let password = Value::text("correct horse");
+        let key = nvs_runtime::call(crate::jwe::nvs_core_jwe_key_password, &mut ctx, &[password])
+            .expect("every text is a password");
+        // Sealed while the request still has its time, so decrypt has a token
+        // that names the floor's count.
+        let token = nvs_runtime::call(crate::jwe::nvs_core_jwe_encrypt, &mut ctx, &[payload, key])
+            .expect("a request under no CPU limit seals");
+        let mut ring = nvs_runtime::NvsArray::new();
+        #[expect(
+            unsafe_code,
+            reason = "the ring takes the one reference this frame adds"
+        )]
+        unsafe {
+            key.retain();
+        }
+        ring.append(key);
+        let ring = Value::array(ring);
+
+        crate::tests::out_of_cpu(&mut ctx);
+
+        let salt = [7_u8; MIN_SALT_LEN];
+        let Err(Fault::Fatal(message)) = pbkdf2_sha256(
+            &mut ctx,
+            "Core\\Crypto::deriveKey()",
+            b"pw",
+            &salt,
+            MIN_ITERATIONS,
+        ) else {
+            panic!("the derivation is a CPU-time stop");
+        };
+        assert!(
+            message.contains(nvs_runtime::Ctx::CPU_TIME_EXCEEDED),
+            "{message}"
+        );
+
+        let salt = Value::bytes(NvsStr::new(&salt));
+        let count = Value::uint(u64::from(MIN_ITERATIONS));
+        for (door, status) in [
+            (
+                "Core\\Crypto::deriveKey",
+                nvs_runtime::call(
+                    nvs_core_crypto_derive_key,
+                    &mut ctx,
+                    &[password, salt, count],
+                ),
+            ),
+            (
+                "Core\\Jwe::encrypt",
+                nvs_runtime::call(crate::jwe::nvs_core_jwe_encrypt, &mut ctx, &[payload, key]),
+            ),
+            (
+                "Core\\Jwe::decrypt",
+                nvs_runtime::call(crate::jwe::nvs_core_jwe_decrypt, &mut ctx, &[token, ring]),
+            ),
+        ] {
+            assert_eq!(status.err(), Some(nvs_runtime::FATAL), "{door}");
+        }
+
+        #[expect(unsafe_code, reason = "this frame holds the only references")]
+        unsafe {
+            for value in [payload, password, key, token, ring, salt] {
+                value.release();
+            }
+        }
+    }
+
     /// Every nonce, salt and private key the interop path draws comes through
     /// [`crate::random::draw`], which is the seam a second CSPRNG anywhere in
     /// this module would break while failing nothing else: fresh octets pass a
@@ -5090,7 +5212,7 @@ mod tests {
     #[test]
     fn the_two_derivations_match_their_published_vectors() {
         assert_eq!(
-            pbkdf2_sha256(b"passwd", b"salt", 1).as_slice(),
+            derived(b"passwd", b"salt", 1).as_slice(),
             hex("55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc"),
             "RFC 7914 § 11, one iteration"
         );
@@ -5098,7 +5220,7 @@ mod tests {
         // the one-iteration vector above is the PBKDF2 half of this test.
         if !cfg!(miri) {
             assert_eq!(
-                pbkdf2_sha256(b"Password", b"NaCl", 80_000).as_slice(),
+                derived(b"Password", b"NaCl", 80_000).as_slice(),
                 hex("4ddcd8f60b98be21830cee5ef22701f9641a4418d04c0414aeff08876b34ab56"),
                 "RFC 7914 § 11, eighty thousand"
             );
@@ -5140,15 +5262,15 @@ mod tests {
         let who = "Core\\Crypto::deriveKey";
 
         assert!(
-            derive_key(b"correct horse", &salt, u64::from(MIN_ITERATIONS) - 1, who).is_err(),
+            bounded(b"correct horse", &salt, u64::from(MIN_ITERATIONS) - 1, who).is_err(),
             "one under the floor is refused"
         );
         assert!(
-            derive_key(b"correct horse", &salt, u64::from(MAX_ITERATIONS) + 1, who).is_err(),
+            bounded(b"correct horse", &salt, u64::from(MAX_ITERATIONS) + 1, who).is_err(),
             "one over the ceiling is refused, and refused without running"
         );
         assert!(
-            derive_key(
+            bounded(
                 b"correct horse",
                 &salt[..MIN_SALT_LEN - 1],
                 u64::from(MIN_ITERATIONS),
@@ -5163,9 +5285,9 @@ mod tests {
             return;
         }
         assert_eq!(
-            derive_key(b"correct horse", &salt, u64::from(MIN_ITERATIONS), who)
+            bounded(b"correct horse", &salt, u64::from(MIN_ITERATIONS), who)
                 .expect("the floor derives"),
-            pbkdf2_sha256(b"correct horse", &salt, MIN_ITERATIONS),
+            derived(b"correct horse", &salt, MIN_ITERATIONS),
             "inside the bounds it is the derivation above and nothing else"
         );
     }
@@ -5208,7 +5330,7 @@ mod tests {
         for vector in vectors.iter().filter(|_| !cfg!(miri)) {
             let name = webcrypto::text(vector, "/name");
             assert_eq!(
-                derive_key(
+                bounded(
                     webcrypto::text(vector, "/password").as_bytes(),
                     &webcrypto::octets(vector, "/salt"),
                     rounds(vector),
@@ -5311,7 +5433,7 @@ mod tests {
         for refusal in refusals {
             let name = webcrypto::text(refusal, "/name");
             assert!(
-                derive_key(
+                bounded(
                     webcrypto::text(refusal, "/password").as_bytes(),
                     &webcrypto::octets(refusal, "/salt"),
                     rounds(refusal),

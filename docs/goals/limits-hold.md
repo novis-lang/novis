@@ -365,18 +365,18 @@ backtracking call under the request's deadline.
 `crates/nvs-stdlib/src`: the HTTP client's body, each `Core\Cache` store's `get`, a queue payload, a
 child's captured output and a session read. It reports `file.rs:NN` and whether an ask comes first.
 
-- [ ] `pbkdf2_sha256` takes the context and the member's name and calls `cpu_affords` first
+- [x] `pbkdf2_sha256` takes the context and the member's name and calls `cpu_affords` first
   (`rule:http-server/time-is-bounded-inside-a-helper`, `crates/nvs-stdlib/src/crypto.rs:1714`).
-- [ ] `derive_key` and `nvs_core_crypto_derive_key` pass them, and the member's own check goes
+- [x] `derive_key` and `nvs_core_crypto_derive_key` pass them, and the member's own check goes
   (`crates/nvs-stdlib/src/crypto.rs:1767`, `crates/nvs-stdlib/src/crypto.rs:3174`).
-- [ ] `pbes2_key` passes them from `Core\Jwe::encrypt` and `::decrypt`, and `decrypt` takes its
+- [x] `pbes2_key` passes them from `Core\Jwe::encrypt` and `::decrypt`, and `decrypt` takes its
   context (`rule:security/jwe-compact-subset`, `crates/nvs-stdlib/src/jwe.rs:571`,
   `crates/nvs-stdlib/src/jwe.rs:740`, `crates/nvs-stdlib/src/jwe.rs:978`,
   `crates/nvs-stdlib/src/jwe.rs:1137`).
-- [ ] Tests `a_token_chosen_iteration_count_is_checked_against_the_cpu_time_left` and
+- [x] Tests `a_token_chosen_iteration_count_is_checked_against_the_cpu_time_left` and
   `every_door_to_the_key_derivation_is_refused_with_no_cpu_time_left`
   (`crates/nvs-stdlib/src/jwe.rs:1137`, `crates/nvs-stdlib/src/crypto.rs:5143`).
-- [ ] Attack: a small `cpu_time`, then a password-keyed token whose header names the largest
+- [x] Attack: a small `cpu_time`, then a password-keyed token whose header names the largest
   iteration count. It ends `FATAL` before the derivation
   (`tests/hostile/core/Jwe/decrypt/02-a-token-names-the-largest-iteration-count.nvs:1`).
 - [ ] `read_bounded` moves beside the byte sources and `Core\IO` calls it there

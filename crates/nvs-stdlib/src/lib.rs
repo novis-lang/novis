@@ -514,6 +514,31 @@ mod tests {
         })
     }
 
+    thread_local! {
+        /// Whether [`spent_on_this_thread`] reports this thread's request as
+        /// out of CPU time. Per thread, because each case runs on its own.
+        static OUT_OF_CPU: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+
+    /// The process's CPU reading in this test binary: an hour for a thread
+    /// [`out_of_cpu`] set, and no reading for every other one, so a case that
+    /// never asks is charged nothing.
+    fn spent_on_this_thread(_tree: usize) -> Option<std::time::Duration> {
+        OUT_OF_CPU
+            .with(std::cell::Cell::get)
+            .then_some(std::time::Duration::from_secs(3_600))
+    }
+
+    /// Puts `ctx` under a CPU limit of one second it has already spent, so
+    /// every `cpu_affords` past its floor refuses. Declared here for
+    /// [`granting`]'s reason: the reading is one per process, and every case
+    /// that needs it installs this same one.
+    pub(crate) fn out_of_cpu(ctx: &mut nvs_runtime::Ctx) {
+        nvs_runtime::install_cpu_spent(spent_on_this_thread);
+        OUT_OF_CPU.with(|flag| flag.set(true));
+        ctx.set_cpu_limit(1_000_000_000);
+    }
+
     /// The process's one outbound TLS client, and the self-signed `localhost`
     /// certificate it trusts — declared here for [`granting`]'s reason and one
     /// of its own.
