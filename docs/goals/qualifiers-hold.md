@@ -34,7 +34,7 @@ stages:
     context: [tests/hostile/README.md, docs/examples/README.md, docs/rules/testing/feature-proofs.md, docs/examples/lang/types/qualifiers-tainted-and-secret/about.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: narrowing-and-conversion-keep-the-qualifier
@@ -557,53 +557,40 @@ disjoint folders side by side, and none of them builds.
   (`crates/nvs-types/tests/secret.rs:1`, `crates/nvs-types/tests/tainted.rs:1`,
   `crates/nvs-types/tests/type_test.rs:1`).
 - [x] Run `looper verify` once more, and it is green.
-- [ ] The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes qualifiers-hold`
+- [x] The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes qualifiers-hold`
   and `bun nv ci --check` (`docs/agent/commands.md:1`).
   - [x] `bun nv verify --doc` and `bun nv owners --closes qualifiers-hold` pass.
   - [x] The website render and the qualifier `about.md` bound pass.
-  - [ ] The stale perf figures are recorded, one chapter group at a time, with
+  - [x] The stale perf figures are recorded, one chapter group at a time, with
     `bun nv proofs --record-perf --group <g>`, and `bun nv proofs --gate --limit 0` passes.
-  - [ ] Each stale syntax page is reread and restamped with `bun nv site --stamp`, and each stale
+  - [x] Each stale syntax page is reread and restamped with `bun nv site --stamp`, and each stale
     reflection page's questions are rewritten and stamped with `bun nv site --questions --stamp`.
-  - [ ] `bun nv ci --check` is green.
+  - [x] `bun nv ci --check` is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done. In stage 8, `looper verify` is green (`a631f0ba07`, `2a47679766`,
-`b19ffcb318`, `af628215d7`), and `bun nv verify --doc` and `bun nv owners --closes qualifiers-hold`
-pass. Three checker bugs the gate found are fixed. A `secret` argument to an extension's `mixed`
-parameter compiled with no error, and it now gets the extension refusal. An unknown free function
-no longer counts as a bare `callable` call. An attribute payload's `secret` constant is reported
-once. Eighteen `.nvst` cases and two Rust tests now expect the refusals. The run-time cases now pass
-a value that carries no qualifier.
+Every stage is done, and every goal-end gate is green. `looper verify` is green, and so are
+`bun nv verify --doc`, `bun nv owners --closes qualifiers-hold`, `bun nv proofs --gate --limit 0`
+and `bun nv ci --check`. The perf figures of `Core\Arr`, `Core\Reflect\ParameterInfo` and the type,
+error and attribute chapters were measured again. Six website pages say what the new refusals are.
+The stale pages are stamped, and thirteen pages' search questions are rewritten.
 
-`bun nv ci --check` is still red, in two parts. First, `feature proofs`: 98 features have stale perf
-figures. The cause is the edits to `crates/nvs-stdlib/src/arr.rs` and to the type, error and
-attribute chapters. Second, `website stale guard`: the syntax pages it names need their stamps, and nine
-`Core\Reflect` pages need their questions. The nightly CI reds from the sweep were built before
-this goal's fixes. The `env-secret-proofs` check is not in the tree, and `looper check` finds no
-check of that name, so it is stale.
+The sweep's reds were stale. The nightly run built `f4c1d5c7`, and its one failing test,
+`live_config::a_changed_server_timeout_applies_to_the_next_connection`, was fixed after it by
+`022b148763` and `305c04f660`. No `env-secret-proofs` check exists in the tree.
 
-Expected red: none in `looper verify`. In `bun nv ci --check`, only the two parts above.
+Expected red: none.
 
 ### Next
 
-The goal-end gates. These are the last open items before `DONE`.
-
-- [ ] `docs/goals/qualifiers-hold.md:564`: run `bun nv proofs --gate --limit 0` to list the stale
-  perf figures. Record them one chapter group at a time with `bun nv proofs --record-perf --group <g>`,
-  and commit each group.
-- [ ] `docs/goals/qualifiers-hold.md:566`: reread and stamp each page that `bun nv site --check stale`
-  names under `website/src/content/docs/syntax/`, such as `values/as.mdx`,
-  `values/tainted-and-secret.mdx`, `classes/property-names.mdx` and `errors/throw-and-catch.mdx`.
-  Each page gets `bun nv site --stamp <page>`. Then rewrite the questions of each `/reference/core/reflect…/` page
-  that `bun nv site --check questions` names, and stamp each with `bun nv site --questions --stamp <url>`.
-- [ ] `docs/goals/qualifiers-hold.md:560`: run `bun nv ci --check`, and fix each red. Then write
-  `DONE`.
+Nothing. The goal is reached, and the loop retires it.
 
 ### Backlog
+
+Each item below is copied to `docs/goals/package-authority-closed.md`'s `### Backlog`, so it
+outlives this file.
 
 - An array literal of the program's own ints, such as `[1, 2]`, passed to a method of a `mixed`
   receiver is refused as `E0895`, which calls it `mixed` text. The refusal is in the safe direction,
@@ -612,7 +599,6 @@ The goal-end gates. These are the last open items before `DONE`.
   `crates/nvs-types/src/expr/calls.rs`, with `check_array_literal`).
   `tests/conformance/lang/a-call-through-a-mixed-receiver-checks-each-argument-against-its-parameters-type.nvst`
   passes typed variables in its place.
-
 - A property-path or string-with-holes failure still names the bad segment's text, such as
   ``has no public property `$nmae` `` (`nvs_property_path_mismatch`, `nvs_string_holes_mismatch`,
   `crates/nvs-runtime/src/helpers.rs`). The whole operand is no longer shown, but a segment is part

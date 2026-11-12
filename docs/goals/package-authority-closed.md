@@ -513,3 +513,30 @@ Expected red until stage 1 lands its callers: any in-tree package that reads `Co
 - The package client is the goal `package-files-contained`, the registry is `registry-waits-hold`, and
   reflection is `calls-by-name-are-checked` and `crossings-carry-data-only`.
 - `require` of an application file from a package namespace was not traced.
+
+The open items `qualifiers-hold` left when it was retired:
+
+- An array literal of the program's own ints, such as `[1, 2]`, passed to a method of a `mixed`
+  receiver is refused as `E0895`, which calls it `mixed` text. The refusal is in the safe direction,
+  but `rule:security/taint-propagation` says such a literal carries no outside text
+  (`report_args_with_no_parameter_list`, `crates/nvs-types/src/expr/calls.rs`, with
+  `check_array_literal`).
+- A property-path or string-with-holes failure still names the bad segment's text, such as
+  ``has no public property `$nmae` `` (`nvs_property_path_mismatch`, `nvs_string_holes_mismatch`,
+  `crates/nvs-runtime/src/helpers.rs`). Name the segment by position instead.
+- `$fn->call($obj, $a)` on a typed callable checks only `$a`'s qualifier against the written
+  parameter, not its type (`infer_callable_rebind`, `crates/nvs-types/src/expr/calls.rs`).
+- A `.=` compound write through an erased property is not asked the untyped-write question, only the
+  plain `=` (`crates/nvs-types/src/expr/assign.rs:1083`).
+- A third-party extension method that takes a resource may return text built from an earlier
+  `tainted` argument as plain text (`crates/nvs-types/src/ext_lib.rs:290`). Not traced to a run.
+- `slot_check` and `test_shape` are two maps from a type to a run-time test. An intersection type
+  and `iterable` stay `SlotCheck::Any` in the first, and a single-value `string` keeps its tag alone
+  (`crates/nvs-ir/src/lower/mod.rs:602`, `crates/nvs-ir/src/lower/expr.rs:7881`).
+- A callable's `invoke` row carries no parameter type spellings, so a bare `callable`'s refusal
+  names no type (`crates/nvs-ir/src/lower/anon_fn.rs:374`, `crates/nvs-runtime/src/dispatch.rs:286`).
+- `check_param_class` runs on every call of an anonymous function, a proven one too
+  (`crates/nvs-ir/src/lower/anon_fn.rs:454`).
+- `Core\Str::format('%1$s', $o)` over a `Stringable` object throws "it does not implement
+  `Stringable`": `stringify` finds no compiled `toString` (`crates/nvs-runtime/src/helpers.rs:2049`).
+  Once it works, `crates/nvs-codegen/tests/borrowed_reads.rs` gains a row for it.
