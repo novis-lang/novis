@@ -6,7 +6,7 @@ context: [crates/nvs-runtime/src/abi.rs, crates/nvs-runtime/src/ctx/limits.rs, d
 stages:
   - id: 1
     title: a spawned script keeps the clamp of its tree
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/isolate.rs, crates/nvs-runtime/tests/tree_budget.rs, crates/nvs-stdlib/src/config.rs, docs/rules/security/isolate-budget-is-the-trees.md]
   - id: 2
     title: the backtracking regex tier stops at the CPU limit
@@ -283,6 +283,14 @@ the folder of the member it attacks, with the next free number. A case that a li
 § *Text an end user reads*. No case holds a ready payload: it builds its input in its own steps. The
 floor checks `no-overshoot` and `no-probe-overshoot` stay green.
 
+**A spawned script that reaches a limit is the child's failure, and its attack runs to its end.**
+A child stopped at its memory share returns a failed `ScriptResult` to `await`, and the parent goes
+on, because the child's memory is freed. So an attack on a child's limit carries no `ends-early`
+marker. It throws `RuntimeError` when `$result->ok` says the child finished, which makes the case red
+on a runtime that let the child through. The stage 1 case was run once with the clamp disabled and
+failed that way. A child on its parent's core records no output or CPU ceiling, because the root's
+readings of those bound it, as they did before.
+
 **Lanes:** stages 1, 2, 3 and 6 touch disjoint files and may run side by side. Stage 5 follows
 stage 4, because both change `crates/nvs-runtime/src/abi.rs`. Stage 7 follows stage 6, because both
 change `crates/nvs-ext/src/call.rs` and `crates/nvs-cli/src/extensions.rs`.
@@ -296,26 +304,27 @@ change `crates/nvs-ext/src/call.rs` and `crates/nvs-cli/src/extensions.rs`.
 **Split:** an `Explore` subagent finds one case under `tests/hostile/` that uses `spawn script`, and
 reports its path and how it names the child's file. The attack below copies that shape.
 
-- [ ] `Ctx` gains the spawn record: memory as an absolute balance, output, CPU and the copied script
+- [x] `Ctx` gains the spawn record: memory as an absolute balance, output, CPU and the copied script
   depth. One function writes it (`rule:security/isolate-budget-is-the-trees`,
   `crates/nvs-runtime/src/ctx/isolate.rs:1139`).
-- [ ] `Ctx::isolate` and `PlacedIsolate::build` set the child's ceiling through that function
+- [x] `Ctx::isolate` and `PlacedIsolate::build` set the child's ceiling through that function
   (`crates/nvs-runtime/src/ctx/isolate.rs:605`, `crates/nvs-runtime/src/ctx/isolate.rs:1098`).
-- [ ] `narrow_under` folds the resolved sub-cap into the record, and its save of `max_script_depth`
+- [x] `narrow_under` folds the resolved sub-cap into the record, and its save of `max_script_depth`
   goes (`crates/nvs-runtime/src/ctx/isolate.rs:808`).
-- [ ] `refresh_limits` clamps memory, CPU, output and script depth to the record before
+- [x] `refresh_limits` clamps memory, CPU, output and script depth to the record before
   `arm_memory_ceiling` (`rule:security/isolate-budget-is-the-trees`,
   `crates/nvs-runtime/src/ctx/limits.rs:934`).
-- [ ] Tests `a_child_that_refreshes_its_limits_keeps_the_ceiling_its_tree_had_left`,
+- [x] Tests `a_child_that_refreshes_its_limits_keeps_the_ceiling_its_tree_had_left`,
   `a_child_that_restores_its_sub_cap_keeps_the_sub_cap`,
   `a_placed_child_that_refreshes_keeps_what_remained_when_it_was_placed` and
   `a_refresh_never_raises_a_childs_script_depth` (`crates/nvs-runtime/tests/tree_budget.rs:192`).
-- [ ] Attack: a parent holds most of a small memory limit and spawns a script. The child calls
-  `Core\Config::restore` and then builds a string that only a fresh ceiling could hold. It ends
-  `FATAL` (`tests/hostile/core/Config/restore/02-a-spawned-script-restores-a-setting.nvs:1`).
-- [ ] The rule fragment says a refresh never widens a spawned script, and states the cost
+- [x] Attack: a parent holds most of a small memory limit and spawns a script. The child calls
+  `CoreConfig::restore` and then builds a string that only a fresh ceiling could hold. The child
+  stops at the memory limit and the parent runs to its end; the case throws if the child finished
+  (`tests/hostile/core/Config/restore/02-a-spawned-script-restores-a-setting.nvs:1`).
+- [x] The rule fragment says a refresh never widens a spawned script, and states the cost
   (`docs/rules/security/isolate-budget-is-the-trees.md:6`).
-- [ ] The comment on `Core\Config::restore` says what a spawned script gets back
+- [x] The comment on `Core\Config::restore` says what a spawned script gets back
   (`crates/nvs-stdlib/src/config.rs:377`).
 
 ### 2. the backtracking regex tier stops at the CPU limit
@@ -514,40 +523,25 @@ cap the resource table.
 
 ### State
 
-Nothing is built yet. The tree holds the defects as § *Why* describes them, and every test a check
-names is unwritten. The eight `quoted` calls of d2b9613334 and their attacks are in place.
+Stage 1 is done. `Ctx::hold_to_tree` (`crates/nvs-runtime/src/ctx/isolate.rs`) is the one writer
+of the spawn record `Ctx::spawn_clamp`. `Ctx::isolate`, `Ctx::handler_isolate`,
+`PlacedIsolate::build` and `narrow_under` call it. `refresh_limits` calls `clamp_to_spawn` before
+it publishes the CPU ceiling and arms the allocator. `handler_isolate` now arms its reserve through
+the writer. Before, it set the field and left the allocator armed at the failing tree's remainder.
+The four `tree_budget` tests pass, and the attack passes. Run once with the clamp disabled, the
+attack failed. The sweep's two reds are stale: no check named `env-secret-proofs` exists, and
+nightly 43001191130 ran at `f4c1d5c7e2`, before `305c04f660` fixed the `live_config` test.
 
 ### Next
 
-Stage 1, over `crates/nvs-runtime/src/ctx/isolate.rs`, `crates/nvs-runtime/src/ctx/limits.rs` and
-`crates/nvs-runtime/tests/tree_budget.rs`. An `Explore` subagent first finds one hostile case that
-uses `spawn script`.
+Stage 2, over `vendor/fancy-regex`, `Cargo.toml` and `crates/nvs-stdlib/src/regex.rs`. Its items
+are in § *Stages*. The first is the vendored copy of 0.19.2 and its `[patch.crates-io]` row
+(`Cargo.toml:640`). Read `vendor/fancy-regex/src/vm.rs` for the dispatch loop before the patch.
+Stages 3 and 6 touch other files and may run beside it.
 
-- [ ] `crates/nvs-runtime/src/ctx/isolate.rs:1139`: `Ctx` gains the spawn record, which is memory as
-  an absolute balance, output, CPU and the copied script depth. One function writes it
-  (`rule:security/isolate-budget-is-the-trees`).
-- [ ] `crates/nvs-runtime/src/ctx/isolate.rs:605`, `crates/nvs-runtime/src/ctx/isolate.rs:1098`:
-  `Ctx::isolate` and `PlacedIsolate::build` set the child's ceiling through that function.
-- [ ] `crates/nvs-runtime/src/ctx/isolate.rs:808`: `narrow_under` folds the resolved sub-cap into
-  the record, and its save of `max_script_depth` goes.
-- [ ] `crates/nvs-runtime/src/ctx/limits.rs:934`: `refresh_limits` clamps memory, CPU, output and
-  script depth to the record before `arm_memory_ceiling`
-  (`rule:security/isolate-budget-is-the-trees`).
-- [ ] `crates/nvs-runtime/tests/tree_budget.rs:192`: tests
-  `a_child_that_refreshes_its_limits_keeps_the_ceiling_its_tree_had_left`,
-  `a_child_that_restores_its_sub_cap_keeps_the_sub_cap`,
-  `a_placed_child_that_refreshes_keeps_what_remained_when_it_was_placed` and
-  `a_refresh_never_raises_a_childs_script_depth`.
-- [ ] `tests/hostile/core/Config/restore/02-a-spawned-script-restores-a-setting.nvs:1`: the attack.
-  A parent holds most of a small memory limit and spawns a script. The child calls
-  `CoreConfig::restore` and then builds a string that only a fresh ceiling could hold. It ends
-  `FATAL`.
-- [ ] `docs/rules/security/isolate-budget-is-the-trees.md:6`: the rule fragment says a refresh never
-  widens a spawned script, and states the cost.
-- [ ] `crates/nvs-stdlib/src/config.rs:377`: the comment on `CoreConfig::restore` says what a
-  spawned script gets back.
-
-No test is expected to go red in stage 1.
+Tests that may go red at the gate: `crates/nvs-host/tests/limits.rs`'s two `handler_isolate`
+cases. They assert the reserve numbers, which are unchanged, but the handler's allocator is now
+armed with them.
 
 ### Backlog
 
