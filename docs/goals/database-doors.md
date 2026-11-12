@@ -14,11 +14,11 @@ stages:
     context: [crates/nvs-stdlib/src/db/bind.rs, crates/nvs-runtime/src/throwable.rs, crates/nvs-hir/src/errors.rs, crates/nvs-types/src/error_lib.rs, crates/nvs-stdlib/src/db/open.rs]
   - id: 3
     title: "the server's text rides the error only when no bound value is secret"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/quals.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/db/bind.rs, docs/rules/security/secret-sinks-refuse.md]
   - id: 4
     title: "SQLite allows a PRAGMA by name, and the reset sets back every one a request may write"
-    status: open
+    status: done
     context: [crates/nvs-db/src/sqlite.rs]
   - id: 5
     title: "the PostgreSQL, MySQL and MariaDB resets return the session to its configured state"
@@ -418,10 +418,10 @@ call's site word, and keep the server's text on the error for exactly those call
   `a_statement_reached_through_a_callable_leaves_the_servers_text_out` in
   `crates/nvs-stdlib/src/db/bind.rs:180`. Each asserts the message keeps the `SQLSTATE` and the
   driver code.
-- [ ] An attack under `tests/hostile/core/Db-Connection/query/`, at the next free number, on SQLite:
+- [x] An attack under `tests/hostile/core/Db-Connection/query/`, at the next free number, on SQLite:
   a `secret` value is bound into a statement the database refuses. The error's `message` and
   `serverMessage` should not hold the value.
-- [ ] `rule:security/secret-sinks-refuse` and `rule:core-classes/db-error` say a bound `secret`
+- [x] `rule:security/secret-sinks-refuse` and `rule:core-classes/db-error` say a bound `secret`
   removes the server's text, and name the cost (`docs/rules/security/secret-sinks-refuse.md:30`,
   `docs/rules/core-classes/db-error.md:11`).
 
@@ -433,31 +433,31 @@ reset both read, and clear the two pieces of state no pragma holds.
 **Split:** an `Explore` subagent lists every `PRAGMA` the tree's own Rust code sends outside tests,
 as `file.rs:NN` and the pragma, before the first edit.
 
-- [ ] One table of pragma rows replaces `SESSION_PRAGMAS`: read rows, value rows and session rows
+- [x] One table of pragma rows replaces `SESSION_PRAGMAS`: read rows, value rows and session rows
   with their reset value, as the standing decision lists them. The reset's text is built from the
   session rows (`rule:security/db-pool-reset-is-a-boundary`, `crates/nvs-db/src/sqlite.rs:852`,
   `crates/nvs-db/src/sqlite.rs:1617`).
-- [ ] `authorize` denies a `PRAGMA` action whose name has no row, a value row that carries an
+- [x] `authorize` denies a `PRAGMA` action whose name has no row, a value row that carries an
   argument, and every process-wide pragma (`crates/nvs-db/src/sqlite.rs:881`). The refusal reaches a
   program as a `DbError` of kind `Permission` that names the pragma
   (`crates/nvs-db/src/sqlite.rs:2096`).
-- [ ] Each driver statement the list names passes the table, or runs before the authorizer is
+- [x] Each driver statement the list names passes the table, or runs before the authorizer is
   installed as the open's `journal_mode` does (`crates/nvs-db/src/sqlite.rs:816`).
-- [ ] `clean` asks `PRAGMA database_list` as a statement (`crates/nvs-db/src/sqlite.rs:1600`).
-- [ ] `clean` returns `last_insert_rowid()` to zero, as the standing decision says
+- [x] `clean` asks `PRAGMA database_list` as a statement (`crates/nvs-db/src/sqlite.rs:1600`).
+- [x] `clean` returns `last_insert_rowid()` to zero, as the standing decision says
   (`crates/nvs-db/src/sqlite.rs:1595`). Look the setter up in the installed `rusqlite`'s reference.
-- [ ] Test `every_pragma_sqlite_lists_is_allowed_by_name_or_refused`: it reads `PRAGMA pragma_list`
+- [x] Test `every_pragma_sqlite_lists_is_allowed_by_name_or_refused`: it reads `PRAGMA pragma_list`
   from the linked SQLite, runs each name with and without an argument on a fresh connection, and
   fails naming one that ran without a row (`crates/nvs-db/src/sqlite.rs:881`).
-- [ ] Test `every_pragma_a_request_may_write_is_set_back_by_the_reset`: for each session row it
+- [x] Test `every_pragma_a_request_may_write_is_set_back_by_the_reset`: for each session row it
   writes another value, resets, and reads the row's reset value.
-- [ ] Tests `a_process_wide_pragma_is_refused_on_every_connection`,
+- [x] Tests `a_process_wide_pragma_is_refused_on_every_connection`,
   `a_table_named_like_the_database_list_hides_nothing_from_the_reset` and
   `the_sqlite_reset_returns_the_last_inserted_rowid_to_zero`.
-- [ ] An attack under `tests/hostile/core/Db-Connection/query/`, at the next free number: a request
+- [x] An attack under `tests/hostile/core/Db-Connection/query/`, at the next free number: a request
   tries a process-wide pragma, a file lock pragma and a pragma that changes what `LIKE` matches.
   Each should throw, and a second database should still answer.
-- [ ] `rule:security/db-pool-reset-is-a-boundary` replaces its SQLite sentence about pragmas with
+- [x] `rule:security/db-pool-reset-is-a-boundary` replaces its SQLite sentence about pragmas with
   the allow list, and says the reset clears the generated id
   (`docs/rules/security/db-pool-reset-is-a-boundary.md:23`).
 
@@ -552,50 +552,49 @@ into the Novis string.
 
 ### State
 
-Stages 1 and 2 are done. Stage 3's code and its four tests are in. The attack and the two rule
-fragments are left. The sweep items were stale a fourth time: no `env-secret-proofs.log` exists, and
-Miri run `43201099245` predates `7568aaa0fb`.
+Stages 1 to 4 are done, and `secret-binds-are-known` and `pragmas-by-name` are green. Stage 5 is
+next. The sweep items were stale a fifth time: no `env-secret-proofs.log` exists, and Miri run
+`43201099245` ran on `578534cc7c`, which predates `7568aaa0fb`.
 
-How stage 3 works. `Env::secret_in_arguments` (`crates/nvs-types/src/lib.rs`) is set by
-`reject_secret_into_container` (`crates/nvs-types/src/expr/quals.rs`) when it meets a `secret` inside
-a call argument. `check_args_typed` (`crates/nvs-types/src/expr/args.rs:65`) takes the note per list,
-adds any argument type that contains `secret`, files the call span in `Env::secret_argument_calls`,
-and widens the outer note. `note_plain_binds` (`crates/nvs-types/src/expr/calls.rs`) runs on all
-three method-call paths and records `ExprTable::plain_binds`. `QuerySiteConst` has `plain_binds`,
-and codegen ORs in `nvs_stdlib::registry::QUERY_SITE_PLAIN_BINDS` (bit 32). `QueryWatch::at` masks
-the id with `QUERY_SITE_ID_MASK`. `Statement::at(site)` reads the bit, and every helper passes
-`Statement::withholds_text()` to `statement_failure`. `executeMany` reads it with
-`bind::plain_binds(args[4])`. The stream walk's later step errors still pass `true`, which is the
-closed default. The message now ends "...because the statement may have bound a `secret` value."
+How stage 4 works. `PRAGMAS` (`crates/nvs-db/src/sqlite.rs`, beside `LOCK_WAIT`) is one table of
+`Pragma::Read`, `Pragma::Value` and `Pragma::Session(reset value)` rows. `pragma_allowed` is what
+`authorize` asks for an `AuthAction::Pragma`. `session_pragmas()` builds the text `open` and `clean`
+run. A refusal writes the pragma's name to the thread-local `REFUSED_PRAGMA`, and `server_error`
+takes it on an `SQLITE_AUTH` code, so the `Permission` error's server text names the pragma.
+`clean` reads `PRAGMA database_list` as a statement, and when `last_insert_rowid()` is not zero it
+inserts rowid 0 into a `temp` table it drops. `rusqlite` 0.41.1 has no setter.
 
-**A checker fix came with it.** `[[$secret]]` passed to `executeMany` was `E0401`, so a credential
-could not be bound through it. `check_array_literal` (`crates/nvs-types/src/expr/literals.rs:1206`)
-now checks an argument's elements against `mixed_admitting_secret(elem)`. After the loop, a literal
-that holds a `secret` is retyped with `mixed_admitting_secret`, and one that holds none with the new
-`mixed_without_secret`. A program's own `array<array<mixed>>` parameter still refuses the secret, at
-the argument.
+**`SqliteTarget::setup` is new.** The session store (`crates/nvs-stdlib/src/session/sqlite.rs`)
+sends `synchronous = NORMAL`, which has no row. Its `SETUP` runs before the authorizer is installed,
+as the standing decision's safe default allows. A block sets `setup: &[]`.
+
+The two new attacks are `tests/hostile/core/Db-Connection/query/05-...` and `06-...`, each with an
+`[[app]]` block in `nvs.toml`. Both pass `bun nv proofs --id 'Core\Db\Connection::query' --run`.
 
 ### Next
 
-Finish stage 3, then stage 4.
+Stage 5, in the order its items are written (`docs/goals/database-doors.md`, § 5).
 
-- [ ] `nvs.toml:425`: the attack `tests/hostile/core/Db-Connection/query/05-a-secret-the-database-quotes-in-its-error.nvs`.
-  It was written and removed, because `Core\Db::connect('notes')` needs a grant. A `nvs.toml` app
-  block grants `connect = ["notes"]` (`nvs.toml:425-440` and `:674-685` show the shape). Add one for
-  the new file. The case binds `secret string $token = 'sk-8f2c41'` into
-  `select json_extract('{}', ?)`, because SQLite quotes a bad JSON path in its error. It does this
-  three ways: `[$token]`, `executeMany` with `[[$token]]`, and `['path ' . $token]`. Each step catches
-  `Core\Db\DbError` and prints whether `message` or `serverMessage ?? ''` contains the plain copy.
-  Declare `bool $leaked = false;` once, since catch blocks share scope (`E0406`). Run it with
-  `bun nv proofs --id 'Core\Db\Connection::query' --run`.
-- [ ] `docs/rules/security/secret-sinks-refuse.md:30` and `docs/rules/core-classes/db-error.md:11`:
-  say that a bound `secret` removes the server's text, name the bit and its cost, and fix
-  `db-error.md:20`, which still says "bound a value". Then render the rule chapters again.
-- [ ] `docs/goals/database-doors.md:394`: set stage 3 to done once `secret-binds-are-known` is
-  green. Then start stage 4.
+- [ ] `crates/nvs-db/src/mysql.rs:2191` `reset_session`, `crates/nvs-db/src/mysql.rs:2152`,
+  `crates/nvs-db/src/maria.rs:679`, `crates/nvs-db/src/conn.rs:853`: keep the login database on
+  `MySqlConn` and `MariaConn`, then `COM_INIT_DB` and one `SET` for the charset and time zone after
+  the reset's `OK`. With no database, ask `SELECT DATABASE()` and fail when it is not `NULL`.
+- [ ] `crates/nvs-db/src/pg.rs:3541` `RESET_COMMANDS` gains `DISCARD SEQUENCES`, and
+  `crates/nvs-db/src/pg.rs:1321` sends `standard_conforming_strings = on` at startup. Fix the comment
+  on `backslash_escapes` (`crates/nvs-db/src/sql.rs:132`).
+- [ ] `crates/nvs-db/src/mysql.rs:2191` and `crates/nvs-db/src/pg.rs:1302`: the four tests stage 5
+  names, over the scripted peers the modules' reset tests already use.
+- [ ] `docs/rules/security/db-pool-reset-is-a-boundary.md:5` and
+  `docs/rules/core-classes/db-safe-connection-defaults.md:12`, then `bun nv rules --render`.
 
-Expected red: snapshot tests that print a query site may now print ` plain` after the span
-(`crates/nvs-ir/src/print.rs`). Any test that pins the old "bound a value." sentence will fail too.
-`bun nv affected --run` was not run.
+Expected red: any test that runs a `PRAGMA` with no row through `nvs_db::sqlite::open` now gets a
+`Permission` error. The tree's own Rust and `.nvs` files send none outside the session store, but a
+snapshot or fixture that pinned `pragma_database_list` in the reset's text would change. Snapshot
+tests that print a query site may print ` plain` after the span (`crates/nvs-ir/src/print.rs`), and
+any test pinning "bound a value." fails. `bun nv affected --run` was not run.
 
 ### Backlog
+
+- `writable_schema` is a session row, as the standing decision lists it. A request can still turn it
+  on and edit `sqlite_schema` inside its own request. Stage 8 should weigh dropping the row, which
+  would refuse it outright and cost nothing the tree uses.
