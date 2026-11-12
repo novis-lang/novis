@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/response.rs, docs/rules/errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself.md]
   - id: 5
     title: a native walk over caller-sized input reaches a poll
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/hash.rs, crates/nvs-stdlib/src/sort.rs, crates/nvs-stdlib/src/encoding.rs]
   - id: 6
     title: a guest stops once its request is over the memory ceiling
@@ -291,6 +291,23 @@ on a runtime that let the child through. The stage 1 case was run once with the 
 failed that way. A child on its parent's core records no output or CPU ceiling, because the root's
 readings of those bound it, as they did before.
 
+**A converting walk polls by pieces, and a failed piece hands the message to the whole-value
+converter.** `Core\Encoding` converts in 4 KiB pieces through `bounded_loop`: base64 and base32
+pieces are whole groups, a text piece ends on a character boundary, and one `encoding_rs` decoder
+or encoder runs over every piece, so ISO-2022-JP's state carries across. A piece that does not
+convert stops the walk, and the old whole-value function (`decode_exact`, `STANDARD.decode`, the
+base32 engine) runs once for the throw's text. It stops at the same place, so it reads no further
+than the walk did, and every message is the one it was. An `=` before the last piece also stops the
+walk. UTF-8 decoding goes through `encoding_rs`'s UTF-8 decoder so a sequence cut between pieces
+carries. **What it spends:** one decrement per piece, and for a decode a `String::from_utf8` check
+over the result, which runs at copy speed. Declined: shifting each piece's own error offset, which
+is a second account of every engine's error positions.
+
+**The walks that do not poll yet are gaps owned by `waits-are-bounded`.** The gap schema refuses a
+record with no goal, so the stage's "no goal" could not hold. `waits-are-bounded` is the chain's
+goal about time bounds, so the nine records under `data/gaps/nvs-stdlib/*-walk-polls-no-deadline.json`
+name it, and `bun nv owners --closes waits-are-bounded` holds them there.
+
 **Lanes:** stages 1, 2, 3 and 6 touch disjoint files and may run side by side. Stage 5 follows
 stage 4, because both change `crates/nvs-runtime/src/abi.rs`. Stage 7 follows stage 6, because both
 change `crates/nvs-ext/src/call.rs` and `crates/nvs-cli/src/extensions.rs`.
@@ -446,29 +463,30 @@ sort's key function.
 caller-sized value with no callback and no deadline read. It reports `file.rs:NN` and whether the
 walk copies or does more work per byte.
 
-- [ ] A batch counter for a loop another crate drives, beside `poll_deadline`, with its cost in the
+- [x] A batch counter for a loop another crate drives, beside `poll_deadline`, with its cost in the
   doc comment (`rule:http-server/time-is-bounded-inside-a-helper`,
-  `crates/nvs-runtime/src/abi.rs:641`).
-- [ ] `Core\Hash::of`, `::hmac` and a stream's `update` feed their input in 4 KiB chunks through
-  `bounded_loop` (`crates/nvs-stdlib/src/hash.rs:764`, `crates/nvs-stdlib/src/hash.rs:983`,
-  `crates/nvs-stdlib/src/hash.rs:1031`, `crates/nvs-stdlib/src/hash.rs:1169`).
-- [ ] Every decode and encode walk of `Core\Encoding` runs in chunks through `bounded_loop`
-  (`crates/nvs-stdlib/src/encoding.rs:167`).
-- [ ] The native sort's key function polls through the batch counter, and a stopped sort returns the
-  fault with the array untouched (`crates/nvs-stdlib/src/sort.rs:115`,
-  `crates/nvs-stdlib/src/sort.rs:214`).
-- [ ] Tests `every_digest_stops_at_an_expired_deadline` and
+  `crates/nvs-runtime/src/abi.rs:656`).
+- [x] `Core\Hash::of`, `::hmac` and a stream's `finish` feed their input in 4 KiB chunks through
+  `bounded_loop` (`crates/nvs-stdlib/src/hash.rs:790`). `update` only keeps a reference, and
+  `finish` is where the stream hashes.
+- [x] Every decode and encode walk of `Core\Encoding` runs in chunks through `bounded_loop`
+  (`crates/nvs-stdlib/src/encoding.rs:972`).
+- [x] The native sort's key function polls through the batch counter, and a stopped sort returns the
+  fault with the array untouched (`crates/nvs-stdlib/src/sort.rs:243`).
+- [x] Tests `every_digest_stops_at_an_expired_deadline` and
   `every_encoding_stops_at_an_expired_deadline`, which read the digest and the encoding tables, and
   `a_native_sort_stops_at_an_expired_deadline_and_leaves_the_array_as_it_was`
-  (`crates/nvs-stdlib/src/hash.rs:1512`, `crates/nvs-stdlib/src/encoding.rs:299`,
-  `crates/nvs-stdlib/src/sort.rs:739`).
-- [ ] Attacks: a small `cpu_time`, then a slow digest of a large value, and a sort of a large array.
-  Each ends `FATAL` (`tests/hostile/core/Hash/of/02-a-large-value-under-a-small-cpu-time.nvs:1`,
-  `tests/hostile/core/Arr/sort/02-a-large-array-under-a-small-cpu-time.nvs:1`).
-- [ ] Each further walk the list names that does more than copy gets the poll here when it is in
-  these three files (`crates/nvs-stdlib/src/hash.rs:764`). Any other gets a gap record under
-  `data/gaps/`, in the shape the records there have, naming its module and no goal.
-- [ ] The rule fragment names the batch counter beside the combinator, and says which walks poll
+  (`crates/nvs-stdlib/src/hash.rs:1545`, `crates/nvs-stdlib/src/encoding.rs:1684`,
+  `crates/nvs-stdlib/src/sort.rs:796`).
+- [x] Attacks: a small `cpu_time`, then a slow digest of a large value, and a sort of a large array.
+  Each ends `FATAL` (`tests/hostile/core/Hash/of/04-a-large-value-under-a-small-cpu-time.nvs:1`,
+  `tests/hostile/core/Arr/sort/03-a-large-array-under-a-small-cpu-time.nvs:1`). The next free
+  numbers, since `02` was taken in both folders.
+- [x] Each further walk the list names that does more than copy gets the poll here when it is in
+  these three files (`crates/nvs-stdlib/src/hash.rs:790`). Any other gets a gap record under
+  `data/gaps/`, in the shape the records there have, naming its module. The schema needs an owner,
+  so each names `waits-are-bounded` (`data/gaps/nvs-stdlib/str-walk-polls-no-deadline.json:1`).
+- [x] The rule fragment names the batch counter beside the combinator, and says which walks poll
   (`docs/rules/http-server/time-is-bounded-inside-a-helper.md:7`).
 
 ### 6. a guest stops once its request is over the memory ceiling
@@ -535,36 +553,37 @@ cap the resource table.
 
 ### State
 
-Stages 1 to 4 are done. A `Fault`'s message is `nvs_runtime::Message`, whose field is private, so
-a `Fault` is made only through its six constructors (`crates/nvs-runtime/src/abi.rs`). Each passes
-`plain`, which clips past `MESSAGE_BYTES` (8 KiB) on a character boundary and adds `…`. A reader
-takes the text through `Deref<Target = str>`, `Display`, `as_str`, `into_owned` or
-`Into<Cow<str>>`, and `Message` compares with `str`, `&str` and `String` both ways, so none of the
-154 readers outside `abi.rs` needed a change. `Quoted`'s `{:?}` writes the excerpt escaped. The JSON
-repeated key goes through one `repeated` for both decoders and is quoted with `{:?}`. Every
-request-text hole in `response.rs`'s `setHeader`, `redirect` and `addCookie` messages is quoted:
-name, value, URL, path and domain. Four attacks end with a short message, read off a run
-(`tests/hostile/core/Json/decode/04-…`, `Response/setHeader/02-…`, `Response/redirect/03-…`,
-`Response/addCookie/02-…`). The rule fragment says both bounds.
+Stages 1 to 5 are done. `nvs_runtime::DeadlineBatch` (`crates/nvs-runtime/src/abi.rs`) is the
+batch counter for a loop another crate drives, and the native sort's key function counts through
+it. `sort::natural` and `sort::by_bytes` take the context and run before `arr.rs` builds the
+comparison closure that holds `ctx`. `Core\Hash` feeds every walk through `fed` in 4 KiB
+pieces. `Core\Encoding` converts every member in pieces, and `decode_argument` takes the
+context, so `Core\IO::readText` polls too. Two attacks end `FATAL` at step 2, read off a run.
+Nine gap records name the walks elsewhere (`data/gaps/nvs-stdlib/*-walk-polls-no-deadline.json`).
 
-`crate::tests::out_of_cpu` (`crates/nvs-stdlib/src/lib.rs`) installs a CPU reading that is one
-hour only on a thread that asked. Use it for any later CPU-refusal unit test.
+A `Fault`'s message is `nvs_runtime::Message`, made only through the six constructors in
+`abi.rs`, each clipping past `MESSAGE_BYTES` (8 KiB). `crate::tests::out_of_cpu`
+(`crates/nvs-stdlib/src/lib.rs`) gives a CPU-refusal unit test its reading.
 
-The sweep's reds are the ones the last session read: no check named `env-secret-proofs` exists,
-and nightly 43001191130 is the run whose one failure,
+The sweep's reds are the ones the last two sessions read: no check named `env-secret-proofs`
+exists, and nightly 43001191130's one failure,
 `a_changed_server_timeout_applies_to_the_next_connection`
-(`crates/nvs-cli/tests/live_config.rs:2520`), was not reproduced by the push CI after it. If a later
-nightly shows it again, it belongs to `waits-are-bounded`.
+(`crates/nvs-cli/tests/live_config.rs:2520`), did not come back in the push CI after it. If a
+later nightly shows it again, it belongs to `waits-are-bounded`.
 
 ### Next
 
-- `crates/nvs-runtime/src/abi.rs:641`: stage 5 starts with its `Explore` list of native walks, then
-  a batch counter beside `poll_deadline`.
-- `crates/nvs-stdlib/src/hash.rs:764`, `crates/nvs-stdlib/src/encoding.rs:167` and
-  `crates/nvs-stdlib/src/sort.rs:115`: the walks that adopt it.
-- `crates/nvs-ext/src/call.rs:1326`: stage 6 touches other files and may run beside stage 5.
+- `crates/nvs-ext/src/call.rs:1324`: stage 6 starts at the epoch callback, which asks
+  `memory_spent` beside `cpu_spent` and sets `Limit::Memory`.
+- `crates/nvs-ext/src/call.rs:1326`: `Budget` gains `memory_spent`, read from the flag the
+  allocator raises, and `drive`'s `between` step asks it too.
+- `crates/nvs-ext/src/handle.rs:85`: the resource table's cap near `handle::MOST`, for
+  `a_guest_cannot_fill_the_resource_table_past_its_cap`.
 
-Tests that may go red at the gate: `crates/nvs-host/tests/limits.rs`'s two `handler_isolate`
+Tests that may go red at the gate: from stage 5, `Core\Encoding`'s offset tests
+(`decoding_answers_the_text_and_names_the_offset_it_stopped_at`, the UTF-16 lone surrogate case),
+since a member now decodes through `encoding_rs` in pieces and names an offset only through the
+whole-value fallback. A conformance `.out` of an encoding throw, for the same reason. Earlier: `crates/nvs-host/tests/limits.rs`'s two `handler_isolate`
 cases, which assert reserve numbers the handler's allocator is now armed with. The session file
 store's cases in `crates/nvs-stdlib/src/session/sqlite.rs` and `session.rs`, whose `load` query
 changed. A test that asserts a message over 8 KiB, such as a long `CoreTest` diff; the standing
