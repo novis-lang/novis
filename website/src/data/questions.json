@@ -275,13 +275,13 @@
   },
   "/guides/how-to-use/limits/": {
     "feature": "guides/how-to-use/limits.mdx",
-    "hash": "a322d3327a06a739",
+    "hash": "22fcdd68223967ed",
     "questions": [
       "How do I give one large report more memory than other pages?",
       "Difference between processor time and total request time",
       "Can a command line script raise its own memory limit?",
       "What are the default memory and time limits of a request?",
-      "Why does raising a limit in my code return false?",
+      "How does the CPU time limit work for a WebSocket connection?",
       "How many requests can run at the same time with my memory?"
     ]
   },
@@ -353,9 +353,9 @@
   },
   "/guides/production/limits-and-logs/": {
     "feature": "guides/production/limits-and-logs.mdx",
-    "hash": "69200b95e71ec4dc",
+    "hash": "7d6516eb191a1552",
     "questions": [
-      "Which limits and log settings does a production server need?",
+      "Is CPU time counted for the whole life of an event stream?",
       "How do I stop log files from growing too large?",
       "Change settings without restarting the server",
       "Set the longest time a WebSocket or event stream stays open",

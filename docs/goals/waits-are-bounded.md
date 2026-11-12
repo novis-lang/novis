@@ -571,46 +571,58 @@ and end a guest call that parks past the wall deadline.
 
 ### 7. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
+- [x] `bun nv owners --closes waits-are-bounded` names no gap: the nine walks that polled no deadline
+  poll it now.
+- [ ] `bun nv ci --check` is green, and each decision only this file states is moved to a rule
+  fragment or a module doc before `DONE`.
+  - [x] The two stale question sets are rewritten and stamped.
+  - [ ] The stale perf records are measured again with `bun nv proofs --record-perf`.
+  - [ ] `bun nv ci --check` is green.
+  - [ ] Each standing decision is found in a rule fragment or module doc, or moved there.
 
 ## Handoff
 
 ### State
 
-Stage 6 is done, and its acceptance check `request-end-is-bounded` is green. Its `run` was
-`cargo test --lib`, which runs none of `nvs-cli`'s tests because that crate has only the `nvs`
-binary, so the check now runs `cargo test --bin nvs`.
+Stage 7: `looper verify` is green over the whole goal (0246cf0f3a, b87424507a), and
+`bun nv owners --closes waits-are-bounded` names no gap. `bun nv verify --doc` is green.
 
-- `crates/nvs-host/src/block_on.rs:150`: `block_on_yielding` returns `Option`, and `None` is a
-  cancellation. `block_on_until` is the end drive: it parks as `PastWallTime::RequestEnd` with the
-  task's timer armed at its instant, and drops the future past it.
-- `crates/nvs-cli/src/extensions.rs:476`: `Calls::drop` ends each request through `ended`, which
-  refuses every queued send and read (`Spent::refuse_queued`) and stops at `Spent::end_by`.
-- `crates/nvs-ext/src/call.rs:1665`: `Held` puts an instance back only when its call ended.
-- `crates/nvs-runtime/src/ctx/safepoint.rs:877`: `WeakSafepointView::wall_deadline`.
-- The rule fragment `docs/rules/packaging/a-fresh-instance-per-request.md` states the end bound.
-- `Calls` has an `on` field, so a test can run it on its own `Host`.
-
-The sweep's reds: the three Miri jobs ran on 578534cc, before 7568aaa0fb skips their tests under Miri.
-`env-secret-proofs` has no log under `.looper/loops/main/checks/`, and no check has that name.
+- The gate fixed three things. The rulebook pages were stale (`bun nv rules --render`).
+  `a_bounded_blocking_call_stops_waiting_at_its_deadline` (`crates/nvs-host/src/blocking.rs:998`)
+  raced stage 4's skip under load. It now checks that a job that started runs to its end, and one
+  still queued at the deadline is skipped. `crates/nvs-host/tests/park_sites.rs:282` reads
+  `crates/` through `nvs_repo::path`.
+- The nine gap records this goal owned are built (b87424507a). `Core\Json`, `Xml`, `Html`, `Csv`,
+  `Multipart`, `Zip`, `Bytes`, `Str` and `Markdown` poll the deadline in their walks, each with an
+  expired-deadline test that Miri skips.
+- `a_short_read_that_came_with_a_hang_up_reads_once_more` passes in WSL.
+- `bun nv ci --check` was red on two things. The question sets of `/guides/how-to-use/limits/` and
+  `/guides/production/limits-and-logs/` are rewritten and stamped in
+  `website/src/data/questions.json`. The feature proofs gate owed 318 stale perf records over the
+  files this goal changed. `bun nv proofs --record-perf` measured most of them, then threw at a
+  bench that needs `redis` while Docker was not running (`tools/nv/proofs/perf.ts:287`). It wrote
+  no record, so `data/perf/` is unchanged.
+- The sweep's reds were stale. The Miri jobs ran on 578534cc, before 7568aaa0fb, and their failed
+  tests are the ones it skips. `env-secret-proofs`'s command exits 0 with nothing owed.
 
 ### Next
 
-Stage 7, the gate.
+Stage 7's last item, the goal-end gates.
 
-- `docs/goals/waits-are-bounded.md:1`: run `looper verify` over the whole goal, fix every failure in
-  one pass, and run it once more.
-- `crates/nvs-host/src/net.rs:1`'s `a_short_read_that_came_with_a_hang_up_reads_once_more` is
-  Unix-only. Run it once in WSL with `bun nv linux-test`.
-- Expected red: a test that expects a member's own catchable timeout under a passed `wall_time` now
-  gets the wall-time `FATAL`. A test that slept past a passed `wall_time` off any core now sleeps
-  its whole duration. A test that reads a fast peer through `NvsStream` past a passed deadline now
-  ends after sixteen reads. A WebSocket test whose peer kept a connection open with pings past
-  `idle_timeout` is now closed at it. A test that opens more event streams than `max_open` gets a
-  `503`. A connection test whose handler spun past `cpu_time` on a watched core is now stopped. A
-  test that cancels a task inside a guest call now sees the call end at once. Only the new tests ran.
+- `tools/nv/proofs/perf.ts:287`: a bench whose service is not answering throws out of
+  `recordPerf` and loses every figure measured before it. Make it skip that bench and say so, as
+  `bun nv site --check` skips a snippet. Then run `bun nv proofs --record-perf` with Docker running,
+  and commit `data/perf/`.
+- `docs/goals/waits-are-bounded.md:572`: run `bun nv ci --check` and fix each red.
+- `docs/goals/waits-are-bounded.md:152`: for each standing decision, find the rule fragment or
+  module doc that states it (`bun nv brief --where <keyword>`), and move what only this file says.
+  The list is wide, so give it to a `reader` subagent.
+- Then write `DONE`.
+- Expected red: none. A test that reads a large JSON, XML, HTML, CSV, multipart, zip, bytes, string
+  or Markdown value after `expire_deadline()` now ends with the `FATAL`.
 
 ### Backlog
 
@@ -619,3 +631,7 @@ Stage 7, the gate.
 - An end drive that runs with no task on the thread (`Route::Thread`) blocks its core until its
   instant at the latest (`crates/nvs-host/src/block_on.rs:1`). Check whether a tree is ever dropped
   outside a task on a serving core.
+- Walks still unpolled inside one pass: `Core\Markdown`'s parser over one long line, and the HTML
+  sanitize and rebuild it calls. `crates/nvs-stdlib/src/markdown.rs:1676` could call
+  `html::bounded_polled` and `settled_with`. `toHtmlEach` and `Live` poll nothing, and `json::read`'s
+  callers in `request.rs`, `queue.rs` and `test.rs` could call `read_polled`.
