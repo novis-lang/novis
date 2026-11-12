@@ -348,6 +348,14 @@ The entry path is canonicalised and then prefix-checked against the granted root
 than by validation. A dynamic path is allowed — a queue worker needs one — but it can only ever land
 inside the app folder or a root an operator wrote down.
 
+`script.spawn` is also asked of the namespace the spawn is written in
+([`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace)). `spawn script`, in both forms,
+`Core\Queue::push`, `Core\Socket::upgrade` and `Core\Sse::upgrade` each name code that will run as
+an isolate, so each compiles in a package only where its `[grants]` line lists `script.spawn`. The
+construct's row is `CONSTRUCT_CAPABILITIES`, beside the members' table
+([`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table)). No second capability guards an enqueue or an
+upgrade: two grants over one effect would let a deployment close one and leave the other open.
+
 The child's grants are the parent's effective grants, optionally narrowed at the spawn site. Nothing
 widens: a parent that has dropped `net.connect` cannot regain it by spawning
 ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
@@ -377,8 +385,9 @@ program asked a question its own situation has no answer to, and no correct prog
 A child that genuinely needs facts from the request that spawned it receives them as ordinary
 arguments, deep-copied like any other value crossing the boundary
 ([`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy)). `Core\Env` and `Core\Cli` are not restricted this way:
-environment variables and process arguments are process-wide facts already governed by the capability
-and config-overlay machinery. `Core\Server::isDraining` is the same exemption inside a class that is
+environment variables and process arguments are process-wide facts, not a request's. Reading an
+environment variable needs the capability `env` ([`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed)), so a
+child spawned with a `grants:` list that leaves `env` out reads no variable. `Core\Server::isDraining` is the same exemption inside a class that is
 otherwise restricted: whether a shutdown has begun is a fact about the process rather than about a
 request, so it answers in a child exactly as it answers in a CLI program, and the members of that
 class that read the request are restricted with the other two.
@@ -670,16 +679,20 @@ capability is not a promise about any one argument; the scope is asked every tim
 
 `rule:security/capability-declaration-is-one-table`
 
-What each `Core` member needs is declared once, in one table: a class, a member, and an optional
-capability, with one row for each capability a member can ask. **The table is never read at run
-time.** The checker reads it while compiling, to hold each call to its namespace's grants
-([`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace)), the completeness test reads it, and
-the metadata command renders it as a roster of its own, which is how any renderer that wants a
+What each `Core` member needs is declared once, in one file, as two lists that together cover every
+class. The capability table has a class, a member, and an optional capability, with one row for
+each capability a member can ask. The second list names each class none of whose members reaches a
+door, with one reason per class. A third table names each language construct that reaches a door,
+such as `spawn script`, and the capability it needs. **None of them is read at run time.** The
+checker reads them while compiling, to hold each call to its namespace's grants
+([`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace)), the completeness tests read them, and the
+metadata command renders each as a roster of its own, which is how any renderer that wants a
 member's capability beside its card gets one ([`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers); the join is
 on `(class, member)` at render time). The operator's grant is enforced at the doors
-([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)), which do not consult it, so no edit to the table
+([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)), which do not consult them, so no edit to a list
 widens what the operator granted. A row that understated its door would widen what a namespace
-compiles, which is why [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test) holds every door to its rows.
+compiles, which is why [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test) holds every door to its rows and
+every class on the second list to no door.
 
 A field on each member row was the obvious shape and is rejected for two reasons, in this order.
 **"What can this runtime do to my machine" should be one screen of one file**; spread across dozens of
@@ -687,8 +700,19 @@ class definitions in dozens of modules it is dozens of greps and a judgement abo
 all, which is precisely the question a security review is trying not to have to make. And a field that
 is empty on the overwhelming majority of rows documents nothing while being maintained everywhere.
 
+The second list is one row per class and not a row with no capability for each member of every
+class. Thousands of equal rows would hide the few that matter, and a class with one reason states
+it once.
+
 The locality it gives up is bought back mechanically: a test fails on an entry naming a class or
-member that does not exist, and another fails on a member that owes an entry and has none.
+member that does not exist, another fails on a class on neither list, and another on a member of a
+capability-bearing class that owes an entry and has none.
+
+**Declined:**
+- **A row with no capability for every member of every class.** It hides the rows that name one.
+- **An exception list in the test.** [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test) forbids it.
+- **A compile-time assertion over both lists.** It needs string compares in a `const fn`, for no gain
+  over a test the gate runs.
 
 <sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed).</sub>
 
@@ -709,6 +733,16 @@ gets the spelling it prints. Two capabilities that answer different questions st
 able to read a file is not permission to run it
 ([`security/script-spawn-capability`](security.md#security-script-spawn-capability)), and opening a connection an operator named is not opening
 one a program chose.
+
+**Reading the process environment is `env`**, the one name on the roster with no family: it is written
+`env = true` under `[capabilities]` and `"env"` on a `[grants]` line, and a refusal points at
+`[capabilities]`. It covers `Core\Env::get`, `secret` and `all`, and every member that returns a
+deployment credential: `Core\Config::secret`, and `Core\Config::get` for a secret directive. No older
+capability fits, because reading a variable opens no file, reaches no host and runs no program. With
+its key not written it is granted on every kind of run, so the application reads the environment its
+operator launched it with; a package holds it only through its grant line, because a deployment's
+credentials live there. It is unscoped: a package grant carries no scope, and `Core\Env::all` names no
+variable to ask about.
 
 A member that reaches nothing declares that by entering the table with no capability rather than by
 being absent from it ([`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table)), so the standard library's
@@ -1106,8 +1140,8 @@ anything, so the authority a new dependency brings is visible in one diff at the
 introduced rather than discoverable by audit later.
 
 What this buys, stated plainly: a fully malicious package that reaches the compiler cannot open a
-socket, read a file, spawn a process, reach a database or spawn a script unless a human wrote its name
-in a grant line. The compromise of a transitive dependency degrades from *arbitrary action with the
+socket, read a file, read the process environment or a deployment secret, spawn a process, reach a
+database or spawn a script unless a human wrote its name in a grant line. The compromise of a transitive dependency degrades from *arbitrary action with the
 process's authority* to *arbitrary computation with no authority at all*. The one read that needs no
 line is a package reading its own listed files, whose bytes its digest already fixes
 ([`packaging/a-package-carries-only-its-source-and-what-it-lists`](packaging.md#packaging-a-package-carries-only-its-source-and-what-it-lists)).

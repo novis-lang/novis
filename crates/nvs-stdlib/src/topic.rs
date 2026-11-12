@@ -216,7 +216,7 @@
 //! metric label, and for the same reason. A name derived from user input is
 //! how one tenant subscribes to another's stream.
 //!
-//! There is no [`crate::registry::CAPABILITIES`] row. The bus reaches no
+//! The class is on [`crate::registry::NEEDS_NONE`]. The bus reaches no
 //! operating-system facility at all — it is a map in this process — and the
 //! grant that decides whether a program may be a connection in the first place
 //! was asked at the upgrade ([`crate::socket`]).

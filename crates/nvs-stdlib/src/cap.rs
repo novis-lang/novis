@@ -192,11 +192,15 @@ pub fn roster() -> String {
 /// a row, as [`is_capability`] holds none of the roster. A member whose door
 /// asks by its argument, such as `Core\IO::open` by its mode, has a row for
 /// each capability and needs all of them, because the checker sees the call and
-/// not the argument. A member of a class with no row reaches no door, and needs
-/// nothing either. The door still asks
-/// the operator's grant when it runs (`rule:security/no-runtime-grant`), and
-/// `every_door_names_the_capability_its_member_declares` holds each door to its
-/// row, so a row that misreports fails a test rather than widening a namespace.
+/// not the argument. A member of a class on [`crate::registry::NEEDS_NONE`]
+/// has no row and needs nothing, because none of that class's members reaches
+/// a door. A class on neither list cannot exist:
+/// `every_core_class_has_capability_rows_or_a_reason_for_none` fails on one.
+/// The door still asks the operator's grant when it runs
+/// (`rule:security/no-runtime-grant`). `every_door_names_the_capability_its_member_declares`
+/// holds each door to its row, and `no_class_with_a_reason_for_none_calls_a_door`
+/// holds each `NEEDS_NONE` class to no door, so a row that misreports fails a
+/// test rather than widening a namespace.
 ///
 /// **What it costs:** one pass over the table per `Core` call site, at compile
 /// time only. Nothing is allocated, and nothing is read on the request path.

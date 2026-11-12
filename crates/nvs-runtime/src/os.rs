@@ -14,11 +14,8 @@
 //! A pid, a hostname, a core count, this process's own resident set and the
 //! kernel's load average are facts about the process doing the asking: a
 //! program learns nothing about anything it does not already inhabit, so there
-//! is no grant to check. `Core\Os` therefore carries no row in
-//! `nvs_stdlib::registry::CAPABILITIES` at all, which is `Core\Path`'s position
-//! rather than `Core\RateLimit::shed`'s — a `None` row declares that a member
-//! of a *door* reaches nothing, and declaring one here would make a class that
-//! is not a door look like one.
+//! is no grant to check. `Core\Os` is on `nvs_stdlib::registry::NEEDS_NONE`, as
+//! `Core\Path` is, and has no row in `nvs_stdlib::registry::CAPABILITIES`.
 //!
 //! # Every answer is optional, and none of it is invented
 //!

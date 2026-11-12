@@ -13,11 +13,10 @@
 //! number, the name of the host it already runs on, the cores it may already
 //! use, the memory it already holds, and how busy the machine it is already on
 //! is. A program learns nothing about anything it does not inhabit, so there is
-//! nothing to grant and `Core\Os` has **no row** in
-//! [`crate::registry::CAPABILITIES`] — `Core\Path`'s position, not
-//! `Core\RateLimit::shed`'s. A `None` row says a member *of a door* reaches
-//! nothing, and a class becomes a door in that table's reading the moment any
-//! row names it, so five `None` rows here would make this class look like one.
+//! nothing to grant. `Core\Os` has one row in [`crate::registry::NEEDS_NONE`]
+//! and none in [`crate::registry::CAPABILITIES`], as `Core\Path` does. A `None`
+//! row there says a member *of a door* reaches nothing, and five of them would
+//! make this class look like a door.
 //!
 //! The syscalls themselves are [`nvs_runtime::os`]'s, because
 //! `rule:security/capability-check-at-the-door` forbids this crate from
@@ -52,10 +51,9 @@ pub(crate) const NAME: &str = "Core\\Os";
 /// `Core\Os`'s registry rows: the five members, in the module doc's order.
 ///
 /// What the host itself is, as five facts about the process asking rather
-/// than about anything it can reach. It is the one class in this stretch with
-/// no row in [`CAPABILITIES`](crate::registry::CAPABILITIES), and
-/// [`crate::os`]'s module doc is the home of why declaring `None` five times
-/// would have been the wrong claim rather than a cautious one.
+/// than about anything it can reach. Its row is in
+/// [`NEEDS_NONE`](crate::registry::NEEDS_NONE), and [`crate::os`]'s module doc
+/// says why.
 // rank: 1320
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,

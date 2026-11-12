@@ -875,6 +875,14 @@ fn the_meta_document_carries_a_capabilities_roster_beside_its_other_four() {
         !capabilities.is_empty(),
         "`capabilities` is populated beside them"
     );
+    // A class none of whose members reaches a door has one row with its reason.
+    let needs_none = roster(&document, "needsNone");
+    assert!(
+        needs_none
+            .iter()
+            .any(|row| row["class"] == r"Core\Str" && row["reason"].is_string()),
+        "`needsNone` names `Core\\Str` with a reason"
+    );
 
     let row = |class: &str, member: &str| {
         capabilities

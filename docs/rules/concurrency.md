@@ -1546,6 +1546,11 @@ The budget is what makes an overrun a bounded failure rather than a fatal
 capability door every other isolate goes through
 ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)), with the job's own path as the scope.
 
+Enqueuing is starting a script, so `push` needs `script.spawn` on the calling namespace's
+`[grants]` line ([`security/script-spawn-capability`](security.md#security-script-spawn-capability)). The application enqueues with no line
+written, and a package enqueues only where a human wrote `script.spawn` on its line. The grants
+recorded with a job narrow what its isolate holds. They are not the permission to enqueue.
+
 <sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate).</sub>
 
 <a id="concurrency-claiming-is-one-statement"></a>

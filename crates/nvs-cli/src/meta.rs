@@ -80,6 +80,10 @@
 //! that reaches a door, such as `spawn script`, and the capability it needs.
 //! It has no class to join on, so it is a roster of its own.
 //!
+//! `needsNone` is [`nvs_stdlib::registry::NEEDS_NONE`]: each class none of
+//! whose members reaches a door, with the reason. Every `Core` class is in
+//! `capabilities` or here, so the two together answer what any class can reach.
+//!
 //! ## The program half
 //!
 //! `rule:tooling/meta-json-takes-a-program` adds one optional argument, and it
@@ -137,8 +141,8 @@ use nvs_diagnostics::{Diagnostics, SourceFile, SourceMap, Span};
 use nvs_hir::QName;
 use nvs_stdlib::registry::{
     CAPABILITIES, CLASSES, CONSTRUCT_CAPABILITIES, Const, CoreAlias, CoreClass, CoreConst,
-    CoreEnum, CoreMethod, CoreOption, CoreTy, ENUMS, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
-    aliases_of, class_type_params, constructor_of,
+    CoreEnum, CoreMethod, CoreOption, CoreTy, ENUMS, EnumDoc, ErrorDoc, MethodDoc, NEEDS_NONE,
+    ParamDoc, Qual, aliases_of, class_type_params, constructor_of,
 };
 use nvs_syntax::ast::{
     ClassDecl, ClassMember, ClassMemberKind, ConstMember, DocComment, DocTagKind, EnumDecl,
@@ -237,6 +241,7 @@ pub(crate) fn document() -> Value {
         "directives": nvs_config::DIRECTIVES.iter().map(directive_json).collect::<Vec<_>>(),
         "capabilities": CAPABILITIES.iter().map(capability_json).collect::<Vec<_>>(),
         "constructs": CONSTRUCT_CAPABILITIES.iter().map(construct_json).collect::<Vec<_>>(),
+        "needsNone": NEEDS_NONE.iter().map(|(class, reason)| json!({ "class": class, "reason": reason })).collect::<Vec<_>>(),
     })
 }
 

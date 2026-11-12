@@ -1967,26 +1967,30 @@ impl CoreClass {
 /// `// rank: N` line above each class's `CoreClass` const.
 pub use crate::classes::CLASSES;
 
-/// Every member of a capability-bearing class, and which capability it needs —
-/// `rule:security/capability-declaration-is-one-table`
-/// , with `None` for a member that needs none.
+/// Every member of a capability-bearing class, and which capability it needs,
+/// with `None` for a member that needs none
+/// (`rule:security/capability-declaration-is-one-table`).
 ///
-/// One table and not a field on every member row, because "what can this runtime
-/// do to my machine" is a question whose whole answer should be one screen of one
-/// file. Spread across the class tables of every module it would be one grep per
-/// module and a judgement about whether you found them all, which is precisely
-/// the judgement a security review is trying not to have to make.
+/// This table and [`NEEDS_NONE`] together cover every class in [`CLASSES`],
+/// and each class is on exactly one of them. A class is here when any one of
+/// its members reaches a door, and then every one of its members has a row. A
+/// class is on [`NEEDS_NONE`] when none of its members reaches a door, and then
+/// it has one row there with the reason. A class on neither list fails
+/// `every_core_class_has_capability_rows_or_a_reason_for_none`, so a new class
+/// cannot arrive unclassified. There is no third list and no exception.
+///
+/// One table and not a field on every member row, because "what can this
+/// runtime do to my machine" is a question whose whole answer should be one
+/// screen of one file. Spread across the class tables of every module it would
+/// be one grep per module and a judgement about whether you found them all.
 ///
 /// **Nothing reads this at run time.** `nvs meta` renders it, the reference
 /// documentation prints it beside a member's card (`rule:core-api/reference-card`),
-/// `rule:testing/capability-completeness-test` reads it, and the checker reads it through
-/// [`crate::cap::needs`] to hold a call site to its namespace's grants
-/// (`rule:security/authority-is-the-enclosing-namespace`). The operator's grant
-/// is `nvs_runtime::capability::require`, called inside the door that performs
-/// the effect, and that function never looks here. A row that misreported its
-/// door would let a namespace call a member it was not granted, so
-/// `every_door_names_the_capability_its_member_declares` holds every door's
-/// `Cap` to its member's row.
+/// `rule:testing/capability-completeness-test` reads it, and the checker reads
+/// it through [`crate::cap::needs`] to hold a call site to its namespace's
+/// grants (`rule:security/authority-is-the-enclosing-namespace`). The
+/// operator's grant is `nvs_runtime::capability::require`, called inside the
+/// door that performs the effect, and that function never looks here.
 ///
 /// Entries are `(class, member, Option<capability>)`, by the spellings
 /// [`CoreClass::name`] and [`CoreMethod::name`] use;
@@ -1995,30 +1999,20 @@ pub use crate::classes::CLASSES;
 /// `Core\IO::open` by its mode, has one row for each, and a call to it needs
 /// all of them. A `None` row is a member's only row.
 ///
-/// The rows naming a capability are the whole of what this runtime can do to a
-/// machine — the filesystem, another program, a socket, and the endpoints an
-/// operator configured. Every other `Core` member reaches no spelling that
-/// performs an effect, which `nvs_stdlib_reaches_the_os_only_through_the_gate`
-/// holds mechanically rather than by this table being kept honest. There is no
-/// count here on purpose: a number in a comment beside a list that grows is one
-/// that is wrong between every pair of additions, and `nvs meta` renders the
-/// table itself.
+/// **A row is checked against the doors, not trusted.** A row that understated
+/// its door would let a namespace call a member it was not granted, so
+/// `every_door_names_the_capability_its_member_declares` holds every door's
+/// `Cap` to its member's rows, and `no_class_with_a_reason_for_none_calls_a_door`
+/// holds every class on [`NEEDS_NONE`] to no door at all. Nothing in this crate
+/// reaches the operating system except through a door, which
+/// `nvs_stdlib_reaches_the_os_only_through_the_gate` holds. There is no count
+/// here: `nvs meta` renders the table itself.
 ///
-/// **A `None` row is a declaration, not an exemption**, and that is
-/// `rule:testing/capability-completeness-test` as a *shape* rather than as a
-/// promise to keep a list short. A class
-/// is a door once any one of its members is declared, and its remaining members
-/// then divide into two kinds a review has to tell apart: the ones nobody
-/// classified, and the ones classified as reaching nothing. Both used to look
-/// alike from here — a member simply absent from the table — so the second kind
-/// lived on a frozen allowlist beside the completeness test, where growing it by one
-/// entry was the move `rule:testing/capability-completeness-test` forbids and the only move a sibling like
-/// `Core\RateLimit::shed` left. Declaring `None` costs a would-be exemption
-/// exactly what a declaration costs, in the same table under the same review,
-/// and buys a total claim in place of an "all but a list" one: every member of a
-/// capability-bearing class has a row here, and there is no exception list
-/// anywhere. Nothing about enforcement moves — a `None` row grants nothing,
-/// because no row grants anything.
+/// **A `None` row is a declaration, not an exemption**
+/// (`rule:testing/capability-completeness-test`). Once a class is a door, its
+/// other members are either unclassified or classified as reaching nothing, and
+/// a `None` row is how the second kind says so, in the same table under the
+/// same review. A `None` row grants nothing, because no row grants anything.
 ///
 /// The `fs.read`/`fs.write` split is the filesystem's own and not a finer one:
 /// asking a file's size is reading it, and removing a file is writing it, so
@@ -2599,6 +2593,460 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "send",
         Some(nvs_config::Cap::NetConnect),
     ),
+    // `startTrace` and `startProfile` create the file they name, and each asks
+    // its own capability for that path. Neither `fs.write` nor the other one
+    // grants it. The rest of the class prints to the request's diagnostics or
+    // reads counters the program already holds.
+    (r"Core\Debug", "dump", None),
+    (r"Core\Debug", "render", None),
+    (r"Core\Debug", "startCoverage", None),
+    (r"Core\Debug", "stopCoverage", None),
+    (r"Core\Debug", "coverage", None),
+    (
+        r"Core\Debug",
+        "startTrace",
+        Some(nvs_config::Cap::DebugTrace),
+    ),
+    (r"Core\Debug", "stopTrace", None),
+    (
+        r"Core\Debug",
+        "startProfile",
+        Some(nvs_config::Cap::DebugProfile),
+    ),
+    (r"Core\Debug", "stopProfile", None),
+    // `saveTo` writes an uploaded part to the path it names, and removes what
+    // it wrote when the part fails, through `Core\IO`'s own write. Every other
+    // member reads the part from the request body.
+    (r"Core\Request\Part", "name", None),
+    (r"Core\Request\Part", "filename", None),
+    (r"Core\Request\Part", "contentType", None),
+    (r"Core\Request\Part", "content", None),
+    (r"Core\Request\Part", "readAll", None),
+    (
+        r"Core\Request\Part",
+        "saveTo",
+        Some(nvs_config::Cap::FsWrite),
+    ),
+    (r"Core\Request\Part", "peek", None),
+    // `saveTo` writes a response body to the path it names, as
+    // `Core\Request\Part::saveTo` does. Every other member reads the response
+    // on the connection `Core\Http\Client::stream` opened under `net.connect`.
+    (r"Core\Http\Stream", "status", None),
+    (r"Core\Http\Stream", "header", None),
+    (r"Core\Http\Stream", "headers", None),
+    (r"Core\Http\Stream", "events", None),
+    (r"Core\Http\Stream", "lines", None),
+    (r"Core\Http\Stream", "chunks", None),
+    (
+        r"Core\Http\Stream",
+        "saveTo",
+        Some(nvs_config::Cap::FsWrite),
+    ),
+];
+
+/// Every class none of whose members reaches a door, each with the reason
+/// (`rule:security/capability-declaration-is-one-table`).
+///
+/// [`CAPABILITIES`]' other half: each class in [`CLASSES`] is on exactly one
+/// of the two, and `every_core_class_has_capability_rows_or_a_reason_for_none`
+/// fails on a class on neither, on both, or here with an empty reason. A class
+/// here needs no capability for any member, so [`crate::cap::needs`] returns
+/// nothing for it. The reason is checked, not trusted:
+/// `no_class_with_a_reason_for_none_calls_a_door` fails when a door call names
+/// a member of a class here, or forwards one in a module whose every class is
+/// here.
+///
+/// A class whose members differ is never here: each member gets its own row in
+/// [`CAPABILITIES`], `None` where it reaches nothing. Many classes here work on
+/// an object a member of a class in [`CAPABILITIES`] opened, such as a database
+/// connection or an HTTP response. That member asked when it opened it, and
+/// the reason says which one. A class that reaches something outside the
+/// request that no capability names, such as the terminal or the clock, says
+/// what it reaches.
+///
+/// **What it spends:** nothing at run time. Like [`CAPABILITIES`], only the
+/// checker, the tests and `nvs meta` read it.
+pub const NEEDS_NONE: &[(&str, &str)] = &[
+    // Computation over the arguments and the request's own memory.
+    (r"Core\Str", "computes over its arguments"),
+    (r"Core\Arr", "computes over its arguments"),
+    (
+        r"Core\Attributes",
+        "reads the attributes compiled into the program",
+    ),
+    (r"Core\Math", "computes over its arguments"),
+    (r"Core\Decimal", "computes over its arguments"),
+    (r"Core\BigInt", "computes over its arguments"),
+    (
+        r"Core\Regex",
+        "computes over its arguments, with a compiled-pattern cache per core",
+    ),
+    (r"Core\Regex\Match", "reads a match the program holds"),
+    (
+        r"Core\Regex\Pattern",
+        "computes over its arguments, as `Core\\Regex` does",
+    ),
+    (r"Core\Json", "computes over its arguments"),
+    (
+        r"Core\Json\Elements",
+        "reads a source the program already opened or received",
+    ),
+    (
+        r"Core\Json\Pieces",
+        "reads a source the program already opened or received",
+    ),
+    (r"Core\Encoding", "computes over its arguments"),
+    (r"Core\Bytes", "computes over its arguments"),
+    (
+        r"Core\Path",
+        "computes over path text, and reads the working directory's name",
+    ),
+    (
+        r"Core\IO\Lines",
+        "iterates lines `Core\\IO::lines` already read",
+    ),
+    (
+        r"Core\IO\StdinStream",
+        "reads the process's standard input, which the operator connected",
+    ),
+    (
+        r"Core\IO\Walk",
+        "iterates names `Core\\IO::walk` already listed",
+    ),
+    (
+        r"Core\Process\Result",
+        "reads the result of a finished `Core\\Process::run`",
+    ),
+    (
+        r"Core\Process\Handle",
+        "works on the child `Core\\Process::spawn` started under `process.exec`",
+    ),
+    (r"Core\Time", "reads the clock and the time zone database"),
+    (
+        r"Core\Time\Instant",
+        "computes over its value, and reads the time zone database",
+    ),
+    (
+        r"Core\Time\DateTime",
+        "computes over its value, and reads the time zone database",
+    ),
+    (r"Core\Time\Date", "computes over its value"),
+    (r"Core\Time\TimeOfDay", "computes over its value"),
+    (r"Core\Time\Duration", "computes over its value"),
+    (
+        r"Core\Time\Zone",
+        "reads the time zone database and the host's own zone",
+    ),
+    (r"Core\ObjectMap", "computes over its contents"),
+    (r"Core\ObjectSet", "computes over its contents"),
+    (r"Core\Heap", "computes over its contents"),
+    (
+        r"Core\Random",
+        "reads the operating system's random number generator",
+    ),
+    (r"Core\Random\Seeded", "computes over its own seed"),
+    (
+        r"Core\Uuid",
+        "reads the random number generator and the clock",
+    ),
+    (
+        r"Core\Hash",
+        "computes over its arguments, or reads a file the program already opened",
+    ),
+    (r"Core\Hash\Stream", "computes over what it is fed"),
+    (r"Core\Uri", "computes over its arguments"),
+    (
+        r"Core\Router",
+        "reads the program's routes, and runs the matched handler",
+    ),
+    (r"Core\Router\Match", "reads a match the program holds"),
+    (r"Core\Csv", "computes over its arguments"),
+    (
+        r"Core\Csv\Rows",
+        "reads a source the program already opened or received",
+    ),
+    (r"Core\Serialize", "computes over its arguments"),
+    (r"Core\Validate", "computes over its arguments"),
+    (r"Core\Out", "redirects the request's own output"),
+    (
+        r"Core\Test",
+        "runs requests inside the test process, against fakes it holds",
+    ),
+    (r"Core\Test\Response", "reads a response the test holds"),
+    (
+        r"Core\Test\SentRequest",
+        "reads a request the test recorded",
+    ),
+    (r"Core\Test\Outcome", "reads a test's result"),
+    (r"Core\Test\Summary", "reads a test run's results"),
+    (r"Core\Task", "runs the request's own tasks"),
+    (
+        r"Core\Task\Channel",
+        "passes values between the request's own tasks",
+    ),
+    (
+        r"Core\Script\Handle",
+        "waits on a script that `spawn script` started",
+    ),
+    (
+        r"Core\Script",
+        "reads the running script's arguments and exit hooks",
+    ),
+    (
+        r"Core\Script\ExitReport",
+        "reads a finished script's report",
+    ),
+    (r"Core\Program", "reads the running program's identity"),
+    // The terminal, which the operator connected to the process.
+    (
+        r"Core\Cli",
+        "writes to and reads from the terminal the operator connected",
+    ),
+    (
+        r"Core\Cli\Text",
+        "computes over its text, and reads the terminal's color depth",
+    ),
+    (r"Core\Cli\Color", "computes over its arguments"),
+    (r"Core\Cli\Style", "computes over its arguments"),
+    (
+        r"Core\Cli\Live",
+        "draws on the terminal the operator connected",
+    ),
+    (
+        r"Core\Cli\Progress",
+        "draws on the terminal the operator connected",
+    ),
+    (
+        r"Core\Command",
+        "reads the command line, and runs the program's own handler",
+    ),
+    // The request itself, and the server it arrived at.
+    (r"Core\Server", "reads whether the server is draining"),
+    (r"Core\Signal", "stores the request's handler"),
+    (r"Core\Budget", "reads the request's own counters"),
+    (r"Core\Request", "reads the request and its body"),
+    (r"Core\Request\Mount", "reads the request's mount"),
+    (r"Core\Request\BodyStream", "reads the request body"),
+    (
+        r"Core\Request\Files",
+        "reads the uploaded parts of the request body",
+    ),
+    (
+        r"Core\Request\PartContent",
+        "reads an uploaded part of the request body",
+    ),
+    (r"Core\Response\Stream", "writes the response body"),
+    (
+        r"Core\Session",
+        "reads and writes the request's session, in the store `[session]` names",
+    ),
+    (r"Core\Socket\Message", "reads a message the program holds"),
+    (
+        r"Core\Topic",
+        "passes messages between the server's own connections",
+    ),
+    (r"Core\Sse\Message", "reads a message the program holds"),
+    (r"Core\Fatal", "stores the request's handler"),
+    (r"Core\Taint", "returns its argument with another qualifier"),
+    (
+        r"Core\Secret",
+        "returns its argument with another qualifier",
+    ),
+    // Cryptography, which reads the clock and the random number generator.
+    (r"Core\Cldr", "reads locale data compiled into the binary"),
+    (
+        r"Core\Password",
+        "computes a hash, with a salt from the random number generator",
+    ),
+    (
+        r"Core\Crypto",
+        "computes over its arguments, with the random number generator",
+    ),
+    (r"Core\Crypto\PublicKey", "computes over its key"),
+    (
+        r"Core\Crypto\KeyPair",
+        "computes over its key, with the random number generator",
+    ),
+    (r"Core\SignedCookie", "computes over its arguments"),
+    (r"Core\Csrf", "computes a token over the request's session"),
+    (r"Core\Totp", "computes over its arguments and the clock"),
+    (
+        r"Core\Passkey",
+        "computes over its arguments and the request's session",
+    ),
+    (
+        r"Core\Passkey\Credential",
+        "reads a credential the program holds",
+    ),
+    (
+        r"Core\WebPush\Subscription",
+        "reads a subscription the program holds",
+    ),
+    (
+        r"Core\WebPush\Sent",
+        "reads the result of `Core\\WebPush::send`",
+    ),
+    (r"Core\Jwt", "computes over its arguments and the clock"),
+    (r"Core\Jwt\KeySet", "computes over its keys"),
+    (
+        r"Core\Jwe",
+        "computes over its arguments, with the random number generator",
+    ),
+    (r"Core\Jwe\Key", "computes over its key"),
+    (
+        r"Core\Signature",
+        "computes over its arguments and the clock",
+    ),
+    // Documents, built and read in memory.
+    (r"Core\Html", "computes over its arguments"),
+    (r"Core\Html\Markup", "computes over its value"),
+    (
+        r"Core\Markdown",
+        "computes over its arguments, or reads a source the program opened",
+    ),
+    (
+        r"Core\Markdown\Groups",
+        "reads a source the program already opened or received",
+    ),
+    (r"Core\Markdown\Live", "computes over what it is fed"),
+    (r"Core\Markdown\Update", "reads an update the program holds"),
+    (r"Core\Xml", "computes over its arguments"),
+    (r"Core\Xml\Node", "computes over its value"),
+    (
+        r"Core\Xml\Reader",
+        "reads a source the program already opened or received",
+    ),
+    (r"Core\Xml\Writer", "builds a document in memory"),
+    (
+        r"Core\Compress",
+        "computes over its arguments, or reads a source the program opened",
+    ),
+    (r"Core\Compress\Compressor", "computes over what it is fed"),
+    (
+        r"Core\Compress\Decompressor",
+        "computes over what it is fed",
+    ),
+    (
+        r"Core\Mime",
+        "computes over its arguments, or reads a source the program opened",
+    ),
+    // An HTTP response, on the connection `Core\Http\Client` opened under `net.connect`.
+    (
+        r"Core\Http\Target",
+        "reads a target `Core\\Http::allowUrl` checked",
+    ),
+    (
+        r"Core\Http\Identity",
+        "reads a key and certificate from its arguments",
+    ),
+    (
+        r"Core\Http\Response",
+        "reads a response the client already received",
+    ),
+    (r"Core\Http\TlsInfo", "reads a connection's TLS details"),
+    (
+        r"Core\Http\Socket",
+        "works on the socket `Core\\Http\\Client::openSocket` opened",
+    ),
+    (r"Core\Http\Event", "reads an event the program holds"),
+    (
+        r"Core\Http\Events",
+        "reads the response `Core\\Http\\Client::stream` opened",
+    ),
+    (
+        r"Core\Http\Lines",
+        "reads the response `Core\\Http\\Client::stream` opened",
+    ),
+    (
+        r"Core\Http\Chunks",
+        "reads the response `Core\\Http\\Client::stream` opened",
+    ),
+    // The process and the server's own state.
+    (r"Core\Os", "reads facts about the process and the host"),
+    (
+        r"Core\Cache\Store",
+        "works on the store `Core\\Cache::memory` or `Core\\Cache::shared` returned",
+    ),
+    (
+        r"Core\Cache\SecretEntry",
+        "reads an entry the program holds",
+    ),
+    (
+        r"Core\RateLimit\Decision",
+        "reads a decision the program holds",
+    ),
+    (r"Core\Metrics", "records into the server's own metrics"),
+    // Reflection over the program's own classes.
+    (r"Core\Reflect", "reads the program's own classes"),
+    (
+        r"Core\Reflect\ClassInfo",
+        "reads and calls the program's own classes",
+    ),
+    (
+        r"Core\Reflect\MethodInfo",
+        "reads the program's own classes",
+    ),
+    (
+        r"Core\Reflect\PropertyInfo",
+        "reads the program's own classes",
+    ),
+    (
+        r"Core\Reflect\ParameterInfo",
+        "reads the program's own classes",
+    ),
+    (
+        r"Core\Reflect\ConstantInfo",
+        "reads the program's own classes",
+    ),
+    (
+        r"Core\Reflect\AttributeInfo",
+        "reads the program's own classes",
+    ),
+    (r"Core\Reflect\EnumInfo", "reads the program's own classes"),
+    (r"Core\Ast", "parses its argument"),
+    (r"Core\Ast\Node", "reads a node the program holds"),
+    // A database, on the connection `Core\Db::open` or `Core\Db::connect` made.
+    (
+        r"Core\Db\Connection",
+        "works on the connection `Core\\Db::open` or `Core\\Db::connect` made",
+    ),
+    (
+        r"Core\Db\Transaction",
+        "works on the connection `Core\\Db::open` or `Core\\Db::connect` made",
+    ),
+    (r"Core\Db\Rows", "reads rows the program holds"),
+    (
+        r"Core\Db\Stream",
+        "works on the connection `Core\\Db::open` or `Core\\Db::connect` made",
+    ),
+    (r"Core\Db\Row", "reads a row the program holds"),
+    (r"Core\Db\Write", "reads the result of a write"),
+    (r"Core\Db\Column", "reads a column the program holds"),
+    (r"Core\Db\InList", "computes over its arguments"),
+    (r"Core\Db\Plan", "reads a plan the program holds"),
+    (r"Core\Db\Plan\Step", "reads a step the program holds"),
+    // A directory, on the connection `Core\Ldap::open` or `Core\Ldap::connect` made.
+    (
+        r"Core\Ldap\Connection",
+        "works on the server `Core\\Ldap::open` or `Core\\Ldap::connect` reached",
+    ),
+    (
+        r"Core\Ldap\Entries",
+        "works on the server `Core\\Ldap::open` or `Core\\Ldap::connect` reached",
+    ),
+    (
+        r"Core\Ldap\Changes",
+        "works on the server `Core\\Ldap::open` or `Core\\Ldap::connect` reached",
+    ),
+    (r"Core\Ldap\Entry", "reads an entry the program holds"),
+    (r"Core\Ldap\Filter", "computes over its arguments"),
+    (r"Core\Ldap\Change", "computes over its arguments"),
+    (r"Core\Ldap\Dn", "computes over its arguments"),
+    (r"Core\Ldap\Sid", "computes over its arguments"),
+    (r"Core\Ldap\Ad", "computes over its arguments"),
+    (r"Core\Ldap\Ad\AccountFlags", "computes over its arguments"),
+    (r"Core\Ldap\Ad\GroupType", "computes over its arguments"),
+    (r"Core\Queue\Id", "computes over its arguments"),
 ];
 
 /// Every language construct that reaches a door, and the capability it needs:

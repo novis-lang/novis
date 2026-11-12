@@ -354,6 +354,60 @@ fn every_capability_bearing_member_declares_its_capability() {
     }
 }
 
+/// `rule:testing/capability-completeness-test` closed over the classes: every class in `CLASSES` is
+/// in exactly one of `registry::CAPABILITIES` and `registry::NEEDS_NONE`, and its `NEEDS_NONE` row
+/// says why in a reason that is not empty. A new class fails here until somebody decides which list
+/// it belongs to, and there is no third list to put it on.
+#[test]
+fn every_core_class_has_capability_rows_or_a_reason_for_none() {
+    use nvs_stdlib::registry::{CAPABILITIES, CLASSES, NEEDS_NONE};
+    let mut wrong = Vec::new();
+    for class in CLASSES {
+        let rows = CAPABILITIES.iter().any(|(name, _, _)| *name == class.name);
+        let reasons: Vec<&str> = NEEDS_NONE
+            .iter()
+            .filter(|(name, _)| *name == class.name)
+            .map(|(_, reason)| *reason)
+            .collect();
+        match (rows, reasons.len()) {
+            (false, 0) => wrong.push(format!(
+                "`{}` has no row in `CAPABILITIES` and none in `NEEDS_NONE`",
+                class.name
+            )),
+            (true, 1..) => wrong.push(format!(
+                "`{}` has rows in `CAPABILITIES` and a row in `NEEDS_NONE`",
+                class.name
+            )),
+            (false, 2..) => wrong.push(format!("`{}` has two rows in `NEEDS_NONE`", class.name)),
+            _ => {}
+        }
+        if reasons.iter().any(|reason| reason.trim().is_empty()) {
+            wrong.push(format!(
+                "`{}` has an empty reason in `NEEDS_NONE`",
+                class.name
+            ));
+        }
+    }
+    for (name, _) in NEEDS_NONE {
+        if !CLASSES.iter().any(|class| class.name == *name) {
+            wrong.push(format!(
+                "`{name}` is in `NEEDS_NONE` and is not a Core class"
+            ));
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "every Core class needs member rows in `registry::CAPABILITIES`, or one row with a reason \
+         in `registry::NEEDS_NONE` when none of its members reaches a door \
+         (rule:testing/capability-completeness-test):\n{}",
+        wrong.join("\n"),
+    );
+    // The positive controls: one class from each list. A run where either list lost its rows
+    // would otherwise pass for a class that moved.
+    assert!(NEEDS_NONE.iter().any(|(name, _)| *name == r"Core\Str"));
+    assert!(CAPABILITIES.iter().any(|(name, _, _)| *name == r"Core\IO"));
+}
+
 #[test]
 fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
     // `rule:security/capability-check-at-the-door`: a `Core` member cannot forget the check, because the only way to perform the
@@ -546,12 +600,11 @@ fn call_arguments(rest: &str) -> Option<Vec<String>> {
     None
 }
 
-/// The `Core\Class::member` an argument names, read off a string literal or off the `&str` const
-/// of that name declared last in `before`, the file's text above the call: a helper body declares
-/// its own `MEMBER`, so the same name means another member in the next function. `None` for
-/// anything else: a parameter forwarded from a caller, a `format!`, or a name that is not a `Core`
-/// member, such as `spawn script`.
-fn member_named(argument: &str, before: &str) -> Option<(String, String)> {
+/// The label an argument names, read off a string literal or off the `&str` const of that name
+/// declared last in `before`, the file's text above the call: a helper body declares its own
+/// `MEMBER`, so the same name means another member in the next function. `None` for anything
+/// else: a parameter forwarded from a caller, or a `format!`.
+fn label_named(argument: &str, before: &str) -> Option<String> {
     let literal = |text: &str| -> Option<String> {
         let text = text.trim().trim_end_matches(';').trim();
         if let Some(raw) = text.strip_prefix("r\"") {
@@ -560,7 +613,7 @@ fn member_named(argument: &str, before: &str) -> Option<(String, String)> {
         let plain = text.strip_prefix('"')?.strip_suffix('"')?;
         Some(plain.replace("\\\\", "\\"))
     };
-    let named = literal(argument).or_else(|| {
+    literal(argument).or_else(|| {
         let ident = argument.trim();
         if ident.is_empty() || !ident.chars().all(|ch| ch.is_ascii_uppercase() || ch == '_') {
             return None;
@@ -569,12 +622,119 @@ fn member_named(argument: &str, before: &str) -> Option<(String, String)> {
         let at = before.rfind(&declared)?;
         let value = before[at + declared.len()..].lines().next()?;
         literal(value)
-    })?;
-    if !named.starts_with("Core\\") {
+    })
+}
+
+/// The `Core\Class::member` a label names, or `None` for a label that is not a `Core` member,
+/// such as `spawn script`.
+fn member_of(label: &str) -> Option<(String, String)> {
+    if !label.starts_with("Core\\") {
         return None;
     }
-    let (class, member) = named.rsplit_once("::")?;
+    let (class, member) = label.rsplit_once("::")?;
     Some((class.to_owned(), member.to_owned()))
+}
+
+/// One call to a door in shipped source: where it is, the name a failure gives the door, what it
+/// asks, and the label its last argument names, when that is written on the call.
+struct DoorCall {
+    file: PathBuf,
+    line: usize,
+    door: String,
+    asked: Vec<Cap>,
+    label: Option<String>,
+}
+
+impl DoorCall {
+    fn at(&self) -> String {
+        format!("{}:{}", self.file.display(), self.line)
+    }
+}
+
+/// Every call to a door in the shipped source under `dir`: a `capability::` function on `DOORS`,
+/// `capability::require` with the `Cap` it names, and each call on `SPAWN_DOORS`. A `require`
+/// whose capability is not written as `Cap::` on the call is left out, because nothing on the line
+/// says what it asks.
+fn door_calls(dir: &Path) -> Vec<DoorCall> {
+    let mut calls = Vec::new();
+    for file in sources(dir) {
+        let text = std::fs::read_to_string(&file).expect("a source file this crate compiled");
+        let lines = shipped_lines(&text);
+        for (index, (number, line)) in lines.iter().enumerate() {
+            let rest_after = |open: usize| {
+                std::iter::once(&line[open..])
+                    .chain(lines[index + 1..].iter().map(|(_, line)| *line))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            };
+            let before = || text.lines().take(*number).collect::<Vec<_>>().join("\n");
+            let mut from = 0;
+            while let Some(found) = line[from..].find("capability::") {
+                let start = from + found;
+                from = start + "capability::".len();
+                let name: String = line[from..]
+                    .chars()
+                    .take_while(|ch| ch.is_alphanumeric() || *ch == '_')
+                    .collect();
+                let open = from + name.len();
+                if !line[open..].starts_with('(') {
+                    continue;
+                }
+                let Some(args) = call_arguments(&rest_after(open + 1)) else {
+                    continue;
+                };
+                let asked: Vec<Cap> = if name == "require" {
+                    let named = args.get(1).and_then(|cap| cap.rsplit_once("Cap::"));
+                    let Some(cap) = named.and_then(|(_, variant)| {
+                        Cap::ALL
+                            .iter()
+                            .copied()
+                            .find(|cap| format!("{cap:?}") == variant)
+                    }) else {
+                        continue;
+                    };
+                    vec![cap]
+                } else if let Some((_, caps)) = DOORS.iter().find(|(door, _)| *door == name) {
+                    let access = args.get(2).map_or("", String::as_str);
+                    match name.as_str() {
+                        "open" if access.ends_with("Access::Read") => vec![Cap::FsRead],
+                        "open"
+                            if access.ends_with("Access::Write")
+                                || access.ends_with("Access::Append") =>
+                        {
+                            vec![Cap::FsWrite]
+                        }
+                        _ => caps.to_vec(),
+                    }
+                } else {
+                    continue;
+                };
+                calls.push(DoorCall {
+                    file: file.clone(),
+                    line: *number,
+                    door: format!("the `{name}` door"),
+                    asked,
+                    label: args.last().and_then(|last| label_named(last, &before())),
+                });
+            }
+            for (door, name) in SPAWN_DOORS {
+                let Some(found) = line.find(door) else {
+                    continue;
+                };
+                let Some(args) = call_arguments(&rest_after(found + door.len())) else {
+                    continue;
+                };
+                calls.push(DoorCall {
+                    file: file.clone(),
+                    line: *number,
+                    door: format!("`{name}`"),
+                    asked: vec![Cap::ScriptSpawn],
+                    label: args.last().and_then(|last| label_named(last, &before())),
+                });
+            }
+        }
+    }
+    calls
 }
 
 /// `rule:security/authority-is-the-enclosing-namespace`'s check is made while compiling, from the
@@ -621,109 +781,30 @@ fn every_door_names_the_capability_its_member_declares() {
     }
 
     let (mut checked, mut disagreeing) = (Vec::new(), Vec::new());
-    for file in sources(&package().join("src")) {
-        let text = std::fs::read_to_string(&file).expect("a source file this crate compiled");
-        let lines = shipped_lines(&text);
-        for (index, (number, line)) in lines.iter().enumerate() {
-            let mut from = 0;
-            while let Some(found) = line[from..].find("capability::") {
-                let start = from + found;
-                from = start + "capability::".len();
-                let name: String = line[from..]
-                    .chars()
-                    .take_while(|ch| ch.is_alphanumeric() || *ch == '_')
-                    .collect();
-                let open = from + name.len();
-                if !line[open..].starts_with('(') {
-                    continue;
-                }
-                let rest = std::iter::once(&line[open + 1..])
-                    .chain(lines[index + 1..].iter().map(|(_, line)| *line))
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                let Some(args) = call_arguments(&rest) else {
-                    continue;
-                };
-                let asked: Vec<Cap> = if name == "require" {
-                    let named = args.get(1).and_then(|cap| cap.rsplit_once("Cap::"));
-                    let Some(cap) = named.and_then(|(_, variant)| {
-                        Cap::ALL
-                            .iter()
-                            .copied()
-                            .find(|cap| format!("{cap:?}") == variant)
-                    }) else {
-                        continue;
-                    };
-                    vec![cap]
-                } else if let Some((_, caps)) = DOORS.iter().find(|(door, _)| *door == name) {
-                    let access = args.get(2).map_or("", String::as_str);
-                    match name.as_str() {
-                        "open" if access.ends_with("Access::Read") => vec![Cap::FsRead],
-                        "open"
-                            if access.ends_with("Access::Write")
-                                || access.ends_with("Access::Append") =>
-                        {
-                            vec![Cap::FsWrite]
-                        }
-                        _ => caps.to_vec(),
-                    }
+    for call in door_calls(&package().join("src")) {
+        let Some((class, member)) = call.label.as_deref().and_then(member_of) else {
+            continue;
+        };
+        let rows: Vec<Cap> = nvs_stdlib::cap::needs(&class, &member).collect();
+        for cap in call.asked.iter().filter(|cap| !rows.contains(cap)) {
+            let declared = rows
+                .iter()
+                .map(|row| format!("`{}`", row.name()))
+                .collect::<Vec<_>>()
+                .join(", ");
+            disagreeing.push(format!(
+                "{}: {} asks `{}` for `{class}::{member}`, and that member's rows say {}",
+                call.at(),
+                call.door,
+                cap.name(),
+                if declared.is_empty() {
+                    "none"
                 } else {
-                    continue;
-                };
-                let before = text.lines().take(*number).collect::<Vec<_>>().join("\n");
-                let Some((class, member)) =
-                    args.last().and_then(|last| member_named(last, &before))
-                else {
-                    continue;
-                };
-                let rows: Vec<Cap> = nvs_stdlib::cap::needs(&class, &member).collect();
-                for cap in asked.iter().filter(|cap| !rows.contains(cap)) {
-                    let declared = rows
-                        .iter()
-                        .map(|row| format!("`{}`", row.name()))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    disagreeing.push(format!(
-                        "{}:{number}: the `{name}` door asks `{}` for `{class}::{member}`, and \
-                         that member's rows say {}",
-                        file.display(),
-                        cap.name(),
-                        if declared.is_empty() {
-                            "none"
-                        } else {
-                            &declared
-                        },
-                    ));
-                }
-                checked.push(format!("{class}::{member}"));
-            }
-            for (door, name) in SPAWN_DOORS {
-                let Some(found) = line.find(door) else {
-                    continue;
-                };
-                let rest = std::iter::once(&line[found + door.len()..])
-                    .chain(lines[index + 1..].iter().map(|(_, line)| *line))
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                let Some(args) = call_arguments(&rest) else {
-                    continue;
-                };
-                let before = text.lines().take(*number).collect::<Vec<_>>().join("\n");
-                let Some((class, member)) =
-                    args.last().and_then(|last| member_named(last, &before))
-                else {
-                    continue;
-                };
-                if !nvs_stdlib::cap::needs(&class, &member).any(|cap| cap == Cap::ScriptSpawn) {
-                    disagreeing.push(format!(
-                        "{}:{number}: `{name}` asks `script.spawn` for `{class}::{member}`, and \
-                         that member's rows do not name it",
-                        file.display(),
-                    ));
-                }
-                checked.push(format!("{class}::{member}"));
-            }
+                    &declared
+                },
+            ));
         }
+        checked.push(format!("{class}::{member}"));
     }
 
     assert!(
@@ -748,6 +829,165 @@ fn every_door_names_the_capability_its_member_declares() {
             "the scan found no door call for `{member}`, so it no longer reads the calls it checks"
         );
     }
+}
+
+/// Each class in `CLASSES` with the path of the module that declares it, read off `classes.rs`.
+/// `bun nv render` writes that file as one `crate::<module>::<CONST>,` line per class, in the
+/// order of `CLASSES`.
+fn class_modules() -> Vec<(&'static str, String)> {
+    let text = std::fs::read_to_string(package().join("src").join("classes.rs"))
+        .expect("the rendered class list");
+    let modules: Vec<String> = text
+        .lines()
+        .filter_map(|line| {
+            let path = line.trim().strip_prefix("crate::")?.strip_suffix(',')?;
+            path.rsplit_once("::").map(|(module, _)| module.to_owned())
+        })
+        .collect();
+    assert_eq!(
+        modules.len(),
+        nvs_stdlib::registry::CLASSES.len(),
+        "`classes.rs` no longer has one `crate::<module>::<CONST>,` line per class"
+    );
+    nvs_stdlib::registry::CLASSES
+        .iter()
+        .map(|class| class.name)
+        .zip(modules)
+        .collect()
+}
+
+/// The module path of a source file under `src`: `http/stream.rs` and `http/stream/mod.rs` are
+/// both `http::stream`.
+fn module_of(file: &Path, src: &Path) -> String {
+    let relative = file
+        .strip_prefix(src)
+        .expect("a file under the source directory")
+        .with_extension("");
+    let mut parts: Vec<String> = relative
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy().into_owned())
+        .collect();
+    if parts.last().is_some_and(|last| last == "mod") {
+        parts.pop();
+    }
+    parts.join("::")
+}
+
+/// A reason for none in `registry::NEEDS_NONE` is checked, not trusted. The scan of
+/// `every_door_names_the_capability_its_member_declares` fails here on two shapes of door call.
+/// One names a member of a `NEEDS_NONE` class on the call. The other forwards its member from a
+/// caller, in a module whose every class is in `NEEDS_NONE`. A call labelled with a construct,
+/// such as `spawn script`, is the construct's and not its module's classes'. A module counts the classes it
+/// declares and those of the modules above it, so `http::socket` counts `Core\Http`. A forwarded
+/// call in a module with a capability-bearing class is that class's, and the door test holds it
+/// to that class's rows.
+///
+/// What this does not see is a door reached through a helper in another module, which is the
+/// door test's: the helper's call names its member or sits in that module.
+#[test]
+fn no_class_with_a_reason_for_none_calls_a_door() {
+    let src = package().join("src");
+    let modules = class_modules();
+    let none = |class: &str| {
+        nvs_stdlib::registry::NEEDS_NONE
+            .iter()
+            .any(|(name, _)| *name == class)
+    };
+    let (mut calling, mut attributed) = (Vec::new(), 0_usize);
+    for call in door_calls(&src) {
+        // A label that is not a `Core` member is a construct's, such as `spawn script` in
+        // `script.rs`, and `every_construct_that_reaches_a_door_names_its_capability` holds it.
+        if call
+            .label
+            .as_deref()
+            .is_some_and(|label| member_of(label).is_none())
+        {
+            continue;
+        }
+        if let Some((class, member)) = call.label.as_deref().and_then(member_of) {
+            if none(&class) {
+                calling.push(format!(
+                    "{}: {} is called for `{class}::{member}`, and `{class}` is in `NEEDS_NONE`",
+                    call.at(),
+                    call.door,
+                ));
+            }
+            continue;
+        }
+        let module = module_of(&call.file, &src);
+        let owners: Vec<&str> = modules
+            .iter()
+            .filter(|(_, owner)| module == *owner || module.starts_with(&format!("{owner}::")))
+            .map(|(class, _)| *class)
+            .collect();
+        if owners.is_empty() {
+            continue;
+        }
+        attributed += 1;
+        if owners.iter().all(|class| none(class)) {
+            calling.push(format!(
+                "{}: {} is called with a member from its caller, in module `{module}`, and every \
+                 class it declares is in `NEEDS_NONE`: {}",
+                call.at(),
+                call.door,
+                owners.join(", "),
+            ));
+        }
+    }
+    assert!(
+        calling.is_empty(),
+        "a class in `registry::NEEDS_NONE` reaches a door. Give its members rows in \
+         `registry::CAPABILITIES` in place of the `NEEDS_NONE` row:\n{}",
+        calling.join("\n"),
+    );
+    // The positive control: forwarded calls such as `http.rs`'s `pin` were placed in a module.
+    // A scan that placed none would pass by checking nothing.
+    assert!(
+        attributed > 0,
+        "no forwarded door call was placed in a class's module, so this scan checks nothing"
+    );
+}
+
+/// A door call whose label is not a `Core` member is a language construct's, such as
+/// `spawn script` in `nvs_runtime::host`. `registry::CONSTRUCT_CAPABILITIES` is where the checker
+/// reads what it needs, so each such label has a row there naming every capability its door asks.
+/// Without one, the construct compiles in a namespace that was never granted it. The scan reads
+/// `nvs-stdlib` and `nvs-runtime`, the two crates a program's code runs in.
+#[test]
+fn every_construct_that_reaches_a_door_names_its_capability() {
+    let mut calls = door_calls(&package().join("src"));
+    calls.extend(door_calls(&nvs_repo::path("crates/nvs-runtime/src")));
+    let (mut missing, mut found) = (Vec::new(), Vec::new());
+    for call in &calls {
+        let Some(label) = call.label.as_deref() else {
+            continue;
+        };
+        if member_of(label).is_some() {
+            continue;
+        }
+        // A refusal may print the construct as code, so `script.rs` passes it in backticks.
+        let label = label.trim_matches('`');
+        let needs: Vec<Cap> = nvs_stdlib::cap::construct_needs(label).collect();
+        for cap in call.asked.iter().filter(|cap| !needs.contains(cap)) {
+            missing.push(format!(
+                "{}: {} asks `{}` for `{label}`, and `CONSTRUCT_CAPABILITIES` does not name it",
+                call.at(),
+                call.door,
+                cap.name(),
+            ));
+        }
+        found.push(label.to_owned());
+    }
+    assert!(
+        missing.is_empty(),
+        "a construct reaches a door with no row in `registry::CONSTRUCT_CAPABILITIES`, so the \
+         checker holds it to no grant line (rule:security/authority-is-the-enclosing-namespace):\n{}",
+        missing.join("\n"),
+    );
+    assert!(
+        found.iter().any(|label| label == "spawn script"),
+        "the scan found no door call for `spawn script`, so it no longer reads the calls it checks"
+    );
 }
 
 /// `rule:security/a-path-is-not-a-url`'s closed door — a path is a filesystem path — asserted **by construction** rather
@@ -1266,8 +1506,8 @@ fn has(ctx: &mut nvs_runtime::Ctx, capability: &str) -> bool {
 /// The query answers `true` for exactly the names the grant table holds, counted over the whole
 /// roster rather than read off one line: a member reporting the *block* rather than the key, or
 /// falling back to a default, agrees with one line here and with no arrangement of all of them.
-/// The keys a default opens with nothing written (`script.spawn`, `net.connect` and
-/// `process.exec`) are written empty, so the one written grant is the only `true`.
+/// The keys a default opens with nothing written (`script.spawn`, `net.connect`, `process.exec`
+/// and `env`) are written empty or `false`, so the one written grant is the only `true`.
 ///
 /// The second half is the arm no `.nvst` case can reach. A **written** name outside the roster is
 /// `E0616` before the program runs, so what arrives at run time is a computed one, and a program
@@ -1285,6 +1525,7 @@ fn a_capability_query_answers_true_for_exactly_the_granted_names() {
             ..CapNet::default()
         }),
         process: Some(CapProcess { exec: none() }),
+        env: Some(Setting::Bool(false)),
         ..reading(&["."])
     });
     let granted: Vec<&str> = Cap::ALL
