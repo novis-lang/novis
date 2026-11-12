@@ -373,7 +373,11 @@ thread_local! {
     /// The request tree whose wall deadline bounds the running stack's parks
     /// where [`TURN`] is `None`: a child placed on another core, whose turns
     /// are not its tree's ([`crate::Ctx::arm_on_this_stack`]). Moved at a
-    /// switch with [`TURN`], and read only by [`ArmedStack::bound`].
+    /// switch with [`TURN`], and read only by [`ArmedStack::bound`]. The
+    /// memory accounting still reads [`TURN`] alone. It costs one word per
+    /// parked task and one thread-local move per park and per resume. Reading
+    /// the view the child published to the watchdog was declined: that view is
+    /// `nvs-host`'s, and the `Ctx` already has the same tree.
     static BOUND: Cell<Option<std::sync::Arc<crate::TreeState>>> = const { Cell::new(None) };
     /// Monotonic: how many bytes this thread has written to a request's output
     /// sink — the module doc's second counter.

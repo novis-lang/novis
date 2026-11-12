@@ -64,7 +64,13 @@ reports a member that failed past the wall deadline as the wall-time `FATAL`, af
 question. No member's own catchable timeout comes first. A wait may outlive `wall_time` only by naming
 its reason, `Waiting::ParkedPast(PastWallTime)`: a server task, the connection's own drive, a join of
 the task's own children (each bounded itself), a blocking-pool job, a debugger stop and the request's
-end. `crates/nvs-host/tests/park_sites.rs` holds each reason to its files. The cost: one load per park
+end. `crates/nvs-host/tests/park_sites.rs` holds each reason to its files. `Host::park` and
+`Host::yield_slice` stay `Parked`: every `Core` member's wait goes through them, so a reason there would
+exempt the cache, the channel, the pool, the socket and the event stream at once. A statement that
+waits past `wall_time` ends with the `FATAL` and throws no `DbError` first. Work handed to a
+blocking-pool thread cannot be resumed, so it alone still reads its instant, from
+`Ctx::off_core_deadline`. Teardown I/O after the stop fails at once, so a pooled connection is closed
+and not returned. The cost: one load per park
 for a tree with no `wall_time`, and one more load and a clock read under one. A park whose bound is
 the earlier instant adds one timer insert and one removal, and a member call that fails adds one load
 and, under a `wall_time`, a clock read. No memory.
@@ -79,6 +85,8 @@ security and its report is not, so the bound stays as it is (`Ctx::run_limit_han
   instant, for the park's own timer entry.
 - **A new `Resumed` answer for the deadline.** Every park site would have to handle it, and
   `Cancelled` already ends every one of them.
+- **Each member clamping its own wait to the wall deadline, beside the funnel.** Two layers hide a
+  missing one, and the clamps were a second copy of the deadline at every site.
 - **A wall clock in place of CPU time.** A wall clock cannot tell a runaway loop from a request waiting
   on a slow database, and `[limits] cpu_time` exists to stop the first and leave the second alone. A
   platform with no per-thread clock another thread may read enforces no CPU ceiling and says so at

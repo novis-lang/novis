@@ -1022,6 +1022,13 @@ fn past(ctx: &mut Ctx, limit: Limit, message: String) -> Fault {
 /// the core's other ready tasks, with no deadline armed. A pending import parks the task until the
 /// import's wake, which reaches the core from any thread. `None` is a cancellation, such as the
 /// wall deadline's, and the call is dropped with its instance.
+///
+/// Every cancellation ends the drive, not only the wall time's. Telling them apart would need a
+/// second read of the tree's flags here, and a group's cancellation of the task would otherwise
+/// poll the guest in a loop until it returned. Dropping the future runs no Novis code, and the
+/// next call makes a fresh instance. The end drive keeps the last wall deadline a call saw in
+/// `Spent`, because the tree is usually gone when `Calls` is dropped. That costs one word and one
+/// lock per call.
 fn drive<T>(call: impl Future<Output = T>, between: impl FnMut() -> bool) -> Option<T> {
     nvs_host::block_on::block_on_yielding(call, between)
 }

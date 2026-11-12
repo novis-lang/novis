@@ -462,6 +462,10 @@ where
 /// The CPU time of an abandoned job is not charged to the request. Until the
 /// job ends, its thread is busy and counts against the pool's bound.
 ///
+/// A job abandoned while still in the queue never runs: the pool thread reads
+/// its slot before it calls `f`, at one uncontended lock per job. A job that
+/// has started runs to its end, which the pool's thread bound covers.
+///
 /// Off a core `f` runs on this thread, and the deadline is not read.
 ///
 /// What the bound costs: one timer armed and disarmed per call.
