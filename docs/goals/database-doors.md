@@ -6,7 +6,7 @@ context: [crates/nvs-db/src/conn.rs, docs/rules/security/db-pool-reset-is-a-boun
 stages:
   - id: 1
     title: a column default is a typed literal
-    status: open
+    status: done
     context: [crates/nvs-db/src/schema.rs, crates/nvs-db/src/ddl.rs, crates/nvs-db/src/catalog.rs, crates/nvs-stdlib/src/db/schema.rs, docs/rules/core-classes/schema-vocabulary-is-closed.md]
   - id: 2
     title: "a database error keeps the server's text out of its message"
@@ -315,37 +315,37 @@ Stages 2 and 3 share `crates/nvs-stdlib/src/db/bind.rs` and run in order. Stages
 **Does:** make a decimal default a checked value and refuse a float that is not finite, at the one
 function every schema reader passes. One test then walks every column type and default kind.
 
-- [ ] `ColumnDefault::Decimal` holds a checked type with one constructor: optional sign, digits, at
+- [x] `ColumnDefault::Decimal` holds a checked type with one constructor: optional sign, digits, at
   most one point. `from_node` and `catalog::column_default` build it
   (`rule:core-classes/schema-vocabulary-is-closed`, `crates/nvs-db/src/schema.rs:377`,
   `crates/nvs-db/src/schema.rs:1038`, `crates/nvs-db/src/catalog.rs:744`).
-- [ ] `Column::default` refuses a float default that is not finite, with a `SchemaError` that names
+- [x] `Column::default` refuses a float default that is not finite, with a `SchemaError` that names
   the column (`rule:core-classes/schema-vocabulary-is-closed`, `crates/nvs-db/src/schema.rs:508`,
   `crates/nvs-db/src/ddl.rs:603`).
-- [ ] `literal` writes the checked decimal's digits, and the callers that build a decimal default
+- [x] `literal` writes the checked decimal's digits, and the callers that build a decimal default
   from a string are updated (`crates/nvs-db/src/ddl.rs:604`, `crates/nvs-db/src/ddl.rs:1366`,
   `crates/nvs-db/src/catalog.rs:1684`, `crates/nvs-db/src/catalog.rs:1759`).
-- [ ] `fromArray` throws `LogicError` for both refusals, and the message names the column and what a
+- [x] `fromArray` throws `LogicError` for both refusals, and the message names the column and what a
   decimal default looks like (`crates/nvs-stdlib/src/db/schema.rs:75`,
   `crates/nvs-stdlib/src/db/schema.rs:205`). The message follows AGENTS.md § *Text an end user
   reads*.
-- [ ] Test `a_decimal_default_that_is_not_a_number_is_refused_when_the_schema_is_read` beside
+- [x] Test `a_decimal_default_that_is_not_a_number_is_refused_when_the_schema_is_read` beside
   `from_node`. It passes a default that holds a comma, a parenthesis and a second column, and one
   that holds two points (`crates/nvs-db/src/schema.rs:1023`).
-- [ ] Test `a_float_default_that_is_not_finite_is_refused`, for `NaN` and both infinities
+- [x] Test `a_float_default_that_is_not_finite_is_refused`, for `NaN` and both infinities
   (`crates/nvs-db/src/schema.rs:508`).
-- [ ] Test `every_column_default_reaches_ddl_only_as_its_dialects_literal` beside the round-trip
+- [x] Test `every_column_default_reaches_ddl_only_as_its_dialects_literal` beside the round-trip
   test (`crates/nvs-db/src/catalog.rs:1720`). It takes every type `ScalarType::from_spelling`
   accepts and every `ColumnDefault` case by a `match` with no wildcard. For each pair that `fits`,
   on each dialect, it emits `CREATE TABLE`, the added column and the altered column
   (`crates/nvs-db/src/ddl.rs:430`, `crates/nvs-db/src/ddl.rs:869`, `crates/nvs-db/src/ddl.rs:898`).
   It fails naming the pair whose statement holds the default in any form but `literal`'s output.
   Text values include a quote, a backslash and a statement end.
-- [ ] An attack under `tests/hostile/core/Db-Schema/fromArray/`, at the next free number: a schema
+- [x] An attack under `tests/hostile/core/Db-Schema/fromArray/`, at the next free number: a schema
   built from request data gives a decimal default that carries a second column. Every attempt
   should throw before any statement is sent. Copy the directives of
   `tests/hostile/core/Db-Schema/applySafe/01-applying-the-same-schema-without-end.nvs:1`.
-- [ ] `rule:core-classes/schema-vocabulary-is-closed` says a default is a typed literal, names the
+- [x] `rule:core-classes/schema-vocabulary-is-closed` says a default is a typed literal, names the
   decimal shape and the finite float, and declines the call-site `tainted` refusal
   (`docs/rules/core-classes/schema-vocabulary-is-closed.md:1`).
 
@@ -552,42 +552,42 @@ into the Novis string.
 
 ### State
 
-Nothing is built yet. The tree writes a `decimal` default into DDL unread, prints a server's sentence
-into `DbError->message`, resets SQLite by a list of eight pragmas, and resets MySQL and MariaDB
-without the database or the charset. Every test a check names is unwritten.
+Stage 1 is done (`37205d79d9`) and its check `defaults-are-literals` is green.
+`ColumnDefault::Decimal` holds a `DecimalLiteral` (`crates/nvs-db/src/schema.rs`), whose one
+constructor `DecimalLiteral::new` both readers call. `Column::default` refuses a non-finite float as
+`SchemaError::NotFinite`, and a bad decimal is `SchemaError::NotADecimal`; both name the column, and
+`fromArray` throws each as `LogicError` through the existing `refused`. The catalog reader now reads a
+server's `NaN` or infinite float default as `None`. The attack is
+`tests/hostile/core/Db-Schema/fromArray/02-a-decimal-default-that-adds-a-column.nvs`, granted in
+`nvs.toml` beside the `applySafe` case, and it passes under `bun nv proofs --run`.
+
+The run's sweep items were stale: `env-secret-proofs` is no defined check, and the nightly Miri
+failures ran at `578534cc7c`, before `7568aaa0fb` skipped those tests under Miri.
+
+The tree still prints a server's sentence into `DbError->message`, resets SQLite by a list of eight
+pragmas, and resets MySQL and MariaDB without the database or the charset.
 
 ### Next
 
-Stage 1, *a column default is a typed literal*. Files: `crates/nvs-db/src/schema.rs`,
-`crates/nvs-db/src/ddl.rs`, `crates/nvs-db/src/catalog.rs`, `crates/nvs-stdlib/src/db/schema.rs`.
+Stage 2, *a database error keeps the server's text out of its message*. Files:
+`crates/nvs-db/src/conn.rs`, `crates/nvs-stdlib/src/db/bind.rs`, `crates/nvs-runtime/src/throwable.rs`,
+`crates/nvs-hir/src/errors.rs`, `crates/nvs-types/src/error_lib.rs`, `crates/nvs-stdlib/src/db/open.rs`.
 
-- [ ] `crates/nvs-db/src/schema.rs:377`: `ColumnDefault::Decimal` holds a checked type with one
-  constructor: optional sign, digits, at most one point. `from_node` and `catalog::column_default`
-  build it (`rule:core-classes/schema-vocabulary-is-closed`, `crates/nvs-db/src/schema.rs:1038`,
-  `crates/nvs-db/src/catalog.rs:744`).
-- [ ] `crates/nvs-db/src/schema.rs:508`: `Column::default` refuses a float default that is not
-  finite, with a `SchemaError` that names the column
-  (`rule:core-classes/schema-vocabulary-is-closed`, `crates/nvs-db/src/ddl.rs:603`).
-- [ ] `crates/nvs-db/src/ddl.rs:604`: `literal` writes the checked decimal's digits, and the callers
-  that build a decimal default from a string are updated (`crates/nvs-db/src/ddl.rs:1366`,
-  `crates/nvs-db/src/catalog.rs:1684`, `crates/nvs-db/src/catalog.rs:1759`).
-- [ ] `crates/nvs-stdlib/src/db/schema.rs:75`: `fromArray` throws `LogicError` for both refusals,
-  and the message names the column and what a decimal default looks like
-  (`crates/nvs-stdlib/src/db/schema.rs:205`).
-- [ ] `crates/nvs-db/src/schema.rs:1023`: test
-  `a_decimal_default_that_is_not_a_number_is_refused_when_the_schema_is_read`.
-- [ ] `crates/nvs-db/src/schema.rs:508`: test `a_float_default_that_is_not_finite_is_refused`.
-- [ ] `crates/nvs-db/src/catalog.rs:1720`: test
-  `every_column_default_reaches_ddl_only_as_its_dialects_literal`, over every type, default kind,
-  dialect and emit site (`crates/nvs-db/src/ddl.rs:430`, `crates/nvs-db/src/ddl.rs:869`,
-  `crates/nvs-db/src/ddl.rs:898`).
-- [ ] `tests/hostile/core/Db-Schema/applySafe/01-applying-the-same-schema-without-end.nvs:1`: an
-  attack with these directives under `tests/hostile/core/Db-Schema/fromArray/`, at the next free
-  number.
-- [ ] `docs/rules/core-classes/schema-vocabulary-is-closed.md:1`: the rule fragment says a default
-  is a typed literal.
+- [ ] `docs/goals/database-doors.md:357`: first, the stage's `**Split:**` line. One `Explore`
+  subagent lists every uncaught-`Throwable` renderer and every test or `.nvst` case that pins a
+  server's sentence, as `file.rs:NN` lines.
+- [ ] `crates/nvs-db/src/conn.rs:739`: `Display for ServerError` holds no text the server chose
+  (`crates/nvs-db/src/conn.rs:606`).
+- [ ] `crates/nvs-hir/src/errors.rs:194`, `crates/nvs-runtime/src/throwable.rs:244`,
+  `crates/nvs-types/src/error_lib.rs:173`: `DbError` gains `serverMessage` after `sql`, and
+  `constraint` becomes `?tainted string`.
+- [ ] `crates/nvs-stdlib/src/db/bind.rs:180`: `statement_failure` takes whether a value was bound.
+- [ ] `crates/nvs-stdlib/src/db/open.rs:342`: a failed connect logs the server's sentence at `Warn`.
+- [ ] `docs/rules/core-classes/db-error.md:1`: the renderers, the tests,
+  `crates/nvs-types/tests/db_error_text.rs`, this rule fragment and the proofs, as stage 2's items
+  say.
 
-No test is expected to go red in stage 1. Stage 2 changes every message that holds a server's
-sentence, and its first item lists the tests that pin one.
+Expected red after stage 2's first item: every test and `.nvst` case that pins a server's sentence
+in a message. The Explore list names them, and each is updated in the same stage.
 
 ### Backlog
