@@ -493,6 +493,7 @@ mod tests {
     fn fresh_session(ctx: &mut nvs_runtime::Ctx) {
         ctx.open_session(nvs_runtime::Session {
             id: String::new(),
+            stored: false,
             record: Vec::new(),
             dirty: false,
             write_back: |_| {},

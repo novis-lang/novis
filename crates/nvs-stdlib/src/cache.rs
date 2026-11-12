@@ -1801,7 +1801,7 @@ fn seal_and_store(ctx: &mut Ctx, at: &Sealing<'_>, value: &[u8], nanos: i64) -> 
         // over leaves it in the state the memory tier is left in.
         Tier::Shared => on_shared(STORE_NAME, member, |open| {
             if lifetime.elapsed() {
-                return open.del(&stored);
+                return open.del(&stored).map(drop);
             }
             match lifetime {
                 Lifetime::Forever => open.set(&stored, &sealed),
@@ -2721,7 +2721,7 @@ nvs_runtime::nvs_helper! {
                 // is not a write here either, which is the one command that
                 // leaves the same state the memory tier does.
                 if lifetime.elapsed() {
-                    return open.del(&key);
+                    return open.del(&key).map(drop);
                 }
                 match lifetime {
                     Lifetime::Forever => open.set(&key, &payload),
@@ -2795,7 +2795,7 @@ nvs_runtime::nvs_helper! {
 
         match tier {
             Tier::Memory => memory_forget(&scoped(ctx, &key)),
-            Tier::Shared => on_shared(STORE_NAME, "forget", |open| open.del(&key))?,
+            Tier::Shared => on_shared(STORE_NAME, "forget", |open| open.del(&key).map(drop))?,
         }
         Ok(Value::null())
     }

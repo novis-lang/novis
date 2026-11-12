@@ -4,8 +4,10 @@
 //!
 //! **What is on disk is the store `rule:http-server/a-session-store-answers-four-operations` names
 //! and all seven members of `rule:core-api/session-roster`.** The four operations a backend
-//! answers are here — [`mint`], [`load`], [`save`], [`destroy`] and the key they share — over the
-//! shared tier's wire, and [`sqlite`]'s four over the data folder's SQLite file. [`opened`] picks
+//! answers are here — [`mint`], [`load`], [`create`], [`replace`], [`destroy`] and the key they
+//! share — over the shared tier's wire, and [`sqlite`]'s over the data folder's SQLite file.
+//! `create` is the only write that inserts a row, and `replace` changes only a row that still
+//! exists, so a destroyed session stays destroyed. [`opened`] picks
 //! one as a [`Store`], and [`nvs_core_session_start`] is the member that reaches it: it takes the
 //! identifier the client presented, loads the record the store issued it for, and opens a fresh,
 //! empty one where there is none, which reaches the store only once something is written to it.
@@ -631,7 +633,7 @@ pub(crate) fn backend(ctx: &Ctx, member: &str) -> Result<Backend, Fault> {
 }
 
 /// Where this request's record lives, once the store has been checked.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Store {
     /// The shared tier, over this core's connection, which [`open_configured`] has opened.
     Shared,
@@ -680,24 +682,50 @@ fn fetched(store: &Store, member: &str, id: &str) -> Result<Option<Vec<u8>>, Fau
     }
 }
 
-/// `save` on `store`, as [`fetched`].
+/// `create` on `store`, as [`fetched`]: `true` once a new row holds `record`, and `false` for an
+/// `id` that already has a live row, which keeps its record.
 ///
 /// # Errors
 ///
 /// As [`fetched`].
-fn put(store: &Store, member: &str, id: &str, record: &[u8], ttl: Duration) -> Result<(), Fault> {
+fn created(
+    store: &Store,
+    member: &str,
+    id: &str,
+    record: &[u8],
+    ttl: Duration,
+) -> Result<bool, Fault> {
     match store {
-        Store::Shared => on_shared(NAME, member, |open| save(open, id, record, ttl)),
-        Store::File(path) => on_file(member, sqlite::save(path, id, record, ttl)),
+        Store::Shared => on_shared(NAME, member, |open| create(open, id, record, ttl)),
+        Store::File(path) => on_file(member, sqlite::create(path, id, record, ttl)),
     }
 }
 
-/// `destroy` on `store`, as [`fetched`].
+/// `replace` on `store`, as [`fetched`]: `true` once the live row under `id` holds `record`, and
+/// `false` for an `id` with no live row, which stays absent.
 ///
 /// # Errors
 ///
 /// As [`fetched`].
-fn forgot(store: &Store, member: &str, id: &str) -> Result<(), Fault> {
+fn replaced(
+    store: &Store,
+    member: &str,
+    id: &str,
+    record: &[u8],
+    ttl: Duration,
+) -> Result<bool, Fault> {
+    match store {
+        Store::Shared => on_shared(NAME, member, |open| replace(open, id, record, ttl)),
+        Store::File(path) => on_file(member, sqlite::replace(path, id, record, ttl)),
+    }
+}
+
+/// `destroy` on `store`, as [`fetched`]: whether a row was deleted.
+///
+/// # Errors
+///
+/// As [`fetched`].
+fn forgot(store: &Store, member: &str, id: &str) -> Result<bool, Fault> {
     match store {
         Store::Shared => on_shared(NAME, member, |open| destroy(open, id)),
         Store::File(path) => on_file(member, sqlite::destroy(path, id)),
@@ -774,40 +802,60 @@ pub(crate) fn load(open: &mut Connection, id: &str) -> Result<Option<Vec<u8>>, S
 }
 
 /// `rule:http-server/a-session-store-answers-four-operations`'s `destroy` — the record under `id`,
-/// forgotten.
+/// forgotten, and whether there was one.
 ///
-/// One key, as [`save`] writes one: a session is one entry, so there is nothing here that a store
-/// with no multi-key atomic step could not do.
+/// One key, as [`create`] writes one: a session is one entry, so there is nothing here that a
+/// store with no multi-key atomic step could not do. `false` tells `regenerate` that another
+/// request destroyed the session first.
 ///
 /// # Errors
 ///
 /// As [`load`].
-pub(crate) fn destroy(open: &mut Connection, id: &str) -> Result<(), String> {
+pub(crate) fn destroy(open: &mut Connection, id: &str) -> Result<bool, String> {
     open.del(&key_of(id))
 }
 
-/// `rule:http-server/a-session-store-answers-four-operations`'s `save` — the record under `id`,
-/// replaced, with its expiry refreshed.
+/// `rule:http-server/a-session-store-answers-four-operations`'s `issue` — a new entry under `id`,
+/// and whether it was written. `SET … NX PX`: `false` is a key that already holds a record, which
+/// keeps it.
 ///
 /// The whole record and not one key of it, per
-/// `rule:http-server/a-session-is-loaded-once-and-written-whole`: one session is one entry, which is what keeps
-/// `clear`, `regenerate` and `destroy` single-key operations over a store
+/// `rule:http-server/a-session-is-loaded-once-and-written-whole`: one session is one entry, which
+/// is what keeps `clear`, `regenerate` and `destroy` single-key operations over a store
 /// `rule:core-classes/ratelimit-two-members` gives no multi-key atomic step.
 ///
 /// The expiry is the store's own, per `rule:http-server/session-expiry-belongs-to-the-store`: a
-/// record written with no expiry at all is the sweeper that rule declines coming back, which is why this reaches the command that carries one rather
-/// than the bare `SET` beside it.
+/// record written with no expiry at all is the sweeper that rule declines coming back.
 ///
 /// # Errors
 ///
 /// As [`load`].
-pub(crate) fn save(
+pub(crate) fn create(
     open: &mut Connection,
     id: &str,
     record: &[u8],
     ttl: Duration,
-) -> Result<(), String> {
-    open.set_expiring(&key_of(id), record, ttl)
+) -> Result<bool, String> {
+    open.set_if_absent(&key_of(id), record, ttl)
+}
+
+/// `rule:http-server/a-session-store-answers-four-operations`'s `save` — the record under `id`
+/// replaced, with its expiry refreshed, **only while the entry still exists**, and whether it did.
+/// `SET … XX PX`: `false` is a key that is gone, and it stays gone.
+///
+/// That is what keeps a destroyed session destroyed: a request that loaded the session before
+/// another request destroyed it cannot write the row back at its end. As [`create`] for the rest.
+///
+/// # Errors
+///
+/// As [`load`].
+pub(crate) fn replace(
+    open: &mut Connection,
+    id: &str,
+    record: &[u8],
+    ttl: Duration,
+) -> Result<bool, String> {
+    open.set_if_present(&key_of(id), record, ttl)
 }
 
 /// How long an identifier [`mint`] draws renders to, derived from the draw rather than written.
@@ -917,6 +965,7 @@ nvs_runtime::nvs_helper! {
                     id,
                     record,
                     dirty: false,
+                    stored: true,
                     write_back: send_at_end,
                 }),
             None => None,
@@ -925,14 +974,21 @@ nvs_runtime::nvs_helper! {
         // A visitor with no record gets an empty session with no identifier yet. Nothing reaches
         // the store and no cookie is sent until [`write_back`] keeps something in it, so a
         // request that only reads costs the store nothing.
-        let session = opened.unwrap_or(nvs_runtime::Session {
-            id: String::new(),
-            record: Vec::new(),
-            dirty: false,
-            write_back: send_at_end,
-        });
+        let session = opened.unwrap_or_else(fresh_session);
         ctx.open_session(session);
         Ok(Value::null())
+    }
+}
+
+/// An empty session with no identifier and no row in the store: what `start` opens for a visitor
+/// with no record, and what `regenerate` leaves when another request destroyed the session first.
+fn fresh_session() -> nvs_runtime::Session {
+    nvs_runtime::Session {
+        id: String::new(),
+        record: Vec::new(),
+        dirty: false,
+        stored: false,
+        write_back: send_at_end,
     }
 }
 
@@ -1484,7 +1540,11 @@ nvs_runtime::nvs_helper! {
     /// second step and the third leaves the record readable under two identifiers until
     /// `[session] ttl` expires the old one; the same failure in the other order leaves it readable
     /// under none, which is a signed-out user. The first is the recoverable one, so it is the one
-    /// this member risks.
+    /// this member risks. [`regenerated`] is the move, and it moves only a session whose old row
+    /// still exists.
+    ///
+    /// **A session this request drew and has not stored yet makes no store call.** A new
+    /// identifier is drawn and sent, and the write-back creates the row under it.
     ///
     /// **Immediately rather than at the end of the request** —
     /// `rule:http-server/a-session-is-loaded-once-and-written-whole` names this member and `destroy`
@@ -1502,33 +1562,74 @@ nvs_runtime::nvs_helper! {
         let Some(open) = ctx.session() else {
             return Err(unstarted("regenerate"));
         };
-        // Copied rather than taken, so a store that fails halfway leaves the request holding the
-        // session it already had. O(record), which this member spends once and no other does.
-        let (retired, record) = (open.id.clone(), open.record.clone());
-        if retired.is_empty() {
+        if open.id.is_empty() {
             // Nobody has written this session, so no client holds an identifier for it. The
             // first write draws a fresh one.
+            return Ok(Value::null());
+        }
+        if !open.stored {
+            // This request drew the identifier and the store has no row under it, so nothing
+            // moves. The new identifier replaces it, and the write-back creates the row.
+            let fresh = mint(ctx);
+            issue_cookie(ctx, &format!("{NAME}::regenerate"), &fresh)?;
+            if let Some(open) = ctx.session_mut() {
+                open.id = fresh;
+            }
             return Ok(Value::null());
         }
 
         let member = format!("{NAME}::regenerate()");
         let store = opened(ctx, &member, ", which is where this session's record already lives")?;
-        let fresh = mint(ctx);
-        let lifetime = ttl(ctx);
-        put(&store, "regenerate", &fresh, &record, lifetime)?;
-        forgot(&store, "regenerate", &retired)?;
-        issue_cookie(ctx, &format!("{NAME}::regenerate"), &fresh)?;
-
-        // Not dirty: the record was written whole a line ago, so the write-back has nothing left
-        // to send. `Ctx::open_session` replaces rather than refuses for exactly this call.
-        ctx.open_session(nvs_runtime::Session {
-            id: fresh,
-            record,
-            dirty: false,
-            write_back: send_at_end,
-        });
+        regenerated(ctx, &store)?;
         Ok(Value::null())
     }
+}
+
+/// `regenerate`'s move of a stored session on `store`: the row is created under a fresh
+/// identifier, then the old row is destroyed, and the cookie names the fresh one.
+///
+/// **A destroy that finds no old row means another request destroyed the session first.** The
+/// fresh row is destroyed too, no cookie is sent, and the request is left with a fresh, empty
+/// session with no identifier, as `start` opens for an absent one. So a session that was signed
+/// out elsewhere never moves to a new identifier. What it spends: one more delete, in that race
+/// alone.
+///
+/// # Errors
+///
+/// [`unstarted`] before `start`; the store's failure, as [`fetched`]'s; a thrown `RuntimeError`
+/// where the store already has a row under the drawn identifier; and [`issue_cookie`]'s.
+fn regenerated(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
+    let Some(open) = ctx.session() else {
+        return Err(unstarted("regenerate"));
+    };
+    // Copied rather than taken, so a store that fails halfway leaves the request holding the
+    // session it already had. O(record), which this member spends once and no other does.
+    let (retired, record) = (open.id.clone(), open.record.clone());
+    let fresh = mint(ctx);
+    let lifetime = ttl(ctx);
+    if !created(store, "regenerate", &fresh, &record, lifetime)? {
+        return Err(Fault::thrown(format!(
+            "{NAME}::regenerate(): the store already has a session under the new identifier. \
+             Call `regenerate()` again to draw another one."
+        )));
+    }
+    if !forgot(store, "regenerate", &retired)? {
+        forgot(store, "regenerate", &fresh)?;
+        ctx.open_session(fresh_session());
+        return Ok(());
+    }
+    issue_cookie(ctx, &format!("{NAME}::regenerate"), &fresh)?;
+
+    // Not dirty: the record was written whole a line ago, so the write-back has nothing left
+    // to send. `Ctx::open_session` replaces rather than refuses for exactly this call.
+    ctx.open_session(nvs_runtime::Session {
+        id: fresh,
+        record,
+        dirty: false,
+        stored: true,
+        write_back: send_at_end,
+    });
+    Ok(())
 }
 
 nvs_runtime::nvs_helper! {
@@ -1592,20 +1693,12 @@ const SENDER: &str = "Core\\Session's write-back at the end of the request";
 /// is the wedge `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`
 /// is named after, and the session's last-write-wins already declines to repair a lost write.
 fn send_at_end(ctx: &mut Ctx) {
-    // Nothing is copied out of the record: `open_configured` and `on_shared` both borrow, and the
-    // one call that needs the context by value — the report below — happens after this borrow has
-    // ended. A write-back that cloned the record would spend O(record) on the request path to say
-    // exactly what the bytes already on the context say.
-    let sent = match ctx.session() {
-        // No identifier is a session nobody wrote, which `write_back` never marks changed.
-        None => return,
-        Some(open) if open.id.is_empty() => return,
-        Some(open) => {
-            let lifetime = ttl(ctx);
-            opened(ctx, SENDER, ", which is where this session's record lives")
-                .and_then(|store| put(&store, "the write-back", &open.id, &open.record, lifetime))
-        }
-    };
+    // No identifier is a session nobody wrote, which `write_back` never marks changed.
+    if ctx.session().is_none_or(|open| open.id.is_empty()) {
+        return;
+    }
+    let sent = opened(ctx, SENDER, ", which is where this session's record lives")
+        .and_then(|store| sent_to(ctx, &store));
     if let Err(why) = sent {
         let record = nvs_runtime::floor::note(
             nvs_render::Level::Error,
@@ -1616,6 +1709,41 @@ fn send_at_end(ctx: &mut Ctx) {
         );
         nvs_runtime::floor::report(ctx, &record);
     }
+}
+
+/// [`send_at_end`]'s write on `store`.
+///
+/// **A stored session is replaced, and a session this request drew is created.** A replace changes
+/// only a row that still exists. So when another request destroyed the session, or it expired,
+/// nothing is written, this request's changes are dropped, and nothing is reported: that is what a
+/// destroyed session means. A create sets [`nvs_runtime::Session::stored`], so a second end of the
+/// same program replaces the row it made.
+///
+/// # Errors
+///
+/// The store's failure, as [`fetched`]'s, and a thrown `RuntimeError` where the store already has
+/// a row under the identifier this request drew.
+fn sent_to(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
+    let lifetime = ttl(ctx);
+    // Nothing is copied out of the record: the store calls borrow it, and the context is changed
+    // only after the borrow has ended. A write-back that cloned the record would spend O(record)
+    // on the request path to say exactly what the bytes already on the context say.
+    let Some(open) = ctx.session().filter(|open| !open.id.is_empty()) else {
+        return Ok(());
+    };
+    if open.stored {
+        replaced(store, "the write-back", &open.id, &open.record, lifetime)?;
+        return Ok(());
+    }
+    if !created(store, "the write-back", &open.id, &open.record, lifetime)? {
+        return Err(Fault::thrown(format!(
+            "{SENDER}: the store already has a session under the identifier this request drew"
+        )));
+    }
+    if let Some(open) = ctx.session_mut() {
+        open.stored = true;
+    }
+    Ok(())
 }
 
 /// The text a [`Fault`] carries, for the one caller in this module that has nowhere to throw it.
@@ -1653,7 +1781,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::io::{BufRead, BufReader, Read, Write};
     use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -1665,8 +1793,9 @@ mod tests {
     use nvs_runtime::{Ctx, NvsArray, NvsStr, Value};
 
     use super::{
-        DEFAULT_TTL, PREFIX, SEAL_DOMAIN, Store, backend, cookie, destroy, key_of, load, mint,
-        opened, opened_from, record, save, sealed_into, sealed_key, ttl, write_back,
+        DEFAULT_TTL, PREFIX, SEAL_DOMAIN, Store, backend, cookie, create, created, destroy,
+        fetched, forgot, key_of, load, mint, opened, opened_from, record, regenerated, replaced,
+        sealed_into, sealed_key, sent_to, sqlite, ttl, write_back,
     };
     use crate::cache::redis::Connection;
     use crate::cache::tests::memory_held;
@@ -1722,6 +1851,9 @@ mod tests {
         address: SocketAddr,
         stop: Arc<AtomicBool>,
         accepting: Option<thread::JoinHandle<()>>,
+        /// The keys whose expiry has passed. The store still has them, and answers each one as
+        /// absent, as a real store answers an expired key.
+        lapsed: Arc<Mutex<HashSet<Vec<u8>>>>,
     }
 
     impl Serving {
@@ -1729,11 +1861,14 @@ mod tests {
             let address = listener.local_addr().expect("the port it took");
             let stop = Arc::new(AtomicBool::new(false));
             let stopping = Arc::clone(&stop);
-            let accepting = thread::spawn(move || serving(&listener, &held, &stopping));
+            let lapsed = Arc::new(Mutex::new(HashSet::new()));
+            let expired = Arc::clone(&lapsed);
+            let accepting = thread::spawn(move || serving(&listener, &held, &expired, &stopping));
             Self {
                 address,
                 stop,
                 accepting: Some(accepting),
+                lapsed,
             }
         }
     }
@@ -1755,12 +1890,14 @@ mod tests {
 
     /// [`Serving`]'s accept loop, which joins each connection's thread once `stop` is set.
     ///
-    /// `SET … PX`, `GET` and `DEL` only, because those are the three commands [`save`], [`load`]
-    /// and [`destroy`] send; anything else is a panic rather than a silent `+OK`, so a fourth
-    /// command added upstream fails here instead of passing untested.
+    /// `SET … PX` with `NX`, `XX` or neither, `GET` and `DEL` only, because those are the commands
+    /// [`create`], [`super::replace`], [`load`] and [`destroy`] send. Anything else is a panic
+    /// rather than a silent `+OK`, so a command added upstream fails here instead of passing
+    /// untested. A key in `lapsed` is absent to every command, and `DEL` of it answers `0`.
     fn serving(
         listener: &TcpListener,
         held: &Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>,
+        lapsed: &Arc<Mutex<HashSet<Vec<u8>>>>,
         stop: &AtomicBool,
     ) {
         let mut connections = Vec::new();
@@ -1769,20 +1906,44 @@ mod tests {
                 break;
             }
             let held = Arc::clone(held);
+            let lapsed = Arc::clone(lapsed);
             let handler = thread::spawn(move || {
                 let mut writing = stream.try_clone().expect("the write half");
                 let mut reading = BufReader::new(stream);
                 while let Some(parts) = command(&mut reading) {
                     let reply = match parts[0].as_slice() {
                         b"SET" => {
+                            let (condition, px) = match parts[3].as_slice() {
+                                b"PX" => (None, 3),
+                                word => (Some(word.to_vec()), 4),
+                            };
                             assert_eq!(
-                                parts[3], b"PX",
+                                parts[px], b"PX",
                                 "a record is always written with an expiry"
                             );
-                            held.lock()
-                                .expect("the store")
-                                .insert(parts[1].clone(), parts[2].clone());
-                            b"+OK\r\n".to_vec()
+                            let mut store = held.lock().expect("the store");
+                            if lapsed.lock().expect("the lapsed keys").remove(&parts[1]) {
+                                store.remove(&parts[1]);
+                            }
+                            let present = store.contains_key(&parts[1]);
+                            let writes = match condition.as_deref() {
+                                None => true,
+                                Some(b"NX") => !present,
+                                Some(b"XX") => present,
+                                Some(other) => panic!(
+                                    "the session store sends no SET {:?}",
+                                    String::from_utf8_lossy(other)
+                                ),
+                            };
+                            if writes {
+                                store.insert(parts[1].clone(), parts[2].clone());
+                                b"+OK\r\n".to_vec()
+                            } else {
+                                b"$-1\r\n".to_vec()
+                            }
+                        }
+                        b"GET" if lapsed.lock().expect("the lapsed keys").contains(&parts[1]) => {
+                            b"$-1\r\n".to_vec()
                         }
                         b"GET" => match held.lock().expect("the store").get(&parts[1]) {
                             Some(record) => {
@@ -1794,8 +1955,9 @@ mod tests {
                             None => b"$-1\r\n".to_vec(),
                         },
                         b"DEL" => {
+                            let expired = lapsed.lock().expect("the lapsed keys").remove(&parts[1]);
                             let gone = held.lock().expect("the store").remove(&parts[1]);
-                            format!(":{}\r\n", usize::from(gone.is_some())).into_bytes()
+                            format!(":{}\r\n", usize::from(gone.is_some() && !expired)).into_bytes()
                         }
                         other => panic!(
                             "the session store sends no {:?}",
@@ -1819,7 +1981,7 @@ mod tests {
     /// Three claims, because each alone passes something broken. The roster admits no memory tier —
     /// so no later reader can select one — and it is read from `nvs_config` rather than spelled
     /// here, so adding a variant there fails this. The word is refused by `Backend::of` rather than
-    /// resolving to something. And a record actually written through [`save`] is **absent from the
+    /// resolving to something. And a record actually written through [`create`] is **absent from the
     /// process's map** afterwards: a module that wrote into the memory tier on some branch would
     /// satisfy the first two and fail this one, which is the failure the section is about.
     #[test]
@@ -1839,7 +2001,10 @@ mod tests {
             Dial::configured(Target::Tcp(address), None, None),
             Duration::from_secs(5),
         );
-        save(&mut open, ID, RECORD, DEFAULT_TTL).expect("the record reaches the configured store");
+        assert!(
+            create(&mut open, ID, RECORD, DEFAULT_TTL)
+                .expect("the record reaches the configured store")
+        );
 
         assert_eq!(
             held.lock().expect("the store").get(&key_of(ID)).cloned(),
@@ -1872,7 +2037,7 @@ mod tests {
                 Dial::configured(Target::Tcp(address), None, None),
                 Duration::from_secs(5),
             );
-            save(&mut open, ID, RECORD, DEFAULT_TTL).expect("the record is written");
+            assert!(create(&mut open, ID, RECORD, DEFAULT_TTL).expect("the record is written"));
         });
         wrote.join().expect("the first core");
 
@@ -1912,6 +2077,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         ctx.open_session(nvs_runtime::Session {
             id: ID.to_owned(),
+            stored: true,
             record: Vec::new(),
             dirty: false,
             write_back: super::send_at_end,
@@ -1976,6 +2142,7 @@ mod tests {
 
         ctx.open_session(nvs_runtime::Session {
             id: ID.to_owned(),
+            stored: true,
             record: b"no decode accepts this".to_vec(),
             dirty: false,
             write_back: super::send_at_end,
@@ -2023,7 +2190,7 @@ mod tests {
     /// set `dirty` itself and lose every write in production.
     ///
     /// **The send is a test's own function pointer**, which is what the seam is for: whether the
-    /// bytes reach a store is [`save`]'s question and three cases above already ask it, while what
+    /// bytes reach a store is [`create`]'s question and three cases above already ask it, while what
     /// is unproven here is that `Ctx::end_session` calls what the record carries exactly when the
     /// flag says to. The third assertion is the idempotence that method promises — sending clears
     /// the flag — which is what lets both ends of a program call it without agreeing on which of
@@ -2040,6 +2207,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         ctx.open_session(nvs_runtime::Session {
             id: ID.to_owned(),
+            stored: true,
             record: Vec::new(),
             dirty: false,
             write_back: counting,
@@ -2094,17 +2262,226 @@ mod tests {
                 Dial::configured(Target::Tcp(address), None, None),
                 Duration::from_secs(5),
             );
-            save(&mut open, ID, RECORD, DEFAULT_TTL).expect("the record is written");
+            assert!(create(&mut open, ID, RECORD, DEFAULT_TTL).expect("the record is written"));
             let before = load(&mut open, ID).expect("the store answers");
-            destroy(&mut open, ID).expect("the record is forgotten");
+            let first = destroy(&mut open, ID).expect("the record is forgotten");
             let after = load(&mut open, ID).expect("the store answers");
-            destroy(&mut open, ID).expect("an id with no record under it is already forgotten");
-            (before, after)
+            let second =
+                destroy(&mut open, ID).expect("an id with no record under it is already forgotten");
+            (before, after, first, second)
         });
-        let (before, after) = answered.join().expect("the core");
+        let (before, after, first, second) = answered.join().expect("the core");
 
         assert_eq!(before, Some(RECORD.to_vec()));
         assert_eq!(after, None);
+        assert!(first, "the first destroy removed the record");
+        assert!(!second, "and the second found nothing to remove");
+    }
+
+    thread_local! {
+        /// The store [`to_the_case_store`] sends to: the one the running case built.
+        static CASE_STORE: std::cell::RefCell<Option<Store>> =
+            const { std::cell::RefCell::new(None) };
+    }
+
+    /// A write-back that sends to the case's own store, through the same [`sent_to`]
+    /// [`super::send_at_end`] uses for the configured one.
+    fn to_the_case_store(ctx: &mut Ctx) {
+        let store = CASE_STORE
+            .with_borrow(Clone::clone)
+            .expect("the case set its store");
+        sent_to(ctx, &store).expect("the write-back reaches the store");
+    }
+
+    /// What keeps one store of [`BACKENDS`] alive for a case.
+    enum Kept {
+        /// The fake shared store, and the map it keeps.
+        Shared(Serving, Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>),
+        /// The SQLite file, and the scratch folder that deletes it when the case ends.
+        Db {
+            path: std::path::PathBuf,
+            _folder: nvs_repo::Scratch,
+        },
+    }
+
+    impl Kept {
+        /// How many rows the store holds, expired or not.
+        fn rows(&self) -> usize {
+            match self {
+                Self::Shared(_, held) => held.lock().expect("the store").len(),
+                Self::Db { path, .. } => usize::try_from(sqlite::rows(path)).expect("a count"),
+            }
+        }
+
+        /// Makes the row under `id` expire now.
+        fn lapse(&self, id: &str) {
+            match self {
+                Self::Shared(serving, _) => {
+                    serving
+                        .lapsed
+                        .lock()
+                        .expect("the lapsed keys")
+                        .insert(key_of(id));
+                }
+                Self::Db { path, .. } => sqlite::lapse(path, id),
+            }
+        }
+    }
+
+    impl Drop for Kept {
+        fn drop(&mut self) {
+            if let Self::Db { .. } = self {
+                sqlite::closed();
+            }
+        }
+    }
+
+    /// An empty store of the kind `backend` names, with `ctx` configured to reach it. The `match`
+    /// has no wildcard arm, so a store added to [`BACKENDS`] does not compile here until the
+    /// cases that loop over every store can build it.
+    fn a_store(ctx: &mut Ctx, case: &str, backend: Backend) -> (Store, Kept) {
+        match backend {
+            Backend::Shared => {
+                let (listener, address) = listening();
+                let held = Arc::new(Mutex::new(HashMap::new()));
+                let serving = Serving::start(listener, Arc::clone(&held));
+                ctx.set_config(crate::tests::granting(&format!(
+                    "{SHARED_BLOCK}[capabilities.cache]\nshared = true\n\
+                     [cache.shared]\nurl = \"redis://{address}\"\n"
+                )));
+                let store = opened(ctx, "a case", "").expect("the shared store is configured");
+                (store, Kept::Shared(serving, held))
+            }
+            Backend::Db => {
+                let dir = nvs_repo::scratch(&format!("{case}-db"));
+                let path = dir.join("session.sqlite");
+                let kept = Kept::Db {
+                    path: path.clone(),
+                    _folder: dir,
+                };
+                (Store::File(path), kept)
+            }
+        }
+    }
+
+    /// `rule:http-server/a-session-is-loaded-once-and-written-whole`: a request loads a stored
+    /// session and changes it, another request destroys the session, and then the first request
+    /// ends. On every store the end writes nothing, so the session stays destroyed.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn a_destroyed_session_is_not_written_back_on_any_store() {
+        for (word, backend) in BACKENDS {
+            let mut ctx = Ctx::buffered();
+            let (store, kept) = a_store(&mut ctx, "session-destroyed-stays", *backend);
+            assert!(created(&store, "a case", ID, &[], DEFAULT_TTL).expect("the row is issued"));
+            let loaded = fetched(&store, "a case", ID)
+                .expect("the store answers")
+                .expect("the row the case issued");
+            CASE_STORE.with_borrow_mut(|slot| *slot = Some(store.clone()));
+            ctx.open_session(nvs_runtime::Session {
+                id: ID.to_owned(),
+                record: loaded,
+                dirty: false,
+                stored: true,
+                write_back: to_the_case_store,
+            });
+            let mut writing = record(&ctx, "set").expect("a started session has a record");
+            writing.set(NvsStr::new(b"cart"), Value::int(17));
+            write_back(&mut ctx, writing, "set").expect("the changed record encodes");
+
+            assert!(
+                forgot(&store, "a case", ID).expect("another request destroys the session"),
+                "{word}: the row was there to destroy"
+            );
+            ctx.end_session();
+            CASE_STORE.with_borrow_mut(Option::take);
+
+            assert_eq!(
+                fetched(&store, "a case", ID).expect("the store answers"),
+                None,
+                "{word}: the destroyed session stays destroyed"
+            );
+            assert_eq!(kept.rows(), 0, "{word}: and the store holds no row");
+        }
+    }
+
+    /// `rule:core-api/session-roster`'s `regenerate`, when another request destroyed the session
+    /// first: on every store nothing moves to a new identifier, and the request is left with an
+    /// empty session that has no identifier.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn a_regenerated_session_moves_only_a_row_that_still_exists() {
+        for (word, backend) in BACKENDS {
+            let mut ctx = Ctx::buffered();
+            let (store, kept) = a_store(&mut ctx, "session-regenerate-gone", *backend);
+            assert!(created(&store, "a case", ID, RECORD, DEFAULT_TTL).expect("the row is issued"));
+            ctx.open_session(nvs_runtime::Session {
+                id: ID.to_owned(),
+                record: RECORD.to_vec(),
+                dirty: false,
+                stored: true,
+                write_back: super::send_at_end,
+            });
+            assert!(
+                forgot(&store, "a case", ID).expect("another request destroys the session"),
+                "{word}: the row was there to destroy"
+            );
+
+            regenerated(&mut ctx, &store).unwrap_or_else(|why| {
+                panic!("{word}: a session that is gone does not throw: {why:?}")
+            });
+            assert_eq!(kept.rows(), 0, "{word}: no row moved to a new identifier");
+            let left = ctx.session().expect("the request keeps a session");
+            assert!(left.id.is_empty(), "{word}: the session has no identifier");
+            assert!(left.record.is_empty(), "{word}: and an empty record");
+            assert!(!left.stored && !left.dirty, "{word}: and nothing to write");
+            assert!(
+                ctx.take_headers().is_empty(),
+                "{word}: and no cookie names the identifier that was removed"
+            );
+        }
+    }
+
+    /// `rule:http-server/a-session-store-answers-four-operations`: on every store, `replace`
+    /// writes nothing for an absent id or an expired row, and `create` on an id that has a row
+    /// fails and keeps that row's record.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn only_create_inserts_a_session_row() {
+        for (word, backend) in BACKENDS {
+            let mut ctx = Ctx::buffered();
+            let (store, kept) = a_store(&mut ctx, "session-only-create", *backend);
+            assert!(
+                !replaced(&store, "a case", ID, RECORD, DEFAULT_TTL).expect("the store answers"),
+                "{word}: a replace of an absent id writes nothing"
+            );
+            assert_eq!(kept.rows(), 0, "{word}: and the store holds no row");
+
+            assert!(
+                created(&store, "a case", ID, RECORD, DEFAULT_TTL).expect("the store answers"),
+                "{word}: a create of an absent id inserts the row"
+            );
+            assert!(
+                !created(&store, "a case", ID, b"another", DEFAULT_TTL).expect("the store answers"),
+                "{word}: a create of a held id fails"
+            );
+            assert_eq!(
+                fetched(&store, "a case", ID).expect("the store answers"),
+                Some(RECORD.to_vec()),
+                "{word}: and the held record stays"
+            );
+
+            kept.lapse(ID);
+            assert!(
+                !replaced(&store, "a case", ID, b"late", DEFAULT_TTL).expect("the store answers"),
+                "{word}: a replace of an expired row writes nothing"
+            );
+            assert_eq!(
+                fetched(&store, "a case", ID).expect("the store answers"),
+                None,
+                "{word}: and the row stays absent"
+            );
+        }
     }
 
     /// `Core\Session::destroy` as a program reaches it: the store is told first, and only then
@@ -2128,6 +2505,7 @@ mod tests {
 
         ctx.open_session(nvs_runtime::Session {
             id: ID.to_owned(),
+            stored: true,
             record: RECORD.to_vec(),
             dirty: false,
             write_back: super::send_at_end,
@@ -2190,6 +2568,7 @@ mod tests {
 
         ctx.open_session(nvs_runtime::Session {
             id: ID.to_owned(),
+            stored: true,
             record: RECORD.to_vec(),
             dirty: false,
             write_back: super::send_at_end,
@@ -2430,6 +2809,7 @@ mod tests {
 
         ctx.open_session(nvs_runtime::Session {
             id: ID.to_owned(),
+            stored: true,
             record: Vec::new(),
             dirty: false,
             write_back: super::send_at_end,
@@ -2490,6 +2870,7 @@ mod tests {
 
         ctx.open_session(nvs_runtime::Session {
             id: ID.to_owned(),
+            stored: true,
             record: Vec::new(),
             dirty: false,
             write_back: super::send_at_end,
@@ -2554,6 +2935,7 @@ mod tests {
 
         ctx.open_session(nvs_runtime::Session {
             id: ID.to_owned(),
+            stored: true,
             record: Vec::new(),
             dirty: false,
             write_back: super::send_at_end,
@@ -2575,6 +2957,7 @@ mod tests {
         ctx.set_random_state(11);
         ctx.open_session(nvs_runtime::Session {
             id: ID.to_owned(),
+            stored: true,
             record: Vec::new(),
             dirty: false,
             write_back: super::send_at_end,
@@ -2821,6 +3204,7 @@ mod tests {
         ctx.set_random_state(23);
         ctx.open_session(nvs_runtime::Session {
             id: ID.to_owned(),
+            stored: true,
             record: Vec::new(),
             dirty: false,
             write_back: super::send_at_end,

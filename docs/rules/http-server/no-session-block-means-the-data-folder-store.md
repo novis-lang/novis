@@ -20,8 +20,9 @@ covers the moment two writers meet, and that wait is one statement long.
 - **Memory:** one SQLite connection and its statement cache per core, O(cores), and nothing per
   session served. The rows are on disk, O(live sessions), because expired rows are swept
   (`rule:http-server/session-expiry-belongs-to-the-store`).
-- **Latency:** one indexed read at `start` and one upsert for a changed record, each on the blocking
-  pool, so a core never waits on the disk (`rule:http-server/a-core-is-never-blocked-on-a-syscall`).
+- **Latency:** one indexed read at `start`, and one update for a changed record or one insert for a
+  new session, each on the blocking pool, so a core never waits on the disk
+  (`rule:http-server/a-core-is-never-blocked-on-a-syscall`).
 
 **Declined:**
 - **No store at all where nothing is written.** It was safe and it was useless: a first program that

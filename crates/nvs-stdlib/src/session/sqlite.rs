@@ -25,7 +25,8 @@
 //! ([`nvs_db::SqliteConn::query`]), so a core never waits on the disk.
 //!
 //! Cost: one connection and its statement cache per core, O(cores). Per request, one indexed read at
-//! `start` and one upsert for a changed record, plus one indexed delete per core per minute.
+//! `start`, and one indexed update for a changed record or one insert for a new one, plus one
+//! indexed delete per core per minute.
 
 use std::cell::RefCell;
 use std::io;
@@ -57,8 +58,8 @@ const SCHEMA: &[&str] = &[
 /// file's size, and a minute of expired rows is nothing beside `[session] ttl`'s two hours.
 const SWEEP_EVERY: Duration = Duration::from_secs(60);
 
-/// How many prepared statements one connection keeps: the four this module runs.
-const STATEMENTS: usize = 4;
+/// How many prepared statements one connection keeps: the five this module runs.
+const STATEMENTS: usize = 5;
 
 /// One core's open connection, the file it is open on, and when it last swept.
 struct Held {
@@ -187,47 +188,100 @@ pub(crate) fn load(path: &Path, id: &str) -> io::Result<Option<Vec<u8>>> {
     })
 }
 
-/// `save`: the record under `id`, replaced whole, with its expiry `lifetime` from now.
+/// `create`: a new row under `id`, with its expiry `lifetime` from now, and whether it was written.
 ///
-/// One upsert, so a row nobody has written yet and one another request wrote a moment ago are the
-/// same statement. A due [`sweep`] runs after it on the same connection.
+/// An insert and never a replace of a live row. `false` is an `id` that already has a live row,
+/// which keeps its record. An expired row is absent, as [`load`] reads it, so its `id` is taken
+/// over, as the shared store's `SET … NX` takes an expired key. A due [`sweep`] runs after it on
+/// the same connection.
 ///
 /// # Errors
 ///
 /// As [`load`].
-pub(crate) fn save(path: &Path, id: &str, record: &[u8], lifetime: Duration) -> io::Result<()> {
+pub(crate) fn create(path: &Path, id: &str, record: &[u8], lifetime: Duration) -> io::Result<bool> {
+    written(
+        path,
+        "INSERT INTO nvs_session (id, record, expires_at) VALUES (?1, ?2, ?3) \
+         ON CONFLICT (id) DO UPDATE SET record = excluded.record, \
+         expires_at = excluded.expires_at WHERE nvs_session.expires_at <= ?4",
+        id,
+        record,
+        lifetime,
+    )
+}
+
+/// `replace`: the record under `id`, replaced whole, with its expiry `lifetime` from now, and
+/// whether a row was changed.
+///
+/// An update of a row whose expiry is still ahead, and never an insert. `false` is an `id` with no
+/// live row, which stays absent: another request destroyed the session, or it expired
+/// (`rule:http-server/a-session-is-loaded-once-and-written-whole`). A due [`sweep`] runs after it.
+///
+/// # Errors
+///
+/// As [`load`].
+pub(crate) fn replace(
+    path: &Path,
+    id: &str,
+    record: &[u8],
+    lifetime: Duration,
+) -> io::Result<bool> {
+    written(
+        path,
+        "UPDATE nvs_session SET record = ?2, expires_at = ?3 WHERE id = ?1 AND expires_at > ?4",
+        id,
+        record,
+        lifetime,
+    )
+}
+
+/// Runs `statement`, the write of [`create`] or [`replace`], and then a due [`sweep`].
+///
+/// The statement takes the id, the record, the new expiry and now as `?1` to `?4`. It answers
+/// whether it changed a row.
+///
+/// # Errors
+///
+/// As [`load`].
+fn written(
+    path: &Path,
+    statement: &str,
+    id: &str,
+    record: &[u8],
+    lifetime: Duration,
+) -> io::Result<bool> {
     let now = crate::queue::now_millis();
     with(path, |held| {
-        drop(held.conn.query(
-            "INSERT INTO nvs_session (id, record, expires_at) VALUES (?1, ?2, ?3) \
-             ON CONFLICT (id) DO UPDATE SET record = excluded.record, \
-             expires_at = excluded.expires_at",
-            vec![
-                SqliteValue::Text(id.to_owned()),
-                SqliteValue::Blob(record.to_vec()),
-                SqliteValue::Int(expiry(now, lifetime)),
-            ],
-        )?);
+        let parameters = vec![
+            SqliteValue::Text(id.to_owned()),
+            SqliteValue::Blob(record.to_vec()),
+            SqliteValue::Int(expiry(now, lifetime)),
+            SqliteValue::Int(now),
+        ];
+        let changed = held.conn.query(statement, parameters)?.affected() > 0;
         if held.swept.is_none_or(|last| last.elapsed() >= SWEEP_EVERY) {
             sweep(&held.conn, now)?;
             held.swept = Some(Instant::now());
         }
-        Ok(())
+        Ok(changed)
     })
 }
 
-/// `destroy`: the row under `id`, deleted. Deleting a row that is not there is not a failure.
+/// `destroy`: the row under `id`, deleted, and whether there was one.
+///
+/// Deleting a row that is not there is not a failure. `false` tells `regenerate` that another
+/// request destroyed the session first.
 ///
 /// # Errors
 ///
 /// As [`load`].
-pub(crate) fn destroy(path: &Path, id: &str) -> io::Result<()> {
+pub(crate) fn destroy(path: &Path, id: &str) -> io::Result<bool> {
     with(path, |held| {
-        drop(held.conn.query(
+        let rows = held.conn.query(
             "DELETE FROM nvs_session WHERE id = ?1",
             vec![SqliteValue::Text(id.to_owned())],
-        )?);
-        Ok(())
+        )?;
+        Ok(rows.affected() > 0)
     })
 }
 
@@ -244,16 +298,47 @@ fn sweep(conn: &SqliteConn, now: i64) -> io::Result<u64> {
     Ok(rows.affected())
 }
 
+/// Closes this thread's connection, so a case's scratch directory can be deleted.
+#[cfg(test)]
+pub(crate) fn closed() {
+    HELD.with_borrow_mut(Option::take);
+}
+
+/// How many rows the file holds, expired or not, read through a connection of its own.
+#[cfg(test)]
+pub(crate) fn rows(path: &Path) -> i64 {
+    let held = opened(path).expect("a second connection");
+    let mut answer = held
+        .conn
+        .query("SELECT COUNT(*) FROM nvs_session", Vec::new())
+        .expect("the count");
+    match answer.next_row().and_then(|row| row.into_iter().next()) {
+        Some(SqliteValue::Int(count)) => count,
+        other => panic!("a count is an integer: {other:?}"),
+    }
+}
+
+/// Moves the expiry of the row under `id` into the past, as if its lifetime had run out.
+#[cfg(test)]
+pub(crate) fn lapse(path: &Path, id: &str) {
+    with(path, |held| {
+        drop(held.conn.query(
+            "UPDATE nvs_session SET expires_at = 0 WHERE id = ?1",
+            vec![SqliteValue::Text(id.to_owned())],
+        )?);
+        Ok(())
+    })
+    .expect("the row lapses");
+}
+
 #[cfg(test)]
 mod tests {
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
     use std::sync::mpsc;
     use std::thread;
     use std::time::Duration;
 
-    use nvs_db::SqliteValue;
-
-    use super::{HELD, load, opened, save, sweep, with};
+    use super::{closed, create, load, replace, rows, sweep, with};
 
     /// A store file in a scratch directory one case owns, and the guard that deletes the
     /// directory when the case ends.
@@ -261,24 +346,6 @@ mod tests {
         let dir = nvs_repo::scratch(name);
         let path = dir.join("session.sqlite");
         (dir, path)
-    }
-
-    /// Closes this thread's connection, so the scratch directory can be deleted.
-    fn closed() {
-        HELD.with_borrow_mut(Option::take);
-    }
-
-    /// How many rows the file holds, expired or not, read through a connection of its own.
-    fn rows(path: &Path) -> i64 {
-        let held = opened(path).expect("a second connection");
-        let mut answer = held
-            .conn
-            .query("SELECT COUNT(*) FROM nvs_session", Vec::new())
-            .expect("the count");
-        match answer.next_row().and_then(|row| row.into_iter().next()) {
-            Some(SqliteValue::Int(count)) => count,
-            other => panic!("a count is an integer: {other:?}"),
-        }
     }
 
     /// `rule:http-server/a-session-is-loaded-once-and-written-whole`: two requests of one session
@@ -293,7 +360,9 @@ mod tests {
     fn two_requests_of_one_session_both_finish_and_the_last_write_wins() {
         const ID: &str = "PmA5tKz1QvR3sYbNqLwXe2";
         let (_dir, path) = store("session-two-requests");
-        save(&path, ID, b"start", Duration::from_secs(60)).expect("the session is issued");
+        assert!(
+            create(&path, ID, b"start", Duration::from_secs(60)).expect("the session is issued")
+        );
 
         let (loaded, first_loaded) = mpsc::channel();
         let (go_on, second_done) = mpsc::channel::<()>();
@@ -305,7 +374,9 @@ mod tests {
                 second_done
                     .recv_timeout(Duration::from_secs(30))
                     .expect("the second request finishes while the first is still open");
-                save(&path, ID, b"first", Duration::from_secs(60)).expect("the first saves");
+                assert!(
+                    replace(&path, ID, b"first", Duration::from_secs(60)).expect("the first saves")
+                );
                 seen
             })
         };
@@ -317,7 +388,10 @@ mod tests {
             let path = path.clone();
             thread::spawn(move || {
                 let seen = load(&path, ID).expect("the second request loads");
-                save(&path, ID, b"second", Duration::from_secs(60)).expect("the second saves");
+                assert!(
+                    replace(&path, ID, b"second", Duration::from_secs(60))
+                        .expect("the second saves")
+                );
                 seen
             })
         };
@@ -352,7 +426,10 @@ mod tests {
     fn a_record_survives_into_a_connection_another_process_would_open() {
         const ID: &str = "QvR3sYbNqLwXe2PmA5tKz1";
         let (_dir, path) = store("session-another-process");
-        save(&path, ID, b"user=17", Duration::from_secs(60)).expect("the first process writes");
+        assert!(
+            create(&path, ID, b"user=17", Duration::from_secs(60))
+                .expect("the first process writes")
+        );
         closed();
 
         let read = {
@@ -373,8 +450,10 @@ mod tests {
         const LIVE: &str = "LwXe2PmA5tKz1QvR3sYbNq";
         const GONE: &str = "A5tKz1QvR3sYbNqLwXe2Pm";
         let (_dir, path) = store("session-expired");
-        save(&path, LIVE, b"live", Duration::from_secs(3600)).expect("a live record");
-        save(&path, GONE, b"gone", Duration::ZERO).expect("a record that expires at once");
+        assert!(create(&path, LIVE, b"live", Duration::from_secs(3600)).expect("a live record"));
+        assert!(
+            create(&path, GONE, b"gone", Duration::ZERO).expect("a record that expires at once")
+        );
 
         assert_eq!(load(&path, GONE).expect("the store answers"), None);
         assert_eq!(rows(&path), 2, "the expired row is still in the file");

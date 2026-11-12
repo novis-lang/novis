@@ -64,6 +64,17 @@ pub struct Session {
     /// request off the write path: a request that starts a session and reads it
     /// makes one round trip, not two.
     pub dirty: bool,
+    /// Whether the store holds a row under [`Self::id`].
+    ///
+    /// `start` sets it for a row it loaded, and the write-back sets it after the
+    /// write that creates the row. The write-back reads it to choose its write:
+    /// a stored session is *replaced*, which changes only a row that still
+    /// exists, and a session this request drew is *created*. So a session that
+    /// another request destroyed while this one ran stays destroyed, and this
+    /// request's changes to it are dropped
+    /// (`rule:http-server/a-session-is-loaded-once-and-written-whole`).
+    /// What it spends: one `bool` per in-flight session, and no round trip.
+    pub stored: bool,
     /// How [`Self::record`] is sent when the program that opened it ends —
     /// that rule's write-back, travelling **with the record** rather than being
     /// reached for at the end.

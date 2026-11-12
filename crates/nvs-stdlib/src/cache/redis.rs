@@ -42,7 +42,9 @@
 //! [`Connection::renew_if_holder`] is [`RENEW`], a second `EVAL` that pushes the
 //! expiry out only while the key still holds the token that took it.
 //! `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` is what needs
-//! both and `nvs serve` is their only caller: a compare-and-set a *program*
+//! both and `nvs serve` is their caller. [`crate::session`] also creates a
+//! row with `set_if_absent` and replaces one with
+//! [`Connection::set_if_present`], `SET … XX PX`. A compare-and-set a *program*
 //! could reach is new cross-request coordination
 //! (`rule:concurrency/cross-request-state-is-explicit`), so the tier's own wire
 //! stays `put` and `get` and these two are internal to this crate.
@@ -329,22 +331,53 @@ impl Connection {
         }
     }
 
-    /// `DEL key` — the entry forgotten, whether or not it was ever there.
+    /// `SET key payload XX PX milliseconds` — the entry replaced **only while
+    /// the key still holds one**, and whether it was.
     ///
-    /// The count the store answers with is discarded on purpose:
-    /// `rule:http-server/a-session-store-answers-four-operations`
-    /// 's `destroy` is "forget the record under an id", and an id there was
-    /// no record under is already forgotten — the same answer `load` gives it.
-    /// Reading the count would be a second question about existence, which that
-    /// section refuses for the reason it refuses `validateId`.
+    /// `false` is a key that is absent or expired, and nothing is written.
+    /// [`crate::session`]'s write-back is the caller: a session row another
+    /// request destroyed stays destroyed, because this command cannot create it
+    /// again (`rule:http-server/a-session-is-loaded-once-and-written-whole`).
+    /// The lifetime is not optional, for [`Connection::set_expiring`]'s reason.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::set`]. Replayable: a second `XX` write over a key the
+    /// first one wrote reaches the same state.
+    pub(crate) fn set_if_present(
+        &mut self,
+        key: &[u8],
+        payload: &[u8],
+        ttl: Duration,
+    ) -> Result<bool, String> {
+        let millis = expiry(ttl);
+        match self.command(
+            &[b"SET", key, payload, b"XX", b"PX", millis.as_bytes()],
+            Replay::Idempotent,
+        )? {
+            Reply::Simple(word) if word == "OK" => Ok(true),
+            Reply::Nil => Ok(false),
+            other => Err(other.unexpected("SET")),
+        }
+    }
+
+    /// `DEL key` — the entry forgotten, and whether this command removed one.
+    ///
+    /// `Core\Cache` discards the answer: an entry that was not there is already
+    /// forgotten. [`crate::session`]'s `regenerate` reads it, because a session
+    /// row that is already gone was destroyed by another request, and the record
+    /// must not move to a new identifier
+    /// (`rule:http-server/a-session-is-loaded-once-and-written-whole`).
     ///
     /// # Errors
     ///
     /// As [`Connection::set`]. Replayable for that command's reason: sending
-    /// `DEL` twice reaches the state sending it once reaches.
-    pub(crate) fn del(&mut self, key: &[u8]) -> Result<(), String> {
+    /// `DEL` twice reaches the state sending it once reaches. A replay after the
+    /// first attempt landed answers `false`, and `regenerate` then treats the
+    /// session as ended, which signs the visitor out and never keeps a row alive.
+    pub(crate) fn del(&mut self, key: &[u8]) -> Result<bool, String> {
         match self.command(&[b"DEL", key], Replay::Idempotent)? {
-            Reply::Number(_) => Ok(()),
+            Reply::Number(removed) => Ok(removed > 0),
             other => Err(other.unexpected("DEL")),
         }
     }

@@ -1945,6 +1945,7 @@ mod tests {
         ctx.set_random_state(5);
         ctx.open_session(nvs_runtime::Session {
             id: "sid-test".to_owned(),
+            stored: true,
             record: Vec::new(),
             dirty: false,
             write_back: |_| {},
