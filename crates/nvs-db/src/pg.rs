@@ -5971,7 +5971,14 @@ mod tests {
 
         let said = refused.to_string();
         assert!(said.contains("42601"), "{said}");
-        assert!(said.contains("syntax error"), "{said}");
+        assert!(
+            said.contains(crate::DbErrorKind::Syntax.sentence()),
+            "{said}"
+        );
+        assert!(
+            !said.contains("slect"),
+            "the server's sentence was rendered: {said}"
+        );
         assert_eq!(state.get(), State::Idle);
         assert!(state.get().is_poolable());
     }
@@ -6246,7 +6253,10 @@ mod tests {
 
         let said = failed.to_string();
         assert!(said.contains("42501"), "the later error won: {said}");
-        assert!(said.contains("permission denied"), "{said}");
+        assert!(
+            said.contains(crate::DbErrorKind::Permission.sentence()),
+            "{said}"
+        );
         // The wire is still at a boundary — that is what eight `ReadyForQuery`
         // means — so the pool destroys this connection through `PgConn::reset`
         // taking `self`, not by claiming the stream is unreadable.
@@ -6643,7 +6653,10 @@ mod tests {
 
         let said = failed.to_string();
         assert!(said.contains("40001"), "{said}");
-        assert!(said.contains("could not serialize access"), "{said}");
+        assert!(
+            said.contains(crate::DbErrorKind::SerializationFailure.sentence()),
+            "{said}"
+        );
         assert_eq!(state.get(), State::Idle);
         assert!(state.get().is_poolable());
 
@@ -6696,7 +6709,7 @@ mod tests {
 
         let said = failed.to_string();
         assert!(
-            said.contains("postgres ERROR: duplicate key value"),
+            said.contains("postgres ERROR: a row with this key already exists"),
             "{said}"
         );
         assert!(said.contains("SQLSTATE 23505"), "{said}");
@@ -6762,7 +6775,11 @@ mod tests {
             );
 
             let said = failed.to_string();
-            assert!(said.contains("duplicate key value"), "{said}");
+            assert!(
+                said.contains(DbErrorKind::UniqueViolation.sentence()),
+                "{said}"
+            );
+            assert!(!said.contains("duplicate key value"), "{said}");
             assert!(!said.contains(BOUND), "{said}");
 
             // A trace prints the `Debug`, and the rule covers that spelling too.

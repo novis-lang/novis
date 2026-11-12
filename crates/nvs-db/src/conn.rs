@@ -651,11 +651,11 @@ impl DbErrorKind {
             DbErrorKind::SerializationFailure => {
                 "the transaction conflicts with a concurrent transaction"
             }
-            DbErrorKind::ConnectionLost => "the connection to the server was lost",
+            DbErrorKind::ConnectionLost => "the connection to the database is lost or cannot open",
             DbErrorKind::Timeout => "the statement took longer than its time limit",
-            DbErrorKind::Syntax => "the server cannot run the statement as it is written",
+            DbErrorKind::Syntax => "the database cannot run the statement as it is written",
             DbErrorKind::Permission => "the database user is not allowed to do this",
-            DbErrorKind::Other => "the server returned an error",
+            DbErrorKind::Other => "the database returned an error",
         }
     }
 
