@@ -31,7 +31,7 @@ import { record } from "../lib/written.ts";
 import type { Options as RampOptions } from "../cmd/scaling.ts";
 import { fingerprint, implHash, knownGap, LEDGER, ledgerRecords, owed, type Policy, type Proofs, type Skips } from "./collect.ts";
 import { benchFile, implFile, read, type Entry } from "./roster.ts";
-import { skipReason, spawnProof } from "./run.ts";
+import { serviceSkipReason, skipReason, spawnProof } from "./run.ts";
 
 export const PERF_REPORT = "data/perf/members.md";
 const CALIBRATION = "benches/members/_calibration";
@@ -234,7 +234,9 @@ const rjust = (s: string, n: number) => " ".repeat(Math.max(0, n - s.length)) + 
  * `--record-perf`: measures and appends. By default only what has no current figure, so running it at the
  * end of a slice re-measures what that slice changed and nothing else. `force` re-measures everything in
  * scope, for when the question is the machine and not the code. A bench this host does not run, by its
- * `requires:` line, is left out as though it were not on disk. Returns the exit status.
+ * `requires:` line, is left out as though it were not on disk. A bench whose service this host runs no
+ * container for is skipped with the reason, as `bun nv site --check` skips a snippet. The records
+ * measured so far are written even when a later bench throws. Returns the exit status.
  */
 export async function recordPerf(out: string[], nvs: string, entries: Entry[], proofs: Map<string, Proofs>, policy: Policy, skips: Skips, opts: RecordOptions): Promise<number> {
   let todo = entries.filter((e) => existsSync(abs(benchFile(e))) && skipReason(read(benchFile(e))) === null);
@@ -275,69 +277,83 @@ export async function recordPerf(out: string[], nvs: string, entries: Entry[], p
   print(`  ${ljust("feature", 44)} ${rjust("ns/op", 10)} ${rjust("units", 9)}  ${rjust("stmts", 7)} ${rjust("calls", 7)} ${rjust("allocs", 7)} ${rjust("bytes", 9)}`);
   const lines: string[] = [];
   let failed = 0;
+  let skipped = 0;
   const floors = new Map<string, number>();
   const { DEFAULT_WSL_NVS } = await import("../cmd/scaling.ts");
   const ramp: RampOptions = { nvs, reps: RAMP_REPS, wslNvs: DEFAULT_WSL_NVS, callgrind: opts.callgrind, scratch: abs(`.agent-tmp/proofs-growth-${process.pid}`) };
-  for (const [i, e] of [...todo].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).entries()) {
-    const bench = benchFile(e);
-    measuring = `feature ${i + 1}/${todo.length}`;
-    let fig: Rec;
-    let findings: string[];
-    try {
-      [fig, findings] = await measureOne(nvs, bench, opts.reps, await floorFor(nvs, bench, opts.reps, floor, floors), base, ramp);
-    } catch (err) {
-      if (!(err instanceof PerfError)) throw err;
-      failed++;
-      print(`  FAIL  ${e.id}: ${err.message}`);
-      continue;
-    } finally {
-      if (existsSync(ramp.scratch)) rmSync(ramp.scratch, { recursive: true, force: true });
+  try {
+    for (const [i, e] of [...todo].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).entries()) {
+      const bench = benchFile(e);
+      measuring = `feature ${i + 1}/${todo.length}`;
+      const noService = await serviceSkipReason(read(bench));
+      if (noService) {
+        skipped++;
+        print(`  skip  ${e.id}: ${noService}`);
+        continue;
+      }
+      let fig: Rec;
+      let findings: string[];
+      try {
+        [fig, findings] = await measureOne(nvs, bench, opts.reps, await floorFor(nvs, bench, opts.reps, floor, floors), base, ramp);
+      } catch (err) {
+        if (!(err instanceof PerfError)) throw err;
+        failed++;
+        print(`  FAIL  ${e.id}: ${err.message}`);
+        continue;
+      } finally {
+        if (existsSync(ramp.scratch)) rmSync(ramp.scratch, { recursive: true, force: true });
+      }
+      const gap = knownGap(read(bench));
+      if (findings.length && !gap) {
+        failed++;
+        print(`  FAIL  ${e.id}: ${findings.join("; ")}`);
+        print("        fix it, or mark the bench `// proof: gap <gap id>`; the figure is not recorded until one of those lands.");
+        continue;
+      }
+      const impl = implFile(e);
+      const rec: Rec = {
+        at: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
+        id: e.id,
+        kind: e.kind,
+        group: e.group,
+        commit,
+        dirty: isDirty,
+        binary,
+        impl_commit: impl ? (await lastCommit(impl)).slice(0, 12) : "",
+        impl_hash: impl ? implHash(impl) : "",
+        machine: fp.id,
+        cpu: fp.cpu,
+        os: fp.os,
+        cores: fp.cores,
+        reps: opts.reps,
+        ...fig,
+        unit_ns: round(unitNs, 3),
+        ratio: round((fig.ns_per_op as number) / unitNs, 4),
+        note: opts.note,
+      };
+      if (findings.length) rec.known_gap = { gap, findings };
+      lines.push(ledgerLine(rec));
+      const n = (k: string, d: number, w: number) => rjust(fixed(fig[k] as number, d), w);
+      print(
+        `  ${ljust(e.id, 44)} ${n("ns_per_op", 1, 10)} ${rjust(fixed(rec.ratio as number, 3), 9)}  ${n("statements", 2, 7)} ${n("calls", 2, 7)} ${n("allocations", 2, 7)} ${n("bytes", 1, 9)}` +
+          ("growth" in fig ? `   growth: ${fig.growth as string}` : "") +
+          ("size_growth" in fig ? `, size ${fig.size_growth as string}` : "") +
+          ("twin_ratio" in fig ? `   twin: ${fig.twin_ratio === null ? "under the floor" : `${fixed(fig.twin_ratio as number, 2)}x`}` : "") +
+          (findings.length ? `   known-gap: ${findings.join("; ")}` : ""),
+      );
     }
-    const gap = knownGap(read(bench));
-    if (findings.length && !gap) {
-      failed++;
-      print(`  FAIL  ${e.id}: ${findings.join("; ")}`);
-      print("        fix it, or mark the bench `// proof: gap <gap id>`; the figure is not recorded until one of those lands.");
-      continue;
+  } finally {
+    if (lines.length) {
+      mkdirSync(dirname(abs(LEDGER)), { recursive: true });
+      appendFileSync(abs(LEDGER), lines.join("\n") + "\n");
+      record(abs(LEDGER));
     }
-    const impl = implFile(e);
-    const rec: Rec = {
-      at: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
-      id: e.id,
-      kind: e.kind,
-      group: e.group,
-      commit,
-      dirty: isDirty,
-      binary,
-      impl_commit: impl ? (await lastCommit(impl)).slice(0, 12) : "",
-      impl_hash: impl ? implHash(impl) : "",
-      machine: fp.id,
-      cpu: fp.cpu,
-      os: fp.os,
-      cores: fp.cores,
-      reps: opts.reps,
-      ...fig,
-      unit_ns: round(unitNs, 3),
-      ratio: round((fig.ns_per_op as number) / unitNs, 4),
-      note: opts.note,
-    };
-    if (findings.length) rec.known_gap = { gap, findings };
-    lines.push(ledgerLine(rec));
-    const n = (k: string, d: number, w: number) => rjust(fixed(fig[k] as number, d), w);
-    print(
-      `  ${ljust(e.id, 44)} ${n("ns_per_op", 1, 10)} ${rjust(fixed(rec.ratio as number, 3), 9)}  ${n("statements", 2, 7)} ${n("calls", 2, 7)} ${n("allocations", 2, 7)} ${n("bytes", 1, 9)}` +
-        ("growth" in fig ? `   growth: ${fig.growth as string}` : "") +
-        ("size_growth" in fig ? `, size ${fig.size_growth as string}` : "") +
-        ("twin_ratio" in fig ? `   twin: ${fig.twin_ratio === null ? "under the floor" : `${fixed(fig.twin_ratio as number, 2)}x`}` : "") +
-        (findings.length ? `   known-gap: ${findings.join("; ")}` : ""),
-    );
   }
-  if (lines.length) {
-    mkdirSync(dirname(abs(LEDGER)), { recursive: true });
-    appendFileSync(abs(LEDGER), lines.join("\n") + "\n");
-    record(abs(LEDGER));
-  }
-  out.push(`nv proofs perf: ${lines.length} records appended to ${LEDGER}` + (failed ? `, ${failed} bench(es) failed or missed what they declared and were not recorded` : ""));
+  out.push(
+    `nv proofs perf: ${lines.length} records appended to ${LEDGER}` +
+      (skipped ? `, ${skipped} bench(es) skipped because this host runs none of their services` : "") +
+      (failed ? `, ${failed} bench(es) failed or missed what they declared and were not recorded` : ""),
+  );
   return failed ? 1 : 0;
 }
 
