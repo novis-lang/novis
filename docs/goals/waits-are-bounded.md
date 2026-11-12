@@ -6,7 +6,7 @@ context: [crates/nvs-host/src/scheduler.rs, crates/nvs-host/src/timer.rs, crates
 stages:
   - id: 1
     title: "every wait that is not a request's own names why it outlives wall_time"
-    status: open
+    status: done
     context: [crates/nvs-host/src/block_on.rs, crates/nvs-host/src/blocking.rs, crates/nvs-host/src/group.rs, docs/rules/concurrency/the-parking-contract.md]
   - id: 2
     title: the park funnel bounds every wait
@@ -204,6 +204,18 @@ this list or stops at the answer. An upgraded connection's own waits need no arg
 no `wall_time` (`crates/nvs-runtime/src/ctx/safepoint.rs:284`), and the funnel reads the tree.
 **What it spends:** nothing at run time. Safe default: a site whose reason is unclear stays `Parked`.
 
+**`Host::park` and `Host::yield_slice` stay `Parked`, and `block_on` names `ConnectionDrive` alone.**
+`crates/nvs-host/src/group.rs:196` is the seam every `Core` member's wait goes through: cache,
+channel, pool, socket and event stream. A `Join` there would exempt all of them, which is the
+security priority traded away. `:221` is a turn yield that wakes itself, so it is never a long wait.
+`block_on_yielding` drives a guest call, which is the request's own wait, so the drive carries its
+`Waiting`: `block_on` passes `ConnectionDrive`, and `block_on_yielding` passes `Parked`. The server
+tasks the first list found name `ServerTask` too: the queue worker's waits and its `pause`
+(`crates/nvs-cli/src/worker.rs`), the exporters' poll (`crates/nvs-cli/src/serve/exporters.rs`) and
+the ticker's interval wait (`crates/nvs-server/src/schedule.rs:678`). The event stream's sleep
+(`crates/nvs-cli/src/events.rs:230`) is the request's own and stays `Parked`. **What it spends:**
+one word per drive. Safe default: unchanged.
+
 **The hand clamps are deleted once the funnel has landed.** `within_wall_time`, `wall_clamp`,
 `wall_time_fault` and `wall_time_left` go, with the stored copies: `set_wall`, `send_by`, `wall_or`,
 `waited`, `within_wall` and each `wall` field. `wall_bound` stays under the name `off_core_deadline`
@@ -289,30 +301,30 @@ bounded yet, so no behaviour changes.
 serving no request, a queue worker's idle wait among them, as `file.rs:NN` and the enclosing function.
 A second lists every park site that ignores `Resumed::Cancelled` and parks again.
 
-- [ ] `Waiting` (`crates/nvs-host/src/scheduler.rs:191`) gains `ParkedPast(PastWallTime)`, and the
-  scheduler files it as it files `Parked` (`crates/nvs-host/src/scheduler.rs:1144`). `PastWallTime`
+- [x] `Waiting` (`crates/nvs-host/src/scheduler.rs:191`) gains `ParkedPast(PastWallTime)`, and the
+  scheduler files it as it files `Parked` (`crates/nvs-host/src/scheduler.rs:1186`). `PastWallTime`
   has one documented variant per reason in the standing decision
   (`rule:concurrency/the-parking-contract`).
-- [ ] `park_until` (`crates/nvs-host/src/timer.rs:251`) and `wait_until`
+- [x] `park_until` (`crates/nvs-host/src/timer.rs:251`) and `wait_until`
   (`crates/nvs-host/src/timer.rs:305`) gain a form that takes the reason, for a server task that waits
   on the clock (`rule:concurrency/the-parking-contract`).
-- [ ] The `nvs-host` sites move to their reason: `Join` at `crates/nvs-host/src/isolate.rs:1002`,
-  `crates/nvs-host/src/group.rs:196`, `crates/nvs-host/src/group.rs:221`,
+- [x] The `nvs-host` sites move to their reason: `Join` at `crates/nvs-host/src/isolate.rs:1002`,
   `crates/nvs-host/src/group.rs:629` and `crates/nvs-host/src/worker.rs:489`; `ServerTask` at
   `crates/nvs-host/src/worker.rs:1273`; `BlockingJob` at `crates/nvs-host/src/blocking.rs:584` and
-  `crates/nvs-host/src/blocking.rs:776`; `ConnectionDrive` at `crates/nvs-host/src/block_on.rs:235`
-  and `crates/nvs-host/src/block_on.rs:270`; `DebugStop` at `crates/nvs-host/src/debug.rs:818`
-  (`rule:concurrency/nothing-is-still-running-when-a-call-returns`).
-- [ ] The server sites move to theirs: `crates/nvs-server/src/serve.rs:1376`,
+  `crates/nvs-host/src/blocking.rs:776`; `ConnectionDrive` for `block_on`'s drive
+  (`crates/nvs-host/src/block_on.rs:102`); `DebugStop` at `crates/nvs-host/src/debug.rs:818`. The
+  standing decision on `Host::park` says why `group.rs:196`, `:221` and `block_on_yielding` stay
+  `Parked` (`rule:concurrency/nothing-is-still-running-when-a-call-returns`).
+- [x] The server sites move to theirs: `crates/nvs-server/src/serve.rs:1376`,
   `crates/nvs-server/src/serve.rs:3579`, `crates/nvs-server/src/schedule.rs:730`,
   `crates/nvs-server/src/schedule.rs:801`, `crates/nvs-cli/src/serve.rs:1708`, and each site the first
   list names (`rule:errors/on-limit`).
-- [ ] The request's own waits stay `Parked`: `crates/nvs-host/src/net.rs:1334`,
+- [x] The request's own waits stay `Parked`: `crates/nvs-host/src/net.rs:1334`,
   `crates/nvs-host/src/net.rs:1462`, `crates/nvs-host/src/channel.rs:332`,
   `crates/nvs-host/src/channel.rs:415`, `crates/nvs-host/src/timer.rs:261`,
   `crates/nvs-host/src/timer.rs:316` and `crates/nvs-server/src/body.rs:378`. Each site the second
   list names stops at `Cancelled` or moves to a reason (`rule:errors/on-limit`).
-- [ ] New file `crates/nvs-host/tests/park_sites.rs:1` with two tests,
+- [x] New file `crates/nvs-host/tests/park_sites.rs:1` with two tests,
   `every_wait_past_wall_time_names_a_reason_at_a_listed_site` and `only_the_funnel_suspends_a_task`.
   They read every `.rs` file under `crates/*/src`, as `crates/nvs-lsp/tests/stdout_policy.rs:132` reads
   its crates. The first fails naming the `file:line` of a `ParkedPast` whose file and reason are not in
@@ -329,7 +341,7 @@ handler and `FATAL` at `Ctx::cancel` and at `run_helper`.
 - [ ] `yield_on` reads the bound for `Waiting::Parked`, merges it into the task's one timer entry,
   restores the site's entry on resume, and past the bound claims the wall stop and answers
   `Resumed::Cancelled`. A bound already passed parks nothing (`rule:errors/on-limit`,
-  `crates/nvs-host/src/scheduler.rs:1857`, `crates/nvs-host/src/scheduler.rs:1900`,
+  `crates/nvs-host/src/scheduler.rs:1899`, `crates/nvs-host/src/scheduler.rs:1942`,
   `crates/nvs-runtime/src/ctx/safepoint.rs:746`).
 - [ ] `Ctx::cancel` under a claimed wall stop gives the handler and the wall-time `FATAL`, and records
   no cancellation. The session reads the poll's branch order first (`rule:errors/on-limit`,
@@ -340,7 +352,7 @@ handler and `FATAL` at `Ctx::cancel` and at `run_helper`.
 - [ ] `NvsStream::wait_until_ready` and the connect wait return their error on the funnel's
   `Cancelled` with no change, and the test below pins it (`rule:concurrency/the-parking-contract`,
   `crates/nvs-host/src/net.rs:1471`, `crates/nvs-host/src/net.rs:1334`).
-- [ ] Tests in `crates/nvs-host/src/scheduler.rs:1915` and `crates/nvs-host/src/timer.rs:334`:
+- [ ] Tests in `crates/nvs-host/src/scheduler.rs:1958` and `crates/nvs-host/src/timer.rs:356`:
   `a_park_with_no_deadline_ends_at_its_trees_wall_deadline`,
   `a_park_with_a_later_deadline_ends_at_the_wall_deadline_on_one_timer_entry`,
   `a_named_wait_stays_parked_past_the_wall_deadline`,
@@ -517,11 +529,13 @@ and end a guest call that parks past the wall deadline.
   Past the instant it drops the future. `Spent` gives the instant: the tree's wall deadline floored at
   `fatal_reserve_time` from now, or `disconnect_grace` with no `wall_time`
   (`rule:errors/on-limit`, `rule:http-server/a-request-outlives-a-client-that-goes-away`,
-  `crates/nvs-host/src/block_on.rs:146`, `crates/nvs-host/src/block_on.rs:164`,
+  `crates/nvs-host/src/block_on.rs:150`, `crates/nvs-host/src/block_on.rs:169`,
   `crates/nvs-cli/src/extensions.rs:468`, `crates/nvs-ext/src/call.rs:1232`).
 - [ ] The call drive stops at the funnel's `Cancelled` when the tree is stopped for its wall time: it
   drops the call's future and the member returns `ctx.cancel()`
-  (`rule:errors/on-limit`, `crates/nvs-cli/src/extensions.rs:876`, `crates/nvs-host/src/block_on.rs:157`).
+  It is the one park the second list missed: `block_on_yielding` parks again after a cancellation, so
+  past the bound it would poll in a loop until the guest returns
+  (`rule:errors/on-limit`, `crates/nvs-cli/src/extensions.rs:876`, `crates/nvs-host/src/block_on.rs:169`).
 - [ ] Tests in `crates/nvs-cli/src/extensions.rs:1` tests:
   `a_destructor_that_sends_at_request_end_is_refused_and_the_request_ends`,
   `a_destructor_that_waits_at_request_end_is_dropped_at_its_bound` and
@@ -542,44 +556,30 @@ and end a guest call that parks past the wall deadline.
 
 ### State
 
-Nothing is built yet. The tree clamps each wait by hand through five `Ctx` methods, `yield_on` reads
-no deadline, and `Waiting` has two variants. Both connection doors start an unwatched isolate.
+Stage 1 is done. `Waiting::ParkedPast(PastWallTime)` exists with six reasons, the clock waits have
+`park_until_past` and `wait_until_past`, and every wait that outlives `wall_time` names its reason.
+`crates/nvs-host/tests/park_sites.rs` holds each reason to its files and the suspend to `yield_on`,
+and both its tests pass. Nothing is bounded yet: `yield_on` still reads no deadline, and the tree
+still clamps each wait by hand. Both connection doors still start an unwatched isolate.
+
+The sweep's two reds were already settled on disk. `env-secret-proofs` is not a check in this tree,
+and 305c04f660 fixed `a_changed_server_timeout_applies_to_the_next_connection` after the commit the
+nightly run tested.
 
 ### Next
 
-Stage 1, every wait that is not a request's own names why it outlives `wall_time`. Its files are
-`crates/nvs-host/src/scheduler.rs`, `timer.rs`, `isolate.rs`, `group.rs`, `worker.rs`, `blocking.rs`,
-`block_on.rs`, `debug.rs`, the server sites, and the new `crates/nvs-host/tests/park_sites.rs`. The two
-`Explore` lists come first. No test is expected red.
+Stage 2, the park funnel bounds every wait. Its items are under `### 2.` above, with their anchors.
+Its files are `crates/nvs-runtime/src/budget.rs:658`, `crates/nvs-runtime/src/ctx/safepoint.rs:560`,
+`:746` and `:1226`, `crates/nvs-runtime/src/abi.rs:615`, `crates/nvs-host/src/scheduler.rs:1899` and
+`crates/nvs-host/src/timer.rs:356`, and `docs/rules/errors/on-limit.md:39`.
 
-- [ ] `Waiting` (`crates/nvs-host/src/scheduler.rs:191`) gains `ParkedPast(PastWallTime)`, and the
-  scheduler files it as it files `Parked` (`crates/nvs-host/src/scheduler.rs:1144`). `PastWallTime`
-  has one documented variant per reason in the standing decision
-  (`rule:concurrency/the-parking-contract`).
-- [ ] `park_until` (`crates/nvs-host/src/timer.rs:251`) and `wait_until`
-  (`crates/nvs-host/src/timer.rs:305`) gain a form that takes the reason, for a server task that waits
-  on the clock (`rule:concurrency/the-parking-contract`).
-- [ ] The `nvs-host` sites move to their reason: `Join` at `crates/nvs-host/src/isolate.rs:1002`,
-  `crates/nvs-host/src/group.rs:196`, `crates/nvs-host/src/group.rs:221`,
-  `crates/nvs-host/src/group.rs:629` and `crates/nvs-host/src/worker.rs:489`; `ServerTask` at
-  `crates/nvs-host/src/worker.rs:1273`; `BlockingJob` at `crates/nvs-host/src/blocking.rs:584` and
-  `crates/nvs-host/src/blocking.rs:776`; `ConnectionDrive` at `crates/nvs-host/src/block_on.rs:235`
-  and `crates/nvs-host/src/block_on.rs:270`; `DebugStop` at `crates/nvs-host/src/debug.rs:818`
-  (`rule:concurrency/nothing-is-still-running-when-a-call-returns`).
-- [ ] The server sites move to theirs: `crates/nvs-server/src/serve.rs:1376`,
-  `crates/nvs-server/src/serve.rs:3579`, `crates/nvs-server/src/schedule.rs:730`,
-  `crates/nvs-server/src/schedule.rs:801`, `crates/nvs-cli/src/serve.rs:1708`, and each site the first
-  list names (`rule:errors/on-limit`).
-- [ ] The request's own waits stay `Parked`: `crates/nvs-host/src/net.rs:1334`,
-  `crates/nvs-host/src/net.rs:1462`, `crates/nvs-host/src/channel.rs:332`,
-  `crates/nvs-host/src/channel.rs:415`, `crates/nvs-host/src/timer.rs:261`,
-  `crates/nvs-host/src/timer.rs:316` and `crates/nvs-server/src/body.rs:378`. Each site the second
-  list names stops at `Cancelled` or moves to a reason (`rule:errors/on-limit`).
-- [ ] New file `crates/nvs-host/tests/park_sites.rs:1` with two tests,
-  `every_wait_past_wall_time_names_a_reason_at_a_listed_site` and `only_the_funnel_suspends_a_task`.
-  They read every `.rs` file under `crates/*/src`, as `crates/nvs-lsp/tests/stdout_policy.rs:132` reads
-  its crates. The first fails naming the `file:line` of a `ParkedPast` whose file and reason are not in
-  its table. The second fails on a yielder suspend outside `yield_on` (`rule:errors/on-limit`).
+- The funnel reads the bound only for `Waiting::Parked`. `Waiting::ParkedPast(_)` keeps the site's own
+  timer entry, and `a_named_wait_stays_parked_past_the_wall_deadline` pins that.
+- `Host::park` (`crates/nvs-host/src/group.rs:196`) stays `Parked`, so every `Core` member's wait is
+  bounded the moment the funnel lands. The standing decision on `Host::park` says why.
+- Expected red after stage 2: a test that parks a task under a passed `wall_time` and expects it to
+  wait on, if one exists. `a_core_parked_on_io_past_the_same_wall_time_is_not_flagged`
+  (`crates/nvs-host/src/watchdog.rs:173`) is the first to read.
 
 ### Backlog
 
