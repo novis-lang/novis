@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-config/src/request.rs, crates/nvs-stdlib/src/config.rs, docs/rules/config/three-changeability-classes.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: env-needs-a-grant
@@ -490,92 +490,41 @@ and the application's value to return to.
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done, and their six checks are green, `package-config-is-narrow` included.
-Stage 5: `set_as_package` (`crates/nvs-config/src/request.rs:413`) refuses every key outside
-`limits.`, and `Request::package_set` (`:105`) keeps the application's value under a key a package
-set. `restore_as_package` (`:615`) puts it back or drops the package's entry, and the application's
-`set` (`:326`) and `restore` forget it. `Core\Config::restore` is on `PREPARED_MEMBERS`
-(`crates/nvs-stdlib/src/registry.rs:3977`), takes the word as argument 0, and
-`prepare_config_set` (`crates/nvs-types/src/capability.rs:178`) files `ApplicationSet` for it too.
-The case is `tests/conformance/cap/grants-a-package-sets-and-restores-only-its-own-limits.nvst`,
-and attacks `08-` and `09-` use a new package `vendor/acme/limits` with an empty grant line. Both
-attacks run to the end and print `false`, `true`, `96M` as they should.
+Every stage is done. `looper verify` is green over the whole goal, and the six acceptance checks
+pass. The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes
+package-authority-closed` (no gap) and every step of `bun nv ci --check`.
 
-The sweep's reds are stale: `env-secret-proofs` was retired, and nightly 43001191130 predates
-`305c04f660`. `cargo fmt` rewrites `crates/nvs-config/src/defaults.rs` although HEAD's copy is
-unchanged; restore it with `git checkout`.
+The gate fixed what the new `env` capability left behind. The template
+`crates/nvs-config/src/default.toml` spells `env` under `[app.capabilities]` and
+`[schedule.grants]`. The hover's grant list names it as every environment variable
+(`crates/nvs-lsp/src/grants.rs:232`), and its five `tests/lsp/hover/` cases and the route-hover
+snippet show it. The directives census counts `env` as the block's one boolean key. The rule
+chapters are rendered again, and the stage-5 attacks are formatted. The two grant examples'
+`about.md` are under 200 words. The four changed pages carry a question about packages and are
+stamped. Every stale perf figure is recorded again. The `Core\Env::all` bench declares `calls 2`,
+the same as `Env::get`, because the env door makes `all` a call site with its own probes.
 
-Expected red: anything that counts `PREPARED_MEMBERS` or the arity of `nvs_core_config_restore`
-(now `args: [2]`), such as an ABI or `nvs meta` snapshot. A case or example in a package namespace
-that sets a key outside `limits.*` and expects `true`. From stage 4: a case or example that calls
-`Core\Debug::startTrace`, `startProfile` or a `saveTo` from a granted namespace, or whose
-application code declares a namespace under a third-party extension's. Stage 5 ran only its three
-new tests, the two `config.rs` lib tests it touched, the two `grants-a-package-*` limit cases and
-the two attacks.
+The sweep's reds were stale. `env-secret-proofs` no longer exists. Nightly 43001191130 failed only
+`a_changed_server_timeout_applies_to_the_next_connection`, which `305c04f660` rewrote after that
+run's commit.
+
+Every standing decision has a home outside this file: the rule fragments under
+`docs/rules/security/`, the module docs of `crates/nvs-types/src/capability.rs`, the
+`NEEDS_NONE` comment in `crates/nvs-stdlib/src/registry.rs` and the door-scan test's doc in
+`crates/nvs-stdlib/tests/capability.rs`.
 
 ### Next
 
-Stage 6, the gate: run `looper verify` over the whole goal, fix every failure in one pass, run it
-again. Then the goal-end gates of `AGENTS.md` § *In the loop*: `bun nv verify --doc`,
-`bun nv owners --closes package-authority-closed`, `bun nv ci --check`.
-
-- [ ] `looper verify` started, and its report read (`crates/nvs-stdlib/src/config.rs:396`).
-  The first failures to look for are the expected reds above.
-- [ ] Every failure fixed in one pass, never by loosening a test (`docs/goals/package-authority-closed.md:491`).
-- [ ] `looper verify` green a second time, and the goal-end gates green (`AGENTS.md:255`).
+Nothing. The goal is reached and is retired next.
 
 ### Backlog
 
-- Grant enforcement through a callable, a `mixed` receiver, inheritance and namespace identity is not
-  reviewed. No item here covers it.
-- The package client is the goal `package-files-contained`, the registry is `registry-waits-hold`, and
-  reflection is `calls-by-name-are-checked` and `crossings-carry-data-only`.
-- `require` of an application file from a package namespace was not traced.
-- What stage 3's readers found and no item covers. `Core\Ldap\Connection::authenticate` dials again
-  with no `require`: for a `connect`-made connection it resolves the host anew through `walk`, with
-  no address policy (`crates/nvs-stdlib/src/ldap/mod.rs:495`, `:598`). `Core\Cli`'s prompt opens
-  the terminal device by name with `std::fs` and no door (`crates/nvs-runtime/src/terminal.rs:632`).
-  `Core\Session`'s file store opens SQLite in the data folder with no door
-  (`crates/nvs-stdlib/src/session/sqlite.rs:111`). `Core\Crypto` signs with `ring`'s
-  `SystemRandom`, which a test seed does not reach (`crates/nvs-stdlib/src/crypto.rs:2794`, `:3027`).
-- The scan of `no_class_with_a_reason_for_none_calls_a_door` sees a door called in a class's module.
-  A `NEEDS_NONE` class that reaches a door through a helper in another module, with a forwarded
-  label, is not seen.
-- A package's `Core\Config::get` of a key that is not a secret directive needs `env` only because a
-  grant line is asked per member. Asking it only for a literal secret key would let a package read
-  `limits.*` with no line (`crates/nvs-types/src/capability.rs:224`).
-
-The open items `qualifiers-hold` left when it was retired:
-
-- An array literal of the program's own ints, such as `[1, 2]`, passed to a method of a `mixed`
-  receiver is refused as `E0895`, which calls it `mixed` text. The refusal is in the safe direction,
-  but `rule:security/taint-propagation` says such a literal carries no outside text
-  (`report_args_with_no_parameter_list`, `crates/nvs-types/src/expr/calls.rs`, with
-  `check_array_literal`).
-- A property-path or string-with-holes failure still names the bad segment's text, such as
-  ``has no public property `$nmae` `` (`nvs_property_path_mismatch`, `nvs_string_holes_mismatch`,
-  `crates/nvs-runtime/src/helpers.rs`). Name the segment by position instead.
-- `$fn->call($obj, $a)` on a typed callable checks only `$a`'s qualifier against the written
-  parameter, not its type (`infer_callable_rebind`, `crates/nvs-types/src/expr/calls.rs`).
-- A `.=` compound write through an erased property is not asked the untyped-write question, only the
-  plain `=` (`crates/nvs-types/src/expr/assign.rs:1083`).
-- A third-party extension method that takes a resource may return text built from an earlier
-  `tainted` argument as plain text (`crates/nvs-types/src/ext_lib.rs:290`). Not traced to a run.
-- `slot_check` and `test_shape` are two maps from a type to a run-time test. An intersection type
-  and `iterable` stay `SlotCheck::Any` in the first, and a single-value `string` keeps its tag alone
-  (`crates/nvs-ir/src/lower/mod.rs:602`, `crates/nvs-ir/src/lower/expr.rs:7881`).
-- A callable's `invoke` row carries no parameter type spellings, so a bare `callable`'s refusal
-  names no type (`crates/nvs-ir/src/lower/anon_fn.rs:374`, `crates/nvs-runtime/src/dispatch.rs:286`).
-- `check_param_class` runs on every call of an anonymous function, a proven one too
-  (`crates/nvs-ir/src/lower/anon_fn.rs:454`).
-- `Core\Str::format('%1$s', $o)` over a `Stringable` object throws "it does not implement
-  `Stringable`": `stringify` finds no compiled `toString` (`crates/nvs-runtime/src/helpers.rs:2049`).
-  Once it works, `crates/nvs-codegen/tests/borrowed_reads.rs` gains a row for it.
+Every open item moved to the backlog of `registry-waits-hold`, the next goal on the chain.
