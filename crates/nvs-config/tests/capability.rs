@@ -1876,7 +1876,13 @@ fn an_authority_answers_the_written_key_and_the_default_for_the_rest() {
                 Cap::NetConnect,
                 Cap::ProcessExec,
                 Cap::ScriptSpawn,
+                Cap::Env,
             ];
+            // `env` is granted on every run where its key is not written.
+            assert!(
+                authority.allows(Cap::Env, Scope::Unscoped, &disk),
+                "{run:?}"
+            );
             for cap in Cap::ALL.iter().copied().filter(|cap| !opened.contains(cap)) {
                 assert!(
                     !authority.allows(cap, Scope::Unscoped, &disk),
