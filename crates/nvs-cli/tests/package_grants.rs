@@ -27,8 +27,18 @@ fn layout(files: &[(&str, &str)]) -> (nvs_repo::Scratch, PathBuf) {
 
 /// `nvs check <entry>`, as `(stderr, success)`.
 fn check(entry: &Path) -> (String, bool) {
+    check_from(entry, None)
+}
+
+/// `nvs check <entry>` run in `dir` where it is `Some`, so the `nvs.toml` there is the
+/// configuration, as `(stderr, success)`.
+fn check_from(entry: &Path, dir: Option<&Path>) -> (String, bool) {
     let data = nvs_repo::scratch_private("nvsdata");
-    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+    if let Some(dir) = dir {
+        command.current_dir(dir);
+    }
+    let out = command
         .arg("--data")
         .arg(&*data)
         .arg("--no-init")
@@ -420,6 +430,200 @@ fn the_application_reads_the_environment_with_no_line_written() {
         assert!(
             ok,
             "the application reads the environment with no line for it ({grants:?}):\n{stderr}"
+        );
+    }
+}
+
+/// The manifest of the test extension `Shop\Meter`, with `requests` as its `requests` object.
+fn meter_manifest(requests: &str) -> String {
+    format!(
+        "{{\"manifest\": 1, \"world\": \"1.0.0\", \"class\": \"Shop\\\\Meter\", \
+         \"interface\": \"shop:meter/api\", \"requests\": {requests}, \
+         \"methods\": [{{\"name\": \"spin\", \"params\": [{{\"name\": \"milliseconds\", \"type\": \"int\"}}]}}]}}"
+    )
+}
+
+/// The `Shop\Meter` fixture's component, packed with `manifest` and the Novis source `files`, each
+/// `(path, text)`.
+fn meter(manifest: &str, files: &[(&str, &str)]) -> Vec<u8> {
+    let dir = nvs_repo::path("tests/conformance/ext/fixtures/meter");
+    let read = |name: &str| {
+        std::fs::read_to_string(dir.join(name))
+            .expect("the meter fixture reads")
+            .replace("\r\n", "\n")
+    };
+    let module = wat::parse_str(read("module.wat")).expect("the meter module compiles");
+    let wit = read("api.wit");
+    let files: Vec<nvs_ext::source::SourceFile> = files
+        .iter()
+        .map(|(path, text)| nvs_ext::source::SourceFile {
+            path: (*path).to_owned(),
+            text: (*text).to_owned(),
+        })
+        .collect();
+    nvs_ext::pack::pack(&nvs_ext::pack::Inputs {
+        wasm: &module,
+        wit: &[("api.wit", &wit)],
+        manifest: manifest.as_bytes(),
+        files: &files,
+    })
+    .expect("the meter extension packs")
+}
+
+/// `nvs check` of an application that loads `extension` as `meter.nvsx`, with `files` written
+/// under it, each `(path, text)`.
+fn check_with_extension(extension: &[u8], files: &[(&str, &str)]) -> (String, bool) {
+    let toml = format!(
+        "[[extension]]\npath = 'meter.nvsx'\nsha256 = \"{}\"\n",
+        nvs_ext::load::pin(extension)
+    );
+    let mut files = files.to_vec();
+    files.push(("nvs.toml", &toml));
+    let (_root, app) = layout(&files);
+    std::fs::write(app.join("meter.nvsx"), extension).expect("the test writes the extension");
+    check_from(&app.join("main.nvs"), Some(&app))
+}
+
+/// A package `Acme\Http` whose `Client::run` calls `Shop\Meter::spin`, an entry that calls it,
+/// and the application's `package.toml` granting `line` to `Acme\Http\*`.
+fn package_calls_meter(extension: &[u8], line: &str) -> (String, bool) {
+    let class = "<?nvs\nnamespace Acme\\Http;\n\nfinal class Client\n{\n    \
+                 public static function run(): void\n    {\n        Shop\\Meter::spin(1);\n    }\n}\n";
+    let entry = "<?nvs\nautoload 'Acme\\Http' from 'vendor/acme/http/src';\n\n\
+                 Acme\\Http\\Client::run();\n";
+    let grants = format!("[grants]\n'Acme\\Http\\*' = {line}\n");
+    check_with_extension(
+        extension,
+        &[
+            ("main.nvs", entry),
+            ("vendor/acme/http/src/Client.nvs", class),
+            (
+                "vendor/acme/http/package.toml",
+                "[package]\nname = 'Acme\\Http'\nversion = \"1.0.0\"\n",
+            ),
+            ("package.toml", &grants),
+        ],
+    )
+}
+
+// covers: tools:config/extension-grants-what-a-component-may-reach
+#[test]
+fn a_package_with_an_empty_grant_line_does_not_call_an_extension_that_requests_io() {
+    let extension = meter(
+        &meter_manifest(r#"{"read": ["data/"], "connect": ["tiles.example.com"]}"#),
+        &[],
+    );
+    let (stderr, ok) = package_calls_meter(&extension, "[]");
+    assert!(
+        !ok,
+        "a package with an empty line calls the extension:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("error[E0658]")
+            && stderr.contains("`Shop\\Meter::spin` needs `fs.read`, `net.connect`"),
+        "{stderr}"
+    );
+
+    let (stderr, ok) = package_calls_meter(&extension, r#"["fs.read", "net.connect"]"#);
+    assert!(ok, "a line that lists both calls the extension:\n{stderr}");
+}
+
+// covers: tools:config/extension-grants-what-a-component-may-reach
+#[test]
+fn an_extension_that_requests_nothing_is_called_with_no_grant() {
+    let extension = meter(&meter_manifest("{}"), &[]);
+    let (stderr, ok) = package_calls_meter(&extension, "[]");
+    assert!(
+        ok,
+        "an extension that requests nothing needs no grant:\n{stderr}"
+    );
+}
+
+/// The source the test extension carries: `Shop\Meter\Probe::read` reads a file.
+const PROBE: &str = "<?nvs\nnamespace Shop\\Meter;\n\nfinal class Probe\n{\n    \
+                     public static function read(): string\n    {\n        \
+                     return Core\\IO::readText('notes.txt');\n    }\n}\n";
+
+/// An entry that calls the extension's own source.
+const CALLS_PROBE: &str = "<?nvs\necho Shop\\Meter\\Probe::read();\n";
+
+// covers: tools:config/extension-grants-what-a-component-may-reach
+#[test]
+fn a_third_party_extensions_source_holds_only_its_grant_line() {
+    let extension = meter(&meter_manifest("{}"), &[("Meter/Probe.nvs", PROBE)]);
+    let (stderr, ok) = check_with_extension(
+        &extension,
+        &[
+            ("main.nvs", CALLS_PROBE),
+            ("package.toml", "[grants]\n'Acme\\Http\\*' = []\n"),
+        ],
+    );
+    assert!(
+        !ok,
+        "the extension's source reads a file with no line:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("error[E0658]")
+            && stderr.contains("`Core\\IO::readText` needs `fs.read`")
+            && stderr.contains("'Shop\\Meter' = [\"fs.read\"]"),
+        "{stderr}"
+    );
+
+    let (stderr, ok) = check_with_extension(
+        &extension,
+        &[
+            ("main.nvs", CALLS_PROBE),
+            ("package.toml", "[grants]\n'Shop\\Meter' = [\"fs.read\"]\n"),
+        ],
+    );
+    assert!(
+        ok,
+        "a line that names the source's namespace grants it:\n{stderr}"
+    );
+}
+
+// covers: tools:config/extension-grants-what-a-component-may-reach
+#[test]
+fn a_third_party_extensions_source_is_held_where_no_grant_table_exists() {
+    let extension = meter(&meter_manifest("{}"), &[("Meter/Probe.nvs", PROBE)]);
+    let (stderr, ok) = check_with_extension(&extension, &[("main.nvs", CALLS_PROBE)]);
+    assert!(
+        !ok,
+        "the extension's source reads a file where no grant table exists:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("error[E0658]") && stderr.contains("`Core\\IO::readText` needs `fs.read`"),
+        "{stderr}"
+    );
+
+    let (stderr, ok) = check_with_extension(
+        &meter(&meter_manifest("{}"), &[]),
+        &[(
+            "main.nvs",
+            "<?nvs\nShop\\Meter::spin(1);\necho Core\\IO::readText('notes.txt');\n",
+        )],
+    );
+    assert!(
+        ok,
+        "the application keeps its authority beside the extension:\n{stderr}"
+    );
+}
+
+// covers: tools:config/extension-grants-what-a-component-may-reach
+#[test]
+fn a_built_in_components_source_keeps_its_authority() {
+    let entry = "<?nvs\nuse Novis\\Spreadsheet\\Workbook;\n\n\
+                 var $written = Workbook::fromRows([['a' => 1]])->save('out.csv');\n\
+                 echo $written->size;\n";
+    for grants in [None, Some("[grants]\n'Acme\\Http\\*' = []\n")] {
+        let (_root, app) = match grants {
+            Some(grants) => layout(&[("main.nvs", entry), ("package.toml", grants)]),
+            None => layout(&[("main.nvs", entry)]),
+        };
+        let (stderr, ok) = check(&app.join("main.nvs"));
+        assert!(
+            ok,
+            "a built-in component's source writes its file ({grants:?}):\n{stderr}"
         );
     }
 }

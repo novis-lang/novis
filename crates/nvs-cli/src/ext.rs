@@ -425,6 +425,19 @@ fn describe(manifest: &Manifest, sha256: &str, files: &[SourceFile], source: boo
         }
     }
 
+    // A package that calls this class needs these on its `[grants]` line
+    // (`rule:security/extension-grants-are-an-intersection`).
+    let needs: Vec<&str> = nvs_types::ext_lib::implied_capabilities(manifest)
+        .iter()
+        .map(|cap| cap.name())
+        .collect();
+    let _ = writeln!(out, "\na calling package needs");
+    if needs.is_empty() {
+        let _ = writeln!(out, "  none");
+    } else {
+        let _ = writeln!(out, "  {}", needs.join(", "));
+    }
+
     let _ = writeln!(out, "\nmethods");
     for method in &manifest.methods {
         let params: Vec<String> = method

@@ -51,6 +51,22 @@
 //! two. Cost: one table lookup per `Core` call site while compiling, and none
 //! when the table is empty. Nothing runs on the request path.
 //!
+//! # An extension is asked like a `Core` class
+//!
+//! A call to a loaded extension's class needs the capabilities its manifest's
+//! `requests` imply, for every method alike
+//! ([`crate::ext_lib::implied_capabilities`],
+//! `rule:security/extension-grants-are-an-intersection`). A manifest that
+//! requests nothing needs no line.
+//!
+//! The Novis source a third-party `.nvsx` carries is a package. Where no line
+//! matches its namespace, [`authority_of`] returns [`Authority::Implied`], an
+//! empty line, also where the application has no grant table at all. A
+//! built-in component's source keeps the application's authority, because only
+//! Novis declares under `Novis\`
+//! (`rule:packaging/an-extension-package-carries-two-payloads`). Cost: one
+//! compare per loaded third-party extension per lookup while compiling.
+//!
 //! # An optional capability compiles to a guard
 //!
 //! A capability the call's package lists under `[capabilities] optional`
@@ -195,10 +211,8 @@ pub(crate) fn prepare_cap_has(
     if !nvs_stdlib::cap::is_query(&owner.to_string(), member) {
         return;
     }
-    let mask = match authority_of(ctx, env) {
-        Authority::Line(line) => nvs_stdlib::cap::grants_mask(line.caps().iter().copied()),
-        Authority::Application => nvs_stdlib::cap::grants_mask(Cap::ALL.iter().copied()),
-    };
+    let authority = authority_of(ctx, env);
+    let mask = nvs_stdlib::cap::grants_mask(authority.caps().unwrap_or(Cap::ALL).iter().copied());
     env.exprs.record_prepared(
         span,
         Prepared {
@@ -243,7 +257,10 @@ pub(crate) fn reject_ungranted_call(
             },
         );
     }
+    // A loaded extension's class has no registry row: its needs are what its
+    // manifest requests, for every method alike.
     let needs = nvs_stdlib::cap::needs(&class, member)
+        .chain(env.signatures.extension_requests(owner).iter().copied())
         .filter(|cap| own.is_none() || *cap != Cap::FsRead)
         .collect::<Vec<_>>();
     reject_ungranted(&needs, &format!("`{class}::{member}`"), span, ctx, env);
@@ -258,19 +275,43 @@ pub(crate) enum Authority<'g> {
     Application,
     /// The `[grants]` line that matches the enclosing namespace.
     Line(&'g nvs_config::grants::Grant),
+    /// An empty line no file writes: the namespace is at or under a loaded
+    /// third-party extension's own, and no `[grants]` line matches it
+    /// (`rule:packaging/an-extension-package-carries-two-payloads`).
+    Implied,
+}
+
+impl Authority<'_> {
+    /// The capabilities this authority holds by its line: none for an implied
+    /// line, and `None` for the application, which holds every one.
+    fn caps(&self) -> Option<&[Cap]> {
+        match self {
+            Self::Application => None,
+            Self::Line(line) => Some(line.caps()),
+            Self::Implied => Some(&[]),
+        }
+    }
 }
 
 /// The authority of the code `ctx` is checking: the one test every grant check
-/// in this module makes. Cost: one table lookup, and none when the table is
-/// empty or the namespace is global.
+/// in this module makes. A written line wins. Where none matches, the source
+/// of a third-party extension holds an implied empty line, also when the table
+/// is empty, and every other namespace holds the application's authority.
+/// Cost: one table lookup and one compare per loaded third-party extension,
+/// and nothing when the namespace is global.
 pub(crate) fn authority_of<'g>(ctx: &Ctx<'_>, env: &Env<'g>) -> Authority<'g> {
-    if ctx.namespace.is_empty() || env.namespace_grants.is_empty() {
+    if ctx.namespace.is_empty() {
         return Authority::Application;
     }
+    let namespace = ctx.namespace.join("\\");
     let grants: &'g nvs_config::grants::Grants = env.namespace_grants;
-    grants
-        .lookup(&ctx.namespace.join("\\"))
-        .map_or(Authority::Application, Authority::Line)
+    if let Some(line) = grants.lookup(&namespace) {
+        return Authority::Line(line);
+    }
+    if env.signatures.is_third_party_source(&namespace) {
+        return Authority::Implied;
+    }
+    Authority::Application
 }
 
 /// Refuses the construct at `span`, named by `what`, where the enclosing
@@ -285,14 +326,15 @@ pub(crate) fn reject_ungranted(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
-    let Authority::Line(line) = authority_of(ctx, env) else {
+    let authority = authority_of(ctx, env);
+    let Some(held) = authority.caps() else {
         return;
     };
     let namespace = ctx.namespace.join("\\");
     let mut missing: Vec<Cap> = needs
         .iter()
         .copied()
-        .filter(|cap| !line.grants(*cap))
+        .filter(|cap| !held.contains(cap))
         .collect();
     if missing.is_empty() {
         return;
@@ -308,26 +350,60 @@ pub(crate) fn reject_ungranted(
         || "package.toml".to_owned(),
         |path| path.display().to_string(),
     );
+    // A written line is named by its key. An implied one has no key yet, so
+    // the text names the line to write.
+    let key = match &authority {
+        Authority::Line(line) => line.key(),
+        Authority::Implied | Authority::Application => namespace.clone(),
+    };
     let optional = env
         .packages
         .and_then(|packages| packages.of(span.file))
         .map_or(&[][..], nvs_config::package::Package::optional);
     if missing.iter().all(|cap| optional.contains(cap)) {
+        let fix = match &authority {
+            Authority::Line(_) => format!(
+                "Add {} to the line '{key}' in `{file}` to allow it.",
+                names(&missing, "\""),
+            ),
+            Authority::Implied | Authority::Application => format!(
+                "Add the line '{key}' = [{}] to `[grants]` in `{file}` to allow it.",
+                names(&missing, "\""),
+            ),
+        };
         env.exprs.record_capability_guard(
             span,
             CapabilityGuard {
                 message: format!(
-                    "{what} needs {}. The namespace `{namespace}` does not have it. \
-                     Add {} to the line '{}' in `{file}` to allow it.",
+                    "{what} needs {}. The namespace `{namespace}` does not have it. {fix}",
                     names(&missing, "`"),
-                    names(&missing, "\""),
-                    line.key(),
                 ),
             },
         );
         return;
     }
     missing.retain(|cap| !optional.contains(cap));
+    let (note, help) = match &authority {
+        Authority::Line(_) => (
+            format!(
+                "this line in `{file}` gives the capabilities of `{namespace}`: '{key}' = [{}]",
+                names(held, "\"")
+            ),
+            format!(
+                "add {} to that line if this code should have it",
+                names(&missing, "\"")
+            ),
+        ),
+        Authority::Implied | Authority::Application => (
+            format!(
+                "`{namespace}` is the namespace of an extension's own code.                  It has no capabilities until a line in `[grants]` names it"
+            ),
+            format!(
+                "add this line to `[grants]` in `{file}` if this code should have it: '{key}' = [{}]",
+                names(&missing, "\"")
+            ),
+        ),
+    };
     env.diags.report(
         Diagnostic::error(
             code::E_CAPABILITY_NOT_GRANTED,
@@ -337,15 +413,8 @@ pub(crate) fn reject_ungranted(
             ),
         )
         .with_primary(span, format!("{what} needs {}", names(&missing, "`")))
-        .with_note(format!(
-            "this line in `{file}` gives the capabilities of `{namespace}`: '{}' = [{}]",
-            line.key(),
-            names(line.caps(), "\"")
-        ))
-        .with_help(format!(
-            "add {} to that line if this code should have it",
-            names(&missing, "\"")
-        )),
+        .with_note(note)
+        .with_help(help),
     );
 }
 

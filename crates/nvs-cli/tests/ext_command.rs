@@ -449,6 +449,8 @@ fn nvs_ext_inspect_prints_the_manifest_and_the_io_it_requests() {
         &format!("sha256     {}", nvs_ext::load::pin(&bytes)),
         "  read     data/geo/",
         "  connect  tiles.example.com",
+        "a calling package needs",
+        "  fs.read, net.connect",
         "  distanceKm(string $from, bool $round): float",
         "      The distance to a place, in kilometres.",
         "  Format.nvs",
@@ -472,6 +474,10 @@ fn nvs_ext_inspect_prints_the_manifest_and_the_io_it_requests() {
     assert!(
         out.contains("requests\n  none\n"),
         "a file that requests nothing says so: {out}"
+    );
+    assert!(
+        out.contains("a calling package needs\n  none\n"),
+        "a caller of a file that requests nothing needs no grant: {out}"
     );
 }
 

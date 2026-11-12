@@ -662,6 +662,10 @@ pub struct ClassSignature {
     /// component's own Novis source does not compile
     /// (`rule:packaging/a-components-engine-class-is-internal`).
     pub engine: Option<(String, String)>,
+    /// On a loaded extension's manifest class, the capabilities its manifest's `requests` imply,
+    /// in [`nvs_config::Cap::ALL`]'s order. A call to any of its methods needs each of them on the
+    /// calling namespace's `[grants]` line (`rule:security/extension-grants-are-an-intersection`).
+    pub requests: Vec<nvs_config::Cap>,
 }
 
 /// One class constant, as a **read** of it sees it: the type
@@ -732,6 +736,11 @@ pub struct SignatureTable {
     /// keeps the test's class walk off every other write. See
     /// [`Self::is_narrowed`].
     narrowed_properties: FxHashSet<String>,
+    /// The namespace of every loaded third-party extension's class, whose carried source is a
+    /// package and holds only what a `[grants]` line names
+    /// (`rule:packaging/an-extension-package-carries-two-payloads`). A built-in component's is
+    /// not here. See [`Self::is_third_party_source`].
+    third_party_namespaces: Vec<String>,
 }
 
 impl SignatureTable {
@@ -898,6 +907,37 @@ impl SignatureTable {
     /// card is `help`. Only [`crate::ext_lib`] calls it.
     pub(crate) fn seed_engine(&mut self, qname: QName, component: String, help: String) {
         self.entry(qname).engine = Some((component, help));
+    }
+
+    /// Records the capabilities `qname`'s manifest requests imply. Only [`crate::ext_lib`] calls it.
+    pub(crate) fn seed_requests(&mut self, qname: QName, requests: Vec<nvs_config::Cap>) {
+        self.entry(qname).requests = requests;
+    }
+
+    /// Records `namespace` as a third-party extension's own. Only [`crate::ext_lib`] calls it.
+    pub(crate) fn seed_third_party_namespace(&mut self, namespace: String) {
+        self.third_party_namespaces.push(namespace);
+    }
+
+    /// Whether code in `namespace` is at or under a loaded third-party extension's namespace.
+    /// The compare ignores ASCII case, so a namespace written in another case is held too. Cost:
+    /// one compare per loaded third-party extension.
+    #[must_use]
+    pub fn is_third_party_source(&self, namespace: &str) -> bool {
+        let namespace = namespace.strip_prefix('\\').unwrap_or(namespace);
+        self.third_party_namespaces.iter().any(|own| {
+            namespace
+                .get(..own.len())
+                .is_some_and(|head| head.eq_ignore_ascii_case(own))
+                && (namespace.len() == own.len() || namespace[own.len()..].starts_with('\\'))
+        })
+    }
+
+    /// The capabilities a call to a method of `qname` needs when it is a loaded extension's
+    /// manifest class, and an empty list for every other class.
+    #[must_use]
+    pub fn extension_requests(&self, qname: &QName) -> &[nvs_config::Cap] {
+        self.get(qname).map_or(&[], |sig| sig.requests.as_slice())
     }
 
     /// The component and the card of `qname` when it is a built-in component's manifest class —

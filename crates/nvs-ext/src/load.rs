@@ -854,8 +854,20 @@ fn reserved(manifest: &Manifest) -> Option<String> {
 
 /// Why `source` may not load beside `manifest`, when one of its files declares a namespace outside
 /// the class's own, the class minus its last segment ([`Source::outside`]).
+///
+/// A class with one segment has no namespace, so no file can be under it. Its source would hold no
+/// namespace a `[grants]` line could key on, and would keep the application's authority
+/// (`rule:packaging/an-extension-package-carries-two-payloads`), so the extension does not load.
 fn outside(source: &Source, manifest: &Manifest) -> Option<String> {
-    let namespace = manifest.class.rsplit_once('\\').map_or("", |(ns, _)| ns);
+    let Some((namespace, _)) = manifest.class.rsplit_once('\\') else {
+        return source.files.first().map(|file| {
+            format!(
+                "the source file `{}` is beside the class `{}`, which has no namespace. \
+                 An extension that carries source needs a class name with a namespace, such as `Shop\\{}`",
+                file.path, manifest.class, manifest.class
+            )
+        });
+    };
     source.outside(namespace).map(|(file, declared)| {
         let declares = declared.map_or_else(
             || "declares no namespace".to_owned(),

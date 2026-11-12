@@ -61,6 +61,7 @@
 //!   per resource class name for the life of the process, and one two-slot object per resource a
 //!   request holds.
 
+use nvs_config::Cap;
 use nvs_ext::manifest::{Const, Enum, Manifest, Method};
 use nvs_ext::types::{Field, NovisType};
 use nvs_hir::{ExtensionClass, ExtensionFile, QName};
@@ -211,7 +212,10 @@ pub(crate) fn seed(
                 component.clone(),
                 manifest.help.clone().unwrap_or_default(),
             );
+        } else if let Some((namespace, _)) = manifest.class.rsplit_once('\\') {
+            table.seed_third_party_namespace(namespace.to_owned());
         }
+        table.seed_requests(qname.clone(), implied_capabilities(manifest));
         table.seed_extension(qname);
         for declared in &manifest.resources {
             let qname = declared_name(manifest, &declared.name);
@@ -219,6 +223,29 @@ pub(crate) fn seed(
             table.seed_extension(qname);
         }
     }
+}
+
+/// The capabilities a caller of `manifest`'s class needs on its `[grants]` line, in
+/// [`Cap::ALL`]'s order: `fs.read` for a `read` or a `write` request, `fs.write` for a `write`
+/// one, and `net.connect` for a `connect` one. A `write` root is opened read-write, so it needs
+/// both (`rule:security/extension-grants-are-an-intersection`). The manifest requests for the
+/// whole component, so every method needs the whole list.
+#[must_use]
+pub fn implied_capabilities(manifest: &Manifest) -> Vec<Cap> {
+    let requests = &manifest.requests;
+    let read = !requests.read.is_empty() || !requests.write.is_empty();
+    let write = !requests.write.is_empty();
+    let connect = !requests.connect.is_empty();
+    Cap::ALL
+        .iter()
+        .copied()
+        .filter(|cap| match cap {
+            Cap::FsRead => read,
+            Cap::FsWrite => write,
+            Cap::NetConnect => connect,
+            _ => false,
+        })
+        .collect()
 }
 
 /// One method's parameter types and its return type, `None` for `void`.

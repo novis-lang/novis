@@ -361,6 +361,32 @@ fn a_source_file_outside_the_extension_namespace_is_refused_naming_the_file() {
     }
 }
 
+// A source file beside a class with one segment would have no namespace for a `[grants]` line,
+// so the extension does not load. The same class with no source loads.
+#[test]
+fn source_beside_a_class_with_no_namespace_is_refused() {
+    let files = serde_json::json!({"source": 1, "files": [
+        {"path": "Units.nvs", "text": "namespace Units;\n"},
+    ]});
+    let bare = append_section(
+        guest(""),
+        MANIFEST,
+        manifest("Geo", "1.0.0", METHOD).as_bytes(),
+    );
+    loader()
+        .load_bytes(&entry("geo.nvsx", &bare), &bare)
+        .unwrap_or_else(|err| panic!("a class with no namespace and no source loads: {err}"));
+    let bytes = append_section(bare, SOURCE, files.to_string().as_bytes());
+    assert_says(
+        &refusal(&loader(), &bytes),
+        &[
+            "the source file `Units.nvs`",
+            "the class `Geo`",
+            "has no namespace",
+        ],
+    );
+}
+
 #[test]
 fn a_class_another_loaded_extension_declares_is_refused() {
     let first = good("Shop\\Geo");
