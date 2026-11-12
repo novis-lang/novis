@@ -936,9 +936,13 @@ some other way changes nothing.
 `rule:http-server/a-session-store-answers-four-operations`
 
 A session is one record in a store that can answer *did I issue this id*. A backend answers four
-operations and no more: `issue` mints an identifier this store has never issued, writes an empty
-record under it and answers the id; `load` answers the record under an id, or **absent**; `save`
-replaces the record under an id, refreshing its expiry; `destroy` forgets it.
+operations and no more: `issue` writes the first record under an identifier drawn for it, and fails
+for an id that already has a live record; `load` answers the record under an id, or **absent**;
+`save` replaces the record under an id that **still has a live record**, refreshing its expiry, and
+writes nothing for one that does not; `destroy` forgets it and answers whether there was a record.
+`issue` is the only operation that inserts. On the shared store `issue` is `SET … NX PX` and `save`
+is `SET … XX PX`; on the `db` store they are an `INSERT` and an `UPDATE` of a row whose expiry is
+still ahead. Each is one command, so no store needs a read before a write.
 
 **`load` answering absent is the whole of the strict-id rule.** An id the store did not issue, one
 it issued and has since expired, and one an attacker minted are the same answer, and `start`
@@ -1033,11 +1037,24 @@ operation is one short statement in its own transaction, so two requests of one 
 for each other ([`http-server/a-session-is-loaded-once-and-written-whole`](http-server.md#http-server-a-session-is-loaded-once-and-written-whole)). `busy_timeout`
 covers the moment two writers meet, and that wait is one statement long.
 
+**A row belongs to one application.** The table is `nvs_sessions`, keyed by `(app, id)`, where
+`app` is the path of the innermost `[[app]]` block that matched the request: the identity the memory
+cache and the sealed session secret already use. The shared store's key is the prefix, that path,
+one `NUL` and the id. So two mounts under two `[[app]]` blocks never open each other's sessions, and
+two mounts that should share a login share one block. The configuration generation is not in the key,
+so a reload signs nobody out. A deployment with no `[[app]]` block is one application with an empty
+path ([`concurrency/the-memory-tier-is-one-store-per-process`](concurrency.md#concurrency-the-memory-tier-is-one-store-per-process)). Two programs that share one data
+folder and write no `[[app]]` block still share sessions, so each needs a block of its own or a
+`--data` folder of its own. A connection drops the earlier `nvs_session` table when it opens: its
+rows name no application, and no Novis release wrote them.
+
 - **Memory:** one SQLite connection and its statement cache per core, O(cores), and nothing per
   session served. The rows are on disk, O(live sessions), because expired rows are swept
-  ([`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store)).
-- **Latency:** one indexed read at `start` and one upsert for a changed record, each on the blocking
-  pool, so a core never waits on the disk ([`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall)).
+  ([`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store)). Each store call also builds its key
+  from the application's path bytes, once per call.
+- **Latency:** one indexed read at `start`, and one update for a changed record or one insert for a
+  new session, each on the blocking pool, so a core never waits on the disk
+  ([`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall)).
 
 **Declined:**
 - **No store at all where nothing is written.** It was safe and it was useless: a first program that
@@ -1049,6 +1066,9 @@ covers the moment two writers meet, and that wait is one statement long.
   `shared`.
 - **A session lock, as PHP's file handler takes.** One slow request would hold every other request
   of that session until it ends ([`http-server/a-session-is-loaded-once-and-written-whole`](http-server.md#http-server-a-session-is-loaded-once-and-written-whole)).
+- **The app folder as the application's identity.** Two entry files in two folders of one site
+  would stop sharing a session, and `[[app]]` already names an application.
+- **A `[session] scope` key.** It would be a second way to name what an `[[app]]` block names.
 
 <sub>See also [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/a-session-is-loaded-once-and-written-whole`](http-server.md#http-server-a-session-is-loaded-once-and-written-whole), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly).</sub>
 
@@ -1062,7 +1082,9 @@ covers the moment two writers meet, and that wait is one statement long.
 heap; the record is written back when the program that opened it ends — after any exit hooks,
 since a hook is user code that may still write — and immediately for `regenerate` and `destroy`.
 **Writing only when the record changed** keeps a read-only request off the write path: a request
-that starts a session and reads it makes one round trip, not two.
+that starts a session and reads it makes one round trip, not two. A request that renders a
+`Core\Csrf::token` for a loaded session is such a request too, because the token is never stored
+([`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default)).
 
 There is no lock. Two requests writing one session concurrently is last-write-wins over the
 **whole record**, and this is stated rather than repaired. On the `db` store each operation is one
@@ -1075,12 +1097,26 @@ writes — and an application for which that matters has state that is not sessi
 counters and idempotency keys go to the shared tier or the database directly
 ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)).
 
+**A destroyed session stays destroyed.** The request's session knows whether the store has a row
+under its id: `start` loaded one, or this request drew the id and has not written it yet. The
+write-back `save`s a loaded session and `issue`s a drawn one. A `save` changes only a row that
+still exists, so when another request ran `destroy` or `regenerate` on the session first, the
+write-back writes nothing and this request's changes are dropped without a report. That is the
+last-write-wins above, with the sign-out as the last write. `regenerate` checks the same thing: it
+issues the record under a new id, then destroys the old row, and when that row was already gone it
+destroys the new one too, sends no cookie and leaves the request a fresh, empty session with no id,
+as `start` opens for an absent one. A sign-in handler that regenerates a session ended elsewhere
+does not throw. What it spends: one `bool` per in-flight session, no extra round trip, and one more
+delete in the `regenerate` race alone.
+
 A cancelled task is the one end that sends nothing, because the send parks.
 
 - **Memory:** one encoded record per request that started a session, released with the request
   heap. Nothing accumulates per session served, so it is O(in-flight).
 
 **Declined:**
+- **A generation counter on the row.** It would detect a write after a sign-out too, but every
+  write would need a read first.
 - **A per-key write instead of a whole-record one.** It narrows the lost update to the key actually
   contended, but one session becomes many entries, so `clear`, `regenerate` and `destroy` each become
   a multi-key operation, and the shared tier has no multi-key atomic step

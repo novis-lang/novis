@@ -1736,7 +1736,10 @@ fn caught<T>(
             ))
         } else if payload.is::<DeadlinePassed>() {
             // The deadline stays passed once it has passed, so this poll
-            // finds it and words the FATAL for the limit that stopped it.
+            // finds it and words the FATAL for the limit that stopped it. The
+            // fallback below is a post-condition of that poll, and so
+            // unreachable from source with no diagnostic to name: the walk
+            // unwinds with `DeadlinePassed` only after a poll found it passed.
             ctx.and_then(|ctx| nvs_runtime::poll_deadline(ctx, member).err())
                 .unwrap_or_else(|| {
                     Fault::fatal(format!(

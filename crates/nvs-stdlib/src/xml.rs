@@ -1373,6 +1373,9 @@ const DEADLINE_PASSED: &str = "the request's deadline has passed";
 fn deadline_stop(ctx: &Ctx, member: &str) -> Fault {
     match nvs_runtime::poll_deadline(ctx, member) {
         Err(fault) => fault,
+        // A post-condition of the walk, and so unreachable from source with
+        // no diagnostic to name: the walk refuses with `DEADLINE_PASSED` only
+        // after a poll found the deadline passed, and it stays passed.
         Ok(()) => Fault::fatal(format!(
             "internal error: {member} stopped at a deadline that has not passed"
         )),
@@ -2472,6 +2475,9 @@ pub(crate) fn instance_polled(
     let mut deadline = nvs_runtime::DeadlineBatch::new(ctx);
     let built = built_tree(node, inherited, Some(&mut deadline));
     deadline.finish(ctx, member)?;
+    // A post-condition of `finish`, and so unreachable from source with no
+    // diagnostic to name: `built_tree` answers `None` only where the batch
+    // found the deadline passed, and `finish` has just thrown for that.
     built.ok_or_else(|| {
         Fault::fatal(format!(
             "internal error: {member} stopped building at a deadline that has not passed"

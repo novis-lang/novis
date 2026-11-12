@@ -1451,7 +1451,9 @@ mod tests {
     /// **One connection, counted rather than read off the key.** A memoized
     /// call that answered the right key and *also* filed a connection would
     /// pass every assertion above while leaving the request holding two, so
-    /// the next name filed has to land at the slot after the first.
+    /// once the first is closed no connection may answer to the name. The
+    /// handle keys come from one counter for the whole process, so the case
+    /// reads this context's table and never the distance between two keys.
     #[test]
     fn a_named_connection_is_memoized_for_the_request() {
         /// A connection that has already been opened, which is the whole of
@@ -1514,17 +1516,20 @@ mod tests {
              block — which is what the shared one did not do: {message}"
         );
 
-        let other = ctx.hold_open_connection(Some("reports".to_owned()), None, Box::new(Opened));
-        assert_eq!(
-            other,
-            first + 1,
-            "the memoized call filed nothing, so the next name takes the very \
-             next slot — one connection, not two under one key"
-        );
         assert_eq!(
             ctx.memoized_connection("main"),
             Some(first),
-            "and the name still resolves to the connection the first call opened"
+            "the name still resolves to the connection the first call opened"
+        );
+        assert!(
+            ctx.close_open_connection(first),
+            "the first connection is still filed"
+        );
+        assert_eq!(
+            ctx.memoized_connection("main"),
+            None,
+            "the memoized call filed nothing, so closing the first connection \
+             leaves none under the name — one connection, not two under one key"
         );
     }
 
