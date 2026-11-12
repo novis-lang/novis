@@ -19,9 +19,10 @@
 //! `[dependencies]`, and `outdated` resolves, prints each package with a
 //! newer released version, and writes nothing.
 //!
-//! **Each of the three reads only index files signed in the last seven days**
-//! ([`resolve::Registries::selecting`], `rule:packaging/the-registry-keeps-an-append-only-log`), so
-//! a host that serves an old copy cannot hide a fixed version for longer.
+//! **Each of the three reads only index files signed in the last seven days**, as every command
+//! but a locked fetch does ([`resolve::Registries::new`],
+//! `rule:packaging/the-registry-keeps-an-append-only-log`), so a host that serves an old copy cannot
+//! hide a fixed version for longer.
 //!
 //! Cost: what `nvs pkg fetch` holds, and the file's text. Nothing here runs on the request path.
 

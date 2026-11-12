@@ -632,10 +632,10 @@ describe.skipIf(!EXE)("the registry's pages in Chromium", () => {
   test("an owner cancels a waiting retraction", async () => {
     const page = await Page.open();
     const { account } = await signUp(page);
-    const path = publish(account, "Wiki\\Lib", ["0.0.1"]);
+    const path = publish(account, "Mail\\Lib", ["0.0.1"]);
     const reason = "It reads the wrong file.";
     // The retraction a token sends: it starts in seven days.
-    operator("retract.nvs", "Wiki\\Lib", "0.0.1", reason);
+    operator("retract.nvs", "Mail\\Lib", "0.0.1", reason);
     await page.go(path);
     expect(await page.text()).toContain("Waiting changes");
     expect(await page.text()).toContain(reason);
