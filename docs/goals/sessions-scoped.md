@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/session.rs, crates/nvs-stdlib/src/session/sqlite
 stages:
   - id: 1
     title: only create inserts a session row
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/cache/redis.rs, crates/nvs-runtime/src/ctx/wiring.rs, crates/nvs-config/src/session.rs, docs/rules/http-server/a-session-is-loaded-once-and-written-whole.md, docs/rules/security/a-session-id-the-store-did-not-issue-is-rejected.md]
   - id: 2
     title: a session row is keyed by its application
@@ -171,52 +171,52 @@ orders directly, and the wire test serves two mounts.
 **Does:** split the store's save into `create` and `replace`, make the write-back and `regenerate`
 use them, and prove the destroy-while-in-flight case on every store.
 
-- [ ] `nvs_runtime::Session` gains `stored: bool`, documented as the standing decision states it
+- [x] `nvs_runtime::Session` gains `stored: bool`, documented as the standing decision states it
   (`rule:http-server/a-session-is-loaded-once-and-written-whole`,
   `crates/nvs-runtime/src/ctx/wiring.rs:47`). Every constructor sets it: `start`'s two
   (`crates/nvs-stdlib/src/session.rs:931`, `crates/nvs-stdlib/src/session.rs:943`), `regenerate`'s
   (`crates/nvs-stdlib/src/session.rs:1541`), and the test fixtures in `session.rs`,
   `crates/nvs-stdlib/src/csrf.rs:494` and `crates/nvs-stdlib/src/passkey.rs:1946`.
-- [ ] The shared store: `Connection` gains the two writes, `SET ... NX PX` and `SET ... XX PX`, each
+- [x] The shared store: `Connection` gains the two writes, `SET ... NX PX` and `SET ... XX PX`, each
   returning whether the key was written, and `del` returns whether a key was removed
   (`rule:http-server/a-session-store-answers-four-operations`,
   `crates/nvs-stdlib/src/cache/redis.rs:288`, `crates/nvs-stdlib/src/cache/redis.rs:356`).
-- [ ] The `db` store: `save` becomes `create`, a plain `INSERT`, and `replace`, an `UPDATE` of a row
+- [x] The `db` store: `save` becomes `create`, a plain `INSERT`, and `replace`, an `UPDATE` of a row
   whose `expires_at` is still ahead. Both keep the sweep. `destroy` returns whether it deleted a row
   (`rule:http-server/session-expiry-belongs-to-the-store`,
   `crates/nvs-stdlib/src/session/sqlite.rs:163`, `crates/nvs-stdlib/src/session/sqlite.rs:189`). The
   module doc's cost line says an update, not an upsert (`crates/nvs-stdlib/src/session/sqlite.rs:27`).
-- [ ] `session.rs`: `save` and `put` split into the two writes for both stores, and `forgot` returns
+- [x] `session.rs`: `save` and `put` split into the two writes for both stores, and `forgot` returns
   the store's answer (`crates/nvs-stdlib/src/session.rs:696`, `crates/nvs-stdlib/src/session.rs:715`,
   `crates/nvs-stdlib/src/session.rs:819`).
-- [ ] `send_at_end` calls `replace` for a stored session and `create` for one this request drew, and
+- [x] `send_at_end` calls `replace` for a stored session and `create` for one this request drew, and
   a `replace` that changed no row is not reported (`crates/nvs-stdlib/src/session.rs:1611`).
-- [ ] `regenerate` follows its standing decision: no store call for a session not yet stored, and a
+- [x] `regenerate` follows its standing decision: no store call for a session not yet stored, and a
   fresh empty session when the old row was already gone
   (`rule:core-api/session-roster`, `crates/nvs-stdlib/src/session.rs:1516`).
-- [ ] The fake shared server in the test module answers `NX`, `XX` and a nil reply
+- [x] The fake shared server in the test module answers `NX`, `XX` and a nil reply
   (`crates/nvs-stdlib/src/session.rs:1786`).
-- [ ] Test `a_destroyed_session_is_not_written_back_on_any_store`, in the `session.rs` test module.
+- [x] Test `a_destroyed_session_is_not_written_back_on_any_store`, in the `session.rs` test module.
   For each row of `nvs_config::session::BACKENDS`: one context loads a stored session and changes
   it, the row is destroyed through the store, the context ends, and the store holds no row under
   that id (`crates/nvs-stdlib/src/session.rs:1681`).
-- [ ] Test `a_regenerated_session_moves_only_a_row_that_still_exists`, same loop: a context loads a
+- [x] Test `a_regenerated_session_moves_only_a_row_that_still_exists`, same loop: a context loads a
   session, the row is destroyed, the context calls `regenerate`, and the store holds no row at all
   and the context holds an empty session with no identifier.
-- [ ] Test `only_create_inserts_a_session_row`, same loop: `replace` on an absent id and on an
+- [x] Test `only_create_inserts_a_session_row`, same loop: `replace` on an absent id and on an
   expired row writes nothing, and `create` on a held id fails and leaves the held record.
-- [ ] The existing tests that assert the upsert follow: the write-back, `regenerate` and `destroy`
+- [x] The existing tests that assert the upsert follow: the write-back, `regenerate` and `destroy`
   cases (`crates/nvs-stdlib/src/session.rs:2057`, `crates/nvs-stdlib/src/session.rs:2145`,
   `crates/nvs-stdlib/src/session.rs:2207`).
-- [ ] The module doc and the member docs of `start`, `regenerate` and `destroy` say what is true now
+- [x] The module doc and the member docs of `start`, `regenerate` and `destroy` say what is true now
   (`crates/nvs-stdlib/src/session.rs:1`).
-- [ ] `rule:http-server/a-session-store-answers-four-operations` says `save` replaces a row that
+- [x] `rule:http-server/a-session-store-answers-four-operations` says `save` replaces a row that
   still exists and `issue` is the only insert
   (`docs/rules/http-server/a-session-store-answers-four-operations.md:1`).
-- [ ] `rule:http-server/a-session-is-loaded-once-and-written-whole` says a write after `destroy` or
+- [x] `rule:http-server/a-session-is-loaded-once-and-written-whole` says a write after `destroy` or
   `regenerate` is dropped, and what `regenerate` does when the old row is gone
   (`docs/rules/http-server/a-session-is-loaded-once-and-written-whole.md:1`).
-- [ ] `rule:http-server/no-session-block-means-the-data-folder-store` says "one update" in its
+- [x] `rule:http-server/no-session-block-means-the-data-folder-store` says "one update" in its
   latency line (`docs/rules/http-server/no-session-block-means-the-data-folder-store.md:23`).
 
 ### 2. a session row is keyed by its application
@@ -281,43 +281,42 @@ not open the row.
 
 ### State
 
-Nothing is built yet. The tree holds the upsert write-back, rows keyed by id alone, and a `sent_id`
-that marks every session changed. Both stores and the fake shared server in the test module exist.
+Stage 1 is done. `nvs_runtime::Session` has `stored`. Both stores answer `create` (shared `SET … NX
+PX`, `db` an `INSERT` that also takes over an expired row's id) and `replace` (`SET … XX PX`, an
+`UPDATE` of a live row), and `destroy` returns whether it removed a row. The write-back is
+`sent_to` (`crates/nvs-stdlib/src/session.rs:1726`), which `send_at_end` calls with the configured
+store, and `regenerate`'s move is `regenerated`. Both take a `Store`, so a test passes a scratch
+SQLite file: the data folder is a process-wide `OnceLock` and cannot point at one. The test module's
+`a_store` (`crates/nvs-stdlib/src/session.rs:2344`) builds each store of `BACKENDS` with no
+wildcard arm, and `Kept` counts its rows and lapses a row. The fake shared server answers `NX`,
+`XX`, nil and lapsed keys. The three stage 1 tests and every other `session::` test pass.
 
 ### Next
 
-Stage 1, only create inserts a session row. Files: `crates/nvs-stdlib/src/session.rs`,
-`crates/nvs-stdlib/src/session/sqlite.rs`, `crates/nvs-stdlib/src/cache/redis.rs`,
-`crates/nvs-runtime/src/ctx/wiring.rs` and three rule fragments.
+Stage 2, a session row is keyed by its application. Files: `crates/nvs-stdlib/src/session.rs`,
+`crates/nvs-stdlib/src/session/sqlite.rs`, `crates/nvs-cli/tests/per_mount_config.rs`,
+`crates/nvs-config/src/data.rs` and two rule fragments.
 
-- [ ] `crates/nvs-runtime/src/ctx/wiring.rs:47`: `nvs_runtime::Session` gains `stored: bool`, and
-  every constructor sets it (`crates/nvs-stdlib/src/session.rs:931`,
-  `crates/nvs-stdlib/src/session.rs:943`, `crates/nvs-stdlib/src/session.rs:1541`,
-  `crates/nvs-stdlib/src/csrf.rs:494`, `crates/nvs-stdlib/src/passkey.rs:1946`).
-- [ ] `crates/nvs-stdlib/src/cache/redis.rs:288`: the shared store's `SET ... NX PX` and
-  `SET ... XX PX`, and a `del` that returns whether it removed a key
-  (`crates/nvs-stdlib/src/cache/redis.rs:356`).
-- [ ] `crates/nvs-stdlib/src/session/sqlite.rs:163`: the `db` store's `create` and `replace`, a
-  `destroy` that returns whether it deleted a row, and the cost line
-  (`crates/nvs-stdlib/src/session/sqlite.rs:189`, `crates/nvs-stdlib/src/session/sqlite.rs:27`).
-- [ ] `crates/nvs-stdlib/src/session.rs:696`: `save`, `put` and `forgot` split and return the
-  store's answer (`crates/nvs-stdlib/src/session.rs:715`, `crates/nvs-stdlib/src/session.rs:819`).
-- [ ] `crates/nvs-stdlib/src/session.rs:1611`: `send_at_end` replaces a stored session and creates
-  a drawn one.
-- [ ] `crates/nvs-stdlib/src/session.rs:1516`: `regenerate` moves only a session that still exists.
-- [ ] `crates/nvs-stdlib/src/session.rs:1786`: the fake shared server answers `NX`, `XX` and nil.
-- [ ] `crates/nvs-stdlib/src/session.rs:1681`: tests
-  `a_destroyed_session_is_not_written_back_on_any_store`,
-  `a_regenerated_session_moves_only_a_row_that_still_exists` and `only_create_inserts_a_session_row`
-  over `nvs_config::session::BACKENDS` (`crates/nvs-config/src/session.rs:58`).
-- [ ] `crates/nvs-stdlib/src/session.rs:2057`: the existing write-back, `regenerate` and `destroy`
-  tests follow (`crates/nvs-stdlib/src/session.rs:2145`, `crates/nvs-stdlib/src/session.rs:2207`).
-- [ ] `crates/nvs-stdlib/src/session.rs:1`: the module doc and the member docs.
-- [ ] `docs/rules/http-server/a-session-store-answers-four-operations.md:1`: the three rule
-  fragments (`docs/rules/http-server/a-session-is-loaded-once-and-written-whole.md:1`,
-  `docs/rules/http-server/no-session-block-means-the-data-folder-store.md:23`).
+- [ ] `crates/nvs-stdlib/src/session.rs:607`: `key_of` takes the application, read by
+  `crate::cache::application` (`crates/nvs-stdlib/src/cache.rs:1586`).
+- [ ] `crates/nvs-stdlib/src/session/sqlite.rs:44`: the schema becomes `nvs_sessions` with `app`,
+  `PRIMARY KEY (app, id)` and a `DROP TABLE IF EXISTS nvs_session`; every statement binds `app`
+  (`create` at `crates/nvs-stdlib/src/session/sqlite.rs:201`, and its `rows` and `lapse` test
+  helpers).
+- [ ] `crates/nvs-stdlib/src/session.rs:678`: `fetched`, `created`, `replaced` and `forgot` carry
+  the application. `sent_to` and `regenerated` read it off the context.
+- [ ] `crates/nvs-stdlib/src/session.rs:2344`: test
+  `a_session_one_application_wrote_is_absent_in_another_on_every_store`, built with `a_store`.
+- [ ] `crates/nvs-cli/tests/per_mount_config.rs:487`: test
+  `two_mounts_do_not_open_each_others_sessions`.
+- [ ] `crates/nvs-stdlib/src/session.rs:3109`: `a_record_is_keyed_under_its_own_prefix` follows.
+- [ ] `docs/rules/http-server/no-session-block-means-the-data-folder-store.md:1`: the two rule
+  fragments and the two docs stage 2 names
+  (`docs/rules/security/a-session-id-the-store-did-not-issue-is-rejected.md:1`,
+  `crates/nvs-config/src/data.rs:166`, `crates/nvs-stdlib/src/session/sqlite.rs:1`).
 
-No existing test is expected red before the stage's own edits.
+Expected red before stage 2's own edits: none. `a_record_is_keyed_under_its_own_prefix` goes red
+once `key_of` changes, and is updated in the same slice.
 
 ### Backlog
 
