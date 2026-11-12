@@ -725,13 +725,14 @@
   },
   "/guides/why-novis/secret-values/": {
     "feature": "guides/why-novis/secret-values.mdx",
-    "hash": "f9999a987c97cdac",
+    "hash": "9348235b9cf6f67f",
     "questions": [
       "How do I stop passwords from ending up in log files?",
       "Why can a secret string not be printed?",
       "Keep API keys out of error messages and debug output",
       "How do I get the plain text of a secret when needed?",
-      "Is a string built from a secret also secret?"
+      "Is a string built from a secret also secret?",
+      "Does an is type test remove the secret from a value?"
     ]
   },
   "/guides/why-novis/simple-errors/": {
@@ -746,12 +747,13 @@
   },
   "/guides/why-novis/tainted-input/": {
     "feature": "guides/why-novis/tainted-input.mdx",
-    "hash": "6b90c95aa40425e3",
+    "hash": "556c8b5b4d5b8024",
     "questions": [
       "How does Novis protect against unsafe user input?",
       "Why does the compiler check where form data goes?",
       "Which values count as input from outside the program?",
-      "Find injection mistakes before code review"
+      "Find injection mistakes before code review",
+      "Does checking a tainted value with is make it safe?"
     ]
   },
   "/guides/why-novis/tests-in-code/": {
@@ -11949,12 +11951,13 @@
   },
   "/reference/core/reflect/forclass/": {
     "feature": "Core\\Reflect::forClass",
-    "hash": "4834675558a04c20",
+    "hash": "1b3b628f5e920f68",
     "questions": [
       "How do I check if a class exists by its name?",
       "Describe a class from a string name",
       "Get class details when I only have the class name",
-      "Load class information from a name in a config file"
+      "Load class information from a name in a config file",
+      "Why can I not look up a class from a request parameter?"
     ]
   },
   "/reference/core/reflect/forobject/": {
@@ -12000,12 +12003,13 @@
   },
   "/reference/core/reflect-attributeinfo/field/": {
     "feature": "Core\\Reflect\\AttributeInfo::field",
-    "hash": "2b438e776ec5f8bd",
+    "hash": "2205ac95cd41b38d",
     "questions": [
       "How do I read one value from an attribute?",
       "Get the value of a named attribute argument",
       "Read seconds from #[Cache(seconds: 600)]",
-      "Why does reading an attribute value throw a LogicError?"
+      "Why does reading an attribute value throw a LogicError?",
+      "Can the attribute argument name come from user input?"
     ]
   },
   "/reference/core/reflect-attributeinfo/fields/": {
@@ -12070,22 +12074,24 @@
   },
   "/reference/core/reflect-classinfo/call/": {
     "feature": "Core\\Reflect\\ClassInfo::call",
-    "hash": "8fd442a1555fe2c6",
+    "hash": "2146e20a44c20ee7",
     "questions": [
       "How do I call a method when its name is in a string?",
       "What happens when an argument has the wrong type?",
       "Run the method named by a command line argument",
-      "Can I call a private method from outside the class?"
+      "Can I call a private method from outside the class?",
+      "Why can I not pass a tainted or secret argument to call?"
     ]
   },
   "/reference/core/reflect-classinfo/constant/": {
     "feature": "Core\\Reflect\\ClassInfo::constant",
-    "hash": "ad2f1cb7a28f7f04",
+    "hash": "f198466d880d4f6e",
     "questions": [
       "How do I read a class constant by its name?",
       "Get a constant value from a string name",
       "Read a plan limit from a constant named in the database",
-      "Error when reading a private constant dynamically"
+      "Error when reading a private constant dynamically",
+      "Why does reading a secret constant by name throw an error?"
     ]
   },
   "/reference/core/reflect-classinfo/constants/": {
@@ -12100,23 +12106,24 @@
   },
   "/reference/core/reflect-classinfo/construct/": {
     "feature": "Core\\Reflect\\ClassInfo::construct",
-    "hash": "2b2538193e6b9bff",
+    "hash": "39d78c9f62b05dfc",
     "questions": [
       "How do I create an object from a class name string?",
       "Make a new instance with constructor arguments at runtime",
       "Create the handler named in the configuration",
-      "Dynamic new with a class name",
-      "Why can I not create an abstract class or a Core class from its name?"
+      "Why can I not create an abstract class or a Core class from its name?",
+      "Pass a mixed value as a constructor argument by class name"
     ]
   },
   "/reference/core/reflect-classinfo/get/": {
     "feature": "Core\\Reflect\\ClassInfo::get",
-    "hash": "3ee3f164686c0a59",
+    "hash": "ba870d4259163c4f",
     "questions": [
       "How do I read a property when its name is in a string?",
       "Get a property value dynamically by name",
       "Write only the columns a user chose in a report",
-      "Error when reading a private property by name"
+      "Error when reading a private property by name",
+      "Why does reading a secret property by name throw an error?"
     ]
   },
   "/reference/core/reflect-classinfo/hasmethod/": {
@@ -12181,12 +12188,13 @@
   },
   "/reference/core/reflect-classinfo/set/": {
     "feature": "Core\\Reflect\\ClassInfo::set",
-    "hash": "0e0553a181a0f196",
+    "hash": "436499fb1806cf31",
     "questions": [
       "How do I set a property when its name is in a string?",
       "Write a property value dynamically by name",
       "Fill a settings object from configuration values",
-      "Error when writing a value of the wrong type to a property"
+      "Error when writing a value of the wrong type to a property",
+      "Can I set a property by name with a value from a form?"
     ]
   },
   "/reference/core/reflect-constantinfo/": {
@@ -12271,22 +12279,24 @@
   },
   "/reference/core/reflect-enuminfo/of/": {
     "feature": "Core\\Reflect\\EnumInfo::of",
-    "hash": "6903d6864f7aa244",
+    "hash": "36616d37de29451b",
     "questions": [
       "How do I get the cases of an enum by its name?",
       "Describe an enum from a string name",
       "Check if an enum exists",
-      "Build form choices from any enum"
+      "Build form choices from any enum",
+      "Why can a request parameter not choose the enum to describe?"
     ]
   },
   "/reference/core/reflect-enuminfo/valueof/": {
     "feature": "Core\\Reflect\\EnumInfo::valueOf",
-    "hash": "c416351e91deef90",
+    "hash": "e56c2994242b7508",
     "questions": [
       "How do I get the number value of an enum case by name?",
       "Convert an enum case name to its value",
       "Save a form choice as a number in the database",
-      "Error for an enum case name that does not exist"
+      "Error for an enum case name that does not exist",
+      "Look up an enum case from a form value"
     ]
   },
   "/reference/core/reflect-methodinfo/": {
@@ -18464,14 +18474,14 @@
   },
   "/syntax/values/as/": {
     "feature": "syntax/values/as.mdx",
-    "hash": "33a0ebffc0a47fd6",
+    "hash": "098b1bd7e944950e",
     "questions": [
       "How do I convert a string to a number?",
       "Why is there no type casting like (int) in Novis?",
       "What happens when a conversion is not possible?",
       "Get null when user input is not a valid number",
       "Which type conversions happen without writing anything?",
-      "Why does 3.9 as int throw an error?"
+      "Why does converting a secret string to int not compile?"
     ]
   },
   "/syntax/values/bool-and-null/": {
@@ -18544,12 +18554,14 @@
   },
   "/syntax/values/tainted-and-secret/": {
     "feature": "syntax/values/tainted-and-secret.mdx",
-    "hash": "8f9ef9000001f467",
+    "hash": "bebc093e0f02d326",
     "questions": [
       "How does Novis track text that comes from users?",
       "Store a token in a type that cannot be printed",
       "Does a tainted string stay tainted after upper case?",
-      "Is there a speed cost for tainted and secret types?"
+      "Is there a speed cost for tainted and secret types?",
+      "How do I keep a secret in a mixed variable?",
+      "Can a secret string be an array key?"
     ]
   },
   "/syntax/values/union-types/": {

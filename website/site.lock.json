@@ -1,9 +1,9 @@
 {
   "guides/why-novis/secret-values.mdx": {
-    "lang:types/qualifiers-tainted-and-secret": "68d075b395504719"
+    "lang:types/qualifiers-tainted-and-secret": "ff426924279d8ff4"
   },
   "guides/why-novis/tainted-input.mdx": {
-    "lang:types/qualifiers-tainted-and-secret": "68d075b395504719"
+    "lang:types/qualifiers-tainted-and-secret": "ff426924279d8ff4"
   },
   "syntax/attributes/commands-and-discovery.mdx": {
     "lang:attributes/core-command-and-core-option-the-command-table": "897f2a1ae1486af9",
@@ -11,7 +11,7 @@
     "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "b7e1ddae9ac7cbb4"
   },
   "syntax/attributes/json.mdx": {
-    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "7cfdf96305538270"
+    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "7e4d42c3adafc321"
   },
   "syntax/attributes/routes.mdx": {
     "Core\\Router::dispatch": "030a6f7cc3ac0c09",
@@ -39,7 +39,7 @@
     "lang:programs/names-and-casing": "4884ba199b6b8840"
   },
   "syntax/basics/variables.mdx": {
-    "lang:types/every-binding-has-a-type": "61e87453b74d2a92"
+    "lang:types/every-binding-has-a-type": "c74ed86e64cd11b4"
   },
   "syntax/classes/anonymous-objects.mdx": {
     "lang:expressions/anonymous-objects": "e1eaacc21c0cdba4"
@@ -79,9 +79,9 @@
     "PropertyObserver": "c06bfdacbad721bd"
   },
   "syntax/classes/property-names.mdx": {
-    "lang:types/property-keys": "eef8fc6f2e44d2af",
-    "lang:types/property-paths": "c65182df61963dd2",
-    "lang:types/strings-with-holes": "0d75b78ffeab7e40"
+    "lang:types/property-keys": "c96aa9ffb6045833",
+    "lang:types/property-paths": "a6f27a41e4e3ee19",
+    "lang:types/strings-with-holes": "7a7b7035569b2ada"
   },
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "9810676ff33ba0fd",
@@ -183,7 +183,7 @@
   },
   "syntax/errors/throw-and-catch.mdx": {
     "lang:errors/throw": "b785ec137a81994f",
-    "lang:errors/try-catch-finally": "2c28a4292a3dda7e"
+    "lang:errors/try-catch-finally": "9c5fdebd45cc1285"
   },
   "syntax/functions/anonymous-functions.mdx": {
     "lang:expressions/anonymous-functions": "2db4250569b668d5"
@@ -253,7 +253,7 @@
     "lang:types/array-t": "d959d24b1ff7edba"
   },
   "syntax/values/as.mdx": {
-    "lang:types/the-conversion-operator-as": "ea4bf157002fff89",
+    "lang:types/the-conversion-operator-as": "1d90872aa5ae6cc0",
     "lang:types/widening-without-as": "9b819abd54e89dc5"
   },
   "syntax/values/bool-and-null.mdx": {
@@ -359,7 +359,7 @@
     "lang:types/values-written-in-the-code": "ad7d0a7f1d4d26cf"
   },
   "syntax/values/tainted-and-secret.mdx": {
-    "lang:types/qualifiers-tainted-and-secret": "68d075b395504719"
+    "lang:types/qualifiers-tainted-and-secret": "ff426924279d8ff4"
   },
   "syntax/values/union-types.mdx": {
     "lang:types/a-member-every-class-of-a-union-declares": "8ca381330c3d017f",

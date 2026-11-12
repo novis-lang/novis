@@ -12,7 +12,7 @@ command-line argument. The compiler checks every place where your code uses the 
 <Snippet src="guides/why-novis/tainted-input.nvs" />
 
 `as int` checks the text and gives a plain `int`. A hole in an `html` template escapes the text.
-These are safe ways to use the value.
+These are safe ways to use the value. A type test with `is` does not remove `tainted`.
 
 Using a tainted value as a plain `string` does not compile:
 
