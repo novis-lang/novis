@@ -10,7 +10,7 @@ stages:
     context: [apps/registry/src/Releases.nvs, apps/registry/src/Events.nvs, apps/registry/src/Index.nvs, apps/registry/src/ReleasesTest.nvs]
   - id: 2
     title: a token of an account that is no longer active does nothing
-    status: open
+    status: done
     context: [apps/registry/src/Tokens.nvs, apps/registry/src/Publish.nvs, apps/registry/src/TokensTest.nvs, docs/rules/packaging/an-account-stays-active-by-proof-not-by-token.md]
   - id: 3
     title: an owner with a passkey cancels a waiting retraction or advisory
@@ -387,26 +387,26 @@ wait in the ranking fact, and start every transaction with a write.
 **Does:** move the activity check and the verified-channel check into `Tokens`, where every token use
 but `whoami` passes them.
 
-- [ ] `Tokens::standing(Token $token): ?string` returns the `403` sentence of each failed check, in
+- [x] `Tokens::standing(Token $token): ?string` returns the `403` sentence of each failed check, in
   the words `Publish::publish` uses today, or `null`
   (`rule:packaging/an-account-stays-active-by-proof-not-by-token`, `apps/registry/src/Tokens.nvs:101`,
   `apps/registry/src/Activity.nvs:37`, `apps/registry/src/Channels.nvs:126`).
-- [ ] `Tokens::allows` returns `null` when `standing` returns a sentence, before it saves the time of
+- [x] `Tokens::allows` returns `null` when `standing` returns a sentence, before it saves the time of
   use. Its doc comment lists the four things a token needs (`apps/registry/src/Tokens.nvs:97`).
-- [ ] `Publish::publish` drops its two checks and answers `403` with `standing`'s sentence right after
+- [x] `Publish::publish` drops its two checks and answers `403` with `standing`'s sentence right after
   `find`, before the build (`apps/registry/src/Publish.nvs:44`). `Publish::record` keeps its `allows`
   call (`apps/registry/src/Publish.nvs:124`).
-- [ ] Test `aTokenOfALapsedAccountDoesNothing` in `apps/registry/src/TokensTest.nvs:107`, under a
+- [x] Test `aTokenOfALapsedAccountDoesNothing` in `apps/registry/src/TokensTest.nvs:107`, under a
   fixed clock: after 61 days `allows` returns `null`, and the retract, advisory and unlist routes each
   answer as they do for a token that is not valid. A passkey sign-in makes the token work again.
-- [ ] Test `aTokenOfAnAccountWithNoVerifiedChannelDoesNothing` beside it: the account's channel is
+- [x] Test `aTokenOfAnAccountWithNoVerifiedChannelDoesNothing` beside it: the account's channel is
   deleted, and `allows` returns `null`.
-- [ ] The tests that call `allows` today are in `TokensTest` and at
+- [x] The tests that call `allows` today are in `TokensTest` and at
   `apps/registry/src/ActivityTest.nvs:48`. Each uses an account that is active and has a verified
   channel, so one follows only where its clock is past 60 days at the call. A test that sends a token
   for an account inserted at `active_at` 0 gets an active account from `BrowserTest::newAccount`
   (`apps/registry/src/BrowserTest.nvs:75`).
-- [ ] Rule fragments: an account that lapsed can use no token for anything, and `Tokens::allows` is
+- [x] Rule fragments: an account that lapsed can use no token for anything, and `Tokens::allows` is
   where that is checked (`docs/rules/packaging/an-account-stays-active-by-proof-not-by-token.md:1`,
   `docs/rules/packaging/an-account-stays-active-by-proof-not-by-token.md:31`).
   `rule:packaging/a-publish-token-is-scoped-and-expires` lists what a token may send, and says a token
@@ -566,7 +566,7 @@ message, and leave only a locked fetch outside the bound.
 
 ### State
 
-Stage 1 is done. A retraction's log entry waits in `events` with its `due` time
+Stages 1 and 2 are done. A retraction's log entry waits in `events` with its `due` time
 (`Events::reasoned`, `apps/registry/src/Events.nvs:36`), `release_states.retract_event` keeps its id,
 and a second retraction with an earlier time rewrites that entry through `Events::moved`
 (`apps/registry/src/Releases.nvs:181`). `Index::append` reads `Events::ready`, and `Index::run` and
@@ -575,32 +575,37 @@ retraction from its time. `Releases::advise` starts with a write, and
 `crates/nvs-cli/tests/registry_sources.rs` holds that every registry transaction that writes does.
 The stage's three checks pass, run once by name.
 
-The sweep's reds were stale. `env-secret-proofs` belonged to the retired `package-authority-closed`.
-Nightly 43001191130 failed only `a_changed_server_timeout_applies_to_the_next_connection`, which
-`305c04f660` rewrote after that run's commit.
+Stage 2: `Tokens::standing` (`apps/registry/src/Tokens.nvs:97`) holds the activity and the
+verified-channel checks, `Tokens::allows` returns `null` when it gives a sentence, and
+`Publish::publish` answers `403` with that sentence right after `find`. The route callers of `allows`
+are unchanged and keep their one sentence. The existing callers in tests already had an active
+account with a verified channel, so none changed. `TokensTest` gained
+`aTokenOfALapsedAccountDoesNothing` and `aTokenOfAnAccountWithNoVerifiedChannelDoesNothing`, and the
+check `a-lapsed-token-does-nothing` passes, run once by name. Both rule fragments say it.
+
+The sweep's reds are stale. `env-secret-proofs` belonged to the retired `package-authority-closed`
+and has no check on disk now. Nightly 43001191130 failed only
+`a_changed_server_timeout_applies_to_the_next_connection`, which `305c04f660` rewrote after that
+run's commit.
 
 ### Next
 
-Stage 2, over `apps/registry/src/Tokens.nvs`, `Publish.nvs`, `TokensTest.nvs` and `ActivityTest.nvs`.
-It waits on no gate. Stage 5 (the client lane) shares no file with it and may run beside it.
+Stage 3, the cancel, over `apps/registry/src/Releases.nvs`, `Events.nvs`, `Schema.nvs`, `App.nvs`,
+a new `CancelRequest.nvs`, `ReleasesTest.nvs` and `AdvisoriesTest.nvs`. Its gate (stage 1) is met.
+Stage 5 (the client lane) shares no file with it and may run beside it.
 
-- [ ] `apps/registry/src/Tokens.nvs:101`: `Tokens::standing(Token $token): ?string` holds the two
-  checks of `apps/registry/src/Publish.nvs:45` and `:48`, in their words, and `allows` returns `null`
-  when it returns a sentence, before it saves the time of use.
-- [ ] `apps/registry/src/Publish.nvs:44`: `Publish::publish` asks `standing` right after `find` and
-  answers `403` with its sentence, before the build. `Publish::record` keeps `allows`
-  (`apps/registry/src/Publish.nvs:124`).
-- [ ] `apps/registry/src/TokensTest.nvs:107`: tests `aTokenOfALapsedAccountDoesNothing` and
-  `aTokenOfAnAccountWithNoVerifiedChannelDoesNothing`.
-- [ ] The callers of `allows` in tests (`apps/registry/src/TokensTest.nvs:23`, `:52`, `:75`, `:116`,
-  `apps/registry/src/ActivityTest.nvs:48`) get an active account with a verified channel where they
-  do not have one.
-- [ ] The route callers keep their one sentence (`apps/registry/src/App.nvs:902`, `:956`, `:1038`).
-- [ ] Rule fragments `an-account-stays-active-by-proof-not-by-token.md:1`, `:31` and
-  `a-publish-token-is-scoped-and-expires.md:13`, `:27`, then `bun nv rules --render`.
+- [ ] `apps/registry/src/Schema.nvs:182`: `advisories.cancelled_at`, added as `events.due` is.
+- [ ] `apps/registry/src/Releases.nvs:179` and `:210`: `cancelRetraction` and `cancelAdvisory` beside
+  `retract` and `advise`, each starting with the delete of the waiting `events` row
+  (`release_states.retract_event`, `advisories.event`). `advise` skips a cancelled row in its lookup
+  and still counts it.
+- [ ] `apps/registry/src/Events.nvs:87`: `Events::cancelled` writes the `cancel` notice.
+- [ ] `apps/registry/src/App.nvs:927`: `App::cancel` after `App::advise`, gated by
+  `App::ownsWithPasskey` (`apps/registry/src/App.nvs:1065`), with the standing decision's answers.
+- [ ] `apps/registry/src/ReleasesTest.nvs:301` and `apps/registry/src/AdvisoriesTest.nvs:92`: the
+  four tests stage 3 names, then `looper check --name an-owner-cancels` once.
 
-Expected red until stage 2 lands: none. Inside stage 2, a test that sends a token for an account
-inserted with `active_at` 0 or with no verified channel goes red until it gets an active account.
+Expected red until stage 3 lands: none.
 
 ### Backlog
 
