@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-host/src/net.rs, crates/nvs-host/src/reactor.rs, crates/nvs-host/src/blocking.rs, crates/nvs-host/src/slice.rs]
   - id: 5
     title: "an upgraded connection is watched, takes a place and is ended by its idle timeout"
-    status: open
+    status: done
     context: [crates/nvs-host/src/isolate.rs, crates/nvs-host/src/watchdog.rs, crates/nvs-server/src/socket.rs, crates/nvs-server/src/bounds.rs, docs/rules/concurrency/connection-bounds-are-finite.md, docs/rules/concurrency/a-connection-is-a-root-isolate.md]
   - id: 6
     title: a wait at request end is bounded
@@ -514,7 +514,7 @@ keeps a connection open or that `cpu_time` covers a whole connection, as `path:N
   `a_peer_that_sends_only_empty_fragments_is_closed_at_the_idle_timeout` in
   `crates/nvs-server/src/socket.rs:1` tests. The idle instant has passed, the peer's frames are queued,
   and the test reads the idle close within sixteen reads (`rule:concurrency/connection-bounds-are-finite`).
-- [ ] Two attacks, numbered after the cases already there: a WebSocket handler that never waits at
+- [x] Two attacks, numbered after the cases already there: a WebSocket handler that never waits at
   `tests/hostile/core/Socket/receive/02-a-handler-that-never-waits.nvs:1` with its peer script, and an
   event-stream handler at `tests/hostile/core/Sse/receive/02-a-handler-that-never-waits.nvs:1`. Each
   ends early with the CPU `FATAL`, and its comments follow AGENTS.md § *Text an end user reads*
@@ -569,40 +569,21 @@ and end a guest call that parks past the wall deadline.
 
 ### State
 
-Stage 5 has its code, its tests and its docs. Only the two attacks are left. This session's slice
-(cd95e751f4), with its three tests run once by name and green:
+Stage 5 is done, and its acceptance check `an-upgraded-connection-is-bounded` is green. This
+session added its two attacks, `tests/hostile/core/Socket/receive/02-a-handler-that-never-waits.nvs`
+and `tests/hostile/core/Sse/receive/02-a-handler-that-never-waits.nvs`, each with its peer or event
+file. Each lowers its own `limits.cpu_time` to `20ms` with `Core\Config::set`, waits once, then spins.
+Both print `step 3` and end with the CPU `FATAL` at 15 ms (the limit less its reserve). `bun nv
+proofs --run --only` passes both, and `--comments` passes both.
 
-- `Ctx::root_a_connection` (`crates/nvs-runtime/src/ctx/safepoint.rs`) makes a connection's isolate
-  its tree's root. Its ceiling is the upgrade's narrowing, or the `cpu_time` server work runs under,
-  taken by `take_server_cpu_limit` (`crates/nvs-runtime/src/ctx/limits.rs`), which `now_serving`
-  now calls too. `Isolate::start` calls it and passes `connection` to `start_as_task`, whose body
-  holds a `watchdog::publish_here` guard beside `Published`.
-- `Ctx::turn_ends` calls the new `Host::turn_ends` (a no-op by default), which `SchedulerHost` turns
-  into `watchdog::restart_running` and `Charge::restart`. It is called at `wait_on_both`
-  (`crates/nvs-stdlib/src/socket.rs`), before the park in `Core\Sse::receive` and in
-  `nvs_runtime::peer::sleep`. A tree with `limit_reached` set is not restarted.
-- The door tests are in `crates/nvs-host/src/isolate.rs`'s tests, not `serve.rs`'s: a real sampler
-  sweeps every millisecond and the handler spins until its tree's CPU flag. They read the stop and
-  not the close. The count test is in `crates/nvs-host/src/watchdog.rs`'s tests.
-- Both rules, `limits-and-logs.mdx` and `how-to-use/limits.mdx` say `cpu_time` holds for each turn.
-
-The sweep's reds: the three Miri jobs failed in nightly 43201099245, which ran on 578534cc7c, before
-7568aaa0fb. That commit skips all four of its failing tests under Miri. `env-secret-proofs` is a
-phantom: `looper check --name env-secret-proofs` answers "no check matches", and two earlier goals'
-handoffs found the same.
+The sweep's reds: the three Miri jobs ran before 7568aaa0fb, which skips their four tests under Miri.
+`env-secret-proofs` is a phantom: its log does not exist under `.looper/loops/main/checks/`, and
+`looper check --name env-secret-proofs` answers "no check matches".
 
 ### Next
 
-The two attacks, then stage 6.
+Stage 6, in the order of its items.
 
-- `tests/hostile/core/Socket/receive/01-a-connection-that-falls-behind-its-topic.nvs:1` and its
-  `.nvsp` peer script are the shape for `02-a-handler-that-never-waits.nvs`. Its handler loops with
-  no wait, and the case ends with the CPU `FATAL` and the peer's close. Read
-  `tests/hostile/README.md` for the directives, and set a short `cpu_time` in the case if the runner
-  allows one.
-- `tests/hostile/core/Sse/receive/01-a-stream-that-falls-behind.nvs:1` and its `.nvse` are the shape
-  for the event-stream attack `02-a-handler-that-never-waits.nvs`. Run both with `bun nv proofs`, and
-  check their comments with `bun nv proofs --comments <paths>`.
 - `crates/nvs-host/src/block_on.rs:1` is where stage 6 starts. Its items and anchors are under `### 6.`.
 - `crates/nvs-host/src/net.rs:1`'s `a_short_read_that_came_with_a_hang_up_reads_once_more` is
   Unix-only. Run it once in WSL with `bun nv linux-test`.

@@ -1,0 +1,21 @@
+<?nvs
+// Attack: a connection handler reads one message and then loops forever without
+// waiting for the next one. The handler should be stopped at its CPU limit.
+// hostile: ends-early 3 FATAL
+
+Core\Socket $conn = Core\Socket::current();
+
+// 1. Lowers the CPU limit to 20ms. The limit counts the work between two waits.
+echo 'my own ceiling: ', Core\Config::set('limits.cpu_time', '20ms') ? 'lowered' : 'refused', "\n";
+
+// 2. Reads one message. Each wait for a message starts the count again.
+?Core\Socket\Message $first = $conn->receive();
+echo $first == null ? "no message\n" : "one message\n";
+
+// 3. Loops without calling `receive()` again. The program stops with a fatal error.
+echo "step 3\n";
+int $spin = 0;
+while ($spin >= 0) {
+    $spin = $spin + 1;
+}
+echo 'the loop ran to its end: ', $spin, "\n";

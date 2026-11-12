@@ -1,0 +1,2 @@
+# The client sends one message and then waits.
+text: hello

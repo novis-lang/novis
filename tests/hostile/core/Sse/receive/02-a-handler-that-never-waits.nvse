@@ -1,0 +1,2 @@
+# One value on the topic the program subscribes to.
+publish: orders order 1042 was paid
