@@ -3438,14 +3438,11 @@ mod tests {
             is_static: false,
             by_reference: false,
         };
-        classes.set_methods(
-            base,
-            vec![row("again", vault_open), row("sealed", vault_open)],
-        );
-        classes.set_methods(
-            heir,
-            vec![row("again", heir_again), row("sealed", vault_open)],
-        );
+        // A row's owner is its code address, so `sealed` takes one reified
+        // pointer: Miri gives each `vault_open as NvsFn` an address of its own.
+        let open: NvsFn = vault_open;
+        classes.set_methods(base, vec![row("again", open), row("sealed", open)]);
+        classes.set_methods(heir, vec![row("again", heir_again), row("sealed", open)]);
         for id in [base, heir] {
             classes.set_class_constants(
                 id,
