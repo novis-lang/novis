@@ -237,8 +237,11 @@ Declined: reading the view the child published to the watchdog. That view is `nv
 
 **An upgraded connection is published to the watchdog at both doors, and `cpu_time` holds for each
 turn.** `Isolate::start` publishes a root connection isolate with `watchdog::publish_here` and gives
-it the tree's CPU ceiling with `take_tree_cpu_limit`, when no `watch` is set and a peer or an event
-stream is (`crates/nvs-host/src/isolate.rs:790`, `:1161`). A turn ends where the handler waits for
+makes it its tree's root with `Ctx::root_a_connection`, when no `watch` is set and a peer or an event
+stream is (`crates/nvs-host/src/isolate.rs:790`, `:1161`). Its ceiling is the `upgrade`'s narrowing,
+or the `cpu_time` server work runs under: the connection's own context states none where none is
+written, so the parent's ceiling is not taken. A tree a limit stopped is not restarted, so an
+`onLimit` handler that waits keeps its slice. A turn ends where the handler waits for
 its next input: `Core\Socket::receive`, `Core\Sse::receive` and a sleep inside a connection isolate
 (`crates/nvs-runtime/src/peer.rs:621`). The tree's charge starts again there. A count over the whole
 connection would close every busy live page after 30 seconds of CPU in 24 hours. `wall_time` stays
@@ -481,19 +484,20 @@ stream a `max_open` place, and stop control frames from restarting `idle_timeout
 **Split:** an `Explore` subagent lists every `about.md`, reference card and example that says a ping
 keeps a connection open or that `cpu_time` covers a whole connection, as `path:NN`.
 
-- [ ] `Isolate::start` publishes a root connection isolate with `publish_here` and calls
-  `take_tree_cpu_limit`, where `watch` is `None` and a peer or an event stream is set
-  (`rule:concurrency/a-connection-is-a-root-isolate`, `crates/nvs-host/src/isolate.rs:790`,
+- [x] `Isolate::start` publishes a root connection isolate with `publish_here` and makes it its
+  tree's root with `Ctx::root_a_connection`, where `watch` is `None` and a peer or an event stream is
+  set (`rule:concurrency/a-connection-is-a-root-isolate`, `crates/nvs-host/src/isolate.rs:790`,
   `crates/nvs-host/src/isolate.rs:1161`, `crates/nvs-host/src/watchdog.rs:668`).
-- [ ] The watchdog restarts the running tree's charge on its own core, and the three turn ends call
+- [x] The watchdog restarts the running tree's charge on its own core, and the three turn ends call
   it through `Host` (`rule:concurrency/a-connection-is-a-root-isolate`,
   `crates/nvs-host/src/watchdog.rs:343`, `crates/nvs-stdlib/src/socket.rs:1242`,
   `crates/nvs-stdlib/src/sse.rs:885`, `crates/nvs-runtime/src/peer.rs:621`).
-- [ ] Tests in `crates/nvs-server/src/serve.rs:1` tests, on a core registered with a watchdog:
-  `a_websocket_handler_that_never_waits_ends_at_its_cpu_limit`,
-  `an_event_stream_handler_that_never_waits_ends_at_its_cpu_limit` and
-  `a_connections_cpu_count_starts_again_at_each_turn`. The first two read the close the peer gets. The
-  third reads the tree's charge after two turns (`rule:concurrency/connection-bounds-are-finite`).
+- [x] Tests `a_websocket_handler_that_never_waits_ends_at_its_cpu_limit` and
+  `an_event_stream_handler_that_never_waits_ends_at_its_cpu_limit` in
+  `crates/nvs-host/src/isolate.rs:1` tests, on a thread registered with a sampler, read the tree's
+  CPU stop. `a_connections_cpu_count_starts_again_at_each_turn` in
+  `crates/nvs-host/src/watchdog.rs:1` tests reads the tree's charge after two turns. The close the
+  peer gets is the attacks' to read (`rule:concurrency/connection-bounds-are-finite`).
 - [x] The event-stream door takes `Slot::take(bounds.max_open)` before the isolate starts, holds it
   in `EventStream`, and answers `503` with `Retry-After` at the ceiling
   (`rule:concurrency/connection-bounds-are-finite`, `crates/nvs-server/src/serve.rs:2543`,
@@ -515,13 +519,13 @@ keeps a connection open or that `cpu_time` covers a whole connection, as `path:N
   event-stream handler at `tests/hostile/core/Sse/receive/02-a-handler-that-never-waits.nvs:1`. Each
   ends early with the CPU `FATAL`, and its comments follow AGENTS.md § *Text an end user reads*
   (`rule:testing/feature-proofs`).
-- [ ] `rule:concurrency/connection-bounds-are-finite` says an event stream takes a `max_open` place,
+- [x] `rule:concurrency/connection-bounds-are-finite` says an event stream takes a `max_open` place,
   a ping or an empty fragment does not restart the idle timeout, and `cpu_time` is counted per turn.
   Its last sentence changes to a message (`docs/rules/concurrency/connection-bounds-are-finite.md:16`,
   `docs/rules/concurrency/connection-bounds-are-finite.md:52`).
-- [ ] `rule:concurrency/a-connection-is-a-root-isolate` says what a turn is and that the count starts
+- [x] `rule:concurrency/a-connection-is-a-root-isolate` says what a turn is and that the count starts
   again at each, with what it spends (`docs/rules/concurrency/a-connection-is-a-root-isolate.md:19`).
-- [ ] The `[server.connection]` comment says `idle_timeout` is the longest time with no message
+- [x] The `[server.connection]` comment says `idle_timeout` is the longest time with no message
   (`crates/nvs-config/src/default.toml:631`), and each page the list names follows
   (`rule:concurrency/connection-bounds-are-finite`).
 
@@ -565,54 +569,51 @@ and end a guest call that parks past the wall deadline.
 
 ### State
 
-Stage 5 is half done. Two of its slices landed, each with its tests run once by name and green:
+Stage 5 has its code, its tests and its docs. Only the two attacks are left. This session's slice
+(cd95e751f4), with its three tests run once by name and green:
 
-- `Framed::receive_or` (`crates/nvs-server/src/socket.rs:417`) fixes the idle instant once per call.
-  A ping, a pong or a wake that was not an interrupt keeps it (`idle_past`). `expired` compares the
-  lifetime where each `receive` and each `send` starts. The tests are in `socket.rs`'s own `tests`
-  module, off any core, over a loopback pair with a 1 ns idle window.
-- The event-stream door takes `Slot::take(bounds.max_open)` before the isolate starts
-  (`crates/nvs-server/src/serve.rs:2543`). `EventStream` holds the place as `_place`, and the door
-  answers `crate::admit::over_capacity()` at the ceiling. `Slot::take_from` is `pub(crate)` for the
-  tests, and `upgrade_once_reading_to` reads a response that is not the door's own.
+- `Ctx::root_a_connection` (`crates/nvs-runtime/src/ctx/safepoint.rs`) makes a connection's isolate
+  its tree's root. Its ceiling is the upgrade's narrowing, or the `cpu_time` server work runs under,
+  taken by `take_server_cpu_limit` (`crates/nvs-runtime/src/ctx/limits.rs`), which `now_serving`
+  now calls too. `Isolate::start` calls it and passes `connection` to `start_as_task`, whose body
+  holds a `watchdog::publish_here` guard beside `Published`.
+- `Ctx::turn_ends` calls the new `Host::turn_ends` (a no-op by default), which `SchedulerHost` turns
+  into `watchdog::restart_running` and `Charge::restart`. It is called at `wait_on_both`
+  (`crates/nvs-stdlib/src/socket.rs`), before the park in `Core\Sse::receive` and in
+  `nvs_runtime::peer::sleep`. A tree with `limit_reached` set is not restarted.
+- The door tests are in `crates/nvs-host/src/isolate.rs`'s tests, not `serve.rs`'s: a real sampler
+  sweeps every millisecond and the handler spins until its tree's CPU flag. They read the stop and
+  not the close. The count test is in `crates/nvs-host/src/watchdog.rs`'s tests.
+- Both rules, `limits-and-logs.mdx` and `how-to-use/limits.mdx` say `cpu_time` holds for each turn.
 
-`rule:concurrency/connection-bounds-are-finite` says both, and the `[server.connection]` comment says
-`idle_timeout` is the longest time with no message. The rule's line on `cpu_time` per turn waits for
-the next slice.
-
-The sweep's reds: four nvs-stdlib unit tests that Miri cannot run now carry `cfg_attr(miri, ignore)`
-(7568aaa0fb). Two deadline sweeps over 2 MiB, the source scan for whole reads, and a long JSON key on
-the spare stack. `env-secret-proofs` is defined nowhere in this tree, in neither `looper.toml` nor
-`docs/goals/`, and no log for it exists.
-
-The `Explore` sweep for pages: `website/src/content/docs/guides/example-apps/chat.mdx:168` and `:182`
-send a JSON `ping` message, which is a message, so they stay. The `cpu_time` pages are below.
+The sweep's reds: the three Miri jobs failed in nightly 43201099245, which ran on 578534cc7c, before
+7568aaa0fb. That commit skips all four of its failing tests under Miri. `env-secret-proofs` is a
+phantom: `looper check --name env-secret-proofs` answers "no check matches", and two earlier goals'
+handoffs found the same.
 
 ### Next
 
-The watchdog slice, then the attacks and the docs. Items and anchors are under `### 5.` above.
+The two attacks, then stage 6.
 
-- `crates/nvs-host/src/isolate.rs:793` is where `Isolate::start` takes the tree's CPU limit. The
-  publication with `watchdog::publish_here` goes beside it, when `watch` is `None` and a peer or an
-  event stream is set.
-- `crates/nvs-host/src/watchdog.rs:343` is the charge. Restart the running tree's charge on its own
-  core, and call it through `Host` from `crates/nvs-stdlib/src/socket.rs:1242`,
-  `crates/nvs-stdlib/src/sse.rs:885` and `crates/nvs-runtime/src/peer.rs:621`.
-- `crates/nvs-server/src/serve.rs:5037` is a two-door test to copy for the three CPU tests. They run on
-  a core registered with a watchdog.
-- `website/src/content/docs/guides/production/limits-and-logs.mdx:31` and
-  `website/src/content/docs/guides/how-to-use/limits.mdx:20` say `cpu_time` applies to a connection.
-  Once the count restarts per turn, they say it applies to each turn.
-- `docs/rules/concurrency/a-connection-is-a-root-isolate.md:19` gets what a turn is.
-- Run `crates/nvs-host/src/net.rs`'s `a_short_read_that_came_with_a_hang_up_reads_once_more` once
-  in WSL with `bun nv linux-test`, since it is Unix-only.
+- `tests/hostile/core/Socket/receive/01-a-connection-that-falls-behind-its-topic.nvs:1` and its
+  `.nvsp` peer script are the shape for `02-a-handler-that-never-waits.nvs`. Its handler loops with
+  no wait, and the case ends with the CPU `FATAL` and the peer's close. Read
+  `tests/hostile/README.md` for the directives, and set a short `cpu_time` in the case if the runner
+  allows one.
+- `tests/hostile/core/Sse/receive/01-a-stream-that-falls-behind.nvs:1` and its `.nvse` are the shape
+  for the event-stream attack `02-a-handler-that-never-waits.nvs`. Run both with `bun nv proofs`, and
+  check their comments with `bun nv proofs --comments <paths>`.
+- `crates/nvs-host/src/block_on.rs:1` is where stage 6 starts. Its items and anchors are under `### 6.`.
+- `crates/nvs-host/src/net.rs:1`'s `a_short_read_that_came_with_a_hang_up_reads_once_more` is
+  Unix-only. Run it once in WSL with `bun nv linux-test`.
 - Expected red, read at stage 7: a test that expects a member's own catchable timeout under a passed
   `wall_time` now gets the wall-time `FATAL`. A test that slept past a passed `wall_time` off any core
   (no scheduler) now sleeps its whole duration: `Core\Time::sleep` and the transaction retry backoff
   read no deadline there. A test that reads a fast peer through `NvsStream` past a passed deadline now
   ends after sixteen reads. A WebSocket test whose peer kept a connection open with pings past
   `idle_timeout` is now closed at it. A test that opens more event streams than `max_open` gets a
-  `503`. Only the new tests were run.
+  `503`. A connection test whose handler spun past `cpu_time` on a watched core is now stopped. Only
+  the new tests were run.
 
 ### Backlog
 
