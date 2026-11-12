@@ -141,10 +141,6 @@ pub(crate) struct Connection {
     dial: Dial,
     /// Every wait's bound: the handshake's, and each command's.
     timeout: Duration,
-    /// The wall deadline of the request the command runs for, which every wait
-    /// ends at if it comes before `timeout` does. [`super::on_shared`] files it
-    /// for each command and lifts it after.
-    wall: Option<Instant>,
     /// Absent before the first dial and after a failed command.
     stream: Option<Transport>,
 }
@@ -155,22 +151,15 @@ impl Connection {
         Self {
             dial,
             timeout,
-            wall: None,
             stream: None,
         }
     }
 
-    /// Ends every wait of the commands that follow at `at` as well, or lifts
-    /// that bound.
-    pub(crate) fn set_wall(&mut self, at: Option<Instant>) {
-        self.wall = at;
-    }
-
-    /// The instant a wait starting now ends at: `timeout` from now, or the
-    /// request's wall deadline if that is sooner.
+    /// The instant a wait starting now ends at: `timeout` from now. The
+    /// scheduler bounds the park under that wait by the request's wall deadline
+    /// (`rule:errors/on-limit`).
     fn until(&self) -> Instant {
-        let own = Instant::now() + self.timeout;
-        self.wall.map_or(own, |wall| own.min(wall))
+        Instant::now() + self.timeout
     }
 
     /// What this one is made with — what [`super`] compares a later approval

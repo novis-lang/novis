@@ -197,12 +197,6 @@ pub struct Framed {
     /// write buffer, which is what [`PeerSocket::send`] reads to queue no
     /// second frame behind it.
     stalled: bool,
-    /// The wall deadline of the tree the connection runs in, filed by
-    /// [`PeerSocket::set_wall`] before each wait. [`Self::arm`] caps every wait
-    /// by it, and [`Self::expiry`] reads a timeout at or past it as an error,
-    /// never a close. A served connection's tree states none
-    /// (`nvs_runtime::Ctx::reroot_for_a_connection`), so there it is `None`.
-    wall: Option<Instant>,
 }
 
 impl Framed {
@@ -248,7 +242,6 @@ impl Framed {
             cut: None,
             closing_at: None,
             stalled: false,
-            wall: None,
         }
     }
 
@@ -288,11 +281,10 @@ impl Framed {
     /// the one failure a program has to
     /// see and a half-written frame tells the peer nothing.
     ///
-    /// The tree's wall deadline caps it too, where it has one ([`Self::wall`]).
-    /// One compare.
+    /// The scheduler bounds the park by the tree's wall deadline, where it has
+    /// one (`rule:errors/on-limit`).
     fn arm(&mut self, window: std::time::Duration) {
-        let lived = (Instant::now() + window).min(self.expires_at);
-        let at = self.wall.map_or(lived, |wall| lived.min(wall));
+        let at = (Instant::now() + window).min(self.expires_at);
         self.socket.get_mut().set_deadline(at);
     }
 
@@ -308,11 +300,6 @@ impl Framed {
             return None;
         };
         if io.kind() != std::io::ErrorKind::TimedOut {
-            return None;
-        }
-        // The request's wall time ran out: an error, which the member turns
-        // into the wall-time `FATAL`, and not a close the program reads as `null`.
-        if self.wall.is_some_and(|wall| Instant::now() >= wall) {
             return None;
         }
         Some(if Instant::now() >= self.expires_at {
@@ -518,10 +505,6 @@ impl PeerSocket for Framed {
     /// is the one that can name the task.
     fn wake_at_drain(&mut self) -> Option<nvs_runtime::DrainWake> {
         nvs_host::wake_at_drain(self.draining.bit())
-    }
-
-    fn set_wall(&mut self, at: Option<Instant>) {
-        self.wall = at;
     }
 
     /// Starts RFC 6455's close handshake, ignoring what it fails with.

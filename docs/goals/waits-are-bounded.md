@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/budget.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/abi.rs, crates/nvs-host/src/net.rs]
   - id: 3
     title: "the hand clamps are deleted, crate by crate"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/db/execute.rs, crates/nvs-stdlib/src/http.rs, crates/nvs-runtime/src/peer.rs, docs/rules/core-classes/db-statement-members.md]
   - id: 4
     title: "a stream that never runs dry meets its bound, and the pool skips an abandoned job"
@@ -226,6 +226,15 @@ lookup at `crates/nvs-stdlib/src/ldap/mod.rs:517`. About two hundred lines go. U
 that waits past `wall_time` no longer throws a `DbError` first. Declined: keeping the clamps as a
 second layer, because two layers hide a missing one.
 
+**A child placed on another core is bounded by its own tree, which the stack carries beside its
+turn.** Such a child runs no turn of its tree there, so `TURN` is `None` and the funnel had no bound
+for it. `Ctx::arm_on_this_stack` names the child's tree in a second thread-local, `BOUND`
+(`crates/nvs-runtime/src/budget.rs:377`), and `ArmedStack` moves it at each switch. `bound` and
+`stop_at_bound` read `TURN`'s tree, else `BOUND`'s. The memory accounting still reads `TURN` alone.
+**What it spends:** one word per parked task, and one thread-local move per park and per resume.
+Declined: reading the view the child published to the watchdog. That view is `nvs-host`'s, and the
+`Ctx` already holds the same tree.
+
 **An upgraded connection is published to the watchdog at both doors, and `cpu_time` holds for each
 turn.** `Isolate::start` publishes a root connection isolate with `watchdog::publish_here` and gives
 it the tree's CPU ceiling with `take_tree_cpu_limit`, when no `watch` is set and a peer or an event
@@ -375,19 +384,19 @@ handler and `FATAL` at `Ctx::cancel` and at `run_helper`.
 **Split:** four writing subagents on the session's model run side by side, one per batch below. Their
 files are disjoint and none of them builds. The session then deletes the `Ctx` methods and builds once.
 
-- [ ] Batch 1, network members: `crates/nvs-stdlib/src/net.rs:1257`, `crates/nvs-stdlib/src/net.rs:1389`,
+- [x] Batch 1, network members: `crates/nvs-stdlib/src/net.rs:1257`, `crates/nvs-stdlib/src/net.rs:1389`,
   `crates/nvs-stdlib/src/net.rs:1504`, `crates/nvs-stdlib/src/http.rs:4377`,
   `crates/nvs-stdlib/src/http.rs:4405`, `crates/nvs-stdlib/src/http.rs:4422`,
   `crates/nvs-stdlib/src/http/socket.rs:532`, `crates/nvs-stdlib/src/http/socket.rs:556`,
   `crates/nvs-stdlib/src/mail.rs:1212`, `crates/nvs-stdlib/src/mail.rs:1215`
   (`rule:http-server/one-deadline-covers-the-whole-call`).
-- [ ] Batch 2, database: `crates/nvs-stdlib/src/db/pool.rs:170`, `crates/nvs-stdlib/src/db/pool.rs:174`,
+- [x] Batch 2, database: `crates/nvs-stdlib/src/db/pool.rs:170`, `crates/nvs-stdlib/src/db/pool.rs:174`,
   `crates/nvs-stdlib/src/db/open.rs:326`, `crates/nvs-stdlib/src/db/open.rs:836`,
   `crates/nvs-stdlib/src/db/open.rs:1091`, `crates/nvs-stdlib/src/db/transaction.rs:355`,
   `crates/nvs-stdlib/src/db/transaction.rs:361`, and the wire arm of
   `crates/nvs-stdlib/src/db/execute.rs:96` with its comment. The SQLite arm keeps its instant
   (`rule:core-classes/db-statement-members`).
-- [ ] Batch 3, stores: `crates/nvs-stdlib/src/cache.rs:1480`, `crates/nvs-stdlib/src/cache.rs:1509`,
+- [x] Batch 3, stores: `crates/nvs-stdlib/src/cache.rs:1480`, `crates/nvs-stdlib/src/cache.rs:1509`,
   `crates/nvs-stdlib/src/cache.rs:1519`, `crates/nvs-stdlib/src/cache.rs:1796`,
   `crates/nvs-stdlib/src/cache.rs:1840`, `crates/nvs-stdlib/src/cache.rs:2386`,
   `crates/nvs-stdlib/src/cache.rs:2449`, `crates/nvs-stdlib/src/cache.rs:2718`,
@@ -398,7 +407,7 @@ files are disjoint and none of them builds. The session then deletes the `Ctx` m
   `crates/nvs-stdlib/src/session.rs:930`, `crates/nvs-stdlib/src/session.rs:1534`,
   `crates/nvs-stdlib/src/session.rs:1578`, `crates/nvs-stdlib/src/session.rs:1622`
   (`rule:errors/on-limit`).
-- [ ] Batch 4, connections and the rest: `crates/nvs-stdlib/src/socket.rs:1095`,
+- [x] Batch 4, connections and the rest: `crates/nvs-stdlib/src/socket.rs:1095`,
   `crates/nvs-stdlib/src/socket.rs:1105`, `crates/nvs-stdlib/src/socket.rs:1210`,
   `crates/nvs-stdlib/src/socket.rs:1242`, `crates/nvs-stdlib/src/sse.rs:885`,
   `crates/nvs-stdlib/src/sse.rs:957`, `crates/nvs-stdlib/src/response.rs:2430`,
@@ -408,18 +417,18 @@ files are disjoint and none of them builds. The session then deletes the `Ctx` m
   `crates/nvs-stdlib/src/io.rs:2464` and `crates/nvs-stdlib/src/io.rs:2543`, and the codec's copy at
   `crates/nvs-server/src/socket.rs:205`, `crates/nvs-server/src/socket.rs:295` and
   `crates/nvs-server/src/socket.rs:523` (`rule:errors/on-limit`).
-- [ ] The session's own part, after the batches: `crates/nvs-runtime/src/ctx/late_init.rs:210`,
+- [x] The session's own part, after the batches: `crates/nvs-runtime/src/ctx/late_init.rs:210`,
   `PeerSocket::set_wall` at `crates/nvs-runtime/src/peer.rs:601`, `Emit::send_by` at
   `crates/nvs-runtime/src/stream.rs:195`, and the four methods at
   `crates/nvs-runtime/src/ctx/limits.rs:1048`. `wall_bound` becomes `off_core_deadline`, and the
   off-core sites in the standing decision take the new name. The session confirms whether
   `crates/nvs-stdlib/src/ldap/mod.rs:626` is a lookup or a dial (`rule:errors/on-limit`).
-- [ ] Tests that call a deleted method follow: `crates/nvs-runtime/src/ctx/safepoint.rs:2106` and
+- [x] Tests that call a deleted method follow: `crates/nvs-runtime/src/ctx/safepoint.rs:2106` and
   `crates/nvs-server/src/serve.rs:5018` (`rule:errors/on-limit`).
-- [ ] Test `no_member_clamps_its_wait_to_the_wall_deadline_by_hand` in
+- [x] Test `no_member_clamps_its_wait_to_the_wall_deadline_by_hand` in
   `crates/nvs-host/tests/park_sites.rs:1`. It reads the sources and fails naming the `file:line` of
   each deleted name (`rule:errors/on-limit`).
-- [ ] Test `a_statement_wait_that_ends_at_the_wall_deadline_is_the_wall_time_fatal` in
+- [x] Test `a_statement_wait_that_ends_at_the_wall_deadline_is_the_wall_time_fatal` in
   `crates/nvs-stdlib/src/db/execute.rs:1` tests. The peer never replies, the deadline has passed, and
   the program's `catch` does not run. The fragment says the same
   (`rule:core-classes/db-statement-members`, `docs/rules/core-classes/db-statement-members.md:20`).
@@ -556,39 +565,39 @@ and end a guest call that parks past the wall deadline.
 
 ### State
 
-Stages 1 and 2 are done. `yield_on` (`crates/nvs-host/src/scheduler.rs:1901`) bounds every
-`Waiting::Parked` by `ArmedStack::bound`: the open handler slice's end, else the tree's wall deadline
-(`TreeState::park_bound`, `crates/nvs-runtime/src/ctx/safepoint.rs:1105`). `merge_bound` (`:1997`)
-files it as the task's one timer entry when it is earlier, and puts the site's entry back on resume.
-Past the bound the funnel claims the stop (`stop_past_park_bound`, `safepoint.rs:1116`) and answers
-`Cancelled`. `Ctx::cancel` records no cancellation under a raised `WALL_TIME` and runs the poll, and
-the poll's yield branch hands a funnel stop to the wall branch. `run_helper` reports a non-pending
-member error past the wall deadline as the wall-time `FATAL` (`Ctx::past_wall_bound`,
-`crates/nvs-runtime/src/ctx/limits.rs:1258`). The rule and the watchdog docs say so. The seven
-`the-funnel-bounds-a-park` tests pass, with
-`a_stream_wait_past_the_wall_deadline_returns_its_error` in `crates/nvs-host/src/net.rs`, and both
-`park_sites` tests still pass. The hand clamps are all still in place, so each member is now bounded
-twice, which stage 3 removes.
+Stages 1 to 3 are done. `yield_on` (`crates/nvs-host/src/scheduler.rs:1901`) is the one bound on a
+request's wait: it ends every `Waiting::Parked` at `ArmedStack::bound`, and `run_helper` reports a
+member error past the wall deadline as the wall-time `FATAL`. Stage 3 deleted every hand clamp:
+`within_wall_time`, `wall_clamp`, `wall_time_fault`, `wall_time_left`, `PeerSocket::set_wall`,
+`Emit::send_by`, `wall_or`, `within_wall`, and the stored `wall` copies in redis, LDAP, session and
+the WebSocket codec. `wall_bound` is `Ctx::off_core_deadline` (`crates/nvs-runtime/src/ctx/limits.rs:1057`),
+read only where work runs off the core: process, stdin, the SQLite busy wait and open, name lookups
+(capability, cache endpoint, LDAP walk, mail). A child placed on another core is bounded by its own
+tree through `BOUND` (`crates/nvs-runtime/src/budget.rs:377`, set at `limits.rs:373`), as the new
+standing decision says. `no_member_clamps_its_wait_to_the_wall_deadline_by_hand` and
+`a_statement_wait_that_ends_at_the_wall_deadline_is_the_wall_time_fatal` pass, and the build and
+`cargo clippy --all-targets -- -D warnings` are green. The rule `db-statement-members` says a
+statement wait at `wall_time` is the `FATAL`.
 
-The sweep's reds were already settled on disk again. `env-secret-proofs` is not a check in this tree,
-and nightly run 43001191130 tested f4c1d5c7e2, before 305c04f660 fixed
-`a_changed_server_timeout_applies_to_the_next_connection`.
+Removed tests, which only tested a clamp: `a_receive_from_a_silent_peer_ends_at_the_wall_deadline_as_an_error`
+(`crates/nvs-server/src/serve.rs`) and `a_connect_to_a_peer_that_never_replies_ends_at_the_wall_deadline`
+(`crates/nvs-stdlib/src/db/execute.rs`, replaced by the new statement test).
+
+The sweep's reds were settled on disk again: `env-secret-proofs` is not a check in this tree, and
+nightly run 43001191130 tested f4c1d5c7e2, before 305c04f660.
 
 ### Next
 
-Stage 3, the hand clamps are deleted. Its items, batches and anchors are under `### 3.` above, and it
-follows its `**Split:**` line: four writing subagents on disjoint files, then the session's own part.
+Stage 4, a stream that never runs dry meets its bound. Its items and anchors are under `### 4.` above.
 
-- `crates/nvs-runtime/src/ctx/limits.rs:366`: first, a child placed on another core runs no tree turn
-  there, so `ArmedStack::bound` is `None` and its parks are bounded only by the hand clamps. Before the
-  clamps go, give that stack its bound from the view the child published
-  (`crates/nvs-host/src/watchdog.rs:668`), the standing decision's safe default.
-- `crates/nvs-runtime/src/ctx/limits.rs:1052` is `wall_time_left`, `:1064` `within_wall_time`, `:1071`
-  `wall_bound` (renamed `off_core_deadline`), `:1079` `wall_clamp` and `:1091` `wall_time_fault`.
+- `crates/nvs-host/src/net.rs:1841` is the test module the four streak tests and the hang-up test go in.
+- `crates/nvs-runtime/src/budget.rs:372` is `TURN`, which the stop-flags reader reads. Off the root
+  core it should read `BOUND` too, as `bounding_tree` (`budget.rs:766`) does.
 - Expected red, read at stage 7: a test that expects a member's own catchable timeout under a passed
-  `wall_time`, such as a `DbError` from a statement wait, now gets the wall-time `FATAL` from
-  `run_helper`. A test that cancels a context while `WALL_TIME` is raised and expects `cancelled()`
-  now reads `false`. No such test was found in this session, and none was run outside the new ones.
+  `wall_time` now gets the wall-time `FATAL`. A test that slept past a passed `wall_time` off any core
+  (no scheduler) now sleeps its whole duration: `Core\Time::sleep` and the transaction retry backoff
+  read no deadline there. `process.rs`'s `run_stops_a_child_at_the_request_wall_time` should still pass.
+  No other test outside the two new ones was run.
 
 ### Backlog
 

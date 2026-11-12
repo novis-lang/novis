@@ -2211,7 +2211,10 @@ mod tests {
             .wall_time
             .store(1_000_000, std::sync::atomic::Ordering::Relaxed);
         // Waits for the deadline by the clock the message reads.
-        while ctx.wall_time_left() != Some(std::time::Duration::ZERO) {
+        while ctx
+            .off_core_deadline()
+            .is_some_and(|at| std::time::Instant::now() < at)
+        {
             std::thread::yield_now();
         }
         let message = ctx.wall_time_message();

@@ -1106,22 +1106,19 @@ fn send_frame(
     member: &str,
 ) -> Result<Value, Fault> {
     crate::instance::receiver(receiver, &CLASS, member)?;
-    let wall = ctx.wall_bound();
     let peer = ctx.peer().ok_or_else(|| no_connection(member))?;
-    peer.set_wall(wall);
     let sent = peer.send(frame);
     // No case can reach this: a `.nvst` case runs a script that was handed no
     // socket, so it never gets past the refusal above.
     // `send_throws_on_the_send_timeout_rather_than_waiting` is the `#[test]`
-    // that asserts it instead. A send that ended at the request's wall
-    // deadline is the wall-time `FATAL` instead of the throw.
+    // that asserts it instead. The scheduler bounds the send's park by the
+    // request's wall deadline, and a throw past it is reported as the
+    // wall-time `FATAL` (`rule:errors/on-limit`).
     if let Err(failed) = sent {
-        return Err(ctx.wall_time_fault().unwrap_or_else(|| {
-            Fault::thrown(format!(
-                "`Core\\Socket::{member}` failed on the connection: {}",
-                failed.message()
-            ))
-        }));
+        return Err(Fault::thrown(format!(
+            "`Core\\Socket::{member}` failed on the connection: {}",
+            failed.message()
+        )));
     }
     Ok(Value::null())
 }
@@ -1219,11 +1216,6 @@ nvs_runtime::nvs_helper! {
                 Ok(Received::Frame(frame)) => return Ok(message_of_frame(frame)),
                 Ok(Received::Interrupted) => {}
                 Err(failed) => {
-                    // A read that ended at the request's wall deadline is the
-                    // wall-time `FATAL`, and never the member's throw.
-                    if let Some(fault) = ctx.wall_time_fault() {
-                        return Err(fault);
-                    }
                     // No case can reach this: a `.nvst` case runs a script that was
                     // handed no socket, so it never gets past the refusal above.
                     // `receive_reports_a_failed_socket_as_a_throw` is the `#[test]`
@@ -1248,16 +1240,13 @@ nvs_runtime::nvs_helper! {
 /// bus is dropped when the read returns, and the one on the queue is replaced
 /// by the next wait.
 ///
-/// The read ends at the request's wall deadline at the latest, filed on the
-/// socket with `set_wall`. A read that ends there is an error, and the member
-/// turns it into the wall-time `FATAL`.
+/// The scheduler bounds the read's park by the request's wall deadline, and
+/// stops the request there with the wall-time `FATAL` (`rule:errors/on-limit`).
 fn wait_on_both(ctx: &mut Ctx) -> Result<Received, nvs_runtime::PeerError> {
     let inbox = ctx.deliveries();
-    let wall = ctx.wall_bound();
     let peer = ctx
         .peer()
         .expect("`has_peer` answered above and nothing since could have taken it");
-    peer.set_wall(wall);
     let Some(inbox) = inbox else {
         return peer.receive_or(&|| false);
     };

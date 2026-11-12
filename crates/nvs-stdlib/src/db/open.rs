@@ -158,6 +158,22 @@ pub(super) fn address_of(
         })
 }
 
+/// The instant SQLite's open stops retrying its switch to WAL: the earlier of
+/// the member's own `deadline` and the request's wall deadline.
+///
+/// That retry runs inside a blocking-pool job, where the scheduler's park
+/// funnel cannot end it, so the job is handed the wall deadline itself. A wire
+/// driver's handshake parks on the core and takes `deadline` alone.
+fn off_core_by(
+    ctx: &nvs_runtime::Ctx,
+    deadline: Option<std::time::Instant>,
+) -> Option<std::time::Instant> {
+    match (deadline, ctx.off_core_deadline()) {
+        (Some(own), Some(wall)) => Some(own.min(wall)),
+        (own, wall) => own.or(wall),
+    }
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Db::connect(string $name, { shared?: bool, timeout?: Duration }): Db\Connection`
     /// — `rule:core-classes/db-connection-is-named`'s named connection, memoized for the request.
@@ -323,7 +339,6 @@ pub(crate) fn open_named(
         Some(lease) => lease,
         None => wait_for_slot(ctx, ticket, &full, deadline)?,
     };
-    let connect_by = ctx.wall_clamp(deadline);
 
     // The acquire `rule:security/db-pool-reset-is-a-boundary` describes: this
     // core's pool first, and what comes out of it is reset before this
@@ -368,7 +383,7 @@ pub(crate) fn open_named(
                     )
                 });
             }
-            address_of(host, port, default_port, name, connect_by).map(nvs_db::Endpoint::Tcp)
+            address_of(host, port, default_port, name, deadline).map(nvs_db::Endpoint::Tcp)
         };
     let written = block.driver.as_deref().unwrap_or("");
     let driver = nvs_db::Driver::from_config_name(written);
@@ -396,7 +411,7 @@ pub(crate) fn open_named(
                 let mut target = nvs_db::SqliteTarget::resolve(block).map_err(|refused| {
                     Fault::thrown(format!("{named}: {}", refused.refusal(name)))
                 })?;
-                target.deadline = connect_by;
+                target.deadline = off_core_by(ctx, deadline);
                 let conn = nvs_db::sqlite::open(&target).map_err(|err| {
                     Fault::thrown_as(
                         ThrownClass::Io,
@@ -418,7 +433,7 @@ pub(crate) fn open_named(
                     nvs_db::mysql::DEFAULT_PORT,
                     nvs_db::mysql::socket_endpoint,
                 )?;
-                let conn = nvs_db::MySqlConn::connect(endpoint.clone(), &target, connect_by)
+                let conn = nvs_db::MySqlConn::connect(endpoint.clone(), &target, deadline)
                     .map_err(|err| opening(&endpoint, &err))?;
                 nvs_db::Connection::MySql(conn)
             }
@@ -438,7 +453,7 @@ pub(crate) fn open_named(
                     nvs_db::maria::DEFAULT_PORT,
                     nvs_db::mysql::socket_endpoint,
                 )?;
-                let conn = nvs_db::MariaConn::connect(endpoint.clone(), &target, connect_by)
+                let conn = nvs_db::MariaConn::connect(endpoint.clone(), &target, deadline)
                     .map_err(|err| opening(&endpoint, &err))?;
                 nvs_db::Connection::MariaDb(conn)
             }
@@ -451,9 +466,9 @@ pub(crate) fn open_named(
                     block.port,
                     nvs_db::tds::DEFAULT_PORT,
                     name,
-                    connect_by,
+                    deadline,
                 )?;
-                let conn = nvs_db::TdsConn::connect(address, &target, connect_by)
+                let conn = nvs_db::TdsConn::connect(address, &target, deadline)
                     .map_err(|err| opening(&address, &err))?;
                 nvs_db::Connection::SqlServer(conn)
             }
@@ -467,7 +482,7 @@ pub(crate) fn open_named(
                     nvs_db::pg::DEFAULT_PORT,
                     nvs_db::pg::socket_endpoint,
                 )?;
-                let conn = nvs_db::PgConn::connect(endpoint.clone(), &target, connect_by)
+                let conn = nvs_db::PgConn::connect(endpoint.clone(), &target, deadline)
                     .map_err(|err| opening(&endpoint, &err))?;
                 nvs_db::Connection::Postgres(conn)
             }
@@ -833,7 +848,6 @@ nvs_runtime::nvs_helper! {
             Some(lease) => lease,
             None => wait_for_slot(ctx, ticket, &full, deadline)?,
         };
-        let connect_by = ctx.wall_clamp(deadline);
         // The pool's acquire, and `{ shared: false }` reaches it too: that
         // option bypasses the memo above and never the pool, which
         // `rule:core-classes/db-connection-is-named` says in as many words. `warm_connection` is where a failed reset destroys the
@@ -877,7 +891,7 @@ nvs_runtime::nvs_helper! {
                         target.time_zone = zone;
                         let address =
                             SocketAddr::new(pinned, port_of(port, nvs_db::mysql::DEFAULT_PORT));
-                        let conn = nvs_db::MySqlConn::connect(address, &target, connect_by)
+                        let conn = nvs_db::MySqlConn::connect(address, &target, deadline)
                             .map_err(|err| opening(address, &err))?;
                         nvs_db::Connection::MySql(conn)
                     }
@@ -886,7 +900,7 @@ nvs_runtime::nvs_helper! {
                         target.time_zone = zone;
                         let address =
                             SocketAddr::new(pinned, port_of(port, nvs_db::maria::DEFAULT_PORT));
-                        let conn = nvs_db::MariaConn::connect(address, &target, connect_by)
+                        let conn = nvs_db::MariaConn::connect(address, &target, deadline)
                             .map_err(|err| opening(address, &err))?;
                         nvs_db::Connection::MariaDb(conn)
                     }
@@ -895,7 +909,7 @@ nvs_runtime::nvs_helper! {
                         target.time_zone = zone;
                         let address =
                             SocketAddr::new(pinned, port_of(port, nvs_db::pg::DEFAULT_PORT));
-                        let conn = nvs_db::PgConn::connect(address, &target, connect_by)
+                        let conn = nvs_db::PgConn::connect(address, &target, deadline)
                             .map_err(|err| opening(address, &err))?;
                         nvs_db::Connection::Postgres(conn)
                     }
@@ -904,7 +918,7 @@ nvs_runtime::nvs_helper! {
                         target.time_zone = zone;
                         let address =
                             SocketAddr::new(pinned, port_of(port, nvs_db::tds::DEFAULT_PORT));
-                        let conn = nvs_db::TdsConn::connect(address, &target, connect_by)
+                        let conn = nvs_db::TdsConn::connect(address, &target, deadline)
                             .map_err(|err| opening(address, &err))?;
                         nvs_db::Connection::SqlServer(conn)
                     }
@@ -1088,7 +1102,7 @@ pub(super) fn sqlite_settings(
             })?;
             target.time_zone = zone;
             target.read_only = read_only;
-            target.deadline = ctx.wall_clamp(deadline);
+            target.deadline = off_core_by(ctx, deadline);
             let conn = nvs_db::sqlite::open(&target).map_err(|err| {
                 Fault::thrown_as(
                     ThrownClass::Io,

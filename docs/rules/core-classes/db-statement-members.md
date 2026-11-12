@@ -16,6 +16,11 @@ would do, and it is recorded here rather than hidden. An empty set list is a no-
 `INSERT … ON DUPLICATE KEY UPDATE` reports `2` for a row it updated on MySQL and MariaDB; that is the
 server's number and it is not rewritten.
 
+**A statement whose wait reaches the request's `wall_time` ends the request with the wall-time
+`FATAL`, and the program's `catch` does not run** (`rule:errors/on-limit`). The scheduler ends the
+wait there and the member reports its failure as the limit. A statement's own `timeout` that falls
+earlier still throws its catchable error.
+
 **A SQLite statement with no `timeout` of its own waits for the write lock for as long as its
 request still has.** The request's remaining `wall_time` is its busy timeout, or five seconds for a
 run with no `wall_time`. A writer that meets another connection's lock waits on `nvs-host`'s blocking

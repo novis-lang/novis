@@ -1952,8 +1952,14 @@ mod tests {
         let fault = ctx.cancel();
         assert!(matches!(fault, Fault::Pending(FATAL)), "{fault:?}");
         assert_eq!(ctx.limit_reached(), Some(crate::Limit::WallTime));
-        assert!(!ctx.cancelled(), "the wall time's stop was recorded as a cancellation");
-        let message = ctx.pending().expect("a FATAL carries a message").into_owned();
+        assert!(
+            !ctx.cancelled(),
+            "the wall time's stop was recorded as a cancellation"
+        );
+        let message = ctx
+            .pending()
+            .expect("a FATAL carries a message")
+            .into_owned();
         assert!(message.starts_with(Ctx::WALL_TIME_EXCEEDED), "{message}");
 
         // With no wall stop, the same call is a cancellation.
@@ -1980,7 +1986,10 @@ mod tests {
 
         assert_eq!(call(nvs_test_throws, &mut ctx, &[]).err(), Some(FATAL));
         assert_eq!(ctx.limit_reached(), Some(crate::Limit::WallTime));
-        let message = ctx.pending().expect("a FATAL carries a message").into_owned();
+        let message = ctx
+            .pending()
+            .expect("a FATAL carries a message")
+            .into_owned();
         assert!(message.starts_with(Ctx::WALL_TIME_EXCEEDED), "{message}");
 
         // Inside the wall time the member's own error is what the caller sees.

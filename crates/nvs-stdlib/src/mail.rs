@@ -1206,13 +1206,14 @@ nvs_runtime::nvs_helper! {
         // makes it blind — the header set above never names it.
         let envelope: Vec<String> = to.iter().chain(&cc).chain(&bcc).cloned().collect();
 
-        // The configured `timeout` bounds the whole exchange, and it ends at the
-        // request's wall deadline if that is sooner. A send that reached it
-        // stops the request with the limit's `FATAL`.
-        let until = Instant::now() + ctx.within_wall_time(configured.timeout);
-        resolve(&configured, &member, until)
-            .and_then(|address| deliver(address, &configured, until, &envelope, &message, &member))
-            .map_err(|fault| ctx.wall_time_fault().unwrap_or(fault))?;
+        // The configured `timeout` bounds the whole exchange. The scheduler
+        // bounds every park under it by the request's wall deadline, and ends
+        // the request there (`rule:errors/on-limit`). The name lookup runs off
+        // the core, so it also stops at the request's wall deadline itself.
+        let until = Instant::now() + configured.timeout;
+        let lookup_until = ctx.off_core_deadline().map_or(until, |wall| until.min(wall));
+        resolve(&configured, &member, lookup_until)
+            .and_then(|address| deliver(address, &configured, until, &envelope, &message, &member))?;
         Ok(Value::null())
     }
 }

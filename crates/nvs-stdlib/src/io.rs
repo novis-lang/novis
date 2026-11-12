@@ -2458,22 +2458,20 @@ nvs_runtime::nvs_helper! {
         if ctx.run_kind() == nvs_runtime::RunKind::Test {
             return text_of(&[], "Core\\IO::stdin", STDIN_HINT);
         }
-        let Some(deadline) = ctx.wall_bound() else {
+        let Some(deadline) = ctx.off_core_deadline() else {
             return read_to_text(ctx, &mut std::io::stdin().lock());
         };
-        let read = read_to_text(ctx, &mut StdinUntil { deadline });
-        match ctx.wall_time_fault() {
-            Some(fault) if read.is_err() => Err(fault),
-            _ => read,
-        }
+        read_to_text(ctx, &mut StdinUntil { deadline })
     }
 }
 
 /// The process's standard input, read on the blocking pool and given up at
 /// `deadline`: [`nvs_core_io_stdin`]'s reader for a run with a `[limits]
-/// wall_time` (`rule:http-server/time-is-bounded-inside-a-helper`). A read
-/// at the deadline fails with `TimedOut`, and the member turns that into the
-/// wall-time `FATAL`. Off a task the read runs inline and unbounded, as
+/// wall_time` (`rule:http-server/time-is-bounded-inside-a-helper`). The pool
+/// is off the core, where the scheduler's bound on a park does not reach, so
+/// the deadline is `Ctx::off_core_deadline`. A read at the deadline fails with
+/// `TimedOut`, and the helper boundary reports that error as the wall-time
+/// `FATAL` (`rule:errors/on-limit`). Off a task the read runs inline and unbounded, as
 /// every `run_until` job does there.
 ///
 /// **What it spends:** one pool hop and one copy per chunk of at most
@@ -2539,12 +2537,8 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_io_stdin_stream_advance(ctx, args: [1]) {
         let stepped = if ctx.run_kind() == nvs_runtime::RunKind::Test {
             stdin_stream_step(args[0], &mut std::io::empty())
-        } else if let Some(deadline) = ctx.wall_bound() {
-            let read = stdin_stream_step(args[0], &mut StdinUntil { deadline });
-            match ctx.wall_time_fault() {
-                Some(fault) if read.is_err() => Err(fault),
-                _ => read,
-            }
+        } else if let Some(deadline) = ctx.off_core_deadline() {
+            stdin_stream_step(args[0], &mut StdinUntil { deadline })
         } else {
             stdin_stream_step(args[0], &mut std::io::stdin().lock())
         };

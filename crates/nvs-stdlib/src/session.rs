@@ -124,7 +124,7 @@
 //! `rule:config/an-edit-reaches-the-next-request-without-a-restart` unit swap could strand,
 //! which is the whole reason that struct holds bytes.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -673,17 +673,9 @@ pub(crate) fn opened(ctx: &Ctx, member: &str, remedy: &str) -> Result<Store, Fau
 ///
 /// A thrown `IOError` for a store that cannot be reached. Never an answer that looks like absence:
 /// [`load`]'s doc says why.
-///
-/// `wall` is the request's wall deadline, which a shared store's wait ends at
-/// ([`on_shared`]).
-fn fetched(
-    store: &Store,
-    wall: Option<Instant>,
-    member: &str,
-    id: &str,
-) -> Result<Option<Vec<u8>>, Fault> {
+fn fetched(store: &Store, member: &str, id: &str) -> Result<Option<Vec<u8>>, Fault> {
     match store {
-        Store::Shared => on_shared(wall, NAME, member, |open| load(open, id)),
+        Store::Shared => on_shared(NAME, member, |open| load(open, id)),
         Store::File(path) => on_file(member, sqlite::load(path, id)),
     }
 }
@@ -693,16 +685,9 @@ fn fetched(
 /// # Errors
 ///
 /// As [`fetched`].
-fn put(
-    store: &Store,
-    wall: Option<Instant>,
-    member: &str,
-    id: &str,
-    record: &[u8],
-    ttl: Duration,
-) -> Result<(), Fault> {
+fn put(store: &Store, member: &str, id: &str, record: &[u8], ttl: Duration) -> Result<(), Fault> {
     match store {
-        Store::Shared => on_shared(wall, NAME, member, |open| save(open, id, record, ttl)),
+        Store::Shared => on_shared(NAME, member, |open| save(open, id, record, ttl)),
         Store::File(path) => on_file(member, sqlite::save(path, id, record, ttl)),
     }
 }
@@ -712,9 +697,9 @@ fn put(
 /// # Errors
 ///
 /// As [`fetched`].
-fn forgot(store: &Store, wall: Option<Instant>, member: &str, id: &str) -> Result<(), Fault> {
+fn forgot(store: &Store, member: &str, id: &str) -> Result<(), Fault> {
     match store {
-        Store::Shared => on_shared(wall, NAME, member, |open| destroy(open, id)),
+        Store::Shared => on_shared(NAME, member, |open| destroy(open, id)),
         Store::File(path) => on_file(member, sqlite::destroy(path, id)),
     }
 }
@@ -927,7 +912,7 @@ nvs_runtime::nvs_helper! {
         }
         .filter(|id| issuable(id));
         let opened = match presented {
-            Some(id) => fetched(&store, ctx.wall_bound(), "start", &id)?
+            Some(id) => fetched(&store, "start", &id)?
                 .map(|record| nvs_runtime::Session {
                     id,
                     record,
@@ -1530,9 +1515,8 @@ nvs_runtime::nvs_helper! {
         let store = opened(ctx, &member, ", which is where this session's record already lives")?;
         let fresh = mint(ctx);
         let lifetime = ttl(ctx);
-        let wall = ctx.wall_bound();
-        put(&store, wall, "regenerate", &fresh, &record, lifetime)?;
-        forgot(&store, wall, "regenerate", &retired)?;
+        put(&store, "regenerate", &fresh, &record, lifetime)?;
+        forgot(&store, "regenerate", &retired)?;
         issue_cookie(ctx, &format!("{NAME}::regenerate"), &fresh)?;
 
         // Not dirty: the record was written whole a line ago, so the write-back has nothing left
@@ -1574,7 +1558,7 @@ nvs_runtime::nvs_helper! {
         if !held.is_empty() {
             let member = format!("{NAME}::destroy()");
             let store = opened(ctx, &member, ", which is where this session's record lives")?;
-            forgot(&store, ctx.wall_bound(), "destroy", &held)?;
+            forgot(&store, "destroy", &held)?;
         }
         ctx.close_session();
         Ok(Value::null())
@@ -1618,17 +1602,8 @@ fn send_at_end(ctx: &mut Ctx) {
         Some(open) if open.id.is_empty() => return,
         Some(open) => {
             let lifetime = ttl(ctx);
-            let wall = ctx.wall_bound();
-            opened(ctx, SENDER, ", which is where this session's record lives").and_then(|store| {
-                put(
-                    &store,
-                    wall,
-                    "the write-back",
-                    &open.id,
-                    &open.record,
-                    lifetime,
-                )
-            })
+            opened(ctx, SENDER, ", which is where this session's record lives")
+                .and_then(|store| put(&store, "the write-back", &open.id, &open.record, lifetime))
         }
     };
     if let Err(why) = sent {

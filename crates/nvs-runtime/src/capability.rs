@@ -632,7 +632,7 @@ pub fn pinned_addresses(
 
     // The lookup waits no later than the request's wall deadline. One that ends there is this
     // door's own error, and the request's flag stops it at its next poll.
-    let addresses = resolve_addresses(host, member, ctx.wall_bound())?;
+    let addresses = resolve_addresses(host, member, ctx.off_core_deadline())?;
 
     // `rule:security/net-address-policy`'s table, less whatever this deployment excepted from it with `net.internal`, asked of
     // every address the name answered: one denied refuses the whole host and names that address,

@@ -370,6 +370,11 @@ thread_local! {
     /// drop after its last. Never read by the allocator, which is what lets it
     /// hold a type with `Drop`.
     static TURN: Cell<Option<std::sync::Arc<crate::TreeState>>> = const { Cell::new(None) };
+    /// The request tree whose wall deadline bounds the running stack's parks
+    /// where [`TURN`] is `None`: a child placed on another core, whose turns
+    /// are not its tree's ([`crate::Ctx::arm_on_this_stack`]). Moved at a
+    /// switch with [`TURN`], and read only by [`ArmedStack::bound`].
+    static BOUND: Cell<Option<std::sync::Arc<crate::TreeState>>> = const { Cell::new(None) };
     /// Monotonic: how many bytes this thread has written to a request's output
     /// sink — the module doc's second counter.
     static WRITTEN: Cell<usize> = const { Cell::new(0) };
@@ -649,10 +654,13 @@ pub(crate) fn displace(next: Armed) -> Armed {
 /// [`WRITTEN`] stays on the thread too: output is the tree's budget, and a
 /// tree's tasks share one core.
 ///
-/// **Cost:** seven thread-local moves per park and seven per resume, one
+/// It carries [`BOUND`] too: the tree whose wall deadline bounds the parks of
+/// a stack that runs no turn of its tree, a child placed on another core.
+///
+/// **Cost:** eight thread-local moves per park and eight per resume, one
 /// relaxed store at a park and one relaxed load at a resume, against a switch
 /// that already costs a stack change, and nothing on the allocation path.
-/// **Memory:** seven words per parked task, O(in-flight).
+/// **Memory:** eight words per parked task, O(in-flight).
 #[derive(Debug)]
 #[must_use = "the task's arming is off the thread until this is restored"]
 pub struct ArmedStack {
@@ -661,6 +669,9 @@ pub struct ArmedStack {
     reporting: bool,
     /// The tree whose turn the stack was, its balance stored as it parked.
     turn: Option<std::sync::Arc<crate::TreeState>>,
+    /// [`BOUND`] when the stack parked: the tree that bounds its parks when
+    /// `turn` is `None`.
+    bounded_by: Option<std::sync::Arc<crate::TreeState>>,
     /// [`FOREIGN`] when the stack parked, which is put back only on a stack
     /// with no tree.
     foreign: isize,
@@ -690,6 +701,7 @@ impl ArmedStack {
             refused: take_refusal(),
             reporting: REPORTING.with(|open| open.replace(false)),
             turn,
+            bounded_by: BOUND.with(Cell::take),
             foreign: FOREIGN.with(|cell| cell.replace(0)),
             peak: 0,
         };
@@ -724,6 +736,7 @@ impl ArmedStack {
             None => self.foreign,
         };
         TURN.with(|cell| cell.set(self.turn));
+        BOUND.with(|cell| cell.set(self.bounded_by));
         FOREIGN.with(|cell| cell.set(foreign));
         arm(self.armed);
         restore_refusal(self.refused);
@@ -732,21 +745,26 @@ impl ArmedStack {
     }
 
     /// The instant a park of this stack ends at: the open handler slice's
-    /// end, or the wall deadline of the tree whose turn the stack is, or
-    /// `None` for a stack on no tree's turn or a tree with no `wall_time`
-    /// (`rule:errors/on-limit`). `nvs_host`'s `yield_on` reads it for every
-    /// `Waiting::Parked`. One load for a tree with no `wall_time`.
+    /// end, or the wall deadline of the tree whose turn the stack is, or of
+    /// the tree a child placed on another core belongs to. `None` for a stack
+    /// of no tree or a tree with no `wall_time` (`rule:errors/on-limit`).
+    /// `nvs_host`'s `yield_on` reads it for every `Waiting::Parked`. One load
+    /// for a tree with no `wall_time`.
     #[must_use]
     pub fn bound(&self) -> Option<std::time::Instant> {
-        self.turn.as_deref().and_then(crate::TreeState::park_bound)
+        self.bounding_tree().and_then(crate::TreeState::park_bound)
     }
 
-    /// Stops the tree whose turn this stack is for a park that reached
-    /// [`Self::bound`], as the watchdog stops it at the wall deadline.
+    /// Stops the tree [`Self::bound`] read for a park that reached it, as the
+    /// watchdog stops it at the wall deadline.
     pub fn stop_at_bound(&self) {
-        if let Some(tree) = &self.turn {
+        if let Some(tree) = self.bounding_tree() {
             tree.stop_past_park_bound();
         }
+    }
+
+    fn bounding_tree(&self) -> Option<&crate::TreeState> {
+        self.turn.as_deref().or(self.bounded_by.as_deref())
     }
 
     /// Whether the stack this came off had a safepoint word armed.
@@ -765,23 +783,34 @@ impl ArmedStack {
 /// stack was parked, since `Core\Config::set` moves `wall_time`.
 #[must_use]
 pub fn turn_bound() -> Option<std::time::Instant> {
-    TURN.with(|cell| {
-        let turn = cell.take();
-        let bound = turn.as_deref().and_then(crate::TreeState::park_bound);
-        cell.set(turn);
-        bound
-    })
+    with_bounding_tree(|tree| tree.and_then(crate::TreeState::park_bound))
 }
 
 /// [`ArmedStack::stop_at_bound`] for the stack running now.
 pub fn stop_turn_at_bound() {
-    TURN.with(|cell| {
-        let turn = cell.take();
-        if let Some(tree) = &turn {
+    with_bounding_tree(|tree| {
+        if let Some(tree) = tree {
             tree.stop_past_park_bound();
         }
-        cell.set(turn);
     });
+}
+
+/// Runs `f` on the tree whose wall deadline bounds the running stack's parks:
+/// [`TURN`]'s, else [`BOUND`]'s.
+fn with_bounding_tree<R>(f: impl FnOnce(Option<&crate::TreeState>) -> R) -> R {
+    let turn = TURN.with(Cell::take);
+    let bound = BOUND.with(Cell::take);
+    let answer = f(turn.as_deref().or(bound.as_deref()));
+    TURN.with(|cell| cell.set(turn));
+    BOUND.with(|cell| cell.set(bound));
+    answer
+}
+
+/// Names `tree` as the one whose wall deadline bounds the running stack's
+/// parks, for a stack that runs no turn of it: a child placed on another
+/// core ([`crate::Ctx::arm_on_this_stack`]). One clone per such child.
+pub(crate) fn bound_by(tree: &std::sync::Arc<crate::TreeState>) {
+    BOUND.with(|cell| cell.set(Some(std::sync::Arc::clone(tree))));
 }
 
 /// The [`FOREIGN`] offset that puts this thread in `tree`'s units: its

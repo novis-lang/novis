@@ -205,15 +205,13 @@ impl Ctx {
             key,
             ticket,
         };
-        // The wait ends at the request's wall deadline, and a wake past it
-        // stops the request with the wall-time `FATAL`.
-        let woken = host::with_current(|host| host.park(self.wall_bound()));
+        // The scheduler ends this park at the request's wall deadline, and
+        // the cancel then stops the request with the wall-time `FATAL`
+        // (`rule:errors/on-limit`).
+        let woken = host::with_current(|host| host.park(None));
         drop(parked);
         if matches!(woken, Some(Woken::Cancelled)) {
             return Err(self.cancel());
-        }
-        if let Some(fault) = self.wall_time_fault() {
-            return Err(fault);
         }
         Ok(settled.get())
     }

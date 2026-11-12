@@ -80,20 +80,22 @@ pub(super) fn bound_connection<'a>(
     named: &str,
     deadline: Option<std::time::Instant>,
 ) -> Result<&'a mut nvs_db::Connection, Fault> {
-    // A SQLite writer with no deadline of its own waits for another's lock as
-    // long as the request still has, and never past it.
+    // A SQLite writer with no deadline of its own waits for another's lock
+    // until the request's wall deadline, or `LOCK_WAIT` for a request with
+    // none. That wait runs on the blocking pool, where the scheduler cannot
+    // end it, so the job is handed the instant itself.
     let lock_wait = deadline.is_none().then(|| {
-        std::time::Instant::now() + ctx.wall_time_left().unwrap_or(nvs_db::sqlite::LOCK_WAIT)
+        ctx.off_core_deadline()
+            .unwrap_or_else(|| std::time::Instant::now() + nvs_db::sqlite::LOCK_WAIT)
     });
     // A SQLite statement runs on the blocking pool, where the request's CPU
     // time is charged only once it returns, so it is handed what is left and
     // stops itself there. A request with no ceiling, or on a thread the
     // watchdog does not charge, files none.
-    // Every statement ends at the request's wall deadline at the latest, the
-    // one it named or not. The reply's wait on a wire driver is bounded by it;
-    // a wait that ended there leaves the request's safepoint flag raised, and
-    // the request stops at its next poll.
-    let deadline = ctx.wall_clamp(deadline);
+    // A wire driver's wait for the reply parks on the core and takes the
+    // statement's own deadline alone. The scheduler ends that park at the
+    // request's wall deadline, and the member then ends with the wall-time
+    // `FATAL`, which no `catch` sees.
     let cpu_left = (ctx.cpu_limit() > 0)
         .then(nvs_host::watchdog::running_spent)
         .flatten()
@@ -1775,60 +1777,154 @@ mod tests {
         drop(peer);
     }
 
-    /// `rule:http-server/time-is-bounded-inside-a-helper` on the database
-    /// door: a connect that names no `timeout` waits no longer than the
-    /// request's `[limits] wall_time`. The peer accepts and never replies, so
-    /// only the wall deadline `Ctx::wall_clamp` gives the connect can end it.
+    /// One PostgreSQL backend message: tag, length including itself, body.
+    fn backend_message(tag: u8, body: &[u8]) -> Vec<u8> {
+        let len = u32::try_from(body.len() + 4).expect("a test message fits in a u32");
+        let mut out = vec![tag];
+        out.extend_from_slice(&len.to_be_bytes());
+        out.extend_from_slice(body);
+        out
+    }
+
+    /// A PostgreSQL peer on loopback that completes the startup in the clear
+    /// and then reads every statement without answering one, until the client
+    /// closes the connection.
+    fn silent_postgres(listener: std::net::TcpListener) {
+        use std::io::{Read as _, Write as _};
+
+        let (mut stream, _) = listener.accept().expect("the connect was never accepted");
+        // A backstop for a client that never closes, so the case cannot hang
+        // on it. Nothing waits on this bound.
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(60)))
+            .expect("a connected stream takes a read timeout");
+        // `SSLRequest`, answered `N`: a loopback address stays in the clear.
+        let mut ssl_request = [0_u8; 8];
+        stream
+            .read_exact(&mut ssl_request)
+            .expect("the client sent no `SSLRequest`");
+        stream.write_all(b"N").expect("the client went away");
+        // The startup message, which is a length and then that many octets.
+        let mut length = [0_u8; 4];
+        stream
+            .read_exact(&mut length)
+            .expect("the client sent no startup message");
+        let length = usize::try_from(u32::from_be_bytes(length)).expect("a length fits a usize");
+        let mut startup = vec![0_u8; length.saturating_sub(4)];
+        stream
+            .read_exact(&mut startup)
+            .expect("the startup message ended early");
+        let mut key = 4242_i32.to_be_bytes().to_vec();
+        key.extend_from_slice(&99_i32.to_be_bytes());
+        let mut reply = backend_message(b'R', &0_i32.to_be_bytes());
+        reply.extend_from_slice(&backend_message(b'K', &key));
+        reply.extend_from_slice(&backend_message(b'S', b"server_version\x0016.4\x00"));
+        reply.extend_from_slice(&backend_message(b'Z', b"I"));
+        stream.write_all(&reply).expect("the client went away");
+        let mut sink = [0_u8; 512];
+        while matches!(stream.read(&mut sink), Ok(read) if read > 0) {}
+    }
+
+    /// `rule:errors/on-limit` on a statement: a reply wait that reaches the
+    /// request's `[limits] wall_time` ends the request with the wall-time
+    /// `FATAL`, which no `catch` sees, and never with a catchable `DbError` or
+    /// `IOError`. The statement names no `timeout`, so only the scheduler's
+    /// park funnel can end its wait.
     #[cfg_attr(miri, ignore = "opens a TCP socket, which Miri does not emulate")]
     #[test]
-    fn a_connect_to_a_peer_that_never_replies_ends_at_the_wall_deadline() {
-        let written = "[limits]\nwall_time = \"200ms\"\n";
-        let table: toml::Table = written.parse().expect("the case writes valid TOML");
-        let mut ctx = nvs_runtime::Ctx::buffered();
-        ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
-            config: table
-                .clone()
-                .try_into()
-                .expect("the case writes a block this tree has"),
-            table,
-            ..nvs_config::Snapshot::default()
-        }));
-        ctx.refresh_limits();
-        let bound = ctx
-            .wall_clamp(None)
-            .expect("a request with a `wall_time` has a deadline");
-
+    fn a_statement_wait_that_ends_at_the_wall_deadline_is_the_wall_time_fatal() {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
         let address = listener
             .local_addr()
             .expect("a bound listener has an address");
-        let block = nvs_config::tree::Database {
-            driver: Some(String::from("postgres")),
-            host: Some(String::from("127.0.0.1")),
-            user: Some(String::from("app")),
-            database: Some(String::from("shop")),
-            password: Some(String::from("secret")),
-            ..nvs_config::tree::Database::default()
-        };
-        let target = nvs_db::PgTarget::resolve(&block).expect("a `postgres` block resolves");
+        let peer = std::thread::spawn(move || silent_postgres(listener));
 
-        // The listener's backlog accepts the connect, and nothing ever reads
-        // or writes on it: the handshake's first reply never comes.
-        let started = std::time::Instant::now();
-        let Err(refused) = nvs_db::PgConn::connect(address, &target, Some(bound)) else {
-            panic!("a connect to a peer that never replies opened");
-        };
-        let waited = started.elapsed();
-        assert_eq!(refused.kind(), std::io::ErrorKind::TimedOut, "{refused}");
-        assert!(
-            std::time::Instant::now() >= bound,
-            "the connect gave up {waited:?} in, before the wall deadline"
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        let ended = std::rc::Rc::new(std::cell::RefCell::new(None));
+        let seen = std::rc::Rc::clone(&ended);
+        sched.spawn(
+            nvs_runtime::Ctx::buffered(),
+            nvs_runtime::TaskRoot::Request,
+            move |ctx| {
+                // 1. The handshake completes while the request has no wall time.
+                let block = nvs_config::tree::Database {
+                    driver: Some(String::from("postgres")),
+                    host: Some(String::from("127.0.0.1")),
+                    user: Some(String::from("app")),
+                    database: Some(String::from("shop")),
+                    password: Some(String::from("secret")),
+                    ..nvs_config::tree::Database::default()
+                };
+                let target =
+                    nvs_db::PgTarget::resolve(&block).expect("a `postgres` block resolves");
+                let opened = nvs_db::PgConn::connect(address, &target, None)
+                    .expect("the peer completes the startup");
+                let key = ctx.hold_open_connection(
+                    None,
+                    None,
+                    Box::new(nvs_db::Connection::Postgres(opened)),
+                );
+
+                // 2. The request's `wall_time` moves to one nanosecond, so its
+                //    deadline has passed before the statement goes out.
+                let table: toml::Table = "[limits]\nwall_time = \"1ns\"\n"
+                    .parse()
+                    .expect("the case writes valid TOML");
+                ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+                    config: table
+                        .clone()
+                        .try_into()
+                        .expect("the case writes a block this tree has"),
+                    table,
+                    ..nvs_config::Snapshot::default()
+                }));
+                let at = ctx
+                    .safepoint_view()
+                    .wall_deadline()
+                    .expect("a request with a `wall_time` has a deadline");
+                while std::time::Instant::now() < at {
+                    std::hint::spin_loop();
+                }
+
+                // 3. The statement goes out through the member, and the peer
+                //    never answers it.
+                let receiver =
+                    crate::instance::build(&CONNECTION, [Value::uint(key), Value::text("main")]);
+                let sql = Value::text("select 1");
+                let params = Value::array(NvsArray::new());
+                let status = nvs_runtime::call(
+                    nvs_core_db_connection_query,
+                    ctx,
+                    &[receiver, sql, params, Value::null(), Value::int(0)],
+                )
+                .err();
+                let message = ctx.pending().map(|text| text.into_owned());
+                released(receiver);
+                released(sql);
+                released(params);
+                *seen.borrow_mut() = Some((status, message));
+            },
         );
-        assert!(
-            waited < std::time::Duration::from_secs(5),
-            "the connect waited {waited:?}, past the 200ms wall deadline"
+
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        let (status, message) = ended
+            .borrow_mut()
+            .take()
+            .expect("the request's task never ran to its end");
+        assert_eq!(
+            status,
+            Some(nvs_runtime::FATAL),
+            "a statement wait past the wall deadline ended in something a `catch` sees: {message:?}"
         );
-        drop(listener);
+        let message = message.expect("a FATAL carries a message");
+        assert!(
+            message.starts_with(nvs_runtime::Ctx::WALL_TIME_EXCEEDED),
+            "{message}"
+        );
+        drop(sched);
+        peer.join().expect("the peer thread panicked");
     }
 
     /// `rule:core-classes/db-statement-members`'s buffered read, which is the

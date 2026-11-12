@@ -281,8 +281,8 @@ bitflags::bitflags! {
         /// Raised by whoever times the request — `nvs run`'s wall clock — beside
         /// the expired deadline, for [`SafepointView::expire_deadline`]'s reason:
         /// the flag stops compiled code at its next poll, and the deadline stops
-        /// a helper loop already running. A sleep is not either, so
-        /// `Core\Time::sleep` reads [`Ctx::wall_time_left`] itself.
+        /// a helper loop already running. A sleep is not either: the
+        /// scheduler ends a parked sleep at the request's wall deadline.
         const WALL_TIME = 1 << 6;
         /// A write has carried the request past its `[limits] max_output`.
         ///

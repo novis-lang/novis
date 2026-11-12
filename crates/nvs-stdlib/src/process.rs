@@ -824,12 +824,20 @@ impl Options {
         }
     }
 
-    /// The instant the timeout ends, counted from now — so this is read right
-    /// after the child starts. `None` for no timeout, and for one so long that
-    /// the clock cannot name its end.
-    fn until(&self) -> Option<Instant> {
-        self.timeout
-            .and_then(|timeout| Instant::now().checked_add(timeout))
+    /// The instant the child's waits end, counted from now — so this is read
+    /// right after the child starts. It is the earlier of the timeout and the
+    /// request's wall deadline (`Ctx::off_core_deadline`), because the waits
+    /// run on the blocking pool, where the scheduler's bound on a park does not
+    /// reach. `None` for neither, and for a timeout so long that the clock
+    /// cannot name its end.
+    fn until(&self, ctx: &Ctx) -> Option<Instant> {
+        let own = self
+            .timeout
+            .and_then(|timeout| Instant::now().checked_add(timeout));
+        match (own, ctx.off_core_deadline()) {
+            (Some(own), Some(wall)) => Some(own.min(wall)),
+            (own, wall) => own.or(wall),
+        }
     }
 }
 
@@ -840,16 +848,9 @@ fn not_positive(member: &str) -> Fault {
     ))
 }
 
-/// What a child stopped at its deadline gives: the wall-time `FATAL` once the
-/// request's `[limits] wall_time` has run out, and [`timed_out`]'s
-/// `TimeoutError` before. Every deadline a child is held to is the earlier of
-/// its `timeout` and the request's wall deadline (`Ctx::wall_clamp`), so a
-/// child never outlives the time its request has.
-fn stopped(ctx: &mut Ctx, member: &str) -> Fault {
-    ctx.wall_time_fault().unwrap_or_else(|| timed_out(member))
-}
-
-/// The `TimeoutError` a child stopped by its `timeout` is.
+/// The `TimeoutError` a child stopped at its deadline is. Past the request's
+/// `[limits] wall_time`, the helper boundary reports it as the wall-time
+/// `FATAL` instead (`rule:errors/on-limit`).
 fn timed_out(member: &str) -> Fault {
     Fault::thrown_as(
         ThrownClass::Timeout,
@@ -911,13 +912,13 @@ nvs_runtime::nvs_helper! {
             &options.launch(),
             RUN_MEMBER,
         )?;
-        let output = wait_off_core(child, capture, ctx.wall_clamp(options.until()))
+        let output = wait_off_core(child, capture, options.until(ctx))
             .map_err(|err| {
                 refused_capture(ctx, RUN_MEMBER, &err)
                     .unwrap_or_else(|| nvs_runtime::capability::io_failure(RUN_MEMBER, path, &err))
             })?;
         let Some(output) = output else {
-            return Err(stopped(ctx, RUN_MEMBER));
+            return Err(timed_out(RUN_MEMBER));
         };
         let taken = output.stdout.len() + output.stderr.len();
         if let Some(over) = ctx.intake_breach(RUN_MEMBER, taken) {
@@ -1399,10 +1400,10 @@ nvs_runtime::nvs_helper! {
     /// same three streams, so a target this member starts is one `run` would
     /// have started and a target it refuses is one `run` refuses.
     ///
-    /// The options are `run`'s, read by the same [`Options::of`]. A `timeout`
-    /// becomes the [`HeldChild::deadline`] every handle member reads, so it
-    /// bounds the child from this call on, whichever member is parked when it
-    /// passes.
+    /// The options are `run`'s, read by the same [`Options::of`]. A `timeout`,
+    /// or the request's wall deadline if that comes first, becomes the
+    /// [`HeldChild::deadline`] every handle member reads, so it bounds the
+    /// child from this call on, whichever member is parked when it passes.
     fn nvs_core_process_spawn(ctx, args: [5]) {
         let program = text(&args[0], "its path")?;
         let argv = argv_of(&args[1])?;
@@ -1417,7 +1418,7 @@ nvs_runtime::nvs_helper! {
             SPAWN_MEMBER,
         )?;
         let mut held = HeldChild::new(child);
-        held.deadline = ctx.wall_clamp(options.until());
+        held.deadline = options.until(ctx);
         program.clone_into(&mut held.program);
         held.spawn_event = ctx.open_spawn(nvs_runtime::SpawnForm::Process);
         let key = ctx.hold_spawned_child(held);
@@ -1501,12 +1502,12 @@ fn failed(member: &str, path: &Value, err: &std::io::Error) -> Fault {
 ///
 /// # Errors
 ///
-/// [`child_of`]'s, and [`stopped`]'s.
+/// [`child_of`]'s, and [`timed_out`]'s.
 fn live_child<'a>(ctx: &'a mut Ctx, key: u64, member: &str) -> Result<&'a mut HeldChild, Fault> {
     let child = child_of(ctx, key, member)?;
     if child.deadline.is_some_and(|at| at <= Instant::now()) {
         let _ = child.kill();
-        return Err(stopped(ctx, &format!("{HANDLE_NAME}::{member}")));
+        return Err(timed_out(&format!("{HANDLE_NAME}::{member}")));
     }
     child_of(ctx, key, member)
 }
@@ -1558,7 +1559,7 @@ fn off_core<T: Send + 'static>(
         (held, done)
     });
     ctx.restore_spawned_child(key, held);
-    done.ok_or_else(|| stopped(ctx, &format!("{HANDLE_NAME}::{member}")))
+    done.ok_or_else(|| timed_out(&format!("{HANDLE_NAME}::{member}")))
 }
 
 /// One chunk off a child's pipe, read where [`off_core`] runs it, into this
@@ -1706,7 +1707,7 @@ nvs_runtime::nvs_helper! {
             refused_capture(ctx, SPAWN_MEMBER, &err).unwrap_or_else(|| failed("wait", &path, &err))
         })? {
             Some(output) => output,
-            None => return Err(stopped(ctx, &format!("{HANDLE_NAME}::wait"))),
+            None => return Err(timed_out(&format!("{HANDLE_NAME}::wait"))),
         };
         let taken = stdout.len() + stderr.len();
         if let Some(over) = ctx.intake_breach(SPAWN_MEMBER, taken) {

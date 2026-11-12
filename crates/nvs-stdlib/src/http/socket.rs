@@ -525,18 +525,18 @@ fn connected(ctx: &mut Ctx, args: &[Value]) -> Result<(Option<String>, Value), F
         verb: "GET",
         url,
         addresses,
-        // The handshake and the conversation end at the request's wall
-        // deadline at the latest, and `upgrade`'s timeout there is the limit's
-        // `FATAL` (`super::wall_or`).
+        // The scheduler bounds every park of the handshake and the
+        // conversation by the request's wall deadline, and ends the request
+        // there (`rule:errors/on-limit`).
         deadline: Instant::now()
-            + ctx.within_wall_time(super::bound_of(
+            + super::bound_of(
                 ctx,
                 args,
                 SOCKET_DEADLINE,
                 "deadline",
                 "http.client.deadline",
                 super::DEFAULT_DEADLINE,
-            )?),
+            )?,
         connect_timeout: super::bound_of(
             ctx,
             args,
@@ -553,14 +553,14 @@ fn connected(ctx: &mut Ctx, args: &[Value]) -> Result<(Option<String>, Value), F
             "http.client.idle",
             super::DEFAULT_IDLE,
         )?,
-        max_duration: ctx.within_wall_time(super::bound_of(
+        max_duration: super::bound_of(
             ctx,
             args,
             SOCKET_MAX_DURATION,
             "maxDuration",
             "http.client.max_duration",
             super::DEFAULT_MAX_DURATION,
-        )?),
+        )?,
         headers: super::headers_of(args, SOCKET_HEADERS, MEMBER)?,
         // The exchange half, as an upgrade spells it: no hop, one attempt, and
         // therefore no backoff and no key for a retry to carry.
@@ -602,8 +602,7 @@ fn connected(ctx: &mut Ctx, args: &[Value]) -> Result<(Option<String>, Value), F
     )?;
     let framing = tungstenite::protocol::WebSocketConfig::default()
         .max_message_size(Some(usize::try_from(cap).unwrap_or(usize::MAX)));
-    let upgraded = transport::upgrade(&call, &offers(args)?, framing)
-        .map_err(|fault| super::wall_or(ctx, fault))?;
+    let upgraded = transport::upgrade(&call, &offers(args)?, framing)?;
     super::traced(ctx, &call);
     let protocol = upgraded.protocol.clone();
     let open = Open {

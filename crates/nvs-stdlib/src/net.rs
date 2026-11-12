@@ -1245,16 +1245,19 @@ fn port_of(args: &[Value], at: usize, member: &str, zero: bool) -> Result<u16, F
 /// spelling for waiting forever, and reading a negative bound as "no bound"
 /// would be one.
 ///
+/// The bound is the member's own. The scheduler bounds the park under it by the
+/// request's wall deadline, and ends the request there (`rule:errors/on-limit`).
+///
 /// # Errors
 ///
 /// [`crate::time::nanos_of`]'s fatal for a wrongly-tagged argument, and a
 /// catchable `RuntimeError` for a bound that is not a positive length of time.
-fn within(ctx: &Ctx, args: &[Value], at: usize, member: &str) -> Result<Duration, Fault> {
+fn within(args: &[Value], at: usize, member: &str) -> Result<Duration, Fault> {
     let nanos = crate::time::nanos_of(args, at, member)?;
     u64::try_from(nanos)
         .ok()
         .filter(|nanos| *nanos > 0)
-        .map(|nanos| ctx.within_wall_time(Duration::from_nanos(nanos)))
+        .map(Duration::from_nanos)
         .ok_or_else(|| {
             Fault::thrown(format!(
                 "{member}: a bound must be a positive length of time"
@@ -1382,14 +1385,6 @@ fn failed(member: &str, err: &std::io::Error) -> Fault {
     Fault::thrown_as(ThrownClass::Io, format!("{member} failed: {err}"))
 }
 
-/// [`failed`] for a wait [`within`] bounded, unless the request's wall time
-/// ran out: a wait that ended at the request's deadline stops the request with
-/// the limit's `FATAL` (`Ctx::wall_time_fault`), and never with a catchable
-/// `TimeoutError` the program could swallow and wait again.
-fn waited(ctx: &mut Ctx, member: &str, err: &std::io::Error) -> Fault {
-    ctx.wall_time_fault().unwrap_or_else(|| failed(member, err))
-}
-
 /// Files `socket` against the request and builds the handle that names it.
 ///
 /// The socket is filed *before* the object exists, so a failure between the two
@@ -1422,10 +1417,10 @@ nvs_runtime::nvs_helper! {
 
         let host = text(&args[0], MEMBER, "host")?;
         let port = port_of(args, 1, MEMBER, false)?;
-        let bound = within(ctx, args, 2, MEMBER)?;
+        let bound = within(args,2, MEMBER)?;
         let address = nvs_runtime::capability::pin_host(ctx, host, MEMBER)?;
         let socket = NvsTcp::connect_timeout(SocketAddr::new(address, port), bound)
-            .map_err(|err| waited(ctx, MEMBER, &err))?;
+            .map_err(|err| failed(MEMBER, &err))?;
         Ok(handle(ctx, &STREAM, Box::new(Connected::Tcp(socket))))
     }
 }
@@ -1493,15 +1488,14 @@ nvs_runtime::nvs_helper! {
         const MEMBER: &str = r"Core\Net::connectLocal";
 
         let path = text(&args[0], MEMBER, "path")?;
-        let bound = within(ctx, args, 1, MEMBER)?;
+        let bound = within(args,1, MEMBER)?;
         nvs_runtime::capability::require(
             ctx,
             Cap::NetLocal,
             Scope::Path(std::path::Path::new(path)),
             MEMBER,
         )?;
-        let socket = local_connection(path, bound, MEMBER)
-            .map_err(|fault| ctx.wall_time_fault().unwrap_or(fault))?;
+        let socket = local_connection(path, bound, MEMBER)?;
         Ok(handle(ctx, &STREAM, Box::new(socket)))
     }
 }
@@ -1633,14 +1627,14 @@ nvs_runtime::nvs_helper! {
                 args[1].tag_byte()
             ))
         })?;
-        let bound = within(ctx, args, 2, MEMBER)?;
+        let bound = within(args,2, MEMBER)?;
         let wanted = usize::try_from(max.min(READ_CEILING)).unwrap_or(0);
         let stream = stream_of(ctx, key, "read")?;
         let mut buffer = vec![0u8; wanted];
         stream.set_deadline(Some(Instant::now() + bound));
         let outcome = stream.read(&mut buffer);
         stream.set_deadline(None);
-        let read = outcome.map_err(|err| waited(ctx, MEMBER, &err))?;
+        let read = outcome.map_err(|err| failed(MEMBER, &err))?;
         Ok(Value::bytes(NvsStr::new(&buffer[..read])))
     }
 }
@@ -1666,12 +1660,12 @@ nvs_runtime::nvs_helper! {
                 args[1].tag_byte()
             ))
         })?;
-        let bound = within(ctx, args, 2, MEMBER)?;
+        let bound = within(args,2, MEMBER)?;
         let stream = stream_of(ctx, key, "write")?;
         stream.set_deadline(Some(Instant::now() + bound));
         let outcome = stream.write(payload);
         stream.set_deadline(None);
-        let written = outcome.map_err(|err| waited(ctx, MEMBER, &err))?;
+        let written = outcome.map_err(|err| failed(MEMBER, &err))?;
         Ok(Value::uint(written as u64))
     }
 }
@@ -1715,12 +1709,12 @@ nvs_runtime::nvs_helper! {
         const MEMBER: &str = r"Core\Net\Listener::accept";
 
         let key = key_of(args[0], &LISTENER, "accept")?;
-        let bound = within(ctx, args, 1, MEMBER)?;
+        let bound = within(args,1, MEMBER)?;
         let listener = listener_of(ctx, key, "accept")?;
         listener.set_deadline(Some(Instant::now() + bound));
         let outcome = listener.accept();
         listener.set_deadline(None);
-        let socket = outcome.map_err(|err| waited(ctx, MEMBER, &err))?;
+        let socket = outcome.map_err(|err| failed(MEMBER, &err))?;
         Ok(handle(ctx, &STREAM, Box::new(socket)))
     }
 }
@@ -1836,14 +1830,14 @@ nvs_runtime::nvs_helper! {
                 args[3].tag_byte()
             ))
         })?;
-        let bound = within(ctx, args, 4, MEMBER)?;
+        let bound = within(args,4, MEMBER)?;
         let address = nvs_runtime::capability::pin_host(ctx, host, MEMBER)?;
         let target = SocketAddr::new(address, port);
         let socket = datagram_of(ctx, key, "send")?;
         socket.set_deadline(Some(Instant::now() + bound));
         let outcome = socket.send_to(payload, target);
         socket.set_deadline(None);
-        let sent = outcome.map_err(|err| waited(ctx, MEMBER, &err))?;
+        let sent = outcome.map_err(|err| failed(MEMBER, &err))?;
         Ok(Value::uint(sent as u64))
     }
 }
@@ -1885,7 +1879,7 @@ nvs_runtime::nvs_helper! {
                 args[1].tag_byte()
             ))
         })?;
-        let bound = within(ctx, args, 2, MEMBER)?;
+        let bound = within(args,2, MEMBER)?;
         let wanted = usize::try_from(max)
             .unwrap_or(DATAGRAM_CEILING)
             .min(DATAGRAM_CEILING);
@@ -1894,7 +1888,7 @@ nvs_runtime::nvs_helper! {
         socket.set_deadline(Some(Instant::now() + bound));
         let outcome = socket.recv_from(&mut buffer);
         socket.set_deadline(None);
-        let (read, from) = outcome.map_err(|err| waited(ctx, MEMBER, &err))?;
+        let (read, from) = outcome.map_err(|err| failed(MEMBER, &err))?;
         let kept = read.min(wanted);
         let sender = from.ip().to_string();
         Ok(crate::instance::build(

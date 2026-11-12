@@ -342,23 +342,27 @@ pub(super) fn retry_backoff(taken: u32) -> std::time::Duration {
 /// `rule:http-server/a-core-is-never-blocked-on-a-syscall`
 /// 's tier-B failure to have as its victim.
 ///
-/// The wait ends at the request's wall deadline if that is sooner, by
-/// `rule:http-server/time-is-bounded-inside-a-helper`.
+/// The scheduler's park funnel ends the sleep at the request's wall deadline,
+/// by `rule:http-server/time-is-bounded-inside-a-helper`, and answers
+/// `Cancelled` there.
 ///
 /// # Errors
 ///
 /// [`nvs_runtime::Ctx::cancel`]'s status for a task cancelled mid-wait, which
-/// no `catch` sees, and the wall-time `FATAL` for a wait that ended at the
-/// wall deadline. The attempt this waits after was already rolled back by the
-/// conflict that ended it, so there is nothing left open to close.
+/// no `catch` sees; a sleep the wall deadline ended is one, and the member
+/// entry reports it as the wall-time `FATAL`. The attempt this waits after was
+/// already rolled back by the conflict that ended it, so there is nothing left
+/// open to close.
 pub(super) fn wait_between_attempts(ctx: &mut nvs_runtime::Ctx, taken: u32) -> Result<(), Fault> {
-    let waited = ctx.within_wall_time(retry_backoff(taken));
+    let waited = retry_backoff(taken);
     match nvs_runtime::host::with_current(|host| host.sleep(waited)) {
-        Some(nvs_runtime::host::Woken::Cancelled) => return Err(ctx.cancel()),
-        Some(nvs_runtime::host::Woken::Elapsed) => {}
-        None => std::thread::sleep(waited),
+        Some(nvs_runtime::host::Woken::Cancelled) => Err(ctx.cancel()),
+        Some(nvs_runtime::host::Woken::Elapsed) => Ok(()),
+        None => {
+            std::thread::sleep(waited);
+            Ok(())
+        }
     }
-    ctx.wall_time_fault().map_or(Ok(()), Err)
 }
 
 /// The whole transaction, from the `BEGIN` to the answer, over a connection

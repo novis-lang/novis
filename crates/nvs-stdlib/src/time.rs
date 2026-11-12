@@ -3731,22 +3731,16 @@ nvs_runtime::nvs_helper! {
     /// than when a long sleep ends (`rule:concurrency/a-drain-closes-a-connection-cleanly`).
     ///
     /// **A sleep that would end past the request's `[limits] wall_time` ends at
-    /// it**, and the request stops there with the limit's `FATAL`
-    /// (`rule:errors/on-limit`). A parked task reaches no safepoint poll, so the
-    /// flag that stops a running one cannot stop this one.
+    /// it**: the scheduler bounds the park by the request's wall deadline,
+    /// answers [`Woken::Cancelled`], and stops the request with the limit's
+    /// `FATAL` (`rule:errors/on-limit`).
     fn nvs_core_time_sleep(ctx, args: [1]) {
         let nanos = nanos_of(args, 0, "sleep")?;
         if nanos > 0 {
-            let asked = std::time::Duration::from_nanos(nanos.unsigned_abs());
-            let duration = ctx
-                .wall_time_left()
-                .map_or(asked, |left| asked.min(left));
+            let duration = std::time::Duration::from_nanos(nanos.unsigned_abs());
             match nvs_runtime::peer::sleep(ctx, duration) {
                 Woken::Cancelled => return Err(ctx.cancel()),
                 Woken::Elapsed => {}
-            }
-            if ctx.wall_time_left() == Some(std::time::Duration::ZERO) {
-                return Err(ctx.wall_time_breach());
             }
         }
         Ok(Value::null())

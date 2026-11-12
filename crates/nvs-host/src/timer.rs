@@ -364,7 +364,7 @@ fn wait_until_as(at: Instant, waiting: Waiting) -> Woken {
 mod tests {
     use super::*;
     use crate::reactor::{Reactor, install, run_until_idle, with_current};
-    use crate::scheduler::{PastWallTime, Scheduler, Wake, Waiting, suspend_current};
+    use crate::scheduler::{PastWallTime, Scheduler, Waiting, Wake, suspend_current};
     use nvs_runtime::{Ctx, OutputSink, SafepointFlags, TaskRoot};
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -747,7 +747,10 @@ mod tests {
             "a park past the wall deadline was not ended"
         );
         assert!(view.flags().contains(SafepointFlags::WALL_TIME));
-        assert!(view.wall_time_stopped(), "the funnel did not claim the stop");
+        assert!(
+            view.wall_time_stopped(),
+            "the funnel did not claim the stop"
+        );
         assert_eq!(with_current(|reactor| reactor.timers().len()), Some(0));
     }
 
@@ -774,7 +777,10 @@ mod tests {
             *waiter.borrow_mut() = Wake::current();
             with_current(|reactor| reactor.timers().arm(me, own));
             let woken = suspend_current(Waiting::Parked);
-            assert!(!woken.cancelled(), "a wake before the bound ended the request");
+            assert!(
+                !woken.cancelled(),
+                "a wake before the bound ended the request"
+            );
             *read_back.borrow_mut() =
                 with_current(|reactor| reactor.timers().armed_for(me)).flatten();
             with_current(|reactor| reactor.timers().disarm(me));
@@ -799,7 +805,11 @@ mod tests {
             Some((1, Some(wall))),
             "the park did not wait on the wall deadline alone"
         );
-        assert_eq!(*restored.borrow(), Some(own), "the site's entry was not put back");
+        assert_eq!(
+            *restored.borrow(),
+            Some(own),
+            "the site's entry was not put back"
+        );
         assert_eq!(with_current(|reactor| reactor.timers().len()), Some(0));
     }
 
@@ -834,8 +844,16 @@ mod tests {
         });
 
         run_until_idle(&mut sched).expect("the loop failed");
-        assert_eq!(*answer.borrow(), Some((true, false)), "the named wait was ended");
-        assert_eq!(*parked.borrow(), Some(0), "the named wait was given a bound");
+        assert_eq!(
+            *answer.borrow(),
+            Some((true, false)),
+            "the named wait was ended"
+        );
+        assert_eq!(
+            *parked.borrow(),
+            Some(0),
+            "the named wait was given a bound"
+        );
         assert!(!view.flags().contains(SafepointFlags::WALL_TIME));
     }
 
@@ -866,6 +884,10 @@ mod tests {
 
         run_until_idle(&mut sched).expect("the loop failed");
         assert_eq!(*answer.borrow(), Some(false));
-        assert_eq!(*parked.borrow(), Some(0), "a park with no bound filed a timer");
+        assert_eq!(
+            *parked.borrow(),
+            Some(0),
+            "a park with no bound filed a timer"
+        );
     }
 }

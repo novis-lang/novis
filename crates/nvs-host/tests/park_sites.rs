@@ -1,5 +1,6 @@
 //! Every wait that outlives a request's `wall_time` says why, at a site listed
-//! for that reason, and only the one funnel suspends a task.
+//! for that reason, only the one funnel suspends a task, and no member clamps
+//! its own wait to the wall deadline.
 //!
 //! `rule:errors/on-limit` ends a request's wait at its wall deadline, and
 //! `rule:concurrency/the-parking-contract` puts that bound in the one funnel
@@ -165,6 +166,48 @@ fn only_the_funnel_suspends_a_task() {
     assert_eq!(
         in_funnel, 1,
         "`yield_on` suspends the task's yielder exactly once"
+    );
+}
+
+/// The names a member once used to clamp its own wait to the wall deadline.
+/// The funnel is the one bound, so each is gone, and a second layer would hide
+/// a missing first one (`rule:errors/on-limit`).
+const HAND_CLAMPS: &[&str] = &[
+    "within_wall_time(",
+    "wall_clamp(",
+    "wall_time_fault(",
+    "wall_time_left(",
+    "wall_bound(",
+    "within_wall(",
+    "wall_or(",
+    "set_wall(",
+    "send_by(",
+];
+
+#[test]
+fn no_member_clamps_its_wait_to_the_wall_deadline_by_hand() {
+    let crates = crates_dir();
+    let mut offences = Vec::new();
+    for (file, lines) in code_of_every_crate(&crates) {
+        for (number, code) in &lines {
+            for name in HAND_CLAMPS {
+                let named = code.match_indices(name).any(|(at, _)| {
+                    !code[..at]
+                        .chars()
+                        .next_back()
+                        .is_some_and(|c| c.is_alphanumeric() || c == '_')
+                });
+                if named {
+                    offences.push(format!("crates/{file}:{number}: `{name}`"));
+                }
+            }
+        }
+    }
+    assert!(
+        offences.is_empty(),
+        "a member clamps its wait to the wall deadline by hand:\n  {}\nThe scheduler's funnel \
+         ends every park at the wall deadline. Work off the core reads `off_core_deadline`.",
+        offences.join("\n  ")
     );
 }
 

@@ -585,16 +585,6 @@ pub trait PeerSocket: std::fmt::Debug {
     fn wake_at_drain(&mut self) -> Option<crate::drain::DrainWake> {
         None
     }
-
-    /// Files the request's wall deadline, `None` for a request with none.
-    /// Every wait the socket arms after this ends at that instant at the
-    /// latest, and a wait that ends there is an error and never a close, so
-    /// the caller can give the wall-time `FATAL`
-    /// (`rule:http-server/time-is-bounded-inside-a-helper`). The provided body
-    /// files nothing, which is right for a socket whose waits never park.
-    fn set_wall(&mut self, at: Option<std::time::Instant>) {
-        let _ = at;
-    }
 }
 
 /// `Core\Time::sleep` inside a connection isolate: parks for `duration`, or

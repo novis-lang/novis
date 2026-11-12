@@ -362,11 +362,15 @@ impl Ctx {
     /// ([`crate::budget::ArmedStack`]), so what is saved is nothing, and the
     /// context's drop puts nothing back. On the tree's root core the task's
     /// turns are the tree's from here, so the baseline and the ceiling are
-    /// read in the tree's units. The memory mark starts here.
+    /// read in the tree's units. Off it, the tree still bounds the task's
+    /// parks at its wall deadline ([`crate::budget::ArmedStack::bound`]). The
+    /// memory mark starts here.
     pub fn arm_on_this_stack(&mut self) {
         if self.memory_off_stack {
             if self.on_root_core {
                 crate::budget::begin_turn(&self.tree);
+            } else {
+                crate::budget::bound_by(&self.tree);
             }
             self.swap_arming();
             self.memory_peak_saved = crate::budget::rebase_peak();
@@ -1041,55 +1045,17 @@ impl Ctx {
         }
     }
 
-    /// How long this request has left before its `[limits] wall_time` runs
-    /// out, or `None` for a request with none. `Some(ZERO)` once it has.
+    /// The request's wall deadline, or `None` for a request with none: the
+    /// instant a member hands to work that runs off the core, such as a job
+    /// on the blocking pool or a lookup on another thread.
     ///
-    /// Counted from the start of the request this context's tree answers, so a
-    /// `spawn script` child reads its request's time and not its own.
-    /// `Core\Time::sleep` is the reader: a parked task reaches no poll, so a
-    /// sleep that would end past the deadline ends at it instead.
+    /// A wait that parks on the core needs none of this: the scheduler ends
+    /// every park at the request's wall deadline (`rule:errors/on-limit`).
+    /// Work off the core is never parked there, so it carries its own instant.
+    /// One load, and no clock read.
     #[must_use]
-    pub fn wall_time_left(&self) -> Option<std::time::Duration> {
-        self.tree
-            .wall_deadline()
-            .map(|at| at.saturating_duration_since(std::time::Instant::now()))
-    }
-
-    /// `asked`, or the time this request has left if that is shorter — the
-    /// bound a member's blocking wait takes, by
-    /// `rule:http-server/time-is-bounded-inside-a-helper`. A parked task
-    /// reaches no safepoint poll, so its wait is the only thing that can end
-    /// it at the request's `[limits] wall_time`. One clock read.
-    #[must_use]
-    pub fn within_wall_time(&self, asked: std::time::Duration) -> std::time::Duration {
-        self.wall_time_left().map_or(asked, |left| asked.min(left))
-    }
-
-    /// The instant a member's wait with no bound of its own ends at: the
-    /// request's wall deadline, or `None` for a request with none.
-    #[must_use]
-    pub fn wall_bound(&self) -> Option<std::time::Instant> {
+    pub fn off_core_deadline(&self) -> Option<std::time::Instant> {
         self.tree.wall_deadline()
-    }
-
-    /// The earlier of `at` and the request's wall deadline, or whichever of the
-    /// two there is: the instant a member's wait with a deadline of its own
-    /// ends at. One load, and no clock read.
-    #[must_use]
-    pub fn wall_clamp(&self, at: Option<std::time::Instant>) -> Option<std::time::Instant> {
-        match (at, self.wall_bound()) {
-            (Some(own), Some(wall)) => Some(own.min(wall)),
-            (own, wall) => own.or(wall),
-        }
-    }
-
-    /// [`Self::wall_time_breach`]'s fault once the request's wall time has run
-    /// out, and `None` before. A member reads it where a wait it bounded with
-    /// [`Self::within_wall_time`] or [`Self::wall_bound`] failed, so a wait
-    /// that ended at the deadline stops the request with the limit's `FATAL`
-    /// and never with the member's own catchable timeout.
-    pub fn wall_time_fault(&mut self) -> Option<crate::Fault> {
-        (self.wall_time_left() == Some(std::time::Duration::ZERO)).then(|| self.wall_time_breach())
     }
 
     /// How [`Self::wall_time_message`] starts, so `nvs test` can tell a test stopped at its
@@ -1819,7 +1785,11 @@ mod tests {
         assert!(slice_end < wall);
         let parked = crate::budget::ArmedStack::take();
         assert_eq!(parked.bound(), Some(slice_end), "a park inside the handler");
-        assert_eq!(crate::budget::turn_bound(), None, "the stack is off the thread");
+        assert_eq!(
+            crate::budget::turn_bound(),
+            None,
+            "the stack is off the thread"
+        );
         parked.stop_at_bound();
         assert!(ctx.safepoint_flags().contains(SafepointFlags::WALL_TIME));
         assert!(

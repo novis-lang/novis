@@ -5006,11 +5006,11 @@ pub(crate) mod tests {
     /// `[limits] wall_time` does not bound the connection it upgraded**, on
     /// either door.
     ///
-    /// The connection reports the wall deadline its waits are bounded by
-    /// ([`Ctx::wall_bound`]), which is what `Core\Socket::receive`, a topic
-    /// wait and `Core\Time::sleep` read. It was the upgrading request's
-    /// deadline once, and every event stream under a `wall_time` closed at it
-    /// and reconnected. Beside it the connection reports the `wall_time` its
+    /// The connection reports whether its tree has a wall deadline
+    /// ([`Ctx::off_core_deadline`]), which is what the scheduler bounds
+    /// `Core\Socket::receive`, a topic wait and `Core\Time::sleep` by. With
+    /// one, every event stream under a `wall_time` would close at it and
+    /// reconnect. Beside it the connection reports the `wall_time` its
     /// configuration states, so the case cannot pass on a fixture whose
     /// setting never arrived.
     #[test]
@@ -5020,7 +5020,10 @@ pub(crate) mod tests {
                 .config()
                 .and_then(|config| config.get("wall_time"))
                 .unwrap_or_default();
-            format!("wall_time {written}, bound {}", conn.wall_bound().is_some())
+            format!(
+                "wall_time {written}, bound {}",
+                conn.off_core_deadline().is_some()
+            )
         }
 
         for door in [Door::Socket, Door::Sse] {
@@ -5819,94 +5822,6 @@ pub(crate) mod tests {
             said.iter().any(|line| line == "connection the loop ended"),
             "the close reached the peer without `receive` returning \
              `null`: {said:?}"
-        );
-    }
-
-    /// A `receive` from a peer that never sends ends at the request's wall
-    /// deadline, filed by `set_wall`, and ends as an error: the member turns
-    /// that error into the wall-time `FATAL`. An idle close, `null`, would let
-    /// the program loop and wait again. The idle window is the shipped five
-    /// minutes, so a wait the wall deadline did not cap fails by the clock.
-    #[test]
-    fn a_receive_from_a_silent_peer_ends_at_the_wall_deadline_as_an_error() {
-        fn wait_past_the_wall(conn: &mut Ctx) -> String {
-            let Some(peer) = conn.peer() else {
-                return "no peer".to_owned();
-            };
-            peer.set_wall(Some(Instant::now() + Duration::from_millis(50)));
-            let began = Instant::now();
-            let got = peer.receive();
-            let took = began.elapsed();
-            match got {
-                Ok(Some(_)) => "a frame arrived".to_owned(),
-                Ok(None) => "the loop ended".to_owned(),
-                Err(_) if took < HANG_GUARD => "receive failed in time".to_owned(),
-                Err(error) => format!("receive failed after {took:?}: {error}"),
-            }
-        }
-
-        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
-            .expect("the OS refused a port");
-        let addr = listener
-            .local_addr()
-            .expect("a bound listener had no address");
-
-        let client = std::thread::spawn(move || {
-            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
-            socket
-                .set_read_timeout(Some(CLIENT_PATIENCE))
-                .expect("the socket refused a read timeout");
-            socket
-                .write_all(upgrade_request("/chat").as_bytes())
-                .expect("the write failed");
-            let mut head = String::new();
-            read_until(&mut socket, "\r\n\r\n", &mut head);
-            let mut peer = tungstenite::protocol::WebSocket::from_raw_socket(
-                socket,
-                tungstenite::protocol::Role::Client,
-                None,
-            );
-            // Nothing is sent. The read ends when the program's connection ends.
-            drop(peer.read());
-            end_the_loop(addr);
-            head
-        });
-
-        let said = Rc::new(RefCell::new(Vec::new()));
-        let handler_said = Rc::clone(&said);
-        let mut sched = nvs_host::Scheduler::new();
-        let _installed =
-            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
-        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
-            let handler = upgrade_leaving(
-                Door::Socket,
-                String::new(),
-                handler_said,
-                wait_past_the_wall,
-            );
-            serve_on_this_core(
-                &mut listener,
-                &handler,
-                Waits::default(),
-                &wide_open(),
-                &Draining::detached(),
-                |_note| {},
-                until_the_loop_is_ended(),
-            )
-            .expect("the accept loop failed");
-        });
-        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
-        let head = client.join().expect("the client thread panicked");
-
-        assert!(
-            head.contains("101 Switching Protocols"),
-            "the peer was not answered RFC 6455's handshake: {head}"
-        );
-        let said = said.borrow();
-        assert!(
-            said.iter()
-                .any(|line| line == "connection receive failed in time"),
-            "a wait past the wall deadline did not end as an error in time: {said:?}"
         );
     }
 
