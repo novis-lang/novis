@@ -1132,6 +1132,31 @@ impl TreeState {
         );
     }
 
+    /// What this tree asks of a loop that has not parked for a while, read at
+    /// `now`: [`crate::budget::BusyAsks`]. A raised `WALL_TIME` or `CPU_LIMIT`
+    /// is a stop. A passed [`Self::park_bound`] is a stop too, claimed as the
+    /// park funnel claims it. A raised `YIELD` is lowered and answered, as the
+    /// compiled poll lowers it before it gives the core back.
+    pub(crate) fn asks_of_a_busy_loop(&self, now: std::time::Instant) -> crate::budget::BusyAsks {
+        let word =
+            SafepointFlags::from_bits_retain(self.word.load(std::sync::atomic::Ordering::Relaxed));
+        if word.intersects(SafepointFlags::WALL_TIME | SafepointFlags::CPU_LIMIT) {
+            return crate::budget::BusyAsks::Stop;
+        }
+        if self.park_bound().is_some_and(|at| now >= at) {
+            self.stop_past_park_bound();
+            return crate::budget::BusyAsks::Stop;
+        }
+        if word.contains(SafepointFlags::YIELD) {
+            self.word.fetch_and(
+                !SafepointFlags::YIELD.bits(),
+                std::sync::atomic::Ordering::Relaxed,
+            );
+            return crate::budget::BusyAsks::Yield;
+        }
+        crate::budget::BusyAsks::Nothing
+    }
+
     /// Opens a wall-time slice `reserve` nanoseconds long, starting now, and
     /// wakes whoever waits on the wall deadline, so `nvs run`'s clock reads where
     /// the slice ends. A `reserve` of `0` opens nothing.

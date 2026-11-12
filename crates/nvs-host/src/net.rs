@@ -222,7 +222,24 @@ pub struct NvsStream<S: Source> {
     /// flight, or `None` for a stream nothing cuts short —
     /// [`Self::cut_at_drain`] and [`Self::cut_once`] share it.
     cut: Option<Arc<AtomicBool>>,
+    /// How many reads and writes returned bytes since this stream last
+    /// parked. At [`STREAK`] the next call checks its bound first
+    /// ([`Self::check_streak`]).
+    ///
+    /// A peer that keeps bytes arriving never makes a read park, so no park
+    /// bound and no deadline would ever be read. This count is where such a
+    /// loop meets them, whichever protocol loop is reading
+    /// (`rule:http-server/time-is-bounded-inside-a-helper`). **What it
+    /// spends:** one byte per stream and one add per read or write.
+    streak: u8,
 }
+
+/// How many reads and writes that did not park a stream makes before it
+/// checks its bound: its deadline, its tree's stop and the slice clock.
+///
+/// Sixteen keeps the check's clock read off every read of a fast peer, and
+/// still ends a read loop that never parks within sixteen reads of its bound.
+pub const STREAK: u8 = 16;
 
 /// The parking stream over TCP — what an accept loop on a listening port and
 /// what [`NvsTcp::connect`] hand back.
@@ -248,6 +265,7 @@ impl<S: Source> NvsStream<S> {
             timed: None,
             quiet: None,
             cut: None,
+            streak: 0,
         }
     }
 
@@ -1432,6 +1450,7 @@ impl<S: Source> NvsStream<S> {
     /// ended: `timer.rs` holds one entry per task that is currently waiting on
     /// one, and a task woken by readiness is no longer that task.
     fn wait_until_ready(&mut self, interest: Interest) -> io::Result<()> {
+        self.streak = 0;
         let deadline = self.deadline;
         if deadline.is_some_and(|at| Instant::now() >= at) {
             // Nothing to wait for: the budget was already spent by an earlier
@@ -1609,10 +1628,17 @@ impl<S: Source> NvsStream<S> {
     /// The readiness bit a short read leaves: the event count, when this
     /// stream is registered for reading under the running task, and `None`
     /// otherwise, which keeps the next read's system call.
+    ///
+    /// A hang-up that came in the same event as the bytes raises no later
+    /// event, so after one the next read keeps its system call and reads the
+    /// end of the stream ([`Reactor::hung_up`]).
     #[cfg(unix)]
     fn quiet_after_a_short_read(&self) -> Option<u32> {
         let me = current_task()?;
         if self.registered != Some((me, Interest::READABLE)) {
+            return None;
+        }
+        if reactor::with_current(|reactor| reactor.hung_up(me)).unwrap_or(true) {
             return None;
         }
         self.readiness_events()
@@ -1680,6 +1706,7 @@ impl<S: Source> NvsStream<S> {
     /// nothing is going to unpark, so the wait happens here on the descriptor's
     /// own poll and the caller goes back round its retry loop.
     fn arm_only(&mut self, interest: Interest) -> io::Result<bool> {
+        self.streak = 0;
         let deadline = self.deadline;
         if deadline.is_some_and(|at| Instant::now() >= at) {
             return Err(timed_out());
@@ -1703,6 +1730,57 @@ impl<S: Source> NvsStream<S> {
         }
         self.block_until_ready(interest, deadline)?;
         Ok(false)
+    }
+
+    /// Counts one read or write that returned bytes, and checks this stream's
+    /// bound once [`STREAK`] of them came with no park in between.
+    ///
+    /// Called before the system call, so the bytes of a read that ends here
+    /// stay in the socket.
+    fn before_a_busy_call(&mut self) -> io::Result<()> {
+        if self.streak < STREAK {
+            return Ok(());
+        }
+        self.streak = 0;
+        self.check_streak()
+    }
+
+    /// The check a stream that has not parked for [`STREAK`] calls makes.
+    ///
+    /// A passed deadline, and a tree stopped for its wall time or its CPU time,
+    /// end the call with `TimedOut`, the error a wait past its deadline gives.
+    /// When the slice clock asks, the task gives the core back and goes on.
+    /// One thread-local read, one load and one clock read
+    /// (`rule:http-server/time-is-bounded-inside-a-helper`).
+    fn check_streak(&mut self) -> io::Result<()> {
+        #[cfg(debug_assertions)]
+        crate::counts::streak_check();
+        let now = Instant::now();
+        if self.deadline.is_some_and(|at| now >= at) {
+            return Err(timed_out());
+        }
+        match nvs_runtime::budget::busy_asks(now) {
+            nvs_runtime::budget::BusyAsks::Nothing => Ok(()),
+            nvs_runtime::budget::BusyAsks::Stop => Err(timed_out()),
+            nvs_runtime::budget::BusyAsks::Yield => {
+                if current_task().is_some() && suspend_current(Waiting::Yielded).cancelled() {
+                    // A yield past the park bound ends this way, and so does a
+                    // cancellation. Both end the call, as a park's does.
+                    return Err(io::Error::new(
+                        io::ErrorKind::ConnectionAborted,
+                        "the task was cancelled",
+                    ));
+                }
+                Ok(())
+            }
+        }
+    }
+
+    /// Counts a call that returned `moved` bytes toward [`Self::streak`].
+    fn count_busy(&mut self, moved: usize) {
+        if moved > 0 {
+            self.streak = self.streak.saturating_add(1);
+        }
     }
 
     /// Drops the reactor-side registration, if this stream holds one.
@@ -1802,9 +1880,13 @@ impl<S: Source + Read> Read for NvsStream<S> {
         // This path parks rather than answering `Pending`, so it keeps no
         // readiness bit, and a read here makes the bit stale.
         self.quiet = None;
+        self.before_a_busy_call()?;
         loop {
             match self.inner.read(buf) {
-                Ok(read) => return Ok(read),
+                Ok(read) => {
+                    self.count_busy(read);
+                    return Ok(read);
+                }
                 Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
                     #[cfg(debug_assertions)]
                     crate::counts::would_block_read();
@@ -1820,9 +1902,13 @@ impl<S: Source + Read> Read for NvsStream<S> {
 impl<S: Source + Write> Write for NvsStream<S> {
     /// The same three steps as [`Read::read`], on the other interest.
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.before_a_busy_call()?;
         loop {
             match self.inner.write(buf) {
-                Ok(written) => return Ok(written),
+                Ok(written) => {
+                    self.count_busy(written);
+                    return Ok(written);
+                }
                 Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
                     self.wait_until_ready(Interest::WRITABLE)?;
                 }
@@ -3291,5 +3377,201 @@ mod tests {
         assert_eq!(kind.get(), Some(io::ErrorKind::ConnectionAborted));
         assert_eq!(with_current(|reactor| reactor.timers().len()), Some(0));
         drop(client);
+    }
+
+    /// A connected pair whose parking half already has `bytes` bytes waiting,
+    /// so no read of fewer bytes than that parks.
+    fn a_pair_with_bytes_waiting(bytes: usize) -> (NvsTcp, std::net::TcpStream) {
+        let (server, mut client) = connected_pair();
+        client
+            .write_all(&vec![7_u8; bytes])
+            .expect("the write failed");
+        let mut probe = vec![0_u8; bytes];
+        while !matches!(server.inner.peek(&mut probe), Ok(seen) if seen == bytes) {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        (server, client)
+    }
+
+    /// Reads `size` bytes at a time until a read fails, and gives how many
+    /// reads returned bytes and the kind of the error that ended them.
+    fn reads_until_an_error(stream: &mut NvsTcp, size: usize) -> (usize, io::ErrorKind) {
+        let mut buf = vec![0_u8; size];
+        let mut reads = 0;
+        loop {
+            match stream.read(&mut buf) {
+                Ok(0) => panic!("the peer closed before the bound ended the reads"),
+                Ok(_) => reads += 1,
+                Err(error) => return (reads, error.kind()),
+            }
+        }
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: a peer whose bytes
+    /// are always there makes no read park, so the passed deadline is read at
+    /// the streak check, after exactly [`STREAK`] reads at either size.
+    #[test]
+    fn a_stream_that_never_runs_dry_ends_at_its_deadline() {
+        for size in [1, 7] {
+            let (mut server, client) = a_pair_with_bytes_waiting(4096);
+            server.set_deadline(Some(Instant::now()));
+            assert_eq!(
+                reads_until_an_error(&mut server, size),
+                (usize::from(STREAK), io::ErrorKind::TimedOut),
+                "reads of {size} bytes did not end at the streak check"
+            );
+            drop(client);
+        }
+    }
+
+    /// The same bound, from the tree: a request stopped for its wall time or
+    /// its CPU time ends a read loop that never parks at the streak check.
+    #[test]
+    fn a_stream_that_never_runs_dry_ends_when_its_tree_is_stopped() {
+        use nvs_runtime::SafepointFlags;
+        for (stop, size) in [(SafepointFlags::WALL_TIME, 1), (SafepointFlags::CPU_LIMIT, 7)] {
+            let (mut server, client) = a_pair_with_bytes_waiting(4096);
+            let mut sched = Scheduler::new();
+            let _installed = install(Reactor::new().expect("the OS refused a poll"));
+            let ended = Rc::new(Cell::new(None));
+            let into = Rc::clone(&ended);
+            sched.spawn(ctx(), TaskRoot::Request, move |ctx| {
+                ctx.request_safepoint(stop);
+                into.set(Some(reads_until_an_error(&mut server, size)));
+            });
+            run_until_idle(&mut sched).expect("the loop failed");
+            assert_eq!(
+                ended.get(),
+                Some((usize::from(STREAK), io::ErrorKind::TimedOut)),
+                "a tree stopped by {stop:?} did not end reads of {size} bytes"
+            );
+            drop(client);
+        }
+    }
+
+    /// The slice clock's yield reaches a read loop that never parks: the task
+    /// waiting beside it runs at the streak check and at no read before it.
+    #[test]
+    fn a_stream_that_never_runs_dry_gives_the_core_to_a_waiting_task() {
+        for size in [1, 7] {
+            let (mut server, client) = a_pair_with_bytes_waiting(4096);
+            let mut sched = Scheduler::new();
+            let _installed = install(Reactor::new().expect("the OS refused a poll"));
+            let ran = Rc::new(Cell::new(false));
+            let seen = Rc::new(RefCell::new(Vec::new()));
+            let (asked, into) = (Rc::clone(&ran), Rc::clone(&seen));
+            sched.spawn(ctx(), TaskRoot::Request, move |ctx| {
+                ctx.request_safepoint(nvs_runtime::SafepointFlags::YIELD);
+                let mut buf = vec![0_u8; size];
+                for _ in 0..=STREAK {
+                    let read = server.read(&mut buf).expect("the read failed");
+                    assert!(read > 0, "the peer closed before the reads ended");
+                    into.borrow_mut().push(asked.get());
+                }
+            });
+            let neighbour = Rc::clone(&ran);
+            sched.spawn(ctx(), TaskRoot::Request, move |_ctx| neighbour.set(true));
+            run_until_idle(&mut sched).expect("the loop failed");
+            let mut want = vec![false; usize::from(STREAK)];
+            want.push(true);
+            assert_eq!(
+                *seen.borrow(),
+                want,
+                "reads of {size} bytes gave the core back at the wrong read"
+            );
+            drop(client);
+        }
+    }
+
+    /// A read that parks starts its streak again, so a peer that sends one
+    /// byte at a time costs no streak check, over 20 rounds or 40.
+    #[test]
+    fn a_read_that_parks_pays_no_streak_check() {
+        for rounds in [20_u32, 40] {
+            let (mut server, mut client) = connected_pair();
+            let mut sched = Scheduler::new();
+            let _installed = install(Reactor::new().expect("the OS refused a poll"));
+            let consumed = Rc::new(Cell::new(0_u32));
+            let spent = Rc::new(Cell::new(None));
+            // The writer parks with a wake the reader fires once it has read
+            // the byte. The reader's next read then runs before the writer
+            // writes again, so every read finds the socket empty and parks.
+            let writer_wake = Rc::new(RefCell::new(None::<crate::reactor::RemoteWake>));
+            let (read_count, write_wait, into) =
+                (Rc::clone(&consumed), Rc::clone(&consumed), Rc::clone(&spent));
+            let (wake_writer, park_writer) = (Rc::clone(&writer_wake), Rc::clone(&writer_wake));
+            sched.spawn(ctx(), TaskRoot::Request, move |_ctx| {
+                let before = crate::counts::Counts::now();
+                let mut buf = [0_u8; 1];
+                for _ in 0..rounds {
+                    assert_eq!(server.read(&mut buf).expect("the read failed"), 1);
+                    read_count.set(read_count.get() + 1);
+                    drop(wake_writer.borrow_mut().take());
+                }
+                into.set(Some(crate::counts::Counts::now().since(before)));
+            });
+            sched.spawn(ctx(), TaskRoot::Request, move |_ctx| {
+                for round in 1..=rounds {
+                    client.write_all(b"x").expect("the write failed");
+                    while write_wait.get() < round {
+                        let me = current_task().expect("the writer is a task");
+                        *park_writer.borrow_mut() =
+                            with_current(|reactor| reactor.remote_wake(me));
+                        let _ = suspend_current(Waiting::Parked);
+                    }
+                }
+            });
+            run_until_idle(&mut sched).expect("the loop failed");
+            let spent = spent.get().expect("the reader ended");
+            assert!(
+                spent.would_block_reads >= u64::from(rounds),
+                "a read found its byte without parking: {spent:?}"
+            );
+            assert_eq!(spent.streak_checks, 0, "{rounds} parked reads paid a streak check");
+        }
+    }
+
+    /// `rule:concurrency/try-the-syscall-then-park`: bytes and the peer's
+    /// hang-up that arrive in one event leave a short read, and the next read
+    /// still makes its system call and finds the end of the stream.
+    #[cfg(unix)]
+    #[test]
+    fn a_short_read_that_came_with_a_hang_up_reads_once_more() {
+        let (mut server, mut client) = connected_pair();
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        let seen = Rc::new(RefCell::new(Vec::new()));
+        let into = Rc::clone(&seen);
+        sched.spawn(ctx(), TaskRoot::Request, move |_ctx| {
+            let mut buf = [0_u8; 64];
+            assert!(
+                server.poll_read(&mut buf).is_pending(),
+                "an empty socket was readable"
+            );
+            client.write_all(b"hi").expect("the write failed");
+            client
+                .shutdown(std::net::Shutdown::Write)
+                .expect("the shutdown failed");
+            // Both are on the socket before the reactor polls, so one event
+            // reports them together.
+            let mut probe = [0_u8; 2];
+            while !matches!(server.inner.peek(&mut probe), Ok(2)) {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            let _ = suspend_current(Waiting::Parked);
+            for _ in 0..2 {
+                let answer = match server.poll_read(&mut buf) {
+                    Poll::Ready(Ok(read)) => Some(read),
+                    _ => None,
+                };
+                into.borrow_mut().push(answer);
+            }
+        });
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(
+            *seen.borrow(),
+            vec![Some(2), Some(0)],
+            "the read after the short one did not find the end of the stream"
+        );
     }
 }

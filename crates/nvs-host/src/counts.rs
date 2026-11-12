@@ -1,10 +1,11 @@
 //! Per-thread counts of the system calls a request's I/O makes, for tests in any crate.
 //!
-//! Two counts, each bumped where the call is made: a socket read that answered `WouldBlock`
-//! ([`crate::NvsStream`]'s `read` and `poll_read`), and a poke at a core's wake descriptor, the
+//! Three counts, each bumped where the work is done: a socket read that answered `WouldBlock`
+//! ([`crate::NvsStream`]'s `read` and `poll_read`), a poke at a core's wake descriptor, the
 //! `eventfd` write or its kqueue and completion-port counterparts ([`crate::RemoteWake`]'s
-//! delivery). `nvs-server`'s keep-alive count test reads them per request, and the bounds it asserts
-//! are what a change to either path has to keep or lower.
+//! delivery), and a streak check of a stream whose reads did not park ([`crate::NvsStream`]'s
+//! `read` and `write`). `nvs-server`'s keep-alive count test reads the first two per request, and
+//! the bounds it asserts are what a change to either path has to keep or lower.
 //!
 //! **Debug builds only.** The module exists under `debug_assertions` and nowhere else, so the release
 //! binary has no counter on its request path. A `cfg(test)` counter would be the usual shape, but a
@@ -22,13 +23,14 @@
 //! thread's tasks run on, which `nvs-cli`'s waiting-request test divides per request. Its list of
 //! live stacks is `crate::stack`'s, kept under the same `debug_assertions`.
 //!
-//! Memory: two `u64` per thread, and two words per live task stack, in debug builds.
+//! Memory: three `u64` per thread, and two words per live task stack, in debug builds.
 
 use std::cell::Cell;
 
 thread_local! {
     static WOULD_BLOCK_READS: Cell<u64> = const { Cell::new(0) };
     static WAKE_POKES: Cell<u64> = const { Cell::new(0) };
+    static STREAK_CHECKS: Cell<u64> = const { Cell::new(0) };
 }
 
 /// What this thread has counted since it started.
@@ -38,6 +40,8 @@ pub struct Counts {
     pub would_block_reads: u64,
     /// Pokes at a core's wake descriptor.
     pub wake_pokes: u64,
+    /// Streak checks of a stream whose reads and writes did not park.
+    pub streak_checks: u64,
 }
 
 impl Counts {
@@ -47,6 +51,7 @@ impl Counts {
         Self {
             would_block_reads: WOULD_BLOCK_READS.with(Cell::get),
             wake_pokes: WAKE_POKES.with(Cell::get),
+            streak_checks: STREAK_CHECKS.with(Cell::get),
         }
     }
 
@@ -56,6 +61,7 @@ impl Counts {
         Self {
             would_block_reads: self.would_block_reads - earlier.would_block_reads,
             wake_pokes: self.wake_pokes - earlier.wake_pokes,
+            streak_checks: self.streak_checks - earlier.streak_checks,
         }
     }
 }
@@ -85,4 +91,8 @@ pub(crate) fn would_block_read() {
 
 pub(crate) fn wake_poke() {
     WAKE_POKES.with(|count| count.set(count.get() + 1));
+}
+
+pub(crate) fn streak_check() {
+    STREAK_CHECKS.with(|count| count.set(count.get() + 1));
 }

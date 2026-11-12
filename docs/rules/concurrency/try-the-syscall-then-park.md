@@ -35,6 +35,14 @@ readiness is emulated over AFD polls, and a short read there does not show that 
 A read that fills its buffer, a read of none, and a read off a core keep the syscall. It spends
 nothing: the count is the one the `WouldBlock` already takes.
 
+**A hang-up keeps the syscall after a short read.** Bytes and the peer's hang-up that arrive
+together are one edge-triggered event, and no event follows to say the stream has ended. So the
+reactor sets a bit on the task's row when an event carries a read close or an error, and a short
+read does not clear the readiness bit while it is set. The next read finds the end. The bit is per
+task, so one descriptor's hang-up keeps the syscall for every stream of that task, which is the safe
+direction. What it spends: one branch per reported event and one byte per registered task, and
+nothing on a keep-alive read with no hang-up.
+
 **Declined:**
 - **A bit set by the event for the descriptor itself.** The token would have to name the stream,
   which is a second table beside the task ids for one failed `recv` saved per shared wake.

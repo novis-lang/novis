@@ -378,12 +378,14 @@ impl Drop for RemoteWake {
 ///
 /// `count` is a count rather than a set because one task may wait on more than
 /// one descriptor, and dropping the entry on the first `deregister` would lose
-/// the others. `events` is [`Reactor::readiness_events`]'s answer. What it
-/// spends: four bytes per registered task.
+/// the others. `events` is [`Reactor::readiness_events`]'s answer, and
+/// `hung_up` is [`Reactor::hung_up`]'s. What it spends: nine bytes per
+/// registered task.
 #[derive(Debug, Default, Clone, Copy)]
 struct Registered {
     count: u32,
     events: u32,
+    hung_up: bool,
 }
 
 /// The readiness source of one core.
@@ -606,6 +608,22 @@ impl Reactor {
         self.registrations.get(&id).map(|entry| entry.events)
     }
 
+    /// Whether an event this reactor reported for `id` carried a read close or
+    /// an error, since `id`'s entry was made.
+    ///
+    /// The reactor is edge-triggered, so bytes that came with the peer's
+    /// hang-up are one event, and no later event says the stream has ended.
+    /// [`crate::NvsStream`]'s short-read shortcut is not taken while this is
+    /// set, and the next read finds the end
+    /// (`rule:concurrency/try-the-syscall-then-park`). The bit is per task, so
+    /// one descriptor's hang-up keeps the system call for every stream of the
+    /// task: the safe direction. **What it spends:** one branch per reported
+    /// event, and nothing on a read with no hang-up.
+    #[must_use]
+    pub fn hung_up(&self, id: TaskId) -> bool {
+        self.registrations.get(&id).is_some_and(|entry| entry.hung_up)
+    }
+
     /// Issues a one-shot handle that wakes `id` from another thread.
     ///
     /// Take it **before** parking the task, exactly as a registration is taken
@@ -689,6 +707,9 @@ impl Reactor {
             // the count to decide whether its next read needs the system call.
             if let Some(entry) = self.registrations.get_mut(&id) {
                 entry.events = entry.events.wrapping_add(1);
+                if event.is_read_closed() || event.is_error() {
+                    entry.hung_up = true;
+                }
             }
             self.ready.push(id);
         }

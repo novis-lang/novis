@@ -8045,4 +8045,83 @@ mod tests {
         drop(read_or_poison(&mut closed, &state));
         assert!(!closed.stalled, "a peer that closed leaves no boundary");
     }
+
+    /// A parking stream that reads at most 64 bytes a call and counts the
+    /// reads that returned bytes.
+    struct CountedReads {
+        stream: nvs_host::net::NvsTcp,
+        reads: usize,
+    }
+
+    impl Read for CountedReads {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            let room = buf.len().min(64);
+            let read = self.stream.read(&mut buf[..room])?;
+            if read > 0 {
+                self.reads += 1;
+            }
+            Ok(read)
+        }
+    }
+
+    impl Write for CountedReads {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.stream.write(buf)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            self.stream.flush()
+        }
+    }
+
+    impl nvs_host::net::Deadline for CountedReads {
+        fn set_deadline(&mut self, at: Option<std::time::Instant>) {
+            self.stream.set_deadline(at);
+        }
+
+        fn deadline(&self) -> Option<std::time::Instant> {
+            self.stream.deadline()
+        }
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: a server that sends
+    /// notices and never the reply keeps every read of the statement's loop
+    /// busy, so no read parks. The passed deadline ends the loop at the
+    /// stream's streak check, after exactly sixteen reads.
+    #[test]
+    fn a_reply_of_endless_notices_ends_at_the_statement_deadline() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let client = std::net::TcpStream::connect(addr).expect("the loopback refused a connection");
+        let (mut server, _) = listener.accept().expect("the accept failed");
+
+        let notice = message(b'N', b"SNOTICE\0Mstill working\0\0");
+        // A burst first, so that the reads below find bytes waiting.
+        let burst = notice.repeat(4096 / notice.len() + 1);
+        server.write_all(&burst).expect("the burst was written");
+        let mut probe = vec![0_u8; burst.len()];
+        while !matches!(client.peek(&mut probe), Ok(seen) if seen == burst.len()) {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        // The server goes on sending notices until the client closes.
+        let peer = std::thread::spawn(move || while server.write_all(&notice).is_ok() {});
+
+        let stream =
+            nvs_host::net::NvsTcp::from_std(client).expect("the socket refused non-blocking mode");
+        let mut wire = Wire::new(CountedReads { stream, reads: 0 });
+        wire.set_deadline(Some(std::time::Instant::now()));
+        let state = Cell::new(State::Executing);
+        let stopped = drain_to_ready(&mut wire, &state)
+            .expect_err("a reply of endless notices ended without its deadline");
+        assert_eq!(stopped.kind(), io::ErrorKind::TimedOut);
+        assert_eq!(
+            wire.peer().reads,
+            usize::from(nvs_host::net::STREAK),
+            "the deadline was not read at the streak check"
+        );
+        drop(wire);
+        peer.join().expect("the scripted server ended");
+    }
 }

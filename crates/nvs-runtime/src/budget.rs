@@ -795,6 +795,28 @@ pub fn stop_turn_at_bound() {
     });
 }
 
+/// What the running stack's tree asks of a loop that has not parked for a
+/// while, such as a stream whose reads never block
+/// (`rule:http-server/time-is-bounded-inside-a-helper`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BusyAsks {
+    /// Go on: the tree is not stopped and no slice is over.
+    Nothing,
+    /// Give the core back: the slice clock raised `YIELD`, and this read lowered it.
+    Yield,
+    /// End the loop: the tree is stopped for `WALL_TIME` or `CPU_LIMIT`, or its
+    /// park bound has passed, which this read stopped it at.
+    Stop,
+}
+
+/// [`BusyAsks`] for the running stack, read at `now` from [`TURN`]'s tree,
+/// else [`BOUND`]'s, and [`BusyAsks::Nothing`] on a stack of no tree. One
+/// load for a tree with no `wall_time` and nothing raised.
+#[must_use]
+pub fn busy_asks(now: std::time::Instant) -> BusyAsks {
+    with_bounding_tree(|tree| tree.map_or(BusyAsks::Nothing, |tree| tree.asks_of_a_busy_loop(now)))
+}
+
 /// Runs `f` on the tree whose wall deadline bounds the running stack's parks:
 /// [`TURN`]'s, else [`BOUND`]'s.
 fn with_bounding_tree<R>(f: impl FnOnce(Option<&crate::TreeState>) -> R) -> R {
