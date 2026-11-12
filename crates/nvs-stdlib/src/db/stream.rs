@@ -245,7 +245,7 @@ fn postgres_step(
 ) -> Result<Stepped, Fault> {
     let read = postgres
         .stream_next_row()
-        .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+        .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, true, &refused))?;
     let Some(read) = read else {
         let taken = postgres.stream_span().and_then(|span| watch.taken(span));
         // The portal is already drained — `stream_next_row` read the
@@ -267,10 +267,10 @@ fn postgres_step(
     for (index, column) in columns.iter().enumerate() {
         let body = read
             .column(index)
-            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, true, &refused))?;
         let scalar = column
             .scalar(body)
-            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, true, &refused))?;
         let value = column_value(scalar, zone, STREAM_MEMBER, &column.name)?;
         one.set(NvsStr::new(column.name.as_bytes()), value);
     }
@@ -307,7 +307,7 @@ type Stepped = (Option<NvsArray>, Option<crate::db::span::Taken>);
 fn mysql_step(mut framed: Framed<'_>, block: &Value, watch: &QueryWatch) -> Result<Stepped, Fault> {
     let read = framed
         .stream_next_row()
-        .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+        .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, true, &refused))?;
     let Some(read) = read else {
         let taken = framed.stream_span().and_then(|span| watch.taken(span));
         // The result set is already drained — this step is the one that read the
@@ -344,9 +344,9 @@ fn mysql_step(mut framed: Framed<'_>, block: &Value, watch: &QueryWatch) -> Resu
             ))
         })?;
         let scalar = nvs_db::mysql::scalar(column, body)
-            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, true, &refused))?;
         let label = nvs_db::mysql::label(column)
-            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, true, &refused))?;
         let value = mysql_column_value(scalar, zone, STREAM_MEMBER, label)?;
         one.set(NvsStr::new(label.as_bytes()), value);
     }
@@ -372,7 +372,7 @@ fn tds_step(
 ) -> Result<Stepped, Fault> {
     let read = tds
         .stream_next_row()
-        .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+        .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, true, &refused))?;
     let Some(read) = read else {
         let taken = tds.stream_span().and_then(|span| watch.taken(span));
         // The answer is already read to its `DONE` — that is what ended the
@@ -395,7 +395,7 @@ fn tds_step(
             ))
         })?;
         let scalar = nvs_db::tds::scalar(column, body)
-            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, true, &refused))?;
         let value = tds_column_value(scalar, zone, STREAM_MEMBER, &column.name)?;
         one.set(NvsStr::new(column.name.as_bytes()), value);
     }
@@ -425,7 +425,7 @@ fn sqlite_step(
 ) -> Result<Stepped, Fault> {
     let read = sqlite
         .stream_next_row()
-        .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+        .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, true, &refused))?;
     let Some(cells) = read else {
         let taken = sqlite.stream_span().and_then(|span| watch.taken(span));
         // The thread let go of the statement and the connection before it
@@ -471,9 +471,15 @@ fn stream_over(
     source: Option<&str>,
     named: &str,
 ) -> Result<(), Fault> {
-    framed
-        .stream(&statement.sql, sending)
-        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    framed.stream(&statement.sql, sending).map_err(|refused| {
+        statement_failure(
+            named,
+            &statement.block,
+            source,
+            statement.binds.bound(),
+            &refused,
+        )
+    })?;
     if let Some(name) = statement.block.as_text() {
         framed.name_stream_connection(name);
     }
@@ -529,7 +535,15 @@ fn open_stream(
             if let (Ok(()), Some(name)) = (&opened, statement.block.as_text()) {
                 postgres.name_stream_connection(name);
             }
-            opened.map_err(|refused| statement_failure(named, &statement.block, source, &refused))
+            opened.map_err(|refused| {
+                statement_failure(
+                    named,
+                    &statement.block,
+                    source,
+                    statement.binds.bound(),
+                    &refused,
+                )
+            })
         }
         nvs_db::Connection::MySql(mysql) => {
             stream_over(Framed::MySql(mysql), &statement, &sending, source, named)
@@ -542,7 +556,15 @@ fn open_stream(
             if let (Ok(()), Some(name)) = (&opened, statement.block.as_text()) {
                 tds.name_stream_connection(name);
             }
-            opened.map_err(|refused| statement_failure(named, &statement.block, source, &refused))
+            opened.map_err(|refused| {
+                statement_failure(
+                    named,
+                    &statement.block,
+                    source,
+                    statement.binds.bound(),
+                    &refused,
+                )
+            })
         }
         nvs_db::Connection::Sqlite(sqlite) => {
             // The one driver whose parameters arrive owned, exactly as
@@ -554,7 +576,15 @@ fn open_stream(
             if let (Ok(()), Some(name)) = (&opened, statement.block.as_text()) {
                 sqlite.name_stream_connection(name);
             }
-            opened.map_err(|refused| statement_failure(named, &statement.block, source, &refused))
+            opened.map_err(|refused| {
+                statement_failure(
+                    named,
+                    &statement.block,
+                    source,
+                    statement.binds.bound(),
+                    &refused,
+                )
+            })
         }
     };
     settled(ctx, statement.key, opened)?;
@@ -926,7 +956,7 @@ mod tests {
         );
         let block = Value::null();
         for member in [STREAM_MEMBER, QUERY, QUERY_AS, EXECUTE, EXECUTE_MANY] {
-            let refused = statement_failure(member, &block, Some("select 1"), &busy);
+            let refused = statement_failure(member, &block, Some("select 1"), false, &busy);
             let Fault::Thrown(ThrownClass::Logic, why) = refused else {
                 panic!("{member} refuses a second statement as the connection-busy `LogicError`");
             };

@@ -425,7 +425,9 @@ pub(super) fn transacted(
         // isolation level was asked for.
         let opened = attempts
             .begin(ctx, call.isolation, call.read_only)?
-            .map_err(|refused| statement_failure(TRANSACTION_MEMBER, &block, None, &refused))?;
+            .map_err(|refused| {
+                statement_failure(TRANSACTION_MEMBER, &block, None, false, &refused)
+            })?;
         file_span(ctx, watch, &block, opened);
 
         // The block name is handed on rather than looked up again: a
@@ -554,6 +556,7 @@ pub(super) fn transacted(
             TRANSACTION_MEMBER,
             &block,
             None,
+            false,
             &refused,
         ));
     }
@@ -1038,6 +1041,7 @@ mod tests {
             TRANSACTION_MEMBER,
             &block,
             None,
+            false,
             &std::io::Error::other(nvs_db::ServerError {
                 kind: nvs_db::DbErrorKind::Deadlock,
                 sql_state: String::from("40P01"),
@@ -1075,6 +1079,7 @@ mod tests {
                 "driverCode",
                 "constraint",
                 "sql",
+                "serverMessage",
             ],
             &[root],
         );

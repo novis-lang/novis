@@ -243,6 +243,17 @@ pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 /// `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
 pub const SQL_SLOT: usize = KIND_SLOT + 4;
 
+/// The slot `Core\Db\DbError::$serverMessage` occupies — the sentence the
+/// server wrote, as a `tainted` string (`rule:core-classes/db-error`).
+///
+/// `message` never holds that sentence: a server's text can quote a bound
+/// value, and `message` is plain. `bind::statement_failure` in `nvs-stdlib`
+/// writes this slot only for a statement that bound no value, so an unwritten
+/// slot reads `null`. `nvs_hir::errors::SERVER_MESSAGE_SLOT` is the compiler's
+/// copy, held to this one by `nvs-codegen`'s
+/// `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
+pub const SERVER_MESSAGE_SLOT: usize = KIND_SLOT + 5;
+
 /// The slot `Core\Ldap\LdapError::$kind` occupies — the condition of
 /// `rule:core-classes/ldap-error`, which `nvs_stdlib::ldap::fault_of` fills.
 ///

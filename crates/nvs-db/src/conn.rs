@@ -633,6 +633,32 @@ pub enum DbErrorKind {
 }
 
 impl DbErrorKind {
+    /// Novis's own sentence for this condition, which [`ServerError`]'s
+    /// rendering prints where the server's sentence used to stand.
+    ///
+    /// It is fixed text and never the server's: a server may quote a bound
+    /// value or a name a request chose, and the rendering reaches `message`,
+    /// which `rule:core-classes/db-error` keeps plain. A diagnostic, so it is
+    /// written to AGENTS.md § *Text an end user reads*.
+    #[must_use]
+    pub fn sentence(self) -> &'static str {
+        match self {
+            DbErrorKind::UniqueViolation => "a row with this key already exists",
+            DbErrorKind::ForeignKeyViolation => "the row breaks a foreign key",
+            DbErrorKind::NotNullViolation => "a column that may not be null was set to null",
+            DbErrorKind::CheckViolation => "the row fails a check constraint",
+            DbErrorKind::Deadlock => "the transaction was stopped to end a deadlock",
+            DbErrorKind::SerializationFailure => {
+                "the transaction conflicts with a concurrent transaction"
+            }
+            DbErrorKind::ConnectionLost => "the connection to the server was lost",
+            DbErrorKind::Timeout => "the statement took longer than its time limit",
+            DbErrorKind::Syntax => "the server cannot run the statement as it is written",
+            DbErrorKind::Permission => "the database user is not allowed to do this",
+            DbErrorKind::Other => "the server returned an error",
+        }
+    }
+
     /// Whether `rule:core-classes/db-transactions`'s
     /// `{ retries: n }` re-runs the transaction's callable over this.
     ///
@@ -724,25 +750,54 @@ impl ServerError {
     }
 }
 
-impl std::fmt::Display for ServerError {
-    /// Severity, message and `SQLSTATE`: the fields an operator acts on.
-    ///
-    /// The `SQLSTATE` is omitted rather than rendered empty where the backend
-    /// sends none — see [`ServerError::sql_state`]. `(SQLSTATE )` would read
-    /// as a server that answered nothing when the truth is a protocol that has
-    /// no such field, and the number that *is* this backend's code is already
-    /// in the sentence the server wrote.
-    ///
-    /// Bound parameters are not among them and never will be — `rule:core-classes/db-error`
-    /// makes a `Throwable` message a `secret` sink, and this sentence is what
-    /// reaches one.
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {}: {}", self.backend, self.severity, self.message)?;
-        if self.sql_state.is_empty() {
-            Ok(())
-        } else {
-            write!(f, " (SQLSTATE {})", self.sql_state)
+impl ServerError {
+    /// The severity word to render: the server's when it is one of the three
+    /// [`ServerError::severity`] documents, and `ERROR` otherwise.
+    fn severity_word(&self) -> &'static str {
+        match self.severity.as_str() {
+            "FATAL" => "FATAL",
+            "PANIC" => "PANIC",
+            _ => "ERROR",
         }
+    }
+
+    /// The `SQLSTATE` to render, only when it has the shape one has: five ASCII
+    /// letters or digits.
+    fn sql_state_shown(&self) -> Option<&str> {
+        let state = self.sql_state.as_str();
+        (state.len() == 5 && state.bytes().all(|b| b.is_ascii_alphanumeric())).then_some(state)
+    }
+}
+
+impl std::fmt::Display for ServerError {
+    /// The backend, the severity, Novis's sentence for the kind, the `SQLSTATE`
+    /// and the driver code — and **no text the server chose**.
+    ///
+    /// This is the one place every caller's `{err}` passes, and its output
+    /// reaches a `Throwable`'s plain `message`. A server's sentence can quote a
+    /// bound value, and its severity and `SQLSTATE` fields are bytes it sent, so
+    /// each is held to a closed set or a shape before it is printed: the
+    /// severity to [`ServerError::severity_word`], the `SQLSTATE` to five
+    /// ASCII letters or digits, the sentence to [`DbErrorKind::sentence`]. The
+    /// server's own sentence stays in [`ServerError::message`], and
+    /// `nvs_stdlib`'s `statement_failure` alone reads it, onto `serverMessage`.
+    /// A `SQLSTATE` that fails the shape is left out, as is an empty one on a
+    /// backend that sends none.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} {}: {}",
+            self.backend,
+            self.severity_word(),
+            self.kind.sentence()
+        )?;
+        if let Some(state) = self.sql_state_shown() {
+            write!(f, " (SQLSTATE {state})")?;
+        }
+        if let Some(code) = self.driver_code {
+            write!(f, " (code {code})")?;
+        }
+        Ok(())
     }
 }
 
@@ -1357,7 +1412,51 @@ mod tests {
     use nvs_config::snapshot::Snapshot;
     use nvs_runtime::pool::{Lease, Ticket, admit, release, take};
 
-    use super::{Connection, DbErrorKind, Driver, SqliteConn, State};
+    use super::{Connection, DbErrorKind, Driver, ServerError, SqliteConn, State};
+
+    /// `rule:core-classes/db-error`: what a server sent in its sentence, its
+    /// severity and its `SQLSTATE` never reaches the rendering, which is what a
+    /// `Throwable`'s plain `message` is built from.
+    #[test]
+    fn a_server_errors_rendering_holds_no_text_the_server_chose() {
+        let server = ServerError {
+            kind: DbErrorKind::UniqueViolation,
+            // Not the shape a `SQLSTATE` has, so it is left out.
+            sql_state: String::from("MARK2; drop"),
+            severity: String::from("MARK1"),
+            message: String::from("MARK0 duplicate key value (alice@example.com)"),
+            constraint: Some(String::from("MARK3")),
+            driver_code: Some(1062),
+            backend: "mysql",
+        };
+        let shown = server.to_string();
+        assert_eq!(
+            shown,
+            "mysql ERROR: a row with this key already exists (code 1062)"
+        );
+        for marker in ["MARK0", "MARK1", "MARK2", "MARK3", "alice"] {
+            assert!(!shown.contains(marker), "{marker} reached `{shown}`");
+        }
+
+        // A `SQLSTATE` of the right shape and a known severity are shown.
+        let fair = ServerError {
+            sql_state: String::from("23505"),
+            severity: String::from("FATAL"),
+            driver_code: None,
+            backend: "postgresql",
+            ..server
+        };
+        assert_eq!(
+            fair.to_string(),
+            "postgresql FATAL: a row with this key already exists (SQLSTATE 23505)"
+        );
+        // Five bytes that are not all ASCII letters or digits are left out.
+        let odd = ServerError {
+            sql_state: String::from("2 50'"),
+            ..fair
+        };
+        assert!(!odd.to_string().contains("SQLSTATE"));
+    }
 
     /// The slot a request holds while one connection under `key` is open.
     ///

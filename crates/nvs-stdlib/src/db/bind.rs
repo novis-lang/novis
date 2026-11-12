@@ -177,10 +177,21 @@ pub(super) fn bound_of(value: Value) -> Bound {
 /// for the other half of the same reason:
 /// that text is this runtime's, no program asked for it by name, and `?string`
 /// already has an absent case that costs no slot.
+///
+/// **The server's own sentence never reaches `message`.** `{refused}` renders
+/// [`nvs_db::ServerError`]'s `Display`, which holds no text the server chose,
+/// and the sentence goes to `serverMessage` instead, a `?tainted string`
+/// (`rule:core-classes/db-error`). It goes there only when `bound` is false: a
+/// server may quote a bound value in its sentence, and a bound value may be
+/// `secret`. Where `bound` is true the slot stays `null`, and `message` says the
+/// text was left out. A caller that cannot tell passes `true`, so the default
+/// is closed. **What it spends:** one slot value on a statement that bound
+/// nothing, per thrown error.
 pub(super) fn statement_failure(
     named: &str,
     block: &Value,
     sql: Option<&str>,
+    bound: bool,
     refused: &std::io::Error,
 ) -> Fault {
     let name = block.as_text().unwrap_or("?");
@@ -189,7 +200,7 @@ pub(super) fn statement_failure(
             Fault::thrown_as(ThrownClass::Logic, format!("{named}: {refused}"))
         }
         std::io::ErrorKind::Other => {
-            let message = format!("{named}: `[db.{name}]` refused the statement: {refused}");
+            let mut message = format!("{named}: `[db.{name}]` refused the statement: {refused}.");
             // Built once for both arms below: whether the driver classified the
             // refusal says nothing about whether there was a statement behind
             // it, so `sql` is not the server's half of the error and does not
@@ -225,6 +236,16 @@ pub(super) fn statement_failure(
                     // server sends one.
                     if let Some(constraint) = &server.constraint {
                         slots.push((nvs_runtime::CONSTRAINT_SLOT, Value::text(constraint)));
+                    }
+                    if bound {
+                        message.push_str(
+                            " The server's message is not shown because the statement bound a value.",
+                        );
+                    } else {
+                        slots.push((
+                            nvs_runtime::SERVER_MESSAGE_SLOT,
+                            Value::text(&server.message),
+                        ));
                     }
                     slots.extend(wrote);
                     Fault::thrown_with_slots(ThrownClass::DbError, message, slots)
@@ -413,6 +434,15 @@ impl Binds {
             Binds::Wire(_) => Vec::new(),
         }
     }
+
+    /// Whether the statement bound any value — [`statement_failure`]'s
+    /// `bound`, which keeps the server's text off the error when it is true.
+    pub(super) fn bound(&self) -> bool {
+        match self {
+            Binds::Wire(rendered) => !rendered.is_empty(),
+            Binds::Sqlite(values) => !values.is_empty(),
+        }
+    }
 }
 
 /// Everything `rule:core-classes/db-statement-members` and `rule:core-classes/db-parameters` do to a call before it reaches the socket:
@@ -533,8 +563,9 @@ pub(super) fn statement_in(
     } else {
         nvs_db::Params::Named(&keyed)
     };
+    let any_bound = !positional.is_empty() || !keys.is_empty();
     let rewritten = nvs_db::rewrite(sql, spelling, dialect)
-        .map_err(|refused| statement_failure(named, &block, Some(sql), &refused))?;
+        .map_err(|refused| statement_failure(named, &block, Some(sql), any_bound, &refused))?;
 
     let bounds: Vec<&Bound> = if keys.is_empty() {
         positional.iter().collect()
@@ -548,20 +579,18 @@ pub(super) fn statement_in(
         Encoder::Wire(encode) => {
             let mut rendered: Vec<Option<Vec<u8>>> = Vec::with_capacity(rewritten.binds.len());
             for source in &rewritten.binds {
-                rendered
-                    .push(encode(bounds[source.arg].values[source.element]).map_err(
-                        |refused| statement_failure(named, &block, Some(sql), &refused),
-                    )?);
+                rendered.push(encode(bounds[source.arg].values[source.element]).map_err(
+                    |refused| statement_failure(named, &block, Some(sql), true, &refused),
+                )?);
             }
             Binds::Wire(rendered)
         }
         Encoder::Sqlite(encode) => {
             let mut rendered: Vec<nvs_db::SqliteValue> = Vec::with_capacity(rewritten.binds.len());
             for source in &rewritten.binds {
-                rendered
-                    .push(encode(bounds[source.arg].values[source.element]).map_err(
-                        |refused| statement_failure(named, &block, Some(sql), &refused),
-                    )?);
+                rendered.push(encode(bounds[source.arg].values[source.element]).map_err(
+                    |refused| statement_failure(named, &block, Some(sql), true, &refused),
+                )?);
             }
             Binds::Sqlite(rendered)
         }
@@ -764,6 +793,95 @@ mod tests {
     /// asserts against — and a slot never filled loses the other's, which is
     /// what a program hard-coding `1062` reads. `nvs_db::ServerError` owns why
     /// only one of them has it.
+    use crate::db::transaction::discard;
+
+    /// A server's refusal whose sentence quotes a value, as a server's can.
+    fn quoting_refusal() -> std::io::Error {
+        std::io::Error::other(nvs_db::ServerError {
+            kind: nvs_db::DbErrorKind::UniqueViolation,
+            sql_state: String::from("23505"),
+            severity: String::from("ERROR"),
+            message: String::from("duplicate key value (email)=(MARKER@example.com)"),
+            constraint: Some(String::from("users_email_key")),
+            driver_code: None,
+            backend: "postgresql",
+        })
+    }
+
+    /// The message and the slots of a `DbError` fault.
+    fn db_error_parts(fault: Fault) -> (String, Vec<(usize, Value)>) {
+        match fault {
+            Fault::ThrownWithSlots(ThrownClass::DbError, message, slots) => {
+                (message.to_string(), slots.into_vec())
+            }
+            other => panic!("a server's refusal is a `Db\\DbError`: {other:?}"),
+        }
+    }
+
+    /// `rule:core-classes/db-error`: the server's sentence is never in
+    /// `message`, and a statement that bound no value carries it on
+    /// `serverMessage`.
+    #[test]
+    fn a_db_error_message_holds_no_server_text() {
+        let block = Value::text("main");
+        let (message, slots) = db_error_parts(statement_failure(
+            QUERY,
+            &block,
+            Some("insert into users (email) values ('x')"),
+            false,
+            &quoting_refusal(),
+        ));
+        assert_eq!(
+            message,
+            "Core\\Db\\Connection::query: `[db.main]` refused the statement: postgresql ERROR: a row with \
+             this key already exists (SQLSTATE 23505)."
+        );
+        let server_text = slots
+            .iter()
+            .find(|(slot, _)| *slot == nvs_runtime::SERVER_MESSAGE_SLOT)
+            .and_then(|(_, value)| value.as_text());
+        assert_eq!(
+            server_text,
+            Some("duplicate key value (email)=(MARKER@example.com)")
+        );
+        discard(block);
+        for (_, value) in slots {
+            discard(value);
+        }
+    }
+
+    /// `rule:core-classes/db-error`: a statement that bound a value leaves the
+    /// server's sentence off the error entirely, and its message says so.
+    #[test]
+    fn a_statement_with_a_bound_value_leaves_the_servers_text_out() {
+        let block = Value::text("main");
+        let (message, slots) = db_error_parts(statement_failure(
+            QUERY,
+            &block,
+            Some("insert into users (email) values (?)"),
+            true,
+            &quoting_refusal(),
+        ));
+        assert!(!message.contains("MARKER"), "{message}");
+        assert!(
+            message.ends_with(
+                "(SQLSTATE 23505). The server's message is not shown because the statement \
+                 bound a value."
+            ),
+            "{message}"
+        );
+        assert!(
+            slots
+                .iter()
+                .all(|(slot, _)| *slot != nvs_runtime::SERVER_MESSAGE_SLOT),
+            "a bound statement wrote `serverMessage`"
+        );
+        discard(block);
+        for (_, value) in slots {
+            discard(value);
+        }
+    }
+
     #[test]
     fn a_driver_code_reaches_the_throw_only_where_the_server_sent_one() {
         let block = Value::text("main");
@@ -787,13 +905,25 @@ mod tests {
         };
 
         assert_eq!(
-            code_in(statement_failure(QUERY, &block, None, &refusal(Some(1062)))),
+            code_in(statement_failure(
+                QUERY,
+                &block,
+                None,
+                false,
+                &refusal(Some(1062))
+            )),
             Some(Some(1062)),
             "MySQL's own integer is what an application reads when the `DbError` kind is \
              not specific enough for it"
         );
         assert_eq!(
-            code_in(statement_failure(QUERY, &block, None, &refusal(None))),
+            code_in(statement_failure(
+                QUERY,
+                &block,
+                None,
+                false,
+                &refusal(None)
+            )),
             None,
             "and an unwritten slot already reads `null`, which is the whole of \
              what PostgreSQL has to say here"

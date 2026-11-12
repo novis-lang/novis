@@ -587,9 +587,15 @@ pub(super) fn postgres_rows(
     // connection declared, and that is a property of the connection rather
     // than of the row.
     let zone = postgres.time_zone();
-    let mut answered = postgres
-        .query(&statement.sql, sending)
-        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    let mut answered = postgres.query(&statement.sql, sending).map_err(|refused| {
+        statement_failure(
+            named,
+            &statement.block,
+            source,
+            statement.binds.bound(),
+            &refused,
+        )
+    })?;
     name_span(&mut answered, statement.block.as_text());
     // Taken before the first row: a `PgRows` lends its columns and its rows
     // out of one borrow, and the rows are read with it held mutably.
@@ -598,9 +604,15 @@ pub(super) fn postgres_rows(
 
     let mut rows = NvsArray::new();
     loop {
-        let Some(row) = answered
-            .next_row()
-            .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?
+        let Some(row) = answered.next_row().map_err(|refused| {
+            statement_failure(
+                named,
+                &statement.block,
+                source,
+                statement.binds.bound(),
+                &refused,
+            )
+        })?
         else {
             break;
         };
@@ -609,12 +621,24 @@ pub(super) fn postgres_rows(
         // rather than leaving it in one — `NvsArray`'s own `Drop`.
         let mut one = NvsArray::new();
         for (index, column) in columns.iter().enumerate() {
-            let body = row
-                .column(index)
-                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
-            let scalar = column
-                .scalar(body)
-                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+            let body = row.column(index).map_err(|refused| {
+                statement_failure(
+                    named,
+                    &statement.block,
+                    source,
+                    statement.binds.bound(),
+                    &refused,
+                )
+            })?;
+            let scalar = column.scalar(body).map_err(|refused| {
+                statement_failure(
+                    named,
+                    &statement.block,
+                    source,
+                    statement.binds.bound(),
+                    &refused,
+                )
+            })?;
             let value = column_value(scalar, zone, named, &column.name)?;
             one.set(NvsStr::new(column.name.as_bytes()), value);
         }
@@ -837,23 +861,40 @@ pub(super) fn mysql_rows(
     // As [`postgres_rows`], and the zone a zone-less value is read in is the
     // connection's on both drivers.
     let zone = framed.time_zone();
-    let mut answered = framed
-        .query(&statement.sql, sending)
-        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    let mut answered = framed.query(&statement.sql, sending).map_err(|refused| {
+        statement_failure(
+            named,
+            &statement.block,
+            source,
+            statement.binds.bound(),
+            &refused,
+        )
+    })?;
     name_span(&mut answered, statement.block.as_text());
     // Described before the first row, because the description is read out of a
     // shared borrow of the stream and the rows out of a mutable one — the same
     // ordering `postgres_rows` gets by cloning its columns, and here the clone
     // is needed anyway: `nvs_db::mysql::scalar` reads a value against the
     // definition it arrived under.
-    let described = mysql_described_columns(&answered, named, &statement.block, source)?;
+    let described = mysql_described_columns(
+        &answered,
+        named,
+        &statement.block,
+        source,
+        statement.binds.bound(),
+    )?;
     let columns = answered.columns().to_vec();
 
     let mut rows = NvsArray::new();
-    while let Some(row) = answered
-        .next_row()
-        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?
-    {
+    while let Some(row) = answered.next_row().map_err(|refused| {
+        statement_failure(
+            named,
+            &statement.block,
+            source,
+            statement.binds.bound(),
+            &refused,
+        )
+    })? {
         // Built whole before it joins the result, for [`postgres_rows`]' reason.
         let mut one = NvsArray::new();
         for (index, column) in columns.iter().enumerate() {
@@ -867,13 +908,27 @@ pub(super) fn mysql_rows(
                     columns.len()
                 ))
             })?;
-            let scalar = nvs_db::mysql::scalar(column, body)
-                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+            let scalar = nvs_db::mysql::scalar(column, body).map_err(|refused| {
+                statement_failure(
+                    named,
+                    &statement.block,
+                    source,
+                    statement.binds.bound(),
+                    &refused,
+                )
+            })?;
             // A label is bytes on this driver and text on the other, and a
             // row's key is UTF-8 on both, so a label that is not is refused
             // here as it is in the description above.
-            let label = nvs_db::mysql::label(column)
-                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+            let label = nvs_db::mysql::label(column).map_err(|refused| {
+                statement_failure(
+                    named,
+                    &statement.block,
+                    source,
+                    statement.binds.bound(),
+                    &refused,
+                )
+            })?;
             let value = mysql_column_value(scalar, zone, named, label)?;
             one.set(NvsStr::new(label.as_bytes()), value);
         }
@@ -923,9 +978,15 @@ pub(super) fn tds_rows(
     // told: `nvs_db::tds::TdsTarget::time_zone` owns why SQL Server has nowhere
     // to be.
     let zone = tds.time_zone();
-    let mut answered = tds
-        .query(&statement.sql, sending)
-        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    let mut answered = tds.query(&statement.sql, sending).map_err(|refused| {
+        statement_failure(
+            named,
+            &statement.block,
+            source,
+            statement.binds.bound(),
+            &refused,
+        )
+    })?;
     name_span(&mut answered, statement.block.as_text());
     // Cloned before the first row, for [`postgres_rows`]' reason: the columns
     // are lent out of a shared borrow and the rows out of a mutable one.
@@ -933,10 +994,15 @@ pub(super) fn tds_rows(
     let described = tds_described_columns(&answered);
 
     let mut rows = NvsArray::new();
-    while let Some(row) = answered
-        .next_row()
-        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?
-    {
+    while let Some(row) = answered.next_row().map_err(|refused| {
+        statement_failure(
+            named,
+            &statement.block,
+            source,
+            statement.binds.bound(),
+            &refused,
+        )
+    })? {
         // Built whole before it joins the result, for [`postgres_rows`]' reason.
         let mut one = NvsArray::new();
         for (index, column) in columns.iter().enumerate() {
@@ -949,8 +1015,15 @@ pub(super) fn tds_rows(
                     columns.len()
                 ))
             })?;
-            let scalar = nvs_db::tds::scalar(column, body)
-                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+            let scalar = nvs_db::tds::scalar(column, body).map_err(|refused| {
+                statement_failure(
+                    named,
+                    &statement.block,
+                    source,
+                    statement.binds.bound(),
+                    &refused,
+                )
+            })?;
             let value = tds_column_value(scalar, zone, named, &column.name)?;
             one.set(NvsStr::new(column.name.as_bytes()), value);
         }
@@ -990,13 +1063,27 @@ pub(super) fn postgres_write(
     watch: QueryWatch,
     named: &str,
 ) -> Result<(Written, Option<crate::db::span::Taken>), Fault> {
-    let mut answered = postgres
-        .query(&statement.sql, sending)
-        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    let mut answered = postgres.query(&statement.sql, sending).map_err(|refused| {
+        statement_failure(
+            named,
+            &statement.block,
+            source,
+            statement.binds.bound(),
+            &refused,
+        )
+    })?;
     name_span(&mut answered, statement.block.as_text());
     while answered
         .next_row()
-        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?
+        .map_err(|refused| {
+            statement_failure(
+                named,
+                &statement.block,
+                source,
+                statement.binds.bound(),
+                &refused,
+            )
+        })?
         .is_some()
     {}
 
@@ -1034,15 +1121,29 @@ pub(super) fn mysql_write(
     watch: QueryWatch,
     named: &str,
 ) -> Result<(Written, Option<crate::db::span::Taken>), Fault> {
-    let mut answered = framed
-        .query(&statement.sql, sending)
-        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    let mut answered = framed.query(&statement.sql, sending).map_err(|refused| {
+        statement_failure(
+            named,
+            &statement.block,
+            source,
+            statement.binds.bound(),
+            &refused,
+        )
+    })?;
     name_span(&mut answered, statement.block.as_text());
     // A write answers no result set, but a `CALL` does — and draining is what
     // ends the statement on this driver, as [`postgres_write`]'s does there.
     while answered
         .next_row()
-        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?
+        .map_err(|refused| {
+            statement_failure(
+                named,
+                &statement.block,
+                source,
+                statement.binds.bound(),
+                &refused,
+            )
+        })?
         .is_some()
     {}
 
@@ -1108,7 +1209,15 @@ pub(super) fn sqlite_rows(
     let zone = sqlite.time_zone();
     let mut answered = sqlite
         .query(&statement.sql, statement.binds.sqlite())
-        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+        .map_err(|refused| {
+            statement_failure(
+                named,
+                &statement.block,
+                source,
+                statement.binds.bound(),
+                &refused,
+            )
+        })?;
     // Cloned before the first row, for [`postgres_rows`]' reason: the columns
     // are lent out of a shared borrow and the rows out of a mutable one.
     let columns: Vec<nvs_db::SqliteColumn> = answered.columns().to_vec();
@@ -1193,7 +1302,15 @@ pub(super) fn sqlite_write(
     }
     let mut answered = sqlite
         .query(&statement.sql, statement.binds.sqlite())
-        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+        .map_err(|refused| {
+            statement_failure(
+                named,
+                &statement.block,
+                source,
+                statement.binds.bound(),
+                &refused,
+            )
+        })?;
     // Drained rather than skipped, for [`postgres_write`]'s reason: `execute`
     // has no way to hand a `RETURNING` clause's rows back, and the result
     // set is what holds the connection until it is done with.
@@ -1413,13 +1530,27 @@ pub(super) fn tds_write(
     watch: QueryWatch,
     named: &str,
 ) -> Result<(Written, Option<crate::db::span::Taken>), Fault> {
-    let mut answered = tds
-        .query(&statement.sql, sending)
-        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    let mut answered = tds.query(&statement.sql, sending).map_err(|refused| {
+        statement_failure(
+            named,
+            &statement.block,
+            source,
+            statement.binds.bound(),
+            &refused,
+        )
+    })?;
     name_span(&mut answered, statement.block.as_text());
     while answered
         .next_row()
-        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?
+        .map_err(|refused| {
+            statement_failure(
+                named,
+                &statement.block,
+                source,
+                statement.binds.bound(),
+                &refused,
+            )
+        })?
         .is_some()
     {}
 
@@ -1654,7 +1785,7 @@ nvs_runtime::nvs_helper! {
             ),
         }
         .map_err(|refused| {
-            statement_failure(EXECUTE_MANY, &batch.block, args[1].as_text(), &refused)
+            statement_failure(EXECUTE_MANY, &batch.block, args[1].as_text(), true, &refused)
         });
         let written = settled(ctx, batch.key, written)?;
         // The member's sum is the batch's affected count, and the span's rows
@@ -1769,7 +1900,7 @@ mod tests {
             started.elapsed() >= std::time::Duration::from_millis(20),
             "the read gave up before the deadline it was given"
         );
-        let thrown = statement_failure(QUERY, &Value::null(), Some("select 1"), &expired);
+        let thrown = statement_failure(QUERY, &Value::null(), Some("select 1"), false, &expired);
         assert!(
             matches!(thrown, Fault::Thrown(ThrownClass::Io, _)),
             "a statement that ran out of time did not throw an `IOError`"

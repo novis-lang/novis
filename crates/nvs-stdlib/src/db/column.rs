@@ -66,6 +66,7 @@ pub(super) fn mysql_described_columns(
     named: &str,
     block: &Value,
     source: Option<&str>,
+    bound: bool,
 ) -> Result<NvsArray, Fault> {
     let mut described = NvsArray::new();
     for (index, column) in rows.columns().iter().enumerate() {
@@ -76,8 +77,9 @@ pub(super) fn mysql_described_columns(
             &COLUMN,
             [
                 Value::text(
-                    nvs_db::mysql::label(column)
-                        .map_err(|refused| statement_failure(named, block, source, &refused))?,
+                    nvs_db::mysql::label(column).map_err(|refused| {
+                        statement_failure(named, block, source, bound, &refused)
+                    })?,
                 ),
                 column_type_value(column_type),
                 // As [`described_columns`]: every column is described as

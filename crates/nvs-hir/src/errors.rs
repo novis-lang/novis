@@ -191,7 +191,14 @@ const ISSUES: &[&str] = &["issues"];
 /// properties, all of them, in the rule's own order. The order is the rule and not
 /// an accident of how they arrived: a further value the rule names is appended here
 /// too, so that no slot already compiled into a program moves.
-const KIND: &[&str] = &["kind", "sqlState", "driverCode", "constraint", "sql"];
+const KIND: &[&str] = &[
+    "kind",
+    "sqlState",
+    "driverCode",
+    "constraint",
+    "sql",
+    "serverMessage",
+];
 
 /// `Core\Db\RolledBack`'s own row of [`OWN_PROPERTIES`].
 const REASON: &[&str] = &["reason"];
@@ -229,7 +236,7 @@ pub const REASON_SLOT: usize = PROPERTIES.len();
 /// It is 0-relative-to-the-root and stays there: `rule:core-classes/db-error`'s
 /// others are appended to [`KIND`] after it rather than inserted before it, so `kind` keeps this
 /// index. They are [`SQL_STATE_SLOT`], [`DRIVER_CODE_SLOT`],
-/// [`CONSTRAINT_SLOT`] and [`SQL_SLOT`].
+/// [`CONSTRAINT_SLOT`], [`SQL_SLOT`] and [`SERVER_MESSAGE_SLOT`].
 pub const KIND_SLOT: usize = PROPERTIES.len();
 
 /// The slot `Core\Db\DbError::$sqlState` occupies — `rule:core-classes/db-error`'s raw
@@ -266,6 +273,13 @@ pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 /// are the runtime's own
 /// text. `nvs_runtime::SQL_SLOT` is the runtime's copy.
 pub const SQL_SLOT: usize = KIND_SLOT + 4;
+
+/// The slot `Core\Db\DbError::$serverMessage` occupies — the sentence the
+/// server wrote, which `rule:core-classes/db-error` keeps out of `message`.
+///
+/// Appended after [`SQL_SLOT`] so that no slot already compiled into a program
+/// moves. `nvs_runtime::SERVER_MESSAGE_SLOT` is the runtime's copy.
+pub const SERVER_MESSAGE_SLOT: usize = KIND_SLOT + 5;
 
 /// The slot `Core\Ldap\LdapError::$kind` occupies.
 ///
@@ -409,12 +423,20 @@ mod tests {
         // the root however many of them there are.
         assert_eq!(
             own_properties("Core\\Db\\DbError"),
-            &["kind", "sqlState", "driverCode", "constraint", "sql"]
+            &[
+                "kind",
+                "sqlState",
+                "driverCode",
+                "constraint",
+                "sql",
+                "serverMessage"
+            ]
         );
         assert_eq!(inherited + 1, SQL_STATE_SLOT);
         assert_eq!(inherited + 2, DRIVER_CODE_SLOT);
         assert_eq!(inherited + 3, CONSTRAINT_SLOT);
         assert_eq!(inherited + 4, SQL_SLOT);
+        assert_eq!(inherited + 5, SERVER_MESSAGE_SLOT);
         assert_eq!(above, vec!["RuntimeError", "Throwable"]);
     }
 

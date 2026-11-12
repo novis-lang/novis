@@ -164,14 +164,14 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
                     let null = interner.null();
                     interner.make_union([code, null])
                 }
-                // `Core\Db\DbError::$constraint` — the same `?string` as
-                // `sqlState`, and absent far more often: `rule:core-classes/db-error`'s
-                // kinds are conditions, and only some of them — a unique, foreign-key,
-                // not-null or check violation — have a constraint to name at
-                // all. A syntax error or a permission answers `null` on every
-                // driver there will ever be.
-                "constraint" => {
-                    let text = interner.string();
+                // `Core\Db\DbError::$constraint` and `$serverMessage` — text the
+                // server chose, so `?tainted string` and never assignable to a
+                // plain `string` (`rule:core-classes/db-error`). PostgreSQL names
+                // the constraint itself, and a name can be anything a migration
+                // wrote. Both are absent often: only a violation names a
+                // constraint, and the sentence is left out where a value was bound.
+                "constraint" | "serverMessage" => {
+                    let text = interner.tainted_string();
                     let null = interner.null();
                     interner.make_union([text, null])
                 }
