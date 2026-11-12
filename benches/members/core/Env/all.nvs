@@ -3,7 +3,7 @@
 // starts and collects its settings.
 // bench: iterations 256
 // bench: complexity linear
-// bench: calls 0
+// bench: calls 2
 
 class Bench
 {
