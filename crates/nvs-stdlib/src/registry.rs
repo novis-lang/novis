@@ -2050,6 +2050,27 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // `sendFile` above is the row worth reading twice, being the one that leaves
     // the response and reaches the machine.
     (crate::response::NAME, "html", None),
+    // The process environment is `env`: the operator chose it for the application,
+    // and a package holds it only where its grant line names it. `mode` and
+    // `context` read no variable.
+    (r"Core\Env", "get", Some(nvs_config::Cap::Env)),
+    (r"Core\Env", "secret", Some(nvs_config::Cap::Env)),
+    (r"Core\Env", "all", Some(nvs_config::Cap::Env)),
+    (r"Core\Env", "mode", None),
+    (r"Core\Env", "context", None),
+    // A deployment credential is `env` whichever member returns it. `secret` returns
+    // a `[secrets]` value, and `get` returns a secret directive's value, such as
+    // `db.main.password`, unredacted. Its door asks `env` only for such a key, but a
+    // package line is asked per member, so every `get` from a package needs it.
+    // `all` renders each secret directive as `[redacted]`, and `setting` reads
+    // `[settings]` alone, so neither returns a credential. `set` and `restore`
+    // change the request's own overlay and reach nothing outside it.
+    (r"Core\Config", "get", Some(nvs_config::Cap::Env)),
+    (r"Core\Config", "secret", Some(nvs_config::Cap::Env)),
+    (r"Core\Config", "all", None),
+    (r"Core\Config", "setting", None),
+    (r"Core\Config", "set", None),
+    (r"Core\Config", "restore", None),
     (crate::response::NAME, "json", None),
     (crate::response::NAME, "text", None),
     (crate::response::NAME, "bytes", None),

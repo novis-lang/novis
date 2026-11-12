@@ -329,6 +329,16 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         }
+        // A secret directive's value is a deployment credential, so it needs `env` as
+        // `Core\Env::secret` does. Any other key asks nothing.
+        if nvs_config::secret::is_secret_key(name) {
+            nvs_runtime::capability::require(
+                ctx,
+                nvs_config::Cap::Env,
+                nvs_config::capability::Scope::Unscoped,
+                r"Core\Config::get",
+            )?;
+        }
         match ctx.config().and_then(|config| config.get(name)) {
             Some(value) => Ok(Value::text(&value)),
             None => Ok(Value::null()),
@@ -421,8 +431,17 @@ nvs_runtime::nvs_helper! {
     /// `Core\Config::secret(string $name): ?secret string` — a `[secrets]`
     /// value, or `null` where no block names it. The qualifier is the
     /// checker's alone: at run time a `secret string` is the same string.
+    ///
+    /// A secret is a deployment credential, as an environment variable is, so
+    /// the door asks `env` before it reads one.
     fn nvs_core_config_secret(ctx, args: [1]) {
         let name = text(&args[0], "secret")?;
+        nvs_runtime::capability::require(
+            ctx,
+            nvs_config::Cap::Env,
+            nvs_config::capability::Scope::Unscoped,
+            r"Core\Config::secret",
+        )?;
         Ok(ctx
             .config()
             .and_then(|config| config.secret(name))

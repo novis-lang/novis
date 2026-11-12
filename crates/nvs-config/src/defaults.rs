@@ -418,6 +418,8 @@ pub enum Granted {
 /// - **Scripts:** `script.spawn` is [`Granted::AppCode`] on every kind of run. `require` already
 ///   runs that code, so spawning it gives nothing new. A script the run wrote into its own
 ///   temporary directory is not covered.
+/// - **The environment:** `env` is [`Granted::Everything`] on every kind of run. The operator chose
+///   the process environment when they launched it, and a package still needs `env` on its line.
 /// - **Every other capability** is [`Granted::Nothing`] on every kind of run.
 ///
 /// **What it spends:** nothing held. The app folder is one path per context, and the temporary
@@ -426,7 +428,7 @@ pub enum Granted {
 pub fn capability(cap: crate::Cap, run: crate::capability::Run<'_>) -> Granted {
     match (cap, run.serving) {
         (crate::Cap::FsRead | crate::Cap::FsWrite | crate::Cap::ProcessExec, false)
-        | (crate::Cap::NetConnect, _) => Granted::Everything,
+        | (crate::Cap::NetConnect | crate::Cap::Env, _) => Granted::Everything,
         (crate::Cap::ScriptSpawn, _) => Granted::AppCode,
         (crate::Cap::FsRead, true) => Granted::AppFolder,
         (crate::Cap::FsWrite, true) => Granted::Temporary,
@@ -1000,5 +1002,43 @@ fn chosen_by(value: &Value, at: &At<'_>) -> Option<String> {
         Value::ByMode => Some(at.mode.to_owned()),
         Value::Startup { .. } | Value::StartedMode => Some(at.started.to_owned()),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::capability::{Authority, Run, Scope};
+    use crate::resolve::Disk;
+    use crate::tree::{Capabilities, Setting};
+    use crate::Cap;
+
+    /// `env` is granted on a CLI run and in server work alike where no file writes its key, and a
+    /// written `env = false` replaces the default whole.
+    #[test]
+    fn env_is_granted_on_every_run_where_its_key_is_not_written() {
+        let refused = Capabilities {
+            env: Some(Setting::Bool(false)),
+            ..Capabilities::default()
+        };
+        for serving in [false, true] {
+            let run = Run {
+                serving,
+                folder: None,
+                temporary: &[],
+                development: false,
+            };
+            assert_eq!(
+                super::capability(Cap::Env, run),
+                super::Granted::Everything,
+                "serving: {serving}"
+            );
+            let unwritten = Authority::new(None, run);
+            assert!(unwritten.allows(Cap::Env, Scope::Unscoped, &Disk), "serving: {serving}");
+            let empty = Capabilities::default();
+            let other = Authority::new(Some(&empty), run);
+            assert!(other.allows(Cap::Env, Scope::Unscoped, &Disk), "serving: {serving}");
+            let written = Authority::new(Some(&refused), run);
+            assert!(!written.allows(Cap::Env, Scope::Unscoped, &Disk), "serving: {serving}");
+        }
     }
 }

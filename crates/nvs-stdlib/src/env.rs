@@ -7,20 +7,25 @@
 //! section on `mode` below says why they sit on this class anyway, and
 //! `rule:core-classes/env-context` owns the second.
 //!
-//! # It is not a capability door, and that is decided rather than skipped
+//! # `get`, `secret` and `all` ask the capability `env`
 //!
-//! `rule:security/capability-check-at-the-door`
-//! puts a check at the door to an effect, and reading the environment is
-//! not one: `rule:security/request-state-throws-in-an-isolate` says outright that `Core\Env` and `Core\Cli` are
-//! "process-wide facts already governed by the existing capability/config-overlay
-//! machinery", not per-request secrets to wall off. The operator who launched
-//! the process chose its environment in the same breath as its `nvs.toml`, so a
-//! grant here would gate one half of a decision the other half is already
-//! trusted with. `nvs_runtime::terminal`'s module doc records the same
-//! conclusion from the other side, for the four variables `Core\Cli` reads and
-//! never hands back.
+//! The operator chose the process environment for the application, and a
+//! package is granted it. So the three members that read a variable ask
+//! `env` at their door, `nvs_runtime::capability::env_var` and `env_vars`
+//! (`rule:security/capability-check-at-the-door`). With its key not written,
+//! `env` is granted on every kind of run, so the application reads the
+//! environment with nothing written. A package holds it only where its
+//! `[grants]` line names it, which the checker asks while compiling
+//! (`rule:security/package-authority-is-granted-one-line-at-a-time`), because
+//! a deployment's credentials live in the environment. An isolate spawned with
+//! a `grants:` list that leaves `env` out is refused at the door when it runs
+//! (`rule:security/no-runtime-grant`). `mode` and `context` read no variable
+//! and ask nothing. `nvs_runtime::terminal` reads the colour variables
+//! `Core\Cli` needs and never hands one back, so `Core\Cli` asks nothing either.
 //!
-//! What does the protecting is `rule:security/tainted-qualifier`
+//! **What it spends:** one grant check per read, and no allocation.
+//!
+//! What protects a value once it is read is `rule:security/tainted-qualifier`
 //! 's qualifier: every value here is `tainted`, because the environment is
 //! outside the program's own text, so a variable holding a URL still has to
 //! reach `Core\Http::allowUrl` and one holding a table name still has to reach
@@ -63,10 +68,9 @@
 //! two requests on two cores read the same bytes and neither can tear the
 //! other's read.
 //!
-//! The read itself is [`nvs_runtime::environment`] and not this crate's own
-//! spelling, because `nvs_stdlib_reaches_the_os_only_through_the_gate` forbids
-//! one here — `rule:security/capability-check-at-the-door` puts every effect behind a door in `nvs_runtime`,
-//! and that module's doc owns why this particular door asks nothing.
+//! The read itself is [`nvs_runtime::capability::env_var`] and not this
+//! crate's own spelling, because `nvs_stdlib_reaches_the_os_only_through_the_gate`
+//! forbids one here.
 //!
 //! # A value that is not text throws, and `all` skips it instead
 //!
@@ -134,11 +138,9 @@ const CARD: ClassDoc = ClassDoc {
 ///
 /// The environment half — `rule:statements/no-host-populated-variables`'s replacement for `$_ENV` and
 /// `getenv`, and beside `Core\Config` because the two are the same operator's
-/// two answers to "what was this process started with". The one class here
-/// that reaches the operating system and is deliberately *not* in the
-/// capability table, [`CAPABILITIES`](crate::registry::CAPABILITIES): [`crate::env`]'s module doc owns why a
-/// process-wide fact the operator chose is not a door, and why every value
-/// it hands back is `tainted` instead.
+/// two answers to "what was this process started with". Its rows in
+/// [`CAPABILITIES`](crate::registry::CAPABILITIES) are `env` for `get`, `secret`
+/// and `all`; [`crate::env`]'s module doc owns why.
 // rank: 650
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Env",
@@ -557,9 +559,9 @@ nvs_runtime::nvs_helper! {
     /// opinion about what a value means. The empty string is a value on those
     /// same terms and not the absence above, so `null` reports exactly one
     /// thing, and `?? ""` is what tells an unset name from one set to nothing.
-    fn nvs_core_env_get(_ctx, args: [1]) {
+    fn nvs_core_env_get(ctx, args: [1]) {
         let name = text(&args[0], "get")?;
-        match nvs_runtime::environment::var(name) {
+        match nvs_runtime::capability::env_var(ctx, name, r"Core\Env::get")? {
             None => Ok(Value::null()),
             Some(value) => match value.to_str() {
                 Some(text) => Ok(Value::text(text)),
@@ -586,9 +588,9 @@ nvs_runtime::nvs_helper! {
     /// unrepresentable name are both `null` here too. The qualifier is the
     /// checker's alone: at run time a `secret string` is the same string, and
     /// the throw names the variable and never its bytes.
-    fn nvs_core_env_secret(_ctx, args: [1]) {
+    fn nvs_core_env_secret(ctx, args: [1]) {
         let name = text(&args[0], "secret")?;
-        match nvs_runtime::environment::var(name) {
+        match nvs_runtime::capability::env_var(ctx, name, r"Core\Env::secret")? {
             None => Ok(Value::null()),
             Some(value) => match value.to_str() {
                 Some(text) => Ok(Value::text(text)),
@@ -610,8 +612,8 @@ nvs_runtime::nvs_helper! {
     ///
     /// Sorted, and skipping what is not text, for the two reasons this module's
     /// own doc gives.
-    fn nvs_core_env_all(_ctx, _args: [0]) {
-        let sorted: BTreeMap<String, String> = nvs_runtime::environment::vars()
+    fn nvs_core_env_all(ctx, _args: [0]) {
+        let sorted: BTreeMap<String, String> = nvs_runtime::capability::env_vars(ctx, r"Core\Env::all")?
             .into_iter()
             .filter_map(|(name, value)| {
                 Some((name.to_str()?.to_owned(), value.to_str()?.to_owned()))
@@ -672,6 +674,19 @@ mod tests {
     use super::{
         mode_ordinal, nvs_core_env_all, nvs_core_env_get, nvs_core_env_mode, nvs_core_env_secret,
     };
+
+    /// A context with a configuration that writes nothing: a CLI run, which holds `env` by
+    /// default, so the members read the environment.
+    fn granted() -> Ctx {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(Arc::new(nvs_config::Snapshot::default()));
+        ctx
+    }
+
+    /// The platform's value of `name`, read through the same door the members use.
+    fn platform(name: &str) -> Option<std::ffi::OsString> {
+        nvs_runtime::capability::env_var(&granted(), name, "test").expect("`env` is granted")
+    }
 
     /// `Core\Env::all`'s answer, in the order the member reported it.
     fn all(ctx: &mut Ctx) -> Vec<(String, String)> {
@@ -750,7 +765,7 @@ mod tests {
     // covers: Core\Env::all
     #[test]
     fn all_is_the_whole_text_environment_in_name_order() {
-        let mut ctx = Ctx::buffered();
+        let mut ctx = granted();
         let reported = all(&mut ctx);
 
         for pair in reported.windows(2) {
@@ -763,13 +778,14 @@ mod tests {
         }
         let checked = if cfg!(miri) { 16 } else { reported.len() };
         for (name, value) in reported.iter().take(checked) {
-            let platform = nvs_runtime::environment::var(name)
+            let platform = platform(name)
                 .unwrap_or_else(|| panic!("`all` reported {name:?}, which the platform does not"));
             assert_eq!(platform.to_str(), Some(value.as_str()), "{name:?}");
         }
         let names: std::collections::BTreeSet<&str> =
             reported.iter().map(|(name, _)| name.as_str()).collect();
-        for (name, value) in nvs_runtime::environment::vars() {
+        let every = nvs_runtime::capability::env_vars(&ctx, "test").expect("`env` is granted");
+        for (name, value) in every {
             if let (Some(name), Some(_)) = (name.to_str(), value.to_str()) {
                 assert!(
                     names.contains(name),
@@ -794,7 +810,7 @@ mod tests {
     // covers: Core\Env::get
     #[test]
     fn get_agrees_with_all_and_answers_null_for_a_name_nothing_set() {
-        let mut ctx = Ctx::buffered();
+        let mut ctx = granted();
         let reported = all(&mut ctx);
         let mut agreed = 0_usize;
         for (name, value) in &reported {
@@ -818,7 +834,7 @@ mod tests {
     // covers: Core\Env::secret
     #[test]
     fn secret_reads_the_value_get_reads_and_null_for_a_name_nothing_set() {
-        let mut ctx = Ctx::buffered();
+        let mut ctx = granted();
         let reported = all(&mut ctx);
         assert!(
             !reported.is_empty(),

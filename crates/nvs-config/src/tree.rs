@@ -345,6 +345,8 @@ pub struct Capabilities {
     pub cache: Option<CapCache>,
     /// `queue.purge` (`rule:concurrency/queue-deletion-is-explicit-and-bounded`).
     pub queue: Option<CapQueue>,
+    /// `env`: whether code may read the process environment. One key with no family, unscoped.
+    pub env: Option<Setting>,
 }
 
 /// The `script.*` grants.

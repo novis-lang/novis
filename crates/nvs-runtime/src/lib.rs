@@ -220,7 +220,6 @@ pub mod decimal;
 pub mod deferred;
 pub mod dispatch;
 pub mod drain;
-pub mod environment;
 pub mod extension;
 pub mod floor;
 mod fmt;

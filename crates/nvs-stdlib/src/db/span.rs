@@ -180,8 +180,8 @@ fn trace_ungranted_record(ctx: &mut nvs_runtime::Ctx) {
     let line = nvs_config::capability::grant_line(cap, nvs_config::capability::Scope::Unscoped);
     let message = format!(
         "The `trace` debug mode is on, but the capability `debug.trace` is not granted. No \
-         database query is traced.\nhelp: add `{line}` under `[capabilities.{}]` in nvs.toml",
-        cap.family()
+         database query is traced.\nhelp: add `{line}` under `{}` in nvs.toml",
+        cap.header("capabilities")
     );
     let mut record = nvs_render::Record::at(nvs_render::Level::Warn);
     record.envelope.message = Some(nvs_render::Rendered::new(&message));

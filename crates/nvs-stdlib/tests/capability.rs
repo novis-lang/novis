@@ -456,6 +456,8 @@ const DOORS: &[(&str, &[Cap])] = &[
     ("exec_with", &[Cap::ProcessExec]),
     ("pin_host", &[Cap::NetConnect]),
     ("pin_host_addresses", &[Cap::NetConnect]),
+    ("env_var", &[Cap::Env]),
+    ("env_vars", &[Cap::Env]),
 ];
 
 /// The functions of `nvs_runtime::capability` that take a member and are not a door: `require` and

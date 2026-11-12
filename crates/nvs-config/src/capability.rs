@@ -226,6 +226,16 @@ pub enum Cap {
     /// queue's connection and changes no table's shape, so `nvs queue migrate` stays the only thing
     /// that does.
     QueuePurge,
+    /// `env` — whether code may read the process environment: `Core\Env::get`, `secret` and `all`,
+    /// and `Core\Config::secret`.
+    ///
+    /// Unscoped, and its name has one segment, so it is written `env = true` under
+    /// `[capabilities]` and `"env"` on a `[grants]` line ([`Cap::header`]). No older capability fits:
+    /// reading a variable opens no file, reaches no host and runs no program. With the key not
+    /// written it is granted on every kind of run ([`crate::defaults::capability`]), so the
+    /// application reads the environment its operator launched it with. A package holds it only
+    /// where its grant line names it, because a deployment's credentials live there.
+    Env,
 }
 
 /// What a capability is being asked *about* — the second half of
@@ -695,6 +705,7 @@ impl Cap {
         Self::MailSend,
         Self::CacheShared,
         Self::QueuePurge,
+        Self::Env,
     ];
 
     /// The name `nvs.toml` grants it under, which is also the name a refusal prints — the operator
@@ -726,6 +737,19 @@ impl Cap {
             Self::MailSend => "mail.send",
             Self::CacheShared => "cache.shared",
             Self::QueuePurge => "queue.purge",
+            Self::Env => "env",
+        }
+    }
+
+    /// The table header a grant for it is written under, inside `block`: `[capabilities.fs]` for
+    /// `fs.read` in `capabilities`, and `[capabilities]` for `env`, whose name has no family.
+    /// Every refusal that prints a header to paste builds it here.
+    #[must_use]
+    pub fn header(self, block: &str) -> String {
+        if self.name().contains('.') {
+            format!("[{block}.{}]", self.family())
+        } else {
+            format!("[{block}]")
         }
     }
 
@@ -856,6 +880,7 @@ impl Cap {
             Self::MailSend => caps.mail.as_ref()?.send.as_ref(),
             Self::CacheShared => caps.cache.as_ref()?.shared.as_ref(),
             Self::QueuePurge => caps.queue.as_ref()?.purge.as_ref(),
+            Self::Env => caps.env.as_ref(),
         }
     }
 
@@ -890,6 +915,7 @@ impl Cap {
             Self::MailSend => caps.mail.as_mut()?.send.as_mut(),
             Self::CacheShared => caps.cache.as_mut()?.shared.as_mut(),
             Self::QueuePurge => caps.queue.as_mut()?.purge.as_mut(),
+            Self::Env => caps.env.as_mut(),
         }
     }
 }
@@ -1426,21 +1452,21 @@ fn validate_block(
     };
     // `[capabilities.fs]`, `[app.capabilities.fs]` or `[schedule.grants.fs]`: the header the
     // operator writes, which carries no index.
-    let table = |family: &str| {
-        let block: Vec<&str> = prefix
-            .split('.')
-            .filter(|part| part.parse::<usize>().is_err())
-            .collect();
-        format!("[{}.{family}]", block.join("."))
-    };
-    let refuse = |key: &str, found: Silent, family: &str| {
+    let block = prefix
+        .split('.')
+        .filter(|part| part.parse::<usize>().is_err())
+        .collect::<Vec<&str>>()
+        .join(".");
+    let refuse = |key: &str, found: Silent, header: String| {
         let mut refused = Diagnostic::error(code::E_BAD_DIRECTIVE, found.headline)
             .with_note(found.note.to_string());
         if let Some(origin) = origins.get(key) {
             refused = refused.with_note(format!("It is written in `{}`.", origin.path.display()));
         }
-        let family = found.family.unwrap_or(family);
-        refused.with_help(format!("write `{}` under `{}`", found.line, table(family)))
+        let header = found
+            .family
+            .map_or(header, |family| format!("[{block}.{family}]"));
+        refused.with_help(format!("write `{}` under `{header}`", found.line))
     };
     for cap in Cap::ALL.iter().copied() {
         let Some(setting) = cap.grant(caps) else {
@@ -1448,13 +1474,13 @@ fn validate_block(
         };
         let key = format!("{prefix}.{}", cap.name());
         if let Some(found) = silent(cap, setting, crate::db::written_in(origins, &key)) {
-            return Err(refuse(&key, found, cap.family()));
+            return Err(refuse(&key, found, cap.header(&block)));
         }
     }
     if let Some(setting) = caps.net.as_ref().and_then(|net| net.internal.as_ref()) {
         let key = format!("{prefix}.net.internal");
         if let Some(found) = silent_internal(setting) {
-            return Err(refuse(&key, found, "net"));
+            return Err(refuse(&key, found, format!("[{block}.net]")));
         }
     }
     Ok(())

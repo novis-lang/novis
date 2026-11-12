@@ -653,7 +653,7 @@ fn skip_files(globs: &[String]) -> Result<globset::GlobSet, String> {
 ///
 /// Called once, before the program's thread starts. The threads running then read pipes and
 /// frames and never the environment, and the runtime reads it only once the program runs
-/// (`nvs_runtime::environment`), so nothing reads it while it changes.
+/// (`nvs_runtime::capability::env_var`), so nothing reads it while it changes.
 fn set_env(env: &std::collections::BTreeMap<String, Option<String>>) {
     for (name, value) in env {
         // A name `set_var` would panic on is one no program can read, so it is skipped.

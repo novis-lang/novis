@@ -34,6 +34,7 @@
 //! stays on the core.
 //!
 
+use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
@@ -365,9 +366,9 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
             format!("{member} needs the capability `{name}` for {endpoint}, which is not granted")
         }
     };
-    let family = cap.family();
+    let header = cap.header("capabilities");
     let line = nvs_config::capability::grant_line(cap, scope);
-    format!("{subject}\nhelp: add `{line}` under `[capabilities.{family}]` in nvs.toml")
+    format!("{subject}\nhelp: add `{line}` under `{header}` in nvs.toml")
 }
 
 /// `rule:http-server/allow-url-pins-the-address`'s outbound door: the first address
@@ -1803,6 +1804,41 @@ pub fn io_failure(member: &str, path: &Path, err: &std::io::Error) -> Fault {
     )
 }
 
+/// The process environment's door for one variable: its raw value, or `None` where nothing set
+/// it, once [`Cap::Env`] is granted to `ctx`.
+///
+/// `env` is unscoped, so a grant opens every variable and its absence opens none. The application
+/// holds it by default; a package holds it only through its grant line, which the checker asks
+/// while compiling; an isolate whose `grants:` left it out holds it at neither layer and is
+/// refused here.
+///
+/// A name the platform cannot hold (empty, or carrying `=` or a NUL) is `None`, which is
+/// `std::env::var_os`'s own answer: such a variable cannot have been set either. The value is
+/// bytes, as an environment variable is on every platform. What to do with one that is not text
+/// is the member's choice.
+///
+/// **Read-only.** Nothing in this runtime writes the environment after start, which is what makes
+/// an unsynchronised read from a core thread sound. **What it spends:** one grant check per read.
+///
+/// # Errors
+///
+/// [`require`]'s `RuntimeError` where `env` is not granted.
+pub fn env_var(ctx: &Ctx, name: &str, member: &str) -> Result<Option<OsString>, Fault> {
+    require(ctx, Cap::Env, Scope::Unscoped, member)?;
+    Ok(std::env::var_os(name))
+}
+
+/// [`env_var`]'s door for every variable at once, in the platform's own order: a snapshot of one
+/// moment, collected so the caller holds no iterator over a table it does not own.
+///
+/// # Errors
+///
+/// [`require`]'s `RuntimeError` where `env` is not granted.
+pub fn env_vars(ctx: &Ctx, member: &str) -> Result<Vec<(OsString, OsString)>, Fault> {
+    require(ctx, Cap::Env, Scope::Unscoped, member)?;
+    Ok(std::env::vars_os().collect())
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -2027,6 +2063,39 @@ mod tests {
     /// sentence, then every one of them, so that a capability added to a family with no
     /// `[capabilities.<family>]` block of its own fails here rather than pointing a reader at a
     /// table that does not exist.
+    /// The environment door asks `env` at run time: a context with no line written reads a
+    /// variable, and a child spawned with a `grants:` list that leaves `env` out is refused,
+    /// for one variable and for all of them.
+    #[test]
+    fn an_isolate_that_dropped_env_reads_no_variable() {
+        // `PATH` is set on every runner, and nothing here depends on its value.
+        let mut parent = Ctx::buffered();
+        parent.set_config(snapshot_of(""));
+        assert!(
+            super::env_var(&parent, "PATH", "Core\\Env::get")
+                .expect("the application holds `env` with nothing written")
+                .is_some()
+        );
+
+        let mut child = Ctx::buffered();
+        child.set_config(snapshot_of(""));
+        let narrowing = crate::host::Narrowing {
+            grants: Some(vec!["fs.read".to_string()]),
+            ..crate::host::Narrowing::default()
+        };
+        parent.narrow(&mut child, &narrowing);
+        for denied in [
+            super::env_var(&child, "PATH", "Core\\Env::get").map(|_| ()),
+            super::env_vars(&child, "Core\\Env::all").map(|_| ()),
+        ] {
+            let Err(Fault::Thrown(class, message)) = denied else {
+                panic!("an isolate without `env` reads no variable");
+            };
+            assert_eq!(class, ThrownClass::Runtime);
+            assert!(message.contains("`env`"), "{message}");
+        }
+    }
+
     #[test]
     fn an_ungranted_call_names_the_config_file_and_the_capability_table() {
         let ctx = Ctx::buffered();
@@ -2035,6 +2104,7 @@ mod tests {
             (Cap::ScriptSpawn, "spawn = true", "[capabilities.script]"),
             (Cap::DbOpen, "open = true", "[capabilities.db]"),
             (Cap::CacheShared, "shared = true", "[capabilities.cache]"),
+            (Cap::Env, "env = true", "[capabilities]"),
         ] {
             let denied = require(&ctx, cap, Scope::Unscoped, MEMBER)
                 .expect_err("a context with no configuration grants nothing");
@@ -2063,13 +2133,13 @@ mod tests {
                 .nth(1)
                 .expect("every denial carries the help line, whatever the capability");
             let named = help
-                .split_once("` under `[capabilities.")
-                .and_then(|(_, rest)| rest.strip_suffix("]` in nvs.toml"))
+                .split_once("` under `")
+                .and_then(|(_, rest)| rest.strip_suffix("` in nvs.toml"))
                 .unwrap_or_else(|| panic!("one wording for every capability: {help}"));
             assert_eq!(
                 named,
-                cap.family(),
-                "the table is the capability's own family half: {}",
+                cap.header("capabilities"),
+                "the table is the one the capability's name implies: {}",
                 cap.name()
             );
         }

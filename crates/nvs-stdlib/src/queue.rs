@@ -3252,8 +3252,11 @@ fn grants_of(ctx: &nvs_runtime::Ctx, args: &[Value]) -> Result<Option<String>, F
         GrantRefused::NotHeld(name) => Fault::thrown(format!(
             "{PUSH}: `grants` names `{name}`, which this request does not hold — a job's grants \
              are narrowed from the request that enqueued it and never widened\nhelp: grant it in \
-             nvs.toml under `[capabilities.{}]`, or drop it from `grants`",
-            nvs_config::Cap::parse(name).map_or(name, |cap| cap.family())
+             nvs.toml under `{}`, or drop it from `grants`",
+            nvs_config::Cap::parse(name).map_or_else(
+                || format!("[capabilities.{name}]"),
+                |cap| cap.header("capabilities")
+            )
         )),
     })
 }
