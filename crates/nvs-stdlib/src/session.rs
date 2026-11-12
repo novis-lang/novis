@@ -1694,7 +1694,8 @@ mod tests {
         opened, opened_from, record, save, sealed_into, sealed_key, ttl, write_back,
     };
     use crate::cache::redis::Connection;
-    use crate::cache::{Dial, Target, memory_held};
+    use crate::cache::tests::memory_held;
+    use crate::cache::{Dial, Target};
 
     /// The block that chooses the shared tier, which every case driving it through a member writes.
     const SHARED_BLOCK: &str = "[session]\nbackend = \"shared\"\n";

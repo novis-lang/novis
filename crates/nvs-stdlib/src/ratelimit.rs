@@ -1307,11 +1307,11 @@ mod tests {
         // Where that refusal is remembered: this process's memory tier, under
         // this module's prefix and the scope `Core\Cache::memory()` gives a key.
         assert!(
-            crate::cache::memory_held(&entry).is_some(),
+            crate::cache::tests::memory_held(&entry).is_some(),
             "an arrival is an entry in `Core\\Cache`'s memory tier, and nothing else holds one"
         );
         assert_eq!(
-            crate::cache::memory_held(&crate::cache::scoped(&ctx, SHED_KEY.as_bytes())),
+            crate::cache::tests::memory_held(&crate::cache::scoped(&ctx, SHED_KEY.as_bytes())),
             None,
             "a program's own cache entry of the same name is a different entry"
         );
@@ -1331,7 +1331,7 @@ mod tests {
         // anything at all can drop one, without knowing this member exists.
         crate::cache::tests::crowd_out(&entry, 4 * 1024);
         assert_eq!(
-            crate::cache::memory_held(&entry),
+            crate::cache::tests::memory_held(&entry),
             None,
             "the cap forgot the arrival, which `shed`'s approximation allows at any time"
         );

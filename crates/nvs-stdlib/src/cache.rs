@@ -1281,14 +1281,6 @@ fn memory_get(key: &[u8], member: &str) -> Result<Option<Vec<u8>>, Fault> {
     Ok(Some(entry.to_vec()))
 }
 
-/// [`memory_get`] for a test, which arms no ceiling and so is refused nothing.
-///
-/// Crate-visible for the cases of the modules that keep state here.
-#[cfg(test)]
-pub(crate) fn memory_held(key: &[u8]) -> Option<Vec<u8>> {
-    memory_get(key, "test").expect("a test arms no memory ceiling")
-}
-
 /// Takes `key`'s entry out of this process's tier, whether or not there was one.
 ///
 /// One shard's write lock and no other, exactly as [`memory_put`] takes one,
@@ -3009,13 +3001,20 @@ pub(crate) mod tests {
     use crate::tests::granting;
     use nvs_runtime::NvsStr;
 
+    /// [`memory_get`] for a test, which arms no ceiling and so is refused nothing.
+    ///
+    /// Crate-visible for the cases of the modules that keep state here. It lives in this module
+    /// because the source scans of this file stop at its first `#[cfg(test)]`.
+    pub(crate) fn memory_held(key: &[u8]) -> Option<Vec<u8>> {
+        super::memory_get(key, "test").expect("a test arms no memory ceiling")
+    }
+
     use super::{
         CLASS, Ctx, DEFAULT_FILL_WAIT, DEFAULT_MAX_SIZE, ENTRY_OVERHEAD, Entries, FILL_WAIT,
         GET_DOC, Lifetime, MAX_SIZE, MEMORY, MEMORY_DOC, SEAL_DOMAIN, SECRET_ENTRY, SHARDS,
         SHARED_DOC, Value, bound, charged, dial_of, elected, endpoint, memory_cap, memory_forget,
-        memory_get, memory_held, memory_put, memory_update, nvs_core_cache_secret_entry_of,
-        open_configured, scoped, sealed_key, sealed_plaintext, sealed_value, shard_cap, shard_of,
-        wait_of, waited,
+        memory_get, memory_put, memory_update, nvs_core_cache_secret_entry_of, open_configured,
+        scoped, sealed_key, sealed_plaintext, sealed_value, shard_cap, shard_of, wait_of, waited,
     };
 
     /// Closes this thread's connection to the shared store, so a test's fake store sees the end

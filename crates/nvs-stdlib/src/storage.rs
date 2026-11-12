@@ -846,10 +846,21 @@ mod tests {
     /// `byte_source::read_bounded`, which asks the memory ceiling before each
     /// growth. A `read_to_end` or `read_to_string` elsewhere reads as much as
     /// the source has, so each one must be behind a `take` that bounds it.
-    /// The scan stops at a file's first `#[cfg(test)]`, as the capability
-    /// guard's does, and names each line it finds.
+    /// The scan stops at a file's test module, so a `#[cfg(test)]` helper
+    /// above it is read too, and names each line it finds. A function in
+    /// [`HELD`] reads an encoder over a value the request already holds, which
+    /// is no source: its output is about the input's size, and the request's
+    /// allocator counts it.
     #[test]
     fn no_member_reads_a_whole_source_outside_the_bounded_reader() {
+        /// A file and the start of a function in it, each with why its whole
+        /// reads are of a value the request holds.
+        const HELD: &[(&str, &str, &str)] = &[(
+            "compress.rs",
+            "fn encode<",
+            "a compressor over the bytes `Core\\Compress` was given",
+        )];
+
         fn walk(dir: &std::path::Path, found: &mut Vec<String>) {
             for entry in std::fs::read_dir(dir).expect("the source folder is readable") {
                 let path = entry.expect("an entry of the source folder").path();
@@ -865,13 +876,25 @@ mod tests {
                     continue;
                 }
                 let source = std::fs::read_to_string(&path).expect("a source file is text");
-                let lines: Vec<&str> = source
-                    .lines()
-                    .take_while(|line| line.trim() != "#[cfg(test)]")
-                    .collect();
+                let all: Vec<&str> = source.lines().collect();
+                let end = all
+                    .windows(2)
+                    .position(|pair| {
+                        pair[0].trim() == "#[cfg(test)]" && pair[1].contains("mod tests")
+                    })
+                    .unwrap_or(all.len());
+                let lines = &all[..end];
+                let file = path.file_name().and_then(|name| name.to_str());
+                let mut held = false;
                 for (at, line) in lines.iter().enumerate() {
                     let code = line.trim_start();
-                    if code.starts_with("//")
+                    if code.starts_with("fn ") || code.contains(" fn ") {
+                        held = HELD
+                            .iter()
+                            .any(|(name, start, _why)| file == Some(*name) && code.contains(start));
+                    }
+                    if held
+                        || code.starts_with("//")
                         || !(code.contains("read_to_end(") || code.contains("read_to_string("))
                     {
                         continue;
@@ -887,10 +910,7 @@ mod tests {
         }
 
         let mut found = Vec::new();
-        walk(
-            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
-            &mut found,
-        );
+        walk(&nvs_repo::path("crates/nvs-stdlib/src"), &mut found);
         assert!(
             found.is_empty(),
             "read through `byte_source::read_bounded`, or behind a `take`:\n{}",
