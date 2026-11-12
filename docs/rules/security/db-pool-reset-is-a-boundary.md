@@ -20,8 +20,13 @@ rolls back, then runs `SET SESSION AUTHORIZATION DEFAULT`, `RESET ROLE`, `RESET 
 `UNLISTEN *` and `pg_advisory_unlock_all()` and drops the session's temporary schema. `RESET ALL`
 skips the role and the session authorization, so each has its own command. MySQL, MariaDB and SQL
 Server use their atomic reset command, which also drops prepared statements, so the statement cache
-goes with it. SQLite rolls back, applies the pragmas its open set again, and drops every table, view
-and trigger in the `temp` schema. A SQLite connection refuses `ATTACH` and `DETACH` when a statement
+goes with it. SQLite allows a `PRAGMA` by name from one table, and refuses every other one when the
+statement is prepared, so a pragma a later SQLite adds is refused until it has a row. A row only
+reads, reads a file's value with no argument, or names session state with the value the reset writes
+back. A process-wide pragma never has a row. SQLite's reset rolls back, writes every session row's
+value back, drops every table, view and trigger in the `temp` schema, and returns
+`last_insert_rowid()` to zero. **What it spends:** one table scan per prepared `PRAGMA`, and a cached
+statement pays nothing. A SQLite connection refuses `ATTACH` and `DETACH` when a statement
 is prepared, `VACUUM INTO` with them, because an attached database is a file no `fs` grant was
 asked about; the unnamed temporary database a plain `VACUUM` attaches is the one exception, and a
 reset that finds a database still attached closes the connection. A SQLite connection whose `main`
