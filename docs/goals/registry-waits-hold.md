@@ -22,7 +22,7 @@ stages:
     context: [apps/registry/src/PackagePage.nvs, apps/registry/public/registry.js, tests/hostile/README.md, docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md]
   - id: 5
     title: every command but a locked build refuses a signed file older than seven days
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/index.rs, crates/nvs-cli/src/package/resolve.rs, crates/nvs-cli/src/package/proof.rs, docs/rules/packaging/the-registry-keeps-an-append-only-log.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -249,7 +249,8 @@ route with a token would forget it, as two did. Declined: moving the checks into
 age and writes the message. `Registry::checked` asks it where it compares today
 (`crates/nvs-cli/src/package/index.rs:645`), and `Seen::advisories` asks it after `covers`
 (`crates/nvs-cli/src/package/proof.rs:226`). `Registries` holds the bound from `new`, and one builder,
-`from_the_lock`, clears it. `fetch` and `vendor` call it under `--locked` and nothing else does.
+`for_the_lock`, clears it (named so because clippy's `wrong_self_convention` refuses a `from_*` that
+takes `self`). `fetch` and `vendor` call it under `--locked` and nothing else does.
 `Registries::selecting` and its four calls go. There is no new setting and no new limit: the bound is
 the existing `index::MAX_AGE`. The root file is still never refused for its age, so the kept copy finds
 the file hosts through an outage. `nvs registry log verify` passes no bound, because an operator checks
@@ -507,51 +508,51 @@ the tests. Neither subagent builds.
 **Does:** judge the age of an index file and of the advisory feed where each is opened, with one
 message, and leave only a locked fetch outside the bound.
 
-- [ ] One function on `Stamp` returns the age refusal for a file signed before a given time, with the
+- [x] One function on `Stamp` returns the age refusal for a file signed before a given time, with the
   message of the standing decision (`rule:packaging/the-registry-keeps-an-append-only-log`,
   `crates/nvs-cli/src/package/index.rs:262`). `Registry::checked` calls it
   (`crates/nvs-cli/src/package/index.rs:645`). The module doc and `MAX_AGE`'s doc say which callers
   pass no bound (`crates/nvs-cli/src/package/index.rs:31`, `crates/nvs-cli/src/package/index.rs:77`).
-- [ ] `Registries::new` sets `oldest` to now less `MAX_AGE`, `from_the_lock` clears it, and
+- [x] `Registries::new` sets `oldest` to now less `MAX_AGE`, `for_the_lock` clears it, and
   `selecting` goes with its four calls (`crates/nvs-cli/src/package/resolve.rs:154`,
   `crates/nvs-cli/src/package/resolve.rs:166`, `crates/nvs-cli/src/package/minimum.rs:87`,
   `crates/nvs-cli/src/package/minimum.rs:153`, `crates/nvs-cli/src/package/minimum.rs:183`,
   `crates/nvs-cli/src/package/minimum.rs:243`).
-- [ ] `fetch` calls `from_the_lock` when `locked` is set, for `nvs pkg fetch` and `nvs pkg vendor`
+- [x] `fetch` calls `for_the_lock` when `locked` is set, for `nvs pkg fetch` and `nvs pkg vendor`
   (`crates/nvs-cli/src/package/fetch.rs:221`).
-- [ ] `Seen::advisories` refuses a feed older than the bound, after `covers`
+- [x] `Seen::advisories` refuses a feed older than the bound, after `covers`
   (`crates/nvs-cli/src/package/proof.rs:225`). `nvs pkg audit` then ends with the feed's message, and
   its index read is bounded by `Registries` (`crates/nvs-cli/src/package/audit.rs:154`,
   `crates/nvs-cli/src/package/audit.rs:166`).
-- [ ] `nvs registry log advisories` takes `--at <SECONDS>` (`crates/nvs-cli/src/registry.rs:176`), and
+- [x] `nvs registry log advisories` takes `--at <SECONDS>` (`crates/nvs-cli/src/registry.rs:176`), and
   the help of `nvs registry index sign` says every command but a locked fetch needs a file from the
   last seven days (`crates/nvs-cli/src/registry.rs:110`).
-- [ ] The help of `nvs pkg audit` says it needs a feed signed in the last seven days, and the help of
+- [x] The help of `nvs pkg audit` says it needs a feed signed in the last seven days, and the help of
   `--locked` says it works while the registry's files are old
   (`rule:packaging/help-text-speaks-to-its-reader`, `crates/nvs-cli/src/package/mod.rs:154`,
   `crates/nvs-cli/src/package/mod.rs:191`, `crates/nvs-cli/src/package/mod.rs:246`).
-- [ ] Test `a_signed_file_older_than_seven_days_is_refused_unless_the_build_is_locked` replaces
+- [x] Test `a_signed_file_older_than_seven_days_is_refused_unless_the_build_is_locked` replaces
   `an_old_index_file_is_refused_only_for_selecting` (`crates/nvs-cli/src/package/index.rs:982`). It
   also holds that a file signed one second inside the bound is read.
-- [ ] Test `an_old_index_file_is_refused_for_every_command_but_a_locked_fetch` replaces
+- [x] Test `an_old_index_file_is_refused_for_every_command_but_a_locked_fetch` replaces
   `an_old_index_file_is_refused_for_add_and_read_for_a_locked_fetch`
   (`crates/nvs-cli/tests/package_client.rs:732`). `add` and a `fetch` without `--locked` fail, the
   message names the registry's URL, ` UTC`, `seven days` and `--locked`, no lock entry is written, and
   `fetch --locked` succeeds.
-- [ ] Test `audit_refuses_an_advisory_feed_signed_more_than_seven_days_ago`
+- [x] Test `audit_refuses_an_advisory_feed_signed_more_than_seven_days_ago`
   (`crates/nvs-cli/tests/package_audit.rs:467`). The feed is written with `--at` eight days back
   (`crates/nvs-cli/tests/package_audit.rs:91`), the command fails, and the message names the registry
   and the time. A feed signed now over the same log passes.
-- [ ] Attack `tests/hostile/tools/packages/nvs-pkg-audit/02-an-old-advisory-feed.nvs:1`, a model as
+- [x] Attack `tests/hostile/tools/packages/nvs-pkg-audit/02-an-old-advisory-feed.nvs:1`, a model as
   `01-a-hidden-advisory.nvs` is. A file host serves a feed and a log from before a retraction, then
   the same feed with its time changed to now, then a feed signed far in the future. Each is stopped,
   and a feed signed today passes.
-- [ ] `docs/reference/tools/35-packages.md:522` says which commands need a file from the last seven
+- [x] `docs/reference/tools/35-packages.md:522` says which commands need a file from the last seven
   days and that `--locked` does not, and `docs/reference/tools/35-packages.md:792` says what `nvs pkg
   audit` prints for an old feed. `docs/examples/tools/packages/nvs-pkg-audit/about.md:1` and
   `docs/examples/tools/packages/the-transparency-log/about.md:14` say it in one sentence each. Then
   `bun nv render --website`.
-- [ ] Rule fragment: every command that is not a locked build refuses an index file or a feed signed
+- [x] Rule fragment: every command that is not a locked build refuses an index file or a feed signed
   more than seven days ago, and the Declined entry on refusing every command names the locked fetch as
   what still works (`docs/rules/packaging/the-registry-keeps-an-append-only-log.md:33`,
   `docs/rules/packaging/the-registry-keeps-an-append-only-log.md:78`). Then `bun nv rules --render`.
@@ -566,38 +567,39 @@ message, and leave only a locked fetch outside the bound.
 
 ### State
 
-Stages 1 to 4 are done, each stage's checks passing, run once by name. The service lane is finished.
+Stages 1 to 5 are done. Each stage's own tests ran once by name and passed; nothing else ran.
 
-Stage 4: `PackagePage::waiting` (`apps/registry/src/PackagePage.nvs:137`) shows an owner each
-retraction with `retracted_at` later than now and each advisory with `shows_at` later than now and
-`cancelled_at` null, each with a `data-action="cancel"` form. `advisories` lists both only from
-their time and never a cancelled advisory. The step `cancel` in `apps/registry/public/registry.js`
-sends `{"version"}` or `{"advisory"}` by `data-advisory`. The browser case `an owner cancels a
-waiting retraction` uses a new job `retract.nvs` in the suite's job map; it was not run (CI's browser
-job and `bun nv deep` run it). Attack `02-a-retraction-that-enters-the-log-early.nvs` loads the real
-application with `autoload 'Registry' from '../../../../../apps/registry/src'`, the form the
-`tests/hostile/package/` attacks use, and ran clean on the release binary. Attack `01` gained the
-61-day token as step 1 and the token cancel as step 10.
+Stage 5: `Stamp::too_old` (`crates/nvs-cli/src/package/index.rs:287`) writes the age refusal.
+`Registry::index` judges each host's file with it after `checked`, still tries a fresh host after
+an old one, and starts its error with the first old file's message, the host lines after it.
+`Registries::new` sets the bound, `for_the_lock` clears it (`crates/nvs-cli/src/package/resolve.rs:168`),
+and `fetch` calls it under `--locked`. `Seen::advisories` takes `oldest` and refuses an old feed
+after `covers`; `audit` passes `Registries::oldest`. `nvs registry log advisories` takes `--at`.
+The three tests passed; the attack `02-an-old-advisory-feed.nvs` ran clean on the debug binary. The
+reference page, both about pages and the rule fragment are written, and the rules and website are
+rendered.
 
-The sweep's reds are stale, as the last handoff said: `env-secret-proofs` has no check now, and
-nightly 43001191130 is the run already traced to a test `305c04f660` rewrote.
+The sweep's reds were not re-read this session: the last two handoffs traced `env-secret-proofs` to a
+check that no longer exists and nightly 43001191130 to a test `305c04f660` rewrote. Stage 6's gate
+names any that still stand.
 
 ### Next
 
-Stage 5, the client lane, over `crates/nvs-cli/src/package/`, `crates/nvs-cli/src/registry.rs`,
-`crates/nvs-cli/tests/package_client.rs`, `package_audit.rs` and
-`docs/rules/packaging/the-registry-keeps-an-append-only-log.md`. Its items in the stage list carry the
-anchors. Stage 4 already edited `docs/reference/tools/35-packages.md` (the retract, advise and website
-parts), so stage 5 edits its signed-files part (`:522`) and audit part (about `:795` now).
+Stage 6, the gate. Start `looper verify` with `run_in_background`, fix every failure it names in one
+pass, and run it once more. Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes
+registry-waits-hold` and `bun nv ci --check`. Before `DONE`, move the standing decisions only this
+file holds into their rules (most already are: `rule:packaging/a-known-bad-version-is-retracted-not-deleted`
+and `rule:packaging/the-registry-keeps-an-append-only-log`).
 
-- [ ] The `Stamp` age function and `Registry::checked` (`crates/nvs-cli/src/package/index.rs:262`, `:645`).
-- [ ] `Registries` holds the bound, `from_the_lock` clears it, `selecting` goes (`crates/nvs-cli/src/package/resolve.rs:154`).
-- [ ] `Seen::advisories` (`crates/nvs-cli/src/package/proof.rs:225`) and `--at` on `nvs registry log advisories`.
-- [ ] The three tests the stage names, each run once by name (`crates/nvs-cli/src/package/index.rs:982`,
-  `crates/nvs-cli/tests/package_client.rs:732`, `crates/nvs-cli/tests/package_audit.rs:467`), then the attack and the words.
+- [ ] `crates/nvs-cli/src/package/index.rs:291` and the rest of the goal: `looper verify`, each
+  failure fixed, then once more.
+- [ ] `tools/nv/test/registry-browser.test.ts:632`, the browser case of stage 4, has never run;
+  `bun nv deep` or CI's browser job runs it.
+- [ ] `docs/goals/registry-waits-hold.md:156`: the goal-end gates above, each red fixed, and these
+  decisions moved.
 
-Expected red until stage 5 lands: none. Stage 5 replaces `an_old_index_file_is_refused_only_for_selecting`
-and `an_old_index_file_is_refused_for_add_and_read_for_a_locked_fetch` with its own tests.
+Expected red: none. No fixture signs at a fixed time, so the bound now on by default reaches no other
+test.
 
 ### Backlog
 
