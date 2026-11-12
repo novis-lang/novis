@@ -417,9 +417,7 @@ fn a_refresh_never_raises_a_childs_script_depth() {
         "a refresh in the child read the file's deeper ceiling"
     );
 
-    let mut placed = root
-        .placed_isolate()
-        .build(nvs_runtime::OutputSink::Sink);
+    let mut placed = root.placed_isolate().build(nvs_runtime::OutputSink::Sink);
     restore_and_refresh(&mut placed, "max_script_depth");
     assert_eq!(
         placed.max_script_depth(),
