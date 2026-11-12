@@ -2,7 +2,9 @@
 heap; the record is written back when the program that opened it ends — after any exit hooks,
 since a hook is user code that may still write — and immediately for `regenerate` and `destroy`.
 **Writing only when the record changed** keeps a read-only request off the write path: a request
-that starts a session and reads it makes one round trip, not two.
+that starts a session and reads it makes one round trip, not two. A request that renders a
+`Core\Csrf::token` for a loaded session is such a request too, because the token is never stored
+(`rule:security/csrf-is-on-by-default`).
 
 There is no lock. Two requests writing one session concurrently is last-write-wins over the
 **whole record**, and this is stated rather than repaired. On the `db` store each operation is one

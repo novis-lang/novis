@@ -1268,17 +1268,18 @@ fn write_back(ctx: &mut Ctx, record: NvsArray, member: &str) -> Result<Value, Fa
     Ok(Value::null())
 }
 
-/// The identifier the response sends for this request's session, with the session marked
-/// changed. `Core\Csrf::token` binds its token to it.
+/// The identifier the response sends for this request's session. `Core\Csrf::token` binds its
+/// token to it.
 ///
 /// **A session `start` opened with no identifier draws one here**, and sends its cookie, as its
 /// first [`write_back`] would. So the token and the cookie name the same session, and the door
 /// accepts the token on the next request (`rule:security/csrf-is-on-by-default`).
 ///
-/// **The record is marked changed even while it is empty**, so the write-back stores a row under
-/// the identifier and the next request's `start` finds it rather than opening a fresh one. What
-/// it spends is one row per visitor who is shown a token, which `[session] ttl` expires, and one
-/// store write per such request.
+/// **Only a drawn identifier marks the record changed**, even while it is empty, so the write-back
+/// creates a row under it and the next request's `start` finds it. What it spends is one row per
+/// new visitor who is shown a token, which `[session] ttl` expires. A session that already has an
+/// identifier is left as it was: the token is sealed over the id on each call and never stored, so
+/// a page that renders a token for a loaded session sends no store write.
 ///
 /// # Errors
 ///
@@ -1299,11 +1300,11 @@ pub(crate) fn sent_id(ctx: &mut Ctx, who: &str) -> Result<String, Fault> {
         crate::response::head_open(ctx, who)?;
         let id = mint(ctx);
         issue_cookie(ctx, who, &id)?;
-        ctx.session_mut().ok_or_else(unstarted)?.id = id;
+        let session = ctx.session_mut().ok_or_else(unstarted)?;
+        session.id = id;
+        session.dirty = true;
     }
-    let session = ctx.session_mut().ok_or_else(unstarted)?;
-    session.dirty = true;
-    Ok(session.id.clone())
+    Ok(ctx.session().ok_or_else(unstarted)?.id.clone())
 }
 
 /// Saves `value` under `key` in the started session's record, for a `Core` class that keeps one
@@ -1811,7 +1812,7 @@ mod tests {
     use std::collections::{HashMap, HashSet};
     use std::io::{BufRead, BufReader, Read, Write};
     use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
     use std::thread;
     use std::time::Duration;
@@ -1884,6 +1885,8 @@ mod tests {
         /// The keys whose expiry has passed. The store still has them, and answers each one as
         /// absent, as a real store answers an expired key.
         lapsed: Arc<Mutex<HashSet<Vec<u8>>>>,
+        /// How many `SET` commands the store received, written or not.
+        sets: Arc<AtomicUsize>,
     }
 
     impl Serving {
@@ -1893,12 +1896,17 @@ mod tests {
             let stopping = Arc::clone(&stop);
             let lapsed = Arc::new(Mutex::new(HashSet::new()));
             let expired = Arc::clone(&lapsed);
-            let accepting = thread::spawn(move || serving(&listener, &held, &expired, &stopping));
+            let sets = Arc::new(AtomicUsize::new(0));
+            let counted = Arc::clone(&sets);
+            let accepting = thread::spawn(move || {
+                serving(&listener, &held, &expired, &counted, &stopping);
+            });
             Self {
                 address,
                 stop,
                 accepting: Some(accepting),
                 lapsed,
+                sets,
             }
         }
     }
@@ -1924,10 +1932,12 @@ mod tests {
     /// [`create`], [`super::replace`], [`load`] and [`destroy`] send. Anything else is a panic
     /// rather than a silent `+OK`, so a command added upstream fails here instead of passing
     /// untested. A key in `lapsed` is absent to every command, and `DEL` of it answers `0`.
+    /// Each `SET` adds one to `sets`.
     fn serving(
         listener: &TcpListener,
         held: &Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>,
         lapsed: &Arc<Mutex<HashSet<Vec<u8>>>>,
+        sets: &Arc<AtomicUsize>,
         stop: &AtomicBool,
     ) {
         let mut connections = Vec::new();
@@ -1937,12 +1947,14 @@ mod tests {
             }
             let held = Arc::clone(held);
             let lapsed = Arc::clone(lapsed);
+            let sets = Arc::clone(sets);
             let handler = thread::spawn(move || {
                 let mut writing = stream.try_clone().expect("the write half");
                 let mut reading = BufReader::new(stream);
                 while let Some(parts) = command(&mut reading) {
                     let reply = match parts[0].as_slice() {
                         b"SET" => {
+                            sets.fetch_add(1, Ordering::SeqCst);
                             let (condition, px) = match parts[3].as_slice() {
                                 b"PX" => (None, 3),
                                 word => (Some(word.to_vec()), 4),
@@ -2482,6 +2494,100 @@ mod tests {
                 "{word}: and no cookie names the identifier that was removed"
             );
         }
+    }
+
+    /// The map the fake shared store keeps, by key.
+    type Rows = Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>;
+
+    /// A context configured with the fake shared store as its session store and a CSRF key, the
+    /// server, and the map it keeps.
+    fn tokened() -> (Ctx, Serving, Rows) {
+        let (listener, address) = listening();
+        let held = Arc::new(Mutex::new(HashMap::new()));
+        let serving = Serving::start(listener, Arc::clone(&held));
+        let mut ctx = Ctx::buffered();
+        ctx.set_random_state(31);
+        ctx.set_config(crate::tests::granting(&format!(
+            "{SHARED_BLOCK}[capabilities.cache]\nshared = true\n\
+             [cache.shared]\nurl = \"redis://{address}\"\n\
+             [http]\ncsrf_key = \"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc\"\n"
+        )));
+        opened(&ctx, "a case", "").expect("the shared store is configured");
+        (ctx, serving, held)
+    }
+
+    /// `Core\Csrf::token` called the way a program calls it.
+    fn token(ctx: &mut Ctx) {
+        let token = nvs_runtime::call(crate::csrf::nvs_core_csrf_token, ctx, &[])
+            .expect("a started session with a key gets a token");
+        dropped(token);
+    }
+
+    /// `rule:security/csrf-is-on-by-default`: a token is sealed over the session's id and never
+    /// stored, so two tokens for a loaded session send no store write. The same request with one
+    /// `Core\Session::set` sends one.
+    #[test]
+    fn a_token_for_a_loaded_session_makes_no_store_write() {
+        for changes in [false, true] {
+            let (mut ctx, serving, held) = tokened();
+            held.lock()
+                .expect("the store")
+                .insert(key_of(NO_APP, ID), Vec::new());
+            ctx.open_session(nvs_runtime::Session {
+                id: ID.to_owned(),
+                record: Vec::new(),
+                dirty: false,
+                stored: true,
+                write_back: super::send_at_end,
+            });
+            token(&mut ctx);
+            token(&mut ctx);
+            if changes {
+                let key = Value::text("cart");
+                let value = Value::text("17");
+                nvs_runtime::call(super::nvs_core_session_set, &mut ctx, &[key, value])
+                    .expect("the value is saved");
+                dropped(key);
+                dropped(value);
+            }
+            ctx.end_session();
+            assert_eq!(
+                serving.sets.load(Ordering::SeqCst),
+                usize::from(changes),
+                "a token writes nothing, and a set writes once (set called: {changes})"
+            );
+        }
+    }
+
+    /// `rule:security/csrf-is-on-by-default`: a new visitor's first token draws the session's
+    /// identifier and sends its cookie, and the request's end creates the row once under that
+    /// identifier. A second token in the same request writes nothing more.
+    #[test]
+    fn a_token_for_a_new_visitor_creates_the_row_once() {
+        let (mut ctx, serving, held) = tokened();
+        ctx.open_session(super::fresh_session());
+        token(&mut ctx);
+        token(&mut ctx);
+        let id = ctx.session().expect("the session is open").id.clone();
+        assert!(
+            super::issuable(&id),
+            "the first token drew an identifier: {id:?}"
+        );
+        let headers = ctx.take_headers();
+        assert!(
+            headers
+                .iter()
+                .any(|header| header.value.contains(id.as_str())),
+            "the cookie carries the drawn identifier: {headers:?}"
+        );
+        ctx.end_session();
+        assert_eq!(serving.sets.load(Ordering::SeqCst), 1, "one row is created");
+        assert!(
+            held.lock()
+                .expect("the store")
+                .contains_key(&key_of(NO_APP, &id)),
+            "the row is under the identifier the cookie carries"
+        );
     }
 
     /// `ctx` under the one `[[app]]` block at `app`, with the store configuration it already had.

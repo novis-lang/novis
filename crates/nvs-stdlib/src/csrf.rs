@@ -41,8 +41,10 @@
 //! anything other than the identifier the next request presents would render a
 //! form its own door refuses. That is the mistake [`token`] makes impossible:
 //! [`crate::session::sent_id`] gives it the identifier, drawing one and sending
-//! its cookie for a session nobody has written yet, and marks the session
-//! written so the write-back stores the row. It needs `Core\Session::start`
+//! its cookie for a session nobody has written yet, and marks only that
+//! session written, so the write-back creates its row. A token for a session
+//! that already has a row writes nothing, because the token is sealed over the
+//! id on each call and never stored. It needs `Core\Session::start`
 //! first, because `rule:core-classes/session-is-started-explicitly` declines a
 //! hidden start, and it reads the key with [`nvs_config::http::csrf_key`], the
 //! door's own reader, so no program decodes base64.

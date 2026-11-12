@@ -31,7 +31,11 @@ another site sign a visitor in to an account the attacker chose.
 the identifier the response's session cookie carries, under `[http] csrf_key` read by the door's own
 reader, so the token it renders is one the door accepts on the next request. For a visitor with no
 session, the call is the session's first write: it draws the identifier and sends the cookie, so a
-login form shown to a new visitor is bound to an identifier too. `token` before `start` throws naming
+login form shown to a new visitor is bound to an identifier too. For a session that already has a
+row, the call writes nothing: the token is sealed over the identifier on each call and never stored,
+so a page that renders a token makes no store write and does not extend the session's lifetime.
+**What it spends:** nothing, and it removes one store write per page that renders a token for a
+loaded session. `token` before `start` throws naming
 `start`, and with no key it throws naming `[http] csrf_key`. `Core\Csrf::issue` stays for a program
 that binds a token to a value of its own and checks it itself with `verify`.
 
