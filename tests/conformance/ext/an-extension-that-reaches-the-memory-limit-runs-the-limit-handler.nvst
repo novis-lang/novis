@@ -12,10 +12,10 @@ Core\Fatal::onLimit(fn (array<string> $report): void => {
 });
 
 // The extension keeps a copy of every string it is given until the request ends.
-// Each call adds one megabyte, so a few calls reach the 8 MB limit.
-string $line = Core\Str::repeat('x', 1048576);
+// Each call adds one kilobyte, so the extension's memory grows until it reaches the 8 MB limit.
+string $line = Core\Str::repeat('x', 1024);
 int $calls = 0;
-while ($calls < 64) {
+while ($calls < 16384) {
     $calls = $calls + 1;
     string $back = Ledger::echoString($line);
 }

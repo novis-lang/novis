@@ -459,6 +459,18 @@ are different facts, and one falsy return would conflate them. Per
 [`errors/escalation-ladder`](errors.md#errors-escalation-ladder) this is an ordinary throw rather than a resource-limit fatal, so the
 request may catch it and answer 400. The linear tier has no budget, because it needs none.
 
+**The step budget bounds backtracks, and `[limits] cpu_time` bounds the work.** A step is one
+backtrack, and between two backtracks the engine may scan far: a lookahead tried at every position of
+a long subject spends one step per position and reads the rest of the subject at each. So the
+backtracking engine also counts its work, one unit per instruction and one per 64 bytes of the span a
+sub-search is given, and polls the request's deadline every 4,096 units
+([`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper)). A passed deadline is the CPU or wall-time
+fatal, never this throw, and a search that spent its steps after its deadline passed is the fatal too.
+The engine is the vendored `fancy-regex` with that one patch. It costs one add and one compare per
+instruction, one relaxed load per poll, and one reference count per backtracking call, and no
+memory. The linear tier reads each byte a bounded number of times, so one search needs no poll
+inside it, and the members that search many times poll between two matches.
+
 A backtracking engine run against a crafted subject is exponential: `(a+)+$` can pin a core for
 minutes. Under thread-per-core that is not one slow request but a lost core, and availability is
 part of request isolation. A step limit whose exhaustion reads as "no match" turns that hang into a

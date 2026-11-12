@@ -14,11 +14,12 @@
 //! links only the world's own imports. A guest holds the files and hosts its effective grant
 //! names, and no other authority.
 //!
-//! **The host has room for every request in flight.** Its pool of instances is sized once, from
-//! the configuration of the first boot ([`size_pool`]): `max_in_flight` times the classes one
-//! request can call, so every request in flight can hold an instance of each. Each place reserves
-//! address space for its memory, and `nvs_ext::call::reservation` makes that reservation smaller
-//! when the pool would pass half of the address space. A reload that raises
+//! **The host has room for the requests in flight, up to a cap.** Its pool of instances is sized
+//! once, from the configuration of the first boot ([`size_pool`]): `max_in_flight` times the
+//! classes one request can call, and at most `nvs_ext::call::MOST_PLACES`, because the table pool
+//! commits memory for every place at the engine's start. Each place reserves address space for
+//! its memory, and `nvs_ext::call::reservation` makes that reservation smaller when the pool
+//! would pass half of the address space. A reload that raises
 //! `max_in_flight` or adds a class cannot grow a pool that exists: past the boot's size, a call
 //! that needs a new instance throws `ExtensionError`, and the next boot takes the new size.
 //!
@@ -269,7 +270,8 @@ fn size_pool(config: &Config) {
 }
 
 /// The places a pool needs for `config`: `max_in_flight` times the classes one request can call,
-/// the built-in components and each `[[extension]]` entry.
+/// the built-in components and each `[[extension]]` entry, and at most
+/// `nvs_ext::call::MOST_PLACES`, which bounds the memory the table pool commits.
 fn pool_size(config: &Config) -> u32 {
     let in_flight = config
         .server
@@ -277,8 +279,10 @@ fn pool_size(config: &Config) -> u32 {
         .and_then(|server| server.max_in_flight)
         .unwrap_or(nvs_config::defaults::SERVER_MAX_IN_FLIGHT);
     let classes = with_built_in(Vec::new()).len() + config.extension.len();
-    let slots = in_flight.saturating_mul(u64::try_from(classes.max(1)).unwrap_or(u64::MAX));
-    u32::try_from(slots).unwrap_or(u32::MAX)
+    let slots = in_flight
+        .saturating_mul(u64::try_from(classes.max(1)).unwrap_or(u64::MAX))
+        .min(u64::from(nvs_ext::call::MOST_PLACES));
+    u32::try_from(slots).unwrap_or(nvs_ext::call::MOST_PLACES)
 }
 
 /// The manifests of `config`'s `[[extension]]` entries, read without compiling a component: what
@@ -1621,18 +1625,31 @@ mod tests {
         ctx.clear_memory_ceiling();
     }
 
-    /// The default configuration's pool has a place for each request `max_in_flight` admits, for
-    /// each built-in class. That many places do not fit at the full reservation, so each one gets
-    /// a smaller reservation, and the pool stays within half of the address space.
+    /// A pool has a place for each request `max_in_flight` admits, for each built-in class, up to
+    /// `MOST_PLACES`. The default configuration passes the cap, and every capped place keeps the
+    /// full reservation. A pool past the full reservation's share gets a smaller one, and stays
+    /// within half of the address space.
     #[test]
-    fn the_pool_has_a_place_for_every_request_in_flight_times_every_class() {
+    fn the_pool_has_a_place_for_every_request_in_flight_times_every_class_up_to_the_cap() {
         let classes = with_built_in(Vec::new()).len();
         assert!(classes > 0, "the build carries built-in components");
-        let slots = pool_size(&Config::default());
+        let few = Config {
+            server: Some(nvs_config::tree::Server {
+                max_in_flight: Some(8),
+                ..nvs_config::tree::Server::default()
+            }),
+            ..Config::default()
+        };
+        assert_eq!(u64::from(pool_size(&few)), 8 * classes as u64);
+        let most = nvs_ext::call::MOST_PLACES;
+        assert!(nvs_config::defaults::SERVER_MAX_IN_FLIGHT * classes as u64 > u64::from(most));
+        assert_eq!(pool_size(&Config::default()), most);
         assert_eq!(
-            u64::from(slots),
-            nvs_config::defaults::SERVER_MAX_IN_FLIGHT * classes as u64
+            nvs_ext::call::reservation(most),
+            nvs_ext::call::FULL_RESERVATION,
+            "a capped pool keeps the full reservation"
         );
+        let slots = 40_000;
         let reserved = nvs_ext::call::reservation(slots);
         assert!(reserved < nvs_ext::call::FULL_RESERVATION, "{reserved}");
         assert!(

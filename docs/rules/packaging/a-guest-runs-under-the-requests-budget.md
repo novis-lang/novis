@@ -37,7 +37,9 @@ with third-party code inside it: a crashing or malicious extension harms one req
 in flight.
 
 What it spends: the guest's linear memory, charged to the calling request and freed when the request
-ends — O(in-flight). The pooling allocator reserves address space per slot, not committed memory.
+ends — O(in-flight). The pooling allocator reserves address space for each place's memory, and
+commits its table pool at the engine's start, at most 1.25 GiB
+(`rule:packaging/a-fresh-instance-per-request`).
 The memory question at each tick is three thread-local reads per running guest, and nothing per
 allocation. The one count saves a walk over every crossing value per call, and a crossing value's
 bytes are counted once.

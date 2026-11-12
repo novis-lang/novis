@@ -9,37 +9,41 @@ after-response work ends. A keep-alive connection that waits holds no instance. 
 reads the tree's stop flags through a weak handle, because the tree keeps the budget, and a strong one
 would keep every tree, its instances and its memory for the life of the process.
 
-**Every request in flight can hold an instance of each class it calls.** The pooling allocator has a
-fixed number of places, sized once at the first boot: `max_in_flight` times the classes one request
-can call, the built-in components and each `[[extension]]` entry. A child script whose `grants:`
-narrows its request's takes a place of its own per class it calls
-(`rule:security/extension-grants-are-an-intersection`), which the size does not count. There is no
-cap below that product: a pool sized below it let a few slow requests that hold an instance starve
-every other request that calls an extension. A reload cannot resize a pool that exists: after a reload
-that raises `max_in_flight` or adds a class, a call that needs an instance past the boot's size throws
-`ExtensionError` until the next boot.
+**A request in flight can hold an instance of each class it calls, up to a cap.** The pooling
+allocator has a fixed number of places, sized once at the first boot: `max_in_flight` times the
+classes one request can call, the built-in components and each `[[extension]]` entry, and at most
+4,096 (`nvs_ext::call::MOST_PLACES`). A child script whose `grants:` narrows its request's takes a
+place of its own per class it calls (`rule:security/extension-grants-are-an-intersection`), which the
+size does not count. A call that needs an instance when every place is held throws `ExtensionError`.
+A reload cannot resize a pool that exists: after a reload that raises `max_in_flight` or adds a
+class, a call that needs an instance past the boot's size throws `ExtensionError` until the next boot.
+
+**The cap is what the table pool commits.** wasmtime 50 maps its table pool readable and writable at
+the engine's start, and on Windows that commits every byte against the page file. A place has two
+tables of 160 KiB, so 4,096 places commit 1.25 GiB. The default `max_in_flight` of 10,000 times the
+built-in classes is 40,000 places, which would commit 12.2 GiB, and the engine did not start on
+Windows. Under the cap, the default pool has fewer places than requests it admits, so a few slow
+requests that hold an instance can make another request's call throw `ExtensionError`. That is
+availability spent so the server starts on every host.
 
 **A place's reservation shrinks so the pool fits half of the address space.** A place reserves 4 GiB
 of address space for its linear memory and a 32 MiB guard after it, which lets compiled guest code
 skip bounds checks. While every place fits that way in 64 TiB, half of the 128 TiB a 64-bit process
-can address, the pool keeps it. Past that, each place reserves its share of the 64 TiB less the guard,
-and at least 16 MiB (`nvs_ext::call::reservation`). Under 4 GiB, every guest memory access has a
-bounds check, and a guest's memory cannot grow past its place's reservation. The default
-`max_in_flight` of 10,000 times the built-in classes is 40,000 places, so the default pool takes the
-smaller reservation, about 1.6 GiB a place. The reservation is part of the engine's configuration, and
-the compiled-component cache's key hashes that configuration, so a component compiled for one
-reservation is never loaded into an engine with another
-(`the_pool_has_a_place_for_every_request_in_flight_times_every_class`).
+can address, the pool keeps it, and 4,096 places do. Past that, each place reserves its share of the
+64 TiB less the guard, and at least 16 MiB (`nvs_ext::call::reservation`). Under 4 GiB, every guest
+memory access has a bounds check, and a guest's memory cannot grow past its place's reservation. The
+reservation is part of the engine's configuration, and the compiled-component cache's key hashes that
+configuration, so a component compiled for one reservation is never loaded into an engine with another
+(`the_pool_has_a_place_for_every_request_in_flight_times_every_class_up_to_the_cap`).
 
-- **Memory:** address space only, reserved at boot; an instance commits memory only as it runs, and
-  that memory is charged to its request.
-- **Latency:** with the default settings, a bounds check on every guest memory access. That is latency
-  spent so one client cannot take every place. A pool small enough for the full reservation pays
-  nothing.
+- **Memory:** the table pool's commit, at most 1.25 GiB, at the engine's start. Linear memory is
+  address space only; an instance commits memory only as it runs, and that memory is charged to its
+  request.
+- **Latency:** none under the cap, since every place keeps the full reservation.
 
 **Declined:**
-- **A fixed cap on the places, so every place keeps the full reservation.** It let a few slow requests
-  hold every place, and a request that found none threw `ExtensionError`.
+- **No cap, so every request in flight has a place for each class.** At the default settings the
+  table pool committed 12.2 GiB, and the engine did not start on Windows or on a small Linux host.
 - **Growing the pool at a reload.** wasmtime's pool is fixed when its engine is made, and every loaded
   component is compiled into that engine, so a new pool means compiling every extension again.
 

@@ -924,6 +924,15 @@ pub const FULL_RESERVATION: u64 = 4 << 30;
 /// host.
 pub const GUARD: u64 = 32 << 20;
 
+/// The most places a pool has. wasmtime 50 maps its table pool readable and writable at once
+/// (`Mmap::accessible_reserved`), and on Windows that commits every byte against the page file at
+/// the engine's start. A table is wasmtime's default 20,000 elements of 8 bytes, 160 KiB in whole
+/// pages, and a place has [`TABLES`] of them, so this many places commit 1.25 GiB. The default
+/// `max_in_flight` times the built-in classes is 40,000 places, which would commit 12.2 GiB and
+/// fail to start on Windows and on a small Linux host. Under this cap every place keeps
+/// [`FULL_RESERVATION`].
+pub const MOST_PLACES: u32 = 4096;
+
 /// The smallest reservation a place gets, however many places the pool has. A guest's memory
 /// cannot grow past its place's reservation.
 pub const LEAST_RESERVATION: u64 = 16 << 20;

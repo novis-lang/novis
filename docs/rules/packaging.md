@@ -3515,24 +3515,41 @@ after-response work ends. A keep-alive connection that waits holds no instance. 
 reads the tree's stop flags through a weak handle, because the tree keeps the budget, and a strong one
 would keep every tree, its instances and its memory for the life of the process.
 
-**Every request in flight can hold an instance of each class it calls.** The pooling allocator has a
-fixed number of places, sized once at the first boot: `max_in_flight` times the classes one request
-can call, the built-in components and each `[[extension]]` entry. A child script whose `grants:`
-narrows its request's takes a place of its own per class it calls
-([`security/extension-grants-are-an-intersection`](security.md#security-extension-grants-are-an-intersection)), which the size does not count. A pool sized below that let a few
-slow requests that hold an instance starve every other request that calls an extension. Each place
-reserves 6 GiB of address space for its linear memory, which lets compiled guest code skip bounds
-checks, so the pool stops at 4096 places, 24 TiB of the 128 TiB a 64-bit process can address. A reload
-cannot resize a pool that exists: after a reload that raises `max_in_flight` or adds a class, a call
-that needs an instance past the boot's size throws `ExtensionError` until the next boot.
+**A request in flight can hold an instance of each class it calls, up to a cap.** The pooling
+allocator has a fixed number of places, sized once at the first boot: `max_in_flight` times the
+classes one request can call, the built-in components and each `[[extension]]` entry, and at most
+4,096 (`nvs_ext::call::MOST_PLACES`). A child script whose `grants:` narrows its request's takes a
+place of its own per class it calls ([`security/extension-grants-are-an-intersection`](security.md#security-extension-grants-are-an-intersection)), which the
+size does not count. A call that needs an instance when every place is held throws `ExtensionError`.
+A reload cannot resize a pool that exists: after a reload that raises `max_in_flight` or adds a
+class, a call that needs an instance past the boot's size throws `ExtensionError` until the next boot.
 
-- **Memory:** address space only, reserved at boot; an instance commits memory only as it runs, and
-  that memory is charged to its request.
+**The cap is what the table pool commits.** wasmtime 50 maps its table pool readable and writable at
+the engine's start, and on Windows that commits every byte against the page file. A place has two
+tables of 160 KiB, so 4,096 places commit 1.25 GiB. The default `max_in_flight` of 10,000 times the
+built-in classes is 40,000 places, which would commit 12.2 GiB, and the engine did not start on
+Windows. Under the cap, the default pool has fewer places than requests it admits, so a few slow
+requests that hold an instance can make another request's call throw `ExtensionError`. That is
+availability spent so the server starts on every host.
+
+**A place's reservation shrinks so the pool fits half of the address space.** A place reserves 4 GiB
+of address space for its linear memory and a 32 MiB guard after it, which lets compiled guest code
+skip bounds checks. While every place fits that way in 64 TiB, half of the 128 TiB a 64-bit process
+can address, the pool keeps it, and 4,096 places do. Past that, each place reserves its share of the
+64 TiB less the guard, and at least 16 MiB (`nvs_ext::call::reservation`). Under 4 GiB, every guest
+memory access has a bounds check, and a guest's memory cannot grow past its place's reservation. The
+reservation is part of the engine's configuration, and the compiled-component cache's key hashes that
+configuration, so a component compiled for one reservation is never loaded into an engine with another
+(`the_pool_has_a_place_for_every_request_in_flight_times_every_class_up_to_the_cap`).
+
+- **Memory:** the table pool's commit, at most 1.25 GiB, at the engine's start. Linear memory is
+  address space only; an instance commits memory only as it runs, and that memory is charged to its
+  request.
+- **Latency:** none under the cap, since every place keeps the full reservation.
 
 **Declined:**
-- **A smaller reservation per place, so the pool fits `max_in_flight` at any size.** Under 4 GiB, every
-  guest memory access gains a bounds check, which is latency on the request path bought with address
-  space that costs nothing.
+- **No cap, so every request in flight has a place for each class.** At the default settings the
+  table pool committed 12.2 GiB, and the engine did not start on Windows or on a small Linux host.
 - **Growing the pool at a reload.** wasmtime's pool is fixed when its engine is made, and every loaded
   component is compiled into that engine, so a new pool means compiling every extension again.
 
@@ -3603,12 +3620,28 @@ epoch tick the guest checks the request's CPU deadline and traps past it, so a d
 guest loop stops rather than hanging a core ([`packaging/a-guest-call-yields-on-its-core`](packaging.md#packaging-a-guest-call-yields-on-its-core)). Its
 linear memory is the request's: each growth is charged to the request's memory accounting, and the
 store's limit is the least of what the request has left, the entry's optional `memory` ceiling and
-the manifest's declared maximum. What crosses from the guest is the request's memory as well: the
-host's copy of a value the guest passes or returns is bounded by what the request has left and charged
-to it while the host holds it, so a result is as large as the request can afford and no larger. A
+the manifest's declared maximum. What crosses from the guest is the request's memory as well, and it
+is counted once: the host's copy of a value the guest passes or returns is an allocation of the
+request, which the request's allocator counts as it counts any other. Nothing measures it a second
+time. A crossing is bounded by the hostcall fuel, which is what the request has left when the call
+starts, and the call asks the request's memory after it lowers the arguments and again after it
+lifts the results. A request over its ceiling at either point ends at the memory limit. So a 40 MiB
+result is 40 MiB of the request's memory, not 80. Only guest linear memory, which is mapped and not
+allocated, is charged by hand. A
 host import that allocates a size the guest chose asks what the request has left before it allocates:
-random bytes, and `as-bytes` on a lent file or a byte string. A size past it ends the call at the
-memory limit, and nothing is allocated. An
+random bytes, `as-bytes` on a lent file or a byte string, `append` to a `bytes`, and a header
+list, a header or a request body written through `wasi:http`. A size past it ends the call at the
+memory limit, and nothing is allocated.
+
+**The epoch tick asks the request's memory beside its CPU deadline.** Whatever put the request over
+its ceiling — a logged line it holds until the call returns, a crossing value, an import that
+allocated — the next tick ends the call at the memory limit. So every import, present and future, is
+bounded without a charge of its own: between two ticks of 1 ms a guest makes the host allocate at
+most what its imports allocate in that time, which for the log is the lines it writes in 1 ms. A
+send or a read the guest asks for after the crossing is answered with a failure and does nothing,
+and that answer wakes the guest, so a guest waiting on the host meets the same tick. Each
+instance's resource table holds at most `nvs_ext::handle::MOST` streams, pollables and descriptors,
+so a guest cannot grow it by asking in a loop. An
 extension therefore cannot starve its neighbours — a stronger
 guarantee than a built-in native function currently has, because it is enforced by the sandbox rather
 than by discipline.
@@ -3621,7 +3654,12 @@ with third-party code inside it: a crashing or malicious extension harms one req
 in flight.
 
 What it spends: the guest's linear memory, charged to the calling request and freed when the request
-ends — O(in-flight). The pooling allocator reserves address space per slot, not committed memory.
+ends — O(in-flight). The pooling allocator reserves address space for each place's memory, and
+commits its table pool at the engine's start, at most 1.25 GiB
+([`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request)).
+The memory question at each tick is three thread-local reads per running guest, and nothing per
+allocation. The one count saves a walk over every crossing value per call, and a crossing value's
+bytes are counted once.
 A result crosses as one host value per element before it is converted, tens of bytes for each byte
 of a `list<u8>`, so a PDF of a few megabytes briefly holds over a hundred megabytes of the request's
 memory. That is the
@@ -3634,7 +3672,12 @@ a host import asks first (`crates/nvs-ext/tests/wasi.rs`, `crates/nvs-ext/tests/
 `nvs serve` hand a guest, `nvs_cli::extensions::Spent`, is the request's own: its CPU deadline is the
 `CPU_LIMIT` flag the watchdog raises on the request tree, against everything the request has run since
 it started, and each growth is charged to the memory count the runtime keeps for the request, under the
-same `[limits] memory` ceiling as the program's own values. A limit's outcome is a `FATAL` naming the
+same `[limits] memory` ceiling as the program's own values. Its `memory_spent` reads the counters the
+allocator raises `MEMORY_LIMIT` from, on the request's own thread, so a collection that brought the
+request back under is not a stop (`a_guest_is_interrupted_once_its_request_is_over_the_memory_ceiling`,
+`a_guest_that_logs_without_end_is_stopped_at_the_memory_ceiling`,
+`a_guest_cannot_fill_the_resource_table_past_its_cap`, `a_crossing_value_is_charged_to_its_request_once`, and the attack
+`tests/hostile/config/limits/02-an-extension-that-writes-to-the-log-without-end.nvs`). A limit's outcome is a `FATAL` naming the
 limit as `onLimit` receives it (`crates/nvs-ext/tests/failure.rs`), and the request's limit handler
 runs before it, in `nvs run`
 (`tests/conformance/ext/an-extension-that-reaches-the-memory-limit-runs-the-limit-handler.nvst`) and

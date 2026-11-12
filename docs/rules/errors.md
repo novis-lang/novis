@@ -330,6 +330,36 @@ in that band only a recorded refusal ends the request, so an ask of nothing woul
 allocation of `0` bytes. The cost is a few thread-local reads per field, beside the allocations each
 field already makes.
 
+**A whole source is read by one reader.** `read_bounded` in `crates/nvs-stdlib/src/byte_source.rs`
+asks the ceiling before each growth of its buffer, stops at `[limits] max_output`, and asks for the
+copy its caller makes. `Core\IO::read`, `::readText`, `::lines`, `::stdin` and `Core\Storage::get`
+read through it. Any other `read_to_end` or `read_to_string` in `nvs-stdlib` sits behind a `take`
+whose piece was asked first, and `no_member_reads_a_whole_source_outside_the_bounded_reader` fails on
+one that does not. A stored object of any size stops at the ceiling inside the read. The cost is one
+compare per growth.
+
+**An error message is held to 8 KiB, and a quoted argument to 64 bytes.** Every `Fault` is made
+through its constructors in `crates/nvs-runtime/src/abi.rs`, because its message is a type only that
+module builds. Each constructor cuts a message past `MESSAGE_BYTES` on a character boundary and adds
+`…`, so what an exception object, a log line and a `FATAL` report copy is bounded in one place. The
+clip cannot bound the *build* of a message: `format!` has already copied the argument, and its buffer
+doubles as it grows, so an 8 MiB argument holds up to 32 MiB inside one call. So a member that puts
+a caller's text in a message writes it through `quoted`, which writes its first 64 bytes, and `{:?}`
+of `quoted` writes them escaped. The JSON key written twice, the header name and value, the redirect
+URL and the cookie's name, value, path and domain are quoted. A member that forgets `quoted` still
+keeps 8 KiB of it, and `no-probe-overshoot` and the debug backstop in `abi.rs` catch its build. The
+cost is one length compare per fault. A message past 8 KiB loses its tail, which may shorten a long
+`Core\Test` comparison. Declined: constructors that take only `format_args!`. That is a change at
+about 1,500 sites, and a wrapper that passes a built `String` would need a second door.
+
+**A read that is not a byte source asks for its piece before it holds it.** The HTTP client's
+buffered body asks for each 8 KiB pull, under its own reply ceiling. A shared store's bulk reply,
+which `Core\Cache` and `Core\Session` both read, asks for its length once the reply ceiling has
+passed it. The session file store's query gives a record only when it fits the request's headroom,
+and asks for the length of one that does not. The memory cache tier asks for an entry's length
+before it copies the entry. A refusal records the breach, so each ends with the memory `FATAL`.
+The cost is one compare per pull, per reply or per hit.
+
 **A primitive that carries no `ctx` refuses by returning a degenerate value, and acquires no status
 channel to say so.** `nvs_str_append` answers its target unchanged, which exactly balances the one
 reference it consumes; `nvs_str_concat` and `nvs_str_concat_n` answer the immortal empty string,
