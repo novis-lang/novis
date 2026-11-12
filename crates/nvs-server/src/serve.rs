@@ -382,9 +382,13 @@ impl Answer {
     /// `due_at` is the connection loop's half of the clock, and
     /// `crate::bounds::wake_at` owns why the wake is arranged there rather than
     /// from inside this poll.
+    ///
+    /// `place` is the stream's place under `max_open`, which the body holds
+    /// until it is dropped. A whole body drops it at once.
     #[must_use]
     pub fn as_an_event_stream(
         self,
+        place: crate::bounds::Slot,
         bounds: &crate::bounds::Connection,
         draining: &Draining,
         write_idle: Duration,
@@ -394,7 +398,7 @@ impl Answer {
             Self::Streaming { drain, tail, .. } => Self::Streaming {
                 drain,
                 alive: Some(crate::bounds::EventStream::opened(
-                    bounds, draining, write_idle, due_at,
+                    place, bounds, draining, write_idle, due_at,
                 )),
                 cut: None,
                 left: None,
@@ -2540,7 +2544,19 @@ where
             }
             (None, stream) => stream,
         };
-        if let Some(upgrade) = opened {
+        // An event stream takes its place under `max_open` before its isolate
+        // starts, as a WebSocket does at its framing. At the ceiling it is
+        // answered admission's `503` with `Retry-After`, and no isolate is
+        // started (`rule:concurrency/connection-bounds-are-finite`).
+        let opened = opened.and_then(|upgrade| match crate::bounds::Slot::take(bounds.max_open) {
+            Some(place) => Some((upgrade, place)),
+            None => {
+                upgrade.discard();
+                answered = crate::admit::over_capacity();
+                None
+            }
+        });
+        if let Some((upgrade, place)) = opened {
             let (program, args, narrowing) = upgrade.into_parts();
             // The body before the isolate that writes it, because the two halves
             // are one call: the writing half goes into the isolate and the
@@ -2563,6 +2579,7 @@ where
                 Ok(running) => {
                     answered = event_stream(
                         body,
+                        place,
                         &bounds,
                         draining,
                         waits.write_idle,
@@ -3248,12 +3265,15 @@ fn switching(accept: &str) -> Response<Answer> {
 /// fields an event stream reads, and which one it must not, is that type's.
 fn event_stream(
     body: Answer,
+    place: crate::bounds::Slot,
     bounds: &crate::bounds::Connection,
     draining: &Draining,
     write_idle: Duration,
     due_at: crate::bounds::NextBeat,
 ) -> Response<Answer> {
-    let mut response = Response::new(body.as_an_event_stream(bounds, draining, write_idle, due_at));
+    let mut response = Response::new(body.as_an_event_stream(
+        place, bounds, draining, write_idle, due_at,
+    ));
     let headers = response.headers_mut();
     headers.insert(
         header::CONTENT_TYPE,
@@ -4966,6 +4986,22 @@ pub(crate) mod tests {
     where
         H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
     {
+        upgrade_once_reading_to(serving, waits, handler, path, door, door.needle())
+    }
+
+    /// [`upgrade_once_serving`], reading the response up to `needle`, for a
+    /// case whose answer is not the door's own.
+    fn upgrade_once_reading_to<H>(
+        serving: Serving,
+        waits: Waits,
+        handler: impl FnOnce() -> Rc<H> + 'static,
+        path: &'static str,
+        door: Door,
+        needle: String,
+    ) -> String
+    where
+        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+    {
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
             .expect("the OS refused a port");
         let addr = listener
@@ -4978,7 +5014,7 @@ pub(crate) mod tests {
                 .write_all(door.opening(path).as_bytes())
                 .expect("the write failed");
             let mut seen = String::new();
-            read_until(&mut socket, &door.needle(), &mut seen);
+            read_until(&mut socket, &needle, &mut seen);
             end_the_loop(addr);
             seen
         });
@@ -14560,6 +14596,81 @@ pub(crate) mod tests {
         an_event_stream_draining(bounds, &Draining::detached())
     }
 
+    /// A count no case shares, for a body whose place under `max_open` is not
+    /// what the case is about.
+    static UNCOUNTED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+    /// `rule:concurrency/connection-bounds-are-finite`: an event stream holds
+    /// a place under `max_open` for as long as its body is open, and gives it
+    /// back when the body is dropped. The case counts against a count of its
+    /// own, so no other case can take the place.
+    #[test]
+    fn an_event_stream_takes_a_max_open_place_and_gives_it_back() {
+        static COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let bounds = crate::bounds::Connection::default();
+        let place = crate::bounds::Slot::take_from(&COUNT, 1).expect("the count starts empty");
+        let (emit, body) = Answer::stream(&bounds);
+        let body = body.as_an_event_stream(
+            place,
+            &bounds,
+            &Draining::detached(),
+            Waits::default().write_idle,
+            Rc::new(Cell::new(None)),
+        );
+        assert!(
+            crate::bounds::Slot::take_from(&COUNT, 1).is_none(),
+            "a second stream found a place while the first one was open"
+        );
+        drop(emit);
+        drop(body);
+        assert!(
+            crate::bounds::Slot::take_from(&COUNT, 1).is_some(),
+            "the stream's place did not come back when its body was dropped"
+        );
+    }
+
+    /// `rule:concurrency/connection-bounds-are-finite`: an event stream past
+    /// `max_open` is answered `503` with `Retry-After`, and its isolate never
+    /// starts. A ceiling of zero is full whatever else runs, which a deployment
+    /// cannot write and a case can.
+    #[test]
+    fn an_event_stream_past_max_open_is_answered_503() {
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let seen = upgrade_once_reading_to(
+            wide_open().bounded_by(crate::bounds::Connection {
+                max_open: 0,
+                ..crate::bounds::Connection::default()
+            }),
+            Waits::default(),
+            move || {
+                upgrade_leaving(
+                    Door::Sse,
+                    String::new(),
+                    handler_said,
+                    say_nothing_for_a_while,
+                )
+            },
+            "/live",
+            Door::Sse,
+            "\r\n\r\n".to_owned(),
+        );
+        assert!(
+            seen.starts_with("HTTP/1.1 503"),
+            "a stream past max_open was not refused: {seen}"
+        );
+        assert!(
+            seen.to_ascii_lowercase().contains("retry-after: 1"),
+            "the refusal said nothing about when to come back: {seen}"
+        );
+        assert_eq!(
+            said.borrow().len(),
+            1,
+            "the stream's isolate started past the ceiling: {:?}",
+            said.borrow()
+        );
+    }
+
     /// [`an_event_stream_over`], on a named drain rather than one nothing ever
     /// begins — a server draining beside the process's own is
     /// [`Draining::detached`]'s whole case.
@@ -14569,6 +14680,7 @@ pub(crate) mod tests {
     ) -> (stream::Emit, Answer) {
         let (emit, body) = Answer::stream(bounds);
         let body = body.as_an_event_stream(
+            crate::bounds::Slot::take_from(&UNCOUNTED, u64::MAX).expect("a count with no ceiling"),
             bounds,
             draining,
             Waits::default().write_idle,

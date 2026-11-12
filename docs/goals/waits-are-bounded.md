@@ -494,11 +494,11 @@ keeps a connection open or that `cpu_time` covers a whole connection, as `path:N
   `an_event_stream_handler_that_never_waits_ends_at_its_cpu_limit` and
   `a_connections_cpu_count_starts_again_at_each_turn`. The first two read the close the peer gets. The
   third reads the tree's charge after two turns (`rule:concurrency/connection-bounds-are-finite`).
-- [ ] The event-stream door takes `Slot::take(bounds.max_open)` before the isolate starts, holds it
+- [x] The event-stream door takes `Slot::take(bounds.max_open)` before the isolate starts, holds it
   in `EventStream`, and answers `503` with `Retry-After` at the ceiling
   (`rule:concurrency/connection-bounds-are-finite`, `crates/nvs-server/src/serve.rs:2543`,
   `crates/nvs-server/src/bounds.rs:275`, `crates/nvs-server/src/bounds.rs:533`).
-- [ ] Tests `an_event_stream_takes_a_max_open_place_and_gives_it_back` and
+- [x] Tests `an_event_stream_takes_a_max_open_place_and_gives_it_back` and
   `an_event_stream_past_max_open_is_answered_503` in `crates/nvs-server/src/serve.rs:1` tests, against
   a named count as `Slot::take_from` allows (`rule:concurrency/connection-bounds-are-finite`).
 - [x] `Framed::receive_or` fixes the idle instant once per call, keeps it across a ping, a pong and

@@ -32,7 +32,7 @@
 //!
 //! - **Connections per process** is [`Slot`], counted here because the resource
 //!   is the process's rather than a core's, and taken at the moment the socket
-//!   is framed. It is deliberately *not* [`crate::admit`]'s ceiling: that one
+//!   is framed, or before an event stream's isolate starts. It is deliberately *not* [`crate::admit`]'s ceiling: that one
 //!   counts requests in flight and a request that upgraded has ended, so a
 //!   connection holding a coroutine, 128 KiB of codec buffer and a root isolate
 //!   would be charged to nothing. The two numbers are the same magnitude for
@@ -254,10 +254,11 @@ static OPEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0)
 
 /// One connection's place under [`Connection::max_open`], released on drop.
 ///
-/// Held by [`crate::socket::Framed`], so the count falls when the descriptor
-/// closes and by no other route — there is no path on which a connection ends
-/// without its codec being dropped, which is exactly why the framing object is
-/// the one that carries this.
+/// Held by [`crate::socket::Framed`] on the WebSocket door and by
+/// [`EventStream`] on the other, so the count falls when the descriptor closes
+/// or the stream's body is dropped, and by no other route. Both doors count
+/// against the one number: an event stream holds a root isolate and a task
+/// stack for as long as a WebSocket does.
 #[derive(Debug)]
 pub struct Slot {
     /// The count this place belongs to, which is [`OPEN`] for every connection
@@ -283,7 +284,10 @@ impl Slot {
     /// for the same reason: a compare-and-swap loop would order a count that
     /// nothing reads twice, and a transient one-over under a race is one
     /// connection, not a breach of the memory arithmetic that sized the number.
-    fn take_from(count: &'static std::sync::atomic::AtomicU64, ceiling: u64) -> Option<Self> {
+    pub(crate) fn take_from(
+        count: &'static std::sync::atomic::AtomicU64,
+        ceiling: u64,
+    ) -> Option<Self> {
         use std::sync::atomic::Ordering;
         if count.fetch_add(1, Ordering::Relaxed) >= ceiling {
             count.fetch_sub(1, Ordering::Relaxed);
@@ -496,10 +500,17 @@ impl Drop for Heartbeat {
 /// What bounds the quiet on this door is `nvs_config::server::Waits::write_idle`
 /// instead, and [`Heartbeat`] is the answer to it.
 ///
+/// **It holds a place under [`Connection::max_open`]**, taken by the door
+/// before the stream's isolate starts and given back when the body is dropped.
+///
 /// **What it spends**, per `rule:programs/memory-priority`: [`Heartbeat`]'s cell
-/// and two words, and one instant beside them, per open event stream.
+/// and two words, one instant beside them and the place's word, per open event
+/// stream, and one relaxed add and sub on the process's count.
 #[derive(Debug)]
 pub struct EventStream {
+    /// This stream's place under [`Connection::max_open`], held for as long as
+    /// the body is.
+    _place: Slot,
     /// What keeps the connection open under a stream that is saying nothing.
     beat: Heartbeat,
     /// When this stream is closed however busy it has been, which is
@@ -528,15 +539,18 @@ pub struct EventStream {
 impl EventStream {
     /// The bounds a stream opens under: `bounds`' lifetime from now, the beat
     /// derived from the wait its connection writes responses under, and the
-    /// reconnection hint drawn for this stream alone.
+    /// reconnection hint drawn for this stream alone. It holds `place` until it
+    /// is dropped.
     #[must_use]
     pub fn opened(
+        place: Slot,
         bounds: &Connection,
         draining: &Draining,
         write_idle: Duration,
         due_at: NextBeat,
     ) -> Self {
         Self {
+            _place: place,
             beat: Heartbeat::derived_from(write_idle, due_at),
             expires_at: Instant::now() + bounds.lifetime,
             opening: Some(nvs_runtime::sse::reconnect_after(reconnect_hint(

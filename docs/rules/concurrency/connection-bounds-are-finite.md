@@ -24,7 +24,11 @@ memory, CPU or lifetime budget is reported as that and never as an out-of-memory
 
 **Both doors are bounded, and not by the same bounds.** An event stream has no codec and no peer
 speaking, so what holds it is a lifetime, a drain period and one event's size — plus two numbers no
-operator writes, and one field it must leave alone:
+operator writes, and one field it must leave alone. **It takes a `max_open` place like a WebSocket**:
+it holds a root isolate and a task stack as long as one, so it counts against the same number. The
+door takes the place before the isolate starts and the body gives it back when it is dropped, and with
+no place free the request is answered `503` with `Retry-After` and no isolate starts. **What it
+spends:** one relaxed add and sub and one word per stream.
 
 - **The keep-alive is derived rather than configured.** What would close a quiet event stream is the
   wait a connection writes responses under, so the interval that keeps one open is read off that same
