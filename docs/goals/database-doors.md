@@ -358,18 +358,18 @@ function every schema reader passes. One test then walks every column type and d
 each. First, every site that renders an uncaught `Throwable`: the log record, the error page and
 the terminal. Second, every test and `.nvst` case that pins a message holding a server's sentence.
 
-- [ ] `Display for ServerError` prints the backend, a severity from `ERROR`, `FATAL` and `PANIC`,
+- [x] `Display for ServerError` prints the backend, a severity from `ERROR`, `FATAL` and `PANIC`,
   the `SQLSTATE` only when it is five ASCII letters or digits, the driver code, and a fixed sentence
   for each `DbErrorKind` (`rule:core-classes/db-error`, `crates/nvs-db/src/conn.rs:739`,
   `crates/nvs-db/src/conn.rs:606`). The four constructors keep filling `message`
   (`crates/nvs-db/src/pg.rs:1520`, `crates/nvs-db/src/mysql.rs:1387`,
   `crates/nvs-db/src/tds/stream.rs:636`, `crates/nvs-db/src/sqlite.rs:2106`).
-- [ ] `DbError` gains `serverMessage` after `sql`: the property list, the slot constant in both
+- [x] `DbError` gains `serverMessage` after `sql`: the property list, the slot constant in both
   crates, and its type `?tainted string`. `constraint` becomes `?tainted string`
   (`crates/nvs-hir/src/errors.rs:194`, `crates/nvs-runtime/src/throwable.rs:244`,
   `crates/nvs-types/src/error_lib.rs:173`, `crates/nvs-codegen/tests/throwing.rs:127`,
   `crates/nvs-stdlib/src/db/transaction.rs:1059`).
-- [ ] `statement_failure` takes whether the statement bound a value. It writes `serverMessage` from
+- [x] `statement_failure` takes whether the statement bound a value. It writes `serverMessage` from
   `ServerError.message` only when none was bound. Otherwise the message says the server's text was
   left out and why (`crates/nvs-stdlib/src/db/bind.rs:180`, `crates/nvs-stdlib/src/db/bind.rs:192`).
   Its callers in `execute.rs`, `stream.rs`, `transaction.rs`, `column.rs` and `schema.rs` pass it.
@@ -378,15 +378,15 @@ the terminal. Second, every test and `.nvst` case that pins a message holding a 
   `crates/nvs-stdlib/src/db/open.rs:871`, `crates/nvs-stdlib/src/db/open.rs:1095`).
 - [ ] Each uncaught-error renderer the list names prints `serverMessage` after `message` when it is
   not `null`, through that sink's own renderer for `tainted` text.
-- [ ] Tests `a_server_errors_rendering_holds_no_text_the_server_chose` in `conn.rs`, and
+- [x] Tests `a_server_errors_rendering_holds_no_text_the_server_chose` in `conn.rs`, and
   `a_db_error_message_holds_no_server_text` and
   `a_statement_with_a_bound_value_leaves_the_servers_text_out` in `bind.rs`. The first builds a
   `ServerError` whose message, severity and `SQLSTATE` each hold a marker, and finds none rendered.
-- [ ] Test `the_servers_text_on_a_db_error_is_a_tainted_string` in a new
+- [x] Test `the_servers_text_on_a_db_error_is_a_tainted_string` in a new
   `crates/nvs-types/tests/db_error_text.rs:1`: `string $s = $e->serverMessage` and
   `string $c = $e->constraint` do not compile, and the `?tainted string` forms do.
 - [ ] Every test and case the list names is updated to the new message, never loosened to a prefix.
-- [ ] `rule:core-classes/db-error` lists `serverMessage`, says which text is plain and which is
+- [x] `rule:core-classes/db-error` lists `serverMessage`, says which text is plain and which is
   `tainted`, and says when the text is left out (`docs/rules/core-classes/db-error.md:1`).
 - [ ] `bun nv proofs --id 'Core\Db\DbError'` prints what the new property owes. Each `about.md`,
   example and reference card it names is written to AGENTS.md § *Text an end user reads*.
@@ -553,41 +553,41 @@ into the Novis string.
 ### State
 
 Stage 1 is done (`37205d79d9`) and its check `defaults-are-literals` is green.
-`ColumnDefault::Decimal` holds a `DecimalLiteral` (`crates/nvs-db/src/schema.rs`), whose one
-constructor `DecimalLiteral::new` both readers call. `Column::default` refuses a non-finite float as
-`SchemaError::NotFinite`, and a bad decimal is `SchemaError::NotADecimal`; both name the column, and
-`fromArray` throws each as `LogicError` through the existing `refused`. The catalog reader now reads a
-server's `NaN` or infinite float default as `None`. The attack is
-`tests/hostile/core/Db-Schema/fromArray/02-a-decimal-default-that-adds-a-column.nvs`, granted in
-`nvs.toml` beside the `applySafe` case, and it passes under `bun nv proofs --run`.
 
-The run's sweep items were stale: `env-secret-proofs` is no defined check, and the nightly Miri
-failures ran at `578534cc7c`, before `7568aaa0fb` skipped those tests under Miri.
+The run's sweep items were stale again: no `env-secret-proofs.log` exists, and the nightly Miri run
+`43201099245` tested `578534cc7c`, before `7568aaa0fb` skipped those tests under Miri.
 
-The tree still prints a server's sentence into `DbError->message`, resets SQLite by a list of eight
-pragmas, and resets MySQL and MariaDB without the database or the charset.
+Stage 2 is half done (`47fd4cc17a`, `b9f375cb51`). `Display for ServerError` prints the backend, a
+severity word, `DbErrorKind::sentence()`, a five-character `SQLSTATE` and ` (code N)`. It prints no
+server text. `DbError` has `serverMessage` at `SERVER_MESSAGE_SLOT` (`KIND_SLOT + 5`, both crates),
+and it and `constraint` are `?tainted string`. `statement_failure` takes `bound: bool` before
+`refused`. A `Statement` passes `statement.binds.bound()`, a batch and a stream read pass `true`, and
+a transaction's own commands pass `false`. The three tests in the `message-holds-no-server-text`
+check and `db_error_text` pass when run by name. The rule fragment is rewritten.
+
+The Explore list of uncaught-error renderers: `crates/nvs-runtime/src/floor.rs:124` (`uncaught`
+builds the record from a `Thrown`, with its properties) and `crates/nvs-runtime/src/floor.rs:272`
+(`report`). Every other site calls these two: `ctx/error.rs:539`, `ctx/hooks.rs:349`,
+`deferred.rs:253`, `later.rs:559`, `nvs-host/src/ladder.rs:217`, `nvs-host/src/isolate.rs:1381` and
+`nvs-cli/src/main.rs:2439`. No production error page renders a `Throwable` yet.
 
 ### Next
 
-Stage 2, *a database error keeps the server's text out of its message*. Files:
-`crates/nvs-db/src/conn.rs`, `crates/nvs-stdlib/src/db/bind.rs`, `crates/nvs-runtime/src/throwable.rs`,
-`crates/nvs-hir/src/errors.rs`, `crates/nvs-types/src/error_lib.rs`, `crates/nvs-stdlib/src/db/open.rs`.
+Stage 2's remaining items. Files: `crates/nvs-stdlib/src/db/open.rs`, `crates/nvs-runtime/src/floor.rs`.
 
-- [ ] `docs/goals/database-doors.md:357`: first, the stage's `**Split:**` line. One `Explore`
-  subagent lists every uncaught-`Throwable` renderer and every test or `.nvst` case that pins a
-  server's sentence, as `file.rs:NN` lines.
-- [ ] `crates/nvs-db/src/conn.rs:739`: `Display for ServerError` holds no text the server chose
-  (`crates/nvs-db/src/conn.rs:606`).
-- [ ] `crates/nvs-hir/src/errors.rs:194`, `crates/nvs-runtime/src/throwable.rs:244`,
-  `crates/nvs-types/src/error_lib.rs:173`: `DbError` gains `serverMessage` after `sql`, and
-  `constraint` becomes `?tainted string`.
-- [ ] `crates/nvs-stdlib/src/db/bind.rs:180`: `statement_failure` takes whether a value was bound.
-- [ ] `crates/nvs-stdlib/src/db/open.rs:342`: a failed connect logs the server's sentence at `Warn`.
-- [ ] `docs/rules/core-classes/db-error.md:1`: the renderers, the tests,
-  `crates/nvs-types/tests/db_error_text.rs`, this rule fragment and the proofs, as stage 2's items
-  say.
+- [ ] `crates/nvs-stdlib/src/db/open.rs:354`: the `opening` closure and the sites at
+  `open.rs:419`, `open.rs:885` and `open.rs:1109` write `ServerError::of(err)`'s `message` to one
+  `Warn` record, as `crates/nvs-stdlib/src/db/span.rs:208` does. The closure has no `ctx`, so map the
+  error to a value first and log after the `match` that opens.
+- [ ] `crates/nvs-runtime/src/floor.rs:124`: `uncaught` shows `serverMessage` after `message` when
+  it is not `null`. First check whether it already prints every own property.
+- [ ] `tests/conformance/core/db-connect-refuses-a-block-it-cannot-read-by-the-field.nvst:82`: expects
+  `sqlite ERROR: unable to open database file`, which is now the kind's sentence. Run the case once
+  and write the new line exactly.
+- [ ] `docs/goals/database-doors.md:391`: `bun nv proofs --id 'Core\Db\DbError'`, and each page it
+  names written to AGENTS.md § *Text an end user reads*.
 
-Expected red after stage 2's first item: every test and `.nvst` case that pins a server's sentence
-in a message. The Explore list names them, and each is updated in the same stage.
+Expected red until then: that `.nvst` case. The pg.rs tests that read a server's sentence now read
+the kind's sentence.
 
 ### Backlog
