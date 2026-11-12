@@ -1,0 +1,19 @@
+--TEST--
+An uncaught `Core\Db\DbError` reports Novis's own sentence as its message, and the server's text as `serverMessage` among its properties, when the statement bound no value — `rule:core-classes/db-error`
+--FILE--
+<?nvs
+// covers: Core\Db\DbError
+// This statement binds no value, so the error keeps the server's text in `serverMessage`.
+// Nothing catches the error, so the report on standard error shows both messages.
+var $db = Core\Db::connect("main");
+$db->query("select * from nowhere", []);
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+--EXPECT-ERROR--
+{"level":"error","msg":"Core\\Db\\Connection::query: `[db.main]` refused the statement: sqlite ERROR: the database cannot run the statement as it is written (code 1).","fields":{"class":"Core\\Db\\DbError","properties":{"kind":8,"sqlState":null,"driverCode":1,"constraint":null,"sql":"select * from nowhere","serverMessage":"no such table: nowhere"}},"nodes":[{"function":"<script>","file":"case.nvs","line":6}]}

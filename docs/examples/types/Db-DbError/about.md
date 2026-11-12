@@ -10,6 +10,12 @@ That is what makes a refusal something a program can act on rather than only rep
 address is the person's to fix and worth a sentence they understand, a deadlock is worth trying
 again, and anything else is worth passing on untouched.
 
+**The server's own text:** Novis writes `message` itself. It never contains text from the database
+server, because that text can include a value your program sent. The server's text is in
+`serverMessage`. It is set only when the statement bound no values. Otherwise `serverMessage` is
+`null`. `serverMessage` and `constraint` are both a `tainted string`. Tainted means the text came
+from outside your program, so you must check or escape it before you use it.
+
 **Good to know:** a mistake in the *call* — a value the driver has no form for, a second statement
 while rows are still being read — is a `LogicError` instead. This error is only ever the server's
 own answer.

@@ -79,6 +79,6 @@ Core\Db::connect: nothing sets `[db.absent]` up, so the name resolves to a block
 Core\Db::connect: [db.mariadb]: the block names no `password`, which a MariaDB connection cannot be opened without
 Core\Db::connect: [db.mssql]: the block names no `password`, which a SQL Server connection cannot be opened without
 Core\Db::connect: [db.mysql]: the block names no `password`, which a MySQL connection cannot be opened without
-Core\Db::connect: `[db.sqlite]` at `/no-such-directory-for-this-case/novis.db` did not open: sqlite ERROR: unable to open database file: /no-such-directory-for-this-case/novis.db
+Core\Db::connect: `[db.sqlite]` at `/no-such-directory-for-this-case/novis.db` did not open: sqlite ERROR: the connection to the database is lost or cannot open (code 14)
 Core\Db::connect: [db.unusable]: `path` belongs to another driver, and a PostgreSQL connection reads nothing from it
 Core\Db::connect: [db.zone]: `time_zone` is `Europe/Vienna`, which is not an offset: write `+02:00`, `-05:30` or `UTC`, or leave it unset for UTC

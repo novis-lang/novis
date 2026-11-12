@@ -2582,20 +2582,31 @@ nothing there; PostgreSQL is transactional for DDL. No API shape prevents this.
 `rule:core-classes/db-error`
 
 `Core\Db\DbError extends RuntimeError` and is readonly: `kind`, `sqlState`, `driverCode`,
-`constraint`, `sql`. `DbError::Kind` normalises the conditions applications actually branch on —
-`UniqueViolation`, `ForeignKeyViolation`, `NotNullViolation`, `CheckViolation`, `Deadlock`,
-`SerializationFailure`, `ConnectionLost`, `Timeout`, `Syntax`, `Permission`, `Other` — across four
-drivers and five dialects, MariaDB carrying its own code table rather than MySQL's. SQLite's
-`SQLITE_BUSY` and `SQLITE_LOCKED` map to `Deadlock`, so [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions)'s retry
-option works there too. The raw values stay available for what normalisation does not cover. A
+`constraint`, `sql`, `serverMessage`. `DbError::Kind` normalises the conditions applications actually
+branch on — `UniqueViolation`, `ForeignKeyViolation`, `NotNullViolation`, `CheckViolation`,
+`Deadlock`, `SerializationFailure`, `ConnectionLost`, `Timeout`, `Syntax`, `Permission`, `Other` —
+across four drivers and five dialects, MariaDB carrying its own code table rather than MySQL's.
+SQLite's `SQLITE_BUSY` and `SQLITE_LOCKED` map to `Deadlock`, so [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions)'s
+retry option works there too. The raw values stay available for what normalisation does not cover. A
 driver that exposes only SQLSTATE and a vendor integer is why code elsewhere matches on
 `"Duplicate entry"` or hard-codes `1062`; a normalised kind removes that string match.
 
 **Bound parameters never appear on the error, in the message, or in a trace** — a `Throwable` message
-is a `secret` sink. The SQL text may, being developer-authored. The four raw values ride the throw on
-one boxed slice, which is eight bytes narrower than the single slot it replaced and costs one
-allocation on a path that is already allocating the object, the message and the backtrace. All four
-are nullable, so a slot never written already reads `null` and absence costs nothing.
+is a `secret` sink. The SQL text may, being developer-authored.
+
+**`message` holds no text the server chose.** It names the backend, a severity from `ERROR`, `FATAL`
+and `PANIC`, Novis's own sentence for the kind, the `SQLSTATE` only when it is five ASCII letters or
+digits, and the driver code. A server's sentence can quote a bound value, so it never reaches the
+plain `message`. It is `serverMessage` instead, a `?tainted string`, and `constraint` is a
+`?tainted string` too, because the server sends that name. `serverMessage` is written only for a
+statement that bound no value: DDL, `BEGIN`, `COMMIT` and a statement with no parameters. Any other
+statement leaves it `null`, and `message` says the server's text is not shown because the statement
+bound a value. A caller that cannot tell whether a value was bound counts as one that did.
+
+The five raw values ride the throw on one boxed slice, which is eight bytes narrower than the single
+slot it replaced and costs one allocation on a path that is already allocating the object, the
+message and the backtrace. All five are nullable, so a slot never written already reads `null` and
+absence costs nothing. `serverMessage` spends one more slot value per thrown error.
 
 **Declined:**
 - **A class per condition.** It would add ten types to a deliberately small closed exception set, and
@@ -2604,6 +2615,10 @@ are nullable, so a slot never written already reads `null` and absence costs not
   result, so its width is paid on every successful call; five pairs inline would nearly triple it, and
   keeping the single pair beside a boxed slice saves nothing and adds a third arm at every site that
   destructures a fault.
+- **One `message` with the server's text in it, typed `tainted`.** `message` is `Throwable`'s
+  property and has one type for every class, so the server's text needs a property of its own.
+- **Searching the server's text for the bound bytes.** Servers cut and escape values, so a search
+  misses some.
 
 <sub>See also [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record).</sub>
 

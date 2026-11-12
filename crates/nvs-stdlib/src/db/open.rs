@@ -174,6 +174,26 @@ fn off_core_by(
     }
 }
 
+/// Writes the server's own sentence for a failed connect to one `Warn` log
+/// record, and returns the `IOError` the program catches, which holds none of it.
+///
+/// `rule:core-classes/db-error` keeps the server's text out of every plain
+/// message, and a connect throws `IOError`, which has no `serverMessage`. A
+/// handshake binds no value, so the sentence goes to the log, which takes
+/// `tainted` text freely (`rule:security/log-is-not-a-sink`). An error no server
+/// sent, such as a refused socket, writes no record. **What it spends:** one
+/// log record per failed connect, on a path that has already failed.
+fn connect_failed(ctx: &mut nvs_runtime::Ctx, said: String, err: &std::io::Error) -> Fault {
+    if let Some(server) = nvs_db::ServerError::of(err) {
+        let line = format!("{said}. The server's message: {}", server.message);
+        let mut record = nvs_render::Record::at(nvs_render::Level::Warn);
+        record.envelope.message = Some(nvs_render::Rendered::new(&line));
+        ctx.stamp_envelope(&mut record.envelope);
+        let _dropped = ctx.write_log_record(&record);
+    }
+    Fault::thrown_as(ThrownClass::Io, format!("{said}: {err}"))
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Db::connect(string $name, { shared?: bool, timeout?: Duration }): Db\Connection`
     /// — `rule:core-classes/db-connection-is-named`'s named connection, memoized for the request.
@@ -350,11 +370,12 @@ pub(crate) fn open_named(
     let pooled = bounds.enabled.then(|| warm_connection(&lease)).flatten();
     // One wording for both handshakes: which driver could not reach its server
     // is the block's business, and what a program can do about either is the
-    // same thing.
-    let opening = |at: &dyn std::fmt::Display, err: &std::io::Error| {
-        Fault::thrown_as(
-            ThrownClass::Io,
-            format!("{named}: `[db.{name}]` at {at} did not open: {err}"),
+    // same thing. The server's own sentence goes to the log alone.
+    let opening = |ctx: &mut nvs_runtime::Ctx, at: &dyn std::fmt::Display, err: &std::io::Error| {
+        connect_failed(
+            ctx,
+            format!("{named}: `[db.{name}]` at {at} did not open"),
+            err,
         )
     };
     // `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`'s overload,
@@ -413,12 +434,13 @@ pub(crate) fn open_named(
                 })?;
                 target.deadline = off_core_by(ctx, deadline);
                 let conn = nvs_db::sqlite::open(&target).map_err(|err| {
-                    Fault::thrown_as(
-                        ThrownClass::Io,
+                    connect_failed(
+                        ctx,
                         format!(
-                            "{named}: `[db.{name}]` at `{}` did not open: {err}",
+                            "{named}: `[db.{name}]` at `{}` did not open",
                             target.path.display()
                         ),
+                        &err,
                     )
                 })?;
                 nvs_db::Connection::Sqlite(conn)
@@ -434,7 +456,7 @@ pub(crate) fn open_named(
                     nvs_db::mysql::socket_endpoint,
                 )?;
                 let conn = nvs_db::MySqlConn::connect(endpoint.clone(), &target, deadline)
-                    .map_err(|err| opening(&endpoint, &err))?;
+                    .map_err(|err| opening(ctx, &endpoint, &err))?;
                 nvs_db::Connection::MySql(conn)
             }
             Some(nvs_db::Driver::MariaDb) => {
@@ -454,7 +476,7 @@ pub(crate) fn open_named(
                     nvs_db::mysql::socket_endpoint,
                 )?;
                 let conn = nvs_db::MariaConn::connect(endpoint.clone(), &target, deadline)
-                    .map_err(|err| opening(&endpoint, &err))?;
+                    .map_err(|err| opening(ctx, &endpoint, &err))?;
                 nvs_db::Connection::MariaDb(conn)
             }
             Some(nvs_db::Driver::SqlServer) => {
@@ -469,7 +491,7 @@ pub(crate) fn open_named(
                     deadline,
                 )?;
                 let conn = nvs_db::TdsConn::connect(address, &target, deadline)
-                    .map_err(|err| opening(&address, &err))?;
+                    .map_err(|err| opening(ctx, &address, &err))?;
                 nvs_db::Connection::SqlServer(conn)
             }
             _ => {
@@ -483,7 +505,7 @@ pub(crate) fn open_named(
                     nvs_db::pg::socket_endpoint,
                 )?;
                 let conn = nvs_db::PgConn::connect(endpoint.clone(), &target, deadline)
-                    .map_err(|err| opening(&endpoint, &err))?;
+                    .map_err(|err| opening(ctx, &endpoint, &err))?;
                 nvs_db::Connection::Postgres(conn)
             }
         },
@@ -879,11 +901,8 @@ nvs_runtime::nvs_helper! {
                 let refused = |refusal: nvs_db::BlockError<'_>| {
                     Fault::thrown(format!("{OPEN}: {}", refusal.refusal("<settings>")))
                 };
-                let opening = |address: SocketAddr, err: &std::io::Error| {
-                    Fault::thrown_as(
-                        ThrownClass::Io,
-                        format!("{OPEN}: {address} did not open: {err}"),
-                    )
+                let opening = |ctx: &mut nvs_runtime::Ctx, address: SocketAddr, err: &std::io::Error| {
+                    connect_failed(ctx, format!("{OPEN}: {address} did not open"), err)
                 };
                 match driver {
                     nvs_db::Driver::MySql => {
@@ -892,7 +911,7 @@ nvs_runtime::nvs_helper! {
                         let address =
                             SocketAddr::new(pinned, port_of(port, nvs_db::mysql::DEFAULT_PORT));
                         let conn = nvs_db::MySqlConn::connect(address, &target, deadline)
-                            .map_err(|err| opening(address, &err))?;
+                            .map_err(|err| opening(ctx, address, &err))?;
                         nvs_db::Connection::MySql(conn)
                     }
                     nvs_db::Driver::MariaDb => {
@@ -901,7 +920,7 @@ nvs_runtime::nvs_helper! {
                         let address =
                             SocketAddr::new(pinned, port_of(port, nvs_db::maria::DEFAULT_PORT));
                         let conn = nvs_db::MariaConn::connect(address, &target, deadline)
-                            .map_err(|err| opening(address, &err))?;
+                            .map_err(|err| opening(ctx, address, &err))?;
                         nvs_db::Connection::MariaDb(conn)
                     }
                     nvs_db::Driver::Postgres => {
@@ -910,7 +929,7 @@ nvs_runtime::nvs_helper! {
                         let address =
                             SocketAddr::new(pinned, port_of(port, nvs_db::pg::DEFAULT_PORT));
                         let conn = nvs_db::PgConn::connect(address, &target, deadline)
-                            .map_err(|err| opening(address, &err))?;
+                            .map_err(|err| opening(ctx, address, &err))?;
                         nvs_db::Connection::Postgres(conn)
                     }
                     nvs_db::Driver::SqlServer => {
@@ -919,7 +938,7 @@ nvs_runtime::nvs_helper! {
                         let address =
                             SocketAddr::new(pinned, port_of(port, nvs_db::tds::DEFAULT_PORT));
                         let conn = nvs_db::TdsConn::connect(address, &target, deadline)
-                            .map_err(|err| opening(address, &err))?;
+                            .map_err(|err| opening(ctx, address, &err))?;
                         nvs_db::Connection::SqlServer(conn)
                     }
                     // SQLite is the only driver left, and it never arrives: its
@@ -1104,10 +1123,7 @@ pub(super) fn sqlite_settings(
             target.read_only = read_only;
             target.deadline = off_core_by(ctx, deadline);
             let conn = nvs_db::sqlite::open(&target).map_err(|err| {
-                Fault::thrown_as(
-                    ThrownClass::Io,
-                    format!("{OPEN}: `{path}` did not open: {err}"),
-                )
+                connect_failed(ctx, format!("{OPEN}: `{path}` did not open"), &err)
             })?;
             nvs_db::Connection::Sqlite(conn)
         }
