@@ -14,7 +14,7 @@ stages:
     context: [apps/registry/src/Tokens.nvs, apps/registry/src/Publish.nvs, apps/registry/src/TokensTest.nvs, docs/rules/packaging/an-account-stays-active-by-proof-not-by-token.md]
   - id: 3
     title: an owner with a passkey cancels a waiting retraction or advisory
-    status: open
+    status: done
     context: [apps/registry/src/App.nvs, apps/registry/src/Releases.nvs, apps/registry/src/Events.nvs, apps/registry/src/AdvisoriesTest.nvs]
   - id: 4
     title: "the package page, the attack and the pages a user reads show the wait and the cancel"
@@ -418,33 +418,33 @@ but `whoami` passes them.
 **Does:** add the cancel to `Releases` and its one route, with the answers the standing decision
 lists. Gate: stage 1 landed, so `release_states.retract_event` exists.
 
-- [ ] `advisories` gains `cancelled_at`, added to an existing database as `events.due` is
+- [x] `advisories` gains `cancelled_at`, added to an existing database as `events.due` is
   (`apps/registry/src/Schema.nvs:181`).
-- [ ] `Releases::cancelRetraction(string $key, string $version): bool` and
+- [x] `Releases::cancelRetraction(string $key, string $version): bool` and
   `Releases::cancelAdvisory(string $key, string $id): bool`. Each starts its transaction with the
   delete of the waiting `events` row, returns `false` when no row was deleted, clears or marks its
   row, and writes the `cancel` notice (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`,
   `apps/registry/src/Releases.nvs:192`, `apps/registry/src/Releases.nvs:225`).
-- [ ] `Events::cancelled` writes the notice, with the two texts of the standing decision
+- [x] `Events::cancelled` writes the notice, with the two texts of the standing decision
   (`rule:packaging/an-owner-is-notified-without-email`, `apps/registry/src/Events.nvs:47`).
-- [ ] `Releases::advise` skips a cancelled row in its same-advisory lookup and still counts it for the
+- [x] `Releases::advise` skips a cancelled row in its same-advisory lookup and still counts it for the
   next id (`apps/registry/src/Releases.nvs:203`, `apps/registry/src/Releases.nvs:214`).
-- [ ] `CancelRequest`, a `#[Core\Json\Derive]` class with `version` and `advisory`, shaped as
+- [x] `CancelRequest`, a `#[Core\Json\Derive]` class with `version` and `advisory`, shaped as
   `RetractRequest` is (`apps/registry/src/CancelRequest.nvs:1`).
-- [ ] `App::cancel`, the route `POST /api/packages/{vendor}/{name}/cancel`, after `App::advise`
+- [x] `App::cancel`, the route `POST /api/packages/{vendor}/{name}/cancel`, after `App::advise`
   (`apps/registry/src/App.nvs:975`). It answers `403` unless `App::ownsWithPasskey` holds and never
   reads a token. It tells an entry in the log from nothing waiting by `retracted_at`, sends the
   waiting notices, and answers with the table's sentences.
-- [ ] The token answers of `App::retract` and `App::advise` name the cancel: `An owner can retract it
+- [x] The token answers of `App::retract` and `App::advise` name the cancel: `An owner can retract it
   now or cancel it with a passkey on the website.` and the same for an advisory
   (`apps/registry/src/App.nvs:915`, `apps/registry/src/App.nvs:970`). Their doc comments follow.
-- [ ] Test `anOwnerCancelsAWaitingRetractionAndTheLogNeverHasIt` in
+- [x] Test `anOwnerCancelsAWaitingRetractionAndTheLogNeverHasIt` in
   `apps/registry/src/ReleasesTest.nvs:157`: a token retraction, the cancel, seven days, a flush. The
   log double has no line, the index shows `"released"`, and the owners have one `cancel` notice.
-- [ ] Test `anOwnerCancelsAWaitingAdvisoryAndItsIdIsNotUsedAgain` in
+- [x] Test `anOwnerCancelsAWaitingAdvisoryAndItsIdIsNotUsedAgain` in
   `apps/registry/src/AdvisoriesTest.nvs:92`: two advisories, the first cancelled, and the next one
   sent gets the id `acme/http-3`. The same advisory sent again is a new one.
-- [ ] Tests `aTokenCancelsNothing` and `anEntryInTheLogIsNotCancelled` through the route, beside
+- [x] Tests `aTokenCancelsNothing` and `anEntryInTheLogIsNotCancelled` through the route, beside
   `aTokenCannotUnlistAndGetsThePageOfThePasskeyStep` (`apps/registry/src/ReleasesTest.nvs:294`). The
   first sends the cancel with a token and no session, then with a session that has no recent passkey,
   and gets `403` both times. The second cancels a passkey retraction and gets `409`.
@@ -566,46 +566,46 @@ message, and leave only a locked fetch outside the bound.
 
 ### State
 
-Stages 1 and 2 are done. A retraction's log entry waits in `events` with its `due` time
-(`Events::reasoned`, `apps/registry/src/Events.nvs:36`), `release_states.retract_event` keeps its id,
-and a second retraction with an earlier time rewrites that entry through `Events::moved`
-(`apps/registry/src/Releases.nvs:181`). `Index::append` reads `Events::ready`, and `Index::run` and
-`Index::daily` read the clock once for the log and the index files. The ranking fact counts a
-retraction from its time. `Releases::advise` starts with a write, and
-`crates/nvs-cli/tests/registry_sources.rs` holds that every registry transaction that writes does.
-The stage's three checks pass, run once by name.
+Stages 1 to 3 are done, each stage's checks passing, run once by name. Waiting retractions and
+advisories sit in `events` with `due`; `Tokens::standing` (`apps/registry/src/Tokens.nvs:97`)
+stops a lapsed account's token.
 
-Stage 2: `Tokens::standing` (`apps/registry/src/Tokens.nvs:97`) holds the activity and the
-verified-channel checks, `Tokens::allows` returns `null` when it gives a sentence, and
-`Publish::publish` answers `403` with that sentence right after `find`. The route callers of `allows`
-are unchanged and keep their one sentence. The existing callers in tests already had an active
-account with a verified channel, so none changed. `TokensTest` gained
-`aTokenOfALapsedAccountDoesNothing` and `aTokenOfAnAccountWithNoVerifiedChannelDoesNothing`, and the
-check `a-lapsed-token-does-nothing` passes, run once by name. Both rule fragments say it.
+Stage 3: `Releases::cancelRetraction` and `cancelAdvisory` (`apps/registry/src/Releases.nvs:248`,
+`:272`) start with `delete from events where due > now and id = <its event>`, so a passkey
+retraction (`due` = now) is never cancelled. `App::cancel` (`apps/registry/src/App.nvs:984`) tells
+`409` from `404` with `isRetracted` and `hasAdvisory`, and its advisory rows reuse the table's
+sentences with "advisory". `CancelRequest` needs constructor defaults `= null`: a `?` type alone
+still makes `decodeAs` require the key. The token answers, `package_retract.rs`'s stub, the two
+quoted lines in `35-packages.md` and the rule fragment name the cancel. `aTokenCancelsNothing` gets
+its session `403` from a signed-in visitor who is not an owner.
 
 The sweep's reds are stale. `env-secret-proofs` belonged to the retired `package-authority-closed`
-and has no check on disk now. Nightly 43001191130 failed only
-`a_changed_server_timeout_applies_to_the_next_connection`, which `305c04f660` rewrote after that
-run's commit.
+and has no check or log now. Nightly 43001191130 failed only
+`a_changed_server_timeout_applies_to_the_next_connection`, which `305c04f660` rewrote later.
 
 ### Next
 
-Stage 3, the cancel, over `apps/registry/src/Releases.nvs`, `Events.nvs`, `Schema.nvs`, `App.nvs`,
-a new `CancelRequest.nvs`, `ReleasesTest.nvs` and `AdvisoriesTest.nvs`. Its gate (stage 1) is met.
-Stage 5 (the client lane) shares no file with it and may run beside it.
+Stage 4, the page and the words, over `apps/registry/src/PackagePage.nvs`, `PackagePageTest.nvs`,
+`apps/registry/public/registry.js`, the attacks, the `about.md` files, the reference page and the rule
+fragments. Its gate (stage 3) is met. Follow its `**Split:**` line. Stage 5 (the client lane) may run
+beside it.
 
-- [ ] `apps/registry/src/Schema.nvs:182`: `advisories.cancelled_at`, added as `events.due` is.
-- [ ] `apps/registry/src/Releases.nvs:179` and `:210`: `cancelRetraction` and `cancelAdvisory` beside
-  `retract` and `advise`, each starting with the delete of the waiting `events` row
-  (`release_states.retract_event`, `advisories.event`). `advise` skips a cancelled row in its lookup
-  and still counts it.
-- [ ] `apps/registry/src/Events.nvs:87`: `Events::cancelled` writes the `cancel` notice.
-- [ ] `apps/registry/src/App.nvs:927`: `App::cancel` after `App::advise`, gated by
-  `App::ownsWithPasskey` (`apps/registry/src/App.nvs:1065`), with the standing decision's answers.
-- [ ] `apps/registry/src/ReleasesTest.nvs:301` and `apps/registry/src/AdvisoriesTest.nvs:92`: the
-  four tests stage 3 names, then `looper check --name an-owner-cancels` once.
+- [ ] `apps/registry/src/PackagePage.nvs:389`: `advisories` lists a retraction and an advisory from
+  their time, and skips `cancelled_at is not null`.
+- [ ] `PackagePage::waiting` above `manage` (`apps/registry/src/PackagePage.nvs:133`), and the step
+  `cancel` in `apps/registry/public/registry.js:221` through `withPasskey`. The route's body is
+  `{"version": ...}` or `{"advisory": ...}`.
+- [ ] `apps/registry/src/PackagePageTest.nvs:187`: `onlyAnOwnerSeesAWaitingRetractionOrAdvisory`,
+  then `looper check --name the-page-shows-the-wait-to-owners` once.
+- [ ] The browser case in `tools/nv/test/registry-browser.test.ts:605` (not run by the stage).
+- [ ] Subagents: the two attacks; the three `about.md` and `docs/reference/tools/35-packages.md:713`,
+  `:758`, `:826`. The two token messages there already name the cancel.
+- [ ] `docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:72`: the Declined list
+  gains the cancel by token and the `cancel` entry kind (the cancel itself is stated at `:9`), and
+  `a-release-waits-seven-days-unless-an-owner-confirms.md:50` names *Waiting changes*. Then
+  `bun nv rules --render` and `bun nv render --website`.
 
-Expected red until stage 3 lands: none.
+Expected red until stage 4 lands: none.
 
 ### Backlog
 
