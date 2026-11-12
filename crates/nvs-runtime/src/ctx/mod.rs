@@ -801,6 +801,15 @@ pub struct Ctx {
     ///
     /// **What it spends:** one word per request.
     max_script_depth: u32,
+    /// What the spawn that made this context decided it may spend, or `None`
+    /// for a context no spawn made. [`Self::refresh_limits`] clamps every
+    /// ceiling it reads to it, so no `Core\Config` call in a spawned script
+    /// raises a ceiling above what its tree had left
+    /// (`rule:security/isolate-budget-is-the-trees`). `Self::hold_to_tree` is
+    /// its one writer.
+    ///
+    /// **What it spends:** four words per request.
+    spawn_clamp: Option<isolate::SpawnClamp>,
     /// How many `spawn script` boundaries stand between this context and the
     /// request that started the tree — `0` for the request itself, and one more
     /// for each isolate beneath it ([`Self::isolate`] is where it is counted).

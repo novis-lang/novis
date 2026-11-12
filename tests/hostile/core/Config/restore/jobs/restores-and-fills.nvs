@@ -1,0 +1,7 @@
+<?nvs
+// The attack in the folder above starts this script. It undoes the memory
+// limit its parent set, and then builds a string of 16 MB.
+
+Core\Config::restore('limits.memory');
+string $filled = Core\Str::repeat('y', 16000000);
+return Core\Str::length($filled);

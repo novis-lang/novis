@@ -595,7 +595,13 @@ impl Ctx {
         // stopped at the tree's ceiling with no reserve would have nothing left
         // to report the breach with (`rule:errors/on-limit`).
         isolate.fatal_reserve = self.fatal_reserve;
-        isolate.set_memory_limit(remaining(self.memory_limit, self.memory_used()));
+        // No output or CPU ceiling: a child on its parent's core writes and
+        // spends on the root's readings, and the root's ceilings stop it.
+        isolate.hold_to_tree(Remains {
+            memory: remaining(self.memory_limit, self.memory_used()),
+            output: 0,
+            cpu: 0,
+        });
         // **Not** sealed, unlike [`Self::child`], and the difference is the one
         // `rule:concurrency/after-response-outlives-the-connection` draws: an isolate runs a whole program, so the frame
         // that produced its answer returning is a trigger it has, where a
@@ -698,12 +704,18 @@ impl Ctx {
         let mut handler = self.isolate(output);
         handler.deadline = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
         handler.script_depth = 0;
-        handler.memory_limit = self
-            .configured_handler_reserve()
-            .unwrap_or(Self::DEFAULT_HANDLER_RESERVE_MEMORY);
-        handler.cpu_limit = self
-            .configured_handler_reserve_time()
-            .unwrap_or(Self::DEFAULT_HANDLER_RESERVE_TIME);
+        // Written as the handler's spawn record, so a handler script that
+        // refreshes its limits keeps the reserve and not the failing tree's
+        // remainder.
+        handler.hold_to_tree(Remains {
+            memory: self
+                .configured_handler_reserve()
+                .unwrap_or(Self::DEFAULT_HANDLER_RESERVE_MEMORY),
+            output: 0,
+            cpu: self
+                .configured_handler_reserve_time()
+                .unwrap_or(Self::DEFAULT_HANDLER_RESERVE_TIME),
+        });
         handler
     }
 
@@ -776,6 +788,54 @@ impl Ctx {
         }
     }
 
+    /// Stores `decided` as this context's spawn record and arms it — the one
+    /// writer of [`Self::spawn_clamp`] (`rule:security/isolate-budget-is-the-trees`).
+    ///
+    /// The memory bound is stored as an absolute balance on this thread, so it
+    /// still means what the tree had left after the baseline moves. The depth
+    /// is the [`Self::max_script_depth`] in force when the record is written.
+    /// The ceilings are set to `decided` exactly, and the allocator is armed
+    /// last, through the setter, after the tree's safepoint word is in place.
+    fn hold_to_tree(&mut self, decided: Remains) {
+        let memory = (decided.memory != 0).then(|| {
+            let bytes = isize::try_from(decided.memory).unwrap_or(isize::MAX);
+            self.memory_base.saturating_add(bytes)
+        });
+        self.spawn_clamp = Some(SpawnClamp {
+            memory,
+            output: decided.output,
+            cpu: decided.cpu,
+            depth: self.max_script_depth,
+        });
+        self.output_limit = decided.output;
+        self.cpu_limit = decided.cpu;
+        self.set_memory_limit(decided.memory);
+    }
+
+    /// Lowers each ceiling a refresh just read to the spawn record, where this
+    /// context has one. [`Self::refresh_limits`] calls it before it arms the
+    /// allocator, so a `Core\Config::set` or `::restore` in a spawned script
+    /// never raises a ceiling above what the spawn decided.
+    ///
+    /// **What it spends:** one subtraction and four compares per refresh, and
+    /// one branch for a context no spawn made.
+    pub(super) fn clamp_to_spawn(&mut self) {
+        let Some(clamp) = self.spawn_clamp else {
+            return;
+        };
+        if let Some(balance) = clamp.memory {
+            // Floored at one byte for [`remaining`]'s reason: a record already
+            // spent must stay a ceiling and never read as no ceiling.
+            let left = usize::try_from(balance.saturating_sub(self.memory_base))
+                .unwrap_or(0)
+                .max(1);
+            self.memory_limit = tighter(self.memory_limit, left);
+        }
+        self.output_limit = tighter(self.output_limit, clamp.output);
+        self.cpu_limit = tighter(self.cpu_limit, clamp.cpu);
+        self.max_script_depth = tighter(self.max_script_depth, clamp.depth);
+    }
+
     /// Holds **this** context to `narrowing`, clamped against ceilings a caller
     /// already resolved rather than against a parent it can reach.
     ///
@@ -792,12 +852,13 @@ impl Ctx {
     /// inherited is still asked underneath it, so a name the parent lacks stays
     /// lacking.
     ///
-    /// [`Self::max_script_depth`] is put back after the refresh, and that line
-    /// is the point of the two around it: the depth ceiling is *copied* into a
-    /// child by [`Self::isolate`] precisely so that a child cannot re-read the
-    /// file and widen it, and a refresh reading the configuration would do
-    /// exactly that. A child holding no configuration takes no sub-cap at all —
-    /// there is no ceiling in force for one to be tighter than.
+    /// The resolved sub-cap is folded into the spawn record
+    /// ([`Self::hold_to_tree`]), so a later `Core\Config::restore` in the child
+    /// takes the overlay back and leaves the sub-cap in force. The refresh
+    /// already clamps to the record the constructor wrote, which is what keeps
+    /// a copied [`Self::max_script_depth`] from being read wider out of the
+    /// file. A child holding no configuration takes no sub-cap at all — there
+    /// is no ceiling in force for one to be tighter than.
     fn narrow_under(&mut self, narrowing: &crate::host::Narrowing, remains: Remains) {
         if !narrowing.limits.is_empty() && self.config.is_some() {
             if let Some(config) = self.config.as_mut() {
@@ -810,15 +871,12 @@ impl Ctx {
                     let _narrowed = config.set(key, written);
                 }
             }
-            let depth = self.max_script_depth;
             self.refresh_limits();
-            self.max_script_depth = depth;
-            self.cpu_limit = tighter(self.cpu_limit, remains.cpu);
-            self.output_limit = tighter(self.output_limit, remains.output);
-            // Last, and through the setter, because it arms the allocator with
-            // the number beside this context's safepoint address — the same
-            // order and the same reason [`PlacedIsolate::build`] has.
-            self.set_memory_limit(tighter(self.memory_limit, remains.memory));
+            self.hold_to_tree(Remains {
+                memory: tighter(self.memory_limit, remains.memory),
+                output: tighter(self.output_limit, remains.output),
+                cpu: tighter(self.cpu_limit, remains.cpu),
+            });
         }
         if let Some(names) = &narrowing.grants {
             self.restrict_grants(names);
@@ -1078,9 +1136,7 @@ impl PlacedIsolate {
         child.runtime_error_class = self.runtime_error_class;
         child.core_classes = self.core_classes;
         child.deadline = self.deadline;
-        child.cpu_limit = self.cpu_limit;
         child.fatal_reserve = self.fatal_reserve;
-        child.output_limit = self.output_limit;
         child.task_slot = self.task;
         // Before the ceiling below, and that order is load-bearing:
         // [`Ctx::arm_memory_ceiling`] arms the allocator with this context's
@@ -1088,8 +1144,8 @@ impl PlacedIsolate {
         // address is this context's own fresh word — which nothing in the tree
         // would ever poll.
         child.join_tree(self.tree);
-        child.set_memory_limit(self.memory_limit);
-        // After the ceiling above rather than before it, because a sub-cap is
+        child.hold_to_tree(remains);
+        // After the record above rather than before it, because a sub-cap is
         // only ever tighter: what it clamps is the number just armed, and
         // `remains` is what the parent had left when it placed this child. A
         // seed carrying no narrowing leaves every line of this untouched.
@@ -1117,6 +1173,22 @@ impl PlacedIsolate {
         }
         child
     }
+}
+
+/// What a spawn decided a child may spend — [`Ctx::hold_to_tree`]'s record,
+/// which every refresh of the child's ceilings is clamped to
+/// (`rule:security/isolate-budget-is-the-trees`).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct SpawnClamp {
+    /// The memory ceiling as an absolute balance on the child's thread, or
+    /// `None` for no ceiling.
+    memory: Option<isize>,
+    /// The output ceiling in bytes, `0` for none.
+    output: usize,
+    /// The CPU ceiling in nanoseconds, `0` for none.
+    cpu: u64,
+    /// The script depth ceiling, `0` for none.
+    depth: u32,
 }
 
 /// What is left of a context's three ceilings at a spawn, in the units they are

@@ -297,6 +297,137 @@ fn a_narrowed_seed_holds_its_child_to_the_sub_cap_and_the_grants_it_crossed_with
     );
 }
 
+/// `Core\Config::restore` followed by the refresh it owes, as
+/// `nvs_core_config_restore` runs the pair in a spawned script.
+fn restore_and_refresh(child: &mut Ctx, key: &str) {
+    child
+        .config_mut()
+        .expect("the child crossed with its parent's configuration")
+        .restore(key);
+    child.refresh_limits_at_run_time();
+}
+
+/// A child that re-reads its configuration keeps the memory ceiling its tree
+/// had left at the spawn (`rule:security/isolate-budget-is-the-trees`).
+///
+/// The parent runs under a ceiling tighter than the file's and has spent part
+/// of it. A refresh in the child reads the file's wider number, and the spawn
+/// record clamps it back to what the tree had left.
+#[test]
+fn a_child_that_refreshes_its_limits_keeps_the_ceiling_its_tree_had_left() {
+    let mut root = ctx_reading("[limits]\nmemory = \"64M\"\n");
+    root.set_memory_limit(ROOT_LIMIT);
+    let spent = vec![3_u8; HELD];
+
+    let mut child = root.isolate(nvs_runtime::OutputSink::Sink);
+    let left = child.memory_limit();
+    assert!(
+        left > 0 && left <= ROOT_LIMIT - HELD,
+        "a child spawned with {HELD} of {ROOT_LIMIT} bytes spent was given {left}"
+    );
+
+    restore_and_refresh(&mut child, "memory");
+    assert_eq!(
+        child.memory_limit(),
+        left,
+        "a refresh in the child replaced what its tree had left with the file's ceiling"
+    );
+    drop(child);
+    drop(spent);
+}
+
+/// A sub-cap written at the spawn site stays in force after the child restores
+/// the key it narrowed.
+///
+/// The sub-cap arrives through the child's configuration overlay, which is the
+/// overlay `Core\Config::restore` empties. The spawn record is what keeps it.
+#[test]
+fn a_child_that_restores_its_sub_cap_keeps_the_sub_cap() {
+    let root = ctx_reading("[limits]\nmemory = \"64M\"\n");
+    let mut child = root.isolate(nvs_runtime::OutputSink::Sink);
+    root.narrow(
+        &mut child,
+        &Narrowing {
+            limits: vec![("memory".to_owned(), "1M".to_owned())],
+            grants: None,
+        },
+    );
+    let capped = child.memory_limit();
+    assert!(
+        capped > 0 && capped <= 1 << 20,
+        "a child narrowed to a megabyte runs under {capped} bytes"
+    );
+
+    restore_and_refresh(&mut child, "memory");
+    assert_eq!(
+        child.memory_limit(),
+        capped,
+        "restoring the narrowed key lifted the spawn site's sub-cap"
+    );
+}
+
+/// A child placed on another core keeps what remained of its tree's budget
+/// when it was placed, after it re-reads its configuration.
+#[test]
+fn a_placed_child_that_refreshes_keeps_what_remained_when_it_was_placed() {
+    let mut root = ctx_reading("[limits]\nmemory = \"64M\"\n");
+    root.set_memory_limit(ROOT_LIMIT);
+    let spent = vec![3_u8; HELD];
+    let seed = root.placed_isolate();
+
+    let (published, ready) = mpsc::channel();
+    std::thread::spawn(move || {
+        let mut child = seed.build(nvs_runtime::OutputSink::Sink);
+        let placed = child.memory_limit();
+        restore_and_refresh(&mut child, "memory");
+        published
+            .send((placed, child.memory_limit()))
+            .expect("the case is still waiting");
+    })
+    .join()
+    .expect("the child's core ends cleanly");
+
+    let (placed, refreshed) = ready
+        .recv()
+        .expect("the far thread published before it ended");
+    assert!(
+        placed > 0 && placed <= ROOT_LIMIT - HELD,
+        "a child placed with {HELD} of {ROOT_LIMIT} bytes spent was given {placed}"
+    );
+    assert_eq!(
+        refreshed, placed,
+        "a refresh on the far core replaced what remained at the placement with the file's ceiling"
+    );
+    drop(spent);
+}
+
+/// A refresh in a child never raises the script depth ceiling it was spawned
+/// with, whatever the file says.
+#[test]
+fn a_refresh_never_raises_a_childs_script_depth() {
+    let mut root = ctx_reading("[limits]\nmax_script_depth = 8\n");
+    root.set_max_script_depth(3);
+
+    let mut child = root.isolate(nvs_runtime::OutputSink::Sink);
+    assert_eq!(child.max_script_depth(), 3, "the depth ceiling is copied");
+    restore_and_refresh(&mut child, "max_script_depth");
+    assert_eq!(
+        child.max_script_depth(),
+        3,
+        "a refresh in the child read the file's deeper ceiling"
+    );
+
+    let mut placed = root
+        .placed_isolate()
+        .build(nvs_runtime::OutputSink::Sink);
+    restore_and_refresh(&mut placed, "max_script_depth");
+    assert_eq!(
+        placed.max_script_depth(),
+        3,
+        "a refresh in a placed child read the file's deeper ceiling"
+    );
+}
+
 /// A tree with nothing left of its budget places a child under a ceiling it
 /// cannot allocate under, and never under none at all.
 ///

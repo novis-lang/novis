@@ -393,6 +393,12 @@ nvs_runtime::nvs_helper! {
     /// Argument 0 is the prepared word. Without [`PREPARED_APPLICATION`] the
     /// call is a package's, and it undoes only what a package set
     /// (`rule:security/package-authority-is-granted-one-line-at-a-time`).
+    ///
+    /// In a spawned script, `get` returns the file's value again after a
+    /// `restore`, but the ceiling in force does not rise above what the spawn
+    /// decided: what its tree had left, and any sub-cap written at the spawn
+    /// site. The refresh below clamps to that record
+    /// (`rule:security/isolate-budget-is-the-trees`).
     fn nvs_core_config_restore(ctx, args: [2]) {
         let application = args[0].as_int() == Some(PREPARED_APPLICATION);
         let name = text(&args[1], "restore")?.to_string();

@@ -1,0 +1,16 @@
+<?nvs
+// Attack: a script started by this program undoes the memory limit this program set.
+// The started script should stop at the memory this program had left, and this program should go on.
+
+// 1. Sets a memory limit of 32 MB and uses 24 MB of it.
+Core\Config::set('limits.memory', '32M');
+string $held = Core\Str::repeat('x', 24000000);
+
+// 2. Starts a script that undoes the limit and then builds a string of 16 MB.
+var $handle = spawn script 'jobs/restores-and-fills.nvs' with(output: 'capture');
+var $result = await $handle;
+if ($result->ok) {
+    throw new RuntimeError('the started script built 16 MB with only 8 MB left');
+}
+echo 'the started script stopped: ', $result->error?->message, "\n";
+echo 'this program still uses ', Core\Str::length($held), " bytes\n";

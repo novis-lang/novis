@@ -949,13 +949,6 @@ impl Ctx {
         self.fatal_reserve_time =
             Self::reserve_time_within(cpu_ceiling, self.configured_fatal_reserve_time());
         self.cpu_limit = cpu_ceiling.saturating_sub(self.fatal_reserve_time);
-        // The thread that charges this tree reads the ceiling out of the tree's
-        // own state, so the one `Core\Config::set` just narrowed is the one its
-        // next sweep compares with.
-        self.publish_cpu_limit();
-        // The `wall_time` the connection reads once the request's client has
-        // gone, published from the same pass for the same reason.
-        self.publish_wall_time();
         // Read in the same pass and for the same reason, though there is nothing
         // to carve out of it: a request's ceilings are one reading of one
         // configuration.
@@ -964,6 +957,17 @@ impl Ctx {
         // Nothing is carved out of it — [`Self::output_limit`]'s field doc owns
         // why a ceiling on writing needs no slice reserved from it.
         self.output_limit = self.configured_output_limit();
+        // A spawned script is held to what its spawn decided, whatever its
+        // overlay now says (`rule:security/isolate-budget-is-the-trees`). Before
+        // anything is published or armed, so both read the clamped numbers.
+        self.clamp_to_spawn();
+        // The thread that charges this tree reads the ceiling out of the tree's
+        // own state, so the one `Core\Config::set` just narrowed is the one its
+        // next sweep compares with.
+        self.publish_cpu_limit();
+        // The `wall_time` the connection reads once the request's client has
+        // gone, published from the same pass for the same reason.
+        self.publish_wall_time();
         // Not a ceiling, but read off the same configuration in the same pass,
         // so a `Core\Config::set` of `[errors] deprecated` reaches the word
         // compiled code loads.
