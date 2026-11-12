@@ -3923,19 +3923,33 @@ mod tests {
         // lowered `spawn script` will call, and neither names the other.
         let mut ctx = granting();
         assert_eq!(
-            resolve(&ctx, &from_root("examples/isolate/hello.nvs")).err(),
+            resolve(
+                &ctx,
+                &from_root("examples/isolate/hello.nvs"),
+                "spawn script"
+            )
+            .err(),
             Some(ResolveError::NoResolver)
         );
         let compiler = Compiler::default();
         scoped(&compiler, || {
-            let prepared = resolve(&ctx, &from_root("examples/isolate/hello.nvs"))
-                .expect("the installed resolver answers");
+            let prepared = resolve(
+                &ctx,
+                &from_root("examples/isolate/hello.nvs"),
+                "spawn script",
+            )
+            .expect("the installed resolver answers");
             let _ = (prepared.program)(&mut ctx, Value::null());
         });
         // And gone again the moment the call returned, which is the half a
         // leaked resolver could not have.
         assert_eq!(
-            resolve(&ctx, &from_root("examples/isolate/hello.nvs")).err(),
+            resolve(
+                &ctx,
+                &from_root("examples/isolate/hello.nvs"),
+                "spawn script"
+            )
+            .err(),
             Some(ResolveError::NoResolver)
         );
         assert_eq!(

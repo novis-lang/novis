@@ -42,14 +42,16 @@
 //! either one's crossing. Which is why the sections below say `this member`
 //! where they mean both, and are the home of the reasoning for both.
 //!
-//! There is no [`crate::registry::CAPABILITIES`] row, and that is a statement
-//! about where the grant is asked rather than about the member: the entry path
-//! reaches the operating system through `nvs_runtime::script::resolve`, which
-//! is `rule:security/capability-check-at-the-door`'s own door for `script.spawn` and asks the question with the
-//! path as its scope, and the sibling construct's helper — `crate::script`'s
-//! `nvs_core_script_spawn` — declares none for that same reason. Nothing here
-//! names an operating-system spelling of its own, which is what
-//! `nvs_stdlib_reaches_the_os_only_through_the_gate` holds mechanically.
+//! `upgrade` has a `script.spawn` row in [`crate::registry::CAPABILITIES`], as
+//! `spawn script` has one in `CONSTRUCT_CAPABILITIES`: it names code that will
+//! run as an isolate, so the checker holds it to the calling namespace's
+//! `[grants]` line. The operator's grant is asked by
+//! `nvs_runtime::script::resolve`, which is
+//! `rule:security/capability-check-at-the-door`'s door for `script.spawn` and
+//! asks with the path as its scope. Every other member of the class has a
+//! `None` row. Nothing here names an operating-system spelling of its own,
+//! which is what `nvs_stdlib_reaches_the_os_only_through_the_gate` holds
+//! mechanically.
 //!
 //! The `entry` parameter is a [`CoreTy::Entry`](crate::registry::CoreTy::Entry)
 //! and that is the whole of how `rule:concurrency/an-upgrade-is-spawn-shaped`'s
@@ -731,7 +733,7 @@ pub(crate) fn entry_program(
     // No case can reach this — see above — and
     // `an_entry_a_resolver_refuses_is_a_throw_the_program_catches` is the
     // `#[test]` that asserts it instead.
-    nvs_runtime::script::resolve(ctx, path).map_err(|error| match error {
+    nvs_runtime::script::resolve(ctx, path, member).map_err(|error| match error {
         // An embedder that installed none — `nvs_core_script_spawn`'s reading
         // unchanged, and not something a `catch` should paper over.
         ResolveError::NoResolver => Fault::fatal(format!(

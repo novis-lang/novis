@@ -479,6 +479,14 @@ const NOT_DOORS: &[&str] = &[
     "io_failure",
 ];
 
+/// The calls that reach `script.spawn`'s door, `nvs_runtime::script::resolve`, each with the name
+/// a failure gives it. `socket::entry_program` forwards its member to `resolve`, so a call to it
+/// is read as that door with the member written at the call.
+const SPAWN_DOORS: &[(&str, &str)] = &[
+    ("script::resolve(", "nvs_runtime::script::resolve"),
+    ("entry_program(", "socket::entry_program"),
+];
+
 /// The lines of `text` a release build compiles: everything above its inline `#[cfg(test)]`
 /// module, with each line's number. A `#[cfg(test)] mod name;` declaration ends nothing, because
 /// its module is a file of its own. A comment line is left out, because it names a door without calling one.
@@ -689,6 +697,32 @@ fn every_door_names_the_capability_its_member_declares() {
                 }
                 checked.push(format!("{class}::{member}"));
             }
+            for (door, name) in SPAWN_DOORS {
+                let Some(found) = line.find(door) else {
+                    continue;
+                };
+                let rest = std::iter::once(&line[found + door.len()..])
+                    .chain(lines[index + 1..].iter().map(|(_, line)| *line))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let Some(args) = call_arguments(&rest) else {
+                    continue;
+                };
+                let before = text.lines().take(*number).collect::<Vec<_>>().join("\n");
+                let Some((class, member)) =
+                    args.last().and_then(|last| member_named(last, &before))
+                else {
+                    continue;
+                };
+                if !nvs_stdlib::cap::needs(&class, &member).any(|cap| cap == Cap::ScriptSpawn) {
+                    disagreeing.push(format!(
+                        "{}:{number}: `{name}` asks `script.spawn` for `{class}::{member}`, and \
+                         that member's rows do not name it",
+                        file.display(),
+                    ));
+                }
+                checked.push(format!("{class}::{member}"));
+            }
         }
     }
 
@@ -702,7 +736,13 @@ fn every_door_names_the_capability_its_member_declares() {
 
     // The positive controls: a door with a literal member, one with a `const` one, and one from a
     // directory module. A scan that resolved none of them would pass by checking nothing.
-    for member in [r"Core\IO::open", r"Core\Net::listen", r"Core\Db::open"] {
+    for member in [
+        r"Core\IO::open",
+        r"Core\Net::listen",
+        r"Core\Db::open",
+        r"Core\Socket::upgrade",
+        r"Core\Sse::upgrade",
+    ] {
         assert!(
             checked.iter().any(|found| found == member),
             "the scan found no door call for `{member}`, so it no longer reads the calls it checks"

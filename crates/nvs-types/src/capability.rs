@@ -167,13 +167,7 @@ pub(crate) fn prepare_config_set(
     if member != "set" || owner.segments() != ["Core", "Config"] {
         return;
     }
-    let application = ctx.namespace.is_empty()
-        || env.namespace_grants.is_empty()
-        || env
-            .namespace_grants
-            .lookup(&ctx.namespace.join("\\"))
-            .is_none();
-    if application {
+    if matches!(authority_of(ctx, env), Authority::Application) {
         env.exprs.record_prepared(
             span,
             Prepared {
@@ -201,14 +195,9 @@ pub(crate) fn prepare_cap_has(
     if !nvs_stdlib::cap::is_query(&owner.to_string(), member) {
         return;
     }
-    let line = if ctx.namespace.is_empty() || env.namespace_grants.is_empty() {
-        None
-    } else {
-        env.namespace_grants.lookup(&ctx.namespace.join("\\"))
-    };
-    let mask = match line {
-        Some(line) => nvs_stdlib::cap::grants_mask(line.caps().iter().copied()),
-        None => nvs_stdlib::cap::grants_mask(Cap::ALL.iter().copied()),
+    let mask = match authority_of(ctx, env) {
+        Authority::Line(line) => nvs_stdlib::cap::grants_mask(line.caps().iter().copied()),
+        Authority::Application => nvs_stdlib::cap::grants_mask(Cap::ALL.iter().copied()),
     };
     env.exprs.record_prepared(
         span,
@@ -240,13 +229,9 @@ pub(crate) fn reject_ungranted_call(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
-    if env.namespace_grants.is_empty() || ctx.namespace.is_empty() {
+    if matches!(authority_of(ctx, env), Authority::Application) {
         return;
     }
-    let namespace = ctx.namespace.join("\\");
-    let Some(line) = env.namespace_grants.lookup(&namespace) else {
-        return;
-    };
     let class = owner.to_string();
     let own = own_file_word(&class, member, span, args, slots, env);
     if let Some(word) = own {
@@ -258,12 +243,57 @@ pub(crate) fn reject_ungranted_call(
             },
         );
     }
-    let mut missing: Vec<Cap> = nvs_stdlib::cap::needs(&class, member)
+    let needs = nvs_stdlib::cap::needs(&class, member)
+        .filter(|cap| own.is_none() || *cap != Cap::FsRead)
+        .collect::<Vec<_>>();
+    reject_ungranted(&needs, &format!("`{class}::{member}`"), span, ctx, env);
+}
+
+/// Whose authority the code at a call site holds
+/// (`rule:security/authority-is-the-enclosing-namespace`).
+pub(crate) enum Authority<'g> {
+    /// The application's own: the global namespace, a namespace no `[grants]`
+    /// line matches, or any namespace where the table is empty
+    /// (`rule:security/an-unmatched-namespace-holds-the-application`).
+    Application,
+    /// The `[grants]` line that matches the enclosing namespace.
+    Line(&'g nvs_config::grants::Grant),
+}
+
+/// The authority of the code `ctx` is checking: the one test every grant check
+/// in this module makes. Cost: one table lookup, and none when the table is
+/// empty or the namespace is global.
+pub(crate) fn authority_of<'g>(ctx: &Ctx<'_>, env: &Env<'g>) -> Authority<'g> {
+    if ctx.namespace.is_empty() || env.namespace_grants.is_empty() {
+        return Authority::Application;
+    }
+    let grants: &'g nvs_config::grants::Grants = env.namespace_grants;
+    grants
+        .lookup(&ctx.namespace.join("\\"))
+        .map_or(Authority::Application, Authority::Line)
+}
+
+/// Refuses the construct at `span`, named by `what`, where the enclosing
+/// namespace's `[grants]` line does not list each of `needs`. The application
+/// passes. A missing capability the call's package lists as `optional`
+/// records a [`CapabilityGuard`] instead, and the construct throws when it
+/// runs.
+pub(crate) fn reject_ungranted(
+    needs: &[Cap],
+    what: &str,
+    span: Span,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    let Authority::Line(line) = authority_of(ctx, env) else {
+        return;
+    };
+    let namespace = ctx.namespace.join("\\");
+    let mut missing: Vec<Cap> = needs
+        .iter()
+        .copied()
         .filter(|cap| !line.grants(*cap))
         .collect();
-    if own.is_some() {
-        missing.retain(|cap| *cap != Cap::FsRead);
-    }
     if missing.is_empty() {
         return;
     }
@@ -287,7 +317,7 @@ pub(crate) fn reject_ungranted_call(
             span,
             CapabilityGuard {
                 message: format!(
-                    "`{class}::{member}` needs {}. The namespace `{namespace}` does not have it. \
+                    "{what} needs {}. The namespace `{namespace}` does not have it. \
                      Add {} to the line '{}' in `{file}` to allow it.",
                     names(&missing, "`"),
                     names(&missing, "\""),
@@ -306,10 +336,7 @@ pub(crate) fn reject_ungranted_call(
                 names(&missing, "`")
             ),
         )
-        .with_primary(
-            span,
-            format!("`{class}::{member}` needs {}", names(&missing, "`")),
-        )
+        .with_primary(span, format!("{what} needs {}", names(&missing, "`")))
         .with_note(format!(
             "this line in `{file}` gives the capabilities of `{namespace}`: '{}' = [{}]",
             line.key(),

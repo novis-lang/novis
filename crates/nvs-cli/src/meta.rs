@@ -75,6 +75,11 @@
 //! that join possible outside the binary at all — the table is `nvs-stdlib`'s
 //! and a consumer of this document has no other way to read it.
 //!
+//! `constructs` is the same table's second half,
+//! [`nvs_stdlib::registry::CONSTRUCT_CAPABILITIES`]: each language construct
+//! that reaches a door, such as `spawn script`, and the capability it needs.
+//! It has no class to join on, so it is a roster of its own.
+//!
 //! ## The program half
 //!
 //! `rule:tooling/meta-json-takes-a-program` adds one optional argument, and it
@@ -131,9 +136,9 @@ use std::process::ExitCode;
 use nvs_diagnostics::{Diagnostics, SourceFile, SourceMap, Span};
 use nvs_hir::QName;
 use nvs_stdlib::registry::{
-    CAPABILITIES, CLASSES, Const, CoreAlias, CoreClass, CoreConst, CoreEnum, CoreMethod,
-    CoreOption, CoreTy, ENUMS, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual, aliases_of,
-    class_type_params, constructor_of,
+    CAPABILITIES, CLASSES, CONSTRUCT_CAPABILITIES, Const, CoreAlias, CoreClass, CoreConst,
+    CoreEnum, CoreMethod, CoreOption, CoreTy, ENUMS, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    aliases_of, class_type_params, constructor_of,
 };
 use nvs_syntax::ast::{
     ClassDecl, ClassMember, ClassMemberKind, ConstMember, DocComment, DocTagKind, EnumDecl,
@@ -231,6 +236,7 @@ pub(crate) fn document() -> Value {
         "attributes": nvs_types::derive::ATTRIBUTES.iter().map(|name| Value::from(*name)).collect::<Vec<_>>(),
         "directives": nvs_config::DIRECTIVES.iter().map(directive_json).collect::<Vec<_>>(),
         "capabilities": CAPABILITIES.iter().map(capability_json).collect::<Vec<_>>(),
+        "constructs": CONSTRUCT_CAPABILITIES.iter().map(construct_json).collect::<Vec<_>>(),
     })
 }
 
@@ -381,6 +387,18 @@ fn capability_json(row: &(&str, &str, Option<nvs_config::Cap>)) -> Value {
     let mut out = Map::new();
     out.insert("class".into(), Value::from(class));
     out.insert("member".into(), Value::from(member));
+    if let Some(capability) = capability {
+        out.insert("capability".into(), Value::from(capability.name()));
+    }
+    Value::Object(out)
+}
+
+/// One construct row: its spelling, and the capability it needs when it needs
+/// one.
+fn construct_json(row: &(&str, Option<nvs_config::Cap>)) -> Value {
+    let (construct, capability) = *row;
+    let mut out = Map::new();
+    out.insert("construct".into(), Value::from(construct));
     if let Some(capability) = capability {
         out.insert("capability".into(), Value::from(capability.name()));
     }

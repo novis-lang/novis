@@ -126,7 +126,7 @@ pub fn escalate(ctx: &mut Ctx, record: &Record) -> bool {
     // script` target would be. The refusal is not re-worded and not reported:
     // the floor is about to write the failure that got us here, and a second
     // sentence about the configuration would bury it.
-    let Ok(program) = nvs_runtime::script::resolve(ctx, &path) else {
+    let Ok(program) = nvs_runtime::script::resolve(ctx, &path, "[log] handler") else {
         return false;
     };
     // The record and the copy that crosses into the isolate are built inside
@@ -194,7 +194,7 @@ fn off_the_request(ctx: &mut Ctx, path: &str, record: &Record) -> bool {
         nvs_runtime::metrics::count_handler_dropped();
         return false;
     }
-    let Ok(program) = nvs_runtime::script::resolve(ctx, path) else {
+    let Ok(program) = nvs_runtime::script::resolve(ctx, path, "[log] handler") else {
         return false;
     };
     // See `escalate` for why the argument is built inside the reserve.

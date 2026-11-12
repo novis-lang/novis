@@ -305,7 +305,7 @@ impl Entry {
     /// parent's unit already holds, so there is nothing left to refuse.
     pub fn program(self, ctx: &Ctx) -> Result<crate::script::Prepared, ResolveError> {
         match self {
-            Self::Path(path) => crate::script::resolve(ctx, &path),
+            Self::Path(path) => crate::script::resolve(ctx, &path, "spawn script"),
             Self::Method { label, names } => Ok(crate::script::Prepared {
                 program: crate::script::method_program(label, names),
                 classes: ctx.class_table(),

@@ -207,6 +207,19 @@ pub fn needs<'a>(class: &'a str, member: &'a str) -> impl Iterator<Item = Cap> +
         .filter_map(|(_, _, cap)| *cap)
 }
 
+/// Every capability the language construct `construct` needs, read from
+/// [`crate::registry::CONSTRUCT_CAPABILITIES`] as [`needs`] reads a member's.
+/// `construct` is the table's spelling, such as `spawn script`.
+///
+/// **What it costs:** one pass over a one-row table per construct site, at
+/// compile time only.
+pub fn construct_needs(construct: &str) -> impl Iterator<Item = Cap> + '_ {
+    crate::registry::CONSTRUCT_CAPABILITIES
+        .iter()
+        .filter(move |(name, _)| *name == construct)
+        .filter_map(|(_, cap)| *cap)
+}
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {

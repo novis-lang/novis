@@ -309,7 +309,10 @@ fn reads_the_environment(grants: Option<&str>) -> (String, bool) {
 #[test]
 fn a_package_with_an_empty_grant_line_does_not_read_the_environment() {
     let (stderr, ok) = reads_the_environment(Some("[grants]\n'Acme\\Http\\*' = []\n"));
-    assert!(!ok, "a package with an empty line reads the environment:\n{stderr}");
+    assert!(
+        !ok,
+        "a package with an empty line reads the environment:\n{stderr}"
+    );
     for member in [
         "Core\\Env::get",
         "Core\\Env::secret",
@@ -324,7 +327,84 @@ fn a_package_with_an_empty_grant_line_does_not_read_the_environment() {
     assert_eq!(stderr.matches("error[E0658]").count(), 4, "{stderr}");
 
     let (stderr, ok) = reads_the_environment(Some("[grants]\n'Acme\\Http\\*' = [\"env\"]\n"));
-    assert!(ok, "a line that lists `env` reads the environment:\n{stderr}");
+    assert!(
+        ok,
+        "a line that lists `env` reads the environment:\n{stderr}"
+    );
+}
+
+/// `body` in a method of `Acme\Http\Client`, beside a `job.nvs` in the same folder and a static
+/// `Client::job`, an entry that calls it, and the application's `package.toml` granting `line` to
+/// `Acme\Http\*`.
+fn starts_a_script(body: &str, line: &str) -> (String, bool) {
+    let class = format!(
+        "<?nvs\nnamespace Acme\\Http;\n\nfinal class Client\n{{\n    \
+         public static function start(): void\n    {{\n        {body}\n    }}\n\n    \
+         public static function job(): void\n    {{\n    }}\n}}\n"
+    );
+    let grants = format!("[grants]\n'Acme\\Http\\*' = [{line}]\n");
+    let entry = "<?nvs\nautoload 'Acme\\Http' from 'vendor/acme/http/src';\n\n\
+                 Acme\\Http\\Client::start();\n";
+    let (_root, app) = layout(&[
+        ("main.nvs", entry),
+        ("vendor/acme/http/src/Client.nvs", class.as_str()),
+        ("vendor/acme/http/src/job.nvs", "<?nvs\necho 'job';\n"),
+        (
+            "vendor/acme/http/package.toml",
+            "[package]\nname = 'Acme\\Http'\nversion = \"1.0.0\"\n",
+        ),
+        ("package.toml", grants.as_str()),
+    ]);
+    check(&app.join("main.nvs"))
+}
+
+/// `body` does not compile in a package whose line is empty, and the refusal is one `E0658`
+/// saying that `what` needs `script.spawn`. The same body compiles where the line lists it.
+fn needs_script_spawn(body: &str, what: &str) {
+    let (stderr, ok) = starts_a_script(body, "");
+    assert!(
+        !ok,
+        "a package with an empty line compiles `{body}`:\n{stderr}"
+    );
+    assert!(
+        stderr.contains(&format!("{what} needs `script.spawn`")),
+        "`{body}` is not refused for `script.spawn`:\n{stderr}"
+    );
+    assert_eq!(stderr.matches("error[E0658]").count(), 1, "{stderr}");
+
+    let (stderr, ok) = starts_a_script(body, "\"script.spawn\"");
+    assert!(
+        ok,
+        "a line that lists `script.spawn` compiles `{body}`:\n{stderr}"
+    );
+}
+
+// covers: tools:packages/grants-what-each-namespace-may-do
+#[test]
+fn a_package_with_an_empty_grant_line_does_not_spawn_a_script() {
+    needs_script_spawn("var $job = spawn script 'job.nvs';", "`spawn script`");
+}
+
+// covers: tools:packages/grants-what-each-namespace-may-do
+#[test]
+fn a_package_with_an_empty_grant_line_does_not_spawn_a_method() {
+    needs_script_spawn("var $job = spawn script Client::job;", "`spawn script`");
+}
+
+// covers: tools:packages/grants-what-each-namespace-may-do
+#[test]
+fn a_package_with_an_empty_grant_line_does_not_enqueue_a_job() {
+    needs_script_spawn("Core\\Queue::push('job.nvs');", "`Core\\Queue::push`");
+}
+
+// covers: tools:packages/grants-what-each-namespace-may-do
+#[test]
+fn a_package_with_an_empty_grant_line_does_not_upgrade_a_connection() {
+    needs_script_spawn(
+        "Core\\Socket::upgrade('job.nvs');",
+        "`Core\\Socket::upgrade`",
+    );
+    needs_script_spawn("Core\\Sse::upgrade('job.nvs');", "`Core\\Sse::upgrade`");
 }
 
 // covers: tools:packages/grants-what-each-namespace-may-do

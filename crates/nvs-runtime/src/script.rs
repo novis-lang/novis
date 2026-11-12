@@ -474,16 +474,22 @@ fn published_slot() -> MutexGuard<'static, Option<SharedResolver>> {
 /// joined `[[schedule]] script` and `[log] handler` to their file's folder — so
 /// a relative one arriving here is a defect upstream, reported with the door's
 /// own message.
-pub fn resolve(ctx: &Ctx, path: &str) -> Result<Prepared, ResolveError> {
-    if let Some(message) = crate::capability::relative(std::path::Path::new(path), "`spawn script`")
-    {
+///
+/// `member` names what starts the script, such as `spawn script` or
+/// `Core\Socket::upgrade`, and each refusal names it. A caller in `nvs-stdlib`
+/// passes its member, so the door scan of
+/// `every_door_names_the_capability_its_member_declares` holds that member's
+/// row to `script.spawn`.
+pub fn resolve(ctx: &Ctx, path: &str, member: &str) -> Result<Prepared, ResolveError> {
+    let named = format!("`{member}`");
+    if let Some(message) = crate::capability::relative(std::path::Path::new(path), &named) {
         return Err(ResolveError::Denied(message));
     }
     if let Some(message) = crate::capability::refusal(
         ctx,
         Cap::ScriptSpawn,
         Scope::Path(std::path::Path::new(path)),
-        "`spawn script`",
+        &named,
     ) {
         return Err(ResolveError::Denied(message));
     }
@@ -676,7 +682,8 @@ mod tests {
         // than the path failing to compile.
         let installed = install_fixed();
         let ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
-        let Err(ResolveError::Denied(message)) = resolve(&ctx, "/srv/child.nvs") else {
+        let Err(ResolveError::Denied(message)) = resolve(&ctx, "/srv/child.nvs", "spawn script")
+        else {
             panic!("an unconfigured context grants no `script.spawn`");
         };
         assert!(
@@ -685,7 +692,7 @@ mod tests {
         );
         // And the grant is what turns it into the resolver's answer, on the
         // same path and the same resolver: nothing but the configuration moved.
-        assert!(resolve(&granting(), "/srv/child.nvs").is_ok());
+        assert!(resolve(&granting(), "/srv/child.nvs", "spawn script").is_ok());
         drop(installed);
     }
 
@@ -697,7 +704,9 @@ mod tests {
         // everything and the resolver would answer, so the path alone is what
         // refuses it.
         let installed = install_fixed();
-        let Err(ResolveError::Denied(message)) = resolve(&granting(), "jobs/report.nvs") else {
+        let Err(ResolveError::Denied(message)) =
+            resolve(&granting(), "jobs/report.nvs", "spawn script")
+        else {
             panic!("a relative path is refused whatever the grant");
         };
         assert!(
@@ -711,7 +720,7 @@ mod tests {
     fn with_nothing_installed_a_path_is_refused_without_a_resolver_being_invented() {
         assert!(!is_installed());
         assert_eq!(
-            resolve(&granting(), "/srv/child.nvs").err(),
+            resolve(&granting(), "/srv/child.nvs", "spawn script").err(),
             Some(ResolveError::NoResolver)
         );
     }
@@ -721,7 +730,8 @@ mod tests {
         let installed = install_fixed();
         assert!(is_installed());
         let mut ctx = granting();
-        let prepared = resolve(&ctx, "/abc.nvs").expect("the fixed resolver answers");
+        let prepared =
+            resolve(&ctx, "/abc.nvs", "spawn script").expect("the fixed resolver answers");
         let answer = (prepared.program)(&mut ctx, Value::null());
         assert_eq!(answer.as_int(), Some(8));
         drop(installed);
@@ -747,7 +757,8 @@ mod tests {
             );
             mine.scoped(|| {
                 let mut ctx = granting();
-                let prepared = resolve(&ctx, "/abcd.nvs").expect("the shared resolver answers");
+                let prepared = resolve(&ctx, "/abcd.nvs", "spawn script")
+                    .expect("the shared resolver answers");
                 (prepared.program)(&mut ctx, Value::null()).as_int()
             })
         })
@@ -770,7 +781,8 @@ mod tests {
             let handle = published().expect("the process published a handle");
             handle.scoped(|| {
                 let mut ctx = granting();
-                let prepared = resolve(&ctx, "/abcd.nvs").expect("the published resolver answers");
+                let prepared = resolve(&ctx, "/abcd.nvs", "spawn script")
+                    .expect("the published resolver answers");
                 (prepared.program)(&mut ctx, Value::null()).as_int()
             })
         })
@@ -836,14 +848,14 @@ mod tests {
         {
             let inner = install(&REFUSING);
             assert!(matches!(
-                resolve(&ctx, "/srv/child.nvs"),
+                resolve(&ctx, "/srv/child.nvs", "spawn script"),
                 Err(ResolveError::Refused(_))
             ));
             drop(inner);
         }
         // The outer one is back, which is what a scheduler driven from inside
         // another embedder's task depends on.
-        assert!(resolve(&ctx, "/srv/child.nvs").is_ok());
+        assert!(resolve(&ctx, "/srv/child.nvs", "spawn script").is_ok());
         drop(outer);
     }
 
@@ -856,7 +868,7 @@ mod tests {
         assert!(!is_installed());
         let answered = scoped(&stack, || {
             assert!(is_installed());
-            resolve(&ctx, "/abc.nvs").is_ok()
+            resolve(&ctx, "/abc.nvs", "spawn script").is_ok()
         });
         assert!(answered);
         assert!(!is_installed());
@@ -867,9 +879,11 @@ mod tests {
         let ctx = granting();
         let outer = install(&REFUSING);
         let stack = Fixed;
-        scoped(&stack, || assert!(resolve(&ctx, "/srv/child.nvs").is_ok()));
+        scoped(&stack, || {
+            assert!(resolve(&ctx, "/srv/child.nvs", "spawn script").is_ok())
+        });
         assert!(matches!(
-            resolve(&ctx, "/srv/child.nvs"),
+            resolve(&ctx, "/srv/child.nvs", "spawn script"),
             Err(ResolveError::Refused(_))
         ));
         drop(outer);
@@ -878,7 +892,7 @@ mod tests {
     #[test]
     fn a_refusal_carries_the_implementors_own_message() {
         let installed = install(&REFUSING);
-        let Err(error) = resolve(&granting(), "/srv/notes.txt") else {
+        let Err(error) = resolve(&granting(), "/srv/notes.txt", "spawn script") else {
             panic!("the refusing resolver refuses");
         };
         assert_eq!(error.to_string(), "`/srv/notes.txt` is not a script");

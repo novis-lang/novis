@@ -201,6 +201,10 @@ const STATEMENT_DEADLINE: Duration = Duration::from_secs(10);
 /// one line of that arming which looks right when it is wrong.
 const ROOT: nvs_runtime::TaskRoot = nvs_runtime::TaskRoot::Worker;
 
+/// The member a queued job's script refusal names: the job was started by a
+/// `Core\Queue::push`, which is what needs `script.spawn`.
+const QUEUE_PUSH: &str = "Core\\Queue::push";
+
 /// The switch that stops every worker a binary started.
 ///
 /// One switch for all of them rather than one each: they stop together, at the same moment and for
@@ -1511,7 +1515,7 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> Option<nvs_host::Failure> {
             "the grants and limits recorded with it could not be read".to_string(),
         ));
     };
-    let program = match nvs_runtime::script::resolve(ctx, &job.script) {
+    let program = match nvs_runtime::script::resolve(ctx, &job.script, QUEUE_PUSH) {
         Ok(program) => program,
         Err(refused) => {
             eprintln!(
@@ -2245,6 +2249,8 @@ mod tests {
 
     use nvs_stdlib::queue::Bell;
 
+    use super::QUEUE_PUSH;
+
     /// The column list a split claim reads its row with.
     ///
     /// Both split dialects name it in the same place — between the `select` that opens the first
@@ -2460,7 +2466,7 @@ mod tests {
         );
         assert!(
             !matches!(
-                nvs_runtime::script::resolve(&ctx, &granted.script),
+                nvs_runtime::script::resolve(&ctx, &granted.script, QUEUE_PUSH),
                 Err(nvs_runtime::script::ResolveError::Denied(_))
             ),
             "the job's script is under the deployment's `script.spawn` grant"
@@ -2474,7 +2480,7 @@ mod tests {
         );
         assert!(
             matches!(
-                nvs_runtime::script::resolve(&ctx, &narrowed.script),
+                nvs_runtime::script::resolve(&ctx, &narrowed.script, QUEUE_PUSH),
                 Err(nvs_runtime::script::ResolveError::Denied(_))
             ),
             "a script whose own block narrows `script.spawn` away from it ran under the host's grant"

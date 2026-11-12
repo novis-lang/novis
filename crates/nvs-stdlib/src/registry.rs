@@ -2494,16 +2494,22 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::db::SCHEMA_NAME, "planAgainst", None),
     (crate::db::SCHEMA_NAME, "fromArray", None),
     (crate::db::SCHEMA_NAME, "toArray", None),
-    // `rule:concurrency/queue-four-members`'s four, which take no grant, beside
-    // `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s removal, which
-    // takes the only one this class has. The `None` rows are the declaration and
-    // not an omission: `push` names no block for a grant to be about, and the
-    // other three read or release what the caller already holds a receipt for.
-    // Removal is the one act here that destroys the record that work existed, so
-    // it is the one asked about — scoped on the queue the receipt carries, which
-    // is `rule:core-classes/db-capabilities`' shape and not `net.connect`'s, the
-    // database behind it having been granted at `[queue] connection` already.
-    (crate::queue::NAME, "push", None),
+    // `rule:concurrency/queue-four-members`'s four, beside
+    // `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s removal.
+    // `push` names a script that a worker later runs as an isolate of its own,
+    // so it needs `script.spawn`, as `spawn script` does
+    // (`rule:security/script-spawn-capability`). The worker's door asks the
+    // operator's grant for the script's path when the job runs. The other three
+    // read or release what the caller already holds a receipt for, and need
+    // nothing. Removal destroys the record that work existed, so it is asked
+    // about on the queue the receipt carries, which is
+    // `rule:core-classes/db-capabilities`' shape and not `net.connect`'s: the
+    // database behind it was granted at `[queue] connection` already.
+    (
+        crate::queue::NAME,
+        "push",
+        Some(nvs_config::Cap::ScriptSpawn),
+    ),
     (crate::queue::NAME, "status", None),
     (crate::queue::NAME, "cancel", None),
     (crate::queue::NAME, "stats", None),
@@ -2556,6 +2562,32 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::zip::NAME, "read", None),
     (crate::zip::NAME, "extract", Some(nvs_config::Cap::FsRead)),
     (crate::zip::NAME, "extract", Some(nvs_config::Cap::FsWrite)),
+    // `rule:concurrency/an-upgrade-is-spawn-shaped`: each `upgrade` names a
+    // script, or a static method, that the connection runs as a root isolate,
+    // so it needs `script.spawn` as `spawn script` does. Its door is
+    // `nvs_runtime::script::resolve`, reached through `socket::entry_program`.
+    // The other members read or write the connection this program already
+    // runs in, and reach nothing outside it. `Core\Sse::stream` keeps this
+    // request's own handler, so it starts no script.
+    (
+        crate::socket::NAME,
+        "upgrade",
+        Some(nvs_config::Cap::ScriptSpawn),
+    ),
+    (crate::socket::NAME, "current", None),
+    (crate::socket::NAME, "receive", None),
+    (crate::socket::NAME, "send", None),
+    (crate::socket::NAME, "sendBytes", None),
+    (
+        crate::sse::NAME,
+        "upgrade",
+        Some(nvs_config::Cap::ScriptSpawn),
+    ),
+    (crate::sse::NAME, "stream", None),
+    (crate::sse::NAME, "current", None),
+    (crate::sse::NAME, "receive", None),
+    (crate::sse::NAME, "send", None),
+    (crate::sse::NAME, "retry", None),
     // `Core\WebPush::send` posts to the endpoint a browser wrote, so it is the
     // client's own door: the host is pinned under `net.connect` and the address
     // policy, as for `Core\Http\Client::post`. Reading a subscription and the
@@ -2568,6 +2600,20 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         Some(nvs_config::Cap::NetConnect),
     ),
 ];
+
+/// Every language construct that reaches a door, and the capability it needs:
+/// [`CAPABILITIES`]' question for code that is not a `Core` member
+/// (`rule:security/capability-declaration-is-one-table`).
+///
+/// `spawn script` runs another file, or a static method, as an isolate of its
+/// own (`rule:security/script-spawn-capability`). The checker reads the row
+/// through [`crate::cap::construct_needs`] and holds the construct to the
+/// calling namespace's `[grants]` line, in the path form and the method form
+/// alike. Its door is `nvs_runtime::script::resolve`, which asks the
+/// operator's grant when the spawn runs. `nvs meta` renders this table beside
+/// the other one.
+pub const CONSTRUCT_CAPABILITIES: &[(&str, Option<nvs_config::Cap>)] =
+    &[("spawn script", Some(nvs_config::Cap::ScriptSpawn))];
 
 /// The members code in a package's namespace may call with no `fs.read` grant
 /// when the path, its first argument, is a string literal naming a file of the

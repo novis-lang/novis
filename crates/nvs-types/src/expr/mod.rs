@@ -1110,7 +1110,7 @@ fn infer_kind(
         // what each is typed as, and why the handle and the result are
         // answered by opposite mechanisms. [`isolate`] owns it.
         ExprKind::SpawnScript { path, options } => {
-            isolate::check_spawn_script(path, options, live, scope, ctx, env)
+            isolate::check_spawn_script(expr.span, path, options, live, scope, ctx, env)
         }
         ExprKind::Await(inner) => isolate::check_await(inner, live, scope, ctx, env),
         // `rule:statements/a-require-expression-is-mixed`'s **value** form. The statement form never reaches here

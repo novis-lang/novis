@@ -118,6 +118,9 @@ use crate::{Ctx, Env};
 use super::assign::{is_assignable, report_mismatch};
 use super::{check_expr, reject_secret_crossing};
 
+/// The construct's row in [`nvs_stdlib::registry::CONSTRUCT_CAPABILITIES`].
+const SPAWN_SCRIPT: &str = "spawn script";
+
 /// `spawn script <path> with(<options>)` — `rule:security/isolate-shares-nothing`'s isolate spawn.
 ///
 /// Two checks that do not know about each other: [`check_entry`] on the
@@ -151,7 +154,15 @@ use super::{check_expr, reject_secret_crossing};
 ///   the two `rule:concurrency/on-worker-runs-the-child-on-another-core` names
 ///   rather than by an expected type, because `string` accepts every spelling
 ///   that is not one of them.
+///
+/// **The construct is held to its namespace's grant line.** `spawn script`
+/// needs what [`nvs_stdlib::cap::construct_needs`] gives it, `script.spawn`,
+/// in the path form and the method form alike, so a package with no
+/// `script.spawn` on its line does not compile one
+/// (`rule:security/script-spawn-capability`). `span` is the whole
+/// construct's, which is where an optional capability's guard throws.
 pub(crate) fn check_spawn_script(
+    span: Span,
     path: &Expr,
     options: &[SpawnOption],
     live: &mut Live,
@@ -159,6 +170,8 @@ pub(crate) fn check_spawn_script(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
+    let needs: Vec<_> = nvs_stdlib::cap::construct_needs(SPAWN_SCRIPT).collect();
+    crate::capability::reject_ungranted(&needs, "`spawn script`", span, ctx, env);
     check_entry(path, live, scope, ctx, env);
     let string = env.interner.string();
     for opt in options {

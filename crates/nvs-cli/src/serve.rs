@@ -2146,7 +2146,8 @@ impl nvs_server::Fires for Scheduled {
         // the point: an entry that fires nightly picks up an edited script at the
         // next fire, exactly as a request picks it up at the next request. What
         // the cache makes cheap is the *repeat*, not the first one.
-        let program = match nvs_runtime::script::resolve(ctx, entry.script()) {
+        let program = match nvs_runtime::script::resolve(ctx, entry.script(), "[[schedule]] script")
+        {
             Ok(program) => program,
             Err(refused) => {
                 eprintln!(
