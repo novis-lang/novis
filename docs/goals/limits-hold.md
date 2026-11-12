@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/crypto.rs, crates/nvs-stdlib/src/jwe.rs, crates/nvs-stdlib/src/storage.rs, crates/nvs-stdlib/src/io.rs, docs/rules/errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself.md]
   - id: 4
     title: error text is clipped where a fault is made
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/response.rs, docs/rules/errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself.md]
   - id: 5
     title: a native walk over caller-sized input reaches a poll
@@ -413,28 +413,28 @@ request text at the sites that still copy it.
 **Split:** an `Explore` subagent lists every construction of a `Fault` variant outside
 `crates/nvs-runtime/src/abi.rs`, and every `match` that reads a variant's message, as `file.rs:NN`.
 
-- [ ] `plain` cuts a message past 8 KiB on a character boundary and adds `…`
+- [x] `plain` cuts a message past 8 KiB on a character boundary and adds `…`
   (`rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`,
   `crates/nvs-runtime/src/abi.rs:267`).
-- [ ] The message of `Thrown`, `ThrownWithSlots` and `Fatal` becomes a type with a private field, and
+- [x] The message of `Thrown`, `ThrownWithSlots` and `Fatal` becomes a type with a private field, and
   the readers the list names take its text (`crates/nvs-runtime/src/abi.rs:103`).
-- [ ] `Quoted` gains a `Debug` form that escapes the excerpt (`crates/nvs-runtime/src/abi.rs:296`).
-- [ ] The repeated-key messages of the generic and the typed decoder quote the key
+- [x] `Quoted` gains a `Debug` form that escapes the excerpt (`crates/nvs-runtime/src/abi.rs:296`).
+- [x] The repeated-key messages of the generic and the typed decoder quote the key
   (`crates/nvs-stdlib/src/json.rs:2386`, `crates/nvs-stdlib/src/json.rs:3464`).
-- [ ] `setHeader`, `redirect` and `addCookie` quote the value, the URL and the cookie's name and
+- [x] `setHeader`, `redirect` and `addCookie` quote the value, the URL and the cookie's name and
   value (`crates/nvs-stdlib/src/response.rs:1516`, `crates/nvs-stdlib/src/response.rs:1559`,
   `crates/nvs-stdlib/src/response.rs:1570`, `crates/nvs-stdlib/src/response.rs:1866`,
   `crates/nvs-stdlib/src/response.rs:1876`).
-- [ ] Tests `every_fault_constructor_clips_a_long_message`,
+- [x] Tests `every_fault_constructor_clips_a_long_message`,
   `a_clipped_message_ends_on_a_character_boundary` and `a_long_json_key_is_quoted_escaped_and_short`
   (`crates/nvs-runtime/src/abi.rs:1599`, `crates/nvs-stdlib/src/json.rs:5908`).
-- [ ] Attacks, each an 8 MiB text under a 16 MiB limit that checks the message is short: a JSON
+- [x] Attacks, each an 8 MiB text under a 16 MiB limit that checks the message is short: a JSON
   document with one long key twice, a header value, a redirect URL and a cookie value
-  (`tests/hostile/core/Json/decode/02-a-long-key-twice-under-a-16-mib-limit.nvs:1`,
+  (`tests/hostile/core/Json/decode/04-a-long-key-twice-under-a-16-mib-limit.nvs:1`,
   `tests/hostile/core/Response/setHeader/02-an-8-mib-value-under-a-16-mib-limit.nvs:1`,
-  `tests/hostile/core/Response/redirect/02-an-8-mib-url-under-a-16-mib-limit.nvs:1`,
+  `tests/hostile/core/Response/redirect/03-an-8-mib-url-under-a-16-mib-limit.nvs:1`,
   `tests/hostile/core/Response/addCookie/02-an-8-mib-value-under-a-16-mib-limit.nvs:1`).
-- [ ] The rule fragment says a message is held to 8 KiB, and that `quoted` bounds its build
+- [x] The rule fragment says a message is held to 8 KiB, and that `quoted` bounds its build
   (`docs/rules/errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself.md:1`).
 
 ### 5. a native walk over caller-sized input reaches a poll
@@ -448,7 +448,7 @@ walk copies or does more work per byte.
 
 - [ ] A batch counter for a loop another crate drives, beside `poll_deadline`, with its cost in the
   doc comment (`rule:http-server/time-is-bounded-inside-a-helper`,
-  `crates/nvs-runtime/src/abi.rs:469`).
+  `crates/nvs-runtime/src/abi.rs:641`).
 - [ ] `Core\Hash::of`, `::hmac` and a stream's `update` feed their input in 4 KiB chunks through
   `bounded_loop` (`crates/nvs-stdlib/src/hash.rs:764`, `crates/nvs-stdlib/src/hash.rs:983`,
   `crates/nvs-stdlib/src/hash.rs:1031`, `crates/nvs-stdlib/src/hash.rs:1169`).
@@ -535,41 +535,42 @@ cap the resource table.
 
 ### State
 
-Stages 1, 2 and 3 are done. Every whole read in `nvs-stdlib` asks the memory ceiling before it
-holds its piece: `read_bounded` (`crates/nvs-stdlib/src/byte_source.rs`) for the byte sources, and
-an `nvs_runtime::affordable` ask in `Incoming::whole`, Redis's `Wire::exact`, the session file
-store's `load` and the cache's `memory_get`. A refusal there records the breach, so a `String` or
-`io::Error` that carries it still ends as the memory `FATAL` through `run_helper`. `memory_get` is
-private and returns a `Result`, and tests read the tier through `memory_held`. The session `load`
-passes `budget::headroom()` into its query, which gives the record only when it fits.
+Stages 1 to 4 are done. A `Fault`'s message is `nvs_runtime::Message`, whose field is private, so
+a `Fault` is made only through its six constructors (`crates/nvs-runtime/src/abi.rs`). Each passes
+`plain`, which clips past `MESSAGE_BYTES` (8 KiB) on a character boundary and adds `…`. A reader
+takes the text through `Deref<Target = str>`, `Display`, `as_str`, `into_owned` or
+`Into<Cow<str>>`, and `Message` compares with `str`, `&str` and `String` both ways, so none of the
+154 readers outside `abi.rs` needed a change. `Quoted`'s `{:?}` writes the excerpt escaped. The JSON
+repeated key goes through one `repeated` for both decoders and is quoted with `{:?}`. Every
+request-text hole in `response.rs`'s `setHeader`, `redirect` and `addCookie` messages is quoted:
+name, value, URL, path and domain. Four attacks end with a short message, read off a run
+(`tests/hostile/core/Json/decode/04-…`, `Response/setHeader/02-…`, `Response/redirect/03-…`,
+`Response/addCookie/02-…`). The rule fragment says both bounds.
 
 `crate::tests::out_of_cpu` (`crates/nvs-stdlib/src/lib.rs`) installs a CPU reading that is one
 hour only on a thread that asked. Use it for any later CPU-refusal unit test.
 
-The sweep's reds: no check named `env-secret-proofs` exists. Nightly 43001191130 ran at
-`f4c1d5c7e2`, and its one failure, `a_changed_server_timeout_applies_to_the_next_connection`
-(`crates/nvs-cli/tests/live_config.rs:2520`), held a connection 30 s after a reload of
-`server.header_timeout` on every runner. The push CI at `ec3c68d1d0` ran the same test jobs green,
-so it is not reproduced. If a later nightly shows it again, it belongs to `waits-are-bounded`.
-That push CI's own reds are fixed here: the duplicate `.http.out` snippet output and two Miri
-failures in `reflect.rs`'s tests, where each `vault_open as NvsFn` had its own address. Its `lint`
-and Miri 7/12 reds were a rustup download timeout.
+The sweep's reds are the ones the last session read: no check named `env-secret-proofs` exists,
+and nightly 43001191130 is the run whose one failure,
+`a_changed_server_timeout_applies_to_the_next_connection`
+(`crates/nvs-cli/tests/live_config.rs:2520`), was not reproduced by the push CI after it. If a later
+nightly shows it again, it belongs to `waits-are-bounded`.
 
 ### Next
 
-Stage 4 is next, and it starts with its `Explore` list of `Fault` variant constructions outside
-`abi.rs`.
-- `crates/nvs-runtime/src/abi.rs:267`: `plain` clips a message past 8 KiB on a character boundary.
-- `crates/nvs-runtime/src/abi.rs:103`: the message becomes a type with a private field.
-- `crates/nvs-stdlib/src/json.rs:2386`, `:3464` and `crates/nvs-stdlib/src/response.rs:1516`:
-  the request-text sites gain `quoted`.
-Stage 6 (`crates/nvs-ext/src/call.rs:1326`) touches other files and may run beside it.
+- `crates/nvs-runtime/src/abi.rs:641`: stage 5 starts with its `Explore` list of native walks, then
+  a batch counter beside `poll_deadline`.
+- `crates/nvs-stdlib/src/hash.rs:764`, `crates/nvs-stdlib/src/encoding.rs:167` and
+  `crates/nvs-stdlib/src/sort.rs:115`: the walks that adopt it.
+- `crates/nvs-ext/src/call.rs:1326`: stage 6 touches other files and may run beside stage 5.
 
 Tests that may go red at the gate: `crates/nvs-host/tests/limits.rs`'s two `handler_isolate`
 cases, which assert reserve numbers the handler's allocator is now armed with. The session file
 store's cases in `crates/nvs-stdlib/src/session/sqlite.rs` and `session.rs`, whose `load` query
-changed and did not run this session. Any test that matches `fancy_regex::RuntimeError`
-exhaustively outside `regex.rs` would need the new variant; none was found in the workspace build.
+changed. A test that asserts a message over 8 KiB, such as a long `CoreTest` diff; the standing
+decision raises the cap to the next power of two that passes it. A test that matched a response
+message holding more than 64 bytes of a header value, URL or cookie text. The conformance
+`.out` files of a `setHeader`, `redirect` or `addCookie` refusal of a long value.
 
 ### Backlog
 
