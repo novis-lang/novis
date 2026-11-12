@@ -621,7 +621,9 @@ impl Reactor {
     /// event, and nothing on a read with no hang-up.
     #[must_use]
     pub fn hung_up(&self, id: TaskId) -> bool {
-        self.registrations.get(&id).is_some_and(|entry| entry.hung_up)
+        self.registrations
+            .get(&id)
+            .is_some_and(|entry| entry.hung_up)
     }
 
     /// Issues a one-shot handle that wakes `id` from another thread.

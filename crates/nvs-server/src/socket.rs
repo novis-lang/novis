@@ -604,8 +604,9 @@ mod tests {
             .expect("a bound listener had no address");
         let client = TcpStream::connect(addr).expect("the loopback refused a connection");
         let (server, _) = listener.accept().expect("the accept failed");
-        let stream =
-            NvsConnection::Tcp(NvsTcp::from_std(server).expect("the socket refused non-blocking mode"));
+        let stream = NvsConnection::Tcp(
+            NvsTcp::from_std(server).expect("the socket refused non-blocking mode"),
+        );
         let bounds = Connection {
             idle: Duration::from_nanos(1),
             ..Connection::default()
@@ -653,7 +654,10 @@ mod tests {
         frames.extend_from_slice(&[0x81, 0x82, 0, 0, 0, 0, b'h', b'i']);
         client.write_all(&frames).expect("the write failed");
 
-        assert_eq!(framed.receive().map_err(|error| error.to_string()), Ok(None));
+        assert_eq!(
+            framed.receive().map_err(|error| error.to_string()),
+            Ok(None)
+        );
         assert_eq!(close_reason(&mut client), Closing::Idle.reason());
     }
 

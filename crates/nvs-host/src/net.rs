@@ -3429,7 +3429,10 @@ mod tests {
     #[test]
     fn a_stream_that_never_runs_dry_ends_when_its_tree_is_stopped() {
         use nvs_runtime::SafepointFlags;
-        for (stop, size) in [(SafepointFlags::WALL_TIME, 1), (SafepointFlags::CPU_LIMIT, 7)] {
+        for (stop, size) in [
+            (SafepointFlags::WALL_TIME, 1),
+            (SafepointFlags::CPU_LIMIT, 7),
+        ] {
             let (mut server, client) = a_pair_with_bytes_waiting(4096);
             let mut sched = Scheduler::new();
             let _installed = install(Reactor::new().expect("the OS refused a poll"));
@@ -3497,8 +3500,11 @@ mod tests {
             // the byte. The reader's next read then runs before the writer
             // writes again, so every read finds the socket empty and parks.
             let writer_wake = Rc::new(RefCell::new(None::<crate::reactor::RemoteWake>));
-            let (read_count, write_wait, into) =
-                (Rc::clone(&consumed), Rc::clone(&consumed), Rc::clone(&spent));
+            let (read_count, write_wait, into) = (
+                Rc::clone(&consumed),
+                Rc::clone(&consumed),
+                Rc::clone(&spent),
+            );
             let (wake_writer, park_writer) = (Rc::clone(&writer_wake), Rc::clone(&writer_wake));
             sched.spawn(ctx(), TaskRoot::Request, move |_ctx| {
                 let before = crate::counts::Counts::now();
@@ -3515,8 +3521,7 @@ mod tests {
                     client.write_all(b"x").expect("the write failed");
                     while write_wait.get() < round {
                         let me = current_task().expect("the writer is a task");
-                        *park_writer.borrow_mut() =
-                            with_current(|reactor| reactor.remote_wake(me));
+                        *park_writer.borrow_mut() = with_current(|reactor| reactor.remote_wake(me));
                         let _ = suspend_current(Waiting::Parked);
                     }
                 }
@@ -3527,7 +3532,10 @@ mod tests {
                 spent.would_block_reads >= u64::from(rounds),
                 "a read found its byte without parking: {spent:?}"
             );
-            assert_eq!(spent.streak_checks, 0, "{rounds} parked reads paid a streak check");
+            assert_eq!(
+                spent.streak_checks, 0,
+                "{rounds} parked reads paid a streak check"
+            );
         }
     }
 

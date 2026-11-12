@@ -1542,7 +1542,10 @@ mod tests {
     /// `of` of each of the fifteen cases, `hmac` of each strong one and a
     /// stream's `finish` are the deadline's FATAL, naming the member.
     #[test]
-    #[cfg_attr(miri, ignore = "hashes 2 MiB with every digest, which Miri runs for minutes")]
+    #[cfg_attr(
+        miri,
+        ignore = "hashes 2 MiB with every digest, which Miri runs for minutes"
+    )]
     fn every_digest_stops_at_an_expired_deadline() {
         let large = Value::bytes(NvsStr::new(&vec![
             7_u8;

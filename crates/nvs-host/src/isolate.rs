@@ -796,9 +796,8 @@ impl Isolate {
         // door started, and it states that tree's CPU ceiling. It is published
         // to this core's watchdog where its body starts, and its count starts
         // again at each turn (`rule:concurrency/a-connection-is-a-root-isolate`).
-        let connection = watch.is_none()
-            && charge == Charge::Tree
-            && (peer.is_some() || event_stream.is_some());
+        let connection =
+            watch.is_none() && charge == Charge::Tree && (peer.is_some() || event_stream.is_some());
         if connection {
             isolate_ctx.root_a_connection();
         }
@@ -2079,7 +2078,8 @@ mod tests {
         use nvs_runtime::SafepointFlags;
         use std::time::Duration;
 
-        let dog = crate::Watchdog::with(Duration::from_secs(3600), Duration::from_millis(1), |_| {});
+        let dog =
+            crate::Watchdog::with(Duration::from_secs(3600), Duration::from_millis(1), |_| {});
         let _registered = dog.register_requests();
         let mut request = parent();
         let table: toml::Table = "[limits]\ncpu_time = \"100ms\"\n"

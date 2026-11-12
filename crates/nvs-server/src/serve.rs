@@ -3271,9 +3271,8 @@ fn event_stream(
     write_idle: Duration,
     due_at: crate::bounds::NextBeat,
 ) -> Response<Answer> {
-    let mut response = Response::new(body.as_an_event_stream(
-        place, bounds, draining, write_idle, due_at,
-    ));
+    let mut response =
+        Response::new(body.as_an_event_stream(place, bounds, draining, write_idle, due_at));
     let headers = response.headers_mut();
     headers.insert(
         header::CONTENT_TYPE,
