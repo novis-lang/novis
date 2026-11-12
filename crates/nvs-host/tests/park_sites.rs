@@ -280,8 +280,5 @@ fn entries(dir: &Path) -> Vec<PathBuf> {
 }
 
 fn crates_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("the crate is under crates/")
-        .to_path_buf()
+    nvs_repo::path("crates")
 }

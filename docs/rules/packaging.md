@@ -3515,6 +3515,19 @@ after-response work ends. A keep-alive connection that waits holds no instance. 
 reads the tree's stop flags through a weak handle, because the tree keeps the budget, and a strong one
 would keep every tree, its instances and its memory for the life of the process.
 
+**A destructor at request end sends nothing, and it is ended at its bound.** Ending a request drops
+each resource a guest returned, in its guest, so the destructors run after the request is over. An
+outbound request or a read a destructor makes is dropped unsent, and the guest gets the refusal. The
+drive that runs the destructors stops at one instant: the request's wall deadline, and never sooner
+than `[limits] fatal_reserve_time` after the drive starts. A request with no `wall_time` gets
+`[limits] disconnect_grace` ([`http-server/a-request-outlives-a-client-that-goes-away`](http-server.md#http-server-a-request-outlives-a-client-that-goes-away)). At the
+instant the drive drops what is left, and each instance with it. A guest call that waits past the
+wall deadline is dropped the same way, and the request ends with the wall-time `FATAL`
+([`errors/on-limit`](errors.md#errors-on-limit)). A call dropped part-way never puts its instance back, so the request's next
+call makes a fresh one. The cost is one timer entry for each park of the end drive, one clock read for
+each of its polls, and one word per request to keep the last wall deadline a call saw, for a tree that
+has already ended.
+
 **A request in flight can hold an instance of each class it calls, up to a cap.** The pooling
 allocator has a fixed number of places, sized once at the first boot: `max_in_flight` times the
 classes one request can call, the built-in components and each `[[extension]]` entry, and at most

@@ -991,10 +991,13 @@ mod tests {
         );
     }
 
-    /// `run_until` stops waiting at its deadline and leaves the job running:
-    /// the job here is still blocked on a channel when the deadline passes,
-    /// and is let go only after the task has its `None`. A job that answers in
-    /// time gives `Some`, and the loop ends with no timer left filed.
+    /// `run_until` stops waiting at its deadline: the job here is blocked on a
+    /// channel, and is let go only after the task has its `None`. A job that
+    /// a pool thread had started by then runs to its end, and one still in
+    /// the queue is skipped, so `done` is sent exactly when `started` was.
+    /// Which of the two happens depends on the host's load, and both are
+    /// checked. A job that answers in time gives `Some`, and the loop ends
+    /// with no timer left filed.
     #[test]
     fn a_bounded_blocking_call_stops_waiting_at_its_deadline() {
         let mut sched = Scheduler::new();
@@ -1004,15 +1007,22 @@ mod tests {
         let into = Rc::clone(&seen);
         sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
             let (go, wait) = mpsc::channel::<()>();
+            let (began, started) = mpsc::channel::<()>();
             let (done, finished) = mpsc::channel::<()>();
             let late = run_until(Instant::now() + Duration::from_millis(20), move || {
+                began.send(()).ok();
                 wait.recv().ok();
                 done.send(()).ok();
                 1_u32
             });
-            go.send(())
-                .expect("the job is still waiting on the channel");
-            finished.recv().expect("the abandoned job ran to its end");
+            // A skipped job has dropped `wait`, so this send may fail.
+            go.send(()).ok();
+            let ran = finished.recv().is_ok();
+            assert_eq!(
+                ran,
+                started.try_recv().is_ok(),
+                "a started job did not run to its end, or a skipped one ran"
+            );
             let prompt = run_until(Instant::now() + Duration::from_secs(60), || 2_u32);
             into.set((late, prompt));
         });

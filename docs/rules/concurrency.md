@@ -935,6 +935,17 @@ closed at it: every event stream under a `wall_time` ended and reconnected, and 
 followed the security checklist broke every live page. An application cannot exempt one door either,
 because `limits:` on an upgrade only narrows.
 
+**`cpu_time` holds for each turn of a connection.** A turn is the handler's work between two waits for
+its next input: `Core\Socket::receive`, `Core\Sse::receive` and a sleep on a connection each end one,
+and the tree's CPU count starts again there. The connection's isolate is published to the watchdog of
+the core it runs on, at both doors, so a handler that never waits is stopped at `cpu_time` with the
+CPU `FATAL`. A count over the whole connection would close every busy live page once it had spent 30
+seconds of CPU, however long it had been open. Once a limit has stopped the tree, the count is not
+started again, so a `Core\Fatal::onLimit` handler that waits keeps its slice. The ceiling is the
+`upgrade`'s narrowing, or the `[limits] cpu_time` server work runs under.
+
+- **Time:** one publication and one charge per open connection, one clock read for each switch into
+  or out of its tree as a request pays, and one clock read and two stores per turn.
 - **Memory:** each open connection holds an arena and a task stack for as long as the peer keeps it
   open, idle or not. Memory scales with concurrent connections and not with the request rate, so a
   connection-heavy deployment is sized for its connections, and ten thousand idle connections cost ten
@@ -1237,7 +1248,8 @@ accepted under.
 **The lifetime is the time bound a connection has, and `[limits] wall_time` is not one.** The
 `wall_time` of the request that upgraded ends that request and never the connection
 ([`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate)), so the security checklist's `wall_time` and a
-live page work together. A connection's tree still keeps `memory` and `cpu_time`.
+live page work together. A connection's tree still keeps `memory`, and `cpu_time` for each turn
+([`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate)).
 
 Each bound ends in a **defined close** rather than a reset, and the connection's own loop takes it:
 `receive()` answers `null` and the peer is told which bound it met. A connection that exceeds its
@@ -1245,7 +1257,11 @@ memory, CPU or lifetime budget is reported as that and never as an out-of-memory
 
 **Both doors are bounded, and not by the same bounds.** An event stream has no codec and no peer
 speaking, so what holds it is a lifetime, a drain period and one event's size — plus two numbers no
-operator writes, and one field it must leave alone:
+operator writes, and one field it must leave alone. **It takes a `max_open` place like a WebSocket**:
+it holds a root isolate and a task stack as long as one, so it counts against the same number. The
+door takes the place before the isolate starts and the body gives it back when it is dropped, and with
+no place free the request is answered `503` with `Retry-After` and no isolate starts. **What it
+spends:** one relaxed add and sub and one word per stream.
 
 - **The keep-alive is derived rather than configured.** What would close a quiet event stream is the
   wait a connection writes responses under, so the interval that keeps one open is read off that same
@@ -1270,8 +1286,13 @@ request, so a per-tenant ceiling is the rate limit the route already declares
 ([`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members)); a second ceiling here would be a second policy over one
 request.
 
-An application that wants a longer-lived connection sends anything at all — a ping is a frame, and
-the loop never sees one.
+**Only a message restarts the idle timeout.** `receive` fixes the idle instant when it starts to wait
+and keeps it across pings, pongs and empty fragments, so a peer that sends only those is closed with
+the idle close when the instant passes. A message that never ends meets the instant at the stream's
+streak check, within sixteen reads. The lifetime is compared where each `receive` and each `send`
+starts, so frames that keep arriving cannot carry a connection past it. An application that wants a
+longer-lived connection sends a message. **What it spends:** one clock read per control frame and one
+per operation. **Declined:** a count of control frames per message, which would be a new limit.
 
 <sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members).</sub>
 
@@ -2386,6 +2407,14 @@ Tokio does the same, and leaves Windows out for the same reason. Windows keeps t
 readiness is emulated over AFD polls, and a short read there does not show that the socket is empty.
 A read that fills its buffer, a read of none, and a read off a core keep the syscall. It spends
 nothing: the count is the one the `WouldBlock` already takes.
+
+**A hang-up keeps the syscall after a short read.** Bytes and the peer's hang-up that arrive
+together are one edge-triggered event, and no event follows to say the stream has ended. So the
+reactor sets a bit on the task's row when an event carries a read close or an error, and a short
+read does not clear the readiness bit while it is set. The next read finds the end. The bit is per
+task, so one descriptor's hang-up keeps the syscall for every stream of that task, which is the safe
+direction. What it spends: one branch per reported event and one byte per registered task, and
+nothing on a keep-alive read with no hang-up.
 
 **Declined:**
 - **A bit set by the event for the descriptor itself.** The token would have to name the stream,

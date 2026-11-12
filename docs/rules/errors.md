@@ -267,11 +267,35 @@ stopped like one that never waited, and the requests waiting beside it are charg
 loop. A runaway request therefore stops itself at its next poll, and the core it ran on is never
 wedged.
 
+**A parked request is ended at its wall deadline by the park funnel**, because a parked task reaches
+no poll and the watchdog's raise reaches only a task that runs. Every park goes through `yield_on`
+(`crates/nvs-host/src/scheduler.rs`), and for a `Waiting::Parked` it reads the bound of the tree whose
+turn the stack is: the open handler slice's end, else the wall deadline, else none
+(`ArmedStack::bound`). It files the bound as the task's one timer entry when it is earlier than the
+site's own, and puts the site's entry back on resume. A wake past the bound, or a park whose bound has
+passed already, claims the wall stop as the watchdog does, raises `WALL_TIME` and answers
+`Resumed::Cancelled`. That has one ending: the member's `Ctx::cancel` runs the poll, which runs the
+handler in its slice and ends the request with the wall-time `FATAL`, and records no cancellation. A
+wait with no `Ctx`, such as a socket read inside a driver, returns its I/O error, and `run_helper`
+reports a member that failed past the wall deadline as the wall-time `FATAL`, after the memory
+question. No member's own catchable timeout comes first. A wait may outlive `wall_time` only by naming
+its reason, `Waiting::ParkedPast(PastWallTime)`: a server task, the connection's own drive, a join of
+the task's own children (each bounded itself), a blocking-pool job, a debugger stop and the request's
+end. `crates/nvs-host/tests/park_sites.rs` holds each reason to its files. The cost: one load per park
+for a tree with no `wall_time`, and one more load and a clock read under one. A park whose bound is
+the earlier instant adds one timer insert and one removal, and a member call that fails adds one load
+and, under a `wall_time`, a clock read. No memory.
+
 A limit handler that cannot run without weakening the bound does not run: stopping the request is
 security and its report is not, so the bound stays as it is (`Ctx::run_limit_handler` in
 `crates/nvs-runtime/src/ctx/hooks.rs`).
 
 **Declined:**
+- **A watchdog sweep over parked tasks to end them at the wall deadline.** It costs every sweep a walk
+  of every parked task, and it ends a wait one interval late. The funnel ends it on the core, at the
+  instant, for the park's own timer entry.
+- **A new `Resumed` answer for the deadline.** Every park site would have to handle it, and
+  `Cancelled` already ends every one of them.
 - **A wall clock in place of CPU time.** A wall clock cannot tell a runaway loop from a request waiting
   on a slow database, and `[limits] cpu_time` exists to stop the first and leave the second alone. A
   platform with no per-thread clock another thread may read enforces no CPU ceiling and says so at

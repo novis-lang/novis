@@ -2191,6 +2191,17 @@ Two constraints on where a poll may go, both about correctness:
 - **Which walks poll.** A walk polls when its cost per byte is more than a copy: hashing, sorting, transcoding, parsing, matching. `Core\Hash` and `Core\Encoding` walk their input in pieces of 4 KiB through `bounded_loop`, and the native sort's key function polls through `DeadlineBatch`. A walk that only copies is bounded by the bytes the memory ceiling let it hold. Each walk that does more and does not poll yet has a gap record under `data/gaps/`.
 - **A poll site must be a point at which abandoning leaves the value consistent.** A sort cannot be abandoned mid-permutation and its array handed back. Where no such point exists, the bound belongs on the *input* instead — which is what [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers) already did for patterns, and the precedent generalises rather than being re-argued.
 
+**A stream read that never blocks is bounded at the stream.** A peer that keeps bytes arriving —
+endless notices to a database driver, endless fragments to a WebSocket codec — makes no read park, so
+neither the park funnel nor the stream's deadline is ever read. `NvsStream`'s `read` and `write`
+count the calls that returned bytes since the stream last parked. At every sixteenth the next call
+first checks: a passed stream deadline, or the running tree stopped for `WALL_TIME` or `CPU_LIMIT` or
+past its park bound, ends the call with `TimedOut`. A raised `YIELD` is lowered and the task gives
+the core back. This covers every protocol loop over a stream at one place. What it spends: one byte
+per stream, one add per read, and per sixteen reads that did not park one thread-local read, one load
+and one clock read. A read that parks pays nothing. Declined: a clock read on every read, and a check
+in each driver loop.
+
 **The safepoint poll also yields the core.** A request that has run a slice without waiting finds `YIELD` raised at its next poll and gives its core back there ([`http-server/a-request-that-computes-shares-its-core`](http-server.md#http-server-a-request-that-computes-shares-its-core)). A helper's batched poll reads the deadline alone and does not yield: a helper call is one turn, and it holds its core until it returns or its deadline stops it. What bounds that turn is this rule's deadline poll, and what bounds the neighbours' wait is that a helper's runtime is O(its input) under the request's own limits.
 
 <sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/a-request-that-computes-shares-its-core`](http-server.md#http-server-a-request-that-computes-shares-its-core), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`errors/on-limit`](errors.md#errors-on-limit), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code).</sub>
@@ -2223,6 +2234,13 @@ The runtime is one single-threaded scheduler pinned per core, and a request neve
 **Filesystem calls, name resolution, and waiting on a child process go to the blocking pool**; the reactor thread issues no call that can block on external state. The pool is **bounded at twice the core count**, per worker, and never grows with requests served. The handoff costs microseconds against operations that cost milliseconds, and what it avoids is an entire core idle for the same interval.
 
 **A job's CPU time is the request's.** The pool thread reads its own CPU clock before and after each job, and each answer a pinned thread gives, and the task adds the difference to its request's charge when the answer lands. `[limits] cpu_time` then counts a slow statement or a large file hashed off the core exactly as it counts the same work on it ([`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees)). That is two clock reads per job, and one more word per published request tree.
+
+**A job its task gave up on in the queue is skipped.** A task that waits with a deadline stops
+waiting when the deadline passes, and marks the job abandoned. The pool thread reads that mark before
+it runs the job: an abandoned job frees what it holds, releases its thread and sends its wake, and its
+body never runs. So a queue of abandoned work does not hold the pool's threads past the requests that
+queued it. A job that has started still runs to its end, which the bound covers. What it spends: one
+uncontended lock per job on the pool thread.
 
 The bound is stated because the default it replaces is not: an unbounded pool of threads that each reserve a stack is a footprint that grows with a workload's blocking fan-out rather than with its concurrency. What the pool spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): at most that many OS thread stacks per worker, resident only in what a job touches, plus one boxed Rust `FnOnce` per job in flight.
 
