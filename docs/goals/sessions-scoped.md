@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/csrf.rs, docs/rules/security/csrf-is-on-by-default.md]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: destroyed-stays-destroyed
@@ -273,45 +273,35 @@ not open the row.
 
 ### 4. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1, 2 and 3 are done, and stage 4, the gate, is next. Each stage's own tests passed by name.
+Every stage is done, and the goal is reached at `1fa991eeed`. `looper verify` is green, and so are
+`bun nv verify --doc`, `bun nv owners --closes sessions-scoped` and `bun nv ci --check`.
 
-- Stage 2: `key_of(app, id)` (`crates/nvs-stdlib/src/session.rs:612`) is the prefix, the
-  application, one `NUL` and the id. `fetched`, `created`, `replaced` and `forgot` take the
-  application, and `start`, `regenerated`, `destroy` and `sent_to` read it with
-  `crate::cache::application`. The `db` store's table is `nvs_sessions` with `PRIMARY KEY (app,
-  id)`, and a connection drops the old `nvs_session` table when it opens. The test module's
-  `NO_APP` is the application of a context with no `[[app]]` block. `under` places a context under
-  one block. The wire test's `Answer` now carries its header block, and `Server::sent` sends a
-  cookie (`crates/nvs-cli/tests/per_mount_config.rs`).
-- Stage 3: `sent_id` sets `dirty` only when it draws the identifier. The fake shared server counts
-  its `SET` commands in `Serving::sets`, and `tokened` (`crates/nvs-stdlib/src/session.rs:2504`)
-  builds a context with the fake store and a CSRF key.
-- The sweep's `env-secret-proofs` item is stale driver state: no file defines the check, and its
-  command, `bun nv proofs --gate --only 'Core\Env::secret'`, exits 0. The three nightly Miri
-  failures ran at `578534cc7c`, before `7568aaa0fb` skipped those four tests under Miri.
+- The gate fixed three things, in `78eebf4cd1` and `1fa991eeed`. The `security` and `http-server`
+  rule chapters were rendered again. The three deadline fallbacks in `html.rs` and `xml.rs`, from
+  `b87424507a`, now say why no source reaches them. `a_named_connection_is_memoized_for_the_request`
+  (`crates/nvs-stdlib/src/db/open.rs:1458`) failed under load, because handle keys come from one
+  counter for the whole process. It now closes the first connection and checks that no connection
+  answers to the name. The sixteen `Core\Session` and `Core\Cache` perf records were measured again.
+- Every standing decision has a home outside this file: the four-operations, written-whole,
+  data-folder-store and issued-id rule fragments, and the module docs of `session.rs` and
+  `session/sqlite.rs`.
+- The sweep's `env-secret-proofs` item is stale driver state: its command exits 0. The nightly
+  Miri failures ran at `578534cc7c`, before `7568aaa0fb` skipped those tests under Miri.
 
 ### Next
 
-Stage 4, the gate. Start `looper verify` with `run_in_background`, fix every failure it names in one
-pass, and run it once more. Then the goal-end gates: `bun nv verify --doc`,
-`bun nv owners --closes sessions-scoped` and `bun nv ci --check`.
+Nothing is left in this goal. The driver runs the acceptance checks and retires the file, and the
+next goal on the chain is `database-doors`.
 
-- [ ] `looper verify` over the whole goal (`docs/goals/sessions-scoped.md:276`).
-- [ ] Fix every failure in one pass (`docs/goals/sessions-scoped.md:277`).
-- [ ] `looper verify` once more, green (`docs/goals/sessions-scoped.md:278`).
-- [ ] The goal-end gates, each red fixed (`AGENTS.md:1`, § *In the loop*).
-
-Expected red: none known. Every `session::` test that writes a key now passes `NO_APP`. A test
-outside `crates/nvs-stdlib/src/session.rs` that builds a session key or reads `nvs_session` by name
-would go red. A search for both found none.
+Expected red: none known.
 
 ### Backlog
 
