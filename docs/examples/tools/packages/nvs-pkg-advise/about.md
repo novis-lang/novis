@@ -8,6 +8,7 @@ version fixes the problem yet. The first version must be lower than the second.
 
 With a token, the advisory is in the registry's feed seven days later, and every owner gets a
 message. An owner can send it again with a passkey on the website. Then it is in the feed at once.
+Before the seven days end, an owner can also cancel it with a passkey on the website.
 
 **Good to know:** an advisory does not change which version `nvs pkg add` chooses. To stop a
 version from being chosen, use `nvs pkg retract`.

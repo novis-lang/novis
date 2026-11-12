@@ -64,8 +64,13 @@ time the same way: `Releases::retract` gives it the time the retraction shows in
 time rewrites that entry's reason and `due` and adds none, so a token's retraction confirmed with a
 passkey enters the log once. A withhold's entry is due at once. The index writer and the ranking fact
 read `retracted_at` against the same time, and `Index::run` reads the clock once for the log and the
-index files, so no index file shows a retraction whose entry the log does not have yet. The package page lists each advisory, and a version's page lists the
-ones whose range has that version (`PackagePage.nvs`).
+index files, so no index file shows a retraction whose entry the log does not have yet. The package page lists each retraction and advisory
+from its time and never a cancelled advisory, and a version's page lists the advisories whose range
+has that version (`PackagePage.nvs`). An owner sees each one that waits, with its cancel form, in the
+part *Waiting changes* (`PackagePage::waiting`). The cancel is `Releases::cancelRetraction` and
+`Releases::cancelAdvisory`, whose transaction starts by deleting the waiting row of `events` where
+`due` is later than now. A cancelled advisory keeps its row with `cancelled_at`, so the count that
+numbers the next advisory still includes it.
 
 The client is `nvs pkg advise <package> <versions> <summary>` (`crates/nvs-cli/src/package/advise.rs`),
 one request to that route with the stored publish token, shaped like `nvs pkg retract`. Audit
@@ -84,6 +89,14 @@ narrowly scoped automatic patch floor, not a general range system.
   record a name whose bytes no longer exist.
 - **A token-sent retraction taking effect at once.** A stolen token could then pull a good release out
   of every fresh resolution before any owner saw it.
+- **A cancel through `nvs pkg` with a token.** A token is what the wait protects against, so a token
+  ends the wait in neither direction. Cancelling an entry the log has is declined too: the log is
+  append-only, and a wrong retraction is answered by a new version.
+- **A `cancel` log entry kind.** A cancelled entry never entered the log, so the log has nothing to
+  correct, and such an entry would make a stolen token's false retraction a permanent public record.
+  The `cancel` notice is the record, and notices are never deleted.
+- **Showing a waiting retraction or advisory to every visitor.** That publishes a stolen token's text
+  on the package's page for the seven days, and nobody needs to test a retraction before it starts.
 
 `nvs pkg audit` is `crates/nvs-cli/src/package/audit.rs`. The service writes a retraction's
 `fixed_in` into its log entry (`apps/registry/src/Events.nvs`) and writes the feed again from the log

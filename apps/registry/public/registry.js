@@ -228,6 +228,11 @@ const steps = {
     await withPasskey(form, () => send('POST', packagePath(form) + '/advisory', body));
     return null;
   },
+  async cancel(form) {
+    const body = form.dataset.advisory === undefined ? { version: form.dataset.version } : { advisory: form.dataset.advisory };
+    await withPasskey(form, () => send('POST', packagePath(form) + '/cancel', body));
+    return null;
+  },
   async repository(form, fields) {
     const body = { repository: fields.get('repository'), directory: fields.get('directory') };
     await withPasskey(form, () => send('POST', packagePath(form) + '/repository', body));

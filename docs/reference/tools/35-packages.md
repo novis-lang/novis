@@ -710,8 +710,9 @@ choose a retracted version. The package index shows the reason, which has at mos
 
     nvs pkg retract 1.4.0 --reason "Client::send drops the last header." --fixed-in 1.4.1
 
-With a token, the retraction starts seven days later. Every owner gets a message, and an owner can
-make it start at once with a passkey on the website:
+With a token, the retraction starts seven days later. Every owner gets a message. Before the seven
+days end, an owner can make it start at once or cancel it, with a passkey on the website. A token
+cannot cancel it. After it starts, it is in the public log and cannot be cancelled:
 
 ```text
 Version 1.4.0 is retracted from 2026-11-04T09:12:00Z. An owner can retract it now or cancel it with a passkey on the website.
@@ -757,7 +758,8 @@ You can write the package as `acme/http` or as `Acme\Http`.
 
 With a token, the advisory is in the registry's list of advisories seven days later. Every owner
 gets a message. An owner can send the same advisory again with a passkey on the website, and then
-it is in the list at once. The registry gives each advisory an id, such as `acme/http-1`:
+it is in the list at once. Before the seven days end, an owner can also cancel it with a passkey on
+the website. A token cannot cancel it. The registry gives each advisory an id, such as `acme/http-1`:
 
 ```text
 The advisory acme/http-1 is in the feed from 2026-11-04T09:12:00Z. An owner can send it again now or cancel it with a passkey on the website.
@@ -890,6 +892,10 @@ When you own the vendor of a package, its page also has the forms that change it
 - **Retract**, with a reason and the version that fixes the problem;
 - **Send the advisory**, for a range of versions such as `1.0.0..1.2.0`;
 - **Move the package**, to another repository or another folder in it.
+
+The page also has a part named **Waiting changes**. It lists each retraction and advisory that was
+sent with a token and has not started yet. Each one shows the date it starts and a **Cancel**
+button. Other visitors do not see a waiting retraction or advisory until it starts.
 
 The page of a pending version has a **Release now** button. The first version at `0.1.0` or higher
 waits until an owner confirms its API. Its page shows that API, and **Confirm the API and release**

@@ -201,6 +201,51 @@ final class PackagePageTest
         Test::assertTrue(!Str::contains($page, '# Getting Started'));
     }
 
+    // A retraction and an advisory sent with a token wait seven days. Only an owner sees them before
+    // then, each with the form that cancels it. After seven days every visitor sees both.
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function onlyAnOwnerSeesAWaitingRetractionOrAdvisory(): void
+    {
+        var $db = PackagePageTest::database();
+        int $now = PackagePageTest::now();
+        string $key = PackagePageTest::owned($db, $now);
+        int $later = $now + 7 * PackagePageTest::DAY;
+        var $releases = new Releases($db);
+        Test::assertTrue($releases->retract($key, '0.0.1', 'It deletes files.', null, $later));
+        ?VersionRange $range = VersionRange::of('0.0.1..0.0.3');
+        if ($range == null) {
+            throw new RuntimeError('The range is not read.');
+        }
+        Test::assertSame($releases->advise($key, $range, 'It leaks headers.', $later), 'acme/http-1');
+        string $retraction = 'The retraction of 0.0.1 starts on 2026-06-22. The reason is: It deletes files.';
+        string $advisory = 'The advisory <code>acme/http-1</code> about the versions <code>0.0.1..0.0.3</code> starts on 2026-06-22. It leaks headers.';
+
+        string $owner = PackagePageTest::source(new PackagePage($db, $now, '/log/advisories', PackagePageTest::OWNER)->package($key));
+        PackagePageTest::has($owner, '<h2>Waiting changes</h2>');
+        PackagePageTest::has($owner, $retraction);
+        PackagePageTest::has($owner, $advisory);
+        PackagePageTest::has($owner, '<form data-action="cancel" data-passkey data-package="acme/http" data-version="0.0.1"><button>Cancel the retraction</button></form>');
+        PackagePageTest::has($owner, '<form data-action="cancel" data-passkey data-package="acme/http" data-advisory="acme/http-1"><button>Cancel the advisory</button></form>');
+        Test::assertTrue(!Str::contains($owner, '0.0.1 is retracted from'));
+
+        string $visitor = PackagePageTest::packagePage($db, $now, $key);
+        Test::assertTrue(!Str::contains($visitor, 'Waiting changes'));
+        Test::assertTrue(!Str::contains($visitor, 'It deletes files.'));
+        Test::assertTrue(!Str::contains($visitor, 'It leaks headers.'));
+        Test::assertTrue(!Str::contains(PackagePageTest::source(new PackagePage($db, $now)->version($key, '0.0.1')), 'It leaks headers.'));
+
+        string $after = PackagePageTest::packagePage($db, $later, $key);
+        PackagePageTest::has($after, '<li>0.0.1 is retracted from 2026-06-22. The reason is: It deletes files.</li>');
+        PackagePageTest::has($after, '<li>The advisory <code>acme/http-1</code> is about the versions <code>0.0.1..0.0.3</code>, from 2026-06-22. It leaks headers.</li>');
+        string $ownerAfter = PackagePageTest::source(new PackagePage($db, $later, '/log/advisories', PackagePageTest::OWNER)->package($key));
+        Test::assertTrue(!Str::contains($ownerAfter, 'Waiting changes'));
+
+        // A cancelled advisory is not listed, before or after its time.
+        Test::assertTrue($releases->cancelAdvisory($key, 'acme/http-1'));
+        Test::assertTrue(!Str::contains(PackagePageTest::packagePage($db, $later, $key), 'acme/http-1'));
+        Test::assertTrue(!Str::contains(PackagePageTest::source(new PackagePage($db, $now, '/log/advisories', PackagePageTest::OWNER)->package($key)), 'acme/http-1'));
+    }
+
     // An owner sees the forms that change the package, and the form that releases each waiting version.
     #[Test(at: '2026-06-15T12:00:00Z')]
     public function anOwnerSeesTheFormsThatChangeThePackage(): void

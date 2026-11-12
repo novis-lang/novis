@@ -1,6 +1,7 @@
 <?nvs
-// Attack: a stolen publish token tries to retract a version at once, and to unlist it without an owner's passkey.
-// A retraction by token should wait seven days, and an unlist should wait for an owner. Every step below should be stopped.
+// Attack: a stolen publish token tries to retract a version at once, cancel a retraction, and unlist the version.
+// A retraction by token should wait seven days. A cancel and an unlist need an owner's passkey.
+// A token of an account with no activity in 60 days should do nothing. Every step below should be stopped.
 
 // The time of the check, in seconds since 1970. A fixed time gives the same output on every run.
 int $now = 1793000600;
@@ -11,11 +12,17 @@ string $token = 'nvsreg_' . Core\Str::repeat('3f', 32);
 // A token of another vendor, `Other`.
 string $otherToken = 'nvsreg_' . Core\Str::repeat('a7', 32);
 
+// A token of `Acme` whose account had no activity for 61 days.
+string $idleToken = 'nvsreg_' . Core\Str::repeat('c4', 32);
+
 // The registry's checks for a retraction and an unlist of version 1.2.0 of `Acme\Http`.
 class Registry
 {
     // The scope of each token. The key is the SHA-256 hash of the token.
     private array<string> $scopes = [];
+
+    // The last time the account of each token showed activity. The key is the SHA-256 hash of the token.
+    private array<int> $activeAt = [];
 
     // The time the retraction shows in the index, or `null` when the version is not retracted.
     public ?int $retractedAt = null;
@@ -27,10 +34,11 @@ class Registry
     {
     }
 
-    // Saves the hash of a token with its scope.
-    public function add(string $token, string $scope): void
+    // Saves the hash of a token with its scope and the last activity of its account.
+    public function add(string $token, string $scope, int $activeAt): void
     {
         $this->scopes[Registry::hashOf($token)] = $scope;
+        $this->activeAt[Registry::hashOf($token)] = $activeAt;
     }
 
     // Returns the SHA-256 hash of a token as 64 hex characters.
@@ -40,10 +48,14 @@ class Registry
     }
 
     // Returns `true` when the token is known and covers the package `Acme\Http`.
-    public function allows(string $token): bool
+    // Its account must also have shown activity in the 60 days before `$now`.
+    public function allows(string $token, int $now): bool
     {
         string $hash = Registry::hashOf($token);
         if (!Core\Arr::hasKey($this->scopes, $hash)) {
+            return false;
+        }
+        if ($now - $this->activeAt[$hash] > 60 * 86400) {
             return false;
         }
         string $scope = Core\Str::lower($this->scopes[$hash]);
@@ -64,7 +76,7 @@ class Registry
             if ($signedIn) {
                 throw new RuntimeError('403, sign in with a passkey as an owner of the package first');
             }
-            if ($token == null || !$this->allows($token)) {
+            if ($token == null || !$this->allows($token, $now)) {
                 throw new RuntimeError('401, send a publish token for this package');
             }
             $from = $now + 7 * 86400;
@@ -77,16 +89,30 @@ class Registry
     }
 
     // Unlists the version. A token gets status 202 and the page where an owner confirms with a passkey.
-    public function unlist(?string $token, bool $signedIn, bool $passkey): string
+    public function unlist(?string $token, bool $signedIn, bool $passkey, int $now): string
     {
         if (!$passkey) {
-            if (!$signedIn && $token != null && $this->allows($token)) {
+            if (!$signedIn && $token != null && $this->allows($token, $now)) {
                 return '202, to unlist it, sign in with a passkey and confirm on https://packages.example.com/packages/acme/http';
             }
             throw new RuntimeError('403, sign in with a passkey as an owner of the package first');
         }
         $this->unlisted = true;
         return '200, the version is unlisted';
+    }
+
+    // Cancels a retraction that waits for its time. Only an owner with a recent passkey sign-in may cancel.
+    // A token alone cancels nothing, so `$token` is not read.
+    public function cancel(?string $token, bool $passkey, int $now): string
+    {
+        if (!$passkey) {
+            throw new RuntimeError('403, sign in with a passkey as an owner of the package first');
+        }
+        if ($this->retractedAt == null || $this->retractedAt <= $now) {
+            throw new RuntimeError('404, no retraction of this version is waiting');
+        }
+        $this->retractedAt = null;
+        return '200, the retraction is cancelled';
     }
 
     // Returns `true` when the index shows the version as retracted at the time `$now`.
@@ -97,82 +123,99 @@ class Registry
 }
 
 Registry $registry = new Registry();
-$registry->add($token, 'Acme');
-$registry->add($otherToken, 'Other');
+$registry->add($token, 'Acme', $now - 86400);
+$registry->add($otherToken, 'Other', $now - 86400);
+$registry->add($idleToken, 'Acme', $now - 61 * 86400);
 
-// 1. The token retracts version 1.2.0 and checks the index at once.
+// 1. The token of the account with no activity for 61 days retracts version 1.2.0.
 // Each step below catches its error, so the next step still runs.
 try {
-    int $from = $registry->retract('{"version":"1.2.0","reason":"It deletes files.","fixedIn":""}', $token, false, false, $now);
-    if ($registry->showsRetracted($now)) {
-        echo "1. the retraction shows at once\n";
-    } else {
-        echo '1. stopped: the index shows the retraction only from ', Core\Time::fromEpoch($from)->toIso(), "\n";
-    }
+    $registry->retract('{"version":"1.2.0","reason":"It deletes files.","fixedIn":""}', $idleToken, false, false, $now);
+    echo "1. the token of an account with no recent activity was accepted\n";
 } catch (Throwable $e) {
     echo '1. stopped: ', $e->message, "\n";
 }
 
-// 2. The token retracts again, with a time of its own and a claim of a passkey in the body.
+// 2. The token retracts version 1.2.0 and checks the index at once.
 try {
-    $registry->retract('{"version":"1.2.0","reason":"Now.","fixedIn":"","from":1793000600,"passkey":true}', $token, false, false, $now);
-    echo "2. the earlier time was accepted\n";
+    int $from = $registry->retract('{"version":"1.2.0","reason":"It deletes files.","fixedIn":""}', $token, false, false, $now);
+    if ($registry->showsRetracted($now)) {
+        echo "2. the retraction shows at once\n";
+    } else {
+        echo '2. stopped: the index shows the retraction only from ', Core\Time::fromEpoch($from)->toIso(), "\n";
+    }
 } catch (Throwable $e) {
     echo '2. stopped: ', $e->message, "\n";
 }
 
-// 3. The attacker sends a session cookie of an account without a passkey sign-in, together with the token.
+// 3. The token retracts again, with a time of its own and a claim of a passkey in the body.
 try {
-    $registry->retract('{"version":"1.2.0","reason":"Now.","fixedIn":""}', $token, true, false, $now);
-    echo "3. the retraction by a session without a passkey was accepted\n";
+    $registry->retract('{"version":"1.2.0","reason":"Now.","fixedIn":"","from":1793000600,"passkey":true}', $token, false, false, $now);
+    echo "3. the earlier time was accepted\n";
 } catch (Throwable $e) {
     echo '3. stopped: ', $e->message, "\n";
 }
 
-// 4. The token of another vendor retracts the version.
+// 4. The attacker sends a session cookie of an account without a passkey sign-in, together with the token.
 try {
-    $registry->retract('{"version":"1.2.0","reason":"Now.","fixedIn":""}', $otherToken, false, false, $now);
-    echo "4. the token of another vendor was accepted\n";
+    $registry->retract('{"version":"1.2.0","reason":"Now.","fixedIn":""}', $token, true, false, $now);
+    echo "4. the retraction by a session without a passkey was accepted\n";
 } catch (Throwable $e) {
     echo '4. stopped: ', $e->message, "\n";
 }
 
-// 5. The file host changes the time of the retraction in the signed index file to now.
+// 5. The token of another vendor retracts the version.
+try {
+    $registry->retract('{"version":"1.2.0","reason":"Now.","fixedIn":""}', $otherToken, false, false, $now);
+    echo "5. the token of another vendor was accepted\n";
+} catch (Throwable $e) {
+    echo '5. stopped: ', $e->message, "\n";
+}
+
+// 6. The file host changes the time of the retraction in the signed index file to now.
 Core\Crypto\KeyPair $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
 string $entry = '{"retracted_at":' . ($registry->retractedAt ?? 0) . ',"version":"1.2.0"}';
 bytes $signature = Core\Crypto::sign($entry as bytes, $key);
 string $changed = Core\Str::replace($entry, ($registry->retractedAt ?? 0) as string, $now as string);
 try {
     Core\Crypto::verify($changed as bytes, $signature, $key->publicKey());
-    echo "5. the changed index entry was accepted\n";
+    echo "6. the changed index entry was accepted\n";
 } catch (Throwable $e) {
-    echo "5. stopped: the changed text does not match the signature\n";
+    echo "6. stopped: the changed text does not match the signature\n";
 }
 
-// 6. The token unlists version 1.2.0 without an owner's passkey.
+// 7. The token unlists version 1.2.0 without an owner's passkey.
 try {
-    string $answer = $registry->unlist($token, false, false);
+    string $answer = $registry->unlist($token, false, false, $now);
     if ($registry->unlisted) {
-        echo "6. the version was unlisted\n";
+        echo "7. the version was unlisted\n";
     } else {
-        echo '6. stopped: ', $answer, "\n";
+        echo '7. stopped: ', $answer, "\n";
     }
-} catch (Throwable $e) {
-    echo '6. stopped: ', $e->message, "\n";
-}
-
-// 7. The token unlists the version together with the session cookie of an account without a passkey sign-in.
-try {
-    $registry->unlist($token, true, false);
-    echo "7. the version was unlisted\n";
 } catch (Throwable $e) {
     echo '7. stopped: ', $e->message, "\n";
 }
 
-// 8. The token of another vendor unlists the version.
+// 8. The token unlists the version together with the session cookie of an account without a passkey sign-in.
 try {
-    $registry->unlist($otherToken, false, false);
+    $registry->unlist($token, true, false, $now);
     echo "8. the version was unlisted\n";
 } catch (Throwable $e) {
     echo '8. stopped: ', $e->message, "\n";
+}
+
+// 9. The token of another vendor unlists the version.
+try {
+    $registry->unlist($otherToken, false, false, $now);
+    echo "9. the version was unlisted\n";
+} catch (Throwable $e) {
+    echo '9. stopped: ', $e->message, "\n";
+}
+
+// 10. The token cancels the retraction from step 2, which still waits for its seven days.
+try {
+    $registry->cancel($token, false, $now);
+    echo "10. the token cancelled the retraction\n";
+} catch (Throwable $e) {
+    echo '10. stopped: ', $e->message, "\n";
 }

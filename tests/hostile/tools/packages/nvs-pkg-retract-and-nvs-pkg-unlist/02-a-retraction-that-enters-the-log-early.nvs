@@ -1,0 +1,58 @@
+<?nvs
+// Attack: a stolen token retracts a version and hopes the public log adds it at once.
+// The log should add it only after seven days, and an owner who cancels it first should leave nothing.
+autoload 'Registry' from '../../../../../apps/registry/src';
+
+class Check
+{
+    // Returns the kind of each entry the log may add at the time `$at`, such as `retract`.
+    public static function ready(Core\Db\Connection $db, int $at): string
+    {
+        array<string> $kinds = [];
+        foreach (Registry\Events::ready($db, $at) as Core\Db\Row $row) {
+            var $entry = Core\Json::decode($row->string('entry') ?? '{}') as array<mixed>;
+            $kinds[] = Core\Taint::assertTrusted($entry['kind'] as tainted string, 'the registry wrote this text');
+        }
+        if (Core\Arr::count($kinds) == 0) {
+            return 'nothing';
+        }
+        return Core\Str::join($kinds, ', ');
+    }
+}
+
+// A database in memory with every table of the registry, and version 1.2.0 of `Acme\Http`.
+var $db = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' }, { shared: false });
+Registry\Schema::setUp($db);
+$db->execute("insert into accounts (id, created_at, active_at) values ('owner', 0, 0)", []);
+$db->execute("insert into vendors (key, name, created_at) values ('acme', 'Acme', 0)", []);
+$db->execute("insert into owners (vendor, account, added_at) values ('acme', 'owner', 0)", []);
+$db->execute(
+    "insert into packages (key, name, vendor, repository, directory, created_at) "
+        . "values ('acme\\http', 'Acme\\Http', 'acme', 'https://git.example.com/acme/http.git', '', 0)",
+    [],
+);
+$db->execute(
+    'insert into releases (package, version, major, minor, patch, digest, size, repository, directory, git_commit, account, token, archive, api, '
+        . 'published_at, pending_until, dependencies, capabilities, log) '
+        . "values ('acme\\http', '1.2.0', 1, 2, 0, ?, 10, 'https://git.example.com/acme/http.git', '', ?, 'owner', 'token', '', '', 0, null, '{}', "
+        . "'{\"required\":[],\"optional\":[]}', 0)",
+    ['blake3:' . Core\Str::repeat('ab', 32), Core\Str::repeat('1', 40)],
+);
+
+int $now = Core\Time::now()->toEpochSeconds();
+int $week = 7 * 86400;
+var $releases = new Registry\Releases($db);
+
+// 1. The token retracts version 1.2.0. A retraction sent with a token starts seven days from now.
+$releases->retract('acme\\http', '1.2.0', 'It deletes files.', null, $now + $week);
+echo '1. the log may add now: ', Check::ready($db, $now), "\n";
+
+// 2. The attacker checks what the log may add one second before the seven days end.
+echo '2. the log may add one second early: ', Check::ready($db, $now + $week - 1), "\n";
+
+// 3. The log adds the retraction once the seven days end, if nobody cancels it.
+echo '3. the log may add after seven days: ', Check::ready($db, $now + $week), "\n";
+
+// 4. An owner cancels the retraction before the seven days end. Then the log has nothing to add.
+bool $cancelled = $releases->cancelRetraction('acme\\http', '1.2.0');
+echo '4. cancelled: ', $cancelled ? 'yes' : 'no', ', the log may add after seven days: ', Check::ready($db, $now + $week), "\n";

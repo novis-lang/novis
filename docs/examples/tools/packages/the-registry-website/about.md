@@ -9,7 +9,8 @@ itself. The other half comes from the downloads of the last 90 days. The formula
 The page of a package shows each version with its state, its commit, its owners and every fact of
 its score. You create an account on `/signup` with a passkey and sign in on `/signin`. An owner
 also sees forms that unlist, retract, send an advisory, move the package and release a pending
-version.
+version. A part named "Waiting changes" lists each retraction or advisory that has not started
+yet, with its start date and a cancel button.
 
 **Good to know:** the dates and commits in a git repository do not change the score, because
 anybody can write them. `GET /api/search?q=<words>&sort=<order>` returns the same search as JSON.

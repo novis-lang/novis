@@ -166,6 +166,18 @@ if (!new Registry\\Vendors(Registry\\Schema::open())->claim($vendor, $account)) 
     throw new RuntimeError('The vendor is not claimed.');
 }
 `,
+  "retract.nvs": `<?nvs
+autoload 'Registry' from '../src';
+
+array<tainted string> $words = Core\\Cli::arguments();
+string $key = Core\\Str::lower(Core\\Taint::assertTrusted($words[0], 'the test names the package'));
+string $version = Core\\Taint::assertTrusted($words[1], 'the test names the version');
+string $reason = Core\\Taint::assertTrusted($words[2], 'the test wrote the reason');
+int $later = Core\\Time::now()->toEpochSeconds() + 7 * 86400;
+if (!new Registry\\Releases(Registry\\Schema::open())->retract($key, $version, $reason, null, $later)) {
+    throw new RuntimeError('The version is not retracted.');
+}
+`,
   "release.nvs": `<?nvs
 autoload 'Registry' from '../src';
 
@@ -614,6 +626,22 @@ describe.skipIf(!EXE)("the registry's pages in Chromium", () => {
     const summary = "A crafted header reads other requests.";
     await page.act('form[data-action="advisory"]', { versions: "0.0.1..0.0.2", summary }, `${reloaded(path)} && ${shows(summary)}`);
     expect(await page.text()).toContain("docs/lib-1");
+    await page.close();
+  }, 120_000);
+
+  test("an owner cancels a waiting retraction", async () => {
+    const page = await Page.open();
+    const { account } = await signUp(page);
+    const path = publish(account, "Wiki\\Lib", ["0.0.1"]);
+    const reason = "It reads the wrong file.";
+    // The retraction a token sends: it starts in seven days.
+    operator("retract.nvs", "Wiki\\Lib", "0.0.1", reason);
+    await page.go(path);
+    expect(await page.text()).toContain("Waiting changes");
+    expect(await page.text()).toContain(reason);
+    await page.act('form[data-action="cancel"][data-version="0.0.1"]', {}, `${reloaded(path)} && !${shows(reason)}`);
+    expect(await page.text()).not.toContain("Waiting changes");
+    expect(await page.eval(stateOf("0.0.1"))).toStartWith("pending until");
     await page.close();
   }, 120_000);
 

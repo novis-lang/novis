@@ -10,5 +10,6 @@ Run both commands in the folder of your package. No version is ever deleted. A r
 unlisted version can still be downloaded, so a `package.lock` that names it still works.
 
 **Good to know:** with a token, a retraction starts seven days later, and every owner gets a
-message. The people who run the registry can withhold a version that contains malware. A withheld
+message. Before the seven days end, an owner can cancel it with a passkey on the website.
+The people who run the registry can withhold a version that contains malware. A withheld
 version cannot be downloaded.

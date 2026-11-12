@@ -50,5 +50,7 @@ publish` and `nvs pkg whoami` print the account's pending releases
 
 The page of a pending version shows an owner a "Release now" button. The page of the first version
 at `0.1.0` or higher shows the API from `.../api` and a form that confirms it
-(`apps/registry/src/PackagePage.nvs`). Each sends its route through `/registry.js`, which signs in
+(`apps/registry/src/PackagePage.nvs`). The package page shows an owner a part *Waiting changes*
+beside these, with each waiting retraction or advisory and a form that cancels it
+(`rule:packaging/a-known-bad-version-is-retracted-not-deleted`). Each sends its route through `/registry.js`, which signs in
 with a passkey first when the route answers `403`.

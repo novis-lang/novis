@@ -18,7 +18,9 @@ use Core\Uri;
 // `Ranking` reads, and the readme. The version page adds the capabilities and what changed in
 // them, the changes to the API, the files of the archive and the files from other hosts.
 // An owner also sees the forms that change the package: unlist, retract, an advisory and a move to
-// another repository, and on the page of a waiting version the form that releases it.
+// another repository, and on the page of a waiting version the form that releases it. Above the
+// forms, the part *Waiting changes* lists each retraction and advisory sent with a token whose time
+// has not come, with the form that cancels it. Nobody else sees one before its time.
 // Every form calls the route any other client calls, and the route checks the owner again.
 // A text a publisher wrote is escaped and shown as plain text. The readme is the HTML
 // `Readme::render` stored with the release, rebuilt by `Readme::show`, so no page view parses Markdown.
@@ -76,7 +78,7 @@ final class PackagePage
             + $this->replacedBy($name)
             + html`<h2>Versions</h2>
 <table><tr><th>Version</th><th>State</th><th>Published</th><th>Repository</th><th>Commit</th>{$changeHead}</tr>{$versions}</table>`
-            + ($owns ? $this->manage($key, $slug) : html``)
+            + ($owns ? $this->waiting($key, $slug, $rows) + $this->manage($key, $slug) : html``)
             + $this->advisories($key, $rows, null)
             + $this->ranking($key)
             + $this->owners($key)
@@ -127,6 +129,46 @@ final class PackagePage
     private function owns(string $key): bool
     {
         return $this->viewer != '' && new Vendors($this->db)->isOwner(Str::before($key, '\\') ?? $key, $this->viewer);
+    }
+
+    // The part *Waiting changes* of an owner: each retraction of these releases and each advisory of
+    // `$key` whose time has not come, with the form that cancels it. It is empty when nothing waits.
+    // A visitor sees neither until its time, in *Advisories*. Cost: one query for the advisories.
+    private function waiting(string $key, string $slug, array<Row> $rows): Markup
+    {
+        var $items = html``;
+        bool $any = false;
+        foreach ($rows as Row $row) {
+            ?int $retractedAt = $row->int('retracted_at');
+            if ($retractedAt == null || $retractedAt <= $this->now) {
+                continue;
+            }
+            string $version = PackagePage::text($row, 'version');
+            string $from = PackagePage::date($retractedAt);
+            tainted string $reason = PackagePage::raw($row, 'retract_reason');
+            $items = $items + html`<li>The retraction of {$version} starts on {$from}. The reason is: {$reason}
+<form data-action="cancel" data-passkey data-package="{$slug}" data-version="{$version}"><button>Cancel the retraction</button></form></li>`;
+            $any = true;
+        }
+        var $sent = $this->db->query(
+            'select id, versions, summary, shows_at from advisories where package = ? and cancelled_at is null and shows_at > ? order by shows_at, id',
+            [$key, $this->now],
+        );
+        foreach ($sent as Row $row) {
+            tainted string $id = PackagePage::raw($row, 'id');
+            tainted string $versions = PackagePage::raw($row, 'versions');
+            tainted string $summary = PackagePage::raw($row, 'summary');
+            string $shows = PackagePage::date($row->int('shows_at') ?? 0);
+            $items = $items + html`<li>The advisory <code>{$id}</code> about the versions <code>{$versions}</code> starts on {$shows}. {$summary}
+<form data-action="cancel" data-passkey data-package="{$slug}" data-advisory="{$id}"><button>Cancel the advisory</button></form></li>`;
+            $any = true;
+        }
+        if (!$any) {
+            return html``;
+        }
+        return html`<h2>Waiting changes</h2>
+<p>A retraction or an advisory that was sent with a token waits seven days. You can cancel it before it starts. After that, it is in the public log and cannot be cancelled.</p>
+<ul>{$items}</ul>`;
     }
 
     // The forms of an owner on the package page. `$slug` is the package in a path, such as `acme/http`.
@@ -384,7 +426,8 @@ final class PackagePage
 
     // The retractions and the withholds of these releases, each with its reason, then the advisories
     // of the package `$key`, and a link to the signed feed. With a version in `$only`, only the
-    // advisories whose range has that version are shown. The feed lists the same things, from the log.
+    // advisories whose range has that version are shown. A retraction or an advisory is listed from
+    // its time, and a cancelled advisory never, so the list shows what the feed lists from the log.
     // Cost: one query for the advisories. The rows are the ones the page shows.
     private function advisories(string $key, array<Row> $rows, ?string $only): Markup
     {
@@ -400,7 +443,7 @@ final class PackagePage
                 $any = true;
             }
             ?int $retractedAt = $row->int('retracted_at');
-            if ($retractedAt != null) {
+            if ($retractedAt != null && $retractedAt <= $this->now) {
                 string $from = PackagePage::date($retractedAt);
                 tainted string $reason = PackagePage::raw($row, 'retract_reason');
                 tainted string $fixedIn = PackagePage::raw($row, 'fixed_in');
@@ -409,7 +452,10 @@ final class PackagePage
                 $any = true;
             }
         }
-        var $sent = $this->db->query('select id, versions, summary, shows_at from advisories where package = ? order by shows_at, id', [$key]);
+        var $sent = $this->db->query(
+            'select id, versions, summary, shows_at from advisories where package = ? and cancelled_at is null and shows_at <= ? order by shows_at, id',
+            [$key, $this->now],
+        );
         foreach ($sent as Row $row) {
             tainted string $versions = PackagePage::raw($row, 'versions');
             ?VersionRange $range = VersionRange::of($versions);
