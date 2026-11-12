@@ -30,11 +30,23 @@ const BOOT: Duration = Duration::from_secs(60);
 /// The time between two requests of one poll.
 const POLL: Duration = Duration::from_millis(50);
 
-/// One answer: the status code and the body, as text.
+/// One answer: the status code, the header block and the body, as text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Answer {
     status: u16,
+    head: String,
     body: String,
+}
+
+impl Answer {
+    /// The `name=value` pair of the first `Set-Cookie` header, or `None` without one.
+    fn cookie(&self) -> Option<&str> {
+        self.head.lines().find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            name.eq_ignore_ascii_case("set-cookie")
+                .then(|| value.trim().split(';').next().unwrap_or_default())
+        })
+    }
 }
 
 /// A running `nvs serve` over a mount table in its own directory.
@@ -151,13 +163,27 @@ impl Server {
     ///
     /// When the server does not answer, or answers something that is not HTTP.
     fn get(&self, path: &str) -> Answer {
+        self.sent(path, None)
+    }
+
+    /// One `GET` of `path` that sends `cookie`, a `name=value` pair, when it is given.
+    ///
+    /// # Panics
+    ///
+    /// As [`Server::get`].
+    fn sent(&self, path: &str, cookie: Option<&str>) -> Answer {
         let mut stream = TcpStream::connect(self.addr)
             .unwrap_or_else(|error| panic!("{} does not answer: {error}", self.addr));
         stream
             .set_read_timeout(Some(BOUND))
             .expect("a read timeout is set");
-        write!(stream, "GET {path} HTTP/1.0\r\nHost: localhost\r\n\r\n")
-            .expect("the request is sent");
+        let cookie = cookie.map(|pair| format!("Cookie: {pair}\r\n"));
+        write!(
+            stream,
+            "GET {path} HTTP/1.0\r\nHost: localhost\r\n{}\r\n",
+            cookie.unwrap_or_default()
+        )
+        .expect("the request is sent");
         let mut raw = Vec::new();
         stream
             .read_to_end(&mut raw)
@@ -173,6 +199,7 @@ impl Server {
             .unwrap_or_else(|| panic!("the answer to `{path}` has no status: {head}"));
         Answer {
             status,
+            head: head.to_owned(),
             body: body.to_owned(),
         }
     }
@@ -503,6 +530,56 @@ fn two_mounts_do_not_share_memory_tier_cache_entries() {
         server.body("/two"),
         "absent",
         "the other mount read the first mount's entry"
+    );
+}
+
+/// A program that starts a session, writes `name` into it when the query has
+/// `put=yes`, and prints what the session has, or `absent`.
+fn sessioned(name: &str) -> String {
+    format!(
+        "<?nvs\nCore\\Session::start();\n\
+         if (Core\\Request::query(\"put\") == \"yes\") {{\n    Core\\Session::set(\"owner\", \"{name}\");\n}}\n\
+         echo (Core\\Session::get(\"owner\") ?? \"absent\") as string;\n"
+    )
+}
+
+/// A session row is keyed by the `[[app]]` the request runs under. A session
+/// one mount wrote is read back by that mount with its cookie. The other mount
+/// gets the same cookie and finds no session.
+#[test]
+fn two_mounts_do_not_open_each_others_sessions() {
+    let server = Server::start(
+        "session",
+        &["one", "two"],
+        "[[app]]\nroot = \"one\"\nmode = \"development\"\n\n\
+         [[app]]\nroot = \"two\"\nmode = \"development\"\n",
+        &[
+            (&entry("one"), &sessioned("one")),
+            (&entry("two"), &sessioned("two")),
+        ],
+        None,
+    );
+
+    let written = server.awaits("/one?put=yes", "a session written by `one`", |answer| {
+        answer.status == 200
+    });
+    assert_eq!(written.body, "one", "{written:?}");
+    let cookie = written
+        .cookie()
+        .unwrap_or_else(|| panic!("the first write sends the session cookie: {written:?}"))
+        .to_owned();
+
+    let again = server.sent("/one", Some(&cookie));
+    assert_eq!(
+        (again.status, again.body.as_str()),
+        (200, "one"),
+        "the mount that wrote the session reads it back: {again:?}"
+    );
+    let other = server.sent("/two", Some(&cookie));
+    assert_eq!(
+        (other.status, other.body.as_str()),
+        (200, "absent"),
+        "the other mount opened the first mount's session: {other:?}"
     );
 }
 
