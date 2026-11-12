@@ -10,6 +10,10 @@ The check happens when the program compiles. A call that needs a capability comp
 namespace of the calling code has it. When several keys match, the longest key wins. A namespace
 that no key matches has every capability of the application.
 
+Starting another script also needs a capability, `script.spawn`. This is true for `spawn script`,
+for `Core\Queue::push`, and for `Core\Socket::upgrade` and `Core\Sse::upgrade`. Each of these runs
+a script as its own program.
+
 A package lists what it needs in its own `package.toml`. A capability in `required` must be on the
 package's line. A capability in `optional` may be missing. Then the call throws a `RuntimeError`,
 and `Core\Cap::has` returns `false` before it.

@@ -1,0 +1,56 @@
+--TEST--
+a package namespace starts a script only where its `[grants]` line lists `script.spawn`: `spawn script` in both forms, `Core\Queue::push`, `Core\Socket::upgrade` and `Core\Sse::upgrade` each need it, and a line that lists `script.spawn` compiles all of them — `rule:security/script-spawn-capability`, `rule:security/authority-is-the-enclosing-namespace`
+--FILE--
+<?nvs
+// This file is in the namespace `Acme\Http`. Its `[grants]` line lists `script.spawn`,
+// so this spawn compiles.
+namespace Acme\Http;
+
+autoload 'Acme\Jobs' from './jobs';
+
+var $job = spawn script 'jobs/run.nvs';
+echo Acme\Jobs\Starter::start(), "\n";
+--FILE jobs/run.nvs--
+<?nvs
+echo "run\n";
+--FILE jobs/Starter.nvs--
+<?nvs
+// The line for `Acme\Jobs` is empty, so none of these five starts compiles.
+namespace Acme\Jobs;
+
+final class Starter
+{
+    public static function start(): int
+    {
+        var $path = spawn script 'run.nvs';
+        var $method = spawn script Starter::run;
+        Core\Queue::push('run.nvs');
+        Core\Socket::upgrade('run.nvs');
+        Core\Sse::upgrade('run.nvs');
+        return 0;
+    }
+
+    public static function run(): void
+    {
+    }
+}
+--FILE package.toml--
+# covers: tools:packages/grants-what-each-namespace-may-do
+[grants]
+'Acme\Http\*' = ["script.spawn"]
+'Acme\Jobs' = []
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0658]: the namespace `Acme\Jobs` does not have the capability `script.spawn`
+%A
+error[E0658]: the namespace `Acme\Jobs` does not have the capability `script.spawn`
+%A
+error[E0658]: the namespace `Acme\Jobs` does not have the capability `script.spawn`
+%A
+error[E0658]: the namespace `Acme\Jobs` does not have the capability `script.spawn`
+%A
+error[E0658]: the namespace `Acme\Jobs` does not have the capability `script.spawn`
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,11 @@
+<?nvs
+// This file is in the package `Acme\Jobs`. Its grant line is empty.
+namespace Acme\Jobs;
+
+final class Enqueuer
+{
+    public static function start(): void
+    {
+        Core\Queue::push('job.nvs');
+    }
+}

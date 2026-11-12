@@ -1,0 +1,9 @@
+<?nvs
+// Attack: a package opens an event stream. The stream runs a script as its own program.
+// The package's grant line does not list `script.spawn`, so this program should not compile.
+// hostile: expect-refusal
+
+autoload 'Acme\Jobs' from './vendor/acme/jobs/src';
+
+// 1. A class of `Acme\Jobs` calls `Core\Sse::upgrade('job.nvs')`.
+Acme\Jobs\StreamOpener::start();

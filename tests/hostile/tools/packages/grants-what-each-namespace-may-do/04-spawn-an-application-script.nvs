@@ -1,0 +1,9 @@
+<?nvs
+// Attack: a package starts another script with `spawn script`. That script runs as its own program.
+// The package's grant line does not list `script.spawn`, so this program should not compile.
+// hostile: expect-refusal
+
+autoload 'Acme\Jobs' from './vendor/acme/jobs/src';
+
+// 1. A class of `Acme\Jobs` writes `spawn script 'job.nvs'`.
+Acme\Jobs\Spawner::start();

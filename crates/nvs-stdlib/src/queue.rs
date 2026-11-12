@@ -6784,14 +6784,14 @@ mod tests {
 
     /// `rule:concurrency/queue-four-members`' four and
     /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s two, as one roster: what the
-    /// class declares, and which of its members a grant is asked about.
+    /// class declares, and which of its members `queue.purge` is asked about.
     ///
     /// **The six are asserted together, because the claim is about the boundary between them.** A
-    /// grant appearing on `push` would put the request path behind a list an operator has to keep,
-    /// and a grant missing from either removal member would leave the record that work existed
-    /// removable by anything that can reach a queue name. Written as an if-and-only-if over every
-    /// member rather than as two lines, so a seventh member added to the class fails here until
-    /// somebody decides which side of that boundary it is on.
+    /// `queue.purge` missing from either removal member would leave the record that work existed
+    /// removable by anything that can reach a queue name. `push` needs `script.spawn` alone, which
+    /// asks no operator list on the application's request path. Written as an if-and-only-if over
+    /// every member rather than as two lines, so a seventh member added to the class fails here
+    /// until somebody decides which side of that boundary it is on.
     #[test]
     fn core_queue_declares_delete_and_purge_beside_its_four_and_both_declare_the_capability() {
         let declared: Vec<&str> = CLASS.methods.iter().map(|member| member.name).collect();

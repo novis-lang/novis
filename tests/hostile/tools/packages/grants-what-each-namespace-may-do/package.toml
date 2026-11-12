@@ -3,3 +3,4 @@
 'Acme\Disk\*' = []
 'Acme\Zip\*' = []
 'Acme\Settings\*' = []
+'Acme\Jobs\*' = []

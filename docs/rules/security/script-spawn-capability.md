@@ -18,6 +18,14 @@ The entry path is canonicalised and then prefix-checked against the granted root
 than by validation. A dynamic path is allowed — a queue worker needs one — but it can only ever land
 inside the app folder or a root an operator wrote down.
 
+`script.spawn` is also asked of the namespace the spawn is written in
+(`rule:security/authority-is-the-enclosing-namespace`). `spawn script`, in both forms,
+`Core\Queue::push`, `Core\Socket::upgrade` and `Core\Sse::upgrade` each name code that will run as
+an isolate, so each compiles in a package only where its `[grants]` line lists `script.spawn`. The
+construct's row is `CONSTRUCT_CAPABILITIES`, beside the members' table
+(`rule:security/capability-declaration-is-one-table`). No second capability guards an enqueue or an
+upgrade: two grants over one effect would let a deployment close one and leave the other open.
+
 The child's grants are the parent's effective grants, optionally narrowed at the spawn site. Nothing
 widens: a parent that has dropped `net.connect` cannot regain it by spawning
 (`rule:security/no-runtime-grant`).

@@ -1,0 +1,3 @@
+<?nvs
+// The script the package tries to start. It prints one line.
+echo "the job ran\n";

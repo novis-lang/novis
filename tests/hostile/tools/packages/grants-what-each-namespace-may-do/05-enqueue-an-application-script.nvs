@@ -1,0 +1,9 @@
+<?nvs
+// Attack: a package adds a job to the queue. A worker later runs the job's script as its own program.
+// The package's grant line does not list `script.spawn`, so this program should not compile.
+// hostile: expect-refusal
+
+autoload 'Acme\Jobs' from './vendor/acme/jobs/src';
+
+// 1. A class of `Acme\Jobs` calls `Core\Queue::push('job.nvs')`.
+Acme\Jobs\Enqueuer::start();
