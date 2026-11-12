@@ -67,6 +67,17 @@ pub(crate) trait Callbacks {
     fn code(&mut self, _language: &str, _code: &str) -> Result<Answer, Fault> {
         Ok(Answer::Default)
     }
+
+    /// Polls the request's deadline, for a renderer part-way through a long
+    /// document. Without a request there is no deadline, and this returns
+    /// `Ok`.
+    ///
+    /// # Errors
+    ///
+    /// The deadline's [`Fault::Fatal`], naming `member`, when it has passed.
+    fn poll_deadline(&self, _member: &str) -> Result<(), Fault> {
+        Ok(())
+    }
 }
 
 /// No callbacks: what `toHtml` renders when the program passes none.
@@ -161,6 +172,10 @@ impl Callbacks for Callables<'_> {
 
     fn code(&mut self, language: &str, code: &str) -> Result<Answer, Fault> {
         self.call(self.code, None, &[language, code])
+    }
+
+    fn poll_deadline(&self, member: &str) -> Result<(), Fault> {
+        nvs_runtime::poll_deadline(&*self.ctx, member)
     }
 }
 

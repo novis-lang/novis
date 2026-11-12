@@ -798,7 +798,11 @@ nvs_runtime::nvs_helper! {
     /// [`over_memory`]'s `FATAL` where the rows need more than the request's
     /// memory limit. Each field, row and record asks the budget before it
     /// grows, so the parse stops at the limit and not after the document.
-    fn nvs_core_csv_parse(_ctx, args: [5]) {
+    ///
+    /// The deadline's `FATAL` once the request's deadline has passed. Each call
+    /// into the reader is one step of a [`nvs_runtime::DeadlineBatch`], and
+    /// [`DFA_INPUT`] owns how often that polls.
+    fn nvs_core_csv_parse(ctx, args: [5]) {
         let text = text_of(&args[0], "parse", "the text")?;
         let separator = dialect_byte(&args[1], "parse", "separator")?;
         let quote = dialect_byte(&args[2], "parse", "quote")?;
@@ -831,9 +835,14 @@ nvs_runtime::nvs_helper! {
         let mut names: Vec<Vec<u8>> = Vec::new();
         let mut rows = NvsArray::new();
         let mut read = 0;
+        let mut deadline = nvs_runtime::DeadlineBatch::new(ctx);
 
         loop {
-            let (result, taken, written) = reader.read_field(&text.as_bytes()[read..], &mut cell);
+            if deadline.stopped() {
+                break;
+            }
+            let input = &text.as_bytes()[read..text.len().min(read + DFA_INPUT)];
+            let (result, taken, written) = reader.read_field(input, &mut cell);
             read += taken;
             field.extend_from_slice(&cell[..written]);
             match result {
@@ -866,6 +875,7 @@ nvs_runtime::nvs_helper! {
                 csv_core::ReadFieldResult::End => break,
             }
         }
+        deadline.finish(ctx, PARSE_MEMBER)?;
 
         READER.with_borrow_mut(|kept| *kept = Some((dialect, reader)));
         Ok(Value::array(rows))
@@ -996,23 +1006,28 @@ nvs_runtime::nvs_helper! {
         let end = line_end(&args[4])?;
 
         let mut out = ByteWriter::new();
+        // Each row and each field is one step of the batch, which reads the
+        // request's deadline once every 256 steps. Cost: one decrement per
+        // field.
+        let mut deadline = nvs_runtime::DeadlineBatch::new(ctx);
         if args[3].tag() != Some(Tag::Null) {
             let names = array_of(&args[3], "format", "the `header` option")?;
-            write_record(&mut out, &names, separator, quote, end)?;
+            write_record(&mut out, &mut deadline, &names, separator, quote, end)?;
         }
 
         let mut slot = 0;
         while let Some(live) = rows.next_slot(slot) {
             // A refusal stops the walk and not only the writes, so a list that
             // repeats one long row many times costs no more rows.
-            if out.stopped().is_some() {
+            if out.stopped().is_some() || deadline.stopped() {
                 break;
             }
             slot = live + 1;
             let value = rows.value_at(live).expect("a live slot has a value");
             let record = array_of(&value, "format", "a row")?;
-            write_record(&mut out, &record, separator, quote, end)?;
+            write_record(&mut out, &mut deadline, &record, separator, quote, end)?;
         }
+        deadline.finish(ctx, FORMAT_MEMBER)?;
         // The document is copied once more into the string, so that copy asks
         // too. The breach is read before the buffer is freed, so it names the
         // reading the request reached.
@@ -1035,12 +1050,16 @@ nvs_runtime::nvs_helper! {
 
 /// One record's fields, in slot order, terminated with `end`.
 ///
+/// Each field is one step of `deadline`. Once it has stopped, the record is
+/// left unfinished, and the member's `finish` of the batch ends the call.
+///
 /// # Errors
 ///
 /// A [`Fault::thrown`] naming the column, for a cell that is not a `string` —
 /// which no source program produces, for the reason the guard itself states.
 fn write_record(
     out: &mut ByteWriter,
+    deadline: &mut nvs_runtime::DeadlineBatch,
     record: &NvsArray,
     separator: u8,
     quote: u8,
@@ -1049,7 +1068,7 @@ fn write_record(
     let mut slot = 0;
     let mut column = 0;
     while let Some(live) = record.next_slot(slot) {
-        if out.stopped().is_some() {
+        if out.stopped().is_some() || deadline.stopped() {
             return Ok(());
         }
         slot = live + 1;
@@ -1109,6 +1128,25 @@ fn write_field(out: &mut ByteWriter, field: &[u8], separator: u8, quote: u8) {
 /// written are kept — so it bounds the copy and not the field.
 const CELL: usize = 8 * 1024;
 
+/// The most input one call into `csv-core`'s reader is given.
+///
+/// `rule:http-server/time-is-bounded-inside-a-helper`: the reader is another
+/// crate's, and one call reads until a field ends or its input runs out. A
+/// field can be the whole document, and so can a run of blank lines. So
+/// [`nvs_core_csv_parse`] and [`RowReader::step`] give each call at most this
+/// much, and count each call as one step of a [`nvs_runtime::DeadlineBatch`].
+/// The batch reads the deadline once every
+/// [`nvs_runtime::DEADLINE_POLL_BATCH`] steps. That is at least once per MiB
+/// of input, and more often where the fields are short. Cost: one decrement
+/// per call.
+const DFA_INPUT: usize = 4096;
+
+/// The member a deadline's `FATAL` names when `parse` stops.
+const PARSE_MEMBER: &str = "Core\\Csv::parse";
+
+/// The member a deadline's `FATAL` names when `format` stops.
+const FORMAT_MEMBER: &str = "Core\\Csv::format";
+
 /// The parse state one open walk parks on the request: everything a record
 /// boundary needs that outlives a single `advance()` and that a `Core` slot
 /// cannot hold.
@@ -1167,6 +1205,9 @@ enum Step {
     /// The request cannot afford the next field or row. The reader has given
     /// up its buffers, as at [`Step::End`].
     OverMemory,
+    /// The request's deadline has passed. The reader has given up its
+    /// buffers, as at [`Step::End`].
+    Stopped,
 }
 
 /// Why [`RowReader::feed`] could not take a chunk.
@@ -1184,17 +1225,25 @@ impl RowReader {
     /// A header record is consumed here rather than answered, so the first
     /// record a `{ header: true }` walk hands out is the first data row — which
     /// is `parse`'s rule, kept in the one place either member decides it.
-    fn step(&mut self) -> Step {
+    ///
+    /// Each call into the reader, and each request for more input, is one step
+    /// of `deadline`. A call into the reader is given at most [`DFA_INPUT`]
+    /// bytes. Once `deadline` has stopped, the walk ends as at
+    /// [`Step::OverMemory`].
+    fn step(&mut self, deadline: &mut nvs_runtime::DeadlineBatch) -> Step {
         loop {
             if self.done {
                 return Step::End;
             }
+            if deadline.stopped() {
+                self.finish();
+                return Step::Stopped;
+            }
             if self.at >= self.pending.len() && !self.eof {
                 return Step::NeedInput;
             }
-            let (result, taken, written) = self
-                .reader
-                .read_field(&self.pending[self.at..], &mut self.cell);
+            let input = &self.pending[self.at..self.pending.len().min(self.at + DFA_INPUT)];
+            let (result, taken, written) = self.reader.read_field(input, &mut self.cell);
             self.at += taken;
             self.field.extend_from_slice(&self.cell[..written]);
             match result {
@@ -1204,6 +1253,8 @@ impl RowReader {
                 // has ended, which is what closes the final record.
                 // A field that never ends would grow one chunk at a time for
                 // as long as the file lasts, so the next chunk is asked for.
+                // The input ends at each [`DFA_INPUT`] slice too, so a long
+                // field asks once per slice.
                 csv_core::ReadFieldResult::InputEmpty | csv_core::ReadFieldResult::OutputFull => {
                     if !nvs_runtime::budget::affords(CELL) {
                         self.finish();
@@ -1386,18 +1437,26 @@ fn reader_at(ctx: &mut nvs_runtime::Ctx, key: u64) -> Result<&mut RowReader, Fau
 /// walk, an `IOError` for a read the operating system refused, and whatever a
 /// walk of chunks throws. [`not_text`]'s `ParseError`, and [`reader_at`]'s
 /// fatal for a key no walk filed.
+///
+/// The deadline's `FATAL` once the request's deadline has passed. One record
+/// can span the whole source, so one `advance()` can read all of it.
+/// [`RowReader::step`] counts its work on a [`nvs_runtime::DeadlineBatch`]
+/// made for this call, and [`DFA_INPUT`] owns how often that polls. A stop
+/// ends the walk.
 fn next_record(
     ctx: &mut nvs_runtime::Ctx,
     key: u64,
     holder: Value,
 ) -> Result<Option<NvsArray>, Fault> {
+    let mut deadline = nvs_runtime::DeadlineBatch::new(ctx);
     loop {
         let reader = reader_at(ctx, key)?;
-        match reader.step() {
+        match reader.step(&mut deadline) {
             Step::Record(record) => return Ok(Some(record)),
             Step::End => return Ok(None),
             Step::NotText(line) => return Err(not_text(&reader.origin, line)),
             Step::OverMemory => return Err(over_memory("rows")),
+            Step::Stopped => return deadline.finish(ctx, ROWS_MEMBER).map(|()| None),
             Step::NeedInput => {}
         }
         // Unreachable from source, with no diagnostic to name: the walk takes
@@ -2439,5 +2498,88 @@ mod tests {
                 released(arg);
             }
         }
+    }
+
+    /// The reader is given its input in slices of `DFA_INPUT` bytes, and a
+    /// slice can end inside a field, a doubled quote, a `CRLF` or a run of
+    /// blank lines. `parse` and a walk of one chunk read the same records as
+    /// the document says.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "parses several 4 KiB slices, which Miri runs for minutes"
+    )]
+    fn a_document_read_in_slices_reads_the_same_records() {
+        let long = "x".repeat(super::DFA_INPUT - 2);
+        let document = format!(
+            "{long},\"a\"\"b\"\r\nc,d\n{}e,\"{}\"\n",
+            "\n".repeat(super::DFA_INPUT * 3),
+            ",".repeat(super::DFA_INPUT * 2)
+        );
+        let wide = ",".repeat(super::DFA_INPUT * 2);
+        let expected = vec![
+            vec![long.as_str(), "a\"b"],
+            vec!["c", "d"],
+            vec!["e", wide.as_str()],
+        ];
+        let parsed = parse(&document, false);
+        let read: Vec<Vec<&str>> = parsed.iter().map(|row| fields(row.as_slice())).collect();
+        assert_eq!(read, expected);
+        let walked = walked(chunked(&[document.as_bytes()]), false);
+        assert_eq!(walked, parsed, "a walk reads what `parse` reads");
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: each walk over a
+    /// document polls the request's deadline. Under an expired deadline,
+    /// `parse` of many short fields and of one long field, `format` of many
+    /// rows, and an `advance()` over one long field are the deadline's FATAL.
+    #[test]
+    #[cfg_attr(miri, ignore = "parses 2 MiB of fields, which Miri runs for minutes")]
+    fn every_csv_walk_stops_at_an_expired_deadline() {
+        let many = nvs_runtime::DEADLINE_POLL_BATCH * 4;
+        let long = "x".repeat(super::DFA_INPUT * nvs_runtime::DEADLINE_POLL_BATCH * 2);
+        for (document, shape) in [
+            ("a\n".repeat(many), "short fields"),
+            (long.clone(), "one long field"),
+        ] {
+            let args = [s(&document), s(","), s("\""), s(""), Value::bool(false)];
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            ctx.expire_deadline();
+            assert_eq!(
+                call(super::nvs_core_csv_parse, &mut ctx, &args).map(|_| ()),
+                Err(nvs_runtime::FATAL),
+                "parse of {shape}"
+            );
+            for arg in args {
+                released(arg);
+            }
+        }
+
+        let mut rows = NvsArray::new();
+        for _ in 0..many {
+            rows.append(list(&["a"]));
+        }
+        let args = [Value::array(rows), s(","), s("\""), Value::null(), s("\n")];
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.expire_deadline();
+        assert_eq!(
+            call(super::nvs_core_csv_format, &mut ctx, &args).map(|_| ()),
+            Err(nvs_runtime::FATAL),
+            "format"
+        );
+        for arg in args {
+            released(arg);
+        }
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let rows = walk(&mut ctx, chunked(&[long.as_bytes()]), false);
+        ctx.expire_deadline();
+        let stopped = super::rows_step(&mut ctx, rows);
+        assert!(
+            matches!(stopped, Err(nvs_runtime::Fault::Fatal(_))),
+            "an `advance()` over one long field stops at the deadline: {stopped:?}"
+        );
+        assert!(!advanced(&mut ctx, rows), "a stopped walk has ended");
+        released(rows);
     }
 }

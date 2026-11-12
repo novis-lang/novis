@@ -839,6 +839,9 @@ pub(crate) fn markup_slot(value: Value, position: &str) -> Result<Value, Fault> 
     ))
 }
 
+/// The member a deadline stop inside `Core\Html::join` names.
+const JOIN_MEMBER: &str = r"Core\Html::join";
+
 nvs_runtime::nvs_helper! {
     /// `$a + $b` over two `Core\Html\Markup` — `rule:core-classes/html-auto-escape`'s composition
     /// rule, and the whole of what [`MARKUP_CONCAT_SYMBOL`] does.
@@ -951,14 +954,18 @@ nvs_runtime::nvs_helper! {
         // fragment many times is refused before any byte is copied. The ask
         // is twice the page, because the buffer and the carrier's copy of it
         // are held at once. The breach is already recorded on a refusal.
+        // Both passes poll the request's deadline once every 256 parts.
+        // Cost: one decrement per part.
         let mut size = 0_usize;
-        for (at, part) in crate::str::Elements::of(parts).enumerate() {
+        let parted = crate::str::Elements::of(parts).enumerate();
+        nvs_runtime::bounded_loop(ctx, JOIN_MEMBER, parted, |_, (at, part)| {
             if at > 0 {
                 size = size.saturating_add(separator.len());
             }
             let held = markup_slot(part, r"`Core\Html::join`'s `$parts` element")?;
             size = size.saturating_add(text(&held, r"`Core\Html::join`'s `$parts` element")?.len());
-        }
+            Ok(())
+        })?;
         if !nvs_runtime::budget::affords(size.saturating_mul(2)) {
             return Err(ctx.memory_breach().unwrap_or_else(|| {
                 // no case can reach this: the request ends at its memory
@@ -972,13 +979,15 @@ nvs_runtime::nvs_helper! {
             }));
         }
         let mut out = String::with_capacity(size);
-        for (at, part) in crate::str::Elements::of(parts).enumerate() {
+        let parted = crate::str::Elements::of(parts).enumerate();
+        nvs_runtime::bounded_loop(ctx, JOIN_MEMBER, parted, |_, (at, part)| {
             if at > 0 {
                 out.push_str(separator);
             }
             let held = markup_slot(part, r"`Core\Html::join`'s `$parts` element")?;
             out.push_str(text(&held, r"`Core\Html::join`'s `$parts` element")?);
-        }
+            Ok(())
+        })?;
         Ok(crate::instance::build(
             &MARKUP,
             [Value::text(&out)],
@@ -1131,6 +1140,9 @@ struct Sink {
     /// agency made for them. [`settled`] reads it after the parse, which
     /// consumes the sink, so it is shared.
     moved: Rc<Cell<bool>>,
+    /// The request's deadline, counted once per node and once per text the
+    /// builder appends ([`Self::tick`]). `None` where the caller polls nothing.
+    deadline: RefCell<Option<nvs_runtime::DeadlineBatch>>,
 }
 
 impl Sink {
@@ -1141,6 +1153,35 @@ impl Sink {
             nodes: RefCell::new(vec![Node::new(Kind::Document)]),
             attribute_names: RefCell::new(HashMap::new()),
             moved: Rc::new(Cell::new(false)),
+            deadline: RefCell::new(None),
+        }
+    }
+
+    /// A sink that polls `ctx`'s deadline as the parse builds.
+    fn polled(ctx: Option<&nvs_runtime::Ctx>) -> Self {
+        Self {
+            deadline: RefCell::new(ctx.map(nvs_runtime::DeadlineBatch::new)),
+            ..Self::new()
+        }
+    }
+
+    /// Counts one step of the parse, and unwinds with [`DeadlinePassed`] once
+    /// the deadline has passed.
+    ///
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: `html5ever` drives
+    /// the parse and [`TreeSink`] has no way to stop it, so the stop unwinds
+    /// as [`OverLimit`] does. The deadline is read once every
+    /// [`nvs_runtime::DEADLINE_POLL_BATCH`] steps. Cost: one `RefCell` borrow
+    /// and one decrement per node, beside the memory ask the node already
+    /// makes.
+    fn tick(&self) {
+        let stopped = self
+            .deadline
+            .borrow_mut()
+            .as_mut()
+            .is_some_and(nvs_runtime::DeadlineBatch::stopped);
+        if stopped {
+            std::panic::resume_unwind(Box::new(DeadlinePassed));
         }
     }
 
@@ -1161,6 +1202,7 @@ impl Sink {
     /// of room. Each `create_` method asks for the node's own strings before
     /// it copies them.
     fn push(&self, node: Node) -> usize {
+        self.tick();
         let mut nodes = self.nodes.borrow_mut();
         afford(room(&nodes, 0));
         nodes.push(node);
@@ -1216,6 +1258,7 @@ impl Sink {
     /// what keeps a document that arrived in ten buffers from producing ten
     /// text nodes where a browser holds one.
     fn merged(&self, at: Option<usize>, text: &str) -> bool {
+        self.tick();
         let Some(at) = at else {
             return false;
         };
@@ -1591,7 +1634,12 @@ pub(crate) const OPEN_ELEMENTS_CAP: usize = if cfg!(miri) { 16 } else { 512 };
 /// content a scripting browser would never build elements from does not become
 /// elements here either.
 pub(crate) fn parse(document: &str) -> Parsed {
-    html5ever::parse_document(Sink::new(), options()).one(document)
+    parsed(None, document)
+}
+
+/// [`parse`], polling `ctx`'s deadline where there is one ([`Sink::tick`]).
+fn parsed(ctx: Option<&nvs_runtime::Ctx>, document: &str) -> Parsed {
+    html5ever::parse_document(Sink::polled(ctx), options()).one(document)
 }
 
 /// `pieces`, joined, parsed as [`parse`] parses them, with the tokenizer
@@ -1621,15 +1669,16 @@ fn options() -> html5ever::ParseOpts {
 /// does not close an open `<p>`. The sanitizer's answer is then a `p` inside a
 /// `p`, and sanitizing it again changes it.
 pub(crate) fn parse_in_page(document: &str) -> Parsed {
-    parsed_in_page_noting(document).0
+    parsed_in_page_noting(None, document).0
 }
 
 /// [`parse_in_page`]'s tree, and whether the parse foster-parented a node or
-/// the adoption agency moved a block's children ([`Sink::moved`]).
-fn parsed_in_page_noting(document: &str) -> (Parsed, bool) {
+/// the adoption agency moved a block's children ([`Sink::moved`]). The parse
+/// polls `ctx`'s deadline where there is one ([`Sink::tick`]).
+fn parsed_in_page_noting(ctx: Option<&nvs_runtime::Ctx>, document: &str) -> (Parsed, bool) {
     let mut opts = options();
     opts.tree_builder.never_quirks = true;
-    let sink = Sink::new();
+    let sink = Sink::polled(ctx);
     let moved = Rc::clone(&sink.moved);
     let tree = html5ever::parse_document(sink, opts).one(document);
     (tree, moved.get())
@@ -1651,17 +1700,49 @@ struct OverLimit;
 /// A [`Fault::Fatal`] naming `member` when the tree would pass the limit.
 /// [`nvs_runtime::run_helper`] reports the breach in its place.
 pub(crate) fn bounded(document: &str, member: &str) -> Result<Parsed, Fault> {
-    caught(|| parse(document), member)
+    caught(None, || parse(document), member)
 }
 
+/// [`bounded`], polling `ctx`'s deadline as the parse builds
+/// ([`Sink::tick`]).
+///
+/// # Errors
+///
+/// [`bounded`]'s, and the deadline's [`Fault::Fatal`], naming `member`, once
+/// it has passed.
+pub(crate) fn bounded_polled(
+    ctx: &nvs_runtime::Ctx,
+    document: &str,
+    member: &str,
+) -> Result<Parsed, Fault> {
+    caught(Some(ctx), || parsed(Some(ctx), document), member)
+}
+
+/// The payload [`Sink::tick`] unwinds with once the request's deadline has
+/// passed. `resume_unwind` runs no panic hook, so nothing is printed.
+struct DeadlinePassed;
+
 /// `parsing`'s tree, or the fault naming `member` when it stopped at the
-/// request's memory limit.
-fn caught<T>(parsing: impl FnOnce() -> T, member: &str) -> Result<T, Fault> {
+/// request's memory limit or at `ctx`'s deadline.
+fn caught<T>(
+    ctx: Option<&nvs_runtime::Ctx>,
+    parsing: impl FnOnce() -> T,
+    member: &str,
+) -> Result<T, Fault> {
     std::panic::catch_unwind(AssertUnwindSafe(parsing)).map_err(|payload| {
         if payload.is::<OverLimit>() {
             Fault::fatal(format!(
                 "{member}: the document's tree is larger than the request's memory limit allows"
             ))
+        } else if payload.is::<DeadlinePassed>() {
+            // The deadline stays passed once it has passed, so this poll
+            // finds it and words the FATAL for the limit that stopped it.
+            ctx.and_then(|ctx| nvs_runtime::poll_deadline(ctx, member).err())
+                .unwrap_or_else(|| {
+                    Fault::fatal(format!(
+                        "internal error: {member} stopped at a deadline that has not passed"
+                    ))
+                })
         } else {
             std::panic::resume_unwind(payload)
         }
@@ -1679,7 +1760,7 @@ nvs_runtime::nvs_helper! {
     /// is guessed, so `rule:errors/ambiguous-input-refused` has no ambiguity to
     /// refuse. [`crate::xml::nvs_core_xml_parse`] keeps the opposite contract
     /// over the same tree, which is the pair the rule is about.
-    fn nvs_core_html_parse(_ctx, args: [1]) {
+    fn nvs_core_html_parse(ctx, args: [1]) {
         // unreachable from source: the parameter is `CoreTy::Text`, so anything
         // that is not a `string` is `E0401` at the call site.
         let Some(document) = args[0].as_text() else {
@@ -1688,7 +1769,9 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             )));
         };
-        Ok(crate::xml::instance_of(bounded(document, r"Core\Html::parse")?, &[]))
+        let member = r"Core\Html::parse";
+        let tree = bounded_polled(ctx, document, member)?;
+        crate::xml::instance_polled(ctx, member, tree, &[])
     }
 }
 
@@ -2325,13 +2408,28 @@ const SETTLING_PASSES: usize = 3;
 ///
 /// A [`Fault::Fatal`] naming `member` when a tree would pass the limit.
 pub(crate) fn settled(document: &str, head: Option<&str>, member: &str) -> Result<String, Fault> {
+    settled_with(None, document, head, member)
+}
+
+/// [`settled`], polling `ctx`'s deadline in every parse where there is one.
+///
+/// # Errors
+///
+/// [`settled`]'s, and the deadline's [`Fault::Fatal`], naming `member`, once
+/// it has passed.
+fn settled_with(
+    ctx: Option<&nvs_runtime::Ctx>,
+    document: &str,
+    head: Option<&str>,
+    member: &str,
+) -> Result<String, Fault> {
     let mut text = match head {
         Some(head) => format!("{head}<body>{document}"),
         None => document.to_owned(),
     };
     let mut pass = 1;
     loop {
-        let (tree, moved) = caught(|| parsed_in_page_noting(&text), member)?;
+        let (tree, moved) = caught(ctx, || parsed_in_page_noting(ctx, &text), member)?;
         let (mut built, unwrapped) = rebuilt_noting(&tree);
         drop(tree);
         if head.is_none() {
@@ -2400,9 +2498,9 @@ nvs_runtime::nvs_helper! {
     /// buys that: the rebuild is a tree operation because the alternative is a
     /// pass over text, and a pass over text is what every sanitizer that has
     /// been bypassed was.
-    fn nvs_core_html_sanitize(_ctx, args: [1]) {
+    fn nvs_core_html_sanitize(ctx, args: [1]) {
         let document = text(&args[0], r"`Core\Html::sanitize`'s `$document`")?;
-        let out = settled(document, None, r"Core\Html::sanitize")?;
+        let out = settled_with(Some(&*ctx), document, None, r"Core\Html::sanitize")?;
         Ok(crate::instance::build(
             &MARKUP,
             [Value::text(&out)],
@@ -3686,6 +3784,44 @@ mod tests {
             CORPUS.len(),
             "the reparse of an answer holds nothing outside the allowlist: {escaping:?}"
         );
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: every member that
+    /// walks a caller-sized document or list polls the deadline. Under an
+    /// expired deadline, `parse`, `sanitize` and `join` are the deadline's
+    /// FATAL, and under one that has not passed they are not.
+    // covers: Core\Html::parse, Core\Html::sanitize, Core\Html::join
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "parses thousands of nodes per member, which Miri runs for minutes"
+    )]
+    fn every_walk_stops_at_an_expired_deadline() {
+        let count = nvs_runtime::DEADLINE_POLL_BATCH * 4;
+        let document = "<p>x".repeat(count);
+        for expired in [false, true] {
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            if expired {
+                ctx.expire_deadline();
+            }
+            let text = Value::text(&document);
+            let parsed = call(nvs_core_html_parse, &mut ctx, &[text]);
+            let sanitized = call(nvs_core_html_sanitize, &mut ctx, &[text]);
+            let mut parts = NvsArray::new();
+            for _ in 0..count {
+                parts.append(crate::instance::build(&MARKUP, [Value::text("x")]));
+            }
+            let parts = Value::array(parts);
+            let separator = crate::instance::build(&MARKUP, [Value::text(",")]);
+            let joined = call(nvs_core_html_join, &mut ctx, &[parts, separator]);
+            for (result, member) in [(parsed, "parse"), (sanitized, "sanitize"), (joined, "join")] {
+                if expired {
+                    assert_eq!(result.err(), Some(nvs_runtime::FATAL), "{member}");
+                } else {
+                    assert!(result.is_ok(), "{member}");
+                }
+            }
+        }
     }
 
     /// A tree past the request's memory limit stops the parse at the limit.

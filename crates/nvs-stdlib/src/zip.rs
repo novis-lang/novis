@@ -480,6 +480,8 @@ const LOCAL_WIDTH: u64 = 30;
 pub(crate) struct Archive<'a> {
     /// Where the bytes are.
     backing: Backing<'a>,
+    /// The member reading the archive, which a deadline's `FATAL` names.
+    member: &'static str,
 }
 
 /// Where an [`Archive`]'s bytes are.
@@ -500,10 +502,11 @@ enum Backing<'a> {
 }
 
 impl<'a> Archive<'a> {
-    /// An archive held whole by the program.
-    pub(crate) fn slice(raw: &'a [u8]) -> Self {
+    /// An archive held whole by the program, read by `member`.
+    pub(crate) fn slice(raw: &'a [u8], member: &'static str) -> Self {
         Self {
             backing: Backing::Slice(raw),
+            member,
         }
     }
 
@@ -514,7 +517,7 @@ impl<'a> Archive<'a> {
     /// [`ByteSource::from_arg`]'s.
     fn of(ctx: &mut Ctx, args: &'a [Value], member: &'static str) -> Result<Self, Fault> {
         if let Some(raw) = args[0].as_bytes() {
-            return Ok(Self::slice(raw));
+            return Ok(Self::slice(raw, member));
         }
         let (source, holder) = ByteSource::from_arg(ctx, args[0], member)?;
         Ok(Self {
@@ -524,6 +527,7 @@ impl<'a> Archive<'a> {
                 window: Vec::new(),
                 window_at: 0,
             },
+            member,
         })
     }
 
@@ -751,6 +755,13 @@ impl Wide<'_> {
 /// The end record is found in the archive's last bytes, and the directory is
 /// walked one record at a time through [`Archive::view`]. So a file or an
 /// upload costs one window of about [`READ_CHUNK`] bytes, whatever its size.
+///
+/// The records are walked through [`nvs_runtime::bounded_loop`], so the walk
+/// polls the request's deadline once every
+/// [`nvs_runtime::DEADLINE_POLL_BATCH`] records
+/// (`rule:http-server/time-is-bounded-inside-a-helper`). Cost: one decrement
+/// per record. An archive can name millions of entries, and each one is
+/// parsed and judged.
 pub(crate) fn directory(ctx: &mut Ctx, archive: &mut Archive<'_>) -> Result<Vec<Entry>, Fault> {
     let size = archive.size(ctx)?;
     let tail_at = size.saturating_sub((END_WIDTH + MAX_COMMENT) as u64);
@@ -764,7 +775,8 @@ pub(crate) fn directory(ctx: &mut Ctx, archive: &mut Archive<'_>) -> Result<Vec<
     let mut at = begins;
 
     let mut out: Vec<Entry> = Vec::with_capacity(count.min(4096));
-    for _ in 0..count {
+    let member = archive.member;
+    nvs_runtime::bounded_loop(ctx, member, 0..count, |ctx, _| {
         let truncated = || malformed("a central-directory record is truncated");
         let head = archive.view(ctx, at, CENTRAL_WIDTH)?;
         if u32_at(head, 0) != Some(CENTRAL_SIGNATURE) {
@@ -811,7 +823,8 @@ pub(crate) fn directory(ctx: &mut Ctx, archive: &mut Archive<'_>) -> Result<Vec<
             at: local,
         });
         at += (CENTRAL_WIDTH + name_len + extra_len + comment_len) as u64;
-    }
+        Ok(())
+    })?;
     // The names already walked, borrowed from the entries, so a repeated one
     // is found by one lookup rather than a scan of every entry before it — a
     // scan an archive of many small entries turns into a hang. It runs after
@@ -1072,6 +1085,14 @@ impl std::io::Read for Window<'_, '_> {
         if self.left == 0 || buf.is_empty() {
             return Ok(0);
         }
+        // One poll per range of compressed input, which is at most
+        // [`READ_CHUNK`] bytes. Cost: one relaxed load per range. A deflate
+        // stream can be read for a long time with no output, so [`pump`]'s
+        // count of output does not cover this.
+        if let Err(fault) = nvs_runtime::poll_deadline(self.ctx, self.archive.member) {
+            self.fault = Some(fault);
+            return Err(std::io::Error::other("the request's deadline passed"));
+        }
         let want = (buf.len() as u64).min(self.left).min(READ_CHUNK as u64);
         let piece = match self.archive.range(self.ctx, self.at, want) {
             Ok(piece) if !piece.is_empty() => piece,
@@ -1131,14 +1152,42 @@ fn inflate(
     Ok(Some(size))
 }
 
+/// How many octets of an entry's output count as one step of [`pump`]'s
+/// deadline poll.
+///
+/// `rule:http-server/time-is-bounded-inside-a-helper`: the decoder is
+/// `flate2`'s, and it holds the [`Window`] and its context while it runs. So
+/// [`pump`] counts its output on a [`nvs_runtime::DeadlineBatch`], one step per
+/// 4 KiB, and the batch reads the deadline once every
+/// [`nvs_runtime::DEADLINE_POLL_BATCH`] steps: once per MiB of output. Inflating
+/// and summing a MiB takes about a millisecond. Cost: one decrement per 4 KiB.
+const PIECE: usize = 4096;
+
+/// Counts `octets` of output on `deadline`, one step per [`PIECE`], and
+/// returns whether the deadline has passed.
+fn spent(deadline: &mut nvs_runtime::DeadlineBatch, octets: usize) -> bool {
+    let mut stopped = false;
+    for _ in 0..octets.div_ceil(PIECE) {
+        stopped = deadline.stopped();
+    }
+    stopped
+}
+
 /// [`inflate`]'s loop: the octets the entry came to and their CRC-32, or
 /// `None` once they pass `ceiling`.
+///
+/// # Errors
+///
+/// The deadline's `FATAL`, naming the archive's member, once [`spent`] finds
+/// the deadline passed. The octets already given to `sink` are part of an
+/// entry that is never finished.
 fn pump(
     input: &mut Window<'_, '_>,
     entry: &Entry,
     ceiling: u64,
     sink: &mut dyn FnMut(&[u8]) -> Result<(), Fault>,
 ) -> Result<Option<(u64, u32)>, Fault> {
+    let mut deadline = nvs_runtime::DeadlineBatch::new(input.ctx);
     let mut decoder: Box<dyn std::io::Read + '_> = match entry.method {
         STORED => Box::new(&mut *input),
         DEFLATE => Box::new(flate2::read::DeflateDecoder::new(&mut *input)),
@@ -1165,9 +1214,14 @@ fn pump(
         if size > ceiling {
             return Ok(None);
         }
+        if spent(&mut deadline, read) {
+            break;
+        }
         sum.update(&block[..read]);
         sink(&block[..read])?;
     }
+    drop(decoder);
+    deadline.finish(input.ctx, input.archive.member)?;
     Ok(Some((size, sum.finalize())))
 }
 
@@ -1449,10 +1503,13 @@ nvs_runtime::nvs_helper! {
         nvs_runtime::capability::create_dir(ctx, &named, EXTRACT)?;
         let root = nvs_runtime::capability::canonicalize(ctx, &named, EXTRACT)?;
 
+        // The entries are placed through `bounded_loop`, so the walk polls the
+        // request's deadline once every 256 entries. An archive of many empty
+        // entries creates one directory or file for each.
         let mut written = 0_u64;
-        for entry in &entries {
+        nvs_runtime::bounded_loop(ctx, EXTRACT, &entries, |ctx, entry| {
             let Some(target) = place(ctx, &root, entry)? else {
-                continue;
+                return Ok(());
             };
             let octets = budget.read_from(ctx, &mut archive, entry)?;
             // Exclusively: a name already taken refuses rather than being
@@ -1461,7 +1518,8 @@ nvs_runtime::nvs_helper! {
             file.write_all(&octets)
                 .map_err(|err| nvs_runtime::capability::io_failure(EXTRACT, &target, &err))?;
             written += 1;
-        }
+            Ok(())
+        })?;
         archive.finish()?;
         Ok(Value::uint(written))
     }
@@ -1480,19 +1538,19 @@ mod tests {
 
     /// [`super::directory`] over an archive held as `bytes`.
     fn directory(raw: &[u8]) -> Result<Vec<Entry>, Fault> {
-        super::directory(&mut Ctx::buffered(), &mut Archive::slice(raw))
+        super::directory(&mut Ctx::buffered(), &mut Archive::slice(raw, ENTRIES))
     }
 
     /// An entry's compressed octets in an archive held as `bytes`.
     fn frame<'r>(raw: &'r [u8], entry: &Entry) -> Result<&'r [u8], Fault> {
-        let from = super::frame(&mut Ctx::buffered(), &mut Archive::slice(raw), entry)?;
+        let from = super::frame(&mut Ctx::buffered(), &mut Archive::slice(raw, READ), entry)?;
         Ok(clip(raw, from, entry.compressed as u64))
     }
 
     impl Budget {
         /// [`Budget::read_from`] over an archive held as `bytes`.
         fn read(&mut self, raw: &[u8], entry: &Entry) -> Result<Vec<u8>, Fault> {
-            self.read_from(&mut Ctx::buffered(), &mut Archive::slice(raw), entry)
+            self.read_from(&mut Ctx::buffered(), &mut Archive::slice(raw, READ), entry)
         }
 
         /// [`Budget::stream_from`] over an archive held as `bytes`.
@@ -1502,7 +1560,12 @@ mod tests {
             entry: &Entry,
             sink: &mut dyn FnMut(&[u8]) -> Result<(), Fault>,
         ) -> Result<u64, Fault> {
-            self.stream_from(&mut Ctx::buffered(), &mut Archive::slice(raw), entry, sink)
+            self.stream_from(
+                &mut Ctx::buffered(),
+                &mut Archive::slice(raw, READ),
+                entry,
+                sink,
+            )
         }
     }
 
@@ -2899,5 +2962,96 @@ mod tests {
         );
         drop(source);
         release(&[handle]);
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: each walk over an
+    /// archive polls the request's deadline. Under an expired deadline,
+    /// `entries` over more records than one batch, `read` of a large entry and
+    /// `extract` of many entries are the deadline's FATAL. A stream whose
+    /// deadline passes part-way stops within one poll of output.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "inflates 4 MiB and walks hundreds of records, which Miri runs for minutes"
+    )]
+    fn every_zip_walk_stops_at_an_expired_deadline() {
+        let names: Vec<String> = (0..nvs_runtime::DEADLINE_POLL_BATCH * 2)
+            .map(|at| format!("e{at}.txt"))
+            .collect();
+        let many = archive(
+            &names
+                .iter()
+                .map(|name| Written::plain(name, ""))
+                .collect::<Vec<_>>(),
+        );
+        let large = archive(&[Written::deflated("large.txt", &"A".repeat(4 << 20))]);
+
+        let listed = Value::bytes(NvsStr::new(&many));
+        let mut ctx = Ctx::buffered();
+        ctx.expire_deadline();
+        assert_eq!(
+            nvs_runtime::call(nvs_core_zip_entries, &mut ctx, &[listed]).map(|_| ()),
+            Err(nvs_runtime::FATAL),
+            "entries"
+        );
+
+        let read = [
+            Value::bytes(NvsStr::new(&large)),
+            Value::text("large.txt"),
+            Value::uint(u64::MAX),
+            Value::uint(u64::MAX),
+        ];
+        let mut ctx = Ctx::buffered();
+        ctx.expire_deadline();
+        assert_eq!(
+            nvs_runtime::call(nvs_core_zip_read, &mut ctx, &read).map(|_| ()),
+            Err(nvs_runtime::FATAL),
+            "read"
+        );
+
+        let (dir, _) = temp_root("deadline");
+        let extracted = [
+            Value::bytes(NvsStr::new(&many)),
+            Value::text(dir.join("out").to_str().expect("the case's path is UTF-8")),
+            Value::uint(u64::MAX),
+            Value::uint(u64::MAX),
+        ];
+        let mut ctx = Ctx::buffered();
+        ctx.expire_deadline();
+        assert_eq!(
+            nvs_runtime::call(nvs_core_zip_extract, &mut ctx, &extracted).map(|_| ()),
+            Err(nvs_runtime::FATAL),
+            "extract"
+        );
+
+        // The deadline passes after the first block of output. The input is a
+        // few KiB, so the stop is the count of output in `pump`.
+        let entry = directory(&large).expect("the archive reads").remove(0);
+        let mut ctx = Ctx::buffered();
+        let word = ctx.deadline_word();
+        let mut seen = 0_usize;
+        let stopped = Budget::new(ROOMY).stream_from(
+            &mut ctx,
+            &mut Archive::slice(&large, READ),
+            &entry,
+            &mut |block| {
+                seen += block.len();
+                word.store(1, std::sync::atomic::Ordering::Relaxed);
+                Ok(())
+            },
+        );
+        assert!(
+            matches!(stopped, Err(Fault::Fatal(_))),
+            "a stream stops at the deadline: {stopped:?}"
+        );
+        assert!(
+            seen <= (PIECE * nvs_runtime::DEADLINE_POLL_BATCH) + (64 << 10),
+            "the stream stopped within one poll of output, after {seen} octets"
+        );
+        assert!(seen < 4 << 20, "the stream did not run to its end");
+
+        release(&[listed]);
+        release(&read);
+        release(&extracted);
     }
 }

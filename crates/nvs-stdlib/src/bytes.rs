@@ -161,6 +161,21 @@ use crate::registry::{
 /// The class's fully-qualified name, written once.
 pub(crate) const NAME: &str = r"Core\Bytes";
 
+/// The member a deadline's `FATAL` names when `indexOf` stops.
+const INDEX_OF: &str = r"Core\Bytes::indexOf";
+
+/// The member a deadline's `FATAL` names when `contains` stops.
+const CONTAINS: &str = r"Core\Bytes::contains";
+
+/// The member a deadline's `FATAL` names when `join` stops.
+const JOIN: &str = r"Core\Bytes::join";
+
+/// The member a deadline's `FATAL` names when `pack` stops.
+const PACK: &str = r"Core\Bytes::pack";
+
+/// The member a deadline's `FATAL` names when `unpack` stops.
+const UNPACK: &str = r"Core\Bytes::unpack";
+
 /// `Core\Bytes`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Works with binary data, the `bytes` type. It reads, searches, compares and builds \
@@ -750,13 +765,14 @@ fn addressed(total: usize, index: i64) -> Option<usize> {
         .filter(|found| *found < total)
 }
 
-/// Where `needle` first occurs in `haystack`, in bytes.
+/// Where `needle` first occurs in `haystack`, in bytes, scanned in one pass.
 ///
 /// An empty needle occurs at 0, which is Rust's answer and PHP 8's. The scan
 /// is the naive one: `Core\Bytes` sniffs magic numbers, so the needle is a
 /// handful of bytes and a skip table would cost more to build than the scan it
-/// saves — `Core\Regex` is where a subject wants a real engine.
-fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+/// saves — `Core\Regex` is where a subject wants a real engine. [`find`] runs
+/// it one search window at a time.
+fn scanned(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() {
         return Some(0);
     }
@@ -766,6 +782,53 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack
         .windows(needle.len())
         .position(|window| window == needle)
+}
+
+/// About how many bytes [`find`] compares in one search window.
+///
+/// `rule:http-server/time-is-bounded-inside-a-helper`: a search compares up to
+/// a needle's length of bytes at every position of the haystack, so it costs
+/// more than a copy. [`find`] polls the request's deadline between two windows.
+/// A window of 64 KiB of comparisons takes some microseconds, and the poll is
+/// one relaxed load per window.
+const SEARCH_WINDOW: usize = 64 * 1024;
+
+/// [`scanned`] over `haystack`, one window at a time, with a poll of the
+/// request's deadline between two windows.
+///
+/// A window tries `SEARCH_WINDOW / needle.len()` start positions, and at least
+/// one. It reaches `needle.len() - 1` bytes past its last start position, so a
+/// match that crosses into the next window is still found in this one. The
+/// windows are tried in order, so the answer is the first match: the same
+/// answer as one [`scanned`] over the whole haystack.
+///
+/// # Errors
+///
+/// The deadline's [`Fault::Fatal`], naming `member`.
+fn find(
+    ctx: &nvs_runtime::Ctx,
+    member: &str,
+    haystack: &[u8],
+    needle: &[u8],
+) -> Result<Option<usize>, Fault> {
+    if needle.is_empty() || needle.len() > haystack.len() {
+        return Ok(scanned(haystack, needle));
+    }
+    let starts = haystack.len() - needle.len() + 1;
+    let per_window = (SEARCH_WINDOW / needle.len()).max(1);
+    let mut first = 0;
+    while first < starts {
+        if first > 0 {
+            nvs_runtime::poll_deadline(ctx, member)?;
+        }
+        let last = first.saturating_add(per_window).min(starts);
+        let window = &haystack[first..last + needle.len() - 1];
+        if let Some(at) = scanned(window, needle) {
+            return Ok(Some(first + at));
+        }
+        first = last;
+    }
+    Ok(None)
 }
 
 /// A byte count or position as the `uint` a member answers with.
@@ -912,17 +975,17 @@ nvs_runtime::nvs_helper! {
     /// own `slice` offset — the property that would break if the two members
     /// counted in different units, which is exactly what `Core\Str` has to work
     /// to preserve and this class gets for free.
-    fn nvs_core_bytes_index_of(_ctx, args: [3]) {
+    fn nvs_core_bytes_index_of(ctx, args: [3]) {
         let subject = raw(&args[0], "indexOf", "the subject")?;
         let needle = raw(&args[1], "indexOf", "the needle")?;
         let from = integer(&args[2], "indexOf", "the `from` option")?;
 
         let start = offset(subject.len(), from);
-        match subject
-            .get(start..)
-            .and_then(|rest| find(rest, needle))
-            .map(|at| start + at)
-        {
+        let found = match subject.get(start..) {
+            Some(rest) => find(ctx, INDEX_OF, rest, needle)?,
+            None => None,
+        };
+        match found.map(|at| start + at) {
             None => Ok(Value::null()),
             Some(at) => Ok(Value::uint(counted(at, "indexOf")?)),
         }
@@ -961,10 +1024,10 @@ nvs_runtime::nvs_helper! {
     /// `indexOf(...) != null` would make the caller handle an absence it does
     /// not care about. An empty needle is contained in every buffer, including
     /// the empty one — Rust's answer and PHP 8's, and `Core\Str::contains`'s.
-    fn nvs_core_bytes_contains(_ctx, args: [2]) {
+    fn nvs_core_bytes_contains(ctx, args: [2]) {
         let haystack = raw(&args[0], "contains", "the subject")?;
         let needle = raw(&args[1], "contains", "the needle")?;
-        Ok(Value::bool(find(haystack, needle).is_some()))
+        Ok(Value::bool(find(ctx, CONTAINS, haystack, needle)?.is_some()))
     }
 }
 
@@ -1058,7 +1121,12 @@ nvs_runtime::nvs_helper! {
     /// as text; here every element is already a buffer, so a wrong tag is a
     /// miscompile rather than a conversion this member could perform —
     /// `rule:types/conversion` keeps `bytes` and `string` apart at exactly this boundary.
-    fn nvs_core_bytes_join(_ctx, args: [2]) {
+    ///
+    /// The parts are walked through [`nvs_runtime::bounded_loop`], so the walk
+    /// polls the request's deadline once every 256 parts
+    /// (`rule:http-server/time-is-bounded-inside-a-helper`). Cost: one
+    /// decrement per part.
+    fn nvs_core_bytes_join(ctx, args: [2]) {
         // Unreachable from source: parameter 0 is `array<bytes>` in `CLASS`
         // above, so a non-container subject is `E0401: expected
         // array<bytes>, found mixed` at the checker. Same judgement as
@@ -1073,7 +1141,8 @@ nvs_runtime::nvs_helper! {
         let separator = raw(&args[1], "join", "the separator")?;
 
         let mut out: Vec<u8> = Vec::new();
-        for (written, value) in crate::str::Elements::of(parts).enumerate() {
+        let elements = crate::str::Elements::of(parts).enumerate();
+        nvs_runtime::bounded_loop(ctx, JOIN, elements, |_, (written, value)| {
             let octets = raw(&value, "join", "an element")?;
             // Counted rather than tested against `out.is_empty()`, because an
             // empty *first* element must still be followed by a separator —
@@ -1092,7 +1161,8 @@ nvs_runtime::nvs_helper! {
                 out.extend_from_slice(separator);
             }
             out.extend_from_slice(octets);
-        }
+            Ok(())
+        })?;
         produced_fallibly(&out, "join")
     }
 }
@@ -1322,12 +1392,26 @@ fn buffer_field(out: &mut Vec<u8>, data: &[u8], repeat: Repeat, code: char) -> R
 
 /// The whole of `pack`: walk the format, consuming arguments as fields ask for
 /// them, and refuse a call whose two halves do not line up in either direction.
-fn packed(format: &str, arguments: &[Value]) -> Result<Vec<u8>, Fault> {
+///
+/// `rule:http-server/time-is-bounded-inside-a-helper`: the format and the
+/// argument list are both the caller's size. Each code and each field written
+/// is one step of a [`nvs_runtime::DeadlineBatch`], which reads the request's
+/// deadline once every 256 steps. The batch counts the steps of both loops,
+/// and one `break` ends both. Cost: one decrement per step.
+///
+/// # Errors
+///
+/// The throws this module's docs list, and the deadline's [`Fault::Fatal`].
+fn packed(ctx: &nvs_runtime::Ctx, format: &str, arguments: &[Value]) -> Result<Vec<u8>, Fault> {
     let mut out: Vec<u8> = Vec::new();
     let mut next = 0usize;
     let mut rest = format;
+    let mut deadline = nvs_runtime::DeadlineBatch::new(ctx);
 
-    while let Some(code) = rest.chars().next() {
+    'walk: while let Some(code) = rest.chars().next() {
+        if deadline.stopped() {
+            break;
+        }
         let (repeat, after) = repeater(&rest[code.len_utf8()..], "pack")?;
         rest = after;
 
@@ -1372,6 +1456,9 @@ fn packed(format: &str, arguments: &[Value]) -> Result<Vec<u8>, Fault> {
             Repeat::All => arguments.len().saturating_sub(next),
         };
         for _ in 0..times {
+            if deadline.stopped() {
+                break 'walk;
+            }
             let value = consumed(arguments, &mut next, code)?;
             affordable(out.len().checked_add(width), "pack")?;
             if integral(code).is_some() {
@@ -1404,6 +1491,7 @@ fn packed(format: &str, arguments: &[Value]) -> Result<Vec<u8>, Fault> {
             }
         }
     }
+    deadline.finish(ctx, PACK)?;
 
     if next < arguments.len() {
         return Err(Fault::thrown(format!(
@@ -1439,7 +1527,7 @@ nvs_runtime::nvs_helper! {
     /// which is that rule's registry-wide item — no member row anywhere carries
     /// a qualifier classification yet, so half of one here would be a lie
     /// about what is enforced.
-    fn nvs_core_bytes_pack(_ctx, args: [2]) {
+    fn nvs_core_bytes_pack(ctx, args: [2]) {
         // Unreachable from source: parameter 0 is `CoreTy::Str` in `CLASS`
         // above, so a non-string format is `E0401: expected 'string', found
         // 'mixed'` at the checker. A string that is no *format* is the
@@ -1467,7 +1555,7 @@ nvs_runtime::nvs_helper! {
 
         let collected: Vec<Value> = crate::str::Elements::of(values).collect();
 
-        produced(&packed(format, &collected)?)
+        produced(&packed(ctx, format, &collected)?)
     }
 }
 
@@ -1572,12 +1660,24 @@ fn trimmed(raw: &[u8], code: char) -> &[u8] {
 /// The whole of `unpack`: walk the same format [`packed`] writes, reading one
 /// field at a time, and refuse a buffer that does not end where the format
 /// does.
-fn unpacked(subject: &[u8], format: &str) -> Result<Vec<Field>, Fault> {
+///
+/// The deadline is polled as [`packed`] polls it: each code and each field
+/// read is one step of a [`nvs_runtime::DeadlineBatch`]. `C*` reads one field
+/// per octet of the subject, so the steps grow with the subject too.
+///
+/// # Errors
+///
+/// The throws this module's docs list, and the deadline's [`Fault::Fatal`].
+fn unpacked(ctx: &nvs_runtime::Ctx, subject: &[u8], format: &str) -> Result<Vec<Field>, Fault> {
     let mut out = Vec::new();
     let mut at = 0usize;
     let mut rest = format;
+    let mut deadline = nvs_runtime::DeadlineBatch::new(ctx);
 
-    while let Some(code) = rest.chars().next() {
+    'walk: while let Some(code) = rest.chars().next() {
+        if deadline.stopped() {
+            break;
+        }
         let (repeat, after) = repeater(&rest[code.len_utf8()..], "unpack")?;
         rest = after;
         let left = subject.len().saturating_sub(at);
@@ -1620,11 +1720,15 @@ fn unpacked(subject: &[u8], format: &str) -> Result<Vec<Field>, Fault> {
             Repeat::All => left / width,
         };
         for _ in 0..times {
+            if deadline.stopped() {
+                break 'walk;
+            }
             let end = advanced(at, width, subject.len(), code)?;
             pushed(&mut out, read_field(&subject[at..end], code, big))?;
             at = end;
         }
     }
+    deadline.finish(ctx, UNPACK)?;
 
     if at < subject.len() {
         return Err(Fault::thrown(format!(
@@ -1685,7 +1789,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// The format is an `rule:expressions/intrinsic-constant-arguments` intrinsic and a sink for the same reasons
     /// [`nvs_core_bytes_pack`]'s is, and both classifications are owed there.
-    fn nvs_core_bytes_unpack(_ctx, args: [2]) {
+    fn nvs_core_bytes_unpack(ctx, args: [2]) {
         let subject = raw(&args[0], "unpack", "the subject")?;
         // Unreachable from source on `nvs_core_bytes_pack`'s judgement: this
         // parameter is `CoreTy::Str` too, so a non-string format is `E0401:
@@ -1699,10 +1803,14 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
 
+        // The fields become values through `bounded_loop`, which polls the
+        // deadline once every 256 fields.
+        let fields = unpacked(ctx, subject, format)?;
         let mut out = NvsArray::new();
-        for field in unpacked(subject, format)? {
+        nvs_runtime::bounded_loop(ctx, UNPACK, fields, |_, field| {
             out.append(field.into_value());
-        }
+            Ok(())
+        })?;
         Ok(Value::array(out))
     }
 }
@@ -1979,12 +2087,131 @@ mod tests {
     /// otherwise panic or loop on.
     #[test]
     fn a_scan_answers_at_both_edges() {
-        assert_eq!(find(b"", b""), Some(0));
-        assert_eq!(find(b"abc", b""), Some(0));
-        assert_eq!(find(b"", b"a"), None);
-        assert_eq!(find(b"abc", b"abcd"), None);
-        assert_eq!(find(b"abcabc", b"bc"), Some(1));
-        assert_eq!(find(b"\x00\xff\x10", b"\xff\x10"), Some(1));
+        let ctx = nvs_runtime::Ctx::buffered();
+        let search = |haystack: &[u8], needle: &[u8]| {
+            find(&ctx, INDEX_OF, haystack, needle).expect("the deadline has not passed")
+        };
+        assert_eq!(search(b"", b""), Some(0));
+        assert_eq!(search(b"abc", b""), Some(0));
+        assert_eq!(search(b"", b"a"), None);
+        assert_eq!(search(b"abc", b"abcd"), None);
+        assert_eq!(search(b"abcabc", b"bc"), Some(1));
+        assert_eq!(search(b"\x00\xff\x10", b"\xff\x10"), Some(1));
+    }
+
+    /// A search in windows finds what one scan of the whole haystack finds: a
+    /// match that crosses from one window into the next, a match at the very
+    /// end, a needle longer than one window, and no match at all.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "scans several 64 KiB windows, which Miri runs for minutes"
+    )]
+    fn a_search_in_windows_finds_what_one_scan_finds() {
+        let ctx = nvs_runtime::Ctx::buffered();
+        let needles: [&[u8]; 3] = [b"xyz", &[b'n'; 1000], &[b'w'; SEARCH_WINDOW + 7]];
+        for needle in needles {
+            let per_window = (SEARCH_WINDOW / needle.len()).max(1);
+            let length = per_window * 3 + needle.len() * 2;
+            for at in [
+                per_window - 1,
+                per_window,
+                per_window + 1,
+                length - needle.len(),
+            ] {
+                let mut haystack = vec![b'.'; length];
+                haystack[at..at + needle.len()].copy_from_slice(needle);
+                assert_eq!(
+                    find(&ctx, INDEX_OF, &haystack, needle).expect("the deadline has not passed"),
+                    scanned(&haystack, needle),
+                    "a needle of {} bytes at {at}",
+                    needle.len()
+                );
+                assert_eq!(scanned(&haystack, needle), Some(at));
+            }
+            let empty = vec![b'.'; length];
+            assert_eq!(
+                find(&ctx, INDEX_OF, &empty, needle).expect("the deadline has not passed"),
+                None
+            );
+        }
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: a search polls the
+    /// request's deadline between its windows. Under an expired deadline,
+    /// `indexOf` and `contains` over a haystack of several windows are the
+    /// deadline's FATAL. A haystack of one window is searched with no poll.
+    /// `join`, `pack` and `unpack` over more parts or fields than one batch are
+    /// the deadline's FATAL too.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "scans several 64 KiB windows, which Miri runs for minutes"
+    )]
+    fn every_bytes_walk_stops_at_an_expired_deadline() {
+        let many = nvs_runtime::DEADLINE_POLL_BATCH * 4;
+        let mut parts = NvsArray::new();
+        let mut numbers = NvsArray::new();
+        for _ in 0..many {
+            parts.append(Value::bytes(NvsStr::new(b"")));
+            numbers.append(Value::uint(1));
+        }
+        let parts = Value::array(parts);
+        let numbers = Value::array(numbers);
+        let separator = Value::bytes(NvsStr::new(b","));
+        let all = text("C*");
+        let octets = Value::bytes(NvsStr::new(&vec![1_u8; many]));
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.expire_deadline();
+        for (member, function, arguments) in [
+            (
+                JOIN,
+                nvs_core_bytes_join as nvs_runtime::NvsFn,
+                vec![parts, separator],
+            ),
+            (
+                PACK,
+                nvs_core_bytes_pack as nvs_runtime::NvsFn,
+                vec![all, numbers],
+            ),
+            (
+                UNPACK,
+                nvs_core_bytes_unpack as nvs_runtime::NvsFn,
+                vec![octets, all],
+            ),
+        ] {
+            assert_eq!(
+                nvs_runtime::call(function, &mut ctx, &arguments).map(|_| ()),
+                Err(nvs_runtime::FATAL),
+                "{member}"
+            );
+        }
+        release(vec![parts, numbers, separator, all, octets]);
+
+        let large = Value::bytes(NvsStr::new(&vec![b'.'; SEARCH_WINDOW * 4]));
+        let small = Value::bytes(NvsStr::new(b"..x.."));
+        let needle = Value::bytes(NvsStr::new(b"x"));
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.expire_deadline();
+        assert_eq!(
+            nvs_runtime::call(
+                nvs_core_bytes_index_of,
+                &mut ctx,
+                &[large, needle, Value::int(0)],
+            )
+            .map(|_| ()),
+            Err(nvs_runtime::FATAL),
+            "indexOf"
+        );
+        assert_eq!(
+            nvs_runtime::call(nvs_core_bytes_contains, &mut ctx, &[large, needle]).map(|_| ()),
+            Err(nvs_runtime::FATAL),
+            "contains"
+        );
+        let found = nvs_runtime::call(nvs_core_bytes_contains, &mut ctx, &[small, needle])
+            .expect("one window is searched with no poll");
+        assert_eq!(found.as_bool(), Some(true));
+        release(vec![large, small, needle]);
     }
 
     /// One row of the search table below: a subject, a needle, the `from` the
@@ -2342,7 +2569,7 @@ mod tests {
     /// What a format writes, as hex — the spelling a `.nvst` case asserts in,
     /// since `echo` has no `bytes` row.
     fn hex(format: &str, arguments: &[Value]) -> String {
-        packed(format, arguments)
+        packed(&nvs_runtime::Ctx::buffered(), format, arguments)
             .expect("the format packs")
             .iter()
             .map(|octet| format!("{octet:02x}"))
@@ -2351,7 +2578,7 @@ mod tests {
 
     /// The message a format that cannot pack throws.
     fn refusal(format: &str, arguments: &[Value]) -> String {
-        match packed(format, arguments) {
+        match packed(&nvs_runtime::Ctx::buffered(), format, arguments) {
             Ok(octets) => panic!(
                 "the format packed {} octets rather than throwing",
                 octets.len()
@@ -2457,12 +2684,12 @@ mod tests {
 
     /// What a format reads out of a buffer.
     fn read(format: &str, octets: &[u8]) -> Vec<Field> {
-        unpacked(octets, format).expect("the format unpacks")
+        unpacked(&nvs_runtime::Ctx::buffered(), octets, format).expect("the format unpacks")
     }
 
     /// The message a buffer the format does not describe throws.
     fn read_refusal(format: &str, octets: &[u8]) -> String {
-        match unpacked(octets, format) {
+        match unpacked(&nvs_runtime::Ctx::buffered(), octets, format) {
             Ok(fields) => {
                 panic!(
                     "the format read {} fields rather than throwing",
@@ -2509,6 +2736,7 @@ mod tests {
     fn unpack_is_packs_inverse_over_the_same_format() {
         let format = "NnCcEg";
         let written = packed(
+            &nvs_runtime::Ctx::buffered(),
             format,
             &[
                 Value::uint(305_419_896),

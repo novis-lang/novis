@@ -187,6 +187,7 @@ impl<'de> Visitor<'de> for Elements<'_> {
             depth: 1,
             max: DEFAULT_MAX_DEPTH_U32,
             lists: None,
+            deadline: None,
         };
         while let Some(value) = seq.next_element_seed(seed)? {
             self.yielder.suspend(Some(value));

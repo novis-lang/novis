@@ -1823,6 +1823,23 @@ fn built(capacity: usize, write: impl FnOnce(&mut StrWriter<'_>)) -> HelperResul
     Ok(Value::str(NvsStr::build(capacity, write)))
 }
 
+/// [`built`], for a writer that can stop part-way, such as one that polls the
+/// request's deadline. When `write` returns an error, the string it wrote is
+/// freed and the result is that error.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "every writer in this module pushes `&str`s or `char::encode_utf8` output"
+)]
+fn built_walked(
+    capacity: usize,
+    write: impl FnOnce(&mut StrWriter<'_>) -> Result<(), Fault>,
+) -> HelperResult {
+    let mut outcome = Ok(());
+    let text = NvsStr::build(capacity, |out| outcome = write(out));
+    outcome?;
+    Ok(Value::str(text))
+}
+
 /// [`built`], for a member whose capacity is a **count off its own call site**
 /// rather than a bound on a subject already in memory.
 ///
@@ -2031,10 +2048,11 @@ nvs_runtime::nvs_helper! {
     ///
     /// An empty needle is contained in every string, including the empty one,
     /// which is both Rust's and PHP 8's answer.
-    fn nvs_core_str_contains(_ctx, args: [2]) {
+    fn nvs_core_str_contains(ctx, args: [2]) {
         let haystack = text(&args[0], "contains", "the subject")?;
         let needle = text(&args[1], "contains", "the needle")?;
-        Ok(Value::bool(find_from(haystack, needle, false).is_some()))
+        let walk = &mut Walk::new(ctx, r"Core\Str::contains");
+        Ok(Value::bool(find_from(haystack, needle, false, walk)?.is_some()))
     }
 }
 
@@ -2137,7 +2155,7 @@ nvs_runtime::nvs_helper! {
     /// **An empty separator throws**, as PHP's `explode` does: there is no
     /// sensible piece boundary, and returning the subject unsplit would hide
     /// a computed separator that came out empty by mistake.
-    fn nvs_core_str_split(_ctx, args: [3]) {
+    fn nvs_core_str_split(ctx, args: [3]) {
         let subject = text(&args[0], "split", "the subject")?;
         let separator = text(&args[1], "split", "the separator")?;
         let limit = integer(&args[2], "split", "the `limit` option")?;
@@ -2155,13 +2173,18 @@ nvs_runtime::nvs_helper! {
         // subject, and it keeps no list of pieces aside, so a negative limit
         // walks the pieces a second time instead of collecting them.
         // A limit of `0` means one piece — see the docs above.
-        let found = separated(subject, separator).count();
+        let walk = &mut Walk::new(ctx, r"Core\Str::split");
+        let mut found = 0usize;
+        for piece in separated(subject, separator, walk) {
+            piece?;
+            found += 1;
+        }
         let count = if limit >= 0 {
             found.min(usize::try_from(limit).unwrap_or(usize::MAX).max(1))
         } else {
             found.saturating_sub(usize::try_from(limit.unsigned_abs()).unwrap_or(usize::MAX))
         };
-        let member = r"Core\Str::split";
+        let member = walk.member;
         nvs_runtime::affordable(count.checked_mul(std::mem::size_of::<Value>()), member)?;
         let mut out = NvsArray::new();
         if !out.try_reserve(count) {
@@ -2173,7 +2196,7 @@ nvs_runtime::nvs_helper! {
             // `count` is at least one, and the last piece is the remainder.
             let mut rest = subject;
             for _ in 1..count {
-                let Some((at, matched)) = find_from(rest, separator, false) else {
+                let Some((at, matched)) = find_from(rest, separator, false, walk)? else {
                     break;
                 };
                 out.append(Value::text(&rest[..at]));
@@ -2181,8 +2204,8 @@ nvs_runtime::nvs_helper! {
             }
             out.append(Value::text(rest));
         } else {
-            for piece in separated(subject, separator).take(count) {
-                out.append(Value::text(piece));
+            for piece in separated(subject, separator, walk).take(count) {
+                out.append(Value::text(piece?));
             }
         }
         Ok(Value::array(out))
@@ -2255,18 +2278,30 @@ nvs_runtime::nvs_helper! {
 /// The pieces a non-empty `separator` cuts `subject` into, left to right, with
 /// every occurrence found by [`find_from`] so that none cuts a grapheme.
 /// One piece more than there are occurrences.
-fn separated<'a>(subject: &'a str, separator: &'a str) -> impl Iterator<Item = &'a str> {
+///
+/// The search polls the request's deadline through `walk`. When a poll finds
+/// that the deadline has passed, the next item is that error and the
+/// iterator ends.
+fn separated<'a>(
+    subject: &'a str,
+    separator: &'a str,
+    walk: &mut Walk<'_>,
+) -> impl Iterator<Item = Result<&'a str, Fault>> {
     let mut rest = Some(subject);
     std::iter::from_fn(move || {
         let text = rest?;
-        match find_from(text, separator, false) {
-            Some((at, matched)) => {
+        match find_from(text, separator, false, walk) {
+            Ok(Some((at, matched))) => {
                 rest = Some(&text[at + matched..]);
-                Some(&text[..at])
+                Some(Ok(&text[..at]))
             }
-            None => {
+            Ok(None) => {
                 rest = None;
-                Some(text)
+                Some(Ok(text))
+            }
+            Err(fault) => {
+                rest = None;
+                Some(Err(fault))
             }
         }
     })
@@ -2614,8 +2649,148 @@ nvs_runtime::nvs_helper! {
 /// A haystack cut from a larger subject at a grapheme boundary has the same
 /// boundaries as that subject over the part it covers, so a caller may pass a
 /// suffix or a prefix that starts or ends on one.
-fn find_from(haystack: &str, needle: &str, case_insensitive: bool) -> Option<(usize, usize)> {
-    find_counted(haystack, needle, case_insensitive, &mut || {})
+///
+/// The search polls the request's deadline through `walk`, as [`Walk`] says.
+///
+/// # Errors
+///
+/// The deadline's [`Fault::Fatal`], naming `walk`'s member.
+fn find_from(
+    haystack: &str,
+    needle: &str,
+    case_insensitive: bool,
+    walk: &mut Walk<'_>,
+) -> Result<Option<(usize, usize)>, Fault> {
+    find_counted(haystack, needle, case_insensitive, walk, &mut || {})
+}
+
+/// How many steps a search or a comparison in this module takes between two
+/// polls of the request's deadline.
+///
+/// `rule:http-server/time-is-bounded-inside-a-helper`: a step is one byte a
+/// plain search reads, or one character a case-insensitive search or a
+/// comparison reads. The slowest step maps a character to lowercase, which
+/// takes a few nanoseconds, so 64 Ki steps take well under a millisecond.
+/// A string shorter than this never reaches a poll.
+const POLL_STEPS: usize = 64 * 1024;
+
+/// How many bytes [`plain_find`] and [`plain_rfind`] give one call of
+/// `str::find` or `str::rfind`, at least. A haystack this long or shorter is
+/// searched in one call.
+const SEARCH_WINDOW: usize = POLL_STEPS;
+
+/// The request's deadline, as a search or a comparison in this module polls
+/// it.
+///
+/// [`Walk::walked`] counts steps, and every [`POLL_STEPS`] steps it reads the
+/// deadline through `nvs_runtime::poll_deadline`. Cost: making one is free,
+/// a step is one subtraction and one branch, and a poll is one relaxed load.
+/// It holds no reference count, so a short string pays only the branch.
+struct Walk<'c> {
+    /// The context whose deadline is read.
+    ctx: &'c nvs_runtime::Ctx,
+    /// The member a stop names, such as `Core\Str::indexOf`.
+    member: &'static str,
+    /// Steps left before the next poll.
+    until_poll: usize,
+}
+
+impl<'c> Walk<'c> {
+    /// A counter over `ctx`'s deadline, with a full [`POLL_STEPS`] before its
+    /// first poll.
+    fn new(ctx: &'c nvs_runtime::Ctx, member: &'static str) -> Self {
+        Self {
+            ctx,
+            member,
+            until_poll: POLL_STEPS,
+        }
+    }
+
+    /// Counts `steps` steps, and polls the deadline when they reach
+    /// [`POLL_STEPS`] since the last poll.
+    ///
+    /// # Errors
+    ///
+    /// The deadline's [`Fault::Fatal`], naming the member, when a poll finds
+    /// that the deadline has passed.
+    #[inline]
+    fn walked(&mut self, steps: usize) -> Result<(), Fault> {
+        if steps < self.until_poll {
+            self.until_poll -= steps;
+            return Ok(());
+        }
+        self.until_poll = POLL_STEPS;
+        nvs_runtime::poll_deadline(self.ctx, self.member)
+    }
+}
+
+/// The largest character boundary of `text` at or before `at`.
+fn boundary_at_or_before(text: &str, mut at: usize) -> usize {
+    while !text.is_char_boundary(at) {
+        at -= 1;
+    }
+    at
+}
+
+/// The smallest character boundary of `text` at or after `at`, where `at` is
+/// at most `text.len()`.
+fn boundary_at_or_after(text: &str, mut at: usize) -> usize {
+    while !text.is_char_boundary(at) {
+        at += 1;
+    }
+    at
+}
+
+/// `haystack.find(needle)`, with a poll of the deadline between windows.
+///
+/// Each window is `SEARCH_WINDOW.max(needle.len()) + needle.len()` bytes, and
+/// the next one starts `needle.len() - 1` bytes before this one ends. So every
+/// occurrence lies wholly inside the first window that reaches its end, and
+/// the first match found is the first in the haystack. The result is the same
+/// as one `str::find` over the whole. The windows overlap by less than half,
+/// so the search reads each byte at most twice. The bytes read count as steps
+/// of `walk`.
+fn plain_find(haystack: &str, needle: &str, walk: &mut Walk<'_>) -> Result<Option<usize>, Fault> {
+    let span = SEARCH_WINDOW.max(needle.len()) + needle.len();
+    let mut start = 0usize;
+    loop {
+        let end = boundary_at_or_before(haystack, haystack.len().min(start + span));
+        let found = haystack[start..end].find(needle);
+        walk.walked(found.map_or(end - start, |at| at + needle.len()))?;
+        if let Some(at) = found {
+            return Ok(Some(start + at));
+        }
+        if end == haystack.len() {
+            return Ok(None);
+        }
+        // `needle` is not empty here, because an empty needle is found at
+        // the start of the first window.
+        start = boundary_at_or_before(haystack, end + 1 - needle.len());
+    }
+}
+
+/// `haystack.rfind(needle)`, with a poll of the deadline between windows.
+///
+/// [`plain_find`]'s windows, walked from the end: the next window ends
+/// `needle.len() - 1` bytes after this one starts. The result is the same as
+/// one `str::rfind` over the whole.
+fn plain_rfind(haystack: &str, needle: &str, walk: &mut Walk<'_>) -> Result<Option<usize>, Fault> {
+    let span = SEARCH_WINDOW.max(needle.len()) + needle.len();
+    let mut end = haystack.len();
+    loop {
+        let start = boundary_at_or_before(haystack, end.saturating_sub(span));
+        let found = haystack[start..end].rfind(needle);
+        walk.walked(found.map_or(end - start, |at| end - start - at))?;
+        if let Some(at) = found {
+            return Ok(Some(start + at));
+        }
+        if start == 0 {
+            return Ok(None);
+        }
+        // `needle` is not empty here, because an empty needle is found at
+        // the end of the first window.
+        end = boundary_at_or_after(haystack, start + needle.len() - 1);
+    }
 }
 
 /// [`find_from`], calling `step` once per character the scan reads and once per
@@ -2626,25 +2801,29 @@ fn find_counted(
     haystack: &str,
     needle: &str,
     case_insensitive: bool,
+    walk: &mut Walk<'_>,
     step: &mut impl FnMut(),
-) -> Option<(usize, usize)> {
+) -> Result<Option<(usize, usize)>, Fault> {
     if !case_insensitive {
-        let at = haystack.find(needle)?;
+        let Some(at) = plain_find(haystack, needle, walk)? else {
+            return Ok(None);
+        };
         if whole_clusters(haystack, at, at + needle.len()) {
-            return Some((at, needle.len()));
+            return Ok(Some((at, needle.len())));
         }
     }
     let wanted: Vec<Lowered> = needle.chars().map(|c| key(c, case_insensitive)).collect();
     if wanted.is_empty() {
-        return Some((0, 0));
+        return Ok(Some((0, 0)));
     }
-    let fallback = fallback_counted(&wanted, step);
+    let fallback = fallback_counted(&wanted, walk, step)?;
     // The byte offsets of the last `wanted.len()` characters, so a match's
     // start is known when its last character is read.
     let mut starts = vec![0usize; wanted.len()];
     let mut q = 0usize;
     for (j, (at, found)) in haystack.char_indices().enumerate() {
         step();
+        walk.walked(1)?;
         starts[j % wanted.len()] = at;
         let next = key(found, case_insensitive);
         while q > 0 && next != wanted[q] {
@@ -2658,12 +2837,12 @@ fn find_counted(
             let start = starts[(j + 1 - wanted.len()) % wanted.len()];
             let end = at + found.len_utf8();
             if whole_clusters(haystack, start, end) {
-                return Some((start, end - start));
+                return Ok(Some((start, end - start)));
             }
             q = fallback[q - 1];
         }
     }
-    None
+    Ok(None)
 }
 
 /// Where the **last** occurrence of `needle` that lies wholly inside
@@ -2677,11 +2856,25 @@ fn find_counted(
 /// match on boundaries it completes. That keeps it linear, where finding every
 /// overlapping match from the front and keeping the last costs the haystack's
 /// length times the needle's when the needle matches almost everywhere.
-fn rfind_from(haystack: &str, needle: &str, case_insensitive: bool) -> Option<usize> {
+///
+/// The search polls the request's deadline through `walk`, as [`find_from`]
+/// does.
+///
+/// # Errors
+///
+/// The deadline's [`Fault::Fatal`], naming `walk`'s member.
+fn rfind_from(
+    haystack: &str,
+    needle: &str,
+    case_insensitive: bool,
+    walk: &mut Walk<'_>,
+) -> Result<Option<usize>, Fault> {
     if !case_insensitive {
-        let at = haystack.rfind(needle)?;
+        let Some(at) = plain_rfind(haystack, needle, walk)? else {
+            return Ok(None);
+        };
         if whole_clusters(haystack, at, at + needle.len()) {
-            return Some(at);
+            return Ok(Some(at));
         }
     }
     let wanted: Vec<Lowered> = needle
@@ -2690,14 +2883,15 @@ fn rfind_from(haystack: &str, needle: &str, case_insensitive: bool) -> Option<us
         .map(|c| key(c, case_insensitive))
         .collect();
     if wanted.is_empty() {
-        return Some(haystack.len());
+        return Ok(Some(haystack.len()));
     }
-    let fallback = fallback_of(&wanted);
+    let fallback = fallback_counted(&wanted, walk, &mut || {})?;
     // The byte offsets the last `wanted.len()` characters read end at, so a
     // match's end is known when its first character is read.
     let mut ends = vec![0usize; wanted.len()];
     let mut q = 0usize;
     for (j, (at, found)) in haystack.char_indices().rev().enumerate() {
+        walk.walked(1)?;
         ends[j % wanted.len()] = at + found.len_utf8();
         let next = key(found, case_insensitive);
         while q > 0 && next != wanted[q] {
@@ -2709,12 +2903,12 @@ fn rfind_from(haystack: &str, needle: &str, case_insensitive: bool) -> Option<us
         if q == wanted.len() {
             let end = ends[(j + 1 - wanted.len()) % wanted.len()];
             if whole_clusters(haystack, at, end) {
-                return Some(at);
+                return Ok(Some(at));
             }
             q = fallback[q - 1];
         }
     }
-    None
+    Ok(None)
 }
 
 /// Whether `haystack[start..end]` is a run of whole grapheme clusters: both
@@ -2755,17 +2949,19 @@ fn key(c: char, case_insensitive: bool) -> Lowered {
 
 /// Knuth–Morris–Pratt's failure table for `wanted`: entry `i` is the length of
 /// the longest proper prefix of `wanted[..=i]` that is also its suffix.
-fn fallback_of(wanted: &[Lowered]) -> Vec<usize> {
-    fallback_counted(wanted, &mut || {})
-}
-
-/// [`fallback_of`], calling `step` once per entry and once per fallback, as
-/// [`find_counted`] does.
-fn fallback_counted(wanted: &[Lowered], step: &mut impl FnMut()) -> Vec<usize> {
+///
+/// Each entry is one step of `walk`, and `step` is called once per entry and
+/// once per fallback, as [`find_counted`] does.
+fn fallback_counted(
+    wanted: &[Lowered],
+    walk: &mut Walk<'_>,
+    step: &mut impl FnMut(),
+) -> Result<Vec<usize>, Fault> {
     let mut fallback = vec![0usize; wanted.len()];
     let mut k = 0usize;
     for i in 1..wanted.len() {
         step();
+        walk.walked(1)?;
         while k > 0 && wanted[i] != wanted[k] {
             step();
             k = fallback[k - 1];
@@ -2775,7 +2971,7 @@ fn fallback_counted(wanted: &[Lowered], step: &mut impl FnMut()) -> Vec<usize> {
         }
         fallback[i] = k;
     }
-    fallback
+    Ok(fallback)
 }
 
 /// One `char`'s simple lowercase mapping, which is at most three `char`s,
@@ -2792,18 +2988,26 @@ fn lowered(c: char) -> Lowered {
 }
 
 /// How many bytes of `rest` `needle` matches at its start, case-insensitively,
-/// or `None` for no match — see [`find_from`].
-fn match_at(rest: &str, needle: &str) -> Option<usize> {
+/// or `None` for no match — see [`find_from`]. Each character compared is one
+/// step of `walk`.
+///
+/// # Errors
+///
+/// The deadline's [`Fault::Fatal`], naming `walk`'s member.
+fn match_at(rest: &str, needle: &str, walk: &mut Walk<'_>) -> Result<Option<usize>, Fault> {
     let mut subject = rest.char_indices();
     let mut matched = 0usize;
     for wanted in needle.chars() {
-        let (at, found) = subject.next()?;
+        walk.walked(1)?;
+        let Some((at, found)) = subject.next() else {
+            return Ok(None);
+        };
         if lowered(found) != lowered(wanted) {
-            return None;
+            return Ok(None);
         }
         matched = at + found.len_utf8();
     }
-    Some(matched)
+    Ok(Some(matched))
 }
 
 nvs_runtime::nvs_helper! {
@@ -2828,7 +3032,7 @@ nvs_runtime::nvs_helper! {
     /// * **An empty `$search` replaces nothing**, rather than inserting the
     ///   replacement between every character or looping forever. PHP returns
     ///   the subject unchanged too.
-    fn nvs_core_str_replace(_ctx, args: [5]) {
+    fn nvs_core_str_replace(ctx, args: [5]) {
         let subject = text(&args[0], "replace", "the subject")?;
         let search = text(&args[1], "replace", "the search string")?;
         let replacement = text(&args[2], "replace", "the replacement")?;
@@ -2845,11 +3049,12 @@ nvs_runtime::nvs_helper! {
         // matches first to make the length exact was measured and is a loss:
         // a second `find_from` pass over the subject costs more than the copy
         // it saves.
-        built(subject.len(), |out| {
+        let walk = &mut Walk::new(ctx, r"Core\Str::replace");
+        built_walked(subject.len(), |out| {
             let mut rest = subject;
             let mut done = 0u64;
             while done < limit {
-                let Some((at, matched)) = find_from(rest, search, case_insensitive) else {
+                let Some((at, matched)) = find_from(rest, search, case_insensitive, walk)? else {
                     break;
                 };
                 out.push_str(&rest[..at]);
@@ -2858,6 +3063,7 @@ nvs_runtime::nvs_helper! {
                 done += 1;
             }
             out.push_str(rest);
+            Ok(())
         })
     }
 }
@@ -2899,7 +3105,7 @@ nvs_runtime::nvs_helper! {
     /// in every use this library has, and an Aho-Corasick automaton would
     /// spend more building itself than it saves. Revisit against a measured
     /// call site, not against this comment.
-    fn nvs_core_str_replace_all(_ctx, args: [3]) {
+    fn nvs_core_str_replace_all(ctx, args: [3]) {
         let subject = text(&args[0], "replaceAll", "the subject")?;
         // Unreachable from source: parameter 1 is `array<string>` in `CLASS`
         // above, so a non-container table is `E0401: expected array<string>,
@@ -2948,16 +3154,22 @@ nvs_runtime::nvs_helper! {
         // far longer than their needles stops at the ceiling instead of
         // growing a buffer the request's budget never sees. Unmatched text is
         // pushed as one run per gap between matches, not a character at a time.
-        built(subject.len(), |out| {
+        // Each position is one step of the walk, and each pair tried there is
+        // as many steps as its needle has bytes, so a long subject or a long
+        // needle polls the request's deadline.
+        let walk = &mut Walk::new(ctx, r"Core\Str::replaceAll");
+        built_walked(subject.len(), |out| {
             let mut at = 0usize;
             let mut kept_from = 0usize;
             while at < subject.len() {
+                walk.walked(1)?;
                 let rest = &subject[at..];
                 let mut best: Option<(usize, &str)> = None;
                 for (needle, replacement) in &table {
                     let matched = if case_insensitive {
-                        match_at(rest, needle)
+                        match_at(rest, needle, walk)?
                     } else {
+                        walk.walked(needle.len())?;
                         rest.starts_with(needle.as_str()).then_some(needle.len())
                     };
                     let Some(matched) = matched else { continue };
@@ -2979,6 +3191,7 @@ nvs_runtime::nvs_helper! {
                 }
             }
             out.push_str(&subject[kept_from..]);
+            Ok(())
         })
     }
 }
@@ -3100,9 +3313,15 @@ fn find_at(
     needle: &str,
     case_insensitive: bool,
     cursor: usize,
-) -> Option<(usize, usize)> {
-    let rest = haystack.get(cursor..)?;
-    find_from(rest, needle, case_insensitive).map(|(at, matched)| (cursor + at, matched))
+    walk: &mut Walk<'_>,
+) -> Result<Option<(usize, usize)>, Fault> {
+    let Some(rest) = haystack.get(cursor..) else {
+        return Ok(None);
+    };
+    Ok(
+        find_from(rest, needle, case_insensitive, walk)?
+            .map(|(at, matched)| (cursor + at, matched)),
+    )
 }
 
 /// The byte offset a scan resumes at after a match of `matched` bytes at `at`.
@@ -3145,14 +3364,15 @@ nvs_runtime::nvs_helper! {
     /// The answer counts in [`crate::granularity::DEFAULT`], so it is directly
     /// usable as `Core\Str::slice`'s offset — the property that would break if
     /// this reported the engine's byte offset instead.
-    fn nvs_core_str_index_of(_ctx, args: [4]) {
+    fn nvs_core_str_index_of(ctx, args: [4]) {
         let subject = text(&args[0], "indexOf", "the subject")?;
         let needle = text(&args[1], "indexOf", "the needle")?;
         let from = integer(&args[2], "indexOf", "the `from` option")?;
         let case_insensitive = boolean(&args[3], "indexOf", "the `caseInsensitive` option")?;
 
         let start = crate::granularity::DEFAULT.byte_of_signed_index_of(&args[0], subject, from);
-        match find_at(subject, needle, case_insensitive, start) {
+        let walk = &mut Walk::new(ctx, r"Core\Str::indexOf");
+        match find_at(subject, needle, case_insensitive, start, walk)? {
             None => Ok(Value::null()),
             Some((at, _)) => position(&args[0], subject, at),
         }
@@ -3174,7 +3394,7 @@ nvs_runtime::nvs_helper! {
     /// its default is `int`'s maximum. The search runs backwards from that end
     /// through [`rfind_from`], so its cost is linear however many overlapping
     /// occurrences the window holds.
-    fn nvs_core_str_last_index_of(_ctx, args: [4]) {
+    fn nvs_core_str_last_index_of(ctx, args: [4]) {
         let subject = text(&args[0], "lastIndexOf", "the subject")?;
         let needle = text(&args[1], "lastIndexOf", "the needle")?;
         let before = integer(&args[2], "lastIndexOf", "the `before` option")?;
@@ -3182,7 +3402,8 @@ nvs_runtime::nvs_helper! {
 
         let bound = crate::granularity::DEFAULT.byte_of_signed_index_of(&args[0], subject, before);
         let window = subject.get(..bound).unwrap_or(subject);
-        match rfind_from(window, needle, case_insensitive) {
+        let walk = &mut Walk::new(ctx, r"Core\Str::lastIndexOf");
+        match rfind_from(window, needle, case_insensitive, walk)? {
             None => Ok(Value::null()),
             Some(at) => position(&args[0], subject, at),
         }
@@ -3198,7 +3419,7 @@ nvs_runtime::nvs_helper! {
     /// answer too, because a count partitions the subject where a position
     /// search does not. An empty needle throws rather than answering the
     /// character count, as PHP's own `ValueError` does.
-    fn nvs_core_str_count_of(_ctx, args: [2]) {
+    fn nvs_core_str_count_of(ctx, args: [2]) {
         let subject = text(&args[0], "countOf", "the subject")?;
         let needle = text(&args[1], "countOf", "the needle")?;
         if needle.is_empty() {
@@ -3206,9 +3427,10 @@ nvs_runtime::nvs_helper! {
                 "Core\\Str::countOf(): the needle must not be empty",
             ));
         }
+        let walk = &mut Walk::new(ctx, r"Core\Str::countOf");
         let mut found = 0u64;
         let mut cursor = 0usize;
-        while let Some((at, matched)) = find_at(subject, needle, false, cursor) {
+        while let Some((at, matched)) = find_at(subject, needle, false, cursor, walk)? {
             found += 1;
             cursor = after_match(subject, at, matched);
         }
@@ -3237,40 +3459,52 @@ fn digit_at(subject: &str, at: usize) -> Option<u8> {
         .filter(u8::is_ascii_digit)
 }
 
-/// Past the whitespace run that starts at `at`.
-fn skip_whitespace(subject: &str, mut at: usize) -> usize {
+/// Past the whitespace run that starts at `at`. Each character is one step of
+/// `walk`.
+fn skip_whitespace(subject: &str, mut at: usize, walk: &mut Walk<'_>) -> Result<usize, Fault> {
     while let Some(found) = char_at(subject, at) {
         if !found.is_whitespace() {
             break;
         }
+        walk.walked(1)?;
         at += found.len_utf8();
     }
-    at
+    Ok(at)
 }
 
 /// Past the zeros PHP's `leading` flag drops — at the very start of a subject
 /// only, a `0` followed by another digit is not part of the number at all,
 /// which is why `compare("01", "1", { natural: true })` is `0` while
-/// `compare("a01", "a1", { natural: true })` is negative.
-fn skip_leading_zeros(subject: &str, mut at: usize) -> usize {
+/// `compare("a01", "a1", { natural: true })` is negative. Each zero is one
+/// step of `walk`.
+fn skip_leading_zeros(subject: &str, mut at: usize, walk: &mut Walk<'_>) -> Result<usize, Fault> {
     let bytes = subject.as_bytes();
     while bytes.get(at) == Some(&b'0') && bytes.get(at + 1).is_some_and(u8::is_ascii_digit) {
+        walk.walked(1)?;
         at += 1;
     }
-    at
+    Ok(at)
 }
 
 /// Two digit runs, neither of which begins with a `0`: the longer run is the
 /// larger number, so the first differing digit decides only once both runs
-/// turn out to be the same length. Both cursors end past their own run.
-fn compare_integral(a: &str, ai: &mut usize, b: &str, bi: &mut usize) -> Ordering {
+/// turn out to be the same length. Both cursors end past their own run. Each
+/// pair of digits is one step of `walk`.
+fn compare_integral(
+    a: &str,
+    ai: &mut usize,
+    b: &str,
+    bi: &mut usize,
+    walk: &mut Walk<'_>,
+) -> Result<Ordering, Fault> {
     let mut bias = Ordering::Equal;
     loop {
         match (digit_at(a, *ai), digit_at(b, *bi)) {
-            (None, None) => return bias,
-            (None, Some(_)) => return Ordering::Less,
-            (Some(_), None) => return Ordering::Greater,
+            (None, None) => return Ok(bias),
+            (None, Some(_)) => return Ok(Ordering::Less),
+            (Some(_), None) => return Ok(Ordering::Greater),
             (Some(x), Some(y)) => {
+                walk.walked(1)?;
                 if bias == Ordering::Equal {
                     bias = x.cmp(&y);
                 }
@@ -3284,15 +3518,22 @@ fn compare_integral(a: &str, ai: &mut usize, b: &str, bi: &mut usize) -> Orderin
 /// Two digit runs, at least one of which begins with a `0` — read as the
 /// digits *after* a decimal point, so the first difference wins outright and
 /// the shorter run is the smaller number. That is what orders `1.5` before
-/// `1.10` and `a0010` before `a10`.
-fn compare_fractional(a: &str, ai: &mut usize, b: &str, bi: &mut usize) -> Ordering {
+/// `1.10` and `a0010` before `a10`. Each pair of digits is one step of `walk`.
+fn compare_fractional(
+    a: &str,
+    ai: &mut usize,
+    b: &str,
+    bi: &mut usize,
+    walk: &mut Walk<'_>,
+) -> Result<Ordering, Fault> {
     loop {
         match (digit_at(a, *ai), digit_at(b, *bi)) {
-            (None, None) => return Ordering::Equal,
-            (None, Some(_)) => return Ordering::Less,
-            (Some(_), None) => return Ordering::Greater,
-            (Some(x), Some(y)) if x != y => return x.cmp(&y),
+            (None, None) => return Ok(Ordering::Equal),
+            (None, Some(_)) => return Ok(Ordering::Less),
+            (Some(_), None) => return Ok(Ordering::Greater),
+            (Some(x), Some(y)) if x != y => return Ok(x.cmp(&y)),
             _ => {
+                walk.walked(1)?;
                 *ai += 1;
                 *bi += 1;
             }
@@ -3315,6 +3556,45 @@ fn compare_chars(a: char, b: char, case_insensitive: bool) -> Ordering {
 /// building a second string to hold the result.
 fn folded(subject: &str) -> impl Iterator<Item = char> + '_ {
     subject.chars().flat_map(char::to_lowercase)
+}
+
+/// `{ caseInsensitive: true }`'s ordering: [`folded`]'s characters of `a`
+/// against those of `b`, in order, as `Iterator::cmp` compares them. Each pair
+/// of characters is one step of `walk`.
+fn folded_order(a: &str, b: &str, walk: &mut Walk<'_>) -> Result<Ordering, Fault> {
+    let (mut left, mut right) = (folded(a), folded(b));
+    loop {
+        match (left.next(), right.next()) {
+            (None, None) => return Ok(Ordering::Equal),
+            (None, Some(_)) => return Ok(Ordering::Less),
+            (Some(_), None) => return Ok(Ordering::Greater),
+            (Some(x), Some(y)) => {
+                if x != y {
+                    return Ok(x.cmp(&y));
+                }
+                walk.walked(1)?;
+            }
+        }
+    }
+}
+
+/// The default ordering: `a`'s bytes against `b`'s, as `str::cmp` compares
+/// them. The bytes are compared in pieces of [`SEARCH_WINDOW`], and each byte
+/// is one step of `walk`. Equal pieces at the same offset leave the next pair
+/// to decide, so the result is the same as one comparison of the whole.
+fn byte_order(a: &str, b: &str, walk: &mut Walk<'_>) -> Result<Ordering, Fault> {
+    let pieces = a
+        .as_bytes()
+        .chunks(SEARCH_WINDOW)
+        .zip(b.as_bytes().chunks(SEARCH_WINDOW));
+    for (x, y) in pieces {
+        let ord = x.cmp(y);
+        if ord != Ordering::Equal {
+            return Ok(ord);
+        }
+        walk.walked(x.len())?;
+    }
+    Ok(a.len().cmp(&b.len()))
 }
 
 /// `{ natural: true }`'s ordering: a run of digits compares as a number and
@@ -3341,14 +3621,26 @@ fn folded(subject: &str) -> impl Iterator<Item = char> + '_ {
 /// whitespace is Unicode's `White_Space` rather than C's `isspace`, and case
 /// folding is Unicode's simple lower-case mapping rather than ASCII
 /// `toupper`. Both agree with PHP over ASCII and are better outside it.
-fn natural_order(a: &str, b: &str, case_insensitive: bool) -> Ordering {
+///
+/// Each character the walk reads is one step of `walk`, so a long subject
+/// polls the request's deadline.
+fn natural_order(
+    a: &str,
+    b: &str,
+    case_insensitive: bool,
+    walk: &mut Walk<'_>,
+) -> Result<Ordering, Fault> {
     if a.is_empty() || b.is_empty() {
-        return a.len().cmp(&b.len());
+        return Ok(a.len().cmp(&b.len()));
     }
-    let (mut ai, mut bi) = (skip_leading_zeros(a, 0), skip_leading_zeros(b, 0));
+    let (mut ai, mut bi) = (
+        skip_leading_zeros(a, 0, walk)?,
+        skip_leading_zeros(b, 0, walk)?,
+    );
     loop {
-        ai = skip_whitespace(a, ai);
-        bi = skip_whitespace(b, bi);
+        walk.walked(1)?;
+        ai = skip_whitespace(a, ai, walk)?;
+        bi = skip_whitespace(b, bi, walk)?;
         let (mut ca, mut cb) = (char_at(a, ai), char_at(b, bi));
 
         if let (Some(x), Some(y)) = (ca, cb)
@@ -3356,17 +3648,17 @@ fn natural_order(a: &str, b: &str, case_insensitive: bool) -> Ordering {
             && y.is_ascii_digit()
         {
             let run = if x == '0' || y == '0' {
-                compare_fractional(a, &mut ai, b, &mut bi)
+                compare_fractional(a, &mut ai, b, &mut bi, walk)?
             } else {
-                compare_integral(a, &mut ai, b, &mut bi)
+                compare_integral(a, &mut ai, b, &mut bi, walk)?
             };
             if run != Ordering::Equal {
-                return run;
+                return Ok(run);
             }
             match (ai == a.len(), bi == b.len()) {
-                (true, true) => return Ordering::Equal,
-                (true, false) => return Ordering::Less,
-                (false, true) => return Ordering::Greater,
+                (true, true) => return Ok(Ordering::Equal),
+                (true, false) => return Ok(Ordering::Less),
+                (false, true) => return Ok(Ordering::Greater),
                 (false, false) => {}
             }
             // The character that ended two equal runs is compared here rather
@@ -3385,14 +3677,14 @@ fn natural_order(a: &str, b: &str, case_insensitive: bool) -> Ordering {
             (Some(x), Some(y)) => compare_chars(x, y, case_insensitive),
         };
         if ord != Ordering::Equal {
-            return ord;
+            return Ok(ord);
         }
         ai += ca.map_or(0, char::len_utf8);
         bi += cb.map_or(0, char::len_utf8);
         match (ai >= a.len(), bi >= b.len()) {
-            (true, true) => return Ordering::Equal,
-            (true, false) => return Ordering::Less,
-            (false, true) => return Ordering::Greater,
+            (true, true) => return Ok(Ordering::Equal),
+            (true, false) => return Ok(Ordering::Less),
+            (false, true) => return Ok(Ordering::Greater),
             (false, false) => {}
         }
     }
@@ -3419,16 +3711,17 @@ nvs_runtime::nvs_helper! {
     ///
     /// There is no locale-sensitive third ordering: `strcoll` has nothing to
     /// read a locale from here (`rule:core-api/tier-placement`).
-    fn nvs_core_str_compare(_ctx, args: [4]) {
+    fn nvs_core_str_compare(ctx, args: [4]) {
         let left = text(&args[0], "compare", "the first subject")?;
         let right = text(&args[1], "compare", "the second subject")?;
         let case_insensitive = boolean(&args[2], "compare", "the `caseInsensitive` option")?;
         let natural = boolean(&args[3], "compare", "the `natural` option")?;
 
+        let walk = &mut Walk::new(ctx, r"Core\Str::compare");
         let ordering = match (natural, case_insensitive) {
-            (true, fold) => natural_order(left, right, fold),
-            (false, true) => folded(left).cmp(folded(right)),
-            (false, false) => left.cmp(right),
+            (true, fold) => natural_order(left, right, fold, walk)?,
+            (false, true) => folded_order(left, right, walk)?,
+            (false, false) => byte_order(left, right, walk)?,
         };
         Ok(Value::int(match ordering {
             Ordering::Less => -1,
@@ -3443,11 +3736,16 @@ nvs_runtime::nvs_helper! {
 ///
 /// Case-sensitive: neither member declares a `caseInsensitive` option, because
 /// their one option is `last`, and this function reads it.
-fn cut_at(subject: &str, needle: &str, last: bool) -> Option<(usize, usize)> {
+fn cut_at(
+    subject: &str,
+    needle: &str,
+    last: bool,
+    walk: &mut Walk<'_>,
+) -> Result<Option<(usize, usize)>, Fault> {
     if !last {
-        return find_from(subject, needle, false);
+        return find_from(subject, needle, false, walk);
     }
-    rfind_from(subject, needle, false).map(|at| (at, needle.len()))
+    Ok(rfind_from(subject, needle, false, walk)?.map(|at| (at, needle.len())))
 }
 
 nvs_runtime::nvs_helper! {
@@ -3458,11 +3756,12 @@ nvs_runtime::nvs_helper! {
     /// The needle itself is not included, and a needle that does not occur is
     /// `null` rather than PHP's `false` (`rule:core-api/shape-rules` R5). `{ last: true }` cuts at
     /// the last occurrence instead of the first.
-    fn nvs_core_str_before(_ctx, args: [3]) {
+    fn nvs_core_str_before(ctx, args: [3]) {
         let subject = text(&args[0], "before", "the subject")?;
         let needle = text(&args[1], "before", "the needle")?;
         let last = boolean(&args[2], "before", "the `last` option")?;
-        match cut_at(subject, needle, last) {
+        let walk = &mut Walk::new(ctx, r"Core\Str::before");
+        match cut_at(subject, needle, last, walk)? {
             None => Ok(Value::null()),
             Some((at, _)) => produced(&subject[..at]),
         }
@@ -3476,11 +3775,12 @@ nvs_runtime::nvs_helper! {
     ///
     /// The needle is not included, which is the one place this diverges from
     /// `strstr`, whose answer starts with the needle. Absence is `null`, not `false`.
-    fn nvs_core_str_after(_ctx, args: [3]) {
+    fn nvs_core_str_after(ctx, args: [3]) {
         let subject = text(&args[0], "after", "the subject")?;
         let needle = text(&args[1], "after", "the needle")?;
         let last = boolean(&args[2], "after", "the `last` option")?;
-        match cut_at(subject, needle, last) {
+        let walk = &mut Walk::new(ctx, r"Core\Str::after");
+        match cut_at(subject, needle, last, walk)? {
             None => Ok(Value::null()),
             Some((at, matched)) => produced(&subject[at + matched..]),
         }
@@ -6068,18 +6368,146 @@ mod tests {
         let haystack = "a".repeat(hay);
         let needle = format!("{}B", "A".repeat(near));
         let bound = 2 * (hay + 1 + near + 1);
+        let ctx = Ctx::new(OutputSink::Sink);
+        let walk = &mut super::Walk::new(&ctx, r"Core\Str::indexOf");
         for (subject, want) in [
             (haystack.clone(), None),
             (format!("{haystack}b"), Some((hay - near, near + 1))),
         ] {
             let mut steps = 0usize;
-            let found = super::find_counted(&subject, &needle, true, &mut || steps += 1);
+            let found = super::find_counted(&subject, &needle, true, walk, &mut || steps += 1)
+                .expect("the deadline has not passed");
             assert_eq!(found, want);
             assert!(
                 steps <= bound,
                 "the search took {steps} steps over {} characters, past {bound}",
                 subject.len() + needle.len()
             );
+        }
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: every member that
+    /// searches or compares a caller-sized string polls the deadline. Under an
+    /// expired deadline, each one over a subject of 16 poll intervals is the
+    /// deadline's FATAL, in every mode it has.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "searches 1 MiB in about thirty ways, which Miri runs for minutes"
+    )]
+    fn every_search_and_compare_stops_at_an_expired_deadline() {
+        let large = s(&"a".repeat(16 * super::POLL_STEPS));
+        let needle = s("b");
+        let table = pairs(&[("b", "c")]);
+        let mut calls: Vec<(&str, nvs_runtime::NvsFn, Vec<Value>)> = Vec::new();
+        let mut add = |member, function: nvs_runtime::NvsFn, args: Vec<Value>| {
+            calls.push((member, function, args));
+        };
+        add(
+            "contains",
+            super::nvs_core_str_contains,
+            vec![large, needle],
+        );
+        let limit = Value::int(i64::MAX);
+        add(
+            "split",
+            super::nvs_core_str_split,
+            vec![large, needle, limit],
+        );
+        let negative = Value::int(-1);
+        add(
+            "split",
+            super::nvs_core_str_split,
+            vec![large, needle, negative],
+        );
+        add("countOf", super::nvs_core_str_count_of, vec![large, needle]);
+        for flag in [false, true] {
+            let flagged = Value::bool(flag);
+            let every = Value::uint(u64::MAX);
+            let args = vec![large, needle, needle, flagged, every];
+            add("replace", super::nvs_core_str_replace, args);
+            let args = vec![large, table, flagged];
+            add("replaceAll", super::nvs_core_str_replace_all, args);
+            let args = vec![large, needle, Value::int(0), flagged];
+            add("indexOf", super::nvs_core_str_index_of, args);
+            let args = vec![large, needle, Value::int(i64::MAX), flagged];
+            add("lastIndexOf", super::nvs_core_str_last_index_of, args);
+            add(
+                "before",
+                super::nvs_core_str_before,
+                vec![large, needle, flagged],
+            );
+            add(
+                "after",
+                super::nvs_core_str_after,
+                vec![large, needle, flagged],
+            );
+            for natural in [false, true] {
+                let args = vec![large, large, flagged, Value::bool(natural)];
+                add("compare", super::nvs_core_str_compare, args);
+            }
+        }
+        for (member, function, args) in &calls {
+            let mut ctx = Ctx::buffered();
+            ctx.expire_deadline();
+            assert_eq!(
+                call(*function, &mut ctx, args).map(|_| ()),
+                Err(nvs_runtime::FATAL),
+                "{member} with {} arguments",
+                args.len()
+            );
+        }
+        for value in [large, needle, table] {
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the one reference it built for each \
+                          argument, and the helpers borrowed them"
+            )]
+            unsafe {
+                value.release();
+            }
+        }
+    }
+
+    /// A plain search walks a long haystack in overlapping windows. The result
+    /// is the same as one `str::find` or `str::rfind` over the whole, for a
+    /// needle at every offset near a window's end, with two-byte characters
+    /// around it, and for a needle longer than a window.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "searches 200 KiB many times, which Miri runs for minutes"
+    )]
+    fn a_windowed_plain_search_finds_what_one_search_finds() {
+        let ctx = Ctx::new(OutputSink::Sink);
+        let walk = &mut super::Walk::new(&ctx, r"Core\Str::indexOf");
+        let window = super::SEARCH_WINDOW;
+        let filler = "a\u{e9}".repeat(2 * window);
+        let long = "q".repeat(window + 5);
+        for needle in ["\u{e9}b\u{e9}", "b", long.as_str()] {
+            let span = window.max(needle.len()) + needle.len();
+            for edge in [span, 2 * span - needle.len(), filler.len() - span] {
+                let near_end = needle.len().saturating_sub(4)..needle.len() + 4;
+                for shift in (0..8).chain(near_end) {
+                    let at = super::boundary_at_or_before(&filler, edge - shift);
+                    let haystack = format!("{}{needle}{}", &filler[..at], &filler[at..]);
+                    let twice = format!("{haystack}{needle}");
+                    for text in [&haystack, &twice, &filler] {
+                        assert_eq!(
+                            super::plain_find(text, needle, walk).expect("no deadline"),
+                            text.find(needle),
+                            "find at {at}, needle of {} bytes",
+                            needle.len()
+                        );
+                        assert_eq!(
+                            super::plain_rfind(text, needle, walk).expect("no deadline"),
+                            text.rfind(needle),
+                            "rfind at {at}, needle of {} bytes",
+                            needle.len()
+                        );
+                    }
+                }
+            }
         }
     }
 

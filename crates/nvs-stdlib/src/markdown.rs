@@ -1599,16 +1599,51 @@ fn text_of(node: &Parsed, out: &mut String) {
 /// `markdown`'s output tree, and whether it must be rebuilt.
 #[cfg(test)]
 fn tree(markdown: &str) -> (Parsed, bool) {
-    let (tree, rebuild, _) = tree_with(markdown, &mut NoCallbacks).expect("no callbacks");
+    let (tree, rebuild, _) = tree_with(markdown, "a test", &mut NoCallbacks).expect("no callbacks");
     (tree, rebuild)
 }
 
+/// How often [`tree_with`] polls the request's deadline while it parses.
+///
+/// `rule:http-server/time-is-bounded-inside-a-helper`: an event counts as one
+/// step, and each [`POLL_BYTES_PER_STEP`] bytes of the source it covers count
+/// as one more. So the renderer polls every
+/// [`nvs_runtime::DEADLINE_POLL_BATCH`] events, or sooner when they cover
+/// more than 64 KiB of the document. A block's start event covers the whole
+/// block, so a document of large blocks polls more often. The parser itself
+/// does not poll, so the time between two polls includes the parse of one
+/// whole event, however long its text is. Cost: a shift, an add and a compare
+/// per event, and one relaxed load per poll.
+const POLL_BYTES_PER_STEP: usize = 256;
+
 /// `markdown`'s output tree under `hooks`, whether it must be rebuilt, and
 /// the `code` results it names.
-fn tree_with(markdown: &str, hooks: &mut dyn Callbacks) -> Result<(Parsed, bool, Trusted), Fault> {
+///
+/// The parse polls the request's deadline through `hooks`, as
+/// [`POLL_BYTES_PER_STEP`] says, and a poll that fires ends the render with
+/// no tree.
+///
+/// # Errors
+///
+/// The fault of the first callback that fails, and the deadline's
+/// [`Fault::Fatal`], naming `member`.
+fn tree_with(
+    markdown: &str,
+    member: &str,
+    hooks: &mut dyn Callbacks,
+) -> Result<(Parsed, bool, Trusted), Fault> {
     let text = prepared(markdown);
+    hooks.poll_deadline(member)?;
     let mut renderer = Renderer::new(&text, hooks);
+    let mut until_poll = nvs_runtime::DEADLINE_POLL_BATCH;
     for (event, range) in Parser::new_ext(&text, options()).into_offset_iter() {
+        let steps = 1 + range.len() / POLL_BYTES_PER_STEP;
+        if steps < until_poll {
+            until_poll -= steps;
+        } else {
+            until_poll = nvs_runtime::DEADLINE_POLL_BATCH;
+            renderer.hooks.poll_deadline(member)?;
+        }
         renderer.event(event, range);
         if let Some(fault) = renderer.fault.take() {
             return Err(fault);
@@ -1630,21 +1665,30 @@ pub(crate) fn rendered(markdown: &str, member: &str) -> Result<String, Fault> {
 
 /// [`rendered`] under `hooks`.
 ///
+/// The parse polls the request's deadline through `hooks`, as [`tree_with`]
+/// says. Writing the tree, the rebuild and the splice are each one pass, and
+/// the deadline is polled before each of them.
+///
 /// # Errors
 ///
-/// [`rendered`]'s, and the fault of the first callback that fails.
+/// [`rendered`]'s, the fault of the first callback that fails, and the
+/// deadline's [`Fault::Fatal`], naming `member`.
 pub(crate) fn rendered_with(
     markdown: &str,
     member: &str,
     hooks: &mut dyn Callbacks,
 ) -> Result<String, Fault> {
-    let (tree, rebuild, trusted) = tree_with(markdown, hooks)?;
+    let (tree, rebuild, trusted) = tree_with(markdown, member, hooks)?;
+    hooks.poll_deadline(member)?;
     let out = source_with(&tree, rebuild);
+    hooks.poll_deadline(member)?;
     if !rebuild {
         return Ok(trusted.spliced(out));
     }
     drop(tree);
-    Ok(trusted.spliced(settled(&out, None, member)?))
+    let out = settled(&out, None, member)?;
+    hooks.poll_deadline(member)?;
+    Ok(trusted.spliced(out))
 }
 
 nvs_runtime::nvs_helper! {

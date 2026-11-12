@@ -1351,6 +1351,32 @@ struct Reader<'a> {
     /// Whether `src` was decoded from bytes, so a declared `encoding` must be
     /// one the decoder reads.
     decoded: bool,
+    /// The request's deadline, counted at every [`Self::afford_bytes`], which
+    /// is once per node and once per attribute. `None` where the caller polls
+    /// nothing.
+    deadline: std::cell::RefCell<Option<nvs_runtime::DeadlineBatch>>,
+}
+
+/// The refusal a walk makes once its deadline poll finds the deadline passed.
+/// The member reports [`deadline_stop`]'s FATAL in its place.
+///
+/// `rule:http-server/time-is-bounded-inside-a-helper`: the reader counts one
+/// step per node and per attribute, and reads the deadline once every
+/// [`nvs_runtime::DEADLINE_POLL_BATCH`] steps. Cost: one `RefCell` borrow and
+/// one decrement per node, beside the memory ask the node already makes. A
+/// node between two steps costs a scan of its own bytes.
+const DEADLINE_PASSED: &str = "the request's deadline has passed";
+
+/// The deadline's FATAL, naming `member`, for a walk that refused with
+/// [`DEADLINE_PASSED`]. The deadline stays passed once it has passed, so the
+/// poll here finds it.
+fn deadline_stop(ctx: &Ctx, member: &str) -> Fault {
+    match nvs_runtime::poll_deadline(ctx, member) {
+        Err(fault) => fault,
+        Ok(()) => Fault::fatal(format!(
+            "internal error: {member} stopped at a deadline that has not passed"
+        )),
+    }
 }
 
 /// The names of the elements a streaming walk has open, over the slots that
@@ -1434,6 +1460,14 @@ impl<'a> Reader<'a> {
 
     /// [`Self::afford`] for a step of `bytes`, which is never zero.
     fn afford_bytes(&self, bytes: usize) -> Result<(), String> {
+        if self
+            .deadline
+            .borrow_mut()
+            .as_mut()
+            .is_some_and(nvs_runtime::DeadlineBatch::stopped)
+        {
+            return Err(DEADLINE_PASSED.to_owned());
+        }
         match nvs_runtime::affordable(Some(bytes), "Core\\Xml::parse") {
             Ok(_) => Ok(()),
             Err(_) => Err(UNAFFORDABLE.to_owned()),
@@ -1465,6 +1499,15 @@ impl<'a> Reader<'a> {
             pos: 0,
             edge: Cell::new(false),
             decoded: false,
+            deadline: std::cell::RefCell::new(None),
+        }
+    }
+
+    /// This reader, polling `deadline` as it reads.
+    fn with_deadline(self, deadline: nvs_runtime::DeadlineBatch) -> Self {
+        Self {
+            deadline: std::cell::RefCell::new(Some(deadline)),
+            ..self
         }
     }
 
@@ -2166,6 +2209,21 @@ pub(crate) fn parse(document: &str) -> Result<Parsed, String> {
     Reader::new(document).document()
 }
 
+/// [`parse`] for a member, polling the request's deadline as it reads
+/// ([`DEADLINE_PASSED`] owns how often). The inner result is [`parse`]'s.
+///
+/// # Errors
+///
+/// The deadline's [`Fault::Fatal`], naming `member`, once it has passed. The
+/// partial tree is dropped.
+fn parse_polled(ctx: &Ctx, member: &str, document: &str) -> Result<Result<Parsed, String>, Fault> {
+    let deadline = nvs_runtime::DeadlineBatch::new(ctx);
+    match Reader::new(document).with_deadline(deadline).document() {
+        Err(why) if why == DEADLINE_PASSED => Err(deadline_stop(ctx, member)),
+        parsed => Ok(parsed),
+    }
+}
+
 /// The encodings a document read from bytes may declare: the two the reader
 /// decodes, and US-ASCII, whose bytes are already UTF-8. Compared without case.
 const READ_ENCODINGS: [&str; 6] = [
@@ -2393,9 +2451,62 @@ impl Building {
 /// function is simply no longer the thing that has to survive the bound being
 /// wrong.
 pub(crate) fn instance_of(node: Parsed, inherited: &[(String, Value)]) -> Value {
+    built_tree(node, inherited, None).unwrap_or_else(Value::null)
+}
+
+/// [`instance_of`] for a member, polling the request's deadline once per node
+/// it builds. `rule:http-server/time-is-bounded-inside-a-helper`: the deadline
+/// is read once every [`nvs_runtime::DEADLINE_POLL_BATCH`] nodes. Cost: one
+/// decrement per node, beside the instance the node already builds.
+///
+/// # Errors
+///
+/// The deadline's [`Fault::Fatal`], naming `member`, once it has passed.
+/// Everything built so far is freed.
+pub(crate) fn instance_polled(
+    ctx: &Ctx,
+    member: &str,
+    node: Parsed,
+    inherited: &[(String, Value)],
+) -> Result<Value, Fault> {
+    let mut deadline = nvs_runtime::DeadlineBatch::new(ctx);
+    let built = built_tree(node, inherited, Some(&mut deadline));
+    deadline.finish(ctx, member)?;
+    built.ok_or_else(|| {
+        Fault::fatal(format!(
+            "internal error: {member} stopped building at a deadline that has not passed"
+        ))
+    })
+}
+
+/// [`instance_of`]'s walk. `None` where `deadline` found the deadline passed,
+/// and then every reference the walk made is released.
+fn built_tree(
+    node: Parsed,
+    inherited: &[(String, Value)],
+    mut deadline: Option<&mut nvs_runtime::DeadlineBatch>,
+) -> Option<Value> {
     let mut scope = Scope::of(inherited);
     let mut stack = vec![Building::opened(node, &mut scope)];
     loop {
+        if deadline
+            .as_deref_mut()
+            .is_some_and(nvs_runtime::DeadlineBatch::stopped)
+        {
+            // Each frame's built children drop with the stack. Its namespace
+            // is a reference of its own, and is released here.
+            for frame in stack {
+                #[expect(
+                    unsafe_code,
+                    reason = "the namespace is the one reference this frame owns, \
+                              and the frame is dropped right after"
+                )]
+                unsafe {
+                    frame.namespace.release();
+                }
+            }
+            return None;
+        }
         let top = stack
             .last_mut()
             .expect("the loop returns the moment the last frame is popped");
@@ -2411,7 +2522,7 @@ pub(crate) fn instance_of(node: Parsed, inherited: &[(String, Value)]) -> Value 
         let value = built(done.node, done.namespace, done.built);
         match stack.last_mut() {
             Some(parent) => parent.built.append(value),
-            None => return value,
+            None => return Some(value),
         }
     }
 }
@@ -2535,9 +2646,13 @@ fn read(ctx: &mut Ctx, receiver: Value) -> Result<Value, Fault> {
             let document = held
                 .as_text()
                 .ok_or_else(|| wrong_slot(&READER, "read", DOCUMENT_SLOT, held))?;
-            let mut scan = Reader::at(document, count_slot(&READER, object, CURSOR_SLOT, "read")?);
+            let mut scan = Reader::at(document, count_slot(&READER, object, CURSOR_SLOT, "read")?)
+                .with_deadline(nvs_runtime::DeadlineBatch::new(ctx));
             let start = scan.pos == 0;
-            let stepped = scan.step(&mut open, &mut rooted, start).map_err(refusal)?;
+            let stepped = match scan.step(&mut open, &mut rooted, start) {
+                Err(why) if why == DEADLINE_PASSED => return Err(deadline_stop(ctx, READ_MEMBER)),
+                stepped => stepped.map_err(refusal)?,
+            };
             crate::instance::set_slot(object, CURSOR_SLOT, counted(scan.pos));
             stepped
         }
@@ -2575,6 +2690,12 @@ fn refusal(why: String) -> Fault {
 
 /// The member a reader's source is taken by, for [`ByteSource`]'s messages.
 const READER_MEMBER: &str = "Core\\Xml::reader";
+
+/// The member a deadline stop inside a streaming walk names.
+const READ_MEMBER: &str = r"Core\Xml\Reader::read";
+
+/// The member a deadline stop inside [`source`] names.
+const SOURCE_MEMBER: &str = r"Core\Xml\Node::source";
 
 /// The text a walk over a byte source reads from: one window of the source,
 /// decoded to UTF-8, filed on the request beside the slots.
@@ -2770,6 +2891,10 @@ fn read_window(
     let depth = open.depth;
     let was_rooted = *rooted;
     loop {
+        // One poll per window the walk reads, and the reader polls once every
+        // 256 nodes inside it. Cost: one relaxed load per window.
+        nvs_runtime::poll_deadline(ctx, READ_MEMBER)?;
+        let deadline = nvs_runtime::DeadlineBatch::new(ctx);
         let window = window_at(ctx, key)?;
         if let Some(why) = &window.broken {
             return Err(Fault::thrown_as(ThrownClass::Parse, why.clone()));
@@ -2779,9 +2904,13 @@ fn read_window(
         }
         open.depth = depth;
         *rooted = was_rooted;
-        let mut scan = Reader::windowed(&window.text[window.start..]);
+        let mut scan = Reader::windowed(&window.text[window.start..]).with_deadline(deadline);
         let stepped = scan.step(open, rooted, !window.begun);
         let (read, edge) = (scan.pos, scan.edge.get());
+        drop(scan);
+        if matches!(&stepped, Err(why) if why == DEADLINE_PASSED) {
+            return Err(deadline_stop(ctx, READ_MEMBER));
+        }
         if edge && !window.ended {
             let want = (window.text.len() - window.start).max(1);
             if let Err(fault) = grow(ctx, key, crate::instance::slot(object, DOCUMENT_SLOT), want) {
@@ -2920,8 +3049,8 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             )));
         };
-        match parse(document) {
-            Ok(tree) => Ok(instance_of(tree, &[])),
+        match parse_polled(ctx, "Core\\Xml::parse", document)? {
+            Ok(tree) => instance_polled(ctx, "Core\\Xml::parse", tree, &[]),
             // A breach is the limit's `FATAL`, never a `ParseError` a `catch`
             // could swallow and carry on past.
             Err(why) if why == UNAFFORDABLE => Err(ctx
@@ -3185,10 +3314,21 @@ pub(crate) fn parsed_of(node: Value, member: &str) -> Result<Parsed, Fault> {
 ///
 /// A `LogicError` for a tree with no XML spelling, and a `Fault::fatal` for a
 /// slot this module did not write.
-fn source(node: Value) -> Result<String, Fault> {
+fn source(
+    node: Value,
+    mut deadline: Option<&mut nvs_runtime::DeadlineBatch>,
+) -> Result<String, Fault> {
     let mut out = String::new();
     let mut steps = vec![Step::Node(node)];
     while let Some(step) = steps.pop() {
+        // One deadline step per node and per end tag. A stopped walk returns
+        // no text, and the caller's `finish` reports the deadline.
+        if deadline
+            .as_deref_mut()
+            .is_some_and(nvs_runtime::DeadlineBatch::stopped)
+        {
+            return Ok(String::new());
+        }
         let node = match step {
             Step::Closed(tag) => {
                 out.push_str(&tag);
@@ -3330,9 +3470,14 @@ nvs_runtime::nvs_helper! {
     /// The way back out of a walk, and the tree half's own: [`WRITER`] is
     /// written to a call at a time and is never handed a tree, which is what
     /// `a_parsed_tree_has_no_path_back_into_execution` holds.
-    fn nvs_core_xml_node_source(_ctx, args: [1]) {
-        let written = source(args[0])?;
-        Ok(Value::text(&written))
+    ///
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: the walk reads the
+    /// deadline once every 256 nodes. Cost: one decrement per node.
+    fn nvs_core_xml_node_source(ctx, args: [1]) {
+        let mut deadline = nvs_runtime::DeadlineBatch::new(ctx);
+        let written = source(args[0], Some(&mut deadline));
+        deadline.finish(ctx, SOURCE_MEMBER)?;
+        Ok(Value::text(&written?))
     }
 }
 
@@ -4172,6 +4317,54 @@ mod tests {
         WRITER_OPTIONS, parse,
     };
     use crate::registry::{CLASSES, CoreClass, CoreTy, Qual};
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: every member that
+    /// walks a caller-sized document polls the deadline. Under an expired
+    /// deadline, `parse`, `Node::source` and a reader's `read` over a string
+    /// and over bytes are the deadline's FATAL, and under one that has not
+    /// passed they are not.
+    // covers: Core\Xml::parse
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "parses thousands of nodes per member, which Miri runs for minutes"
+    )]
+    fn every_walk_stops_at_an_expired_deadline() {
+        let count = nvs_runtime::DEADLINE_POLL_BATCH * 4;
+        let nodes = format!("<r>{}</r>", "<a/>".repeat(count));
+        let attributes: String = (0..count).map(|at| format!(" a{at}=\"\"")).collect();
+        let wide = format!("<r{attributes}/>");
+        let fatal = |result: Result<Value, i32>, member: &str, expired: bool| {
+            if expired {
+                assert_eq!(result.err(), Some(nvs_runtime::FATAL), "{member}");
+            } else {
+                assert!(result.is_ok(), "{member}");
+            }
+        };
+        for expired in [false, true] {
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            let text = Value::text(&nodes);
+            let tree = call(super::nvs_core_xml_parse, &mut ctx, &[text])
+                .expect("the deadline has not passed yet");
+            if expired {
+                ctx.expire_deadline();
+            }
+            let parsed = call(super::nvs_core_xml_parse, &mut ctx, &[text]);
+            fatal(parsed, r"Core\Xml::parse", expired);
+            let written = call(super::nvs_core_xml_node_source, &mut ctx, &[tree]);
+            fatal(written, r"Core\Xml\Node::source", expired);
+            let one = Value::text(&wide);
+            let reader = call(super::nvs_core_xml_reader, &mut ctx, &[one])
+                .expect("a reader reads nothing until it is asked");
+            let read = call(super::nvs_core_xml_reader_read, &mut ctx, &[reader]);
+            fatal(read, r"Core\Xml\Reader::read over a string", expired);
+            let bytes = Value::bytes(nvs_runtime::NvsStr::new(nodes.as_bytes()));
+            let streamed = call(super::nvs_core_xml_reader, &mut ctx, &[bytes])
+                .expect("a reader reads nothing until it is asked");
+            let read = call(super::nvs_core_xml_reader_read, &mut ctx, &[streamed]);
+            fatal(read, r"Core\Xml\Reader::read over bytes", expired);
+        }
+    }
 
     /// A kind's name, read out of the registered roster rather than out of a
     /// second table here — so a walk asserted below is asserted against the
@@ -6475,7 +6668,8 @@ mod tests {
                     .to_owned()
             };
             // An element's source is its tag with every attribute.
-            let written = super::source(node).expect("a node read from a document writes back");
+            let written =
+                super::source(node, None).expect("a node read from a document writes back");
             let depth = call(super::nvs_core_xml_reader_depth, &mut ctx, &[reader])
                 .expect("a depth is a slot read")
                 .as_uint()

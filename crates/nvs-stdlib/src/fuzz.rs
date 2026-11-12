@@ -79,6 +79,8 @@ pub fn multipart(boundary: &[u8], body: &[u8], chunk: usize, cap: usize) -> Resu
         boundary,
         cap,
         nvs_config::defaults::LIMITS_MAX_MULTIPART_PARTS,
+        // A context made here and dropped at once, so the deadline never passes.
+        nvs_runtime::DeadlineBatch::new(&nvs_runtime::Ctx::buffered()),
     );
     let mut files = Vec::new();
     while let Some(head) = parse.next_part(&mut wire)? {

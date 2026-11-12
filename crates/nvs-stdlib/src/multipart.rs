@@ -29,6 +29,15 @@
 //!   memory and are charged exactly as `body()`'s are. The request's own value
 //!   is given to [`Multipart::new`].
 //!
+//! **Time is bounded too.** `rule:http-server/time-is-bounded-inside-a-helper`
+//! makes a walk that scales with the body poll the request's deadline. A held
+//! body arrives in pieces that never park, so one `post()` can scan all of it
+//! in one call. [`Multipart::fill`] counts one step of the
+//! [`nvs_runtime::DeadlineBatch`] given to [`Multipart::new`] per KiB pulled, so
+//! the deadline is read at least once per 256 KiB. A passed deadline fails the
+//! walk as [`Failure::Deadline`], and the member turns that into the deadline's
+//! FATAL.
+//!
 //! **`upload_total` is not one of them.** `rule:http-server/request-body-and-upload-total-are-two-caps` puts that cap on the
 //! wire, in `nvs_server::body`, which is where a body is refused before dispatch
 //! and where a chunked one is stopped mid-stream. Charging it a second time here
@@ -137,6 +146,15 @@ pub(crate) struct Multipart {
     /// `catch` names for the caller. Recording the source at the one place it
     /// is known costs a `bool` and saves the reader from guessing at a message.
     from_the_wire: bool,
+    /// The request's deadline. [`Self::fill`] reads it at least once per
+    /// [`nvs_runtime::DEADLINE_POLL_BATCH`] KiB it pulls.
+    ///
+    /// **What it spends:** one reference count when the parse is made, one
+    /// decrement per KiB pulled, and one relaxed load per 256 KiB.
+    deadline: nvs_runtime::DeadlineBatch,
+    /// Whether the walk stopped because the request's deadline passed. Like
+    /// [`Self::failed`], it stays set, so every later call fails the same way.
+    out_of_time: bool,
     /// The start of the current part, read by a prefix or random read and not
     /// yet given to a forward read. [`Self::next_chunk`] gives these bytes
     /// first, and [`Self::next_part`] frees them.
@@ -202,6 +220,17 @@ enum Follow {
     Need,
 }
 
+/// What caused a failed walk, for the member that turns it into a throw.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Failure {
+    /// The request's deadline passed during the walk.
+    Deadline,
+    /// The connection failed under the body.
+    Wire,
+    /// The bytes are not a multipart body this parse reads.
+    Body,
+}
+
 /// What a scan for the next delimiter found.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Scan {
@@ -214,8 +243,14 @@ enum Scan {
 impl Multipart {
     /// A parse of a body delimited by `boundary`, before anything is pulled,
     /// whose form fields may hold at most `cap` bytes and which may open at
-    /// most `max_parts` parts.
-    pub(crate) fn new(boundary: &[u8], cap: usize, max_parts: usize) -> Self {
+    /// most `max_parts` parts. The walk polls `deadline`, which a request
+    /// member makes from its own context.
+    pub(crate) fn new(
+        boundary: &[u8],
+        cap: usize,
+        max_parts: usize,
+        deadline: nvs_runtime::DeadlineBatch,
+    ) -> Self {
         let mut delimiter = Vec::with_capacity(boundary.len() + 4);
         delimiter.extend_from_slice(b"\r\n--");
         delimiter.extend_from_slice(boundary);
@@ -234,6 +269,8 @@ impl Multipart {
             cap,
             ended: false,
             from_the_wire: false,
+            deadline,
+            out_of_time: false,
             held: Vec::new(),
             held_at: 0,
             consumed: false,
@@ -252,11 +289,18 @@ impl Multipart {
         self.parts
     }
 
-    /// Whether the error this parse last answered came off the connection.
+    /// What caused the error this parse last returned.
     ///
-    /// Meaningful only immediately after an `Err`; see [`Self::from_the_wire`].
-    pub(crate) fn failed_on_the_wire(&self) -> bool {
-        self.from_the_wire
+    /// Meaningful only immediately after an `Err`. The deadline comes first: a
+    /// walk that stopped there pulled nothing more.
+    pub(crate) fn failure(&self) -> Failure {
+        if self.out_of_time {
+            Failure::Deadline
+        } else if self.from_the_wire {
+            Failure::Wire
+        } else {
+            Failure::Body
+        }
     }
 
     /// The buffered form fields, in the order they arrived.
@@ -726,6 +770,14 @@ impl Multipart {
             self.ended = true;
             return Ok(false);
         };
+        // One step per KiB, and one for the pull itself, so a body of small
+        // pieces is polled as often as one of large pieces.
+        for _ in 0..=chunk.len() / 1024 {
+            if self.deadline.stopped() {
+                self.out_of_time = true;
+                return Err("the request's time limit passed while its body was read".into());
+            }
+        }
         if self.at > 0 {
             self.buf.drain(..self.at);
             self.at = 0;
@@ -976,7 +1028,7 @@ fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Multipart, PART_HEADERS, PartHead, boundary_of};
+    use super::{Failure, Multipart, PART_HEADERS, PartHead, boundary_of};
     use nvs_runtime::RequestBody;
 
     /// The `[limits] request_body` every parse here is given.
@@ -1016,6 +1068,40 @@ mod tests {
         }
     }
 
+    /// A deadline that has not passed and never will: its context is gone.
+    fn unbounded() -> nvs_runtime::DeadlineBatch {
+        nvs_runtime::DeadlineBatch::new(&nvs_runtime::Ctx::buffered())
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: a drain over a large
+    /// body polls the deadline as it pulls. Under a passed deadline the walk
+    /// fails as [`Failure::Deadline`], and every later call fails the same way.
+    #[test]
+    #[cfg_attr(miri, ignore = "walks a 1 MiB body, which Miri runs for minutes")]
+    fn a_walk_past_its_deadline_fails_and_stays_failed() {
+        let content = "a".repeat(1024 * 1024);
+        let wire = body(&[("upload", Some("f.bin"), content.as_str())]);
+        let ctx = nvs_runtime::Ctx::buffered();
+        ctx.expire_deadline();
+        let mut parse = Multipart::new(
+            b"bnd",
+            REQUEST_BODY,
+            PARTS,
+            nvs_runtime::DeadlineBatch::new(&ctx),
+        );
+        let mut supplier = Wire::new(&wire, 64 * 1024);
+        let first = parse
+            .drain(&mut supplier)
+            .expect_err("a 1 MiB walk reads the deadline at least once");
+        assert_eq!(parse.failure(), Failure::Deadline);
+        assert_eq!(parse.next_part(&mut supplier), Err(first));
+        assert_eq!(parse.failure(), Failure::Deadline);
+
+        // The same body under a deadline that has not passed walks to its end.
+        let (read, _) = walk(&wire, 64 * 1024).expect("the body parses in time");
+        assert_eq!(read.len(), 1);
+    }
+
     /// A body over `--bnd`, one entry per part: a name, the file name it claims
     /// where it is a file part, and its content.
     fn body(parts: &[(&str, Option<&str>, &str)]) -> Vec<u8> {
@@ -1048,7 +1134,11 @@ mod tests {
 
     /// [`walk`], with `bound` as the `[limits] request_body` the parse is given.
     fn walk_under(wire: &[u8], piece: usize, bound: usize) -> Result<Walked, Box<str>> {
-        walk_parse(wire, piece, Multipart::new(b"bnd", bound, PARTS))
+        walk_parse(
+            wire,
+            piece,
+            Multipart::new(b"bnd", bound, PARTS, unbounded()),
+        )
     }
 
     /// [`walk`], with `parse` as the parse that reads the body.
@@ -1183,7 +1273,7 @@ mod tests {
             ("c", Some("c.bin"), "third"),
         ]);
         let mut supplier = Wire::new(&wire, 3);
-        let mut parse = Multipart::new(b"bnd", REQUEST_BODY, PARTS);
+        let mut parse = Multipart::new(b"bnd", REQUEST_BODY, PARTS, unbounded());
         let mut names = Vec::new();
         while let Some(head) = parse.next_part(&mut supplier).expect("the body parses") {
             names.push(head.filename);
@@ -1203,7 +1293,11 @@ mod tests {
         for (parts, accepted) in [(cap, true), (cap + 1, false)] {
             let rows: Vec<_> = (0..parts).map(|_| ("f", None, "x")).collect();
             let wire = body(&rows);
-            let walked = walk_parse(&wire, 7, Multipart::new(b"bnd", REQUEST_BODY, cap));
+            let walked = walk_parse(
+                &wire,
+                7,
+                Multipart::new(b"bnd", REQUEST_BODY, cap, unbounded()),
+            );
             assert_eq!(
                 walked.is_ok(),
                 accepted,
@@ -1251,7 +1345,7 @@ mod tests {
         let rows: Vec<_> = (0..3).map(|_| ("f", None, "x")).collect();
         let wire = body(&rows);
         let mut supplier = Wire::new(&wire, 5);
-        let mut parse = Multipart::new(b"bnd", REQUEST_BODY, 2);
+        let mut parse = Multipart::new(b"bnd", REQUEST_BODY, 2, unbounded());
         let first = parse
             .drain(&mut supplier)
             .expect_err("a third part is over the cap");

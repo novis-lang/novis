@@ -2012,10 +2012,11 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8], member: &'static str) -> Resul
             )
         })?;
         let (cap, parts) = (request_body(ctx), ctx.multipart_parts_limit());
+        let deadline = nvs_runtime::DeadlineBatch::new(ctx);
         ctx.inbound_mut()
             .expect("the caller reads the request before it reads the form")
             .hold_parts(Box::new(crate::multipart::Multipart::new(
-                &boundary, cap, parts,
+                &boundary, cap, parts, deadline,
             )));
     }
     let inbound = ctx
@@ -2032,19 +2033,16 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8], member: &'static str) -> Resul
         .downcast_mut::<crate::multipart::Multipart>()
         .expect("the form readers hold one parse between them, and it is this one");
     if let Err(why) = parse.drain(&mut body) {
-        // No case can reach either of these, for `files()`'s reason: a `.nvst`
-        // program holds no parse to walk and no connection to fail under one.
-        let (class, what) = if parse.failed_on_the_wire() {
-            (ThrownClass::Io, "the body did not arrive whole")
-        } else {
-            (
-                ThrownClass::Parse,
-                "this is not the multipart body the request declared",
-            )
-        };
-        return Err(Fault::thrown_as(
-            class,
-            format!("Core\\Request::{member}(): {what} — {why}"),
+        // No case can reach the IO or parse throw, for `files()`'s reason: a
+        // `.nvst` program holds no parse to walk and no connection to fail
+        // under one. The deadline is asserted by
+        // `a_multipart_drain_past_its_deadline_is_fatal`.
+        let failure = parse.failure();
+        return Err(walk_failed(
+            ctx,
+            failure,
+            &format!("Core\\Request::{member}()"),
+            &why,
         ));
     }
     for (name, value) in parse.fields() {
@@ -3878,10 +3876,11 @@ nvs_runtime::nvs_helper! {
                 )
             })?;
             let (cap, parts) = (request_body(ctx), ctx.multipart_parts_limit());
+            let deadline = nvs_runtime::DeadlineBatch::new(ctx);
             ctx.inbound_mut()
                 .expect("the read above refuses a context that is answering no request")
                 .hold_parts(Box::new(crate::multipart::Multipart::new(
-                    &boundary, cap, parts,
+                    &boundary, cap, parts, deadline,
                 )));
         }
         Ok(crate::instance::build(&FILES, [Value::null()]))
@@ -3929,6 +3928,36 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// The fault a failed multipart walk throws, for the member `head` names.
+///
+/// The deadline's FATAL where the request's time limit passed during the walk
+/// (`rule:http-server/time-is-bounded-inside-a-helper`). `IOError` where the
+/// connection failed under the body. `ParseError` where what arrived is not
+/// the multipart body the request declared. The parse records which of the
+/// three caused its error, at the one place each is known.
+fn walk_failed(ctx: &Ctx, failure: crate::multipart::Failure, head: &str, why: &str) -> Fault {
+    use crate::multipart::Failure;
+    let (class, what) = match failure {
+        Failure::Deadline => {
+            if let Err(fatal) = nvs_runtime::poll_deadline(ctx, head) {
+                return fatal;
+            }
+            // The deadline word is never cleared once set, so the arm above
+            // always returns. This keeps the function total without a panic.
+            (
+                ThrownClass::Runtime,
+                "the request's time limit passed while its body was read",
+            )
+        }
+        Failure::Wire => (ThrownClass::Io, "the body did not arrive whole"),
+        Failure::Body => (
+            ThrownClass::Parse,
+            "this is not the multipart body the request declared",
+        ),
+    };
+    Fault::thrown_as(class, format!("{head}: {what} — {why}"))
+}
+
 /// [`FILES_ADVANCE_SYMBOL`]'s body: one part, built into the receiver's slot,
 /// and whether there was one.
 ///
@@ -3942,9 +3971,8 @@ nvs_runtime::nvs_helper! {
 /// `LogicError` where the context is answering no request — [`inbound_of`]'s
 /// refusal — `IOError` where the connection failed under the body, and
 /// `ParseError` where what arrived is not the multipart body the request
-/// declared. The parse itself classifies nothing; which of the last two applies
-/// is read off `Multipart::failed_on_the_wire`, which records the source at the
-/// one place it is known.
+/// declared, both from [`walk_failed`]. The deadline's FATAL where the
+/// request's time limit passed during the walk.
 fn files_step(ctx: &mut Ctx, value: Value) -> Result<Value, Fault> {
     let member = nvs_runtime::sequence::ADVANCE;
     let receiver = crate::instance::receiver(value, &FILES, member)?;
@@ -3973,18 +4001,8 @@ fn files_step(ctx: &mut Ctx, value: Value) -> Result<Value, Fault> {
                     // `a_files_walk_that_fails_mid_body_throws_rather_than_ending`
                     // and by
                     // `a_multipart_body_that_declares_no_boundary_is_refused_where_it_is_named`.
-                    let (class, what) = if parse.failed_on_the_wire() {
-                        (ThrownClass::Io, "the body did not arrive whole")
-                    } else {
-                        (
-                            ThrownClass::Parse,
-                            "this is not the multipart body the request declared",
-                        )
-                    };
-                    return Err(Fault::thrown_as(
-                        class,
-                        format!("Core\\Request::files(): {what} — {why}"),
-                    ));
+                    let failure = parse.failure();
+                    return Err(walk_failed(ctx, failure, "Core\\Request::files()", &why));
                 }
             }
         }
@@ -4291,19 +4309,12 @@ fn part_content_step(ctx: &mut Ctx, value: Value) -> Result<Value, Fault> {
                 // No case can reach this: a `.nvst` program answers no request,
                 // so it holds no part for a connection to fail under. Asserted
                 // by `a_parts_content_that_fails_mid_part_throws_rather_than_ending`.
-                let (class, what) = if parse.failed_on_the_wire() {
-                    (ThrownClass::Io, "the body did not arrive whole")
-                } else {
-                    (
-                        ThrownClass::Parse,
-                        "this is not the multipart body the request declared",
-                    )
-                };
-                // No case can reach this, as above. Asserted by
-                // `a_parts_content_that_fails_mid_part_throws_rather_than_ending`.
-                return Err(Fault::thrown_as(
-                    class,
-                    format!("Core\\Request\\Part::content(): {what} — {why}"),
+                let failure = parse.failure();
+                return Err(walk_failed(
+                    ctx,
+                    failure,
+                    "Core\\Request\\Part::content()",
+                    &why,
                 ));
             }
         },
@@ -4446,19 +4457,12 @@ fn part_read_all(
             Err(why) => {
                 // No case can reach this either, and for `content()`'s reason.
                 // Asserted by `a_parts_read_all_that_fails_mid_part_throws_rather_than_ending`.
-                let (class, what) = if parse.failed_on_the_wire() {
-                    (ThrownClass::Io, "the body did not arrive whole")
-                } else {
-                    (
-                        ThrownClass::Parse,
-                        "this is not the multipart body the request declared",
-                    )
-                };
-                // No case can reach this, as above. Asserted by
-                // `a_parts_read_all_that_fails_mid_part_throws_rather_than_ending`.
-                return Err(Fault::thrown_as(
-                    class,
-                    format!("Core\\Request\\Part::readAll(): {what} — {why}"),
+                let failure = parse.failure();
+                return Err(walk_failed(
+                    ctx,
+                    failure,
+                    "Core\\Request\\Part::readAll()",
+                    &why,
                 ));
             }
         }
@@ -4693,15 +4697,8 @@ fn part_hold<T>(
         Ok(held) => Ok(read(held)),
         Err(why) => {
             // No case can reach this: a `.nvst` program answers no request.
-            let (class, what) = if parse.failed_on_the_wire() {
-                (ThrownClass::Io, "the body did not arrive whole")
-            } else {
-                (
-                    ThrownClass::Parse,
-                    "this is not the multipart body the request declared",
-                )
-            };
-            Err(Fault::thrown_as(class, format!("{who}(): {what} — {why}")))
+            let failure = parse.failure();
+            Err(walk_failed(ctx, failure, &format!("{who}()"), &why))
         }
     }
 }
@@ -4732,15 +4729,8 @@ pub(crate) fn part_pull(
         }
         Err(why) => {
             // No case can reach this: a `.nvst` program answers no request.
-            let (class, what) = if parse.failed_on_the_wire() {
-                (ThrownClass::Io, "the body did not arrive whole")
-            } else {
-                (
-                    ThrownClass::Parse,
-                    "this is not the multipart body the request declared",
-                )
-            };
-            Err(Fault::thrown_as(class, format!("{who}: {what} — {why}")))
+            let failure = parse.failure();
+            Err(walk_failed(ctx, failure, who, &why))
         }
     }
 }
@@ -7636,6 +7626,38 @@ pub(crate) mod tests {
             dropped(answer);
         }
         text
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: `post()` drains a
+    /// held multipart body in one call, so the drain polls the deadline. Under
+    /// a passed deadline the member is the deadline's FATAL. The same body
+    /// under a deadline that has not passed reads the field after the upload.
+    #[test]
+    #[cfg_attr(miri, ignore = "drains a 2 MiB body, which Miri runs for minutes")]
+    fn a_multipart_drain_past_its_deadline_is_fatal() {
+        let piece = vec![b'a'; 64 * 1024];
+        let mut pieces: Vec<&[u8]> = vec![
+            b"--X\r\nContent-Disposition: form-data; name=\"doc\"; filename=\"big.bin\"\r\n\r\n",
+        ];
+        pieces.extend(std::iter::repeat_n(piece.as_slice(), 32));
+        pieces.push(
+            b"\r\n--X\r\nContent-Disposition: form-data; name=\"title\"\r\n\r\nlate\r\n--X--\r\n",
+        );
+
+        let mut late = uploading("multipart/form-data; boundary=X", Some(Chunks::of(&pieces)));
+        late.expire_deadline();
+        assert_eq!(
+            posted(&mut late, "title").map(dropped),
+            Err(nvs_runtime::FATAL),
+            "a 2 MiB drain reads the deadline, and the deadline has passed"
+        );
+
+        let mut in_time = uploading("multipart/form-data; boundary=X", Some(Chunks::of(&pieces)));
+        assert_eq!(
+            field(&mut in_time, "title").as_deref(),
+            Some(&b"late"[..]),
+            "under a deadline that has not passed the drain reaches the field"
+        );
     }
 
     /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s split read from the other side: a part carrying no

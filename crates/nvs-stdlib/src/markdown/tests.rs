@@ -1772,3 +1772,81 @@ fn footnotes_keep_their_numbers_and_ids_in_any_section() {
     let html = crate::fuzz::markdown("[^,,,]:[^,,,]\n\n[^,,,]");
     assert_eq!(crate::fuzz::from_html(&html), "[^1]: [^1]\n\n[^1]\n");
 }
+
+/// Callbacks that count the renderer's deadline polls and change nothing.
+#[derive(Default)]
+struct Polls {
+    count: std::cell::Cell<usize>,
+}
+
+impl Callbacks for Polls {
+    fn poll_deadline(&self, _member: &str) -> Result<(), Fault> {
+        self.count.set(self.count.get() + 1);
+        Ok(())
+    }
+}
+
+/// `rule:http-server/time-is-bounded-inside-a-helper`: the parse polls the
+/// deadline at least once per `DEADLINE_POLL_BATCH` events, and at every
+/// event that covers 64 KiB of the document. Polling changes nothing in the
+/// HTML.
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "renders a document of thousands of blocks, which Miri runs for minutes"
+)]
+fn the_renderer_polls_the_deadline_as_it_parses() {
+    let many = "word *em* and `code`\n\n".repeat(4096);
+    let long = format!("{}\n", "word ".repeat(64 * 1024));
+    for markdown in [many, long] {
+        let parsed = Parser::new_ext(&markdown, options()).into_offset_iter();
+        let (mut events, mut large) = (0, 0);
+        for (_, range) in parsed {
+            events += 1;
+            if range.len() >= 64 * 1024 {
+                large += 1;
+            }
+        }
+        let mut hooks = Polls::default();
+        let html = rendered_with(&markdown, "a test", &mut hooks).expect("no deadline");
+        assert_eq!(
+            html,
+            rendered(&markdown, "a test").expect("no limit in a test")
+        );
+        let want = (events / nvs_runtime::DEADLINE_POLL_BATCH).max(large);
+        assert!(
+            hooks.count.get() >= want,
+            "{} polls over {events} events and {} bytes, under {want}",
+            hooks.count.get(),
+            markdown.len()
+        );
+    }
+}
+
+/// Under an expired deadline, `Core\Markdown::toHtml` of a long document is
+/// the deadline's FATAL.
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "renders a document of thousands of blocks, which Miri runs for minutes"
+)]
+fn to_html_stops_at_an_expired_deadline() {
+    use nvs_runtime::Ctx;
+    let markdown = Value::text(&"word *em* and `code`\n\n".repeat(4096));
+    let null = Value::null();
+    let mut ctx = Ctx::buffered();
+    ctx.expire_deadline();
+    let result = nvs_runtime::call(
+        nvs_core_markdown_to_html,
+        &mut ctx,
+        &[markdown, null, null, null, null],
+    );
+    assert_eq!(result.map(|_| ()), Err(nvs_runtime::FATAL));
+    #[expect(
+        unsafe_code,
+        reason = "the case owns the one reference of the text it built"
+    )]
+    unsafe {
+        markdown.release();
+    }
+}

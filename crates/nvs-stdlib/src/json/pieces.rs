@@ -125,7 +125,7 @@ fn writer_at(ctx: &mut nvs_runtime::Ctx, key: u64) -> Result<&mut Writer, Fault>
 /// A `LogicError` for an item `Core\Json::encode` refuses, and whatever a
 /// hand-written `toJson` threw.
 fn write_item(ctx: &mut nvs_runtime::Ctx, key: u64, item: Value) -> Result<(), Fault> {
-    let written = rendered_chunks(ctx, item, false, |why| {
+    let written = rendered_chunks(ctx, item, false, MEMBER, |why| {
         Fault::thrown_as(ThrownClass::Logic, format!("{MEMBER}(): {why}"))
     });
     #[expect(

@@ -62,7 +62,8 @@ use serde::de::{DeserializeSeed, Deserializer, IgnoredAny, MapAccess, SeqAccess,
 use crate::byte_source::ByteSource;
 
 use super::{
-    Decode, ELEMENTS, ELEMENTS_NAME, Lists, Reading, check_codec, hydrate, max_depth, repeated,
+    DEADLINE_PASSED, Deadline, Decode, ELEMENTS, ELEMENTS_NAME, Lists, Reading, check_codec,
+    hydrate, max_depth, repeated,
 };
 
 /// The member every message names.
@@ -184,15 +185,19 @@ struct Walker<'w, 'y> {
     found: &'w Cell<bool>,
     /// [`Feed`]'s last byte handed out, which [`Skip`] reads.
     last: &'w Cell<u8>,
+    /// The request's deadline, counted once per value the walk builds or
+    /// skips. [`Deadline`] owns how often it is read and what that costs.
+    deadline: &'w Deadline,
 }
 
 impl<'w> Walker<'w, '_> {
     /// The [`Decode`] for a value at `depth`.
-    const fn decode(self, depth: u32) -> Decode<'static> {
+    const fn decode(self, depth: u32) -> Decode<'w> {
         Decode {
             depth,
             max: self.max,
             lists: None,
+            deadline: Some(self.deadline),
         }
     }
 
@@ -202,6 +207,7 @@ impl<'w> Walker<'w, '_> {
             depth,
             max: self.max,
             last: self.last,
+            deadline: self.deadline,
         }
     }
 
@@ -256,12 +262,22 @@ struct Skip<'w> {
     max: u32,
     /// [`Feed`]'s last byte handed out.
     last: &'w Cell<u8>,
+    /// The walk's deadline poll, which counts each skipped value too.
+    deadline: &'w Deadline,
 }
 
 impl<'de> DeserializeSeed<'de> for Skip<'_> {
     type Value = ();
 
     fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<(), D::Error> {
+        if self
+            .deadline
+            .borrow_mut()
+            .as_mut()
+            .is_some_and(nvs_runtime::DeadlineBatch::stopped)
+        {
+            return Err(<D::Error as serde::de::Error>::custom(DEADLINE_PASSED));
+        }
         // `deserialize_option` peeks at the value's first byte and consumes
         // nothing but a `null`, so `visit_some` chooses how to read the rest.
         deserializer.deserialize_option(self)
@@ -312,6 +328,7 @@ impl Skip<'_> {
             depth: self.depth,
             max: self.max,
             lists: None,
+            deadline: None,
         };
         if self.depth >= self.max {
             return Err(decode.too_deep());
@@ -476,10 +493,12 @@ fn read_source(
     lines: bool,
     max: u32,
     typed: bool,
+    deadline: nvs_runtime::DeadlineBatch,
 ) -> Ended {
     let handed = Cell::new(0u64);
     let found = Cell::new(false);
     let last = Cell::new(0u8);
+    let deadline = Deadline::new(Some(deadline));
     let feed = Feed {
         chunk: Vec::new(),
         at: 0,
@@ -497,6 +516,7 @@ fn read_source(
         yielder,
         found: &found,
         last: &last,
+        deadline: &deadline,
     };
     let read = if lines {
         each_line(&mut deserializer, walker)
@@ -602,14 +622,23 @@ fn next_element(
             // The parse copies each chunk into its feed, since it reads the
             // chunk across `advance()` calls and the source lends it only
             // until the next read.
+            // `rule:http-server/time-is-bounded-inside-a-helper`: one poll
+            // per chunk, which is one relaxed load per chunk read. The parse
+            // also polls once every 256 values inside the chunk.
             CoroutineResult::Yield(Up::Need) => {
+                nvs_runtime::poll_deadline(ctx, MEMBER)?;
                 input = source
                     .next_chunk(ctx, holder)?
                     .map(|chunk| chunk.bytes().to_vec());
             }
             CoroutineResult::Yield(Up::Element(value, lists)) => break Some((value, lists)),
             CoroutineResult::Return(Ok(())) => break None,
-            CoroutineResult::Return(Err((why, at))) => return Err(unparsed(&why, at)),
+            // A parse the deadline stopped is the deadline's FATAL. The flag
+            // stays set once it is set, so this poll finds it.
+            CoroutineResult::Return(Err((why, at))) => {
+                nvs_runtime::poll_deadline(ctx, MEMBER)?;
+                return Err(unparsed(&why, at));
+            }
         }
     };
     let walk = walk_at(ctx, key)?;
@@ -726,8 +755,9 @@ nvs_runtime::nvs_helper! {
         let (source, holder) = ByteSource::from_arg(ctx, args[3], MEMBER)?;
 
         let typed = class.is_some();
+        let deadline = nvs_runtime::DeadlineBatch::new(ctx);
         let parse = nvs_host::suspendable(move |yielder: &Yielder<Down, Up>, _: Down| {
-            read_source(yielder, &path, lines, max, typed)
+            read_source(yielder, &path, lines, max, typed, deadline)
         });
         let parse = match parse {
             Ok(parse) => parse,
@@ -860,6 +890,56 @@ mod tests {
         }
         released(elements);
         out
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: the walk polls the
+    /// deadline before it reads each chunk, and once every 256 values inside
+    /// one chunk. After the deadline has passed, `advance()` is the deadline's
+    /// FATAL within one poll gap.
+    // covers: Core\Json::decodeEach
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "walks a thousand elements on a coroutine, which Miri runs for minutes"
+    )]
+    fn a_walk_stops_at_an_expired_deadline() {
+        let gap = nvs_runtime::DEADLINE_POLL_BATCH;
+        let text = format!("[{}0]", "0,".repeat(gap * 4));
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let elements = walk(&mut ctx, chunks(&text, 64), "", false).expect("the walk starts");
+        ctx.expire_deadline();
+        let first = next(&mut ctx, elements);
+        assert!(
+            matches!(first, Err(Fault::Fatal(_))),
+            "the first chunk is not read"
+        );
+        released(elements);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let elements =
+            walk(&mut ctx, chunks(&text, text.len()), "", false).expect("the walk starts");
+        let first = next(&mut ctx, elements)
+            .expect("the document is valid")
+            .expect("the list has elements");
+        released(first);
+        ctx.expire_deadline();
+        let mut read = 0_usize;
+        let ended = loop {
+            match next(&mut ctx, elements) {
+                Ok(Some(element)) => {
+                    released(element);
+                    read += 1;
+                }
+                ended => break ended,
+            }
+        };
+        assert!(
+            matches!(ended, Err(Fault::Fatal(_))),
+            "the walk inside one chunk stops"
+        );
+        assert!(read < gap, "{read} elements were read after the deadline");
+        released(elements);
     }
 
     /// The message and class of a thrown fault.

@@ -1014,15 +1014,28 @@ pub(crate) struct Reentry {
     /// What a hand-written [`ENCODE`] raised, where that is what stopped the
     /// walk, and `None` where the refusal was this encoder's own.
     raised: std::cell::RefCell<Option<Fault>>,
+    /// The request's deadline, polled once per value the walk writes.
+    /// [`Deadline`] owns how often it is read and what that costs.
+    deadline: Deadline,
 }
 
 impl Reentry {
     /// The door, opened on the context of the member that is encoding.
     fn new(ctx: &mut nvs_runtime::Ctx) -> Self {
         Self {
+            deadline: deadline_of(ctx),
             ctx: std::ptr::from_mut(ctx),
             raised: std::cell::RefCell::new(None),
         }
+    }
+
+    /// Counts one value the walk writes, and returns whether the request's
+    /// deadline has passed.
+    fn deadline_passed(&self) -> bool {
+        self.deadline
+            .borrow_mut()
+            .as_mut()
+            .is_some_and(nvs_runtime::DeadlineBatch::stopped)
     }
 
     /// Records `fault` and answers the `serde` error that stops the walk.
@@ -1332,6 +1345,11 @@ impl<'a> Encodable<'a> {
                 return Ok(ChunkWriter::new());
             }
             if let Some(value) = next.take() {
+                // A walk the deadline stopped writes nothing more. The caller
+                // reports the deadline's FATAL in place of this error.
+                if self.walk.deadline_passed() {
+                    return Err(refuse(DEADLINE_PASSED));
+                }
                 if !stack.value(self.walk, value, &mut sink)? {
                     stack.finished(&mut sink);
                 }
@@ -2084,7 +2102,7 @@ pub(crate) fn written(
     value: Value,
     member: &str,
 ) -> Result<String, Fault> {
-    document(ctx, value, |why| {
+    rendered(ctx, value, false, member, |why| {
         Fault::thrown_as(ThrownClass::Logic, format!("{member}(): {why}"))
     })
 }
@@ -2096,14 +2114,19 @@ pub(crate) fn written(
 /// # Errors
 ///
 /// `refused`'s fault for a value this encoder refuses, and whatever a
-/// hand-written [`ENCODE`] raised where that is what stopped the walk.
+/// hand-written [`ENCODE`] raised where that is what stopped the walk. A walk
+/// the request's deadline stopped is the deadline's FATAL, named after
+/// `Core\Json::encode`, the encoder these members run.
 pub(crate) fn document(
     ctx: &mut nvs_runtime::Ctx,
     value: Value,
     refused: impl FnOnce(&serde_json::Error) -> Fault,
 ) -> Result<String, Fault> {
-    rendered(ctx, value, false, refused)
+    rendered(ctx, value, false, ENCODE_MEMBER, refused)
 }
+
+/// The member a deadline stop names where the caller names none.
+const ENCODE_MEMBER: &str = "Core\\Json::encode";
 
 /// [`written`] as the encoder's own chunks, in order, for a caller that hands
 /// the bytes on unjoined. `Core\Response::json` passes them to the body this
@@ -2119,7 +2142,7 @@ pub(crate) fn written_chunks(
     value: Value,
     member: &str,
 ) -> Result<Vec<Vec<u8>>, Fault> {
-    let chunks = rendered_chunks(ctx, value, false, |why| {
+    let chunks = rendered_chunks(ctx, value, false, member, |why| {
         Fault::thrown_as(ThrownClass::Logic, format!("{member}(): {why}"))
     })?;
     Ok(chunks.finish().unwrap_or_default())
@@ -2141,9 +2164,10 @@ fn rendered(
     ctx: &mut nvs_runtime::Ctx,
     value: Value,
     pretty: bool,
+    member: &str,
     refused: impl FnOnce(&serde_json::Error) -> Fault,
 ) -> Result<String, Fault> {
-    let out = rendered_bytes(ctx, value, pretty, refused)?;
+    let out = rendered_bytes(ctx, value, pretty, member, refused)?;
     #[expect(
         unsafe_code,
         clippy::disallowed_methods,
@@ -2166,9 +2190,10 @@ fn rendered_bytes(
     ctx: &mut nvs_runtime::Ctx,
     value: Value,
     pretty: bool,
+    member: &str,
     refused: impl FnOnce(&serde_json::Error) -> Fault,
 ) -> Result<Vec<u8>, Fault> {
-    let chunks = rendered_chunks(ctx, value, pretty, refused)?;
+    let chunks = rendered_chunks(ctx, value, pretty, member, refused)?;
     Ok(chunks.joined().unwrap_or_default())
 }
 
@@ -2182,6 +2207,7 @@ fn rendered_chunks(
     ctx: &mut nvs_runtime::Ctx,
     value: Value,
     pretty: bool,
+    member: &str,
     refused: impl FnOnce(&serde_json::Error) -> Fault,
 ) -> Result<ChunkWriter, Fault> {
     let walk = Reentry::new(ctx);
@@ -2191,6 +2217,9 @@ fn rendered_chunks(
     } else {
         subject.written(CompactFormatter)
     };
+    // A walk the deadline stopped is the deadline's FATAL, naming `member`.
+    // What it wrote drops with `written`.
+    deadline_finished(&walk.deadline, ctx, member)?;
     written.map_err(|why| walk.raised().unwrap_or_else(|| refused(&why)))
 }
 
@@ -2237,10 +2266,10 @@ nvs_runtime::nvs_helper! {
             format!("Core\\Json::encode(): {why}"),
         );
         if escape {
-            let written = rendered(ctx, args[0], pretty, refused)?;
+            let written = rendered(ctx, args[0], pretty, ENCODE_MEMBER, refused)?;
             return Ok(Value::text(&escape_non_ascii(&written)));
         }
-        Ok(joined_text(rendered_chunks(ctx, args[0], pretty, refused)?))
+        Ok(joined_text(rendered_chunks(ctx, args[0], pretty, ENCODE_MEMBER, refused)?))
     }
 }
 
@@ -2277,9 +2306,65 @@ struct Decode<'a> {
     /// Where each array built from a JSON list is noted, on a parse a class
     /// decode reads ([`read_marked`]), and `None` on every other.
     lists: Option<&'a Lists>,
+    /// The request's deadline, on a parse a member runs ([`read_polled`]),
+    /// and `None` where the caller polls nothing.
+    deadline: Option<&'a Deadline>,
 }
 
+/// The deadline poll one parse shares across every value it reads.
+///
+/// `rule:http-server/time-is-bounded-inside-a-helper`: `serde_json` drives
+/// the parse, so each value read through a seed counts one step of a
+/// [`nvs_runtime::DeadlineBatch`], and the deadline is read once every
+/// [`nvs_runtime::DEADLINE_POLL_BATCH`] values. A step that finds it passed
+/// fails the parse at once, and the caller turns that into the deadline's
+/// FATAL. Cost: one `RefCell` borrow and one decrement per value. One value
+/// costs at most a copy of its own bytes, so the poll gap is 256 values.
+///
+/// [`deadline_finished`] takes the batch out once the parse ends, so a caller
+/// can end the poll while what the parse built still borrows this cell.
+type Deadline = std::cell::RefCell<Option<nvs_runtime::DeadlineBatch>>;
+
+/// A [`Deadline`] over `ctx`'s deadline, for one parse.
+fn deadline_of(ctx: &nvs_runtime::Ctx) -> Deadline {
+    std::cell::RefCell::new(Some(nvs_runtime::DeadlineBatch::new(ctx)))
+}
+
+/// Ends the poll of one parse.
+///
+/// # Errors
+///
+/// The deadline's [`Fault::Fatal`], naming `member`, where a step of the parse
+/// found the deadline passed.
+fn deadline_finished(
+    deadline: &Deadline,
+    ctx: &nvs_runtime::Ctx,
+    member: &str,
+) -> Result<(), Fault> {
+    deadline
+        .take()
+        .map_or(Ok(()), |batch| batch.finish(ctx, member))
+}
+
+/// The error a parse fails with once its deadline has passed. Nobody reads it:
+/// the caller reports the deadline's FATAL instead.
+const DEADLINE_PASSED: &str = "the request's deadline has passed";
+
 impl Decode<'_> {
+    /// Counts this value as one step of the parse's deadline poll, and fails
+    /// the parse where the deadline has passed.
+    fn polled<E: serde::de::Error>(self) -> Result<(), E> {
+        if let Some(deadline) = self.deadline
+            && deadline
+                .borrow_mut()
+                .as_mut()
+                .is_some_and(nvs_runtime::DeadlineBatch::stopped)
+        {
+            return Err(E::custom(DEADLINE_PASSED));
+        }
+        Ok(())
+    }
+
     /// This value's elements, one level deeper.
     fn child(self) -> Self {
         Self {
@@ -2302,6 +2387,7 @@ impl<'de> DeserializeSeed<'de> for Decode<'_> {
     type Value = Value;
 
     fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Value, D::Error> {
+        self.polled()?;
         deserializer.deserialize_any(self)
     }
 }
@@ -2428,21 +2514,65 @@ const IN_PLACE_BYTES: usize = 64;
 /// (`nvs_host::on_spare_stack`), which holds [`DEPTH_CEILING`] levels on every
 /// profile. The parse calls no compiled code, which is what that stack needs.
 pub(crate) fn read(text: &str, max: u32) -> Result<Value, serde_json::Error> {
-    read_with(text, max, None)
+    read_with(text, max, None, None)
 }
 
 /// [`read`] for a class decode: each array the parse builds from a JSON list
 /// is noted in `lists`, which the decode asks where it needs an object.
+/// Tests call it. A member calls [`read_polled`], which also polls the
+/// request's deadline.
+#[cfg(test)]
 pub(crate) fn read_marked(text: &str, max: u32, lists: &Lists) -> Result<Value, serde_json::Error> {
-    read_with(text, max, Some(lists))
+    read_with(text, max, Some(lists), None)
 }
 
-/// [`read`] and [`read_marked`], on the stack the text's length needs.
-fn read_with(text: &str, max: u32, lists: Option<&Lists>) -> Result<Value, serde_json::Error> {
+/// [`read`] for a member, polling the request's deadline as it parses
+/// ([`Deadline`] owns how often). `lists` is [`read_marked`]'s.
+///
+/// The inner result is [`read`]'s. Under a deadline that has not passed it is
+/// exactly what [`read`] returns.
+///
+/// # Errors
+///
+/// The deadline's [`Fault::Fatal`], naming `member`, once it has passed. The
+/// parse stops there, and nothing it built is kept.
+pub(crate) fn read_polled(
+    ctx: &nvs_runtime::Ctx,
+    member: &str,
+    text: &str,
+    max: u32,
+    lists: Option<&Lists>,
+) -> Result<Result<Value, serde_json::Error>, Fault> {
+    let deadline = deadline_of(ctx);
+    let read = read_with(text, max, lists, Some(&deadline));
+    if let Err(fault) = deadline_finished(&deadline, ctx, member) {
+        if let Ok(value) = read {
+            #[expect(
+                unsafe_code,
+                reason = "the decoded value owns the one reference this read made, \
+                          and nothing else holds it"
+            )]
+            unsafe {
+                value.release();
+            }
+        }
+        return Err(fault);
+    }
+    Ok(read)
+}
+
+/// [`read`], [`read_marked`] and [`read_polled`], on the stack the text's
+/// length needs.
+fn read_with(
+    text: &str,
+    max: u32,
+    lists: Option<&Lists>,
+    deadline: Option<&Deadline>,
+) -> Result<Value, serde_json::Error> {
     if text.len() <= IN_PLACE_BYTES {
-        parse(text, max, lists)
+        parse(text, max, lists, deadline)
     } else {
-        nvs_host::on_spare_stack(|| parse(text, max, lists))
+        nvs_host::on_spare_stack(|| parse(text, max, lists, deadline))
     }
 }
 
@@ -2486,13 +2616,19 @@ impl Lists {
 /// default of [`DEFAULT_MAX_DEPTH`], so leaving it on would make the
 /// declared default unreachable. [`Decode`]'s own counter is the bound
 /// instead, and it is checked against a ceiling the call cannot raise.
-fn parse(text: &str, max: u32, lists: Option<&Lists>) -> Result<Value, serde_json::Error> {
+fn parse(
+    text: &str,
+    max: u32,
+    lists: Option<&Lists>,
+    deadline: Option<&Deadline>,
+) -> Result<Value, serde_json::Error> {
     let mut deserializer = serde_json::Deserializer::from_str(text);
     deserializer.disable_recursion_limit();
     let value = Decode {
         depth: 1,
         max,
         lists,
+        deadline,
     }
     .deserialize(&mut deserializer)?;
     match deserializer.end() {
@@ -2524,10 +2660,10 @@ nvs_runtime::nvs_helper! {
     /// string, 1.5 for an escaped one, 3.0 for a list of numbers, 5 to 10 for
     /// objects, and 79 for lists nested one element deep, where every two
     /// bytes open one array.
-    fn nvs_core_json_decode(_ctx, args: [2]) {
+    fn nvs_core_json_decode(ctx, args: [2]) {
         let text = text_of(&args[0], "decode")?;
         let max = max_depth(&args[1], "Core\\Json::decode")?;
-        read(text, max).map_err(|why| {
+        read_polled(ctx, "Core\\Json::decode", text, max, None)?.map_err(|why| {
             // `rule:core-classes/derive-reports-every-field`'s last sentence: a malformed document records one
             // issue, so a `catch (ParseError $e)` reads the same shape whether
             // the failure was the syntax or the fields. Its `path` is empty —
@@ -2662,20 +2798,24 @@ pub(crate) unsafe fn decode_as(
     )]
     let contract = unsafe { Contract::new(class, shape) }.over(reading);
     if contract.writes_decoder() {
-        let document = read_marked(text, max, &lists).map_err(unparsed)?;
+        let document = read_polled(ctx, member, text, max, Some(&lists))?.map_err(unparsed)?;
         #[expect(
             unsafe_code,
             reason = "the same live descriptor the caller vouched for"
         )]
         return unsafe { hydrate(ctx, class, shape, document, list, reading, member) };
     }
+    let deadline = deadline_of(ctx);
     let build = std::cell::RefCell::new(Builder::new(&mut *ctx));
-    let read = read_against(text, max, contract, list, &build);
+    let read = read_against(text, max, contract, list, &build, Some(&deadline));
     // The slots of an object the parse left open, and the arrays kept for
     // `Lists`, drop with this and release what they hold.
     let Builder {
         ctx, fault, kept, ..
     } = build.into_inner();
+    // A parse the deadline stopped is the deadline's FATAL. What it read is
+    // dropped with `read`.
+    deadline_finished(&deadline, ctx, member)?;
     // A fault a build raised ends the parse, and is what the call throws.
     if let Some(fault) = fault {
         return Err(fault);
@@ -2963,6 +3103,7 @@ impl<'de, 'a> DeserializeSeed<'de> for Fill<'a, '_> {
     type Value = Found<'a>;
 
     fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
+        self.decode.polled()?;
         deserializer.deserialize_any(self)
     }
 }
@@ -3389,6 +3530,8 @@ impl<'de, 'a> DeserializeSeed<'de> for Typed<'a, '_> {
             element,
             build,
         } = self;
+        // One poll for the value, whichever visitor reads it below.
+        decode.polled()?;
         match ty {
             CodecTy::Class | CodecTy::Shape => {
                 #[expect(
@@ -3420,7 +3563,7 @@ impl<'de, 'a> DeserializeSeed<'de> for Typed<'a, '_> {
             }
             _ => {}
         }
-        decode.deserialize(deserializer).map(Found::Value)
+        deserializer.deserialize_any(decode).map(Found::Value)
     }
 }
 
@@ -3483,13 +3626,14 @@ fn read_against<'a>(
     contract: Contract<'a>,
     list: bool,
     build: Shared<'_, 'a>,
+    deadline: Option<&'a Deadline>,
 ) -> Result<Found<'a>, serde_json::Error> {
     if text.len() <= IN_PLACE_BYTES {
-        parse_against(text, max, contract, list, build)
+        parse_against(text, max, contract, list, build, deadline)
     } else {
         nvs_host::on_spare_stack_within(|base, ceiling| {
             let _task = TaskBounds::arm(build, base, ceiling);
-            parse_against(text, max, contract, list, build)
+            parse_against(text, max, contract, list, build, deadline)
         })
     }
 }
@@ -3528,6 +3672,7 @@ fn parse_against<'a>(
     contract: Contract<'a>,
     list: bool,
     build: Shared<'_, 'a>,
+    deadline: Option<&'a Deadline>,
 ) -> Result<Found<'a>, serde_json::Error> {
     let lists = match contract.reading {
         Reading::Wire(lists) => Some(lists),
@@ -3539,6 +3684,7 @@ fn parse_against<'a>(
         depth: 1,
         max,
         lists,
+        deadline,
     };
     let found = if list {
         (&mut deserializer).deserialize_any(FillList {
@@ -5862,7 +6008,8 @@ nvs_runtime::nvs_helper! {
     /// discards* owns what that costs.
     fn nvs_core_json_is_valid(ctx, args: [1]) {
         let text = text_of(&args[0], "isValid")?;
-        let value = match read(text, DEFAULT_MAX_DEPTH_U32) {
+        let parsed = read_polled(ctx, "Core\\Json::isValid", text, DEFAULT_MAX_DEPTH_U32, None)?;
+        let value = match parsed {
             Ok(value) => value,
             // A document past the memory limit is not answered `false`: the
             // request stops at the limit, as `decode` does.
@@ -5932,6 +6079,76 @@ pub(crate) mod tests {
     /// text of a decode.
     fn decoded(text: &str, max: u32) -> Result<Value, String> {
         read(text, max).map_err(|why| why.to_string())
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: every member that
+    /// walks a caller-sized document polls the deadline. Under an expired
+    /// deadline, `decode`, `isValid`, `decodeAs` and `encode` are the
+    /// deadline's FATAL, and under one that has not passed they are not.
+    // covers: Core\Json::decode
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "walks thousands of values per member, which Miri runs for minutes"
+    )]
+    fn every_walk_stops_at_an_expired_deadline() {
+        let count = nvs_runtime::DEADLINE_POLL_BATCH * 4;
+        let numbers = format!("[{}0]", "0,".repeat(count));
+        let objects = format!("[{}{{\"a\":1}}]", "{\"a\":1},".repeat(count));
+        let (class, shape) = int_shape(&["a"]);
+        let max = Value::uint(DEFAULT_MAX_DEPTH);
+        let stopped = |result: &Result<Value, i32>, member: &str| {
+            assert_eq!(result.as_ref().err(), Some(&nvs_runtime::FATAL), "{member}");
+        };
+        for expired in [false, true] {
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            if expired {
+                ctx.expire_deadline();
+            }
+            let text = Value::text(&numbers);
+            let decode = nvs_runtime::call(nvs_core_json_decode, &mut ctx, &[text, max]);
+            let valid = nvs_runtime::call(nvs_core_json_is_valid, &mut ctx, &[text]);
+            let value = read(&numbers, DEFAULT_MAX_DEPTH_U32).expect("the list parses");
+            let args = [value, Value::bool(false), Value::bool(false)];
+            let encode = nvs_runtime::call(nvs_core_json_encode, &mut ctx, &args);
+            #[expect(
+                unsafe_code,
+                reason = "`int_shape` leaks its table, so both addresses outlive \
+                          every object decoded against them"
+            )]
+            let decode_as = unsafe {
+                decode_as(
+                    &mut ctx,
+                    class,
+                    Some(shape),
+                    &objects,
+                    DEFAULT_MAX_DEPTH_U32,
+                    true,
+                    "Core\\Json::decodeAs",
+                )
+            };
+            if expired {
+                stopped(&decode, "Core\\Json::decode");
+                stopped(&valid, "Core\\Json::isValid");
+                stopped(&encode, "Core\\Json::encode");
+                assert!(
+                    matches!(decode_as, Err(Fault::Fatal(_))),
+                    "Core\\Json::decodeAs"
+                );
+            } else {
+                assert!(decode.is_ok(), "Core\\Json::decode");
+                assert_eq!(valid.map(|valid| valid.as_bool()), Ok(Some(true)));
+                assert!(encode.is_ok(), "Core\\Json::encode");
+                assert!(decode_as.is_ok(), "Core\\Json::decodeAs");
+            }
+            for made in [decode, encode].into_iter().flatten() {
+                release_all(&[made]);
+            }
+            if let Ok(made) = decode_as {
+                release_all(&[made]);
+            }
+            release_all(&[text, value]);
+        }
     }
 
     /// A key written twice in one object throws and names the key, at any
@@ -6144,7 +6361,7 @@ pub(crate) mod tests {
                 let contract = unsafe { Contract::new(class, None) }.over(Reading::Wire(&lists));
                 let mut ctx = nvs_runtime::Ctx::buffered();
                 let build = std::cell::RefCell::new(Builder::new(&mut ctx));
-                read_against(&text, max, contract, false, &build)
+                read_against(&text, max, contract, false, &build, None)
                     .map(drop)
                     .map_err(|why| why.to_string())
             })
@@ -6321,7 +6538,7 @@ pub(crate) mod tests {
         let contract = unsafe { Contract::new(class, Some(shape)) }.over(Reading::Wire(&lists));
         let read = |ctx: &mut nvs_runtime::Ctx, text: &str| {
             let build = std::cell::RefCell::new(Builder::new(ctx));
-            let found = read_against(text, DEFAULT_MAX_DEPTH_U32, contract, true, &build);
+            let found = read_against(text, DEFAULT_MAX_DEPTH_U32, contract, true, &build, None);
             let open = build.borrow().slots.len();
             (
                 found.map(|found| match found {
@@ -7211,7 +7428,7 @@ pub(crate) mod tests {
             )]
             let contract = unsafe { Contract::new(class, Some(shape)) }.over(Reading::Wire(&lists));
             let build = std::cell::RefCell::new(Builder::new(&mut ctx));
-            let found = read_against(text, DEFAULT_MAX_DEPTH_U32, contract, false, &build)
+            let found = read_against(text, DEFAULT_MAX_DEPTH_U32, contract, false, &build, None)
                 .expect("the document parses");
             assert_eq!(build.borrow().slots.len(), 0, "{text} leaves no slot open");
             let Found::Built(value) = &found else {
