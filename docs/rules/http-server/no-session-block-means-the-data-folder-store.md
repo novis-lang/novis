@@ -17,9 +17,21 @@ operation is one short statement in its own transaction, so two requests of one 
 for each other (`rule:http-server/a-session-is-loaded-once-and-written-whole`). `busy_timeout`
 covers the moment two writers meet, and that wait is one statement long.
 
+**A row belongs to one application.** The table is `nvs_sessions`, keyed by `(app, id)`, where
+`app` is the path of the innermost `[[app]]` block that matched the request: the identity the memory
+cache and the sealed session secret already use. The shared store's key is the prefix, that path,
+one `NUL` and the id. So two mounts under two `[[app]]` blocks never open each other's sessions, and
+two mounts that should share a login share one block. The configuration generation is not in the key,
+so a reload signs nobody out. A deployment with no `[[app]]` block is one application with an empty
+path (`rule:concurrency/the-memory-tier-is-one-store-per-process`). Two programs that share one data
+folder and write no `[[app]]` block still share sessions, so each needs a block of its own or a
+`--data` folder of its own. A connection drops the earlier `nvs_session` table when it opens: its
+rows name no application, and no Novis release wrote them.
+
 - **Memory:** one SQLite connection and its statement cache per core, O(cores), and nothing per
   session served. The rows are on disk, O(live sessions), because expired rows are swept
-  (`rule:http-server/session-expiry-belongs-to-the-store`).
+  (`rule:http-server/session-expiry-belongs-to-the-store`). Each store call also builds its key
+  from the application's path bytes, once per call.
 - **Latency:** one indexed read at `start`, and one update for a changed record or one insert for a
   new session, each on the blocking pool, so a core never waits on the disk
   (`rule:http-server/a-core-is-never-blocked-on-a-syscall`).
@@ -34,3 +46,6 @@ covers the moment two writers meet, and that wait is one statement long.
   `shared`.
 - **A session lock, as PHP's file handler takes.** One slow request would hold every other request
   of that session until it ends (`rule:http-server/a-session-is-loaded-once-and-written-whole`).
+- **The app folder as the application's identity.** Two entry files in two folders of one site
+  would stop sharing a session, and `[[app]]` already names an application.
+- **A `[session] scope` key.** It would be a second way to name what an `[[app]]` block names.

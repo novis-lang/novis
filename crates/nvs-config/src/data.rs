@@ -165,7 +165,8 @@ impl Folder {
 
     /// `session.sqlite`: the session store when no `[session] backend` is written
     /// (`rule:http-server/no-session-block-means-the-data-folder-store`). Every server process that
-    /// shares this folder reads the same file.
+    /// shares this folder reads the same file, and a row is keyed by its `[[app]]` block's path and
+    /// its id, so each application finds only its own sessions there.
     #[must_use]
     pub fn sessions(&self) -> PathBuf {
         self.root.join("session.sqlite")
