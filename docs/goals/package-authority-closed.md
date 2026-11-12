@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-types/src/ext_lib.rs, crates/nvs-ext/src/manifest.rs, crates/nvs-hir/src/symbol.rs, docs/rules/security/extension-grants-are-an-intersection.md, docs/rules/packaging/an-extension-package-carries-two-payloads.md]
   - id: 5
     title: a package sets only its own limits and restores only what a package set
-    status: open
+    status: done
     context: [crates/nvs-config/src/request.rs, crates/nvs-stdlib/src/config.rs, docs/rules/config/three-changeability-classes.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -458,32 +458,32 @@ from a namespace with a `[grants]` line, and every third-party `.nvsx` fixture t
 **Does:** refuse every key outside `limits.*` in `set_as_package`, and give `restore` the package word
 and the application's value to return to.
 
-- [ ] `set_as_package` returns `false` for every key that does not start with `limits.`
+- [x] `set_as_package` returns `false` for every key that does not start with `limits.`
   (`rule:security/package-authority-is-granted-one-line-at-a-time`,
   `crates/nvs-config/src/request.rs:380`).
-- [ ] The overlay keeps the application's value under a package's, and `restore_as_package` puts it
+- [x] The overlay keeps the application's value under a package's, and `restore_as_package` puts it
   back or drops a package's own entry. An application `set` over a package's entry clears the kept
   value (`rule:config/ini-set-is-core-config-set`, `crates/nvs-config/src/request.rs:563`,
   `crates/nvs-config/src/request.rs:307`). The doc says what it spends per request.
-- [ ] `Core\Config::restore` joins `PREPARED_MEMBERS`, takes the word as argument 0 and calls
+- [x] `Core\Config::restore` joins `PREPARED_MEMBERS`, takes the word as argument 0 and calls
   `restore_as_package` without it. The module doc section on packages is rewritten
   (`crates/nvs-stdlib/src/registry.rs:3398`, `crates/nvs-stdlib/src/config.rs:378`,
   `crates/nvs-stdlib/src/config.rs:55`).
-- [ ] `prepare_config_set` prepares `restore` too, through `authority_of`
+- [x] `prepare_config_set` prepares `restore` too, through `authority_of`
   (`crates/nvs-types/src/capability.rs:160`, `crates/nvs-types/src/expr/calls.rs:762`).
-- [ ] Test `a_package_sets_no_key_outside_limits`. It reads every key from the configuration's own key
+- [x] Test `a_package_sets_no_key_outside_limits`. It reads every key from the configuration's own key
   list and fails naming a key outside `limits.` that `set_as_package` accepts
   (`crates/nvs-config/src/request.rs:380`).
-- [ ] Tests `a_package_restores_only_what_a_package_set` and
+- [x] Tests `a_package_restores_only_what_a_package_set` and
   `a_package_restore_returns_to_the_applications_value` (`crates/nvs-config/src/request.rs:563`). The
   lib test at `crates/nvs-stdlib/src/config.rs:840` follows.
-- [ ] Case `tests/conformance/cap/grants-a-package-sets-and-restores-only-its-own-limits.nvst:1`: a
+- [x] Case `tests/conformance/cap/grants-a-package-sets-and-restores-only-its-own-limits.nvst:1`: a
   package sets `http.cookies.http_only` and gets `false`, and restores a limit the application lowered
   and the limit stays.
-- [ ] Attacks that run to the end and print what each call returned:
+- [x] Attacks that run to the end and print what each call returned:
   `tests/hostile/tools/packages/grants-what-each-namespace-may-do/08-change-the-applications-cookies.nvs:1`
   and `tests/hostile/tools/packages/grants-what-each-namespace-may-do/09-undo-the-applications-limit.nvs:1`.
-- [ ] Rule fragments: the package paragraph names every key and `restore`
+- [x] Rule fragments: the package paragraph names every key and `restore`
   (`docs/rules/security/package-authority-is-granted-one-line-at-a-time.md:26`), and
   `docs/rules/config/three-changeability-classes.md:1` says a package sets `limits.*` alone. The
   `Core\Config` example's `about.md` says so in one sentence.
@@ -498,39 +498,39 @@ and the application's value to return to.
 
 ### State
 
-Stages 1 to 4 are done, and their five checks are green, `extensions-ask-the-namespace` included.
-Stage 4: `ext_lib::implied_capabilities` (`crates/nvs-types/src/ext_lib.rs:234`) reads a manifest's
-requests into `ClassSignature::requests`, and `seed` records each third-party extension's namespace
-(`crates/nvs-types/src/signatures.rs:926`). `Authority::Implied`
-(`crates/nvs-types/src/capability.rs:271`) is the empty line `authority_of` (`:302`) returns there,
-and `reject_ungranted` (`:322`) prints the line to write. New fixtures are `courier` under
-`tests/conformance/ext/fixtures/` and `notes` beside attacks `04-` and `05-`, as `01-` to `03-`
-were taken. The tests at `crates/nvs-cli/tests/package_grants.rs:511` run `nvs check` in the app
-folder so its `nvs.toml` loads. No in-tree caller of an extension sits under a grant line.
+Stages 1 to 5 are done, and their six checks are green, `package-config-is-narrow` included.
+Stage 5: `set_as_package` (`crates/nvs-config/src/request.rs:413`) refuses every key outside
+`limits.`, and `Request::package_set` (`:105`) keeps the application's value under a key a package
+set. `restore_as_package` (`:615`) puts it back or drops the package's entry, and the application's
+`set` (`:326`) and `restore` forget it. `Core\Config::restore` is on `PREPARED_MEMBERS`
+(`crates/nvs-stdlib/src/registry.rs:3977`), takes the word as argument 0, and
+`prepare_config_set` (`crates/nvs-types/src/capability.rs:178`) files `ApplicationSet` for it too.
+The case is `tests/conformance/cap/grants-a-package-sets-and-restores-only-its-own-limits.nvst`,
+and attacks `08-` and `09-` use a new package `vendor/acme/limits` with an empty grant line. Both
+attacks run to the end and print `false`, `true`, `96M` as they should.
 
 The sweep's reds are stale: `env-secret-proofs` was retired, and nightly 43001191130 predates
 `305c04f660`. `cargo fmt` rewrites `crates/nvs-config/src/defaults.rs` although HEAD's copy is
 unchanged; restore it with `git checkout`.
 
-Expected red: a case or example that calls `Core\Debug::startTrace`, `startProfile` or a `saveTo`
-from a granted namespace, or whose application code declares a namespace under a third-party
-extension's (such as `namespace Shop;` beside `ledger`) and calls a capability member. None was
-found. Stage 4 ran only the tests it wrote, the `fixtures` suite, the new case and its proofs.
+Expected red: anything that counts `PREPARED_MEMBERS` or the arity of `nvs_core_config_restore`
+(now `args: [2]`), such as an ABI or `nvs meta` snapshot. A case or example in a package namespace
+that sets a key outside `limits.*` and expects `true`. From stage 4: a case or example that calls
+`Core\Debug::startTrace`, `startProfile` or a `saveTo` from a granted namespace, or whose
+application code declares a namespace under a third-party extension's. Stage 5 ran only its three
+new tests, the two `config.rs` lib tests it touched, the two `grants-a-package-*` limit cases and
+the two attacks.
 
 ### Next
 
-Stage 5, over `crates/nvs-config/src/request.rs`, `crates/nvs-stdlib/src/config.rs` and
-`crates/nvs-types/src/capability.rs`.
+Stage 6, the gate: run `looper verify` over the whole goal, fix every failure in one pass, run it
+again. Then the goal-end gates of `AGENTS.md` § *In the loop*: `bun nv verify --doc`,
+`bun nv owners --closes package-authority-closed`, `bun nv ci --check`.
 
-- [ ] `set_as_package` (`crates/nvs-config/src/request.rs:380`) returns `false` outside `limits.`,
-  with test `a_package_sets_no_key_outside_limits`.
-- [ ] `restore` (`crates/nvs-config/src/request.rs:563`) gains a package form, and the overlay
-  keeps the application's value under a package's, with its two tests.
-- [ ] `Core\Config::restore` (`crates/nvs-stdlib/src/config.rs:584`) joins `PREPARED_MEMBERS`
-  (`crates/nvs-stdlib/src/registry.rs:3971`), and `prepare_config_set`
-  (`crates/nvs-types/src/capability.rs:176`) prepares it too.
-- [ ] The rule fragment `docs/rules/security/package-authority-is-granted-one-line-at-a-time.md:26`,
-  the case, and attacks `08-` and `09-` in that feature's hostile folder.
+- [ ] `looper verify` started, and its report read (`crates/nvs-stdlib/src/config.rs:396`).
+  The first failures to look for are the expected reds above.
+- [ ] Every failure fixed in one pass, never by loosening a test (`docs/goals/package-authority-closed.md:491`).
+- [ ] `looper verify` green a second time, and the goal-end gates green (`AGENTS.md:255`).
 
 ### Backlog
 
