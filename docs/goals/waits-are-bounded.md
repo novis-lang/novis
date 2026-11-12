@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-cli/src/extensions.rs, crates/nvs-host/src/block_on.rs, crates/nvs-ext/src/call.rs, docs/rules/packaging/a-fresh-instance-per-request.md]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: waits-past-wall-time-are-named
@@ -306,6 +306,10 @@ is dropped. **What it spends:** one word and one lock per call. Usability: none.
 (`docs/agent/testing.md` § *A test holds on every CI runner*). Each attack ends at its bound with the
 error its rule names.
 
+**The nine `Core\Session` perf records are measured on this host with Docker running (d12).** The
+user starts Docker Desktop, because a loop session cannot start it here, and the session measures
+them with `bun nv proofs --record-perf`. Declined: skipping the records or measuring them on CI.
+
 **Lanes:** one lane, in order. Stages 1 to 3 share `scheduler.rs` and the stdlib wait sites. Stage 4
 needs stage 2's stop and shares `blocking.rs` with stage 1. Stage 5 needs stage 4's streak check and
 shares `socket.rs` with stage 3. Stage 6 shares `block_on.rs` with stage 1 and no file with stages 3
@@ -576,29 +580,25 @@ and end a guest call that parks past the wall deadline.
 - [x] Run `looper verify` once more, and it is green.
 - [x] `bun nv owners --closes waits-are-bounded` names no gap: the nine walks that polled no deadline
   poll it now.
-- [ ] `bun nv ci --check` is green, and each decision only this file states is moved to a rule
+- [x] `bun nv ci --check` is green, and each decision only this file states is moved to a rule
   fragment or a module doc before `DONE`.
   - [x] The two stale question sets are rewritten and stamped.
-  - [ ] The stale perf records are measured again with `bun nv proofs --record-perf`.
+  - [x] The stale perf records are measured again with `bun nv proofs --record-perf`.
     - [x] 309 of the 318 are measured (add9c4d400).
-    - [ ] The nine `Core\Session` records are measured with Docker running.
-  - [ ] `bun nv ci --check` is green.
+    - [x] The nine `Core\Session` records are measured with Docker running.
+  - [x] `bun nv ci --check` is green.
   - [x] Each standing decision is found in a rule fragment or module doc, or moved there.
 
 ## Handoff
 
 ### State
 
-Stage 7: `looper verify` is green over the whole goal (0246cf0f3a, b87424507a), and
-`bun nv owners --closes waits-are-bounded` names no gap. `bun nv verify --doc` is green.
+The goal is reached. `looper verify` is green over the whole goal (0246cf0f3a, b87424507a),
+`bun nv owners --closes waits-are-bounded` names no gap, `bun nv verify --doc` is green, and
+`bun nv ci --check` is green with every pre-push check ok.
 
-- `bun nv proofs --record-perf` skips a bench whose service this host cannot run, says why, and
-  writes what it measured even when a later bench throws (985570fab7). It measured 309 of the 318
-  stale records (add9c4d400).
-- `bun nv ci --check` is red on one thing alone: the feature proofs gate owes the nine
-  `Core\Session` perf records, which need `redis`. Docker Desktop did not start on this host, by
-  `Start-Process` or by `cmd start`, so this session could not measure them. Every other pre-push
-  check is ok.
+- All 318 stale perf records are measured: 309 in add9c4d400, and the nine `Core\Session` records
+  with Docker running, by d12.
 - Each standing decision is stated in a rule fragment or module doc (9284f7e0c6). The gaps were
   filled in `docs/rules/errors/on-limit.md`, the `BOUND` doc in `crates/nvs-runtime/src/budget.rs`,
   `run_until` in `crates/nvs-host/src/blocking.rs` and `drive` in `crates/nvs-cli/src/extensions.rs`.
@@ -607,15 +607,7 @@ Stage 7: `looper verify` is green over the whole goal (0246cf0f3a, b87424507a), 
 
 ### Next
 
-Stage 7's last item. It needs Docker running on this host.
-
-- `docs/goals/waits-are-bounded.md:582`: start Docker Desktop, then run
-  `bun nv proofs --record-perf --only 'Core\Session::start' 'Core\Session::get' ...` over the nine
-  `Core\Session` members (or plain `--record-perf`, which measures only what is owed). Commit
-  `data/perf/members.ndjson`.
-- `docs/goals/waits-are-bounded.md:585`: run `bun nv ci --check` and see it green.
-- Then write `DONE`.
-- Expected red: none.
+Nothing: the goal is `DONE`, and the chain moves on to `sessions-scoped`. Expected red: none.
 
 ### Backlog
 
