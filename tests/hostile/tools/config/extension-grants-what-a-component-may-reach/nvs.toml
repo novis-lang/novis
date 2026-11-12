@@ -6,6 +6,11 @@ path = "../../../../../docs/examples/tools/config/extension-grants-what-a-compon
 sha256 = "8bb2081b5d76340eb1cdc2cf22b0eaa2144bb7851b83abb5662c1b369ce9694b"
 grants = { read = ["data/geo/"], write = ["data/geo/"], connect = ["tiles.example.com", "maps.example.com"] }
 
+# The fifth attack calls `Geo\Notes\Reader`, which comes with the extension `Geo\Notes`.
+[[extension]]
+path = "notes.nvsx"
+sha256 = "b953d9caf0a98fa69bb6e4476edfd24be4fa51a8f876e0e2a208b51e0ecc61a4"
+
 # The attacks may read and write the folder `data/`, and connect to any host.
 [capabilities.fs]
 read = ["data/"]

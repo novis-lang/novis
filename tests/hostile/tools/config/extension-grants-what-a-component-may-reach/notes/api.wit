@@ -1,0 +1,9 @@
+package geo:notes;
+
+/// The attack fixture `Geo\Notes`. Its Novis source tries to read a file.
+interface api {
+    use nvs:ext/types@1.0.0.{error};
+
+    /// Returns the version of the extension.
+    version: func() -> result<s64, error>;
+}

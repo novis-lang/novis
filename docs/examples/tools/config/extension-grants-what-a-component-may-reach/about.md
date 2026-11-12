@@ -12,5 +12,10 @@ an extension asks for.
 The third party is the program that calls the extension. An extension never reaches more than that
 program may reach. If the program may read only one folder, the extension reads only that folder.
 
+A package needs a grant to call an extension that asks for files or hosts. Its line in `[grants]`
+must list `fs.read` for an extension that reads, and `net.connect` for one that connects. An
+extension that writes also needs `fs.write`. `nvs ext inspect` prints the capabilities a calling
+package needs. If the extension comes with Novis code, that code is a package too. It needs its own line.
+
 **Good to know:** a path with `..` or a symbolic link never leaves a granted folder. A request from
 the extension is checked like a request from `Core\Http\Client`.

@@ -1,0 +1,11 @@
+{
+  "manifest": 1,
+  "world": "1.0.0",
+  "class": "Shop\\Courier",
+  "interface": "shop:courier/api",
+  "methods": [
+    {"name": "version", "params": [], "returns": "int",
+     "help": "Returns the version of the extension."}
+  ],
+  "requests": {"read": ["data/"], "connect": ["tiles.example.com"]}
+}

@@ -1,0 +1,10 @@
+package shop:courier;
+
+/// The fixture extension `Shop\Courier`. Its manifest requests I/O, so a calling package needs a
+/// grant for it.
+interface api {
+    use nvs:ext/types@1.0.0.{error};
+
+    /// Returns the version of the extension.
+    version: func() -> result<s64, error>;
+}

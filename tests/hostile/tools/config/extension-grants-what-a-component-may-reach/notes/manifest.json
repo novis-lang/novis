@@ -1,0 +1,10 @@
+{
+  "manifest": 1,
+  "world": "1.0.0",
+  "class": "Geo\\Notes",
+  "interface": "geo:notes/api",
+  "methods": [
+    {"name": "version", "params": [], "returns": "int",
+     "help": "Returns the version of the extension."}
+  ]
+}

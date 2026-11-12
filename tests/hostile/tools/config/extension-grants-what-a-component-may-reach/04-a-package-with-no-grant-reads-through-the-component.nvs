@@ -1,0 +1,9 @@
+<?nvs
+// Attack: a package asks the extension `Geo\Atlas` to read a file for it.
+// The package's grant line is empty, so this program should not compile.
+// hostile: expect-refusal
+
+autoload 'Acme\Maps' from './vendor/acme/maps/src';
+
+// 1. A class of `Acme\Maps` calls `Geo\Atlas::read`. The extension needs `fs.read` and `net.connect`.
+echo Acme\Maps\Reader::cities(), "\n";

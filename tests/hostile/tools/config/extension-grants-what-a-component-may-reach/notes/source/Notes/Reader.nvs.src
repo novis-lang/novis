@@ -1,0 +1,9 @@
+<?nvs
+namespace Geo\Notes;
+
+// `Reader::first` returns the text of a file in the folder `data/`.
+final class Reader {
+    public static function first(): string {
+        return Core\IO::readText('data/geo/cities.txt');
+    }
+}

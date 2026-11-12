@@ -1,0 +1,3 @@
+# The package `Acme\Maps` has an empty grant line, so it may not read files or connect to hosts.
+[grants]
+'Acme\Maps\*' = []

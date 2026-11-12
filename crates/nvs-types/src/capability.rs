@@ -396,7 +396,7 @@ pub(crate) fn reject_ungranted(
         ),
         Authority::Implied | Authority::Application => (
             format!(
-                "`{namespace}` is the namespace of an extension's own code.                  It has no capabilities until a line in `[grants]` names it"
+                "`{namespace}` is the namespace of an extension's own code. It has no capabilities until a line in `[grants]` names it"
             ),
             format!(
                 "add this line to `[grants]` in `{file}` if this code should have it: '{key}' = [{}]",

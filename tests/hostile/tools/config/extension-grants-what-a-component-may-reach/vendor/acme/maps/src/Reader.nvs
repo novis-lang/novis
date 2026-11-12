@@ -1,0 +1,11 @@
+<?nvs
+// This file is in the package `Acme\Maps`. Its grant line is empty.
+namespace Acme\Maps;
+
+final class Reader
+{
+    public static function cities(): string
+    {
+        return Geo\Atlas::read('cities.txt');
+    }
+}

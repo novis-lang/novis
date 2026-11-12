@@ -1,0 +1,43 @@
+--TEST--
+a call to an extension's class needs the capabilities its manifest requests on the calling namespace's `[grants]` line, and an extension that requests nothing needs none — `rule:security/extension-grants-are-an-intersection`
+--EXTENSION--
+courier
+ledger
+--FILE--
+<?nvs
+// This file is the application. It may call every extension.
+autoload 'Acme\Maps' from './maps';
+
+echo Shop\Courier::version(), "\n";
+echo Acme\Maps\Client::version(), "\n";
+echo Acme\Maps\Client::echo(7), "\n";
+--FILE maps/Client.nvs--
+<?nvs
+// The line for `Acme\Maps` is empty.
+namespace Acme\Maps;
+
+final class Client
+{
+    // `Shop\Courier` requests files and a host, so this call needs `fs.read` and `net.connect`.
+    public static function version(): int
+    {
+        return Shop\Courier::version();
+    }
+
+    // `Shop\Ledger` requests nothing, so this call needs no capability.
+    public static function echo(int $value): int
+    {
+        return Shop\Ledger::echoInt($value);
+    }
+}
+--FILE package.toml--
+# covers: tools:config/extension-grants-what-a-component-may-reach
+[grants]
+'Acme\Maps' = []
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0658]: the namespace `Acme\Maps` does not have the capability `fs.read`, `net.connect`
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,7 @@
+<?nvs
+// Attack: the extension `Geo\Notes` comes with Novis code, and that code reads a file.
+// No grant line names `Geo\Notes`, so this program should not compile.
+// hostile: expect-refusal
+
+// 1. `Geo\Notes\Reader::first` calls `Core\IO::readText`.
+echo Geo\Notes\Reader::first(), "\n";

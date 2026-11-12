@@ -1,6 +1,13 @@
 What an extension may read, write or call at a given moment is the **intersection** of three sets,
 each of which only narrows: what the operator grants on the extension's own `[[extension]]` entry, what
-the extension's manifest declares it needs, and what the calling code's namespace holds at the call.
+the extension's manifest declares it needs, and what the calling code holds at the call.
+
+The third set has two halves. **The caller's `[grants]` line is asked while compiling**: a call to
+any method of an extension's class needs every capability its manifest's `requests` imply, `fs.read`
+for a `read` list, `fs.read` and `fs.write` for a `write` list and `net.connect` for a `connect`
+list, because a manifest requests for the whole component. A manifest that requests nothing needs
+no line, and a package may call it with an empty one. `nvs ext inspect` prints the capabilities a
+calling package needs. **The caller's run-time grant is asked when the instance is made**, as below.
 
 ```toml
 [[extension]]
@@ -36,7 +43,11 @@ cannot know the operator's folders; its `connect` hosts are matched one by one. 
 path: a root it holds inside an entry root replaces that root. A `write` root is opened read-write, so
 the caller must hold both `fs.write` and `fs.read` over it.
 
-**On disk.** `nvs_config::tree::Grants` reads the entry's `grants`, refusing an unknown key,
+**On disk.** `nvs_types::ext_lib::implied_capabilities` reads a manifest's requests into
+capabilities, and `nvs_types::capability::reject_ungranted_call` asks them of the caller's line
+(`crates/nvs-cli/tests/package_grants.rs`,
+`tests/conformance/ext/a-package-calls-an-extension-only-with-its-capabilities.nvst`).
+`nvs_config::tree::Grants` reads the entry's `grants`, refusing an unknown key,
 and `nvs_config::extension::grants` makes its roots absolute against the file that wrote each list;
 `env_hash` does not read it. `nvs_ext::grants::effective` computes the intersection
 (`crates/nvs-ext/tests/grants.rs`) when an instance is made, from the entry's grants, the manifest

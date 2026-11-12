@@ -4,8 +4,11 @@ application to grant itself, which is ceremony charged to the common case.
 
 That default is only safe because **nothing a package manager fetched is ever unmatched**: fetching
 writes a grant line for every package in the resolved graph, direct and transitive, **including an
-empty one**. The permissive default therefore applies only to code a human wrote or pasted, which is
-the case where it is the right answer.
+empty one**. **Third-party extension source is never unmatched either**: the namespace of a loaded
+`.nvsx` that is not built into `nvs` holds an implied empty line where no line names it, with or
+without a grant table (`rule:packaging/an-extension-package-carries-two-payloads`). The permissive
+default therefore applies only to code a human wrote or pasted, which is the case where it is the
+right answer.
 
 Hand-vendored code is the residue, and it is reported rather than closed: an audit warns on a
 namespace whose autoload root lies under a directory the grant table never mentions. A warning is the

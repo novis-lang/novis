@@ -8,8 +8,14 @@ above it is source (`rule:core-classes/image-pipeline`); `Novis\Spreadsheet\Engi
 (`rule:core-classes/spreadsheet-has-no-io`).
 
 Loading the extension makes its source resolvable by `autoload` with no line the program writes. The
-source compiles like any other Novis file and holds the authority of its own namespace, which is no
-grant unless the operator writes one. The one pin covers both payloads, so the source cannot be edited
+source compiles like any other Novis file. **A third-party extension's source is a package**: its
+namespace holds what a `[grants]` line names and nothing else. Where no line matches, it holds an
+empty line, also where the application has no grant table at all, so the source can read no file and
+reach no host until the operator writes one. The key is the namespace, so application code that
+declares a namespace under the extension's is held to the same line. **A built-in component's source
+keeps the application's authority**, because only Novis declares under `Novis\`. A manifest class
+with one segment has no namespace to key on, so the loader refuses source beside it. The one pin
+covers both payloads, so the source cannot be edited
 under a pinned component, and `nvs ext inspect --source` prints it. A package carries a `.nvsx` as an
 extension package (`rule:packaging/a-package-is-its-digest`), and its carried source must then be
 under the package's namespace too.
@@ -21,7 +27,9 @@ would spend a boundary crossing per method to append to an array
 whose whole premise is that state does not outlive a request.
 
 **On disk.** `nvs_ext::source` reads the section, and the loader refuses a file whose
-`namespace` is not under the class's own (`crates/nvs-ext/tests/load.rs`). The graph walk resolves
+`namespace` is not under the class's own, and any file beside a class with one segment
+(`crates/nvs-ext/tests/load.rs`). `nvs_types::capability::authority_of` gives a third-party
+extension's namespace its implied empty line (`crates/nvs-cli/tests/package_grants.rs`). The graph walk resolves
 a name under that namespace to the carried file with no `autoload` line
 (`nvs_hir::ExtensionClass::source`), and `nvs run`, `nvs check` and `nvs test` fill that field
 from the set's manifests
