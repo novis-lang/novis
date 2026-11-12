@@ -565,41 +565,54 @@ and end a guest call that parks past the wall deadline.
 
 ### State
 
-Stage 4 is done. `NvsStream::read` and `write` count the calls that returned bytes since the last
-park, and every `STREAK` (16, `crates/nvs-host/src/net.rs:242`) the next call runs `check_streak`
-(`net.rs:1755`): a passed deadline or `busy_asks` (`crates/nvs-runtime/src/budget.rs:816`) answering
-`Stop` ends it with `TimedOut`, and `Yield` gives the core back with `Waiting::Yielded`. `busy_asks`
-reads `TURN`'s tree, else `BOUND`'s: `WALL_TIME` or `CPU_LIMIT` raised, or a passed park bound, which
-it stops the tree at. The reactor's `hung_up` bit (`crates/nvs-host/src/reactor.rs:623`) keeps the
-syscall after a short read, and the blocking pool skips a job abandoned in the queue. The three rules
-say so. All seven stage-4 tests pass when each runs alone from its test binary. The hang-up test is
-Unix-only and has not run yet, because this host is Windows. The build is green.
+Stage 5 is half done. Two of its slices landed, each with its tests run once by name and green:
 
-Stages 1 to 3 are done: `yield_on` (`crates/nvs-host/src/scheduler.rs:1901`) is the one bound on
-a request's wait, no hand clamp is left, and `Ctx::off_core_deadline`
-(`crates/nvs-runtime/src/ctx/limits.rs:1057`) is read only where work runs off the core.
+- `Framed::receive_or` (`crates/nvs-server/src/socket.rs:417`) fixes the idle instant once per call.
+  A ping, a pong or a wake that was not an interrupt keeps it (`idle_past`). `expired` compares the
+  lifetime where each `receive` and each `send` starts. The tests are in `socket.rs`'s own `tests`
+  module, off any core, over a loopback pair with a 1 ns idle window.
+- The event-stream door takes `Slot::take(bounds.max_open)` before the isolate starts
+  (`crates/nvs-server/src/serve.rs:2543`). `EventStream` holds the place as `_place`, and the door
+  answers `crate::admit::over_capacity()` at the ceiling. `Slot::take_from` is `pub(crate)` for the
+  tests, and `upgrade_once_reading_to` reads a response that is not the door's own.
 
-The sweep's reds were settled on disk again: `env-secret-proofs` is not a check in this tree, and
-nightly run 43001191130 tested f4c1d5c7e2, an ancestor of HEAD.
+`rule:concurrency/connection-bounds-are-finite` says both, and the `[server.connection]` comment says
+`idle_timeout` is the longest time with no message. The rule's line on `cpu_time` per turn waits for
+the next slice.
+
+The sweep's reds: four nvs-stdlib unit tests that Miri cannot run now carry `cfg_attr(miri, ignore)`
+(7568aaa0fb). Two deadline sweeps over 2 MiB, the source scan for whole reads, and a long JSON key on
+the spare stack. `env-secret-proofs` is defined nowhere in this tree, in neither `looper.toml` nor
+`docs/goals/`, and no log for it exists.
+
+The `Explore` sweep for pages: `website/src/content/docs/guides/example-apps/chat.mdx:168` and `:182`
+send a JSON `ping` message, which is a message, so they stay. The `cpu_time` pages are below.
 
 ### Next
 
-Stage 5, an upgraded connection is watched, takes a place and is ended by its idle timeout. Its items
-and anchors are under `### 5.` above.
+The watchdog slice, then the attacks and the docs. Items and anchors are under `### 5.` above.
 
 - `crates/nvs-host/src/isolate.rs:793` is where `Isolate::start` takes the tree's CPU limit. The
-  publication with `watchdog::publish_here` goes beside it.
-- `crates/nvs-server/src/socket.rs:387` is `Framed::receive_or`, where the idle instant is fixed once
-  per call and kept across pings and empty fragments.
-- Stage 4's streak check already ends a peer that only keeps bytes arriving, once the tree is stopped.
+  publication with `watchdog::publish_here` goes beside it, when `watch` is `None` and a peer or an
+  event stream is set.
+- `crates/nvs-host/src/watchdog.rs:343` is the charge. Restart the running tree's charge on its own
+  core, and call it through `Host` from `crates/nvs-stdlib/src/socket.rs:1242`,
+  `crates/nvs-stdlib/src/sse.rs:885` and `crates/nvs-runtime/src/peer.rs:621`.
+- `crates/nvs-server/src/serve.rs:5037` is a two-door test to copy for the three CPU tests. They run on
+  a core registered with a watchdog.
+- `website/src/content/docs/guides/production/limits-and-logs.mdx:31` and
+  `website/src/content/docs/guides/how-to-use/limits.mdx:20` say `cpu_time` applies to a connection.
+  Once the count restarts per turn, they say it applies to each turn.
+- `docs/rules/concurrency/a-connection-is-a-root-isolate.md:19` gets what a turn is.
 - Run `crates/nvs-host/src/net.rs`'s `a_short_read_that_came_with_a_hang_up_reads_once_more` once
   in WSL with `bun nv linux-test`, since it is Unix-only.
 - Expected red, read at stage 7: a test that expects a member's own catchable timeout under a passed
   `wall_time` now gets the wall-time `FATAL`. A test that slept past a passed `wall_time` off any core
   (no scheduler) now sleeps its whole duration: `Core\Time::sleep` and the transaction retry backoff
-  read no deadline there. `process.rs`'s `run_stops_a_child_at_the_request_wall_time` should still pass.
-  A test that reads a fast peer through `NvsStream` past a passed deadline now ends after sixteen
-  reads. Only the new tests were run.
+  read no deadline there. A test that reads a fast peer through `NvsStream` past a passed deadline now
+  ends after sixteen reads. A WebSocket test whose peer kept a connection open with pings past
+  `idle_timeout` is now closed at it. A test that opens more event streams than `max_open` gets a
+  `503`. Only the new tests were run.
 
 ### Backlog
 
