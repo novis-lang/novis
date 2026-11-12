@@ -1,0 +1,17 @@
+--TEST--
+a read of a parameter inside its method answers the parameter in the method's signature, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Greeter
+{
+    public function greet(string $name): string
+    {
+        return "Hello, " . $na<|>me;
+    }
+}
+
+echo new Greeter()->greet(name: "Ada");
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:4:34

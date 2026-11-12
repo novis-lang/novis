@@ -3,7 +3,18 @@ gets a walk of its own. `textDocument/references` is the index's read side, and 
 that imports the name among its uses; the CodeLens count leaves those lines out, because an import brings
 a name into scope and uses nothing. `textDocument/documentHighlight`
 is the same query narrowed to the open file, which is why it reads the index rather than the open
-document alone: it needs resolution applied to every occurrence, not to one. CodeLens above a declaration shows
+document alone: it needs resolution applied to every occurrence, not to one.
+
+A local variable is the one name the index does not hold, because it is scoped to the body that declares
+it. On a local, `textDocument/definition` answers its declaration, and `references` and
+`documentHighlight` answer every place its body writes it, the declaration included. All three read the
+type phase's record of each body's bindings, the record rename reads, through one function
+(`crates/nvs-lsp/src/locals.rs`). The variable under the cursor is asked before the expression around
+it, so a `$markup` passed to a call answers the local and not the call, and the `$u` of `$u->name` answers
+`$u`. An anonymous function that declares the name again has a variable of its own, and its sites are left
+out. This holds nothing and costs one tokenize and one tree walk of the open document per request.
+
+CodeLens above a declaration shows
 the reference count, a type's implementors, and the methods a method overrides and is overridden by; it is
 gated on `nvs.codeLens.enable` (default `true`), because a lens is a request per visible declaration and a
 large file is where it is least welcome. A click on a lens lists the places it counts. The lens carries

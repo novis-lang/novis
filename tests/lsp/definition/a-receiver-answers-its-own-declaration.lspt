@@ -1,0 +1,15 @@
+--TEST--
+a cursor on the variable in front of `->` answers the variable's declaration, and a cursor on the member name after it still answers the member, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+var $u = new User();
+echo $<|>u->name;
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:7:5

@@ -120,7 +120,7 @@ use lsp_types::{
     TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
     WorkspaceSymbol, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
-use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, SourceMap};
+use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, SourceMap, canonical_key};
 
 use crate::actions;
 use crate::calls;
@@ -1413,6 +1413,11 @@ fn uses_of(
     include_declaration: bool,
     encoding: PositionEncoding,
 ) -> Option<Vec<Location>> {
+    // A local's uses are its body's, and the index holds no local.
+    if let Some(sites) = local_sites(analysed, None, offset) {
+        let sites: Vec<&Site> = sites.iter().collect();
+        return Some(locations(documents, &sites, encoding));
+    }
     let symbol = symbol_at(analysed, offset)?;
     // A `use` line is listed among the uses, in its place in the file, though
     // the CodeLens does not count it ([`SymbolIndex::imports_of`]).
@@ -1471,23 +1476,53 @@ fn document_highlight(
 /// because the two halves spell one differently: the wire needs a range in the
 /// open document and a case needs a place it can name a file in.
 ///
-/// The declaration is not among them. `occurrences_in` is uses only, and an
-/// editor asking this is asking what else on screen is this same name rather
-/// than where it came from — which is [`references`]' question, and the one
-/// request whose parameters carry a flag for it.
-fn uses_in<'index>(
-    index: &'index SymbolIndex,
+/// The declaration of a member or a type is not among them. `occurrences_in`
+/// is uses only, and an editor asking this is asking what else on screen is
+/// this same name rather than where it came from — which is [`references`]'
+/// question, and the one request whose parameters carry a flag for it. A
+/// local's declaration is among them: it is in the same body and on screen
+/// with its reads, and [`crate::locals`] answers every site of a local at once.
+fn uses_in(
+    index: &SymbolIndex,
     analysed: &Analysed,
     here: &Path,
     offset: BytePos,
-) -> Option<Vec<&'index Site>> {
+) -> Option<Vec<Site>> {
+    if let Some(sites) = local_sites(analysed, Some(here), offset) {
+        return Some(sites);
+    }
     let symbol = symbol_at(analysed, offset)?;
     Some(
         index
             .occurrences_in(here)
             .iter()
             .filter(|occurrence| occurrence.symbol == symbol)
-            .map(|occurrence| &occurrence.site)
+            .map(|occurrence| occurrence.site.clone())
+            .collect(),
+    )
+}
+
+/// Every site of the local at `offset` in the entry document, declaration
+/// included, or `None` where the cursor is on no local ([`crate::locals::at`]).
+///
+/// Each site is in the entry document, spelled under `here` when the caller
+/// has the index's key for it, and under the entry's own canonical key
+/// otherwise.
+fn local_sites(analysed: &Analysed, here: Option<&Path>, offset: BytePos) -> Option<Vec<Site>> {
+    let local = crate::locals::at(analysed, offset)?;
+    let path = match here {
+        Some(here) => here.to_path_buf(),
+        None => canonical_key(analysed.map.file(analysed.entry).path()?),
+    };
+    Some(
+        local
+            .sites
+            .iter()
+            .map(|span| Site {
+                path: path.clone(),
+                start: span.start,
+                end: span.end,
+            })
             .collect(),
     )
 }
@@ -2583,6 +2618,7 @@ pub(crate) fn highlights_of_case(
     let settings = case_settings(root);
     let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
     let sites = uses_in(&index, analysed, entry, offset)?;
+    let sites: Vec<&Site> = sites.iter().collect();
     Some(locations(documents, &sites, encoding))
 }
 

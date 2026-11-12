@@ -121,6 +121,7 @@ pub mod imports;
 pub mod index;
 mod lens_rows;
 pub mod links;
+mod locals;
 pub mod narrow;
 pub mod order;
 pub mod organize;

@@ -76,12 +76,13 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Component, Path, PathBuf};
 
 use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, SourceId, SourceMap, Span, canonical_key};
-use nvs_syntax::{Token, TokenKind, tokenize, walk};
+use nvs_syntax::{Token, TokenKind, tokenize};
 use nvs_types::LocalBinding;
 
 use crate::definition::{covers, text_of};
 use crate::document::{Analysed, Documents, analyse_file};
 use crate::index::{DeclKind, Site, SymbolIndex, symbol_at};
+use crate::locals;
 
 /// One edit: the bytes of `site` replaced by `text`.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -933,7 +934,8 @@ impl Texts {
     }
 }
 
-/// The local subject for the variable `$name` written at `token`.
+/// The local subject for the variable `$name` written at `token`, with the
+/// refusals a rename makes on top of [`crate::locals::of`]'s sites.
 fn local(
     analysed: &Analysed,
     file: &SourceFile,
@@ -942,103 +944,29 @@ fn local(
     token: Span,
     name: &str,
 ) -> Result<Subject, String> {
-    let scopes: Vec<(Span, &[LocalBinding])> = analysed
-        .exprs
-        .local_scopes()
-        .filter(|(body, _)| body.file == analysed.entry)
-        .collect();
-    let offset = token.start;
-    let mut covering: Vec<&(Span, &[LocalBinding])> = scopes
-        .iter()
-        .filter(|(body, _)| body.start <= offset && offset < body.end)
-        .collect();
-    covering.sort_by_key(|(body, _)| body.end - body.start);
-    let Some(&&(body, bindings)) = covering
-        .iter()
-        .find(|(_, bindings)| bindings.iter().any(|binding| binding.name == name))
-    else {
+    let Some(found) = locals::of(analysed, file, tokens, token, name) else {
         return Err(format!(
             "`${name}` is not declared here, so it cannot be renamed."
         ));
     };
-    let binding = bindings
-        .iter()
-        .find(|binding| binding.name == name)
-        .ok_or(NOTHING)?;
-    if binding.declared.start < body.start {
+    if found.is_parameter() {
         return Err(format!(
             "`${name}` is a parameter, and a call can pass it by name. Renaming a parameter is \
              not available."
         ));
     }
-
-    let stmts = analysed
-        .loaded
-        .iter()
-        .find(|loaded| loaded.id == analysed.entry)
-        .map(|loaded| loaded.stmts.as_slice())
-        .unwrap_or_default();
-    let roots = walk::of_stmts(stmts);
-    let nodes: Vec<&walk::Node> = roots
-        .iter()
-        .flat_map(|root| std::iter::once(root).chain(root.descendants()))
-        .collect();
-
-    // A named function, a method and a property hook inside the body are
-    // scopes of their own, so nothing written in one is this local.
-    let own: Vec<Span> = nodes
-        .iter()
-        .filter(|node| matches!(node.kind, "Function" | "Method" | "PropertyHook"))
-        .filter(|node| inside(body, node.span) && node.span != body)
-        .map(|node| node.span)
-        .collect();
-    let in_scope = |span: Span| inside(body, span) && !own.iter().any(|skip| inside(*skip, span));
-
-    // An anonymous function reads this body's locals by value. One that binds
-    // the same name has a variable of its own under it, and renaming would
-    // have to tell the two apart.
-    let mut nested: BTreeSet<String> = BTreeSet::new();
-    for function in nodes
-        .iter()
-        .filter(|node| node.kind == "Fn" && in_scope(node.span))
-    {
-        nested.extend(bound_in(file, tokens, &scopes, function));
-    }
-    if nested.contains(name) {
+    if found.nested.contains(name) {
         return Err(format!(
             "An anonymous function in this code also declares `${name}`, so `${name}` cannot be \
              renamed here."
         ));
     }
-
-    let spelled = format!("${name}");
-    let mut sites = Vec::new();
-    for candidate in tokens.iter().filter(|candidate| {
-        candidate.kind == TokenKind::Variable
-            && in_scope(candidate.span)
-            && text_of(file, candidate.span) == spelled
-    }) {
-        let Some(innermost) = innermost(&nodes, candidate.span) else {
-            continue;
-        };
-        match innermost.kind {
-            "Variable" | "LocalDecl" | "Foreach" | "Try" | "Destructure" | "StaticLocal" => {
-                sites.push(candidate.span);
-            }
-            "Global" => {
-                return Err(format!(
-                    "`${name}` is a global variable here, so it cannot be renamed."
-                ));
-            }
-            _ => {}
-        }
+    if found.global {
+        return Err(format!(
+            "`${name}` is a global variable here, so it cannot be renamed."
+        ));
     }
-    if text_of(file, binding.declared) == spelled {
-        sites.push(binding.declared);
-    }
-    sites.sort_by_key(|span| (span.start, span.end));
-    sites.dedup();
-    if !sites.contains(&token) {
+    if !found.sites.contains(&token) {
         return Err(NOTHING.to_owned());
     }
     Ok(Subject {
@@ -1050,59 +978,11 @@ fn local(
         what: What::Local {
             path: entry.to_path_buf(),
             name: name.to_owned(),
-            bindings: bindings.to_vec(),
-            nested,
-            sites,
+            bindings: found.bindings.to_vec(),
+            nested: found.nested,
+            sites: found.sites,
         },
     })
-}
-
-/// Every name the anonymous function `function` binds: its block body's own
-/// bindings, and each parameter, which no child node covers.
-fn bound_in(
-    file: &SourceFile,
-    tokens: &[Token],
-    scopes: &[(Span, &[LocalBinding])],
-    function: &walk::Node,
-) -> BTreeSet<String> {
-    let mut found: BTreeSet<String> = scopes
-        .iter()
-        .filter(|(body, _)| inside(function.span, *body))
-        .flat_map(|(_, bindings)| bindings.iter().map(|binding| binding.name.clone()))
-        .collect();
-    for token in tokens.iter().filter(|token| {
-        token.kind == TokenKind::Variable
-            && inside(function.span, token.span)
-            && !function
-                .children
-                .iter()
-                .any(|child| inside(child.span, token.span))
-    }) {
-        if let Some(name) = text_of(file, token.span).strip_prefix('$') {
-            found.insert(name.to_owned());
-        }
-    }
-    found
-}
-
-/// Whether `outer` holds every byte of `inner`.
-const fn inside(outer: Span, inner: Span) -> bool {
-    outer.start <= inner.start && inner.end <= outer.end
-}
-
-/// The smallest node that holds `span`, a variable or a declaration before
-/// any other node of the same size.
-fn innermost<'a>(nodes: &[&'a walk::Node], span: Span) -> Option<&'a walk::Node> {
-    nodes
-        .iter()
-        .filter(|node| inside(node.span, span))
-        .min_by_key(|node| {
-            (
-                node.span.end - node.span.start,
-                !matches!(node.kind, "Variable" | "LocalDecl"),
-            )
-        })
-        .copied()
 }
 
 /// Whether `name` can be written as a variable, a method, a property, a

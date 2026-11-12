@@ -1,0 +1,12 @@
+--TEST--
+an anonymous function that declares the same name again has a variable of its own, so its sites are left out of the outer local's highlight, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+int $count = 1;
+var $twice = fn(int $count): int => $count * 2;
+echo $twice($cou<|>nt);
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:2:5
+case.nvs:4:13

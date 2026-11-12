@@ -27,11 +27,17 @@
 //! requests ask the same question about *where* and differ only in which field
 //! of the answer they use.
 //!
-//! **The access is the node, so the receiver is inside it.** A member name is a
-//! property of the expression that writes it, exactly as a type name is, so a
-//! cursor anywhere in `$u->name` — on the `$u` included — answers where `name`
-//! is declared. Narrowing that needs a node per member name, which is
-//! `nvs_syntax::walk`'s decision rather than this module's.
+//! **A local variable is asked first.** A local is no name the checker
+//! resolves to a declaration, so the walk over the nodes would step out to
+//! whatever holds it: the call a `$markup` is an argument of, or the member of
+//! `$u->name`. [`crate::locals`] answers the variable token under the cursor
+//! from the body's own bindings, and the walk runs only for a cursor on no
+//! local.
+//!
+//! **The access is the node, so the rest of it is inside it.** A member name
+//! is a property of the expression that writes it, exactly as a type name is,
+//! so a cursor anywhere in `$u->name` but on a local answers where `name` is
+//! declared.
 //!
 //! **An enum case answers the case.** `Mode::Read` under the cursor jumps to
 //! `case Read`, because `rule:enums/no-class-machinery` makes a case a constant
@@ -136,7 +142,8 @@ pub struct Declared {
 /// no name this can follow, when the name is declared nowhere the analysis
 /// reached, or when it is declared in a file with no path — a `Core` class is
 /// the last of those, and it has no Novis declaration to open. A string
-/// argument equal to a value of `files` answers that value's `location`.
+/// argument equal to a value of `files` answers that value's `location`, and a
+/// local variable answers the place its body declares it ([`crate::locals`]).
 #[must_use]
 pub fn at(
     analysed: &Analysed,
@@ -146,6 +153,13 @@ pub fn at(
 ) -> Option<Declared> {
     if let Some(located) = file_value(analysed, files, offset) {
         return located;
+    }
+    if let Some(local) = crate::locals::at(analysed, offset) {
+        let file = analysed.map.file(analysed.entry);
+        return Some(Declared {
+            path: file.path()?.to_path_buf(),
+            range: range_at(file, local.binding.declared, encoding),
+        });
     }
     let (target, _) = named_at(analysed, offset)?;
     declared(analysed, &target, encoding)

@@ -1,0 +1,13 @@
+--TEST--
+a read of a local highlights every place its body writes it, the declaration included, because the declaration is in the same body and on screen with the reads, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+var $total = 3;
+echo $to<|>tal;
+echo $total;
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:2:5
+case.nvs:3:6
+case.nvs:4:6

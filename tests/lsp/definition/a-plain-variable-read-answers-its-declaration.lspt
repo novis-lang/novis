@@ -1,0 +1,10 @@
+--TEST--
+a read of a local answers the place its body declares it, read off the type phase's bindings because the index holds no local, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+var $total = 3;
+echo $to<|>tal;
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:2:5

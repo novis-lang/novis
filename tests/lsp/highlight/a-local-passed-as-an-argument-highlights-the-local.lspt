@@ -1,0 +1,24 @@
+--TEST--
+a local passed as a call's argument highlights every site of the local and none of the method the call resolves to, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Section
+{
+    public static function create(string $title, string $body): string
+    {
+        return $title . $body;
+    }
+}
+
+string $summary = "none";
+if (true) {
+    $summary = "some";
+}
+echo Section::create("Title", $sum<|>mary);
+echo Section::create("Other", "text");
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:10:8
+case.nvs:12:5
+case.nvs:14:31
