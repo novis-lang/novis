@@ -234,6 +234,8 @@ fn everything(cap: Cap) -> &'static str {
         "every path"
     } else if cap.is_host_scoped() {
         "every host"
+    } else if matches!(cap, Cap::Env) {
+        "every environment variable"
     } else {
         "everything"
     }

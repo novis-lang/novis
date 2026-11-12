@@ -870,8 +870,11 @@ application to grant itself, which is ceremony charged to the common case.
 
 That default is only safe because **nothing a package manager fetched is ever unmatched**: fetching
 writes a grant line for every package in the resolved graph, direct and transitive, **including an
-empty one**. The permissive default therefore applies only to code a human wrote or pasted, which is
-the case where it is the right answer.
+empty one**. **Third-party extension source is never unmatched either**: the namespace of a loaded
+`.nvsx` that is not built into `nvs` holds an implied empty line where no line names it, with or
+without a grant table ([`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads)). The permissive
+default therefore applies only to code a human wrote or pasted, which is the case where it is the
+right answer.
 
 Hand-vendored code is the residue, and it is reported rather than closed: an audit warns on a
 namespace whose autoload root lies under a directory the grant table never mentions. A warning is the
@@ -1157,11 +1160,24 @@ never part of a grant line, so widening the application's defaults widens no pac
 code with no line is the exception, and the audit warning of
 [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application) is its mitigation.
 
-A package may lower its own limits and never raise one. A `Core\Config::set` call under a package's
-namespace that raises a `[limits]` key returns `false`, even where the application's own code may
-raise it: on a CLI run with no `[limits.hard] memory` written, the application raises `memory` freely
+A package may lower its own limits and change nothing else. A `Core\Config::set` call under a
+package's namespace returns `false` for every key outside `limits.*`: the mode, `[http]`, `[log]`,
+`[debug]`, `[errors]` and every other block are the application's. Under `limits.*` it returns
+`false` for a raise, even where the application's own code may raise the key: on a CLI run with no
+`[limits.hard] memory` written, the application raises `memory` freely
 ([`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives)). A raise would let a dependency take memory the
-application never chose to spend.
+application never chose to spend, and a change to any other block would let it weaken a policy the
+application chose, such as its cookies' flags. An application that wants a package's policy calls
+`set` itself.
+
+A package's `Core\Config::restore` undoes only what a package set. When a package lowers a key the
+application also set, the request keeps the application's value under the package's, and the
+package's `restore` puts it back. A key no package set is left as it is, so a package never removes
+a value the application set. The application's own `set` or `restore` of the key makes the entry the
+application's again. A method reference carries no word for the call site, so it acts as a package's
+call wherever it is written. **What it spends:** one optional string per key a package set, per
+request, freed with the request. Declined: telling one package from another. A limit is no wall
+between two packages that share one request's budget.
 
 A package can never be the code that declares data safe. Only a `Core` member removes `tainted`
 ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)), so a package can compute over a `tainted` value and return
@@ -2853,7 +2869,14 @@ refuses any other key, and refuses a `secret` or `tainted` written into a type
 
 What an extension may read, write or call at a given moment is the **intersection** of three sets,
 each of which only narrows: what the operator grants on the extension's own `[[extension]]` entry, what
-the extension's manifest declares it needs, and what the calling code's namespace holds at the call.
+the extension's manifest declares it needs, and what the calling code holds at the call.
+
+The third set has two halves. **The caller's `[grants]` line is asked while compiling**: a call to
+any method of an extension's class needs every capability its manifest's `requests` imply, `fs.read`
+for a `read` list, `fs.read` and `fs.write` for a `write` list and `net.connect` for a `connect`
+list, because a manifest requests for the whole component. A manifest that requests nothing needs
+no line, and a package may call it with an empty one. `nvs ext inspect` prints the capabilities a
+calling package needs. **The caller's run-time grant is asked when the instance is made**, as below.
 
 ```toml
 [[extension]]
@@ -2889,7 +2912,11 @@ cannot know the operator's folders; its `connect` hosts are matched one by one. 
 path: a root it holds inside an entry root replaces that root. A `write` root is opened read-write, so
 the caller must hold both `fs.write` and `fs.read` over it.
 
-**On disk.** `nvs_config::tree::Grants` reads the entry's `grants`, refusing an unknown key,
+**On disk.** `nvs_types::ext_lib::implied_capabilities` reads a manifest's requests into
+capabilities, and `nvs_types::capability::reject_ungranted_call` asks them of the caller's line
+(`crates/nvs-cli/tests/package_grants.rs`,
+`tests/conformance/ext/a-package-calls-an-extension-only-with-its-capabilities.nvst`).
+`nvs_config::tree::Grants` reads the entry's `grants`, refusing an unknown key,
 and `nvs_config::extension::grants` makes its roots absolute against the file that wrote each list;
 `env_hash` does not read it. `nvs_ext::grants::effective` computes the intersection
 (`crates/nvs-ext/tests/grants.rs`) when an instance is made, from the entry's grants, the manifest

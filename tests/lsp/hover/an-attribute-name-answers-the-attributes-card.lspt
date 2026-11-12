@@ -30,5 +30,6 @@ No `nvs.toml` was found for this program. It runs under the default policy:
 - `fs.write`: only the directories `Core\IO::temporaryDir` makes (default)
 - `script.spawn`: files in this file's directory, outside its temporary directories (default)
 - `net.connect`: every host (default)
+- `env`: every environment variable (default)
 
 No other grant is given.

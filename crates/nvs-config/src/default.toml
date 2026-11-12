@@ -943,6 +943,10 @@
 #upload_total = "2G"                  # default
 #max_multipart_parts = 10000          # default
 
+#[schedule.grants]
+# Whether this entry may read environment variables. The `[capabilities]` comment above explains it.
+#env = false                          # default: true
+
 #[schedule.grants.script]
 # This entry's grants. Each key is the same as in `[capabilities.*]` above and works the same way.
 # The comment there explains the key and what it gives when it is not written. A scheduled run is
@@ -1123,6 +1127,11 @@
 #request_body = "64M"                 # default
 #upload_total = "2G"                  # default
 #max_multipart_parts = 10000          # default
+
+#[app.capabilities]
+# Whether this application may read environment variables. The `[capabilities]` comment above
+# explains it.
+#env = false                          # default: true
 
 #[app.capabilities.script]
 # This application's grants. Each key is the same as in `[capabilities.*]` above and works the same

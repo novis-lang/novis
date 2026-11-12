@@ -5,10 +5,10 @@
 autoload 'Acme\Limits' from './vendor/acme/limits/src';
 
 // 1. The application lowers its own memory limit to `96M`.
-echo "lowered=", (Core\Config::set("memory", "96M") ? "true" : "false"), "\n";
+echo 'lowered=', (Core\Config::set('memory', '96M') ? 'true' : 'false'), "\n";
 
 // 2. A class of `Acme\Limits` calls `Core\Config::restore` for the memory limit.
 Acme\Limits\Tuner::undoMemoryLimit();
 
 // 3. The limit is still `96M`.
-echo "memory=", Core\Config::get("memory") ?? "unset", "\n";
+echo 'memory=', Core\Config::get('memory') ?? 'unset', "\n";

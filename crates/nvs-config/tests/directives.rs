@@ -729,7 +729,7 @@ fn every_grant_is_the_one_tightening_row_and_the_same_grant_under_an_app_block_i
         families.iter().map(String::as_str).collect::<Vec<_>>(),
         [
             "script", "fs", "net", "tls", "process", "debug", "db", "ldap", "mail", "cache",
-            "queue"
+            "queue", "env"
         ],
         "`[capabilities]` accepts {families:?}: a family added to the block joins this census in \
          the commit that adds it, because which grants exist is not the registry's question and \
@@ -739,6 +739,10 @@ fn every_grant_is_the_one_tightening_row_and_the_same_grant_under_an_app_block_i
     let mut asked = vec!["capabilities".to_string()];
     for family in &families {
         asked.push(format!("capabilities.{family}"));
+        // `env` is one boolean key and not a table, so it has no keys of its own to list.
+        if family == "env" {
+            continue;
+        }
         for grant in keys_in(&format!("capabilities.{family}")) {
             asked.push(format!("capabilities.{family}.{grant}"));
         }

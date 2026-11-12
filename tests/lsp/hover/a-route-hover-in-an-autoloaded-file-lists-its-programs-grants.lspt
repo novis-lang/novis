@@ -38,6 +38,7 @@ These are the grants of the whole program, from `public/nvs.toml`. Every route o
 - `fs.write`: only the directories `Core\IO::temporaryDir` makes (default)
 - `script.spawn`: files in `public`, outside its temporary directories (default)
 - `net.connect`: `api.example.com`
+- `env`: every environment variable (default)
 - `net.internal`: `10.0.0.5`. `net.connect` may reach these private addresses.
 
 No other grant is given.

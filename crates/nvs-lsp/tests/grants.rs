@@ -23,6 +23,7 @@ fn with_no_nvs_toml_the_hover_names_the_default_policy() {
          - `script.spawn`: files in this file's directory, outside its temporary directories \
          (default)\n\
          - `net.connect`: every host (default)\n\
+         - `env`: every environment variable (default)\n\
          \nNo other grant is given."
     );
 }

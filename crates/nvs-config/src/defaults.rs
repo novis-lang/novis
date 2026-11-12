@@ -1007,10 +1007,10 @@ fn chosen_by(value: &Value, at: &At<'_>) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use crate::Cap;
     use crate::capability::{Authority, Run, Scope};
     use crate::resolve::Disk;
     use crate::tree::{Capabilities, Setting};
-    use crate::Cap;
 
     /// `env` is granted on a CLI run and in server work alike where no file writes its key, and a
     /// written `env = false` replaces the default whole.
@@ -1033,12 +1033,21 @@ mod tests {
                 "serving: {serving}"
             );
             let unwritten = Authority::new(None, run);
-            assert!(unwritten.allows(Cap::Env, Scope::Unscoped, &Disk), "serving: {serving}");
+            assert!(
+                unwritten.allows(Cap::Env, Scope::Unscoped, &Disk),
+                "serving: {serving}"
+            );
             let empty = Capabilities::default();
             let other = Authority::new(Some(&empty), run);
-            assert!(other.allows(Cap::Env, Scope::Unscoped, &Disk), "serving: {serving}");
+            assert!(
+                other.allows(Cap::Env, Scope::Unscoped, &Disk),
+                "serving: {serving}"
+            );
             let written = Authority::new(Some(&refused), run);
-            assert!(!written.allows(Cap::Env, Scope::Unscoped, &Disk), "serving: {serving}");
+            assert!(
+                !written.allows(Cap::Env, Scope::Unscoped, &Disk),
+                "serving: {serving}"
+            );
         }
     }
 }
