@@ -78,6 +78,7 @@ use std::pin::pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::task::{Context, Poll, Waker};
+use std::time::Instant;
 
 use crate::reactor::{self, RemoteWake};
 use crate::scheduler::{PastWallTime, Waiting, current_task, suspend_current};
@@ -141,15 +142,51 @@ pub fn block_on<F: Future>(future: F) -> Option<F::Output> {
 /// that ends without a wake parks as [`block_on`]'s does, until the waker
 /// fires.
 ///
-/// A cancellation does not end the drive. The future runs to its end and the
-/// caller meets the cancellation at its next safepoint; a guest call's own CPU
-/// deadline is what bounds it.
+/// `None` means the task was cancelled, and the future is dropped. The park
+/// is the request's own wait, so the funnel ends it at the tree's wall
+/// deadline with `Cancelled` (`rule:errors/on-limit`). Parking again there
+/// would poll the guest in a loop until it returned, so the drive ends, and
+/// the caller returns the cancellation. Dropping a guest call's future runs
+/// no Novis code.
 ///
 /// What it spends beyond [`block_on`]: one `RemoteWake` issued and collected
 /// per yield on a core, and nothing held between yields.
-pub fn block_on_yielding<F: Future>(future: F, mut between: impl FnMut() -> bool) -> F::Output {
+pub fn block_on_yielding<F: Future>(future: F, between: impl FnMut() -> bool) -> Option<F::Output> {
     // A guest call is the request's own wait, so it parks bounded.
-    let signal = Arc::new(Signal::here(Waiting::Parked));
+    drive_yielding(future, between, Waiting::Parked, None)
+}
+
+/// [`block_on_yielding`] for a drive at a request's end, which has no request
+/// left to be bounded by and so stops at `at` itself.
+///
+/// It parks as `PastWallTime::RequestEnd` with the task's timer armed at `at`.
+/// `None` means `at` passed, or the task was cancelled, and the future is
+/// dropped. Off a core the thread waits until `at` at the latest.
+///
+/// What it spends beyond [`block_on_yielding`]: one timer entry for each park,
+/// and one clock read for each poll.
+pub fn block_on_until<F: Future>(
+    future: F,
+    at: Instant,
+    between: impl FnMut() -> bool,
+) -> Option<F::Output> {
+    drive_yielding(
+        future,
+        between,
+        Waiting::ParkedPast(PastWallTime::RequestEnd),
+        Some(at),
+    )
+}
+
+/// The loop of [`block_on_yielding`] and [`block_on_until`]: it parks as
+/// `waiting`, and stops at `until` when there is one.
+fn drive_yielding<F: Future>(
+    future: F,
+    mut between: impl FnMut() -> bool,
+    waiting: Waiting,
+    until: Option<Instant>,
+) -> Option<F::Output> {
+    let signal = Arc::new(Signal::here(waiting));
     let waker = Waker::from(Arc::clone(&signal));
     let mut cx = Context::from_waker(&waker);
     let mut future = pin!(future);
@@ -157,16 +194,23 @@ pub fn block_on_yielding<F: Future>(future: F, mut between: impl FnMut() -> bool
         signal.woken.store(false, Ordering::SeqCst);
         if let Poll::Ready(value) = future.as_mut().poll(&mut cx) {
             signal.disarm();
-            return value;
+            return Some(value);
+        }
+        if until.is_some_and(|at| Instant::now() >= at) {
+            signal.disarm();
+            return None;
         }
         if between() {
             continue;
         }
-        if signal.woken.load(Ordering::SeqCst) {
-            signal.yield_turn();
+        let going_on = if signal.woken.load(Ordering::SeqCst) {
+            signal.yield_turn()
         } else {
-            // `false` is a cancellation, which this drive runs through.
-            let _ = signal.park();
+            signal.park_until(until)
+        };
+        if !going_on {
+            signal.disarm();
+            return None;
         }
     }
 }
@@ -228,6 +272,13 @@ impl Signal {
     /// Waits for something to wake this drive, answering whether it may go on:
     /// `false` is a cancellation and nothing else.
     fn park(&self) -> bool {
+        self.park_until(None)
+    }
+
+    /// [`Self::park`], woken at `until` at the latest when there is one. On a
+    /// core the task's one timer entry is armed at it for the park and
+    /// removed after it.
+    fn park_until(&self, until: Option<Instant>) -> bool {
         match &self.route {
             Route::Core { permit } => {
                 // Rule 1's ordering: the permission exists *before* the
@@ -242,7 +293,14 @@ impl Signal {
                     // `rule:concurrency/one-permission-per-drive`.
                     return true;
                 }
+                let timed = until.and_then(|at| {
+                    let me = current_task()?;
+                    reactor::with_current(|reactor| reactor.timers().arm(me, at)).map(|()| me)
+                });
                 let resumed = suspend_current(self.waiting);
+                if let Some(me) = timed {
+                    reactor::with_current(|reactor| reactor.timers().disarm(me));
+                }
                 // `NotSuspended` is unreachable here — `current_task` answered
                 // when the route was chosen, and a task does not lose its
                 // scheduler — so this reads only the one answer that matters.
@@ -254,16 +312,21 @@ impl Signal {
                 // argument: `unpark` leaves a token, so a wake that raced this
                 // check makes the park below return at once.
                 if !self.woken.load(Ordering::SeqCst) {
-                    std::thread::park();
+                    match until {
+                        Some(at) => {
+                            std::thread::park_timeout(at.saturating_duration_since(Instant::now()));
+                        }
+                        None => std::thread::park(),
+                    }
                 }
                 true
             }
         }
     }
 
-    /// Gives the core up for one turn without waiting for anything, ignoring a
-    /// cancellation as [`block_on_yielding`] does.
-    fn yield_turn(&self) {
+    /// Gives the core up for one turn without waiting for anything, answering
+    /// whether the drive may go on: `false` is a cancellation.
+    fn yield_turn(&self) -> bool {
         match &self.route {
             Route::Core { permit } => {
                 // Fired before the suspend: the reactor drains it only after
@@ -277,13 +340,11 @@ impl Signal {
                     // the wake.
                     let _ = wake.wake();
                 }
-                let _ = suspend_current(self.waiting);
+                !suspend_current(self.waiting).cancelled()
             }
-            Route::Yield => {
-                let _ = suspend_current(Waiting::Yielded);
-            }
+            Route::Yield => !suspend_current(Waiting::Yielded).cancelled(),
             // No other task runs on this thread, so the turn is over at once.
-            Route::Thread(_) => {}
+            Route::Thread(_) => true,
         }
     }
 
@@ -570,7 +631,10 @@ mod tests {
         let first = Rc::new(Cell::new(0_usize));
         let counted = Rc::clone(&first);
         sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
-            assert_eq!(block_on_yielding(yielding(counted), || false), YIELDS + 1);
+            assert_eq!(
+                block_on_yielding(yielding(counted), || false),
+                Some(YIELDS + 1)
+            );
         });
         // Each poll of the second drive records how far the first had got, and
         // how many deadlines the core held while it waited.
@@ -622,7 +686,7 @@ mod tests {
         let polls = Rc::new(Cell::new(0_usize));
         assert_eq!(
             block_on_yielding(yielding(Rc::clone(&polls)), || false),
-            YIELDS + 1
+            Some(YIELDS + 1)
         );
 
         let sent = Cell::new(false);
@@ -636,7 +700,7 @@ mod tests {
             }),
             || !sent.replace(true),
         );
-        assert_eq!(answer, "answered");
+        assert_eq!(answer, Some("answered"));
     }
 
     /// A future that never finishes and reports its own drop.

@@ -430,6 +430,8 @@ fn in_tree(
 /// in the host's pool.
 pub(crate) struct Calls {
     set: Arc<Set>,
+    /// The host the requests are made on: the process's one, or a test's own.
+    on: Option<&'static Host>,
     requests: Mutex<Vec<Arc<Held>>>,
 }
 
@@ -446,6 +448,7 @@ impl Calls {
     fn serving(set: Arc<Set>) -> Self {
         Self {
             set,
+            on: None,
             requests: Mutex::new(Vec::new()),
         }
     }
@@ -462,7 +465,10 @@ impl Calls {
         {
             return Ok(Arc::clone(request));
         }
-        let host = host().map_err(|reason| Fault::thrown_as(ThrownClass::Extension, reason))?;
+        let host = match self.on {
+            Some(host) => host,
+            None => host().map_err(|reason| Fault::thrown_as(ThrownClass::Extension, reason))?,
+        };
         let spent = Arc::new(Spent::of(ctx));
         let request = Arc::new((host.request(spent.clone()), spent));
         requests.push(Arc::clone(&request));
@@ -473,6 +479,12 @@ impl Calls {
 impl Drop for Calls {
     /// A request a running call still holds ends when that call drops it, without
     /// [`Request::end`]; no call runs once the tree that keeps this has ended.
+    ///
+    /// The end drive runs the guests' destructors with no request to work for
+    /// (`rule:packaging/a-fresh-instance-per-request`). An outbound request or a read a
+    /// destructor makes is dropped unsent, so its guest gets the refusal [`nvs_ext::call::Answer`]
+    /// gives. The drive stops at [`Spent::end_by`], and the instances are dropped there with
+    /// whatever their destructors had not finished.
     fn drop(&mut self) {
         let requests = std::mem::take(
             self.requests
@@ -480,11 +492,18 @@ impl Drop for Calls {
                 .unwrap_or_else(PoisonError::into_inner),
         );
         for request in requests {
-            if let Ok((request, _)) = Arc::try_unwrap(request) {
-                drop(drive(request.end(), || false));
+            if let Ok((request, spent)) = Arc::try_unwrap(request) {
+                let at = spent.end_by(Instant::now());
+                drop(ended(request.end(), &spent, at));
             }
         }
     }
+}
+
+/// Drives `end`, a request's end, on the calling task until `at`, refusing every outbound
+/// request and read it queues on `spent`. `None` means `at` passed, and `end` is dropped.
+fn ended<T>(end: impl Future<Output = T>, spent: &Spent, at: Instant) -> Option<T> {
+    nvs_host::block_on::block_on_until(end, at, || spent.refuse_queued())
 }
 
 /// The answer to a guest's send or read made once its request is over its memory ceiling.
@@ -535,6 +554,9 @@ pub(crate) struct Spent {
     started: Instant,
     config: Option<nvs_config::Request>,
     narrowed: Option<Vec<nvs_config::capability::Cap>>,
+    /// The tree's wall deadline as the last call found it, for the end drive of a tree that has
+    /// ended. `None` for a request with no `wall_time`.
+    wall: Mutex<Option<Instant>>,
     clock: Mutex<Option<i128>>,
     seed: Mutex<Option<u64>>,
     lines: Mutex<Vec<(Level, String, String)>>,
@@ -550,6 +572,7 @@ impl Spent {
             started: Instant::now(),
             config: ctx.config().cloned(),
             narrowed: ctx.grant_filter().map(<[_]>::to_vec),
+            wall: Mutex::new(ctx.safepoint_view().wall_deadline()),
             clock: Mutex::new(None),
             seed: Mutex::new(None),
             lines: Mutex::new(Vec::new()),
@@ -558,8 +581,10 @@ impl Spent {
         }
     }
 
-    /// Copies `ctx`'s fixed clock and seed in, before a call.
+    /// Copies `ctx`'s fixed clock and seed in, and its wall deadline, before a call.
     fn enter(&self, ctx: &Ctx) {
+        *self.wall.lock().unwrap_or_else(PoisonError::into_inner) =
+            ctx.safepoint_view().wall_deadline();
         *self.clock.lock().unwrap_or_else(PoisonError::into_inner) = ctx.fixed_clock();
         *self.seed.lock().unwrap_or_else(PoisonError::into_inner) = ctx.random_state();
     }
@@ -584,6 +609,54 @@ impl Spent {
             };
             drop(nvs_stdlib::extension_line(ctx, level, &channel, &message));
         }
+    }
+
+    /// The instant the end drive stops, for a drive that starts at `now`
+    /// (`rule:errors/on-limit`, `rule:http-server/a-request-outlives-a-client-that-goes-away`).
+    ///
+    /// Under a `wall_time` it is the tree's wall deadline, and never sooner than `[limits]
+    /// fatal_reserve_time` after `now`, so a request stopped at its deadline still drops its
+    /// resources. With no `wall_time` it is `[limits] disconnect_grace` after `now`. A tree that
+    /// has ended gives the deadline the last call found.
+    fn end_by(&self, now: Instant) -> Instant {
+        let wall = self.tree.wall_deadline().unwrap_or_else(|| {
+            // The tree has ended, so the deadline is the one the last call found.
+            *self.wall.lock().unwrap_or_else(PoisonError::into_inner)
+        });
+        match wall {
+            Some(deadline) => deadline.max(
+                now + self.duration(
+                    "fatal_reserve_time",
+                    nvs_config::defaults::LIMITS_FATAL_RESERVE_TIME,
+                ),
+            ),
+            None => now + self.duration("disconnect_grace", nvs_config::app::DISCONNECT_GRACE),
+        }
+    }
+
+    /// The `[limits]` duration `leaf` of the request's configuration, or `default` where it
+    /// states none.
+    fn duration(&self, leaf: &str, default: Duration) -> Duration {
+        match self
+            .config
+            .as_ref()
+            .map(|config| config.limit(leaf, Unit::Duration))
+        {
+            Some(nvs_config::Reading::Read(Quantity::Nanos(nanos))) if nanos > 0 => {
+                Duration::from_nanos(nanos)
+            }
+            _ => default,
+        }
+    }
+
+    /// Drops every outbound request and read a guest has queued, so each gives its guest the
+    /// refusal its `Answer` or `Lender` gives when dropped. Returns whether there was one, so the
+    /// end drive polls again at once.
+    fn refuse_queued(&self) -> bool {
+        let sends =
+            std::mem::take(&mut *self.outbound.lock().unwrap_or_else(PoisonError::into_inner));
+        let reads = std::mem::take(&mut *self.reads.lock().unwrap_or_else(PoisonError::into_inner));
+        !sends.is_empty() || !reads.is_empty()
     }
 
     /// Sends every outbound request a guest has made since the last poll, with `ctx`, and gives
@@ -900,6 +973,10 @@ impl nvs_runtime::extension::Extensions for Calls {
             spent.reads(ctx, &lent) || sent
         });
         spent.leave(ctx);
+        // The task was cancelled, or stopped at its wall deadline, and the call was dropped.
+        let Some(called) = called else {
+            return Err(ctx.cancel());
+        };
         match called {
             Ok(None) => Ok(Value::null()),
             Ok(Some(result)) => {
@@ -943,8 +1020,9 @@ fn past(ctx: &mut Ctx, limit: Limit, message: String) -> Fault {
 /// Between two polls it runs `between`, and polls again at once when that did some work. At each
 /// epoch tick the guest wakes its own call, and the task gives the core up for one turn, behind
 /// the core's other ready tasks, with no deadline armed. A pending import parks the task until the
-/// import's wake, which reaches the core from any thread.
-fn drive<T>(call: impl Future<Output = T>, between: impl FnMut() -> bool) -> T {
+/// import's wake, which reaches the core from any thread. `None` is a cancellation, such as the
+/// wall deadline's, and the call is dropped with its instance.
+fn drive<T>(call: impl Future<Output = T>, between: impl FnMut() -> bool) -> Option<T> {
     nvs_host::block_on::block_on_yielding(call, between)
 }
 
@@ -1497,7 +1575,7 @@ mod tests {
 
         assert!(spent.sends(&mut ctx));
         assert!(!spent.sends(&mut ctx));
-        let answer = drive(outbound, || false);
+        let answer = drive(outbound, || false).expect("the drive is not cancelled");
         assert!(
             matches!(&answer, Err(Unsent::Refused(message)) if message.contains("example.com")),
             "{answer:?}"
@@ -1554,7 +1632,7 @@ mod tests {
             connect: vec!["example.com".to_owned()],
         });
         assert!(spent.sends(&mut ctx));
-        let answer = drive(outbound, || false);
+        let answer = drive(outbound, || false).expect("the drive is not cancelled");
         assert!(
             matches!(&answer, Err(Unsent::Refused(message)) if message == OVER),
             "{answer:?}"
@@ -1607,7 +1685,9 @@ mod tests {
         ctx.set_memory_limit(256 << 20);
         let request = host.request(Arc::new(Spent::of(&ctx)));
         let start = ctx.memory_used();
-        let out = drive(request.call(&extension, "big", &[]), || false).expect("the call returns");
+        let out = drive(request.call(&extension, "big", &[]), || false)
+            .expect("the drive is not cancelled")
+            .expect("the call returns");
         let held = ctx.memory_used() - start;
         let peak = ctx.memory_peak() - start;
         assert!(
@@ -1707,5 +1787,223 @@ mod tests {
             );
             assert_eq!(ctx.limit_reached(), Some(reached));
         }
+    }
+
+    /// A component with one resource, `ticket`. `open(spins)` returns a ticket, and the ticket's
+    /// destructor loops forever when `spins` is not `0`. `spin` loops forever.
+    const TICKETS: &str = r#"(component
+  (import "nvs:ext/types@1.0.0" (instance $types
+    (type $e (variant (case "invalid" string) (case "parse" string) (case "runtime" string)))
+    (export "error" (type (eq $e)))))
+  (alias export $types "error" (type $error))
+  (core module $memory
+    (memory (export "memory") 1)
+    (global $bump (mut i32) (i32.const 1024))
+    (func (export "realloc") (param i32 i32 i32 i32) (result i32) (local $at i32)
+      (local.set $at
+        (i32.and
+          (i32.add (global.get $bump) (i32.sub (local.get 2) (i32.const 1)))
+          (i32.sub (i32.const 0) (local.get 2))))
+      (global.set $bump (i32.add (local.get $at) (local.get 3)))
+      (local.get $at)))
+  (core instance $mi (instantiate $memory))
+  (alias core export $mi "memory" (core memory $mem))
+  (alias core export $mi "realloc" (core func $realloc))
+  (core module $dtor
+    (func (export "dtor") (param $rep i32)
+      (if (local.get $rep) (then (loop $again (br $again))))))
+  (core instance $di (instantiate $dtor))
+  (alias core export $di "dtor" (core func $dtor-fn))
+  (type $ticket-def (resource (rep i32) (dtor (core func $dtor-fn))))
+  (export $ticket "ticket" (type $ticket-def))
+  (core func $new (canon resource.new $ticket))
+  (core module $m
+    (import "host" "memory" (memory 1))
+    (import "host" "new" (func $new (param i32) (result i32)))
+    (func (export "open") (param $spins i64) (result i32)
+      (i32.store8 (i32.const 16) (i32.const 0))
+      (i32.store (i32.const 20) (call $new (i32.wrap_i64 (local.get $spins))))
+      (i32.const 16))
+    (func (export "spin") (result i32)
+      (loop $again (br $again))
+      (i32.const 16)))
+  (core instance $i (instantiate $m
+    (with "host" (instance
+      (export "memory" (memory $mem))
+      (export "new" (func $new))))))
+  (func $open (param "spins" s64) (result (result (own $ticket) (error $error)))
+    (canon lift (core func $i "open") (memory $mem) (realloc $realloc)))
+  (func $spin (result (result s64 (error $error)))
+    (canon lift (core func $i "spin") (memory $mem) (realloc $realloc)))
+  (instance $api
+    (export "ticket" (type $ticket))
+    (export "open" (func $open))
+    (export "spin" (func $spin)))
+  (export "shop:tickets/api" (instance $api)))"#;
+
+    /// The `TICKETS` component as an extension of `host`.
+    fn tickets(host: &Host) -> Loaded {
+        let bytes = wat::parse_str(TICKETS).expect("the test component compiles");
+        let manifest = r#"{"manifest": 1, "world": "1.0.0", "class": "Shop\\Tickets", "interface": "shop:tickets/api",
+  "resources": [{"name": "Ticket"}],
+  "methods": [
+    {"name": "open", "params": [{"name": "spins", "type": "int"}], "returns": "Ticket"},
+    {"name": "spin", "params": [], "returns": "int"}]}"#;
+        Loaded {
+            path: "tickets.nvsx".into(),
+            sha256: String::new(),
+            memory: None,
+            grants: nvs_config::extension::Granted::default(),
+            component: wasmtime::component::Component::new(host.engine(), &bytes)
+                .expect("the component compiles"),
+            manifest: Manifest::parse(manifest.as_bytes()).expect("the manifest reads"),
+            source: nvs_ext::source::Source {
+                source: nvs_ext::source::FORMAT,
+                files: Vec::new(),
+            },
+        }
+    }
+
+    /// A ticket of `request`'s instance of `extension`, whose destructor loops forever when
+    /// `spins` is not `0`.
+    fn a_ticket(request: &Request, extension: &Loaded, spins: i64) {
+        let ticket = drive(
+            request.call_values(extension, "open", vec![Crossed::Int(spins)]),
+            || false,
+        )
+        .expect("the drive is not cancelled")
+        .expect("the guest opens a ticket");
+        assert!(
+            matches!(&ticket, Some(Crossed::Resource { name, .. }) if name == "Ticket"),
+            "{ticket:?}"
+        );
+    }
+
+    /// `rule:packaging/a-fresh-instance-per-request`: an outbound request made while the request
+    /// ends is dropped unsent, so the guest gets the refusal. The request's resources are then
+    /// dropped, and its instance place is free again. With no `wall_time`, the end drive's bound
+    /// is `disconnect_grace`.
+    #[test]
+    fn a_destructor_that_sends_at_request_end_is_refused_and_the_request_ends() {
+        let host = Host::new(2, |_| Ok(())).expect("the host starts");
+        let extension = tickets(&host);
+        let ctx = Ctx::buffered();
+        let spent = Arc::new(Spent::of(&ctx));
+        let now = Instant::now();
+        assert_eq!(
+            spent.end_by(now),
+            now + nvs_config::app::DISCONNECT_GRACE,
+            "a request with no `wall_time` ends its resources within `disconnect_grace`"
+        );
+        let request = host.request(Arc::clone(&spent) as Arc<dyn Budget>);
+        a_ticket(&request, &extension, 0);
+        assert_eq!(host.live_instances(), 1);
+
+        let outbound = spent.send(Outgoing {
+            method: "POST".to_owned(),
+            url: "http://example.com/closed".to_owned(),
+            headers: Vec::new(),
+            body: None,
+            connect: vec!["example.com".to_owned()],
+        });
+        let end = async {
+            let answer = outbound.await;
+            request.end().await.map(|()| answer)
+        };
+        let answer = ended(end, &spent, now + Duration::from_secs(600))
+            .expect("the end drive ends before its bound")
+            .expect("the ticket's destructor runs");
+        assert!(
+            matches!(&answer, Err(Unsent::Refused(_))),
+            "an outbound request at request end was answered: {answer:?}"
+        );
+        assert_eq!(host.live_instances(), 0, "the instance place is free again");
+    }
+
+    /// `rule:errors/on-limit`: a destructor that never returns is dropped at the end drive's
+    /// bound, with its instance. The bound here has passed, so the drive stops at its first wait.
+    #[test]
+    fn a_destructor_that_waits_at_request_end_is_dropped_at_its_bound() {
+        let host = Host::new(2, |_| Ok(())).expect("the host starts");
+        let extension = tickets(&host);
+        let ctx = Ctx::buffered();
+        let spent = Arc::new(Spent::of(&ctx));
+        let request = host.request(Arc::clone(&spent) as Arc<dyn Budget>);
+        a_ticket(&request, &extension, 1);
+        assert_eq!(host.live_instances(), 1);
+
+        let end = ended(request.end(), &spent, Instant::now());
+        assert!(end.is_none(), "the end drive ran past its bound: {end:?}");
+        assert_eq!(host.live_instances(), 0, "the instance place is free again");
+    }
+
+    /// `rule:errors/on-limit`: a guest call that waits past the request's wall deadline is dropped
+    /// with its instance, and the request ends with the wall-time `FATAL`, which no `catch` sees.
+    #[test]
+    fn a_guest_call_parked_past_the_wall_deadline_ends_with_the_wall_time_fatal() {
+        use nvs_runtime::extension::Extensions as _;
+
+        // A test's own host, which lives as long as the process, as `nvs serve`'s does.
+        let host: &'static Host =
+            Box::leak(Box::new(Host::new(2, |_| Ok(())).expect("the host starts")));
+        let mut set = Set::default();
+        set.insert(tickets(host))
+            .expect("the set takes the extension");
+        let calls = Calls {
+            set: Arc::new(set),
+            on: Some(host),
+            requests: Mutex::new(Vec::new()),
+        };
+
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        let ended = std::rc::Rc::new(std::cell::RefCell::new(None));
+        let seen = std::rc::Rc::clone(&ended);
+        sched.spawn(
+            Ctx::buffered(),
+            nvs_runtime::TaskRoot::Request,
+            move |ctx| {
+                // 1. The request's `wall_time` moves to one nanosecond, so its deadline has
+                //    passed before the call.
+                let table: toml::Table = "[limits]\nwall_time = \"1ns\"\n"
+                    .parse()
+                    .expect("the case writes valid TOML");
+                ctx.set_config(Arc::new(nvs_config::Snapshot {
+                    config: table
+                        .clone()
+                        .try_into()
+                        .expect("the case writes a block this tree has"),
+                    table,
+                    ..nvs_config::Snapshot::default()
+                }));
+                let at = ctx
+                    .safepoint_view()
+                    .wall_deadline()
+                    .expect("a request with a `wall_time` has a deadline");
+                while Instant::now() < at {
+                    std::hint::spin_loop();
+                }
+
+                // 2. The guest's `spin` never returns, so the call waits at its first epoch tick.
+                let fault = calls.call(ctx, "Shop\\Tickets", "spin", &[]).err();
+                let message = ctx.pending().map(|text| text.into_owned());
+                drop(calls);
+                *seen.borrow_mut() = Some((fault, message));
+            },
+        );
+
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        let (fault, message) = ended
+            .borrow_mut()
+            .take()
+            .expect("the request's task never ran to its end");
+        assert!(
+            matches!(fault, Some(Fault::Pending(nvs_runtime::FATAL))),
+            "a guest call past the wall deadline ended in something a `catch` sees: {fault:?}"
+        );
+        let message = message.expect("a FATAL carries a message");
+        assert!(message.starts_with(Ctx::WALL_TIME_EXCEEDED), "{message}");
+        assert_eq!(host.live_instances(), 0, "the instance place is free again");
     }
 }

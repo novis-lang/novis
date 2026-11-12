@@ -40,7 +40,7 @@ const REASONS: &[(&str, &[&str])] = &[
     ),
     ("BlockingJob", &["nvs-host/src/blocking.rs"]),
     ("DebugStop", &["nvs-host/src/debug.rs"]),
-    ("RequestEnd", &[]),
+    ("RequestEnd", &["nvs-host/src/block_on.rs"]),
 ];
 
 /// The files that pass a reason through without choosing one: the enum's own

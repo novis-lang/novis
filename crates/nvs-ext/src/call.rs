@@ -1289,6 +1289,7 @@ impl Request {
         {
             held.live = None;
         }
+        held.ended = true;
         outcome
     }
 
@@ -1354,6 +1355,7 @@ impl Request {
             request: self,
             class,
             live,
+            ended: false,
         }
     }
 
@@ -1656,10 +1658,16 @@ fn fuel(budget: &dyn Budget) -> usize {
 
 /// A slot one task's call holds. Dropping it puts the instance back, or removes the slot when the
 /// call left no instance, and wakes the tasks waiting for it.
+///
+/// A call whose future was dropped before it ended, such as one stopped at its wall deadline,
+/// leaves its guest part-way through an export. Its instance is dropped with the slot, so the
+/// request's next call makes a fresh one.
 struct Held<'r> {
     request: &'r Request,
     class: &'r str,
     live: Option<Box<Live>>,
+    /// Set once the call ran to its end, which is when the instance may be put back.
+    ended: bool,
 }
 
 impl Drop for Held<'_> {
@@ -1671,11 +1679,12 @@ impl Drop for Held<'_> {
                 return;
             };
             match live {
-                Some(live) => {
+                Some(live) if self.ended => {
                     slots[index].state = State::Idle(live);
                     std::mem::take(&mut slots[index].waiters)
                 }
-                None => slots.remove(index).waiters,
+                // An instance a call left part-way is dropped once the lock is released.
+                _ => slots.remove(index).waiters,
             }
         };
         for waker in waiters {

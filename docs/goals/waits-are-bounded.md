@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-host/src/isolate.rs, crates/nvs-host/src/watchdog.rs, crates/nvs-server/src/socket.rs, crates/nvs-server/src/bounds.rs, docs/rules/concurrency/connection-bounds-are-finite.md, docs/rules/concurrency/a-connection-is-a-root-isolate.md]
   - id: 6
     title: a wait at request end is bounded
-    status: open
+    status: done
     context: [crates/nvs-cli/src/extensions.rs, crates/nvs-host/src/block_on.rs, crates/nvs-ext/src/call.rs, docs/rules/packaging/a-fresh-instance-per-request.md]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
@@ -97,7 +97,7 @@ checks:
   - id: request-end-is-bounded
     stage: 6
     name: "a resource destructor that sends or waits at request end is ended at its bound, and a guest call parked past wall_time ends with the FATAL"
-    run: [cargo, test, --lib, --, a_destructor_that_sends_at_request_end_is_refused_and_the_request_ends, a_destructor_that_waits_at_request_end_is_dropped_at_its_bound, a_guest_call_parked_past_the_wall_deadline_ends_with_the_wall_time_fatal]
+    run: [cargo, test, --bin, nvs, --, a_destructor_that_sends_at_request_end_is_refused_and_the_request_ends, a_destructor_that_waits_at_request_end_is_dropped_at_its_bound, a_guest_call_parked_past_the_wall_deadline_ends_with_the_wall_time_fatal]
     timeout: 1800
     tests:
       - a_destructor_that_sends_at_request_end_is_refused_and_the_request_ends
@@ -290,6 +290,16 @@ has started still runs to its end, which the thread bound covers.
 registration, set when an event carried a read close or an error. The shortcut is not taken while it
 is set. **What it spends:** one branch per reported event and one byte per registration, and nothing
 on a keep-alive read with no hang-up.
+
+**Every cancellation ends a guest call's drive, not only the wall time's.** `block_on_yielding`
+answers `None` at any `Cancelled` from a park or a yield, and `Calls::call` returns `ctx.cancel()`.
+Telling the wall time's stop apart would need a second read of the tree's flags at the drive, and
+a group's cancellation of a task inside a guest call would otherwise poll the guest in a loop until
+it returned. Dropping the call's future runs no Novis code
+(`rule:concurrency/cancellation-runs-no-user-code`), and `Held` drops an instance whose call did
+not end, so the next call makes a fresh one (`crates/nvs-ext/src/call.rs:1665`). The end drive
+keeps the last wall deadline a call saw in `Spent`, because the tree is usually gone when `Calls`
+is dropped. **What it spends:** one word and one lock per call. Usability: none.
 
 **Tests wait on events, never on time.** A test sets a deadline that has passed, moves the tree's
 `wall_time`, or counts reads, parks and timer entries. No test asserts a wall-clock duration
@@ -534,28 +544,28 @@ keeps a connection open or that `cpu_time` covers a whole connection, as `path:N
 **Does:** refuse a destructor's outbound request at request end, bound the end drive by one instant,
 and end a guest call that parks past the wall deadline.
 
-- [ ] `Calls::drop` passes a `between` that takes the queued sends and reads and drops them, so each
+- [x] `Calls::drop` passes a `between` that takes the queued sends and reads and drops them, so each
   `Answer` refuses (`rule:packaging/a-fresh-instance-per-request`,
   `crates/nvs-cli/src/extensions.rs:478`, `crates/nvs-cli/src/extensions.rs:710`,
   `crates/nvs-cli/src/extensions.rs:720`).
-- [ ] The end drive takes an instant and parks as `PastWallTime::RequestEnd` with its timer armed.
+- [x] The end drive takes an instant and parks as `PastWallTime::RequestEnd` with its timer armed.
   Past the instant it drops the future. `Spent` gives the instant: the tree's wall deadline floored at
   `fatal_reserve_time` from now, or `disconnect_grace` with no `wall_time`
   (`rule:errors/on-limit`, `rule:http-server/a-request-outlives-a-client-that-goes-away`,
   `crates/nvs-host/src/block_on.rs:150`, `crates/nvs-host/src/block_on.rs:169`,
   `crates/nvs-cli/src/extensions.rs:468`, `crates/nvs-ext/src/call.rs:1232`).
-- [ ] The call drive stops at the funnel's `Cancelled` when the tree is stopped for its wall time: it
+- [x] The call drive stops at the funnel's `Cancelled` when the tree is stopped for its wall time: it
   drops the call's future and the member returns `ctx.cancel()`
   It is the one park the second list missed: `block_on_yielding` parks again after a cancellation, so
   past the bound it would poll in a loop until the guest returns
   (`rule:errors/on-limit`, `crates/nvs-cli/src/extensions.rs:876`, `crates/nvs-host/src/block_on.rs:169`).
-- [ ] Tests in `crates/nvs-cli/src/extensions.rs:1` tests:
+- [x] Tests in `crates/nvs-cli/src/extensions.rs:1` tests:
   `a_destructor_that_sends_at_request_end_is_refused_and_the_request_ends`,
   `a_destructor_that_waits_at_request_end_is_dropped_at_its_bound` and
   `a_guest_call_parked_past_the_wall_deadline_ends_with_the_wall_time_fatal`. The guest comes from the
   fixtures `crates/nvs-ext/tests/fixtures.rs:1` builds, or from an inline component where none fits.
   Each asserts the instance place is free again (`rule:packaging/a-fresh-instance-per-request`).
-- [ ] `rule:packaging/a-fresh-instance-per-request` says a destructor at request end sends nothing and
+- [x] `rule:packaging/a-fresh-instance-per-request` says a destructor at request end sends nothing and
   is ended at its bound, with the bound and its cost
   (`docs/rules/packaging/a-fresh-instance-per-request.md:1`).
 
@@ -569,34 +579,43 @@ and end a guest call that parks past the wall deadline.
 
 ### State
 
-Stage 5 is done, and its acceptance check `an-upgraded-connection-is-bounded` is green. This
-session added its two attacks, `tests/hostile/core/Socket/receive/02-a-handler-that-never-waits.nvs`
-and `tests/hostile/core/Sse/receive/02-a-handler-that-never-waits.nvs`, each with its peer or event
-file. Each lowers its own `limits.cpu_time` to `20ms` with `Core\Config::set`, waits once, then spins.
-Both print `step 3` and end with the CPU `FATAL` at 15 ms (the limit less its reserve). `bun nv
-proofs --run --only` passes both, and `--comments` passes both.
+Stage 6 is done, and its acceptance check `request-end-is-bounded` is green. Its `run` was
+`cargo test --lib`, which runs none of `nvs-cli`'s tests because that crate has only the `nvs`
+binary, so the check now runs `cargo test --bin nvs`.
 
-The sweep's reds: the three Miri jobs ran before 7568aaa0fb, which skips their four tests under Miri.
-`env-secret-proofs` is a phantom: its log does not exist under `.looper/loops/main/checks/`, and
-`looper check --name env-secret-proofs` answers "no check matches".
+- `crates/nvs-host/src/block_on.rs:150`: `block_on_yielding` returns `Option`, and `None` is a
+  cancellation. `block_on_until` is the end drive: it parks as `PastWallTime::RequestEnd` with the
+  task's timer armed at its instant, and drops the future past it.
+- `crates/nvs-cli/src/extensions.rs:476`: `Calls::drop` ends each request through `ended`, which
+  refuses every queued send and read (`Spent::refuse_queued`) and stops at `Spent::end_by`.
+- `crates/nvs-ext/src/call.rs:1665`: `Held` puts an instance back only when its call ended.
+- `crates/nvs-runtime/src/ctx/safepoint.rs:877`: `WeakSafepointView::wall_deadline`.
+- The rule fragment `docs/rules/packaging/a-fresh-instance-per-request.md` states the end bound.
+- `Calls` has an `on` field, so a test can run it on its own `Host`.
+
+The sweep's reds: the three Miri jobs ran on 578534cc, before 7568aaa0fb skips their tests under Miri.
+`env-secret-proofs` has no log under `.looper/loops/main/checks/`, and no check has that name.
 
 ### Next
 
-Stage 6, in the order of its items.
+Stage 7, the gate.
 
-- `crates/nvs-host/src/block_on.rs:1` is where stage 6 starts. Its items and anchors are under `### 6.`.
+- `docs/goals/waits-are-bounded.md:1`: run `looper verify` over the whole goal, fix every failure in
+  one pass, and run it once more.
 - `crates/nvs-host/src/net.rs:1`'s `a_short_read_that_came_with_a_hang_up_reads_once_more` is
   Unix-only. Run it once in WSL with `bun nv linux-test`.
-- Expected red, read at stage 7: a test that expects a member's own catchable timeout under a passed
-  `wall_time` now gets the wall-time `FATAL`. A test that slept past a passed `wall_time` off any core
-  (no scheduler) now sleeps its whole duration: `Core\Time::sleep` and the transaction retry backoff
-  read no deadline there. A test that reads a fast peer through `NvsStream` past a passed deadline now
+- Expected red: a test that expects a member's own catchable timeout under a passed `wall_time` now
+  gets the wall-time `FATAL`. A test that slept past a passed `wall_time` off any core now sleeps
+  its whole duration. A test that reads a fast peer through `NvsStream` past a passed deadline now
   ends after sixteen reads. A WebSocket test whose peer kept a connection open with pings past
   `idle_timeout` is now closed at it. A test that opens more event streams than `max_open` gets a
-  `503`. A connection test whose handler spun past `cpu_time` on a watched core is now stopped. Only
-  the new tests were run.
+  `503`. A connection test whose handler spun past `cpu_time` on a watched core is now stopped. A
+  test that cancels a task inside a guest call now sees the call end at once. Only the new tests ran.
 
 ### Backlog
 
 - A host that enumerates no CPU serves requests unwatched (`crates/nvs-cli/src/serve.rs:814`): check it.
 - The connection's inbound read caps each `recv` at 8 KiB (`crates/nvs-server/src/io.rs:479`).
+- An end drive that runs with no task on the thread (`Route::Thread`) blocks its core until its
+  instant at the latest (`crates/nvs-host/src/block_on.rs:1`). Check whether a tree is ever dropped
+  outside a task on a serving core.

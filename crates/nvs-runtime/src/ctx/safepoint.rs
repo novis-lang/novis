@@ -880,6 +880,12 @@ impl WeakSafepointView {
         })
     }
 
+    /// [`SafepointView::wall_deadline`] of the tree, or `None` once the tree has ended.
+    #[must_use]
+    pub fn wall_deadline(&self) -> Option<Option<std::time::Instant>> {
+        self.0.upgrade().map(|tree| tree.wall_deadline())
+    }
+
     /// [`SafepointView::request`] on the tree, and whether it is still alive.
     pub fn request(&self, flags: SafepointFlags) -> bool {
         self.0.upgrade().is_some_and(|tree| {
