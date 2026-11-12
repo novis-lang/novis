@@ -16,6 +16,10 @@ does not, and for directives that only ever narrow, such as `open_basedir`. The 
 one question only — *who may set it*. What applying a change requires is a second field on the same
 entry (`rule:config/reloadability-is-its-own-field`).
 
+The class is the application's own code's. Code in a package's namespace sets `limits.*` alone, and
+only lower, and restores only what a package set
+(`rule:security/package-authority-is-granted-one-line-at-a-time`).
+
 A key nothing reads while a request runs is not settable, whatever its block's class: `set` returns
 `false` for it, because a `true` would change nothing. Under `[http]`, the `Runtime` block, these are
 `http.cors.methods`, `http.cors.headers` and `http.cors.max_age`, which shape only a preflight

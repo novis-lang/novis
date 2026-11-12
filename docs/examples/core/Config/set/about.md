@@ -11,5 +11,8 @@ The ceiling of a limit is in `[limits.hard]`. Without it, the ceiling is the sta
 program can lower that limit but not raise it. A command-line program may raise `memory` to any
 value, unless `[limits.hard]` sets `memory`.
 
+Code in a package may change only a `[limits]` setting, and only to a lower value. For every other
+setting, `set` in a package returns `false`.
+
 **Good to know:** `Core\Config::restore` puts back the value from the configuration file, or the
 built-in default.

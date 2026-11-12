@@ -4,3 +4,4 @@
 'Acme\Zip\*' = []
 'Acme\Settings\*' = []
 'Acme\Jobs\*' = []
+'Acme\Limits\*' = []

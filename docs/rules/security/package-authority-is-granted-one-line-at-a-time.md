@@ -23,11 +23,24 @@ never part of a grant line, so widening the application's defaults widens no pac
 code with no line is the exception, and the audit warning of
 `rule:security/an-unmatched-namespace-holds-the-application` is its mitigation.
 
-A package may lower its own limits and never raise one. A `Core\Config::set` call under a package's
-namespace that raises a `[limits]` key returns `false`, even where the application's own code may
-raise it: on a CLI run with no `[limits.hard] memory` written, the application raises `memory` freely
+A package may lower its own limits and change nothing else. A `Core\Config::set` call under a
+package's namespace returns `false` for every key outside `limits.*`: the mode, `[http]`, `[log]`,
+`[debug]`, `[errors]` and every other block are the application's. Under `limits.*` it returns
+`false` for a raise, even where the application's own code may raise the key: on a CLI run with no
+`[limits.hard] memory` written, the application raises `memory` freely
 (`rule:config/ceilings-are-their-own-directives`). A raise would let a dependency take memory the
-application never chose to spend.
+application never chose to spend, and a change to any other block would let it weaken a policy the
+application chose, such as its cookies' flags. An application that wants a package's policy calls
+`set` itself.
+
+A package's `Core\Config::restore` undoes only what a package set. When a package lowers a key the
+application also set, the request keeps the application's value under the package's, and the
+package's `restore` puts it back. A key no package set is left as it is, so a package never removes
+a value the application set. The application's own `set` or `restore` of the key makes the entry the
+application's again. A method reference carries no word for the call site, so it acts as a package's
+call wherever it is written. **What it spends:** one optional string per key a package set, per
+request, freed with the request. Declined: telling one package from another. A limit is no wall
+between two packages that share one request's budget.
 
 A package can never be the code that declares data safe. Only a `Core` member removes `tainted`
 (`rule:security/launderers-are-sink-named`), so a package can compute over a `tainted` value and return

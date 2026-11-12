@@ -8,3 +8,6 @@ with its short name, `memory`, or with its full name, `limits.memory`. One call 
 **Good to know:** a name your program never changed is allowed. There is nothing to undo, so nothing
 happens and there is no error. When the configuration file does not write the setting, it gets its
 built-in default again. A setting with no default, such as `wall_time`, is `null` again.
+
+Code in a package can only undo a change that a package made. If your program set a value before
+the package changed it, `restore` in the package puts your program's value back.

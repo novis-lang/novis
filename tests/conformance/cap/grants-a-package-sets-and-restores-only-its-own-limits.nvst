@@ -1,0 +1,59 @@
+--TEST--
+a `Core\Config::set` in a package's namespace returns `false` for every key outside `[limits]`, and its `Core\Config::restore` undoes only what a package set, so a limit the application lowered stays — `rule:security/package-authority-is-granted-one-line-at-a-time`
+--FILE--
+<?nvs
+// covers: tools:packages/grants-what-each-namespace-may-do
+// `Acme\Cache` has a line in `[grants]`, so it is a package.
+autoload 'Acme\Cache' from './cache';
+
+echo Acme\Cache\Store::cookies(), "\n";
+echo "http_only=", Core\Config::get("http.cookies.http_only") ?? "unset", "\n";
+
+// This file has no namespace, so it is the application.
+echo "application=", (Core\Config::set("memory", "96M") ? "ok" : "refused"), "\n";
+Acme\Cache\Store::undo();
+echo "memory=", Core\Config::get("memory") ?? "unset", "\n";
+
+// A limit the package lowered comes back to the application's value.
+echo Acme\Cache\Store::lower(), "\n";
+echo "memory=", Core\Config::get("memory") ?? "unset", "\n";
+Acme\Cache\Store::undo();
+echo "memory=", Core\Config::get("memory") ?? "unset", "\n";
+--FILE cache/Store.nvs--
+<?nvs
+namespace Acme\Cache;
+
+final class Store
+{
+    // A package may not change a cookie setting, so this returns `false`.
+    public static function cookies(): string
+    {
+        bool $changed = Core\Config::set("http.cookies.http_only", "false");
+        return "cookies=" . ($changed ? "ok" : "refused");
+    }
+
+    // `restore` resets only a value this package set.
+    // A value the application set stays.
+    public static function undo(): void
+    {
+        Core\Config::restore("memory");
+    }
+
+    // A package may lower the memory limit, so this returns `true`.
+    public static function lower(): string
+    {
+        bool $lowered = Core\Config::set("memory", "64M");
+        return "lower=" . ($lowered ? "ok" : "refused");
+    }
+}
+--FILE package.toml--
+[grants]
+'Acme\Cache' = []
+--EXPECT--
+cookies=refused
+http_only=true
+application=ok
+memory=96M
+lower=ok
+memory=64M
+memory=96M

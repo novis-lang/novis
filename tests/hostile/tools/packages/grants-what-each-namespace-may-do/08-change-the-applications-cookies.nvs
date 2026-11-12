@@ -1,0 +1,12 @@
+<?nvs
+// Attack: a package tries to turn off the safety flags of the application's cookies.
+// A package may change only its own memory and time limits, so both calls should return `false`.
+
+autoload 'Acme\Limits' from './vendor/acme/limits/src';
+
+// 1. A class of `Acme\Limits` sets `http_only` and `secure` to `false`.
+echo Acme\Limits\Tuner::weakenCookies(), "\n";
+
+// 2. The flags are still on. This prints `true` twice.
+echo "http_only=", Core\Config::get("http.cookies.http_only") ?? "unset", "\n";
+echo "secure=", Core\Config::get("http.cookies.secure") ?? "unset", "\n";

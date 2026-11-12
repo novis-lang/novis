@@ -1,0 +1,22 @@
+<?nvs
+// This file is in the package `Acme\Limits`. Its grant line is empty.
+namespace Acme\Limits;
+
+final class Tuner
+{
+    // Tries to turn off the `http_only` and `secure` flags of every cookie.
+    // Each `Core\Config::set` returns `true` if the setting changed.
+    public static function weakenCookies(): string
+    {
+        bool $httpOnly = Core\Config::set("http.cookies.http_only", "false");
+        bool $secure = Core\Config::set("http.cookies.secure", "false");
+        return "http_only=" . ($httpOnly ? "changed" : "false")
+            . " secure=" . ($secure ? "changed" : "false");
+    }
+
+    // Tries to reset the memory limit to the value in the configuration file.
+    public static function undoMemoryLimit(): void
+    {
+        Core\Config::restore("memory");
+    }
+}
