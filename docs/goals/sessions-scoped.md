@@ -10,11 +10,11 @@ stages:
     context: [crates/nvs-stdlib/src/cache/redis.rs, crates/nvs-runtime/src/ctx/wiring.rs, crates/nvs-config/src/session.rs, docs/rules/http-server/a-session-is-loaded-once-and-written-whole.md, docs/rules/security/a-session-id-the-store-did-not-issue-is-rejected.md]
   - id: 2
     title: a session row is keyed by its application
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/cache.rs, crates/nvs-cli/tests/per_mount_config.rs, docs/rules/http-server/no-session-block-means-the-data-folder-store.md, docs/rules/concurrency/the-memory-tier-is-one-store-per-process.md]
   - id: 3
     title: "Core\\Csrf::token writes the session only when it draws the identifier"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/csrf.rs, docs/rules/security/csrf-is-on-by-default.md]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
@@ -224,51 +224,51 @@ use them, and prove the destroy-while-in-flight case on every store.
 **Does:** put the application into the key of both stores, and prove that a second application does
 not open the row.
 
-- [ ] `key_of` takes the application and the id, and `load`, `create`, `replace` and `destroy` pass
+- [x] `key_of` takes the application and the id, and `load`, `create`, `replace` and `destroy` pass
   `crate::cache::application(ctx)` on both stores
   (`rule:http-server/a-session-store-answers-four-operations`,
   `crates/nvs-stdlib/src/session.rs:605`, `crates/nvs-stdlib/src/cache.rs:1580`).
-- [ ] The `db` store's schema: table `nvs_sessions` with an `app` column and `PRIMARY KEY (app, id)`,
+- [x] The `db` store's schema: table `nvs_sessions` with an `app` column and `PRIMARY KEY (app, id)`,
   its expiry index, and one `DROP TABLE IF EXISTS nvs_session`. Every statement binds the
   application (`crates/nvs-stdlib/src/session/sqlite.rs:43`).
-- [ ] `fetched`, the two writes and `forgot` carry the application from the context
+- [x] `fetched`, the two writes and `forgot` carry the application from the context
   (`crates/nvs-stdlib/src/session.rs:679`).
-- [ ] Test `a_session_one_application_wrote_is_absent_in_another_on_every_store`, in the `session.rs`
+- [x] Test `a_session_one_application_wrote_is_absent_in_another_on_every_store`, in the `session.rs`
   test module, over `BACKENDS`: a context under one `[[app]]` block stores a session, and a context
   under a second block that presents the same id gets a fresh, empty session. A context under the
   first block still loads it (`crates/nvs-stdlib/src/session.rs:1681`).
-- [ ] Test `two_mounts_do_not_open_each_others_sessions`, beside
+- [x] Test `two_mounts_do_not_open_each_others_sessions`, beside
   `two_mounts_do_not_share_memory_tier_cache_entries`: two mounts under two `[[app]]` blocks, a
   session written through the first, and the first mount's cookie sent to the second
   (`crates/nvs-cli/tests/per_mount_config.rs:487`).
-- [ ] The existing key tests follow, `a_record_is_keyed_under_its_own_prefix` among them
+- [x] The existing key tests follow, `a_record_is_keyed_under_its_own_prefix` among them
   (`crates/nvs-stdlib/src/session.rs:2749`).
-- [ ] `rule:http-server/no-session-block-means-the-data-folder-store` says a row belongs to one
+- [x] `rule:http-server/no-session-block-means-the-data-folder-store` says a row belongs to one
   application, what a deployment with no `[[app]]` block is, and that two programs on one data
   folder need a block each or a `--data` folder each
   (`docs/rules/http-server/no-session-block-means-the-data-folder-store.md:1`).
-- [ ] `rule:security/a-session-id-the-store-did-not-issue-is-rejected` says an id another
+- [x] `rule:security/a-session-id-the-store-did-not-issue-is-rejected` says an id another
   application's row holds is absent
   (`docs/rules/security/a-session-id-the-store-did-not-issue-is-rejected.md:1`).
-- [ ] The doc of `Folder::sessions` and the `sqlite` module doc name the new key
+- [x] The doc of `Folder::sessions` and the `sqlite` module doc name the new key
   (`crates/nvs-config/src/data.rs:166`, `crates/nvs-stdlib/src/session/sqlite.rs:1`).
 
 ### 3. Core\Csrf::token writes the session only when it draws the identifier
 
 **Does:** stop a token render from marking a loaded session changed, and count the store writes.
 
-- [ ] `sent_id` sets `dirty` inside its fresh branch alone, and its doc comment says so
+- [x] `sent_id` sets `dirty` inside its fresh branch alone, and its doc comment says so
   (`rule:security/csrf-is-on-by-default`, `crates/nvs-stdlib/src/session.rs:1237`).
-- [ ] Test `a_token_for_a_loaded_session_makes_no_store_write`, in the `session.rs` test module,
+- [x] Test `a_token_for_a_loaded_session_makes_no_store_write`, in the `session.rs` test module,
   against the fake shared server with a counter of write commands. A context loads a stored session,
   calls `Core\Csrf::token` twice and ends: the counter is 0. The same context shape with one
   `Core\Session::set` ends at 1 (`crates/nvs-stdlib/src/session.rs:1681`,
   `crates/nvs-stdlib/src/csrf.rs:402`).
-- [ ] Test `a_token_for_a_new_visitor_creates_the_row_once`: a context with a fresh session calls
+- [x] Test `a_token_for_a_new_visitor_creates_the_row_once`: a context with a fresh session calls
   `token` twice and ends, the counter is 1, and the row exists under the id the cookie carries.
-- [ ] `rule:security/csrf-is-on-by-default` says a token for a session that has a row writes nothing
+- [x] `rule:security/csrf-is-on-by-default` says a token for a session that has a row writes nothing
   (`docs/rules/security/csrf-is-on-by-default.md:30`).
-- [ ] `rule:http-server/a-session-is-loaded-once-and-written-whole` names the token render beside
+- [x] `rule:http-server/a-session-is-loaded-once-and-written-whole` names the token render beside
   the read-only request (`docs/rules/http-server/a-session-is-loaded-once-and-written-whole.md:4`).
 
 ### 4. the goal is verified once, and every failure is fixed
@@ -281,43 +281,39 @@ not open the row.
 
 ### State
 
-Stage 1 is done. `nvs_runtime::Session` has `stored`. Both stores answer `create` (shared `SET … NX
-PX`, `db` an `INSERT` that also takes over an expired row's id) and `replace` (`SET … XX PX`, an
-`UPDATE` of a live row), and `destroy` returns whether it removed a row. The write-back is
-`sent_to` (`crates/nvs-stdlib/src/session.rs:1726`), which `send_at_end` calls with the configured
-store, and `regenerate`'s move is `regenerated`. Both take a `Store`, so a test passes a scratch
-SQLite file: the data folder is a process-wide `OnceLock` and cannot point at one. The test module's
-`a_store` (`crates/nvs-stdlib/src/session.rs:2344`) builds each store of `BACKENDS` with no
-wildcard arm, and `Kept` counts its rows and lapses a row. The fake shared server answers `NX`,
-`XX`, nil and lapsed keys. The three stage 1 tests and every other `session::` test pass.
+Stages 1, 2 and 3 are done, and stage 4, the gate, is next. Each stage's own tests passed by name.
+
+- Stage 2: `key_of(app, id)` (`crates/nvs-stdlib/src/session.rs:612`) is the prefix, the
+  application, one `NUL` and the id. `fetched`, `created`, `replaced` and `forgot` take the
+  application, and `start`, `regenerated`, `destroy` and `sent_to` read it with
+  `crate::cache::application`. The `db` store's table is `nvs_sessions` with `PRIMARY KEY (app,
+  id)`, and a connection drops the old `nvs_session` table when it opens. The test module's
+  `NO_APP` is the application of a context with no `[[app]]` block. `under` places a context under
+  one block. The wire test's `Answer` now carries its header block, and `Server::sent` sends a
+  cookie (`crates/nvs-cli/tests/per_mount_config.rs`).
+- Stage 3: `sent_id` sets `dirty` only when it draws the identifier. The fake shared server counts
+  its `SET` commands in `Serving::sets`, and `tokened` (`crates/nvs-stdlib/src/session.rs:2504`)
+  builds a context with the fake store and a CSRF key.
+- The sweep's `env-secret-proofs` item is stale driver state: no file defines the check, and its
+  command, `bun nv proofs --gate --only 'Core\Env::secret'`, exits 0. The three nightly Miri
+  failures ran at `578534cc7c`, before `7568aaa0fb` skipped those four tests under Miri.
 
 ### Next
 
-Stage 2, a session row is keyed by its application. Files: `crates/nvs-stdlib/src/session.rs`,
-`crates/nvs-stdlib/src/session/sqlite.rs`, `crates/nvs-cli/tests/per_mount_config.rs`,
-`crates/nvs-config/src/data.rs` and two rule fragments.
+Stage 4, the gate. Start `looper verify` with `run_in_background`, fix every failure it names in one
+pass, and run it once more. Then the goal-end gates: `bun nv verify --doc`,
+`bun nv owners --closes sessions-scoped` and `bun nv ci --check`.
 
-- [ ] `crates/nvs-stdlib/src/session.rs:607`: `key_of` takes the application, read by
-  `crate::cache::application` (`crates/nvs-stdlib/src/cache.rs:1586`).
-- [ ] `crates/nvs-stdlib/src/session/sqlite.rs:44`: the schema becomes `nvs_sessions` with `app`,
-  `PRIMARY KEY (app, id)` and a `DROP TABLE IF EXISTS nvs_session`; every statement binds `app`
-  (`create` at `crates/nvs-stdlib/src/session/sqlite.rs:201`, and its `rows` and `lapse` test
-  helpers).
-- [ ] `crates/nvs-stdlib/src/session.rs:678`: `fetched`, `created`, `replaced` and `forgot` carry
-  the application. `sent_to` and `regenerated` read it off the context.
-- [ ] `crates/nvs-stdlib/src/session.rs:2344`: test
-  `a_session_one_application_wrote_is_absent_in_another_on_every_store`, built with `a_store`.
-- [ ] `crates/nvs-cli/tests/per_mount_config.rs:487`: test
-  `two_mounts_do_not_open_each_others_sessions`.
-- [ ] `crates/nvs-stdlib/src/session.rs:3109`: `a_record_is_keyed_under_its_own_prefix` follows.
-- [ ] `docs/rules/http-server/no-session-block-means-the-data-folder-store.md:1`: the two rule
-  fragments and the two docs stage 2 names
-  (`docs/rules/security/a-session-id-the-store-did-not-issue-is-rejected.md:1`,
-  `crates/nvs-config/src/data.rs:166`, `crates/nvs-stdlib/src/session/sqlite.rs:1`).
+- [ ] `looper verify` over the whole goal (`docs/goals/sessions-scoped.md:276`).
+- [ ] Fix every failure in one pass (`docs/goals/sessions-scoped.md:277`).
+- [ ] `looper verify` once more, green (`docs/goals/sessions-scoped.md:278`).
+- [ ] The goal-end gates, each red fixed (`AGENTS.md:1`, § *In the loop*).
 
-Expected red before stage 2's own edits: none. `a_record_is_keyed_under_its_own_prefix` goes red
-once `key_of` changes, and is updated in the same slice.
+Expected red: none known. Every `session::` test that writes a key now passes `NO_APP`. A test
+outside `crates/nvs-stdlib/src/session.rs` that builds a session key or reads `nvs_session` by name
+would go red. A search for both found none.
 
 ### Backlog
 
-- Two programs that share one data folder and write no `[[app]]` block still share sessions.
+- Two programs that share one data folder and write no `[[app]]` block still share sessions. The
+  rule fragment says each needs its own block or its own `--data` folder.
