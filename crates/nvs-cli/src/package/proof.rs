@@ -207,13 +207,20 @@ impl Seen {
     /// Every advisory in the log of `registry`: its advisory feed, read from the file host this
     /// log came from and checked against every record of the log, and each advisory past the
     /// feed's size, read from the log itself. The log's records must lead to its checkpoint's
-    /// root, and its first records to the root the feed names.
+    /// root, and its first records to the root the feed names. A feed signed before `oldest` is
+    /// refused with [`super::index::Stamp::too_old`]'s message, because an old feed may hide an
+    /// advisory the log has since gained.
     ///
     /// # Errors
     ///
-    /// No feed, a feed that does not open, names a log this one does not continue, or disagrees
-    /// with the log, and a log that cannot be read or does not lead to its root.
-    pub(crate) fn advisories(&mut self, registry: &Registry) -> Result<Vec<Advisory>, Fault> {
+    /// No feed, a feed that does not open, names a log this one does not continue, is signed
+    /// before `oldest`, or disagrees with the log, and a log that cannot be read or does not lead
+    /// to its root.
+    pub(crate) fn advisories(
+        &mut self,
+        registry: &Registry,
+        oldest: Option<u64>,
+    ) -> Result<Vec<Advisory>, Fault> {
         let url = &registry.url;
         let refused =
             |why: String| fault(format!("the advisory feed of `{url}` is not used: {why}"));
@@ -228,6 +235,14 @@ impl Seen {
                 Skip::Host(why) => refused(why),
                 Skip::Stop(stop) => stop,
             })?;
+        if let Some(old) = feed.stamp.too_old(
+            oldest,
+            &format!("The advisory feed of the registry `{url}`"),
+            "`nvs pkg audit` needs a feed",
+            "The command cannot tell you that no advisory applies. Try again later.",
+        ) {
+            return Err(fault(old));
+        }
         let (size, root) = (self.checkpoint.size(), *self.checkpoint.root());
         let mut against = feed.against();
         let mut past = Vec::new();

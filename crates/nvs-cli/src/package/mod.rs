@@ -153,6 +153,8 @@ enum Command {
     Fetch {
         /// Use only the versions in `package.lock`, and never change it. The
         /// command stops with an error if `package.lock` does not match.
+        /// Without this option, the command needs registry files signed in
+        /// the last seven days. With it, older files work too.
         #[arg(long)]
         locked: bool,
     },
@@ -203,7 +205,9 @@ enum Command {
     /// `[grants]` matches. That code has every permission of your application.
     ///
     /// The command exits with an error while a locked version has an
-    /// advisory, so you can run it in CI.
+    /// advisory, so you can run it in CI. It also exits with an error when
+    /// the list of advisories was signed more than seven days ago. An old
+    /// list may not show a new advisory.
     Audit {
         /// Print the report as JSON.
         #[arg(long)]
@@ -245,6 +249,8 @@ enum Command {
     Vendor {
         /// Use only the versions in `package.lock`, and never change it. The
         /// command stops with an error if `package.lock` does not match.
+        /// Without this option, the command needs registry files signed in
+        /// the last seven days. With it, older files work too.
         #[arg(long)]
         locked: bool,
     },

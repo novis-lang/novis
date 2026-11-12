@@ -28,10 +28,12 @@
 //! [`AHEAD`] past this computer's clock, and names a checkpoint the log the client checked
 //! continues ([`super::proof::Seen::covers`]). An index file that fails any of these is skipped and
 //! the next file host is tried, except a validly signed checkpoint the log does not continue,
-//! which is the fork error. A command that selects a version passes an oldest time, and an index
-//! file signed before it is skipped the same way ([`MAX_AGE`]). The root file has no next host:
-//! one that fails is an error, and it is never refused for its age, so the kept copy still finds
-//! the file hosts through an outage.
+//! which is the fork error. Every command passes an oldest time, [`MAX_AGE`] before it started,
+//! except a locked fetch or vendor, which selects nothing, and `nvs registry log verify`, which
+//! checks a log of any age. An index file signed before it is skipped the same way, and when no
+//! host has a newer one the error starts with [`Stamp::too_old`]'s message. The root file has no
+//! next host: one that fails is an error, and it is never refused for its age, so the kept copy
+//! still finds the file hosts through an outage.
 //!
 //! An `https:` URL is read through [`nvs_stdlib::tool_stream`], one TLS stack with
 //! `Core\Http\Client`, and the read stops one byte past the file's limit, so an archive is read up
@@ -72,8 +74,9 @@ const MAX_INDEX_BYTES: u64 = 1024 * 1024;
 /// How far past this computer's clock a file may be signed, in seconds: one hour.
 pub(crate) const AHEAD: u64 = 60 * 60;
 
-/// How long ago an index file may be signed for a command that selects a version, in seconds:
-/// seven days. The registry signs every index file again each day.
+/// How long ago an index file or the advisory feed may be signed, in seconds: seven days. The
+/// registry signs every index file again each day. Every command holds a file to it but a locked
+/// fetch or vendor, which builds from the lock's digests alone, and `nvs registry log verify`.
 pub(crate) const MAX_AGE: u64 = 7 * 24 * 60 * 60;
 
 /// How long one `https:` read may take before the size of the file is counted.
@@ -279,6 +282,26 @@ impl Stamp {
             signed_at,
             size: checkpoint.size,
             root,
+        })
+    }
+
+    /// The refusal of a file signed before `oldest`, or `None` when it is not older or there is
+    /// no `oldest`. `what` names the file and its registry, `needs` the command and the file it
+    /// needs, and `next` is what the reader can do.
+    pub(crate) fn too_old(
+        &self,
+        oldest: Option<u64>,
+        what: &str,
+        needs: &str,
+        next: &str,
+    ) -> Option<String> {
+        let oldest = oldest?;
+        (self.signed_at < oldest).then(|| {
+            format!(
+                "{what} is too old to use.\nIt was signed on {}, and {needs} signed in the last \
+                 seven days.\n{next}",
+                time(self.signed_at)
+            )
         })
     }
 }
@@ -609,6 +632,7 @@ impl Registry {
     ) -> Result<Option<Index>, Fault> {
         let path = format!("index/{}.json", name.slug());
         let mut failures = Vec::new();
+        let mut old = None;
         for host in &self.hosts {
             let bytes = match host.get(&path, MAX_INDEX_BYTES) {
                 Ok(Some(bytes)) => bytes,
@@ -618,37 +642,54 @@ impl Registry {
                     continue;
                 }
             };
-            match self.checked(&bytes, name, host, seen, oldest) {
-                Ok(index) => return Ok(Some(index)),
+            match self.checked(&bytes, name, host, seen) {
+                Ok((file, stamp)) => {
+                    let refused = stamp.too_old(
+                        oldest,
+                        &format!("The index of `{name}` from the registry `{}`", self.url),
+                        &format!("`{MEMBER}` needs a file"),
+                        &format!(
+                            "Try again later. `{MEMBER} fetch --locked` still downloads the \
+                             versions in `{}`.",
+                            super::lock::FILE
+                        ),
+                    );
+                    let Some(refused) = refused else {
+                        return parse_index(file, name, host).map(Some);
+                    };
+                    failures.push(format!(
+                        "{host}: it is signed on {}, more than seven days ago",
+                        time(stamp.signed_at)
+                    ));
+                    old.get_or_insert(refused);
+                }
                 Err(Skip::Host(why)) => failures.push(format!("{host}: {why}")),
                 Err(Skip::Stop(fork)) => return Err(fork),
             }
         }
-        Err(self.unanswered(&format!("the index of `{name}`"), &failures))
+        let unanswered = self.unanswered(&format!("the index of `{name}`"), &failures);
+        Err(match old {
+            Some(old) => fault(format!("{old}\n{unanswered}")),
+            None => unanswered,
+        })
     }
 
-    /// The index file `bytes` from `host`, once its signature, time and checkpoint check.
+    /// The index file `bytes` from `host` and its stamp, once its signature, time and checkpoint
+    /// check. The caller judges its age.
     fn checked(
         &self,
         bytes: &[u8],
         name: &Name,
         host: &Place,
         seen: &mut Seen,
-        oldest: Option<u64>,
-    ) -> Result<Index, Skip> {
+    ) -> Result<(IndexFile, Stamp), Skip> {
         let text = opened(bytes, &self.verifier).map_err(Skip::Host)?;
         let what = format!("the index of `{name}` on {host}");
         let file: IndexFile = serde_json::from_str(text)
             .map_err(|err| Skip::Stop(fault(format!("{what} is not valid: {err}"))))?;
         let stamp = Stamp::read(file.signed_at, &file.checkpoint, self.now).map_err(Skip::Host)?;
         seen.covers(self, &stamp)?;
-        if oldest.is_some_and(|oldest| stamp.signed_at < oldest) {
-            return Err(Skip::Host(format!(
-                "it is signed at {}, more than seven days ago, so no version is selected from it",
-                time(stamp.signed_at)
-            )));
-        }
-        parse_index(file, name, host).map_err(Skip::Stop)
+        Ok((file, stamp))
     }
 
     /// The archive of `name` at `version`, whose BLAKE3 digest is `digest`, from the first file
@@ -976,22 +1017,37 @@ mod tests {
         );
     }
 
-    /// An index file signed eight days ago is not used to select a version, and is read when
-    /// nothing is selected from it.
+    /// An index file signed eight days ago is refused with the message that names the registry,
+    /// the time and `--locked`, and is read with no oldest time, as a locked fetch reads it. One
+    /// signed one second inside the seven days is read.
     #[test]
-    fn an_old_index_file_is_refused_only_for_selecting() {
+    fn a_signed_file_older_than_seven_days_is_refused_unless_the_build_is_locked() {
+        let at = now();
+        let oldest = Some(at - MAX_AGE);
+
         let fixture = Fixture::new("index-old");
-        fixture.signing_at(now() - 8 * 24 * 60 * 60);
+        fixture.signing_at(at - 8 * 24 * 60 * 60);
         fixture.publish("Acme\\Http", "1.0.0", &[], "\"released\"");
         let registry = open(&fixture, None).expect("it opens");
-        let mut seen = seen(&fixture, &registry);
-        let oldest = Some(now() - MAX_AGE);
+        let mut log = seen(&fixture, &registry);
         let failed = registry
-            .index(&http(), &mut seen, oldest)
-            .expect_err("it is too old to select from");
-        assert!(failed.0.contains("more than seven days ago"), "{failed}");
-        assert!(failed.0.contains(&fixture.url()), "{failed}");
-        assert!(registry.index(&http(), &mut seen, None).is_ok());
+            .index(&http(), &mut log, oldest)
+            .expect_err("it is too old to use");
+        let first = failed.0.lines().next().unwrap_or_default();
+        assert!(first.ends_with("is too old to use."), "{failed}");
+        assert!(first.contains(&fixture.url()), "{failed}");
+        assert!(failed.0.contains(" UTC"), "{failed}");
+        assert!(failed.0.contains("in the last seven days"), "{failed}");
+        assert!(failed.0.contains("fetch --locked"), "{failed}");
+        assert!(registry.index(&http(), &mut log, None).is_ok());
+
+        let fixture = Fixture::new("index-almost-old");
+        fixture.signing_at(at - MAX_AGE + 1);
+        fixture.publish("Acme\\Http", "1.0.0", &[], "\"released\"");
+        let registry = open(&fixture, None).expect("it opens");
+        let mut log = seen(&fixture, &registry);
+        let read = registry.index(&http(), &mut log, oldest);
+        assert!(matches!(read, Ok(Some(_))), "{read:?}");
     }
 
     /// An index file signed with a checkpoint the log does not continue is the fork error, and

@@ -220,6 +220,9 @@ fn fetch(mode: Mode, locked: bool) -> Result<(), Failed> {
         .into());
     }
     let mut registries = app.registries(&app.manifest);
+    if locked {
+        registries = registries.for_the_lock();
+    }
     let graph = resolve::resolve(&app.manifest, &mut registries, app.old.as_ref())?;
     if let Some(old) = &app.old {
         old.check(&graph, locked)?;

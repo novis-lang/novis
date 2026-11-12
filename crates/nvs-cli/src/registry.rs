@@ -107,8 +107,9 @@ enum IndexCommand {
     ///
     /// The command signs `registry.json` and each file under `index/` in the
     /// directory. Each file gets the time and the log's newest checkpoint.
-    /// Clients do not use an index file signed more than seven days ago to
-    /// choose a version, so run this command at least once a day.
+    /// Every `nvs pkg` command but `nvs pkg fetch --locked` needs an index
+    /// file signed in the last seven days. Run this command at least once a
+    /// day.
     Sign {
         /// The directory with `registry.json` and `index/`.
         dir: PathBuf,
@@ -172,7 +173,9 @@ enum LogCommand {
     /// The command reads every entry of the log and writes the file
     /// `advisories` in the log's directory, signed with the key. Clients read
     /// it to find the versions they must not use. Run it after each change
-    /// that retracts or withholds a version, or adds an advisory.
+    /// that retracts or withholds a version, or adds an advisory. Also run it
+    /// at least once a day: `nvs pkg audit` needs a feed signed in the last
+    /// seven days.
     Advisories {
         /// The log's directory.
         dir: PathBuf,
@@ -181,6 +184,9 @@ enum LogCommand {
         /// must be the log's name.
         #[arg(long, value_name = "FILE")]
         key: PathBuf,
+        /// The time to sign with, in Unix seconds. The default is now.
+        #[arg(long, value_name = "SECONDS")]
+        at: Option<u64>,
     },
     /// Print the path of every file a log of `size` entries has.
     ///
@@ -212,8 +218,8 @@ impl Args {
                     },
             } => verify(&dir, vkey.as_deref(), key.as_deref(), &origin, entries),
             Command::Log {
-                command: LogCommand::Advisories { dir, key },
-            } => advisories(&dir, &key),
+                command: LogCommand::Advisories { dir, key, at },
+            } => advisories(&dir, &key, at.unwrap_or_else(now)),
             Command::Log {
                 command: LogCommand::Files { size },
             } => Ok(log::written_paths(0, size).join("\n")),
@@ -380,8 +386,8 @@ fn read_feed(
     Ok(Some(feed))
 }
 
-/// `nvs registry log advisories`.
-fn advisories(dir: &Path, key: &Path) -> Result<String, String> {
+/// `nvs registry log advisories`, signed at `at`.
+fn advisories(dir: &Path, key: &Path, at: u64) -> Result<String, String> {
     let signer = read_key(key)?;
     let verifier = signer.verifier();
     let checkpoint = read_checkpoint(dir, verifier.name(), std::slice::from_ref(&verifier))?
@@ -399,7 +405,7 @@ fn advisories(dir: &Path, key: &Path) -> Result<String, String> {
         },
     )
     .map_err(|err| err.to_string())?;
-    let note = advisory::sign(&listed, &signer, &checkpoint, now())?;
+    let note = advisory::sign(&listed, &signer, &checkpoint, at)?;
     let path = dir.join(advisory::FILE);
     let partial = dir.join(format!("{}.partial", advisory::FILE));
     fs::write(&partial, note)

@@ -137,6 +137,7 @@ fn auditing() -> Result<Report, Failed> {
     };
     let now = minimum::now();
     let mut registries = app.registries(&app.manifest);
+    let oldest = registries.oldest();
     let mut feeds: BTreeMap<String, Vec<Advisory>> = BTreeMap::new();
     let mut report = Report {
         advisories: Vec::new(),
@@ -151,7 +152,7 @@ fn auditing() -> Result<Report, Failed> {
         if !feeds.contains_key(&url) {
             let (registry, seen) = registries.with_log(&locked.name)?;
             let checked = check(registry, seen)?;
-            feeds.insert(url.clone(), seen.advisories(registry)?);
+            feeds.insert(url.clone(), seen.advisories(registry, oldest)?);
             report.registries.push(checked);
         }
         let advisories = &feeds[&url];

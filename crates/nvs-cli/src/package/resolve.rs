@@ -120,7 +120,8 @@ pub(crate) struct Registries<'a> {
     logs: BTreeMap<String, Seen>,
     /// This computer's clock when the command started, as a Unix time.
     now: u64,
-    /// The earliest time an index file may be signed at, for a command that selects a version.
+    /// The earliest time an index file or a feed may be signed at: [`index::MAX_AGE`] before the
+    /// command started, or `None` for a build from the lock ([`Self::for_the_lock`]).
     oldest: Option<u64>,
     /// Where a git dependency is written out while it is packed: the data folder's `tmp/`, or
     /// nothing when there is no data folder, and a git dependency then fails.
@@ -138,6 +139,9 @@ pub(crate) struct Registries<'a> {
 impl<'a> Registries<'a> {
     /// The registries of `manifest`, with each root file kept in `keep`.
     pub(crate) fn new(manifest: &'a Manifest, keep: Option<&Path>) -> Self {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| since.as_secs());
         Self {
             manifest,
             base: manifest
@@ -148,10 +152,8 @@ impl<'a> Registries<'a> {
             open: BTreeMap::new(),
             indexes: BTreeMap::new(),
             logs: BTreeMap::new(),
-            now: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |since| since.as_secs()),
-            oldest: None,
+            now,
+            oldest: Some(now.saturating_sub(index::MAX_AGE)),
             scratch: None,
             limits: git::LIMITS,
             outbound: Outbound::default(),
@@ -160,12 +162,18 @@ impl<'a> Registries<'a> {
         }
     }
 
-    /// These registries for a command that selects a version: an index file signed more than
-    /// [`index::MAX_AGE`] ago is not used. A build from the lock never calls this, so it works
-    /// with any old index.
-    pub(crate) fn selecting(mut self) -> Self {
-        self.oldest = Some(self.now.saturating_sub(index::MAX_AGE));
+    /// These registries for a build from the lock, which selects nothing and needs only digests
+    /// and inclusion: an index file of any age is used, so it works while the registry signs
+    /// nothing. A locked fetch or vendor is the one caller.
+    pub(crate) fn for_the_lock(mut self) -> Self {
+        self.oldest = None;
         self
+    }
+
+    /// The earliest time an index file or a feed may be signed at, or `None` for a build from
+    /// the lock.
+    pub(crate) fn oldest(&self) -> Option<u64> {
+        self.oldest
     }
 
     /// These registries, with each `https:` git dependency cloned only where `outbound` allows.

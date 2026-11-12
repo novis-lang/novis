@@ -739,11 +739,12 @@ fn a_forked_log_is_refused() {
     );
 }
 
-/// An index file signed eight days ago is not used by `nvs pkg add`, which names the registry
-/// and the time, and `nvs pkg fetch --locked` still builds from the lock with it.
+/// An index file signed eight days ago is refused by `nvs pkg add` and by `nvs pkg fetch`
+/// without `--locked`, with a message that names the registry, the time and `--locked`, and no
+/// lock entry is written. `nvs pkg fetch --locked` still builds from the lock with it.
 // covers: tools:packages/the-transparency-log
 #[test]
-fn an_old_index_file_is_refused_for_add_and_read_for_a_locked_fetch() {
+fn an_old_index_file_is_refused_for_every_command_but_a_locked_fetch() {
     let logged = Logged::new("package-client-index-old");
     logged.publish("1.0.0");
     let app = logged.app("app", "1.0.0");
@@ -755,12 +756,22 @@ fn an_old_index_file_is_refused_for_add_and_read_for_a_locked_fetch() {
         .expect("the clock is past 1970")
         .as_secs();
     logged.sign(Some(now - 8 * 24 * 60 * 60));
-    let out = logged.nvs(&app, &["pkg", "add", "acme/http"]);
-    assert!(!out.status.success(), "added from an old index file");
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("more than seven days ago"), "{stderr}");
-    assert!(stderr.contains(&logged.url()), "{stderr}");
-    assert!(stderr.contains(" UTC"), "{stderr}");
+    let lock = fs::read(app.join("package.lock")).expect("the fetch wrote the lock");
+    for args in [&["pkg", "add", "acme/http"][..], &["pkg", "fetch"][..]] {
+        let out = logged.nvs(&app, args);
+        assert!(!out.status.success(), "{args:?} read an old index file");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(stderr.contains("is too old to use"), "{stderr}");
+        assert!(stderr.contains(&logged.url()), "{stderr}");
+        assert!(stderr.contains(" UTC"), "{stderr}");
+        assert!(stderr.contains("seven days"), "{stderr}");
+        assert!(stderr.contains("--locked"), "{stderr}");
+        assert_eq!(
+            fs::read(app.join("package.lock")).expect("the lock stays"),
+            lock,
+            "{args:?} changed the lock"
+        );
+    }
 
     fs::remove_dir_all(app.join("vendor")).expect("the test removes the tree");
     let out = logged.nvs(&app, &["pkg", "fetch", "--locked"]);

@@ -411,13 +411,21 @@ impl Locked {
             }
         }
         self.write_index(&index);
-        let written = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        self.feed(None);
+    }
+
+    /// The advisory feed written by the binary, signed at `at`, or now.
+    fn feed(&self, at: Option<u64>) {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+        command
             .args(["registry", "log", "advisories"])
             .arg(self.registry().join("log"))
             .arg("--key")
-            .arg(self.key())
-            .output()
-            .expect("the binary under test runs");
+            .arg(self.key());
+        if let Some(at) = at {
+            command.args(["--at", &at.to_string()]);
+        }
+        let written = command.output().expect("the binary under test runs");
         assert!(written.status.success(), "{}", shown(&written));
     }
 
@@ -482,6 +490,34 @@ fn audit_names_a_locked_retracted_version_and_the_release_that_fixes_it() {
         "{}",
         shown(&out)
     );
+}
+
+/// A feed signed eight days ago may hide a newer advisory, so audit stops and names the registry
+/// and the time. A feed signed now over the same log passes.
+// covers: tools:packages/nvs-pkg-audit
+#[test]
+fn audit_refuses_an_advisory_feed_signed_more_than_seven_days_ago() {
+    let tree = Locked::new("audit-feed-old");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("the clock is past 1970")
+        .as_secs();
+    tree.feed(Some(now - 8 * 24 * 60 * 60));
+    let out = tree.nvs(&["pkg", "audit"]);
+    assert!(!out.status.success(), "{}", shown(&out));
+    let text = stderr(&out);
+    assert!(
+        text.contains("The advisory feed of the registry `file:"),
+        "{}",
+        shown(&out)
+    );
+    assert!(text.contains("is too old to use."), "{}", shown(&out));
+    assert!(text.contains(" UTC"), "{}", shown(&out));
+    assert!(text.contains("in the last seven days"), "{}", shown(&out));
+
+    tree.feed(None);
+    let out = tree.nvs(&["pkg", "audit"]);
+    assert!(out.status.success(), "{}", shown(&out));
 }
 
 #[test]
