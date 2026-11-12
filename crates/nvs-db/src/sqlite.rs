@@ -174,6 +174,11 @@ pub struct SqliteTarget<'a> {
     /// [`into_wal`]'s retry stops at the earlier of the two. `nvs-stdlib` sets
     /// the request's wall deadline here, so an open never waits past it.
     pub deadline: Option<std::time::Instant>,
+    /// Statements [`open`] runs before it installs the authorizer, for a
+    /// pragma the driver's own caller needs and [`PRAGMAS`] gives a request no
+    /// row for. The session store's `synchronous = NORMAL` is the one. A block
+    /// sets none.
+    pub setup: &'static [&'static str],
 }
 
 impl<'a> SqliteTarget<'a> {
@@ -244,6 +249,7 @@ impl<'a> SqliteTarget<'a> {
             // neither spelling only reaches here from a block no boot read, and it opens as it is.
             wal: nvs_config::db::JournalMode::of(block) == Some(nvs_config::db::JournalMode::Wal),
             deadline: None,
+            setup: &[],
         })
     }
 }
@@ -741,6 +747,7 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
     let read_only = target.read_only;
     let wal = target.wal;
     let wal_until = target.deadline;
+    let setup = target.setup;
 
     let handle = nvs_host::blocking::run(move || -> rusqlite::Result<rusqlite::Connection> {
         let mut connection = if read_only {
@@ -758,7 +765,10 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
         if wal && !read_only {
             into_wal(&connection, wal_until)?;
         }
-        connection.execute_batch(SESSION_PRAGMAS)?;
+        for statement in setup {
+            connection.execute_batch(statement)?;
+        }
+        connection.execute_batch(&session_pragmas())?;
         connection.authorizer(Some(authorize))?;
         connection.update_hook(Some(
             move |action, _database: &str, _table: &str, rowid: i64| {
@@ -829,37 +839,125 @@ fn into_wal(
 /// How long a statement with no deadline of its own waits for another
 /// connection's write lock when its run has no `wall_time` either.
 ///
-/// It is the 5000 ms [`SESSION_PRAGMAS`] files, so a statement waits as long as
+/// It is the 5000 ms `busy_timeout` row of [`PRAGMAS`], so a statement waits as long as
 /// a connection nobody filed a bound on. A request with a `wall_time` waits for
 /// what it has left instead (`rule:core-classes/db-statement-members`).
 pub const LOCK_WAIT: std::time::Duration = std::time::Duration::from_millis(5000);
 
-/// The pragmas [`open`] sets and [`SqliteConn::reset`] sets again.
-///
-/// `foreign_keys` is the one the open needs for its own sake (see [`open`]).
-/// The rest are SQLite's defaults, written out because a request may change
-/// each of them with a `PRAGMA` statement, and each changes what the next
-/// request's statements mean: a write refused, a check skipped, a trigger
-/// recursing, or a core waiting on a lock. A `PRAGMA` that only reads is not
-/// session state, and a file-level one such as `journal_mode` belongs to the
-/// file and every connection to it, so neither is here.
-///
-/// `busy_timeout` is the one that is not SQLite's default: it is the 5000 ms
-/// `rusqlite` sets when it opens a connection, and [`LOCK_WAIT`], so a reused
-/// connection waits on another's write lock as long as a fresh one does. A
-/// queue worker leans on that wait. `0` would answer `SQLITE_BUSY` at once, and
-/// a worker sharing the file with a request stops.
-const SESSION_PRAGMAS: &str = "PRAGMA foreign_keys = ON; \
-     PRAGMA query_only = OFF; \
-     PRAGMA recursive_triggers = OFF; \
-     PRAGMA ignore_check_constraints = OFF; \
-     PRAGMA defer_foreign_keys = OFF; \
-     PRAGMA reverse_unordered_selects = OFF; \
-     PRAGMA writable_schema = OFF; \
-     PRAGMA busy_timeout = 5000;";
+/// What a statement may do with one pragma, by [`PRAGMAS`]'s row for it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Pragma {
+    /// Only reads, with or without an argument: `PRAGMA table_info(t)`.
+    Read,
+    /// Reads a value of the file. Allowed with no argument only, because the
+    /// same name with an argument writes the file or every connection to it.
+    Value,
+    /// Session state a request may write. The value is what [`open`] sets and
+    /// [`SqliteConn::reset`] writes back.
+    Session(&'static str),
+}
 
-/// The connection's authorizer: every `ATTACH` but an unnamed one, and every
-/// `DETACH`, is denied when the statement is prepared.
+/// Every pragma a statement may name, and what it may do with it.
+///
+/// **A name with no row is refused when the statement is prepared**, so a
+/// pragma a later SQLite adds is refused until it gets a row
+/// (`rule:security/db-pool-reset-is-a-boundary`). A refused pragma never runs,
+/// so no file lock and no process limit is taken even inside one request. A
+/// process-wide pragma (`hard_heap_limit`, `soft_heap_limit`,
+/// `temp_store_directory`, `data_store_directory`) never gets a row, since one
+/// request would change it for every connection in the process.
+///
+/// `foreign_keys` is the one session row the open needs for its own sake (see
+/// [`open`]). The other values are SQLite's defaults, written out because each
+/// changes what the next request's statements mean: a write refused, a check
+/// skipped, a trigger recursing, or a core waiting on a lock. `busy_timeout`
+/// is not SQLite's default: it is the 5000 ms `rusqlite` sets when it opens a
+/// connection, and [`LOCK_WAIT`], so a reused connection waits on another's
+/// write lock as long as a fresh one does. A queue worker leans on that wait.
+///
+/// A program that needs another pragma gets a row here, a session row with
+/// its reset value when it writes one, in the same commit.
+///
+/// **What it spends:** one scan of this table per `PRAGMA` SQLite prepares. A
+/// cached statement pays nothing.
+const PRAGMAS: &[(&str, Pragma)] = &[
+    ("table_info", Pragma::Read),
+    ("table_xinfo", Pragma::Read),
+    ("table_list", Pragma::Read),
+    ("index_list", Pragma::Read),
+    ("index_info", Pragma::Read),
+    ("index_xinfo", Pragma::Read),
+    ("foreign_key_list", Pragma::Read),
+    ("foreign_key_check", Pragma::Read),
+    ("integrity_check", Pragma::Read),
+    ("quick_check", Pragma::Read),
+    ("database_list", Pragma::Read),
+    ("collation_list", Pragma::Read),
+    ("function_list", Pragma::Read),
+    ("module_list", Pragma::Read),
+    ("pragma_list", Pragma::Read),
+    ("compile_options", Pragma::Read),
+    ("user_version", Pragma::Value),
+    ("application_id", Pragma::Value),
+    ("journal_mode", Pragma::Value),
+    ("page_size", Pragma::Value),
+    ("page_count", Pragma::Value),
+    ("freelist_count", Pragma::Value),
+    ("data_version", Pragma::Value),
+    ("encoding", Pragma::Value),
+    ("foreign_keys", Pragma::Session("ON")),
+    ("query_only", Pragma::Session("OFF")),
+    ("recursive_triggers", Pragma::Session("OFF")),
+    ("ignore_check_constraints", Pragma::Session("OFF")),
+    ("defer_foreign_keys", Pragma::Session("OFF")),
+    ("reverse_unordered_selects", Pragma::Session("OFF")),
+    ("writable_schema", Pragma::Session("OFF")),
+    ("busy_timeout", Pragma::Session("5000")),
+];
+
+/// The row [`PRAGMAS`] has for `name`, compared as SQLite compares it: without
+/// regard to ASCII case.
+fn pragma_row(name: &str) -> Option<Pragma> {
+    PRAGMAS
+        .iter()
+        .find(|(row, _)| row.eq_ignore_ascii_case(name))
+        .map(|&(_, kind)| kind)
+}
+
+/// Whether a statement may name pragma `name`, with an argument or without.
+fn pragma_allowed(name: &str, argument: bool) -> bool {
+    match pragma_row(name) {
+        Some(Pragma::Read | Pragma::Session(_)) => true,
+        Some(Pragma::Value) => !argument,
+        None => false,
+    }
+}
+
+/// The statements that write every [`Pragma::Session`] row's value, which
+/// [`open`] runs and [`SqliteConn::reset`] runs again.
+fn session_pragmas() -> String {
+    let mut text = String::new();
+    for (name, kind) in PRAGMAS {
+        if let Pragma::Session(value) = kind {
+            text.push_str(&format!("PRAGMA {name} = {value}; "));
+        }
+    }
+    text
+}
+
+std::thread_local! {
+    /// The last pragma [`authorize`] refused on this thread, for
+    /// [`server_error`] to name. SQLite's own text for a refusal is "not
+    /// authorized", which names nothing. A statement is prepared and its
+    /// error read on the same pool thread, and every refusal writes this
+    /// first, so the name read is the statement's own.
+    static REFUSED_PRAGMA: std::cell::RefCell<Option<String>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// The connection's authorizer: a `PRAGMA` with no allowed row in [`PRAGMAS`],
+/// every `ATTACH` but an unnamed one, and every `DETACH` are denied when the
+/// statement is prepared.
 ///
 /// **An attached database is a file the `fs` grant never saw.** A block's
 /// `path` is the operator's, and a program's is checked against `fs.read` and
@@ -880,15 +978,26 @@ const SESSION_PRAGMAS: &str = "PRAGMA foreign_keys = ON; \
 /// pays nothing.
 fn authorize(context: rusqlite::hooks::AuthContext<'_>) -> rusqlite::hooks::Authorization {
     use rusqlite::hooks::{AuthAction, Authorization};
-    match context.action {
-        AuthAction::Attach { filename: "" } => Authorization::Allow,
-        AuthAction::Attach { .. } | AuthAction::Detach { .. } => Authorization::Deny,
+    let refused = match context.action {
+        AuthAction::Pragma {
+            pragma_name,
+            pragma_value,
+        } => (!pragma_allowed(pragma_name, pragma_value.is_some())).then_some(Some(pragma_name)),
+        AuthAction::Attach { filename: "" } => None,
+        AuthAction::Attach { .. } | AuthAction::Detach { .. } => Some(None),
         AuthAction::Unknown { code, .. }
             if code == rusqlite::ffi::SQLITE_ATTACH || code == rusqlite::ffi::SQLITE_DETACH =>
         {
+            Some(None)
+        }
+        _ => None,
+    };
+    match refused {
+        None => Authorization::Allow,
+        Some(pragma) => {
+            REFUSED_PRAGMA.with(|slot| *slot.borrow_mut() = pragma.map(str::to_owned));
             Authorization::Deny
         }
-        _ => Authorization::Allow,
     }
 }
 
@@ -1528,19 +1637,23 @@ impl SqliteConn {
     /// core.** An open transaction is rolled back. Every table, view and trigger
     /// in the `temp` schema is dropped: a temporary table lives as long as the
     /// connection, so without this the next request reads and writes it. And
-    /// [`SESSION_PRAGMAS`] is applied again, since a `PRAGMA` statement in one
-    /// request otherwise holds for every request after it. A role, a listener
-    /// and an advisory lock are things SQLite has no session to hold. An
-    /// attached database is the one item left, and [`authorize`] allows only an
-    /// unnamed one: a reset that finds one attached fails, so the connection is
-    /// closed. The statement cache is `rusqlite`'s own and survives, which is
-    /// what pooling exists to preserve. Nothing this driver sets per
-    /// transaction is session-scoped, and [`SqliteConn::begin`]'s refusal of
-    /// `read_only` is what keeps that true.
+    /// every [`Pragma::Session`] row of [`PRAGMAS`] is written back, since a
+    /// `PRAGMA` statement in one request otherwise holds for every request
+    /// after it. [`authorize`] refuses every pragma with no row, so the rows are
+    /// the whole of what a request can change. `last_insert_rowid()` returns to
+    /// zero, so the next request cannot read the key this one inserted. A role,
+    /// a listener and an advisory lock are things SQLite has no session to
+    /// hold. An attached database is the one item left, and [`authorize`]
+    /// allows only an unnamed one: a reset that finds one attached fails, so the
+    /// connection is closed. The statement cache is `rusqlite`'s own and
+    /// survives, which is what pooling exists to preserve. Nothing this driver
+    /// sets per transaction is session-scoped, and [`SqliteConn::begin`]'s
+    /// refusal of `read_only` is what keeps that true.
     ///
     /// **What it spends:** one read of `temp.sqlite_master` and one of
     /// `PRAGMA database_list` per reset, in process and on the pool thread the
-    /// rollback already takes, plus a `DROP` per object a request left.
+    /// rollback already takes, plus a `DROP` per object a request left, and
+    /// three statements on a `temp` table when a request inserted a row.
     ///
     /// **Whether a transaction is open is asked of the engine, not of the
     /// count.** `sqlite3_get_autocommit` is the connection's own answer, so a
@@ -1597,12 +1710,19 @@ fn clean(connection: &rusqlite::Connection) -> rusqlite::Result<()> {
         connection.execute_batch("ROLLBACK;")?;
     }
 
-    let attached: i64 = connection.query_row(
-        "SELECT count(*) FROM pragma_database_list WHERE name NOT IN ('main', 'temp')",
-        [],
-        |row| row.get(0),
-    )?;
-    if attached != 0 {
+    // The `PRAGMA` statement and not the `pragma_database_list` function: a
+    // request can create a `temp` table of that name, and the function's name
+    // in a `FROM` would read the table.
+    let mut attached = false;
+    {
+        let mut list = connection.prepare("PRAGMA database_list")?;
+        let mut rows = list.query([])?;
+        while let Some(row) = rows.next()? {
+            let name: String = row.get(1)?;
+            attached |= name != "main" && name != "temp";
+        }
+    }
+    if attached {
         return Err(rusqlite::Error::SqliteFailure(
             rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISUSE),
             Some(String::from(
@@ -1614,7 +1734,7 @@ fn clean(connection: &rusqlite::Connection) -> rusqlite::Result<()> {
     // The pragmas first, because `query_only` would refuse the drops. Then
     // triggers: a `temp` trigger can watch a `main` table, so dropping the
     // `temp` tables does not remove it. An index goes with its table.
-    let mut drops = String::from(SESSION_PRAGMAS);
+    let mut drops = session_pragmas();
     {
         let mut objects = connection.prepare(
             "SELECT type, name FROM temp.sqlite_master \
@@ -1628,6 +1748,16 @@ fn clean(connection: &rusqlite::Connection) -> rusqlite::Result<()> {
             let quoted = name.replace('"', "\"\"");
             drops.push_str(&format!(" DROP {kind} IF EXISTS temp.\"{quoted}\";"));
         }
+    }
+    // `rusqlite` has no setter for the generated id, and this crate forbids the
+    // FFI call. A row inserted with rowid 0 sets it to zero, and its table goes
+    // with it. The `temp` schema is empty after the drops above.
+    if connection.last_insert_rowid() != 0 {
+        drops.push_str(
+            " CREATE TEMP TABLE nvs_rowid_reset (x); \
+             INSERT INTO temp.nvs_rowid_reset (rowid, x) VALUES (0, NULL); \
+             DROP TABLE temp.nvs_rowid_reset;",
+        );
     }
     connection.execute_batch(&drops)
 }
@@ -2102,7 +2232,13 @@ fn server_error(error: rusqlite::Error) -> io::Error {
         return io::Error::other(error.to_string());
     };
 
-    let message = message.clone().unwrap_or_else(|| failure.to_string());
+    let refused = (failure.extended_code & 0xff == rusqlite::ffi::SQLITE_AUTH)
+        .then(|| REFUSED_PRAGMA.with(|slot| slot.borrow_mut().take()))
+        .flatten();
+    let message = match refused {
+        Some(pragma) => format!("the pragma `{pragma}` is not allowed on this connection"),
+        None => message.clone().unwrap_or_else(|| failure.to_string()),
+    };
     io::Error::other(ServerError {
         kind: kind_of(failure.extended_code),
         // Not a `SQLSTATE` this backend can send — see the field.
@@ -3240,6 +3376,157 @@ mod tests {
         conn.query("vacuum", Vec::new())
             .expect("a plain vacuum runs");
         let _reset = conn.reset().expect("the reset works after a vacuum");
+    }
+
+    /// Whether `sql` was refused when it was prepared: a `Permission` error.
+    fn refused_as_permission(ran: &std::io::Result<impl Sized>) -> bool {
+        matches!(ran, Err(error) if ServerError::of(error)
+            .is_some_and(|server| server.kind == DbErrorKind::Permission))
+    }
+
+    /// The linked SQLite's own list of pragmas, each run with and without an
+    /// argument. A name with no allowed row in the table is refused when it is
+    /// prepared, and a name with one is not, so a pragma a later SQLite adds is
+    /// refused until it gets a row.
+    #[test]
+    fn every_pragma_sqlite_lists_is_allowed_by_name_or_refused() {
+        let names: Vec<String> = {
+            let conn = connect();
+            let guard = super::lock(&conn.handle);
+            let mut list = guard
+                .prepare("PRAGMA pragma_list")
+                .expect("the list prepares");
+            list.query_map([], |row| row.get(0))
+                .expect("the list runs")
+                .collect::<Result<_, _>>()
+                .expect("every name is text")
+        };
+        assert!(
+            names.len() > 40,
+            "the linked SQLite lists {} pragmas",
+            names.len()
+        );
+
+        for name in &names {
+            for argument in [false, true] {
+                let sql = if argument {
+                    format!("PRAGMA {name} = 0")
+                } else {
+                    format!("PRAGMA {name}")
+                };
+                let fresh = connect();
+                let ran = fresh.query(&sql, Vec::new()).map(drop);
+                assert_eq!(
+                    !refused_as_permission(&ran),
+                    super::pragma_allowed(name, argument),
+                    "`{sql}` ran where the table says otherwise: {:?}",
+                    ran.err()
+                );
+            }
+        }
+    }
+
+    /// A request may write each session row, and the reset writes its value
+    /// back, so the next request reads what a fresh connection has.
+    #[test]
+    fn every_pragma_a_request_may_write_is_set_back_by_the_reset() {
+        for (name, kind) in super::PRAGMAS {
+            let super::Pragma::Session(value) = kind else {
+                continue;
+            };
+            let (other, expected) = match *value {
+                "ON" => ("OFF", 1),
+                "OFF" => ("ON", 0),
+                number => (
+                    "1",
+                    number.parse::<i64>().expect("a session value is a number"),
+                ),
+            };
+            let conn = connect();
+            conn.query(&format!("PRAGMA {name} = {other}"), Vec::new())
+                .unwrap_or_else(|error| panic!("a request may write `{name}`: {error}"));
+            let conn = conn.reset().expect("the reset works");
+            let read: i64 = super::lock(&conn.handle)
+                .query_row(&format!("PRAGMA {name}"), [], |row| row.get(0))
+                .expect("the pragma reads");
+            assert_eq!(
+                read, expected,
+                "the reset left `{name}` as a request wrote it"
+            );
+        }
+    }
+
+    /// A process-wide pragma would change every connection in the process, so
+    /// no connection runs one, with an argument or without. The error names
+    /// the pragma.
+    #[test]
+    fn a_process_wide_pragma_is_refused_on_every_connection() {
+        let reused = connect().reset().expect("the reset works");
+        for conn in [connect(), reused] {
+            for name in [
+                "hard_heap_limit",
+                "soft_heap_limit",
+                "temp_store_directory",
+                "data_store_directory",
+            ] {
+                for sql in [format!("PRAGMA {name}"), format!("PRAGMA {name} = 1")] {
+                    let ran = conn.query(&sql, Vec::new());
+                    assert!(refused_as_permission(&ran), "`{sql}` was allowed");
+                    let Err(error) = ran else {
+                        unreachable!("the statement was refused");
+                    };
+                    let server = ServerError::of(&error).expect("a refusal has a kind");
+                    assert!(
+                        server.message.contains(name),
+                        "the refusal does not name `{name}`: {}",
+                        server.message
+                    );
+                }
+            }
+        }
+    }
+
+    /// A `temp` table named like the database list's function would shadow it
+    /// in a `FROM`. The reset reads the `PRAGMA` statement, so it still finds
+    /// the attached database and closes the connection.
+    #[test]
+    fn a_table_named_like_the_database_list_hides_nothing_from_the_reset() {
+        let conn = connect();
+        conn.query(
+            "create temp table pragma_database_list (seq, name, file)",
+            Vec::new(),
+        )
+        .expect("a temp table of that name is created");
+        conn.query("attach database '' as scratch", Vec::new())
+            .expect("an unnamed private database is allowed");
+
+        assert!(
+            conn.reset().is_err(),
+            "a table named like the list hid an attached database from the reset"
+        );
+    }
+
+    /// `last_insert_rowid()` is the key the last request inserted, so the
+    /// reset returns it to zero.
+    #[test]
+    fn the_sqlite_reset_returns_the_last_inserted_rowid_to_zero() {
+        let conn = connect();
+        conn.query("create table t (v)", Vec::new())
+            .expect("the table is created");
+        conn.query("insert into t (v) values (1), (2)", Vec::new())
+            .expect("the rows are inserted");
+        assert_eq!(super::lock(&conn.handle).last_insert_rowid(), 2);
+
+        let conn = conn.reset().expect("the reset works");
+        assert_eq!(super::lock(&conn.handle).last_insert_rowid(), 0);
+        assert_eq!(
+            super::lock(&conn.handle)
+                .query_row("select count(*) from sqlite_temp_master", [], |row| row
+                    .get::<_, i64>(0))
+                .expect("the temp schema reads"),
+            0,
+            "the reset left its own table behind"
+        );
     }
 
     /// The one attach the authorizer allows is a private, unnamed database.

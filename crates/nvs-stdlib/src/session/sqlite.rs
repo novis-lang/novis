@@ -37,18 +37,22 @@ use std::time::{Duration, Instant};
 
 use nvs_db::{SqliteConn, SqliteTarget, SqliteValue};
 
-/// What a new connection runs before its first statement, in order.
+/// What a new connection runs as it opens, before the driver's pragma allow list applies.
 ///
 /// `synchronous = NORMAL` is WAL's ordinary setting: a write survives a crash of the process, and
 /// only the last writes before a power loss can be lost. That is the right trade for a session,
-/// whose next request can sign the user in again. `WITHOUT ROWID` stores the record in the key's
-/// own b-tree, so a read is one lookup.
+/// whose next request can sign the user in again. A request may not write `synchronous`, so the
+/// open runs it before the driver's authorizer is installed.
+const SETUP: &[&str] = &["PRAGMA synchronous = NORMAL"];
+
+/// What a new connection runs before its first statement, in order.
+///
+/// `WITHOUT ROWID` stores the record in the key's own b-tree, so a read is one lookup.
 ///
 /// The `DROP` removes the table an earlier build keyed by the identifier alone. Its rows name no
 /// application, so no application may open them. It runs once per connection, and finds nothing
 /// after the first.
 const SCHEMA: &[&str] = &[
-    "PRAGMA synchronous = NORMAL",
     "PRAGMA busy_timeout = 5000",
     "DROP TABLE IF EXISTS nvs_session",
     "CREATE TABLE IF NOT EXISTS nvs_sessions (\
@@ -125,6 +129,7 @@ fn opened(path: &Path) -> io::Result<Held> {
         read_only: false,
         wal: true,
         deadline: None,
+        setup: SETUP,
     })?;
     for statement in SCHEMA {
         drop(conn.query(statement, Vec::new())?);

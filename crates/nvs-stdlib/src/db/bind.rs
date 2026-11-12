@@ -973,7 +973,10 @@ mod tests {
             !carries_server_text(&message, &slots),
             "a call that bound a `secret` wrote `serverMessage`"
         );
-        assert!(message.contains("may have bound a `secret` value"), "{message}");
+        assert!(
+            message.contains("may have bound a `secret` value"),
+            "{message}"
+        );
         let plain = bound_statement(Value::int(7 | crate::registry::QUERY_SITE_PLAIN_BINDS));
         let (plain_message, plain_slots) = refused_parts(&plain);
         assert!(
