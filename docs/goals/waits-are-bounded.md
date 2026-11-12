@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/db/execute.rs, crates/nvs-stdlib/src/http.rs, crates/nvs-runtime/src/peer.rs, docs/rules/core-classes/db-statement-members.md]
   - id: 4
     title: "a stream that never runs dry meets its bound, and the pool skips an abandoned job"
-    status: open
+    status: done
     context: [crates/nvs-host/src/net.rs, crates/nvs-host/src/reactor.rs, crates/nvs-host/src/blocking.rs, crates/nvs-host/src/slice.rs]
   - id: 5
     title: "an upgraded connection is watched, takes a place and is ended by its idle timeout"
@@ -438,37 +438,37 @@ files are disjoint and none of them builds. The session then deletes the `Ctx` m
 **Does:** bound a read loop that never parks at the stream itself, read a hang-up that came with a
 short read, and skip a job its task gave up on.
 
-- [ ] `NvsStream` counts reads and writes that returned bytes since its last park. At each sixteenth
+- [x] `NvsStream` counts reads and writes that returned bytes since its last park. At each sixteenth
   it reads the running tree's stop flags and its filed deadline, and yields when the slice clock asks
   (`rule:http-server/time-is-bounded-inside-a-helper`, `crates/nvs-host/src/net.rs:1801`,
   `crates/nvs-host/src/net.rs:1820`, `crates/nvs-host/src/net.rs:1434`,
   `crates/nvs-host/src/slice.rs:296`).
-- [ ] `nvs-runtime` answers whether the running turn's tree is stopped for `WALL_TIME` or `CPU_LIMIT`,
+- [x] `nvs-runtime` answers whether the running turn's tree is stopped for `WALL_TIME` or `CPU_LIMIT`,
   from the tree `TURN` holds (`rule:errors/on-limit`, `crates/nvs-runtime/src/budget.rs:372`).
-- [ ] Tests in `crates/nvs-host/src/net.rs:1841`: `a_stream_that_never_runs_dry_ends_at_its_deadline`,
+- [x] Tests in `crates/nvs-host/src/net.rs:1841`: `a_stream_that_never_runs_dry_ends_at_its_deadline`,
   `a_stream_that_never_runs_dry_ends_when_its_tree_is_stopped`,
   `a_stream_that_never_runs_dry_gives_the_core_to_a_waiting_task` and
   `a_read_that_parks_pays_no_streak_check`. The peer writes until the reader closes. Each counts reads
   or checks at two sizes, and none times a duration (`rule:http-server/time-is-bounded-inside-a-helper`).
-- [ ] Test `a_reply_of_endless_notices_ends_at_the_statement_deadline` in `crates/nvs-db/src/pg.rs:1`
+- [x] Test `a_reply_of_endless_notices_ends_at_the_statement_deadline` in `crates/nvs-db/src/pg.rs:1`
   tests. A scripted server sends notices and no reply, and the read ends within sixteen reads of a
   passed deadline. The loops it covers are `crates/nvs-db/src/pg.rs:3160`,
   `crates/nvs-db/src/pg.rs:3612` and `crates/nvs-db/src/pg.rs:1182`
   (`rule:http-server/time-is-bounded-inside-a-helper`).
-- [ ] `rule:http-server/time-is-bounded-inside-a-helper` says a stream read that never blocks is
+- [x] `rule:http-server/time-is-bounded-inside-a-helper` says a stream read that never blocks is
   bounded at the stream, with the cadence and its cost
   (`docs/rules/http-server/time-is-bounded-inside-a-helper.md:1`).
-- [ ] The reactor sets a bit on a registration whose event carried a read close or an error, and
+- [x] The reactor sets a bit on a registration whose event carried a read close or an error, and
   `quiet_after_a_short_read` answers `None` while it is set
   (`rule:concurrency/try-the-syscall-then-park`, `crates/nvs-host/src/reactor.rs:690`,
   `crates/nvs-host/src/net.rs:1613`, `crates/nvs-host/src/net.rs:1573`).
-- [ ] Test `a_short_read_that_came_with_a_hang_up_reads_once_more` in `crates/nvs-host/src/net.rs:1841`,
+- [x] Test `a_short_read_that_came_with_a_hang_up_reads_once_more` in `crates/nvs-host/src/net.rs:1841`,
   on Unix. The peer writes and shuts down before the reactor polls, and the test counts one more
   `recv` that returns 0 (`rule:concurrency/try-the-syscall-then-park`).
-- [ ] A blocking-pool job reads its slot before `f`. An abandoned one releases its thread, drops its
+- [x] A blocking-pool job reads its slot before `f`. An abandoned one releases its thread, drops its
   wake and returns (`rule:http-server/a-core-is-never-blocked-on-a-syscall`,
   `crates/nvs-host/src/blocking.rs:516`, `crates/nvs-host/src/blocking.rs:572`).
-- [ ] Test `a_job_abandoned_in_the_queue_is_skipped_when_it_is_dequeued` in
+- [x] Test `a_job_abandoned_in_the_queue_is_skipped_when_it_is_dequeued` in
   `crates/nvs-host/src/blocking.rs:823`. A first job holds the pool's one thread on a channel, a second
   is abandoned in the queue, and a counter shows its body never ran
   (`rule:http-server/a-core-is-never-blocked-on-a-syscall`).
@@ -565,39 +565,41 @@ and end a guest call that parks past the wall deadline.
 
 ### State
 
-Stages 1 to 3 are done. `yield_on` (`crates/nvs-host/src/scheduler.rs:1901`) is the one bound on a
-request's wait: it ends every `Waiting::Parked` at `ArmedStack::bound`, and `run_helper` reports a
-member error past the wall deadline as the wall-time `FATAL`. Stage 3 deleted every hand clamp:
-`within_wall_time`, `wall_clamp`, `wall_time_fault`, `wall_time_left`, `PeerSocket::set_wall`,
-`Emit::send_by`, `wall_or`, `within_wall`, and the stored `wall` copies in redis, LDAP, session and
-the WebSocket codec. `wall_bound` is `Ctx::off_core_deadline` (`crates/nvs-runtime/src/ctx/limits.rs:1057`),
-read only where work runs off the core: process, stdin, the SQLite busy wait and open, name lookups
-(capability, cache endpoint, LDAP walk, mail). A child placed on another core is bounded by its own
-tree through `BOUND` (`crates/nvs-runtime/src/budget.rs:377`, set at `limits.rs:373`), as the new
-standing decision says. `no_member_clamps_its_wait_to_the_wall_deadline_by_hand` and
-`a_statement_wait_that_ends_at_the_wall_deadline_is_the_wall_time_fatal` pass, and the build and
-`cargo clippy --all-targets -- -D warnings` are green. The rule `db-statement-members` says a
-statement wait at `wall_time` is the `FATAL`.
+Stage 4 is done. `NvsStream::read` and `write` count the calls that returned bytes since the last
+park, and every `STREAK` (16, `crates/nvs-host/src/net.rs:242`) the next call runs `check_streak`
+(`net.rs:1755`): a passed deadline or `busy_asks` (`crates/nvs-runtime/src/budget.rs:816`) answering
+`Stop` ends it with `TimedOut`, and `Yield` gives the core back with `Waiting::Yielded`. `busy_asks`
+reads `TURN`'s tree, else `BOUND`'s: `WALL_TIME` or `CPU_LIMIT` raised, or a passed park bound, which
+it stops the tree at. The reactor's `hung_up` bit (`crates/nvs-host/src/reactor.rs:623`) keeps the
+syscall after a short read, and the blocking pool skips a job abandoned in the queue. The three rules
+say so. All seven stage-4 tests pass when each runs alone from its test binary. The hang-up test is
+Unix-only and has not run yet, because this host is Windows. The build is green.
 
-Removed tests, which only tested a clamp: `a_receive_from_a_silent_peer_ends_at_the_wall_deadline_as_an_error`
-(`crates/nvs-server/src/serve.rs`) and `a_connect_to_a_peer_that_never_replies_ends_at_the_wall_deadline`
-(`crates/nvs-stdlib/src/db/execute.rs`, replaced by the new statement test).
+Stages 1 to 3 are done: `yield_on` (`crates/nvs-host/src/scheduler.rs:1901`) is the one bound on
+a request's wait, no hand clamp is left, and `Ctx::off_core_deadline`
+(`crates/nvs-runtime/src/ctx/limits.rs:1057`) is read only where work runs off the core.
 
 The sweep's reds were settled on disk again: `env-secret-proofs` is not a check in this tree, and
-nightly run 43001191130 tested f4c1d5c7e2, before 305c04f660.
+nightly run 43001191130 tested f4c1d5c7e2, an ancestor of HEAD.
 
 ### Next
 
-Stage 4, a stream that never runs dry meets its bound. Its items and anchors are under `### 4.` above.
+Stage 5, an upgraded connection is watched, takes a place and is ended by its idle timeout. Its items
+and anchors are under `### 5.` above.
 
-- `crates/nvs-host/src/net.rs:1841` is the test module the four streak tests and the hang-up test go in.
-- `crates/nvs-runtime/src/budget.rs:372` is `TURN`, which the stop-flags reader reads. Off the root
-  core it should read `BOUND` too, as `bounding_tree` (`budget.rs:766`) does.
+- `crates/nvs-host/src/isolate.rs:793` is where `Isolate::start` takes the tree's CPU limit. The
+  publication with `watchdog::publish_here` goes beside it.
+- `crates/nvs-server/src/socket.rs:387` is `Framed::receive_or`, where the idle instant is fixed once
+  per call and kept across pings and empty fragments.
+- Stage 4's streak check already ends a peer that only keeps bytes arriving, once the tree is stopped.
+- Run `crates/nvs-host/src/net.rs`'s `a_short_read_that_came_with_a_hang_up_reads_once_more` once
+  in WSL with `bun nv linux-test`, since it is Unix-only.
 - Expected red, read at stage 7: a test that expects a member's own catchable timeout under a passed
   `wall_time` now gets the wall-time `FATAL`. A test that slept past a passed `wall_time` off any core
   (no scheduler) now sleeps its whole duration: `Core\Time::sleep` and the transaction retry backoff
   read no deadline there. `process.rs`'s `run_stops_a_child_at_the_request_wall_time` should still pass.
-  No other test outside the two new ones was run.
+  A test that reads a fast peer through `NvsStream` past a passed deadline now ends after sixteen
+  reads. Only the new tests were run.
 
 ### Backlog
 

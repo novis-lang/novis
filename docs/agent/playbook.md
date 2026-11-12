@@ -298,6 +298,13 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **A test task that waits in a loop of `suspend_current(Waiting::Yielded)` hangs `run_until_idle`.**
+  A yielded task goes back on the run queue, so the queue never empties and the reactor never
+  polls to wake the task it waits for. One such stream test ran for two hours with no output. Park
+  the waiting task with a `RemoteWake` the other task drops, as
+  `a_read_that_parks_pays_no_streak_check` does (`crates/nvs-host/src/net.rs`), and run a new test
+  alone from its binary under `timeout 60` first.
+  `until: gone crates/nvs-host/src/net.rs:fn a_read_that_parks_pays_no_streak_check`
 - **A `#[cfg(test)]` helper above a module's `mod tests` cuts every source scan of that file
   short.** Many scans, the capability guard among them, read a file up to its first
   `#[cfg(test)]` line, so they never see the shipped code below such a helper. Put a test helper
