@@ -2836,6 +2836,9 @@ pub const NEEDS_NONE: &[(&str, &str)] = &[
         "reads an uploaded part of the request body",
     ),
     (r"Core\Response\Stream", "writes the response body"),
+    // The `shared` store still asks `cache.shared` at its door in `cache.rs`, which is the
+    // operator's grant. No member gets that row: a package that reads the current user's session
+    // reads request data, and the row would ask for it on the file store too.
     (
         r"Core\Session",
         "reads and writes the request's session, in the store `[session]` names",

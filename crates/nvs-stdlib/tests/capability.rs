@@ -876,8 +876,10 @@ fn module_of(file: &Path, src: &Path) -> String {
 /// A reason for none in `registry::NEEDS_NONE` is checked, not trusted. The scan of
 /// `every_door_names_the_capability_its_member_declares` fails here on two shapes of door call.
 /// One names a member of a `NEEDS_NONE` class on the call. The other forwards its member from a
-/// caller, in a module whose every class is in `NEEDS_NONE`. A call labelled with a construct,
-/// such as `spawn script`, is the construct's and not its module's classes'. A module counts the classes it
+/// caller, in a module whose every class is in `NEEDS_NONE`. The label on the call's last argument
+/// decides whose call it is. A `Core\X::y` label is that member's. Any other written label is a
+/// construct's, such as `spawn script`, held to `CONSTRUCT_CAPABILITIES` with its backticks
+/// trimmed, and not its module's classes'. A module counts the classes it
 /// declares and those of the modules above it, so `http::socket` counts `Core\Http`. A forwarded
 /// call in a module with a capability-bearing class is that class's, and the door test holds it
 /// to that class's rows.
