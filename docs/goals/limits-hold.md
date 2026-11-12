@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-ext/src/call.rs, crates/nvs-ext/src/typed.rs, crates/nvs-cli/src/extensions.rs, docs/rules/packaging/a-fresh-instance-per-request.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: child-keeps-its-clamp
@@ -95,12 +95,12 @@ checks:
       - a_guest_cannot_fill_the_resource_table_past_its_cap
   - id: counted-once-and-a-place-for-each
     stage: 7
-    name: "a crossing value is charged to its request once, and the pool is sized for every request in flight"
-    run: [cargo, test, --lib, --bin, nvs, --, a_crossing_value_is_charged_to_its_request_once, the_pool_has_a_place_for_every_request_in_flight_times_every_class]
+    name: "a crossing value is charged to its request once, and the pool is sized for every request in flight up to its cap"
+    run: [cargo, test, --lib, --bin, nvs, --, a_crossing_value_is_charged_to_its_request_once, the_pool_has_a_place_for_every_request_in_flight_times_every_class_up_to_the_cap]
     timeout: 1800
     tests:
       - a_crossing_value_is_charged_to_its_request_once
-      - the_pool_has_a_place_for_every_request_in_flight_times_every_class
+      - the_pool_has_a_place_for_every_request_in_flight_times_every_class_up_to_the_cap
 ---
 
 # no request lifts its own limits, and no native loop runs past them
@@ -281,6 +281,19 @@ a place keeps today's code. The session reads the pooling allocator's reference 
 wasmtime first. Safe default if the pool cannot run under a smaller reservation: the places stay at
 6 GiB up to the address-space share, a call with no place still throws `ExtensionError`, and
 `rule:packaging/a-fresh-instance-per-request` states the real count.
+
+**The pool's places are capped at 4,096, because the table pool commits memory.** The gate found
+that "address space only" was wrong for tables. wasmtime 50.0.1 maps its table pool with
+`Mmap::accessible_reserved`, which on Windows commits every byte at the engine's start. 40,000
+places of two 160 KiB tables committed 12.2 GiB, and every conformance case with a guest failed with
+"the paging file is too small". `nvs_ext::call::MOST_PLACES` caps `pool_size` at 4,096 places, which
+commit 1.25 GiB, the count CI ran green with before stage 7. Every capped place keeps the full
+reservation, so no guest pays a bounds check by default. **What it spends:** availability. A few slow
+requests that hold instances can make another request's call throw `ExtensionError`. Security and
+latency are unchanged, and a server that does not start on Windows or a small Linux host is worse.
+`reservation` stays for a raised cap. Declined: a smaller `table_elements`. Each place still
+commits at least one page per table, which is 312 MiB at 40,000 places, and a built-in component's
+table may be larger.
 
 **Each limit fix gets an attack that ends at the limit.** Each is a case under `tests/hostile/`, in
 the folder of the member it attacks, with the next free number. A case that a limit ends carries
@@ -542,7 +555,7 @@ cap the resource table.
 - [x] The engine takes a smaller reservation per place when the pool would pass half of the address
   space, and the compiled-component cache keys on it (`crates/nvs-ext/src/call.rs:893`,
   `crates/nvs-ext/src/load.rs:359`).
-- [x] Test `the_pool_has_a_place_for_every_request_in_flight_times_every_class` reads the default
+- [x] Test `the_pool_has_a_place_for_every_request_in_flight_times_every_class_up_to_the_cap` reads the default
   `max_in_flight` and the built-in class list (`crates/nvs-cli/src/extensions.rs:1513`).
 - [x] Both rule fragments state the one count, the pool's size and what the bounds checks cost
   (`docs/rules/packaging/a-guest-runs-under-the-requests-budget.md:1`,
@@ -550,56 +563,47 @@ cap the resource table.
 
 ### 8. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done, and stage 8, the gate, is next. A crossing value is counted once, by
-the request's allocator, and `Request::run` asks `memory_spent` after lowering and after
-lifting (`crates/nvs-ext/src/call.rs`). A `bytes.append` and the HTTP header and body writes
-ask `afford` first. `pool_size` has no cap, and `nvs_ext::call::reservation` shrinks a place
-past 64 TiB. The engine hash the cache keys on already covers wasmtime's tunables.
-`Meter::set_memory_spent_after` lets the stage 6 test's loop start. A guest's tick asks the
-memory ceiling (stage 6), the native walks poll (stage 5), and a `Fault` is clipped at 8 KiB
-(stage 4). `nvs-cli` has no lib target, so the stage 6 and 7 checks run `cargo test --lib
---bin nvs`.
+Every stage is done, and the goal's gate is green. `looper verify` ran green after one pass of
+fixes, and `bun nv verify --doc`, `bun nv owners --closes limits-hold` and `bun nv ci --check`
+are run at the goal's end. What the gate found and fixed:
 
-The sweep's reds are the ones the last two sessions read: no check named `env-secret-proofs`
-exists, and nightly 43001191130's one failure,
+- `cache::memory_held`, a `#[cfg(test)]` helper, cut every scan that stops at a file's first
+  `#[cfg(test)]`, and moved into the test module. The whole-read scan
+  (`crates/nvs-stdlib/src/storage.rs`) stops at a file's test module and allows the compressor's
+  `encode`, which reads bytes the request already holds.
+- The `call`, `bytes` and `pdf` memory-limit tests set their meter's `memory_spent`, since the
+  allocator alone counts a crossing value.
+- Stage 7's uncapped pool committed 12.2 GiB of table pool on Windows, and no guest started. The
+  pool is capped at `nvs_ext::call::MOST_PLACES`, 4,096 places, and the standing decision and
+  `rule:packaging/a-fresh-instance-per-request` say what that spends. The stage 7 check's test is
+  now `the_pool_has_a_place_for_every_request_in_flight_times_every_class_up_to_the_cap`.
+- The memory-limit conformance case passes 1 KiB strings, so the guest's own memory crosses the
+  ceiling first and its message stays pinned.
+- The perf figures of every class whose source the goal changed are measured again, and
+  `Core\Request::bodyStream`'s bench declares 2 allocations, its count since the bounded reader.
+
+The sweep's `env-secret-proofs` is not a check in this tree. Nightly 43001191130's failure,
 `a_changed_server_timeout_applies_to_the_next_connection`
-(`crates/nvs-cli/tests/live_config.rs:2520`), did not come back in the push CI after it. If a
-later nightly shows it again, it belongs to `waits-are-bounded`.
+(`crates/nvs-cli/tests/live_config.rs:2520`), belongs to `waits-are-bounded` if it comes back.
 
 ### Next
 
-- `docs/goals/limits-hold.md:551`: stage 8 starts `looper verify` in the background, fixes every
-  failure it names in one pass, and runs it once more. Then the goal-end gates AGENTS.md names.
-
-Tests that may go red at the gate: from stage 7, an `nvs-ext` test that relied on the second
-count to stop a call at `Limit::Memory`, since a `Meter` counts only guest memory and answers
-`memory_spent` by its flag: `a_result_past_the_budget_stops_at_the_memory_limit`
-(`crates/nvs-ext/tests/bytes.rs:334`), `a_template_list_past_the_memory_cap_is_a_contained_trap`
-(`crates/nvs-ext/tests/spreadsheet_hostile.rs:1023`) and a test of `wasi:http` header or body
-charges. The fix is the test's meter, `set_memory_spent_after`, or a guest-memory bound, never a
-second count. A test whose guest memory passes the smaller default reservation of 1.6 GiB. From
-stage 6, every `Budget` impl outside the tree's own
-tests, since `memory_spent` is required. From stage 5, `Core\Encoding`'s offset tests
-(`decoding_answers_the_text_and_names_the_offset_it_stopped_at`, the UTF-16 lone surrogate case),
-since a member now decodes through `encoding_rs` in pieces and names an offset only through the
-whole-value fallback. A conformance `.out` of an encoding throw, for the same reason. Earlier: `crates/nvs-host/tests/limits.rs`'s two `handler_isolate`
-cases, which assert reserve numbers the handler's allocator is now armed with. The session file
-store's cases in `crates/nvs-stdlib/src/session/sqlite.rs` and `session.rs`, whose `load` query
-changed. A test that asserts a message over 8 KiB, such as a long `CoreTest` diff; the standing
-decision raises the cap to the next power of two that passes it. A test that matched a response
-message holding more than 64 bytes of a header value, URL or cookie text. The conformance
-`.out` files of a `setHeader`, `redirect` or `addCookie` refusal of a long value.
+- `docs/goals/limits-hold.md:1`: the goal is reached. The driver runs its checks and retires it.
 
 ### Backlog
 
+- Under `MOST_PLACES`, every place keeps the full reservation, so `nvs_ext::call::reservation`'s
+  smaller reservation is reached only by a test (`crates/nvs-ext/src/call.rs`). It is kept for a
+  raised cap. If wasmtime's table pool commits lazily one day, the cap can rise to
+  `max_in_flight` times the classes. Owner: `rule:packaging/a-fresh-instance-per-request`.
 - `Core\Config::restore` takes no package word. It belongs to the goal `package-authority-closed`.
 - A resource destructor that sends HTTP at request end waits with no bound. It belongs to the goal
   `waits-are-bounded`.
