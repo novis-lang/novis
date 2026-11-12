@@ -24,6 +24,17 @@ closed at it: every event stream under a `wall_time` ended and reconnected, and 
 followed the security checklist broke every live page. An application cannot exempt one door either,
 because `limits:` on an upgrade only narrows.
 
+**`cpu_time` holds for each turn of a connection.** A turn is the handler's work between two waits for
+its next input: `Core\Socket::receive`, `Core\Sse::receive` and a sleep on a connection each end one,
+and the tree's CPU count starts again there. The connection's isolate is published to the watchdog of
+the core it runs on, at both doors, so a handler that never waits is stopped at `cpu_time` with the
+CPU `FATAL`. A count over the whole connection would close every busy live page once it had spent 30
+seconds of CPU, however long it had been open. Once a limit has stopped the tree, the count is not
+started again, so a `Core\Fatal::onLimit` handler that waits keeps its slice. The ceiling is the
+`upgrade`'s narrowing, or the `[limits] cpu_time` server work runs under.
+
+- **Time:** one publication and one charge per open connection, one clock read for each switch into
+  or out of its tree as a request pays, and one clock read and two stores per turn.
 - **Memory:** each open connection holds an arena and a task stack for as long as the peer keeps it
   open, idle or not. Memory scales with concurrent connections and not with the request rate, so a
   connection-heavy deployment is sized for its connections, and ten thousand idle connections cost ten

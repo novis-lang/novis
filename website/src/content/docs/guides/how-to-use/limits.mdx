@@ -20,6 +20,9 @@ When `nvs.toml` does not set a limit, Novis uses these values:
 | `cpu_time` | `30s` for a request, a WebSocket or SSE connection, a scheduled script and a queued job |
 | `wall_time`, `max_output`, `max_tasks` | no limit |
 
+On a WebSocket or SSE connection, `cpu_time` limits each turn. A turn ends when the handler waits for
+its next message or sleeps. The CPU count then starts again at zero.
+
 A command-line program has no `cpu_time` limit by default. This is true for `nvs run`, a
 `#[Command]` method and `nvs test`. A command-line program still has the `128M` memory limit.
 

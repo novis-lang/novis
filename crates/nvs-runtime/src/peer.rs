@@ -611,6 +611,9 @@ pub fn sleep(ctx: &mut crate::Ctx, duration: std::time::Duration) -> crate::host
             Woken::Elapsed
         });
     };
+    // A sleep on a connection ends the handler's turn, so its CPU count starts
+    // again (`rule:concurrency/a-connection-is-a-root-isolate`).
+    ctx.turn_ends();
     loop {
         let until = ctx
             .peer()

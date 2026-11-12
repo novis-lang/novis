@@ -1242,7 +1242,11 @@ nvs_runtime::nvs_helper! {
 ///
 /// The scheduler bounds the read's park by the request's wall deadline, and
 /// stops the request there with the wall-time `FATAL` (`rule:errors/on-limit`).
+///
+/// The handler's turn ends here, so the connection's CPU count starts again
+/// (`rule:concurrency/a-connection-is-a-root-isolate`).
 fn wait_on_both(ctx: &mut Ctx) -> Result<Received, nvs_runtime::PeerError> {
+    ctx.turn_ends();
     let inbox = ctx.deliveries();
     let peer = ctx
         .peer()

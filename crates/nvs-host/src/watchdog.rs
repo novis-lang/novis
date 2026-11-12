@@ -373,6 +373,20 @@ impl Charge {
         }
     }
 
+    /// The tree has spent nothing as of clock reading `now`, on this core and
+    /// on the blocking pool. Written by the core itself, between two turns of
+    /// a connection ([`restart_running`]), so a sweep reads either the old
+    /// charge or the new one.
+    fn restart(&self, now: u64) {
+        self.offloaded.store(0, Ordering::Release);
+        let word = if self.word.load(Ordering::Relaxed) & Self::RUNNING == 0 {
+            0
+        } else {
+            Self::RUNNING | now
+        };
+        self.word.store(word, Ordering::Release);
+    }
+
     /// Whether the core is running this tree now.
     fn is_running(&self) -> bool {
         self.word.load(Ordering::Acquire) & Self::RUNNING != 0
@@ -597,6 +611,28 @@ pub(crate) fn charge_running(spent: Duration) {
             let meter = local.meter.borrow();
             if let Some(charging) = meter.charges.get(&meter.running) {
                 charging.charge.offload(nanos(spent));
+            }
+        }
+    });
+}
+
+/// Starts the charge of the tree this thread is running again at zero, if it
+/// is published here.
+///
+/// `rule:concurrency/a-connection-is-a-root-isolate`'s turn: `cpu_time` holds
+/// for each turn of a connection, and a turn ends where its handler waits for
+/// the next input. [`crate::group`]'s `Host::turn_ends` calls it from that
+/// wait, on the connection's own core. A tree published on another core too
+/// keeps its charge there. One thread-local read, one clock read and two
+/// stores.
+pub(crate) fn restart_running() {
+    METER.with_borrow(|local| {
+        if let Some(local) = local {
+            let meter = local.meter.borrow();
+            if let (Some(charging), Some(now)) =
+                (meter.charges.get(&meter.running), meter.clock.burned())
+            {
+                charging.charge.restart(nanos(now));
             }
         }
     });
@@ -2901,6 +2937,47 @@ mod tests {
             parent.safepoint_flags().contains(SafepointFlags::CPU_LIMIT),
             "a tree whose two threads together spent its ceiling ran on"
         );
+    }
+
+    /// `rule:concurrency/a-connection-is-a-root-isolate`: a connection's CPU
+    /// count starts again at each turn. Two turns each spend more than half
+    /// the ceiling and together more than all of it, and the sweep stops
+    /// neither. Without the restart, the second sweep would stop the tree.
+    #[test]
+    fn a_connections_cpu_count_starts_again_at_each_turn() {
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let registered = dog.register_requests();
+        if ThreadClock::current().is_none() {
+            return;
+        }
+        // Above one spin and below two, as in the case above.
+        let ceiling = Duration::from_millis(35);
+        let connection = capped(u64::try_from(ceiling.as_nanos()).expect("35 ms fits a u64"));
+        registered.publish(connection.safepoint_view());
+        for turn in 1..=2 {
+            burn_a_charge();
+            let spent = running_spent().expect("a published tree has a reading");
+            assert!(
+                spent >= Duration::from_millis(20),
+                "turn {turn} was charged {spent:?}, less than it spent"
+            );
+            assert!(dog.shared.sweep(Instant::now()).is_empty());
+            assert!(
+                !connection
+                    .safepoint_flags()
+                    .contains(SafepointFlags::CPU_LIMIT),
+                "turn {turn} was stopped for the time of the turn before it"
+            );
+            // The handler waits for its next input here.
+            restart_running();
+            let restarted = running_spent().expect("a published tree has a reading");
+            assert!(
+                restarted < Duration::from_millis(20),
+                "the count after turn {turn} did not start again: {restarted:?}"
+            );
+        }
+        registered.withdraw(&connection.safepoint_view());
     }
 
     /// A request the sweep stopped at its CPU ceiling reads what its tree

@@ -1022,6 +1022,15 @@ impl Ctx {
             return;
         }
         config.serve();
+        self.take_server_cpu_limit();
+    }
+
+    /// Gives this context the `[limits] cpu_time` server work runs under, with
+    /// its reserve carved out, where nothing has given it a CPU ceiling yet,
+    /// and publishes it to the tree where this context is the root.
+    /// [`Self::now_serving`] and [`Self::root_a_connection`] call it once the
+    /// configuration is marked as server work.
+    pub(super) fn take_server_cpu_limit(&mut self) {
         if self.cpu_limit != 0 {
             return;
         }

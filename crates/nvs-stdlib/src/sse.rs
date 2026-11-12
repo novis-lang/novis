@@ -892,6 +892,9 @@ nvs_runtime::nvs_helper! {
                 ));
             };
             ctx.inbox().wake_on(waker);
+            // The handler's turn ends at this wait, so the connection's CPU
+            // count starts again (`rule:concurrency/a-connection-is-a-root-isolate`).
+            ctx.turn_ends();
             // The scheduler ends the park at the request's wall deadline if
             // that is sooner, and answers `Cancelled` (`rule:errors/on-limit`).
             let until = Some(std::time::Instant::now() + CROSS_CORE_TICK);

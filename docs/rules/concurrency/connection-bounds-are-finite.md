@@ -16,7 +16,8 @@ accepted under.
 **The lifetime is the time bound a connection has, and `[limits] wall_time` is not one.** The
 `wall_time` of the request that upgraded ends that request and never the connection
 (`rule:concurrency/a-connection-is-a-root-isolate`), so the security checklist's `wall_time` and a
-live page work together. A connection's tree still keeps `memory` and `cpu_time`.
+live page work together. A connection's tree still keeps `memory`, and `cpu_time` for each turn
+(`rule:concurrency/a-connection-is-a-root-isolate`).
 
 Each bound ends in a **defined close** rather than a reset, and the connection's own loop takes it:
 `receive()` answers `null` and the peer is told which bound it met. A connection that exceeds its

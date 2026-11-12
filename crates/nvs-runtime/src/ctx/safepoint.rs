@@ -183,6 +183,47 @@ impl Ctx {
         self.publish_cpu_limit();
     }
 
+    /// Makes this context, an upgraded connection's isolate, the one that
+    /// states its tree's CPU ceiling.
+    ///
+    /// `rule:concurrency/a-connection-is-a-root-isolate`: the connection's tree
+    /// is fresh ([`Self::reroot_for_a_connection`]), and `cpu_time` holds for
+    /// each of its turns. The ceiling is the one a narrowing on the `upgrade`
+    /// left on this context, or else the `[limits] cpu_time` server work runs
+    /// under, which is [`nvs_config::defaults::LIMITS_CPU_TIME`] where none is
+    /// written. A ceiling of the parent's is not taken: a connection's own
+    /// context is not server work and states none where none is written.
+    /// `nvs_host::Isolate::start` calls it for both doors.
+    ///
+    /// **What it spends:** one store and one publication per connection.
+    pub fn root_a_connection(&mut self) {
+        self.tree_root = true;
+        if let Some(config) = self.config.as_mut() {
+            config.serve();
+        }
+        self.take_server_cpu_limit();
+        self.publish_cpu_limit();
+    }
+
+    /// Ends this connection's turn: the handler waits for its next input, and
+    /// the CPU time its tree is charged counts from zero again on this core.
+    ///
+    /// `rule:concurrency/a-connection-is-a-root-isolate`'s turn. Called where a
+    /// connection isolate waits for its next input: `Core\Socket::receive`,
+    /// `Core\Sse::receive` and a sleep on a connection ([`crate::peer::sleep`]).
+    /// A request has no turns, and none of those sites is reachable from one.
+    /// Once a limit has stopped this tree, the count is not restarted, so a
+    /// `Core\Fatal::onLimit` handler that waits keeps its slice.
+    ///
+    /// **What it spends:** one thread-local read, one clock read and two
+    /// stores per turn, through [`crate::host::Host::turn_ends`].
+    pub fn turn_ends(&self) {
+        if self.limit_reached.is_some() {
+            return;
+        }
+        crate::host::with_current(|host| host.turn_ends());
+    }
+
     /// Starts a request tree of its own on this context: a safepoint word and a
     /// deadline nothing else polls, in place of the two it was sharing.
     ///

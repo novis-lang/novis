@@ -934,6 +934,14 @@ pub trait Host: std::fmt::Debug {
     /// means for [`Host::sleep`].
     fn yield_slice(&self) -> Woken;
 
+    /// Starts the CPU-time count of the tree the calling task runs again at
+    /// zero, on this core.
+    ///
+    /// [`crate::Ctx::turn_ends`] is the only caller, where a connection isolate
+    /// waits for its next input (`rule:concurrency/a-connection-is-a-root-isolate`).
+    /// A host that charges no CPU time does nothing, which is the default.
+    fn turn_ends(&self) {}
+
     /// Starts what `entry` names as an isolate under the calling task and
     /// answers with the handle that collects it later.
     ///

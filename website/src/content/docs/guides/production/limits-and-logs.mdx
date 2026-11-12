@@ -29,8 +29,9 @@ A request that goes over a limit stops, and the other requests keep running.
 [Limits](/guides/how-to-use/limits/) explains each key.
 
 A WebSocket or an event stream stays open after the request that opened it ends. `wall_time` ends
-that request, and it does not close the connection. `memory` and `cpu_time` apply to the connection
-too. `[server.connection] max_lifetime` closes a connection after one day by default:
+that request, and it does not close the connection. `memory` applies to the connection too.
+`cpu_time` applies to each turn of the connection. A turn is the work between two waits for the next
+message, such as two calls to `receive()`. `[server.connection] max_lifetime` closes a connection after one day by default:
 
 ```toml
 [server.connection]

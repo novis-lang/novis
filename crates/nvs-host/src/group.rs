@@ -231,6 +231,10 @@ impl Host for SchedulerHost {
         }
     }
 
+    fn turn_ends(&self) {
+        crate::watchdog::restart_running();
+    }
+
     fn start_isolate(
         &self,
         ctx: &mut Ctx,

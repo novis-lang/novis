@@ -792,6 +792,16 @@ impl Isolate {
         if watch.is_some() && charge == Charge::Tree {
             isolate_ctx.take_tree_cpu_limit(ctx);
         }
+        // An upgraded connection's isolate is the root of the fresh tree its
+        // door started, and it states that tree's CPU ceiling. It is published
+        // to this core's watchdog where its body starts, and its count starts
+        // again at each turn (`rule:concurrency/a-connection-is-a-root-isolate`).
+        let connection = watch.is_none()
+            && charge == Charge::Tree
+            && (peer.is_some() || event_stream.is_some());
+        if connection {
+            isolate_ctx.root_a_connection();
+        }
         // The request this child answers, on the context that will run it and
         // before it can run — [`Isolate::answering`] owns why it arrives here
         // rather than on the parent, and `Ctx::set_inbound` why it is written
@@ -869,6 +879,7 @@ impl Isolate {
                 output,
                 receiving,
                 watch,
+                connection,
                 open,
             ),
             // No task beneath the call, which takes a host installed by
@@ -880,6 +891,9 @@ impl Isolate {
             // not the stack.
             None => {
                 let _published = watch.map(|watch| Published::new(watch, &isolate_ctx));
+                let _connection = connection
+                    .then(|| crate::watchdog::publish_here(isolate_ctx.safepoint_view()))
+                    .flatten();
                 Box::new(Collected {
                     completion: Some(run_here(
                         *isolate_ctx,
@@ -1125,6 +1139,7 @@ fn start_as_task(
     output: Output,
     receiving: Option<ErrorClass>,
     watch: Option<Rc<Registration>>,
+    connection: bool,
     open: Option<OpenSpawn>,
 ) -> Box<dyn Running> {
     let slot: Rc<RefCell<Option<Completion>>> = Rc::new(RefCell::new(None));
@@ -1161,6 +1176,12 @@ fn start_as_task(
             // on this stack afterwards and is this request's CPU as much as its body
             // was.
             let _published = watch.map(|watch| Published::new(watch, child));
+            // A connection's isolate is published on the core it runs on, which
+            // holds no `Registration` of its own here. `None` on a core that
+            // registered with no watchdog.
+            let _connection = connection
+                .then(|| crate::watchdog::publish_here(child.safepoint_view()))
+                .flatten();
             let began = timed.then(Instant::now);
             let answer = program(child, args);
             // `rule:core-classes/html-later`: the page is the body with every slot
@@ -2023,6 +2044,119 @@ mod tests {
         assert!(
             dog.running().is_empty(),
             "a finished request was still offered as the request to stop"
+        );
+    }
+
+    /// A peer that never sends and accepts everything, which is enough to make
+    /// an isolate a WebSocket connection's.
+    #[derive(Debug)]
+    struct QuietPeer;
+
+    impl PeerSocket for QuietPeer {
+        fn receive(&mut self) -> Result<Option<nvs_runtime::PeerFrame>, nvs_runtime::PeerError> {
+            Ok(None)
+        }
+
+        fn send(&mut self, _frame: nvs_runtime::PeerFrame) -> Result<(), nvs_runtime::PeerError> {
+            Ok(())
+        }
+
+        fn close(&mut self, _why: nvs_runtime::Closing) {}
+    }
+
+    /// Which door a connection isolate comes through, for the two cases below.
+    #[derive(Clone, Copy, Debug)]
+    enum Door {
+        Socket,
+        EventStream,
+    }
+
+    /// Starts a connection isolate through `door`, under `[limits] cpu_time =
+    /// "100ms"` and with no `watched_by`, on a thread registered with a
+    /// sampler. Its handler never waits. It answers whether the handler's tree
+    /// was stopped at its CPU ceiling before a minute had passed.
+    fn a_handler_that_never_waits_is_stopped(door: Door) -> bool {
+        use nvs_runtime::SafepointFlags;
+        use std::time::Duration;
+
+        let dog = crate::Watchdog::with(Duration::from_secs(3600), Duration::from_millis(1), |_| {});
+        let _registered = dog.register_requests();
+        let mut request = parent();
+        let table: toml::Table = "[limits]\ncpu_time = \"100ms\"\n"
+            .parse()
+            .expect("the case writes valid TOML");
+        request.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        }));
+        let stopped: Rc<Cell<Option<bool>>> = Rc::default();
+        let program: Program = {
+            let stopped = Rc::clone(&stopped);
+            Box::new(move |conn: &mut Ctx, _args| {
+                // The loop compiled code runs: it reads its tree's word at every
+                // back edge and stops when the CPU bit is raised.
+                let give_up = Instant::now() + Duration::from_secs(60);
+                let flagged = loop {
+                    if conn.safepoint_flags().contains(SafepointFlags::CPU_LIMIT) {
+                        break true;
+                    }
+                    if Instant::now() >= give_up {
+                        break false;
+                    }
+                    std::hint::spin_loop();
+                };
+                stopped.set(Some(flagged));
+                Value::null()
+            })
+        };
+        let isolate = Isolate::new(program, Value::null(), Output::Capture);
+        let mut cell = Some(match door {
+            Door::Socket => isolate.over_socket(Box::new(QuietPeer)),
+            Door::EventStream => {
+                let (emit, _drain) = nvs_runtime::stream::open(Duration::from_secs(1), 1024);
+                isolate.over_event_stream(emit)
+            }
+        });
+        let mut sched = Scheduler::new();
+        sched.spawn(request, TaskRoot::Request, move |conn_ctx| {
+            conn_ctx.reroot_for_a_connection();
+            let isolate = cell.take().expect("run once");
+            let running = isolate.start(conn_ctx).expect("the argument crossed");
+            let _ = running.join(conn_ctx);
+        });
+        sched.run();
+        stopped.get().expect("the connection's handler never ran")
+    }
+
+    /// `rule:concurrency/a-connection-is-a-root-isolate`: a WebSocket
+    /// connection's isolate is published to the watchdog of the core it runs
+    /// on, and a handler that never waits is stopped at `cpu_time`.
+    #[test]
+    fn a_websocket_handler_that_never_waits_ends_at_its_cpu_limit() {
+        if crate::ThreadClock::current().is_none() {
+            return;
+        }
+        assert!(
+            a_handler_that_never_waits_is_stopped(Door::Socket),
+            "a WebSocket handler that never waits ran past its CPU limit"
+        );
+    }
+
+    /// `rule:concurrency/a-connection-is-a-root-isolate`: an event stream's
+    /// isolate is published at its door too, and a handler that never waits
+    /// is stopped at `cpu_time`.
+    #[test]
+    fn an_event_stream_handler_that_never_waits_ends_at_its_cpu_limit() {
+        if crate::ThreadClock::current().is_none() {
+            return;
+        }
+        assert!(
+            a_handler_that_never_waits_is_stopped(Door::EventStream),
+            "an event-stream handler that never waits ran past its CPU limit"
         );
     }
 
