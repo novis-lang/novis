@@ -3541,8 +3541,9 @@ mod tests {
 
     /// `rule:concurrency/try-the-syscall-then-park`: bytes and the peer's
     /// hang-up that arrive in one event leave a short read, and the next read
-    /// still makes its system call and finds the end of the stream.
-    #[cfg(unix)]
+    /// still makes its system call and finds the end of the stream. Windows
+    /// takes no shortcut after a short read, and the test runs there too so
+    /// the behaviour holds on every runner.
     #[test]
     fn a_short_read_that_came_with_a_hang_up_reads_once_more() {
         let (mut server, mut client) = connected_pair();
