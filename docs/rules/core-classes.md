@@ -2598,10 +2598,14 @@ is a `secret` sink. The SQL text may, being developer-authored.
 and `PANIC`, Novis's own sentence for the kind, the `SQLSTATE` only when it is five ASCII letters or
 digits, and the driver code. A server's sentence can quote a bound value, so it never reaches the
 plain `message`. It is `serverMessage` instead, a `?tainted string`, and `constraint` is a
-`?tainted string` too, because the server sends that name. `serverMessage` is written only for a
-statement that bound no value: DDL, `BEGIN`, `COMMIT` and a statement with no parameters. Any other
-statement leaves it `null`, and `message` says the server's text is not shown because the statement
-bound a value. A caller that cannot tell whether a value was bound counts as one that did.
+`?tainted string` too, because the server sends that name. `serverMessage` is written for a
+statement that bound no value, such as DDL, `BEGIN` and `COMMIT`, and for one whose call the checker
+proved binds no `secret`. Any other statement leaves it `null`, and `message` says the server's text
+is not shown because the statement may have bound a `secret` value. The proof is
+`QUERY_SITE_PLAIN_BINDS`, bit 32 of the call's query site word, set when no argument holds a `secret`
+value or type ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)). A call through a callable reference passes the
+zero word, so the default is closed. **What it spends:** one flag per statement call while compiling,
+one bit in a constant that already exists, and one branch on the error path.
 
 The five raw values ride the throw on one boxed slice, which is eight bytes narrower than the single
 slot it replaced and costs one allocation on a path that is already allocating the object, the

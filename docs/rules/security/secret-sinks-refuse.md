@@ -29,6 +29,13 @@ credential in an exception message ends up in a stack trace or an error page. Th
 a built-in rule keyed on the declared type, applied the same way to every class, and no class can hook
 or override it.
 
+**A database error keeps the server's text only when no bound value is `secret`.** A server can quote
+a bound value in its error, so that text is a sink too. The checker notes every `secret` value
+written inside a call argument, and a statement call whose arguments hold no such value and no
+`secret` type sets `QUERY_SITE_PLAIN_BINDS` in its query site word. Only then does
+`Core\Db\DbError::serverMessage` carry the server's text (`rule:core-classes/db-error`). **What it
+spends:** one flag per call while compiling and one branch on the error path.
+
 **An erased read never returns a `secret` property, and an erased call never runs a method that
 returns one.** A read through `mixed`, `object` or a shape type, `Core\Reflect\ClassInfo::get`, and a
 shape test's field read all give `mixed`, which has no `secret`. So a property whose declared type
