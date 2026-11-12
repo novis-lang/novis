@@ -26,6 +26,9 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **`cargo test --lib` runs none of `nvs-cli`'s tests.** The crate has only the `nvs` binary, so a
+  test in `crates/nvs-cli/src/` runs under `cargo test --bin nvs`. A goal check that names such a
+  test with `--lib` finds zero tests and fails. See `crates/nvs-cli/Cargo.toml`.
 - **The Edit tool drops a trailing space at the end of `new_string`.** A `replace_all` of
   `natural(&mut ` to `open_natural(&mut ` wrote `open_natural(&mutpermutation`, and the build failed
   at five sites. End both strings on a character that is not a space, such as the argument after
