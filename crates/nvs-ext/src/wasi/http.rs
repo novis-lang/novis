@@ -78,47 +78,17 @@ pub(crate) const FRAMING: &[&str] = &[
     "upgrade",
 ];
 
-/// Bytes the host keeps for a guest, charged to its request until this is dropped.
-struct Charge {
-    budget: Arc<dyn Budget>,
-    bytes: i64,
-}
-
-impl Charge {
-    fn new(budget: &Arc<dyn Budget>) -> Self {
-        Self {
-            budget: Arc::clone(budget),
-            bytes: 0,
-        }
-    }
-
-    /// Charges `bytes` more, or returns `false` and charges nothing when the request cannot
-    /// afford them.
-    fn add(&mut self, bytes: usize) -> bool {
-        let Ok(bytes) = i64::try_from(bytes) else {
-            return false;
-        };
-        if !self.budget.charge(bytes) {
-            return false;
-        }
-        self.bytes += bytes;
-        true
-    }
-}
-
-impl Drop for Charge {
-    fn drop(&mut self) {
-        if self.bytes != 0 {
-            self.budget.charge(-self.bytes);
-        }
-    }
+/// Refuses to keep `bytes` more for a guest when its request has less than that left. The
+/// request's allocator counts what the host keeps, so nothing is charged here.
+fn afford(budget: &dyn Budget, what: &'static str, bytes: usize) -> wasmtime::Result<()> {
+    crate::call::afford(budget, what, u64::try_from(bytes).unwrap_or(u64::MAX))
 }
 
 /// A header list: names lower-case, values checked, in the order they were written.
 pub struct Fields {
     entries: Vec<(String, Vec<u8>)>,
     mutable: bool,
-    charge: Charge,
+    budget: Arc<dyn Budget>,
 }
 
 impl Fields {
@@ -155,18 +125,9 @@ impl Fields {
         Ok(Ok(()))
     }
 
-    fn charged(&mut self, bytes: usize) -> wasmtime::Result<()> {
-        if self.charge.add(bytes) {
-            Ok(())
-        } else {
-            Err(over_memory())
-        }
+    fn charged(&self, bytes: usize) -> wasmtime::Result<()> {
+        afford(&*self.budget, "a header", bytes)
     }
-}
-
-/// The trap a guest gets when what the host would keep for it is past its request's memory.
-fn over_memory() -> wasmtime::Error {
-    wasmtime::Error::msg("the request's memory limit is reached")
 }
 
 /// Whether `name` is an HTTP token.
@@ -251,7 +212,7 @@ pub struct OutgoingResponse {
 struct Body {
     bytes: Vec<u8>,
     state: Sending,
-    charge: Charge,
+    budget: Arc<dyn Budget>,
 }
 
 /// Where a [`Body`] stands.
@@ -292,9 +253,8 @@ impl OutputStream for BodyWriter {
         if !matches!(body.state, Sending::Open) {
             return Err(StreamError::Closed);
         }
-        if !body.charge.add(bytes.len()) {
-            return Err(StreamError::LastOperationFailed(over_memory()));
-        }
+        afford(&*body.budget, "a request body", bytes.len())
+            .map_err(StreamError::LastOperationFailed)?;
         body.bytes.extend_from_slice(&bytes);
         Ok(())
     }
@@ -362,8 +322,7 @@ impl FutureIncomingResponse {
     fn received(&self, result: Result<Incoming, Unsent>) -> Result<IncomingResponse, ErrorCode> {
         let (code, message) = match result {
             Ok(incoming) => {
-                let mut charge = Charge::new(&self.budget);
-                if !charge.add(incoming.body.len()) {
+                if self.budget.memory_spent() {
                     return Err(ErrorCode::HttpResponseBodySize(Some(
                         incoming.body.len() as u64
                     )));
@@ -377,7 +336,6 @@ impl FutureIncomingResponse {
                         .collect(),
                     body: Some(Held {
                         bytes: Bytes::from(incoming.body),
-                        _charge: charge,
                     }),
                 });
             }
@@ -409,10 +367,9 @@ pub struct IncomingResponse {
     body: Option<Held>,
 }
 
-/// A response body, charged to the request while the guest holds it.
+/// A response body. The request's allocator counts it while the guest holds it.
 struct Held {
     bytes: Bytes,
-    _charge: Charge,
 }
 
 /// `incoming-body`, its stream not taken yet.
@@ -447,25 +404,22 @@ impl Pollable for FutureTrailers {
 }
 
 impl Context {
-    /// A header list holding `entries`, charged to the request.
+    /// A header list holding `entries`, refused when the request has less memory left than
+    /// `entries` take.
     fn fields(
         &mut self,
         entries: Vec<(String, Vec<u8>)>,
         mutable: bool,
     ) -> wasmtime::Result<Resource<Fields>> {
-        let mut charge = Charge::new(&self.budget);
-        if !charge.add(
-            entries
-                .iter()
-                .map(|(name, value)| name.len() + value.len())
-                .sum(),
-        ) {
-            return Err(over_memory());
-        }
+        let size = entries
+            .iter()
+            .map(|(name, value)| name.len() + value.len())
+            .sum();
+        afford(&*self.budget, "a header list", size)?;
         Ok(self.table.push(Fields {
             entries,
             mutable,
-            charge,
+            budget: Arc::clone(&self.budget),
         })?)
     }
 
@@ -478,7 +432,7 @@ impl Context {
             body: Arc::new(Mutex::new(Body {
                 bytes: Vec::new(),
                 state: Sending::Open,
-                charge: Charge::new(&self.budget),
+                budget: Arc::clone(&self.budget),
             })),
             written: false,
         })

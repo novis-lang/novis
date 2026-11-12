@@ -3,11 +3,17 @@ epoch tick the guest checks the request's CPU deadline and traps past it, so a d
 guest loop stops rather than hanging a core (`rule:packaging/a-guest-call-yields-on-its-core`). Its
 linear memory is the request's: each growth is charged to the request's memory accounting, and the
 store's limit is the least of what the request has left, the entry's optional `memory` ceiling and
-the manifest's declared maximum. What crosses from the guest is the request's memory as well: the
-host's copy of a value the guest passes or returns is bounded by what the request has left and charged
-to it while the host holds it, so a result is as large as the request can afford and no larger. A
+the manifest's declared maximum. What crosses from the guest is the request's memory as well, and it
+is counted once: the host's copy of a value the guest passes or returns is an allocation of the
+request, which the request's allocator counts as it counts any other. Nothing measures it a second
+time. A crossing is bounded by the hostcall fuel, which is what the request has left when the call
+starts, and the call asks the request's memory after it lowers the arguments and again after it
+lifts the results. A request over its ceiling at either point ends at the memory limit. So a 40 MiB
+result is 40 MiB of the request's memory, not 80. Only guest linear memory, which is mapped and not
+allocated, is charged by hand. A
 host import that allocates a size the guest chose asks what the request has left before it allocates:
-random bytes, and `as-bytes` on a lent file or a byte string. A size past it ends the call at the
+random bytes, `as-bytes` on a lent file or a byte string, `append` to a `bytes`, and a header
+list, a header or a request body written through `wasi:http`. A size past it ends the call at the
 memory limit, and nothing is allocated.
 
 **The epoch tick asks the request's memory beside its CPU deadline.** Whatever put the request over
@@ -33,7 +39,8 @@ in flight.
 What it spends: the guest's linear memory, charged to the calling request and freed when the request
 ends — O(in-flight). The pooling allocator reserves address space per slot, not committed memory.
 The memory question at each tick is three thread-local reads per running guest, and nothing per
-allocation.
+allocation. The one count saves a walk over every crossing value per call, and a crossing value's
+bytes are counted once.
 A result crosses as one host value per element before it is converted, tens of bytes for each byte
 of a `list<u8>`, so a PDF of a few megabytes briefly holds over a hundred megabytes of the request's
 memory. That is the
@@ -50,7 +57,7 @@ same `[limits] memory` ceiling as the program's own values. Its `memory_spent` r
 allocator raises `MEMORY_LIMIT` from, on the request's own thread, so a collection that brought the
 request back under is not a stop (`a_guest_is_interrupted_once_its_request_is_over_the_memory_ceiling`,
 `a_guest_that_logs_without_end_is_stopped_at_the_memory_ceiling`,
-`a_guest_cannot_fill_the_resource_table_past_its_cap`, and the attack
+`a_guest_cannot_fill_the_resource_table_past_its_cap`, `a_crossing_value_is_charged_to_its_request_once`, and the attack
 `tests/hostile/config/limits/02-an-extension-that-writes-to-the-log-without-end.nvs`). A limit's outcome is a `FATAL` naming the
 limit as `onLimit` receives it (`crates/nvs-ext/tests/failure.rs`), and the request's limit handler
 runs before it, in `nvs run`

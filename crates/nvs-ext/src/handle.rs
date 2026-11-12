@@ -82,7 +82,6 @@ pub struct Handles {
     lent: Vec<ResourceAny>,
     blobs: HashMap<u32, Blob>,
     next_blob: u32,
-    grown: u64,
 }
 
 /// One `bytes` handle: a [`Value::Bytes`] or a [`Value::Lent`] source, and whether the guest made
@@ -108,13 +107,11 @@ impl Handles {
         std::mem::take(&mut self.lent)
     }
 
-    /// Ends the call: every root and every handle it made stops being valid. Returns the bytes
-    /// `append` charged to the request during the call, which the caller gives back.
-    pub(crate) fn end_call(&mut self) -> u64 {
+    /// Ends the call: every root and every handle it made stops being valid.
+    pub(crate) fn end_call(&mut self) {
         self.roots.clear();
         self.live.clear();
         self.blobs.clear();
-        std::mem::take(&mut self.grown)
     }
 
     fn insert_blob(&mut self, blob: Blob) -> Result<u32, String> {
@@ -488,9 +485,8 @@ fn link_bytes(types: &mut wasmtime::component::LinkerInstance<'_, Guest>) -> was
                 wasmtime::bail!("`append` takes only a `bytes` the extension made");
             }
             let more = u64::try_from(data.len()).unwrap_or(u64::MAX);
-            crate::call::grow(&**store.data().budget(), "an `append`", more)?;
+            crate::call::afford(&**store.data().budget(), "an `append`", more)?;
             let handles = &mut store.data_mut().handles;
-            handles.grown = handles.grown.saturating_add(more);
             let Some(Blob {
                 value: Value::Bytes(buffer),
                 ..

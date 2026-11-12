@@ -112,16 +112,6 @@ pub(crate) enum Out {
 }
 
 impl Args {
-    /// The host bytes the arguments hold on the heap.
-    pub(crate) fn heap(&self) -> u64 {
-        match self {
-            Self::Image(args) => args.heap(),
-            Self::Pdf(args) => args.heap(),
-            Self::Intl(args) => args.heap(),
-            Self::Spreadsheet(args) => args.heap(),
-        }
-    }
-
     /// Calls `func` with the arguments. The outer `Err` is wasmtime's, a trap or a type that does
     /// not match, and the inner one is the export's own `err`.
     pub(crate) async fn call(
@@ -139,16 +129,6 @@ impl Args {
 }
 
 impl Out {
-    /// The host bytes the result holds on the heap.
-    pub(crate) fn heap(&self) -> u64 {
-        match self {
-            Self::Image(out) => out.heap(),
-            Self::Pdf(out) => out.heap(),
-            Self::Intl(out) => out.heap(),
-            Self::Spreadsheet(out) => out.heap(),
-        }
-    }
-
     /// The Novis value the result is, where the manifest's return type is `ty`, with `call`
     /// keeping a resource the guest returned.
     pub(crate) fn into_value(
@@ -224,12 +204,6 @@ pub(crate) trait IntoValue: Sized {
     }
 }
 
-/// The host bytes a generated value holds on the heap, which a call charges to its request.
-pub(crate) trait Heap {
-    /// The bytes `self` holds on the heap. A scalar holds none.
-    fn heap(&self) -> u64;
-}
-
 /// A generated record, which is a Novis shape.
 pub(crate) trait Shape: Sized {
     /// The record the array of `entries` is, where the shape is `fields`.
@@ -272,12 +246,6 @@ macro_rules! scalars {
                 }
             }
         }
-
-        impl Heap for $rust {
-            fn heap(&self) -> u64 {
-                0
-            }
-        }
     )*};
 }
 
@@ -306,12 +274,6 @@ impl IntoValue for u64 {
     }
 }
 
-impl Heap for u64 {
-    fn heap(&self) -> u64 {
-        0
-    }
-}
-
 impl FromValue for String {
     fn from_value(ty: &NovisType, value: Value, _: &mut dyn Crossing) -> Result<Self, String> {
         match (ty, value) {
@@ -327,12 +289,6 @@ impl IntoValue for String {
             NovisType::String => Ok(Value::String(self)),
             ty => Err(back(ty, "String")),
         }
-    }
-}
-
-impl Heap for String {
-    fn heap(&self) -> u64 {
-        self.len() as u64
     }
 }
 
@@ -353,12 +309,6 @@ impl IntoValue for u8 {
 
     fn list_into_bytes(list: Vec<Self>) -> Result<Vec<u8>, Vec<Self>> {
         Ok(list)
-    }
-}
-
-impl Heap for u8 {
-    fn heap(&self) -> u64 {
-        0
     }
 }
 
@@ -403,12 +353,6 @@ impl<T: IntoValue> IntoValue for Vec<T> {
     }
 }
 
-impl<T: Heap> Heap for Vec<T> {
-    fn heap(&self) -> u64 {
-        (self.len() * size_of::<T>()) as u64 + self.iter().map(Heap::heap).sum::<u64>()
-    }
-}
-
 /// An `Option` is a `?T` or an optional shape field, so its type is the `?T`'s inner one or, for a
 /// field, the field's own.
 impl<T: FromValue> FromValue for Option<T> {
@@ -442,12 +386,6 @@ impl<T: IntoValue> IntoValue for Option<T> {
 
     fn omitted(&self) -> bool {
         self.is_none()
-    }
-}
-
-impl<T: Heap> Heap for Option<T> {
-    fn heap(&self) -> u64 {
-        self.as_ref().map_or(0, Heap::heap)
     }
 }
 
@@ -527,12 +465,6 @@ impl IntoValue for ResourceAny {
     }
 }
 
-impl Heap for ResourceAny {
-    fn heap(&self) -> u64 {
-        0
-    }
-}
-
 /// The `ok` side of a `result<_, error>`, which a `void` method returns.
 impl IntoValue for () {
     fn into_value(self, _: &NovisType, _: &mut dyn Crossing) -> Result<Value, String> {
@@ -540,15 +472,9 @@ impl IntoValue for () {
     }
 }
 
-impl Heap for () {
-    fn heap(&self) -> u64 {
-        0
-    }
-}
-
 macro_rules! params {
     ($($n:literal: $($t:ident),*;)*) => {$(
-        impl<$($t: FromValue + Heap),*> Params for ($($t,)*) {
+        impl<$($t: FromValue),*> Params for ($($t,)*) {
             fn from_values(
                 params: &[NovisType],
                 args: Vec<Value>,
@@ -564,14 +490,6 @@ macro_rules! params {
                 let mut params = params.iter();
                 let mut args = args.into_iter();
                 Ok(($(next::<$t>(&mut params, &mut args, call)?,)*))
-            }
-        }
-
-        impl<$($t: Heap),*> Heap for ($($t,)*) {
-            #[allow(non_snake_case, reason = "each element is named by its type parameter")]
-            fn heap(&self) -> u64 {
-                let ($($t,)*) = self;
-                0 $(+ $t.heap())*
             }
         }
     )*};
@@ -848,12 +766,6 @@ macro_rules! records {
                 }
             }
         }
-
-        impl $crate::typed::Heap for $ty {
-            fn heap(&self) -> u64 {
-                0 $(+ $crate::typed::Heap::heap(&self.$field))*
-            }
-        }
     )*};
 }
 
@@ -883,12 +795,6 @@ macro_rules! enums {
                 $crate::typed::enum_value(ty, match self {
                     $(Self::$case => stringify!($case),)*
                 })
-            }
-        }
-
-        impl $crate::typed::Heap for $ty {
-            fn heap(&self) -> u64 {
-                0
             }
         }
     )*};
@@ -928,14 +834,6 @@ macro_rules! variants {
                         $crate::typed::union_shape(ty, stringify!($case))?,
                         call,
                     ),)*
-                }
-            }
-        }
-
-        impl $crate::typed::Heap for $ty {
-            fn heap(&self) -> u64 {
-                match self {
-                    $(Self::$case(payload) => $crate::typed::Heap::heap(payload),)*
                 }
             }
         }
@@ -986,12 +884,6 @@ macro_rules! cores {
                 Ok($crate::convert::Value::Core { class: core.class.to_owned(), fields })
             }
         }
-
-        impl $crate::typed::Heap for $ty {
-            fn heap(&self) -> u64 {
-                0 $(+ $crate::typed::Heap::heap(&self.$field))*
-            }
-        }
     )*};
 }
 
@@ -1033,13 +925,6 @@ macro_rules! world {
                 Err(format!("the world calls no method `{method}` typed"))
             }
 
-            /// The host bytes the arguments hold on the heap.
-            pub(crate) fn heap(&self) -> u64 {
-                match self {
-                    $(Self::$method(args) => $crate::typed::Heap::heap(args),)*
-                }
-            }
-
             /// Calls `func`, the export of the method, with the arguments.
             pub(crate) async fn call(
                 self,
@@ -1059,13 +944,6 @@ macro_rules! world {
         }
 
         impl Out {
-            /// The host bytes the result holds on the heap.
-            pub(crate) fn heap(&self) -> u64 {
-                match self {
-                    $(Self::$method(out) => $crate::typed::Heap::heap(out),)*
-                }
-            }
-
             /// The Novis value the result is, where the manifest's return type is `ty`, with
             /// `call` keeping a resource the guest returned.
             pub(crate) fn into_value(

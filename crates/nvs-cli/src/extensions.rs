@@ -16,8 +16,9 @@
 //!
 //! **The host has room for every request in flight.** Its pool of instances is sized once, from
 //! the configuration of the first boot ([`size_pool`]): `max_in_flight` times the classes one
-//! request can call, so every request in flight can hold an instance of each. [`MOST_SLOTS`] caps
-//! it, because each instance reserves address space for its memory. A reload that raises
+//! request can call, so every request in flight can hold an instance of each. Each place reserves
+//! address space for its memory, and `nvs_ext::call::reservation` makes that reservation smaller
+//! when the pool would pass half of the address space. A reload that raises
 //! `max_in_flight` or adds a class cannot grow a pool that exists: past the boot's size, a call
 //! that needs a new instance throws `ExtensionError`, and the next boot takes the new size.
 //!
@@ -118,13 +119,6 @@ use nvs_runtime::{
 use nvs_stdlib::ext_record::Part;
 
 use crate::cache::Cache;
-
-/// The most instances the process's host has room for at once, across every request. Each slot
-/// reserves address space, not committed memory: 6 GiB for its linear memory (wasmtime's 4 GiB
-/// reservation, which lets compiled guest code skip bounds checks, and its 2 GiB guard), so 4096
-/// slots are 24 TiB of the 128 TiB a 64-bit process can address. The rest stays for task stacks
-/// and the JIT.
-const MOST_SLOTS: u32 = 4096;
 
 /// The slots of a host made before any configuration was read, as `nvs ext build` makes one to
 /// check what it packs. Such a process serves no requests, so a few instances at once are enough.
@@ -265,26 +259,26 @@ pub(crate) fn loaded(
     Ok(set)
 }
 
-/// Sizes the host's pool from `config`, where no host exists yet: `max_in_flight` times the
-/// classes one request can call, the built-in components and each `[[extension]]` entry, and at
-/// most [`MOST_SLOTS`]. The module doc's *the host has room for every request in flight*.
+/// Sizes the host's pool from `config`, where no host exists yet, with [`pool_size`]. The module
+/// doc's *the host has room for every request in flight*.
 fn size_pool(config: &Config) {
     if HOST.get().is_some() {
         return;
     }
+    SLOTS.store(pool_size(config), Ordering::Relaxed);
+}
+
+/// The places a pool needs for `config`: `max_in_flight` times the classes one request can call,
+/// the built-in components and each `[[extension]]` entry.
+fn pool_size(config: &Config) -> u32 {
     let in_flight = config
         .server
         .as_ref()
         .and_then(|server| server.max_in_flight)
         .unwrap_or(nvs_config::defaults::SERVER_MAX_IN_FLIGHT);
     let classes = with_built_in(Vec::new()).len() + config.extension.len();
-    let slots = in_flight
-        .saturating_mul(u64::try_from(classes.max(1)).unwrap_or(u64::MAX))
-        .min(u64::from(MOST_SLOTS));
-    SLOTS.store(
-        u32::try_from(slots).unwrap_or(MOST_SLOTS),
-        Ordering::Relaxed,
-    );
+    let slots = in_flight.saturating_mul(u64::try_from(classes.max(1)).unwrap_or(u64::MAX));
+    u32::try_from(slots).unwrap_or(u32::MAX)
 }
 
 /// The manifests of `config`'s `[[extension]]` entries, read without compiling a component: what
@@ -1563,6 +1557,93 @@ mod tests {
         );
         drop(spent);
         ctx.clear_memory_ceiling();
+    }
+
+    /// The bytes of the string `RETURNS_BIG` returns.
+    const BIG: usize = 4 << 20;
+
+    /// The pages of `RETURNS_BIG`'s memory: one for the pointer and the length, and the string.
+    const BIG_PAGES: usize = 1 + BIG / 65536;
+
+    /// A component whose one method returns a string of `BIG` zero bytes from its own memory.
+    const RETURNS_BIG: &str = r#"(component
+  (core module $m
+    (memory (export "memory") 65)
+    (func (export "big") (result i32)
+      (i32.store (i32.const 0) (i32.const 65536))
+      (i32.store (i32.const 4) (i32.const 4194304))
+      (i32.const 0)))
+  (core instance $i (instantiate $m))
+  (func $big (result string) (canon lift (core func $i "big") (memory (core memory $i "memory"))))
+  (instance $api (export "big" (func $big)))
+  (export "shop:big/api" (instance $api)))"#;
+
+    /// A call's result is counted once, by the request's allocator. The request's peak over the
+    /// call is the guest's memory and the result, and no second copy of the result's size.
+    #[test]
+    fn a_crossing_value_is_charged_to_its_request_once() {
+        let host = Host::new(2, |_| Ok(())).expect("the host starts");
+        let bytes = wat::parse_str(RETURNS_BIG).expect("the test component compiles");
+        let manifest = r#"{"manifest": 1, "world": "1.0.0", "class": "Shop\\Big", "interface": "shop:big/api", "methods": [{"name": "big", "params": [], "returns": "string"}]}"#;
+        let extension = Loaded {
+            path: "big.nvsx".into(),
+            sha256: String::new(),
+            memory: None,
+            grants: nvs_config::extension::Granted::default(),
+            component: wasmtime::component::Component::new(host.engine(), &bytes)
+                .expect("the component compiles"),
+            manifest: Manifest::parse(manifest.as_bytes()).expect("the manifest reads"),
+            source: nvs_ext::source::Source {
+                source: nvs_ext::source::FORMAT,
+                files: Vec::new(),
+            },
+        };
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_memory_limit(256 << 20);
+        let request = host.request(Arc::new(Spent::of(&ctx)));
+        let start = ctx.memory_used();
+        let out = drive(request.call(&extension, "big", &[]), || false).expect("the call returns");
+        let held = ctx.memory_used() - start;
+        let peak = ctx.memory_peak() - start;
+        assert!(
+            matches!(out.as_slice(), [wasmtime::component::Val::String(s)] if s.len() == BIG),
+            "the call returned the string"
+        );
+        let guest = BIG_PAGES * 65536;
+        assert!(held >= guest + BIG, "{held} bytes are held after the call");
+        assert!(
+            peak < guest + BIG + BIG / 2,
+            "the request peaked at {peak} bytes for {guest} of guest memory and {BIG} of result"
+        );
+        drop(out);
+        drop(request);
+        ctx.clear_memory_ceiling();
+    }
+
+    /// The default configuration's pool has a place for each request `max_in_flight` admits, for
+    /// each built-in class. That many places do not fit at the full reservation, so each one gets
+    /// a smaller reservation, and the pool stays within half of the address space.
+    #[test]
+    fn the_pool_has_a_place_for_every_request_in_flight_times_every_class() {
+        let classes = with_built_in(Vec::new()).len();
+        assert!(classes > 0, "the build carries built-in components");
+        let slots = pool_size(&Config::default());
+        assert_eq!(
+            u64::from(slots),
+            nvs_config::defaults::SERVER_MAX_IN_FLIGHT * classes as u64
+        );
+        let reserved = nvs_ext::call::reservation(slots);
+        assert!(reserved < nvs_ext::call::FULL_RESERVATION, "{reserved}");
+        assert!(
+            u64::from(slots) * (reserved + nvs_ext::call::GUARD) <= nvs_ext::call::POOL_SPACE,
+            "{slots} places of {reserved} bytes"
+        );
+        assert_eq!(
+            nvs_ext::call::reservation(64),
+            nvs_ext::call::FULL_RESERVATION,
+            "a small pool keeps the full reservation"
+        );
     }
 
     /// A guest's growth is charged to the memory count the runtime keeps for the request, and

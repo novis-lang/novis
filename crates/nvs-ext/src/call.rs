@@ -37,12 +37,14 @@
 //! than the request could afford then, and running out is [`Limit::Memory`]. wasmtime gives the
 //! epoch callback no way to set it, so it is not refreshed at a tick. That loses no bound: a guest
 //! can grow its memory by any amount between two ticks, so the fuel never tracked that growth.
-//! The charge each lifted value makes right after its crossing is what catches a request that
-//! spent its memory during the call. The cost is one crossing's bytes, held until that charge.
-//! A call's lowered arguments are measured once they are made and charged to the request until
-//! the guest returns, and its lifted results are charged while they are converted; a call that
-//! cannot afford either is [`Limit::Memory`], and both are given back after. A request with no
-//! memory limit has no bound here either.
+//! Every host byte a crossing allocates is counted once, by the request's allocator, as any other
+//! allocation of the request is. Nothing here measures a value a second time. The call asks
+//! [`Budget::memory_spent`] after it lowers the arguments and again after it lifts the results,
+//! and a request over its ceiling at either point is [`Limit::Memory`]. So a 40 MiB result is
+//! 40 MiB of the request's memory, and the request holds it until it drops it. A host import
+//! asks [`afford`] before it allocates a size the guest chose. Only guest linear memory, which
+//! is mapped and not allocated, goes through [`Budget::charge`]. A request with no memory limit
+//! has no bound here either.
 //!
 //! **Failures** (`rule:packaging/a-guest-crash-throws`). Every export the loader accepts returns
 //! `result<T, error>`, and [`Request::call`] returns the `ok` side's value or a [`Failure`]:
@@ -64,8 +66,7 @@
 //! are dropped and every handle it made stops being valid, whatever the outcome. It parses the
 //! method's types on every call. A built-in component is called typed instead, through the
 //! bindings `crate::typed` has for its world: its values convert to the generated types in the
-//! instance's store, its handles lent, passed and kept as here, and the same charges are made at
-//! those types' host size.
+//! instance's store, and its handles lent, passed and kept as here.
 //!
 //! **A resource lives until the request ends** (`rule:packaging/a-value-crosses-as-its-wit-type`).
 //! One a call returns is kept in the store of the instance that made it, under a number the
@@ -551,7 +552,9 @@ pub struct Meter {
     deadline: Instant,
     memory: Option<u64>,
     charged: AtomicI64,
-    over: AtomicBool,
+    /// How many more times [`Budget::memory_spent`] answers `false` before it answers `true`.
+    /// `u64::MAX` is never.
+    under: AtomicU64,
 }
 
 impl Meter {
@@ -564,14 +567,21 @@ impl Meter {
             deadline: started + cpu,
             memory,
             charged: AtomicI64::new(0),
-            over: AtomicBool::new(false),
+            under: AtomicU64::new(u64::MAX),
         }
     }
 
     /// Sets what [`Budget::memory_spent`] reports, as a request's allocator would at the crossing
     /// of its ceiling. A meter counts only what is charged to it, so a test sets this figure.
     pub fn set_memory_spent(&self, over: bool) {
-        self.over.store(over, Ordering::Release);
+        self.under
+            .store(if over { 0 } else { u64::MAX }, Ordering::Release);
+    }
+
+    /// Makes [`Budget::memory_spent`] answer `false` to its next `asks` questions and `true` to
+    /// every later one, as a request that crosses its ceiling while a call runs.
+    pub fn set_memory_spent_after(&self, asks: u64) {
+        self.under.store(asks, Ordering::Release);
     }
 
     /// The bytes charged now.
@@ -587,7 +597,11 @@ impl Budget for Meter {
     }
 
     fn memory_spent(&self) -> bool {
-        self.over.load(Ordering::Acquire)
+        self.under
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |left| {
+                (left != 0 && left != u64::MAX).then(|| left - 1)
+            })
+            .is_err_and(|left| left == 0)
     }
 
     fn charge(&self, bytes: i64) -> bool {
@@ -898,11 +912,44 @@ pub const PROPOSALS: WasmFeatures = WasmFeatures::WASM2
     .difference(WasmFeatures::GC_TYPES)
     .union(WasmFeatures::COMPONENT_MODEL);
 
+/// The address space the pool's memories may take: half of the 128 TiB a 64-bit process can
+/// address. The other half stays for task stacks, the JIT and the heap.
+pub const POOL_SPACE: u64 = 64 << 40;
+
+/// The reservation of one place that lets compiled guest code skip bounds checks: the whole
+/// 4 GiB a 32-bit memory can address. It is wasmtime's default on a 64-bit host.
+pub const FULL_RESERVATION: u64 = 4 << 30;
+
+/// The guard region wasmtime keeps unmapped after each place's memory, its default on a 64-bit
+/// host.
+pub const GUARD: u64 = 32 << 20;
+
+/// The smallest reservation a place gets, however many places the pool has. A guest's memory
+/// cannot grow past its place's reservation.
+pub const LEAST_RESERVATION: u64 = 16 << 20;
+
+/// The address space one place of a pool of `slots` reserves for its linear memory
+/// (`rule:packaging/a-fresh-instance-per-request`). It is [`FULL_RESERVATION`] while every place
+/// with its [`GUARD`] fits in [`POOL_SPACE`]. Past that it is the share of [`POOL_SPACE`] each
+/// place has, less the guard, in whole 64 KiB pages and at least [`LEAST_RESERVATION`]. Under the
+/// full reservation every guest memory access has a bounds check. The reservation is part of the
+/// engine's configuration, so the compiled-component cache's key, which hashes that
+/// configuration, changes with it.
+#[must_use]
+pub fn reservation(slots: u32) -> u64 {
+    const PAGE: u64 = 64 << 10;
+    let share = POOL_SPACE / u64::from(slots.max(1));
+    if share >= FULL_RESERVATION + GUARD {
+        return FULL_RESERVATION;
+    }
+    (share.saturating_sub(GUARD) / PAGE * PAGE).max(LEAST_RESERVATION)
+}
+
 impl Host {
     /// A host with room for `slots` instances at once, its linker filled by `imports`, and its
     /// ticker started. Each slot reserves the pool's address space for one memory,
     /// [`CORE_INSTANCES`] core instances and [`TABLES`] tables, so that a componentized guest
-    /// fits in one slot.
+    /// fits in one slot. A memory's reservation is [`reservation`] of `slots`.
     ///
     /// # Errors
     ///
@@ -918,6 +965,11 @@ impl Host {
         pool.total_tables(slots.saturating_mul(TABLES));
         pool.total_stacks(slots);
         let mut config = Config::new();
+        let reserved = reservation(slots);
+        if reserved < FULL_RESERVATION {
+            config.memory_reservation(reserved);
+            pool.max_memory_size(usize::try_from(reserved).unwrap_or(usize::MAX));
+        }
         config.wasm_features(PROPOSALS.complement(), false);
         config.epoch_interruption(true);
         // One call per store at a time, on wasmtime's own fiber: a component is not re-entered.
@@ -1204,28 +1256,16 @@ impl Request {
         let Some(live) = held.live.as_mut() else {
             unreachable!("the instance was made above");
         };
+        // The allocator counts what lowering and lifting allocate, so the call asks the
+        // request's ceiling after each and charges nothing of its own.
         let outcome = match args(&mut live.store, at) {
+            Ok(_) if self.budget.memory_spent() => Err(Failure::Limit(Limit::Memory)),
             Ok(args) => {
-                let sent = args.heap();
-                if self.budget.charge(sent) {
-                    self.crossings.fetch_add(1, Ordering::Relaxed);
-                    let called = live.call(at, &declared.name, args).await;
-                    self.budget.charge(-sent);
-                    match called {
-                        Ok(out) => {
-                            let held = out.heap();
-                            if self.budget.charge(held) {
-                                let read = results(&mut live.store, out, at);
-                                self.budget.charge(-held);
-                                read
-                            } else {
-                                Err(Failure::Limit(Limit::Memory))
-                            }
-                        }
-                        Err(failure) => Err(failure),
-                    }
-                } else {
-                    Err(Failure::Limit(Limit::Memory))
+                self.crossings.fetch_add(1, Ordering::Relaxed);
+                match live.call(at, &declared.name, args).await {
+                    Ok(_) if self.budget.memory_spent() => Err(Failure::Limit(Limit::Memory)),
+                    Ok(out) => results(&mut live.store, out, at),
+                    Err(failure) => Err(failure),
                 }
             }
             Err(failure) => Err(failure),
@@ -1392,7 +1432,7 @@ fn declared<'e>(extension: &'e Extension, method: &str) -> Result<&'e Method, Fa
 
 impl Live {
     /// Drops the borrows the call's `mixed` and `bytes` arguments were lent as, ends every handle
-    /// the call made, and gives back what its `append`s charged.
+    /// the call made.
     async fn end_call(&mut self) -> Result<(), String> {
         let lent = self.store.data_mut().handles.take_lent();
         let mut dropped = Ok(());
@@ -1401,13 +1441,7 @@ impl Live {
                 dropped = Err(format!("a lent handle did not drop: {err}"));
             }
         }
-        let grown = self.store.data_mut().handles.end_call();
-        if grown > 0 {
-            self.store
-                .data()
-                .budget
-                .charge(-i64::try_from(grown).unwrap_or(i64::MAX));
-        }
+        self.store.data_mut().handles.end_call();
         dropped
     }
 
@@ -1465,31 +1499,11 @@ enum Sent {
     Typed(Box<typed::Args>),
 }
 
-impl Sent {
-    /// The host bytes the arguments hold on the heap, which the call charges to its request.
-    fn heap(&self) -> i64 {
-        match self {
-            Self::Dynamic(vals) => on_heap(vals),
-            Self::Typed(args) => i64::try_from(args.heap()).unwrap_or(i64::MAX),
-        }
-    }
-}
-
 /// What one call returned, in the form its [`Sent`] crossed in. A typed result is boxed, as a
 /// typed [`Sent`] is, because the largest is many times the size of a `Vec`.
 enum Got {
     Dynamic(Vec<Val>),
     Typed(Box<typed::Out>),
-}
-
-impl Got {
-    /// The host bytes the results hold on the heap, which the call charges while they convert.
-    fn heap(&self) -> i64 {
-        match self {
-            Self::Dynamic(vals) => on_heap(vals),
-            Self::Typed(out) => i64::try_from(out.heap()).unwrap_or(i64::MAX),
-        }
-    }
 }
 
 /// One call's [`Crossing`]: the store of the instance it runs on, the request's resource numbers,
@@ -1618,16 +1632,6 @@ pub(crate) fn afford(budget: &dyn Budget, what: &'static str, bytes: u64) -> was
     Ok(())
 }
 
-/// Charges `bytes` of host memory, a size the guest chose, to the request before it is allocated,
-/// or ends the call at the memory limit as [`afford`] does when the request cannot afford them.
-/// Whoever charged them gives them back.
-pub(crate) fn grow(budget: &dyn Budget, what: &'static str, bytes: u64) -> wasmtime::Result<()> {
-    if !budget.charge(i64::try_from(bytes).unwrap_or(i64::MAX)) {
-        return Err(wasmtime::Error::new(Unaffordable { what, bytes }));
-    }
-    Ok(())
-}
-
 /// The end of the message wasmtime fails a crossing with when it has used up the store's hostcall
 /// fuel. Its error type is private, so the message is the only thing to match.
 const FUEL_EXHAUSTED: &str = "fuel allocated for hostcalls has been exhausted";
@@ -1639,30 +1643,6 @@ fn fuel(budget: &dyn Budget) -> usize {
     budget.left().map_or(usize::MAX, |left| {
         usize::try_from(left).unwrap_or(usize::MAX)
     })
-}
-
-/// The host bytes `vals` hold on the heap, which a call charges to its request while it holds them.
-fn on_heap(vals: &[Val]) -> i64 {
-    i64::try_from(vals.iter().map(lifted).sum::<u64>()).unwrap_or(i64::MAX)
-}
-
-/// The host bytes `val` puts on the heap: one [`Val`] for each value inside it, and the text of
-/// each string and name. A scalar puts nothing there.
-fn lifted(val: &Val) -> u64 {
-    let text = |text: &str| text.len() as u64;
-    let inside = |val: &Val| size_of::<Val>() as u64 + lifted(val);
-    match val {
-        Val::String(s) | Val::Enum(s) => text(s),
-        Val::List(items) | Val::Tuple(items) => items.iter().map(inside).sum(),
-        Val::Map(pairs) => pairs.iter().map(|(k, v)| inside(k) + inside(v)).sum(),
-        Val::Record(fields) => fields.iter().map(|(k, v)| text(k) + inside(v)).sum(),
-        Val::Variant(case, payload) => text(case) + payload.as_deref().map_or(0, inside),
-        Val::Option(payload) | Val::Result(Ok(payload) | Err(payload)) => {
-            payload.as_deref().map_or(0, inside)
-        }
-        Val::Flags(names) => names.iter().map(|name| text(name)).sum(),
-        _ => 0,
-    }
 }
 
 /// A slot one task's call holds. Dropping it puts the instance back, or removes the slot when the
@@ -1764,8 +1744,9 @@ mod tests {
         };
         let meter = Arc::new(Meter::new(Duration::from_secs(60), None));
         let request = host.request(Arc::clone(&meter) as Arc<dyn super::Budget>);
-        // The figure is set before the call, so the loop starts and only a tick can end it.
-        meter.set_memory_spent(true);
+        // The call asks once after lowering, and that answer lets the loop start. Every later
+        // answer is `true`, so only a tick can end the call.
+        meter.set_memory_spent_after(1);
         let started = Instant::now();
         let out = block_on(request.call(&extension, "forever", &[]));
         assert_eq!(out, Err(Failure::Limit(Limit::Memory)));
