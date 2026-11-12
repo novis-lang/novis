@@ -26,6 +26,10 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **The Edit tool drops a trailing space at the end of `new_string`.** A `replace_all` of
+  `natural(&mut ` to `open_natural(&mut ` wrote `open_natural(&mutpermutation`, and the build failed
+  at five sites. End both strings on a character that is not a space, such as the argument after
+  it. See `crates/nvs-stdlib/src/sort.rs`.
 - **`bun nv splice --patch` writes a `\\` in a patch's NEW block as one `\`.** A Rust string such as
   `"Core\\Env::get"` lands as `"Core\Env::get"`, and the build fails with `unknown character escape`.
   Write a `Core` name in a patch as a raw string, `r"Core\Env::get"`, or make that edit with Edit.
