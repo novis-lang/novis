@@ -283,9 +283,9 @@ static COUNTING_ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 static ACCOUNTING_ALLOCATOR: budget::Accounting = budget::Accounting;
 
 pub use abi::{
-    DEADLINE_POLL_BATCH, EXITED, FATAL, Fault, HelperFn, HelperFrame, HelperResult, NvsFn, OK,
-    MESSAGE_BYTES, Message, QUOTED_BYTES, Quoted, THROWN, TaskPanic, TaskRoot, Teardown, affordable, bounded_loop, call,
-    poll_deadline, quoted, run_helper, run_task,
+    DEADLINE_POLL_BATCH, DeadlineBatch, EXITED, FATAL, Fault, HelperFn, HelperFrame, HelperResult,
+    MESSAGE_BYTES, Message, NvsFn, OK, QUOTED_BYTES, Quoted, THROWN, TaskPanic, TaskRoot, Teardown,
+    affordable, bounded_loop, call, poll_deadline, quoted, run_helper, run_task,
 };
 pub use arith::nvs_float_pow;
 pub use array::{

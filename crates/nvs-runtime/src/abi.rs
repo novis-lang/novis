@@ -136,11 +136,7 @@ pub enum Fault {
     /// carries any number of properties in **less** width than it carried one,
     /// and every helper's `Result` is narrower for it. The allocation is paid
     /// only by a throw that fills a slot at all.
-    ThrownWithSlots(
-        crate::ThrownClass,
-        Message,
-        Box<[(usize, crate::Value)]>,
-    ),
+    ThrownWithSlots(crate::ThrownClass, Message, Box<[(usize, crate::Value)]>),
     /// Unrecoverable; becomes [`FATAL`].
     Fatal(Message),
     /// A callee this helper invoked already failed and already recorded what
@@ -300,9 +296,7 @@ fn clipped(message: std::borrow::Cow<'static, str>) -> std::borrow::Cow<'static,
         end -= 1;
     }
     match message {
-        std::borrow::Cow::Borrowed(text) => {
-            std::borrow::Cow::Owned(format!("{}…", &text[..end]))
-        }
+        std::borrow::Cow::Borrowed(text) => std::borrow::Cow::Owned(format!("{}…", &text[..end])),
         std::borrow::Cow::Owned(mut text) => {
             text.truncate(end);
             text.push('…');
@@ -643,6 +637,68 @@ pub fn poll_deadline(ctx: &Ctx, member: &str) -> Result<(), Fault> {
         return Err(deadline_passed(ctx, member));
     }
     Ok(())
+}
+
+/// A deadline poll for a loop another crate drives, such as a sort library's
+/// key function, which cannot return a [`Fault`] and holds no context.
+///
+/// [`Self::stopped`] counts one step and reads the deadline once every
+/// [`DEADLINE_POLL_BATCH`] steps, as [`bounded_loop`] does. Once the deadline
+/// has passed it stays `true`, so the step can give a constant answer and the
+/// driving loop runs to its end quickly. [`Self::finish`] then turns a stop
+/// into [`bounded_loop`]'s [`Fault::Fatal`]. The site must discard what the
+/// loop made after a stop: the native sort sorts a permutation and leaves the
+/// array as it was.
+///
+/// Cost: one reference count when it is made, one decrement per step, and one
+/// relaxed load per [`DEADLINE_POLL_BATCH`] steps. No allocation.
+#[derive(Debug)]
+pub struct DeadlineBatch {
+    /// The word [`Ctx::deadline_expired`] reads.
+    word: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    /// Steps left before the next read of `word`.
+    until_poll: usize,
+    /// Whether a read found the deadline passed.
+    stopped: bool,
+}
+
+impl DeadlineBatch {
+    /// A counter over `ctx`'s deadline, with a full batch before its first read.
+    #[must_use]
+    pub fn new(ctx: &Ctx) -> Self {
+        Self {
+            word: ctx.deadline_word(),
+            until_poll: DEADLINE_POLL_BATCH,
+            stopped: false,
+        }
+    }
+
+    /// Counts one step, and returns whether the deadline has passed.
+    #[inline]
+    pub fn stopped(&mut self) -> bool {
+        if self.stopped {
+            return true;
+        }
+        self.until_poll -= 1;
+        if self.until_poll == 0 {
+            self.until_poll = DEADLINE_POLL_BATCH;
+            self.stopped = self.word.load(std::sync::atomic::Ordering::Relaxed) != 0;
+        }
+        self.stopped
+    }
+
+    /// Ends the loop.
+    ///
+    /// # Errors
+    ///
+    /// [`bounded_loop`]'s [`Fault::Fatal`], naming `member`, when a step found
+    /// the deadline passed.
+    pub fn finish(self, ctx: &Ctx, member: &str) -> Result<(), Fault> {
+        if self.stopped {
+            return Err(deadline_passed(ctx, member));
+        }
+        Ok(())
+    }
 }
 
 /// What a fired poll reports, in one place so every site says the same thing.
@@ -1414,7 +1470,9 @@ mod tests {
     fn a_clipped_message_ends_on_a_character_boundary() {
         let fault = Fault::thrown("€".repeat(MESSAGE_BYTES));
         let text = text_of(&fault);
-        let kept = text.strip_suffix('…').expect("a long message ends with `…`");
+        let kept = text
+            .strip_suffix('…')
+            .expect("a long message ends with `…`");
         assert!(kept.len() <= MESSAGE_BYTES && kept.len() > MESSAGE_BYTES - 3);
         assert!(kept.chars().all(|c| c == '€'), "the cut split a character");
     }

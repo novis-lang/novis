@@ -4718,6 +4718,17 @@ nvs_runtime::nvs_helper! {
         // was given, the entries themselves otherwise.
         let compared: &[Value] = if by.is_some() { &sort_keys.0 } else { &values };
         let mut permutation: Vec<usize> = (0..values.len()).collect();
+        // The key sort where it applies, the merge sort otherwise — and a
+        // comparator is always the merge sort, because it can throw. The key
+        // sort polls the deadline and leaves the subject as it was on a stop.
+        let sorted = comparator.is_none()
+            && crate::sort::natural(
+                ctx,
+                r"Core\Arr::sort",
+                &mut permutation,
+                compared,
+                descending,
+            )?;
         let mut compare = |left: usize, right: usize| -> Result<std::cmp::Ordering, Fault> {
             let ordering = match comparator {
                 Some(comparator) => {
@@ -4745,10 +4756,6 @@ nvs_runtime::nvs_helper! {
             };
             Ok(if descending { ordering.reverse() } else { ordering })
         };
-        // The key sort where it applies, the merge sort otherwise — and a
-        // comparator is always the merge sort, because it can throw.
-        let sorted = comparator.is_none()
-            && crate::sort::natural(&mut permutation, compared, descending);
         if !sorted {
             merge_sort(&mut permutation, &mut compare)?;
         }
@@ -4887,6 +4894,17 @@ nvs_runtime::nvs_helper! {
             Some(listed) => ranked_by_list(listed, &keys, descending)?,
             None => (0..keys.len()).collect(),
         };
+        // With no list and no comparator, the key sort orders the keys' bytes
+        // here. It polls the deadline and leaves the subject as it was on a stop.
+        if listed.is_none() && comparator.is_none() {
+            crate::sort::by_bytes(
+                ctx,
+                r"Core\Arr::sortByKey",
+                &mut permutation,
+                &keys,
+                descending,
+            )?;
+        }
         let mut compare = |left: usize, right: usize| -> Result<std::cmp::Ordering, Fault> {
             let ordering = match comparator {
                 Some(comparator) => {
@@ -4926,11 +4944,10 @@ nvs_runtime::nvs_helper! {
             };
             Ok(if descending { ordering.reverse() } else { ordering })
         };
-        // A `keys` call's permutation is already in its final order.
-        match (&listed, comparator) {
-            (Some(_), _) => {}
-            (None, Some(_)) => merge_sort(&mut permutation, &mut compare)?,
-            (None, None) => crate::sort::by_bytes(&mut permutation, &keys, descending),
+        // A `keys` call's permutation is already in its final order, and the
+        // key sort above has already ordered a call with no comparator.
+        if listed.is_none() && comparator.is_some() {
+            merge_sort(&mut permutation, &mut compare)?;
         }
 
         let mut out = NvsArray::with_capacity(permutation.len());

@@ -834,8 +834,20 @@ impl StreamDecoder {
             }
             None => (0, charset_value(asked, member)?),
         };
+        if matches!(charset.scheme, Scheme::Utf8) {
+            return Ok((skip, None));
+        }
+        let mut decoder = Self::whole(charset);
+        decoder.read = u64::try_from(skip).unwrap_or(u64::MAX);
+        Ok((skip, Some(decoder)))
+    }
+
+    /// A decoder for `charset` from the first octet, with no byte order mark
+    /// read. UTF-8 goes through `encoding_rs` here too, so a sequence cut
+    /// between two pieces is carried to the next one.
+    fn whole(charset: Charset) -> Self {
         let kind = match charset.scheme {
-            Scheme::Utf8 => return Ok((skip, None)),
+            Scheme::Utf8 => Stream::Table(encoding_rs::UTF_8.new_decoder_without_bom_handling()),
             Scheme::Utf16 {
                 little_endian: true,
             } => Stream::Table(encoding_rs::UTF_16LE.new_decoder_without_bom_handling()),
@@ -846,14 +858,11 @@ impl StreamDecoder {
             Scheme::Latin1 => Stream::Latin1,
             Scheme::Whatwg(encoding) => Stream::Table(encoding.new_decoder_without_bom_handling()),
         };
-        Ok((
-            skip,
-            Some(Self {
-                case: charset.case,
-                kind,
-                read: u64::try_from(skip).unwrap_or(u64::MAX),
-            }),
-        ))
+        Self {
+            case: charset.case,
+            kind,
+            read: 0,
+        }
     }
 
     /// Appends `raw` to `out` as UTF-8. `last` says no more octets follow, so a
@@ -926,9 +935,14 @@ impl StreamDecoder {
 /// [`charset_of`]'s `FATAL` for a slot-1 value that is no case, or the
 /// catchable `RuntimeError` naming the offset of the first sequence `charset`
 /// cannot read.
-pub(crate) fn decode_argument(args: &[Value], member: &str, raw: &[u8]) -> Result<String, Fault> {
+pub(crate) fn decode_argument(
+    ctx: &mut nvs_runtime::Ctx,
+    args: &[Value],
+    member: &str,
+    raw: &[u8],
+) -> Result<String, Fault> {
     let charset = charset_of(args, member)?;
-    decode_exact(charset, raw).map_err(|offset| {
+    decode_polled(ctx, member, charset, raw)?.map_err(|offset| {
         // The rule first and the member in the tail, so that the stem
         // `conformance_coverage.rs` reads off this site is neither empty nor
         // full of backslashes a Novis string literal cannot spell — the playbook's
@@ -945,6 +959,189 @@ pub(crate) fn decode_argument(args: &[Value], member: &str, raw: &[u8]) -> Resul
 // ============================================================================
 // The conversions
 // ============================================================================
+
+/// How many octets of input a member converts between two steps of
+/// [`nvs_runtime::bounded_loop`].
+///
+/// `rule:http-server/time-is-bounded-inside-a-helper`: every walk of this
+/// class converts its input in pieces, and the loop polls the deadline every
+/// [`nvs_runtime::DEADLINE_POLL_BATCH`] pieces, about once per MiB. A
+/// conversion stays exact across a piece boundary: the base64 pieces are whole
+/// groups, a text piece ends on a character boundary, and a decoder carries a
+/// cut sequence. Cost: one decrement per piece, and no copy.
+const PIECE: usize = 4096;
+
+/// The ranges of `0..len` in steps of `step`, the last one shorter.
+fn pieces(len: usize, step: usize) -> impl Iterator<Item = std::ops::Range<usize>> {
+    (0..len)
+        .step_by(step)
+        .map(move |start| start..len.min(start + step))
+}
+
+/// The ranges of `text` of about [`PIECE`] octets, each ending on a character
+/// boundary.
+fn text_pieces(text: &str) -> impl Iterator<Item = std::ops::Range<usize>> + '_ {
+    let mut start = 0;
+    std::iter::from_fn(move || {
+        if start >= text.len() {
+            return None;
+        }
+        let mut end = text.len().min(start + PIECE);
+        // A character is at most four octets, so this stops above `start`.
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        let range = start..end;
+        start = end;
+        Some(range)
+    })
+}
+
+/// [`encode_exact`] in pieces, polling the deadline between them.
+///
+/// # Errors
+///
+/// The deadline's [`Fault::Fatal`], naming `member`.
+fn encode_polled(
+    ctx: &mut nvs_runtime::Ctx,
+    member: &str,
+    charset: Charset,
+    text: &str,
+) -> Result<Result<Vec<u8>, (usize, char)>, Fault> {
+    let mut out = Vec::with_capacity(text.len());
+    let mut refused = None;
+    if let Scheme::Whatwg(encoding) = charset.scheme {
+        // A stateful encoder, such as ISO-2022-JP's, spells a piece by what
+        // came before it, so one encoder runs over every piece.
+        let mut encoder = encoding.new_encoder();
+        let mut consumed = 0_usize;
+        nvs_runtime::bounded_loop(ctx, member, text_pieces(text), |_, range| {
+            if refused.is_some() {
+                return Ok(());
+            }
+            let last = range.end == text.len();
+            let mut piece = &text[range];
+            loop {
+                let room = encoder
+                    .max_buffer_length_from_utf8_without_replacement(piece.len())
+                    .unwrap_or(0);
+                out.reserve(room);
+                let (result, read) =
+                    encoder.encode_from_utf8_to_vec_without_replacement(piece, &mut out, last);
+                consumed += read;
+                piece = &piece[read..];
+                match result {
+                    encoding_rs::EncoderResult::InputEmpty => break,
+                    encoding_rs::EncoderResult::OutputFull => {}
+                    // The first character with no spelling is in what was
+                    // read so far, so the search reads no further than that.
+                    encoding_rs::EncoderResult::Unmappable(_) => {
+                        refused = Some(first_unmappable(encoding, &text[..consumed]));
+                        break;
+                    }
+                }
+            }
+            Ok(())
+        })?;
+    } else {
+        nvs_runtime::bounded_loop(ctx, member, text_pieces(text), |_, range| {
+            if refused.is_some() {
+                return Ok(());
+            }
+            match encode_exact(charset, &text[range.clone()]) {
+                Ok(octets) => out.extend_from_slice(&octets),
+                Err((offset, ch)) => refused = Some((range.start + offset, ch)),
+            }
+            Ok(())
+        })?;
+    }
+    Ok(refused.map_or(Ok(out), Err))
+}
+
+/// [`decode_exact`] in pieces, polling the deadline between them.
+///
+/// A piece that is not text ends the walk, and [`decode_exact`] then names
+/// the offset. It stops at the same sequence, so it reads no further than
+/// the walk did.
+///
+/// # Errors
+///
+/// The deadline's [`Fault::Fatal`], naming `member`.
+fn decode_polled(
+    ctx: &mut nvs_runtime::Ctx,
+    member: &str,
+    charset: Charset,
+    raw: &[u8],
+) -> Result<Result<String, usize>, Fault> {
+    let mut decoder = StreamDecoder::whole(charset);
+    let mut out = Vec::with_capacity(raw.len());
+    let mut bad = false;
+    nvs_runtime::bounded_loop(ctx, member, pieces(raw.len(), PIECE), |_, range| {
+        if !bad {
+            let last = range.end == raw.len();
+            bad = decoder.decode(&raw[range], last, &mut out).is_err();
+        }
+        Ok(())
+    })?;
+    if bad {
+        return Ok(decode_exact(charset, raw));
+    }
+    String::from_utf8(out).map(Ok).map_err(|_| {
+        Fault::fatal(format!(
+            "{member}: the decoder for `Core\\Charset::{}` wrote octets that are not UTF-8",
+            charset.case
+        ))
+    })
+}
+
+/// `raw` under a base64 `engine`, decoded in pieces of whole groups, or `None`
+/// where it is not base64. The caller then decodes it whole for the message.
+///
+/// A piece before the last one holds no `=`, because padding ends the text.
+///
+/// # Errors
+///
+/// The deadline's [`Fault::Fatal`], naming `member`.
+fn base64_polled(
+    ctx: &mut nvs_runtime::Ctx,
+    member: &str,
+    engine: &impl base64::Engine,
+    text: &str,
+) -> Result<Option<Vec<u8>>, Fault> {
+    let symbols = text.as_bytes();
+    let mut out = Vec::with_capacity(symbols.len() / 4 * 3 + 3);
+    let mut bad = false;
+    nvs_runtime::bounded_loop(ctx, member, pieces(symbols.len(), PIECE), |_, range| {
+        if bad {
+            return Ok(());
+        }
+        let last = range.end == symbols.len();
+        let piece = &symbols[range];
+        bad = (!last && piece.contains(&b'=')) || engine.decode_vec(piece, &mut out).is_err();
+        Ok(())
+    })?;
+    Ok((!bad).then_some(out))
+}
+
+/// `raw` spelled by a base64 `engine`, in pieces of 3,072 octets, so only the
+/// last piece can be padded.
+///
+/// # Errors
+///
+/// The deadline's [`Fault::Fatal`], naming `member`.
+fn base64_spelled(
+    ctx: &mut nvs_runtime::Ctx,
+    member: &str,
+    engine: &impl base64::Engine,
+    raw: &[u8],
+) -> Result<String, Fault> {
+    let mut out = String::with_capacity(raw.len().div_ceil(3) * 4);
+    nvs_runtime::bounded_loop(ctx, member, raw.chunks(PIECE / 4 * 3), |_, piece| {
+        engine.encode_string(piece, &mut out);
+        Ok(())
+    })?;
+    Ok(out)
+}
 
 /// `text` as `charset`'s octets, or the offset and the identity of the first
 /// character it cannot spell.
@@ -1205,10 +1402,10 @@ nvs_runtime::nvs_helper! {
     /// point (`rule:types/conversion`):
     /// a caller who genuinely wants a lossy spelling writes the replacement
     /// they want, in their own text, where a reader can see it.
-    fn nvs_core_encoding_encode_text(_ctx, args: [2]) {
+    fn nvs_core_encoding_encode_text(ctx, args: [2]) {
         let text = text_of(args, "encodeText")?;
         let charset = charset_of(args, "Core\\Encoding::encodeText")?;
-        let raw = encode_exact(charset, text).map_err(|(offset, ch)| {
+        let raw = encode_polled(ctx, r"Core\Encoding::encodeText", charset, text)?.map_err(|(offset, ch)| {
             Fault::thrown(format!(
                 "Core\\Encoding::encodeText(): `Core\\Charset::{}` has no spelling for {:?} \
                  (U+{:04X}) at offset {offset} of \"{}\" — it is exact or it throws, and there \
@@ -1235,9 +1432,9 @@ nvs_runtime::nvs_helper! {
     ///
     /// `Core\Encoding::isValidText` is the same question without the throw,
     /// for a caller who has somewhere to put a `false`.
-    fn nvs_core_encoding_decode_text(_ctx, args: [2]) {
+    fn nvs_core_encoding_decode_text(ctx, args: [2]) {
         let raw = bytes_of(args, "decodeText")?;
-        let text = decode_argument(args, "Core\\Encoding::decodeText", raw)?;
+        let text = decode_argument(ctx, args, "Core\\Encoding::decodeText", raw)?;
         Ok(Value::text(&text))
     }
 }
@@ -1255,10 +1452,11 @@ nvs_runtime::nvs_helper! {
     /// being written: two implementations of one question is how they come to
     /// disagree, and the cost is one allocation on a member a caller reaches
     /// once per input.
-    fn nvs_core_encoding_is_valid_text(_ctx, args: [2]) {
+    fn nvs_core_encoding_is_valid_text(ctx, args: [2]) {
         let raw = bytes_of(args, "isValidText")?;
-        let charset = charset_of(args, "Core\\Encoding::isValidText")?;
-        Ok(Value::bool(decode_exact(charset, raw).is_ok()))
+        let member = r"Core\Encoding::isValidText";
+        let charset = charset_of(args, member)?;
+        Ok(Value::bool(decode_polled(ctx, member, charset, raw)?.is_ok()))
     }
 }
 
@@ -1267,9 +1465,10 @@ nvs_runtime::nvs_helper! {
     ///
     /// RFC 4648 § 4's alphabet, **padded**, which is byte-for-byte what
     /// `base64_encode` answers. Total: every octet sequence has a spelling.
-    fn nvs_core_encoding_to_base64(_ctx, args: [1]) {
+    fn nvs_core_encoding_to_base64(ctx, args: [1]) {
         let raw = bytes_of(args, "toBase64")?;
-        Ok(Value::text(&STANDARD.encode(raw)))
+        let text = base64_spelled(ctx, r"Core\Encoding::toBase64", &STANDARD, raw)?;
+        Ok(Value::text(&text))
     }
 }
 
@@ -1283,15 +1482,18 @@ nvs_runtime::nvs_helper! {
     /// A URL-safe operand is refused here rather than accepted as a courtesy —
     /// [`nvs_core_encoding_from_base64_url`] is the member that reads it, and a
     /// decoder that takes both cannot tell a caller which one they meant.
-    fn nvs_core_encoding_from_base64(_ctx, args: [1]) {
+    fn nvs_core_encoding_from_base64(ctx, args: [1]) {
         let text = text_of(args, "fromBase64")?;
-        let raw = STANDARD.decode(text).map_err(|error| {
-            Fault::thrown(format!(
-                "Core\\Encoding::fromBase64(): \"{}\" is not base64 — {}",
-                shown(text),
-                why_not_base64(&error, "base64")
-            ))
-        })?;
+        let raw = match base64_polled(ctx, r"Core\Encoding::fromBase64", &STANDARD, text)? {
+            Some(raw) => raw,
+            None => STANDARD.decode(text).map_err(|error| {
+                Fault::thrown(format!(
+                    "Core\\Encoding::fromBase64(): \"{}\" is not base64 — {}",
+                    shown(text),
+                    why_not_base64(&error, "base64")
+                ))
+            })?,
+        };
         Ok(Value::bytes(NvsStr::new(&raw)))
     }
 }
@@ -1305,9 +1507,10 @@ nvs_runtime::nvs_helper! {
     /// optional flourish, it is what JWT, `Core\Uri` and every other consumer
     /// of a URL-safe spelling expects, and `=` is percent-encoded in a query
     /// string anyway.
-    fn nvs_core_encoding_to_base64_url(_ctx, args: [1]) {
+    fn nvs_core_encoding_to_base64_url(ctx, args: [1]) {
         let raw = bytes_of(args, "toBase64Url")?;
-        Ok(Value::text(&URL_SAFE_NO_PAD.encode(raw)))
+        let text = base64_spelled(ctx, r"Core\Encoding::toBase64Url", &URL_SAFE_NO_PAD, raw)?;
+        Ok(Value::text(&text))
     }
 }
 
@@ -1315,15 +1518,19 @@ nvs_runtime::nvs_helper! {
     /// `Core\Encoding::fromBase64Url(string $s): bytes` — the other half of
     /// [`nvs_core_encoding_to_base64_url`], strict in the same three ways and
     /// refusing padding rather than tolerating it.
-    fn nvs_core_encoding_from_base64_url(_ctx, args: [1]) {
+    fn nvs_core_encoding_from_base64_url(ctx, args: [1]) {
         let text = text_of(args, "fromBase64Url")?;
-        let raw = URL_SAFE_NO_PAD.decode(text).map_err(|error| {
-            Fault::thrown(format!(
-                "Core\\Encoding::fromBase64Url(): \"{}\" is not URL-safe base64 — {}",
-                shown(text),
-                why_not_base64(&error, "base64url")
-            ))
-        })?;
+        let member = r"Core\Encoding::fromBase64Url";
+        let raw = match base64_polled(ctx, member, &URL_SAFE_NO_PAD, text)? {
+            Some(raw) => raw,
+            None => URL_SAFE_NO_PAD.decode(text).map_err(|error| {
+                Fault::thrown(format!(
+                    "Core\\Encoding::fromBase64Url(): \"{}\" is not URL-safe base64 — {}",
+                    shown(text),
+                    why_not_base64(&error, "base64url")
+                ))
+            })?,
+        };
         Ok(Value::bytes(NvsStr::new(&raw)))
     }
 }
@@ -1336,9 +1543,15 @@ nvs_runtime::nvs_helper! {
     /// RFC 4648 § 6's alphabet, **upper case and unpadded** — the form an
     /// `otpauth:` secret is written in. Total: every octet sequence has a
     /// spelling.
-    fn nvs_core_encoding_to_base32(_ctx, args: [1]) {
+    fn nvs_core_encoding_to_base32(ctx, args: [1]) {
         let raw = bytes_of(args, "toBase32")?;
-        Ok(Value::text(&BASE32_NOPAD.encode(raw)))
+        // Pieces of whole 5-octet groups, so only the last one is short.
+        let mut text = String::with_capacity(BASE32_NOPAD.encode_len(raw.len()));
+        nvs_runtime::bounded_loop(ctx, r"Core\Encoding::toBase32", raw.chunks(PIECE / 8 * 5), |_, piece| {
+            BASE32_NOPAD.encode_append(piece, &mut text);
+            Ok(())
+        })?;
+        Ok(Value::text(&text))
     }
 }
 
@@ -1353,14 +1566,35 @@ nvs_runtime::nvs_helper! {
     /// alphabet — including a space, which is how a user-facing secret is
     /// grouped — a truncated final group, non-canonical trailing bits, and
     /// padding that is present but wrong.
-    fn nvs_core_encoding_from_base32(_ctx, args: [1]) {
+    fn nvs_core_encoding_from_base32(ctx, args: [1]) {
         let text = text_of(args, "fromBase32")?;
         // Only `a`-`z` move; every other byte, valid or not, reaches the
         // decoder exactly as written, so an offset in the error still indexes
         // the caller's own text.
         let folded = text.to_ascii_uppercase();
         let engine = if folded.ends_with('=') { &BASE32 } else { &BASE32_NOPAD };
-        let raw = engine.decode(folded.as_bytes()).map_err(|error| {
+        // Pieces of whole 8-symbol groups. A piece that does not decode, or
+        // an `=` before the last piece, ends the walk, and the whole text is
+        // decoded once more for the message.
+        let symbols = folded.as_bytes();
+        let mut raw = Vec::with_capacity(symbols.len() / 8 * 5 + 5);
+        let mut bad = false;
+        nvs_runtime::bounded_loop(ctx, r"Core\Encoding::fromBase32", pieces(symbols.len(), PIECE), |_, range| {
+            if bad {
+                return Ok(());
+            }
+            let last = range.end == symbols.len();
+            let piece = &symbols[range];
+            match engine.decode(piece) {
+                Ok(octets) if last || !piece.contains(&b'=') => raw.extend_from_slice(&octets),
+                _ => bad = true,
+            }
+            Ok(())
+        })?;
+        if !bad {
+            return Ok(Value::bytes(NvsStr::new(&raw)));
+        }
+        let raw = engine.decode(symbols).map_err(|error| {
             Fault::thrown(format!(
                 "Core\\Encoding::fromBase32(): \"{}\" is not base32 — {}",
                 shown(text),
@@ -1380,15 +1614,18 @@ nvs_runtime::nvs_helper! {
     /// either case back, so nothing round-trips differently for it.
     ///
     /// Total: every octet has a spelling, so there is nothing to reject.
-    fn nvs_core_encoding_to_hex(_ctx, args: [1]) {
+    fn nvs_core_encoding_to_hex(ctx, args: [1]) {
         const DIGITS: &[u8; 16] = b"0123456789abcdef";
 
         let raw = bytes_of(args, "toHex")?;
         let mut out = Vec::with_capacity(raw.len() * 2);
-        for octet in raw {
-            out.push(DIGITS[usize::from(octet >> 4)]);
-            out.push(DIGITS[usize::from(octet & 0x0f)]);
-        }
+        nvs_runtime::bounded_loop(ctx, r"Core\Encoding::toHex", raw.chunks(PIECE), |_, piece| {
+            for octet in piece {
+                out.push(DIGITS[usize::from(octet >> 4)]);
+                out.push(DIGITS[usize::from(octet & 0x0f)]);
+            }
+            Ok(())
+        })?;
         #[expect(clippy::disallowed_methods, reason = "hex digits are ASCII")]
         let hex = Value::str(NvsStr::new(&out));
         Ok(hex)
@@ -1404,7 +1641,7 @@ nvs_runtime::nvs_helper! {
     /// a value silently skipped. An odd number of digits is a throw for the
     /// same reason: `hex2bin("abc")` guessing which nibble the caller meant is
     /// exactly the substitution `rule:types/conversion` removes from the language.
-    fn nvs_core_encoding_from_hex(_ctx, args: [1]) {
+    fn nvs_core_encoding_from_hex(ctx, args: [1]) {
         let text = text_of(args, "fromHex")?;
         let digits = text.as_bytes();
         let refused = |why: &str| {
@@ -1417,15 +1654,19 @@ nvs_runtime::nvs_helper! {
             return Err(refused("it has an odd number of digits, and an octet takes two"));
         }
         let mut out = Vec::with_capacity(digits.len() / 2);
-        for pair in digits.as_chunks::<2>().0 {
-            let (Some(high), Some(low)) = (nibble(pair[0]), nibble(pair[1])) else {
-                return Err(refused(
-                    "only the digits `0`-`9`, `a`-`f` and `A`-`F` spell one, with nothing between \
-                     the pairs",
-                ));
-            };
-            out.push((high << 4) | low);
-        }
+        // `PIECE` is even, so every piece is whole pairs.
+        nvs_runtime::bounded_loop(ctx, r"Core\Encoding::fromHex", digits.chunks(PIECE), |_, piece| {
+            for pair in piece.as_chunks::<2>().0 {
+                let (Some(high), Some(low)) = (nibble(pair[0]), nibble(pair[1])) else {
+                    return Err(refused(
+                        "only the digits `0`-`9`, `a`-`f` and `A`-`F` spell one, with nothing \
+                         between the pairs",
+                    ));
+                };
+                out.push((high << 4) | low);
+            }
+            Ok(())
+        })?;
         Ok(Value::bytes(NvsStr::new(&out)))
     }
 }
@@ -1433,6 +1674,85 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: every member of
+    /// the class walks its input in pieces and polls between them. Each one
+    /// [`CLASS`] lists, under every `Core\Charset` case where it takes one, is
+    /// the deadline's FATAL over a large valid input once the deadline has
+    /// passed. A member this test does not know fails it.
+    #[test]
+    fn every_encoding_stops_at_an_expired_deadline() {
+        let size = PIECE * nvs_runtime::DEADLINE_POLL_BATCH * 2;
+        let symbols = "a".repeat(size);
+        let text = Value::text(&symbols);
+        let upper = Value::text(&symbols.to_ascii_uppercase());
+        let octets = Value::bytes(NvsStr::new(symbols.as_bytes()));
+        let mut tried = 0_usize;
+        for method in CLASS.methods {
+            let member = method.name;
+            let mut calls: Vec<(nvs_runtime::HelperFn, Vec<Value>)> = Vec::new();
+            let charsets = (0..CHARSET.cases.len())
+                .map(|index| Value::int(i64::try_from(index).expect("a few dozen cases")));
+            match method.name {
+                "encodeText" => {
+                    for charset in charsets {
+                        calls.push((nvs_core_encoding_encode_text, vec![text, charset]));
+                    }
+                }
+                "decodeText" => {
+                    for charset in charsets {
+                        calls.push((nvs_core_encoding_decode_text, vec![octets, charset]));
+                    }
+                }
+                "isValidText" => {
+                    for charset in charsets {
+                        calls.push((nvs_core_encoding_is_valid_text, vec![octets, charset]));
+                    }
+                }
+                "toBase64" => calls.push((nvs_core_encoding_to_base64, vec![octets])),
+                "fromBase64" => calls.push((nvs_core_encoding_from_base64, vec![upper])),
+                "toBase64Url" => calls.push((nvs_core_encoding_to_base64_url, vec![octets])),
+                "fromBase64Url" => calls.push((nvs_core_encoding_from_base64_url, vec![upper])),
+                "toBase32" => calls.push((nvs_core_encoding_to_base32, vec![octets])),
+                "fromBase32" => calls.push((nvs_core_encoding_from_base32, vec![upper])),
+                "toHex" => calls.push((nvs_core_encoding_to_hex, vec![octets])),
+                "fromHex" => calls.push((nvs_core_encoding_from_hex, vec![text])),
+                other => panic!("`{other}` is a member this test does not walk"),
+            }
+            for (helper, args) in calls {
+                let mut ctx = nvs_runtime::Ctx::buffered();
+                ctx.expire_deadline();
+                assert_eq!(
+                    nvs_runtime::call(helper, &mut ctx, &args).map(|_| ()),
+                    Err(nvs_runtime::FATAL),
+                    "{member} {args:?}"
+                );
+                // The same call under a live deadline finishes, so the FATAL
+                // above is the deadline's.
+                let live = nvs_runtime::call(helper, &mut nvs_runtime::Ctx::buffered(), &args)
+                    .unwrap_or_else(|status| panic!("{member} {args:?} ended {status}"));
+                #[expect(
+                    unsafe_code,
+                    reason = "the member's result is a fresh value this test owns"
+                )]
+                unsafe {
+                    live.release();
+                }
+            }
+            tried += 1;
+        }
+        assert_eq!(tried, CLASS.methods.len());
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference each value has, and the \
+                      members borrowed them"
+        )]
+        unsafe {
+            text.release();
+            upper.release();
+            octets.release();
+        }
+    }
 
     #[test]
     fn a_nibble_reads_in_either_case_and_nothing_else() {

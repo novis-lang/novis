@@ -2313,7 +2313,7 @@ nvs_runtime::nvs_helper! {
         let path = Path::new(text(&args[1], "readText", "path")?);
         let raw =
             ctx.with_own_file(own_word(args), |ctx| slurp(ctx, path, "Core\\IO::readText"))?;
-        let text = crate::encoding::decode_argument(&args[1..], "Core\\IO::readText", &raw)?;
+        let text = crate::encoding::decode_argument(ctx, &args[1..], "Core\\IO::readText", &raw)?;
         Ok(Value::text(&text))
     }
 }

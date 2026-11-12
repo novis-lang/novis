@@ -112,22 +112,39 @@ use crate::ordering::ordered;
 /// `permutation` is the identity on entry, as [`crate::arr`] builds it; the
 /// crate's prescan is what recognises already-sorted input, so nothing here
 /// looks before it sorts.
-pub(crate) fn natural(permutation: &mut [usize], values: &[Value], descending: bool) -> bool {
+///
+/// The key function polls the request's deadline through a
+/// [`nvs_runtime::DeadlineBatch`]. After a stop every key is the same, so the
+/// crate finishes in one quick pass, and the caller gets the fault and never
+/// applies the permutation. The array is left as it was.
+///
+/// # Errors
+///
+/// The deadline's [`nvs_runtime::Fault::Fatal`], naming `member`.
+pub(crate) fn natural(
+    ctx: &nvs_runtime::Ctx,
+    member: &str,
+    permutation: &mut [usize],
+    values: &[Value],
+    descending: bool,
+) -> Result<bool, nvs_runtime::Fault> {
     if permutation.len() < 2 {
-        return true;
+        return Ok(true);
     }
     let Some(row) = row_of(values) else {
-        return false;
+        return Ok(false);
     };
     cache_off();
+    let mut batch = nvs_runtime::DeadlineBatch::new(ctx);
+    let batch_ref = &mut batch;
     match row {
-        Row::Int => by_key(permutation, descending, |i| {
+        Row::Int => by_key(permutation, descending, batch_ref, |i| {
             values[i].as_int().unwrap_or_default()
         }),
-        Row::Uint => by_key(permutation, descending, |i| {
+        Row::Uint => by_key(permutation, descending, batch_ref, |i| {
             values[i].as_uint().unwrap_or_default()
         }),
-        Row::IntAndUint => by_key(permutation, descending, |i| {
+        Row::IntAndUint => by_key(permutation, descending, batch_ref, |i| {
             let value = values[i];
             value
                 .as_int()
@@ -135,28 +152,42 @@ pub(crate) fn natural(permutation: &mut [usize], values: &[Value], descending: b
                 .or_else(|| value.as_uint().map(i128::from))
                 .unwrap_or_default()
         }),
-        Row::Float => by_key(permutation, descending, |i| {
+        Row::Float => by_key(permutation, descending, batch_ref, |i| {
             float_key(values[i].as_float().unwrap_or_default())
         }),
-        Row::Str => by_key(permutation, descending, |i| {
+        Row::Str => by_key(permutation, descending, batch_ref, |i| {
             values[i].as_str_bytes().unwrap_or_default()
         }),
-        Row::Bool => by_key(permutation, descending, |i| {
+        Row::Bool => by_key(permutation, descending, batch_ref, |i| {
             values[i].as_bool().unwrap_or_default()
         }),
         Row::Null => {}
     }
-    true
+    batch.finish(ctx, member)?;
+    Ok(true)
 }
 
 /// Sorts `permutation` by the bytes of the keys it indexes — `sortByKey`'s
-/// natural order, which is `[u8]`'s and never fails.
-pub(crate) fn by_bytes(permutation: &mut [usize], keys: &[NvsStr], descending: bool) {
+/// natural order, which is `[u8]`'s. It polls the deadline as [`natural`]
+/// does.
+///
+/// # Errors
+///
+/// The deadline's [`nvs_runtime::Fault::Fatal`], naming `member`.
+pub(crate) fn by_bytes(
+    ctx: &nvs_runtime::Ctx,
+    member: &str,
+    permutation: &mut [usize],
+    keys: &[NvsStr],
+    descending: bool,
+) -> Result<(), nvs_runtime::Fault> {
     if permutation.len() < 2 {
-        return;
+        return Ok(());
     }
     cache_off();
-    by_key(permutation, descending, |i| keys[i].as_bytes());
+    let mut batch = nvs_runtime::DeadlineBatch::new(ctx);
+    by_key(permutation, descending, &mut batch, |i| keys[i].as_bytes());
+    batch.finish(ctx, member)
 }
 
 /// The one row every value of a subject sits in, per
@@ -205,15 +236,27 @@ fn row_of(values: &[Value]) -> Option<Row> {
 }
 
 /// Sorts `permutation` by `key`, stably, in the order asked for.
-fn by_key<K: brainsort::Key>(
+///
+/// Each key read counts one step of `batch`. Once the deadline has passed,
+/// every key is `K::default()`, so all keys compare equal and the sort ends
+/// fast. The permutation is then meaningless, and the caller discards it.
+fn by_key<K: brainsort::Key + Default>(
     permutation: &mut [usize],
     descending: bool,
+    batch: &mut nvs_runtime::DeadlineBatch,
     mut key: impl FnMut(usize) -> K,
 ) {
+    let mut polled = |i: usize| {
+        if batch.stopped() {
+            K::default()
+        } else {
+            key(i)
+        }
+    };
     if descending {
-        brainsort::sort_by_key(permutation, |&i| brainsort::Desc(key(i)));
+        brainsort::sort_by_key(permutation, |&i| brainsort::Desc(polled(i)));
     } else {
-        brainsort::sort_by_key(permutation, |&i| key(i));
+        brainsort::sort_by_key(permutation, |&i| polled(i));
     }
 }
 
@@ -257,6 +300,18 @@ mod tests {
 
     fn text(s: &str) -> Value {
         Value::text(s)
+    }
+
+    /// [`natural`] under a context with no deadline.
+    fn open_natural(permutation: &mut [usize], values: &[Value], descending: bool) -> bool {
+        natural(
+            &nvs_runtime::Ctx::buffered(),
+            "test",
+            permutation,
+            values,
+            descending,
+        )
+        .expect("no deadline is set")
     }
 
     /// A small deterministic generator, so a failing case can be named by its
@@ -307,7 +362,7 @@ mod tests {
         for descending in [false, true] {
             let mut permutation: Vec<usize> = (0..values.len()).collect();
             assert!(
-                natural(&mut permutation, values, descending),
+                open_natural(&mut permutation, values, descending),
                 "{label}: a single-row subject must take the fast path"
             );
             let expected = reference(values, descending);
@@ -656,7 +711,7 @@ mod tests {
             for descending in [false, true] {
                 let mut permutation: Vec<usize> = (0..values.len()).collect();
                 assert!(
-                    !natural(&mut permutation, values, descending),
+                    !open_natural(&mut permutation, values, descending),
                     "{label}: must decline"
                 );
                 let identity: Vec<usize> = (0..values.len()).collect();
@@ -680,7 +735,7 @@ mod tests {
                 .collect();
             assert_eq!(row_of(&values), None);
             let mut permutation: Vec<usize> = (0..n).collect();
-            assert!(!natural(&mut permutation, &values, false));
+            assert!(!open_natural(&mut permutation, &values, false));
             let mut ctx = nvs_runtime::Ctx::buffered();
             let mut compare =
                 |l: usize, r: usize| compare_values(&mut ctx, &values[l], &values[r], "test");
@@ -727,10 +782,59 @@ mod tests {
         // is nothing to compare, which is also what the merge sort does.
         let arr = Value::array(NvsArray::new());
         let mut one = vec![0usize];
-        assert!(natural(&mut one, &[arr], false));
+        assert!(open_natural(&mut one, &[arr], false));
         let mut none: Vec<usize> = vec![];
-        assert!(natural(&mut none, &[], true));
+        assert!(open_natural(&mut none, &[], true));
         dropped(arr);
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: the key sort polls
+    /// the deadline in its key function. Under an expired deadline
+    /// `Core\Arr::sort` is the deadline's FATAL, and the subject array still
+    /// holds its entries in their first order.
+    #[test]
+    fn a_native_sort_stops_at_an_expired_deadline_and_leaves_the_array_as_it_was() {
+        let count = nvs_runtime::DEADLINE_POLL_BATCH * 8;
+        let mut list = NvsArray::new();
+        for value in (0..count).rev() {
+            list.append(Value::int(i64::try_from(value).expect("small")));
+        }
+        let subject = Value::array(list);
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.expire_deadline();
+        let args = [
+            subject,
+            Value::null(),
+            Value::int(0),
+            Value::null(),
+            Value::bool(false),
+        ];
+        assert_eq!(
+            nvs_runtime::call(crate::arr::nvs_core_arr_sort, &mut ctx, &args).map(|_| ()),
+            Err(nvs_runtime::FATAL),
+            "the deadline had passed before the sort began"
+        );
+        // The key sort's own stop, apart from the member around it.
+        let values: Vec<Value> = (0..count)
+            .map(|value| Value::int(i64::try_from(value).expect("small")))
+            .collect();
+        let mut permutation: Vec<usize> = (0..count).collect();
+        let fault = natural(&ctx, r"Core\Arr::sort", &mut permutation, &values, true)
+            .expect_err("the deadline had passed");
+        assert!(
+            matches!(&fault, nvs_runtime::Fault::Fatal(message)
+                if message.contains(r"Core\Arr::sort") && message.contains("deadline")),
+            "{fault:?}"
+        );
+        let held = subject.as_array().expect("the subject is an array");
+        for slot in 0..count {
+            assert_eq!(
+                held.value_at(slot).and_then(|value| value.as_int()),
+                Some(i64::try_from(count - 1 - slot).expect("small")),
+                "slot {slot} moved"
+            );
+        }
+        dropped(subject);
     }
 
     /// `sortByKey`'s path: the keys' bytes, both orders, against the merge
@@ -755,7 +859,14 @@ mod tests {
                     .collect();
                 for descending in [false, true] {
                     let mut permutation: Vec<usize> = (0..n).collect();
-                    by_bytes(&mut permutation, &keys, descending);
+                    by_bytes(
+                        &nvs_runtime::Ctx::buffered(),
+                        "test",
+                        &mut permutation,
+                        &keys,
+                        descending,
+                    )
+                    .expect("no deadline is set");
                     let mut expected: Vec<usize> = (0..n).collect();
                     let mut compare =
                         |l: usize, r: usize| -> Result<Ordering, nvs_runtime::Fault> {

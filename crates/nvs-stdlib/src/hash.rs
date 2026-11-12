@@ -343,6 +343,9 @@ const OF: &str = r"Core\Hash::of";
 /// What `Core\Hash::hmac`'s messages name.
 const HMAC: &str = r"Core\Hash::hmac";
 
+/// The name a stream's `finish` reports a stop under.
+const FINISH: &str = r"Core\Hash\Stream::finish";
+
 /// `Core\Hash`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Computes hashes and HMAC signatures of text or bytes, and compares two of them \
@@ -758,11 +761,42 @@ impl std::ops::Deref for Octets {
 /// `data` under `kind`, as the digest's own octets.
 ///
 /// Total: there is no input any of these fifteen refuses, and none of them has
-/// a size limit short of the address space.
+/// a size limit short of the address space. The members feed a [`Running`]
+/// through [`fed`] instead, which polls the deadline, so only the tests' vector
+/// checks call this.
+#[cfg(test)]
 fn digest_of(kind: DigestKind, data: &[u8]) -> Octets {
     let mut running = Running::new(kind);
     running.update(data);
     running.finish()
+}
+
+/// How many bytes a member feeds a digest between two steps of
+/// [`nvs_runtime::bounded_loop`].
+///
+/// `rule:http-server/time-is-bounded-inside-a-helper`: a digest costs more per
+/// byte than a copy, so a member feeds its input in pieces and the loop polls
+/// the deadline every [`nvs_runtime::DEADLINE_POLL_BATCH`] pieces — once per
+/// MiB. The slowest row, SHA-3-512, hashes a MiB in a few milliseconds, well
+/// inside the poll gap the CPU limit needs. Cost: one decrement per 4 KiB.
+const PIECE: usize = 4096;
+
+/// Feeds `data` to `update` in pieces of [`PIECE`] bytes, polling the
+/// request's deadline between them.
+///
+/// # Errors
+///
+/// The deadline's [`Fault::Fatal`], naming `member`.
+fn fed(
+    ctx: &mut nvs_runtime::Ctx,
+    member: &str,
+    data: &[u8],
+    update: &mut dyn FnMut(&[u8]),
+) -> Result<(), Fault> {
+    nvs_runtime::bounded_loop(ctx, member, data.chunks(PIECE), |_, piece| {
+        update(piece);
+        Ok(())
+    })
 }
 
 /// One of [`DIGEST`]'s fifteen algorithms part-way through its input — the one
@@ -1022,14 +1056,14 @@ nvs_runtime::nvs_helper! {
     /// the single largest reason this member takes one.
     fn nvs_core_hash_of(ctx, args: [2]) {
         let kind = digest_kind(args, 1, "of")?;
+        let mut running = Running::new(kind);
         // `bytes` and a `string` are hashed where they are, with no source.
         if let Some(data) = octets_of(&args[0]) {
-            return Ok(Value::bytes(NvsStr::new(&digest_of(kind, data))));
+            fed(ctx, OF, data, &mut |piece| running.update(piece))?;
+            return Ok(Value::bytes(NvsStr::new(&running.finish())));
         }
-        let mut running = Running::new(kind);
-        crate::byte_source::for_each_chunk(ctx, args[0], OF, |_, piece| {
-            running.update(piece);
-            Ok(())
+        crate::byte_source::for_each_chunk(ctx, args[0], OF, |ctx, piece| {
+            fed(ctx, OF, piece, &mut |part| running.update(part))
         })?;
         Ok(Value::bytes(NvsStr::new(&running.finish())))
     }
@@ -1054,12 +1088,11 @@ nvs_runtime::nvs_helper! {
         // `Core\Hash::Digest::Md5` and with a `mixed` binding. `hmac_of`'s own docs
         // own why the subset is then enforced a second time here.
         let mac = if let Some(data) = octets_of(&args[0]) {
-            hmac_of(kind, key, data)
+            hmac_fed(kind, key, &mut |update| fed(ctx, HMAC, data, update))?
         } else {
             hmac_fed(kind, key, &mut |update| {
-                crate::byte_source::for_each_chunk(ctx, source, HMAC, |_, piece| {
-                    update(piece);
-                    Ok(())
+                crate::byte_source::for_each_chunk(ctx, source, HMAC, |ctx, piece| {
+                    fed(ctx, HMAC, piece, update)
                 })
             })?
         };
@@ -1194,7 +1227,7 @@ nvs_runtime::nvs_helper! {
     /// any `update` after this one, throws — the rule this module's docs
     /// explain is written for the implementation this class will have rather
     /// than for the one it has.
-    fn nvs_core_hash_stream_finish(_ctx, args: [1]) {
+    fn nvs_core_hash_stream_finish(ctx, args: [1]) {
         let (receiver, kind) = open_stream(args[0], "finish")?;
 
         // Each chunk is fed where it lies, so `finish` copies nothing and the
@@ -1222,7 +1255,7 @@ nvs_runtime::nvs_helper! {
                             held.tag_byte()
                         ))
                     })?;
-                running.update(octets);
+                fed(ctx, FINISH, octets, &mut |piece| running.update(piece))?;
                 from = slot + 1;
             }
         }
@@ -1502,6 +1535,65 @@ mod tests {
             .to_vec();
         released([digest]);
         octets
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: every digest feeds
+    /// its input in pieces and polls between them. Under an expired deadline,
+    /// `of` of each of the fifteen cases, `hmac` of each strong one and a
+    /// stream's `finish` are the deadline's FATAL, naming the member.
+    #[test]
+    fn every_digest_stops_at_an_expired_deadline() {
+        let large = Value::bytes(NvsStr::new(&vec![
+            7_u8;
+            PIECE
+                * nvs_runtime::DEADLINE_POLL_BATCH
+                * 2
+        ]));
+        let key = Value::bytes(NvsStr::new(b"key"));
+        let stopped = |result: Result<Value, i32>, member: &str, label: &str| {
+            assert_eq!(
+                result.map(|_| ()),
+                Err(nvs_runtime::FATAL),
+                "{member} under {label}"
+            );
+        };
+        let mut hmac_count = 0_usize;
+        for ordinal in 0..=14 {
+            let kind = kind_of(Some(ordinal)).expect("0..=14 are the fifteen cases");
+            let label = format!("{kind:?}");
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            ctx.expire_deadline();
+            stopped(
+                nvs_runtime::call(nvs_core_hash_of, &mut ctx, &[large, Value::int(ordinal)]),
+                OF,
+                &label,
+            );
+            if hmac_of(kind, b"k", b"d").is_some() {
+                hmac_count += 1;
+                stopped(
+                    nvs_runtime::call(
+                        nvs_core_hash_hmac,
+                        &mut ctx,
+                        &[large, key, Value::int(ordinal)],
+                    ),
+                    HMAC,
+                    &label,
+                );
+            }
+            let mut open = nvs_runtime::Ctx::buffered();
+            let stream = opened(&mut open, ordinal);
+            nvs_runtime::call(nvs_core_hash_stream_update, &mut open, &[stream, large])
+                .expect("an open stream takes a chunk");
+            open.expire_deadline();
+            stopped(
+                nvs_runtime::call(nvs_core_hash_stream_finish, &mut open, &[stream]),
+                FINISH,
+                &label,
+            );
+            released([stream]);
+        }
+        assert!(hmac_count > 0, "the strong set is not empty");
+        released([large, key]);
     }
 
     /// Every one of the fifteen cases opens a stream, and one fed nothing

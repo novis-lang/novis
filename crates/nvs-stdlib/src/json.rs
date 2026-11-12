@@ -5963,10 +5963,17 @@ pub(crate) mod tests {
         let key = format!("k\\n{}", "é".repeat(1 << 16));
         let document = format!(r#"{{"{key}":1,"{key}":2}}"#);
         let why = decoded(&document, DEFAULT_MAX_DEPTH_U32).expect_err("a repeat");
-        assert!(why.len() < 512, "the message holds the whole key: {} bytes", why.len());
+        assert!(
+            why.len() < 512,
+            "the message holds the whole key: {} bytes",
+            why.len()
+        );
         assert!(why.contains(r#"the key "k\néé"#), "{why}");
         assert!(why.contains(r#"é…" appears twice in one object"#), "{why}");
-        assert!(!why.contains('\n'), "the key's line break reached the message raw");
+        assert!(
+            !why.contains('\n'),
+            "the key's line break reached the message raw"
+        );
     }
 
     /// An issue's segments are pushed innermost first and render outermost
