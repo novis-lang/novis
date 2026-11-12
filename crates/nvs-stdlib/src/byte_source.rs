@@ -787,6 +787,60 @@ impl FileSource {
     }
 }
 
+/// Every byte `input` gives, read no further than the request can hold.
+///
+/// The one reader of a whole source in this crate: `Core\IO::read`, its text
+/// and line forms, `Core\IO::stdin` and `Core\Storage::get` all read through
+/// it, and `no_member_reads_a_whole_source_outside_the_bounded_reader` fails
+/// on a `read_to_end` or `read_to_string` anywhere else that is not behind a
+/// `take` (`rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`).
+///
+/// [`nvs_runtime::budget::ByteWriter`] asks the request's memory ceiling
+/// before each growth, and stops at [`nvs_runtime::Ctx::intake_limit`]. So a
+/// source of any size costs at most what the request may hold, and the read
+/// stops there. Once the bytes are read, the one copy every caller makes of
+/// them, into a `string`, `bytes` or lines, is asked for too. A copy that does
+/// not fit is then refused before it is made. **What it spends:** one compare
+/// per growth of the buffer.
+///
+/// # Errors
+///
+/// [`nvs_runtime::capability::io_failure`]'s `IOError` when the read fails;
+/// `intake_breach`'s `RuntimeError` for a source past `max_output`, which is a
+/// refusal to hold it rather than a failure to read it; and the memory `FATAL`
+/// once the request's ceiling refused a growth or the copy.
+pub(crate) fn read_bounded(
+    ctx: &Ctx,
+    input: &mut impl Read,
+    member: &str,
+    path: &std::path::Path,
+) -> Result<Vec<u8>, Fault> {
+    use nvs_runtime::budget::{ByteWriter, Stopped};
+
+    let limit = match ctx.intake_limit() {
+        0 => usize::MAX,
+        limit => limit,
+    };
+    let mut bytes = ByteWriter::within(limit);
+    bytes
+        .read_from(input)
+        .map_err(|err| nvs_runtime::capability::io_failure(member, path, &err))?;
+    let over_memory = || {
+        ctx.memory_breach().unwrap_or_else(|| {
+            Fault::fatal(format!(
+                "{member}: what was read does not fit in the request's memory limit"
+            ))
+        })
+    };
+    match bytes.finish() {
+        Ok(bytes) if nvs_runtime::budget::affords(bytes.len()) => Ok(bytes),
+        Ok(_) | Err(Stopped::Refused) => Err(over_memory()),
+        Err(Stopped::Over) => Err(ctx
+            .intake_breach(member, limit.saturating_add(1))
+            .unwrap_or_else(over_memory)),
+    }
+}
+
 /// A copy of at most `len` bytes of `all` from `offset`, with the memory limit
 /// checked before the copy.
 fn window(all: &[u8], offset: u64, len: usize, member: &str) -> Result<Vec<u8>, Fault> {

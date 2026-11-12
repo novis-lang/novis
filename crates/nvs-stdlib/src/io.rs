@@ -68,6 +68,7 @@ use std::path::{Path, PathBuf};
 use nvs_runtime::capability::Access;
 use nvs_runtime::{Fault, NvsArray, Tag, ThrownClass, Value};
 
+use crate::byte_source::read_bounded;
 use crate::registry::{
     CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
     ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -2619,53 +2620,6 @@ fn stdin_stream_chunk(value: Value) -> Result<Value, Fault> {
         held.retain();
     }
     Ok(held)
-}
-
-/// Every byte `input` gives, read no further than the request can hold.
-///
-/// [`nvs_runtime::budget::ByteWriter`] asks the request's memory ceiling
-/// before each growth, and stops at [`nvs_runtime::Ctx::intake_limit`]. So a
-/// source of any size costs at most what the request may hold, and the read
-/// stops there. Once the bytes are read, the one copy every caller makes of
-/// them, into a `string` or into lines, is asked for too. A copy that does not
-/// fit is then refused before it is made.
-///
-/// # Errors
-///
-/// [`nvs_runtime::capability::io_failure`]'s `IOError` when the read fails;
-/// `intake_breach`'s `RuntimeError` for a source past `max_output`, which is a
-/// refusal to hold it rather than a failure to read it; and the memory `FATAL`
-/// once the request's ceiling refused a growth or the copy.
-fn read_bounded(
-    ctx: &nvs_runtime::Ctx,
-    input: &mut impl std::io::Read,
-    member: &str,
-    path: &Path,
-) -> Result<Vec<u8>, Fault> {
-    use nvs_runtime::budget::{ByteWriter, Stopped};
-
-    let limit = match ctx.intake_limit() {
-        0 => usize::MAX,
-        limit => limit,
-    };
-    let mut bytes = ByteWriter::within(limit);
-    bytes
-        .read_from(input)
-        .map_err(|err| nvs_runtime::capability::io_failure(member, path, &err))?;
-    let over_memory = || {
-        ctx.memory_breach().unwrap_or_else(|| {
-            Fault::fatal(format!(
-                "{member}: what was read does not fit in the request's memory limit"
-            ))
-        })
-    };
-    match bytes.finish() {
-        Ok(bytes) if nvs_runtime::budget::affords(bytes.len()) => Ok(bytes),
-        Ok(_) | Err(Stopped::Refused) => Err(over_memory()),
-        Err(Stopped::Over) => Err(ctx
-            .intake_breach(member, limit.saturating_add(1))
-            .unwrap_or_else(over_memory)),
-    }
 }
 
 nvs_runtime::nvs_helper! {

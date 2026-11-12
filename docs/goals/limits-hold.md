@@ -379,18 +379,28 @@ child's captured output and a session read. It reports `file.rs:NN` and whether 
 - [x] Attack: a small `cpu_time`, then a password-keyed token whose header names the largest
   iteration count. It ends `FATAL` before the derivation
   (`tests/hostile/core/Jwe/decrypt/02-a-token-names-the-largest-iteration-count.nvs:1`).
-- [ ] `read_bounded` moves beside the byte sources and `Core\IO` calls it there
+- [x] `read_bounded` moves beside the byte sources and `Core\IO` calls it there
   (`rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`,
   `crates/nvs-stdlib/src/io.rs:2639`, `crates/nvs-stdlib/src/byte_source.rs:744`).
-- [ ] `Core\Storage::get` reads through it (`crates/nvs-stdlib/src/storage.rs:556`).
+- [x] `Core\Storage::get` reads through it (`crates/nvs-stdlib/src/storage.rs:556`).
 - [ ] Each read the list shows without an ask moves to the reader
   (`crates/nvs-stdlib/src/process.rs:2418`).
-- [ ] Tests `a_stored_object_larger_than_the_memory_left_is_refused_before_it_is_held` and
+  - [x] The list: a child's capture asks before each growth (`crates/nvs-stdlib/src/process.rs:1297`),
+    and `process.rs:2418` is test code. `Core\Storage::get` read whole with no ask, and now reads
+    through the reader.
+  - [ ] The HTTP client's body grows by 8 KiB pulls to `REPLY_CEILING` with no ask
+    (`crates/nvs-stdlib/src/http/transport.rs:1188`).
+  - [ ] A Redis reply, for the shared cache and the shared session store, is read to
+    `REPLY_CEILING` with no ask (`crates/nvs-stdlib/src/cache/redis.rs:748`).
+  - [ ] A session's SQLite record is copied whole with no ask
+    (`crates/nvs-stdlib/src/session/sqlite.rs:139`).
+  - [ ] The memory cache tier copies a whole entry with no ask (`crates/nvs-stdlib/src/cache.rs:1266`).
+- [x] Tests `a_stored_object_larger_than_the_memory_left_is_refused_before_it_is_held` and
   `no_member_reads_a_whole_source_outside_the_bounded_reader`. The second reads the sources of
   `crates/nvs-stdlib/src` and names each offending line (`crates/nvs-stdlib/src/storage.rs:757`).
-- [ ] Attack: a small memory limit, `put` of a streamed object larger than it, then `get`. It ends
+- [x] Attack: a small memory limit, `put` of a streamed object larger than it, then `get`. It ends
   `FATAL` inside the bound (`tests/hostile/core/Storage/get/02-an-object-larger-than-the-limit.nvs:1`).
-- [ ] The rule fragment names the one reader
+- [x] The rule fragment names the one reader
   (`docs/rules/errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself.md:1`).
 
 ### 4. error text is clipped where a fault is made
@@ -523,30 +533,37 @@ cap the resource table.
 
 ### State
 
-Stages 1 and 2 are done. Stage 1: `Ctx::hold_to_tree` (`crates/nvs-runtime/src/ctx/isolate.rs`)
-is the one writer of the spawn record, and `refresh_limits` clamps to it.
+Stages 1 and 2 are done. Stage 3 has one item left: the reads that are not `std::io::Read` sources.
+Every PBKDF2 caller reaches `pbkdf2_sha256` (`crates/nvs-stdlib/src/crypto.rs`), which asks
+`cpu_affords` first. `jwe.rs`'s tests shadow `plaintext`, `content_key` and `wrapped` with
+wrappers over a fresh `Ctx::buffered()`. `crate::tests::out_of_cpu` (`crates/nvs-stdlib/src/lib.rs`)
+installs a CPU reading that is one hour only on a thread that asked. Use it for any later CPU-refusal
+unit test.
 
-Stage 2: `vendor/fancy-regex` is the published 0.19.2 with one patch, marked `Novis patch` in
-`src/vm.rs`, `src/lib.rs` and `src/error.rs`. `run_with` counts work and calls the builder's `poll`
-every 4,096 units. A `true` ends the search with the new `RuntimeError::Interrupted`. The manifest
-keeps only the library, and `docs/` is copied because `lib.rs` includes it. Both `Cargo.toml` and
-`fuzz/Cargo.toml` carry the `[patch.crates-io]` row, and `manifest_policy` passes.
-`Compiled::Backtracking` holds `Backtracker` (`crates/nvs-stdlib/src/regex.rs`), whose `under`
-puts `Ctx::deadline_word` in a thread-local for the call. `budget_exhausted` takes the context and
-asks `polled` first. The three named tests pass. Attack 02 ends `FATAL` at the CPU limit, and
-attack 03 runs under a 2s limit: 200ms diverged on a loaded run. A run with the poll removed was not
-made; `a_backtracking_search_stops_at_an_expired_deadline` asserts `Interrupted`, which no
-unpatched engine returns.
+`read_bounded` is in `crates/nvs-stdlib/src/byte_source.rs`, and `Core\IO` and
+`Core\Storage::get` call it. The source scan skips `tests` folders and `tests.rs`. It allows a read
+with `.take(` on its line or one of the two lines before. The Storage attack runs the `get` in a
+spawned script, so the parent deletes the 24 MB object and the tree stays clean. A runtime without
+the reader also fails the child, only later, so the Rust test's peak bound pins the fix.
 
-The sweep's reds were stale again: no check named `env-secret-proofs` exists, and nightly
-43001191130 ran at `f4c1d5c7e2`, before `305c04f660`.
+The sweep's reds were stale: no check named `env-secret-proofs` exists, and nightly 43001191130
+ran at `f4c1d5c7e2`, an ancestor of `305c04f660`.
 
 ### Next
 
-Stage 3 at `crates/nvs-stdlib/src/crypto.rs:1714`, over `crypto.rs`, `jwe.rs`, `io.rs`,
-`byte_source.rs` and `storage.rs`. Its `**Split:**` line sends the list of whole reads to an
-`Explore` subagent first. Stage 6 (`crates/nvs-ext/src/call.rs:1326`) touches other files and may
-run beside it.
+Stage 3's last item: the reads the list found with no ask and no `std::io::Read`. Each asks
+`nvs_runtime::affordable` for its piece before it grows, and each gets a line in the rule fragment.
+- `crates/nvs-stdlib/src/http/transport.rs:1188`: `Incoming::whole` asks for each pull's room before
+  it holds it, and `REPLY_CEILING` stays the cap.
+- `crates/nvs-stdlib/src/cache/redis.rs:820`: `exact` asks for the bulk length once the
+  `REPLY_CEILING` compare at `:748` has passed. Both the shared cache and the shared session store
+  read through it.
+- `crates/nvs-stdlib/src/session/sqlite.rs:139`: `load` asks for the record's length before it
+  copies the record out of the row.
+- `crates/nvs-stdlib/src/cache.rs:1266`: `memory_get` asks for the entry's length before
+  `to_vec`.
+Then stage 3's status is done. Stage 6 (`crates/nvs-ext/src/call.rs:1326`) touches other files and
+may run beside it.
 
 Tests that may go red at the gate: `crates/nvs-host/tests/limits.rs`'s two `handler_isolate`
 cases, which assert reserve numbers the handler's allocator is now armed with. Any test that

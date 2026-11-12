@@ -31,6 +31,14 @@ in that band only a recorded refusal ends the request, so an ask of nothing woul
 allocation of `0` bytes. The cost is a few thread-local reads per field, beside the allocations each
 field already makes.
 
+**A whole source is read by one reader.** `read_bounded` in `crates/nvs-stdlib/src/byte_source.rs`
+asks the ceiling before each growth of its buffer, stops at `[limits] max_output`, and asks for the
+copy its caller makes. `Core\IO::read`, `::readText`, `::lines`, `::stdin` and `Core\Storage::get`
+read through it. Any other `read_to_end` or `read_to_string` in `nvs-stdlib` sits behind a `take`
+whose piece was asked first, and `no_member_reads_a_whole_source_outside_the_bounded_reader` fails on
+one that does not. A stored object of any size stops at the ceiling inside the read. The cost is one
+compare per growth.
+
 **A primitive that carries no `ctx` refuses by returning a degenerate value, and acquires no status
 channel to say so.** `nvs_str_append` answers its target unchanged, which exactly balances the one
 reference it consumes; `nvs_str_concat` and `nvs_str_concat_n` answer the immortal empty string,

@@ -1,0 +1,16 @@
+<?nvs
+// Attack: a started script reads a stored file that is larger than its memory limit.
+// The started script should stop at the limit, and this program should go on.
+
+// 1. Saves a file of 24 MB, then lowers the memory limit to 16 MB.
+Core\Storage::put('files', 'large.bin', Core\Str::repeat('x', 24000000) as bytes);
+echo 'limit lowered: ', Core\Config::set('limits.memory', '16M') ? 'yes' : 'no', "\n";
+
+// 2. Starts a script that reads the whole file.
+var $handle = spawn script 'jobs/reads-the-large-object.nvs' with(output: 'capture');
+var $result = await $handle;
+Core\Storage::delete('files', 'large.bin');
+if ($result->ok) {
+    throw new RuntimeError('the started script read 24 MB under a limit of 16 MB');
+}
+echo 'the started script stopped: ', $result->error?->message, "\n";

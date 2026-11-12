@@ -89,7 +89,7 @@
 //! and never the object — but it is a listing rather than a test, so a caller with one key in mind
 //! compares the element it got back.
 
-use std::io::{Read as _, Write as _};
+use std::io::Write as _;
 use std::path::PathBuf;
 
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, Tag, Value};
@@ -553,10 +553,10 @@ nvs_runtime::nvs_helper! {
         if !nvs_runtime::capability::exists(ctx, &path, GET)? {
             return Ok(Value::null());
         }
+        // The object may be larger than the request can hold, so the read
+        // asks the memory ceiling before each growth and stops there.
         let mut file = nvs_runtime::capability::open_read(ctx, &path, GET)?;
-        let mut octets = Vec::new();
-        file.read_to_end(&mut octets)
-            .map_err(|err| nvs_runtime::capability::io_failure(GET, &path, &err))?;
+        let octets = crate::byte_source::read_bounded(ctx, &mut file, GET, &path)?;
         Ok(Value::bytes(NvsStr::new(&octets)))
     }
 }
@@ -801,6 +801,101 @@ mod tests {
             "a key with a separator is refused by the grammar, not resolved"
         );
         std::fs::remove_dir_all(&root).expect("the case removes its own disk");
+    }
+
+    /// An object larger than the memory the request has left is refused while
+    /// it is read. The read stops at the ceiling, so the request never holds
+    /// the whole object.
+    // covers: Core\Storage::get
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn a_stored_object_larger_than_the_memory_left_is_refused_before_it_is_held() {
+        const LIMIT: usize = 256 << 10;
+        let (root, mut ctx) = disk("get-large");
+        std::fs::write(root.join("large.bin"), vec![1_u8; 8 * LIMIT]).unwrap();
+
+        // The limit and the peak count from here, so they measure the read
+        // alone.
+        ctx.rebase_memory();
+        ctx.set_memory_limit(LIMIT);
+        let read = nvs_runtime::call(
+            nvs_core_storage_get,
+            &mut ctx,
+            &[text(OBJECTS), text("large.bin")],
+        );
+        let peak = ctx.memory_peak();
+        ctx.clear_memory_ceiling();
+
+        assert_eq!(
+            read.err(),
+            Some(nvs_runtime::FATAL),
+            "the read is past the limit"
+        );
+        // Growing the buffer briefly holds the old and the new copy together.
+        assert!(
+            peak < 3 * LIMIT,
+            "the read stopped at the limit: peak {peak}"
+        );
+        std::fs::remove_dir_all(&root).expect("the case removes its own disk");
+    }
+
+    /// Every whole read of a source in this crate goes through
+    /// `byte_source::read_bounded`, which asks the memory ceiling before each
+    /// growth. A `read_to_end` or `read_to_string` elsewhere reads as much as
+    /// the source has, so each one must be behind a `take` that bounds it.
+    /// The scan stops at a file's first `#[cfg(test)]`, as the capability
+    /// guard's does, and names each line it finds.
+    #[test]
+    fn no_member_reads_a_whole_source_outside_the_bounded_reader() {
+        fn walk(dir: &std::path::Path, found: &mut Vec<String>) {
+            for entry in std::fs::read_dir(dir).expect("the source folder is readable") {
+                let path = entry.expect("an entry of the source folder").path();
+                if path.is_dir() {
+                    if path.file_name().is_some_and(|name| name != "tests") {
+                        walk(&path, found);
+                    }
+                    continue;
+                }
+                if path.extension().is_none_or(|ext| ext != "rs")
+                    || path.file_name().is_some_and(|name| name == "tests.rs")
+                {
+                    continue;
+                }
+                let source = std::fs::read_to_string(&path).expect("a source file is text");
+                let lines: Vec<&str> = source
+                    .lines()
+                    .take_while(|line| line.trim() != "#[cfg(test)]")
+                    .collect();
+                for (at, line) in lines.iter().enumerate() {
+                    let code = line.trim_start();
+                    if code.starts_with("//")
+                        || !(code.contains("read_to_end(") || code.contains("read_to_string("))
+                    {
+                        continue;
+                    }
+                    let behind_take = lines[at.saturating_sub(2)..=at]
+                        .iter()
+                        .any(|line| line.contains(".take("));
+                    if !behind_take {
+                        found.push(format!("{}:{}: {}", path.display(), at + 1, code));
+                    }
+                }
+            }
+        }
+
+        let mut found = Vec::new();
+        walk(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+            &mut found,
+        );
+        assert!(
+            found.is_empty(),
+            "read through `byte_source::read_bounded`, or behind a `take`:\n{}",
+            found.join("\n")
+        );
     }
 
     /// `delete` removes the file, and deleting it a second time throws: a key

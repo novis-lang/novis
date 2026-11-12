@@ -1,0 +1,6 @@
+<?nvs
+// The attack in the folder above starts this script. It reads a stored file
+// of 24 MB under a memory limit of 16 MB.
+
+var $object = Core\Storage::get('files', 'large.bin');
+return $object == null ? 0 : Core\Bytes::length($object);
