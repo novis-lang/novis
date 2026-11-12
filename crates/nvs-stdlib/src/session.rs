@@ -603,10 +603,17 @@ const DEFAULT_COOKIE: &str = nvs_config::defaults::SESSION_COOKIE;
 /// How many bytes an identifier is drawn from — 128 bits, per the module doc.
 const ID_BYTES: usize = 16;
 
-/// The store key one identifier's record lives under.
-pub(crate) fn key_of(id: &str) -> Vec<u8> {
-    let mut key = Vec::with_capacity(PREFIX.len() + id.len());
+/// The shared store's key for `app`'s record under `id`: the prefix, the application, one `NUL`
+/// and the id.
+///
+/// The application is [`crate::cache::application`]'s, so an id one `[[app]]` block issued is
+/// absent in another. A path holds no `NUL` and an id is base64url, so no two pairs share a key.
+/// What it spends: the application's path bytes once per store call.
+pub(crate) fn key_of(app: &[u8], id: &str) -> Vec<u8> {
+    let mut key = Vec::with_capacity(PREFIX.len() + app.len() + 1 + id.len());
     key.extend_from_slice(PREFIX.as_bytes());
+    key.extend_from_slice(app);
+    key.push(0);
     key.extend_from_slice(id.as_bytes());
     key
 }
@@ -669,16 +676,16 @@ pub(crate) fn opened(ctx: &Ctx, member: &str, remedy: &str) -> Result<Store, Fau
     }
 }
 
-/// `load` on `store`, with a failure thrown as an `IOError` naming `member`.
+/// `load` of `app`'s row on `store`, with a failure thrown as an `IOError` naming `member`.
 ///
 /// # Errors
 ///
 /// A thrown `IOError` for a store that cannot be reached. Never an answer that looks like absence:
 /// [`load`]'s doc says why.
-fn fetched(store: &Store, member: &str, id: &str) -> Result<Option<Vec<u8>>, Fault> {
+fn fetched(store: &Store, app: &[u8], member: &str, id: &str) -> Result<Option<Vec<u8>>, Fault> {
     match store {
-        Store::Shared => on_shared(NAME, member, |open| load(open, id)),
-        Store::File(path) => on_file(member, sqlite::load(path, id)),
+        Store::Shared => on_shared(NAME, member, |open| load(open, app, id)),
+        Store::File(path) => on_file(member, sqlite::load(path, app, id)),
     }
 }
 
@@ -690,14 +697,15 @@ fn fetched(store: &Store, member: &str, id: &str) -> Result<Option<Vec<u8>>, Fau
 /// As [`fetched`].
 fn created(
     store: &Store,
+    app: &[u8],
     member: &str,
     id: &str,
     record: &[u8],
     ttl: Duration,
 ) -> Result<bool, Fault> {
     match store {
-        Store::Shared => on_shared(NAME, member, |open| create(open, id, record, ttl)),
-        Store::File(path) => on_file(member, sqlite::create(path, id, record, ttl)),
+        Store::Shared => on_shared(NAME, member, |open| create(open, app, id, record, ttl)),
+        Store::File(path) => on_file(member, sqlite::create(path, app, id, record, ttl)),
     }
 }
 
@@ -709,14 +717,15 @@ fn created(
 /// As [`fetched`].
 fn replaced(
     store: &Store,
+    app: &[u8],
     member: &str,
     id: &str,
     record: &[u8],
     ttl: Duration,
 ) -> Result<bool, Fault> {
     match store {
-        Store::Shared => on_shared(NAME, member, |open| replace(open, id, record, ttl)),
-        Store::File(path) => on_file(member, sqlite::replace(path, id, record, ttl)),
+        Store::Shared => on_shared(NAME, member, |open| replace(open, app, id, record, ttl)),
+        Store::File(path) => on_file(member, sqlite::replace(path, app, id, record, ttl)),
     }
 }
 
@@ -725,10 +734,10 @@ fn replaced(
 /// # Errors
 ///
 /// As [`fetched`].
-fn forgot(store: &Store, member: &str, id: &str) -> Result<bool, Fault> {
+fn forgot(store: &Store, app: &[u8], member: &str, id: &str) -> Result<bool, Fault> {
     match store {
-        Store::Shared => on_shared(NAME, member, |open| destroy(open, id)),
-        Store::File(path) => on_file(member, sqlite::destroy(path, id)),
+        Store::Shared => on_shared(NAME, member, |open| destroy(open, app, id)),
+        Store::File(path) => on_file(member, sqlite::destroy(path, app, id)),
     }
 }
 
@@ -797,8 +806,8 @@ pub(crate) fn mint(ctx: &mut Ctx) -> String {
 /// The store's own failure as text, for [`crate::cache::on_shared`] to classify. Never an answer
 /// that looks like absence: a store that cannot be reached must not read as a forged id, because
 /// the two have opposite responses.
-pub(crate) fn load(open: &mut Connection, id: &str) -> Result<Option<Vec<u8>>, String> {
-    open.get(&key_of(id))
+pub(crate) fn load(open: &mut Connection, app: &[u8], id: &str) -> Result<Option<Vec<u8>>, String> {
+    open.get(&key_of(app, id))
 }
 
 /// `rule:http-server/a-session-store-answers-four-operations`'s `destroy` — the record under `id`,
@@ -811,8 +820,8 @@ pub(crate) fn load(open: &mut Connection, id: &str) -> Result<Option<Vec<u8>>, S
 /// # Errors
 ///
 /// As [`load`].
-pub(crate) fn destroy(open: &mut Connection, id: &str) -> Result<bool, String> {
-    open.del(&key_of(id))
+pub(crate) fn destroy(open: &mut Connection, app: &[u8], id: &str) -> Result<bool, String> {
+    open.del(&key_of(app, id))
 }
 
 /// `rule:http-server/a-session-store-answers-four-operations`'s `issue` — a new entry under `id`,
@@ -832,11 +841,12 @@ pub(crate) fn destroy(open: &mut Connection, id: &str) -> Result<bool, String> {
 /// As [`load`].
 pub(crate) fn create(
     open: &mut Connection,
+    app: &[u8],
     id: &str,
     record: &[u8],
     ttl: Duration,
 ) -> Result<bool, String> {
-    open.set_if_absent(&key_of(id), record, ttl)
+    open.set_if_absent(&key_of(app, id), record, ttl)
 }
 
 /// `rule:http-server/a-session-store-answers-four-operations`'s `save` — the record under `id`
@@ -851,11 +861,12 @@ pub(crate) fn create(
 /// As [`load`].
 pub(crate) fn replace(
     open: &mut Connection,
+    app: &[u8],
     id: &str,
     record: &[u8],
     ttl: Duration,
 ) -> Result<bool, String> {
-    open.set_if_present(&key_of(id), record, ttl)
+    open.set_if_present(&key_of(app, id), record, ttl)
 }
 
 /// How long an identifier [`mint`] draws renders to, derived from the draw rather than written.
@@ -960,7 +971,7 @@ nvs_runtime::nvs_helper! {
         }
         .filter(|id| issuable(id));
         let opened = match presented {
-            Some(id) => fetched(&store, "start", &id)?
+            Some(id) => fetched(&store, crate::cache::application(ctx), "start", &id)?
                 .map(|record| nvs_runtime::Session {
                     id,
                     record,
@@ -1607,14 +1618,15 @@ fn regenerated(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
     let (retired, record) = (open.id.clone(), open.record.clone());
     let fresh = mint(ctx);
     let lifetime = ttl(ctx);
-    if !created(store, "regenerate", &fresh, &record, lifetime)? {
+    let app = crate::cache::application(ctx);
+    if !created(store, app, "regenerate", &fresh, &record, lifetime)? {
         return Err(Fault::thrown(format!(
             "{NAME}::regenerate(): the store already has a session under the new identifier. \
              Call `regenerate()` again to draw another one."
         )));
     }
-    if !forgot(store, "regenerate", &retired)? {
-        forgot(store, "regenerate", &fresh)?;
+    if !forgot(store, app, "regenerate", &retired)? {
+        forgot(store, app, "regenerate", &fresh)?;
         ctx.open_session(fresh_session());
         return Ok(());
     }
@@ -1659,7 +1671,7 @@ nvs_runtime::nvs_helper! {
         if !held.is_empty() {
             let member = format!("{NAME}::destroy()");
             let store = opened(ctx, &member, ", which is where this session's record lives")?;
-            forgot(&store, "destroy", &held)?;
+            forgot(&store, crate::cache::application(ctx), "destroy", &held)?;
         }
         ctx.close_session();
         Ok(Value::null())
@@ -1725,6 +1737,7 @@ fn send_at_end(ctx: &mut Ctx) {
 /// a row under the identifier this request drew.
 fn sent_to(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
     let lifetime = ttl(ctx);
+    let app = crate::cache::application(ctx);
     // Nothing is copied out of the record: the store calls borrow it, and the context is changed
     // only after the borrow has ended. A write-back that cloned the record would spend O(record)
     // on the request path to say exactly what the bytes already on the context say.
@@ -1732,10 +1745,24 @@ fn sent_to(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
         return Ok(());
     };
     if open.stored {
-        replaced(store, "the write-back", &open.id, &open.record, lifetime)?;
+        replaced(
+            store,
+            app,
+            "the write-back",
+            &open.id,
+            &open.record,
+            lifetime,
+        )?;
         return Ok(());
     }
-    if !created(store, "the write-back", &open.id, &open.record, lifetime)? {
+    if !created(
+        store,
+        app,
+        "the write-back",
+        &open.id,
+        &open.record,
+        lifetime,
+    )? {
         return Err(Fault::thrown(format!(
             "{SENDER}: the store already has a session under the identifier this request drew"
         )));
@@ -1803,6 +1830,9 @@ mod tests {
 
     /// The block that chooses the shared tier, which every case driving it through a member writes.
     const SHARED_BLOCK: &str = "[session]\nbackend = \"shared\"\n";
+
+    /// The application of a context with no `[[app]]` block, which is every case's but one.
+    const NO_APP: &[u8] = b"";
 
     /// The record two cores exchange, and the id it lives under.
     const ID: &str = "PmA5tKz1QvR3sYbN";
@@ -2002,17 +2032,20 @@ mod tests {
             Duration::from_secs(5),
         );
         assert!(
-            create(&mut open, ID, RECORD, DEFAULT_TTL)
+            create(&mut open, NO_APP, ID, RECORD, DEFAULT_TTL)
                 .expect("the record reaches the configured store")
         );
 
         assert_eq!(
-            held.lock().expect("the store").get(&key_of(ID)).cloned(),
+            held.lock()
+                .expect("the store")
+                .get(&key_of(NO_APP, ID))
+                .cloned(),
             Some(RECORD.to_vec()),
             "the record is in the shared store"
         );
         assert_eq!(
-            memory_held(&key_of(ID)),
+            memory_held(&key_of(NO_APP, ID)),
             None,
             "and nowhere in the memory tier `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` refuses it"
         );
@@ -2037,7 +2070,9 @@ mod tests {
                 Dial::configured(Target::Tcp(address), None, None),
                 Duration::from_secs(5),
             );
-            assert!(create(&mut open, ID, RECORD, DEFAULT_TTL).expect("the record is written"));
+            assert!(
+                create(&mut open, NO_APP, ID, RECORD, DEFAULT_TTL).expect("the record is written")
+            );
         });
         wrote.join().expect("the first core");
 
@@ -2046,7 +2081,7 @@ mod tests {
                 Dial::configured(Target::Tcp(address), None, None),
                 Duration::from_secs(5),
             );
-            load(&mut open, ID).expect("the store answers")
+            load(&mut open, NO_APP, ID).expect("the store answers")
         });
         let shared = read.join().expect("the second core");
 
@@ -2262,12 +2297,14 @@ mod tests {
                 Dial::configured(Target::Tcp(address), None, None),
                 Duration::from_secs(5),
             );
-            assert!(create(&mut open, ID, RECORD, DEFAULT_TTL).expect("the record is written"));
-            let before = load(&mut open, ID).expect("the store answers");
-            let first = destroy(&mut open, ID).expect("the record is forgotten");
-            let after = load(&mut open, ID).expect("the store answers");
-            let second =
-                destroy(&mut open, ID).expect("an id with no record under it is already forgotten");
+            assert!(
+                create(&mut open, NO_APP, ID, RECORD, DEFAULT_TTL).expect("the record is written")
+            );
+            let before = load(&mut open, NO_APP, ID).expect("the store answers");
+            let first = destroy(&mut open, NO_APP, ID).expect("the record is forgotten");
+            let after = load(&mut open, NO_APP, ID).expect("the store answers");
+            let second = destroy(&mut open, NO_APP, ID)
+                .expect("an id with no record under it is already forgotten");
             (before, after, first, second)
         });
         let (before, after, first, second) = answered.join().expect("the core");
@@ -2321,9 +2358,9 @@ mod tests {
                         .lapsed
                         .lock()
                         .expect("the lapsed keys")
-                        .insert(key_of(id));
+                        .insert(key_of(NO_APP, id));
                 }
-                Self::Db { path, .. } => sqlite::lapse(path, id),
+                Self::Db { path, .. } => sqlite::lapse(path, NO_APP, id),
             }
         }
     }
@@ -2373,8 +2410,10 @@ mod tests {
         for (word, backend) in BACKENDS {
             let mut ctx = Ctx::buffered();
             let (store, kept) = a_store(&mut ctx, "session-destroyed-stays", *backend);
-            assert!(created(&store, "a case", ID, &[], DEFAULT_TTL).expect("the row is issued"));
-            let loaded = fetched(&store, "a case", ID)
+            assert!(
+                created(&store, NO_APP, "a case", ID, &[], DEFAULT_TTL).expect("the row is issued")
+            );
+            let loaded = fetched(&store, NO_APP, "a case", ID)
                 .expect("the store answers")
                 .expect("the row the case issued");
             CASE_STORE.with_borrow_mut(|slot| *slot = Some(store.clone()));
@@ -2390,14 +2429,14 @@ mod tests {
             write_back(&mut ctx, writing, "set").expect("the changed record encodes");
 
             assert!(
-                forgot(&store, "a case", ID).expect("another request destroys the session"),
+                forgot(&store, NO_APP, "a case", ID).expect("another request destroys the session"),
                 "{word}: the row was there to destroy"
             );
             ctx.end_session();
             CASE_STORE.with_borrow_mut(Option::take);
 
             assert_eq!(
-                fetched(&store, "a case", ID).expect("the store answers"),
+                fetched(&store, NO_APP, "a case", ID).expect("the store answers"),
                 None,
                 "{word}: the destroyed session stays destroyed"
             );
@@ -2414,7 +2453,10 @@ mod tests {
         for (word, backend) in BACKENDS {
             let mut ctx = Ctx::buffered();
             let (store, kept) = a_store(&mut ctx, "session-regenerate-gone", *backend);
-            assert!(created(&store, "a case", ID, RECORD, DEFAULT_TTL).expect("the row is issued"));
+            assert!(
+                created(&store, NO_APP, "a case", ID, RECORD, DEFAULT_TTL)
+                    .expect("the row is issued")
+            );
             ctx.open_session(nvs_runtime::Session {
                 id: ID.to_owned(),
                 record: RECORD.to_vec(),
@@ -2423,7 +2465,7 @@ mod tests {
                 write_back: super::send_at_end,
             });
             assert!(
-                forgot(&store, "a case", ID).expect("another request destroys the session"),
+                forgot(&store, NO_APP, "a case", ID).expect("another request destroys the session"),
                 "{word}: the row was there to destroy"
             );
 
@@ -2442,6 +2484,79 @@ mod tests {
         }
     }
 
+    /// `ctx` under the one `[[app]]` block at `app`, with the store configuration it already had.
+    fn under(ctx: &mut Ctx, app: &str) {
+        let mut snapshot = ctx
+            .config()
+            .map(|config| nvs_config::Snapshot::clone(config.snapshot()))
+            .unwrap_or_default();
+        snapshot.blocks = vec![std::path::PathBuf::from(app)];
+        ctx.set_config(Arc::new(snapshot));
+    }
+
+    /// `rule:security/a-session-id-the-store-did-not-issue-is-rejected`: on every store, a session
+    /// one application wrote is absent for a second application that presents its id. The second
+    /// application's own session under that id is a second row, and the first application still
+    /// loads its own record.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn a_session_one_application_wrote_is_absent_in_another_on_every_store() {
+        for (word, backend) in BACKENDS {
+            let mut blog = Ctx::buffered();
+            let (store, kept) = a_store(&mut blog, "session-per-application", *backend);
+            under(&mut blog, "/srv/blog");
+            CASE_STORE.with_borrow_mut(|slot| *slot = Some(store.clone()));
+            blog.open_session(nvs_runtime::Session {
+                id: ID.to_owned(),
+                record: RECORD.to_vec(),
+                dirty: true,
+                stored: false,
+                write_back: to_the_case_store,
+            });
+            blog.end_session();
+            assert_eq!(
+                kept.rows(),
+                1,
+                "{word}: the first application wrote its row"
+            );
+
+            let mut shop = Ctx::buffered();
+            if let Some(config) = blog.config() {
+                shop.set_config(Arc::clone(config.snapshot()));
+            }
+            under(&mut shop, "/srv/shop");
+            let shop_app = crate::cache::application(&shop);
+            assert_eq!(
+                fetched(&store, shop_app, "start", ID).expect("the store answers"),
+                None,
+                "{word}: the second application finds no session under the id"
+            );
+            assert!(
+                !replaced(&store, shop_app, "a case", ID, b"taken", DEFAULT_TTL)
+                    .expect("the store answers"),
+                "{word}: and cannot write over the first application's row"
+            );
+            assert!(
+                created(&store, shop_app, "a case", ID, b"its own", DEFAULT_TTL)
+                    .expect("the store answers"),
+                "{word}: its own session under that id is a row of its own"
+            );
+            assert_eq!(kept.rows(), 2, "{word}: so the store holds two rows");
+
+            let mut again = Ctx::buffered();
+            if let Some(config) = blog.config() {
+                again.set_config(Arc::clone(config.snapshot()));
+            }
+            assert_eq!(
+                fetched(&store, crate::cache::application(&again), "start", ID)
+                    .expect("the store answers"),
+                Some(RECORD.to_vec()),
+                "{word}: the first application still loads its record"
+            );
+            CASE_STORE.with_borrow_mut(Option::take);
+        }
+    }
+
     /// `rule:http-server/a-session-store-answers-four-operations`: on every store, `replace`
     /// writes nothing for an absent id or an expired row, and `create` on an id that has a row
     /// fails and keeps that row's record.
@@ -2452,32 +2567,36 @@ mod tests {
             let mut ctx = Ctx::buffered();
             let (store, kept) = a_store(&mut ctx, "session-only-create", *backend);
             assert!(
-                !replaced(&store, "a case", ID, RECORD, DEFAULT_TTL).expect("the store answers"),
+                !replaced(&store, NO_APP, "a case", ID, RECORD, DEFAULT_TTL)
+                    .expect("the store answers"),
                 "{word}: a replace of an absent id writes nothing"
             );
             assert_eq!(kept.rows(), 0, "{word}: and the store holds no row");
 
             assert!(
-                created(&store, "a case", ID, RECORD, DEFAULT_TTL).expect("the store answers"),
+                created(&store, NO_APP, "a case", ID, RECORD, DEFAULT_TTL)
+                    .expect("the store answers"),
                 "{word}: a create of an absent id inserts the row"
             );
             assert!(
-                !created(&store, "a case", ID, b"another", DEFAULT_TTL).expect("the store answers"),
+                !created(&store, NO_APP, "a case", ID, b"another", DEFAULT_TTL)
+                    .expect("the store answers"),
                 "{word}: a create of a held id fails"
             );
             assert_eq!(
-                fetched(&store, "a case", ID).expect("the store answers"),
+                fetched(&store, NO_APP, "a case", ID).expect("the store answers"),
                 Some(RECORD.to_vec()),
                 "{word}: and the held record stays"
             );
 
             kept.lapse(ID);
             assert!(
-                !replaced(&store, "a case", ID, b"late", DEFAULT_TTL).expect("the store answers"),
+                !replaced(&store, NO_APP, "a case", ID, b"late", DEFAULT_TTL)
+                    .expect("the store answers"),
                 "{word}: a replace of an expired row writes nothing"
             );
             assert_eq!(
-                fetched(&store, "a case", ID).expect("the store answers"),
+                fetched(&store, NO_APP, "a case", ID).expect("the store answers"),
                 None,
                 "{word}: and the row stays absent"
             );
@@ -2525,7 +2644,7 @@ mod tests {
         let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
         held.lock()
             .expect("the store")
-            .insert(key_of(ID), RECORD.to_vec());
+            .insert(key_of(NO_APP, ID), RECORD.to_vec());
         let store = Arc::clone(&held);
         let _serving = Serving::start(listener, store);
         ctx.set_config(crate::tests::granting(&format!(
@@ -2536,7 +2655,10 @@ mod tests {
         nvs_runtime::call(super::nvs_core_session_destroy, &mut ctx, &[])
             .expect("a configured store forgets the record");
         assert!(
-            !held.lock().expect("the store").contains_key(&key_of(ID)),
+            !held
+                .lock()
+                .expect("the store")
+                .contains_key(&key_of(NO_APP, ID)),
             "the entry is gone from the store"
         );
         assert!(ctx.session().is_none(), "and the request has no session");
@@ -2588,7 +2710,7 @@ mod tests {
         let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
         held.lock()
             .expect("the store")
-            .insert(key_of(ID), RECORD.to_vec());
+            .insert(key_of(NO_APP, ID), RECORD.to_vec());
         let store = Arc::clone(&held);
         let _serving = Serving::start(listener, store);
         ctx.set_config(crate::tests::granting(&format!(
@@ -2608,11 +2730,11 @@ mod tests {
 
         let entries = held.lock().expect("the store");
         assert!(
-            !entries.contains_key(&key_of(ID)),
+            !entries.contains_key(&key_of(NO_APP, ID)),
             "the old entry is gone from the store"
         );
         assert_eq!(
-            entries.get(&key_of(&moved.id)).map(Vec::as_slice),
+            entries.get(&key_of(NO_APP, &moved.id)).map(Vec::as_slice),
             Some(RECORD),
             "and the record is under the new id"
         );
@@ -2658,7 +2780,7 @@ mod tests {
         let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
         held.lock()
             .expect("the store")
-            .insert(key_of(HELD), RECORD.to_vec());
+            .insert(key_of(NO_APP, HELD), RECORD.to_vec());
         let store = Arc::clone(&held);
         let _serving = Serving::start(listener, store);
         let config = crate::tests::granting(&format!(
@@ -2709,7 +2831,7 @@ mod tests {
         let entries = held.lock().expect("the store");
         assert_eq!(entries.len(), 1, "nothing is written for the fresh session");
         assert!(
-            !entries.contains_key(&key_of(FORGED)),
+            !entries.contains_key(&key_of(NO_APP, FORGED)),
             "and nothing is written under the forged identifier"
         );
     }
@@ -2778,7 +2900,7 @@ mod tests {
             "one row, for the one session somebody wrote"
         );
         assert!(
-            entries.contains_key(&key_of(&id)),
+            entries.contains_key(&key_of(NO_APP, &id)),
             "under the identifier the cookie carries"
         );
     }
@@ -3105,9 +3227,18 @@ mod tests {
     /// spelled to read a session record.
     #[test]
     fn a_record_is_keyed_under_its_own_prefix() {
-        let key = key_of(ID);
+        let key = key_of(b"/srv/blog", ID);
         assert!(key.starts_with(PREFIX.as_bytes()));
-        assert_eq!(&key[PREFIX.len()..], ID.as_bytes());
+        assert_eq!(
+            &key[PREFIX.len()..],
+            b"/srv/blog\0PmA5tKz1QvR3sYbN".as_slice()
+        );
+        assert_eq!(&key[key.len() - ID.len()..], ID.as_bytes());
+        assert_ne!(
+            key,
+            key_of(b"/srv/shop", ID),
+            "another application's key differs"
+        );
         assert_ne!(PREFIX, crate::ratelimit::PREFIX);
     }
 
