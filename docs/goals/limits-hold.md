@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-ext/src/call.rs, crates/nvs-cli/src/extensions.rs, crates/nvs-ext/src/world.rs, docs/rules/packaging/a-guest-runs-under-the-requests-budget.md]
   - id: 7
     title: "a crossing value is counted once, and the pool has a place for every request"
-    status: open
+    status: done
     context: [crates/nvs-ext/src/call.rs, crates/nvs-ext/src/typed.rs, crates/nvs-cli/src/extensions.rs, docs/rules/packaging/a-fresh-instance-per-request.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
@@ -270,8 +270,9 @@ This needs stage 6's `memory_spent` first.
 
 **The pool has a place for every request in flight, for each class.** `size_pool`
 (`crates/nvs-cli/src/extensions.rs:271`) computes `max_in_flight` times the classes, and the constant
-`MOST_SLOTS` goes. No new setting. A place reserves 6 GiB of address space today, so the default
-product of 40,000 places does not fit. Where the product passes half of the address space, the
+`MOST_SLOTS` goes. No new setting. A place reserves 4 GiB and a 32 MiB guard in wasmtime 50.0.1
+(read in its `Config::memory_reservation` and the pool's `memory_pool.rs`), so the default
+product of 40,000 places does not fit in half of the address space. Where the product passes half of the address space, the
 engine is built with a smaller reservation per place, and guest code runs with explicit bounds
 checks. The compiled-component cache keys on that reservation. **What it spends:** address space
 only, never committed memory. With the default settings every guest memory access gains a bounds
@@ -526,24 +527,24 @@ cap the resource table.
 **Does:** delete the second count of crossing values, and size the instance pool from
 `max_in_flight` and the class count alone.
 
-- [ ] The call path drops the measure-and-charge pairs and asks `memory_spent` after lowering and
+- [x] The call path drops the measure-and-charge pairs and asks `memory_spent` after lowering and
   after lifting (`rule:packaging/a-guest-runs-under-the-requests-budget`,
   `crates/nvs-ext/src/call.rs:1188`, `crates/nvs-ext/src/call.rs:1379`).
-- [ ] `Sent::heap`, `Got::heap`, `on_heap`, `lifted`, the `Heap` trait with its impls, the `Charge`
+- [x] `Sent::heap`, `Got::heap`, `on_heap`, `lifted`, the `Heap` trait with its impls, the `Charge`
   of `wasi/http.rs` and `Handles.grown` go (`crates/nvs-ext/src/call.rs:1445`,
   `crates/nvs-ext/src/call.rs:1620`, `crates/nvs-ext/src/typed.rs:228`,
   `crates/nvs-ext/src/wasi/http.rs:82`, `crates/nvs-ext/src/handle.rs:85`).
-- [ ] Test `a_crossing_value_is_charged_to_its_request_once` counts the balance around one call
+- [x] Test `a_crossing_value_is_charged_to_its_request_once` counts the balance around one call
   with a large result (`crates/nvs-cli/src/extensions.rs:1513`).
-- [ ] `size_pool` computes `max_in_flight` times the classes, and `MOST_SLOTS` goes
+- [x] `size_pool` computes `max_in_flight` times the classes, and `MOST_SLOTS` goes
   (`rule:packaging/a-fresh-instance-per-request`, `crates/nvs-cli/src/extensions.rs:127`,
   `crates/nvs-cli/src/extensions.rs:271`).
-- [ ] The engine takes a smaller reservation per place when the pool would pass half of the address
+- [x] The engine takes a smaller reservation per place when the pool would pass half of the address
   space, and the compiled-component cache keys on it (`crates/nvs-ext/src/call.rs:893`,
   `crates/nvs-ext/src/load.rs:359`).
-- [ ] Test `the_pool_has_a_place_for_every_request_in_flight_times_every_class` reads the default
+- [x] Test `the_pool_has_a_place_for_every_request_in_flight_times_every_class` reads the default
   `max_in_flight` and the built-in class list (`crates/nvs-cli/src/extensions.rs:1513`).
-- [ ] Both rule fragments state the one count, the pool's size and what the bounds checks cost
+- [x] Both rule fragments state the one count, the pool's size and what the bounds checks cost
   (`docs/rules/packaging/a-guest-runs-under-the-requests-budget.md:1`,
   `docs/rules/packaging/a-fresh-instance-per-request.md:1`).
 
@@ -557,18 +558,15 @@ cap the resource table.
 
 ### State
 
-Stages 1 to 6 are done. A guest's epoch tick asks `Budget::memory_spent` beside `cpu_spent`
-and ends the call as `Limit::Memory`. `Spent` answers it from the allocator's counters, and a
-send or read asked after the crossing is answered with `OVER` (`crates/nvs-cli/src/extensions.rs`).
-The WASI resource table is capped at `handle::MOST`. The attack
-`tests/hostile/config/limits/02-an-extension-that-writes-to-the-log-without-end.nvs` loads the
-new proof fixture `chatter` and ends `FATAL` at step 2, read off a run. With the tick's memory
-question disabled the same run aborted the process on a failed allocation. `nvs-cli` has no lib
-target, so the stage 6 and 7 checks run `cargo test --lib --bin nvs`.
-
-`Core\Hash`, `Core\Encoding` and the native sort poll (stage 5). Nine gap records name the
-walks elsewhere (`data/gaps/nvs-stdlib/*-walk-polls-no-deadline.json`). A `Fault`'s message is
-clipped at 8 KiB in its constructors (stage 4).
+Stages 1 to 7 are done, and stage 8, the gate, is next. A crossing value is counted once, by
+the request's allocator, and `Request::run` asks `memory_spent` after lowering and after
+lifting (`crates/nvs-ext/src/call.rs`). A `bytes.append` and the HTTP header and body writes
+ask `afford` first. `pool_size` has no cap, and `nvs_ext::call::reservation` shrinks a place
+past 64 TiB. The engine hash the cache keys on already covers wasmtime's tunables.
+`Meter::set_memory_spent_after` lets the stage 6 test's loop start. A guest's tick asks the
+memory ceiling (stage 6), the native walks poll (stage 5), and a `Fault` is clipped at 8 KiB
+(stage 4). `nvs-cli` has no lib target, so the stage 6 and 7 checks run `cargo test --lib
+--bin nvs`.
 
 The sweep's reds are the ones the last two sessions read: no check named `env-secret-proofs`
 exists, and nightly 43001191130's one failure,
@@ -578,15 +576,17 @@ later nightly shows it again, it belongs to `waits-are-bounded`.
 
 ### Next
 
-- `crates/nvs-ext/src/call.rs:1470`: stage 7 starts by deleting `Sent::heap` and `Got::heap`,
-  then `on_heap` and `lifted` (`:1645`, `:1651`), and asking `memory_spent` after lowering and
-  after lifting.
-- `crates/nvs-ext/src/typed.rs:228`: the `Heap` trait and its impls go, with the `Charge` of
-  `crates/nvs-ext/src/wasi/http.rs` and `Handles.grown` (`crates/nvs-ext/src/handle.rs:85`).
-- `crates/nvs-cli/src/extensions.rs:271`: `size_pool` computes `max_in_flight` times the classes,
-  and `MOST_SLOTS` (`:127`) goes. Read the installed wasmtime 50.0.1's pooling allocator first.
+- `docs/goals/limits-hold.md:551`: stage 8 starts `looper verify` in the background, fixes every
+  failure it names in one pass, and runs it once more. Then the goal-end gates AGENTS.md names.
 
-Tests that may go red at the gate: from stage 6, every `Budget` impl outside the tree's own
+Tests that may go red at the gate: from stage 7, an `nvs-ext` test that relied on the second
+count to stop a call at `Limit::Memory`, since a `Meter` counts only guest memory and answers
+`memory_spent` by its flag: `a_result_past_the_budget_stops_at_the_memory_limit`
+(`crates/nvs-ext/tests/bytes.rs:334`), `a_template_list_past_the_memory_cap_is_a_contained_trap`
+(`crates/nvs-ext/tests/spreadsheet_hostile.rs:1023`) and a test of `wasi:http` header or body
+charges. The fix is the test's meter, `set_memory_spent_after`, or a guest-memory bound, never a
+second count. A test whose guest memory passes the smaller default reservation of 1.6 GiB. From
+stage 6, every `Budget` impl outside the tree's own
 tests, since `memory_spent` is required. From stage 5, `Core\Encoding`'s offset tests
 (`decoding_answers_the_text_and_names_the_offset_it_stopped_at`, the UTF-16 lone surrogate case),
 since a member now decodes through `encoding_rs` in pieces and names an offset only through the
