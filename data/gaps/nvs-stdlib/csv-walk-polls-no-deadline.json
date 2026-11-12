@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/csv.rs",
+  "title": "`Core\\Csv`'s record reader walks caller-sized input with no deadline poll.",
+  "text": "`rule:http-server/time-is-bounded-inside-a-helper` requires a helper whose runtime scales with its input to poll the request's deadline. `next_record` steps the parser over every byte of a caller-sized source, and nothing in the walk reads the deadline, so a large value can run past the CPU-time limit inside one call. Closing it walks the input in pieces through `nvs_runtime::bounded_loop`, or polls through `nvs_runtime::DeadlineBatch` where another crate drives the loop, and adds a test that the member is the deadline's FATAL once the deadline has passed.",
+  "goal": "waits-are-bounded"
+}

@@ -1,0 +1,22 @@
+<?nvs
+// Attack: a request sorts one million numbers again and again under a small CPU-time
+// limit. It uses no comparison function, so each sort runs in one call. The request
+// should stop at the limit, even when the limit passes in the middle of one sort.
+// hostile: timeout-ms 60000
+// hostile: ends-early 2 FATAL
+
+// 1. Builds a list of one million numbers in a mixed order.
+echo "step 1\n";
+array<int> $numbers = [];
+int $i = 0;
+while ($i < 1000000) {
+    $numbers[] = ($i * 7919) % 1000003;
+    $i = $i + 1;
+}
+
+// 2. Lowers the CPU-time limit to 300 ms. Then it sorts the list until the limit stops it.
+echo "step 2\n";
+Core\Config::set('limits.cpu_time', '300ms');
+while (true) {
+    Core\Arr::sort($numbers);
+}
