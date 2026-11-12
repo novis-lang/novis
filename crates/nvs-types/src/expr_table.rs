@@ -1470,8 +1470,9 @@ pub enum PreparedFact {
     /// call is typed `?secret string`. `crate::secret_directive` owns why the
     /// member needs to be told.
     SecretDirective,
-    /// That a `Core\Config::set` call is written in the application's own
-    /// code, so it may raise a limit up to its ceiling.
+    /// That a `Core\Config::set` or `restore` call is written in the
+    /// application's own code, so it may set any settable key, raise a limit
+    /// up to its ceiling, and restore any key.
     /// `crate::capability::prepare_config_set` owns why the member needs to be
     /// told.
     ApplicationSet,

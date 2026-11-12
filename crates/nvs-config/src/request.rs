@@ -41,8 +41,19 @@
 //!
 //! Cost of the flag path: one comparison against two keys per `set` that reaches it.
 //!
-//! Cost: one `Arc` clone per request, plus one `String` pair per key a request actually set.
-//! O(in-flight requests) and never O(requests served).
+//! **A package sets `[limits]` keys alone, and restores only what a package set**
+//! (`rule:security/package-authority-is-granted-one-line-at-a-time`).
+//! [`set_as_package`](Request::set_as_package) refuses every key outside `limits.`, and lowers a
+//! limit and never raises one. When it lowers a key the application's own code also set, the
+//! application's value is kept beside the package's, and
+//! [`restore_as_package`](Request::restore_as_package) puts it back, or drops the package's entry
+//! where the application set none. A package's `restore` never removes a value the application
+//! set. An application `set` or `restore` of the key forgets the kept value, because the entry is
+//! the application's again.
+//!
+//! Cost: one `Arc` clone per request, plus one `String` pair per key a request actually set, and
+//! one key with an optional `String` per key a package set. O(in-flight requests) and never
+//! O(requests served).
 //!
 
 use std::borrow::Cow;
@@ -88,6 +99,10 @@ pub struct Request {
     /// Every key `set` accepted, by canonical dotted name. Empty for a request that never called
     /// it, which is nearly all of them.
     overlay: BTreeMap<String, String>,
+    /// Every overlay key a package set and the application has not set since, with the value the
+    /// application had set under it, or `None` where it had set none. A package's `restore` returns
+    /// to that value. **What it spends:** one entry per key a package set, freed with the request.
+    package_set: BTreeMap<String, Option<String>>,
     /// Whether this run is server work — a request, a connection, a scheduled run, a queued job,
     /// or an isolate inside one of those. It decides whether an unwritten `[limits] cpu_time` is
     /// [`defaults::LIMITS_CPU_TIME`] or nothing ([`defaults::Value::Serving`]). `false` until
@@ -108,6 +123,7 @@ impl Request {
         Self {
             base,
             overlay: BTreeMap::new(),
+            package_set: BTreeMap::new(),
             serving: false,
             folder: None,
         }
@@ -304,7 +320,20 @@ impl Request {
 
     /// `Core\Config::set`: `true` when the change was made for this request, `false` when it was
     /// refused — the module doc lists what is refused, and none of it throws.
+    ///
+    /// This is the application's `set`, so an accepted one makes the entry the application's
+    /// and forgets the value a package's `restore` would have returned to.
     pub fn set(&mut self, name: &str, value: &str) -> bool {
+        let accepted = self.set_checked(name, value);
+        if accepted {
+            self.package_set.remove(canonical(name));
+        }
+        accepted
+    }
+
+    /// The checks of [`set`](Self::set) and its write, which both `set` and
+    /// [`set_as_package`](Self::set_as_package) run.
+    fn set_checked(&mut self, name: &str, value: &str) -> bool {
         let key = canonical(name);
         // A name under a settable block that is not one of its keys — `log`, `log.x`,
         // `limits..memory` — is still governed by that block's row, but no reader ever asks for it,
@@ -371,28 +400,38 @@ impl Request {
         true
     }
 
-    /// [`Self::set`] for code in a package's namespace: a `[limits]` key may move down and never
-    /// up, whatever ceiling the application may raise it to
-    /// (`rule:security/package-authority-is-granted-one-line-at-a-time`). The bound is the value
-    /// in force, or the key's default where nothing set it. A limit with neither is unbounded,
-    /// so any value lowers it. A `[limits]` key whose values cannot be compared is refused,
-    /// because nothing shows the set lowers it.
+    /// [`Self::set`] for code in a package's namespace
+    /// (`rule:security/package-authority-is-granted-one-line-at-a-time`). Every key outside
+    /// `limits.` is refused: the mode, `[http]`, `[log]` and every other block are the
+    /// application's. A `[limits]` key may move down and never up, whatever ceiling the
+    /// application may raise it to. The bound is the value in force, or the key's default where
+    /// nothing set it. A limit with neither is unbounded, so any value lowers it. A `[limits]` key
+    /// whose values cannot be compared is refused, because nothing shows the set lowers it.
+    ///
+    /// The first time a package sets a key, the application's value under it is kept, for
+    /// [`restore_as_package`](Self::restore_as_package).
     pub fn set_as_package(&mut self, name: &str, value: &str) -> bool {
         let key = canonical(name);
-        if key.starts_with("limits.") {
-            let current = self
-                .in_force(key)
-                .or_else(|| self.default_of(key).map(Setting::Text));
-            if let Some(current) = current
-                && !matches!(
-                    value::within_ceiling(key, &Setting::Text(value.to_string()), &current),
-                    Ok(Some(true))
-                )
-            {
-                return false;
-            }
+        if !key.starts_with("limits.") {
+            return false;
         }
-        self.set(name, value)
+        let current = self
+            .in_force(key)
+            .or_else(|| self.default_of(key).map(Setting::Text));
+        if let Some(current) = current
+            && !matches!(
+                value::within_ceiling(key, &Setting::Text(value.to_string()), &current),
+                Ok(Some(true))
+            )
+        {
+            return false;
+        }
+        let kept = self.overlay.get(key).cloned();
+        if !self.set_checked(name, value) {
+            return false;
+        }
+        self.package_set.entry(key.to_string()).or_insert(kept);
+        true
     }
 
     /// `rule:config/a-program-may-read-and-flip-its-mode`'s mode flip: the mode this request runs in, and `rule:config/a-mode-is-five-defaults`'s five defaults with it.
@@ -560,8 +599,30 @@ impl Request {
     /// `Core\Config::restore`: drops what this request set for `name`, leaving the file's value in
     /// force again, or the built-in default where the file writes none. A name this request never
     /// set is not an error — there is nothing to undo and nothing to report.
+    ///
+    /// This is the application's `restore`, so it drops a package's entry too.
     pub fn restore(&mut self, name: &str) {
-        self.overlay.remove(canonical(name));
+        let key = canonical(name);
+        self.overlay.remove(key);
+        self.package_set.remove(key);
+    }
+
+    /// [`Self::restore`] for code in a package's namespace
+    /// (`rule:security/package-authority-is-granted-one-line-at-a-time`). It undoes only what a
+    /// package set: the value the application had set under it is in force again, or the file's
+    /// value where the application set none. A key no package set is left as it is, so a package
+    /// never removes a value the application set.
+    pub fn restore_as_package(&mut self, name: &str) {
+        let key = canonical(name);
+        match self.package_set.remove(key) {
+            Some(Some(application)) => {
+                self.overlay.insert(key.to_string(), application);
+            }
+            Some(None) => {
+                self.overlay.remove(key);
+            }
+            None => {}
+        }
     }
 
     /// `Core\Config::all`: every directive in force for this request, by dotted name — the
@@ -744,5 +805,114 @@ fn flatten(table: &toml::Table, prefix: &str, out: &mut BTreeMap<String, String>
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::{Request, keys};
+    use crate::snapshot::Snapshot;
+
+    /// A request over the snapshot `written` configures, with the table and the typed tree built
+    /// from the one text, so the `[limits.hard]` ceiling bounds what it should.
+    fn request(written: &str) -> Request {
+        let table: toml::Table = written.parse().expect("the fixture is valid TOML");
+        let config = toml::Value::Table(table.clone())
+            .try_into()
+            .expect("the fixture deserializes into the tree it is written for");
+        Request::new(Arc::new(Snapshot {
+            config,
+            table,
+            ..Snapshot::default()
+        }))
+    }
+
+    /// `rule:security/package-authority-is-granted-one-line-at-a-time`: a package's `set` is
+    /// refused for every key outside `limits.`, whatever the value. Each key is tried with the
+    /// value in force and with `false` and `0`, which the application's own `set` takes for many
+    /// keys, so a refusal here is the package's and not the value's.
+    #[test]
+    fn a_package_sets_no_key_outside_limits() {
+        let mut accepted_by_the_application = 0;
+        for key in keys().iter().filter(|key| !key.starts_with("limits.")) {
+            let fresh = request("");
+            let mut values = vec!["false".to_string(), "0".to_string()];
+            values.extend(fresh.get(key));
+            for value in &values {
+                let mut application = fresh.clone();
+                if application.set(key, value) {
+                    accepted_by_the_application += 1;
+                }
+                let mut package = fresh.clone();
+                assert!(
+                    !package.set_as_package(key, value),
+                    "a package set `{key}` to `{value}`"
+                );
+                assert_eq!(
+                    package.get(key),
+                    fresh.get(key),
+                    "a refused set moved `{key}`"
+                );
+            }
+        }
+        assert!(
+            accepted_by_the_application > 0,
+            "the application's own `set` took none of the values, so the refusals prove nothing"
+        );
+    }
+
+    /// A package's `restore` undoes only what a package set. A limit the application lowered
+    /// and no package touched stays, and a package's own entry is dropped, so the file's value
+    /// is in force again.
+    #[test]
+    fn a_package_restores_only_what_a_package_set() {
+        let mut request = request("[limits]\nmemory = \"256M\"\nwall_time = \"30s\"\n");
+        assert!(request.set("memory", "128M"));
+        request.restore_as_package("memory");
+        assert_eq!(
+            request.get("memory").as_deref(),
+            Some("128M"),
+            "a package's restore removed the application's value"
+        );
+
+        assert!(request.set_as_package("wall_time", "10s"));
+        assert_eq!(request.get("wall_time").as_deref(), Some("10s"));
+        request.restore_as_package("limits.wall_time");
+        assert_eq!(
+            request.get("wall_time").as_deref(),
+            Some("30s"),
+            "a package's restore did not drop its own entry"
+        );
+    }
+
+    /// When a package lowers a limit the application also set, the application's value comes
+    /// back on the package's `restore`. Once the application sets the key again, the entry is
+    /// its own, and a package's `restore` leaves it.
+    #[test]
+    fn a_package_restore_returns_to_the_applications_value() {
+        let mut request = request("[limits]\nmemory = \"256M\"\n");
+        assert!(request.set("memory", "192M"));
+        assert!(request.set_as_package("memory", "128M"));
+        assert!(request.set_as_package("memory", "64M"));
+        request.restore_as_package("memory");
+        assert_eq!(
+            request.get("memory").as_deref(),
+            Some("192M"),
+            "a package's restore did not return to the application's value"
+        );
+
+        assert!(request.set_as_package("memory", "128M"));
+        assert!(request.set("memory", "96M"));
+        request.restore_as_package("memory");
+        assert_eq!(
+            request.get("memory").as_deref(),
+            Some("96M"),
+            "a package's restore undid a value the application set after it"
+        );
+
+        request.restore("memory");
+        assert_eq!(request.get("memory").as_deref(), Some("256M"));
     }
 }

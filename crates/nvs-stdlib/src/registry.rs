@@ -3974,6 +3974,7 @@ pub const PREPARED_MEMBERS: &[(&str, &str)] = &[
     (crate::time::TIME_NAME, "parse"),
     (crate::config::NAME, "get"),
     (crate::config::NAME, "set"),
+    (crate::config::NAME, "restore"),
     (crate::cap::NAME, "has"),
     // `OWN_FILE_READS`, each handed the own-file word of its literal path.
     (crate::io::NAME, "read"),

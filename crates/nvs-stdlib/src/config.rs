@@ -52,16 +52,19 @@
 //! `get` holds itself. **What it spends:** one walk of the secret rows per
 //! call, and no memory.
 //!
-//! # A package may lower a limit and never raise one
+//! # A package lowers its own limits and restores only what a package set
 //!
-//! `rule:security/package-authority-is-granted-one-line-at-a-time` holds a
-//! `set` written in a package's namespace below the value in force for every
-//! `[limits]` key. Which namespace a call is in is known only while compiling,
-//! so the checker hands a `set` written in the application's own code
-//! [`PREPARED_APPLICATION`] as its argument 0, and every other call reaches
-//! `nvs_config::Request::set_as_package`. A method reference carries no word,
-//! so it can only lower, wherever it was written: the rule fails closed.
-//! **What it spends:** one integer compare per call, and no memory.
+//! `rule:security/package-authority-is-granted-one-line-at-a-time` lets a
+//! `set` written in a package's namespace change a `[limits]` key alone, and
+//! only below the value in force. Its `restore` undoes only what a package
+//! set, and never a value the application set. Which namespace a call is in
+//! is known only while compiling, so the checker hands a `set` or a `restore`
+//! written in the application's own code [`PREPARED_APPLICATION`] as its
+//! argument 0. Every other call reaches `nvs_config::Request::set_as_package`
+//! or `restore_as_package`, whose doc says what each keeps. A method reference
+//! carries no word, so it acts as a package's call wherever it was written:
+//! the rule fails closed. **What it spends:** one integer compare per call,
+//! and the request's overlay keeps one optional value per key a package set.
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
@@ -80,10 +83,11 @@ pub(crate) const NAME: &str = "Core\\Config";
 pub const PREPARED_SECRET: i64 = 4;
 
 /// The word `crate::registry::PREPARED_MEMBERS`' argument 0 carries when a
-/// `set` call is written in the application's own code: a namespace no
-/// `[grants]` line matches. Any other word, a method reference's included,
-/// reaches `set` as a package's call, which may lower a limit and never raise
-/// one. Minted from the same space as [`PREPARED_SECRET`].
+/// `set` or `restore` call is written in the application's own code: a
+/// namespace no `[grants]` line matches. Any other word, a method reference's
+/// included, reaches the member as a package's call, which may lower a limit
+/// and never raise one, and restores only what a package set. Minted from the
+/// same space as [`PREPARED_SECRET`].
 pub const PREPARED_APPLICATION: i64 = 5;
 
 /// What `Core\Config::setting` returns when a block sets the name: each type a
@@ -385,10 +389,19 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Config::restore(string $name): void` — replacing `ini_restore`.
-    fn nvs_core_config_restore(ctx, args: [1]) {
-        let name = text(&args[0], "restore")?.to_string();
+    ///
+    /// Argument 0 is the prepared word. Without [`PREPARED_APPLICATION`] the
+    /// call is a package's, and it undoes only what a package set
+    /// (`rule:security/package-authority-is-granted-one-line-at-a-time`).
+    fn nvs_core_config_restore(ctx, args: [2]) {
+        let application = args[0].as_int() == Some(PREPARED_APPLICATION);
+        let name = text(&args[1], "restore")?.to_string();
         if let Some(config) = ctx.config_mut() {
-            config.restore(&name);
+            if application {
+                config.restore(&name);
+            } else {
+                config.restore_as_package(&name);
+            }
         }
         ctx.refresh_limits_at_run_time();
         Ok(Value::null())
@@ -580,11 +593,23 @@ mod tests {
         answered.as_bool().expect("`set` answers a bool")
     }
 
-    /// `Core\Config::restore` for one name.
+    /// `Core\Config::restore` for one name, called from the application's own
+    /// code.
     fn restore(ctx: &mut Ctx, name: &str) {
+        restore_with(ctx, PREPARED_APPLICATION, name);
+    }
+
+    /// `Core\Config::restore` called from a package's namespace, which
+    /// lowering hands the absent word.
+    fn restore_from_package(ctx: &mut Ctx, name: &str) {
+        restore_with(ctx, crate::regex::PREPARED_NONE, name);
+    }
+
+    /// `Core\Config::restore` with `word` as its argument 0.
+    fn restore_with(ctx: &mut Ctx, word: i64, name: &str) {
         let argument = text(name);
-        let answered =
-            call(nvs_core_config_restore, ctx, &[argument]).expect("`restore` refuses nothing");
+        let answered = call(nvs_core_config_restore, ctx, &[Value::int(word), argument])
+            .expect("`restore` refuses nothing");
         #[expect(
             unsafe_code,
             reason = "this frame owns the argument it built, and the answer is \
@@ -875,6 +900,22 @@ mod tests {
         assert!(
             set_from_package(&mut command, "limits.memory", "1G"),
             "a package could not lower a limit the application raised"
+        );
+        assert!(
+            !set_from_package(&mut command, "log.level", "debug"),
+            "a package set a key outside `[limits]`"
+        );
+        restore_from_package(&mut command, "memory");
+        assert_eq!(
+            get(&mut command, "memory").as_deref(),
+            Some("2G"),
+            "a package's restore did not return to the application's value"
+        );
+        restore_from_package(&mut command, "memory");
+        assert_eq!(
+            get(&mut command, "memory").as_deref(),
+            Some("2G"),
+            "a package's restore removed the application's value"
         );
     }
 

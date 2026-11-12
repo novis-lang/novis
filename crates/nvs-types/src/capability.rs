@@ -162,17 +162,19 @@ pub(crate) fn reject_unknown_capability(
     );
 }
 
-/// Files [`PreparedFact::ApplicationSet`] for a `Core\Config::set` written in
-/// the application's own code: a namespace no `[grants]` line matches, or the
-/// global namespace.
+/// Files [`PreparedFact::ApplicationSet`] for a `Core\Config::set` or
+/// `restore` written in the application's own code, as [`authority_of`]
+/// decides it.
 ///
-/// A package may lower a limit and never raise one
-/// (`rule:security/package-authority-is-granted-one-line-at-a-time`), and the
+/// A package sets a `[limits]` key alone, lowers it and never raises it, and
+/// restores only what a package set
+/// (`rule:security/package-authority-is-granted-one-line-at-a-time`). The
 /// member cannot see its caller's namespace. So the fact is the word that lets
-/// a `set` raise, and a call without it may only lower. A method reference
-/// lowers to a thunk that carries no word, so it can only lower wherever it
-/// was written. Cost: two segment compares per static call named `set`, and
-/// one table lookup for a `Core\Config::set`, while compiling.
+/// a call act as the application's, and a call without it acts as a
+/// package's. A method reference lowers to a thunk that carries no word, so it
+/// acts as a package's wherever it was written. Cost: two segment compares per
+/// static call named `set` or `restore`, and one table lookup for a
+/// `Core\Config` one, while compiling.
 pub(crate) fn prepare_config_set(
     owner: &QName,
     member: &str,
@@ -180,7 +182,7 @@ pub(crate) fn prepare_config_set(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
-    if member != "set" || owner.segments() != ["Core", "Config"] {
+    if !matches!(member, "set" | "restore") || owner.segments() != ["Core", "Config"] {
         return;
     }
     if matches!(authority_of(ctx, env), Authority::Application) {
