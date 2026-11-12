@@ -18,7 +18,7 @@ stages:
     context: [apps/registry/src/App.nvs, apps/registry/src/Releases.nvs, apps/registry/src/Events.nvs, apps/registry/src/AdvisoriesTest.nvs]
   - id: 4
     title: "the package page, the attack and the pages a user reads show the wait and the cancel"
-    status: open
+    status: done
     context: [apps/registry/src/PackagePage.nvs, apps/registry/public/registry.js, tests/hostile/README.md, docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md]
   - id: 5
     title: every command but a locked build refuses a signed file older than seven days
@@ -459,10 +459,10 @@ and bring the attack, the descriptions and the rules to the new behaviour. Gate:
 the reference page. Their files are disjoint from the session's, which writes the page, the script and
 the tests. Neither subagent builds.
 
-- [ ] `PackagePage::advisories` lists a retraction from its time and an advisory from its time, and
+- [x] `PackagePage::advisories` lists a retraction from its time and an advisory from its time, and
   never a cancelled advisory (`rule:packaging/search-sorts-by-the-readers-choice`,
   `apps/registry/src/PackagePage.nvs:402`, `apps/registry/src/PackagePage.nvs:412`).
-- [ ] `PackagePage::waiting`, shown to an owner above the forms of `manage`
+- [x] `PackagePage::waiting`, shown to an owner above the forms of `manage`
   (`apps/registry/src/PackagePage.nvs:133`). Its text:
   `<h2>Waiting changes</h2>` and `A retraction or an advisory that was sent with a token waits seven
   days. You can cancel it before it starts. After that, it is in the public log and cannot be
@@ -470,27 +470,27 @@ the tests. Neither subagent builds.
   `The advisory <id> about the versions <range> starts on 2026-06-22. <summary>`, with a form
   `data-action="cancel"` whose button says `Cancel the retraction` or `Cancel the advisory`. The part
   is left out when nothing waits. The class comment names the part.
-- [ ] The step `cancel` in `registry.js` sends the route through `withPasskey`
+- [x] The step `cancel` in `registry.js` sends the route through `withPasskey`
   (`apps/registry/public/registry.js:221`).
-- [ ] Test `onlyAnOwnerSeesAWaitingRetractionOrAdvisory` in `apps/registry/src/PackagePageTest.nvs:187`:
+- [x] Test `onlyAnOwnerSeesAWaitingRetractionOrAdvisory` in `apps/registry/src/PackagePageTest.nvs:187`:
   an owner's page has both rows and both forms, a visitor's page has neither text, and after seven
   days the visitor's page lists both.
-- [ ] A case `an owner cancels a waiting retraction` in the browser suite, after the retract case
+- [x] A case `an owner cancels a waiting retraction` in the browser suite, after the retract case
   (`tools/nv/test/registry-browser.test.ts:605`). CI's browser job and `bun nv deep` run that suite,
   and this stage does not.
-- [ ] Attack `tests/hostile/tools/packages/nvs-pkg-retract-and-nvs-pkg-unlist/02-a-retraction-that-enters-the-log-early.nvs:1`,
+- [x] Attack `tests/hostile/tools/packages/nvs-pkg-retract-and-nvs-pkg-unlist/02-a-retraction-that-enters-the-log-early.nvs:1`,
   as the standing decision describes, with one line above each numbered step.
-- [ ] Attack `tests/hostile/tools/packages/nvs-pkg-retract-and-nvs-pkg-unlist/01-a-retraction-by-token-alone.nvs:103`
+- [x] Attack `tests/hostile/tools/packages/nvs-pkg-retract-and-nvs-pkg-unlist/01-a-retraction-by-token-alone.nvs:103`
   gains two steps in its model: a token cancels a waiting retraction, and the token of an account with
   no activity for 61 days retracts. Both are stopped.
-- [ ] `docs/examples/tools/packages/nvs-pkg-retract-and-nvs-pkg-unlist/about.md:12` and
+- [x] `docs/examples/tools/packages/nvs-pkg-retract-and-nvs-pkg-unlist/about.md:12` and
   `docs/examples/tools/packages/nvs-pkg-advise/about.md:9` say that an owner can cancel it on the
   website before the seven days end. `docs/examples/tools/packages/the-registry-website/about.md:11`
   names the waiting changes among what an owner sees.
-- [ ] `docs/reference/tools/35-packages.md:713` and `docs/reference/tools/35-packages.md:758` say the
+- [x] `docs/reference/tools/35-packages.md:713` and `docs/reference/tools/35-packages.md:758` say the
   same for `nvs pkg retract` and `nvs pkg advise`, and the website part says what an owner sees
   (`docs/reference/tools/35-packages.md:826`). Then `bun nv render --website`.
-- [ ] Rule fragments: `rule:packaging/a-known-bad-version-is-retracted-not-deleted` states the cancel
+- [x] Rule fragments: `rule:packaging/a-known-bad-version-is-retracted-not-deleted` states the cancel
   route, who may call it, that a token cannot, that a cancel is a notice and no log entry, and that a
   cancelled advisory keeps its id. Its Declined list gains the cancel by token and the `cancel` entry
   kind (`docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:5`,
@@ -499,7 +499,7 @@ the tests. Neither subagent builds.
   part beside the "Release now" button
   (`docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md:50`). Then
   `bun nv rules --render`.
-- [ ] `bun nv proofs --comments` over the two attack files and the three `about.md` files, and every
+- [x] `bun nv proofs --comments` over the two attack files and the three `about.md` files, and every
   line it names is written again from what the code does.
 
 ### 5. every command but a locked build refuses a signed file older than seven days
@@ -566,46 +566,38 @@ message, and leave only a locked fetch outside the bound.
 
 ### State
 
-Stages 1 to 3 are done, each stage's checks passing, run once by name. Waiting retractions and
-advisories sit in `events` with `due`; `Tokens::standing` (`apps/registry/src/Tokens.nvs:97`)
-stops a lapsed account's token.
+Stages 1 to 4 are done, each stage's checks passing, run once by name. The service lane is finished.
 
-Stage 3: `Releases::cancelRetraction` and `cancelAdvisory` (`apps/registry/src/Releases.nvs:248`,
-`:272`) start with `delete from events where due > now and id = <its event>`, so a passkey
-retraction (`due` = now) is never cancelled. `App::cancel` (`apps/registry/src/App.nvs:984`) tells
-`409` from `404` with `isRetracted` and `hasAdvisory`, and its advisory rows reuse the table's
-sentences with "advisory". `CancelRequest` needs constructor defaults `= null`: a `?` type alone
-still makes `decodeAs` require the key. The token answers, `package_retract.rs`'s stub, the two
-quoted lines in `35-packages.md` and the rule fragment name the cancel. `aTokenCancelsNothing` gets
-its session `403` from a signed-in visitor who is not an owner.
+Stage 4: `PackagePage::waiting` (`apps/registry/src/PackagePage.nvs:137`) shows an owner each
+retraction with `retracted_at` later than now and each advisory with `shows_at` later than now and
+`cancelled_at` null, each with a `data-action="cancel"` form. `advisories` lists both only from
+their time and never a cancelled advisory. The step `cancel` in `apps/registry/public/registry.js`
+sends `{"version"}` or `{"advisory"}` by `data-advisory`. The browser case `an owner cancels a
+waiting retraction` uses a new job `retract.nvs` in the suite's job map; it was not run (CI's browser
+job and `bun nv deep` run it). Attack `02-a-retraction-that-enters-the-log-early.nvs` loads the real
+application with `autoload 'Registry' from '../../../../../apps/registry/src'`, the form the
+`tests/hostile/package/` attacks use, and ran clean on the release binary. Attack `01` gained the
+61-day token as step 1 and the token cancel as step 10.
 
-The sweep's reds are stale. `env-secret-proofs` belonged to the retired `package-authority-closed`
-and has no check or log now. Nightly 43001191130 failed only
-`a_changed_server_timeout_applies_to_the_next_connection`, which `305c04f660` rewrote later.
+The sweep's reds are stale, as the last handoff said: `env-secret-proofs` has no check now, and
+nightly 43001191130 is the run already traced to a test `305c04f660` rewrote.
 
 ### Next
 
-Stage 4, the page and the words, over `apps/registry/src/PackagePage.nvs`, `PackagePageTest.nvs`,
-`apps/registry/public/registry.js`, the attacks, the `about.md` files, the reference page and the rule
-fragments. Its gate (stage 3) is met. Follow its `**Split:**` line. Stage 5 (the client lane) may run
-beside it.
+Stage 5, the client lane, over `crates/nvs-cli/src/package/`, `crates/nvs-cli/src/registry.rs`,
+`crates/nvs-cli/tests/package_client.rs`, `package_audit.rs` and
+`docs/rules/packaging/the-registry-keeps-an-append-only-log.md`. Its items in the stage list carry the
+anchors. Stage 4 already edited `docs/reference/tools/35-packages.md` (the retract, advise and website
+parts), so stage 5 edits its signed-files part (`:522`) and audit part (about `:795` now).
 
-- [ ] `apps/registry/src/PackagePage.nvs:389`: `advisories` lists a retraction and an advisory from
-  their time, and skips `cancelled_at is not null`.
-- [ ] `PackagePage::waiting` above `manage` (`apps/registry/src/PackagePage.nvs:133`), and the step
-  `cancel` in `apps/registry/public/registry.js:221` through `withPasskey`. The route's body is
-  `{"version": ...}` or `{"advisory": ...}`.
-- [ ] `apps/registry/src/PackagePageTest.nvs:187`: `onlyAnOwnerSeesAWaitingRetractionOrAdvisory`,
-  then `looper check --name the-page-shows-the-wait-to-owners` once.
-- [ ] The browser case in `tools/nv/test/registry-browser.test.ts:605` (not run by the stage).
-- [ ] Subagents: the two attacks; the three `about.md` and `docs/reference/tools/35-packages.md:713`,
-  `:758`, `:826`. The two token messages there already name the cancel.
-- [ ] `docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:72`: the Declined list
-  gains the cancel by token and the `cancel` entry kind (the cancel itself is stated at `:9`), and
-  `a-release-waits-seven-days-unless-an-owner-confirms.md:50` names *Waiting changes*. Then
-  `bun nv rules --render` and `bun nv render --website`.
+- [ ] The `Stamp` age function and `Registry::checked` (`crates/nvs-cli/src/package/index.rs:262`, `:645`).
+- [ ] `Registries` holds the bound, `from_the_lock` clears it, `selecting` goes (`crates/nvs-cli/src/package/resolve.rs:154`).
+- [ ] `Seen::advisories` (`crates/nvs-cli/src/package/proof.rs:225`) and `--at` on `nvs registry log advisories`.
+- [ ] The three tests the stage names, each run once by name (`crates/nvs-cli/src/package/index.rs:982`,
+  `crates/nvs-cli/tests/package_client.rs:732`, `crates/nvs-cli/tests/package_audit.rs:467`), then the attack and the words.
 
-Expected red until stage 4 lands: none.
+Expected red until stage 5 lands: none. Stage 5 replaces `an_old_index_file_is_refused_only_for_selecting`
+and `an_old_index_file_is_refused_for_add_and_read_for_a_locked_fetch` with its own tests.
 
 ### Backlog
 
