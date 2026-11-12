@@ -10,10 +10,12 @@ with `nvsreg_`, and is stored by the registry only as a hash.
 
 Creating and revoking a token are log entries (`rule:packaging/the-registry-keeps-an-append-only-log`),
 and every owner is notified of a new one (`rule:packaging/an-owner-is-notified-without-email`). A token
-only publishes: a release it sends waits seven days
-(`rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`), and using it never keeps the
-account active (`rule:packaging/an-account-stays-active-by-proof-not-by-token`). Everything that changes
-ownership, the repository binding or a listing needs a passkey.
+sends three things: a release, a retraction and an advisory. Each waits seven days
+(`rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`,
+`rule:packaging/a-known-bad-version-is-retracted-not-deleted`). Using it never keeps the account active,
+and a token of an account that lapsed or has no verified channel sends nothing
+(`rule:packaging/an-account-stays-active-by-proof-not-by-token`). Everything that changes ownership,
+the repository binding or a listing needs a passkey.
 
 **Declined:**
 - **A token that never expires.** A token copied into a forgotten CI system stays a publishing key for
@@ -25,6 +27,7 @@ registry's `GET /api/whoami`, and stores it under the data folder's `tokens/`, o
 can write. Both take `--registry`, the URL a `[registries]` line names, and `http:` only for a loopback
 host (`crates/nvs-cli/src/package/login.rs`). The service side is `apps/registry/src/Tokens.nvs`:
 making a token needs a passkey sign-in in the last 15 minutes, and a token stops when its account no
-longer owns the vendor. Creating and revoking a token each write a `token` log entry, which names the
-token's id and never the token, and notify the vendor's owners (`Events::token`,
+longer owns the vendor or is no longer active. `Tokens::allows` checks all of it, and every token use
+but `whoami` passes it, so `nvs pkg whoami` still names the account of a lapsed token.
+Creating and revoking a token each write a `token` log entry, which names the token's id and never the token, and notify the vendor's owners (`Events::token`,
 `apps/registry/src/Events.nvs`).

@@ -1,5 +1,5 @@
-An account must show activity within 60 days, or it can no longer publish; **token use never counts as
-activity**. The 60 days are fixed and are not a setting. The account's packages stay available, and its
+An account must show activity within 60 days, or none of its tokens does anything: it publishes,
+retracts and advises nothing. **Token use never counts as activity**. The 60 days are fixed and are not a setting. The account's packages stay available, and its
 releases are untouched.
 
 **Activity is one of two things:**
@@ -27,8 +27,10 @@ account needs the passkey itself.
 - **A period the owner sets.** The 60 days are a bound on how long a leaked token stays useful, and a
   bound that each owner can raise is not one.
 
-**On disk** in `apps/registry/src/Activity.nvs`. `accounts.active_at` is the last activity, and
-`Publish` refuses an account whose `active_at` is 60 days old. The owner picks the first reminder
+**On disk** in `apps/registry/src/Activity.nvs`. `accounts.active_at` is the last activity. `Tokens::standing` returns the
+refusal for an account whose `active_at` is 60 days old, or that has no verified channel, and
+`Tokens::allows`, which every token use but `whoami` passes, returns `null` for it. `Publish` answers
+`403` with that sentence before the build. **Cost:** two indexed reads per token request. The owner picks the first reminder
 from 7 to 59 quiet days (30 until they choose, `POST /api/account/reminders`), and an account that
 does not answer gets another every 7 days until it lapses. The daily job sends them through
 `Notices::tell`. Each reminder has a new one-time code, stored as a hash, that works until the account

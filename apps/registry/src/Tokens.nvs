@@ -94,14 +94,31 @@ final class Tokens
         return null;
     }
 
-    // Returns the token when it may publish this package, such as `Acme\Http`, and saves the time of its use.
-    // The token must be valid, its scope must be the package or its vendor, and its account must
-    // still own the vendor. A vendor that nobody owns yet is allowed, because the first publish
-    // takes it. Otherwise the result is `null`.
+    // Returns why the account of the token may not use a token now, or `null` when it may.
+    // The account must have shown activity in the last 60 days, and it must have a verified channel.
+    public function standing(Token $token): ?string
+    {
+        if (!new Activity($this->db)->isActive($token->account)) {
+            return 'This account had no activity in the last 60 days. Sign in on the website with a passkey, then publish again.';
+        }
+        if (!new Channels($this->db)->hasVerified($token->account)) {
+            return 'This account has no verified channel for messages. Add a push device or a webhook on the website, then publish again.';
+        }
+        return null;
+    }
+
+    // Returns the token when it may change this package, such as `Acme\Http`, and saves the time of its use.
+    // The token needs four things. It is valid, and its scope is the package or its vendor.
+    // Its account still owns the vendor. A vendor that nobody owns yet is allowed, because the
+    // first publish takes it. Its account is active and has a verified channel (`standing`).
+    // Otherwise the result is `null`.
     public function allows(?tainted string $presented, string $package): ?Token
     {
         ?Token $token = $this->find($presented);
         if ($token == null || !Tokens::covers($token->scope, $package)) {
+            return null;
+        }
+        if ($this->standing($token) != null) {
             return null;
         }
         string $vendor = Str::before($package, '\\') ?? $package;

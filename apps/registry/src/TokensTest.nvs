@@ -118,6 +118,53 @@ final class TokensTest
         Test::assertTrue($tokens->allows($token, $vendor . '\\Http') == null);
     }
 
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function aTokenOfALapsedAccountDoesNothing(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = TokensTest::make($browser, $vendor, 90);
+        IndexTest::publishWith($token, $vendor, '0.0.9');
+        string $package = $vendor . '\\Http';
+        string $base = '/api/packages/' . $vendor . '/http/';
+        var $tokens = new Tokens(Schema::open());
+        Test::assertTrue($tokens->allows($token, $package) != null);
+        // After 61 days without a passkey sign-in, the token does nothing.
+        Test::advance(Duration::days(61));
+        Test::assertTrue($tokens->allows($token, $package) == null);
+        string $retract = '{"version":"0.0.9","reason":"It deletes files.","fixedIn":""}';
+        string $advise = '{"versions":"0.0.1..0.1.0","summary":"It deletes files."}';
+        string $unlist = '{"version":"0.0.9"}';
+        // Each route answers as it does for a token that is not valid.
+        Test::assertSame(new BrowserTest()->send(Method::Post, $base . 'retract', $retract, $token)->status(), 401);
+        Test::assertSame(new BrowserTest()->send(Method::Post, $base . 'retract', $retract, 'nvsreg_wrong')->status(), 401);
+        Test::assertSame(new BrowserTest()->send(Method::Post, $base . 'advisory', $advise, $token)->status(), 401);
+        Test::assertSame(new BrowserTest()->send(Method::Post, $base . 'unlist', $unlist, $token)->status(), 403);
+        Test::assertSame(new BrowserTest()->send(Method::Post, $base . 'unlist', $unlist, 'nvsreg_wrong')->status(), 403);
+        foreach (Schema::open()->query('select retracted_at from release_states where package = ?', [Str::lower($package)]) as Row $row) {
+            Test::assertSame($row->int('retracted_at'), null);
+        }
+        // A sign-in with the passkey makes the token work again.
+        Test::assertSame($browser->signIn()->status(), 200);
+        Test::assertTrue($tokens->allows($token, $package) != null);
+    }
+
+    #[Test]
+    public function aTokenOfAnAccountWithNoVerifiedChannelDoesNothing(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = TokensTest::make($browser, $vendor, 30);
+        var $tokens = new Tokens(Schema::open());
+        Test::assertTrue($tokens->allows($token, $vendor . '\\Http') != null);
+        // The account loses its only channel, so the token does nothing.
+        ?Token $found = $tokens->find($token);
+        Test::assertTrue($found != null);
+        string $account = $found?->account ?? '';
+        Schema::open()->execute('delete from channels where account = ?', [$account]);
+        Test::assertTrue($tokens->allows($token, $vendor . '\\Http') == null);
+    }
+
     // Makes a token in the browser's account and returns it.
     private static function make(BrowserTest $browser, string $scope, int $days): tainted string
     {

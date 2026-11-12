@@ -1758,8 +1758,8 @@ requests outside SQLite.
 
 `rule:packaging/an-account-stays-active-by-proof-not-by-token`
 
-An account must show activity within 60 days, or it can no longer publish; **token use never counts as
-activity**. The 60 days are fixed and are not a setting. The account's packages stay available, and its
+An account must show activity within 60 days, or none of its tokens does anything: it publishes,
+retracts and advises nothing. **Token use never counts as activity**. The 60 days are fixed and are not a setting. The account's packages stay available, and its
 releases are untouched.
 
 **Activity is one of two things:**
@@ -1787,8 +1787,10 @@ account needs the passkey itself.
 - **A period the owner sets.** The 60 days are a bound on how long a leaked token stays useful, and a
   bound that each owner can raise is not one.
 
-**On disk** in `apps/registry/src/Activity.nvs`. `accounts.active_at` is the last activity, and
-`Publish` refuses an account whose `active_at` is 60 days old. The owner picks the first reminder
+**On disk** in `apps/registry/src/Activity.nvs`. `accounts.active_at` is the last activity. `Tokens::standing` returns the
+refusal for an account whose `active_at` is 60 days old, or that has no verified channel, and
+`Tokens::allows`, which every token use but `whoami` passes, returns `null` for it. `Publish` answers
+`403` with that sentence before the build. **Cost:** two indexed reads per token request. The owner picks the first reminder
 from 7 to 59 quiet days (30 until they choose, `POST /api/account/reminders`), and an account that
 does not answer gets another every 7 days until it lapses. The daily job sends them through
 `Notices::tell`. Each reminder has a new one-time code, stored as a hash, that works until the account
@@ -1887,10 +1889,12 @@ with `nvsreg_`, and is stored by the registry only as a hash.
 
 Creating and revoking a token are log entries ([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)),
 and every owner is notified of a new one ([`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email)). A token
-only publishes: a release it sends waits seven days
-([`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms)), and using it never keeps the
-account active ([`packaging/an-account-stays-active-by-proof-not-by-token`](packaging.md#packaging-an-account-stays-active-by-proof-not-by-token)). Everything that changes
-ownership, the repository binding or a listing needs a passkey.
+sends three things: a release, a retraction and an advisory. Each waits seven days
+([`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms),
+[`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted)). Using it never keeps the account active,
+and a token of an account that lapsed or has no verified channel sends nothing
+([`packaging/an-account-stays-active-by-proof-not-by-token`](packaging.md#packaging-an-account-stays-active-by-proof-not-by-token)). Everything that changes ownership,
+the repository binding or a listing needs a passkey.
 
 **Declined:**
 - **A token that never expires.** A token copied into a forgotten CI system stays a publishing key for
@@ -1902,8 +1906,9 @@ registry's `GET /api/whoami`, and stores it under the data folder's `tokens/`, o
 can write. Both take `--registry`, the URL a `[registries]` line names, and `http:` only for a loopback
 host (`crates/nvs-cli/src/package/login.rs`). The service side is `apps/registry/src/Tokens.nvs`:
 making a token needs a passkey sign-in in the last 15 minutes, and a token stops when its account no
-longer owns the vendor. Creating and revoking a token each write a `token` log entry, which names the
-token's id and never the token, and notify the vendor's owners (`Events::token`,
+longer owns the vendor or is no longer active. `Tokens::allows` checks all of it, and every token use
+but `whoami` passes it, so `nvs pkg whoami` still names the account of a lapsed token.
+Creating and revoking a token each write a `token` log entry, which names the token's id and never the token, and notify the vendor's owners (`Events::token`,
 `apps/registry/src/Events.nvs`).
 
 <sub>See also [`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms), [`packaging/an-account-stays-active-by-proof-not-by-token`](packaging.md#packaging-an-account-stays-active-by-proof-not-by-token), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary).</sub>
