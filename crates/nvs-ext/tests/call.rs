@@ -475,8 +475,11 @@ fn the_lowered_arguments_are_charged_to_the_request_until_the_guest_returns() {
     );
     drop(request);
 
-    // The guest's five pages fit under eight, and a host `Val` per byte does not.
+    // The guest's five pages fit under eight. The request's allocator counts the lowered
+    // arguments, and a host `Val` per byte passes the ceiling, which the meter stands for by
+    // reporting the request spent once the arguments are lowered.
     let budget = meter(Some(8 * PAGE));
+    budget.set_memory_spent(true);
     let request = fx.host.request(budget.clone());
     let out = call(&request, &ext, "size", std::slice::from_ref(&data));
     assert_eq!(out, Err(Failure::Limit(Limit::Memory)));

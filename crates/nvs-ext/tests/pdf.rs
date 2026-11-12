@@ -694,6 +694,15 @@ fn report(rows: usize) -> String {
 /// takes over two minutes of wall time when every test binary runs beside it, and the meter's
 /// deadline is wall time.
 fn render_report(memory: Option<u64>) -> (Result<(Vec<u8>, u64), Failure>, u64) {
+    render_report_spent_after(memory, u64::MAX)
+}
+
+/// [`render_report`] with a meter that reports the request spent after `asks` questions, as the
+/// request's allocator does once what it counts passes the ceiling. `u64::MAX` is never.
+fn render_report_spent_after(
+    memory: Option<u64>,
+    asks: u64,
+) -> (Result<(Vec<u8>, u64), Failure>, u64) {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let builtins = Loader::new(host.engine())
         .builtins()
@@ -702,6 +711,7 @@ fn render_report(memory: Option<u64>) -> (Result<(Vec<u8>, u64), Failure>, u64) 
         .extension()
         .expect("the PDF component compiles and checks");
     let meter = Arc::new(Meter::new(Duration::from_secs(3600), memory));
+    meter.set_memory_spent_after(asks);
     let request = host.request(meter.clone());
     let out = render(&request, extension, &report(8400), &[]);
     (out, meter.charged())
@@ -716,11 +726,12 @@ fn a_200_page_report_crosses_under_the_requests_memory() {
 
 #[test]
 fn a_result_the_request_cannot_afford_reaches_the_memory_limit() {
-    // The guest and the HTML fit in this budget, and the result's 4 MiB do not.
+    // The guest and the HTML fit in this budget, and the result's 4 MiB do not. The request's
+    // allocator counts the result, so the meter reports the request spent once the HTML is lowered.
     let (out, guest) = render_report(None);
     let (data, _) = out.expect("it renders");
     let budget = guest + report(8400).len() as u64 + data.len() as u64 / 2;
-    match render_report(Some(budget)).0 {
+    match render_report_spent_after(Some(budget), 1).0 {
         Err(Failure::Limit(Limit::Memory)) => {}
         other => panic!("the render did not reach the memory limit: {other:?}"),
     }

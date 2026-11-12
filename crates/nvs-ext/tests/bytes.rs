@@ -334,7 +334,9 @@ fn a_core_record_keeps_its_byte_list() {
 fn a_result_past_the_budget_stops_at_the_memory_limit() {
     let (host, extension) = fixture();
     let meter = Arc::new(Meter::new(Duration::from_secs(30), Some(1 << 20)));
-    // 64 parts of 32 KiB are 2 MiB, twice what the request may hold.
+    // 64 parts of 32 KiB are 2 MiB, twice what the request may hold. The request's allocator
+    // counts the parts, so the meter reports the request spent once the arguments are lowered.
+    meter.set_memory_spent_after(1);
     let out = call(&host, &meter, &extension, "repeat", vec![Value::Int(64)]);
     assert!(
         matches!(out, Err(Failure::Limit(Limit::Memory))),
