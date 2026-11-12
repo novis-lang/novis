@@ -219,9 +219,10 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             Some(crate::ir::Prepared::OwnFile(word)) => format!("prepared io.own-file {word:#x}"),
             None => "prepared none".to_owned(),
         },
-        InstKind::QuerySiteConst { site } => match site {
-            Some(span) => format!("query.site @{}", fmt_span(*span, src)),
-            None => "query.site none".to_owned(),
+        InstKind::QuerySiteConst { site, plain_binds } => match (site, plain_binds) {
+            (Some(span), true) => format!("query.site @{} plain", fmt_span(*span, src)),
+            (Some(span), false) => format!("query.site @{}", fmt_span(*span, src)),
+            (None, _) => "query.site none".to_owned(),
         },
         InstKind::SourceConst { source } => match source {
             Some(source) => match &source.member {

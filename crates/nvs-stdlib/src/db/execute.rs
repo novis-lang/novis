@@ -438,7 +438,7 @@ pub(super) fn queried_rows(
     named: &str,
     site: Value,
 ) -> Result<Answered, Fault> {
-    let statement = statement_of(ctx, args, member, named)?;
+    let statement = statement_of(ctx, args, member, named)?.at(site);
     // Read before the connection is in hand, because the refusal for a
     // nonsensical duration is the caller's mistake and owes no round trip.
     let deadline = statement_deadline(args, named)?;
@@ -592,7 +592,7 @@ pub(super) fn postgres_rows(
             named,
             &statement.block,
             source,
-            statement.binds.bound(),
+            statement.withholds_text(),
             &refused,
         )
     })?;
@@ -609,7 +609,7 @@ pub(super) fn postgres_rows(
                 named,
                 &statement.block,
                 source,
-                statement.binds.bound(),
+                statement.withholds_text(),
                 &refused,
             )
         })?
@@ -626,7 +626,7 @@ pub(super) fn postgres_rows(
                     named,
                     &statement.block,
                     source,
-                    statement.binds.bound(),
+                    statement.withholds_text(),
                     &refused,
                 )
             })?;
@@ -635,7 +635,7 @@ pub(super) fn postgres_rows(
                     named,
                     &statement.block,
                     source,
-                    statement.binds.bound(),
+                    statement.withholds_text(),
                     &refused,
                 )
             })?;
@@ -866,7 +866,7 @@ pub(super) fn mysql_rows(
             named,
             &statement.block,
             source,
-            statement.binds.bound(),
+            statement.withholds_text(),
             &refused,
         )
     })?;
@@ -881,7 +881,7 @@ pub(super) fn mysql_rows(
         named,
         &statement.block,
         source,
-        statement.binds.bound(),
+        statement.withholds_text(),
     )?;
     let columns = answered.columns().to_vec();
 
@@ -891,7 +891,7 @@ pub(super) fn mysql_rows(
             named,
             &statement.block,
             source,
-            statement.binds.bound(),
+            statement.withholds_text(),
             &refused,
         )
     })? {
@@ -913,7 +913,7 @@ pub(super) fn mysql_rows(
                     named,
                     &statement.block,
                     source,
-                    statement.binds.bound(),
+                    statement.withholds_text(),
                     &refused,
                 )
             })?;
@@ -925,7 +925,7 @@ pub(super) fn mysql_rows(
                     named,
                     &statement.block,
                     source,
-                    statement.binds.bound(),
+                    statement.withholds_text(),
                     &refused,
                 )
             })?;
@@ -983,7 +983,7 @@ pub(super) fn tds_rows(
             named,
             &statement.block,
             source,
-            statement.binds.bound(),
+            statement.withholds_text(),
             &refused,
         )
     })?;
@@ -999,7 +999,7 @@ pub(super) fn tds_rows(
             named,
             &statement.block,
             source,
-            statement.binds.bound(),
+            statement.withholds_text(),
             &refused,
         )
     })? {
@@ -1020,7 +1020,7 @@ pub(super) fn tds_rows(
                     named,
                     &statement.block,
                     source,
-                    statement.binds.bound(),
+                    statement.withholds_text(),
                     &refused,
                 )
             })?;
@@ -1068,7 +1068,7 @@ pub(super) fn postgres_write(
             named,
             &statement.block,
             source,
-            statement.binds.bound(),
+            statement.withholds_text(),
             &refused,
         )
     })?;
@@ -1080,7 +1080,7 @@ pub(super) fn postgres_write(
                 named,
                 &statement.block,
                 source,
-                statement.binds.bound(),
+                statement.withholds_text(),
                 &refused,
             )
         })?
@@ -1126,7 +1126,7 @@ pub(super) fn mysql_write(
             named,
             &statement.block,
             source,
-            statement.binds.bound(),
+            statement.withholds_text(),
             &refused,
         )
     })?;
@@ -1140,7 +1140,7 @@ pub(super) fn mysql_write(
                 named,
                 &statement.block,
                 source,
-                statement.binds.bound(),
+                statement.withholds_text(),
                 &refused,
             )
         })?
@@ -1214,7 +1214,7 @@ pub(super) fn sqlite_rows(
                 named,
                 &statement.block,
                 source,
-                statement.binds.bound(),
+                statement.withholds_text(),
                 &refused,
             )
         })?;
@@ -1307,7 +1307,7 @@ pub(super) fn sqlite_write(
                 named,
                 &statement.block,
                 source,
-                statement.binds.bound(),
+                statement.withholds_text(),
                 &refused,
             )
         })?;
@@ -1535,7 +1535,7 @@ pub(super) fn tds_write(
             named,
             &statement.block,
             source,
-            statement.binds.bound(),
+            statement.withholds_text(),
             &refused,
         )
     })?;
@@ -1547,7 +1547,7 @@ pub(super) fn tds_write(
                 named,
                 &statement.block,
                 source,
-                statement.binds.bound(),
+                statement.withholds_text(),
                 &refused,
             )
         })?
@@ -1653,7 +1653,7 @@ nvs_runtime::nvs_helper! {
     /// and `changed` keeps the absence, which is the only thing the two say
     /// differently on this driver.
     fn nvs_core_db_connection_execute(ctx, args: [5]) {
-        let statement = statement_of(ctx, args, "execute", EXECUTE)?;
+        let statement = statement_of(ctx, args, "execute", EXECUTE)?.at(args[4]);
         // As `query`'s, and read at the same point for the same reason.
         let deadline = statement_deadline(args, EXECUTE)?;
         // As `query`, and for the reason given there: a refusal names the
@@ -1785,7 +1785,13 @@ nvs_runtime::nvs_helper! {
             ),
         }
         .map_err(|refused| {
-            statement_failure(EXECUTE_MANY, &batch.block, args[1].as_text(), true, &refused)
+            statement_failure(
+                EXECUTE_MANY,
+                &batch.block,
+                args[1].as_text(),
+                !super::bind::plain_binds(args[4]),
+                &refused,
+            )
         });
         let written = settled(ctx, batch.key, written)?;
         // The member's sum is the batch's affected count, and the span's rows
@@ -2109,6 +2115,7 @@ mod tests {
             block: Value::null(),
             sql: String::from("select id, text from notes where id >= ? order by id"),
             binds: crate::db::bind::Binds::Sqlite(vec![nvs_db::SqliteValue::Int(2)]),
+            plain_binds: false,
         };
         let (answered, _) = sqlite_rows(
             &mut conn,
@@ -2176,6 +2183,7 @@ mod tests {
                  where n < 1000) select n, hex(zeroblob(10000)) as filler from many",
             ),
             binds: crate::db::bind::Binds::Sqlite(Vec::new()),
+            plain_binds: false,
         };
         let read = sqlite_rows(
             &mut conn,
@@ -2247,6 +2255,7 @@ mod tests {
                 block: Value::null(),
                 sql: String::from(sql),
                 binds: crate::db::bind::Binds::Sqlite(Vec::new()),
+                plain_binds: false,
             };
             let (written, _) = sqlite_write(
                 &mut conn,
@@ -2321,6 +2330,7 @@ mod tests {
                 block: Value::null(),
                 sql: String::from(sql),
                 binds: crate::db::bind::Binds::Sqlite(Vec::new()),
+                plain_binds: false,
             };
             let (written, _) = sqlite_write(
                 &mut conn,

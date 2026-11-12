@@ -1661,6 +1661,7 @@ pub struct ExprTypeTable {
     written_paths: FxHashMap<Span, String>,
     setting_names: crate::setting_names::SettingNames,
     prepared: FxHashMap<Span, Prepared>,
+    plain_binds: FxHashSet<Span>,
     formats: FxHashMap<Span, Vec<FormatPiece>>,
     delegations: Vec<Delegation>,
     locals: Vec<(Span, Vec<LocalBinding>)>,
@@ -1846,6 +1847,7 @@ impl ExprTypeTable {
             written_paths,
             setting_names,
             prepared,
+            plain_binds,
             formats,
             delegations,
             locals,
@@ -1904,6 +1906,7 @@ impl ExprTypeTable {
         self.written_paths.extend(written_paths);
         self.setting_names.absorb(setting_names);
         self.prepared.extend(prepared);
+        self.plain_binds.extend(plain_binds);
         self.formats.extend(formats);
         self.delegations.extend(delegations);
         self.locals.extend(locals);
@@ -1989,6 +1992,7 @@ impl ExprTypeTable {
         section("written_paths", sorted(&self.written_paths));
         section("setting_names", vec![format!("{:?}", self.setting_names)]);
         section("prepared", sorted(&self.prepared));
+        section("plain_binds", sorted(&self.plain_binds));
         section("formats", sorted(&self.formats));
         section("delegations", sorted(&self.delegations));
         section("locals", sorted(&self.locals));
@@ -2949,6 +2953,21 @@ impl ExprTypeTable {
     #[must_use]
     pub fn prepared(&self, call: Span) -> Option<Prepared> {
         self.prepared.get(&call).copied()
+    }
+
+    /// Records that the statement call at `call` binds no `secret` value: no
+    /// argument's type contains `secret`, and no `secret` value was written
+    /// inside an argument (`rule:core-classes/db-error`). Only a call on
+    /// `nvs_stdlib::registry::QUERY_SITE_MEMBERS` is recorded.
+    pub(crate) fn record_plain_binds(&mut self, call: Span) {
+        self.plain_binds.insert(call);
+    }
+
+    /// Whether the statement call at `call` was proved to bind no `secret`
+    /// value. A call with no record is `false`, so the default is closed.
+    #[must_use]
+    pub fn plain_binds(&self, call: Span) -> bool {
+        self.plain_binds.contains(&call)
     }
 
     /// Records that the `Core\Str::format` call at `call` lowers to `pieces`.

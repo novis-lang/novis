@@ -182,7 +182,9 @@ impl Function {
     pub fn query_sites(&self) -> impl Iterator<Item = (Option<ValueId>, Span)> + '_ {
         self.blocks.iter().flat_map(|block| {
             block.insts.iter().filter_map(|inst| match inst.kind {
-                InstKind::QuerySiteConst { site: Some(span) } => Some((inst.result, span)),
+                InstKind::QuerySiteConst {
+                    site: Some(span), ..
+                } => Some((inst.result, span)),
                 _ => None,
             })
         })
@@ -1151,9 +1153,15 @@ pub enum InstKind {
     /// [`Program::query_sites`]' order, so a number names one call in the whole
     /// program. `None` is the callable-reference thunk, which emits the zero id
     /// because its statement goes out wherever the callable is invoked.
+    ///
+    /// `plain_binds` is the checker's proof that the call binds no `secret`
+    /// value, and sets `nvs_stdlib::registry::QUERY_SITE_PLAIN_BINDS` above the
+    /// id. The thunk's zero word never carries it.
     QuerySiteConst {
         /// The span of the call, or `None` for the zero id.
         site: Option<Span>,
+        /// Whether the checker recorded that no bound value is `secret`.
+        plain_binds: bool,
     },
     /// The [`Ty::ClassDesc`] of the class `object` is actually an instance of
     /// — one load at `nvs_runtime::OBJ_CLASS_OFFSET`, retaining nothing (a

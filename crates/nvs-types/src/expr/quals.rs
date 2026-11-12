@@ -701,6 +701,39 @@ pub(crate) fn unsecret(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
     }
 }
 
+/// The same type with every `secret mixed` replaced by `mixed`, in the same
+/// places [`mixed_admitting_secret`] puts one. An array literal written as an
+/// argument that holds no `secret` value takes this type, so the widened
+/// expectation its elements were checked against does not make it look
+/// `secret`. Every other part is left as it was.
+pub(crate) fn mixed_without_secret(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
+    match interner.get(ty).clone() {
+        Ty::SecretMixed => interner.mixed(),
+        Ty::Array(elem) => {
+            let elem = mixed_without_secret(elem, interner);
+            interner.array(elem)
+        }
+        Ty::Shape(fields) => {
+            let fields = fields
+                .into_iter()
+                .map(|mut field| {
+                    field.ty = mixed_without_secret(field.ty, interner);
+                    field
+                })
+                .collect();
+            interner.shape(fields)
+        }
+        Ty::Union(members) => {
+            let members: Vec<TypeId> = members
+                .iter()
+                .map(|&member| mixed_without_secret(member, interner))
+                .collect();
+            interner.make_union(members)
+        }
+        _ => ty,
+    }
+}
+
 /// The same type with every `mixed` replaced by `secret mixed`: the atom, an
 /// array's element, a shape's field and a union's member. Every other part is
 /// left as it was, so a `secret` value still does not fit a plain `string`.
@@ -713,6 +746,12 @@ pub(crate) fn unsecret(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
 /// [`reject_secret_extension_argument`] asks its question against this type,
 /// so a `secret` argument is admitted there and then refused. A parameter the
 /// program declares `mixed` does not take a `secret` value.
+///
+/// An array literal written as an argument checks its elements against this
+/// type too, so `[[$token]]` at `array<array<mixed>>` is judged once, at the
+/// argument, as `[$token]` at `array<mixed>` is.
+/// [`mixed_without_secret`] is the inverse, for a literal that holds no
+/// `secret` value.
 pub(crate) fn mixed_admitting_secret(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
     match interner.get(ty).clone() {
         Ty::Mixed => interner.secret_mixed(),
@@ -1519,7 +1558,11 @@ pub(crate) fn reject_qualified_untyped_value(
 /// legitimately reaches — a bound database parameter, a process argv, an
 /// outbound request — and every one of them is written as an `array<mixed>`
 /// argument, so refusing there would make the qualifier unusable for its own
-/// purpose. What an argument owes is that rule's sinks, above.
+/// purpose. What an argument owes is that rule's sinks, above. The value is
+/// noted on [`Env::secret_in_arguments`] instead, because a statement call
+/// whose bound values hold a `secret` leaves the server's text off its error
+/// (`rule:core-classes/db-error`), and the literal's own type may no longer
+/// show the qualifier.
 ///
 /// A `placed` of `None` is a position with no declared type at all, and only
 /// an array element reaches it: a field with no declared shape above it is not
@@ -1539,7 +1582,11 @@ pub(crate) fn reject_secret_into_container(
     position: &str,
     env: &mut Env<'_>,
 ) {
-    if env.in_call_argument || !contains_secret(value_ty, env.interner) {
+    if !contains_secret(value_ty, env.interner) {
+        return;
+    }
+    if env.in_call_argument {
+        env.secret_in_arguments = true;
         return;
     }
     if placed.is_some_and(|ty| contains_secret(ty, env.interner)) {

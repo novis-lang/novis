@@ -46,7 +46,7 @@ fn site_constants(program: &Program) -> Vec<bool> {
         .flat_map(|function| &function.blocks)
         .flat_map(|block| &block.insts)
         .filter_map(|inst| match inst.kind {
-            InstKind::QuerySiteConst { site } => Some(site.is_some()),
+            InstKind::QuerySiteConst { site, .. } => Some(site.is_some()),
             _ => None,
         })
         .collect()

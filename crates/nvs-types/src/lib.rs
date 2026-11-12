@@ -675,6 +675,19 @@ pub(crate) struct Env<'a> {
     /// is still inside that argument, and the flag has to survive the recursion
     /// rather than be re-derived at each level.
     pub in_call_argument: bool,
+    /// Whether a `secret` value was written inside the argument list being
+    /// checked, such as `[$token]` or `{ key: $token }`. Set by
+    /// `crate::expr::quals::reject_secret_into_container`, which sees every
+    /// value placed in a literal with its own type. Taken and put back per
+    /// argument list by [`crate::expr::args::check_args_typed`], which widens the
+    /// outer list's note with an inner one, so a nested call never narrows it.
+    pub secret_in_arguments: bool,
+    /// The span of every call whose arguments hold a `secret` value, by
+    /// [`Self::secret_in_arguments`] or by an argument's own type. Filled by
+    /// [`crate::expr::args::check_args_typed`] and read by
+    /// `crate::expr::calls::note_plain_binds`. Nothing clears it, since a span
+    /// identifies its own call site, as [`Self::method_name_args`] does.
+    pub secret_argument_calls: FxHashSet<Span>,
     /// Whether the array literal about to be checked is the argument of a
     /// `Core` parameter that hands each element on to code picked by name at
     /// run time (`nvs_stdlib::registry::CoreTy::Dispatched`). Set by

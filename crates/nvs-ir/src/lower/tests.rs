@@ -4001,6 +4001,63 @@ class T {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
+/// Whether each statement call in `program` carries the plain binds bit, in
+/// block order. The thunk's zero word is left out, since it names no call.
+fn plain_binds_bits(program: &crate::ir::Program) -> Vec<bool> {
+    program
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.insts)
+        .filter_map(|inst| match inst.kind {
+            InstKind::QuerySiteConst {
+                site: Some(_),
+                plain_binds,
+            } => Some(plain_binds),
+            _ => None,
+        })
+        .collect()
+}
+
+/// `rule:core-classes/db-error`: a statement call whose bound values hold no
+/// `secret` sets the bit, a statement with no values included.
+#[test]
+fn a_statement_call_with_no_secret_bind_sets_the_plain_binds_bit() {
+    let (program, _, _) = lower_program(
+        "<?nvs
+var $db = Core\\Db::open({ driver: Core\\Db\\Driver::Sqlite, path: ':memory:' });
+$db->execute('create table t (e text)', []);
+string $email = 'a@example.com';
+$db->execute('insert into t (e) values (?)', [$email]);
+$db->executeMany('insert into t (e) values (?)', [[$email], ['b@example.com']]);
+var $rows = $db->query('select e from t where e = ?', [$email . '!']);
+",
+    );
+    assert_eq!(plain_binds_bits(&program), [true, true, true, true]);
+}
+
+/// `rule:core-classes/db-error`: a `secret` anywhere in what a statement call
+/// binds clears the bit. Each call writes it a different way.
+#[test]
+fn a_secret_anywhere_in_the_bound_values_clears_the_plain_binds_bit() {
+    let (program, _, _) = lower_program(
+        "<?nvs
+class Account {
+    public secret string $token;
+    public function constructor(secret string $token) { $this->token = $token; }
+    public function store(Core\\Db\\Connection $db, secret string $key, array<secret string> $keys): void {
+        $db->execute('insert into t (e) values (?)', [$key]);
+        $db->execute('insert into t (e) values (?)', [$this->token]);
+        $db->execute('insert into t (e) values (?)', ['Bearer ' . $key]);
+        $db->executeMany('insert into t (e) values (?)', [['a'], [$key]]);
+        $db->execute('insert into t (e) values (?)', $keys);
+    }
+}
+",
+    );
+    assert_eq!(plain_binds_bits(&program), [false; 5]);
+}
+
 /// A refcounted pointee, where the policy is actually visible: one
 /// staging `retain` before `ref.slot`, and one `release` of the holder's
 /// previous value at the copy-back. The pair balances, which is what

@@ -167,6 +167,9 @@ pub(crate) fn infer_method_call(
     // written target is marked and folded the same way.
     note_link_target(resolved.as_ref(), args, env);
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    if let Some((qname, name, _)) = &resolved {
+        note_plain_binds(qname, name, expr.span, env);
+    }
     if let Some((qname, name, _)) = &resolved
         && crate::links::is_match_is(qname, name)
     {
@@ -405,6 +408,9 @@ fn infer_union_method_call(
     let (sig, written) =
         check_written_type_args(type_args, Some(shared), Some(&label), expr.span, ctx, env);
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    for (_, owner) in &owners {
+        note_plain_binds(owner, name, expr.span, env);
+    }
     let Some(sig) = sig else {
         return env.interner.error();
     };
@@ -737,6 +743,9 @@ pub(crate) fn infer_static_call(
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
     env.body_writers.in_later = outer_later;
     env.body_writers.in_after_response = outer_after_response;
+    if let Some((owner, name, _)) = &resolved {
+        note_plain_binds(owner, name, expr.span, env);
+    }
     // See [`infer_method_call`]: the same question, before the same `slots`
     // are handed to [`resolved_call`]. The two folds below return ahead of it
     // deliberately — a retrieval's and an enumeration's arguments are the
@@ -2278,6 +2287,20 @@ fn report_method_on_erased_receiver(span: Span, name: &str, ty: TypeId, env: &mu
         .with_primary(span, "called on a receiver that names no class here")
         .with_help(help),
     );
+}
+
+/// Records "plain binds" for a statement call whose arguments hold no
+/// `secret`: `owner::name` is on `nvs_stdlib::registry::QUERY_SITE_MEMBERS`,
+/// and [`crate::expr::args::check_args_typed`] put no note under `span`. The
+/// call's site word carries the fact, and a `DbError` keeps the server's text
+/// only for such a call (`rule:core-classes/db-error`). **What it spends:** one
+/// set entry per statement call while compiling.
+fn note_plain_binds(owner: &QName, name: &str, span: Span, env: &mut Env<'_>) {
+    if crate::core_takes_query_site(&owner.to_string(), name)
+        && !env.secret_argument_calls.contains(&span)
+    {
+        env.exprs.record_plain_binds(span);
+    }
 }
 
 /// `$e->getMessage()` — a PHP accessor on the exception tree, which has none.

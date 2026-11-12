@@ -476,7 +476,7 @@ fn stream_over(
             named,
             &statement.block,
             source,
-            statement.binds.bound(),
+            statement.withholds_text(),
             &refused,
         )
     })?;
@@ -515,7 +515,7 @@ fn open_stream(
     named: &str,
     class: Value,
 ) -> Result<Value, Fault> {
-    let statement = statement_of(ctx, args, member, named)?;
+    let statement = statement_of(ctx, args, member, named)?.at(args[4]);
     // The statement's own `timeout` bounds the *walk* on this member and not
     // the call that opens it: the deadline stays filed on the connection while
     // the portal is open, so it is every `advance()` up to the last row that is
@@ -540,7 +540,7 @@ fn open_stream(
                     named,
                     &statement.block,
                     source,
-                    statement.binds.bound(),
+                    statement.withholds_text(),
                     &refused,
                 )
             })
@@ -561,7 +561,7 @@ fn open_stream(
                     named,
                     &statement.block,
                     source,
-                    statement.binds.bound(),
+                    statement.withholds_text(),
                     &refused,
                 )
             })
@@ -581,7 +581,7 @@ fn open_stream(
                     named,
                     &statement.block,
                     source,
-                    statement.binds.bound(),
+                    statement.withholds_text(),
                     &refused,
                 )
             })

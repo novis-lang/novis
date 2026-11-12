@@ -4056,6 +4056,21 @@ pub const QUERY_SITE_MEMBERS: &[&str] = &[
     "streamAs",
 ];
 
+/// The bit of a [`QUERY_SITE_MEMBERS`] call's site word that says the call
+/// binds no `secret` value, above the 32-bit site id.
+///
+/// The checker sets it where no argument's type contains `secret` and no
+/// `secret` value was written inside an argument. A `Core\Db\DbError` from
+/// such a call keeps the server's text as `serverMessage`
+/// (`rule:core-classes/db-error`). The callable-reference thunk passes the zero
+/// word, so a statement sent through a callable leaves the text out. **What it
+/// spends:** one bit in a constant every call already passes, and one branch on
+/// the error path.
+pub const QUERY_SITE_PLAIN_BINDS: i64 = 1 << 32;
+
+/// The low 32 bits of a site word, which are the site id the trace reads.
+pub const QUERY_SITE_ID_MASK: i64 = 0xFFFF_FFFF;
+
 /// The classes whose [`QUERY_SITE_MEMBERS`] take the site id: the connection,
 /// the transaction it hands a callable, and the interface both implement.
 pub const QUERY_SITE_OWNERS: &[&str] = &[

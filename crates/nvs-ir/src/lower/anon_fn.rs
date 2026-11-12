@@ -896,8 +896,15 @@ pub(crate) fn lower_callable(
         // callable is later invoked (`nvs_stdlib::registry::QUERY_SITE_MEMBERS`).
         let query_site = nvs_types::core_takes_query_site(&call.class.to_string(), &call.method)
             .then(|| {
-                low.emit(cur, Ty::Int, InstKind::QuerySiteConst { site: None })
-                    .0
+                low.emit(
+                    cur,
+                    Ty::Int,
+                    InstKind::QuerySiteConst {
+                        site: None,
+                        plain_binds: false,
+                    },
+                )
+                .0
             });
         // A member on `nvs_stdlib::registry::PREPARED_MEMBERS` reached through a
         // callable reference prepared nothing: the thunk's own arguments arrive

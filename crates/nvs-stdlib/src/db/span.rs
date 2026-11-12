@@ -103,13 +103,15 @@ impl QueryWatch {
     /// argument of a `crate::registry::QUERY_SITE_MEMBERS` member.
     ///
     /// The id is read only when the span is traced, so a call nobody traces
-    /// reads nothing. The zero id names no site, and reads as none.
+    /// reads nothing. The zero id names no site, and reads as none. The id is
+    /// the word's low 32 bits: the bit above them is
+    /// [`crate::registry::QUERY_SITE_PLAIN_BINDS`], which the error path reads.
     #[must_use]
     pub(crate) fn at(mut self, site: Value) -> QueryWatch {
         if self.traced {
             self.site = site
                 .as_int()
-                .and_then(|id| u32::try_from(id).ok())
+                .and_then(|word| u32::try_from(word & crate::registry::QUERY_SITE_ID_MASK).ok())
                 .filter(|&id| id != 0);
         }
         self

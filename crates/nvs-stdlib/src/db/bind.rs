@@ -183,10 +183,12 @@ pub(super) fn bound_of(value: Value) -> Bound {
 /// and the sentence goes to `serverMessage` instead, a `?tainted string`
 /// (`rule:core-classes/db-error`). It goes there only when `bound` is false: a
 /// server may quote a bound value in its sentence, and a bound value may be
+/// `secret`. A statement passes [`Statement::withholds_text`], which is false
+/// when it bound nothing or its call site proved that no bound value is
 /// `secret`. Where `bound` is true the slot stays `null`, and `message` says the
 /// text was left out. A caller that cannot tell passes `true`, so the default
-/// is closed. **What it spends:** one slot value on a statement that bound
-/// nothing, per thrown error.
+/// is closed. **What it spends:** one slot value on a statement whose text
+/// rides, per thrown error.
 pub(super) fn statement_failure(
     named: &str,
     block: &Value,
@@ -239,7 +241,8 @@ pub(super) fn statement_failure(
                     }
                     if bound {
                         message.push_str(
-                            " The server's message is not shown because the statement bound a value.",
+                            " The server's message is not shown because the statement may have \
+                             bound a `secret` value.",
                         );
                     } else {
                         slots.push((
@@ -387,6 +390,36 @@ pub(super) struct Statement {
     /// One entry per marker that text holds, in the **statement's** order and
     /// never the array's.
     pub(super) binds: Binds,
+    /// Whether the call site proved that no bound value is `secret`: the
+    /// [`crate::registry::QUERY_SITE_PLAIN_BINDS`] bit of its site word, set by
+    /// [`Statement::at`]. `false` until then, so the default is closed.
+    pub(super) plain_binds: bool,
+}
+
+impl Statement {
+    /// The same statement, for the call whose site word is `site`: the last
+    /// argument of a `crate::registry::QUERY_SITE_MEMBERS` member. Only the
+    /// [`crate::registry::QUERY_SITE_PLAIN_BINDS`] bit is read here.
+    #[must_use]
+    pub(super) fn at(mut self, site: Value) -> Statement {
+        self.plain_binds = plain_binds(site);
+        self
+    }
+
+    /// Whether an error from this statement leaves the server's text out:
+    /// it bound a value, and its call site did not prove every bound value
+    /// plain. [`statement_failure`]'s `bound`.
+    pub(super) fn withholds_text(&self) -> bool {
+        self.binds.bound() && !self.plain_binds
+    }
+}
+
+/// Whether the site word `site` carries
+/// [`crate::registry::QUERY_SITE_PLAIN_BINDS`]. The zero word a callable
+/// reference passes does not, nor does a word that is not an integer.
+pub(super) fn plain_binds(site: Value) -> bool {
+    site.as_int()
+        .is_some_and(|word| word & crate::registry::QUERY_SITE_PLAIN_BINDS != 0)
 }
 
 /// One statement's bound values, in whichever form its driver takes them.
@@ -601,6 +634,7 @@ pub(super) fn statement_in(
         block,
         sql: rewritten.sql,
         binds,
+        plain_binds: false,
     })
 }
 
@@ -865,8 +899,8 @@ mod tests {
         assert!(!message.contains("MARKER"), "{message}");
         assert!(
             message.ends_with(
-                "(SQLSTATE 23505). The server's message is not shown because the statement \
-                 bound a value."
+                "(SQLSTATE 23505). The server's message is not shown because the statement may \
+                 have bound a `secret` value."
             ),
             "{message}"
         );
@@ -877,6 +911,95 @@ mod tests {
             "a bound statement wrote `serverMessage`"
         );
         discard(block);
+        for (_, value) in slots {
+            discard(value);
+        }
+    }
+
+    /// A MySQL refusal that quotes a value and carries a driver code.
+    fn quoting_mysql_refusal() -> std::io::Error {
+        std::io::Error::other(nvs_db::ServerError {
+            kind: nvs_db::DbErrorKind::UniqueViolation,
+            sql_state: String::from("23000"),
+            severity: String::from("ERROR"),
+            message: String::from("Duplicate entry 'MARKER' for key 'users.email'"),
+            constraint: None,
+            driver_code: Some(1062),
+            backend: "mysql",
+        })
+    }
+
+    /// A statement that bound one value, as its call site word `site` says.
+    fn bound_statement(site: Value) -> Statement {
+        Statement {
+            key: 0,
+            block: Value::text("main"),
+            sql: String::from("insert into users (email) values (?)"),
+            binds: Binds::Wire(vec![Some(b"MARKER".to_vec())]),
+            plain_binds: false,
+        }
+        .at(site)
+    }
+
+    /// The error a refusal of `statement` throws, as a `DbError`'s parts.
+    fn refused_parts(statement: &Statement) -> (String, Vec<(usize, Value)>) {
+        db_error_parts(statement_failure(
+            QUERY,
+            &statement.block,
+            Some("insert into users (email) values (?)"),
+            statement.withholds_text(),
+            &quoting_mysql_refusal(),
+        ))
+    }
+
+    /// Whether `slots` hold the server's sentence, after asserting that the
+    /// message keeps the `SQLSTATE` and the driver code and never the value.
+    fn carries_server_text(message: &str, slots: &[(usize, Value)]) -> bool {
+        assert!(!message.contains("MARKER"), "{message}");
+        assert!(message.contains("23000"), "the SQLSTATE is in {message}");
+        assert!(message.contains("1062"), "the driver code is in {message}");
+        slots
+            .iter()
+            .any(|(slot, _)| *slot == nvs_runtime::SERVER_MESSAGE_SLOT)
+    }
+
+    /// `rule:core-classes/db-error`: a call site that did not prove its bound
+    /// values plain leaves the server's text out, and one that did keeps it.
+    #[test]
+    fn a_secret_bound_value_leaves_the_servers_text_out_of_the_error() {
+        let secret = bound_statement(Value::int(7));
+        let (message, slots) = refused_parts(&secret);
+        assert!(
+            !carries_server_text(&message, &slots),
+            "a call that bound a `secret` wrote `serverMessage`"
+        );
+        assert!(message.contains("may have bound a `secret` value"), "{message}");
+        let plain = bound_statement(Value::int(7 | crate::registry::QUERY_SITE_PLAIN_BINDS));
+        let (plain_message, plain_slots) = refused_parts(&plain);
+        assert!(
+            carries_server_text(&plain_message, &plain_slots),
+            "a call with plain binds lost `serverMessage`"
+        );
+        for value in [secret.block, plain.block] {
+            discard(value);
+        }
+        for (_, value) in slots.into_iter().chain(plain_slots) {
+            discard(value);
+        }
+    }
+
+    /// `rule:core-classes/db-error`: a callable reference's thunk passes the
+    /// zero word, so a statement sent through it leaves the server's text out.
+    #[test]
+    fn a_statement_reached_through_a_callable_leaves_the_servers_text_out() {
+        let through_callable = bound_statement(Value::int(0));
+        assert!(through_callable.withholds_text());
+        let (message, slots) = refused_parts(&through_callable);
+        assert!(
+            !carries_server_text(&message, &slots),
+            "a statement sent through a callable wrote `serverMessage`"
+        );
+        discard(through_callable.block);
         for (_, value) in slots {
             discard(value);
         }

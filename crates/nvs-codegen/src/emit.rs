@@ -922,10 +922,11 @@ impl Emitter<'_, '_> {
                 let word = self.b.ins().iconst(types::I64, word);
                 self.define(inst, word)?;
             }
-            InstKind::QuerySiteConst { site } => {
+            InstKind::QuerySiteConst { site, plain_binds } => {
                 // The id is the site's number in the program, read from the
                 // map built before the body; the zero id is a call with no
-                // site, which a callable reference's thunk makes.
+                // site, which a callable reference's thunk makes. A call the
+                // checker proved binds no `secret` sets one bit above the id.
                 let id = match site {
                     Some(_) => inst
                         .result
@@ -934,6 +935,10 @@ impl Emitter<'_, '_> {
                             internal("a query site the function's walk did not count")
                         })?,
                     None => 0,
+                };
+                let id = match plain_binds {
+                    true => id | nvs_stdlib::registry::QUERY_SITE_PLAIN_BINDS,
+                    false => id,
                 };
                 let id = self.b.ins().iconst(types::I64, id);
                 self.define(inst, id)?;

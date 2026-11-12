@@ -278,6 +278,7 @@ fn catalog_rows(
         block,
         sql: sql.to_owned(),
         binds: Binds::Wire(Vec::new()),
+        plain_binds: false,
     };
     let sending: Vec<Option<&[u8]>> = Vec::new();
     let watch = QueryWatch::of(ctx, &statement.block);
@@ -621,6 +622,7 @@ fn run_ddl(
         block,
         sql: sql.to_owned(),
         binds: Binds::Wire(Vec::new()),
+        plain_binds: false,
     };
     let sending: Vec<Option<&[u8]>> = Vec::new();
     let watch = QueryWatch::of(ctx, &statement.block);

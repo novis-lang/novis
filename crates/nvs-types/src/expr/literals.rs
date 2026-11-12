@@ -1200,13 +1200,13 @@ pub(crate) fn check_array_literal(
     // Each element meets `secret mixed` there, so a `secret` element gets
     // the one refusal below and not a `mixed` mismatch whose help names a
     // type the member cannot take.
-    // An argument's element at `mixed` meets `secret mixed` too, and the
-    // literal keeps the qualifier on its own type below. So the argument is
-    // judged once, as a whole, and not again at the element.
+    // An argument's element meets every `mixed` in it as `secret mixed` too,
+    // nested arrays included, and the literal keeps the qualifier on its own
+    // type below. So the argument is judged once, as a whole, and not again at
+    // the element.
     let elem_expected = match elem_expected {
-        Some(elem) if dispatched => Some(super::quals::mixed_admitting_secret(elem, env.interner)),
-        Some(elem) if env.in_call_argument && matches!(env.interner.get(elem), Ty::Mixed) => {
-            Some(env.interner.secret_mixed())
+        Some(elem) if dispatched || env.in_call_argument => {
+            Some(super::quals::mixed_admitting_secret(elem, env.interner))
         }
         other => other,
     };
@@ -1279,14 +1279,23 @@ pub(crate) fn check_array_literal(
     };
     // `rule:security/secret-qualifier`: an argument is not asked the container
     // question, so a literal written as one keeps a `secret` element as
-    // `array<secret mixed>` where its element type is `mixed`. Every `Core`
+    // `array<secret mixed>` where its element type is `mixed`, and as
+    // `array<array<secret mixed>>` where it is `array<mixed>`. Every `Core`
     // sink then reads the qualifier off the argument's type, and a parameter
-    // the program declares `mixed` refuses it. Outside an argument the element
-    // was already refused where it was written.
-    let mixed_elements = matches!(env.interner.get(array), Ty::Array(elem) if matches!(env.interner.get(*elem), Ty::Mixed));
-    if holds_secret && env.in_call_argument && mixed_elements {
-        let secret = env.interner.secret_mixed();
-        array = env.interner.array(secret);
+    // the program declares `mixed` refuses it. A literal that holds no `secret`
+    // value keeps plain `mixed`. Outside an argument the element was already
+    // refused where it was written.
+    if env.in_call_argument
+        && let Ty::Array(elem) = env.interner.get(array).clone()
+    {
+        let retyped = if holds_secret {
+            super::quals::mixed_admitting_secret(elem, env.interner)
+        } else {
+            super::quals::mixed_without_secret(elem, env.interner)
+        };
+        if retyped != elem {
+            array = env.interner.array(retyped);
+        }
     }
     for (key, key_ty) in keys {
         super::quals::check_key_qualifier(

@@ -475,6 +475,8 @@ fn walk_file(
         spawn_entry_args: FxHashSet::default(),
         body_writers: crate::response::BodyWriters::default(),
         in_call_argument: false,
+        secret_in_arguments: false,
+        secret_argument_calls: FxHashSet::default(),
         dispatched_literal: false,
         key_options: Vec::new(),
         secret_options: FxHashSet::default(),

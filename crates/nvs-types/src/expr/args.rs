@@ -64,7 +64,20 @@ pub(crate) fn check_args_typed(
     // place that knows an expression is an argument at all.
     let outer = std::mem::replace(&mut env.in_call_argument, true);
     let outer_keys = std::mem::take(&mut env.key_options);
+    let outer_note = std::mem::replace(&mut env.secret_in_arguments, false);
     let checked = check_arg_list(list, sig, call_span, live, scope, ctx, env);
+    // Whether this call's arguments hold a `secret`: one was written inside an
+    // argument, or an argument's own type contains one. An inner call's note
+    // stays on the outer one, so a nested call only widens it.
+    let secret = env.secret_in_arguments
+        || checked
+            .0
+            .iter()
+            .any(|ty| super::quals::contains_secret(*ty, env.interner));
+    if secret {
+        env.secret_argument_calls.insert(call_span);
+    }
+    env.secret_in_arguments = outer_note || secret;
     env.key_options = outer_keys;
     env.in_call_argument = outer;
     checked

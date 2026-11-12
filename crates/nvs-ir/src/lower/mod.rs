@@ -3272,13 +3272,25 @@ impl<'a> Lowering<'a> {
     /// number, so a function lowered alone needs no count of the sites before
     /// it. Not refcounted, and emitted before the receiver is opened, for
     /// [`Self::producer_source`]'s reasons exactly.
+    ///
+    /// It also carries whether the checker proved the call binds no `secret`
+    /// value (`nvs_types::expr_table::ExprTable::plain_binds`), read under the
+    /// same span. A call with no record carries `false`.
     pub(crate) fn query_site_constant(
         &mut self,
         b: BlockId,
         span: nvs_diagnostics::Span,
     ) -> ValueId {
-        self.emit(b, Ty::Int, InstKind::QuerySiteConst { site: Some(span) })
-            .0
+        let plain_binds = self.exprs.plain_binds(span);
+        self.emit(
+            b,
+            Ty::Int,
+            InstKind::QuerySiteConst {
+                site: Some(span),
+                plain_binds,
+            },
+        )
+        .0
     }
 
     /// The constant a member on `nvs_stdlib::registry::PREPARED_MEMBERS` takes
