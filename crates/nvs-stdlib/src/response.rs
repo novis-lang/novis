@@ -1481,9 +1481,10 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 format!(
-                    "Core\\Response::setHeader(): `{name}` is not a header name — a field \
+                    "Core\\Response::setHeader(): `{}` is not a header name — a field \
                      name is a non-empty token, so it carries letters, digits and the \
-                     marks RFC 9110 admits and nothing else"
+                     marks RFC 9110 admits and nothing else",
+                    nvs_runtime::quoted(name),
                 ),
             ));
         }
@@ -1491,9 +1492,10 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 format!(
-                    "Core\\Response::setHeader(): `{name}` is declared by the body member \
+                    "Core\\Response::setHeader(): `{}` is declared by the body member \
                      that wrote the body — answer with `Core\\Response::bytes($body, \
-                     $contentType)` to say what a body is"
+                     $contentType)` to say what a body is",
+                    nvs_runtime::quoted(name),
                 ),
             ));
         }
@@ -1504,8 +1506,9 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 format!(
-                    "Core\\Response::setHeader(): `{name}` frames the response, and the \
-                     server writes it from the body it sends"
+                    "Core\\Response::setHeader(): `{}` frames the response, and the \
+                     server writes it from the body it sends",
+                    nvs_runtime::quoted(name),
                 ),
             ));
         }
@@ -1513,9 +1516,10 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 format!(
-                    "Core\\Response::setHeader(): `{value}` is not a value a header line can \
+                    "Core\\Response::setHeader(): `{}` is not a value a header line can \
                      carry — a field value is printable ASCII, so a control character or a \
-                     newline that would smuggle a second header is refused"
+                     newline that would smuggle a second header is refused",
+                    nvs_runtime::quoted(value),
                 ),
             ));
         }
@@ -1556,10 +1560,11 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 format!(
-                    "Core\\Response::redirect(): `{url}` is not a destination a `Location` \
+                    "Core\\Response::redirect(): `{}` is not a destination a `Location` \
                      header can carry — a field value is printable ASCII and never empty, so \
                      an empty URL and a newline that would begin a second header are refused \
-                     alike"
+                     alike",
+                    nvs_runtime::quoted(url),
                 ),
             ));
         }
@@ -1567,10 +1572,11 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 format!(
-                    "Core\\Response::redirect(): `{url}` starts with two slashes or \
+                    "Core\\Response::redirect(): `{}` starts with two slashes or \
                      backslashes, so a browser goes to another host. For another host, write \
                      the whole address with its scheme, such as `https:`. For a path on this \
-                     site, write one `/`"
+                     site, write one `/`",
+                    nvs_runtime::quoted(url),
                 ),
             ));
         }
@@ -1863,9 +1869,10 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 format!(
-                    "{ADD_COOKIE}: `{name}` is not a cookie name — a name is a non-empty \
+                    "{ADD_COOKIE}: `{}` is not a cookie name — a name is a non-empty \
                      token, and it is matched byte for byte on the way back, so nothing \
-                     here is substituted into something that would be"
+                     here is substituted into something that would be",
+                    nvs_runtime::quoted(name),
                 ),
             ));
         }
@@ -1873,9 +1880,10 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 format!(
-                    "{ADD_COOKIE}: `{value}` is not a value a cookie can carry — a space, a \
+                    "{ADD_COOKIE}: `{}` is not a value a cookie can carry — a space, a \
                      comma, a semicolon, a backslash, a quote and anything outside printable \
-                     ASCII would end the value and begin an attribute the program never wrote"
+                     ASCII would end the value and begin an attribute the program never wrote",
+                    nvs_runtime::quoted(value),
                 ),
             ));
         }
@@ -1883,9 +1891,10 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 format!(
-                    "{ADD_COOKIE}: `{path}` is not a `Path` — a path is non-empty printable \
+                    "{ADD_COOKIE}: `{}` is not a `Path` — a path is non-empty printable \
                      ASCII with no semicolon in it, whether it was written here or read from \
-                     `[http.cookies] path`"
+                     `[http.cookies] path`",
+                    nvs_runtime::quoted(path),
                 ),
             ));
         }
@@ -1895,8 +1904,9 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 format!(
-                    "{ADD_COOKIE}: `{domain}` is not a `Domain` — a domain is non-empty \
-                     printable ASCII with no semicolon in it"
+                    "{ADD_COOKIE}: `{}` is not a `Domain` — a domain is non-empty \
+                     printable ASCII with no semicolon in it",
+                    nvs_runtime::quoted(domain),
                 ),
             ));
         }
@@ -1922,10 +1932,11 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 format!(
-                    "{ADD_COOKIE}: `{name}` carries the `__Host-` prefix, which the runtime \
+                    "{ADD_COOKIE}: `{}` carries the `__Host-` prefix, which the runtime \
                      enforces rather than documents: it requires `secure: true`, requires \
                      `path: \"/\"` and forbids `domain`. A cookie that does not conform is \
-                     not visible on read, so it is refused on write"
+                     not visible on read, so it is refused on write",
+                    nvs_runtime::quoted(name),
                 ),
             ));
         }
@@ -1933,9 +1944,10 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 format!(
-                    "{ADD_COOKIE}: `{name}` carries the `__Secure-` prefix, which requires \
+                    "{ADD_COOKIE}: `{}` carries the `__Secure-` prefix, which requires \
                      `secure: true`. A cookie that does not conform is not visible on read, \
-                     so it is refused on write"
+                     so it is refused on write",
+                    nvs_runtime::quoted(name),
                 ),
             ));
         }

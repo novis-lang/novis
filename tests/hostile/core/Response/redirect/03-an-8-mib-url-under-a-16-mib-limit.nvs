@@ -1,0 +1,17 @@
+<?nvs
+// Attack: a program lowers its memory limit to 16 MiB and redirects to a URL of 8 MiB with
+// line breaks. The call should throw a `LogicError` with a short message.
+
+// 1. Lowers the memory limit to `16M`.
+echo 'limit lowered: ', Core\Config::set('limits.memory', '16M') ? 'yes' : 'no', "\n";
+
+// 2. Builds a URL of 8 MiB. Every second character is a line break.
+string $url = Core\Str::repeat("/\n", 4194304);
+
+// 3. Redirects to the URL. This throws a `LogicError`, and its message is short.
+try {
+    Core\Response::redirect($url);
+    throw new RuntimeError('a URL with a line break was set');
+} catch (LogicError $error) {
+    echo Core\Str::length($error->message) < 1000 ? 'short message' : 'long message', "\n";
+}

@@ -2382,9 +2382,7 @@ impl<'de> Visitor<'de> for Decode<'_> {
             }
             let value = map.next_value_seed(self.child())?;
             if array.replace(NvsStr::new(key.as_bytes()), value) {
-                return Err(serde::de::Error::custom(format!(
-                    "the key {key:?} appears twice in one object"
-                )));
+                return Err(repeated(&key));
             }
         }
         Ok(Value::array(array))
@@ -3458,10 +3456,14 @@ impl<'de> Visitor<'de> for Key {
     }
 }
 
-/// The refusal of a key written twice in one object, as [`Decode::visit_map`]
-/// words it.
+/// The refusal of a key written twice in one object, for [`Decode::visit_map`]
+/// and the typed decoder alike. The key is quoted, so a long key costs the
+/// message [`nvs_runtime::QUOTED_BYTES`] and no more.
 fn repeated<E: serde::de::Error>(key: &str) -> E {
-    E::custom(format!("the key {key:?} appears twice in one object"))
+    E::custom(format!(
+        "the key {:?} appears twice in one object",
+        nvs_runtime::quoted(key)
+    ))
 }
 
 /// Reads one whole document against `contract`, refusing anything after it:
@@ -5951,6 +5953,20 @@ pub(crate) mod tests {
         unsafe {
             value.release();
         }
+    }
+
+    /// A long repeated key is named by its first bytes alone, escaped, so the
+    /// message stays short and a control character in the key arrives as
+    /// `\n` and not as a line break.
+    #[test]
+    fn a_long_json_key_is_quoted_escaped_and_short() {
+        let key = format!("k\\n{}", "é".repeat(1 << 16));
+        let document = format!(r#"{{"{key}":1,"{key}":2}}"#);
+        let why = decoded(&document, DEFAULT_MAX_DEPTH_U32).expect_err("a repeat");
+        assert!(why.len() < 512, "the message holds the whole key: {} bytes", why.len());
+        assert!(why.contains(r#"the key "k\néé"#), "{why}");
+        assert!(why.contains(r#"é…" appears twice in one object"#), "{why}");
+        assert!(!why.contains('\n'), "the key's line break reached the message raw");
     }
 
     /// An issue's segments are pushed innermost first and render outermost
