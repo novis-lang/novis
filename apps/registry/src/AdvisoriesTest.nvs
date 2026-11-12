@@ -149,6 +149,33 @@ final class AdvisoriesTest
         }
     }
 
+    // A retraction sent with a token waits seven days. Before then the log and the feed do not have it.
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function aRetractionByTokenIsInNeitherTheLogNorTheFeedBeforeItsTime(): void
+    {
+        string $folder = AdvisoriesTest::folder();
+        try {
+            var $db = AdvisoriesTest::database();
+            AdvisoriesTest::release($db, '1.1.0');
+            AdvisoriesTest::release($db, '1.1.1');
+            int $week = 7 * 86400;
+            Test::assertTrue(new Releases($db)->retract(AdvisoriesTest::KEY, '1.1.0', 'It deletes files.', '1.1.1', Time::now()->toEpochSeconds() + $week));
+
+            var $log = AdvisoriesTest::log($folder);
+            var $index = new Index($db, $log, AdvisoriesTest::site($folder, ''));
+            Test::assertTrue($index->flush());
+            Test::assertTrue(!IO::exists($folder . '/log.txt'));
+            Test::assertNeverCalled($log, Log::advisories);
+
+            Test::advance(Core\Time\Duration::seconds($week));
+            Test::assertTrue($index->flush());
+            Test::assertSame(AdvisoriesTest::logged($folder), [AdvisoriesTest::RETRACT]);
+            Test::assertCalled($log, Log::advisories, { times: 1 });
+        } finally {
+            AdvisoriesTest::remove($folder);
+        }
+    }
+
     #[Test(at: '2026-03-01T12:00:00Z')]
     public function aRetractionWithNoFixLeavesOutFixedIn(): void
     {

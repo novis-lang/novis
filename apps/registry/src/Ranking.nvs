@@ -59,11 +59,11 @@ final class Ranking
             . " count(distinct strftime('%Y-%m', shown.published_at, 'unixepoch')) as months,"
             . ' max(shown.published_at) as released_at,'
             . ' coalesce(n.declarations, 0) as declarations, coalesce(n.documented, 0) as documented,'
-            . ' (select count(*) from release_states f where f.package = p.key and f.retracted_at is not null and f.fixed_in is not null) as fixes,'
+            . ' (select count(*) from release_states f where f.package = p.key and f.retracted_at <= ? and f.fixed_in is not null) as fixes,'
             . ' (select coalesce(sum(d.count), 0) from downloads d where d.package = p.key and d.day >= ?) as downloads '
             . 'from packages p join shown on shown.package = p.key join newest n on n.package = p.key and n.n = 1 '
             . 'left join search t on t.key = p.key ';
-        array<mixed> $values = [$now, Downloads::dayOf($now) - 90];
+        array<mixed> $values = [$now, $now, Downloads::dayOf($now) - 90];
         if ($match != null) {
             $sql = $sql . 'where p.key in (select key from search where search match ?) ';
             $values[] = $match;

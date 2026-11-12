@@ -61,20 +61,23 @@ final class Index
     {
         string $folder = Index::work($this->site);
         var $stores = new Stores($this->db, $this->site);
+        // One time for the log and the index files, so an index file never shows a retraction
+        // whose entry this run did not add.
+        int $now = Time::now()->toEpochSeconds();
         try {
             return $this->db->transaction(fn(Transaction $tx): bool => {
                 // This statement writes, so the transaction has the write lock of the database
                 // from here on. Two publishes add to the log and send to the stores one after the other.
                 // Other requests that write wait until the stores have the files.
                 $tx->execute('update events set id = id', []);
-                array<string> $changed = $this->append($tx, $stores, $folder, $key);
+                array<string> $changed = $this->append($tx, $stores, $folder, $key, $now);
                 // The log has the entries now, so the transaction must keep their numbers.
                 // So a failure below returns `false` and does not throw, and the next run sends again.
                 try {
                     // `sign` signs every index file, and only the files of these packages changed.
                     // The daily run sends every index file.
                     foreach ($changed as string $package) {
-                        $stores->queue($this->write($package, $folder), Stores::INDEX);
+                        $stores->queue($this->write($package, $folder, $now), Stores::INDEX);
                     }
                     if ($this->advised) {
                         $this->feed($stores);
@@ -92,16 +95,15 @@ final class Index
 
     // Adds the waiting entries of `Events`, then every release of `$key` that is not in the log yet,
     // and queues the files of the log. It returns the packages whose index files change.
+    // An entry with a `due` time later than `$now`, such as a retraction sent with a token, waits.
     // The caller has the write lock. It throws a `RuntimeError` when the log does not add the entries.
-    private function append(Transaction $tx, Stores $stores, string $folder, ?string $key): array<string>
+    private function append(Transaction $tx, Stores $stores, string $folder, ?string $key, int $now): array<string>
     {
         int $next = $this->log->size();
         string $lines = '';
         int $last = 0;
         array<string> $changed = [];
-        // An entry with a `due` time later than now, such as an advisory sent with a token, waits.
-        int $now = Core\Time::now()->toEpochSeconds();
-        foreach ($tx->query('select id, entry, package from events where due is null or due <= ? order by id', [$now]) as Row $row) {
+        foreach (Events::ready($tx, $now) as Row $row) {
             $lines .= Index::trusted($row->string('entry')) . "\n";
             $last = $row->int('id') ?? 0;
             ?string $package = Index::optional($row->string('package'));
@@ -175,15 +177,17 @@ final class Index
         }
         string $folder = Index::work($this->site);
         var $stores = new Stores($this->db, $this->site);
+        // One time for the log and the index files, as in `run`.
+        int $now = Time::now()->toEpochSeconds();
         try {
             bool $sent = $this->db->transaction(fn(Transaction $tx): bool => {
                 // This statement writes, so the transaction has the write lock of the database,
                 // as in `catchUp`. A publish waits until the stores have the files.
                 $tx->execute('update releases set log = log where log is null', []);
                 // An entry that waits is added before an index file shows its change.
-                $this->append($tx, $stores, $folder, null);
+                $this->append($tx, $stores, $folder, null, $now);
                 foreach ($tx->query('select distinct package from releases where log is not null order by package', []) as Row $row) {
-                    $stores->queue($this->write(Index::trusted($row->string('package')), $folder), Stores::INDEX);
+                    $stores->queue($this->write(Index::trusted($row->string('package')), $folder, $now), Stores::INDEX);
                 }
                 if ($this->log->size() > 0) {
                     $this->feed($stores);
@@ -236,8 +240,8 @@ final class Index
     }
 
     // Writes the index file of the package `$key`, before it is signed.
-    // It returns its path in the work folder, such as `index/acme/http.json`.
-    private function write(string $key, string $folder): string
+    // `$now` is the time of the run. It returns its path in the work folder, such as `index/acme/http.json`.
+    private function write(string $key, string $folder, int $now): string
     {
         string $name = '';
         foreach ($this->db->query('select name, vendor from packages where key = ?', [$key]) as Row $row) {
@@ -249,7 +253,6 @@ final class Index
             $owners[] = Index::trusted($row->string('account'));
         }
         array<Listed> $versions = [];
-        int $now = Time::now()->toEpochSeconds();
         var $releases = new Releases($this->db);
         $rows = $this->db->query(
             'select r.version, r.digest, r.dependencies, r.capabilities, r.repository, r.git_commit, r.log, '

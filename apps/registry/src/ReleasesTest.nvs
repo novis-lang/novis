@@ -140,17 +140,24 @@ final class ReleasesTest
             int $later = ReleasesTest::now() + ReleasesTest::WEEK;
             Test::assertTrue($releases->retract(ReleasesTest::KEY, '0.0.9', 'It deletes files.', '0.0.10', $later));
             Test::assertSame(ReleasesTest::state($db, $folder), '"released"');
+            // The entry of a retraction by token waits seven days, so the log has no line yet.
+            Test::assertSame(ReleasesTest::logged($folder), []);
 
             Test::advance(Duration::seconds(ReleasesTest::WEEK));
             Test::assertSame(ReleasesTest::state($db, $folder), '{"retracted":{"reason":"It deletes files.","fixed_in":"0.0.10"}}');
+            Test::assertSame(ReleasesTest::logged($folder), ['retract']);
 
-            // A passkey retraction shows at once. One that shows later than the first changes nothing.
+            // A passkey retraction shows at once, and moves the waiting entry of the token's retraction.
+            // One that shows later than the first changes nothing.
             int $now = ReleasesTest::now();
-            Test::assertTrue($releases->retract(ReleasesTest::KEY, '0.0.10', 'It is slow.', null, $now + ReleasesTest::WEEK));
+            Test::assertTrue($releases->retract(ReleasesTest::KEY, '0.0.10', 'It is old.', null, $now + ReleasesTest::WEEK));
             Test::assertTrue($releases->retract(ReleasesTest::KEY, '0.0.10', 'It is slow.', null, $now));
             Test::assertTrue(!$releases->retract(ReleasesTest::KEY, '0.0.10', 'It is slow.', null, $now + 60));
+            Test::assertSame(ReleasesTest::kinds($db), ['retract']);
             Test::assertSame(ReleasesTest::state($db, $folder, 1), '{"retracted":{"reason":"It is slow."}}');
-            Test::assertSame(ReleasesTest::logged($folder), ['retract', 'retract', 'retract']);
+            Test::assertSame(ReleasesTest::logged($folder), ['retract', 'retract']);
+            Test::assertTrue(Str::contains(IO::read($folder . '/log.txt'), 'It is slow.'));
+            Test::assertTrue(!Str::contains(IO::read($folder . '/log.txt'), 'It is old.'));
         } finally {
             ReleasesTest::remove($folder);
         }

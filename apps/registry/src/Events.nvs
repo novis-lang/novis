@@ -3,14 +3,16 @@ namespace Registry;
 
 use Core\Db\Connection;
 use Core\Db\Row;
+use Core\Db\Rows;
 use Core\Db\Transaction;
 use Core\Json;
 use Core\Str;
 
 // The entries of the log that wait to be added, such as an unlist or a new token.
-// A change and its entry are saved in one transaction. `Index` adds the waiting entries to the log
-// under the write lock of the database, before it writes an index file that shows the change.
-// An entry that the log did not take waits for the next change, publish or daily run.
+// A change and its entry are saved in one transaction. `Index` adds the entries that `ready` returns
+// to the log under the write lock of the database, before it writes an index file that shows the change.
+// An entry with a `due` time, such as a retraction or an advisory sent with a token, is not ready
+// before that time. An entry that the log did not take waits for the next change, publish or daily run.
 // Each change also saves a message to the owners through `Notices`, in the same transaction.
 final class Events
 {
@@ -32,13 +34,46 @@ final class Events
 
     // A version was retracted or withheld. `$kind` is `retract` or `withhold`.
     // `$fixedIn` is the version that fixes a retracted one. The entry leaves it out when it is `null`.
-    public static function reasoned(Connection|Transaction $db, string $kind, string $key, string $version, string $reason, ?string $fixedIn = null): void
+    // The log adds the entry from the time `$due`, and the owners get the message now.
+    // It returns the id of the waiting entry.
+    public static function reasoned(Connection|Transaction $db, string $kind, string $key, string $version, string $reason, ?string $fixedIn, int $due): int
+    {
+        int $id = Events::add($db, Events::reasonedEntry($kind, $key, $version, $reason, $fixedIn), $key, $due);
+        Events::reasonedNotice($db, $kind, $key, $version, $reason);
+        return $id;
+    }
+
+    // A retraction that waits moved to the earlier time `$due`, with a new reason and fixed version.
+    // The waiting entry `$id` gets the new text and time, and the owners get the message now.
+    // It returns `false` when no entry with that id waits, so the caller adds a new one.
+    public static function moved(Transaction $tx, int $id, string $key, string $version, string $reason, ?string $fixedIn, int $due): bool
+    {
+        string $entry = Events::reasonedEntry('retract', $key, $version, $reason, $fixedIn);
+        var $write = $tx->execute('update events set entry = ?, due = ? where id = ?', [Events::trusted($entry), $due, $id]);
+        if ($write->affected() != 1) {
+            return false;
+        }
+        Events::reasonedNotice($tx, 'retract', $key, $version, $reason);
+        return true;
+    }
+
+    // Returns the entries the log may add at the time `$now`, in the order they were saved.
+    // An entry with a `due` time later than `$now` is not in the result.
+    public static function ready(Connection|Transaction $db, int $now): Rows<Row>
+    {
+        return $db->query('select id, entry, package from events where due is null or due <= ? order by id', [$now]);
+    }
+
+    private static function reasonedEntry(string $kind, string $key, string $version, string $reason, ?string $fixedIn): string
     {
         string $package = Index::slug($key);
-        string $entry = $fixedIn == null
+        return $fixedIn == null
             ? Json::encode({ v: 1, kind: $kind, package: $package, version: $version, reason: $reason })
             : Json::encode(['v' => 1, 'kind' => $kind, 'package' => $package, 'version' => $version, 'reason' => $reason, 'fixed_in' => $fixedIn]);
-        Events::add($db, $entry, $key);
+    }
+
+    private static function reasonedNotice(Connection|Transaction $db, string $kind, string $key, string $version, string $reason): void
+    {
         string $release = '`' . Notices::nameOf($db, $key) . '` ' . $version;
         string $text = $kind == 'withhold'
             ? 'The operator withheld ' . $release . '. The reason: ' . $reason
@@ -93,9 +128,12 @@ final class Events
     }
 
     // Saves one entry, as one line of JSON. `$key` is the package whose index file changes, or `null`.
-    private static function add(Connection|Transaction $db, tainted string $entry, ?string $key): void
+    // The log adds the entry from the time `$due`, or with the next change when it is `null`.
+    // It returns the id of the entry.
+    private static function add(Connection|Transaction $db, tainted string $entry, ?string $key, ?int $due = null): int
     {
-        $db->execute('insert into events (entry, package) values (?, ?)', [Events::trusted($entry), $key]);
+        var $write = $db->execute('insert into events (entry, package, due) values (?, ?, ?)', [Events::trusted($entry), $key, $due]);
+        return ($write->lastId() ?? 0) as int;
     }
 
     private static function trusted(mixed $value): string

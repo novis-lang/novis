@@ -37,8 +37,9 @@ index writes it as `{"pending": {}}`. An owner signed in with a passkey in the l
 releases a version with `POST /api/packages/<vendor>/<name>/<version>/release` and freezes the first
 stable API with `.../stable`, whose page reads the API from `.../api`. Each confirmation is a
 `release-confirmed` or `stable-api-confirmed` log entry saved with the change (`Events.nvs`). A
-retraction sent with a token shows seven days later (`App::retract`), and an advisory sent with a
-token enters the log and the feed seven days later (`App::advise`). The client reads both pending
+retraction or an advisory sent with a token shows in the index and enters the log and the feed seven
+days later (`App::retract`, `App::advise`). Both wait as an entry of `events` with that `due` time
+(`rule:packaging/a-known-bad-version-is-retracted-not-deleted`). The client reads both pending
 forms from the index, and `nvs pkg add` and `nvs pkg update` choose a pending version only by its
 exact version (`crates/nvs-cli/src/package/minimum.rs`).
 

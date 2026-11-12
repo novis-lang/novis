@@ -1,6 +1,7 @@
 <?nvs
 namespace Registry;
 
+use Core\Arr;
 use Core\Db;
 use Core\Db\Connection;
 use Core\Db\Driver;
@@ -104,6 +105,24 @@ final class PackagePageTest
         PackagePageTest::has($page, '<tr><th>Declarations with a doc comment</th><td>17</td></tr>');
         PackagePageTest::has($page, '<tr><th>Retracted versions that name the version with the fix</th><td>1</td></tr>');
         PackagePageTest::has($page, '<tr><th>Downloads in the last 90 days</th><td>70</td></tr>');
+    }
+
+    // A retraction sent with a token counts in the score only from its time, seven days later.
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function aWaitingRetractionCountsInNoRankingFact(): void
+    {
+        var $db = PackagePageTest::database();
+        int $now = PackagePageTest::now();
+        string $key = PackagePageTest::package($db, 'Acme\\Http', $now - 100 * PackagePageTest::DAY);
+        PackagePageTest::release($db, $key, '0.0.1', $now - 100 * PackagePageTest::DAY);
+        PackagePageTest::release($db, $key, '0.0.2', $now - 10 * PackagePageTest::DAY);
+        Test::assertTrue(new Releases($db)->retract($key, '0.0.1', 'It deletes files.', '0.0.2', $now + 7 * PackagePageTest::DAY));
+
+        array<Facts> $before = Ranking::facts($db, $now, null, $key);
+        Test::assertSame(Arr::count($before), 1);
+        Test::assertSame($before[0]->fixedRetractions, 0);
+        array<Facts> $after = Ranking::facts($db, $now + 7 * PackagePageTest::DAY, null, $key);
+        Test::assertSame($after[0]->fixedRetractions, 1);
     }
 
     // The version page shows the capabilities and their change, the API changes, the files and the external downloads.

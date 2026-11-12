@@ -1584,6 +1584,53 @@ fn the_publishing_commands_work_against_the_registry_service() {
     );
 }
 
+/// `nvs pkg retract` sent with a token alone waits seven days, so the advisory feed in the
+/// served registry's store does not list the retraction.
+#[test]
+fn a_retraction_sent_with_a_token_is_pending_for_seven_days() {
+    let case = Case::new("registry-retract-token");
+    case.package("", "1.0.0", false);
+    case.commit("1.0.0");
+    let host = Host::start(&case);
+    let registry = Registry::start(&case);
+    let url = registry.url();
+    let (_browser, _account) = publisher(&case, &registry);
+    let shown_all = |out: &Output| format!("{}\nthe server: {}", shown(out), registry.said());
+    let repository = host.url();
+    let out = case.nvs(
+        &case.repo(),
+        &[
+            "pkg",
+            "publish",
+            "--registry",
+            &url,
+            "--repository",
+            &repository,
+        ],
+    );
+    assert!(out.status.success(), "{}", shown_all(&out));
+    let out = case.nvs(
+        &case.repo(),
+        &[
+            "pkg",
+            "retract",
+            "1.0.0",
+            "--reason",
+            "It deletes the cache.",
+            "--registry",
+            &url,
+        ],
+    );
+    assert!(out.status.success(), "{}", shown_all(&out));
+    let said = String::from_utf8_lossy(&out.stdout);
+    assert!(said.contains("Version 1.0.0 is retracted from "), "{said}");
+    assert!(
+        !feed(&registry).contains("It deletes the cache."),
+        "the feed lists a pending retraction: {}",
+        feed(&registry)
+    );
+}
+
 /// A served registry with `Acme\Http` 1.0.0 published by a signed-in publisher, and
 /// `nvs pkg advise` run with its token against `1.0.0..`. The case, the registry, the browser
 /// and the command's output.

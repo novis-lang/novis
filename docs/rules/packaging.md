@@ -2255,8 +2255,9 @@ index writes it as `{"pending": {}}`. An owner signed in with a passkey in the l
 releases a version with `POST /api/packages/<vendor>/<name>/<version>/release` and freezes the first
 stable API with `.../stable`, whose page reads the API from `.../api`. Each confirmation is a
 `release-confirmed` or `stable-api-confirmed` log entry saved with the change (`Events.nvs`). A
-retraction sent with a token shows seven days later (`App::retract`), and an advisory sent with a
-token enters the log and the feed seven days later (`App::advise`). The client reads both pending
+retraction or an advisory sent with a token shows in the index and enters the log and the feed seven
+days later (`App::retract`, `App::advise`). Both wait as an entry of `events` with that `due` time
+([`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted)). The client reads both pending
 forms from the index, and `nvs pkg add` and `nvs pkg update` choose a pending version only by its
 exact version (`crates/nvs-cli/src/package/minimum.rs`).
 
@@ -2480,9 +2481,15 @@ An owner sends an advisory with `POST /api/packages/<vendor>/<name>/advisory` an
 (`apps/registry/src/VersionRange.nvs`) and answers `422` for one it does not read. It gives the
 advisory its `id`, `<vendor>/<name>-<n>`, where `n` counts that package's advisories from 1, and
 saves the row, the waiting log entry and the owners' notice in one transaction (`Releases::advise`).
-A waiting entry has a `due` time, and the log takes it only from then (`Index.nvs`), so a token's
-advisory is in neither the log nor the feed for seven days. The same advisory sent again with a
-passkey moves that time to now. The package page lists each advisory, and a version's page lists the
+A waiting entry has a `due` time, and the log takes it only from then (`Events::ready`, which
+`Index::append` reads), so a token's advisory is in neither the log nor the feed for seven days. The
+same advisory sent again with a passkey moves that time to now. A retraction's entry has a `due`
+time the same way: `Releases::retract` gives it the time the retraction shows in the index, and
+`release_states.retract_event` keeps the id of the waiting entry. A second retraction with an earlier
+time rewrites that entry's reason and `due` and adds none, so a token's retraction confirmed with a
+passkey enters the log once. A withhold's entry is due at once. The index writer and the ranking fact
+read `retracted_at` against the same time, and `Index::run` reads the clock once for the log and the
+index files, so no index file shows a retraction whose entry the log does not have yet. The package page lists each advisory, and a version's page lists the
 ones whose range has that version (`PackagePage.nvs`).
 
 The client is `nvs pkg advise <package> <versions> <summary>` (`crates/nvs-cli/src/package/advise.rs`),
