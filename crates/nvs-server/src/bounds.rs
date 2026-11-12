@@ -59,8 +59,8 @@
 //! observable: a connection that says nothing for [`Connection::idle`] is
 //! closed, and one that has been open for [`Connection::lifetime`] is closed
 //! however busy it was. An application that wants a longer-lived connection
-//! sends anything at all — a ping is a frame, and the program's `receive()`
-//! loop never sees one.
+//! sends a message: a ping, a pong or an empty fragment does not restart the
+//! idle window ([`crate::socket::Framed`]'s `receive`).
 //!
 //! # What a deployment may write, and what it may not
 //!

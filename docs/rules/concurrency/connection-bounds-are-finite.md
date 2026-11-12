@@ -49,5 +49,10 @@ request, so a per-tenant ceiling is the rate limit the route already declares
 (`rule:core-classes/ratelimit-two-members`); a second ceiling here would be a second policy over one
 request.
 
-An application that wants a longer-lived connection sends anything at all — a ping is a frame, and
-the loop never sees one.
+**Only a message restarts the idle timeout.** `receive` fixes the idle instant when it starts to wait
+and keeps it across pings, pongs and empty fragments, so a peer that sends only those is closed with
+the idle close when the instant passes. A message that never ends meets the instant at the stream's
+streak check, within sixteen reads. The lifetime is compared where each `receive` and each `send`
+starts, so frames that keep arriving cannot carry a connection past it. An application that wants a
+longer-lived connection sends a message. **What it spends:** one clock read per control frame and one
+per operation. **Declined:** a count of control frames per message, which would be a new limit.

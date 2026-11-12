@@ -284,8 +284,34 @@ impl Framed {
     /// The scheduler bounds the park by the tree's wall deadline, where it has
     /// one (`rule:errors/on-limit`).
     fn arm(&mut self, window: std::time::Duration) {
-        let at = (Instant::now() + window).min(self.expires_at);
-        self.socket.get_mut().set_deadline(at);
+        self.arm_until(Instant::now() + window);
+    }
+
+    /// Bounds the next wait by `at`, or by the lifetime where that is sooner.
+    /// A `receive` arms the one idle instant it fixed when it started to wait.
+    fn arm_until(&mut self, at: Instant) {
+        self.socket.get_mut().set_deadline(at.min(self.expires_at));
+    }
+
+    /// Closes the connection on the lifetime once it has passed, and says
+    /// whether it did. Read where an operation starts, so a peer whose frames
+    /// keep arriving cannot carry a connection past [`Connection::lifetime`].
+    fn expired(&mut self) -> bool {
+        let over = Instant::now() >= self.expires_at;
+        if over {
+            self.close(Closing::Expired);
+        }
+        over
+    }
+
+    /// Closes the connection on the idle window once `idle_at` has passed, and
+    /// says whether it did. Read after a frame that is not a message.
+    fn idle_past(&mut self, idle_at: Instant) -> bool {
+        let over = Instant::now() >= idle_at;
+        if over {
+            self.close(Closing::Idle);
+        }
+        over
     }
 
     /// Which of the two clocks, idle or lifetime, a `TimedOut` was, or `None` for an error that
@@ -326,11 +352,15 @@ impl PeerSocket for Framed {
     /// socket ending under us — is `None`, which is `receive()`'s `null`
     /// (`rule:concurrency/a-connection-is-a-loop`).
     ///
-    /// **A ping re-arms the idle window**, which is the arming being inside the
-    /// loop rather than above it. That is what makes the idle bound usable at
-    /// all: a client with nothing to say keeps its connection by doing what RFC
-    /// 6455 already tells it to do, and a client that has genuinely gone is the
-    /// one that stops.
+    /// **Only a message restarts the idle window.** The idle instant is fixed
+    /// once, when the call starts to wait, and a ping, a pong, an empty
+    /// fragment or a wake that was not an interrupt keeps it. A peer that sends
+    /// only control frames is closed with [`Closing::Idle`] when the instant
+    /// passes: after the frame that found it passed, or, for a message that
+    /// never ends, at the stream's streak check (`nvs_host::NvsStream`'s
+    /// `STREAK`), which reads the same instant within sixteen reads. A client
+    /// keeps a quiet connection by sending a message
+    /// (`rule:concurrency/connection-bounds-are-finite`).
     ///
     /// The idle and lifetime timeouts end the connection here rather than reporting one:
     /// the peer is told [`Closing::Idle`] or [`Closing::Expired`] and the
@@ -388,12 +418,16 @@ impl PeerSocket for Framed {
         if self.cut.is_none() {
             self.cut = self.socket.get_mut().cut_at_drain(self.draining.bit());
         }
+        let idle_at = Instant::now() + self.bounds.idle;
         loop {
             if self.draining.is_draining() {
                 self.close(Closing::ShuttingDown);
                 return Ok(Received::Closed);
             }
-            self.arm(self.bounds.idle);
+            if self.expired() {
+                return Ok(Received::Closed);
+            }
+            self.arm_until(idle_at);
             return match self.socket.read() {
                 Ok(Message::Text(text)) => {
                     Ok(Received::Frame(PeerFrame::Text(text.as_str().to_owned())))
@@ -401,7 +435,12 @@ impl PeerSocket for Framed {
                 Ok(Message::Binary(bytes)) => {
                     Ok(Received::Frame(PeerFrame::Binary(bytes.to_vec())))
                 }
-                Ok(Message::Ping(_) | Message::Pong(_)) => continue,
+                Ok(Message::Ping(_) | Message::Pong(_)) => {
+                    if self.idle_past(idle_at) {
+                        return Ok(Received::Closed);
+                    }
+                    continue;
+                }
                 // `Frame` is a raw frame the codec only produces for a caller
                 // that asked for one, which this is not.
                 Ok(Message::Close(_) | Message::Frame(_)) => Ok(Received::Closed),
@@ -414,6 +453,9 @@ impl PeerSocket for Framed {
                 Err(tungstenite::Error::Io(io)) if io.kind() == std::io::ErrorKind::WouldBlock => {
                     if pending() {
                         return Ok(Received::Interrupted);
+                    }
+                    if self.idle_past(idle_at) {
+                        return Ok(Received::Closed);
                     }
                     continue;
                 }
@@ -471,11 +513,15 @@ impl PeerSocket for Framed {
     /// where it was [`Connection::lifetime`] that expired first, since
     /// [`Framed::arm`] caps every wait by it and a connection past its lifetime
     /// may not keep writing — or an earlier send's frame still could not be
-    /// written, or the server is past its drain deadline.
+    /// written, or the server is past its drain deadline, or the connection is
+    /// past its lifetime, which closes it with [`Closing::Expired`].
     fn send(&mut self, frame: PeerFrame) -> Result<(), PeerError> {
         if self.drain_deadline().is_some_and(|at| Instant::now() >= at) {
             self.close(Closing::ShuttingDown);
             return Err(PeerError::new(Closing::ShuttingDown.reason()));
+        }
+        if self.expired() {
+            return Err(PeerError::new(Closing::Expired.reason()));
         }
         let message = match frame {
             PeerFrame::Text(text) => Message::Text(text.into()),
@@ -533,5 +579,114 @@ impl PeerSocket for Framed {
             reason: why.reason().into(),
         })));
         drop(self.socket.flush());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Read as _, Write as _};
+    use std::net::{Shutdown, TcpListener, TcpStream};
+    use std::time::Duration;
+
+    use nvs_host::{NvsConnection, NvsTcp};
+    use nvs_runtime::{Closing, PeerSocket};
+
+    use super::Framed;
+    use crate::bounds::Connection;
+    use crate::serve::Draining;
+
+    /// A framed server half off any core, with an idle window that has passed
+    /// by its first read, and the plain client half.
+    fn framed_pair() -> (Framed, TcpStream) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let client = TcpStream::connect(addr).expect("the loopback refused a connection");
+        let (server, _) = listener.accept().expect("the accept failed");
+        let stream =
+            NvsConnection::Tcp(NvsTcp::from_std(server).expect("the socket refused non-blocking mode"));
+        let bounds = Connection {
+            idle: Duration::from_nanos(1),
+            ..Connection::default()
+        };
+        (
+            Framed::new(stream, Vec::new(), bounds, Draining::detached()),
+            client,
+        )
+    }
+
+    /// A client frame with an empty payload. `first` is the FIN bit and the
+    /// opcode, and the frame is masked with a zero key, as a client's must be.
+    fn empty_frame(first: u8) -> [u8; 6] {
+        [first, 0x80, 0, 0, 0, 0]
+    }
+
+    /// The reason in the first close frame the server wrote, past the pongs
+    /// before it. Every frame the server writes here is short and unmasked.
+    fn close_reason(client: &mut TcpStream) -> String {
+        loop {
+            let mut head = [0_u8; 2];
+            client
+                .read_exact(&mut head)
+                .expect("the server wrote no close frame");
+            let mut body = vec![0_u8; usize::from(head[1] & 0x7F)];
+            client
+                .read_exact(&mut body)
+                .expect("the server cut a frame short");
+            if head[0] & 0x0F == 0x8 {
+                return String::from_utf8_lossy(body.get(2..).unwrap_or_default()).into_owned();
+            }
+        }
+    }
+
+    /// Pings do not restart the idle window. The peer queues many pings and
+    /// then a message, and `receive` closes on the idle window at the first
+    /// ping. With the window restarted at each ping, the message would arrive.
+    #[test]
+    fn a_peer_that_sends_only_pings_is_closed_at_the_idle_timeout() {
+        let (mut framed, mut client) = framed_pair();
+        let mut frames = Vec::new();
+        for _ in 0..1000 {
+            frames.extend_from_slice(&empty_frame(0x89));
+        }
+        frames.extend_from_slice(&[0x81, 0x82, 0, 0, 0, 0, b'h', b'i']);
+        client.write_all(&frames).expect("the write failed");
+
+        assert_eq!(framed.receive().map_err(|error| error.to_string()), Ok(None));
+        assert_eq!(close_reason(&mut client), Closing::Idle.reason());
+    }
+
+    /// A message that never ends is closed on the idle window. The peer opens
+    /// a text message and writes empty fragments after it for as long as the
+    /// server reads, and the stream's streak check ends the read.
+    #[test]
+    fn a_peer_that_sends_only_empty_fragments_is_closed_at_the_idle_timeout() {
+        let (mut framed, mut client) = framed_pair();
+        let mut writer = client.try_clone().expect("the socket could not be cloned");
+        let flood = std::thread::spawn(move || {
+            let mut chunk = Vec::new();
+            for _ in 0..10_000 {
+                chunk.extend_from_slice(&empty_frame(0x00));
+            }
+            if writer.write_all(&empty_frame(0x01)).is_err() {
+                return;
+            }
+            // About 4 MiB, more than sixteen of the codec's reads. The write
+            // ends early once the server closes the socket.
+            for _ in 0..70 {
+                if writer.write_all(&chunk).is_err() {
+                    return;
+                }
+            }
+        });
+
+        let received = framed.receive().map_err(|error| error.to_string());
+        let reason = close_reason(&mut client);
+        drop(framed);
+        drop(client.shutdown(Shutdown::Both));
+        flood.join().expect("the writing thread panicked");
+        assert_eq!(received, Ok(None));
+        assert_eq!(reason, Closing::Idle.reason());
     }
 }

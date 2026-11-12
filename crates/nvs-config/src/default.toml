@@ -634,8 +634,8 @@
 # none of them has an unbounded spelling: `false` and `0` are both refused, because a connection is
 # the one thing this server holds that no request ever ends. `max_open` is how many connections this
 # process holds open at once; `max_frame` the largest frame payload the codec accepts; `max_message`
-# the largest message, frames reassembled; `idle_timeout` the longest silence from the peer, unarmed
-# on an event stream; `max_lifetime` the longest one connection may stay open, however busy; and
+# the largest message, frames reassembled; `idle_timeout` the longest time with no message from the
+# peer, where a ping does not count, unarmed on an event stream; `max_lifetime` the longest one connection may stay open, however busy; and
 # `send_timeout` the longest one `send` may take before it throws.
 #max_open = 10000                     # default
 #max_frame = "1M"                     # default

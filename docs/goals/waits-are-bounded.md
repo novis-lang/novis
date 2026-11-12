@@ -501,12 +501,12 @@ keeps a connection open or that `cpu_time` covers a whole connection, as `path:N
 - [ ] Tests `an_event_stream_takes_a_max_open_place_and_gives_it_back` and
   `an_event_stream_past_max_open_is_answered_503` in `crates/nvs-server/src/serve.rs:1` tests, against
   a named count as `Slot::take_from` allows (`rule:concurrency/connection-bounds-are-finite`).
-- [ ] `Framed::receive_or` fixes the idle instant once per call, keeps it across a ping, a pong and
+- [x] `Framed::receive_or` fixes the idle instant once per call, keeps it across a ping, a pong and
   an interrupt that was not pending, and compares `expires_at` there and in `send`
   (`rule:concurrency/connection-bounds-are-finite`, `crates/nvs-server/src/socket.rs:400`,
   `crates/nvs-server/src/socket.rs:417`, `crates/nvs-server/src/socket.rs:293`,
   `crates/nvs-server/src/socket.rs:488`).
-- [ ] Tests `a_peer_that_sends_only_pings_is_closed_at_the_idle_timeout` and
+- [x] Tests `a_peer_that_sends_only_pings_is_closed_at_the_idle_timeout` and
   `a_peer_that_sends_only_empty_fragments_is_closed_at_the_idle_timeout` in
   `crates/nvs-server/src/socket.rs:1` tests. The idle instant has passed, the peer's frames are queued,
   and the test reads the idle close within sixteen reads (`rule:concurrency/connection-bounds-are-finite`).
