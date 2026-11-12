@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/isolate.rs, crates/nvs-runtime/tests/tree_budget.rs, crates/nvs-stdlib/src/config.rs, docs/rules/security/isolate-budget-is-the-trees.md]
   - id: 2
     title: the backtracking regex tier stops at the CPU limit
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/regex.rs, Cargo.toml, docs/rules/core-classes/regex-two-tiers.md]
   - id: 3
     title: a key derivation and a whole read ask before the work
@@ -332,29 +332,29 @@ reports its path and how it names the child's file. The attack below copies that
 **Does:** vendor `fancy-regex` with a work-counted poll in its dispatch loop, and run every
 backtracking call under the request's deadline.
 
-- [ ] Copy the published 0.19.2 to `vendor/fancy-regex`, keep its license file, and add the
+- [x] Copy the published 0.19.2 to `vendor/fancy-regex`, keep its license file, and add the
   `[patch.crates-io]` row with a comment like `html5ever`'s (`Cargo.toml:1318`, `Cargo.toml:640`).
-- [ ] The patch: a poll function on the builder, a work counter in the dispatch loop, one unit per
+- [x] The patch: a poll function on the builder, a work counter in the dispatch loop, one unit per
   instruction and one per 64 bytes of a delegated span, a poll every 4,096 units
   (`rule:http-server/time-is-bounded-inside-a-helper`, `vendor/fancy-regex/src/vm.rs:1`).
-- [ ] `Compiled::Backtracking` holds a wrapper whose methods take the context and set the deadline
+- [x] `Compiled::Backtracking` holds a wrapper whose methods take the context and set the deadline
   word for the call. Every arm that runs the engine calls it
   (`crates/nvs-stdlib/src/regex.rs:1382`, `crates/nvs-stdlib/src/regex.rs:1830`,
   `crates/nvs-stdlib/src/regex.rs:2021`, `crates/nvs-stdlib/src/regex.rs:2069`,
   `crates/nvs-stdlib/src/regex.rs:2243`, `crates/nvs-stdlib/src/regex.rs:2346`,
   `crates/nvs-stdlib/src/regex.rs:2408`).
-- [ ] `budget_exhausted` asks the deadline first and gives the `FATAL` through `poll_deadline`
+- [x] `budget_exhausted` asks the deadline first and gives the `FATAL` through `poll_deadline`
   (`rule:core-classes/regex-two-tiers`, `crates/nvs-stdlib/src/regex.rs:1526`).
-- [ ] The doc comment of `polled` says what bounds each tier (`crates/nvs-stdlib/src/regex.rs:1869`).
-- [ ] Tests `a_backtracking_search_stops_at_an_expired_deadline`,
+- [x] The doc comment of `polled` says what bounds each tier (`crates/nvs-stdlib/src/regex.rs:1869`).
+- [x] Tests `a_backtracking_search_stops_at_an_expired_deadline`,
   `the_backtracking_tier_polls_in_step_with_the_bytes_it_scans`, which counts polls at two subject
   sizes, and `a_deadline_inside_a_backtracking_search_is_fatal_and_a_spent_budget_is_thrown`
   (`crates/nvs-stdlib/src/regex.rs:2531`).
-- [ ] Attack: a small `cpu_time`, then an unanchored lookahead pattern on a long run of one letter.
+- [x] Attack: a small `cpu_time`, then an unanchored lookahead pattern on a long run of one letter.
   It ends `FATAL` (`tests/hostile/core/Regex/matches/02-a-lookahead-over-a-long-subject.nvs:1`).
-- [ ] Attack: the same subject through a pattern of the linear tier returns inside the timeout
+- [x] Attack: the same subject through a pattern of the linear tier returns inside the timeout
   (`tests/hostile/core/Regex/matches/03-a-linear-pattern-over-a-long-subject.nvs:1`).
-- [ ] `rule:core-classes/regex-two-tiers` says the step budget bounds backtracks and `cpu_time`
+- [x] `rule:core-classes/regex-two-tiers` says the step budget bounds backtracks and `cpu_time`
   bounds the work, with the cost (`docs/rules/core-classes/regex-two-tiers.md:5`).
 
 ### 3. a key derivation and a whole read ask before the work
@@ -523,25 +523,35 @@ cap the resource table.
 
 ### State
 
-Stage 1 is done. `Ctx::hold_to_tree` (`crates/nvs-runtime/src/ctx/isolate.rs`) is the one writer
-of the spawn record `Ctx::spawn_clamp`. `Ctx::isolate`, `Ctx::handler_isolate`,
-`PlacedIsolate::build` and `narrow_under` call it. `refresh_limits` calls `clamp_to_spawn` before
-it publishes the CPU ceiling and arms the allocator. `handler_isolate` now arms its reserve through
-the writer. Before, it set the field and left the allocator armed at the failing tree's remainder.
-The four `tree_budget` tests pass, and the attack passes. Run once with the clamp disabled, the
-attack failed. The sweep's two reds are stale: no check named `env-secret-proofs` exists, and
-nightly 43001191130 ran at `f4c1d5c7e2`, before `305c04f660` fixed the `live_config` test.
+Stages 1 and 2 are done. Stage 1: `Ctx::hold_to_tree` (`crates/nvs-runtime/src/ctx/isolate.rs`)
+is the one writer of the spawn record, and `refresh_limits` clamps to it.
+
+Stage 2: `vendor/fancy-regex` is the published 0.19.2 with one patch, marked `Novis patch` in
+`src/vm.rs`, `src/lib.rs` and `src/error.rs`. `run_with` counts work and calls the builder's `poll`
+every 4,096 units. A `true` ends the search with the new `RuntimeError::Interrupted`. The manifest
+keeps only the library, and `docs/` is copied because `lib.rs` includes it. Both `Cargo.toml` and
+`fuzz/Cargo.toml` carry the `[patch.crates-io]` row, and `manifest_policy` passes.
+`Compiled::Backtracking` holds `Backtracker` (`crates/nvs-stdlib/src/regex.rs`), whose `under`
+puts `Ctx::deadline_word` in a thread-local for the call. `budget_exhausted` takes the context and
+asks `polled` first. The three named tests pass. Attack 02 ends `FATAL` at the CPU limit, and
+attack 03 runs under a 2s limit: 200ms diverged on a loaded run. A run with the poll removed was not
+made; `a_backtracking_search_stops_at_an_expired_deadline` asserts `Interrupted`, which no
+unpatched engine returns.
+
+The sweep's reds were stale again: no check named `env-secret-proofs` exists, and nightly
+43001191130 ran at `f4c1d5c7e2`, before `305c04f660`.
 
 ### Next
 
-Stage 2, over `vendor/fancy-regex`, `Cargo.toml` and `crates/nvs-stdlib/src/regex.rs`. Its items
-are in § *Stages*. The first is the vendored copy of 0.19.2 and its `[patch.crates-io]` row
-(`Cargo.toml:640`). Read `vendor/fancy-regex/src/vm.rs` for the dispatch loop before the patch.
-Stages 3 and 6 touch other files and may run beside it.
+Stage 3 at `crates/nvs-stdlib/src/crypto.rs:1714`, over `crypto.rs`, `jwe.rs`, `io.rs`,
+`byte_source.rs` and `storage.rs`. Its `**Split:**` line sends the list of whole reads to an
+`Explore` subagent first. Stage 6 (`crates/nvs-ext/src/call.rs:1326`) touches other files and may
+run beside it.
 
 Tests that may go red at the gate: `crates/nvs-host/tests/limits.rs`'s two `handler_isolate`
-cases. They assert the reserve numbers, which are unchanged, but the handler's allocator is now
-armed with them.
+cases, which assert reserve numbers the handler's allocator is now armed with. Any test that
+matches `fancy_regex::RuntimeError` exhaustively outside `regex.rs` would need the new variant;
+none was found in the workspace build.
 
 ### Backlog
 
