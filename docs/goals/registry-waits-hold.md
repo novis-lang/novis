@@ -6,7 +6,7 @@ context: [docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md]
 stages:
   - id: 1
     title: "a retraction waits in the due column, and the log takes it from that time"
-    status: open
+    status: done
     context: [apps/registry/src/Releases.nvs, apps/registry/src/Events.nvs, apps/registry/src/Index.nvs, apps/registry/src/ReleasesTest.nvs]
   - id: 2
     title: a token of an account that is no longer active does nothing
@@ -338,44 +338,44 @@ on the chain and needs none of its work.
 **Does:** give a retraction's log entry its `due` time, keep one waiting entry per retraction, hold the
 wait in the ranking fact, and start every transaction with a write.
 
-- [ ] `Events::reasoned` takes `int $due` and returns the id of the entry, and `Events::add` inserts
+- [x] `Events::reasoned` takes `int $due` and returns the id of the entry, and `Events::add` inserts
   `due` and returns the id (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`,
   `apps/registry/src/Events.nvs:35`, `apps/registry/src/Events.nvs:96`). The class comment is
   rewritten as a whole.
-- [ ] `Events::ready(Connection|Transaction $db, int $now)` holds the query for the entries the log
+- [x] `Events::ready(Connection|Transaction $db, int $now)` holds the query for the entries the log
   may add at `$now`, and `Index::append` calls it (`apps/registry/src/Index.nvs:104`).
-- [ ] `release_states` gains `retract_event`, added to an existing database as `events.due` is
+- [x] `release_states` gains `retract_event`, added to an existing database as `events.due` is
   (`apps/registry/src/Schema.nvs:135`, `apps/registry/src/Schema.nvs:175`).
-- [ ] `Releases::retract` passes `$from` as `due` and stores the entry's id. A retraction that moves
+- [x] `Releases::retract` passes `$from` as `due` and stores the entry's id. A retraction that moves
   the time forward rewrites the waiting entry's text and `due`, adds no entry, and writes a notice
   (`apps/registry/src/Releases.nvs:177`, `apps/registry/src/Releases.nvs:189`). Its doc comment says
   when the log takes the entry.
-- [ ] `Releases::withhold` passes now (`rule:packaging/the-operator-only-withholds`,
+- [x] `Releases::withhold` passes now (`rule:packaging/the-operator-only-withholds`,
   `apps/registry/src/Releases.nvs:241`).
-- [ ] `Index::run` and `Index::daily` read the clock once and pass it to `append` and `write`
+- [x] `Index::run` and `Index::daily` read the clock once and pass it to `append` and `write`
   (`apps/registry/src/Index.nvs:103`, `apps/registry/src/Index.nvs:252`).
-- [ ] The ranking fact counts a retraction from its time
+- [x] The ranking fact counts a retraction from its time
   (`rule:packaging/search-sorts-by-the-readers-choice`, `apps/registry/src/Ranking.nvs:62`). Test `aWaitingRetractionCountsInNoRankingFact` sits beside
   `everyFactOfTheScoreIsOnThePage` (`apps/registry/src/PackagePageTest.nvs:83`).
-- [ ] `ReleasesTest::aRetractionByTokenShowsSevenDaysLaterAndByPasskeyAtOnce` changes its expectation
+- [x] `ReleasesTest::aRetractionByTokenShowsSevenDaysLaterAndByPasskeyAtOnce` changes its expectation
   (`apps/registry/src/ReleasesTest.nvs:132`). Before the week the log double has no line. After it the
   log has one `retract`. The token retraction of `0.0.10` and the passkey one that moves it leave one
   row in `events`, and the last line expects `['retract', 'retract']`
   (`apps/registry/src/ReleasesTest.nvs:153`).
-- [ ] Test `aRetractionByTokenIsInNeitherTheLogNorTheFeedBeforeItsTime` in
+- [x] Test `aRetractionByTokenIsInNeitherTheLogNorTheFeedBeforeItsTime` in
   `apps/registry/src/AdvisoriesTest.nvs:129`: after a flush `log.txt` does not exist and
   `Log::advisories` was never called, and after seven days the log has the entry and the feed is
   written once.
-- [ ] Test `a_retraction_sent_with_a_token_is_pending_for_seven_days`, beside the advisory's
+- [x] Test `a_retraction_sent_with_a_token_is_pending_for_seven_days`, beside the advisory's
   (`crates/nvs-cli/tests/registry_build.rs:1584`): `nvs pkg retract` with a token against the served
   registry, and the feed in its store does not name the version.
-- [ ] `Releases::advise` starts with a statement that writes, with the comment `rebind` has
+- [x] `Releases::advise` starts with a statement that writes, with the comment `rebind` has
   (`apps/registry/src/Releases.nvs:203`, `apps/registry/src/Releases.nvs:163`).
-- [ ] Test `every_registry_transaction_starts_with_a_write` in
+- [x] Test `every_registry_transaction_starts_with_a_write` in
   `crates/nvs-cli/tests/registry_sources.rs:1`. It reads every `.nvs` file under `apps/registry/src/`
   and `apps/registry/jobs/` that is not a test class, through `nvs_repo::path`. Each method it names
   is fixed in this stage.
-- [ ] Rule fragment: a retraction's entry has a `due` time as an advisory's has, and neither the log
+- [x] Rule fragment: a retraction's entry has a `due` time as an advisory's has, and neither the log
   nor the feed has it before then
   (`docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:55`).
   `rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms` says the same in its last
@@ -566,44 +566,41 @@ message, and leave only a locked fetch outside the bound.
 
 ### State
 
-Nothing is built yet. `Events::reasoned` writes an entry with no `due` time, `Tokens::allows` checks
-no activity, no route cancels, and `Registries::selecting` is the only age bound on the client.
+Stage 1 is done. A retraction's log entry waits in `events` with its `due` time
+(`Events::reasoned`, `apps/registry/src/Events.nvs:36`), `release_states.retract_event` keeps its id,
+and a second retraction with an earlier time rewrites that entry through `Events::moved`
+(`apps/registry/src/Releases.nvs:181`). `Index::append` reads `Events::ready`, and `Index::run` and
+`Index::daily` read the clock once for the log and the index files. The ranking fact counts a
+retraction from its time. `Releases::advise` starts with a write, and
+`crates/nvs-cli/tests/registry_sources.rs` holds that every registry transaction that writes does.
+The stage's three checks pass, run once by name.
+
+The sweep's reds were stale. `env-secret-proofs` belonged to the retired `package-authority-closed`.
+Nightly 43001191130 failed only `a_changed_server_timeout_applies_to_the_next_connection`, which
+`305c04f660` rewrote after that run's commit.
 
 ### Next
 
-Stage 1, over `apps/registry/src/Events.nvs`, `Releases.nvs`, `Index.nvs`, `Schema.nvs`,
-`Ranking.nvs` and their tests. It waits on no gate. Stage 5 shares no file with it and may run beside
-it.
+Stage 2, over `apps/registry/src/Tokens.nvs`, `Publish.nvs`, `TokensTest.nvs` and `ActivityTest.nvs`.
+It waits on no gate. Stage 5 (the client lane) shares no file with it and may run beside it.
 
-- [ ] `apps/registry/src/Events.nvs:35`: `Events::reasoned` takes `int $due` and returns the entry's
-  id, and `Events::add` inserts `due` (`apps/registry/src/Events.nvs:96`,
-  `rule:packaging/a-known-bad-version-is-retracted-not-deleted`).
-- [ ] `apps/registry/src/Index.nvs:104`: the query moves into `Events::ready`, and `Index::append`
-  calls it.
-- [ ] `apps/registry/src/Schema.nvs:135`: `release_states` gains `retract_event`, added to an existing
-  database as `events.due` is (`apps/registry/src/Schema.nvs:175`).
-- [ ] `apps/registry/src/Releases.nvs:177`: `Releases::retract` passes `$from` as `due`, stores the
-  id, and moves a waiting entry in place of adding one (`apps/registry/src/Releases.nvs:189`).
-- [ ] `apps/registry/src/Releases.nvs:241`: `Releases::withhold` passes now.
-- [ ] `apps/registry/src/Index.nvs:103`: `Index::run` and `Index::daily` read the clock once for
-  `append` and `write` (`apps/registry/src/Index.nvs:252`).
-- [ ] `apps/registry/src/Ranking.nvs:62`: the fact counts a retraction from its time, with test
-  `aWaitingRetractionCountsInNoRankingFact` (`apps/registry/src/PackagePageTest.nvs:83`).
-- [ ] `apps/registry/src/ReleasesTest.nvs:132`: the test's new expectation, ending in
-  `['retract', 'retract']` (`apps/registry/src/ReleasesTest.nvs:153`).
-- [ ] `apps/registry/src/AdvisoriesTest.nvs:129`: test
-  `aRetractionByTokenIsInNeitherTheLogNorTheFeedBeforeItsTime`.
-- [ ] `crates/nvs-cli/tests/registry_build.rs:1584`: test
-  `a_retraction_sent_with_a_token_is_pending_for_seven_days`.
-- [ ] `apps/registry/src/Releases.nvs:203`: `Releases::advise` starts with a statement that writes.
-- [ ] `crates/nvs-cli/tests/registry_sources.rs:1`: test
-  `every_registry_transaction_starts_with_a_write`, and each method it names is fixed.
-- [ ] `docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:55` and
-  `docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md:40`: the two rule
-  fragments, then `bun nv rules --render`.
+- [ ] `apps/registry/src/Tokens.nvs:101`: `Tokens::standing(Token $token): ?string` holds the two
+  checks of `apps/registry/src/Publish.nvs:45` and `:48`, in their words, and `allows` returns `null`
+  when it returns a sentence, before it saves the time of use.
+- [ ] `apps/registry/src/Publish.nvs:44`: `Publish::publish` asks `standing` right after `find` and
+  answers `403` with its sentence, before the build. `Publish::record` keeps `allows`
+  (`apps/registry/src/Publish.nvs:124`).
+- [ ] `apps/registry/src/TokensTest.nvs:107`: tests `aTokenOfALapsedAccountDoesNothing` and
+  `aTokenOfAnAccountWithNoVerifiedChannelDoesNothing`.
+- [ ] The callers of `allows` in tests (`apps/registry/src/TokensTest.nvs:23`, `:52`, `:75`, `:116`,
+  `apps/registry/src/ActivityTest.nvs:48`) get an active account with a verified channel where they
+  do not have one.
+- [ ] The route callers keep their one sentence (`apps/registry/src/App.nvs:902`, `:956`, `:1038`).
+- [ ] Rule fragments `an-account-stays-active-by-proof-not-by-token.md:1`, `:31` and
+  `a-publish-token-is-scoped-and-expires.md:13`, `:27`, then `bun nv rules --render`.
 
-Expected red until stage 1 lands: none. Expected red inside stage 1 until its test item is done:
-`ReleasesTest::aRetractionByTokenShowsSevenDaysLaterAndByPasskeyAtOnce`.
+Expected red until stage 2 lands: none. Inside stage 2, a test that sends a token for an account
+inserted with `active_at` 0 or with no verified channel goes red until it gets an active account.
 
 ### Backlog
 
