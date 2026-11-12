@@ -373,8 +373,8 @@ pub enum ColumnDefault {
     Uint(u64),
     /// A binary floating-point literal.
     Float(f64),
-    /// An exact decimal literal, as digits with an optional sign and point.
-    Decimal(String),
+    /// An exact decimal literal, whose one constructor checks its shape.
+    Decimal(DecimalLiteral),
     /// A text literal, emitted as a quoted string.
     Text(String),
     /// A boolean literal.
@@ -397,6 +397,43 @@ pub enum ColumnDefault {
     /// as nothing at all is the alternative, and it makes `rule:core-classes/schema-is-a-value`'s plan propose
     /// the same step on every run, which no number of applies converges.
     Opaque(String),
+}
+
+/// The digits of an exact decimal default: an optional `+` or `-`, then ASCII
+/// digits with at most one `.`, and at least one digit.
+///
+/// [`crate::ddl`] writes these bytes into DDL unquoted, so the shape is the
+/// whole guard: no quote, comma, parenthesis, space or second sign can reach a
+/// statement through a decimal default. [`DecimalLiteral::new`] is the only way
+/// to build one, and both readers of a default — [`Schema::from_array`] and
+/// [`crate::catalog::column_default`] — call it, so the two share one rule.
+/// **What it spends:** one scan of the digits when a schema is read, and
+/// nothing on the request path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecimalLiteral(String);
+
+impl DecimalLiteral {
+    /// The literal, when `text` has the shape above; `None` otherwise.
+    #[must_use]
+    pub fn new(text: &str) -> Option<DecimalLiteral> {
+        let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
+        let mut points = 0usize;
+        let mut any_digit = false;
+        for byte in digits.bytes() {
+            match byte {
+                b'0'..=b'9' => any_digit = true,
+                b'.' => points += 1,
+                _ => return None,
+            }
+        }
+        (any_digit && points <= 1).then(|| DecimalLiteral(text.to_owned()))
+    }
+
+    /// The digits, exactly as they were checked.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 impl ColumnDefault {
@@ -505,9 +542,14 @@ impl Column {
     /// [`SchemaError::DefaultDoesNotFit`] when the literal is not one this type
     /// takes on every backend — [`ColumnDefault::fits`] says which pairs those
     /// are and why some of them are portability rather than typing.
+    /// [`SchemaError::NotFinite`] for a float default that is `NaN` or an
+    /// infinity, which no backend writes as a literal the same way.
     pub fn default(mut self, value: ColumnDefault) -> Result<Column, SchemaError> {
         if !value.fits(&self.ty) {
             return Err(SchemaError::DefaultDoesNotFit(self.name));
+        }
+        if matches!(value, ColumnDefault::Float(float) if !float.is_finite()) {
+            return Err(SchemaError::NotFinite(self.name));
         }
         self.default = Some(value);
         Ok(self)
@@ -1011,7 +1053,7 @@ impl ColumnDefault {
             ColumnDefault::Int(value) => ("int", Node::Int(*value)),
             ColumnDefault::Uint(value) => ("uint", Node::Uint(*value)),
             ColumnDefault::Float(value) => ("float", Node::Float(*value)),
-            ColumnDefault::Decimal(digits) => ("decimal", Node::Text(digits.clone())),
+            ColumnDefault::Decimal(digits) => ("decimal", Node::Text(digits.as_str().to_owned())),
             ColumnDefault::Text(text) => ("text", Node::Text(text.clone())),
             ColumnDefault::Bool(value) => ("bool", Node::Bool(*value)),
             ColumnDefault::Now => ("now", Node::Bool(true)),
@@ -1020,7 +1062,8 @@ impl ColumnDefault {
         Node::Map(vec![pair(key, value)])
     }
 
-    fn from_node(node: &Node) -> Result<ColumnDefault, SchemaError> {
+    /// The default of `column`, which a refused decimal names.
+    fn from_node(node: &Node, column: &Ident) -> Result<ColumnDefault, SchemaError> {
         let bad = SchemaError::BadArray {
             key: "default",
             wanted: "one of `int`, `uint`, `float`, `decimal`, `text`, `bool` or `now`",
@@ -1035,7 +1078,10 @@ impl ColumnDefault {
             ("int", Node::Int(value)) => ColumnDefault::Int(*value),
             ("uint", Node::Uint(value)) => ColumnDefault::Uint(*value),
             ("float", Node::Float(value)) => ColumnDefault::Float(*value),
-            ("decimal", Node::Text(digits)) => ColumnDefault::Decimal(digits.clone()),
+            ("decimal", Node::Text(digits)) => ColumnDefault::Decimal(
+                DecimalLiteral::new(digits)
+                    .ok_or_else(|| SchemaError::NotADecimal(column.clone()))?,
+            ),
             ("text", Node::Text(text)) => ColumnDefault::Text(text.clone()),
             ("bool", Node::Bool(value)) => ColumnDefault::Bool(*value),
             ("now", Node::Bool(true)) => ColumnDefault::Now,
@@ -1076,7 +1122,8 @@ impl Column {
             column = column.identity()?;
         }
         if let Some(default) = node.get("default") {
-            column = column.default(ColumnDefault::from_node(default)?)?;
+            let default = ColumnDefault::from_node(default, &column.name)?;
+            column = column.default(default)?;
         }
         Ok(column)
     }
@@ -1236,6 +1283,11 @@ pub enum SchemaError {
     IdentityNotInKey(Ident),
     /// A default no backend takes on that type.
     DefaultDoesNotFit(Ident),
+    /// A decimal default that is not an optional sign, digits and at most one
+    /// point.
+    NotADecimal(Ident),
+    /// A float default that is `NaN` or an infinity.
+    NotFinite(Ident),
     /// A type spelling the closed vocabulary does not contain.
     UnknownType(String),
     /// A node of the array form that is missing, or is not the kind of value
@@ -1305,6 +1357,16 @@ impl fmt::Display for SchemaError {
             SchemaError::DefaultDoesNotFit(column) => write!(
                 f,
                 "column `{column}` cannot carry that default on all five backends"
+            ),
+            SchemaError::NotADecimal(column) => write!(
+                f,
+                "the default of column `{column}` is not a decimal number. Write it as a \
+                 string of digits with an optional sign and at most one point, like \"-12.50\""
+            ),
+            SchemaError::NotFinite(column) => write!(
+                f,
+                "the default of column `{column}` is not a finite number. A float default \
+                 cannot be NaN or infinite"
             ),
             SchemaError::UnknownType(spelling) => write!(
                 f,
@@ -1555,10 +1617,13 @@ mod tests {
         // And the set is closed at the form as well as at the type: there is no
         // key an expression could arrive under.
         assert!(matches!(
-            ColumnDefault::from_node(&Node::Map(vec![(
-                "expression".to_string(),
-                Node::Text("now()".to_string()),
-            )])),
+            ColumnDefault::from_node(
+                &Node::Map(vec![(
+                    "expression".to_string(),
+                    Node::Text("now()".to_string()),
+                )]),
+                &Ident::new("name").unwrap()
+            ),
             Err(SchemaError::BadArray { .. })
         ));
     }
@@ -1581,13 +1646,106 @@ mod tests {
             )])
         );
         assert!(matches!(
-            ColumnDefault::from_node(&node),
+            ColumnDefault::from_node(&node, &Ident::new("id").unwrap()),
             Err(SchemaError::BadArray { .. })
         ));
         assert!(
             Column::new("id", ScalarType::Int(IntWidth::Big))
                 .unwrap()
                 .default(default)
+                .is_ok()
+        );
+    }
+
+    /// The array form of one table `prices` whose one column `amount` is a
+    /// `decimal(10, 2)` with `digits` as its decimal default.
+    fn schema_with_decimal_default(digits: &str) -> Node {
+        let column = Node::Map(vec![
+            pair("name", Node::Text("amount".to_owned())),
+            pair(
+                "type",
+                Node::Text(
+                    ScalarType::Decimal {
+                        precision: 10,
+                        scale: 2,
+                    }
+                    .to_string(),
+                ),
+            ),
+            pair("null", Node::Bool(false)),
+            pair("identity", Node::Bool(false)),
+            pair(
+                "default",
+                Node::Map(vec![pair("decimal", Node::Text(digits.to_owned()))]),
+            ),
+        ]);
+        Node::Map(vec![pair(
+            "tables",
+            Node::List(vec![Node::Map(vec![
+                pair("name", Node::Text("prices".to_owned())),
+                pair("columns", Node::List(vec![column])),
+            ])]),
+        )])
+    }
+
+    /// `rule:core-classes/schema-vocabulary-is-closed`: a decimal default is
+    /// written into DDL unquoted, so its shape is checked where the schema is
+    /// read, and a refusal names the column.
+    #[test]
+    fn a_decimal_default_that_is_not_a_number_is_refused_when_the_schema_is_read() {
+        for digits in [
+            "1, other DECIMAL(10,2) DEFAULT 0",
+            "1) , other INT",
+            "1.2.3",
+            "--1",
+            "+-1",
+            "1e5",
+            " 1",
+            "",
+            "-",
+            ".",
+            "1;DROP TABLE prices",
+            "'1'",
+        ] {
+            let read = Schema::from_array(&schema_with_decimal_default(digits));
+            assert_eq!(
+                read,
+                Err(SchemaError::NotADecimal(Ident::new("amount").unwrap())),
+                "`{digits}` was read as a decimal default"
+            );
+            let message = read.unwrap_err().to_string();
+            assert!(message.contains("`amount`"), "{message}");
+            assert!(DecimalLiteral::new(digits).is_none(), "`{digits}`");
+        }
+        for digits in ["0", "-12.50", "+3", "12.", ".5", "0001.0000"] {
+            let schema = Schema::from_array(&schema_with_decimal_default(digits))
+                .unwrap_or_else(|why| panic!("`{digits}` was refused: {why}"));
+            assert_eq!(
+                schema.to_array(),
+                Schema::from_array(&schema.to_array()).unwrap().to_array()
+            );
+        }
+    }
+
+    /// `rule:core-classes/schema-vocabulary-is-closed`: a float default is a
+    /// finite number, because `NaN` and the infinities have no literal every
+    /// backend writes the same way.
+    #[test]
+    fn a_float_default_that_is_not_finite_is_refused() {
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let column = Column::new("ratio", ScalarType::Float(FloatWidth::Double)).unwrap();
+            let refused = column.default(ColumnDefault::Float(value));
+            assert_eq!(
+                refused,
+                Err(SchemaError::NotFinite(Ident::new("ratio").unwrap())),
+                "{value} was taken as a default"
+            );
+            assert!(refused.unwrap_err().to_string().contains("`ratio`"));
+        }
+        assert!(
+            Column::new("ratio", ScalarType::Float(FloatWidth::Double))
+                .unwrap()
+                .default(ColumnDefault::Float(-0.25))
                 .is_ok()
         );
     }

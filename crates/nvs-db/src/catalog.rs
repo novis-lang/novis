@@ -74,7 +74,8 @@
 //! database the caller did not connect to.
 
 use crate::schema::{
-    Column, ColumnDefault, FloatWidth, IntWidth, ScalarType, Schema, SchemaError, Table,
+    Column, ColumnDefault, DecimalLiteral, FloatWidth, IntWidth, ScalarType, Schema, SchemaError,
+    Table,
 };
 use crate::sql::Dialect;
 
@@ -736,20 +737,16 @@ pub fn column_default(spelling: &str, ty: &ScalarType, dialect: Dialect) -> Opti
     let default = match ty {
         ScalarType::Int(_) => ColumnDefault::Int(value.parse().ok()?),
         ScalarType::Uint(_) => ColumnDefault::Uint(value.parse().ok()?),
-        ScalarType::Float(_) => ColumnDefault::Float(value.parse().ok()?),
-        ScalarType::Decimal { .. } => {
-            // Not a number this reader parses: a decimal literal keeps the
-            // digits the schema wrote, and turning them into a float and back
-            // is exactly the rounding `rule:types/decimal` gives a `decimal` to avoid.
-            let digits = value.trim_start_matches(['+', '-']);
-            if digits.is_empty()
-                || !digits.chars().all(|c| c.is_ascii_digit() || c == '.')
-                || digits.matches('.').count() > 1
-            {
-                return None;
-            }
-            ColumnDefault::Decimal(value)
+        // `NaN` and the infinities parse, and `Column::default` refuses them,
+        // so a server's own non-finite default is read as one no case holds.
+        ScalarType::Float(_) => {
+            ColumnDefault::Float(value.parse().ok().filter(|float: &f64| float.is_finite())?)
         }
+        // Not a number this reader parses: a decimal literal keeps the digits
+        // the schema wrote, and turning them into a float and back is exactly
+        // the rounding `rule:types/decimal` gives a `decimal` to avoid. The
+        // shape check is the one `Schema::from_array` makes.
+        ScalarType::Decimal { .. } => ColumnDefault::Decimal(DecimalLiteral::new(&value)?),
         // The one type that takes whatever it is handed, which is why the
         // quoting is read here and nowhere else: every other case validates its
         // own text by parsing it, and an expression fails that on its own.
@@ -1681,7 +1678,7 @@ mod tests {
                 ScalarType::Float(FloatWidth::Double),
             ),
             (
-                ColumnDefault::Decimal("12.34".to_owned()),
+                ColumnDefault::Decimal(DecimalLiteral::new("12.34").unwrap()),
                 ScalarType::Decimal {
                     precision: 6,
                     scale: 2,
@@ -1737,6 +1734,129 @@ mod tests {
         }
     }
 
+    /// `rule:core-classes/schema-vocabulary-is-closed`: a default reaches DDL
+    /// only as [`ddl::literal`]'s output, at every site that writes one.
+    ///
+    /// Every type in the vocabulary, every default case, every dialect, and the
+    /// three emit sites: a `CREATE TABLE`, an added column and a changed one.
+    /// The text and decimal values carry a marker, `victim`, and digits found
+    /// nowhere else, so a value written outside its literal is found by
+    /// searching what is left once the literal is taken out.
+    #[test]
+    fn every_column_default_reaches_ddl_only_as_its_dialects_literal() {
+        use crate::plan::Change;
+
+        let text = "x'; DELETE FROM victim; -- \\";
+        let samples = vec![
+            ColumnDefault::Int(-7_654_321),
+            ColumnDefault::Uint(8_765_432),
+            ColumnDefault::Float(-1234.5),
+            ColumnDefault::Decimal(DecimalLiteral::new("-98765.43").unwrap()),
+            ColumnDefault::Text(text.to_owned()),
+            ColumnDefault::Text("\\'".to_owned()),
+            ColumnDefault::Bool(true),
+            ColumnDefault::Bool(false),
+            ColumnDefault::Now,
+            ColumnDefault::Opaque("victim()".to_owned()),
+        ];
+        for wanted in [
+            "int", "uint", "float", "decimal", "text", "bool", "now", "opaque",
+        ] {
+            assert!(
+                samples.iter().any(|default| case(default) == wanted),
+                "the sweep covers no `{wanted}` default"
+            );
+        }
+
+        let mut emitted = 0usize;
+        for ty in every_type() {
+            assert_eq!(
+                ScalarType::from_spelling(&ty.to_string()).as_ref(),
+                Ok(&ty),
+                "`{ty}` is not a spelling the vocabulary reads"
+            );
+            for default in &samples {
+                // The leak a value could make, by case. No wildcard: a case
+                // added to `ColumnDefault` stops this compiling until it says.
+                let marker = match default {
+                    ColumnDefault::Text(_) => Some("victim"),
+                    ColumnDefault::Decimal(_) => Some("98765"),
+                    ColumnDefault::Int(_)
+                    | ColumnDefault::Uint(_)
+                    | ColumnDefault::Float(_)
+                    | ColumnDefault::Bool(_)
+                    | ColumnDefault::Now => None,
+                    // Read off a server and never written: `literal` has no
+                    // spelling for it, and no program can build one.
+                    ColumnDefault::Opaque(_) => continue,
+                };
+                let bare = Column::new("probe", ty.clone()).unwrap().null();
+                let Ok(with) = bare.clone().default(default.clone()) else {
+                    assert!(
+                        !default.fits(&ty),
+                        "{default:?} fits `{ty}` and was refused"
+                    );
+                    continue;
+                };
+                let id = Column::new("id", ScalarType::Int(IntWidth::Big)).unwrap();
+                let table = Table::new("probe_table", vec![id, with.clone()])
+                    .unwrap()
+                    .primary_key(&["id"])
+                    .unwrap();
+                for dialect in DIALECTS {
+                    let wanted = ddl::literal(default, &ty, dialect);
+                    let sites = [
+                        ("CREATE TABLE", ddl::create_table(&table, dialect)),
+                        (
+                            "the added column",
+                            ddl::step(
+                                Change::AddColumn {
+                                    table: table.clone(),
+                                    column: with.clone(),
+                                },
+                                dialect,
+                            )
+                            .sql()
+                            .to_vec(),
+                        ),
+                        (
+                            "the changed column",
+                            ddl::step(
+                                Change::ChangeColumn {
+                                    table: table.clone(),
+                                    from: bare.clone(),
+                                    to: with.clone(),
+                                },
+                                dialect,
+                            )
+                            .sql()
+                            .to_vec(),
+                        ),
+                    ];
+                    for (site, statements) in sites {
+                        let sql = statements.join("\n");
+                        assert!(
+                            sql.contains(&format!("DEFAULT {wanted}"))
+                                || sql.contains(&format!("DEFAULT ({wanted})")),
+                            "{dialect:?} {site} for `{ty}` with {default:?} does not write \
+                             `{wanted}` as the default:\n{sql}"
+                        );
+                        if let Some(marker) = marker {
+                            let rest = sql.replace(&wanted, "");
+                            assert!(
+                                !rest.contains(marker),
+                                "{dialect:?} {site} for `{ty}` with {default:?} writes the \
+                                 value outside `{wanted}`:\n{sql}"
+                            );
+                        }
+                        emitted += 1;
+                    }
+                }
+            }
+        }
+        assert!(emitted > 0, "the sweep emitted nothing");
+    }
+
     /// The wrappers a server adds that no emitter wrote, and the expressions
     /// that are refused rather than guessed at.
     #[test]
@@ -1756,7 +1876,9 @@ mod tests {
                 },
                 Dialect::PostgreSql
             ),
-            Some(ColumnDefault::Decimal("12.34".to_owned()))
+            Some(ColumnDefault::Decimal(
+                DecimalLiteral::new("12.34").unwrap()
+            ))
         );
         // `CURRENT_TIMESTAMP` is stored as `now()` and printed as one.
         assert_eq!(

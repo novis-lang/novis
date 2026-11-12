@@ -1,0 +1,60 @@
+<?nvs
+// Attack: a schema is built from form values, and the decimal default carries
+// SQL that adds a second column or ends the statement. Every attempt should
+// throw a `LogicError` before any statement is sent to the database.
+// hostile: timeout-ms 20000
+
+use Core\Db;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// The values a form could send as the default price.
+array<string> $form = [
+    "0, stolen text(50) DEFAULT 'x'",
+    '0) , stolen int64',
+    "0; DROP TABLE prices_from_form; --",
+    '1.2.3',
+    '--1',
+    '1e5',
+    ' 1',
+    '',
+];
+
+// 1. Each value is used as the default, a thousand times in total. Each call
+// builds the schema and applies it, so a value that passed would reach SQL.
+uint $refused = 0;
+uint $i = 0;
+while ($i < 1000) {
+    string $price = $form[$i % Core\Arr::count($form)];
+    try {
+        Schema::fromArray([
+            'tables' => [
+                [
+                    'name' => 'prices_from_form',
+                    'columns' => [
+                        ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                        [
+                            'name' => 'amount',
+                            'type' => 'decimal(10,2)',
+                            'default' => ['decimal' => $price],
+                        ],
+                    ],
+                    'primary_key' => ['id'],
+                ],
+            ],
+        ])->applySafe($db);
+    } catch (LogicError $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '1 refused: ', $refused, "\n";
+
+// 2. No table was created, because no statement was sent.
+echo '2 tables: ', $db->query(
+    "select name from sqlite_master where name = 'prices_from_form'",
+    [],
+)->count(), "\n";
+
+$db->close();

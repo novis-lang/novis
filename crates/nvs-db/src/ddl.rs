@@ -601,7 +601,7 @@ pub(crate) fn literal(default: &ColumnDefault, ty: &ScalarType, dialect: Dialect
         ColumnDefault::Int(value) => value.to_string(),
         ColumnDefault::Uint(value) => value.to_string(),
         ColumnDefault::Float(value) => format!("{value:?}"),
-        ColumnDefault::Decimal(digits) => digits.clone(),
+        ColumnDefault::Decimal(digits) => digits.as_str().to_owned(),
         ColumnDefault::Text(text) => quoted(text, dialect),
         ColumnDefault::Bool(yes) => match (dialect, *yes) {
             (Dialect::PostgreSql, true) => "TRUE".to_owned(),
@@ -1233,6 +1233,7 @@ mod tests {
     use super::*;
     use crate::conn::Driver;
     use crate::plan::Plan;
+    use crate::schema::DecimalLiteral;
 
     /// The four dialects, in the order [`Dialect`] declares them.
     const DIALECTS: [Dialect; 4] = [
@@ -1363,7 +1364,9 @@ mod tests {
                     },
                 )
                 .unwrap()
-                .default(ColumnDefault::Decimal("10.50".to_owned()))
+                .default(ColumnDefault::Decimal(
+                    DecimalLiteral::new("10.50").unwrap(),
+                ))
                 .unwrap(),
                 Column::new("label", ScalarType::Text { max: Some(200) })
                     .unwrap()

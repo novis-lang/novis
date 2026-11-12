@@ -17,6 +17,14 @@ Defaults are a closed set: a literal of a vocabulary scalar, or the current time
 default would be both an unbindable string reaching a DDL sink and the value a server is most likely
 to spell back differently.
 
+**A default is a typed literal, and no default text is written raw.** One function renders a default
+for a dialect, and each case reaches it checked. A text default is quoted in the dialect's own
+escaping. A decimal default is written unquoted, so its one constructor takes only an optional sign,
+digits and at most one point, and both readers of a default, the array form and the catalog, build
+it. A float default is finite: `NaN` and the infinities have no literal every backend writes alike.
+Each refusal names the column, and a program catches it as `LogicError`. What it spends is one scan
+of the digits when a schema is read, and nothing on the request path.
+
 **There is no raw escape hatch** — no opaque fragment anywhere inside a schema value. Two things
 follow and both are the point: the diff is total, so "this tool does not understand part of your
 schema" is not a state that exists; and a vendor shipping a new feature costs this project nothing,
@@ -43,3 +51,7 @@ never escaped into safety by a second answer.
 - **A raw SQL fragment inside a schema value.** It is the one change that would let the vocabulary cover
   everything, and it ends the diff's totality: a plan over an opaque fragment is best-effort, and every
   guarantee above becomes a hedge.
+- **Refusing a `tainted` argument at the `Schema::fromArray` call site.** The array is `array<mixed>`,
+  and `mixed` carries no qualifier, so the refusal would catch a typed string only while most schema
+  data arrives as `mixed`. The shape checks above are the guard: a name passes the identifier check, a
+  type its spelling, a decimal its digits, and text is quoted.

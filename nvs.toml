@@ -1182,6 +1182,14 @@ entry = "tests/hostile/core/Db-Schema/applySafe/01-applying-the-same-schema-with
 connect = ["notes"]
 schema = ["notes"]
 
+# Applies each schema it reads, so a default that got through would reach the database.
+[[app]]
+entry = "tests/hostile/core/Db-Schema/fromArray/02-a-decimal-default-that-adds-a-column.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
 [[app]]
 entry = "benches/members/core/Db-Schema/applySafe.nvs"
 
