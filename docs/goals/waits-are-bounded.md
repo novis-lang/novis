@@ -604,6 +604,10 @@ The goal is reached. `looper verify` is green over the whole goal (0246cf0f3a, b
   `run_until` in `crates/nvs-host/src/blocking.rs` and `drive` in `crates/nvs-cli/src/extensions.rs`.
 - The sweep's reds were stale. The Miri jobs ran on 578534cc, before 7568aaa0fb, and their failed
   tests are the ones it skips. `looper check --name env-secret-proofs` finds no such check.
+- The refused DONE's red is fixed (67e4d000b2). `a_short_read_that_came_with_a_hang_up_reads_once_more`
+  in `crates/nvs-host/src/net.rs` was `#[cfg(unix)]`, so it never ran on the Windows host the
+  acceptance runs on. It now runs on every platform and passes, and `a-busy-stream-is-bounded`,
+  `no-overshoot` and `no-probe-overshoot` are green.
 
 ### Next
 
