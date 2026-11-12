@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a request runs pragmas that would change the whole process, lock the file, or change
+// what `LIKE` matches. Each one should throw an error, and a second database should still work.
+
+var $db = Core\Db::connect('notes');
+uint $refused = 0;
+
+// 1. Tries to raise the memory limit of the whole process.
+try {
+    $db->query('pragma hard_heap_limit = 1', []);
+} catch (Core\Db\DbError $error) {
+    $refused = $refused + 1;
+}
+
+// 2. Tries to keep a lock on the database file after the request ends.
+try {
+    $db->query('pragma locking_mode = exclusive', []);
+} catch (Core\Db\DbError $error) {
+    $refused = $refused + 1;
+}
+
+// 3. Tries to make `LIKE` case-sensitive for the next request on this connection.
+try {
+    $db->query('pragma case_sensitive_like = on', []);
+} catch (Core\Db\DbError $error) {
+    $refused = $refused + 1;
+}
+echo 'refused: ', $refused, " of 3\n";
+
+// 4. Opens a second database. It still runs a statement.
+var $other = Core\Db::connect('notes');
+echo 'second database: ', $other->query('select 1 as one', [])->count(), " row\n";

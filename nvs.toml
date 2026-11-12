@@ -803,6 +803,12 @@ entry = "tests/hostile/core/Db-Connection/query/05-a-secret-the-database-quotes-
 connect = ["notes"]
 
 [[app]]
+entry = "tests/hostile/core/Db-Connection/query/06-pragmas-that-reach-past-the-request.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
 entry = "benches/members/core/Db-Connection/query.nvs"
 
 [app.capabilities.db]
