@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-config/src/capability.rs, crates/nvs-config/src/defaults.rs, crates/nvs-runtime/src/capability.rs, crates/nvs-stdlib/src/env.rs, docs/rules/security/capability-roster-is-closed.md]
   - id: 2
     title: "spawn script, a queued job and an upgrade ask the calling namespace"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/isolate.rs, crates/nvs-runtime/src/script.rs, crates/nvs-stdlib/src/socket.rs, docs/rules/security/script-spawn-capability.md]
   - id: 3
     title: every Core class has capability rows or a reason for none
@@ -95,7 +95,7 @@ A Novis application compiles third-party packages in. Each package namespace hol
 `E0658`. `rule:security/package-authority-is-granted-one-line-at-a-time` promises that a package with
 an empty line holds "arbitrary computation with no authority at all". Five doors do not keep it.
 
-The check is one function, `reject_ungranted_call` (`crates/nvs-types/src/capability.rs:235`). It
+The check is one function, `reject_ungranted_call` (`crates/nvs-types/src/capability.rs:224`). It
 asks `nvs_stdlib::cap::needs` (`crates/nvs-stdlib/src/cap.rs:203`), which reads the table
 `registry::CAPABILITIES` (`crates/nvs-stdlib/src/registry.rs:1975`). A member with no row needs
 nothing. The completeness test holds only a class that already has one row
@@ -326,40 +326,40 @@ name a script their `script.spawn` rows.
 **Split:** an `Explore` subagent lists every package namespace in the tree that writes `spawn script`
 or calls `Core\Queue::push`, `Core\Socket::upgrade` or `Core\Sse::upgrade`, with its `package.toml`.
 
-- [ ] One `authority_of` replaces the three repeated tests, and one `reject_ungranted` takes the
+- [x] One `authority_of` replaces the three repeated tests, and one `reject_ungranted` takes the
   capabilities and the text that names what needs them (`rule:security/authority-is-the-enclosing-namespace`,
   `crates/nvs-types/src/capability.rs:170`, `crates/nvs-types/src/capability.rs:204`,
   `crates/nvs-types/src/capability.rs:243`).
-- [ ] `check_spawn_script` asks `script.spawn` of the enclosing namespace for the path form and the
+- [x] `check_spawn_script` asks `script.spawn` of the enclosing namespace for the path form and the
   method form. The diagnostic says "`spawn script` needs `script.spawn`"
   (`rule:security/script-spawn-capability`, `crates/nvs-types/src/expr/isolate.rs:154`).
-- [ ] `CONSTRUCT_CAPABILITIES` holds `spawn script` with `script.spawn` beside the table, the checker
+- [x] `CONSTRUCT_CAPABILITIES` holds `spawn script` with `script.spawn` beside the table, the checker
   reads it through `nvs_stdlib::cap`, and `nvs meta` renders it
   (`rule:security/capability-declaration-is-one-table`, `crates/nvs-stdlib/src/registry.rs:1975`,
   `crates/nvs-stdlib/src/cap.rs:203`).
-- [ ] `Core\Queue::push` declares `script.spawn`, and the comment above its rows is rewritten
+- [x] `Core\Queue::push` declares `script.spawn`, and the comment above its rows is rewritten
   (`rule:concurrency/queue-four-members`, `crates/nvs-stdlib/src/registry.rs:2427`).
-- [ ] `Core\Socket` and `Core\Sse` enter the table: `upgrade` with `script.spawn`, and every other
+- [x] `Core\Socket` and `Core\Sse` enter the table: `upgrade` with `script.spawn`, and every other
   member of both classes with `None` and its reason (`rule:concurrency/an-upgrade-is-spawn-shaped`,
   `crates/nvs-stdlib/src/socket.rs:985`, `crates/nvs-stdlib/src/sse.rs:574`).
-- [ ] `script::resolve` takes the member and names it in its refusal. The door scan reads a
+- [x] `script::resolve` takes the member and names it in its refusal. The door scan reads a
   `script::resolve` call as a door that asks `script.spawn`
   (`rule:testing/capability-completeness-test`, `crates/nvs-runtime/src/script.rs:477`,
   `crates/nvs-stdlib/src/socket.rs:728`, `crates/nvs-runtime/src/host.rs:308`,
   `crates/nvs-host/src/ladder.rs:129`, `crates/nvs-cli/src/worker.rs:1514`,
   `crates/nvs-cli/src/serve.rs:2149`, `crates/nvs-stdlib/tests/capability.rs:585`).
-- [ ] Four tests named in check `spawn-asks-the-namespace`, each expecting `E0658` naming
+- [x] Four tests named in check `spawn-asks-the-namespace`, each expecting `E0658` naming
   `script.spawn`, and each with a twin namespace that holds the grant and compiles
   (`crates/nvs-cli/tests/package_grants.rs:65`).
-- [ ] Case `tests/conformance/cap/grants-a-package-spawns-a-script-only-with-script-spawn.nvst:1`.
-- [ ] Attacks in `tests/hostile/tools/packages/grants-what-each-namespace-may-do/`, each marked
+- [x] Case `tests/conformance/cap/grants-a-package-spawns-a-script-only-with-script-spawn.nvst:1`.
+- [x] Attacks in `tests/hostile/tools/packages/grants-what-each-namespace-may-do/`, each marked
   `// hostile: expect-refusal`: `04-spawn-an-application-script.nvs:1`,
   `05-enqueue-an-application-script.nvs:1`, `06-open-a-socket-handler.nvs:1` and
   `07-open-an-event-stream-handler.nvs:1`.
-- [ ] Rule fragments: `script.spawn` is asked of the namespace too
+- [x] Rule fragments: `script.spawn` is asked of the namespace too
   (`docs/rules/security/script-spawn-capability.md:21`), and
   `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` says who may enqueue.
-- [ ] Every package the subagent named gains `"script.spawn"` on its line, and the example folder's
+- [x] Every package the subagent named gains `"script.spawn"` on its line, and the example folder's
   `about.md` for the grant table says a package needs it to start a script.
 
 ### 3. every Core class has capability rows or a reason for none
@@ -477,39 +477,46 @@ and the application's value to return to.
 
 ### State
 
-Stage 1 is done (`7a6e8cce23`, `39d6b5259a`), and checks `env-needs-a-grant` and `env-door-asks`
-are green. `Cap::Env` is on the roster as `env`, the one name with no family. `Cap::header` spells
-the table a grant goes under, so a refusal of `env` points at `[capabilities]`, and the four places
-that spelled `[capabilities.<family>]` by hand call it. `nvs_runtime::environment` is deleted: its
-readers are the doors `capability::env_var` and `env_vars` (`crates/nvs-runtime/src/capability.rs:1826`).
-`Core\Config::get` has the `env` row and asks `env` at run time for a secret directive alone (see
-the standing decision on it). No in-tree package reads the environment, so no grant line changed.
+Stages 1 and 2 are done. Stage 2 is `9c2cd549d0` and the proofs commit after it, and check
+`spawn-asks-the-namespace` is green. `authority_of` (`crates/nvs-types/src/capability.rs:266`)
+returns `Authority::Application` or `Authority::Line`, and `prepare_config_set`, `prepare_cap_has`
+and `reject_ungranted_call` call it. `reject_ungranted` takes the capabilities and the text naming
+what needs them, and `check_spawn_script` calls it with `cap::construct_needs("spawn script")`,
+at the whole construct's span, so an optional `script.spawn` becomes a guard like a call's.
+`CONSTRUCT_CAPABILITIES` (`crates/nvs-stdlib/src/registry.rs:2615`) holds the one construct row,
+and `nvs meta` renders it as `constructs`. `Core\Queue::push`, `Core\Socket::upgrade` and
+`Core\Sse::upgrade` have `script.spawn` rows. Every other member of both upgrade classes has a
+`None` row. `script::resolve` takes the member, and the door scan reads `script::resolve(` and
+`socket::entry_program(` as `script.spawn` doors (`SPAWN_DOORS`,
+`crates/nvs-stdlib/tests/capability.rs:485`). The `Explore` subagent found no in-tree package that
+spawns, enqueues or upgrades, so no grant line changed.
 
-The sweep's reds were stale. The nightly run built `f4c1d5c7`, and its one failing test,
-`live_config::a_changed_server_timeout_applies_to_the_next_connection`, was fixed after it by
-`305c04f660`. No `env-secret-proofs` check exists in the tree.
+The sweep's reds are stale, as last session found. Check `env-secret-proofs` was retired and has
+no log, and nightly run 43001191130 built a tree before `305c04f660` fixed its one failing test.
 
-Expected red: none.
+`cargo fmt` rewrites `crates/nvs-config/src/defaults.rs` on this machine although HEAD's copy is
+unchanged. This session restored it with `git checkout` each time and committed nothing there.
+`bun nv ci --check` at the goal end tells whether CI's rustfmt agrees.
+
+Expected red: none. Only the tests changed here ran, by name.
 
 ### Next
 
-Stage 2, over `crates/nvs-types/src/capability.rs`, `crates/nvs-types/src/expr/isolate.rs`,
-`crates/nvs-stdlib/src/registry.rs` and `crates/nvs-cli/tests/package_grants.rs`. One `Explore`
-subagent goes out first, as the stage's **Split:** says.
+Stage 3, over `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-stdlib/src/cap.rs` and
+`crates/nvs-stdlib/tests/capability.rs`. Three `reader` subagents go out first, one per third of
+`CLASSES` (`crates/nvs-stdlib/src/classes.rs:14`), as the stage's **Split:** says.
 
-- [ ] `crates/nvs-types/src/capability.rs:160`: `authority_of` replaces the three repeated tests in
-  `prepare_config_set`, `prepare_cap_has` and `reject_ungranted_call` (`:194`, `:235`).
-- [ ] `crates/nvs-types/src/expr/isolate.rs:154`: `check_spawn_script` asks `script.spawn` of the
-  namespace, both forms.
-- [ ] `CONSTRUCT_CAPABILITIES` beside `CAPABILITIES` (`crates/nvs-stdlib/src/registry.rs:2033`).
-- [ ] `Core\Queue::push` gets `script.spawn` (`crates/nvs-stdlib/src/registry.rs:2506`), and
-  `Core\Socket` and `Core\Sse` enter the table.
-- [ ] `script::resolve` takes the member (`crates/nvs-runtime/src/script.rs:477`), and the door scan
-  reads it as a `script.spawn` door (`crates/nvs-stdlib/tests/capability.rs:436`).
-- [ ] `crates/nvs-cli/tests/package_grants.rs:286`: the four tests of check `spawn-asks-the-namespace`.
-  `reads_the_environment` there is the shape to copy.
-- [ ] `tests/hostile/tools/packages/grants-what-each-namespace-may-do/03-read-the-process-environment.nvs:1`:
-  attacks `04` to `07` beside it, the case, and the rule fragments the stage names.
+- [ ] `NEEDS_NONE` beside `CAPABILITIES` (`crates/nvs-stdlib/src/registry.rs:2033`), and the
+  table's doc rewritten as a whole.
+- [ ] `crates/nvs-stdlib/tests/capability.rs:298`: `every_core_class_has_capability_rows_or_a_reason_for_none`
+  beside `every_capability_bearing_member_declares_its_capability`.
+- [ ] `crates/nvs-stdlib/tests/capability.rs:595`: `no_class_with_a_reason_for_none_calls_a_door`
+  reuses the scan of `every_door_names_the_capability_its_member_declares`, with `SPAWN_DOORS`.
+- [ ] `crates/nvs-stdlib/tests/capability.rs:554`: `every_construct_that_reaches_a_door_names_its_capability`.
+  A door call whose member text is not a `Core` member, such as `spawn script`, must be in
+  `CONSTRUCT_CAPABILITIES`. `member_named` returns `None` for those, so the test reads the literal
+  before that filter.
+- [ ] `cap::needs` (`crates/nvs-stdlib/src/cap.rs:203`) and `nvs meta`, then the two rule fragments.
 
 ### Backlog
 
@@ -520,7 +527,7 @@ subagent goes out first, as the stage's **Split:** says.
 - `require` of an application file from a package namespace was not traced.
 - A package's `Core\Config::get` of a key that is not a secret directive needs `env` only because a
   grant line is asked per member. Asking it only for a literal secret key would let a package read
-  `limits.*` with no line (`crates/nvs-types/src/capability.rs:235`).
+  `limits.*` with no line (`crates/nvs-types/src/capability.rs:224`).
 
 The open items `qualifiers-hold` left when it was retired:
 
