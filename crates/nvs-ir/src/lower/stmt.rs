@@ -580,7 +580,147 @@ impl<'a> Lowering<'a> {
                 return;
             }
         }
+        if op == BinaryOp::Concat && !defaults && self.lower_slot_append(target, value, env, cur) {
+            return;
+        }
         self.lower_read_modify_write(e.span, target, op, defaults, Some(value), false, env, cur);
+    }
+    /// `$o->p .= e;` and `Class::$p .= e;` where the slot is a plain `string`
+    /// slot: one [`InstKind::StrAppend`] between the slot's load and its
+    /// store, so an unshared buffer grows in place. Answers `false`, having
+    /// lowered nothing, for every other target, which keeps the rewrite.
+    ///
+    /// A plain property slot has the erased type [`Ty::Str`], no hook, no
+    /// `PropertyGuard`, no observer and no `lateinit` step, and a class known
+    /// while compiling (`rule:classes/property-observer-pipeline`), so its
+    /// write is the bare `FieldSet` [`Self::lower_store`] emits. A static
+    /// `string` property is a `StaticGet` and a `StaticSet` and nothing else.
+    ///
+    /// The receiver is lowered first and the suffix second, left to right. A
+    /// receiver the suffix can free is retained across it, as
+    /// [`Self::lower_store`]'s property arm holds one. The slot is read after
+    /// the suffix, and nothing runs between the load and the store, so the
+    /// append consumes the slot's own reference and the store puts the result
+    /// back with no retain and no release, as [`Self::write_back_array`] does.
+    ///
+    /// A suffix read from a property, a static property or an element is
+    /// retained across the append and released after it. That storage may be
+    /// the target itself, as in `$this->out .= $this->out`, and the retain
+    /// makes its count two, so the append copies. A local suffix needs no
+    /// retain: a local that shares the target already counts as a holder.
+    ///
+    /// **What it spends:** nothing per request, and two calls fewer per append.
+    fn lower_slot_append(
+        &mut self,
+        target: &Expr,
+        value: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> bool {
+        let target = target.unparenthesized();
+        match &target.kind {
+            ExprKind::PropertyAccess {
+                object,
+                nullsafe: false,
+                ..
+            } => {
+                let Some(ExprInfo::Property {
+                    class,
+                    name,
+                    ty,
+                    observer: None,
+                    guard: None,
+                    ..
+                }) = self.member_record(target.span)
+                else {
+                    return false;
+                };
+                let class = class.to_string();
+                let name = name.clone();
+                if erase_checked_ty(*ty, self.checked_types) != Ty::Str
+                    || self.exprs.is_lateinit_property(&class, &name)
+                {
+                    return false;
+                }
+                let mark = self.temporaries_mark();
+                let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
+                let (object_v, receiver_ty) = self.untag_receiver(object_v, receiver_ty, *cur);
+                let owner = self.borrowed_operand(
+                    OperandSite::StoreReceiver,
+                    object,
+                    (object_v, receiver_ty),
+                    &[value],
+                    *cur,
+                );
+                if receiver_ty.is_refcounted() && owner != OperandOwner::Slot {
+                    self.own_temporary(object_v);
+                }
+                let suffix = self.append_suffix(value, env, cur);
+                let (old, _) = self.emit(
+                    *cur,
+                    Ty::Str,
+                    InstKind::FieldGet {
+                        object: object_v,
+                        class: class.clone(),
+                        field: name.clone(),
+                    },
+                );
+                let (appended, _) = self.emit(
+                    *cur,
+                    Ty::Str,
+                    InstKind::StrAppend {
+                        target: old,
+                        suffix,
+                    },
+                );
+                self.emit_field_set(*cur, object_v, class, name, appended);
+                self.release_temporaries_since(mark, *cur);
+                true
+            }
+            ExprKind::StaticPropertyAccess { .. } => {
+                let (class, name, slot_ty) = self.static_property_of(target);
+                if slot_ty != Ty::Str {
+                    return false;
+                }
+                let mark = self.temporaries_mark();
+                let suffix = self.append_suffix(value, env, cur);
+                let (old, _) = self.emit(
+                    *cur,
+                    Ty::Str,
+                    InstKind::StaticGet {
+                        class: class.clone(),
+                        name: name.clone(),
+                    },
+                );
+                let (appended, _) = self.emit(
+                    *cur,
+                    Ty::Str,
+                    InstKind::StrAppend {
+                        target: old,
+                        suffix,
+                    },
+                );
+                self.emit_static_set(*cur, class, name, appended);
+                self.release_temporaries_since(mark, *cur);
+                true
+            }
+            _ => false,
+        }
+    }
+    /// The suffix of an append into a property, a static property or an
+    /// element, converted to a `string` and owned by this frame unless it is
+    /// a local's value. See [`Self::lower_slot_append`] for why a read of any
+    /// other storage is retained.
+    fn append_suffix(&mut self, value: &Expr, env: &mut Env, cur: &mut BlockId) -> ValueId {
+        let (suffix, aliasing) = self.concat_operand(value, env, cur);
+        let local = matches!(value.unparenthesized().kind, ExprKind::Variable(_));
+        if aliasing && !local {
+            self.emit_retain(*cur, suffix);
+        }
+        if !aliasing || !local {
+            self.own_temporary(suffix);
+        }
+        suffix
     }
     /// `$x++;` / `--$x;` — `rule:types/arithmetic`'s `± 1` over the target's own numeric
     /// type, through the same read-modify-write `$x += 1;` takes.

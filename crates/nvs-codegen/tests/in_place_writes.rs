@@ -235,3 +235,50 @@ echo Core\\Arr::count($g), Core\\Arr::count($g[0]), $g[0][9223372036854775807], 
     );
     assert_eq!(after, before, "the run left bytes allocated");
 }
+
+#[cfg(debug_assertions)]
+#[test]
+fn a_property_append_allocates_in_proportion_to_what_it_adds() {
+    // The piece is a method call, which runs before the property is read.
+    assert_linear("a property append", |n| {
+        format!(
+            "<?nvs
+class Page {{
+    public string $out = \"\";
+    public function piece(int $i): string {{ return \"<li>\" . $i . \"</li>\"; }}
+    public function fill(int $n): void {{
+        var $i = 0;
+        while ($i < $n) {{
+            $this->out .= $this->piece($i);
+            $i = $i + 1;
+        }}
+    }}
+}}
+var $page = new Page();
+$page->fill({n});
+echo Core\\Str::length($page->out);
+"
+        )
+    });
+}
+
+#[cfg(debug_assertions)]
+#[test]
+fn a_static_property_append_allocates_in_proportion_to_what_it_adds() {
+    assert_linear("a static property append", |n| {
+        format!(
+            "<?nvs
+class Log {{
+    public static string $out = \"\";
+    public static function piece(int $i): string {{ return \"line \" . $i . \"\\n\"; }}
+}}
+var $i = 0;
+while ($i < {n}) {{
+    Log::$out .= Log::piece($i);
+    $i = $i + 1;
+}}
+echo Core\\Str::length(Log::$out);
+"
+        )
+    });
+}
