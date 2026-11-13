@@ -2961,6 +2961,38 @@ fn described(verb: &str, target: &str, args: &[Value]) -> Result<nvs_runtime::In
     Ok(spec)
 }
 
+/// The links to other modules of the row a test request came through
+/// (`rule:testing/in-process-request`).
+///
+/// The row is the one whose prefix is the `mount` key, and `/` for the root.
+/// Where rows on several hosts share that prefix, the row with no host is
+/// taken first. Each handler is resolved by `nvs_config::mount::links_of`,
+/// which `nvs serve` calls too, so a test gets the link the server gives. A
+/// handler that finds no row is left out, and its link throws when it runs. A
+/// `mount` no row has gives no table, so every such link throws.
+///
+/// Cost: one pass over the rows per handler, for each request a test makes.
+fn links_through(
+    mounts: &nvs_runtime::inproc::Mounts,
+    mount: &str,
+    handlers: &[String],
+) -> Option<std::sync::Arc<nvs_runtime::ModuleLinks>> {
+    let prefix = if mount.is_empty() { "/" } else { mount };
+    let rows = &mounts.rows;
+    let from = rows
+        .iter()
+        .position(|row| row.prefix == prefix && row.host.is_none())
+        .or_else(|| rows.iter().position(|row| row.prefix == prefix))?;
+    let serves = |at: usize, handler: &str| {
+        mounts
+            .serves
+            .get(at)
+            .is_some_and(|set| set.contains(handler))
+    };
+    let (links, _unlinked) = nvs_config::mount::links_of(rows, &serves, from, handlers);
+    Some(std::sync::Arc::new(links))
+}
+
 /// The `captures` option as the list `Core\Request\Mount::captures()` reads
 /// back, in order.
 ///
@@ -3047,9 +3079,11 @@ nvs_runtime::nvs_helper! {
                 "Core\\Test::request expected a string for its path".to_owned(),
             ));
         };
+        let mount = args[4].as_text().unwrap_or("");
         let mut completion = match nvs_runtime::inproc::answer(
             ctx,
             Box::new(described(&verb, target, args)?.build()),
+            |mounts, handlers| links_through(mounts, mount, handlers),
         ) {
             Ok(completion) => completion,
             Err(refusal) => return Err(Fault::thrown(format!(
@@ -6491,6 +6525,143 @@ mod tests {
         let _ = ctx.take_pending();
     }
 
+    /// A test request gives the child the links of the row its `mount` key
+    /// names, resolved by the function `nvs serve` calls. A link from `/blog`
+    /// goes through `/shop`, from the same scan. A link from `/admin` meets a
+    /// tie that the canonical block breaks. A `mount` no row has gives no table.
+    #[test]
+    fn a_test_request_gives_the_servers_link_to_another_module() {
+        const HANDLER: &str = r"Framework\Shop\View\Index::render";
+
+        /// A unit with a mount table that writes back where its one link goes.
+        #[derive(Debug)]
+        struct Linked(nvs_runtime::inproc::Mounts, Vec<String>);
+
+        impl nvs_runtime::inproc::Answering for Linked {
+            fn answer(
+                &self,
+                _ctx: &mut Ctx,
+                _inbound: Box<nvs_runtime::Inbound>,
+                links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
+            ) -> Result<nvs_runtime::host::Completion, String> {
+                let written = match links {
+                    None => "no table".to_owned(),
+                    Some(links) => links
+                        .get(HANDLER)
+                        .map_or_else(|| "unlinked".to_owned(), |link| link.prefix.clone()),
+                };
+                Ok(nvs_runtime::host::Completion {
+                    ok: true,
+                    value: Value::null(),
+                    output: written.into_bytes().into(),
+                    content_type: None,
+                    file_body: None,
+                    style_nonce: None,
+                    http: None,
+                    status: None,
+                    headers: Vec::new(),
+                    error: None,
+                    wall: None,
+                    trace: Vec::new(),
+                    coverage: None,
+                    trace_sink: None,
+                    store: None,
+                })
+            }
+
+            fn mounts(&self) -> Option<&nvs_runtime::inproc::Mounts> {
+                Some(&self.0)
+            }
+
+            fn module_links(&self) -> &[String] {
+                &self.1
+            }
+        }
+
+        fn row(prefix: &str, entry: &str, block: usize, canonical: bool) -> nvs_config::mount::Mounted {
+            nvs_config::mount::Mounted {
+                prefix: prefix.to_owned(),
+                host: None,
+                entry: entry.into(),
+                root: "/www".into(),
+                origin: None,
+                captures: Vec::new(),
+                block,
+                canonical,
+                links: None,
+            }
+        }
+
+        fn asked(ctx: &mut Ctx, mount: &str) -> String {
+            let args = [
+                Value::int(crate::router::method_case("GET").expect("a verb the roster names")),
+                Value::text("/"),
+                Value::array(nvs_runtime::NvsArray::new()),
+                Value::null(),
+                Value::text(mount),
+                Value::array(nvs_runtime::NvsArray::new()),
+            ];
+            let answered = nvs_runtime::call(nvs_core_test_request, ctx, &args)
+                .expect("an installed unit answers");
+            for arg in args {
+                dropped(arg);
+            }
+            let object = answered.obj_ptr().expect("a `Core\\Test\\Response`");
+            let body = crate::instance::slot(object, BODY_SLOT);
+            let body = std::str::from_utf8(body.as_bytes().expect("the body is a `bytes`"))
+                .expect("the answer is UTF-8")
+                .to_owned();
+            dropped(answered);
+            body
+        }
+
+        // Two modules of one scan, a second mount of the shop, and an admin module.
+        let rows = vec![
+            row("/blog", "/www/Blog/public/index.nvs", 0, false),
+            row("/shop", "/www/Shop/public/index.nvs", 0, false),
+            row("/old-shop", "/www/Shop/public/index.nvs", 1, true),
+            row("/admin", "/www/Admin/public/index.nvs", 2, false),
+        ];
+        let shop = std::collections::HashSet::from([HANDLER.to_owned()]);
+        let serves = vec![Default::default(), shop.clone(), shop, Default::default()];
+        let server = |from: usize| {
+            let serving = |at: usize, handler: &str| {
+                serves.get(at).is_some_and(|set: &std::collections::HashSet<String>| set.contains(handler))
+            };
+            nvs_config::mount::link(&rows, &serving, from, HANDLER)
+                .expect("the server links this row")
+                .prefix
+        };
+        let (from_blog, from_admin) = (server(0), server(3));
+        let unit = Linked(
+            nvs_runtime::inproc::Mounts { rows, serves },
+            vec![HANDLER.to_owned()],
+        );
+
+        let mut ctx = Ctx::buffered();
+        let answers = nvs_runtime::inproc::scoped(&unit, || {
+            [
+                asked(&mut ctx, "/blog"),
+                asked(&mut ctx, "/admin"),
+                asked(&mut ctx, "/nowhere"),
+            ]
+        });
+        assert_eq!(
+            answers,
+            [
+                "/shop".to_owned(),
+                "/old-shop".to_owned(),
+                "no table".to_owned()
+            ],
+            "a test request did not get the row the server picks"
+        );
+        assert_eq!(
+            [from_blog, from_admin],
+            ["/shop".to_owned(), "/old-shop".to_owned()],
+            "the server picked another row than the test request got"
+        );
+    }
+
     /// `request` hands the unit under test one request built from its
     /// arguments, and returns a `Core\Test\Response` carrying the status and
     /// the bytes the unit wrote. A unit that declares no status gives `200`.
@@ -6510,6 +6681,7 @@ mod tests {
                 &self,
                 _ctx: &mut Ctx,
                 inbound: Box<nvs_runtime::Inbound>,
+                _links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
             ) -> Result<nvs_runtime::host::Completion, String> {
                 let written = format!(
                     "{} {} query={} mount={} captures={} headers={}",
@@ -6670,6 +6842,7 @@ mod tests {
                 &self,
                 _ctx: &mut Ctx,
                 _inbound: Box<nvs_runtime::Inbound>,
+                _links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
             ) -> Result<nvs_runtime::host::Completion, String> {
                 Ok(nvs_runtime::host::Completion {
                     ok: !self.0,
@@ -6766,6 +6939,7 @@ mod tests {
                 &self,
                 _ctx: &mut Ctx,
                 _inbound: Box<nvs_runtime::Inbound>,
+                _links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
             ) -> Result<nvs_runtime::host::Completion, String> {
                 Ok(nvs_runtime::host::Completion {
                     ok: true,
@@ -6919,6 +7093,7 @@ mod tests {
             &self,
             _ctx: &mut Ctx,
             _inbound: Box<nvs_runtime::Inbound>,
+            _links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
         ) -> Result<nvs_runtime::host::Completion, String> {
             Ok(nvs_runtime::host::Completion {
                 ok: !self.fails,
@@ -6970,6 +7145,7 @@ mod tests {
             &self,
             _ctx: &mut Ctx,
             _inbound: Box<nvs_runtime::Inbound>,
+            _links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
         ) -> Result<nvs_runtime::host::Completion, String> {
             Ok(nvs_runtime::host::Completion {
                 ok: true,

@@ -1211,7 +1211,7 @@ fn run_suite_in_a_task(
     // the way a `spawn script` reaches the resolver, so the two guards nest
     // rather than either one being a special case; each of the run's cores
     // installs the same two for its whole life ([`Seams`]).
-    let under_test = Arc::new(UnderTest::new(unit, &checked));
+    let under_test = Arc::new(UnderTest::new(unit, &checked).with_mounts(config));
     // A test's own isolate is built by this crate directly, but a `spawn script`
     // *inside* a test goes through the seam and needs the same resolver
     // `nvs run` installs — one per run, so two tests spawning one path share
@@ -1321,6 +1321,10 @@ pub(crate) struct UnderTest {
     /// generated entry, so a script under `jobs/` never runs per request
     /// (`crate::Checked`'s `request`). `None` runs the entry.
     request: Option<nvs_diagnostics::SourceId>,
+    /// The mount table of the configuration the run reads, with each row's
+    /// handlers, for a unit that links to another module
+    /// ([`UnderTest::with_mounts`]). `None` for every other unit.
+    mounts: Option<nvs_runtime::inproc::Mounts>,
 }
 
 impl std::fmt::Debug for UnderTest {
@@ -1343,15 +1347,73 @@ impl UnderTest {
             unit: Arc::clone(unit),
             routes: std::sync::Arc::new(nvs_types::crossing::runtime_routes(&checked.exprs)),
             request: checked.request,
+            mounts: None,
         }
+    }
+
+    /// Gives a unit that links to another module the mount table `config`
+    /// writes, so `Core\Test::request` resolves each link as `nvs serve` does
+    /// (`rule:testing/in-process-request`). The table is expanded as the boot
+    /// expands it, and each row's entry is compiled through the compile cache,
+    /// as `nvs config check` compiles it (`crate::config`'s `mount_links`).
+    ///
+    /// A unit with no such link, a configuration with no `[[server.mount]]`
+    /// and a table the expansion refuses all leave the unit without a table.
+    /// Each link then throws when it runs and names its handler. A row whose
+    /// entry does not compile serves no handler, as at boot.
+    ///
+    /// Cost: one compile per mounted entry, once per run and only for a unit
+    /// that links to another module. The table is O(rows × routes).
+    pub(crate) fn with_mounts(mut self, config: &nvs_config::Config) -> Self {
+        let written = config
+            .server
+            .as_ref()
+            .is_some_and(|server| !server.mount.is_empty());
+        if self.routes.module_links().is_empty() || !written {
+            return self;
+        }
+        let Ok(rows) = nvs_config::mount::expand(
+            config,
+            &std::collections::BTreeMap::new(),
+            &nvs_config::resolve::Disk,
+        ) else {
+            return self;
+        };
+        let compiler = crate::script::Compiler::new(config);
+        let serves = rows
+            .iter()
+            .map(|row| {
+                compiler
+                    .compiled(&row.entry.to_string_lossy())
+                    .map(|(_program, routes)| {
+                        routes
+                            .rows()
+                            .iter()
+                            .map(|route| route.handler().to_owned())
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            })
+            .collect();
+        self.mounts = Some(nvs_runtime::inproc::Mounts { rows, serves });
+        self
     }
 }
 
 impl nvs_runtime::inproc::Answering for UnderTest {
+    fn mounts(&self) -> Option<&nvs_runtime::inproc::Mounts> {
+        self.mounts.as_ref()
+    }
+
+    fn module_links(&self) -> &[String] {
+        self.routes.module_links()
+    }
+
     fn answer(
         &self,
         ctx: &mut nvs_runtime::Ctx,
         mut inbound: Box<nvs_runtime::Inbound>,
+        links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
     ) -> Result<nvs_runtime::host::Completion, String> {
         // `rule:routing/matched-once-before-the-handler`'s one match, here because this is the side holding the
         // table and the last point before application code exists to have run.
@@ -1417,14 +1479,18 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         // , and a `Core` member reaching the host through the trait could
         // not have said so. `nvs_host::Isolate::answering` is the one spelling
         // of that, and it is this crate's to reach.
-        let running = nvs_host::Isolate::new(
+        let mut isolate = nvs_host::Isolate::new(
             program,
             nvs_runtime::Value::null(),
             nvs_runtime::host::Output::Capture,
         )
-        .answering(*inbound)
-        .start(ctx)
-        .map_err(|error| error.to_string())?;
+        .answering(*inbound);
+        // The table of the mount the request came through, as a served
+        // request's isolate is given it (`rule:routing/a-link-reaches-another-module`).
+        if let Some(links) = links {
+            isolate = isolate.linking_through(links);
+        }
+        let running = isolate.start(ctx).map_err(|error| error.to_string())?;
         Ok(running.join(ctx))
     }
 }

@@ -2313,7 +2313,7 @@ fn run_run(
     // run has one, and it is this program: `Core\Test::request` inside a `nvs
     // run` asks the same entry a served request would, which is what lets a
     // conformance case reach the member at all.
-    let under_test = runner::UnderTest::new(&unit, &checked);
+    let under_test = runner::UnderTest::new(&unit, &checked).with_mounts(&for_compiler.config);
     if let Some(site) = fault_inject {
         ctx.inject_fault(site.into());
     }

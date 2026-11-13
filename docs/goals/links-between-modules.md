@@ -364,7 +364,7 @@ row's table to every request it serves.
 
 **Does:** let `Core\Test::request` and the editor use stage 3's function and the links map.
 
-- [ ] `Core\Test::request` resolves a links-root link through the shared function, over the mount
+- [x] `Core\Test::request` resolves a links-root link through the shared function, over the mount
   table of the configuration the test run reads, with the `mount` key picking the served row
   (`crates/nvs-stdlib/src/test.rs:2924`, `crates/nvs-stdlib/src/test.rs:2950`).
 - [ ] Go to definition on a links-root route argument opens the target method, and hover shows its
@@ -372,7 +372,7 @@ row's table to every request it serves.
 - [ ] Tests `a_test_request_gives_the_servers_link_to_another_module`
   (`crates/nvs-stdlib/src/test.rs:1`) and `a_links_target_goes_to_its_definition`
   (`crates/nvs-lsp/src/definition.rs:1`).
-- [ ] `rule:testing/in-process-request` says a test request gives the same link to another module
+- [x] `rule:testing/in-process-request` says a test request gives the same link to another module
   (`docs/rules/testing/in-process-request.md:1`).
 
 ### 5. two modules link under nvs serve, and the feature has its proofs

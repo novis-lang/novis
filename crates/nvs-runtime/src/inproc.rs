@@ -37,9 +37,11 @@
 //! held between two calls.
 
 use std::cell::Cell;
+use std::collections::HashSet;
+use std::sync::Arc;
 
 use crate::host::Completion;
-use crate::{Ctx, Inbound};
+use crate::{Ctx, Inbound, ModuleLinks};
 
 /// Whatever holds the unit a synthetic request is answered by.
 ///
@@ -80,7 +82,49 @@ pub trait Answering: std::fmt::Debug {
     /// an error here: it is a [`Completion`] with `ok` false, which is
     /// `rule:security/isolate-shares-nothing`'s failure-is-a-value
     /// and is what a test asserting a handler's own error path reads.
-    fn answer(&self, ctx: &mut Ctx, inbound: Box<Inbound>) -> Result<Completion, String>;
+    ///
+    /// `links` is the table of the mount the request came through, which the
+    /// child is given as a served request's isolate is
+    /// (`rule:routing/a-link-reaches-another-module`). `None` where the unit
+    /// links to no other module or the run has no mount table.
+    fn answer(
+        &self,
+        ctx: &mut Ctx,
+        inbound: Box<Inbound>,
+        links: Option<Arc<ModuleLinks>>,
+    ) -> Result<Completion, String>;
+
+    /// The mount table of the configuration this run reads, with the handlers
+    /// each row serves. `None` where the configuration writes no
+    /// `[[server.mount]]`, or where the unit links to no other module and so
+    /// nothing was compiled for it.
+    fn mounts(&self) -> Option<&Mounts> {
+        None
+    }
+
+    /// The handlers the unit under test links to under an `autoload links`
+    /// root, as a served row's unit records them.
+    fn module_links(&self) -> &[String] {
+        &[]
+    }
+}
+
+/// The mount table a test run reads, for `Core\Test::request`'s links to
+/// another module (`rule:testing/in-process-request`).
+///
+/// It is the table `nvs serve` expands, and each row's handler set is read off
+/// that row's compiled unit, so `nvs_config::mount::link` picks the row the
+/// server picks.
+///
+/// Cost: one table per run, built only for a unit that links to another
+/// module. It holds O(rows × routes) handler names.
+#[derive(Debug, Default)]
+pub struct Mounts {
+    /// The expanded rows, in the server's order.
+    pub rows: Vec<nvs_config::mount::Mounted>,
+    /// The handlers each row serves as an ordinary route, in the rows' order. A
+    /// row whose entry did not compile has an empty set.
+    pub serves: Vec<HashSet<String>>,
 }
 
 /// Why [`answer`] has no completion to hand back.
@@ -199,14 +243,28 @@ pub fn scoped<R>(unit: &(dyn Answering + 'static), run: impl FnOnce() -> R) -> R
 /// [`AnswerError::Reentrant`] when `ctx` is already answering a request,
 /// [`AnswerError::NoUnit`] when nothing is installed here, and
 /// [`AnswerError::Refused`] carrying the implementor's own message otherwise.
-pub fn answer(ctx: &mut Ctx, inbound: Box<Inbound>) -> Result<Completion, AnswerError> {
+///
+/// `link` is called only where the unit links to another module and the run
+/// has a mount table. It gets that table and the handlers, and returns the
+/// links the child is given.
+pub fn answer(
+    ctx: &mut Ctx,
+    inbound: Box<Inbound>,
+    link: impl FnOnce(&Mounts, &[String]) -> Option<Arc<ModuleLinks>>,
+) -> Result<Completion, AnswerError> {
     if ctx.inbound().is_some() {
         return Err(AnswerError::Reentrant);
     }
     let Some(unit) = CURRENT.with(Cell::get) else {
         return Err(AnswerError::NoUnit);
     };
-    unit.answer(ctx, inbound).map_err(AnswerError::Refused)
+    let handlers = unit.module_links();
+    let links = match unit.mounts() {
+        Some(mounts) if !handlers.is_empty() => link(mounts, handlers),
+        _ => None,
+    };
+    unit.answer(ctx, inbound, links)
+        .map_err(AnswerError::Refused)
 }
 
 /// Whether this thread has a unit under test, without running anything through
@@ -226,7 +284,12 @@ mod tests {
     struct Fixed(u16);
 
     impl Answering for Fixed {
-        fn answer(&self, _ctx: &mut Ctx, inbound: Box<Inbound>) -> Result<Completion, String> {
+        fn answer(
+            &self,
+            _ctx: &mut Ctx,
+            inbound: Box<Inbound>,
+            _links: Option<std::sync::Arc<crate::ModuleLinks>>,
+        ) -> Result<Completion, String> {
             Ok(Completion {
                 ok: true,
                 value: crate::Value::null(),
@@ -263,7 +326,7 @@ mod tests {
     fn a_request_reaches_the_installed_unit_and_its_answer_comes_back() {
         let mut ctx = Ctx::new(crate::OutputSink::Sink);
         let completion = scoped(&Fixed(201), || {
-            answer(&mut ctx, Box::new(Inbound::new("GET", "/users/1", "")))
+            answer(&mut ctx, Box::new(Inbound::new("GET", "/users/1", "")), |_, _| None)
         })
         .expect("the installed unit refused a request");
         assert_eq!(
@@ -280,7 +343,7 @@ mod tests {
     #[test]
     fn a_run_with_no_unit_under_test_is_told_so_rather_than_panicking() {
         let mut ctx = Ctx::new(crate::OutputSink::Sink);
-        let refused = answer(&mut ctx, Box::new(Inbound::new("GET", "/", "")));
+        let refused = answer(&mut ctx, Box::new(Inbound::new("GET", "/", "")), |_, _| None);
         assert_eq!(refused.unwrap_err(), AnswerError::NoUnit);
     }
 
@@ -289,7 +352,7 @@ mod tests {
         let mut ctx = Ctx::new(crate::OutputSink::Sink);
         ctx.set_inbound(Inbound::new("GET", "/served", ""));
         let refused = scoped(&Fixed(200), || {
-            answer(&mut ctx, Box::new(Inbound::new("GET", "/again", "")))
+            answer(&mut ctx, Box::new(Inbound::new("GET", "/again", "")), |_, _| None)
         });
         assert_eq!(
             refused.unwrap_err(),
