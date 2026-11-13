@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-ir/src/lower/call.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-ir/src/ty.rs, docs/rules/statements/inout-is-the-by-reference-spelling.md]
   - id: 5
     title: a literal is never retained or released
-    status: open
+    status: done
     context: [crates/nvs-codegen/src/emit.rs, crates/nvs-runtime/src/budget.rs, crates/nvs-codegen/tests/probes.rs]
   - id: 6
     title: a retain or release that frees nothing runs without a call
@@ -281,9 +281,15 @@ for it is the accumulating loop in *Why*, a real program shape. That evidence do
 
 **A literal's retain and release are dropped in codegen.** `emit_refcount` is the one place every
 count operation passes. It emits nothing when the operand's defining instruction is `ConstStr`,
-`ConstBytes` or `ConstMarkup`. One predicate on `InstKind` names the three. A value that reaches a
-block parameter keeps its calls. **What it spends:** one set entry per literal while compiling.
+`ConstBytes`, `ConstMarkup` or `ConstDuration`. `ConstDuration` joins the three because its
+object is immortal in the data section on exactly `ConstMarkup`'s terms. One predicate on
+`InstKind`, `is_immortal_literal`, names the four. A value that reaches a block parameter keeps its
+calls. **What it spends:** one set entry per literal while compiling.
 Declined: dropping them in the lowering, which has many emit sites and would rewrite most snapshots.
+
+**`nvs_codegen::clif` names each import's symbol.** Cranelift prints an import as `fn3 = u0:17`,
+so a `;; fn3 = nvs_str_retain` line follows each function. A test then reads which runtime entries
+a function calls. **What it spends:** nothing outside `clif`, which only tests call.
 
 **The count update is inline, and every free stays in Rust.** For `Ty::Str`, `Ty::Object` and
 `Ty::Array`, a retain is a null test, a load, a sentinel compare and a store. A release stores the
@@ -473,22 +479,22 @@ probes and the collector.
 
 **Does:** emit nothing for a retain or release whose operand a literal instruction defines.
 
-- [ ] `InstKind` gains one predicate that is true for `ConstStr`, `ConstBytes` and `ConstMarkup`
+- [x] `InstKind` gains one predicate that is true for `ConstStr`, `ConstBytes` and `ConstMarkup`
   (`crates/nvs-ir/src/ir.rs:916`, `crates/nvs-ir/src/ir.rs:932`).
-- [ ] Codegen records each value such an instruction defines, and the `Retain` and `Release` arms
+- [x] Codegen records each value such an instruction defines, and the `Retain` and `Release` arms
   skip those operands (`crates/nvs-codegen/src/emit.rs:826`, `crates/nvs-codegen/src/emit.rs:1334`,
   `crates/nvs-codegen/src/emit.rs:4338`).
-- [ ] A counter of refcount helper entries under `debug_assertions`, bumped in the six typed entries
+- [x] A counter of refcount helper entries under `debug_assertions`, bumped in the six typed entries
   and read by `budget::refcount_calls()` (`rule:testing/bench-counters`,
   `crates/nvs-runtime/src/budget.rs:1182`, `crates/nvs-runtime/src/string.rs:1979`,
   `crates/nvs-runtime/src/object.rs:4481`, `crates/nvs-runtime/src/array.rs:1906`).
-- [ ] Create `crates/nvs-codegen/tests/refcount_calls.rs:1`. Test
+- [x] Create `crates/nvs-codegen/tests/refcount_calls.rs:1`. Test
   `a_literal_is_never_retained_or_released` reads `nvs_codegen::clif` for a function whose only
   counted values are the three literal kinds, and finds no refcount symbol
   (`crates/nvs-codegen/tests/probes.rs:70`).
-- [ ] Test `a_row_of_literals_enters_no_refcount_helper`: a loop that echoes literals enters the
+- [x] Test `a_row_of_literals_enters_no_refcount_helper`: a loop that echoes literals enters the
   helpers equally often at 2,000 and 4,000 rows (`crates/nvs-codegen/tests/refcount_calls.rs:1`).
-- [ ] Rewrite the literal's doc to say its count operations are not emitted
+- [x] Rewrite the literal's doc to say its count operations are not emitted
   (`crates/nvs-codegen/src/emit.rs:1748`).
 
 ### 6. a retain or release that frees nothing runs without a call
@@ -535,15 +541,16 @@ and release entries beyond the count write, in every build kind, as `file.rs:NN`
 
 ### State
 
-Stages 1 to 4 are done. Stage 4: `Lowering::last_use_move`
-(`crates/nvs-ir/src/lower/stmt.rs:1438`) decides the move, and `lower_reassignment` (`:1535`)
-and the `return` arm (`:189`) set `Lowering::pending_move` around the value. `lower_fixed_arg`
-(`crates/nvs-ir/src/lower/call.rs:252`) takes it where the parameter is transferred and the
-argument's type equals the parameter's, then stages the value as transferred with no retain and
-removes the local from `Env`, which every reader of a frame's locals reads (`lib.rs` says so). The
-local count is a text scan, `mentions_of` (`stmt.rs:3101`). The conditions include no enclosing `try` (`try_stack` empty), no generator, and no `foreach … inout` binding or
-subject. Checks `last-use-move` and `move-conditions` and the conformance case pass. Build, clippy
-and rustfmt are green; no verify ran.
+Stages 1 to 5 are done. Stage 5: `InstKind::is_immortal_literal`
+(`crates/nvs-ir/src/ir.rs:2361`) is true for `ConstStr`, `ConstBytes`, `ConstMarkup` and
+`ConstDuration`. `Emitter::define` records each such value in `Emitter::immortal_literals`, and
+the `Retain` and `Release` arms (`crates/nvs-codegen/src/emit.rs:1350`) skip it.
+`budget::refcount_calls()` (`crates/nvs-runtime/src/budget.rs:1278`) reads a debug-only thread
+local that `count_refcount_call` bumps at the top of the six typed entries. `nvs_codegen::clif`
+now prints a `;; fnN = <symbol>` line per import (`crates/nvs-codegen/src/lib.rs:2650`), which is
+how `a_literal_is_never_retained_or_released` finds refcount symbols. Both tests of check
+`literals-uncounted` pass, and both went red with the skip disabled. Build, clippy and rustfmt are
+green; no verify ran.
 
 Expect red in stage 7: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` that print a
 property, static property or element `.=` (stage 2: `str_append` or `array_str_append_through` in
@@ -552,22 +559,23 @@ place of `concat` and `array_set`), any snapshot of a `.=` whose suffix is an in
 `Core\Str::format` call over a `uint` (now `uint vN`, no `uint_to_string`), any snapshot of
 `$x = f($x)` or `return f($x)` over an array or string local passed to a compiled function (stage
 4: no `retain` of the local, and no `release` of its old value), and any test that pinned the old
-read order of a `.=` whose suffix writes its own target.
-
-The sweep items stay stale: no `env-secret-proofs` check exists, and nightly 43201099245 predates
-`7568aaa0fb`, which skips those Miri tests.
+read order of a `.=` whose suffix writes its own target. Any test that pinned `clif` text now
+sees the `;;` import lines. The sweep items are stale: no `env-secret-proofs` check exists, and
+nightly 43201099245 predates `7568aaa0fb`, which skips those Miri tests.
 
 ### Next
 
-Stage 5.
+Stage 6. Start with its `**Split:**` line: the `Explore` list of every effect of the six typed
+entries. The debug-only `count_refcount_call` is one, and it is a test counter, not a reason to
+keep a call. Once the update is inline, compiled code reaches the counter only on the call path,
+which is what the stage 6 guards count.
 
-- [ ] `crates/nvs-ir/src/ir.rs:954`: one predicate on `InstKind` for `ConstStr`, `ConstBytes` (`:966`)
-  and `ConstMarkup` (`:982`).
-- [ ] `crates/nvs-codegen/src/emit.rs:1339`: the `Retain` and `Release` arms skip a value a literal
-  defines; `emit_refcount` is at `:4425`.
-- [ ] `crates/nvs-runtime/src/budget.rs:1245`: a `refcount_calls()` counter beside `allocations()`,
-  under `debug_assertions`.
-- [ ] `crates/nvs-codegen/tests/refcount_calls.rs:1`: the two tests of check `literals-uncounted`.
+- [ ] Count `nvs run --dump-asm` instructions for `benches/compare/cases/html-page/main.nvs:1` and
+  `json-api` before any change.
+- [ ] `crates/nvs-codegen/src/emit.rs:4443`: `emit_refcount` emits the inline retain and release,
+  calling the helper only at a count of one.
+- [ ] `crates/nvs-runtime/src/string.rs:216`: the `const` block of offsets, width and sentinel.
+- [ ] `crates/nvs-codegen/tests/refcount_calls.rs:1`: the three tests of check `refcount-inline`.
 
 ### Backlog
 
