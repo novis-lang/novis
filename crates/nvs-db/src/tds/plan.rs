@@ -1294,7 +1294,9 @@ mod tests {
 
         let failed = reset_session(&mut wire, &state, &mut cache, &moved)
             .expect_err("a refused reset passed");
-        assert!(failed.to_string().contains("permission"), "{failed}");
+        // The server's own sentence stays out of the rendering
+        // (`rule:core-classes/db-error`), so the refusal is read by its code.
+        assert!(failed.to_string().contains("(code 229)"), "{failed}");
 
         let sent = flushed(&wire.peer().sent);
         assert_eq!(

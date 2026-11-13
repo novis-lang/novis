@@ -679,6 +679,7 @@ impl MariaConn {
         crate::mysql::reset_session(
             &mut self.wire,
             self.capabilities,
+            &self.peer.database,
             self.time_zone,
             &mut self.cache,
         )?;

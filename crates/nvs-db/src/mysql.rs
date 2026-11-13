@@ -91,8 +91,8 @@
 //!    request; the per-core pool (`rule:security/db-pool-reset-is-a-boundary`)
 //!    is what makes that the right place to spend it, and
 //!    the reset that pool performs is `COM_RESET_CONNECTION`, which clears
-//!    session variables — so whatever lands that reset owes this call again
-//!    after it.
+//!    session variables. [`reset_session`] sends the zone again after it, with
+//!    the charset, and selects the configured database again.
 //!
 //! # Two plugins, and the rest are refused
 //!
@@ -199,8 +199,15 @@ pub const MYSQL_NATIVE_PASSWORD: &str = "mysql_native_password";
 
 /// `COM_QUERY` — the only text command this driver composes, and the whole of
 /// what it carries is this module's own SQL: [`set_session_time_zone`]'s
-/// declared zone, and `rule:core-classes/db-transactions`'s transaction commands.
+/// declared zone, [`reset_session`]'s charset and zone and its
+/// `SELECT DATABASE()`, and `rule:core-classes/db-transactions`'s transaction
+/// commands.
 const COM_QUERY: u8 = 0x03;
+
+/// `COM_INIT_DB`, which selects a schema. [`reset_session`] sends it with the
+/// configured database, because `COM_RESET_CONNECTION` keeps a schema a
+/// request's `USE` chose.
+const COM_INIT_DB: u8 = 0x02;
 
 /// `COM_QUIT`, the goodbye a destroyed connection writes.
 const COM_QUIT: u8 = 0x01;
@@ -1751,12 +1758,30 @@ pub(crate) fn set_session_time_zone<S: Read + Write>(
     capabilities: CapabilityFlags,
     seconds_east: i32,
 ) -> io::Result<()> {
-    // `COM_QUERY`, and the only text statement this driver ever composes: its
-    // one interpolated value is a number this process computed, so `rule:core-classes/db-one-api`'s no-emulated-prepares rule has nothing to bite on.
+    run_own_text(
+        wire,
+        capabilities,
+        &format!("SET time_zone = '{}'", offset_literal(seconds_east)),
+    )
+}
+
+/// Runs one of this module's own text statements as a `COM_QUERY` and reads
+/// its `OK`.
+///
+/// The one value such a statement interpolates is a number this process
+/// computed, so `rule:core-classes/db-one-api`'s no-emulated-prepares rule has
+/// nothing to bite on.
+///
+/// # Errors
+///
+/// As [`read_ok`].
+fn run_own_text<S: Read + Write>(
+    wire: &mut Wire<S>,
+    capabilities: CapabilityFlags,
+    sql: &str,
+) -> io::Result<()> {
     let mut payload = vec![COM_QUERY];
-    payload.extend_from_slice(
-        format!("SET time_zone = '{}'", offset_literal(seconds_east)).as_bytes(),
-    );
+    payload.extend_from_slice(sql.as_bytes());
     wire.codec.reset_seq_id();
     wire.send(&payload)?;
     read_ok(wire, capabilities)
@@ -2152,6 +2177,7 @@ impl MySqlConn {
         reset_session(
             &mut self.wire,
             self.capabilities,
+            &self.peer.database,
             self.time_zone,
             &mut self.cache,
         )?;
@@ -2171,26 +2197,44 @@ impl Drop for MySqlConn {
     }
 }
 
-/// `COM_RESET_CONNECTION`, and the one session variable it clears that this
-/// driver put there.
+/// `COM_RESET_CONNECTION`, then the configured database, the charset and the
+/// declared zone set again.
 ///
 /// `rule:security/db-pool-reset-is-a-boundary` takes this reset because it is
-/// atomic and complete, which is what makes it the right primitive and also
-/// what obliges the second half: it drops session variables, so
-/// `rule:core-classes/db-column-types`'s declared zone has to be sent again or
-/// the next request decodes every zone-less column in UTC while believing
-/// otherwise. The prepared-statement cache goes with it too — the real
-/// asymmetry with PostgreSQL, and the protocol's rather than a choice.
+/// atomic and complete, which is what makes it the right primitive. It is not
+/// the whole of that rule's property, so three steps follow it:
+///
+/// - **The database.** The reset keeps whatever schema a request's `USE`
+///   chose, so `COM_INIT_DB` selects the one `database` names. A connection
+///   that logged in with none, `database` empty, asks `SELECT DATABASE()`
+///   and fails when the answer is not `NULL`: no command deselects a schema,
+///   so the pool closes that connection.
+/// - **The charset.** The reset sets the charset variables back to the
+///   server's default, which need not be `utf8mb4`.
+///   `rule:core-classes/db-safe-connection-defaults` forces `utf8mb4`.
+/// - **The zone.** The reset drops session variables, so
+///   `rule:core-classes/db-column-types`'s declared zone has to be sent again
+///   or the next request decodes every zone-less column in UTC.
+///
+/// The charset and the zone ride one `SET`. The prepared-statement cache goes
+/// with the reset too, the real asymmetry with PostgreSQL, and the protocol's
+/// rather than a choice.
+///
+/// **What it spends:** one `COM_INIT_DB` round trip per pooled release, on
+/// top of the reset and the `SET` the zone already cost. `Wire::send` flushes
+/// one command at a time, so the three are not pipelined.
 ///
 /// Free and generic in the stream for this crate's usual reason: a
 /// `Wire<MyStream>` needs a socket and a certificate that no unit test has.
 ///
 /// # Errors
 ///
-/// As [`read_ok`], for either of the two commands.
+/// As [`read_ok`], for any of the commands, and as [`no_database_is_selected`]
+/// for a connection that logged in with none.
 pub(crate) fn reset_session<S: Read + Write>(
     wire: &mut Wire<S>,
     capabilities: CapabilityFlags,
+    database: &str,
     seconds_east: i32,
     cache: &mut StatementCache<Prepared>,
 ) -> io::Result<()> {
@@ -2205,7 +2249,79 @@ pub(crate) fn reset_session<S: Read + Write>(
     // (`rule:security/db-pool-reset-is-a-boundary`), so what the cache holds
     // on that path is nobody's business.
     cache.clear();
-    set_session_time_zone(wire, capabilities, seconds_east)
+    if database.is_empty() {
+        no_database_is_selected(wire, capabilities)?;
+    } else {
+        let mut payload = vec![COM_INIT_DB];
+        payload.extend_from_slice(database.as_bytes());
+        wire.codec.reset_seq_id();
+        wire.send(&payload)?;
+        read_ok(wire, capabilities)?;
+    }
+    run_own_text(
+        wire,
+        capabilities,
+        &format!(
+            "SET character_set_client = utf8mb4, character_set_connection = utf8mb4, \
+             character_set_results = utf8mb4, collation_connection = utf8mb4_general_ci, \
+             time_zone = '{}'",
+            offset_literal(seconds_east)
+        ),
+    )
+}
+
+/// Checks that the session has no schema selected, for a connection that
+/// logged in with none.
+///
+/// MySQL has no command that deselects a schema, so a request's `USE` on such
+/// a connection cannot be undone. This reads the session's schema, and a
+/// caller that gets an error closes the connection.
+///
+/// # Errors
+///
+/// `PermissionDenied` when a schema is selected, `InvalidData` for an answer
+/// that is not one row of one column, and as [`read_answer`].
+fn no_database_is_selected<S: Read + Write>(
+    wire: &mut Wire<S>,
+    capabilities: CapabilityFlags,
+) -> io::Result<()> {
+    let mut payload = vec![COM_QUERY];
+    payload.extend_from_slice(b"SELECT DATABASE()");
+    wire.codec.reset_seq_id();
+    wire.send(&payload)?;
+    let unexpected = || {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "the server answered `SELECT DATABASE()` with something other than one row of \
+             one column",
+        )
+    };
+    if read_answer(wire, capabilities)? != Answer::Columns(1) {
+        return Err(unexpected());
+    }
+    read_columns(wire, 1)?;
+    wire.owed = Owed::Rows;
+    let row = wire.read_packet()?;
+    match row.first() {
+        Some(0xFF) => return Err(server_refusal(wire.backend, &row, capabilities)),
+        // A text row whose one value is a length-encoded string, or `0xFB` for
+        // `NULL`. A `0xFE` this short is the terminator, so no row came.
+        Some(0xFE) if row.len() < 9 => return Err(unexpected()),
+        _ => {}
+    }
+    let end = wire.read_packet()?;
+    wire.owed = Owed::Nothing;
+    if end.first() != Some(&0xFE) {
+        return Err(unexpected());
+    }
+    if row != [0xFB] {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "a request selected a database on a connection configured with none, and no \
+             command can deselect it, so the connection is closed",
+        ));
+    }
+    Ok(())
 }
 
 /// A statement the server holds, and what it will want and give back.
@@ -3861,7 +3977,9 @@ pub(crate) struct Peer {
     pub(crate) user: String,
     /// That user's password.
     pub(crate) password: String,
-    /// The schema the connection selected.
+    /// The schema the connection logged in with, and the one the pool's
+    /// [`reset_session`] selects again. Empty for a connection that logged in
+    /// with none.
     pub(crate) database: String,
     /// The bundle the certificate was checked against, if the block named one.
     pub(crate) tls_ca_file: Option<std::path::PathBuf>,
@@ -5211,9 +5329,9 @@ mod tests {
 
         let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
             Some(0x16) => packet(1, &prepare_ok(4, 0, 0)),
-            // The execution, the reset, and the `SET time_zone` the reset owes
-            // because it cleared the declared zone's session variable.
-            Some(0x17 | 0x1F | 0x03) => packet(1, &ok_packet(0, 0)),
+            // The execution, the reset, the `COM_INIT_DB` and the `SET` the
+            // reset owes because it cleared the session's variables.
+            Some(0x17 | 0x1F | 0x02 | 0x03) => packet(1, &ok_packet(0, 0)),
             other => panic!("the driver sent command {other:?}"),
         }));
         let state = Cell::new(State::Idle);
@@ -5225,7 +5343,7 @@ mod tests {
         );
         assert_eq!(cache.len(), 1);
 
-        super::reset_session(&mut wire, CLIENT_CAPABILITIES, 0, &mut cache)
+        super::reset_session(&mut wire, CLIENT_CAPABILITIES, "shop", 0, &mut cache)
             .expect("a reset the server acknowledged");
         assert!(
             cache.is_empty(),
@@ -5243,6 +5361,7 @@ mod tests {
                 Some(0x16),
                 Some(0x17),
                 Some(0x1F),
+                Some(0x02),
                 Some(0x03),
                 Some(0x16),
                 Some(0x17)
@@ -5272,15 +5391,93 @@ mod tests {
         }));
         let mut cache = sized_cache(2);
 
-        let failed = super::reset_session(&mut wire, CLIENT_CAPABILITIES, 0, &mut cache)
+        let failed = super::reset_session(&mut wire, CLIENT_CAPABILITIES, "shop", 0, &mut cache)
             .expect_err("a refused reset passed");
-        assert!(failed.to_string().contains("Access denied"), "{failed}");
+        // The server's own sentence stays out of the rendering
+        // (`rule:core-classes/db-error`), so the refusal is read by its code.
+        assert!(failed.to_string().contains("(code 1227)"), "{failed}");
         super::say_goodbye(&mut wire);
 
         assert_eq!(
             commands(&wire.peer().sent),
             [Some(0x1F), Some(0x01)],
             "a destroyed connection wrote something other than its goodbye"
+        );
+    }
+
+    /// `rule:security/db-pool-reset-is-a-boundary`'s default database and
+    /// charset. `COM_RESET_CONNECTION` keeps a schema a request's `USE` chose
+    /// and sets the charset to the server's default, so the reset selects the
+    /// configured database and sets `utf8mb4` and the zone again, in one `SET`.
+    #[test]
+    fn a_mysql_reset_selects_the_configured_database_and_charset_again() {
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(0x1F | 0x02 | 0x03) => packet(1, &ok_packet(0, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let mut cache = sized_cache(2);
+
+        super::reset_session(&mut wire, CLIENT_CAPABILITIES, "shop", 3600, &mut cache)
+            .expect("a reset the server acknowledged");
+
+        let sent = &wire.peer().sent;
+        assert_eq!(
+            commands(sent),
+            [Some(0x1F), Some(0x02), Some(0x03)],
+            "the reset, the database and one `SET`, in that order"
+        );
+        assert_eq!(&sent[1][5..], b"shop", "COM_INIT_DB named another database");
+        assert_eq!(
+            text_commands(sent),
+            [
+                "SET character_set_client = utf8mb4, character_set_connection = utf8mb4, \
+              character_set_results = utf8mb4, collation_connection = utf8mb4_general_ci, \
+              time_zone = '+01:00'"
+            ],
+        );
+    }
+
+    /// A connection that logged in with no database cannot be returned to that
+    /// state by any command, so the reset reads the schema and fails when a
+    /// request chose one. The pool closes a connection whose reset failed.
+    #[test]
+    fn a_mysql_connection_with_no_database_is_closed_when_a_request_chose_one() {
+        /// The server's answer to `SELECT DATABASE()`, whose one value is
+        /// `cell`: a length-encoded string, or `0xFB` for `NULL`.
+        fn answer(cell: &[u8]) -> Vec<u8> {
+            let mut out = packet(1, &[1]);
+            out.extend_from_slice(&packet(2, &column_def("DATABASE()")));
+            out.extend_from_slice(&packet(3, cell));
+            out.extend_from_slice(&packet(4, &result_set_end(0x0002)));
+            out
+        }
+        fn server(cell: &'static [u8]) -> impl FnMut(&[u8]) -> Vec<u8> {
+            move |sent: &[u8]| match sent.get(4) {
+                Some(0x1F) => packet(1, &ok_packet(0, 0)),
+                Some(&COM_QUERY) if &sent[5..] == b"SELECT DATABASE()" => answer(cell),
+                Some(&COM_QUERY) => packet(1, &ok_packet(0, 0)),
+                other => panic!("the driver sent command {other:?}"),
+            }
+        }
+
+        let mut cache = sized_cache(2);
+        let mut chosen = Wire::new(Peer::new(server(b"\x04shop")));
+        let failed = super::reset_session(&mut chosen, CLIENT_CAPABILITIES, "", 0, &mut cache)
+            .expect_err("a reset passed with a database a request chose");
+        assert_eq!(failed.kind(), io::ErrorKind::PermissionDenied, "{failed}");
+        assert_eq!(
+            commands(&chosen.peer().sent),
+            [Some(0x1F), Some(0x03)],
+            "no `COM_INIT_DB` goes out for a connection with no database"
+        );
+
+        let mut none = Wire::new(Peer::new(server(b"\xFB")));
+        super::reset_session(&mut none, CLIENT_CAPABILITIES, "", 0, &mut cache)
+            .expect("a session with no database selected passes the reset");
+        assert_eq!(
+            commands(&none.peer().sent),
+            [Some(0x1F), Some(0x03), Some(0x03)],
+            "the check, and then the `SET`"
         );
     }
 
