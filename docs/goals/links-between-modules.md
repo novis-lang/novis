@@ -299,19 +299,19 @@ no longer exists. Inside stages 5 and 6 the writing is split across subagents, a
 **Does:** resolve a written route argument through the links map, check it, refuse every other use,
 and lower it to a path plus a handler.
 
-- [ ] A written route argument of `url` or `urlAbsolute` resolves its class through the links map when
+- [x] A written route argument of `url` or `urlAbsolute` resolves its class through the links map when
   the ordinary map has no such class (`crates/nvs-types/src/expr/calls.rs:1559`,
   `crates/nvs-hir/src/members.rs:1082`).
-- [ ] The target file is parsed for its class's `#[Route]`, `#[Query]` and capture types alone. Its
+- [x] The target file is parsed for its class's `#[Route]`, `#[Query]` and capture types alone. Its
   routes never reach `check_table` (`crates/nvs-types/src/routes.rs:1008`,
   `crates/nvs-types/src/routes.rs:3469`). The program scan skips links roots
   (`crates/nvs-hir/src/requires.rs:599`).
-- [ ] `record_site` and `resolve` check a links-root site against that route with the same four checks
+- [x] `record_site` and `resolve` check a links-root site against that route with the same four checks
   (`crates/nvs-types/src/links.rs:206`, `crates/nvs-types/src/links.rs:403`).
-- [ ] The two new `E08xx` codes with their cards: a links-root class used for anything else, and
+- [x] The two new `E08xx` codes with their cards: a links-root class used for anything else, and
   `urlSigned` or `signedRoute` on a links-root route (`crates/nvs-diagnostics/src/code/types_e08.rs:1`).
-- [ ] The target file joins the probe trace (`crates/nvs-hir/src/autoload.rs:634`).
-- [ ] `ExprInfo::RouteLink` carries the handler for a links-root site, and the lowering calls a new
+- [x] The target file joins the probe trace (`crates/nvs-hir/src/autoload.rs:634`).
+- [x] `ExprInfo::RouteLink` carries the handler for a links-root site, and the lowering calls a new
   helper with the prepared path and the handler (`crates/nvs-ir/src/lower/expr.rs:389`,
   `crates/nvs-ir/src/lower/expr.rs:7929`). Until stage 3 the helper throws "no mount serves it".
 - [ ] The five tests of check `a-links-target-is-checked`, beside the link tests
@@ -444,35 +444,45 @@ users. The session then runs `bun nv render --website` once.
 
 ### State
 
-Stage 1 is done and its check's four tests pass. `autoload links` and `discover 'Prefix' from 'glob'`
-parse (`AutoloadDecl::links`, `AutoloadKind::Discover::prefix`), and `nvs_hir::autoload::Site` carries
-`links`. `AutoloadMap` keeps links entries in its own `links` vector, built by the same `fill` pass
-as the ordinary half, then dropped into `links_shadowed` where an ordinary entry owns the prefix
-(`crates/nvs-hir/src/autoload.rs:410`). Nothing reads `links` but `render` yet. The four tests sit in
-`crates/nvs-hir/src/requires.rs`'s tests beside the map's others, with helpers `links` and
-`discover_under`, and the parser test in `crates/nvs-syntax/src/parser/tests/decl.rs`.
+Stage 1 is done. Stage 2's code builds and is clippy-clean, but **no test of it exists or has run**.
+- `AutoloadMap::resolve_link[_recording]` probe the `links` half through `probe_entries`; `is_empty`
+  counts links entries. The scan reads `entries` only, so links roots are never scanned.
+- `crates/nvs-hir/src/link_targets.rs`: `Module::link_targets`, `read` (methods, `#[Route]` paths,
+  parameter types and `#[Query]`, no body) and `mark_links_only` (`E0303` on such a name → `E0897`).
+- The walk (`crates/nvs-hir/src/requires.rs:646`) loads a links target into the `SourceMap`, so its
+  digest joins the revalidation set, and never queues it. `mark_links_only` runs at the walk's end.
+- `crates/nvs-hir/src/members.rs:1160` `links_root_target`: the route argument of `url` and
+  `urlAbsolute` is left alone (a missing method is `E_UNDEFINED_MEMBER`), `urlSigned` is `E0898`.
+- Codes `E0897` and `E0898` with cards. `signedRoute` takes no route, so only `urlSigned` is refused.
+- `crates/nvs-types/src/links.rs:212` records an unresolved reference as `foreign`; `resolve` (`:443`)
+  builds its row with `foreign_route` (`:532`) and runs the four checks. `RouteLink::handler` is set.
+- Lowering calls `nvs_core_router_link_module[_absolute]` (`crates/nvs-stdlib/src/router.rs:1621`)
+  with the path and the handler, which throws "no mount serves" until stage 3.
 
-The sweep's reds were handled first. `env-secret-proofs` is no check any more: `looper check` finds
-none, it was the retired `request-path-per-core`'s. The nightly's jobs were cancelled by the push
-that superseded it. The last push's two real reds are fixed: the debug-viewer shots now open the
-token link (`tools/nv/lib/shoot.ts`, checked red-then-green locally), and the waiting-request host
-stack bound is 11 for CI's Linux x86_64 runner (`crates/nvs-cli/src/serve.rs:5284`).
-
-Stage 3's gate is met: `docs/goals/request-path-per-core.md` no longer exists.
+Unverified: that `nvs_types` adds no error for the unresolved method reference, and that an `E0303`
+from `nvs_types::lower` (a type annotation) is rewritten. `mark_links_only` runs in hir only. If the
+test shows it, call it again at the end of `check_program_loaded`.
 
 ### Next
 
-Stage 2, a link to a link-only root is checked and lowered. Its items carry their anchors. Start at:
+Finish stage 2:
 
-- `crates/nvs-hir/src/autoload.rs:410`: add a `resolve_link(&QName) -> Probe` over `self.links`, the
-  same longest-prefix probe as `resolve` (`crates/nvs-hir/src/autoload.rs:595`), recording its tried
-  paths into the trace so the target file joins the cache key.
-- `crates/nvs-types/src/expr/calls.rs:1559` and `crates/nvs-hir/src/members.rs:1082`: resolve the
-  route argument's class through it when the ordinary map has none.
-- `crates/nvs-types/src/links.rs:206`, `crates/nvs-types/src/links.rs:403`: the four checks.
-- `crates/nvs-diagnostics/src/code/types_e08.rs:1`: the two codes and their cards.
+- `crates/nvs-types/src/links.rs:938`: add a `#[cfg(test)] mod tests` with a disk fixture helper
+  (`nvs_repo::scratch`, `SourceMap::load`, `nvs_hir::resolve_program` with `CoreRoster::Trusted`,
+  then `crate::check_program` over every `Loaded`), and the five tests of check
+  `a-links-target-is-checked`. Fixture: entry writes `autoload links 'Framework\Shop' from
+  './Shop/src';`; `Shop/src/View/Index.nvs` declares `namespace Framework\Shop\View; use Core\Route;`
+  and a class with a routed `show(int $id, #[Core\Query] ?string $q = null)` plus an unrouted `plain`.
+  Assert: a good link records `RouteLink { handler: Some(..) }`; missing capture, unknown key, `'id'
+  => 'x'`, `plain` and a missing method give the local link's codes; `exprs.routes().rows()` has no
+  `Index` row and `loaded` has no target file; `new Index()` and a typed parameter give `E0897`, no
+  `E0303`; `urlSigned` gives `E0898`; the map's `files()` and `probe_trace().probed()` hold the target.
+  Run them once by name.
+- `docs/rules/routing/table-is-opt-in.md:25`: a links root is never scanned and its routes never join
+  the table. `docs/rules/core-classes/router-signed-url.md:1`: Declined, a signed link to another
+  module. Then set stage 2 done.
 
-The updated render test, `the_rendered_map_names_what_was_skipped_and_what_was_shadowed`, has a
-`links (0)` line and was not run. No test is expected red.
+No existing test is expected red. `the_rendered_map_names_what_was_skipped_and_what_was_shadowed` (with
+its `links (0)` line) has still not run.
 
 ### Backlog
