@@ -3782,6 +3782,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::string::nvs_str_append as *const ()).cast::<u8>(),
         ),
         (
+            "nvs_str_append_parts",
+            (crate::string::nvs_str_append_parts as *const ()).cast::<u8>(),
+        ),
+        (
             "nvs_str_eq",
             (crate::string::nvs_str_eq as *const ()).cast::<u8>(),
         ),

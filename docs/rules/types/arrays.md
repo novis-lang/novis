@@ -6,7 +6,9 @@ The container is an insertion-ordered hash with copy-on-write value semantics.
   unshared array costs what it adds, not what the row holds. A write that throws changes no level.
   `.=` on a `string` element, a plain `string` property or a `string` static property grows the
   string in place by the same count, and an append to an element builds no row: an absent key throws
-  as a read does.
+  as a read does. `.=` of an interpolation or a `.` chain onto a local, a plain property or a static
+  property writes each part into the target and builds no joined string. A part that is the target
+  itself makes the append copy.
 
 **Every key is a `string`.** There is no integer key. One key type means one key domain: which
 subscripts name the same entry is decided once, at the subscript, and nothing later converts a key

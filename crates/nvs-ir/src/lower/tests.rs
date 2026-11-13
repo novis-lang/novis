@@ -1991,6 +1991,21 @@ fn appending_to_a_property_keeps_the_concat_rewrite() {
 /// rather than letting codegen discover it cannot. Contrast
 /// `writing_an_int_element_through_a_literal_key_carries_the_integer_unrendered`,
 /// which is the same literal key one instruction along.
+/// A `uint` hole in a joined interpolation is a `uint` part, so the join
+/// writes its digits and no string of digits is made. An append of the same
+/// interpolation writes the same part into its target.
+#[test]
+fn a_uint_hole_joins_as_a_part() {
+    let (f, map, file) = lower_first_method(
+        "<?nvs\nclass T {\n  function m(uint $u): string {\n    var $s = \"a{$u}b\";\n    $s .= \"<{$u}>\";\n    return $s;\n  }\n}\n",
+    );
+    let printed = print_function(&f, map.file(file));
+    assert!(!printed.contains("uint_to_string"), "{printed}");
+    assert!(printed.contains("concat v"), "{printed}");
+    assert_eq!(printed.matches(", uint v").count(), 2, "{printed}");
+    assert!(printed.contains("str.append v"), "{printed}");
+}
+
 #[test]
 fn unsetting_an_element_through_an_int_key_still_renders_the_decimal() {
     let (f, map, file) = lower_first_method(

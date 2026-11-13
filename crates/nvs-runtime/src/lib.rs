@@ -119,7 +119,8 @@
 //!   `nvs_str_new`/`nvs_str_concat`/`nvs_str_concat_n`/`nvs_str_append`/
 //!   `nvs_str_retain`/`nvs_str_release` primitives backing
 //!   `nvs_ir::InstKind::ConstStr`/`Concat`/`StrAppend`/`Retain`/`Release`,
-//!   and `nvs_str_concat_parts`, which joins typed parts in one allocation;
+//!   `nvs_str_concat_parts`, which joins typed parts in one allocation, and
+//!   `nvs_str_append_parts`, which writes typed parts into an append's target;
 //! * the [`SafepointFlags`] word and `nvs_safepoint` slow path backing
 //!   `nvs_ir::InstKind::Safepoint`, and the [`DebugFlags`] word
 //!   `rule:testing/debug-probes`'s probe sites check, with [`nvs_probe_stmt`] as the
@@ -353,8 +354,8 @@ pub use peer::{
 pub use string::{
     CAP_OFFSET, COUNT_UNKNOWN, GRAPHEMES_OFFSET, HEADER_ALIGN, IMMORTAL_REFCOUNT, LEN_OFFSET,
     NvsStr, PAYLOAD_OFFSET, REFCOUNT_OFFSET, StrHeader, StrPart, StrWriter, immortal_header_bytes,
-    nvs_str_append, nvs_str_concat, nvs_str_concat_n, nvs_str_concat_parts, nvs_str_eq,
-    nvs_str_new, nvs_str_release, nvs_str_retain,
+    nvs_str_append, nvs_str_append_parts, nvs_str_concat, nvs_str_concat_n, nvs_str_concat_parts,
+    nvs_str_eq, nvs_str_new, nvs_str_release, nvs_str_retain,
 };
 pub use throwable::{
     BACKTRACE_SLOT, CONSTRAINT_SLOT, DRIVER_CODE_SLOT, ENTRY_SCRIPT_FRAME, FINISH_MARKER_NAME,

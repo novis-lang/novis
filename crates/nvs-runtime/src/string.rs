@@ -1648,11 +1648,13 @@ pub unsafe extern "C" fn nvs_str_concat_n(
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct StrPart {
-    /// One of [`StrPart::STR`], [`StrPart::INT`] or [`StrPart::HTML_TEXT`],
-    /// or a [`StrPart::FORMAT`] placeholder's packed word.
+    /// One of [`StrPart::STR`], [`StrPart::INT`], [`StrPart::UINT`] or
+    /// [`StrPart::HTML_TEXT`], or a [`StrPart::FORMAT`] placeholder's packed
+    /// word.
     pub kind: u64,
-    /// A `*const StrHeader` for the two string kinds, and an `i64`'s bits for
-    /// [`StrPart::INT`] and [`StrPart::FORMAT`].
+    /// A `*const StrHeader` for the two string kinds, an `i64`'s bits for
+    /// [`StrPart::INT`] and [`StrPart::FORMAT`], and a `u64` for
+    /// [`StrPart::UINT`].
     pub payload: u64,
 }
 
@@ -1670,6 +1672,9 @@ impl StrPart {
     /// ([`crate::placeholder::IntPlaceholder::kind_word`]). The kind is the
     /// word's low byte.
     pub const FORMAT: u64 = 3;
+    /// A `u64`, written as its decimal digits, which is what
+    /// `nvs_uint_to_string` writes for it.
+    pub const UINT: u64 = 4;
 
     /// A [`StrPart::STR`] part reading `ptr`.
     #[must_use]
@@ -1686,6 +1691,15 @@ impl StrPart {
         Self {
             kind: Self::INT,
             payload: value.cast_unsigned(),
+        }
+    }
+
+    /// A [`StrPart::UINT`] part writing `value`.
+    #[must_use]
+    pub const fn uint(value: u64) -> Self {
+        Self {
+            kind: Self::UINT,
+            payload: value,
         }
     }
 
@@ -1725,6 +1739,7 @@ impl StrPart {
 enum Piece<'a> {
     Bytes(&'a [u8]),
     Int(i64),
+    Uint(u64),
     HtmlText(&'a str),
     Format(crate::placeholder::IntPlaceholder, i64),
 }
@@ -1760,6 +1775,7 @@ impl Piece<'_> {
             match part.kind {
                 StrPart::STR => Piece::Bytes(NvsStr::bytes_of(part.ptr())),
                 StrPart::INT => Piece::Int(part.payload.cast_signed()),
+                StrPart::UINT => Piece::Uint(part.payload),
                 StrPart::HTML_TEXT => Piece::HtmlText(NvsStr::text_of(part.ptr())),
                 kind if kind & 0xff == StrPart::FORMAT => {
                     match crate::placeholder::IntPlaceholder::of_kind_word(kind) {
@@ -1775,7 +1791,7 @@ impl Piece<'_> {
                 }
                 #[expect(
                     clippy::unreachable,
-                    reason = "no program reaches this: the compiler writes only the four \
+                    reason = "no program reaches this: the compiler writes only the five \
                               kinds `StrPart` defines"
                 )]
                 kind => unreachable!("a miscompile: string part kind {kind} does not exist"),
@@ -1788,6 +1804,7 @@ impl Piece<'_> {
         match *self {
             Piece::Bytes(bytes) => bytes.len(),
             Piece::Int(value) => crate::helpers::decimal_len(value < 0, value.unsigned_abs()),
+            Piece::Uint(value) => crate::helpers::decimal_len(false, value),
             Piece::HtmlText(text) => nvs_render::html::escaped_len(text),
             Piece::Format(placeholder, value) => placeholder.len(value),
         }
@@ -1804,6 +1821,10 @@ impl Piece<'_> {
                     value.unsigned_abs(),
                     &mut buf,
                 ));
+            }
+            Piece::Uint(value) => {
+                let mut buf = [0u8; crate::helpers::DECIMAL_MAX];
+                out.push(crate::helpers::write_decimal(false, value, &mut buf));
             }
             Piece::HtmlText(text) => {
                 nvs_render::html::escape_into(text, &mut |run| out.push(run.as_bytes()));
@@ -1842,7 +1863,7 @@ impl Piece<'_> {
 ///
 /// `parts` must point at `count` consecutive [`StrPart`]s. A string kind's
 /// payload must refer to a live Novis string allocation, and a
-/// [`StrPart::HTML_TEXT`] one must be a `string`'s. A kind outside the four,
+/// [`StrPart::HTML_TEXT`] one must be a `string`'s. A kind outside the five,
 /// or a [`StrPart::FORMAT`] word no placeholder packs to, is a miscompile,
 /// and stops the process.
 #[expect(
@@ -1988,6 +2009,143 @@ pub unsafe extern "C" fn nvs_str_append(
         let counts = cached_count(target).zip(cached_count(suffix));
         append_onto(target, src, added, counts)
     }
+}
+
+/// Appends `count` typed parts to `target`: [`nvs_str_append`]'s protocol
+/// over [`nvs_str_concat_parts`]'s parts, and `nvs_ir::InstKind::StrAppend`'s
+/// entry point for any suffix but one plain string.
+///
+/// **Consumes one reference to `target` and yields one to the result**, as
+/// [`nvs_str_append`] does. Every part is only read, as
+/// [`nvs_str_concat_parts`] reads it.
+///
+/// The parts are measured once, the target grows once, and each part is
+/// written straight into the tail. So `$out .= "<li>{$name}</li>"` builds no
+/// temporary string, and an integer hole allocates no string of digits.
+///
+/// Three things force a fresh allocation instead of a write in place:
+///
+/// - **A reference count above one**, for [`nvs_str_append`]'s reason.
+/// - **Too little room**, grown by [`grown_capacity`] as there.
+/// - **A part that is the target itself**, as in `$s .= "{$s}!"`. The fresh
+///   buffer is filled while the target is still whole, and the target is
+///   released last. That is one pointer compare per part, and it keeps the
+///   write in place free of any read of the bytes it writes beside.
+///
+/// The result's grapheme count is left unknown. **A refused allocation
+/// answers `target` unchanged**, as [`nvs_str_append`] answers it.
+///
+/// # Memory
+///
+/// What the target grows by, and nothing else: no temporary string for the
+/// parts.
+///
+/// # Safety
+///
+/// `target` must refer to a live Novis string allocation whose reference this
+/// caller owns and does not release again. `parts` must point at `count`
+/// consecutive [`StrPart`]s, each as [`nvs_str_concat_parts`] states.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes a raw string pointer and a stack array of \
+              typed parts whose liveness, count and ownership the signature \
+              cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_str_append_parts(
+    target: *mut StrHeader,
+    parts: *const StrPart,
+    count: usize,
+) -> *mut StrHeader {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees a live, owned `target` and `count` parts \
+                  at `parts`; every write below stays inside one allocation's \
+                  `cap`, which the measured total bounds"
+    )]
+    unsafe {
+        let parts = std::slice::from_raw_parts(parts, count);
+        let header = &*target;
+        let len = header.len.get();
+        // A saturated total has no layout, so `NvsStr::alloc_or_refusal`
+        // refuses it and `target` comes back unchanged.
+        let added = parts.iter().fold(0_usize, |total, part| {
+            total.saturating_add(Piece::of(part).len())
+        });
+        let needed = len.saturating_add(added);
+        let reads_target = parts.iter().any(|part| {
+            matches!(part.kind, StrPart::STR | StrPart::HTML_TEXT)
+                && std::ptr::eq(part.ptr(), target)
+        });
+        let Some(owned) = NonNull::new(target) else {
+            return target;
+        };
+        if header.refcount.get() == 1 && header.cap >= needed && !reads_target {
+            let (ptr, written) = write_parts(owned, len, header.cap, parts);
+            let written_into = ptr.as_ref();
+            written_into.len.set(written);
+            written_into.graphemes.set(COUNT_UNKNOWN);
+            written_into.digest.set(DIGEST_UNKNOWN);
+            return ptr.as_ptr();
+        }
+        let cap = grown_capacity(len, needed);
+        let Some(grown) = NvsStr::alloc_or_refusal(0, cap) else {
+            return target;
+        };
+        let dst = grown.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET);
+        std::ptr::copy_nonoverlapping(target.cast::<u8>().add(PAYLOAD_OFFSET), dst, len);
+        let (ptr, written) = write_parts(grown, len, cap, parts);
+        ptr.as_ref().len.set(written);
+        // Last, so that a part that is the target is read before a release
+        // of the target can free it.
+        nvs_str_release(target);
+        ptr.as_ptr()
+    }
+}
+
+/// Writes every part after the first `written` bytes of `ptr`'s payload, and
+/// answers the allocation and the length it now has.
+///
+/// The caller sets the header's `len` from the answer. A total the caller
+/// measured with [`Piece::len`] fits in `capacity`, so the writer never grows.
+///
+/// # Safety
+///
+/// `ptr` must be an allocation of `capacity` payload bytes that no other
+/// handle writes, with its first `written` bytes initialized. Every part's
+/// payload is [`Piece::of`]'s to state, and no string part may be `ptr`.
+#[expect(
+    unsafe_code,
+    reason = "every part's payload is the caller's obligation to state"
+)]
+unsafe fn write_parts(
+    ptr: NonNull<StrHeader>,
+    written: usize,
+    capacity: usize,
+    parts: &[StrPart],
+) -> (NonNull<StrHeader>, usize) {
+    let mut out = StrWriter {
+        ptr,
+        written,
+        capacity,
+        owns: PhantomData,
+    };
+    for part in parts {
+        #[expect(unsafe_code, reason = "the caller guarantees each part's payload")]
+        unsafe { Piece::of(part) }.write(&mut out);
+    }
+    let done = (out.ptr, out.written);
+    // The allocation goes back to the caller, who owns it.
+    std::mem::forget(out);
+    done
 }
 
 /// [`nvs_str_append`]'s body over a byte range: appends the `added` bytes at
@@ -2441,24 +2599,7 @@ mod tests {
     fn joined(parts: &[Part<'_>]) -> Vec<u8> {
         #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
         unsafe {
-            let held: Vec<*mut StrHeader> = parts
-                .iter()
-                .filter_map(|part| match part {
-                    Part::Str(text) | Part::Html(text) => {
-                        Some(NvsStr::new(text.as_bytes()).into_raw())
-                    }
-                    Part::Int(_) => None,
-                })
-                .collect();
-            let mut strings = held.iter();
-            let typed: Vec<StrPart> = parts
-                .iter()
-                .map(|part| match part {
-                    Part::Str(_) => StrPart::str(*strings.next().expect("made above")),
-                    Part::Html(_) => StrPart::html_text(*strings.next().expect("made above")),
-                    Part::Int(value) => StrPart::int(*value),
-                })
-                .collect();
+            let (held, typed) = typed_parts(parts);
             let out = nvs_str_concat_parts(typed.as_ptr(), typed.len());
             let bytes = NvsStr::bytes_of(out).to_vec();
             nvs_str_release(out);
@@ -2478,7 +2619,107 @@ mod tests {
     enum Part<'a> {
         Str(&'a str),
         Int(i64),
+        Uint(u64),
         Html(&'a str),
+    }
+
+    /// The [`StrPart`]s for `parts`, and the strings they read, which the
+    /// caller releases.
+    fn typed_parts(parts: &[Part<'_>]) -> (Vec<*mut StrHeader>, Vec<StrPart>) {
+        let held: Vec<*mut StrHeader> = parts
+            .iter()
+            .filter_map(|part| match part {
+                Part::Str(text) | Part::Html(text) => Some(NvsStr::new(text.as_bytes()).into_raw()),
+                Part::Int(_) | Part::Uint(_) => None,
+            })
+            .collect();
+        let mut strings = held.iter();
+        let typed = parts
+            .iter()
+            .map(|part| match part {
+                Part::Str(_) => StrPart::str(*strings.next().expect("made above")),
+                Part::Html(_) => StrPart::html_text(*strings.next().expect("made above")),
+                Part::Int(value) => StrPart::int(*value),
+                Part::Uint(value) => StrPart::uint(*value),
+            })
+            .collect();
+        (held, typed)
+    }
+
+    /// An append of parts writes the bytes a join of the same parts, then a
+    /// plain append, writes. That holds for every part kind, alone and mixed,
+    /// onto a target with room, one without, a shared one, and a target that
+    /// is one of its own parts. A write in place keeps the target's address,
+    /// and a shared target keeps its bytes.
+    #[test]
+    fn an_append_of_parts_writes_what_the_join_writes() {
+        let lists: [&[Part<'_>]; 8] = [
+            &[Part::Str("tail")],
+            &[Part::Str("")],
+            &[Part::Int(i64::MIN)],
+            &[Part::Uint(u64::MAX)],
+            &[Part::Uint(0)],
+            &[Part::Html("a<b & \"c\"")],
+            &[
+                Part::Str("<li>"),
+                Part::Int(-7),
+                Part::Uint(18),
+                Part::Html("é & ü"),
+                Part::Str("</li>"),
+            ],
+            &[Part::Uint(10), Part::Uint(9), Part::Int(0)],
+        ];
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            for list in lists {
+                let suffix = joined(list);
+                for (start, room) in [("", 0), ("head:", 0), ("head:", 64), ("ü", 1)] {
+                    let mut want = start.as_bytes().to_vec();
+                    want.extend_from_slice(&suffix);
+                    let fits = start.len() + room >= want.len();
+
+                    let target = NvsStr::build(start.len() + room, |out| out.push_str(start));
+                    let target = target.into_raw();
+                    let (held, typed) = typed_parts(list);
+                    let out = nvs_str_append_parts(target, typed.as_ptr(), typed.len());
+                    assert_eq!(NvsStr::bytes_of(out), want, "{start:?} {room}");
+                    assert_eq!(std::ptr::eq(out, target), fits, "{start:?} {room}");
+                    assert_eq!(NvsStr::refcount_of(out), 1);
+                    nvs_str_release(out);
+
+                    let shared = NvsStr::build(start.len() + room, |out| out.push_str(start));
+                    let shared = shared.into_raw();
+                    nvs_str_retain(shared);
+                    let out = nvs_str_append_parts(shared, typed.as_ptr(), typed.len());
+                    assert_eq!(NvsStr::bytes_of(out), want, "{start:?} {room} shared");
+                    assert!(!std::ptr::eq(out, shared), "a shared target is copied");
+                    assert_eq!(NvsStr::bytes_of(shared), start.as_bytes());
+                    assert_eq!(NvsStr::refcount_of(shared), 1);
+                    nvs_str_release(out);
+                    nvs_str_release(shared);
+
+                    for string in held {
+                        assert_eq!(NvsStr::refcount_of(string), 1, "a part was retained");
+                        nvs_str_release(string);
+                    }
+                }
+            }
+
+            let target = NvsStr::build(64, |out| out.push_str("a<")).into_raw();
+            let parts = [
+                StrPart::str(target),
+                StrPart::uint(1),
+                StrPart::html_text(target),
+            ];
+            let out = nvs_str_append_parts(target, parts.as_ptr(), parts.len());
+            assert_eq!(NvsStr::bytes_of(out), b"a<a<1a&lt;");
+            assert!(
+                !std::ptr::eq(out, target),
+                "a target among its parts is copied"
+            );
+            assert_eq!(NvsStr::refcount_of(out), 1);
+            nvs_str_release(out);
+        }
     }
 
     /// The keystone's claim, measured: a join of strings, an integer and

@@ -1727,9 +1727,16 @@ pub enum InstKind {
     /// when the two are the same pointer (solely owned, and enough room) and
     /// when a copy-on-write separation makes them different ones.
     ///
-    /// `suffix` is only *read*, exactly as [`InstKind::Concat`] reads both of
-    /// its operands, so it is not retained here — and a `suffix` that no
-    /// durable slot owns (a literal, a `Concat` result, a freshly converted
+    /// **The suffix is a list of [`ConcatPart`]s**, as a join's pieces are.
+    /// One [`PartKind::Str`] part calls `nvs_str_append`. Any other list
+    /// calls `nvs_str_append_parts`, which measures the parts, grows the
+    /// target once and writes each part into its tail. So `$out .= "<li>{$x}</li>"`
+    /// builds no temporary string, and a number hole builds no digits string.
+    /// The runtime copies the target when a part is the target itself.
+    ///
+    /// Every part is only *read*, exactly as [`InstKind::Concat`] reads its
+    /// pieces, so none is retained here — and a part that no durable slot
+    /// owns (a literal, a `Concat` result, a freshly converted
     /// [`HelperCall`](InstKind::HelperCall)) is released right after this
     /// instruction reads it, by the same
     /// `crate::lower::Lowering::owned_temporaries` staging `Concat`'s own
@@ -1742,8 +1749,9 @@ pub enum InstKind {
         /// The string appended to, already lowered and already [`Ty::Str`].
         /// One reference to it is consumed.
         target: ValueId,
-        /// The bytes to append, already lowered and already [`Ty::Str`].
-        suffix: ValueId,
+        /// What to append, in order, each of the [`Ty`] its [`PartKind`]
+        /// names. Never empty.
+        suffix: Vec<ConcatPart>,
     },
     /// Takes the pending exception out of the request context, transferring
     /// ownership of one reference to the [`crate::ty::Ty::Object`] this
@@ -2385,6 +2393,9 @@ pub enum PartKind {
     /// A [`Ty::Int`], written as its decimal digits — what
     /// [`Helper::IntToString`] answers for it, with no string in between.
     Int,
+    /// A [`Ty::Uint`], written as its decimal digits — what
+    /// [`Helper::UintToString`] answers for it, with no string in between.
+    Uint,
     /// A [`Ty::Str`], written as `Core\Html::escape` writes it
     /// (`rule:core-classes/html-auto-escape`), with no escaped copy in between.
     HtmlText,

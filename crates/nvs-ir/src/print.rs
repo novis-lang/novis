@@ -10,8 +10,8 @@ use nvs_diagnostics::{SourceFile, Span};
 
 use crate::ids::BlockId;
 use crate::ir::{
-    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, PartKind, Program, Terminator,
-    TestedClass, UnOp,
+    AbsentKey, BasicBlock, BinOp, ConcatPart, Function, Helper, Inst, InstKind, PartKind, Program,
+    Terminator, TestedClass, UnOp,
 };
 use crate::ty::Ty;
 
@@ -327,20 +327,9 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
                 format!("class.test v{}, v{}", value.index(), desc.index())
             }
         },
-        InstKind::Concat { pieces } => {
-            let parts: Vec<String> = pieces
-                .iter()
-                .map(|p| match p.kind {
-                    PartKind::Str => format!("v{}", p.value.index()),
-                    PartKind::Int => format!("int v{}", p.value.index()),
-                    PartKind::HtmlText => format!("html v{}", p.value.index()),
-                    PartKind::Format(word) => format!("format {word:#x} v{}", p.value.index()),
-                })
-                .collect();
-            format!("concat {}", parts.join(", "))
-        }
+        InstKind::Concat { pieces } => format!("concat {}", parts(pieces)),
         InstKind::StrAppend { target, suffix } => {
-            format!("str.append v{}, v{}", target.index(), suffix.index())
+            format!("str.append v{}, {}", target.index(), parts(suffix))
         }
         InstKind::Reinterpret { operand } => format!("reinterpret v{}", operand.index()),
         InstKind::Tag { operand } => format!("tag v{}", operand.index()),
@@ -433,6 +422,22 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
 
 /// ` ! bbN` for an instruction carrying [`Inst::on_error`], the empty string
 /// for one that cannot fail — see that field's own doc comment.
+/// A join's pieces or an append's suffix: each part's value, after a word
+/// for any kind but a plain string.
+fn parts(pieces: &[ConcatPart]) -> String {
+    let parts: Vec<String> = pieces
+        .iter()
+        .map(|p| match p.kind {
+            PartKind::Str => format!("v{}", p.value.index()),
+            PartKind::Int => format!("int v{}", p.value.index()),
+            PartKind::Uint => format!("uint v{}", p.value.index()),
+            PartKind::HtmlText => format!("html v{}", p.value.index()),
+            PartKind::Format(word) => format!("format {word:#x} v{}", p.value.index()),
+        })
+        .collect();
+    parts.join(", ")
+}
+
 fn error_edge(inst: &Inst) -> String {
     match inst.on_error {
         Some(landing) => format!(" ! {}", block_name(landing)),

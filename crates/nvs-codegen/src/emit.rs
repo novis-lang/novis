@@ -1065,7 +1065,7 @@ impl Emitter<'_, '_> {
                 self.define(inst, value)?;
             }
             InstKind::StrAppend { target, suffix } => {
-                let value = self.emit_str_append(*target, *suffix)?;
+                let value = self.emit_str_append(*target, suffix)?;
                 self.define(inst, value)?;
             }
             InstKind::Clone { object } => {
@@ -4081,6 +4081,15 @@ impl Emitter<'_, '_> {
     /// fresh piece after this call. It cannot fail, so it has no status check,
     /// like [`Self::emit_concat`]'s two calls.
     fn emit_concat_parts(&mut self, pieces: &[ConcatPart]) -> Result<Value, CodegenError> {
+        let (base, len) = self.parts_array(pieces)?;
+        let callee = self.runtime_ref("nvs_str_concat_parts", RuntimeSig::StrConcat)?;
+        let call = self.b.ins().call(callee, &[base, len]);
+        Ok(self.b.inst_results(call)[0])
+    }
+
+    /// A stack array of `nvs_runtime::StrPart`s for `pieces`, and its count,
+    /// as `nvs_str_concat_parts` and `nvs_str_append_parts` read it.
+    fn parts_array(&mut self, pieces: &[ConcatPart]) -> Result<(Value, Value), CodegenError> {
         let count = i32::try_from(pieces.len()).map_err(|_| internal("a join past i32 pieces"))?;
         if count == 0 {
             return Err(internal("a join of no pieces"));
@@ -4094,6 +4103,7 @@ impl Emitter<'_, '_> {
             let kind = match (piece.kind, ty) {
                 (PartKind::Str, Ty::Str | Ty::Bytes) => StrPart::STR,
                 (PartKind::Int, Ty::Int) => StrPart::INT,
+                (PartKind::Uint, Ty::Uint) => StrPart::UINT,
                 (PartKind::HtmlText, Ty::Str) => StrPart::HTML_TEXT,
                 (PartKind::Format(word), Ty::Int | Ty::Uint) => word,
                 _ => {
@@ -4113,33 +4123,48 @@ impl Emitter<'_, '_> {
                 .store(trusted(), value, base, offset + POINTER_SIZE);
         }
         let len = self.b.ins().iconst(types::I64, i64::from(count));
-        let callee = self.runtime_ref("nvs_str_concat_parts", RuntimeSig::StrConcat)?;
-        let call = self.b.ins().call(callee, &[base, len]);
-        Ok(self.b.inst_results(call)[0])
+        Ok((base, len))
     }
 
-    /// `.=` on a `string` local: one call to `nvs_str_append`, which writes
-    /// into the target's own buffer whenever it is solely owned and has the
-    /// room, and separates copy-on-write when it is not.
+    /// `.=` on a `string` local, a plain property or a static property: one
+    /// call, which writes into the target's own buffer whenever it is solely
+    /// owned and has the room, and separates copy-on-write when it is not.
     ///
-    /// The same non-helper memory primitive [`Self::emit_concat`] calls, the
-    /// same two-pointers-to-a-pointer signature — so it shares
-    /// [`RuntimeSig::StrConcat`] — and the same ownership: the call consumes
-    /// the reference `target` arrived with and produces the one the result
-    /// carries, which is `nvs_ir::ir::InstKind::StrAppend`'s protocol and why
-    /// nothing is retained or released around it here either.
-    fn emit_str_append(&mut self, target: ValueId, suffix: ValueId) -> Result<Value, CodegenError> {
+    /// One [`PartKind::Str`] part calls `nvs_str_append`, the same
+    /// two-pointers-to-a-pointer shape [`Self::emit_concat`] calls, so it
+    /// shares [`RuntimeSig::StrConcat`]. Any other list calls
+    /// `nvs_str_append_parts` over [`Self::parts_array`]'s stack array. Both
+    /// consume the reference `target` arrived with and produce the one the
+    /// result carries, which is `nvs_ir::ir::InstKind::StrAppend`'s protocol
+    /// and why nothing is retained or released around either here. Neither
+    /// can fail, so neither has a status check.
+    fn emit_str_append(
+        &mut self,
+        target: ValueId,
+        suffix: &[ConcatPart],
+    ) -> Result<Value, CodegenError> {
         let (t, tty) = self.value(target)?;
-        let (s, sty) = self.value(suffix)?;
-        for ty in [tty, sty] {
-            if !matches!(ty, Ty::Str | Ty::Bytes) {
+        if !matches!(tty, Ty::Str | Ty::Bytes) {
+            return Err(internal(
+                "a string-append target that lowering left unconverted",
+            ));
+        }
+        if let [only] = suffix
+            && only.kind == PartKind::Str
+        {
+            let (s, sty) = self.value(only.value)?;
+            if !matches!(sty, Ty::Str | Ty::Bytes) {
                 return Err(internal(
                     "a string-append operand that lowering left unconverted",
                 ));
             }
+            let callee = self.runtime_ref("nvs_str_append", RuntimeSig::StrConcat)?;
+            let call = self.b.ins().call(callee, &[t, s]);
+            return Ok(self.b.inst_results(call)[0]);
         }
-        let callee = self.runtime_ref("nvs_str_append", RuntimeSig::StrConcat)?;
-        let call = self.b.ins().call(callee, &[t, s]);
+        let (base, len) = self.parts_array(suffix)?;
+        let callee = self.runtime_ref("nvs_str_append_parts", RuntimeSig::StrAppendParts)?;
+        let call = self.b.ins().call(callee, &[t, base, len]);
         Ok(self.b.inst_results(call)[0])
     }
 
@@ -4864,6 +4889,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::ProbeCall => &self.sigs.probe_call,
             RuntimeSig::ProbeCallExit => &self.sigs.probe_call_exit,
             RuntimeSig::StrConcat => &self.sigs.str_concat,
+            RuntimeSig::StrAppendParts => &self.sigs.str_append_parts,
             RuntimeSig::PtrEq => &self.sigs.ptr_eq,
             RuntimeSig::FloatPow => &self.sigs.float_pow,
             RuntimeSig::Refcount => &self.sigs.refcount,
@@ -4930,6 +4956,7 @@ enum RuntimeSig {
     ProbeCall,
     ProbeCallExit,
     StrConcat,
+    StrAppendParts,
     PtrEq,
     FloatPow,
     Refcount,

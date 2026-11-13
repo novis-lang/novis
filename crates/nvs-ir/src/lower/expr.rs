@@ -2297,6 +2297,29 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        let mark = self.temporaries_mark();
+        let joined = parts.len() > 1;
+        let (pieces, leading) = self.interpolated_pieces(parts, whole_span, joined, env, cur);
+        self.join_pieces(&pieces, mark, leading, *cur)
+    }
+
+    /// The pieces of an interpolated string, in order, before any join.
+    ///
+    /// Each piece is a part and whether nothing is staged for it, as
+    /// [`Self::join_pieces`] takes them. Every fresh piece is staged on
+    /// [`Self::owned_temporaries`], and `leading` is the mark before the
+    /// first piece when that piece is fresh. When `joined`, an `int` or `uint`
+    /// hole is a number part, which writes its digits with no string between.
+    /// [`Self::lower_interpolated_parts`] joins the pieces, and an append
+    /// writes them into its target (`Self::append_parts`).
+    pub(crate) fn interpolated_pieces(
+        &mut self,
+        parts: &[StringPart],
+        whole_span: nvs_diagnostics::Span,
+        joined: bool,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (Vec<(ConcatPart, bool)>, Option<usize>) {
         assert!(
             !parts.is_empty(),
             "nvs-syntax's collapse_string_parts only ever produces ExprKind::Interpolated for a \
@@ -2319,7 +2342,6 @@ impl<'a> Lowering<'a> {
         // still being lowered — and one of those can be a call that throws. So
         // each lives on [`Self::owned_temporaries`], and only the finished
         // string leaves it ([`Self::forget_temporaries_since`]).
-        let mark = self.temporaries_mark();
         let mut pieces: Vec<(ConcatPart, bool)> = Vec::with_capacity(parts.len());
         let mut leading = None;
         for (i, part) in parts.iter().enumerate() {
@@ -2345,7 +2367,7 @@ impl<'a> Lowering<'a> {
                 StringPart::Expr(e) => {
                     let later = Self::later_holes(parts, i + 1);
                     let earlier = (&mut pieces[..], &mut leading);
-                    self.interpolated_hole(e, parts.len() > 1, &later, earlier, env, cur)
+                    self.interpolated_hole(e, joined, &later, earlier, env, cur)
                 }
             };
             if !piece.1 {
@@ -2356,16 +2378,17 @@ impl<'a> Lowering<'a> {
             }
             pieces.push(piece);
         }
-        self.join_pieces(&pieces, mark, leading, *cur)
+        (pieces, leading)
     }
 
     /// One hole of an interpolated string, as a piece of its join, and whether
     /// nothing is left for this frame to release once the join has read it.
     ///
-    /// An `int` hole is a [`PartKind::Int`] piece when `joined`, so the join
-    /// writes its digits into the result and no string of digits is made. A
-    /// hole alone in its string is not joined, so it converts as every other
-    /// hole does, through [`Self::convert_operand`].
+    /// An `int` hole is a [`PartKind::Int`] piece when `joined`, and a `uint`
+    /// hole a [`PartKind::Uint`] piece, so the join writes its digits into the
+    /// result and no string of digits is made. A hole alone in its string is
+    /// not joined, so it converts as every other hole does, through
+    /// [`Self::convert_operand`].
     ///
     /// `later` is the holes after this one. A borrowed hole one of them can
     /// free is held ([`Self::hold_borrowed`]) and reported as fresh.
@@ -2385,17 +2408,24 @@ impl<'a> Lowering<'a> {
         if self.conversion_runs_code(e, ty) {
             self.hold_earlier_pieces(earlier, leading, *cur);
         }
-        if joined && ty == Ty::Int {
-            let part = ConcatPart {
-                kind: PartKind::Int,
-                value: v,
-            };
+        if let Some(part) = Self::number_part(joined, v, ty) {
             return (part, true);
         }
         let (text, aliasing) = self.convert_operand(e, v, ty, env, cur);
         let aliasing =
             aliasing && self.hold_borrowed(OperandSite::StringHole, e, text, later, *cur);
         (ConcatPart::str(text), aliasing)
+    }
+
+    /// `v` as a number part, when `joined` and `ty` is `int` or `uint`. The
+    /// join or the append writes its digits, so no string of digits is made.
+    fn number_part(joined: bool, v: ValueId, ty: Ty) -> Option<ConcatPart> {
+        let kind = match ty {
+            Ty::Int => PartKind::Int,
+            Ty::Uint => PartKind::Uint,
+            _ => return None,
+        };
+        joined.then_some(ConcatPart { kind, value: v })
     }
 
     /// Joins the pieces [`Self::lower_interpolated_parts`] and
@@ -2445,7 +2475,7 @@ impl<'a> Lowering<'a> {
     /// The template is a constant, so it is not evaluated. Each argument is
     /// lowered in written order and converted by [`Self::interpolated_hole`],
     /// as an interpolated string converts its holes, so a bare `int` argument
-    /// is a [`PartKind::Int`] piece. A `uint` keeps its conversion. A
+    /// is a [`PartKind::Int`] piece, and a bare `uint` a [`PartKind::Uint`]. A
     /// [`nvs_types::expr_table::FormatPiece::Integer`] argument is a
     /// [`PartKind::Format`] piece, which the join writes with no string in
     /// between. A [`nvs_types::expr_table::FormatPiece::Converted`] argument
@@ -2869,6 +2899,10 @@ impl<'a> Lowering<'a> {
                 helper: Helper::IntToString,
                 args: vec![part.value],
             },
+            PartKind::Uint => InstKind::HelperCall {
+                helper: Helper::UintToString,
+                args: vec![part.value],
+            },
             PartKind::HtmlText => InstKind::CoreCall {
                 symbol: nvs_types::CORE_HTML_ESCAPE_TEXT,
                 args: vec![part.value],
@@ -3275,10 +3309,34 @@ impl<'a> Lowering<'a> {
         Self::flatten_concat(lhs, &mut operands);
         Self::flatten_concat(rhs, &mut operands);
         let mark = self.temporaries_mark();
+        let (pieces, leading) = self.concat_pieces(&operands, false, env, cur);
+        let pieces = pieces.into_iter().map(|(part, _)| part).collect();
+        let result = self.emit_concat(*cur, pieces, leading);
+        self.release_temporaries_since(mark, *cur);
+        (result, Ty::Str)
+    }
+
+    /// The pieces of a flattened `.` spine, in order, before any join, as
+    /// [`Self::interpolated_pieces`] gives an interpolation's.
+    ///
+    /// When `numbers`, an `int` or `uint` operand is a number part. The
+    /// join keeps every piece a string, so it can write into its leading
+    /// piece, and an append takes number parts (`Self::append_parts`).
+    pub(crate) fn concat_pieces(
+        &mut self,
+        operands: &[&Expr],
+        numbers: bool,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (Vec<(ConcatPart, bool)>, Option<usize>) {
         let mut pieces: Vec<(ConcatPart, bool)> = Vec::with_capacity(operands.len());
         let mut leading = None;
         for (i, operand) in operands.iter().enumerate() {
             let (v, ty) = self.lower_expr(operand, None, env, cur);
+            if let Some(part) = Self::number_part(numbers, v, ty) {
+                pieces.push((part, true));
+                continue;
+            }
             // A `toString` this conversion calls can free an earlier piece.
             if self.conversion_runs_code(operand, ty) {
                 self.hold_earlier_pieces(&mut pieces, &mut leading, *cur);
@@ -3294,10 +3352,7 @@ impl<'a> Lowering<'a> {
             }
             pieces.push((ConcatPart::str(v), aliasing));
         }
-        let pieces = pieces.into_iter().map(|(part, _)| part).collect();
-        let result = self.emit_concat(*cur, pieces, leading);
-        self.release_temporaries_since(mark, *cur);
-        (result, Ty::Str)
+        (pieces, leading)
     }
 
     /// Emits the [`InstKind::Concat`] over `pieces`, handing it the one

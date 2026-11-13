@@ -655,7 +655,7 @@ impl<'a> Lowering<'a> {
                 if receiver_ty.is_refcounted() && owner != OperandOwner::Slot {
                     self.own_temporary(object_v);
                 }
-                let suffix = self.append_suffix(value, env, cur);
+                let suffix = self.slot_append_parts(value, env, cur);
                 let (old, _) = self.emit(
                     *cur,
                     Ty::Str,
@@ -683,7 +683,7 @@ impl<'a> Lowering<'a> {
                     return false;
                 }
                 let mark = self.temporaries_mark();
-                let suffix = self.append_suffix(value, env, cur);
+                let suffix = self.slot_append_parts(value, env, cur);
                 let (old, _) = self.emit(
                     *cur,
                     Ty::Str,
@@ -811,6 +811,62 @@ impl<'a> Lowering<'a> {
             self.own_temporary(suffix);
         }
         suffix
+    }
+    /// The suffix of an append into a plain property or static property, as
+    /// the parts [`InstKind::StrAppend`] writes. An element append takes one
+    /// `string` suffix, through [`Self::append_suffix`] alone.
+    fn slot_append_parts(
+        &mut self,
+        value: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> Vec<ConcatPart> {
+        match self.append_parts(value, env, cur) {
+            Some(parts) => parts,
+            None => vec![ConcatPart::str(self.append_suffix(value, env, cur))],
+        }
+    }
+    /// An interpolation or a `.` chain lowered to the parts an append writes
+    /// into its target, or `None`, having lowered nothing, for any other
+    /// suffix.
+    ///
+    /// Each fresh part is staged on [`Self::owned_temporaries`], and the
+    /// caller releases it after the append. A borrowed part is not retained:
+    /// the runtime compares each part with the target and copies when one is
+    /// the target. A suffix that comes to one borrowed string is retained and
+    /// staged, as [`Self::append_suffix`] does, because one string part takes
+    /// `nvs_str_append`, which makes no such compare.
+    ///
+    /// **What it spends:** nothing per request. The join's string is never
+    /// made, and an `int` or `uint` is written as digits with no string.
+    fn append_parts(
+        &mut self,
+        value: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> Option<Vec<ConcatPart>> {
+        let value = value.unparenthesized();
+        let (pieces, _) = match &value.kind {
+            ExprKind::Interpolated(parts) => {
+                self.interpolated_pieces(parts, value.span, true, env, cur)
+            }
+            ExprKind::Binary {
+                op: BinaryOp::Concat,
+                ..
+            } => {
+                let mut operands = Vec::new();
+                Self::flatten_concat(value, &mut operands);
+                self.concat_pieces(&operands, true, env, cur)
+            }
+            _ => return None,
+        };
+        if let [(only, true)] = pieces[..]
+            && only.kind == PartKind::Str
+        {
+            self.emit_retain(*cur, only.value);
+            self.own_temporary(only.value);
+        }
+        Some(pieces.into_iter().map(|(part, _)| part).collect())
     }
     /// `$x++;` / `--$x;` — `rule:types/arithmetic`'s `± 1` over the target's own numeric
     /// type, through the same read-modify-write `$x += 1;` takes.
@@ -1271,7 +1327,9 @@ impl<'a> Lowering<'a> {
     /// in the same `Env` slot, so `env.insert` is the entire write-back.
     /// [`InstKind::StrAppend`]'s own doc comment owns that protocol.
     ///
-    /// The suffix goes through [`Self::concat_operand`], so a scalar is
+    /// An interpolation or a `.` chain is appended as its parts
+    /// ([`Self::append_parts`]), so no joined string is made. Any other
+    /// suffix goes through [`Self::concat_operand`], so a scalar is
     /// converted to a `string` first and staged on
     /// [`Self::owned_temporaries`] when no durable slot owns it — the same
     /// treatment, and the same throwing-edge safety, [`Self::lower_concat`]
@@ -1285,10 +1343,16 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) {
         let mark = self.temporaries_mark();
-        let (suffix, aliasing) = self.concat_operand(value, env, cur);
-        if !aliasing {
-            self.own_temporary(suffix);
-        }
+        let suffix = match self.append_parts(value, env, cur) {
+            Some(parts) => parts,
+            None => {
+                let (suffix, aliasing) = self.concat_operand(value, env, cur);
+                if !aliasing {
+                    self.own_temporary(suffix);
+                }
+                vec![ConcatPart::str(suffix)]
+            }
+        };
         let (appended, _) = self.emit(*cur, Ty::Str, InstKind::StrAppend { target, suffix });
         self.release_temporaries_since(mark, *cur);
         self.write_through_element(*cur, env, &name, appended, Ty::Str);

@@ -2160,6 +2160,11 @@ struct Signatures {
     /// one signature serves all of them, and a count declares itself with
     /// `AbiParam::new(ptr)` because a `usize` is pointer-width.
     str_concat: Signature,
+    /// `nvs_str_append_parts(target, parts, count) -> *mut StrHeader`: three
+    /// pointer-width parameters, one pointer back. It consumes the reference
+    /// `target` arrived with, as `nvs_str_append` does, and only reads the
+    /// parts, as `nvs_str_concat_parts` does.
+    str_append_parts: Signature,
     /// `nvs_str_eq(lhs, rhs) -> bool` and `nvs_array_eq(lhs, rhs) -> bool`,
     /// which share one shape: two raw pointers to an `I8`, like
     /// `Sigs::class_test`.
@@ -2855,6 +2860,11 @@ impl Signatures {
         str_concat.params.push(AbiParam::new(ptr));
         str_concat.params.push(AbiParam::new(ptr));
         str_concat.returns.push(AbiParam::new(ptr));
+        let mut str_append_parts = module.make_signature();
+        str_append_parts.params.push(AbiParam::new(ptr)); // target
+        str_append_parts.params.push(AbiParam::new(ptr)); // parts
+        str_append_parts.params.push(AbiParam::new(ptr)); // count
+        str_append_parts.returns.push(AbiParam::new(ptr));
 
         let mut ptr_eq = module.make_signature();
         ptr_eq.params.push(AbiParam::new(ptr));
@@ -3012,6 +3022,7 @@ impl Signatures {
             probe_call,
             probe_call_exit,
             str_concat,
+            str_append_parts,
             ptr_eq,
             float_pow,
             refcount,

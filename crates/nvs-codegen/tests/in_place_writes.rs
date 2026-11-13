@@ -323,6 +323,103 @@ echo Core\\Str::length($page->rows[0][\"html\"]);
     });
 }
 
+/// How many allocation requests the **run** of `source` makes, with
+/// compilation outside the window, as [`bytes_of_run`] measures bytes.
+#[cfg(debug_assertions)]
+fn requests_of_run(source: &str) -> usize {
+    let unit = compile(source).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    unit.install_in(&mut ctx);
+    let entry = unit.script().expect("the script frame was compiled");
+    let before = nvs_runtime::budget::allocations();
+    entry.call(&mut ctx).expect("the script ran to completion");
+    nvs_runtime::budget::allocations() - before
+}
+
+#[cfg(debug_assertions)]
+#[test]
+fn an_interpolated_append_allocates_only_as_the_target_grows() {
+    // Each loop appends an interpolation and a `.` chain with `int` and
+    // `uint` holes to a local, a property and a static property. Only the
+    // targets' growth allocates, so 2,000 more steps make few more requests.
+    let program = |n: u32| {
+        format!(
+            "<?nvs
+class Page {{
+    public string $out = \"\";
+    public static string $log = \"\";
+}}
+var $page = new Page();
+var $s = \"\";
+uint $u = 7;
+var $i = 0;
+while ($i < {n}) {{
+    $s .= \"<li>{{$i}}:{{$u}}</li>\";
+    $s .= \"<p>\" . $i . \"/\" . $u . \"</p>\";
+    $page->out .= \"<li>{{$i}}:{{$u}}</li>\";
+    Page::$log .= \"line \" . $i . \"\\n\";
+    $i = $i + 1;
+}}
+echo Core\\Str::length($s), \"/\", Core\\Str::length($page->out), \"/\", Core\\Str::length(Page::$log);
+"
+        )
+    };
+    let small = requests_of_run(&program(2_000));
+    let large = requests_of_run(&program(4_000));
+    assert!(
+        large - small < 200,
+        "2,000 steps made {small} allocation requests and 4,000 made {large}"
+    );
+}
+
+#[test]
+fn an_interpolated_append_that_reads_its_target_still_copies_it() {
+    // A part is the target itself, in a local, a property and a static
+    // property, and in an interpolation and a `.` chain.
+    assert_eq!(
+        output_of(
+            "<?nvs
+class Page {
+    public string $out = \"\";
+    public static string $log = \"\";
+}
+var $page = new Page();
+var $s = \"\";
+$s .= \"ab\";
+$s .= \"<{$s}>\";
+$s .= $s . \"!\";
+$page->out .= \"cd\";
+$page->out .= \"[{$page->out}]\";
+Page::$log .= \"ef\";
+Page::$log .= Page::$log . 1;
+echo $s, \"/\", $page->out, \"/\", Page::$log;
+"
+        ),
+        "ab<ab>ab<ab>!/cd[cd]/efef1"
+    );
+    // A second variable has the target, which keeps its bytes.
+    assert_eq!(
+        output_of(
+            "<?nvs
+class Page {
+    public string $out = \"\";
+}
+var $page = new Page();
+uint $u = 3;
+var $s = \"\";
+$s .= \"ab\";
+$page->out .= \"cd\";
+var $kept = $s;
+var $held = $page->out;
+$s .= \"{$u}-{$kept}\";
+$page->out .= \"<{$u}>\";
+echo $kept, \"/\", $s, \"/\", $held, \"/\", $page->out;
+"
+        ),
+        "ab/ab3-ab/cd/cd<3>"
+    );
+}
+
 #[test]
 fn an_append_to_a_shared_string_still_copies_it() {
     // A second variable has the property's string.
