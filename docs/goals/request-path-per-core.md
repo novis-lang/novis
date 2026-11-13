@@ -254,7 +254,8 @@ manifest names `ureq`, and the client is hand-written.
 
 **The measured count.** One keep-alive request to a compiled unit, with no `[[app]]` block and the
 shipped header set, makes **48** shared writes in debug, the same over 20 and over 40 requests.
-That is at least 28, so stages 2 and 3 are built. The guard's bound is 48
+That is at least 28, so stages 2 and 3 are built. Once the door read its core's record, the
+`current-lock`, `policy-lock`, `publish` and `policy` lines fell to zero, and the guard's bound is 38
 (`crates/nvs-cli/src/serve.rs`'s `SHARED_WRITES`).
 
 | line | writes | where |
@@ -339,31 +340,31 @@ count**).
   (`rule:config/the-config-is-an-immutable-snapshot`, `crates/nvs-config/src/limits.rs:147`,
   `crates/nvs-config/src/snapshot.rs:710`, `:716`, `:666`). The module doc's *Filled on first read*
   paragraph follows (`crates/nvs-config/src/limits.rs:17`).
-- [ ] `nvs-server`: a per-core record with the generation, the publish, the host's snapshot and the
+- [x] `nvs-server`: a per-core record with the generation, the publish, the host's snapshot and the
   core's own `Policy`. `serve_on_this_core` builds it before it accepts
   (`rule:security/no-cross-request-state`, `crates/nvs-server/src/serve.rs:3406`).
-- [ ] The door reads the record with one generation load, and replaces it before `admit` when the
+- [x] The door reads the record with one generation load, and replaces it before `admit` when the
   generation moved (`rule:config/the-config-is-an-immutable-snapshot`,
   `crates/nvs-server/src/serve.rs:1890`, `:1984`).
-- [ ] `Serving::policy` and its lock go, and the module doc's `# What it costs` says what a request
+- [x] `Serving::policy` and its lock go, and the module doc's `# What it costs` says what a request
   reads now (`rule:programs/memory-priority`, `crates/nvs-server/src/serve.rs:1128`, `:79`).
-- [ ] The handler takes the record as its third argument. The extension insert and `published_of` go.
+- [x] The handler takes the record as its third argument. The extension insert and `published_of` go.
   Every handler the list names is updated (`rule:config/the-config-is-an-immutable-snapshot`,
   `crates/nvs-server/src/serve.rs:1653`, `:2113`, `:724`).
-- [ ] The `nvs serve` handler reads the host's snapshot and the publish from the record
+- [x] The `nvs serve` handler reads the host's snapshot and the publish from the record
   (`rule:config/the-config-is-an-immutable-snapshot`, `crates/nvs-cli/src/serve.rs:1124`, `:1184`,
   `:1188`).
 - [ ] The request's one snapshot reference moves through `chosen`, `ran_under`, `under` and
   `set_config` (`rule:security/no-cross-request-state`, `crates/nvs-server/src/serve.rs:2168`,
   `:2260`).
-- [ ] Test `a_reload_between_two_requests_on_one_core_reaches_the_second` in
+- [x] Test `a_reload_between_two_requests_on_one_core_reaches_the_second` in
   `crates/nvs-server/src/serve.rs` tests: one keep-alive connection, a publish between its two
   requests, and the second answer carries the new policy header
   (`rule:config/the-config-is-an-immutable-snapshot`, `crates/nvs-server/src/serve.rs:10679`).
-- [ ] Test `the_door_takes_no_lock_under_the_standing_configuration` beside it, under
+- [x] Test `the_door_takes_no_lock_under_the_standing_configuration` beside it, under
   `#[cfg(debug_assertions)]`: after one warm-up request, 20 requests count zero on the `Current` and
   policy lines (`rule:testing/perf-two-mechanisms`, `crates/nvs-server/src/serve.rs:10679`).
-- [ ] `rule:config/the-config-is-an-immutable-snapshot` gains the per-core record, the sentence on
+- [x] `rule:config/the-config-is-an-immutable-snapshot` gains the per-core record, the sentence on
   reloads and its cost line (`docs/rules/config/the-config-is-an-immutable-snapshot.md:1`). The doc
   of `Current` follows (`crates/nvs-config/src/snapshot.rs:696`).
 
@@ -527,12 +528,14 @@ resolved cell, and keep a configured log file open.
 
 ### State
 
-Stage 1 is done. Stage 2's `nvs-config` half is done: `Current` has a `generation()` that its one
-private `swap` moves under the write lock, and `Current::published_at` reads the set and its
-generation under one lock (counted as `published` is). Every `Published` fills the limits cell of
-the host's snapshot when it is made, and of each folded entry when it folds, so a publish pays the
-parsing before the swap. The `limits.rs` module doc says so. Nothing in `nvs-server` reads the
-generation yet, and the build and clippy are green.
+Stages 1 and most of stage 2 are done. Each core builds an `OnCore` record in `serve_on_this_core`
+before it accepts: the publish, its generation, and the core's own `Policy`, with header values from
+`Secure::own` and `Cors::own`. `OnCore` holds the core's `Serving` clone too, so `serve_connection`
+takes `on_core` in place of `serving`. The door calls `OnCore::standing`, which loads the generation
+and replaces the record when it moved. `Serving::policy`, its lock and `published_of` are gone, and
+every handler takes `&Record` as its third argument. The `nvs serve` handler reads the host's
+snapshot and the publish from the record. A keep-alive request makes 38 counted shared writes, and
+`SHARED_WRITES` is 38. Both stage 2 tests pass, and build, clippy and fmt are green.
 
 The sweep's `env-secret-proofs` and the nightly Miri failures of run 43201099245 were stale again.
 No such check log exists, and that run tested `578534cc7c`, before `7568aaa0fb` skipped the four
@@ -540,47 +543,22 @@ tests under Miri. A sweep that names them again needs no work.
 
 ### Next
 
-Stage 2's `nvs-server` half, over `crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/secure.rs`,
-`crates/nvs-server/src/cors.rs`, `crates/nvs-cli/src/serve.rs` and `crates/nvs-cli/src/runner.rs`.
-The **Split** list is below, so do not run it again. No test is expected red once it lands.
+Stage 2's last item, then stage 3. No test is expected red.
 
-- `crates/nvs-server/src/serve.rs:1022` `Serving`: its `policy` becomes the boot `Arc<Policy>` with
-  no lock. `bounded_by` takes `self`, so it rebuilds that `Arc` with no lock either.
-  `Serving::policy` (`:1132`) becomes the record's replace. It derives a policy from the new host
-  snapshot as it does now, with the old record's waits and bounds as the fallback.
-- `crates/nvs-server/src/serve.rs:1222` `Policy` holds owned `Secure`, `Cors` and `Trusted`, not
-  `Arc`s. The per-core render of the boot policy needs `Secure::own` and `Cors::own`, which make
-  every `HeaderValue` again from its bytes (`crates/nvs-server/src/secure.rs:100`,
-  `crates/nvs-server/src/cors.rs:128`). A test may hand `Serving::new` a `Secure` that is not its
-  snapshot's, so the record copies the boot policy while the generation is the boot one, and
-  never renders it from the snapshot.
-- The record: `Record { generation, published, policy }`, behind a per-core
-  `OnCore(RefCell<Rc<Record>>)` that `serve_on_this_core` (`crates/nvs-server/src/serve.rs:3456`)
-  builds before it accepts and passes to `serve_connection` (`:1652`) as a new argument. The door
-  (`:1899`) loads `current.generation()`. On a moved number it calls `Current::published_at` and
-  replaces the record. Then it takes an `Rc` clone for the request. `connection_terms` (`:1214`)
-  reads the same record.
-- The handler bound becomes `Fn(Request<Incoming>, Origin, &Record) -> Reply`. The insert at
-  `:2124` and `published_of` (`:728`) go. The handlers to update: in `crates/nvs-cli/src/serve.rs`
-  the ones bound at `:1095`, `:4930`, `:5123`, `:5338`, `:5540` and `:6453`, and in
-  `crates/nvs-cli/src/runner.rs` the one at `:3748`. In `crates/nvs-server/src/serve.rs` the test
-  helpers `echo_the_carrier` `:4409`, `say_whether_an_upgrade_was_offered` `:4625`,
-  `echo_the_path` `:4386`, `echo_under_a_named_route` `:10004`, `echo_after_two_parks` `:11977`
-  and `upgrade_leaving` `:4746`. The closures bound at `:4573`, `:7447`, `:7616`, `:7848`,
-  `:8158`, `:9110`, `:9345`, `:10580`, `:10690`, `:10964`, `:11652`, `:11796`, `:12088`, `:12485`,
-  `:12576`, `:12699`, `:12773`, `:12849`, `:13134` and `:14249`. The `H: Fn` bounds at `:4986`,
-  `:5002`, `:5017`, `:5033`, `:9619`, `:9633`, `:9658`, `:9701`, `:10830` and `:13717`. The one
-  reader of `published_of` in a test is `:9879`. A `cargo build` lists any that are missed.
-- The record's reads count nothing. Stage 2's `the_door_takes_no_lock_under_the_standing_configuration`
-  reads `Line::CurrentLock` and `Line::PolicyLock` from `nvs_diagnostics::shared`. Then lower
-  `SHARED_WRITES` in `crates/nvs-cli/src/serve.rs` to what the keep-alive test prints. It asserts
-  `<=`, so a lower count does not turn it red.
+- `crates/nvs-server/src/serve.rs:1961` The door clones the host's snapshot once (`Line::Snapshot`,
+  2 writes) and `:2338` clones it or `chosen` again into `under` before `set_config`; `:2242` copies
+  `chosen` into `ran_under`. Make the request hold one reference: borrow `record.host()` where the
+  door only reads it (`door_store` at `:1968`, `:2739`), and move one `Arc` through `chosen`,
+  `ran_under`, `under` and `set_config`. Count the clone that stays, run the keep-alive test once,
+  and lower `SHARED_WRITES` to what it prints. Then tick the item and set stage 2 to done.
+- `crates/nvs-cli/src/serve/mounts.rs:177` Stage 3 starts with `Local::table` and the `Compiler`
+  epoch, as stage 3's items list them.
 
 ### Backlog
 
 - The first log write of a request to a file target still writes on the core thread.
 - `trace::respond` builds the `traceresponse` value as a `String` and copies it
   (`crates/nvs-server/src/trace.rs:366`).
-- An `SseSlot` and a `BodySlot` are made for every request (`crates/nvs-server/src/serve.rs:2098`).
+- An `SseSlot` and a `BodySlot` are made for every request (`crates/nvs-server/src/serve.rs:2179`).
 - A file first seen under `dispatch = "path"` resolves and compiles on the core thread of its first
   request.
