@@ -163,12 +163,19 @@ pub enum Answer {
     ///
     /// `hyper` polls a body only when its write buffer has room, so what one
     /// response holds is one chunk and that buffer, whatever the file's size.
-    /// The reads are blocking reads on the connection's own thread, as its
-    /// socket reads are. A `HEAD` reads nothing, because `hyper` never polls
-    /// its body.
+    /// Each chunk is read by one [`nvs_host::blocking::run`] job, with the file
+    /// moved into the job and back, so the core serves other connections while
+    /// the disk answers (`rule:http-server/a-core-is-never-blocked-on-a-syscall`).
+    /// The first job seeks to the window's start. A `HEAD` reads nothing,
+    /// because `hyper` never polls its body.
     File {
-        /// The open file, positioned at the next byte to send.
-        file: std::fs::File,
+        /// The open file, positioned at the next byte to send once `seek` is
+        /// done. `None` only while a job holds it, or after it was lost to a
+        /// job that panicked.
+        file: Option<std::fs::File>,
+        /// Where the first read starts, which the first job seeks to. `0` once
+        /// it has.
+        seek: u64,
         /// How many bytes are still to be sent, which `Content-Length` stated.
         left: u64,
     },
@@ -338,14 +345,15 @@ impl Answer {
 
     /// The `len` bytes of `file` starting at `at`, read while they are sent.
     ///
-    /// # Errors
-    ///
-    /// The seek's error, where `file` cannot be positioned at `at`.
-    pub fn file(mut file: std::fs::File, at: u64, len: u64) -> io::Result<Self> {
-        if at > 0 {
-            file.seek(io::SeekFrom::Start(at))?;
+    /// Nothing is read or sought here. The first chunk's job seeks to `at`, and
+    /// a seek that fails ends the body as a file that ended early does.
+    #[must_use]
+    pub fn file(file: std::fs::File, at: u64, len: u64) -> Self {
+        Self::File {
+            file: Some(file),
+            seek: at,
+            left: len,
         }
-        Ok(Self::File { file, left: len })
     }
 
     /// A body an isolate writes over time, and the writing half to hand it.
@@ -494,16 +502,31 @@ impl Body for Answer {
                 *head = rest.pop_front();
                 Poll::Ready(next.map(|bytes| Ok(Frame::data(bytes))))
             }
-            Self::File { file, left } => {
+            Self::File { file, seek, left } => {
                 if *left == 0 {
                     return Poll::Ready(None);
                 }
                 let take = usize::try_from(*left).map_or(FILE_CHUNK, |left| left.min(FILE_CHUNK));
-                let mut chunk = vec![0_u8; take];
-                if file.read_exact(&mut chunk).is_err() {
+                let Some(open) = file.take() else {
                     *left = 0;
                     return Poll::Ready(Some(Err(BodyCut::FileEndedEarly)));
-                }
+                };
+                let at = std::mem::take(seek);
+                // One job per chunk: the seek, if any, and the read. The file
+                // comes back with the bytes, so the next chunk reads on from it.
+                let (open, chunk) = nvs_host::blocking::run(move || {
+                    let mut open = open;
+                    let mut chunk = vec![0_u8; take];
+                    crate::mount::file_call();
+                    let read = (at == 0 || open.seek(io::SeekFrom::Start(at)).is_ok())
+                        && open.read_exact(&mut chunk).is_ok();
+                    (open, read.then_some(chunk))
+                });
+                *file = Some(open);
+                let Some(chunk) = chunk else {
+                    *left = 0;
+                    return Poll::Ready(Some(Err(BodyCut::FileEndedEarly)));
+                };
                 // `take` is at most `left`, so this neither widens past it nor
                 // wraps.
                 *left -= u64::try_from(take).unwrap_or(*left);
@@ -10944,6 +10967,192 @@ pub(crate) mod tests {
              reads that answered WouldBlock each and {WOULD_BLOCK_READS_PER_CONNECTION} per \
              connection, and {WAKE_POKES_PER_REQUEST} wake pokes each and \
              {WAKE_POKES_PER_CONNECTION} per connection"
+        );
+    }
+
+    /// One response read off a keep-alive connection: its head in lower case,
+    /// and the `Content-Length` bytes of its body.
+    fn one_answer(reader: &mut std::io::BufReader<TcpStream>) -> (String, Vec<u8>) {
+        let mut head = String::new();
+        loop {
+            let mut line = String::new();
+            let read =
+                std::io::BufRead::read_line(reader, &mut line).expect("the head was not read");
+            assert!(read > 0, "the connection closed inside a head: {head}");
+            if line == "\r\n" {
+                break;
+            }
+            head.push_str(&line.to_ascii_lowercase());
+        }
+        let length = head
+            .lines()
+            .find_map(|line| line.strip_prefix("content-length: "))
+            .map_or(0, |length| length.trim().parse().expect("a length"));
+        let mut body = vec![0_u8; length];
+        reader.read_exact(&mut body).expect("the body was not read");
+        (head, body)
+    }
+
+    /// `rule:http-server/a-core-is-never-blocked-on-a-syscall` for static
+    /// serving. One core answers 20 keep-alive requests over a scratch folder:
+    /// a hit, a miss that reaches the entry, a path through a folder link, a
+    /// default document, a range of three chunks and a declared file body.
+    /// Every answer is right, the serving thread makes no file call of its own,
+    /// and the blocking pool started a thread for them.
+    #[test]
+    fn a_static_request_makes_no_file_call_on_its_core() {
+        const REQUESTS: usize = 20;
+        let dir = nvs_repo::scratch("serve-static-off-core");
+        let root = nvs_config::trust::canonical(dir.path()).expect("the scratch folder");
+        std::fs::create_dir_all(root.join("docs")).expect("a scratch folder");
+        std::fs::create_dir_all(root.join("real")).expect("a scratch folder");
+        let big: Vec<u8> = (0..3 * FILE_CHUNK)
+            .map(|at| u8::try_from(at % 251).expect("under 251"))
+            .collect();
+        for (name, bytes) in [
+            ("index.nvs", &b"<?nvs"[..]),
+            ("style.css", b"a{}"),
+            ("docs/index.html", b"<p>docs</p>"),
+            ("real/a.txt", b"linked"),
+            ("notes.txt", b"sent by the program"),
+            ("big.bin", &big),
+        ] {
+            std::fs::write(root.join(name), bytes).expect("a scratch file");
+        }
+        #[cfg(unix)]
+        let planted = std::os::unix::fs::symlink(root.join("real"), root.join("linked")).is_ok();
+        #[cfg(windows)]
+        let planted = std::os::windows::fs::symlink_dir(root.join("real"), root.join("linked"))
+            .is_ok()
+            || nvs_repo::spawn("cmd", &[])
+                .arg("/C")
+                .arg("mklink")
+                .arg("/J")
+                .arg(root.join("linked"))
+                .arg(root.join("real"))
+                .output()
+                .is_ok_and(|out| out.status.success());
+        assert!(planted, "the folder link was not planted");
+
+        let last = 3 * FILE_CHUNK - 2;
+        let shapes: [(&str, &str, &[u8]); 6] = [
+            ("/style.css", "", b"a{}"),
+            ("/missing.css", "", b"entry"),
+            ("/linked/a.txt", "", b"linked"),
+            ("/docs/", "", b"<p>docs</p>"),
+            ("/big.bin", "Range: bytes=1-", &big[1..=last]),
+            ("/send", "", b"sent by the program"),
+        ];
+        let asked: Vec<(String, Vec<u8>)> = (0..REQUESTS)
+            .map(|n| {
+                let (path, extra, want) = shapes[n % shapes.len()];
+                let extra = if extra.is_empty() {
+                    String::new()
+                } else {
+                    format!("{extra}{last}\r\n")
+                };
+                (
+                    format!("GET {path} HTTP/1.1\r\nHost: localhost\r\n{extra}\r\n"),
+                    want.to_vec(),
+                )
+            })
+            .collect();
+
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let client = std::thread::spawn(move || {
+            let socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            let mut reader = std::io::BufReader::new(socket);
+            // A wrong answer is recorded and the loop is still ended, so a
+            // failure fails the case and does not hang it.
+            let mut wrong = Vec::new();
+            for (request, want) in &asked {
+                reader
+                    .get_mut()
+                    .write_all(request.as_bytes())
+                    .expect("the write failed");
+                let (head, body) = one_answer(&mut reader);
+                let status_ok =
+                    head.starts_with("http/1.1 200") || head.starts_with("http/1.1 206");
+                if !status_ok || &body != want {
+                    wrong.push(format!("{request:?} was answered {head:?}"));
+                }
+            }
+            drop(reader);
+            end_the_loop(addr);
+            wrong
+        });
+
+        let table = crate::mount::Table::new(
+            vec![nvs_config::mount::Mounted {
+                prefix: "/".to_owned(),
+                host: None,
+                root: root.clone(),
+                entry: root.join("index.nvs"),
+                origin: None,
+                captures: Vec::new(),
+            }],
+            crate::mount::Dispatch::Entry,
+            true,
+        );
+        let notes = root.join("notes.txt");
+        let handler = Rc::new(
+            move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                let path = request.uri().path().to_owned();
+                let selected = table
+                    .resolve(None, &path, &OnDisk)
+                    .and_then(crate::mount::Resolved::selection)
+                    .expect("the root mount covers every path")
+                    .what;
+                if let crate::mount::What::Static(file) = selected {
+                    return statics::serve(&file, request.method(), request.headers(), &OnDisk);
+                }
+                let notes = notes.clone();
+                let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                    if path == "/send" {
+                        // This isolate has no inbound request, so the answer is
+                        // `false`. The loop still sends the file the run named.
+                        let _framed = child.declare_file_body(&notes);
+                    } else {
+                        child.write_output(b"entry").expect("a buffer");
+                    }
+                    Value::null()
+                });
+                Reply::run(Isolate::new(program, Value::null(), Output::Capture))
+            },
+        );
+
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                until_the_loop_is_ended(),
+            )
+            .expect("the accept loop failed");
+        });
+        let before = crate::mount::file_calls::on_this_thread();
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        let made = crate::mount::file_calls::on_this_thread() - before;
+        let wrong = client.join().expect("the client thread panicked");
+
+        assert!(wrong.is_empty(), "wrong answers: {wrong:#?}");
+        assert_eq!(made, 0, "the serving thread made {made} file calls itself");
+        assert!(
+            nvs_host::blocking::pool_size().0 > 0,
+            "no file call reached the blocking pool"
         );
     }
 

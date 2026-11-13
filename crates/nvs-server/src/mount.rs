@@ -83,6 +83,7 @@
 //! nothing per request that outlives it. A selection borrows its mount from the
 //! table and owns one `PathBuf` — the file steps 3-5 chose — and steps 3 and 4
 //! cost one `stat` and one `canonicalize` each, only where their switch is on.
+//! Both run in one blocking-pool job per path asked ([`OnDisk`]).
 //! The table itself is one allocation per configuration generation, shared by
 //! every request and never rebuilt on the request path.
 //!
@@ -136,14 +137,55 @@ impl Existing for OnDisk {
     /// way, the link's own included, is spelled as the disk holds it
     /// ([`spelled_through_links`]). Where the link leads is [`under`]'s
     /// containment check.
+    ///
+    /// The whole lookup, `stat`, canonical path and link walk, is one
+    /// [`nvs_host::blocking::run`] job, so a slow disk stalls this request and
+    /// not the other requests on its core
+    /// (`rule:http-server/a-core-is-never-blocked-on-a-syscall`).
     fn file(&self, path: &Path) -> Option<PathBuf> {
         // Recorded when `NVS_FOOTPRINT_LOG` names a log: whether a file is there decides the route.
+        // It stays on this thread, where the footprint's capture is.
         nvs_footprint::exists(path);
-        if !std::fs::metadata(path).is_ok_and(|meta| meta.is_file()) {
-            return None;
-        }
-        let held = nvs_config::trust::canonical(path).ok()?;
-        (held == path || spelled_through_links(path, &held)).then_some(held)
+        let path = path.to_path_buf();
+        nvs_host::blocking::run(move || {
+            file_call();
+            if !std::fs::metadata(&path).is_ok_and(|meta| meta.is_file()) {
+                return None;
+            }
+            file_call();
+            let held = nvs_config::trust::canonical(&path).ok()?;
+            (held == path || spelled_through_links(&path, &held)).then_some(held)
+        })
+    }
+}
+
+/// Counts one raw file call on this thread, in a test build. A release or
+/// debug build makes no call here.
+#[inline]
+pub(crate) fn file_call() {
+    #[cfg(test)]
+    file_calls::made();
+}
+
+/// The raw file calls [`OnDisk`] and a file body made, counted on the thread
+/// that made each. A test reads it on the serving thread, where it has to stay
+/// zero (`rule:http-server/a-core-is-never-blocked-on-a-syscall`).
+#[cfg(test)]
+pub(crate) mod file_calls {
+    use std::cell::Cell;
+
+    thread_local! {
+        static MADE: Cell<u64> = const { Cell::new(0) };
+    }
+
+    /// One more call on this thread.
+    pub(crate) fn made() {
+        MADE.with(|made| made.set(made.get() + 1));
+    }
+
+    /// How many calls this thread has made.
+    pub(crate) fn on_this_thread() -> u64 {
+        MADE.with(Cell::get)
     }
 }
 
@@ -171,11 +213,17 @@ fn spelled_through_links(path: &Path, held: &Path) -> bool {
         };
         let folder = at.clone();
         at.push(name);
+        file_call();
         if !std::fs::symlink_metadata(&at).is_ok_and(|meta| meta.is_symlink()) {
             continue;
         }
         // The names before the link are replaced by where it leads below, so
         // they are compared now: the folder, then the link's own name in it.
+        // The three calls below, the link's own canonical lookup included, are
+        // counted together.
+        file_call();
+        file_call();
+        file_call();
         let spelled = nvs_config::trust::canonical(&folder).is_ok_and(|real| real == folder)
             && std::fs::read_dir(&folder).is_ok_and(|mut entries| {
                 entries.any(|entry| entry.is_ok_and(|entry| entry.file_name() == name))

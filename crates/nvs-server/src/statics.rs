@@ -60,6 +60,11 @@
 //! already. The place a byte cache would go is behind [`Source`], whose
 //! [`Contents::Bytes`] is the shape it would hand over.
 //!
+//! Every lookup, open and chunk read runs on [`nvs_host::blocking`]'s pool,
+//! so a slow disk stalls its own request and no other request on the core
+//! (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). That is one
+//! hand-off per path asked and one per chunk sent.
+//!
 //! [`What::Static`]: crate::mount::What::Static
 
 use std::path::Path;
@@ -146,28 +151,47 @@ pub trait Source {
 
 // The lookup and the open are recorded when `NVS_FOOTPRINT_LOG` names a log, so a check that
 // serves a static file is selected again when that file changes.
+// The footprint calls stay on the calling thread, where its capture is.
 impl Source for OnDisk {
+    /// The `stat`, the open and the `fstat` run as one
+    /// [`nvs_host::blocking::run`] job, so a slow disk stalls this request and
+    /// not the other requests on its core
+    /// (`rule:http-server/a-core-is-never-blocked-on-a-syscall`).
     fn open(&self, path: &Path) -> Result<Opened, Unopened> {
         nvs_footprint::exists(path);
-        // Asked of the path before it is opened: opening a FIFO waits for a
-        // writer, and this open blocks the connection's own thread.
-        if !std::fs::metadata(path).is_ok_and(|meta| meta.is_file()) {
-            return Err(Unopened::Missing);
+        let owned = path.to_path_buf();
+        let (regular, opened) = nvs_host::blocking::run(move || {
+            // Asked of the path before it is opened: opening a FIFO waits for
+            // a writer, and would hold a pool thread until one came.
+            crate::mount::file_call();
+            if !std::fs::metadata(&owned).is_ok_and(|meta| meta.is_file()) {
+                return (false, Err(Unopened::Missing));
+            }
+            (true, open_regular(&owned))
+        });
+        if regular {
+            nvs_footprint::file(path);
         }
-        nvs_footprint::file(path);
-        let file = std::fs::File::open(path).map_err(|_| Unopened::Unreadable)?;
-        let meta = file.metadata().map_err(|_| Unopened::Unreadable)?;
-        if !meta.is_file() {
-            return Err(Unopened::Missing);
-        }
-        Ok(Opened {
-            stat: Stat {
-                len: meta.len(),
-                mtime_nanos: meta.modified().ok().map_or(0, nanos),
-            },
-            contents: Contents::File(file),
-        })
+        opened
     }
+}
+
+/// The open and the `fstat` of a path a `stat` found to be a regular file.
+fn open_regular(path: &Path) -> Result<Opened, Unopened> {
+    crate::mount::file_call();
+    crate::mount::file_call();
+    let file = std::fs::File::open(path).map_err(|_| Unopened::Unreadable)?;
+    let meta = file.metadata().map_err(|_| Unopened::Unreadable)?;
+    if !meta.is_file() {
+        return Err(Unopened::Missing);
+    }
+    Ok(Opened {
+        stat: Stat {
+            len: meta.len(),
+            mtime_nanos: meta.modified().ok().map_or(0, nanos),
+        },
+        contents: Contents::File(file),
+    })
 }
 
 /// The request headers [`send`] reads, copied out of a request that still has
@@ -301,11 +325,12 @@ pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
 }
 
 /// The body that carries the `wanted` bytes of `contents`, or `None` where they
-/// cannot be reached: a file that cannot seek to their start, or bytes in
-/// memory that are fewer than the stat said.
+/// cannot be reached: bytes in memory that are fewer than the stat said. A
+/// file's body seeks when its first chunk is read, and cuts the connection
+/// there if it cannot.
 fn body(contents: Contents, wanted: Window) -> Option<Answer> {
     match contents {
-        Contents::File(file) => Answer::file(file, wanted.at, wanted.len).ok(),
+        Contents::File(file) => Some(Answer::file(file, wanted.at, wanted.len)),
         Contents::Bytes(bytes) => {
             let at = usize::try_from(wanted.at).ok()?;
             let end = at.checked_add(usize::try_from(wanted.len).ok()?)?;

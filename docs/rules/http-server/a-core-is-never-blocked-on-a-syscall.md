@@ -2,6 +2,8 @@ The runtime is one single-threaded scheduler pinned per core, and a request neve
 
 **Filesystem calls, name resolution, and waiting on a child process go to the blocking pool**; the reactor thread issues no call that can block on external state. The pool is **bounded at twice the core count**, per worker, and never grows with requests served. The handoff costs microseconds against operations that cost milliseconds, and what it avoids is an entire core idle for the same interval.
 
+**Static serving is one of them.** The server's file lookup and open (`OnDisk`) each hand their whole body to the pool as one job: the `stat`, the canonical path and a link's walk for a path a mount selects, and the `stat`, the open and the `fstat` for the file it sends. A file body reads each 64 KiB chunk as one job, with the file moved in and back, and its first job seeks to the range's start. That covers a static mount, the default document, a miss that reaches the entry and the file a `Core\Response::sendFile` names. What it spends: one hand-off per path asked and one per chunk sent. A request under `static = true` pays one to three hand-offs before its program runs.
+
 **A job's CPU time is the request's.** The pool thread reads its own CPU clock before and after each job, and each answer a pinned thread gives, and the task adds the difference to its request's charge when the answer lands. `[limits] cpu_time` then counts a slow statement or a large file hashed off the core exactly as it counts the same work on it (`rule:security/isolate-budget-is-the-trees`). That is two clock reads per job, and one more word per published request tree.
 
 **A job its task gave up on in the queue is skipped.** A task that waits with a deadline stops

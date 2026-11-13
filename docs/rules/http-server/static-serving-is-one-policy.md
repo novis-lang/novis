@@ -17,6 +17,7 @@ A single `Range` is honoured; a multi-range request, a second `Range` line, a bo
 **In development, a request from a loopback address must name this machine in `Host`:** `localhost`, a name under `.localhost`, a loopback address, or a host a `[[server.mount]]` lists. Any other host reaches no mount and gets the table's `404`, and only the health probe answers it. That closes DNS rebinding, where a web page makes its own name resolve to `127.0.0.1`. A request from another machine is not asked, so a development server on `0.0.0.0` still answers its network address.
 
 - **Memory:** one open file handle and one 64 KiB chunk per in-flight file response, plus the HTTP layer's write buffer, whatever the file's size or the range's. The next chunk is read only when that buffer has room, so a slow peer holds the read back. Nothing is cached between requests: O(in-flight), not O(files served).
+- **Latency:** every lookup, open and chunk read runs on the blocking pool (`rule:http-server/a-core-is-never-blocked-on-a-syscall`), one hand-off per path asked and one per chunk sent, so a slow disk stalls its own request and no other request on the core.
 
 **Declined:**
 
