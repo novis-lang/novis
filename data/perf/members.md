@@ -394,12 +394,12 @@ marked `~`: it is the machine, not the code.
 | `Core\IO\Metadata::isFile` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
 | `Core\IO\Metadata::modifiedAt` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
 | `Core\IO\Metadata::size` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
-| `Core\Json::decode` | 4.00 | 2.00 | 18.03 | 1301.2 | -4.016 | +72.953 | complexity linear | 2ab1371f1660 |
-| `Core\Json::decodeAs` | 7.00 | 1.00 | 6.00 | 368.0 |  |  | complexity linear, allocations 6 | 9284f7e0c6f4 |
-| `Core\Json::decodeEach` | 15.92 | 8.97 | 56.83 | 3062.9 | -4.969 | +158.687 | complexity linear | 2ab1371f1660 |
-| `Core\Json::encode` | 5.00 | 2.00 | 9.00 | 938.0 |  |  | complexity linear | 2ab1371f1660 |
-| `Core\Json::encodeEach` | 5.00 | 6.00 | 13.62 | 1357.9 |  |  | complexity linear | 2ab1371f1660 |
-| `Core\Json::isValid` | 5.00 | 1.00 | 17.00 | 1217.5 | -4.500 | +34.500 | complexity linear | 2ab1371f1660 |
+| `Core\Json::decode` | 4.00 | 2.00 | 17.03 | 1205.2 | -1.000 | -96.000 | complexity linear | 516a5cab7a9a |
+| `Core\Json::decodeAs` | 7.00 | 1.00 | 6.00 | 368.0 |  |  | complexity linear, allocations 6 | 516a5cab7a9a |
+| `Core\Json::decodeEach` | 15.92 | 8.97 | 54.84 | 2872.4 | -1.984 | -190.500 | complexity linear | 516a5cab7a9a |
+| `Core\Json::encode` | 5.00 | 2.00 | 9.00 | 938.0 |  |  | complexity linear | 516a5cab7a9a |
+| `Core\Json::encodeEach` | 5.00 | 6.00 | 13.62 | 1357.9 |  |  | complexity linear | 516a5cab7a9a |
+| `Core\Json::isValid` | 5.00 | 1.00 | 16.00 | 1121.5 | -1.000 | -96.000 | complexity linear | 516a5cab7a9a |
 | `Core\Jwe::decrypt` | 3.00 | 2.00 | 14.00 | 1063.0 |  |  | complexity linear | 7ec957692e53 |
 | `Core\Jwe::encrypt` | 4.00 | 2.00 | 10.00 | 473.8 |  |  | complexity linear | 7ec957692e53 |
 | `Core\Jwe\Key::own` | 5.00 | 1.00 | 2.00 | 197.5 |  |  | complexity constant | 7ec957692e53 |
@@ -1450,6 +1450,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\IO::temporaryDir` | Core\IO | 33919.9 units against a `constant` ceiling of 100 |
 | `Core\IO\File::close` | Core\IO\File | 22047.5 units against a `constant` ceiling of 100 |
 | `Core\IO\File::lock` | Core\IO\File | 22971.1 units against a `constant` ceiling of 100 |
+| `Core\Json::decodeEach` | Core\Json | 26.8x its group's median of 971.5 units |
 | `Core\Jwe\Key::own` | Core\Jwe\Key | 3698.6 units against a `constant` ceiling of 100 |
 | `Core\Jwe\Key::recipient` | Core\Jwe\Key | 6918.7 units against a `constant` ceiling of 100 |
 | `Core\Jwe\Key::shared` | Core\Jwe\Key | 9387.1 units against a `constant` ceiling of 100 |
@@ -2212,12 +2213,12 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\IO\Metadata::isFile` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
 | `Core\IO\Metadata::modifiedAt` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
 | `Core\IO\Metadata::size` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
-| `Core\Json::decode` | 0.0 | 2118.4 | 0.000 |  | flat, flat | 2ab1371f1660 | 654a754a946cf28f1343a6abf7af578d |
-| `Core\Json::decodeAs` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 1592d27baefa51f4b11422e9899f4794 |
-| `Core\Json::decodeEach` | 98482.8 | 111314.1 | 28075.779 | +36.4% | unclear, flat | 2ab1371f1660 | 654a754a946cf28f1343a6abf7af578d |
-| `Core\Json::encode` | 0.0 | 2049.6 | 0.000 |  | flat, flat | 2ab1371f1660 | 654a754a946cf28f1343a6abf7af578d |
-| `Core\Json::encodeEach` | 0.0 | 1450.4 | 0.000 |  | flat, flat | 2ab1371f1660 | 654a754a946cf28f1343a6abf7af578d |
-| `Core\Json::isValid` | 0.0 | 5500.8 | 0.000 |  | flat, flat | 2ab1371f1660 | 654a754a946cf28f1343a6abf7af578d |
+| `Core\Json::decode` | 3301.2 | 3760.9 | 971.519 |  | flat, flat | 516a5cab7a9a | 64d1478f020553fcf1bac83f3b23ddd2 |
+| `Core\Json::decodeAs` | 1616.8 | 5105.9 | 475.815 |  | flat, flat | 516a5cab7a9a | 64d1478f020553fcf1bac83f3b23ddd2 |
+| `Core\Json::decodeEach` | 88327.3 | 96503.9 | 25994.304 | -10.3% | unclear, flat | 516a5cab7a9a | 64d1478f020553fcf1bac83f3b23ddd2 |
+| `Core\Json::encode` | 0.0 | 655.5 | 0.000 |  | flat, flat | 516a5cab7a9a | 64d1478f020553fcf1bac83f3b23ddd2 |
+| `Core\Json::encodeEach` | 5464.1 | 15142.6 | 1608.047 |  | flat, flat | 516a5cab7a9a | 64d1478f020553fcf1bac83f3b23ddd2 |
+| `Core\Json::isValid` | 0.0 | 1506.2 | 0.000 |  | flat, flat | 516a5cab7a9a | 64d1478f020553fcf1bac83f3b23ddd2 |
 | `Core\Jwe::decrypt` | 23750.4 | 24842.2 | 7316.931 | +74.1% | flat, flat | 7ec957692e53 | bf2196b0c69143783f1095d038847a85 |
 | `Core\Jwe::encrypt` | 29152.7 | 39168.8 | 8981.264 | +235.0% | flat, flat | 7ec957692e53 | bf2196b0c69143783f1095d038847a85 |
 | `Core\Jwe\Key::own` | 12005.5 | 13748.2 | 3698.599 | +628.4% | flat | 7ec957692e53 | bf2196b0c69143783f1095d038847a85 |

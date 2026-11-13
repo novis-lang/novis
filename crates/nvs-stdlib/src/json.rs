@@ -2505,14 +2505,16 @@ struct Open {
 /// the array stores. Each value read counts one step of `deadline`'s poll, and
 /// each array built from a JSON list is noted in `lists`.
 ///
-/// **What it spends:** one [`Open`] per open level on the heap, freed with the
-/// call. On an error, dropping `open` frees everything built so far.
+/// **What it spends:** one [`Open`] per open level, the first
+/// [`LEVELS_INLINE`] on the call's own stack and the rest on the heap
+/// ([`Levels`]), freed with the call. On an error, dropping `open` frees
+/// everything built so far.
 fn build<S: reader::Source>(
     reader: &mut reader::Reader<S>,
     lists: Option<&Lists>,
     deadline: Option<&Deadline>,
 ) -> Result<Value, reader::Error> {
-    build_in(reader, Vec::new(), lists, deadline)
+    build_in(reader, Levels::new(), lists, deadline)
 }
 
 /// [`build`] for a container whose start the caller has read already: an
@@ -2523,16 +2525,15 @@ fn build_open<S: reader::Source>(
     lists: Option<&Lists>,
     deadline: Option<&Deadline>,
 ) -> Result<Value, reader::Error> {
-    let mut open = Vec::new();
+    let mut open = Levels::new();
     push_open(&mut open, list).map_err(|code| reader.refuse(code))?;
     build_in(reader, open, lists, deadline)
 }
 
-/// Opens one more container on `open`, asking the request's budget for the
-/// vector's growth first.
-fn push_open(open: &mut Vec<Open>, list: bool) -> Result<(), reader::Code> {
-    let grow = open.capacity().max(4).saturating_mul(size_of::<Open>());
-    if open.len() == open.capacity() && !nvs_runtime::budget::affords(grow) {
+/// Opens one more container on `open`, asking the request's budget for its
+/// place first.
+fn push_open(open: &mut Levels<Open>, list: bool) -> Result<(), reader::Code> {
+    if !open.affords_push() {
         return Err(reader::Code::OverMemory);
     }
     let Some(array) = NvsArray::try_new() else {
@@ -2569,7 +2570,7 @@ fn scalar_of(event: reader::Event<'_>) -> Result<Value, reader::Code> {
 /// once every container it opened, and those in `open`, are closed again.
 fn build_in<S: reader::Source>(
     reader: &mut reader::Reader<S>,
-    mut open: Vec<Open>,
+    mut open: Levels<Open>,
     lists: Option<&Lists>,
     deadline: Option<&Deadline>,
 ) -> Result<Value, reader::Error> {
@@ -3302,6 +3303,87 @@ fn affords_push<T>(items: &Vec<T>) -> bool {
     nvs_runtime::budget::affords(size_of::<T>().saturating_add(grow))
 }
 
+/// How many open levels [`Levels`] holds inline before it allocates.
+const LEVELS_INLINE: usize = 4;
+
+/// The containers a decode loop has open, innermost last, the first
+/// [`LEVELS_INLINE`] held inline.
+///
+/// A request body seldom nests deeper than that, so its decode allocates
+/// nothing for its open levels. Each level past them goes on `spill`.
+/// [`build`] keeps an [`Open`] per level here, and [`fill`] a [`Filling`].
+///
+/// **What it spends:** [`LEVELS_INLINE`] levels on the decoding call's own
+/// stack, and one on the heap per open level past them, freed with the call.
+struct Levels<T> {
+    /// The outermost open levels. The first `len` of them are `Some`.
+    inline: [Option<T>; LEVELS_INLINE],
+    /// How many levels are open, inline and spilled.
+    len: usize,
+    /// Every open level past the inline ones, innermost last.
+    spill: Vec<T>,
+}
+
+impl<T> Levels<T> {
+    /// No level open.
+    const fn new() -> Self {
+        Self {
+            inline: [const { None }; LEVELS_INLINE],
+            len: 0,
+            spill: Vec::new(),
+        }
+    }
+
+    /// The innermost open level.
+    fn last(&self) -> Option<&T> {
+        match self.len {
+            0 => None,
+            len if len > LEVELS_INLINE => self.spill.last(),
+            len => self.inline[len - 1].as_ref(),
+        }
+    }
+
+    /// The innermost open level, to change.
+    fn last_mut(&mut self) -> Option<&mut T> {
+        match self.len {
+            0 => None,
+            len if len > LEVELS_INLINE => self.spill.last_mut(),
+            len => self.inline[len - 1].as_mut(),
+        }
+    }
+
+    /// Closes the innermost open level, and returns it.
+    fn pop(&mut self) -> Option<T> {
+        let len = self.len.checked_sub(1)?;
+        self.len = len;
+        if len >= LEVELS_INLINE {
+            self.spill.pop()
+        } else {
+            self.inline[len].take()
+        }
+    }
+
+    /// Whether the request can afford one more open level. The ask is in
+    /// front of the push, and is never zero.
+    fn affords_push(&self) -> bool {
+        if self.len < LEVELS_INLINE {
+            nvs_runtime::budget::affords(size_of::<T>())
+        } else {
+            affords_push(&self.spill)
+        }
+    }
+
+    /// Opens `level` inside the innermost open level.
+    fn push(&mut self, level: T) {
+        if self.len < LEVELS_INLINE {
+            self.inline[self.len] = Some(level);
+        } else {
+            self.spill.push(level);
+        }
+        self.len += 1;
+    }
+}
+
 /// Reads the one value `reader` gives next against `root`: `decodeAs`'s one
 /// pass, on the caller's own stack at any depth.
 ///
@@ -3314,8 +3396,9 @@ fn affords_push<T>(items: &Vec<T>) -> bool {
 /// step of `deadline`'s poll. Every check [`build`] makes still applies, with
 /// the same message, and a repeated key is refused once its value is read.
 ///
-/// **What it spends:** one [`Filling`] per open level a contract fills, on the
-/// heap, and one boxed key per undeclared key. Both are freed with the call.
+/// **What it spends:** one [`Filling`] per open level a contract fills, the
+/// outermost few inline and the rest on the heap ([`Levels`]), and one boxed key
+/// per undeclared key. Both are freed with the call.
 /// On an error, dropping `frames` frees every list read so far, and the
 /// slots stay on the builder until it drops.
 fn fill<'a, S: reader::Source>(
@@ -3325,7 +3408,7 @@ fn fill<'a, S: reader::Source>(
     deadline: Option<&Deadline>,
 ) -> Result<Found<'a>, Halt> {
     use reader::{Code, Event};
-    let mut frames: Vec<Filling<'a>> = Vec::new();
+    let mut frames = Levels::new();
     loop {
         let Some(event) = reader.next()? else {
             // Unreachable: the reader refuses a text that ends inside a value.
@@ -3402,7 +3485,7 @@ fn fill<'a, S: reader::Source>(
                         let Some(base) = builder.open(contract.fields().len()) else {
                             return Err(reader.refuse(Code::OverMemory).into());
                         };
-                        if !affords_push(&frames) {
+                        if !frames.affords_push() {
                             return Err(reader.refuse(Code::OverMemory).into());
                         }
                         frames.push(Filling::Object {
@@ -3421,7 +3504,7 @@ fn fill<'a, S: reader::Source>(
                         },
                         Event::StartArray,
                     ) => {
-                        if !affords_push(&frames) {
+                        if !frames.affords_push() {
                             return Err(reader.refuse(Code::OverMemory).into());
                         }
                         frames.push(Filling::List {
