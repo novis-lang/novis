@@ -22,9 +22,15 @@ consequences (`rule:programs/implementing`):
 
 The table is a compile product carried by the unit and installed before the program runs, beside the
 command table and the configuration snapshot; the match against it is taken once at the door, and
-the door dispatches nothing (`rule:routing/matching-is-not-dispatching`). A link to a route declared in another
-module needs that module compiled — the consequence `rule:programs/no-runtime-autoload` already
-records for a hard cross-module reference, arriving in a second place.
+the door dispatches nothing (`rule:routing/matching-is-not-dispatching`).
+
+**A root declared with `autoload links` is never scanned, and its routes never join the table.** A
+link to a route there reads only the file that declares the target class, for that class's routes,
+and compiles nothing in it (`rule:programs/autoload`). That file joins the revalidation set, so a
+changed or removed route recompiles the linking program. The other module's handlers stay that
+module's: this program's door never matches them, and its CSRF check never needs to cover them. A
+link to a route under an ordinary root still needs that module compiled, the consequence
+`rule:programs/no-runtime-autoload` records for a hard cross-module reference.
 
 - **Memory:** the table costs O(routes in compiled code) in the artifact, not per request and not
   per object. A program with no `#[Route]` holds none.
