@@ -1319,6 +1319,12 @@ fn authenticate<S: Read + Write>(wire: &mut Wire<S>, target: &PgTarget<'_>) -> i
             // The type map's zone-less half. It is sent as well as decoded so that
             // `CURRENT_TIMESTAMP` and a `TIMESTAMP` column agree.
             ("TimeZone", time_zone.as_str()),
+            // A backslash in a plain `'...'` literal is an ordinary character.
+            // `Dialect::backslash_escapes` and the placeholder rewriter both
+            // read literals that way, and a server configured with this off
+            // would read them otherwise. A startup parameter is the session's
+            // default, so the pool's `RESET ALL` returns to it.
+            ("standard_conforming_strings", "on"),
             // Not decoration: this is what an operator reads in
             // `pg_stat_activity` when a query is holding a lock.
             ("application_name", "novis"),
@@ -3538,7 +3544,11 @@ fn execute_many<S: Read + Write>(
 /// it also resets the role. `DISCARD ALL`'s own expansion lists both the same
 /// way. A request that ran either and was followed by `RESET ALL` alone would
 /// hand the next request its assumed identity.
-const RESET_COMMANDS: [&str; 8] = [
+///
+/// `DISCARD SEQUENCES` forgets what `currval` and `lastval` return, the
+/// generated id a request's `nextval` left on the session. It needs PostgreSQL
+/// 9.4, and it rides the same batch, so it adds no round trip.
+const RESET_COMMANDS: [&str; 9] = [
     "ROLLBACK",
     "SET SESSION AUTHORIZATION DEFAULT",
     "RESET ROLE",
@@ -3547,17 +3557,18 @@ const RESET_COMMANDS: [&str; 8] = [
     "UNLISTEN *",
     "SELECT pg_advisory_unlock_all()",
     "DISCARD TEMP",
+    "DISCARD SEQUENCES",
 ];
 
 /// Runs [`RESET_COMMANDS`] as one pipelined batch and reports the first refusal.
 ///
-/// **One round trip for eight commands**, which is what makes the pool's reset cheap
+/// **One round trip for nine commands**, which is what makes the pool's reset cheap
 /// enough to be unconditional. These go out as *simple* `Query` messages rather
 /// than through the extended path, and that is the whole reason the batch is
 /// safe to pipeline: a simple `Query` carries its own implicit `Sync`, so each
-/// of the eight ends in a `ReadyForQuery` whether it succeeded or not and the
+/// of the nine ends in a `ReadyForQuery` whether it succeeded or not and the
 /// answers cannot skew against the requests. `RESET ALL` is not a statement
-/// worth preparing anyway, and none of the eight takes a parameter.
+/// worth preparing anyway, and none of the nine takes a parameter.
 ///
 /// Every command runs even after one has failed — they are independent, and
 /// stopping early would leave the connection *less* clean than continuing.
@@ -4719,6 +4730,33 @@ mod tests {
             pairs.push((key, fields.next().expect("a key carries a value")));
         }
         pairs
+    }
+
+    /// `rule:core-classes/db-safe-connection-defaults`'s pinned string syntax.
+    /// `Dialect::backslash_escapes` and the placeholder rewriter read a plain
+    /// `'...'` literal with a backslash as an ordinary character, so the
+    /// startup message sets `standard_conforming_strings` to `on`, once.
+    #[test]
+    fn the_postgres_startup_message_pins_standard_conforming_strings() {
+        let mut scram = Scram::new("Novis-Test-Pw1");
+        let mut step = 0;
+        let mut wire = Wire::new(Peer::new(move |sent: &[u8]| {
+            step += 1;
+            match step {
+                1 => auth(10, b"SCRAM-SHA-256\0SCRAM-SHA-256-PLUS\0\0"),
+                2 => scram.first(sent),
+                _ => scram.last(sent),
+            }
+        }));
+        authenticate(&mut wire, &target("Novis-Test-Pw1")).expect("the exchange completed");
+
+        let parameters = startup_parameters(&wire.peer().sent[0]);
+        let pinned: Vec<&str> = parameters
+            .iter()
+            .filter(|(key, _)| key == "standard_conforming_strings")
+            .map(|(_, value)| value.as_str())
+            .collect();
+        assert_eq!(pinned, vec!["on"], "in {parameters:?}");
     }
 
     /// `rule:core-classes/db-column-types`'s "connection charset forces UTF-8", which is two claims
@@ -6086,15 +6124,15 @@ mod tests {
         message(b'Z', b"I")
     }
 
-    /// `rule:security/db-pool-reset-is-a-boundary`'s list, in its order, in **one** flush — eight commands for
+    /// `rule:security/db-pool-reset-is-a-boundary`'s list, in its order, in **one** flush — nine commands for
     /// one round trip, which is what makes an unconditional reset affordable.
     /// The two exclusions are asserted by name because they are the section's
     /// own: `DISCARD ALL` would run `DEALLOCATE ALL` and throw away the
     /// statement cache the pool exists to preserve.
     #[test]
-    fn a_reset_is_section_13s_eight_commands_in_one_flush_and_not_discard_all() {
+    fn a_reset_is_its_rules_commands_in_one_flush_and_not_discard_all() {
         let state = Cell::new(State::Idle);
-        let mut wire = Wire::new(Peer::new(|_: &[u8]| ready().repeat(8)));
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| ready().repeat(9)));
 
         super::reset_session(&mut wire, &state).expect("the reset ran");
 
@@ -6115,6 +6153,7 @@ mod tests {
                 "UNLISTEN *",
                 "SELECT pg_advisory_unlock_all()",
                 "DISCARD TEMP",
+                "DISCARD SEQUENCES",
             ]
         );
         for command in &sent {
@@ -6183,7 +6222,7 @@ mod tests {
     /// command list, because "a backend added later satisfies that property or
     /// is not pooled". This sweeps the list.
     ///
-    /// The case above compares the flush against eight literals, which fails
+    /// The case above compares the flush against nine literals, which fails
     /// loudly but says only that two lists differ. Here a property whose
     /// command went missing fails **by name**, and the second loop closes the
     /// other direction: a command in the reset that no property asks for
@@ -6192,7 +6231,7 @@ mod tests {
     fn no_session_state_survives_a_return_to_the_pool() {
         /// Each of the reset's properties against the command that removes it. An
         /// assumed role takes two, because `RESET ALL` skips both settings.
-        const REMOVED: [(&str, &str); 8] = [
+        const REMOVED: [(&str, &str); 9] = [
             ("an open transaction", "ROLLBACK"),
             (
                 "a `SET SESSION AUTHORIZATION`",
@@ -6204,6 +6243,7 @@ mod tests {
             ("a listener", "UNLISTEN *"),
             ("an advisory lock", "SELECT pg_advisory_unlock_all()"),
             ("a temporary table", "DISCARD TEMP"),
+            ("a generated id `currval` returns", "DISCARD SEQUENCES"),
         ];
 
         let state = Cell::new(State::Idle);
@@ -6232,6 +6272,31 @@ mod tests {
         assert_eq!(sent.len(), super::RESET_COMMANDS.len());
     }
 
+    /// `rule:security/db-pool-reset-is-a-boundary`'s generated id. A request's
+    /// `nextval` leaves a value `currval` and `lastval` return, and `RESET ALL`
+    /// does not clear it, so the reset sends `DISCARD SEQUENCES` in its one
+    /// batch, after the rollback.
+    #[test]
+    fn the_postgres_reset_discards_sequence_state() {
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            ready().repeat(super::RESET_COMMANDS.len())
+        }));
+
+        super::reset_session(&mut wire, &state).expect("the reset ran");
+
+        assert_eq!(wire.peer().sent.len(), 1, "the discard cost a round trip");
+        let sent = queries(&wire.peer().sent[0]);
+        let discard = sent
+            .iter()
+            .position(|command| command == "DISCARD SEQUENCES")
+            .expect("the reset leaves `currval` and `lastval` to the next request");
+        assert!(
+            discard > 0 && sent[0] == "ROLLBACK",
+            "the discard ran before the rollback ended the request's transaction: {sent:?}"
+        );
+    }
+
     /// A refused command fails the whole reset, the **first** refusal is the one
     /// reported, and every later command is still read to its boundary — which
     /// the second error's code proves, since reaching it means the batch was not
@@ -6246,6 +6311,7 @@ mod tests {
             out.extend_from_slice(&ready().repeat(5));
             out.extend_from_slice(&error_response("55000", "object not in prerequisite state"));
             out.extend_from_slice(&ready()); // DISCARD TEMP, refused
+            out.extend_from_slice(&ready()); // DISCARD SEQUENCES
             out
         }));
 
@@ -6257,7 +6323,7 @@ mod tests {
             said.contains(crate::DbErrorKind::Permission.sentence()),
             "{said}"
         );
-        // The wire is still at a boundary — that is what eight `ReadyForQuery`
+        // The wire is still at a boundary — that is what nine `ReadyForQuery`
         // means — so the pool destroys this connection through `PgConn::reset`
         // taking `self`, not by claiming the stream is unreadable.
         assert_eq!(state.get(), State::Idle);
@@ -6280,8 +6346,8 @@ mod tests {
     ///
     /// The write: what dropping it does is [`super::say_goodbye`], driven here
     /// over the same refused batch, and the assertion is that the connection's
-    /// last flush is one `Terminate` and that no ninth command went out after
-    /// the eight. A driver that answered a failed reset by carrying on would
+    /// last flush is one `Terminate` and that no tenth command went out after
+    /// the nine. A driver that answered a failed reset by carrying on would
     /// write one here.
     ///
     /// The two are asserted apart because `PgConn`'s `wire` is a
@@ -6298,7 +6364,7 @@ mod tests {
             let mut out = ready(); // ROLLBACK
             out.extend_from_slice(&error_response("42501", "permission denied"));
             out.extend_from_slice(&ready()); // SET SESSION AUTHORIZATION DEFAULT, refused
-            out.extend_from_slice(&ready().repeat(6));
+            out.extend_from_slice(&ready().repeat(7));
             out
         }));
 
@@ -6314,7 +6380,7 @@ mod tests {
         assert_eq!(sent[1].as_slice(), b"X\x00\x00\x00\x04");
     }
 
-    /// A wire that fails part way through the batch poisons the connection: eight
+    /// A wire that fails part way through the batch poisons the connection: nine
     /// boundaries were promised and fewer arrived, so where the next message
     /// starts is not known.
     #[test]

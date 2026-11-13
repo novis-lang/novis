@@ -130,8 +130,10 @@ impl Dialect {
     }
 
     /// Whether `\` escapes the next byte inside a quoted run. MySQL's default,
-    /// and nobody else's: PostgreSQL has `standard_conforming_strings` on, and
-    /// SQLite and SQL Server never had it.
+    /// and nobody else's. PostgreSQL's driver sends `standard_conforming_strings
+    /// = on` in every startup message, so this is false there by construction
+    /// and not by the server's configuration. SQLite and SQL Server never had
+    /// it.
     ///
     /// Read twice: by the rewriter below, which must not mistake an escaped
     /// quote for the end of a string, and by [`crate::ddl`], which writes a
