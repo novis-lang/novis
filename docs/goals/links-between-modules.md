@@ -30,7 +30,7 @@ stages:
     context: [docs/reference/tools/25-server.md, docs/reference/core/Router.md, website/src/content/docs/syntax/programs/namespaces.mdx, website/src/content/docs/syntax/attributes/routes.mdx, website/src/content/docs/guides/how-to-use/configuration.mdx, website/src/content/docs/guides/how-to-use/project-layout.mdx, crates/nvs-cli/src/agent.rs]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: links-roots-build-the-map
@@ -446,38 +446,29 @@ users. The session then runs `bun nv render --website` once.
 
 ### 7. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done. Stage 6 landed in two commits: the `url`, `urlAbsolute` and `urlSigned`
-cards, `Router.md`, the autoload example's `about.md` and the link rule's title, then the website.
+Every stage is done, and the goal is ready to retire. The first `looper verify` of the gate stage
+named three failures, and the second run is green. The goal-end gates are green too:
+`bun nv verify --doc`, `bun nv owners --closes links-between-modules` and `bun nv ci --check`.
 
-- The guide page is `website/src/content/docs/guides/how-to-use/modules.mdx:1`, with three snippets
-  and a fixture under `website/snippets/guides/how-to-use/modules/`. Its `apps.term` runs
-  `nvs config check --mounts` and shows each link's mount.
-- The link rule's title lives in `data/rules/routing/a-link-reaches-another-module.json`, not in
-  `docs/rules/routing.md`, which `bun nv rules --render` writes.
-- `bun nv site --check` is green on a fresh `bun nv site --build`, and
-  `bun nv render --website --check` is green. `bun nv brief --where` finds the rules by `link`,
-  `module`, `another program` and `canonical`.
+- The server chapter's example block is formatted. An editor case names the stub line that the
+  longer `url` card moved.
+- `socket_max_duration_ends_an_endless_conversation` failed only under load. It now starts its
+  lifetime once the peer's first tick is heard.
+- The autoload example's `about.md` is back inside 200 words. Every perf figure this goal made
+  stale is measured again, and the namespaces page is stamped.
 - The sweep's `env-secret-proofs` names no check in the tree. The nightly's jobs were cancelled by a
   later push.
 
 ### Next
 
-Stage 7, the gate:
-
-- `docs/goals/links-between-modules.md:447`: start `looper verify` in the background, fix every
-  failure in one pass, run it once more. Then the goal-end gates of AGENTS.md § *In the loop*:
-  `bun nv verify --doc`, `bun nv owners --closes links-between-modules`, `bun nv ci --check`.
-
-No existing test is expected red. `the_rendered_map_names_what_was_skipped_and_what_was_shadowed`
-(with its `links (0)` line) has still not run, and the card text in
-`crates/nvs-stdlib/src/router.rs:443` may move a test that pins card text.
+Nothing: the goal is reached. No test is expected red.
 
 ### Backlog

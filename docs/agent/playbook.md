@@ -252,6 +252,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   DONE refused. Before `DONE`, run `bun nv proofs --gate --limit 0` and record each class it names.
   A `calibration did not measure anything` line means the machine was busy: rerun that class alone.
   See `tools/nv/proofs/collect.ts`. `until: gone tools/nv/proofs/collect.ts:changed since it was last measured`
+- **Run `bun nv render` before `--record-perf`, never after.** A `lang:` figure hashes its whole
+  reference chapter, and the chapter takes in each example's `about.md`. An `about.md` edited
+  before the render makes a figure measured before it stale again, so the class is measured twice.
+  See `tools/nv/proofs/collect.ts`. `until: gone tools/nv/proofs/collect.ts:changed since it was last measured`
 - **A "comments only" change still makes a feature's perf figure stale when it touches a string.**
   The figure's hash drops comments but keeps every string literal of the implementing file, and a
   reference chapter is hashed whole. A sweep that rewrites a message or a panic text there turns
