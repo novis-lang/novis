@@ -301,6 +301,13 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **`Unit::call_static` gives the callee the caller's reference to each argument.** A test that
+  passes a string, object or array and then reads `Value::refcount` sees one fewer holder than it
+  expected, and once the callee's copies are released it reads freed memory. Keep a second holder
+  in compiled code, such as a static property the method that made the value also writes, as
+  `compiled_code_and_the_runtime_agree_on_the_count_word` does. See
+  `crates/nvs-codegen/tests/refcount_calls.rs`.
+  `until: gone crates/nvs-codegen/tests/refcount_calls.rs:compiled_code_and_the_runtime_agree_on_the_count_word`
 - **A test a goal's acceptance names must not be `#[cfg(unix)]`.** The loop's acceptance runs on
   the Windows host, where a Unix-gated test does not exist, and the check fails as "did not run and
   pass". A DONE was refused for that. Gate only the assertion that differs by platform, as
