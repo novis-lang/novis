@@ -1491,6 +1491,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             current: Arc::clone(&current),
         });
         let ticking = draining.clone();
+        let drain_period = waits.drain;
         // The roster is armed from, and compared against, the snapshot it was
         // last armed from. A reload that changed neither `[[schedule]]` nor the
         // store a fleet entry's lease is taken in re-arms nothing.
@@ -1547,6 +1548,10 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                         ControlFlow::Continue(())
                     }
                 },
+                // `rule:config/an-entry-runs-on-a-server-event`: the drain runs
+                // each `stop` entry and waits for it as long as it waits for a
+                // request, and no longer.
+                drain_period,
             );
             if let Err(error) = ticked {
                 eprintln!("error: the schedule ticker stopped: {error}");
@@ -2125,8 +2130,27 @@ struct Scheduled {
     current: Arc<nvs_config::Current>,
 }
 
+/// The args map every scheduled run reads from `Core\Script::args()`, a cron run
+/// and an event run alike (`rule:config/an-entry-runs-on-a-server-event`):
+/// `["name" => <entry name>, "on" => <"cron" or the event's word>]`.
+///
+/// One shape for every trigger, so a script run by a minute and one run by an
+/// event read their entry the same way. What it spends: one small array per
+/// fire, freed when the run ends.
+fn run_args(name: &str, fired: nvs_server::Fired) -> Value {
+    let mut map = nvs_runtime::NvsArray::new();
+    map.set(nvs_runtime::NvsStr::new(b"name"), Value::text(name));
+    map.set(nvs_runtime::NvsStr::new(b"on"), Value::text(fired.word()));
+    Value::array(map)
+}
+
 impl nvs_server::Fires for Scheduled {
-    fn isolate(&self, entry: &nvs_server::Armed, ctx: &mut Ctx) -> Option<Isolate> {
+    fn isolate(
+        &self,
+        entry: &nvs_server::Armed,
+        fired: nvs_server::Fired,
+        ctx: &mut Ctx,
+    ) -> Option<Isolate> {
         // The fire's context arrives holding no tree, and this is the line that
         // gives it one: the snapshot the `[[app]]` blocks matching the entry's
         // own script fold to, as a request takes its file's
@@ -2177,11 +2201,11 @@ impl nvs_server::Fires for Scheduled {
                 return None;
             }
         };
-        // `rule:config/a-scheduled-run-is-a-root-isolate`: the script is handed its entry's `name` and reads it back through
-        // `Core\Script::args()` — there is no scheduler-specific accessor.
-        // Ownership: `NvsStr::new` makes the one reference `Isolate::new`
-        // consumes, so nothing here releases anything.
-        let args = Value::text(entry.name());
+        // `rule:config/a-scheduled-run-is-a-root-isolate`: the script reads its
+        // args map back through `Core\Script::args()`, and there is no
+        // scheduler-specific accessor. Ownership: the map is the one reference
+        // `Isolate::new` consumes, so nothing here releases anything.
+        let args = run_args(entry.name(), fired);
         // `Output::Capture` because a scheduled run's `echo` is its own captured
         // output rather than this process's stdout (`rule:tooling/echo-always-has-a-sink`'s table), and
         // that capture is what the line below reports.
@@ -3726,6 +3750,102 @@ mod tests {
         }
     }
 
+    /// A unit whose program writes down the args it was started with, as
+    /// `name=<name> on=<on>`, and returns `null`.
+    ///
+    /// The args are read inside the run, so the case checks the value the
+    /// script itself receives.
+    #[derive(Debug, Default)]
+    struct ReadsArgs {
+        read: Arc<std::sync::Mutex<Vec<String>>>,
+    }
+
+    impl nvs_runtime::script::Resolver for ReadsArgs {
+        fn resolve(&self, _path: &str) -> Result<nvs_runtime::script::Prepared, String> {
+            let read = Arc::clone(&self.read);
+            let program: nvs_runtime::script::Program = Box::new(move |_ctx, args| {
+                let field = |key: &[u8]| {
+                    args.as_array()
+                        .and_then(|map| map.get(key))
+                        .and_then(|value| value.as_text().map(str::to_owned))
+                        .unwrap_or_else(|| "<missing>".to_owned())
+                };
+                let line = format!("name={} on={}", field(b"name"), field(b"on"));
+                read.lock().expect("one case holds this").push(line);
+                Value::null()
+            });
+            Ok(program.into())
+        }
+    }
+
+    /// `rule:config/an-entry-runs-on-a-server-event`: every scheduled run reads
+    /// one map from `Core\Script::args()`, with the entry's `name` and what it
+    /// ran for under `on`. A cron run reads `"cron"`, and an event run reads the
+    /// event's word.
+    #[test]
+    fn every_scheduled_run_reads_one_map_from_its_args() {
+        let (_dir, root, script) = scheduled_script("fire-args");
+        let granted = firing(&script, Some(&root));
+        let mut written = config_of(&granted).schedule;
+        written.push(nvs_config::tree::Schedule {
+            name: Some("warm-up".to_owned()),
+            cron: None,
+            on: Some("start".to_owned()),
+            ..written[0].clone()
+        });
+        let armed = nvs_server::arm(&written, &super::Zoned::now(), None, |note| {
+            panic!("both entries are `scope = \"host\"` and need no lease: {note}")
+        });
+        assert_eq!(
+            armed.len(),
+            2,
+            "the case armed a cron entry and a start entry"
+        );
+
+        let reads = ReadsArgs::default();
+        let fires = super::Scheduled {
+            current: holding(&granted),
+        };
+        let runs = [
+            (armed[0].clone(), nvs_server::Fired::Cron),
+            (
+                armed[1].clone(),
+                nvs_server::Fired::On(nvs_config::schedule::Event::Start),
+            ),
+        ];
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        let done = Rc::new(Cell::new(0_usize));
+        for (entry, fired) in runs {
+            let fires = super::Scheduled {
+                current: Arc::clone(&fires.current),
+            };
+            let reads = ReadsArgs {
+                read: Arc::clone(&reads.read),
+            };
+            let done = Rc::clone(&done);
+            sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |ctx| {
+                let isolate = nvs_runtime::script::scoped(&reads, || {
+                    nvs_server::Fires::isolate(&fires, &entry, fired, ctx)
+                })
+                .expect("the deployment grants `script.spawn` over the script");
+                let mut ran = isolate.run(ctx).expect("the args map crosses");
+                assert!(ran.ok, "the run ended in {:?}", ran.error);
+                ran.discard_value();
+                done.set(done.get() + 1);
+            });
+        }
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        assert_eq!(done.get(), 2, "both runs ended");
+        assert_eq!(
+            reads.read.lock().expect("the runs have ended").as_slice(),
+            ["name=nightly on=cron", "name=warm-up on=start"],
+            "each run reads its entry's name and what it ran for from one map"
+        );
+    }
+
     /// A deployment whose one entry fires `script` under a `[limits] memory`
     /// ceiling, granting `script.spawn` over `over` and nothing else, or
     /// writing it empty where there is no `over`.
@@ -3811,7 +3931,7 @@ mod tests {
         // so the case takes it off.
         ctx.set_memory_limit(0);
         let built = nvs_runtime::script::scoped(&Compiles, || {
-            nvs_server::Fires::isolate(&fires, &armed[0], &mut ctx)
+            nvs_server::Fires::isolate(&fires, &armed[0], nvs_server::Fired::Cron, &mut ctx)
         });
         assert!(
             built.is_some(),
@@ -3836,7 +3956,7 @@ mod tests {
         };
         let mut ctx = Ctx::new(OutputSink::Sink);
         let refused = nvs_runtime::script::scoped(&Compiles, || {
-            nvs_server::Fires::isolate(&ungranted, &armed[0], &mut ctx)
+            nvs_server::Fires::isolate(&ungranted, &armed[0], nvs_server::Fired::Cron, &mut ctx)
         });
         assert!(
             refused.is_none(),
@@ -3870,7 +3990,7 @@ mod tests {
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let before = nvs_runtime::script::scoped(&Compiles, || {
-            nvs_server::Fires::isolate(&fires, &armed[0], &mut ctx)
+            nvs_server::Fires::isolate(&fires, &armed[0], nvs_server::Fired::Cron, &mut ctx)
         });
         assert!(
             before.is_none(),
@@ -3884,7 +4004,7 @@ mod tests {
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let after = nvs_runtime::script::scoped(&Compiles, || {
-            nvs_server::Fires::isolate(&fires, &armed[0], &mut ctx)
+            nvs_server::Fires::isolate(&fires, &armed[0], nvs_server::Fired::Cron, &mut ctx)
         });
         assert!(
             after.is_some(),
@@ -3953,7 +4073,7 @@ mod tests {
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let built = nvs_runtime::script::scoped(&Compiles, || {
-            nvs_server::Fires::isolate(&fires, named("granted"), &mut ctx)
+            nvs_server::Fires::isolate(&fires, named("granted"), nvs_server::Fired::Cron, &mut ctx)
         });
         assert!(
             built.is_some(),
@@ -3971,7 +4091,12 @@ mod tests {
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let refused = nvs_runtime::script::scoped(&Compiles, || {
-            nvs_server::Fires::isolate(&fires, named("ungranted"), &mut ctx)
+            nvs_server::Fires::isolate(
+                &fires,
+                named("ungranted"),
+                nvs_server::Fired::Cron,
+                &mut ctx,
+            )
         });
         assert!(
             refused.is_none(),

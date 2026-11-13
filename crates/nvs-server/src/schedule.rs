@@ -124,7 +124,7 @@ use std::time::{Duration, Instant};
 use jiff::Zoned;
 use jiff::tz::TimeZone;
 use nvs_config::capability::Cap;
-use nvs_config::schedule::{Cron, zone_of};
+use nvs_config::schedule::{Cron, Event, zone_of};
 use nvs_config::tree::{Capabilities, LimitSet, Schedule};
 use nvs_host::{
     Completion, Isolate, PastWallTime, TaskId, Waiting, Wake, spawn_child, suspend_current,
@@ -143,15 +143,16 @@ pub struct Armed {
     /// The entry's `script`, as the operator wrote it. The boot resolved it against the `script.spawn`
     /// roots and refused one outside them, so what is left here is a path the compiler may take.
     script: String,
-    /// The `cron` expression, parsed at boot (`rule:config/cron-is-five-fields-and-nothing-more`).
-    /// The one dialect, read once.
-    cron: Cron,
-    /// The entry's zone: `timezone`, or UTC. Every civil question about this entry is asked in it.
-    zone: TimeZone,
+    /// What makes this entry run: its `cron` expression and zone, or the server event its `on`
+    /// names (`rule:config/an-entry-runs-on-a-server-event`). Read once, by [`arm`].
+    trigger: Trigger,
     /// The next instant this entry fires, or [`None`] when it has none left inside
     /// [`Cron::next_after`]'s horizon — `30 2 30 2 *` is the honest example. A retired entry stays
     /// in the roster and never fires again, which is the same answer as removing it and keeps the
     /// indices a tick walked stable.
+    ///
+    /// Always [`None`] for an `on` entry, which has no instant: so [`Armed::due`] and [`soonest`]
+    /// never see one, and no minute runs it.
     next: Option<Zoned>,
     /// This entry's own fires, spawned and not yet finished — `overlap`'s question, asked per entry
     /// rather than of the process-wide tally the tick keeps for its teardown.
@@ -191,13 +192,50 @@ pub struct Armed {
     ///
     /// The tick is the only reader and the only writer, so this is a plain [`Cell`] rather than a
     /// shared one; the copy a fire's clone carries is dead weight and is never asked.
-    held: Cell<bool>,
+    /// It is what that held fire runs for, and [`None`] when nothing is held.
+    held: Cell<Option<Fired>>,
     /// The task the last fire of this entry was spawned as, which is what `kill` cancels.
     ///
     /// [`None`] until the first fire, and stale rather than cleared once one ends: cancelling a
     /// task that has finished marks nothing ([`nvs_host::cancel_task`] answers `0`), and the mode
     /// only reaches for it when the entry is still running.
     fired_as: Cell<Option<TaskId>>,
+}
+
+/// What makes an entry run: a minute or a server event. An entry names exactly one, which the boot
+/// checked (`nvs_config::schedule::validate`).
+#[derive(Clone, Debug, PartialEq)]
+enum Trigger {
+    /// The `cron` expression, parsed at boot (`rule:config/cron-is-five-fields-and-nothing-more`),
+    /// and the entry's zone: `timezone`, or UTC. Every civil question about the entry is asked in
+    /// that zone.
+    Cron { cron: Cron, zone: TimeZone },
+    /// The server event `on` names. [`tick_on_this_core`] runs `start` on its first pass and
+    /// `stop` on the drain.
+    On(Event),
+}
+
+/// What one fire runs for, handed to [`Fires::isolate`] so the run's arguments can say it.
+///
+/// Its own type rather than the entry's trigger, because one fire of an event carries what that
+/// event was, and the entry does not.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fired {
+    /// The entry's `cron` minute arrived.
+    Cron,
+    /// The server event the entry's `on` names happened.
+    On(Event),
+}
+
+impl Fired {
+    /// The word a run reads under `"on"` in its args: `cron`, or the event's own word.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Cron => "cron",
+            Self::On(event) => event.word(),
+        }
+    }
 }
 
 /// The entry's `overlap` (`rule:config/overlap-is-skip-queue-or-kill`): what a fire does when the
@@ -247,7 +285,7 @@ impl Armed {
 
     /// Whether `queue` is holding a fire for this entry.
     fn held(&self) -> bool {
-        self.held.get()
+        self.held.get().is_some()
     }
 
     /// Whether `now` has reached this entry's next fire.
@@ -281,10 +319,12 @@ impl Armed {
     /// [`Duration::ZERO`] when this entry has no next fire — it is retiring, so there is no
     /// interval to hold and nothing after this to protect.
     fn lease_ttl(&self, scheduled: &Zoned) -> Duration {
+        let Trigger::Cron { cron, zone } = &self.trigger else {
+            return Duration::ZERO;
+        };
         // `duration_since` for the reason `soonest` gives: two instants differ by an absolute gap,
         // and the `-` operator's `Span` would need a reference date to become one.
-        self.cron
-            .next_after(&scheduled.with_time_zone(self.zone.clone()))
+        cron.next_after(&scheduled.with_time_zone(zone.clone()))
             .map(|next| next.timestamp().duration_since(scheduled.timestamp()))
             .filter(|gap| !gap.is_negative())
             .map_or(Duration::ZERO, |gap| gap.unsigned_abs())
@@ -292,10 +332,19 @@ impl Armed {
 
     /// The fire has happened: ask for the next one **from the clock**, never from the one that just
     /// ran (`rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`). Answers `false` when
-    /// there is no next fire, which is the entry retiring.
+    /// there is no next fire, which is the entry retiring. An `on` entry has no instant to rearm
+    /// to, and is never due, so it never reaches this.
     fn rearm(&mut self, now: &Zoned) -> bool {
-        self.next = self.cron.next_after(&now.with_time_zone(self.zone.clone()));
+        self.next = match &self.trigger {
+            Trigger::Cron { cron, zone } => cron.next_after(&now.with_time_zone(zone.clone())),
+            Trigger::On(_) => None,
+        };
         self.next.is_some()
+    }
+
+    /// Whether this entry's `on` names `event`.
+    fn runs_on(&self, event: Event) -> bool {
+        self.trigger == Trigger::On(event)
     }
 }
 
@@ -319,16 +368,17 @@ pub trait Fires {
     /// and a second line saying so is noise on every interval.
     ///
     /// `rule:config/a-scheduled-run-is-a-root-isolate`'s shape, and the implementation owes all of
-    /// it: the deployment's configuration on the context it is handed, `Isolate::new` with the entry's `name` as the argument the script reads
-    /// back through `Core\Script::args()`, and [`nvs_host::Output`] `Capture`, because a scheduled
-    /// run's output is logged rather than delivered.
+    /// it: the deployment's configuration on the context it is handed, `Isolate::new` with the
+    /// run's args map as the argument the script reads back through `Core\Script::args()` — the
+    /// entry's `name` and `fired`'s word under `"on"` — and [`nvs_host::Output`] `Capture`, because
+    /// a scheduled run's output is logged rather than delivered.
     ///
     /// The tree is owed **first**, before anything here asks a capability, and it is owed here
     /// because the ticker has none to give — the crate doc's § *The tree a fire runs under arrives
     /// with its isolate* is why. A context still holding none has no ceiling for the entry's
     /// `limits` to be tighter than, and `nvs_runtime::capability::granted` denies it `script.spawn`,
     /// which is the first thing `nvs_runtime::script::resolve` asks for.
-    fn isolate(&self, entry: &Armed, ctx: &mut Ctx) -> Option<Isolate>;
+    fn isolate(&self, entry: &Armed, fired: Fired, ctx: &mut Ctx) -> Option<Isolate>;
 
     /// The run's log line (`rule:config/a-scheduled-run-is-a-root-isolate`): what the run answered,
     /// delivered to nobody.
@@ -399,8 +449,9 @@ pub trait Leases {
 ///
 /// **`fleet` entries are armed only when `leases` is [`Some`]**, and skipped with one note each
 /// otherwise: the module doc § *The fallback, when there is no lease to take* is why, and it is a
-/// refusal to run rather than an omission. An entry that cannot be read at all — no `cron`,
-/// an expression outside the five-field dialect, a `timezone` no IANA database knows — is skipped with a note
+/// refusal to run rather than an omission. An entry that cannot be read at all — not exactly one
+/// of `cron` and `on`, an expression outside the five-field dialect, an `on` word that is no server
+/// event, an `on` entry with `scope = "fleet"`, a `timezone` no IANA database knows — is skipped with a note
 /// as well, and is unreachable: [`nvs_config::schedule::validate`] refused the boot over every one of
 /// those before a socket existed. The note is what makes a hole in that argument visible rather than
 /// silent, which is the failure mode a schedule has by construction.
@@ -429,22 +480,49 @@ pub fn arm(
             ));
             continue;
         }
-        let (Some(expression), Some(script)) = (entry.cron.as_deref(), entry.script.as_deref())
-        else {
-            note(&format!(
-                "`{name}` names no `cron` or no `script` and is not armed"
-            ));
+        let Some(script) = entry.script.as_deref() else {
+            note(&format!("`{name}` names no `script` and is not armed"));
             continue;
         };
-        let Ok(cron) = Cron::parse(expression) else {
-            note(&format!("`{name}` is not a schedule and is not armed"));
-            continue;
-        };
-        let Ok(zone) = zone_of(entry.timezone.as_deref()) else {
-            note(&format!(
-                "`{name}` names a timezone this build has no rules for"
-            ));
-            continue;
+        // Exactly one of `cron` and `on`, read with the boot's own two parsers, so a word or an
+        // expression the boot accepted is one this reads the same way.
+        let trigger = match (entry.cron.as_deref(), entry.on.as_deref()) {
+            (Some(expression), None) => {
+                let Ok(cron) = Cron::parse(expression) else {
+                    note(&format!("`{name}` is not a schedule and is not armed"));
+                    continue;
+                };
+                let Ok(zone) = zone_of(entry.timezone.as_deref()) else {
+                    note(&format!(
+                        "`{name}` names a timezone this build has no rules for"
+                    ));
+                    continue;
+                };
+                Trigger::Cron { cron, zone }
+            }
+            (None, Some(word)) => {
+                let Some(event) = Event::parse(word) else {
+                    note(&format!(
+                        "`{name}` names `on = \"{word}\"`, which is no server event, and is not armed"
+                    ));
+                    continue;
+                };
+                // A process event happens on one host, so a lease for it has no meaning.
+                if fleet {
+                    note(&format!(
+                        "`{name}` is `scope = \"fleet\"` with `on`, and a server event happens on \
+                         one host, so it is not armed"
+                    ));
+                    continue;
+                }
+                Trigger::On(event)
+            }
+            _ => {
+                note(&format!(
+                    "`{name}` does not name exactly one of `cron` and `on` and is not armed"
+                ));
+                continue;
+            }
         };
         // The `overlap` mode, read once here rather than at each fire: it is configuration, and a
         // tick that re-read a string every minute would be deciding the same thing over and over from a
@@ -464,18 +542,23 @@ pub fn arm(
                 Overlap::Skip
             }
         };
-        let Some(next) = cron.next_after(&now.with_time_zone(zone.clone())) else {
-            note(&format!(
-                "`{name}` names no instant inside the horizon and is not armed"
-            ));
-            continue;
+        let next = match &trigger {
+            Trigger::Cron { cron, zone } => {
+                let Some(next) = cron.next_after(&now.with_time_zone(zone.clone())) else {
+                    note(&format!(
+                        "`{name}` names no instant inside the horizon and is not armed"
+                    ));
+                    continue;
+                };
+                Some(next)
+            }
+            Trigger::On(_) => None,
         };
         armed.push(Armed {
             name,
             script: script.to_owned(),
-            cron,
-            zone,
-            next: Some(next),
+            trigger,
+            next,
             running: Rc::new(Cell::new(0)),
             overlap,
             narrowing: Narrowing {
@@ -483,7 +566,7 @@ pub fn arm(
                 grants: entry.grants.as_ref().map(grant_names),
             },
             fleet,
-            held: Cell::new(false),
+            held: Cell::new(None),
             fired_as: Cell::new(None),
         });
     }
@@ -594,8 +677,9 @@ impl std::fmt::Debug for Roster {
 /// `fresh` as the roster, with what each entry of `old` that shares its `name` had in flight.
 ///
 /// The run count is shared and not copied, because a fire already running holds the old entry's
-/// count and gives it back when it ends. The next fire is kept only when the expression and the
-/// zone are the same, because it is then the same instant `fresh` would compute unless the clock
+/// count and gives it back when it ends. That holds for an `on` entry too, so a `start` run still
+/// going is still this entry's run under the new roster. The next fire is kept only when the
+/// trigger is the same, because it is then the same instant `fresh` would compute unless the clock
 /// has already reached it.
 fn carry_over(old: Vec<Armed>, mut fresh: Vec<Armed>) -> Vec<Armed> {
     for entry in &mut fresh {
@@ -605,7 +689,7 @@ fn carry_over(old: Vec<Armed>, mut fresh: Vec<Armed>) -> Vec<Armed> {
         entry.running = Rc::clone(&before.running);
         entry.held.set(before.held.get());
         entry.fired_as.set(before.fired_as.get());
-        if before.cron == entry.cron && before.zone == entry.zone {
+        if before.trigger == entry.trigger {
             entry.next.clone_from(&before.next);
         }
     }
@@ -629,11 +713,20 @@ fn carry_over(old: Vec<Armed>, mut fresh: Vec<Armed>) -> Vec<Armed> {
 /// [`Rc`] rather than a borrow because the renewal the key is then held under outlives this call's
 /// frame — it runs on the fire's own task.
 ///
-/// With no `rearm`, returns as soon as the roster has no fire left — an empty roster, or one where
-/// every entry has retired — because a task that can never do anything again is one the process
-/// should not be kept alive by. With one, a reload can still add an entry, so an empty roster waits
-/// out [`Rearm::every`] and asks again. Each pass asks for a new roster before it computes its
-/// wait, and no wait is longer than [`Rearm::every`].
+/// With no `rearm`, stops as soon as the roster has no minute left — an empty roster, one of `on`
+/// entries alone, or one where every entry has retired — because a task that can never do anything
+/// again is one the process should not be kept alive by. With one, a reload can still add an entry,
+/// so an empty roster waits out [`Rearm::every`] and asks again. Each pass asks for a new roster
+/// before it computes its wait, and no wait is longer than [`Rearm::every`].
+///
+/// **The two process events are this loop's own** (`rule:config/an-entry-runs-on-a-server-event`).
+/// The first pass runs each `on = "start"` entry once, after it took the roster a reload may have
+/// answered. A `start` entry a later reload adds is not run, because the process did not start
+/// again. When `keep_ticking` breaks, which is the drain, each `on = "stop"` entry runs once, and
+/// the tail waits for those runs up to `drain` from then. A `stop` run still going at that instant
+/// is cancelled, as a request still running at the drain period's end is. A stop by cancellation
+/// runs no `stop` entry, because the task that would run it is being torn down. Both events go
+/// through the same `overlap` question a minute does.
 ///
 /// # Errors
 ///
@@ -647,6 +740,7 @@ pub fn tick_on_this_core<F>(
     now: impl Fn() -> Zoned,
     mut rearm: Option<Rearm<'_>>,
     mut keep_ticking: impl FnMut() -> ControlFlow<()>,
+    drain: Duration,
 ) -> io::Result<()>
 where
     F: Fires + 'static,
@@ -658,14 +752,28 @@ where
     };
     let outstanding = Rc::new(Cell::new(0_usize));
     let mut leases: Option<Rc<dyn Leases>> = leases.cloned();
-    loop {
+    let mut first = true;
+    // Whether the loop ended on the drain, which is the one ending that runs `stop` entries.
+    let drained = loop {
         if let Some(fresh) = rearm.as_mut().and_then(|rearm| (rearm.roster)()) {
             *entries = carry_over(std::mem::take(entries), fresh.armed);
             leases = fresh.leases;
         }
+        if std::mem::take(&mut first) {
+            for entry in entries.iter().filter(|entry| entry.runs_on(Event::Start)) {
+                answer(
+                    entry,
+                    Fired::On(Event::Start),
+                    fires,
+                    leases.as_ref(),
+                    &outstanding,
+                    &parent,
+                )?;
+            }
+        }
         let wait = match (soonest(entries, &now()), &rearm) {
             (Some(wait), None) => wait,
-            (None, None) => return Ok(()),
+            (None, None) => break false,
             (Some(wait), Some(rearm)) => wait.min(rearm.every),
             (None, Some(rearm)) => rearm.every,
         };
@@ -685,7 +793,7 @@ where
             nvs_host::park_until_past(Instant::now() + wait, PastWallTime::ServerTask)
         };
         if matches!(woken, Woken::Cancelled) {
-            break;
+            break false;
         }
         // Read once for the whole pass, so that two entries due in the same minute are answered
         // against one instant rather than against a clock that moved between them.
@@ -700,75 +808,14 @@ where
             // `rule:config/overlap-is-skip-queue-or-kill`, and the whole of it: an entry that is due
             // while its own previous run is still going is answered by its mode, and the rearm below happens whichever answer it gets —
             // an entry left due would make the next wait zero and turn one long run into a spin.
-            let entry = &entries[index];
-            if entry.busy() {
-                match entry.overlap {
-                    Overlap::Skip => fires.note(&format!(
-                        "`{}` is still running its previous fire, so this one is dropped \
-                         (`overlap = \"skip\"`)",
-                        entry.name()
-                    )),
-                    Overlap::Queue if entry.held() => fires.note(&format!(
-                        "`{}` is still running and already holds a fire, so this one is dropped \
-                         (`overlap = \"queue\"` holds one)",
-                        entry.name()
-                    )),
-                    // Held rather than started, and started by the pass at the top of this loop as
-                    // soon as the run ends. One, never a queue: the second overlap above is dropped
-                    // instead, because an unbounded backlog in front of a non-durable executor is
-                    // what `rule:concurrency/deferred-is-bounded-by-two-directives` refuses to build.
-                    Overlap::Queue => entry.held.set(true),
-                    Overlap::Kill => {
-                        // The run is cancelled at its next safepoint and its teardown *waited for*
-                        // before the new one starts, which is the ordering `overlap` states: the two
-                        // must not be alive together, or `kill` would be `skip` with an extra run. The
-                        // wait is a park over the entry's own count, given back by the run's guard
-                        // however it ended — `rule:concurrency/cancellation-runs-no-user-code`'s teardown runs no user code, so that
-                        // `Drop` is the whole of what there is to wait for.
-                        if let Some(task) = entry.fired_as.get() {
-                            nvs_host::cancel_task(task);
-                        }
-                        while entry.busy() {
-                            let resumed =
-                                suspend_current(Waiting::ParkedPast(PastWallTime::ServerTask));
-                            // Cancelled: this ticker is being torn down and the fire goes with it.
-                            // Not suspended: there is no core, so nothing could ever finish and
-                            // this would spin. Either way the entry stays busy and the fire below
-                            // is dropped rather than started beside a run that is still there.
-                            if resumed.cancelled() || !resumed.suspended() {
-                                break;
-                            }
-                        }
-                        if entry.busy() {
-                            fires.note(&format!(
-                                "`{}` did not tear down, so this fire is dropped rather than \
-                                 started beside it (`overlap = \"kill\"`)",
-                                entry.name()
-                            ));
-                        } else {
-                            start(entry, fires, &outstanding, &parent, None)?;
-                        }
-                    }
-                }
-            } else if entry.fleet {
-                // `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`, and the key travels
-                // with the fire: what this host took is what that run
-                // holds for as long as it is in flight. A lease another host has is noted rather
-                // than silent, because "the nightly did not run here" is a thing an operator
-                // reading one host's log has to be able to tell from a failure — and on a fleet of
-                // twenty this is the ordinary line that nineteen of them write.
-                if let Some(held) = took_the_lease(entry, leases.as_ref()) {
-                    start(entry, fires, &outstanding, &parent, Some(held))?;
-                } else {
-                    fires.note(&format!(
-                        "`{}` is held by another host for this interval and is not run here \
-                         (`scope = \"fleet\"`)",
-                        entry.name()
-                    ));
-                }
-            } else {
-                start(entry, fires, &outstanding, &parent, None)?;
-            }
+            answer(
+                &entries[index],
+                Fired::Cron,
+                fires,
+                leases.as_ref(),
+                &outstanding,
+                &parent,
+            )?;
             if !entries[index].rearm(&clock) {
                 fires.note(&format!(
                     "`{}` has no further fire inside the horizon and will not run again",
@@ -786,21 +833,75 @@ where
         // the `overlap` question before the lease was asked for, so this host never took a key for
         // the interval it was held from.
         for entry in entries.iter() {
-            if entry.held() && !entry.busy() {
-                entry.held.set(false);
-                start(entry, fires, &outstanding, &parent, None)?;
+            if let Some(fired) = entry.held.get()
+                && !entry.busy()
+            {
+                entry.held.set(None);
+                start(entry, fired, fires, &outstanding, &parent, None)?;
             }
         }
         if keep_ticking().is_break() {
-            break;
+            break true;
+        }
+    };
+
+    // The drain is the `stop` event, and its runs are started before the tail waits, so they are
+    // among the fires it waits for.
+    if drained {
+        for entry in entries.iter().filter(|entry| entry.runs_on(Event::Stop)) {
+            answer(
+                entry,
+                Fired::On(Event::Stop),
+                fires,
+                leases.as_ref(),
+                &outstanding,
+                &parent,
+            )?;
         }
     }
+    // The drain period, counted from the moment the `stop` runs started. At its end a `stop` run
+    // still going is cancelled, as a request is, so a stuck `stop` script never holds the process
+    // past the period the operator set.
+    let period_ends = Instant::now() + drain;
+    let stop_running = |entries: &[Armed]| {
+        entries
+            .iter()
+            .any(|entry| entry.runs_on(Event::Stop) && entry.busy())
+    };
+    let mut stopping = drained;
 
     // `rule:concurrency/nothing-is-still-running-when-a-call-returns`, and it is the same tail the accept loop has for the same reason: the fires are
     // this task's children, so a ticker that simply returned would take every run still going down
     // with it — including, on a shutdown, the nightly job that was three minutes into an hour of
     // work. It parks instead, and each fire's guard wakes it on the way out.
     while outstanding.get() > 0 {
+        stopping = stopping && stop_running(entries);
+        if stopping {
+            // Woken by a fire ending, or by the period's end. Not on a core, this sleeps out the
+            // period and answers `Elapsed`, which cuts the runs and leaves the park below to stop.
+            if matches!(
+                nvs_host::wait_until_past(period_ends, PastWallTime::ServerTask),
+                Woken::Cancelled
+            ) {
+                break;
+            }
+            if Instant::now() >= period_ends {
+                stopping = false;
+                for entry in entries
+                    .iter()
+                    .filter(|entry| entry.runs_on(Event::Stop) && entry.busy())
+                {
+                    fires.note(&format!(
+                        "`{}` was still running when the drain period ended and is cancelled",
+                        entry.name()
+                    ));
+                    if let Some(task) = entry.fired_as.get() {
+                        nvs_host::cancel_task(task);
+                    }
+                }
+            }
+            continue;
+        }
         let resumed = suspend_current(Waiting::ParkedPast(PastWallTime::ServerTask));
         // Cancelled: the caller is being torn down and the fires go with it, which is that
         // rule's own answer for a cancelled caller and not something to wait out. Not suspended: there is no core to hand back, so
@@ -808,6 +909,93 @@ where
         if resumed.cancelled() || !resumed.suspended() {
             break;
         }
+    }
+    Ok(())
+}
+
+/// One fire of `entry` for `fired`, answered by the entry's `overlap` and, for a `fleet` entry, by
+/// its lease.
+///
+/// The one path every fire takes, a minute's and a server event's alike
+/// (`rule:config/an-entry-runs-on-a-server-event`), so an event entry's `overlap` means what a
+/// cron entry's does. An event entry is never `fleet`, because [`arm`] does not arm one.
+fn answer<F>(
+    entry: &Armed,
+    fired: Fired,
+    fires: &Rc<F>,
+    leases: Option<&Rc<dyn Leases>>,
+    outstanding: &Rc<Cell<usize>>,
+    parent: &Rc<Wake>,
+) -> io::Result<()>
+where
+    F: Fires + 'static,
+{
+    if entry.busy() {
+        match entry.overlap {
+            Overlap::Skip => fires.note(&format!(
+                "`{}` is still running its previous fire, so this one is dropped \
+                 (`overlap = \"skip\"`)",
+                entry.name()
+            )),
+            Overlap::Queue if entry.held() => fires.note(&format!(
+                "`{}` is still running and already holds a fire, so this one is dropped \
+                 (`overlap = \"queue\"` holds one)",
+                entry.name()
+            )),
+            // Held rather than started, and started by the ticker's next pass as soon as the
+            // run ends. One, never a queue: the second overlap above is dropped
+            // instead, because an unbounded backlog in front of a non-durable executor is
+            // what `rule:concurrency/deferred-is-bounded-by-two-directives` refuses to build.
+            Overlap::Queue => entry.held.set(Some(fired)),
+            Overlap::Kill => {
+                // The run is cancelled at its next safepoint and its teardown *waited for*
+                // before the new one starts, which is the ordering `overlap` states: the two
+                // must not be alive together, or `kill` would be `skip` with an extra run. The
+                // wait is a park over the entry's own count, given back by the run's guard
+                // however it ended — `rule:concurrency/cancellation-runs-no-user-code`'s teardown runs no user code, so that
+                // `Drop` is the whole of what there is to wait for.
+                if let Some(task) = entry.fired_as.get() {
+                    nvs_host::cancel_task(task);
+                }
+                while entry.busy() {
+                    let resumed = suspend_current(Waiting::ParkedPast(PastWallTime::ServerTask));
+                    // Cancelled: this ticker is being torn down and the fire goes with it.
+                    // Not suspended: there is no core, so nothing could ever finish and
+                    // this would spin. Either way the entry stays busy and the fire below
+                    // is dropped rather than started beside a run that is still there.
+                    if resumed.cancelled() || !resumed.suspended() {
+                        break;
+                    }
+                }
+                if entry.busy() {
+                    fires.note(&format!(
+                        "`{}` did not tear down, so this fire is dropped rather than \
+                         started beside it (`overlap = \"kill\"`)",
+                        entry.name()
+                    ));
+                } else {
+                    start(entry, fired, fires, outstanding, parent, None)?;
+                }
+            }
+        }
+    } else if entry.fleet {
+        // `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`, and the key travels
+        // with the fire: what this host took is what that run
+        // holds for as long as it is in flight. A lease another host has is noted rather
+        // than silent, because "the nightly did not run here" is a thing an operator
+        // reading one host's log has to be able to tell from a failure — and on a fleet of
+        // twenty this is the ordinary line that nineteen of them write.
+        if let Some(held) = took_the_lease(entry, leases) {
+            start(entry, fired, fires, outstanding, parent, Some(held))?;
+        } else {
+            fires.note(&format!(
+                "`{}` is held by another host for this interval and is not run here \
+                 (`scope = \"fleet\"`)",
+                entry.name()
+            ));
+        }
+    } else {
+        start(entry, fired, fires, outstanding, parent, None)?;
     }
     Ok(())
 }
@@ -821,6 +1009,7 @@ where
 /// down where it parked and never reaches one.
 fn start<F>(
     entry: &Armed,
+    fired: Fired,
     fires: &Rc<F>,
     outstanding: &Rc<Cell<usize>>,
     parent: &Rc<Wake>,
@@ -838,7 +1027,7 @@ where
     };
     entry
         .fired_as
-        .set(Some(fire(entry, fires, running, renewal)?));
+        .set(Some(fire(entry, fired, fires, running, renewal)?));
     Ok(())
 }
 
@@ -883,6 +1072,7 @@ impl Drop for Ran {
 /// timer is a child of it, so the run ending is what stops the key being extended.
 fn fire<F>(
     entry: &Armed,
+    fired: Fired,
     fires: &Rc<F>,
     running: Ran,
     renewal: Option<Renewal>,
@@ -897,7 +1087,7 @@ where
         if let Some(renewal) = renewal {
             renewal.keep(&fires, entry.name());
         }
-        let Some(isolate) = fires.isolate(&entry, ctx) else {
+        let Some(isolate) = fires.isolate(&entry, fired, ctx) else {
             return;
         };
         // The entry's sub-caps, on the isolate and not on the context the implementor was handed: what a
@@ -1072,6 +1262,9 @@ mod tests {
     use std::cell::{Cell, RefCell};
     use std::sync::Arc;
 
+    /// The drain period a case hands the ticker: long enough that no run in these cases reaches it.
+    const TEST_DRAIN: Duration = Duration::from_secs(30);
+
     /// One `[[schedule]]` block, as a boot that accepted it hands it over.
     fn entry(name: &str, cron: &str, scope: &str) -> Schedule {
         Schedule {
@@ -1142,6 +1335,8 @@ mod tests {
         /// How many fires were asked for an isolate — a run `overlap = "skip"` dropped never gets here,
         /// which is what makes this different from counting the runs that *finished*.
         started: Cell<usize>,
+        /// Each isolate asked for, as the entry's name and what it fired for, in order.
+        fired: RefCell<Vec<String>>,
         /// The task [`Fires::isolate`] was asked on — the fire's own, never the tick's.
         asked_on: Cell<Option<TaskId>>,
         /// Whether the isolate's **own** context carried a request, which is what
@@ -1199,6 +1394,7 @@ mod tests {
                 holds: Duration::ZERO,
                 held_until: None,
                 started: Cell::new(0),
+                fired: RefCell::new(Vec::new()),
                 asked_on: Cell::new(None),
                 answering: Rc::new(Cell::new(None)),
                 ran_on: Rc::new(Cell::new(None)),
@@ -1212,8 +1408,11 @@ mod tests {
     }
 
     impl Fires for Watcher {
-        fn isolate(&self, entry: &Armed, ctx: &mut Ctx) -> Option<Isolate> {
+        fn isolate(&self, entry: &Armed, fired: Fired, ctx: &mut Ctx) -> Option<Isolate> {
             self.asked_on.set(nvs_host::current_task());
+            self.fired
+                .borrow_mut()
+                .push(format!("{} {}", entry.name(), fired.word()));
             self.started.set(self.started.get() + 1);
             // On the fire's own context, which is the parent a sub-cap is measured against: the
             // isolate below inherits it, and `Ctx::narrow` then asks what remains of *this* budget.
@@ -1342,6 +1541,7 @@ mod tests {
                         roster: &mut roster,
                     }),
                     || ControlFlow::Break(()),
+                    TEST_DRAIN,
                 )
                 .expect("the ticker ran as a task");
             }
@@ -1416,6 +1616,7 @@ mod tests {
                     },
                     None,
                     || ControlFlow::Break(()),
+                    TEST_DRAIN,
                 )
                 .expect("the ticker ran as a task");
             }
@@ -1516,6 +1717,7 @@ mod tests {
                     },
                     None,
                     || ControlFlow::Break(()),
+                    TEST_DRAIN,
                 )
                 .expect("the ticker ran as a task");
             }
@@ -1805,7 +2007,8 @@ mod tests {
                     mine: Rc::clone(&armed[0].running),
                     parent: Rc::new(Wake::current().expect("the case runs as a task")),
                 };
-                fire(&armed[0], &watcher, running, Some(renewal)).expect("the fire is a task");
+                fire(&armed[0], Fired::Cron, &watcher, running, Some(renewal))
+                    .expect("the fire is a task");
                 // The fire is this task's child, so this one outlives it — the same park the
                 // ticker's own tail makes, woken by that guard on the way out.
                 while outstanding.get() > 0 {
@@ -1976,6 +2179,7 @@ mod tests {
                             ControlFlow::Break(())
                         }
                     },
+                    TEST_DRAIN,
                 )
                 .expect("the ticker ran as a task");
             }
@@ -2098,6 +2302,217 @@ mod tests {
             next_fire(&roster),
             Some("2026-01-01T00:03:00Z".to_owned()),
             "the entry rearmed from the clock, as it does under every mode"
+        );
+    }
+
+    /// One `[[schedule]]` block with `on = "<event>"` in place of `cron`.
+    fn on(name: &str, event: &str) -> Schedule {
+        Schedule {
+            cron: None,
+            on: Some(event.to_owned()),
+            ..entry(name, "", "host")
+        }
+    }
+
+    /// Run the ticker over `entries` on the injected clock, for `passes` passes, with no rearm
+    /// unless `every` is given. The last pass breaks `keep_ticking`, which is the drain. Answers
+    /// the watcher, and whether every run had ended by the time the ticker returned.
+    fn tick_events(
+        entries: &[Schedule],
+        watcher: Watcher,
+        passes: usize,
+        every: Option<Duration>,
+        drain: Duration,
+    ) -> (Rc<Watcher>, bool) {
+        let clocks = [
+            instant("2026-01-01T00:00:59.9Z"),
+            instant("2026-01-01T00:01:00Z"),
+            instant("2026-01-01T00:01:59.9Z"),
+            instant("2026-01-01T00:02:00Z"),
+        ];
+        let roster = arm(entries, &clocks[0], None, |note| {
+            panic!("nothing to report at boot, and it said: {note}")
+        });
+        let watcher = Rc::new(watcher);
+        let settled = Rc::new(Cell::new(false));
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let watcher = Rc::clone(&watcher);
+            let settled = Rc::clone(&settled);
+            move |_ctx| {
+                let mut roster = roster;
+                let reads = Cell::new(0_usize);
+                let seen = Cell::new(0_usize);
+                let mut unchanged = || -> Option<Roster> { None };
+                tick_on_this_core(
+                    &mut roster,
+                    &watcher,
+                    None,
+                    move || {
+                        let read = reads.get();
+                        reads.set(read + 1);
+                        clocks[read.min(clocks.len() - 1)].clone()
+                    },
+                    every.map(|every| Rearm {
+                        every,
+                        roster: &mut unchanged,
+                    }),
+                    move || {
+                        let pass = seen.get();
+                        seen.set(pass + 1);
+                        if pass + 1 < passes {
+                            ControlFlow::Continue(())
+                        } else {
+                            ControlFlow::Break(())
+                        }
+                    },
+                    drain,
+                )
+                .expect("the ticker ran as a task");
+                settled.set(roster.iter().all(|entry| !entry.busy()));
+            }
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        (watcher, settled.get())
+    }
+
+    /// `rule:config/an-entry-runs-on-a-server-event`: a `start` entry runs once, on the ticker's
+    /// first pass, and a cron entry beside it still runs at each of its minutes.
+    ///
+    /// Two passes, so a ticker that ran `start` on every pass would show it twice.
+    #[test]
+    fn a_start_entry_runs_once_on_the_first_pass() {
+        let (watcher, settled) = tick_events(
+            &[
+                on("warm-up", "start"),
+                entry("nightly", "* * * * *", "host"),
+            ],
+            Watcher::new(),
+            2,
+            None,
+            TEST_DRAIN,
+        );
+
+        assert_eq!(
+            watcher.fired.borrow().as_slice(),
+            ["warm-up start", "nightly cron", "nightly cron"],
+            "the start entry ran first and once, and the cron entry ran at both minutes"
+        );
+        assert_eq!(watcher.logged.borrow().len(), 3, "every run finished");
+        assert!(
+            settled,
+            "nothing was still running when the ticker returned"
+        );
+    }
+
+    /// `rule:config/an-entry-runs-on-a-server-event`: on the drain each `stop` entry runs once, and
+    /// the ticker waits for it before it returns. A `stop` run still going when the drain period
+    /// ends is cancelled, and the ticker says so.
+    ///
+    /// The first half's run holds its task for a fifth of a second, so a ticker that returned
+    /// without waiting would end with the run still busy, and the run would be torn down with it
+    /// and never log. The second half's run never ends by itself, so only the period ends it.
+    #[test]
+    fn a_stop_entry_runs_on_the_drain_and_is_waited_for() {
+        let (watcher, settled) = tick_events(
+            &[on("shutdown", "stop")],
+            Watcher {
+                holds: Duration::from_millis(200),
+                ..Watcher::new()
+            },
+            1,
+            Some(Duration::from_millis(10)),
+            TEST_DRAIN,
+        );
+        assert_eq!(
+            watcher.fired.borrow().as_slice(),
+            ["shutdown stop"],
+            "the drain ran the stop entry once"
+        );
+        assert_eq!(
+            watcher.logged.borrow().as_slice(),
+            ["shutdown ok=true ran shutdown"],
+            "the stop run finished, so the ticker waited for it"
+        );
+        assert!(settled, "the stop run had ended when the ticker returned");
+
+        let (watcher, settled) = tick_events(
+            &[on("shutdown", "stop")],
+            Watcher {
+                holds: Duration::from_millis(20),
+                held_until: Some(Rc::new(|| false)),
+                ..Watcher::new()
+            },
+            1,
+            Some(Duration::from_millis(10)),
+            Duration::from_millis(100),
+        );
+        assert_eq!(watcher.fired.borrow().as_slice(), ["shutdown stop"]);
+        assert!(
+            watcher.logged.borrow().is_empty(),
+            "the run was cancelled at the period's end, so it logged nothing: {:?}",
+            watcher.logged.borrow()
+        );
+        let noted = watcher.noted.borrow();
+        assert!(
+            noted.len() == 1 && noted[0].contains("shutdown") && noted[0].contains("cancelled"),
+            "the cancel is named once: {noted:?}"
+        );
+        assert!(settled, "the cancelled run's teardown was waited for");
+    }
+
+    /// `rule:config/an-entry-runs-on-a-server-event`: an `on` entry has no minute, so no pass runs
+    /// it, and a roster of `on` entries alone gives a ticker with no rearm nothing to wait for.
+    #[test]
+    fn a_minute_never_runs_an_event_entry() {
+        let armed = arm(
+            &[
+                on("warm-up", "start"),
+                on("shutdown", "stop"),
+                on("reloaded", "reload"),
+                on("alert", "failed"),
+            ],
+            &instant("2026-01-01T00:00:00Z"),
+            None,
+            |note| panic!("every entry is armed, and it said: {note}"),
+        );
+        assert_eq!(armed.len(), 4, "every event entry is armed");
+        assert!(
+            armed.iter().all(|entry| entry.next().is_none()),
+            "no event entry has a next minute"
+        );
+        assert_eq!(soonest(&armed, &instant("2026-01-01T00:00:00Z")), None);
+
+        let (watcher, settled) = tick_events(
+            &[
+                on("reloaded", "reload"),
+                on("alert", "failed"),
+                entry("nightly", "* * * * *", "host"),
+            ],
+            Watcher::new(),
+            2,
+            None,
+            TEST_DRAIN,
+        );
+        assert_eq!(
+            watcher.fired.borrow().as_slice(),
+            ["nightly cron", "nightly cron"],
+            "two minutes passed, and only the cron entry ran at them"
+        );
+        assert!(settled);
+
+        let (watcher, _) = tick_events(
+            &[on("reloaded", "reload")],
+            Watcher::new(),
+            usize::MAX,
+            None,
+            TEST_DRAIN,
+        );
+        assert!(
+            watcher.fired.borrow().is_empty(),
+            "a roster with no minute ran nothing, and the ticker returned"
         );
     }
 

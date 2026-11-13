@@ -36,7 +36,7 @@ checks:
   - id: start-and-stop-fire
     stage: 2
     name: "the ticker runs each start entry once on its first pass and each stop entry once on the drain, waits for the stop runs, and never runs an event entry on a minute"
-    run: [cargo, test, --lib, --, a_start_entry_runs_once_on_the_first_pass, a_stop_entry_runs_on_the_drain_and_is_waited_for, a_minute_never_runs_an_event_entry, every_scheduled_run_reads_one_map_from_its_args]
+    run: [cargo, test, --lib, --bin, nvs, --, a_start_entry_runs_once_on_the_first_pass, a_stop_entry_runs_on_the_drain_and_is_waited_for, a_minute_never_runs_an_event_entry, every_scheduled_run_reads_one_map_from_its_args]
     timeout: 1800
     tests:
       - a_start_entry_runs_once_on_the_first_pass
@@ -46,7 +46,7 @@ checks:
   - id: reload-and-failed-fire
     stage: 3
     name: "a reload entry runs once per new reload outcome, and a failed entry runs at most once a minute with every failure since its last run counted and its own failures left out"
-    run: [cargo, test, --lib, --, a_reload_entry_runs_once_per_new_outcome, a_failed_entry_runs_at_most_once_a_minute_and_counts_every_failure, a_failed_entry_never_counts_its_own_failure]
+    run: [cargo, test, --lib, --bin, nvs, --, a_reload_entry_runs_once_per_new_outcome, a_failed_entry_runs_at_most_once_a_minute_and_counts_every_failure, a_failed_entry_never_counts_its_own_failure]
     timeout: 1800
     tests:
       - a_reload_entry_runs_once_per_new_outcome

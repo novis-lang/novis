@@ -188,7 +188,7 @@ pub use otlp::{
 };
 #[cfg(feature = "exporter")]
 pub use prometheus::{scrape, scrape_every_core, serve_scrapes_on_this_core};
-pub use schedule::{Armed, Fires, Leases, Rearm, Roster, arm, tick_on_this_core};
+pub use schedule::{Armed, Fired, Fires, Leases, Rearm, Roster, arm, tick_on_this_core};
 pub use secure::{Scheme, Secure};
 pub use serve::{
     Answer, Draining, Generations, Listening, OnCore, Record, Reply, Rerun, Serving,
