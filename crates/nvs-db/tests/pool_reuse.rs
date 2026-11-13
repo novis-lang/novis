@@ -56,17 +56,21 @@
 //! a `Ctx` files the lease with the connection and consumes it exactly once — is
 //! `nvs-runtime`'s own to assert, and its module doc owns the rule.
 
+use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use nvs_config::db::PoolBounds;
 use nvs_config::snapshot::Snapshot;
+use nvs_config::tree::Database;
 use nvs_db::matrix::{self, Location, Server};
 use nvs_db::mysql::scalar;
+use nvs_db::reset::{Kind, Probe, probe};
+use nvs_db::tds::{TdsScalar, scalar as tds_scalar};
 use nvs_db::{
     Connection, Driver, MariaConn, MariaTarget, MySqlConn, MySqlRows, MySqlScalar, MySqlTarget,
-    PgConn, PgTarget,
+    PgConn, PgTarget, ServerError, SqliteConn, SqliteTarget, SqliteValue, TdsConn, TdsTarget,
 };
 use nvs_runtime::pool::{self, Ticket};
 
@@ -397,6 +401,246 @@ fn a_role_one_request_assumed_is_gone_for_the_next() {
         Some(first),
         "the pool reset gave the next request the first request's assumed role",
     );
+}
+
+/// This process's connection on whichever driver the leg names, opened the
+/// way a request that found the pool empty opens one, or `None` for no harness
+/// and for a socket leg, as [`postgres`] says.
+fn any_leg() -> Option<Connection> {
+    let endpoint = matrix::endpoint()?;
+    Some(match endpoint.location {
+        Location::Server(server) => match endpoint.driver {
+            Driver::Postgres => Connection::Postgres(open(&server)),
+            Driver::MySql => Connection::MySql(mysql_open(&server)),
+            Driver::MariaDb => Connection::MariaDb(mariadb_open(&server)),
+            Driver::SqlServer => Connection::SqlServer(mssql_open(&server)),
+            Driver::Sqlite => unreachable!("SQLite has no server, and `matrix` hands it a file"),
+        },
+        Location::File(path) => {
+            let block = Database {
+                driver: Some(String::from("sqlite")),
+                path: Some(path.display().to_string()),
+                ..Database::default()
+            };
+            let target = SqliteTarget::resolve(&block).expect("the block resolves to a path");
+            Connection::Sqlite(
+                nvs_db::sqlite::open(&target).expect("the harness's scratch database opens"),
+            )
+        }
+        Location::Socket(_) => return None,
+    })
+}
+
+/// [`mysql_open`]'s twin on SQL Server.
+fn mssql_open(server: &Server) -> TdsConn {
+    let target = TdsTarget {
+        host: &server.host,
+        user: &server.user,
+        password: &server.password,
+        database: &server.database,
+        tls_ca_file: Some(server.ca.as_path()),
+        time_zone: 0,
+        statement_cache: 8,
+    };
+
+    TdsConn::connect(address(server), &target, Some(Instant::now() + DEADLINE))
+        .expect("the matrix server accepts a handshake verified against its own anchor")
+}
+
+/// The first cell of the first row `sql` returns on `conn`, as text: the cell,
+/// `NULL`, or `error` and the `SQLSTATE` when the server refused the statement.
+///
+/// A refusal is a value here because `lastval()` is one: PostgreSQL refuses it
+/// in a session that drew no sequence value, and that refusal is the state a
+/// reset must return to. Any other failure panics.
+fn read_cell(conn: &mut Connection, sql: &str) -> String {
+    let answer = match conn {
+        Connection::Postgres(conn) => pg_cell(conn, sql),
+        Connection::MySql(conn) => conn.query(sql, &[]).and_then(mysql_cell),
+        Connection::MariaDb(conn) => conn.query(sql, &[]).and_then(mysql_cell),
+        Connection::SqlServer(conn) => tds_cell(conn, sql),
+        Connection::Sqlite(conn) => sqlite_cell(conn, sql),
+    };
+    match answer {
+        Ok(Some(text)) => text,
+        Ok(None) => String::from("NULL"),
+        Err(error) => match ServerError::of(&error) {
+            Some(refusal) => format!("error {}", refusal.sql_state),
+            None => panic!("`{sql}` failed, and not by the server's own check: {error}"),
+        },
+    }
+}
+
+/// [`read_cell`] on PostgreSQL, whose text format is the cell's bytes.
+fn pg_cell(conn: &mut PgConn, sql: &str) -> io::Result<Option<String>> {
+    let mut rows = conn.query(sql, &[])?;
+    let mut answer = None;
+    let mut first = true;
+    while let Some(row) = rows.next_row()? {
+        if first {
+            first = false;
+            answer = row.column(0)?.map(|body| {
+                String::from_utf8(body.to_vec()).expect("PostgreSQL's text format is UTF-8")
+            });
+        }
+    }
+    Ok(answer)
+}
+
+/// [`read_cell`] on MySQL and MariaDB, through the driver's own decoder.
+fn mysql_cell(mut rows: MySqlRows<'_>) -> io::Result<Option<String>> {
+    let columns = rows.columns().to_vec();
+    let mut answer = None;
+    let mut first = true;
+    while let Some(row) = rows.next_row()? {
+        if first {
+            first = false;
+            let value = row.value(0).expect("the row has a first column");
+            answer = match scalar(&columns[0], value)? {
+                MySqlScalar::Null => None,
+                MySqlScalar::Text(text) => Some(text.to_owned()),
+                other => panic!("the statement answered {other:?}, which is not text"),
+            };
+        }
+    }
+    Ok(answer)
+}
+
+/// [`read_cell`] on SQL Server, through the driver's own decoder.
+fn tds_cell(conn: &mut TdsConn, sql: &str) -> io::Result<Option<String>> {
+    let mut rows = conn.query(sql, &[])?;
+    let columns = rows.columns().to_vec();
+    let mut answer = None;
+    let mut first = true;
+    while let Some(row) = rows.next_row()? {
+        if first {
+            first = false;
+            let value = row.column(0).expect("the row has a first column");
+            answer = match tds_scalar(&columns[0], value)? {
+                TdsScalar::Null => None,
+                TdsScalar::Text(text) => Some(text.into_owned()),
+                other => panic!("the statement answered {other:?}, which is not text"),
+            };
+        }
+    }
+    Ok(answer)
+}
+
+/// [`read_cell`] on SQLite. A `PRAGMA` returns an integer, so one is rendered.
+fn sqlite_cell(conn: &mut SqliteConn, sql: &str) -> io::Result<Option<String>> {
+    let mut rows = conn.query(sql, Vec::new())?;
+    let mut answer = None;
+    let mut first = true;
+    while let Some(row) = rows.next_row() {
+        if first {
+            first = false;
+            answer = match row.into_iter().next().expect("the row has a first column") {
+                SqliteValue::Null => None,
+                SqliteValue::Int(n) => Some(n.to_string()),
+                SqliteValue::Text(text) => Some(text),
+                other => panic!("the statement answered {other:?}, which is not text"),
+            };
+        }
+    }
+    Ok(answer)
+}
+
+/// One statement run for its effect, its rows read to the end.
+fn run_change(conn: &mut Connection, sql: &str) {
+    let ran = match conn {
+        Connection::Postgres(conn) => pg_cell(conn, sql).map(drop),
+        Connection::MySql(conn) => conn.query(sql, &[]).and_then(mysql_drain),
+        Connection::MariaDb(conn) => conn.query(sql, &[]).and_then(mysql_drain),
+        Connection::SqlServer(conn) => conn.execute_many(sql, &[&[]]).map(drop),
+        Connection::Sqlite(conn) => conn
+            .query(sql, Vec::new())
+            .map(|mut rows| while rows.next_row().is_some() {}),
+    };
+    ran.unwrap_or_else(|refused| panic!("the server refused `{sql}`: {refused}"));
+}
+
+/// Reads every row of a MySQL or MariaDB result and keeps none.
+fn mysql_drain(mut rows: MySqlRows<'_>) -> io::Result<()> {
+    while rows.next_row()?.is_some() {}
+    Ok(())
+}
+
+/// The connection's own reset, which consumes it, as the acquiring request
+/// runs it.
+fn reset(conn: Connection) -> io::Result<Connection> {
+    match conn {
+        Connection::Postgres(conn) => conn.reset().map(Connection::Postgres),
+        Connection::MySql(conn) => conn.reset().map(Connection::MySql),
+        Connection::MariaDb(conn) => conn.reset().map(Connection::MariaDb),
+        Connection::SqlServer(conn) => conn.reset().map(Connection::SqlServer),
+        Connection::Sqlite(conn) => conn.reset().map(Connection::Sqlite),
+    }
+}
+
+/// `rule:security/db-pool-reset-is-a-boundary`'s property, walked kind by kind
+/// on the leg's driver: every row of `nvs_db::reset`'s table reads the same
+/// after a release, a draw and a reset as it did on the fresh connection.
+///
+/// Each kind is read, changed, and read again, and the second read must differ:
+/// a change the server ignored would make the last assertion pass with no reset
+/// at all. A kind the driver answers with a reason has nothing to change.
+#[test]
+fn a_reset_returns_every_kind_of_session_state_to_the_configured_one() {
+    let Some(mut conn) = any_leg() else {
+        return;
+    };
+    let driver = conn.driver();
+    let generation = Arc::new(Snapshot::default());
+    let ticket = Ticket::for_block(&generation, "main", PoolBounds::DEFAULT);
+
+    for kind in Kind::ALL {
+        let (change, read, closes) = match probe(driver, kind) {
+            Probe::Sql { change, read } => (change, read, false),
+            Probe::Closes { change, read, .. } => (change, read, true),
+            Probe::None(_) => continue,
+        };
+        let configured = read_cell(&mut conn, read);
+        for sql in change {
+            run_change(&mut conn, sql);
+        }
+        let changed = read_cell(&mut conn, read);
+        assert_ne!(
+            changed, configured,
+            "{kind:?} on {driver:?}: the change left the session as it was",
+        );
+
+        let lease = pool::admit(ticket.clone()).expect("an unused key is under `max`");
+        pool::release(lease, Instant::now(), Box::new(conn));
+        let lease =
+            pool::admit(ticket.clone()).expect("the released connection gave its slot back");
+        let held =
+            pool::take(&lease, Instant::now()).expect("this core released one under this key");
+        let held = held
+            .into_any()
+            .downcast::<Connection>()
+            .expect("this crate filed it, so this crate's type is what comes back");
+        // The lease goes with this request: the next kind admits its own.
+        drop(lease);
+        if closes {
+            // The table says this reset fails, so the pool closes the
+            // connection. The next kind starts on a fresh one.
+            assert!(
+                reset(*held).is_err(),
+                "{kind:?} on {driver:?}: the table says this reset fails, and it passed",
+            );
+            conn = any_leg().expect("this leg opened a connection a moment ago");
+            continue;
+        }
+        conn = reset(*held).unwrap_or_else(|error| {
+            panic!("{kind:?} on {driver:?}: a healthy connection did not reset: {error:?}")
+        });
+
+        assert_eq!(
+            read_cell(&mut conn, read),
+            configured,
+            "{kind:?} on {driver:?}: the reset left the state a request set",
+        );
+    }
 }
 
 /// `pool = false` restores connect-per-request **exactly** — nothing is

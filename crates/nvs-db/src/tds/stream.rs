@@ -792,10 +792,15 @@ mod tests {
         assert_eq!(server.sql_state, "", "TDS has no such field to fill");
         assert_eq!(server.severity, "ERROR");
         assert_eq!(server.constraint, None);
-        assert_eq!(
-            refused.to_string(),
-            "sqlserver ERROR: Login failed for user 'novis'.",
-            "an absent SQLSTATE is omitted from the sentence, not rendered empty"
+        assert_eq!(server.message, "Login failed for user 'novis'.");
+        let rendered = refused.to_string();
+        assert!(
+            rendered.starts_with("sqlserver ERROR: ")
+                && rendered.ends_with(" (code 18456)")
+                && !rendered.contains("SQLSTATE")
+                && !rendered.contains("novis"),
+            "an absent SQLSTATE is omitted from the sentence, not rendered empty, and the \
+             server's own sentence stays out of it: {rendered}"
         );
 
         // A `THROW` past a `u16`, which is why this field is wider than one:

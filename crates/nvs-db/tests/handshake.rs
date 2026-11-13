@@ -1014,6 +1014,10 @@ fn a_mysql_connection_read_parks_its_coroutine_rather_than_blocking_the_core() {
 /// `NULL` — one statement for the two, which is also why it is a
 /// `CAST(… AS CHAR)`: a user variable's own column type is not something this
 /// case wants to be asserting about.
+///
+/// The session variable repeats `nvs_db::reset`'s `SessionVariables` row, which
+/// `pool_reuse.rs` walks on every driver. The temporary table, the transaction
+/// and the cached statement have no row there, and this case is their home.
 #[test]
 fn a_mysql_reset_leaves_no_temporary_table_variable_or_cached_statement() {
     let Some(server) = mysql() else {
@@ -1379,6 +1383,10 @@ fn a_mssql_transaction_nests_to_a_savepoint_and_rolls_back_to_it() {
 /// processed, so a driver still naming the rolled-back descriptor would be
 /// refused here — which is why the probes after the reset are the assertion and
 /// not housekeeping.
+///
+/// The isolation level and the transaction have no row in `nvs_db::reset`'s
+/// table, which `pool_reuse.rs` walks for the database, the role, the generated
+/// id and the session context, so this case is their home.
 #[test]
 fn a_mssql_reset_from_inside_a_transaction_leaves_none_and_the_logins_level() {
     let Some(server) = mssql() else {

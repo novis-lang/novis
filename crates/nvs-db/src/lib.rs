@@ -177,6 +177,7 @@ pub mod matrix;
 pub mod mysql;
 pub mod pg;
 pub mod plan;
+pub mod reset;
 pub mod schema;
 pub mod span;
 pub mod sql;

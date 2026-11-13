@@ -3016,9 +3016,14 @@ mod tests {
         let refused = reader
             .query("insert into t (v) values (2)", Vec::new())
             .expect_err("a read-only handle does not write");
+        // SQLite's own sentence is kept on the error and stays out of its
+        // rendering (`rule:core-classes/db-error`).
+        let said = crate::ServerError::of(&refused)
+            .map(|server| server.message.as_str())
+            .unwrap_or_default();
         assert!(
-            refused.to_string().contains("readonly") || refused.to_string().contains("read-only"),
-            "{refused}"
+            said.contains("readonly") || said.contains("read-only"),
+            "{refused}: {said}"
         );
     }
 

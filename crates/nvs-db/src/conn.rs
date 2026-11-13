@@ -985,6 +985,10 @@ pub struct MySqlConn {
     /// `max` per core in `rule:security/db-pool-reset-is-a-boundary` is the cap
     /// on it.
     pub(crate) reading: Option<crate::mysql::MySqlCursor>,
+    /// The `SET ROLE` statement that activates the roles this session logged
+    /// in with, which the pool's reset runs. `crate::mysql`'s `login_roles`
+    /// builds it and says what it spends.
+    pub(crate) roles: String,
     /// Where a `KILL QUERY` for this connection is sent, and who to be there —
     /// `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`.
     /// `crate::mysql`'s `Peer` says what it spends.
@@ -1032,6 +1036,8 @@ pub struct MariaConn {
     /// [`MySqlConn::reading`]'s twin, and the *same* type, because one protocol
     /// is read one way and `crate::mysql`'s row loop serves both servers.
     pub(crate) reading: Option<crate::mysql::MySqlCursor>,
+    /// [`MySqlConn::roles`]'s twin.
+    pub(crate) roles: String,
     /// [`MySqlConn::peer`]'s twin: MariaDB's `KILL QUERY` is MySQL's.
     pub(crate) peer: crate::mysql::Peer,
 }

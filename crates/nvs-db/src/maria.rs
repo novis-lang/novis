@@ -425,6 +425,7 @@ impl MariaConn {
         };
         let capabilities = crate::mysql::authenticate(&mut wire, &login, &greeting)?;
         crate::mysql::set_session_time_zone(&mut wire, capabilities, target.time_zone)?;
+        let roles = crate::mysql::login_roles(&mut wire, capabilities)?;
         // Lifted for [`crate::PgConn::connect`]'s reason, which is the same on every
         // driver that files the handshake clock on its own socket.
         wire.set_deadline(None);
@@ -443,6 +444,7 @@ impl MariaConn {
             depth: Cell::new(0),
             // Nothing is parked until `stream` parks it — see the field.
             reading: None,
+            roles,
             peer: Peer::new(
                 endpoint,
                 target.host,
@@ -680,6 +682,7 @@ impl MariaConn {
             &mut self.wire,
             self.capabilities,
             &self.peer.database,
+            &self.roles,
             self.time_zone,
             &mut self.cache,
         )?;

@@ -155,6 +155,8 @@ services:
       start_period: 30s
     volumes:
       - certs:/certs:ro
+      # The role `crates/nvs-db/src/reset.rs`'s role probe assumes, granted at first boot.
+      - ./mysql-init.sql:/docker-entrypoint-initdb.d/novis-reset-role.sql:ro
       # `rule:core-classes/db-unix-socket-path`'s transport, published where the process running the
       # matrix can reach it. The directory is the server's own default one and the socket keeps the
       # name that server gives it, so nothing here is a spelling a deployment would not already have:
@@ -203,6 +205,8 @@ services:
       start_period: 30s
     volumes:
       - certs:/certs:ro
+      # The role the `mysql` service above grants, for the same probe.
+      - ./mysql-init.sql:/docker-entrypoint-initdb.d/novis-reset-role.sql:ro
       # The socket leg, whose shape the `mysql` service above owns. `healthcheck.sh` reaches this
       # server through this very socket, so publishing it is also what keeps that check honest --
       # moving the server off its default path is what would have broken it.

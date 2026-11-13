@@ -47,3 +47,19 @@ rule below is a failure CI found that the dev machine could not.
   the advisories, the rustdoc links, and the feature proofs on a binary built from the tree. They take
   about two minutes,
   and a red one refuses the push (`tools/nv/cmd/ci.ts`).
+
+## A test that needs a database server
+
+- **It asks `nvs_db::matrix::endpoint()` for its driver and returns at once when
+  `NVS_DB_MATRIX_DRIVER` is unset**, as `postgres()` in `crates/nvs-db/tests/pool_reuse.rs` does. So
+  `bun nv verify` stays green on a machine with no containers.
+- **`bun nv db-matrix --driver <name>` runs it.** It starts the server from `tests/db/compose.yaml`,
+  sets the environment and runs the suites `SUITES` in `tools/nv/cmd/db-matrix.ts` lists.
+- **A skipped case prints the same `ok` as one that asserted.** Break the new case's assertion once, see
+  the leg name it as failed, and revert. A goal's check is a lib test that needs no server.
+- **A new driver answers `crates/nvs-db/src/reset.rs` before it is pooled.** Its `match` has no
+  wildcard, and `a_reset_returns_every_kind_of_session_state_to_the_configured_one` walks every row
+  against the leg's server.
+- **A server-side fixture the cases need goes into the image's first-boot script**, as
+  `tests/db/mysql-init.sql` grants a role. It runs only on a new data directory, so a local server
+  that predates it needs the same statements run once by hand.

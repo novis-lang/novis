@@ -27,8 +27,16 @@ statement cache goes with it. `COM_RESET_CONNECTION` keeps a schema a request's 
 the charset to the server's default, so MySQL and MariaDB then send `COM_INIT_DB` with the configured
 database and one `SET` for the three charset variables, the collation and the declared zone. A
 connection that logged in with no database asks `SELECT DATABASE()` in its place, and is closed when
-the answer is not `NULL`, because no command deselects a schema. **What it spends:** one
-`COM_INIT_DB` round trip per pooled release, since the `SET` already ran for the zone. SQLite allows a `PRAGMA` by name from one table, and refuses every other one when the
+the answer is not `NULL`, because no command deselects a schema. The reset also keeps a role a
+request's `SET ROLE` chose, so a connection reads `CURRENT_ROLE()` once when it opens, and the reset
+runs `SET ROLE` back to those roles. **What it spends:** one `COM_INIT_DB` and one `SET ROLE` round
+trip per pooled release, since the `SET` already ran for the zone, and one round trip per opened
+connection. **Declined:** `COM_CHANGE_USER`, which authenticates again on every release, and MySQL's
+`SET ROLE DEFAULT`, which MariaDB lacks and which misses `activate_all_roles_on_login`. On SQL Server,
+`sp_reset_connection` returns the database and the session context, and it fails on a session a
+request's `EXECUTE AS` left impersonating, so that connection is closed. A `REVERT` before every reset
+would cost a round trip per release and undoes one level only. `crates/nvs-db/src/reset.rs` names
+each kind of session state per driver, and a live test walks it on every server. SQLite allows a `PRAGMA` by name from one table, and refuses every other one when the
 statement is prepared, so a pragma a later SQLite adds is refused until it has a row. A row only
 reads, reads a file's value with no argument, or names session state with the value the reset writes
 back. A process-wide pragma never has a row. SQLite's reset rolls back, writes every session row's

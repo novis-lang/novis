@@ -1881,6 +1881,7 @@ impl MySqlConn {
         };
         let capabilities = authenticate(&mut wire, &login, &greeting)?;
         set_session_time_zone(&mut wire, capabilities, target.time_zone)?;
+        let roles = login_roles(&mut wire, capabilities)?;
         // Lifted for [`crate::PgConn::connect`]'s reason, which is the same on every
         // driver that files the handshake clock on its own socket.
         wire.set_deadline(None);
@@ -1904,6 +1905,7 @@ impl MySqlConn {
             depth: Cell::new(0),
             // Nothing is parked until `stream` parks it — see the field.
             reading: None,
+            roles,
             peer: Peer::new(
                 endpoint,
                 target.host,
@@ -2178,6 +2180,7 @@ impl MySqlConn {
             &mut self.wire,
             self.capabilities,
             &self.peer.database,
+            &self.roles,
             self.time_zone,
             &mut self.cache,
         )?;
@@ -2215,14 +2218,17 @@ impl Drop for MySqlConn {
 /// - **The zone.** The reset drops session variables, so
 ///   `rule:core-classes/db-column-types`'s declared zone has to be sent again
 ///   or the next request decodes every zone-less column in UTC.
+/// - **The role.** The reset keeps a role a request's `SET ROLE` chose, on
+///   MySQL and on MariaDB alike, so `roles`, the statement [`login_roles`]
+///   built when the connection opened, activates the login's roles again.
 ///
 /// The charset and the zone ride one `SET`. The prepared-statement cache goes
 /// with the reset too, the real asymmetry with PostgreSQL, and the protocol's
 /// rather than a choice.
 ///
-/// **What it spends:** one `COM_INIT_DB` round trip per pooled release, on
-/// top of the reset and the `SET` the zone already cost. `Wire::send` flushes
-/// one command at a time, so the three are not pipelined.
+/// **What it spends:** one `COM_INIT_DB` and one `SET ROLE` round trip per
+/// pooled release, on top of the reset and the `SET` the zone already cost.
+/// `Wire::send` flushes one command at a time, so the four are not pipelined.
 ///
 /// Free and generic in the stream for this crate's usual reason: a
 /// `Wire<MyStream>` needs a socket and a certificate that no unit test has.
@@ -2235,6 +2241,7 @@ pub(crate) fn reset_session<S: Read + Write>(
     wire: &mut Wire<S>,
     capabilities: CapabilityFlags,
     database: &str,
+    roles: &str,
     seconds_east: i32,
     cache: &mut StatementCache<Prepared>,
 ) -> io::Result<()> {
@@ -2267,7 +2274,8 @@ pub(crate) fn reset_session<S: Read + Write>(
              time_zone = '{}'",
             offset_literal(seconds_east)
         ),
-    )
+    )?;
+    run_own_text(wire, capabilities, roles)
 }
 
 /// Checks that the session has no schema selected, for a connection that
@@ -2285,15 +2293,36 @@ fn no_database_is_selected<S: Read + Write>(
     wire: &mut Wire<S>,
     capabilities: CapabilityFlags,
 ) -> io::Result<()> {
+    if own_text_cell(wire, capabilities, "SELECT DATABASE()")?.is_some() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "a request selected a database on a connection configured with none, and no \
+             command can deselect it, so the connection is closed",
+        ));
+    }
+    Ok(())
+}
+
+/// Runs one of this module's own text statements that returns one row of one
+/// column, and returns that cell: `None` for `NULL`.
+///
+/// # Errors
+///
+/// `InvalidData` for an answer that is not one row of one column or a cell that
+/// is not a length-encoded string, and as [`read_answer`].
+fn own_text_cell<S: Read + Write>(
+    wire: &mut Wire<S>,
+    capabilities: CapabilityFlags,
+    sql: &str,
+) -> io::Result<Option<Vec<u8>>> {
     let mut payload = vec![COM_QUERY];
-    payload.extend_from_slice(b"SELECT DATABASE()");
+    payload.extend_from_slice(sql.as_bytes());
     wire.codec.reset_seq_id();
     wire.send(&payload)?;
     let unexpected = || {
         io::Error::new(
             io::ErrorKind::InvalidData,
-            "the server answered `SELECT DATABASE()` with something other than one row of \
-             one column",
+            format!("the server answered `{sql}` with something other than one row of one column"),
         )
     };
     if read_answer(wire, capabilities)? != Answer::Columns(1) {
@@ -2314,14 +2343,77 @@ fn no_database_is_selected<S: Read + Write>(
     if end.first() != Some(&0xFE) {
         return Err(unexpected());
     }
-    if row != [0xFB] {
-        return Err(io::Error::new(
-            io::ErrorKind::PermissionDenied,
-            "a request selected a database on a connection configured with none, and no \
-             command can deselect it, so the connection is closed",
-        ));
+    if row == [0xFB] {
+        return Ok(None);
     }
-    Ok(())
+    // The length prefix: one byte below `0xFB`, or a marker and two, three or
+    // eight little-endian bytes.
+    let (width, length) = match row.first() {
+        Some(&n @ 0..=0xFA) => (1, u64::from(n)),
+        Some(&marker @ 0xFC..=0xFE) => {
+            let bytes = match marker {
+                0xFC => 2,
+                0xFD => 3,
+                _ => 8,
+            };
+            let digits = row.get(1..=bytes).ok_or_else(unexpected)?;
+            let length = digits
+                .iter()
+                .rev()
+                .fold(0u64, |sum, &byte| (sum << 8) | u64::from(byte));
+            (1 + bytes, length)
+        }
+        _ => return Err(unexpected()),
+    };
+    let cell = &row[width..];
+    if u64::try_from(cell.len()).ok() != Some(length) {
+        return Err(unexpected());
+    }
+    Ok(Some(cell.to_vec()))
+}
+
+/// The statement that activates the roles the session logged in with, which
+/// [`reset_session`] runs because `COM_RESET_CONNECTION` keeps a role a
+/// request's `SET ROLE` chose.
+///
+/// The login's roles are read once, before any request has the connection.
+/// MySQL's `CURRENT_ROLE()` returns `NONE` or a list it already quotes, such as
+/// `` `r`@`%` ``, which `SET ROLE` reads back as it is. MariaDB's returns `NULL`
+/// or one bare name, which is quoted here. MySQL's `SET ROLE DEFAULT` would ask
+/// for no read, and is not used: MariaDB has no such statement, and with
+/// `activate_all_roles_on_login` a MySQL login activates more than the default
+/// roles.
+///
+/// **What it spends:** one round trip per opened connection, and the statement
+/// text, a few dozen bytes, per connection.
+///
+/// # Errors
+///
+/// As [`own_text_cell`], and `InvalidData` for an answer that is not UTF-8 or,
+/// on MySQL, neither `NONE` nor a quoted list.
+pub(crate) fn login_roles<S: Read + Write>(
+    wire: &mut Wire<S>,
+    capabilities: CapabilityFlags,
+) -> io::Result<String> {
+    let cell = own_text_cell(wire, capabilities, "SELECT CURRENT_ROLE()")?;
+    let unexpected = || {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "the server answered `SELECT CURRENT_ROLE()` with a value this driver cannot \
+             write back into `SET ROLE`",
+        )
+    };
+    let Some(cell) = cell else {
+        return Ok(String::from("SET ROLE NONE"));
+    };
+    let roles = String::from_utf8(cell).map_err(|_| unexpected())?;
+    if wire.backend.name == MYSQL.name {
+        if roles == "NONE" || roles.starts_with('`') {
+            return Ok(format!("SET ROLE {roles}"));
+        }
+        return Err(unexpected());
+    }
+    Ok(format!("SET ROLE `{}`", roles.replace('`', "``")))
 }
 
 /// A statement the server holds, and what it will want and give back.
@@ -5343,8 +5435,15 @@ mod tests {
         );
         assert_eq!(cache.len(), 1);
 
-        super::reset_session(&mut wire, CLIENT_CAPABILITIES, "shop", 0, &mut cache)
-            .expect("a reset the server acknowledged");
+        super::reset_session(
+            &mut wire,
+            CLIENT_CAPABILITIES,
+            "shop",
+            NO_ROLE,
+            0,
+            &mut cache,
+        )
+        .expect("a reset the server acknowledged");
         assert!(
             cache.is_empty(),
             "the reset drops every prepared statement, so a cache that \
@@ -5362,6 +5461,7 @@ mod tests {
                 Some(0x17),
                 Some(0x1F),
                 Some(0x02),
+                Some(0x03),
                 Some(0x03),
                 Some(0x16),
                 Some(0x17)
@@ -5391,8 +5491,15 @@ mod tests {
         }));
         let mut cache = sized_cache(2);
 
-        let failed = super::reset_session(&mut wire, CLIENT_CAPABILITIES, "shop", 0, &mut cache)
-            .expect_err("a refused reset passed");
+        let failed = super::reset_session(
+            &mut wire,
+            CLIENT_CAPABILITIES,
+            "shop",
+            NO_ROLE,
+            0,
+            &mut cache,
+        )
+        .expect_err("a refused reset passed");
         // The server's own sentence stays out of the rendering
         // (`rule:core-classes/db-error`), so the refusal is read by its code.
         assert!(failed.to_string().contains("(code 1227)"), "{failed}");
@@ -5417,14 +5524,21 @@ mod tests {
         }));
         let mut cache = sized_cache(2);
 
-        super::reset_session(&mut wire, CLIENT_CAPABILITIES, "shop", 3600, &mut cache)
-            .expect("a reset the server acknowledged");
+        super::reset_session(
+            &mut wire,
+            CLIENT_CAPABILITIES,
+            "shop",
+            NO_ROLE,
+            3600,
+            &mut cache,
+        )
+        .expect("a reset the server acknowledged");
 
         let sent = &wire.peer().sent;
         assert_eq!(
             commands(sent),
-            [Some(0x1F), Some(0x02), Some(0x03)],
-            "the reset, the database and one `SET`, in that order"
+            [Some(0x1F), Some(0x02), Some(0x03), Some(0x03)],
+            "the reset, the database, one `SET` and the roles, in that order"
         );
         assert_eq!(&sent[1][5..], b"shop", "COM_INIT_DB named another database");
         assert_eq!(
@@ -5432,8 +5546,56 @@ mod tests {
             [
                 "SET character_set_client = utf8mb4, character_set_connection = utf8mb4, \
               character_set_results = utf8mb4, collation_connection = utf8mb4_general_ci, \
-              time_zone = '+01:00'"
+              time_zone = '+01:00'",
+                NO_ROLE,
             ],
+        );
+    }
+
+    /// The statement a reset runs for a login that holds no active role.
+    const NO_ROLE: &str = "SET ROLE NONE";
+
+    /// `rule:security/db-pool-reset-is-a-boundary`'s assumed role.
+    /// `COM_RESET_CONNECTION` keeps a role a request's `SET ROLE` chose, so the
+    /// connection reads its login's roles once and the reset activates them
+    /// again. MySQL quotes the list itself, and MariaDB's one bare name is
+    /// quoted here.
+    #[test]
+    fn the_login_roles_become_the_statement_the_reset_runs() {
+        fn server(cell: &'static [u8]) -> impl FnMut(&[u8]) -> Vec<u8> {
+            move |sent: &[u8]| {
+                assert_eq!(&sent[5..], b"SELECT CURRENT_ROLE()");
+                let mut out = packet(1, &[1]);
+                out.extend_from_slice(&packet(2, &column_def("CURRENT_ROLE()")));
+                out.extend_from_slice(&packet(3, cell));
+                out.extend_from_slice(&packet(4, &result_set_end(0x0002)));
+                out
+            }
+        }
+        let read = |backend: &'static super::Backend, cell: &'static [u8]| {
+            super::login_roles(
+                &mut Wire::on(backend, Peer::new(server(cell))),
+                CLIENT_CAPABILITIES,
+            )
+        };
+
+        assert_eq!(read(&super::MYSQL, b"\x04NONE").expect("NONE"), NO_ROLE);
+        assert_eq!(
+            read(&super::MYSQL, b"\x0B`r`@`%`,`s`").expect("a quoted list"),
+            "SET ROLE `r`@`%`,`s`"
+        );
+        assert_eq!(
+            read(&super::MYSQL, b"\x01r")
+                .expect_err("a bare name")
+                .kind(),
+            io::ErrorKind::InvalidData,
+            "MySQL quotes every role it lists, so a bare one is not written back"
+        );
+        let maria = &crate::maria::MARIADB;
+        assert_eq!(read(maria, b"\xFB").expect("NULL"), NO_ROLE);
+        assert_eq!(
+            read(maria, b"\x04a`b ").expect("a name"),
+            "SET ROLE `a``b `"
         );
     }
 
@@ -5462,8 +5624,9 @@ mod tests {
 
         let mut cache = sized_cache(2);
         let mut chosen = Wire::new(Peer::new(server(b"\x04shop")));
-        let failed = super::reset_session(&mut chosen, CLIENT_CAPABILITIES, "", 0, &mut cache)
-            .expect_err("a reset passed with a database a request chose");
+        let failed =
+            super::reset_session(&mut chosen, CLIENT_CAPABILITIES, "", NO_ROLE, 0, &mut cache)
+                .expect_err("a reset passed with a database a request chose");
         assert_eq!(failed.kind(), io::ErrorKind::PermissionDenied, "{failed}");
         assert_eq!(
             commands(&chosen.peer().sent),
@@ -5472,12 +5635,12 @@ mod tests {
         );
 
         let mut none = Wire::new(Peer::new(server(b"\xFB")));
-        super::reset_session(&mut none, CLIENT_CAPABILITIES, "", 0, &mut cache)
+        super::reset_session(&mut none, CLIENT_CAPABILITIES, "", NO_ROLE, 0, &mut cache)
             .expect("a session with no database selected passes the reset");
         assert_eq!(
             commands(&none.peer().sent),
-            [Some(0x1F), Some(0x03), Some(0x03)],
-            "the check, and then the `SET`"
+            [Some(0x1F), Some(0x03), Some(0x03), Some(0x03)],
+            "the check, then the `SET`, then the roles"
         );
     }
 
@@ -7215,9 +7378,13 @@ mod tests {
         assert_eq!(server.driver_code, Some(1213));
         assert_eq!(server.sql_state, "40001");
         assert_eq!(server.backend, "mysql");
+        // The server's sentence is kept on the error and stays out of what a
+        // caller prints (`rule:core-classes/db-error`).
+        assert_eq!(server.message, "Deadlock found when trying to get lock");
         assert!(
-            refused.to_string().contains("Deadlock found"),
-            "the server's own sentence is still what a caller prints: {refused}"
+            !refused.to_string().contains("Deadlock found")
+                && refused.to_string().contains("(SQLSTATE 40001) (code 1213)"),
+            "a caller prints the codes and not the server's own sentence: {refused}"
         );
     }
 
@@ -7394,12 +7561,17 @@ mod tests {
             Some(DbErrorKind::UniqueViolation),
             "the batch answers the server's own refusal, `DbError` kind and all: {refused}"
         );
-        assert!(
-            refused.to_string().contains("duplicate boom"),
+        // The server's sentence stays out of the rendering
+        // (`rule:core-classes/db-error`), so each refusal is told by its own
+        // message and code.
+        let server = ServerError::of(&refused).expect("a refusal the server sent");
+        assert_eq!(
+            (server.message.as_str(), server.driver_code),
+            ("duplicate boom", Some(1062)),
             "the first refusal is the batch's answer: {refused}"
         );
         assert!(
-            !refused.to_string().contains("deadlock bang"),
+            !refused.to_string().contains("(code 1213)"),
             "and the second is not: {refused}"
         );
         assert_eq!(
@@ -7479,8 +7651,9 @@ mod tests {
             &sets,
         )
         .expect_err("the middle set was refused");
-        assert!(
-            refused.to_string().contains("duplicate boom"),
+        assert_eq!(
+            ServerError::of(&refused).map(|server| server.message.as_str()),
+            Some("duplicate boom"),
             "the batch answers the refusal it drew: {refused}"
         );
 
