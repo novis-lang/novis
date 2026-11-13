@@ -87,7 +87,7 @@
 //! cost that grows with traffic.
 //!
 //! The rest of a request's shared writes are counted by
-//! `nvs_diagnostics::shared` and bounded by `nvs-cli`'s keep-alive test: 38 in
+//! `nvs_diagnostics::shared` and bounded by `nvs-cli`'s keep-alive test: 34 in
 //! a debug build, for one keep-alive request to a compiled unit.
 
 use std::cell::{Cell, RefCell};
@@ -1955,17 +1955,17 @@ where
         // the host's snapshot's, rendered on this core ([`OnCore::standing`]).
         // The program the handler runs is configured by its entry's snapshot
         // out of the same publish, which the handler reads off this record.
+        // The door borrows the host's snapshot off the record and takes no
+        // reference of its own.
         let record = on_core.standing();
-        #[cfg(debug_assertions)]
-        nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Snapshot, 2);
-        let snapshot = Arc::clone(record.host());
+        let snapshot = record.host();
         let policy = &record.policy;
         // `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`'s
         // head, copied before the handler takes the request, where the store
         // is on in `development`. Every answer below hands it to `counted`. It
         // is boxed because it is held across the handler's wait, and this
         // future is on the connection's stack.
-        let mut input = crate::spooled::door_store(&snapshot)
+        let mut input = crate::spooled::door_store(snapshot)
             .filter(|store| store.development)
             .map(|_| {
                 Box::new(crate::spooled::head(
@@ -1989,7 +1989,7 @@ where
                 None,
                 None,
                 None,
-                &snapshot,
+                snapshot,
                 crate::spooled::Ending::Door,
                 input.take(),
             );
@@ -2021,7 +2021,7 @@ where
                     None,
                     None,
                     None,
-                    &snapshot,
+                    snapshot,
                     crate::spooled::Ending::Door,
                     input.take(),
                 );
@@ -2060,7 +2060,7 @@ where
                 None,
                 origin.client(),
                 None,
-                &snapshot,
+                snapshot,
                 crate::spooled::Ending::Door,
                 input.take(),
             );
@@ -2089,7 +2089,7 @@ where
                 None,
                 origin.client(),
                 None,
-                &snapshot,
+                snapshot,
                 crate::spooled::Ending::Door,
                 input.take(),
             );
@@ -2207,6 +2207,9 @@ where
             // round once more with the isolate its [`Rerun`] builds, which has
             // no body, and answers with what that one sends.
             Ok((first, first_supply, chosen, mut rerun)) => {
+                // The entry's snapshot moves here, and the access line below
+                // reads it. Every run of the loop borrows it.
+                ran_under = chosen;
                 let mut next = Some((first, first_supply));
                 let mut first_run = true;
                 loop {
@@ -2232,21 +2235,13 @@ where
                         traced = isolate
                             .answering_request()
                             .and_then(nvs_runtime::Inbound::trace_context);
-                        #[cfg(debug_assertions)]
-                        if chosen.is_some() {
-                            nvs_diagnostics::shared::wrote(
-                                nvs_diagnostics::shared::Line::Snapshot,
-                                2,
-                            );
-                        }
-                        ran_under.clone_from(&chosen);
                         // The body the program pulls, recorded under the gate
                         // of the snapshot it runs under, whose `[app.limits]`
                         // may set its own `request_body`.
                         if let (Some(supply), Some(trace)) = (supply.as_ref(), traced)
                             && input.is_some()
                             && let Some(store) =
-                                crate::spooled::door_store(chosen.as_ref().unwrap_or(&snapshot))
+                                crate::spooled::door_store(ran_under.as_ref().unwrap_or(snapshot))
                         {
                             supply.record(nvs_runtime::spool::Recorder::new(
                                 nvs_runtime::spool::BodyOf::Request,
@@ -2331,12 +2326,12 @@ where
                     // `[limits]` and every capability an entry asks for is this
                     // line: a context nobody configured states no ceiling and
                     // grants nothing.
-                    // Two clones of one snapshot: the one this future reads, and the
-                    // context's.
+                    // One clone of the snapshot, the context's. This future
+                    // borrows the one the request already has.
                     #[cfg(debug_assertions)]
-                    nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Snapshot, 4);
-                    let under = chosen.clone().unwrap_or_else(|| Arc::clone(&snapshot));
-                    ctx.borrow_mut().set_config(Arc::clone(&under));
+                    nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Snapshot, 2);
+                    let under = ran_under.as_ref().unwrap_or(snapshot);
+                    ctx.borrow_mut().set_config(Arc::clone(under));
                     // A statement of its own, because the borrow a `match`
                     // scrutinee takes lives to the end of the whole `match` — and
                     // the arm below borrows the same context again to collect.
@@ -2736,7 +2731,7 @@ where
             labelled.as_deref(),
             origin.client(),
             traced,
-            ran_under.as_ref().unwrap_or(&snapshot),
+            ran_under.as_ref().unwrap_or(snapshot),
             ending,
             input.take(),
         );

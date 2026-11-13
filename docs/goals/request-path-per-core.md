@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-host/src/counts.rs, crates/nvs-diagnostics/src/work.rs, crates/nvs-config/src/snapshot.rs, crates/nvs-cli/src/script.rs, docs/rules/testing/perf-two-mechanisms.md]
   - id: 2
     title: "the door reads the publish and the policy from its core's record"
-    status: open
+    status: done
     context: [crates/nvs-config/src/snapshot.rs, crates/nvs-config/src/limits.rs, crates/nvs-server/src/secure.rs, crates/nvs-cli/src/serve/mounts.rs, docs/rules/config/the-config-is-an-immutable-snapshot.md, docs/rules/security/no-cross-request-state.md]
   - id: 3
     title: "the handler reads its mount's snapshot, folder and unit from its core's record"
@@ -255,7 +255,8 @@ manifest names `ureq`, and the client is hand-written.
 **The measured count.** One keep-alive request to a compiled unit, with no `[[app]]` block and the
 shipped header set, makes **48** shared writes in debug, the same over 20 and over 40 requests.
 That is at least 28, so stages 2 and 3 are built. Once the door read its core's record, the
-`current-lock`, `policy-lock`, `publish` and `policy` lines fell to zero, and the guard's bound is 38
+`current-lock`, `policy-lock`, `publish` and `policy` lines fell to zero. Once the door borrowed the
+host's snapshot and moved the entry's, the `snapshot` line fell by 4, and the guard's bound is 34
 (`crates/nvs-cli/src/serve.rs`'s `SHARED_WRITES`).
 
 | line | writes | where |
@@ -354,7 +355,7 @@ count**).
 - [x] The `nvs serve` handler reads the host's snapshot and the publish from the record
   (`rule:config/the-config-is-an-immutable-snapshot`, `crates/nvs-cli/src/serve.rs:1124`, `:1184`,
   `:1188`).
-- [ ] The request's one snapshot reference moves through `chosen`, `ran_under`, `under` and
+- [x] The request's one snapshot reference moves through `chosen`, `ran_under`, `under` and
   `set_config` (`rule:security/no-cross-request-state`, `crates/nvs-server/src/serve.rs:2168`,
   `:2260`).
 - [x] Test `a_reload_between_two_requests_on_one_core_reaches_the_second` in
@@ -528,33 +529,31 @@ resolved cell, and keep a configured log file open.
 
 ### State
 
-Stages 1 and most of stage 2 are done. Each core builds an `OnCore` record in `serve_on_this_core`
-before it accepts: the publish, its generation, and the core's own `Policy`, with header values from
-`Secure::own` and `Cors::own`. `OnCore` holds the core's `Serving` clone too, so `serve_connection`
-takes `on_core` in place of `serving`. The door calls `OnCore::standing`, which loads the generation
-and replaces the record when it moved. `Serving::policy`, its lock and `published_of` are gone, and
-every handler takes `&Record` as its third argument. The `nvs serve` handler reads the host's
-snapshot and the publish from the record. A keep-alive request makes 38 counted shared writes, and
-`SHARED_WRITES` is 38. Both stage 2 tests pass, and build, clippy and fmt are green.
+Stages 1 and 2 are done. Each core keeps an `OnCore` record of the publish, its generation and its
+own `Policy`, and the door reads it through `OnCore::standing` with one generation load. The door
+now borrows `record.host()` and takes no snapshot reference of its own. The handler's `chosen`
+moves into `ran_under` before the run loop, and the loop borrows it as `under`. The one clone left
+is the context's, at `set_config`. A keep-alive request makes 34 counted shared writes, and
+`SHARED_WRITES` is 34. The `door-record` check passes, and build, clippy and fmt are green.
 
-The sweep's `env-secret-proofs` and the nightly Miri failures of run 43201099245 were stale again.
-No such check log exists, and that run tested `578534cc7c`, before `7568aaa0fb` skipped the four
-tests under Miri. A sweep that names them again needs no work.
+The sweep's `env-secret-proofs` and the nightly Miri failures of run 43201099245 were stale a third
+time. No such check log exists, and that run tested `578534cc7c`, before `7568aaa0fb` skipped the
+four tests under Miri. A sweep that names them again needs no work.
 
 ### Next
 
-Stage 2's last item, then stage 3. No test is expected red.
+Stage 3, in its items' order. No test is expected red.
 
-- `crates/nvs-server/src/serve.rs:1961` The door clones the host's snapshot once (`Line::Snapshot`,
-  2 writes) and `:2338` clones it or `chosen` again into `under` before `set_config`; `:2242` copies
-  `chosen` into `ran_under`. Make the request hold one reference: borrow `record.host()` where the
-  door only reads it (`door_store` at `:1968`, `:2739`), and move one `Arc` through `chosen`,
-  `ran_under`, `under` and `set_config`. Count the clone that stays, run the keep-alive test once,
-  and lower `SHARED_WRITES` to what it prints. Then tick the item and set stage 2 to done.
-- `crates/nvs-cli/src/serve/mounts.rs:177` Stage 3 starts with `Local::table` and the `Compiler`
-  epoch, as stage 3's items list them.
+- `crates/nvs-cli/src/script.rs:2026` `exclusive` becomes the one write guard that moves the
+  `Compiler` epoch. The stage's `**Split:**` Explore lists every `exclusive(` call first.
+- `crates/nvs-cli/src/serve/mounts.rs:177` `Local::table` and `Built` gain one slot per row, filled
+  by `Local::new` and each rebuild, as stage 3's third item says.
 
 ### Backlog
+
+- `spooled::door_store` clones the snapshot into a `nvs_config::Request` on every request, and no
+  counted line sees it (`crates/nvs-server/src/spooled.rs:200`). A borrowed read would remove two
+  shared writes.
 
 - The first log write of a request to a file target still writes on the core thread.
 - `trace::respond` builds the `traceresponse` value as a `String` and copies it

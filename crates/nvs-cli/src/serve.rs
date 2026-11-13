@@ -5415,11 +5415,12 @@ mod tests {
     #[cfg(debug_assertions)]
     const SHARED_SECOND: usize = 40;
 
-    /// How many shared writes one keep-alive request may make: 38 measured,
-    /// since the door reads its core's record. A change that removes a counted
-    /// site lowers this to what the test prints.
+    /// How many shared writes one keep-alive request may make: 34 measured,
+    /// since the door reads its core's record and the request holds one
+    /// snapshot reference. A change that removes a counted site lowers this to
+    /// what the test prints.
     #[cfg(debug_assertions)]
-    const SHARED_WRITES: u64 = 38;
+    const SHARED_WRITES: u64 = 34;
 
     /// An address on the loopback nothing is listening on, taken from the
     /// platform and given straight back so the boot under test is what binds it.
