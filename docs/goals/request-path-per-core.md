@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-config/src/limits.rs, crates/nvs-config/src/http.rs, crates/nvs-config/src/app.rs, crates/nvs-runtime/src/ctx/output.rs, crates/nvs-runtime/src/logfile.rs]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: shared-writes-counted
@@ -533,39 +533,32 @@ resolved cell, and keep a configured log file open.
 
 ### 7. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done. `limits::Resolved` (`crates/nvs-config/src/limits.rs:97`) holds the decoded
-CSRF key as `CsrfKey`, whose `Debug` prints `CsrfKey(..)`, `upload_total`, the `Disconnect` pair
-and `LogSink` with the log level and format. `Snapshot::csrf_key`, `upload_total`, `disconnect` and
-`log_sink` read it, and `Request::log_level` and `log_format` read it unless the overlay holds the
-key or flips the mode. The door, `Core\Csrf` and the disconnect read use the cell, and the door
-copies the key only for a form whose token is in its body. `LogFile::with_bounds` takes a `&Path`.
-`LogFile::held` opens a handle now, and `logfile::held_for` takes one per file target of a
-publish. `reload::Process::holding_logs` holds the boot's set, and each reload replaces it after
-the publish stands, opening the new set before it drops the old one. An entry folded on its first
-request after the publish has no held handle, and its first log write opens the file. Both stage
-tests pass, and build and clippy are green.
+Every stage is done, and the goal is reached. The gate's first verify found three rule chapters
+stale and `fuzz/Cargo.lock` missing `nvs-diagnostics`, both fixed. The second ran red under load
+alone: the Postgres test container went into recovery mode, which failed the two `[db]` tests of
+`crates/nvs-cli/src/runner.rs`, and `a_removed_module_under_a_mount_scan_answers_404` served the
+removed module for 30s. That test passed alone and with four `live_edit` binaries at once, and no
+path in `crates/nvs-cli/src/serve/mounts.rs` keeps a removed row. The third verify is green, and so
+are `bun nv verify --doc`, `bun nv owners --closes request-path-per-core` and `bun nv ci --check`,
+after the three `Core\Csrf` perf figures were recorded again. `Compiler::standing_unit` now says why
+a slot keeps no failure. If the scan test goes red again, read its server's stderr for a rescan line
+before calling it load.
 
-The sweep's `env-secret-proofs` and the nightly Miri failures of run 43201099245 were stale a seventh
-time. No such check log exists, and that run tested `578534cc7c`, before `7568aaa0fb` skipped the
-four tests under Miri. A sweep that names them again needs no work.
+The sweep's `env-secret-proofs` and the Miri failures of run 43201099245 were stale an eighth time,
+because `7568aaa0fb` already skips those tests under Miri.
 
 ### Next
 
-Stage 7, the gate. No test is expected red, but the stage 6 change of `LogFile::with_bounds` and of
-the log readers reaches every crate that logs.
-
-- `crates/nvs-config/src/limits.rs:97` run `looper verify` in the background, then fix every
-  failure in one pass.
-- `crates/nvs-runtime/src/logfile.rs:98` then the goal-end gates: `bun nv verify --doc`,
-  `bun nv owners --closes request-path-per-core` and `bun nv ci --check`.
+Nothing. The goal is reached, and the driver runs its acceptance checks and retires it. No test is
+expected red.
 
 ### Backlog
 
