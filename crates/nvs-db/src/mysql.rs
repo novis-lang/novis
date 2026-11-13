@@ -36,13 +36,16 @@
 //! first row, so a row can only be read against the definitions it belongs to —
 //! and the fifth column can only be found by decoding the four before it. That
 //! is why [`MySqlRow`] is decoded whole where [`crate::PgRow`] slices lazily:
-//! the walk is unavoidable, so keeping what it produced is free.
+//! the walk is unavoidable, so keeping what it produced is free. What it keeps
+//! is a number per fixed-width cell and a range of the packet per
+//! length-encoded one, so a text cell is copied once, into the Novis string
+//! ([`decode_row`] says why that walk is read by hand).
 //!
 //! The bitmap comes first, one bit per column, and it is offset by two bits
-//! because the server writes it — `mysql_common`'s `ServerSide` is that offset,
-//! and the same structure written by a *client* in `COM_STMT_EXECUTE` has no
-//! offset at all. The two are not interchangeable and a driver that used one
-//! for the other reads every row shifted by two columns.
+//! because the server writes it, and the same structure written by a *client*
+//! in `COM_STMT_EXECUTE` has no offset at all. The two are not interchangeable
+//! and a driver that used one for the other reads every row shifted by two
+//! columns.
 //!
 //! [`column_type`] is the other half: the type map, read off a column
 //! definition and never off a value. What it does *not* do is turn a value into
@@ -162,13 +165,13 @@ use mysql_common::constants::{
 use mysql_common::io::ParseBuf;
 use mysql_common::packets::{
     AuthMoreData, AuthPlugin, AuthSwitchRequest, Column, ComStmtExecuteRequestBuilder,
-    CommonOkPacket, ErrPacket, HandshakePacket, HandshakeResponse, LocalInfilePacket, NullBitmap,
+    CommonOkPacket, ErrPacket, HandshakePacket, HandshakeResponse, LocalInfilePacket,
     OkPacketDeserializer, ResultSetTerminator, SslRequest, StmtPacket,
 };
 use mysql_common::proto::codec::PacketCodec;
 use mysql_common::proto::codec::error::PacketCodecError;
 use mysql_common::proto::{MyDeserialize, MySerialize};
-use mysql_common::value::{BinValue, ServerSide, Value as MyValue, ValueDeserializer};
+use mysql_common::value::Value as MyValue;
 use nvs_config::tree::Database;
 use nvs_host::net::NvsTcp;
 #[cfg(unix)]
@@ -3147,14 +3150,19 @@ fn text_command<S: Read + Write>(
 /// decoding columns zero to four. Once that walk is unavoidable, keeping the
 /// results is free and re-walking per column is what would cost.
 ///
-/// The values are `mysql_common`'s own [`MyValue`], which is
-/// `rule:core-classes/db-crate-boundary`'s
-/// borrowed codec answering in its own vocabulary. [`scalar`] is what turns one
-/// into the Novis value `rule:core-classes/db-column-types`'s
-/// table names, against the column it belongs to — the boundary
-/// [`crate::PgColumn::decode`] sits on for the other driver.
+/// **The row keeps its packet, and a text cell is a range of it.** A
+/// `string`, `bytes`, `decimal` or JSON cell's octets stay where the wire put
+/// them until [`MySqlScalar::into_value`] copies them once, into the Novis
+/// string. Decoding a row allocates one vector of cells whatever its width,
+/// which is `rule:core-classes/db-crate-boundary`'s reason this walk is
+/// written here and not borrowed from `mysql_common`, whose `Value` owns a
+/// vector per text cell. [`scalar`] turns a cell into the Novis value
+/// `rule:core-classes/db-column-types`'s table names, against the column it
+/// belongs to — the boundary [`crate::PgColumn::decode`] sits on for the
+/// other driver.
 pub struct MySqlRow {
-    values: Vec<MyValue>,
+    packet: Vec<u8>,
+    cells: Vec<MySqlCell<Span>>,
 }
 
 impl std::fmt::Debug for MySqlRow {
@@ -3162,7 +3170,7 @@ impl std::fmt::Debug for MySqlRow {
     /// request's data — the rule [`Wire`]'s own rendering follows.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MySqlRow")
-            .field("columns", &self.values.len())
+            .field("columns", &self.cells.len())
             .finish_non_exhaustive()
     }
 }
@@ -3171,71 +3179,335 @@ impl MySqlRow {
     /// How many columns this row has, which is the result set's column count.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.values.len()
+        self.cells.len()
     }
 
     /// Whether the row has no columns at all.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.values.is_empty()
+        self.cells.is_empty()
     }
 
     /// Column `index`'s value, or `None` where the row has no such column.
     ///
-    /// SQL `NULL` is [`MyValue::NULL`] and not this `None`: the two are
+    /// SQL `NULL` is [`MySqlCell::Null`] and not this `None`: the two are
     /// different facts — a column that was null, and a column that was never
     /// described — and `rule:core-classes/db-column-types`'s `?T` is only the
-    /// first of them.
+    /// first of them. A `Bytes` cell borrows this row's packet.
     #[must_use]
-    pub fn value(&self, index: usize) -> Option<&MyValue> {
-        self.values.get(index)
+    pub fn value(&self, index: usize) -> Option<MySqlCell<&[u8]>> {
+        let cell = *self.cells.get(index)?;
+        // Every span was checked against this packet when the row was read, so
+        // the empty fallback is never taken.
+        Some(cell.map_bytes(|span| self.packet.get(span.start..span.end).unwrap_or_default()))
     }
+}
+
+/// Where one length-encoded value sits in its row's packet.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct Span {
+    start: usize,
+    end: usize,
+}
+
+/// One value of a binary row, in the shape the protocol sent it.
+///
+/// `B` is what a length-encoded value is: a [`Span`] inside [`MySqlRow`], and
+/// the octets themselves, borrowed from the packet, once
+/// [`MySqlRow::value`] hands the cell out. The variants are the ones
+/// `mysql_common`'s own `Value` has, so the binary layouts read the same; the
+/// integers are already under the signedness their column declared.
+#[derive(Clone, Copy, PartialEq)]
+pub enum MySqlCell<B> {
+    /// SQL `NULL`, which the row's bitmap says and no value carries.
+    Null,
+    /// A signed integer column, at any width.
+    Int(i64),
+    /// An `UNSIGNED` integer column, at any width: the type map's `uint` row.
+    UInt(u64),
+    /// A `FLOAT`'s four bytes.
+    Float(f32),
+    /// A `DOUBLE`'s eight bytes.
+    Double(f64),
+    /// A length-encoded value: text, octets, a decimal's digits, JSON, an
+    /// `ENUM`, a `SET` or a `BIT`.
+    Bytes(B),
+    /// `DATE`, `DATETIME` and `TIMESTAMP`: year, month, day, hour, minute,
+    /// second and microsecond, each zero where the server left it out.
+    Date(u16, u8, u8, u8, u8, u8, u32),
+    /// `TIME`: the sign, days, hours, minutes, seconds and microseconds.
+    Time(bool, u32, u8, u8, u8, u32),
+}
+
+impl<B> MySqlCell<B> {
+    /// The same cell with its length-encoded value put through `f`.
+    fn map_bytes<C>(self, f: impl FnOnce(B) -> C) -> MySqlCell<C> {
+        match self {
+            MySqlCell::Null => MySqlCell::Null,
+            MySqlCell::Int(number) => MySqlCell::Int(number),
+            MySqlCell::UInt(number) => MySqlCell::UInt(number),
+            MySqlCell::Float(number) => MySqlCell::Float(number),
+            MySqlCell::Double(number) => MySqlCell::Double(number),
+            MySqlCell::Bytes(body) => MySqlCell::Bytes(f(body)),
+            MySqlCell::Date(year, month, day, hour, minute, second, micros) => {
+                MySqlCell::Date(year, month, day, hour, minute, second, micros)
+            }
+            MySqlCell::Time(negative, days, hour, minute, second, micros) => {
+                MySqlCell::Time(negative, days, hour, minute, second, micros)
+            }
+        }
+    }
+}
+
+impl<B> std::fmt::Debug for MySqlCell<B> {
+    /// Which shape the cell has, and never its value, for the reason
+    /// [`MySqlRow`]'s own rendering gives.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            MySqlCell::Null => "Null",
+            MySqlCell::Int(_) => "Int",
+            MySqlCell::UInt(_) => "UInt",
+            MySqlCell::Float(_) => "Float",
+            MySqlCell::Double(_) => "Double",
+            MySqlCell::Bytes(_) => "Bytes",
+            MySqlCell::Date(..) => "Date",
+            MySqlCell::Time(..) => "Time",
+        })
+    }
+}
+
+/// A cursor over one row packet, for [`decode_row`]. Every read is checked
+/// against the packet's end, so a short packet is an error and never a panic.
+struct RowReader<'a> {
+    packet: &'a [u8],
+    at: usize,
+}
+
+impl RowReader<'_> {
+    /// The next `len` octets, as a span of the packet.
+    fn take(&mut self, len: usize) -> io::Result<Span> {
+        let end = self
+            .at
+            .checked_add(len)
+            .filter(|end| *end <= self.packet.len())
+            .ok_or_else(short_row)?;
+        let span = Span {
+            start: self.at,
+            end,
+        };
+        self.at = end;
+        Ok(span)
+    }
+
+    /// The next `N` octets, copied out: a fixed-width number's bytes.
+    fn array<const N: usize>(&mut self) -> io::Result<[u8; N]> {
+        let span = self.take(N)?;
+        self.packet
+            .get(span.start..span.end)
+            .and_then(|octets| <[u8; N]>::try_from(octets).ok())
+            .ok_or_else(short_row)
+    }
+
+    fn u8(&mut self) -> io::Result<u8> {
+        let [octet] = self.array()?;
+        Ok(octet)
+    }
+
+    /// A length-encoded integer. `0xFB` is the text protocol's `NULL` and
+    /// `0xFF` starts an error packet, so neither is a length in a binary row.
+    fn length(&mut self) -> io::Result<usize> {
+        let length = match self.u8()? {
+            short @ 0..=0xFA => u64::from(short),
+            0xFC => u64::from(u16::from_le_bytes(self.array()?)),
+            0xFD => {
+                let [a, b, c] = self.array()?;
+                u64::from(u32::from_le_bytes([a, b, c, 0]))
+            }
+            0xFE => u64::from_le_bytes(self.array()?),
+            0xFB | 0xFF => return Err(short_row()),
+        };
+        usize::try_from(length).map_err(|_| short_row())
+    }
+
+    /// A length-encoded value, as a span of the packet.
+    fn lenenc(&mut self) -> io::Result<Span> {
+        let length = self.length()?;
+        self.take(length)
+    }
+
+    /// A `DATE`, `DATETIME` or `TIMESTAMP`: a length of 0, 4, 7 or 11, and then
+    /// that many octets of the fields in order.
+    fn date(&mut self, column: &Column) -> io::Result<MySqlCell<Span>> {
+        let length = self.u8()?;
+        if !matches!(length, 0 | 4 | 7 | 11) {
+            return Err(malformed(column, "a binary date of 0, 4, 7 or 11 octets"));
+        }
+        let (mut year, mut month, mut day) = (0, 0, 0);
+        let (mut hour, mut minute, mut second, mut micros) = (0, 0, 0, 0);
+        if length >= 4 {
+            year = u16::from_le_bytes(self.array()?);
+            month = self.u8()?;
+            day = self.u8()?;
+        }
+        if length >= 7 {
+            hour = self.u8()?;
+            minute = self.u8()?;
+            second = self.u8()?;
+        }
+        if length == 11 {
+            micros = u32::from_le_bytes(self.array()?);
+        }
+        Ok(MySqlCell::Date(
+            year, month, day, hour, minute, second, micros,
+        ))
+    }
+
+    /// A `TIME`: a length of 0, 8 or 12, and then the sign, the days and the
+    /// clock fields.
+    fn time(&mut self, column: &Column) -> io::Result<MySqlCell<Span>> {
+        let length = self.u8()?;
+        if !matches!(length, 0 | 8 | 12) {
+            return Err(malformed(column, "a binary time of 0, 8 or 12 octets"));
+        }
+        let (mut negative, mut days) = (false, 0);
+        let (mut hour, mut minute, mut second, mut micros) = (0, 0, 0, 0);
+        if length >= 8 {
+            negative = self.u8()? == 1;
+            days = u32::from_le_bytes(self.array()?);
+            hour = self.u8()?;
+            minute = self.u8()?;
+            second = self.u8()?;
+        }
+        if length == 12 {
+            micros = u32::from_le_bytes(self.array()?);
+        }
+        Ok(MySqlCell::Time(
+            negative, days, hour, minute, second, micros,
+        ))
+    }
+}
+
+/// The error for a row packet that ends before its columns do.
+fn short_row() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "a binary row packet ended before the values its columns describe",
+    )
 }
 
 /// Decodes one binary row packet against the definitions it belongs to.
 ///
-/// The walk `mysql_common`'s own `RowDeserializer` performs, written out here
-/// for one reason: **that deserializer cannot represent the `uint` row of
-/// `rule:core-classes/db-column-types`.** Its
-/// integer path reads the right width and the right signedness and then packs
-/// every result into `Value::Int(x as i64)`, so a `BIGINT UNSIGNED` past
-/// `i64::MAX` — the half of that range the type map names `uint` precisely because PHP
-/// loses it to a float — comes back negative. The bits survive the cast, so the
-/// fix is to put them back under the type the column declared, and doing it
-/// here is what keeps [`MySqlRows::column_type`] and [`MySqlRow::value`]
-/// agreeing: a column that describes as `uint` yields a `UInt`, with no
-/// reinterpretation left for a caller to remember.
+/// Read by hand, for two reasons `mysql_common`'s own `RowDeserializer` cannot
+/// meet (`rule:packaging/somebody-elses-specification-is-a-crate` asks for them
+/// in writing, and that rule's fragment has them):
+///
+/// - **One copy per text cell.** Its `Value::Bytes` owns a vector, so a text
+///   cell was allocated and copied here and then copied again into the Novis
+///   string. A [`Span`] costs nothing, and the row allocates one vector of
+///   cells whatever its width.
+/// - **The `uint` row of `rule:core-classes/db-column-types`.** Its integer
+///   path packs an unsigned result into `Value::Int(x as i64)`, so a
+///   `BIGINT UNSIGNED` past `i64::MAX` comes back negative. Here an `UNSIGNED`
+///   column is read as a `u64` at every width, which keeps
+///   [`MySqlRows::column_type`] and [`MySqlRow::value`] agreeing.
+///
+/// The layouts are the protocol's: a header octet, the null bitmap offset by
+/// two bits, and then each value that is not null, at the width its column's
+/// declared type gives. A type code this reader does not know is an error
+/// naming the column, where `mysql_common` panics.
 ///
 /// # Errors
 ///
 /// `InvalidData` for a row whose bitmap or values do not add up against the
 /// definitions — a packet that is not the row those columns describe.
-fn decode_row(columns: &[Column], packet: &[u8]) -> io::Result<MySqlRow> {
-    let mut buf = ParseBuf(packet);
+fn decode_row(columns: &[Column], packet: Vec<u8>) -> io::Result<MySqlRow> {
+    // The server's bitmap starts two bits in: the offset `mysql_common` calls
+    // `ServerSide`. A client's bitmap in `COM_STMT_EXECUTE` has none.
+    const BITMAP_OFFSET: usize = 2;
+    let mut reader = RowReader {
+        packet: &packet,
+        at: 0,
+    };
     // The `0x00` that said this is a row rather than the end of the stream.
-    buf.checked_eat_u8();
-    let bitmap =
-        NullBitmap::<ServerSide, std::borrow::Cow<'_, [u8]>>::deserialize(columns.len(), &mut buf)?;
+    reader.u8()?;
+    let bitmap = reader.take((columns.len() + 7 + BITMAP_OFFSET) / 8)?;
 
-    let mut values = Vec::with_capacity(columns.len());
+    let mut cells = Vec::with_capacity(columns.len());
     for (index, column) in columns.iter().enumerate() {
-        if bitmap.is_null(index) {
-            values.push(MyValue::NULL);
+        let bit = index + BITMAP_OFFSET;
+        let null = packet
+            .get(bitmap.start + bit / 8)
+            .is_some_and(|octet| octet & (1 << (bit % 8)) != 0);
+        if null {
+            cells.push(MySqlCell::Null);
             continue;
         }
-        let value = ValueDeserializer::<BinValue>::deserialize(
-            (column.column_type(), column.flags()),
-            &mut buf,
-        )?
-        .0;
-        values.push(match value {
-            MyValue::Int(bits) if column_type(column) == ColumnType::Uint => {
-                MyValue::UInt(bits.cast_unsigned())
+        let unsigned = column.flags().contains(ColumnFlags::UNSIGNED_FLAG);
+        let cell = match column.column_type() {
+            MyColumnType::MYSQL_TYPE_STRING
+            | MyColumnType::MYSQL_TYPE_VAR_STRING
+            | MyColumnType::MYSQL_TYPE_BLOB
+            | MyColumnType::MYSQL_TYPE_TINY_BLOB
+            | MyColumnType::MYSQL_TYPE_MEDIUM_BLOB
+            | MyColumnType::MYSQL_TYPE_LONG_BLOB
+            | MyColumnType::MYSQL_TYPE_SET
+            | MyColumnType::MYSQL_TYPE_ENUM
+            | MyColumnType::MYSQL_TYPE_DECIMAL
+            | MyColumnType::MYSQL_TYPE_VARCHAR
+            | MyColumnType::MYSQL_TYPE_BIT
+            | MyColumnType::MYSQL_TYPE_NEWDECIMAL
+            | MyColumnType::MYSQL_TYPE_GEOMETRY
+            | MyColumnType::MYSQL_TYPE_VECTOR
+            | MyColumnType::MYSQL_TYPE_JSON => MySqlCell::Bytes(reader.lenenc()?),
+            MyColumnType::MYSQL_TYPE_TINY => {
+                let octets = reader.array::<1>()?;
+                if unsigned {
+                    MySqlCell::UInt(u64::from(u8::from_le_bytes(octets)))
+                } else {
+                    MySqlCell::Int(i64::from(i8::from_le_bytes(octets)))
+                }
             }
-            other => other,
-        });
+            MyColumnType::MYSQL_TYPE_SHORT | MyColumnType::MYSQL_TYPE_YEAR => {
+                let octets = reader.array::<2>()?;
+                if unsigned {
+                    MySqlCell::UInt(u64::from(u16::from_le_bytes(octets)))
+                } else {
+                    MySqlCell::Int(i64::from(i16::from_le_bytes(octets)))
+                }
+            }
+            MyColumnType::MYSQL_TYPE_LONG | MyColumnType::MYSQL_TYPE_INT24 => {
+                let octets = reader.array::<4>()?;
+                if unsigned {
+                    MySqlCell::UInt(u64::from(u32::from_le_bytes(octets)))
+                } else {
+                    MySqlCell::Int(i64::from(i32::from_le_bytes(octets)))
+                }
+            }
+            MyColumnType::MYSQL_TYPE_LONGLONG => {
+                let octets = reader.array::<8>()?;
+                if unsigned {
+                    MySqlCell::UInt(u64::from_le_bytes(octets))
+                } else {
+                    MySqlCell::Int(i64::from_le_bytes(octets))
+                }
+            }
+            MyColumnType::MYSQL_TYPE_FLOAT => MySqlCell::Float(f32::from_le_bytes(reader.array()?)),
+            MyColumnType::MYSQL_TYPE_DOUBLE => {
+                MySqlCell::Double(f64::from_le_bytes(reader.array()?))
+            }
+            MyColumnType::MYSQL_TYPE_TIMESTAMP
+            | MyColumnType::MYSQL_TYPE_DATE
+            | MyColumnType::MYSQL_TYPE_NEWDATE
+            | MyColumnType::MYSQL_TYPE_DATETIME => reader.date(column)?,
+            MyColumnType::MYSQL_TYPE_TIME => reader.time(column)?,
+            MyColumnType::MYSQL_TYPE_NULL => MySqlCell::Null,
+            // The `2` codes are the server's storage formats and never reach a
+            // client, and a code past these is one this reader has no width for.
+            _ => return Err(malformed(column, "a type code a binary row may carry")),
+        };
+        cells.push(cell);
     }
-    Ok(MySqlRow { values })
+    Ok(MySqlRow { packet, cells })
 }
 
 /// A calendar date, in the fields the server sent and no further.
@@ -3493,7 +3765,7 @@ pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
 /// # Errors
 ///
 /// As [`scalar`].
-pub fn decode(column: &Column, value: &MyValue) -> io::Result<Option<Value>> {
+pub fn decode(column: &Column, value: MySqlCell<&[u8]>) -> io::Result<Option<Value>> {
     Ok(scalar(column, value)?.into_value())
 }
 
@@ -3506,7 +3778,7 @@ pub fn decode(column: &Column, value: &MyValue) -> io::Result<Option<Value>> {
 ///
 /// **The column decides the row and the value only fills it in**, which is why
 /// this takes both and why [`column_type`] is the match's subject: a `BIT(1)`
-/// and a `BIT(8)` arrive as the same [`MyValue::Bytes`] and the type map sends them to
+/// and a `BIT(8)` arrive as the same [`MySqlCell::Bytes`] and the type map sends them to
 /// different rows, exactly as `ENUM` and `SET` do. The one thing read off the
 /// value instead is `NULL`, which every column type may be.
 ///
@@ -3520,46 +3792,45 @@ pub fn decode(column: &Column, value: &MyValue) -> io::Result<Option<Value>> {
 /// send the row those definitions describe. Every such message names the
 /// column and its type and **never the value**, for the reason
 /// [`crate::PgColumn::decode`] gives.
-pub fn scalar<'a>(column: &Column, value: &'a MyValue) -> io::Result<MySqlScalar<'a>> {
+pub fn scalar<'a>(column: &Column, value: MySqlCell<&'a [u8]>) -> io::Result<MySqlScalar<'a>> {
     Ok(match (column_type(column), value) {
         // Asked first and off the value, because the type map's `?T` is every row's
         // and a column that was null says nothing about its type.
-        (_, MyValue::NULL) => MySqlScalar::Null,
-        (ColumnType::Int, MyValue::Int(number)) => MySqlScalar::Int(*number),
-        // A `uint` column's value is put back under its declared type in
-        // `decode_row`, which is where that rule lives and why this arm sees a
-        // `UInt` at all.
-        (ColumnType::Uint, MyValue::UInt(number)) => MySqlScalar::UInt(*number),
-        (ColumnType::Float, MyValue::Float(number)) => MySqlScalar::Float(widened(*number)),
-        (ColumnType::Float, MyValue::Double(number)) => MySqlScalar::Float(*number),
-        (ColumnType::Decimal, MyValue::Bytes(digits)) => {
+        (_, MySqlCell::Null) => MySqlScalar::Null,
+        (ColumnType::Int, MySqlCell::Int(number)) => MySqlScalar::Int(number),
+        // `decode_row` reads an `UNSIGNED` column as a `u64` at every width,
+        // which is where that rule lives and why this arm sees a `UInt` at all.
+        (ColumnType::Uint, MySqlCell::UInt(number)) => MySqlScalar::UInt(number),
+        (ColumnType::Float, MySqlCell::Float(number)) => MySqlScalar::Float(widened(number)),
+        (ColumnType::Float, MySqlCell::Double(number)) => MySqlScalar::Float(number),
+        (ColumnType::Decimal, MySqlCell::Bytes(digits)) => {
             MySqlScalar::Decimal(decimal(column, text(column, digits)?)?)
         }
         // The type map's `BIT(1)` row: one octet, and the width is what said this
         // column was a `bool` at all.
-        (ColumnType::Bool, MyValue::Bytes(bits)) => MySqlScalar::Bool(match bits.as_slice() {
+        (ColumnType::Bool, MySqlCell::Bytes(bits)) => MySqlScalar::Bool(match bits {
             [0] => false,
             [1] => true,
             _ => return Err(malformed(column, "a one-bit string")),
         }),
         // The type map keeps JSON at `tainted string`: it is never auto-decoded, and
         // `Core\Json::decode` is one honest call.
-        (ColumnType::Text | ColumnType::Json, MyValue::Bytes(body)) => {
+        (ColumnType::Text | ColumnType::Json, MySqlCell::Bytes(body)) => {
             MySqlScalar::Text(text(column, body)?)
         }
-        (ColumnType::Bytes, MyValue::Bytes(body)) => MySqlScalar::Bytes(body),
-        (ColumnType::Date, MyValue::Date(year, month, day, ..)) => {
-            MySqlScalar::Date(civil_date(*year, *month, *day))
+        (ColumnType::Bytes, MySqlCell::Bytes(body)) => MySqlScalar::Bytes(body),
+        (ColumnType::Date, MySqlCell::Date(year, month, day, ..)) => {
+            MySqlScalar::Date(civil_date(year, month, day))
         }
-        (ColumnType::DateTime, MyValue::Date(year, month, day, hour, minute, second, micros)) => {
+        (ColumnType::DateTime, MySqlCell::Date(year, month, day, hour, minute, second, micros)) => {
             MySqlScalar::DateTime {
-                date: civil_date(*year, *month, *day),
-                time: civil_time(*hour, *minute, *second, *micros),
+                date: civil_date(year, month, day),
+                time: civil_time(hour, minute, second, micros),
             }
         }
-        (ColumnType::Time, MyValue::Time(negative, days, hour, minute, second, micros)) => {
+        (ColumnType::Time, MySqlCell::Time(negative, days, hour, minute, second, micros)) => {
             MySqlScalar::Time(time_of_day(
-                column, *negative, *days, *hour, *minute, *second, *micros,
+                column, negative, days, hour, minute, second, micros,
             )?)
         }
         // The type map's last row, which on this protocol is two rows and not
@@ -3569,7 +3840,7 @@ pub fn scalar<'a>(column: &Column, value: &'a MyValue) -> io::Result<MySqlScalar
         // `TEXT` one arm up. The type map words that row as `tainted string`
         // because PostgreSQL's server renders every one of them as text before
         // it reaches a driver.
-        (ColumnType::Other, MyValue::Bytes(body)) => {
+        (ColumnType::Other, MySqlCell::Bytes(body)) => {
             if column.character_set() == BINARY_CHARSET {
                 MySqlScalar::Bytes(body)
             } else {
@@ -3938,10 +4209,10 @@ pub(crate) fn next_row_of<S: Read + Write>(
         Ok(packet) => packet,
         Err(e) => return Err(poison_on_write(state, e)),
     };
-    match packet.first() {
+    match packet.first().copied() {
         Some(0x00) => {
             let row =
-                decode_row(&reading.columns, &packet).map_err(|e| poison_on_write(state, e))?;
+                decode_row(&reading.columns, packet).map_err(|e| poison_on_write(state, e))?;
             reading.rows += 1;
             reading.span.row();
             Ok(Some(row))
@@ -4317,7 +4588,7 @@ mod tests {
 
     use super::{
         AuthContext, Backend, CLIENT_CAPABILITIES, COLLATION, COM_QUERY, DbErrorKind, Greeting,
-        Login, MYSQL, MySqlTarget, MyValue, NvsStr, Prepared, REQUIRED_CAPABILITIES, ServerError,
+        Login, MYSQL, MySqlCell, MySqlTarget, NvsStr, Prepared, REQUIRED_CAPABILITIES, ServerError,
         State, Value, Wire, authenticate, begin, column_type, commit, encode, execute,
         execute_many, kind_of, next_row_of, offset_literal, open_result, plugin_or_refuse,
         read_greeting, read_ok, request_tls, roll_back, scalar, server_refusal, start_statement,
@@ -6025,13 +6296,13 @@ mod tests {
             assert_eq!(row.len(), 3);
             assert_eq!(
                 row.value(0),
-                Some(&MyValue::UInt(42)),
+                Some(MySqlCell::UInt(42)),
                 "an `UNSIGNED BIGINT` is the type map's `uint` row, and the flag is what says so"
             );
-            assert_eq!(row.value(1), Some(&MyValue::Bytes(b"ada".to_vec())));
+            assert_eq!(row.value(1), Some(MySqlCell::Bytes(b"ada".as_slice())));
             assert_eq!(
                 row.value(2),
-                Some(&MyValue::NULL),
+                Some(MySqlCell::Null),
                 "the bitmap's set bit is the third column's, not the first's"
             );
 
@@ -6115,12 +6386,12 @@ mod tests {
 
         let mut read = Vec::new();
         while let Some(row) = rows.next_row().expect("a row or the end of the stream") {
-            read.push(row.value(0).cloned().expect("a row of one column"));
+            read.push(row.value(0).map(owned).expect("a row of one column"));
         }
 
         assert_eq!(
             read,
-            [MyValue::UInt(last), MyValue::UInt(first)],
+            [MySqlCell::UInt(last), MySqlCell::UInt(first)],
             "the first of these is past `i64::MAX`, and a driver that packed it into \
              an `int` answers a negative number for a column the type map makes a `uint`"
         );
@@ -6517,8 +6788,8 @@ mod tests {
     fn every_column_of_9s_type_map_decodes_to_the_row_its_description_names() {
         let binary = super::BINARY_CHARSET;
         let utf8 = u16::from(COLLATION);
-        let midday = MyValue::Date(2026, 9, 2, 12, 30, 15, 250_000);
-        let table: Vec<(&str, Column, MyValue)> = vec![
+        let midday = MySqlCell::Date(2026, 9, 2, 12, 30, 15, 250_000);
+        let table: Vec<(&str, Column, MySqlCell<&[u8]>)> = vec![
             (
                 "int",
                 column_of(
@@ -6528,7 +6799,7 @@ mod tests {
                     binary,
                     11,
                 ),
-                MyValue::Int(-7),
+                MySqlCell::Int(-7),
             ),
             (
                 "year",
@@ -6539,7 +6810,7 @@ mod tests {
                     binary,
                     4,
                 ),
-                MyValue::Int(2026),
+                MySqlCell::Int(2026),
             ),
             (
                 "bigint unsigned",
@@ -6550,7 +6821,7 @@ mod tests {
                     binary,
                     20,
                 ),
-                MyValue::UInt(u64::MAX),
+                MySqlCell::UInt(u64::MAX),
             ),
             (
                 "float",
@@ -6561,7 +6832,7 @@ mod tests {
                     binary,
                     12,
                 ),
-                MyValue::Float(0.5),
+                MySqlCell::Float(0.5),
             ),
             (
                 "double",
@@ -6572,7 +6843,7 @@ mod tests {
                     binary,
                     22,
                 ),
-                MyValue::Double(0.5),
+                MySqlCell::Double(0.5),
             ),
             (
                 "decimal",
@@ -6583,7 +6854,7 @@ mod tests {
                     binary,
                     12,
                 ),
-                MyValue::Bytes(b"12.34".to_vec()),
+                MySqlCell::Bytes(b"12.34".as_slice()),
             ),
             (
                 "bit(1)",
@@ -6594,7 +6865,7 @@ mod tests {
                     binary,
                     1,
                 ),
-                MyValue::Bytes(vec![0x01]),
+                MySqlCell::Bytes([0x01].as_slice()),
             ),
             (
                 "varchar",
@@ -6605,7 +6876,7 @@ mod tests {
                     utf8,
                     255,
                 ),
-                MyValue::Bytes(b"ada".to_vec()),
+                MySqlCell::Bytes(b"ada".as_slice()),
             ),
             (
                 "enum",
@@ -6616,7 +6887,7 @@ mod tests {
                     utf8,
                     16,
                 ),
-                MyValue::Bytes(b"green".to_vec()),
+                MySqlCell::Bytes(b"green".as_slice()),
             ),
             (
                 "set",
@@ -6627,7 +6898,7 @@ mod tests {
                     utf8,
                     16,
                 ),
-                MyValue::Bytes(b"red,green".to_vec()),
+                MySqlCell::Bytes(b"red,green".as_slice()),
             ),
             (
                 "blob",
@@ -6638,7 +6909,7 @@ mod tests {
                     binary,
                     65535,
                 ),
-                MyValue::Bytes(vec![0xFF, 0x00]),
+                MySqlCell::Bytes([0xFF, 0x00].as_slice()),
             ),
             (
                 "bit(8)",
@@ -6649,7 +6920,7 @@ mod tests {
                     binary,
                     8,
                 ),
-                MyValue::Bytes(vec![0xFF]),
+                MySqlCell::Bytes([0xFF].as_slice()),
             ),
             (
                 "json",
@@ -6660,7 +6931,7 @@ mod tests {
                     binary,
                     4096,
                 ),
-                MyValue::Bytes(br#"{"a":1}"#.to_vec()),
+                MySqlCell::Bytes(br#"{"a":1}"#.as_slice()),
             ),
             (
                 "date",
@@ -6671,7 +6942,7 @@ mod tests {
                     binary,
                     10,
                 ),
-                MyValue::Date(2026, 9, 2, 0, 0, 0, 0),
+                MySqlCell::Date(2026, 9, 2, 0, 0, 0, 0),
             ),
             (
                 "datetime",
@@ -6682,7 +6953,7 @@ mod tests {
                     binary,
                     19,
                 ),
-                midday.clone(),
+                midday,
             ),
             (
                 "timestamp",
@@ -6704,7 +6975,7 @@ mod tests {
                     binary,
                     10,
                 ),
-                MyValue::Time(false, 0, 23, 59, 59, 999_999),
+                MySqlCell::Time(false, 0, 23, 59, 59, 999_999),
             ),
             (
                 "null",
@@ -6715,14 +6986,14 @@ mod tests {
                     binary,
                     11,
                 ),
-                MyValue::NULL,
+                MySqlCell::Null,
             ),
         ];
 
         let read: Vec<(&str, NovisType, String)> = table
             .iter()
             .map(|(label, column, value)| {
-                let scalar = scalar(column, value).expect("a value its column describes");
+                let scalar = scalar(column, *value).expect("a value its column describes");
                 (*label, column_type(column), format!("{scalar:?}"))
             })
             .collect();
@@ -6789,7 +7060,7 @@ mod tests {
                     binary,
                     10,
                 ),
-                MyValue::Date(2026, 9, 2, 0, 0, 0, 0),
+                MySqlCell::Date(2026, 9, 2, 0, 0, 0, 0),
             ),
             (
                 column_of(
@@ -6799,7 +7070,7 @@ mod tests {
                     binary,
                     10,
                 ),
-                MyValue::Time(false, 0, 1, 2, 3, 0),
+                MySqlCell::Time(false, 0, 1, 2, 3, 0),
             ),
             (
                 column_of(
@@ -6809,11 +7080,11 @@ mod tests {
                     binary,
                     19,
                 ),
-                MyValue::Date(2026, 9, 2, 12, 30, 15, 0),
+                MySqlCell::Date(2026, 9, 2, 12, 30, 15, 0),
             ),
         ];
         for (column, value) in &structured {
-            let scalar = scalar(column, value).expect("a value its column describes");
+            let scalar = scalar(column, *value).expect("a value its column describes");
             assert!(
                 scalar.into_value().is_none(),
                 "a class instance is `nvs-stdlib`'s to build"
@@ -6827,15 +7098,153 @@ mod tests {
             binary,
             11,
         );
-        for value in [MyValue::Int(7), MyValue::NULL] {
+        for value in [MySqlCell::Int(7), MySqlCell::Null] {
             assert!(
-                scalar(&int, &value)
+                scalar(&int, value)
                     .expect("a value its column describes")
                     .into_value()
                     .is_some(),
                 "a scalar row is a value this crate mints itself"
             );
         }
+    }
+
+    /// A binary row packet of `cells`, each a length-encoded value or `None`
+    /// for a `NULL`, under the server's bitmap.
+    fn row_packet(cells: &[Option<&[u8]>]) -> Vec<u8> {
+        let mut bitmap = vec![0_u8; (cells.len() + 9) / 8];
+        let mut values = Vec::new();
+        for (index, cell) in cells.iter().enumerate() {
+            match cell {
+                None => {
+                    let bit = index + 2;
+                    if let Some(octet) = bitmap.get_mut(bit / 8) {
+                        *octet |= 1 << (bit % 8);
+                    }
+                }
+                Some(body) => {
+                    values.push(u8::try_from(body.len()).expect("a short cell"));
+                    values.extend_from_slice(body);
+                }
+            }
+        }
+        let mut packet = vec![0x00];
+        packet.extend_from_slice(&bitmap);
+        packet.extend_from_slice(&values);
+        packet
+    }
+
+    /// A text, JSON or bytes cell is a slice of the packet the row came in, so
+    /// the one copy left is the one into the Novis string.
+    ///
+    /// The pointer check is the assertion: a decoder that copied a cell into a
+    /// vector of its own would hand back the same octets from somewhere else.
+    #[test]
+    fn a_mysql_text_cell_is_read_in_place_from_its_packet() {
+        let binary = super::BINARY_CHARSET;
+        let utf8 = u16::from(COLLATION);
+        let columns = [
+            column_of(
+                "name",
+                ColumnType::MYSQL_TYPE_VAR_STRING,
+                ColumnFlags::empty(),
+                utf8,
+                40,
+            ),
+            column_of(
+                "doc",
+                ColumnType::MYSQL_TYPE_JSON,
+                ColumnFlags::empty(),
+                utf8,
+                40,
+            ),
+            column_of(
+                "blob",
+                ColumnType::MYSQL_TYPE_BLOB,
+                ColumnFlags::BINARY_FLAG,
+                binary,
+                40,
+            ),
+            column_of(
+                "note",
+                ColumnType::MYSQL_TYPE_VAR_STRING,
+                ColumnFlags::empty(),
+                utf8,
+                40,
+            ),
+            column_of(
+                "set",
+                ColumnType::MYSQL_TYPE_STRING,
+                ColumnFlags::SET_FLAG,
+                utf8,
+                40,
+            ),
+        ];
+        let packet = row_packet(&[
+            Some(b"ada"),
+            Some(br#"{"a":1}"#),
+            Some(&[0xFF, 0x00]),
+            None,
+            Some(b"red,green"),
+        ]);
+        let row = super::decode_row(&columns, packet).expect("a row its columns describe");
+        let inside = row.packet.as_ptr_range();
+
+        let mut borrowed = 0;
+        for (index, column) in columns.iter().enumerate() {
+            let cell = row.value(index).expect("a column the row has");
+            let octets = match scalar(column, cell).expect("a value its column describes") {
+                super::MySqlScalar::Text(text) => text.as_bytes(),
+                super::MySqlScalar::Bytes(octets) => octets,
+                super::MySqlScalar::Null => continue,
+                other => panic!("column {index} read as {other:?}"),
+            };
+            let range = octets.as_ptr_range();
+            assert!(
+                inside.start <= range.start && range.end <= inside.end,
+                "column {index}'s octets are not inside the row's packet"
+            );
+            borrowed += 1;
+        }
+        assert_eq!(borrowed, 4, "four cells have octets and one is null");
+    }
+
+    /// Decoding a row allocates one vector of cells, so a row of sixty-four
+    /// text cells costs what a row of four does. The packet is built before
+    /// the count starts, because the wire allocated it already.
+    #[test]
+    fn a_mysql_row_allocates_the_same_at_four_and_at_sixty_four_text_cells() {
+        let column = column_of(
+            "cell",
+            ColumnType::MYSQL_TYPE_VAR_STRING,
+            ColumnFlags::empty(),
+            u16::from(COLLATION),
+            40,
+        );
+        let counted = |width: usize| {
+            let columns = vec![column.clone(); width];
+            let packet = row_packet(&vec![Some(b"a text cell".as_slice()); width]);
+            let before = nvs_runtime::budget::allocations();
+            let row = super::decode_row(&columns, packet).expect("a row its columns describe");
+            for (index, column) in columns.iter().enumerate() {
+                let cell = row.value(index).expect("a column the row has");
+                assert!(matches!(
+                    scalar(column, cell).expect("a value its column describes"),
+                    super::MySqlScalar::Text("a text cell")
+                ));
+            }
+            let made = nvs_runtime::budget::allocations() - before;
+            drop(row);
+            made
+        };
+
+        let narrow = counted(4);
+        let wide = counted(64);
+        assert!(narrow > 0, "the counter is live in this test binary");
+        assert_eq!(
+            narrow, wide,
+            "a row allocates the same whatever its width: {narrow} at four cells, {wide} at sixty-four"
+        );
     }
 
     /// A bound parameter renders as *this* server reads it, and the rows where
@@ -6913,15 +7322,15 @@ mod tests {
             10,
         );
 
-        let last = scalar(&column, &MyValue::Time(false, 0, 23, 59, 59, 999_999))
+        let last = scalar(&column, MySqlCell::Time(false, 0, 23, 59, 59, 999_999))
             .expect("the last value that is a time of day");
         assert_eq!(format!("{last:?}"), "time");
 
         for outside in [
-            MyValue::Time(false, 1, 0, 0, 0, 0),
-            MyValue::Time(true, 0, 1, 0, 0, 0),
+            MySqlCell::Time(false, 1, 0, 0, 0, 0),
+            MySqlCell::Time(true, 0, 1, 0, 0, 0),
         ] {
-            let refused = scalar(&column, &outside).expect_err("a value with no time of day in it");
+            let refused = scalar(&column, outside).expect_err("a value with no time of day in it");
             assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
             let message = refused.to_string();
             assert!(
@@ -7037,11 +7446,17 @@ mod tests {
         }
     }
 
+    /// A cell with its octets copied out, so it can outlive the row it was
+    /// read from.
+    fn owned(cell: MySqlCell<&[u8]>) -> MySqlCell<Vec<u8>> {
+        cell.map_bytes(<[u8]>::to_vec)
+    }
+
     /// The two rows [`two_rows`] holds, as a walk over it hands them back.
-    fn walked() -> Vec<Option<MyValue>> {
+    fn walked() -> Vec<Option<MySqlCell<Vec<u8>>>> {
         vec![
-            Some(MyValue::Bytes(b"a".to_vec())),
-            Some(MyValue::Bytes(b"b".to_vec())),
+            Some(MySqlCell::Bytes(b"a".to_vec())),
+            Some(MySqlCell::Bytes(b"b".to_vec())),
         ]
     }
 
@@ -7084,7 +7499,7 @@ mod tests {
             // `rule:core-classes/db-streaming`'s constant memory means and why the connection is
             // busy between the steps.
             assert_eq!(state.get(), State::Streaming);
-            seen.push(row.value(0).cloned());
+            seen.push(row.value(0).map(owned));
         }
 
         assert_eq!(seen, walked());
@@ -7128,7 +7543,7 @@ mod tests {
         while let Some(row) =
             next_row_of(&mut wire, &state, &mut reading).expect("the walk advanced")
         {
-            seen.push(row.value(0).cloned());
+            seen.push(row.value(0).map(owned));
         }
 
         assert_eq!(seen, walked());

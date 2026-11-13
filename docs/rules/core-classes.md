@@ -2665,10 +2665,18 @@ matrix at all.
 | Driver | Borrowed codec | Written here |
 |---|---|---|
 | PostgreSQL | `postgres-protocol`, `postgres-types` | startup, SASL, the extended-query state machine, the reset |
-| MySQL | `mysql_common` | handshake and auth sequencing, `COM_STMT_*` sequencing, the `LOCAL INFILE` refusal |
+| MySQL | `mysql_common` | handshake and auth sequencing, `COM_STMT_*` sequencing, the `LOCAL INFILE` refusal, the binary row's values |
 | MariaDB | `mysql_common`, with its own auth plugins and error table | the same, plus `RETURNING` |
 | SQL Server | none | all of TDS 7.4 |
 | SQLite | `rusqlite` | nothing on a wire |
+
+**The MySQL binary row's values are read here, though they are codec work.** A row is the one
+message read once per row rather than once per statement, so its cost is the request path's.
+`mysql_common`'s row reader owns a vector per text cell, and the driver's reader keeps the packet and
+a range per cell, so a text, bytes, decimal or JSON cell is copied once, into the Novis string. Its
+argument is written in [`packaging/somebody-elses-specification-is-a-crate`](packaging.md#packaging-somebody-elses-specification-is-a-crate). **What it spends:**
+about 150 owned lines of parser, and the packet stays alive as long as its row, which the copy it
+replaces already did. It saves one allocation and one copy per such cell.
 
 SQLite has no wire: it is a C library doing synchronous file I/O, and it cannot park, so each call
 goes to the host's blocking pool. A `Core` member either parks on readiness or hands the core to that
