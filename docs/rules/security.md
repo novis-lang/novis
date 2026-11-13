@@ -2343,8 +2343,9 @@ is closed, and a driver with no reset primitive is not poolable at all.
 
 What the reset must remove is stated as a **property, not a command list**: after it, no transaction,
 no temporary table, no session variable, no assumed role, no advisory lock, no listener, no open
-cursor and no prepared statement the cache does not still account for. A backend added later satisfies
-that property or is not pooled.
+cursor, no generated id a request left, and no prepared statement the cache does not still account
+for. The session's default database and charset are the ones the block configured. A backend added
+later satisfies that property or is not pooled.
 
 **The pool key includes every credential**, so two configuration blocks are two pools and two database
 users never share a connection. It is additionally scoped to the configuration generation it was read
@@ -2356,10 +2357,17 @@ is therefore two pools, and the superseded generation's connections retire again
 The pool is **per core and never shared between cores**: a task never migrates, so the acquire path
 takes no lock, which is the reason to prefer it over one process-wide pool. Per backend, PostgreSQL
 rolls back, then runs `SET SESSION AUTHORIZATION DEFAULT`, `RESET ROLE`, `RESET ALL`, `CLOSE ALL`,
-`UNLISTEN *` and `pg_advisory_unlock_all()` and drops the session's temporary schema. `RESET ALL`
-skips the role and the session authorization, so each has its own command. MySQL, MariaDB and SQL
-Server use their atomic reset command, which also drops prepared statements, so the statement cache
-goes with it. SQLite allows a `PRAGMA` by name from one table, and refuses every other one when the
+`UNLISTEN *` and `pg_advisory_unlock_all()`, drops the session's temporary schema, and runs
+`DISCARD SEQUENCES` so `currval` and `lastval` return nothing. The nine go out in one pipelined batch,
+one round trip. `RESET ALL` skips the role and the session authorization, so each has its own
+command. The database and the charset are startup parameters, which a reset does not move. MySQL,
+MariaDB and SQL Server use their atomic reset command, which also drops prepared statements, so the
+statement cache goes with it. `COM_RESET_CONNECTION` keeps a schema a request's `USE` chose and sets
+the charset to the server's default, so MySQL and MariaDB then send `COM_INIT_DB` with the configured
+database and one `SET` for the three charset variables, the collation and the declared zone. A
+connection that logged in with no database asks `SELECT DATABASE()` in its place, and is closed when
+the answer is not `NULL`, because no command deselects a schema. **What it spends:** one
+`COM_INIT_DB` round trip per pooled release, since the `SET` already ran for the zone. SQLite allows a `PRAGMA` by name from one table, and refuses every other one when the
 statement is prepared, so a pragma a later SQLite adds is refused until it has a row. A row only
 reads, reads a file's value with no argument, or names session state with the value the reset writes
 back. A process-wide pragma never has a row. SQLite's reset rolls back, writes every session row's
