@@ -16,6 +16,19 @@
 //     bun nv ci --approve-release       # approve the waiting real run's `release` environment
 //     bun nv ci --publish-release       # publish the draft a green real run made
 //     bun nv ci --release-published     # the verdict of the newest release, its images and its tag
+//     bun nv ci --green                 # whether main's tip is pushed and its push runs ended green
+//
+// **`--green`** is the read-only verdict on `main`'s tip, the stop condition of a session that pushes
+// until CI is green. It exits 0 when every one of these holds, and prints one line for each that does
+// not: no push was refused (`REFUSED`); `origin/main` has the built commit, the newest commit on local
+// `main` that changes a file outside `NOTES_ONLY`; and each required workflow has a push run that ended
+// green on the built commit, or on a later commit of `origin/main` that differs from it in notes alone.
+// A run still going is not green, and neither is a cancelled one. `greenFullRun` is the judgement, the
+// one `bun nv release --tested` makes. The required workflows are those of `ONE_RUN_ON_MAIN` whose own
+// `on: push` block, read from `.github/workflows/`, starts a run for the built commit. A workflow file
+// that cannot be read is required when it is `CI`, and otherwise only its newest push run must not be
+// red. It exits 1 when `main` is not green and 2 when `gh` or `git` cannot answer. What it spends: one
+// `git fetch`, a few `git` calls, and one `gh api` call per required workflow and per red run.
 //
 // **`--push`** pushes the local `main` to `origin`, and does nothing when `origin` has it already.
 // Before it pushes, it runs `PRE_PUSH`: each check a CI job runs that judges files rather than running
@@ -137,10 +150,10 @@ import { run as proc } from "../lib/proc.ts";
 import { greenFullRun, type WorkflowRun } from "./release.ts";
 
 export const summary =
-  "pushes main, watches GitHub CI and cuts a release: nv ci --push | --check | --watch [--release] [--max-min <n>] [--past <job>] [--next] | --status | --rerun | --dispatch full|dry-run|release | --release-status | --approve-release | --publish-release | --release-published";
+  "pushes main, watches GitHub CI and cuts a release: nv ci --push | --check | --watch [--release] [--max-min <n>] [--past <job>] [--next] | --status | --rerun | --dispatch full|dry-run|release | --release-status | --approve-release | --publish-release | --release-published | --green";
 
 const USAGE =
-  "usage: bun nv ci --push\n       bun nv ci --check\n       bun nv ci --watch [--release] [--max-min <n>] [--past <job>]... [--next]\n       bun nv ci --status\n       bun nv ci --rerun\n       bun nv ci --dispatch full|dry-run|release\n       bun nv ci --release-status\n       bun nv ci --approve-release\n       bun nv ci --publish-release\n       bun nv ci --release-published";
+  "usage: bun nv ci --push\n       bun nv ci --check\n       bun nv ci --watch [--release] [--max-min <n>] [--past <job>]... [--next]\n       bun nv ci --status\n       bun nv ci --rerun\n       bun nv ci --dispatch full|dry-run|release\n       bun nv ci --release-status\n       bun nv ci --approve-release\n       bun nv ci --publish-release\n       bun nv ci --release-published\n       bun nv ci --green";
 
 /**
  * The workflows, by their `name:`, whose run on `main` a newer run of the same workflow replaces and
@@ -770,10 +783,19 @@ async function aheadCount(s: CiSeams): Promise<number> {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** The paths of `paths` outside `NOTES_ONLY`: the ones a run builds. Every caller judges a commit by it. */
+export function outsideNotes(paths: string[]): string[] {
+  return paths.filter((p) => p !== "" && !NOTES_ONLY.some((n) => p.startsWith(n)));
+}
+
+/** The paths `git diff --name-only a b` names. */
+async function changedBetween(s: CiSeams, a: string, b: string): Promise<string[]> {
+  return (await gitOut(s, ["diff", "--name-only", a, b])).split(/\r?\n/);
+}
+
 /** The files local `main` changes that `origin/main` lacks, outside `NOTES_ONLY`. */
 async function unpushedCodeFiles(s: CiSeams): Promise<string[]> {
-  const changed = (await gitOut(s, ["diff", "--name-only", `origin/${BRANCH}`, BRANCH])).split(/\r?\n/).filter((l) => l !== "");
-  return changed.filter((p) => !NOTES_ONLY.some((n) => p.startsWith(n)));
+  return outsideNotes(await changedBetween(s, `origin/${BRANCH}`, BRANCH));
 }
 
 /**
@@ -884,6 +906,117 @@ async function rerun(s: CiSeams): Promise<number> {
     if (c.code !== 0) code = 1;
   }
   return code;
+}
+
+// ---- --green -----------------------------------------------------------------------------------------
+
+/** How many commits of local `main` `--green` reads to find the built commit. */
+const BUILT_SEARCHED = 200;
+/** How many commits of `origin/main` after the built commit `--green` reads as its notes-only successors. */
+const LATER_SEARCHED = 20;
+
+/** The newest commit on local `main` that changes a file outside `NOTES_ONLY`, or "" when none of the newest `BUILT_SEARCHED` does. */
+async function builtCommit(s: CiSeams): Promise<string> {
+  const log = await gitOut(s, ["log", "-n", String(BUILT_SEARCHED), "--format=%x1e%H", "--name-only", BRANCH]);
+  for (const entry of log.split("\x1e")) {
+    const [sha = "", ...files] = entry.trim().split(/\r?\n/);
+    if (sha.trim() !== "" && outsideNotes(files.map((f) => f.trim())).length > 0) return sha.trim();
+  }
+  return "";
+}
+
+/** The built commit, then each later commit of `origin/main` that differs from it in `NOTES_ONLY` paths alone. */
+async function standIns(s: CiSeams, built: string): Promise<string[]> {
+  const later = (await gitOut(s, ["rev-list", "-n", String(LATER_SEARCHED), `${built}..origin/${BRANCH}`])).split(/\r?\n/).filter((l) => l !== "");
+  const same = [built];
+  for (const c of later) if (outsideNotes(await changedBetween(s, built, c)).length === 0) same.push(c);
+  return same;
+}
+
+/** What `--green` needs of one workflow: a green push run, only a newest push run that is not red, or nothing. */
+type Need = "green" | "not red" | "none";
+
+/** Whether a glob list of an `on: push` filter matches `path`. The last pattern that matches decides, and a `!` pattern unmatches. */
+function matchesFilter(patterns: string[], path: string): boolean {
+  let hit = false;
+  for (const p of patterns) {
+    if (p.startsWith("!")) {
+      if (new Bun.Glob(p.slice(1)).match(path)) hit = false;
+    } else if (new Bun.Glob(p).match(path)) hit = true;
+  }
+  return hit;
+}
+
+/**
+ * What `--green` needs of `workflow`, whose file is `file`, for the built commit, read from the file's
+ * `on:` block. A workflow with no push trigger, or whose `branches` leaves out `main`, needs nothing, and
+ * so does one whose `paths` or `paths-ignore` filter the built commit's files do not pass. A file that
+ * cannot be read needs a green run when it is `CI`, and otherwise a newest push run that is not red.
+ */
+async function needOf(s: CiSeams, file: string, workflow: string, built: string): Promise<Need> {
+  const unread: Need = workflow === "CI" ? "green" : "not red";
+  let on: unknown;
+  try {
+    const wf = Bun.YAML.parse(readFileSync(join(s.root, ".github", "workflows", file), "utf8")) as Record<string, unknown>;
+    on = wf.on ?? wf["true"];
+  } catch {
+    return unread;
+  }
+  const triggers = typeof on === "string" ? [on] : on;
+  if (Array.isArray(triggers)) return triggers.includes("push") ? "green" : "none";
+  if (typeof triggers !== "object" || triggers === null) return unread;
+  if (!("push" in triggers)) return "none";
+  const push = ((triggers as Record<string, unknown>).push ?? {}) as { branches?: string[]; paths?: string[]; "paths-ignore"?: string[] };
+  if (push.branches !== undefined && !matchesFilter(push.branches, BRANCH)) return "none";
+  const paths = push.paths;
+  const ignored = push["paths-ignore"];
+  if (paths === undefined && ignored === undefined) return "green";
+  const files = (await gitOut(s, ["diff-tree", "--no-commit-id", "--name-only", "-r", built])).split(/\r?\n/).filter((f) => f !== "");
+  if (paths !== undefined && !files.some((f) => matchesFilter(paths, f))) return "none";
+  if (ignored !== undefined && files.every((f) => matchesFilter(ignored, f))) return "none";
+  return "green";
+}
+
+/**
+ * `--green`: exits 0 when no push was refused, `origin/main` has the built commit, and each workflow of
+ * `ONE_RUN_ON_MAIN` that `needOf` requires has a push run that `greenFullRun` accepts on the built commit
+ * or on a commit `standIns` names. It prints one line for each that does not hold, and exits 1.
+ */
+async function green(s: CiSeams): Promise<number> {
+  const lines: string[] = [];
+  if (existsSync(join(s.root, REFUSED))) lines.push(`a push was refused, and ${REFUSED} names its red checks: fix each, then run \`bun nv ci --push\``);
+  await gitOut(s, ["fetch", "-q", "origin", BRANCH]);
+  const built = await builtCommit(s);
+  if (built === "") throw new GhFailed(`none of the newest ${BUILT_SEARCHED} commits of ${BRANCH} changes a file outside NOTES_ONLY`);
+  const has = await s.git(["merge-base", "--is-ancestor", built, `origin/${BRANCH}`]);
+  if (has.code > 1) throw new GhFailed(`\`git merge-base --is-ancestor\` exited ${has.code}: ${firstLine(has)}`);
+  if (has.code === 1) {
+    lines.push(`origin/${BRANCH} lacks the built commit ${short(built)}: run \`bun nv ci --check\`, then \`bun nv ci --push\``);
+  } else {
+    const shas = await standIns(s, built);
+    for (const [file, workflow] of Object.entries(WORKFLOW_FILES).filter(([, w]) => ONE_RUN_ON_MAIN.includes(w))) {
+      const need = await needOf(s, file, workflow, built);
+      if (need === "none") continue;
+      const runs = (await workflowRuns(s, file, "&event=push")).filter((r) => r.name === workflow && r.event === "push").sort((a, b) => b.id - a.id);
+      if (need === "not red") {
+        const newestRun = runs[0];
+        if (newestRun !== undefined && done(newestRun) && red(newestRun)) lines.push(`NOT GREEN ${runLine(newestRun)}`);
+        continue;
+      }
+      if (shas.some((sha) => greenFullRun(runs, sha) !== null)) continue;
+      const mine = runs.find((r) => shas.includes(r.head_sha));
+      if (mine === undefined) {
+        lines.push(`${workflow} has no push run on ${short(built)}: \`bun nv ci --watch\` waits for it`);
+        continue;
+      }
+      lines.push(`NOT GREEN ${runLine(mine)}`);
+      if (mine.conclusion === "cancelled") continue;
+      for (const j of (await listJobs(s, mine.id)).filter(red)) lines.push(`  FAILED ${j.name}  ${j.html_url}`);
+    }
+  }
+  for (const l of lines) s.say(l);
+  if (lines.length === 0) s.say(`GREEN ${BRANCH} at ${short(built)}: origin/${BRANCH} has it, and every required push run ended green`);
+  return lines.length > 0 ? 1 : 0;
 }
 
 // ---- --dispatch --------------------------------------------------------------------------------------
@@ -1445,7 +1578,7 @@ export async function ci(args: string[], over: Partial<CiSeams> = {}): Promise<n
   let next = false;
   let release = false;
   let kind: DispatchKind | undefined;
-  const modes = ["--push", "--check", "--watch", "--status", "--rerun", "--dispatch", "--release-status", "--approve-release", "--publish-release", "--release-published"];
+  const modes = ["--push", "--check", "--watch", "--status", "--rerun", "--dispatch", "--release-status", "--approve-release", "--publish-release", "--release-published", "--green"];
   let bad = modes.includes(mode ?? "") ? "" : "name one mode";
   if (bad === "" && mode === "--dispatch") {
     const k = args[1];
@@ -1482,6 +1615,7 @@ export async function ci(args: string[], over: Partial<CiSeams> = {}): Promise<n
     if (mode === "--approve-release") return await approveRelease(s);
     if (mode === "--publish-release") return await publishRelease(s);
     if (mode === "--release-published") return await releasePublished(s);
+    if (mode === "--green") return await green(s);
     return await rerun(s);
   } catch (e) {
     if (!(e instanceof GhFailed) && !(e instanceof SyntaxError)) throw e;

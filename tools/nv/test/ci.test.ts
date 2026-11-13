@@ -6,7 +6,8 @@
 // its own commit and no other run; `--watch --release` cancels no run;
 // `--release-status` judges a dry or a real run as `release.yml` does; `--approve-release` approves only
 // green builds; `--publish-release` publishes only a whole draft; and `--release-published` reads the
-// published release, its promote run and its image.
+// published release, its promote run and its image. `--green` exits 0 only when `origin/main` has the
+// built commit and each required workflow's push run on it ended green.
 
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -102,6 +103,100 @@ function seams(name: string, world: (poll: number) => World | "fail", git: (args
   };
   return { s, said, asked, checked, slept };
 }
+
+describe("bun nv ci --green", () => {
+  const BUILT = "b".repeat(40);
+  const OLDER = "a".repeat(40);
+  const NOTES = "c".repeat(40);
+  const PUSH_ON_MAIN = "on:\n  push:\n    branches: [main]\n  workflow_dispatch:\n";
+
+  /** A `git` whose local `main` ends in the built commit, with a notes-only commit on top when `notesAhead`. */
+  function gitOf(o: { pushed?: boolean; notesAhead?: boolean } = {}) {
+    return (args: string[]): Ran => {
+      if (args[0] === "log") return ok(`${o.notesAhead ? `\x1e${NOTES}\n\ndocs/goals/x.md\n` : ""}\x1e${BUILT}\n\ntools/nv/cmd/ci.ts\n\x1e${OLDER}\n\ncrates/a.rs\n`);
+      if (args[0] === "merge-base") return { code: o.pushed === false ? 1 : 0, stdout: "", stderr: "" };
+      if (args[0] === "diff-tree") return ok("tools/nv/cmd/ci.ts\n");
+      return ok("");
+    };
+  }
+
+  /** Seams whose `gh` lists `runs`, over a root whose `ci.yml` and `pages.yml` have the `on:` blocks given. */
+  function greenSeams(name: string, runs: Run[] | "fail", o: { jobs?: Record<number, Job[]>; git?: (args: string[]) => Ran; pages?: string } = {}) {
+    const w = seams(name, () => (runs === "fail" ? "fail" : { runs, jobs: o.jobs ?? {} }), o.git ?? gitOf());
+    const dir = join(w.s.root, ".github", "workflows");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "ci.yml"), PUSH_ON_MAIN);
+    writeFileSync(join(dir, "pages.yml"), o.pages ?? PUSH_ON_MAIN);
+    return w;
+  }
+
+  const pushRun = (id: number, name: string, status: string, conclusion: string | null, sha = BUILT) => runOf(id, name, status, conclusion, "push", sha);
+  const bothGreen = () => [pushRun(1, "CI", "completed", "success"), pushRun(2, "Website", "completed", "success")];
+
+  test("a green complete push run of each workflow on the built commit exits 0", async () => {
+    const w = greenSeams("green-ok", bothGreen());
+    expect(await ci(["--green"], w.s)).toBe(0);
+    expect(w.said.some((l) => l.startsWith(`GREEN main at ${BUILT.slice(0, 9)}`))).toBe(true);
+  });
+
+  test("a run still going exits 1", async () => {
+    const w = greenSeams("green-going", [pushRun(1, "CI", "in_progress", null), pushRun(2, "Website", "completed", "success")]);
+    expect(await ci(["--green"], w.s)).toBe(1);
+    expect(w.said).toContain(`NOT GREEN CI (push) on ${BUILT.slice(0, 9)}: in_progress  https://example.com/runs/1`);
+  });
+
+  test("a run with a red job exits 1 and names the job", async () => {
+    const w = greenSeams("green-red", [pushRun(1, "CI", "completed", "failure"), pushRun(2, "Website", "completed", "success")], {
+      jobs: { 1: [jobOf(5, "lint", "completed", "failure", "clippy"), jobOf(6, "test", "completed", "success")] },
+    });
+    expect(await ci(["--green"], w.s)).toBe(1);
+    expect(w.said).toContain("  FAILED lint  https://example.com/jobs/5");
+    expect(w.said.some((l) => l.includes("test"))).toBe(false);
+  });
+
+  test("a cancelled run exits 1", async () => {
+    const w = greenSeams("green-cancelled", [pushRun(1, "CI", "completed", "cancelled"), pushRun(2, "Website", "completed", "success")]);
+    expect(await ci(["--green"], w.s)).toBe(1);
+    expect(w.said).toContain(`NOT GREEN CI (push) on ${BUILT.slice(0, 9)}: cancelled  https://example.com/runs/1`);
+  });
+
+  test("a built commit that origin/main lacks exits 1 and names it", async () => {
+    const w = greenSeams("green-unpushed", bothGreen(), { git: gitOf({ pushed: false }) });
+    expect(await ci(["--green"], w.s)).toBe(1);
+    expect(w.said.some((l) => l.startsWith(`origin/main lacks the built commit ${BUILT.slice(0, 9)}`))).toBe(true);
+  });
+
+  test("a notes-only commit ahead of origin/main still exits 0", async () => {
+    const w = greenSeams("green-notes", bothGreen(), { git: gitOf({ notesAhead: true }) });
+    expect(await ci(["--green"], w.s)).toBe(0);
+    expect(w.asked).toContainEqual(["git", "merge-base", "--is-ancestor", BUILT, "origin/main"]);
+  });
+
+  test("a green run on an older built commit exits 1", async () => {
+    const w = greenSeams("green-older", [pushRun(1, "CI", "completed", "success", OLDER), pushRun(2, "Website", "completed", "success")]);
+    expect(await ci(["--green"], w.s)).toBe(1);
+    expect(w.said.some((l) => l.startsWith(`CI has no push run on ${BUILT.slice(0, 9)}`))).toBe(true);
+  });
+
+  test("a refused push exits 1", async () => {
+    const w = greenSeams("green-refused", bothGreen());
+    mkdirSync(join(w.s.root, ".agent-tmp", "ci"), { recursive: true });
+    writeFileSync(join(w.s.root, REFUSED), "the push was refused\n");
+    expect(await ci(["--green"], w.s)).toBe(1);
+    expect(w.said.some((l) => l.startsWith("a push was refused"))).toBe(true);
+  });
+
+  test("a gh that fails exits 2", async () => {
+    const w = greenSeams("green-gh", "fail");
+    expect(await ci(["--green"], w.s)).toBe(2);
+  });
+
+  test("a workflow whose push path filter the built commit does not match is not required", async () => {
+    const pages = "on:\n  push:\n    branches: [main]\n    paths: ['website/**']\n";
+    const w = greenSeams("green-paths", [pushRun(1, "CI", "completed", "success")], { pages });
+    expect(await ci(["--green"], w.s)).toBe(0);
+  });
+});
 
 describe("bun nv ci --watch", () => {
   test("it exits 1 the moment a job of a run in progress fails, and prints its step and log", async () => {

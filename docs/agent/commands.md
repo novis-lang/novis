@@ -630,6 +630,7 @@ bun nv side --prepare --hook                          # looper's before_run: rea
 bun nv ci --push                                      # looper's after_retire: pre-push checks, pushes main, cancels the runs it replaces
 bun nv ci --check                                     # the pre-push checks alone, before a goal is claimed done
 bun nv ci --watch | --status | --rerun                # waits for a failed job, lists them, reruns them
+bun nv ci --green                                     # 0 when origin/main has the built commit and its CI and Website push runs ended green, 1 when not, 2 when gh or git fails
 bun nv ci --dispatch full|dry-run                     # starts a full ci.yml run, or a dry-run Release, on main
 bun nv ci --dispatch release                          # the real Release, only under a live goal that says so (docs/release.md)
 bun nv ci --watch --release                           # watches the newest Release run, and cancels no run
