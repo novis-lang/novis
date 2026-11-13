@@ -43,3 +43,8 @@ and copy back write `inout`, as Hack and Swift do. Novis copies, so it takes the
   above.
 - **`&` kept at the declaration.** It is one of `&`'s five meanings, and it names the aliasing PHP does
   and Novis does not (`rule:statements/ampersand-is-not-a-by-reference-marker`).
+- **Moving the holder's reference into the cell.** It would let a callee write an unshared value in
+  place, as a by-value argument passed at its last use is. Two things refuse it. The holder is live
+  after the call by definition, and a callee that throws must leave it unchanged, so the callee needs a
+  copy to write. A property holder is also reachable through its object while the callee runs, so the
+  cell's value would be a second live reference that the count does not show.

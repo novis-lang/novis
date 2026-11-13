@@ -1,0 +1,22 @@
+--TEST--
+an array passed to a function and assigned back is copied when a second variable shares it, so the second variable keeps its contents (`rule:types/arrays`)
+--FILE--
+<?nvs
+class Acc {
+    public static function add(array<int> $xs, int $i): array<int> {
+        $xs[] = $i;
+        return $xs;
+    }
+}
+
+array<int> $xs = [1, 2];
+// `$ys` shares the array, so the write in `add` copies it.
+var $ys = $xs;
+$xs = Acc::add($xs, 3);
+echo Core\Arr::count($ys), " ", Core\Arr::count($xs), "\n";
+// Nothing else shares `$xs` now, and the result is the same.
+$xs = Acc::add($xs, 4);
+echo Core\Arr::count($ys), " ", Core\Arr::count($xs), " ", $xs[3], "\n";
+--EXPECT--
+2 3
+2 4 4

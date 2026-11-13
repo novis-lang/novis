@@ -239,6 +239,24 @@ impl<'a> Lowering<'a> {
             return;
         }
         let (v, ty) = self.lower_expr(&arg.value, Some(expected), env, cur);
+        // The local the statement passes at its last use
+        // (`Self::last_use_move`): its own reference goes to the callee with
+        // no retain, staged as transferred until the call is emitted, and the
+        // local leaves `env`, so no later landing block or scope end releases
+        // it. A parameter that does not own its argument, or that widens it,
+        // keeps the retain.
+        if ownership == ArgOwnership::Transferred
+            && ty == expected
+            && matches!(ty, Ty::Array | Ty::Str)
+            && let Some((_, name)) = self
+                .pending_move
+                .take_if(|(span, _)| *span == arg.value.span)
+        {
+            self.account_for_arg(v, ty, ownership, false, *cur);
+            env.remove(&name);
+            out.values.push(v);
+            return;
+        }
         let site = OperandSite::Argument;
         let aliasing = self.borrowed_arg(site, &arg.value, (v, ty), ownership, later, *cur);
         self.account_for_arg(v, ty, ownership, aliasing, *cur);

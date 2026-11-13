@@ -2006,6 +2006,60 @@ fn a_uint_hole_joins_as_a_part() {
     assert!(printed.contains("str.append v"), "{printed}");
 }
 
+/// `$xs = T::f($xs)` and `return T::f($xs)` pass the local's own reference
+/// with no retain, and release nothing for it afterwards. Each program after
+/// the first breaks one condition of `Lowering::last_use_move`, and keeps the
+/// retain.
+#[test]
+fn a_local_is_moved_only_where_every_condition_holds() {
+    let lower = |body: &str, params: &str| {
+        let src = format!(
+            "<?nvs\nclass T {{\n  static function m({params}): array<int> {{\n{body}\n  }}\n  \
+             static function f(array<int> $a): array<int> {{ return $a; }}\n  \
+             static function g(array<int> $a, array<int> $b): array<int> {{ return $a; }}\n}}\n"
+        );
+        let (f, map, file) = lower_first_method(&src);
+        print_function(&f, map.file(file))
+    };
+    let xs = "array<int> $xs";
+    for (moved, params) in [
+        ("    $xs = T::f($xs);\n    return $xs;", xs),
+        ("    return T::f($xs);", xs),
+    ] {
+        let printed = lower(moved, params);
+        assert!(!printed.contains("retain v"), "moved: {moved}\n{printed}");
+    }
+    for (kept, params) in [
+        // Written twice in the statement.
+        ("    $xs = T::g($xs, $xs);\n    return $xs;", xs),
+        // Not an argument of the statement's own call.
+        ("    $xs = T::f(T::f($xs));\n    return $xs;", xs),
+        // A different target.
+        (
+            "    array<int> $ys = [];\n    $ys = T::f($xs);\n    return $ys;",
+            xs,
+        ),
+        // Inside a `try`.
+        (
+            "    try {\n      $xs = T::f($xs);\n    } catch (Throwable $e) {\n    }\n    return $xs;",
+            xs,
+        ),
+        // An anonymous function in the statement reads the local too.
+        (
+            "    $xs = T::g($xs, (fn(): array<int> => $xs)());\n    return $xs;",
+            xs,
+        ),
+        // An `inout` parameter.
+        (
+            "    $xs = T::f($xs);\n    return $xs;",
+            "inout array<int> $xs",
+        ),
+    ] {
+        let printed = lower(kept, params);
+        assert!(printed.contains("retain v"), "kept: {kept}\n{printed}");
+    }
+}
+
 #[test]
 fn unsetting_an_element_through_an_int_key_still_renders_the_decimal() {
     let (f, map, file) = lower_first_method(

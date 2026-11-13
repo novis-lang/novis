@@ -563,3 +563,132 @@ echo $page->out, $page->parts[\"k\"], $page->label;
         )
     );
 }
+
+/// A class whose `add` appends to the array it is given and returns it.
+const ACC: &str = "class Acc {
+    public static function add(array<int> $xs, int $i): array<int> {
+        $xs[] = $i;
+        return $xs;
+    }
+    public static function boom(array<int> $xs): array<int> {
+        throw new LogicError(\"boom\");
+    }
+    public static function fail(): int {
+        throw new LogicError(\"fail\");
+    }
+}
+";
+
+#[cfg(debug_assertions)]
+#[test]
+fn an_array_passed_and_reassigned_allocates_in_proportion_to_what_it_adds() {
+    // `$xs` is passed at its last use, so `add` has the only reference and
+    // appends in place.
+    assert_linear("an array passed and reassigned", |n| {
+        format!(
+            "<?nvs
+{ACC}
+array<int> $xs = [];
+var $i = 0;
+while ($i < {n}) {{
+    $xs = Acc::add($xs, $i);
+    $i = $i + 1;
+}}
+echo $xs[{last}];
+",
+            last = n - 1
+        )
+    });
+}
+
+#[cfg(debug_assertions)]
+#[test]
+fn a_string_passed_and_returned_allocates_in_proportion_to_what_it_adds() {
+    // Each call appends to the accumulator and returns the next call's result.
+    assert_linear("a string passed and returned", |n| {
+        format!(
+            "<?nvs
+class Walk {{
+    public static function walk(string $acc, int $n): string {{
+        if ($n == 0) {{
+            return $acc;
+        }}
+        $acc .= \"x\";
+        return Walk::walk($acc, $n - 1);
+    }}
+}}
+echo Core\\Str::length(Walk::walk(\"\", {n}));
+"
+        )
+    });
+}
+
+#[test]
+fn a_passed_array_another_variable_shares_is_still_copied() {
+    assert_eq!(
+        output_of(&format!(
+            "<?nvs
+{ACC}
+array<int> $xs = [1, 2];
+var $ys = $xs;
+$xs = Acc::add($xs, 3);
+echo Core\\Arr::count($ys), \"/\", Core\\Arr::count($xs), \"/\", $ys[1];
+"
+        )),
+        "2/3/2"
+    );
+}
+
+#[cfg(debug_assertions)]
+#[test]
+fn a_moved_argument_is_released_once_on_every_way_out() {
+    // The callee throws, a later argument throws, and the call returns. Each
+    // function moves `$xs` into its call, and the script catches the throw.
+    let source = format!(
+        "<?nvs
+{ACC}
+class Run {{
+    public static function calleeThrows(): void {{
+        array<int> $xs = [1, 2];
+        $xs = Acc::boom($xs);
+    }}
+    public static function laterThrows(): void {{
+        array<int> $xs = [1, 2];
+        $xs = Acc::add($xs, Acc::fail());
+    }}
+    public static function returns(): uint {{
+        array<int> $xs = [1, 2];
+        $xs = Acc::add($xs, 3);
+        return Core\\Arr::count($xs);
+    }}
+}}
+try {{
+    Run::calleeThrows();
+}} catch (LogicError $e) {{
+    echo \"caught/\";
+}}
+try {{
+    Run::laterThrows();
+}} catch (LogicError $e) {{
+    echo \"caught/\";
+}}
+echo Run::returns();
+"
+    );
+    nvs_runtime::prime_empty_array();
+    let unit = compile(&source).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    unit.install_in(&mut ctx);
+    let entry = unit.script().expect("the script frame was compiled");
+    let before = nvs_runtime::budget::live_bytes();
+    entry.call(&mut ctx).expect("the script ran to completion");
+    let output = ctx.take_buffered_output().expect("a buffered context");
+    // The echoed bytes are the one thing the run leaves behind.
+    let after = nvs_runtime::budget::live_bytes()
+        - isize::try_from(output.capacity()).expect("a small buffer");
+    assert_eq!(
+        String::from_utf8(output).expect("the script echoed UTF-8"),
+        "caught/caught/3"
+    );
+    assert_eq!(after, before, "the run left bytes allocated");
+}

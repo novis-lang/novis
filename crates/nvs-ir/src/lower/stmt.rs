@@ -184,7 +184,11 @@ impl<'a> Lowering<'a> {
                 });
                 let ret_ty = self.ret_ty;
                 let v = if let Some(value_expr) = value.as_ref() {
+                    // A local moved into the returned call is absent from
+                    // `env` afterwards, so `release_all_locals` skips it.
+                    self.pending_move = self.last_use_move(None, value_expr, env);
                     let (rv, rty) = self.lower_expr(value_expr, Some(ret_ty), env, cur);
+                    self.pending_move = None;
                     if except.is_none()
                         && rty.is_refcounted()
                         && self.sole_operand_borrowed(value_expr)
@@ -1407,6 +1411,74 @@ impl<'a> Lowering<'a> {
         self.write_through_element(*cur, env, &name, joined, Ty::Str);
         env.insert(name, (joined, Ty::Str));
     }
+    /// The local `value` passes at its last use, with the span of the argument
+    /// that passes it, or `None`. `value` is the right-hand side of
+    /// `$x = call(…, $x, …)` or the operand of `return call(…, $x, …)`, and
+    /// `target` is `Some("x")` for the first and `None` for the second.
+    ///
+    /// This is the one function that decides a move (`rule:types/arrays`).
+    /// Every condition below holds, or the answer is `None`:
+    ///
+    /// - The function is not a generator, and no `try` of this function
+    ///   encloses the statement. A `catch` or `finally` would read the local
+    ///   after the callee consumed it.
+    /// - `value` is a call that is not nullsafe, and one of its written
+    ///   arguments is the bare local, with no `...` and no `inout`.
+    /// - The local is a `Ty::Array` or `Ty::Str` in `env`, so not an `inout`
+    ///   parameter (`Ty::Ref`), and it is no `foreach (… as inout $v)`
+    ///   binding or subject, whose writes go through to an array.
+    /// - `$x` is written exactly once in `value`'s source, anonymous function
+    ///   bodies and string interpolations included. The scan is over the
+    ///   text, so a mention in a comment or a literal only keeps the retain.
+    ///
+    /// Whether the parameter is one the callee owns is known only where the
+    /// argument meets its signature, so [`Self::lower_fixed_arg`] checks that
+    /// last and leaves the move undone when it does not hold. A moved local
+    /// is absent from `Env` from that argument on.
+    pub(crate) fn last_use_move(
+        &self,
+        target: Option<&str>,
+        value: &Expr,
+        env: &Env,
+    ) -> Option<(nvs_diagnostics::Span, String)> {
+        if self.generator.is_some() || !self.try_stack.is_empty() {
+            return None;
+        }
+        let args = match &value.kind {
+            ExprKind::Call { args, .. }
+            | ExprKind::StaticCall { args, .. }
+            | ExprKind::MethodCall {
+                args,
+                nullsafe: false,
+                ..
+            } => args,
+            _ => return None,
+        };
+        let CallArgs::List(args) = args else {
+            return None;
+        };
+        let text = span_text(self.src, value.span);
+        args.iter().find_map(|arg| {
+            if arg.spread || arg.inout {
+                return None;
+            }
+            let ExprKind::Variable(span) = &arg.value.kind else {
+                return None;
+            };
+            let name = strip_sigil(span_text(self.src, *span));
+            if target.is_some_and(|t| t != name)
+                || !matches!(env.get(name), Some(&(_, Ty::Array | Ty::Str)))
+                || self
+                    .inout_elements
+                    .iter()
+                    .any(|e| e.binding == name || e.array == name || e.walked == name)
+                || mentions_of(text, name) != 1
+            {
+                return None;
+            }
+            Some((arg.value.span, name.to_owned()))
+        })
+    }
     /// `$x = expr;` or `$obj->prop = expr;` as a bare expression statement —
     /// SSA renaming needs no join logic here, only a fresh binding in `env`
     /// (a local target) or a [`InstKind::FieldSet`] (a property target).
@@ -1456,8 +1528,14 @@ impl<'a> Lowering<'a> {
                 self.lower_carrier_self_append(name, current, append, (lhs, rhs), env, cur);
                 return;
             }
+            // A moved local is absent from `env` once its argument is
+            // lowered, so the store below finds no old value to release and
+            // binds the call's result fresh, at the type `lower_store` read
+            // from `env` before the value ran.
+            self.pending_move = self.last_use_move(Some(&name), value, env);
         }
         self.lower_store(target, &Stored::Expr(value), false, env, cur);
+        self.pending_move = None;
     }
     /// `$page = $page + $b;` where `$page` is a plain local holding a sink
     /// carrier — `rule:core-classes/html-auto-escape`'s `Markup + Markup` or
@@ -3014,4 +3092,19 @@ impl<'a> Lowering<'a> {
     fn pure_key(&self, e: &Expr) -> bool {
         matches!(e.kind, ExprKind::Int(_) | ExprKind::Str(_)) || self.reevaluable_target(e)
     }
+}
+
+/// How many times `$name` is written in `text`: each `$` followed by `name`
+/// and then by no character a variable name can continue with. A mention in
+/// a comment or a single-quoted literal counts too, which only keeps a retain
+/// [`Lowering::last_use_move`] would otherwise drop.
+fn mentions_of(text: &str, name: &str) -> usize {
+    let continues = |c: char| c.is_alphanumeric() || c == '_' || !c.is_ascii();
+    text.match_indices('$')
+        .filter(|&(at, _)| {
+            text[at + 1..]
+                .strip_prefix(name)
+                .is_some_and(|after| !after.chars().next().is_some_and(continues))
+        })
+        .count()
 }
