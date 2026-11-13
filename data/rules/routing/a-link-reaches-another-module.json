@@ -1,0 +1,14 @@
+{
+  "title": "A link to another module names its route through an `autoload links` root; the compiler checks the method and the server picks the mount",
+  "status": "shipped",
+  "seeAlso": [
+    "routing/link-target-and-params-are-checked",
+    "routing/link-carries-the-mount-prefix",
+    "http-server/a-canonical-mount-breaks-a-tie",
+    "programs/autoload"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/src/links.rs",
+    "crates/nvs-config/tests/mount.rs"
+  ]
+}

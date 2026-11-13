@@ -3963,6 +3963,11 @@ when to ask.
 **Declined:**
 - **Signing the handler's `Class::method`.** A refactor that renames a method would invalidate every
   link already sent, such as an unsubscribe link in a mail, with no change to the URL a reader sees.
+- **A signed link to another module.** `urlSigned` given a route under an `autoload links` root is
+  `E0898`. A signature is checked with the key of the program that verifies it, so a program able to
+  mint one for another program's route would cross the isolation boundary between the two. The
+  module that declares the route signs its own links. `signedRoute` takes no route, so it has no such
+  call.
 
 <sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature).</sub>
 

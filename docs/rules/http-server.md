@@ -96,7 +96,7 @@ wait for `settle`. A reload that changes `[[app]] origin` folds it into the rows
 
 Because a scan reads the disk, dropping a directory in place makes a module reachable, and a
 deployment that did not intend that must not put an unexpected directory under `[server] root`.
-`nvs info --config` prints the expanded table, which is what makes that inspectable.
+`nvs config check --mounts` prints the expanded table, which is what makes that inspectable.
 
 **Declined:**
 - **A boot that fails when any mount does not compile.** A table of many modules would then stop
@@ -128,11 +128,11 @@ deployment that did not intend that must not put an unexpected directory under `
 
 <a id="http-server-a-mount-carries-no-policy"></a>
 
-## A mount's key set is `prefix`, `host`, `scan`, `entry` and `origin`; `mode`, limits and capabilities belong to the `[[app]]` block
+## A mount's key set is `prefix`, `host`, `scan`, `entry`, `origin` and `canonical`; `mode`, limits and capabilities belong to the `[[app]]` block
 
 `rule:http-server/a-mount-carries-no-policy`
 
-A `[[server.mount]]` carries no `mode`, no limits and no capabilities. Its key set is closed — `prefix`, `host`, `scan`, `entry` and `origin` — and those keys say where a request arrives and which file answers it. Everything about what the code answering it *may do* belongs to the `[[app]]` block, keyed on the entry file path ([`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path)).
+A `[[server.mount]]` carries no `mode`, no limits and no capabilities. Its key set is closed — `prefix`, `host`, `scan`, `entry`, `origin` and `canonical` — and those keys say where a request arrives, which file answers it, and which mount is the main way in to that file ([`http-server/a-canonical-mount-breaks-a-tie`](http-server.md#http-server-a-canonical-mount-breaks-a-tie)). Everything about what the code answering it *may do* belongs to the `[[app]]` block, keyed on the entry file path ([`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path)).
 
 ```toml
 [[server.mount]]
@@ -150,6 +150,60 @@ The two usually cover the same tree, and that is the intended shape. An applicat
 - **A `mode`, limits or capabilities on the mount.** The `[[app]]` block owns those facts, and a second home for them is worse than none.
 
 <sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/the-mode-ceiling-defaults-to-the-startup-mode`](http-server.md#http-server-the-mode-ceiling-defaults-to-the-startup-mode), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path).</sub>
+
+<a id="http-server-a-canonical-mount-breaks-a-tie"></a>
+
+## A link to another module takes the linking row's block, then its host, then another host with an origin; `canonical = true` breaks a tie, and only a tie a link needs is an error
+
+`rule:http-server/a-canonical-mount-breaks-a-tie`
+
+A link to another module ([`routing/a-link-reaches-another-module`](routing.md#routing-a-link-reaches-another-module)) goes through one row of the
+mount table. The candidates for a handler are the rows whose own compiled table holds that handler as
+an ordinary route, and the first step with a candidate decides:
+
+1. Rows from the same `[[server.mount]]` block as the row being linked from. A `scan` block counts as
+   one block, so `/base/blog` links to `/base/shop`.
+2. Otherwise, rows on the same host: the same resolved `host`, or neither row has one. The link is a
+   path.
+3. Otherwise, rows on another host that resolve an origin. The link is absolute with that row's
+   origin, as `urlAbsolute` builds it.
+
+```toml
+[[server.mount]]
+scan   = "*/public/index.nvs"
+prefix = "/base/{1}"
+
+[[server.mount]]
+prefix    = "/shop"
+entry     = "Shop/public/index.nvs"
+canonical = true                      # the main way in to this entry
+```
+
+**Two candidates at one step tie, and the row from a `canonical = true` block wins.** With none, or
+with two, the boot fails naming both blocks and the handler, the way an unreached origin fails it
+([`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot)). A reload leaves the linking row out
+and logs the reason. **A tie no link needs is not an error**, so a table with two mounts of one entry
+keeps starting. Two `canonical = true` blocks that mount one entry are `E0621` whether or not a link
+needs them: `nvs config check` finds two that write the file, and the expansion finds one a `scan`
+reaches.
+
+`canonical` says which door is the main one, which is routing and not policy, so it is in the closed
+key set of [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy). It is `System` and reloadable, like `origin`.
+`nvs config check` compiles each row's entry through the compile cache, as the boot does, and reports
+an unbroken tie a link needs and a link no row serves. `nvs config check --mounts` prints each row,
+its block, `canonical`, and the mount each linked handler resolves to.
+
+One function decides, and the boot, the reload, `nvs config check` and `Core\Test::request` all call
+it, so the four agree. It reads only the rows, and costs one pass over them per linked handler, off
+the request path.
+
+**Declined:**
+- **The first block written wins a tie.** Reordering two blocks would then move every link on the
+  site, and nothing in the file would say so.
+- **A tie is an error whether or not a link needs it.** Existing tables with two mounts of one entry
+  would stop starting for a feature they do not use.
+
+<sub>See also [`routing/a-link-reaches-another-module`](routing.md#routing-a-link-reaches-another-module), [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot).</sub>
 
 <a id="http-server-the-served-file-is-optional"></a>
 
@@ -539,7 +593,7 @@ A request may **select** an entry point from a set enumerated before it arrived;
 
 This is the rule the rest of the server is built to keep. FastCGI's vulnerability class is not "many entry points" but "a URL-derived path": the `SCRIPT_FILENAME`/`PATH_INFO`/`cgi.fix_pathinfo` family exists because a web server computes a path from the request and hands it to a runtime that trusts it. A design that enumerates its entry points ahead of time is immune at any number of them.
 
-So every path the server can execute is known at boot, printed by `nvs info --config`, and fixed until a reload. That is what makes [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)'s wildcards safe: a glob expanded against the disk at boot yields a fixed table, whereas the same glob evaluated per request would be `cgi.fix_pathinfo` with a different spelling. A path carrying a dot-segment or an encoded separator is refused before any mount is selected ([`errors/path-component-refusals`](errors.md#errors-path-component-refusals)).
+So every path the server can execute is known at boot, printed by `nvs config check --mounts`, and fixed until a reload. That is what makes [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)'s wildcards safe: a glob expanded against the disk at boot yields a fixed table, whereas the same glob evaluated per request would be `cgi.fix_pathinfo` with a different spelling. A path carrying a dot-segment or an encoded separator is refused before any mount is selected ([`errors/path-component-refusals`](errors.md#errors-path-component-refusals)).
 
 **Declined:**
 - **Rewrite rules evaluated per request.** They are the FastCGI defect with another syntax: a URL segment put into a filesystem path at request time. They would also put a regex on the request path and make the mount table impossible to enumerate. The boot-time scan gives the same one line for every module and keeps the executable set enumerable.

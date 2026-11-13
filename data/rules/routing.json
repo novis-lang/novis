@@ -26,6 +26,7 @@
     "routing/a-leftover-link-key-is-a-query-string",
     "routing/an-absolute-link-takes-a-configured-origin",
     "routing/an-origin-is-per-mount-and-checked-at-boot",
+    "routing/a-link-reaches-another-module",
     "routing/table-is-opt-in",
     "routing/api-document-is-generated-from-the-route-table",
     "routing/a-request-body-is-read-from-the-handlers-own-call",

@@ -23,7 +23,7 @@ wait for `settle`. A reload that changes `[[app]] origin` folds it into the rows
 
 Because a scan reads the disk, dropping a directory in place makes a module reachable, and a
 deployment that did not intend that must not put an unexpected directory under `[server] root`.
-`nvs info --config` prints the expanded table, which is what makes that inspectable.
+`nvs config check --mounts` prints the expanded table, which is what makes that inspectable.
 
 **Declined:**
 - **A boot that fails when any mount does not compile.** A table of many modules would then stop

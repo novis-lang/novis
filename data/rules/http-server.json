@@ -6,6 +6,7 @@
     "http-server/the-server-block-is-boot-class",
     "http-server/a-mount-table-expands-at-boot",
     "http-server/a-mount-carries-no-policy",
+    "http-server/a-canonical-mount-breaks-a-tie",
     "http-server/the-served-file-is-optional",
     "http-server/a-unix-socket-listener",
     "http-server/the-mode-ceiling-defaults-to-the-startup-mode",

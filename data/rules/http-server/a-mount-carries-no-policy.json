@@ -1,5 +1,5 @@
 {
-  "title": "A mount's key set is `prefix`, `host`, `scan`, `entry` and `origin`; `mode`, limits and capabilities belong to the `[[app]]` block",
+  "title": "A mount's key set is `prefix`, `host`, `scan`, `entry`, `origin` and `canonical`; `mode`, limits and capabilities belong to the `[[app]]` block",
   "status": "shipped",
   "seeAlso": [
     "http-server/a-mount-table-expands-at-boot",

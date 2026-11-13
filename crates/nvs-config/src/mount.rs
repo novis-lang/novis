@@ -326,7 +326,7 @@ fn pieces(template: &str, captures: usize) -> Result<Vec<Piece<'_>>, Malformed<'
 /// Step 1 of `rule:http-server/a-request-resolves-in-five-steps` wants nothing in particular from
 /// the order — it sorts by host and then
 /// by prefix so that two boots of the same tree over the same disk produce the same table, which is
-/// what makes `nvs info --config`'s printing of it worth reading.
+/// what makes `nvs config check --mounts`'s printing of it worth reading.
 ///
 /// # Errors
 ///

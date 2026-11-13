@@ -1,0 +1,13 @@
+{
+  "title": "A link to another module takes the linking row's block, then its host, then another host with an origin; `canonical = true` breaks a tie, and only a tie a link needs is an error",
+  "status": "shipped",
+  "seeAlso": [
+    "routing/a-link-reaches-another-module",
+    "http-server/a-mount-table-expands-at-boot",
+    "http-server/a-mount-carries-no-policy",
+    "routing/an-origin-is-per-mount-and-checked-at-boot"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/mount.rs"
+  ]
+}

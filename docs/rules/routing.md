@@ -972,6 +972,56 @@ and the reason is logged.
 
 <sub>See also [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class).</sub>
 
+<a id="routing-a-link-reaches-another-module"></a>
+
+## A link to another module names its route through an `autoload links` root; the compiler checks the method and the server picks the mount
+
+`rule:routing/a-link-reaches-another-module`
+
+A link to another module (another program on the same server) names that module's route the way a
+local link does: `Core\Router::url(Shop\View\Index::render)`. The route's class sits under a root the
+linking program declares with `autoload links` ([`programs/autoload`](programs.md#programs-autoload)), which is read for its
+routes and never compiled.
+
+**The compiler checks which method, and the server picks which mount.** The call is checked exactly
+as a local link is ([`routing/link-target-and-params-are-checked`](routing.md#routing-link-target-and-params-are-checked)): the method, its `#[Route]`,
+the captures and the keys. The compiler reads only the file that declares the target class, and only
+its attributes and capture types. A capture whose type is a class or enum of the links root is not
+value-checked, like a computed value. The site lowers to the mount-relative path and the target's
+handler name, never to a finished URL, so compiling never reads `nvs.toml`. A path belongs to the
+source and a mount belongs to the deployment, the same split as
+[`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix).
+
+At boot, after every row of the mount table has compiled, each row whose unit links to another
+module gets a table from handler to prefix, with an origin where the target is on another host. The
+three steps and the tie are [`http-server/a-canonical-mount-breaks-a-tie`](http-server.md#http-server-a-canonical-mount-breaks-a-tie)'s. Every request of
+that row reads the table through one shared reference, so a link costs one hash lookup.
+`urlAbsolute` uses the same order and always writes an origin: the target row's on another host,
+and the linking row's own otherwise.
+
+**A missing or broken target is a compile error in the linking program.** That is the dead link,
+found before it ships. The target file joins the linking unit's revalidation set, so a changed or
+removed route recompiles the linker on its next validation, and a deploy recompiles it under
+`validate = never`. A module that only some deployments ship is not linked to from code every
+deployment compiles. **A target row that did not compile does not stop the server:** the link is
+logged at boot and throws when it runs, naming the handler and the mount, until a pass compiles the
+target ([`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)).
+
+The one place a links-root name may be written is the route argument of `url` and `urlAbsolute`.
+Anywhere else it is `E0897`, and `urlSigned` and `signedRoute` never take one
+([`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url)).
+
+**What it spends:** O(rows × links-root handlers) per expansion of the mount table, shared by every
+request of a row. Nothing is held per request.
+
+**Declined:**
+- **A link that lowers to a finished URL.** The compiler would read the deployment's mount table,
+  and one compiled unit could no longer serve under two mounts.
+- **Compiling the linked module into the linking program.** Its classes would join the route table
+  and `implementing<T>()`, and one program would run another's code inside its own isolate.
+
+<sub>See also [`routing/link-target-and-params-are-checked`](routing.md#routing-link-target-and-params-are-checked), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix), [`http-server/a-canonical-mount-breaks-a-tie`](http-server.md#http-server-a-canonical-mount-breaks-a-tie), [`programs/autoload`](programs.md#programs-autoload).</sub>
+
 <a id="routing-table-is-opt-in"></a>
 
 ## The table is built by the program enumeration, and a program with no `#[Route]` builds none and pays nothing
@@ -1002,9 +1052,15 @@ consequences ([`programs/implementing`](programs.md#programs-implementing)):
 
 The table is a compile product carried by the unit and installed before the program runs, beside the
 command table and the configuration snapshot; the match against it is taken once at the door, and
-the door dispatches nothing ([`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching)). A link to a route declared in another
-module needs that module compiled — the consequence [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload) already
-records for a hard cross-module reference, arriving in a second place.
+the door dispatches nothing ([`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching)).
+
+**A root declared with `autoload links` is never scanned, and its routes never join the table.** A
+link to a route there reads only the file that declares the target class, for that class's routes,
+and compiles nothing in it ([`programs/autoload`](programs.md#programs-autoload)). That file joins the revalidation set, so a
+changed or removed route recompiles the linking program. The other module's handlers stay that
+module's: this program's door never matches them, and its CSRF check never needs to cover them. A
+link to a route under an ordinary root still needs that module compiled, the consequence
+[`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload) records for a hard cross-module reference.
 
 - **Memory:** the table costs O(routes in compiled code) in the artifact, not per request and not
   per object. A program with no `#[Route]` holds none.
