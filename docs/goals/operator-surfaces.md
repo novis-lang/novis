@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-config/src/trust.rs, crates/nvs-config/tests/trust.rs]
   - id: 3
     title: the debug viewer answers only a request that carries its token
-    status: open
+    status: done
     context: [crates/nvs-cli/src/debug/listen.rs, crates/nvs-cli/src/debug/secure.rs, crates/nvs-cli/tests/debug_viewer.rs]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
@@ -160,7 +160,9 @@ nothing on a request path. Usability: a bookmark of the bare address answers `40
 sentence that names the printed link. Declined: a peer-credential check, because TCP has none on
 every platform. Declined: a token made new at each start, because it signs an open tab out at each
 restart of a development server. Known bound: a browser sends a loopback cookie to every port of
-that address, so the cookie is `SameSite=Strict` and `HttpOnly`.
+that address, so the cookie is `SameSite=Strict` and `HttpOnly`. The loopback cookie is named
+`nvs-debug-<port>`, so two services on one address, each with its own data folder and token, do
+not replace each other's cookie.
 
 **Lanes:** stages 1, 2 and 3 touch disjoint files and may run side by side. Stage 4 runs last.
 
@@ -248,32 +250,32 @@ it.
 **Split:** an `Explore` subagent lists every page under `website/src/content/docs` and every help
 text that names the viewer's address, as `path:NN`.
 
-- [ ] `Secure` splits into the token, loaded on every bind, and the TLS configuration, loaded off
+- [x] `Secure` splits into the token, loaded on every bind, and the TLS configuration, loaded off
   loopback (`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`,
   `crates/nvs-cli/src/debug/secure.rs:25`, `crates/nvs-cli/src/debug/listen.rs:130`).
-- [ ] `refused` checks the query token and the cookie on every bind
+- [x] `refused` checks the query token and the cookie on every bind
   (`crates/nvs-cli/src/debug/listen.rs:306`).
-- [ ] The loopback cookie has its own name and no `Secure` attribute, and `admitted` and
+- [x] The loopback cookie has its own name and no `Secure` attribute, and `admitted` and
   `cookie_token` take the bind's cookie (`crates/nvs-cli/src/debug/listen.rs:77`,
   `crates/nvs-cli/src/debug/listen.rs:456`, `crates/nvs-cli/src/debug/listen.rs:466`).
-- [ ] The loopback link carries `?token=`, and `nvs debug` prints it
+- [x] The loopback link carries `?token=`, and `nvs debug` prints it
   (`crates/nvs-cli/src/debug/listen.rs:135`, `crates/nvs-cli/src/debug.rs:227`).
-- [ ] The module doc and the help of `nvs debug` and `--listen` say the link is printed
+- [x] The module doc and the help of `nvs debug` and `--listen` say the link is printed
   (`crates/nvs-cli/src/debug/listen.rs:13`, `crates/nvs-cli/src/debug.rs:105`,
   `crates/nvs-cli/src/debug.rs:128`).
-- [ ] Test `on_loopback_every_path_needs_the_token`: the page, each API path the router matches, and
+- [x] Test `on_loopback_every_path_needs_the_token`: the page, each API path the router matches, and
   a path it does not match answer `401` with no token and with a wrong one. A changing request with
   the own `Origin` and a JSON body answers `401` too (`crates/nvs-cli/tests/debug_viewer.rs:1`,
   `crates/nvs-cli/src/debug/listen.rs:325`).
-- [ ] Test `the_printed_loopback_link_opens_the_viewer`: the printed link answers a redirect that
+- [x] Test `the_printed_loopback_link_opens_the_viewer`: the printed link answers a redirect that
   sets the cookie, and the cookie alone then opens the page and one API path.
-- [ ] The existing loopback cases send the token (`crates/nvs-cli/tests/debug_viewer.rs:181`,
+- [x] The existing loopback cases send the token (`crates/nvs-cli/tests/debug_viewer.rs:181`,
   `crates/nvs-cli/tests/debug_viewer.rs:210`, `crates/nvs-cli/tests/debug_viewer.rs:226`,
   `crates/nvs-cli/tests/debug_viewer.rs:263`), and so does `crates/nvs-cli/tests/debug_service.rs:47`.
-- [ ] `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact` says every bind needs
+- [x] `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact` says every bind needs
   the token and what it costs
   (`docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md:64`).
-- [ ] Each page and help text the `Explore` list names tells the reader to open the printed link.
+- [x] Each page and help text the `Explore` list names tells the reader to open the printed link.
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -285,49 +287,45 @@ text that names the viewer's address, as `path:NN`.
 
 ### State
 
-Stage 1 is done, and its two checks are green. An inline secret directive is carried into the
-`secrets` map and stripped from the table, and `dump --toml` writes it as `"<secret>"`.
+Stages 1, 2 and 3 are done, and each stage's checks ran green once by name on this Windows host.
+Stage 1 carries an inline secret into the `secrets` map and `dump --toml` writes `"<secret>"`.
+Stage 2's `platform::walk` reads the whole DACL, and any untrusted trustee with a refused right is
+a breach.
 
-Stage 2 is done, and its check `any-other-writer-is-a-breach` is green on this Windows host.
-`platform::walk` folds every trustee's entries in one pass into a `Walk` of `Grant`s, and
-`Walk::untrusted` returns the first trustee outside `platform::trusted` (owner, judged account,
-`SYSTEM`, `Administrators`, `TrustedInstaller`, `OWNER RIGHTS`, `CREATOR OWNER`) that holds a
-refused right and is not in `Administrators`. An allowing entry of an unreadable kind lands in
-`Walk::unknown` and is a breach with the null-DACL help. A conditional or object deny is skipped.
-The breach reads "grants write access to `NAME` (`*SID`), rights 0x…", with the name left out
-where Windows has none, and its `Repair` carries the `*SID`. `exposure` uses the same walk for
-read, judged for this process. `UNTRUSTED` and `effective_rights` are gone. Four in-memory DACL
-cases sit in `trust::platform::tests`, and both acceptance tests ran once by name.
+Stage 3: `Secure::load` takes the bound `SocketAddr`, reads the token on every bind and the TLS
+files only off loopback, so `Secure::tls` is an `Option`. `Site::secure` is no longer optional, and
+`refused` checks the query token and the cookie before any route. The cookie name and the
+`Set-Cookie` value come from `Secure::cookie` and `Secure::set_cookie`: `__Host-nvs-debug` with
+`Secure` off loopback, `nvs-debug-<port>` without `Secure` on loopback. The loopback link is
+`http://ADDR/?token=…`. The help of `nvs debug` and `--listen`, the shipped `default.toml`
+comment, `docs/reference/tools/10-cli.md`, the website's debug viewer page and three `about.md`
+files tell the reader to open the printed link. The rule has a paragraph for every bind needing
+the token, with its cost and the declined options. Both acceptance tests ran once by name and
+pass, and the existing loopback cases in `debug_viewer.rs` and `debug_service.rs` send the cookie.
 
-The sweep items were stale: no `env-secret-proofs` check exists, and Miri run `43201099245`
-predates `7568aaa0fb`. Stage 3 is untouched: the loopback viewer has no token.
+The sweep items were stale: no `env-secret-proofs` check exists or has a log, and Miri run
+`43201099245` predates `7568aaa0fb`.
 
 ### Next
 
-Stage 3, the debug viewer answers only a request that carries its token. Files:
-`crates/nvs-cli/src/debug/secure.rs`, `crates/nvs-cli/src/debug/listen.rs`,
-`crates/nvs-cli/src/debug.rs`, `crates/nvs-cli/tests/debug_viewer.rs`,
-`crates/nvs-cli/tests/debug_service.rs` and the rule. Start with the stage's `Explore` split.
+Stage 4, the gate: run `looper verify` over the whole goal, fix every failure in one pass, run it
+once more, then the goal-end gates of AGENTS.md § *In the loop*.
 
-- [ ] `crates/nvs-cli/src/debug/secure.rs:25`: `Secure` splits into the token, loaded on every bind,
-  and TLS off loopback (`crates/nvs-cli/src/debug/listen.rs:130`).
-- [ ] `crates/nvs-cli/src/debug/listen.rs:306`: `refused` checks the token on every bind, and the
-  loopback cookie has its own name (`crates/nvs-cli/src/debug/listen.rs:77`,
-  `crates/nvs-cli/src/debug/listen.rs:456`, `crates/nvs-cli/src/debug/listen.rs:466`).
-- [ ] `crates/nvs-cli/src/debug/listen.rs:135`: the loopback link carries `?token=`, and
-  `crates/nvs-cli/src/debug.rs:227` prints it. Help at `crates/nvs-cli/src/debug.rs:105` and `:128`.
-- [ ] `crates/nvs-cli/tests/debug_viewer.rs:1`: the two acceptance tests, and the existing loopback
-  cases send the token (`crates/nvs-cli/tests/debug_viewer.rs:181`, `:210`, `:226`, `:263`,
-  `crates/nvs-cli/tests/debug_service.rs:47`).
-- [ ] `docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md:64`: every bind
-  needs the token, and what it costs.
+Tests that may go red at the gate, not run here:
 
-Tests that may go red at the gate, not run here. From stage 1: any case that expects an inline
-secret directive in `resolved.table`, or a `--toml` document without `<secret>` keys; a grep found
-none. From stage 2: any test on Windows whose scratch tree or checkout grants write to a trustee
-outside the trusted list, such as a CI runner account that is not the test's own, and
-`crates/nvs-cli/tests/init.rs:799`, which still matches the new message's prefix. Run the gate on a
-Windows runner too.
+- From stage 3: the rest of `crates/nvs-cli/tests/debug_viewer.rs` and
+  `crates/nvs-cli/tests/debug_service.rs:315` (the replay case), which now send the cookie. Any
+  other test that fetches a loopback viewer path without the token answers `401`; a grep found only
+  those two files. A test that pins the shipped `crates/nvs-config/src/default.toml` text or the
+  `nvs debug --help` output may move with the new help sentences.
+- `cargo build --tests` fails here in `nvs-ext`'s image tests with `E0461` (`nvs_image` not found
+  for the host triple). It is not from this goal; the gate shows whether it is this host's build
+  state or a real break.
+- From stage 1: any case that expects an inline secret directive in `resolved.table`, or a
+  `--toml` document without `<secret>` keys; a grep found none.
+- From stage 2: any test on Windows whose scratch tree or checkout grants write to a trustee
+  outside the trusted list, and `crates/nvs-cli/tests/init.rs:799`, which still matches the new
+  message's prefix. Run the gate on a Windows runner too.
 
 ### Backlog
 
