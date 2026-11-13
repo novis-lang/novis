@@ -5,13 +5,6 @@
   ],
   "themes": [
     {
-      "title": "A request path that scales with cores",
-      "text": "Each core keeps its own copy of what every request reads. Static files are read on a separate thread.",
-      "goals": [
-        "request-path-per-core"
-      ]
-    },
-    {
       "title": "Checked links between modules",
       "text": "`Core\\Router::url` can link to a page of another module on the same server. The compiler checks the link, and the server adds the right prefix.",
       "goals": [
