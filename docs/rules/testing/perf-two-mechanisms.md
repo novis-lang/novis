@@ -29,8 +29,10 @@ Allocations, emitted calls and executed statements read the same on any machine 
 where a guard's question can be asked as a count, the count is the check that fails and a timing
 beside it is a sanity bound. No counter goes on a production path for a test: a test counts with
 a wrapper it supplies, such as a counting `Read` under a stream, or with a `cfg(test)` counter in the
-crate whose own tests read it. Where neither reaches, as with `nvs_host::counts`, the counter exists
-under `debug_assertions` only, and the release binary has none. A slowdown between the two bounds no longer fails CI, and one with no
+crate whose own tests read it. Where neither reaches, as with `nvs_host::counts` and
+`nvs_diagnostics::shared`, the counter exists under `debug_assertions` only, and the release binary
+has none. `nvs_diagnostics::shared` counts the writes one request makes to cache lines every core
+shares, a lock's two and an `Arc` clone's two, at the site that makes them. A slowdown between the two bounds no longer fails CI, and one with no
 count behind it, such as a layout that misses the cache more often, shows only as a warning until it
 reaches the hard bound; catching it is the job of a same-machine comparison and of the counts. A
 warning is answered by measuring the commit before it on the machine that warned.

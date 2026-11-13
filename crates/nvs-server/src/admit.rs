@@ -250,6 +250,9 @@ impl Admission {
         // Counted before it allocates, so the next admission on any core reads
         // it: the module doc's *A burst is counted before it allocates*.
         if place.is_some() {
+            // The count goes up here and down at the place's drop.
+            #[cfg(debug_assertions)]
+            nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Admit, 2);
             nvs_runtime::budget::hold_share();
         }
         place

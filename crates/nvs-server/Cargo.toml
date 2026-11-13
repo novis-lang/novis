@@ -30,6 +30,10 @@ nvs-host.workspace = true
 # one home and the boot refusal of an unbounded one lives beside the block it reads. Not a new
 # crate in the graph — `nvs-host` and `nvs-runtime` both already rest on it.
 nvs-config.workspace = true
+# Debug builds count the door's shared writes in `nvs_diagnostics::shared`, and `src/bounds.rs`'s
+# test asserts the diagnostic a removed connection bound is refused with. Not a new crate in the
+# graph: `nvs-config`, `nvs-runtime` and `nvs-host` all already rest on it.
+nvs-diagnostics.workspace = true
 # `statics` and `mount` record each file they stat, read or test when
 # `NVS_FOOTPRINT_LOG` names a log.
 nvs-footprint.workspace = true
@@ -82,10 +86,6 @@ exporter = []
 # Nothing in this crate's own code names a TOML value; the configuration reaches it as
 # `nvs_config::snapshot::Snapshot` and never as a document.
 toml.workspace = true
-# Test-only, and for one case: `src/bounds.rs` asserts the diagnostic a removed connection bound is
-# refused with. Nothing in this crate's own code names a diagnostic. Not a new crate in the graph:
-# `nvs-config`, `nvs-runtime` and `nvs-host` all already rest on it.
-nvs-diagnostics.workspace = true
 # Test-only: `src/slotted/`'s case recomputes the script hashes the policy names from the two
 # files, so a script edited without its hash fails a test. Not new crates in the graph:
 # `nvs-host` already rests on both.

@@ -1341,6 +1341,11 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // built until then: the closure keeps the head the door already
             // holds, and finds the mount again by its place in the table.
             let rerun = (refusal_mode && inbound.refusal().is_none()).then(|| {
+                #[cfg(debug_assertions)]
+                {
+                    nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Unit, 2);
+                    nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Folder, 2);
+                }
                 let compiler = Arc::clone(&compiler);
                 let folder = Arc::clone(&folder);
                 let at = table
@@ -1392,6 +1397,8 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // mount resolved, which is what the program's absolute links are
             // built from. [`at_mount_origin`] owns why it goes onto the
             // isolate and not onto the carrier beside the prefix above.
+            #[cfg(debug_assertions)]
+            nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Folder, 2);
             let isolate = at_mount_origin(
                 Isolate::new(program, Value::null(), Output::Capture)
                     .answering(inbound)
@@ -5235,6 +5242,191 @@ mod tests {
     /// How many pages a waiting request's program may keep resident on its own
     /// stack in a debug build: 3.0 measured, and 1.0 in release.
     const REQUEST_PROGRAM_STACK_PAGES: usize = 4;
+
+    /// The writes one keep-alive request makes to cache lines every core
+    /// shares, counted by `nvs_diagnostics::shared` on the serving thread.
+    ///
+    /// One client sends two warm-up requests down one connection, then
+    /// [`SHARED_FIRST`] and [`SHARED_SECOND`] more, and one last request that
+    /// closes it. The handler reads the count as each request arrives, and does
+    /// per request what `nvs serve`'s handler does for a mount's entry: it looks
+    /// up the entry's folder and snapshot in the request's publish, takes the
+    /// compiled unit from the cache, and runs it in that folder. The count per
+    /// request is the same over both spans, so nothing in it grows with the
+    /// requests served, and it is at most [`SHARED_WRITES`].
+    ///
+    /// Debug builds only, because the counter exists only there.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_keep_alive_request_makes_its_counted_shared_writes() {
+        use nvs_diagnostics::shared::Shared;
+
+        let dir = nvs_repo::scratch("serve-shared-writes");
+        let entry = dir.join("entry.nvs");
+        std::fs::write(&entry, "<?nvs\necho \"counted\";\n").expect("the entry is writable");
+        let path = entry.to_string_lossy().into_owned();
+
+        let mut listener =
+            nvs_host::NvsListener::bind(a_free_address()).expect("the loopback refused a listener");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener knows its own address");
+        let draining = nvs_server::Draining::detached();
+        let asked = 2 + SHARED_FIRST + SHARED_SECOND + 1;
+        let drained = draining.clone();
+        let client = std::thread::spawn(move || {
+            let _ends = EndsTheServer(drained);
+            let mut socket =
+                std::net::TcpStream::connect(addr).expect("the loopback refused a socket");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            for at in 1..=asked {
+                let closing = if at == asked {
+                    "Connection: close\r\n"
+                } else {
+                    ""
+                };
+                socket
+                    .write_all(
+                        format!("GET / HTTP/1.1\r\nHost: localhost\r\n{closing}\r\n").as_bytes(),
+                    )
+                    .expect("a request could not be written");
+                let head = head_from(&mut socket);
+                assert!(
+                    head.starts_with("HTTP/1.1 200 "),
+                    "a request failed: {head}"
+                );
+                let length = head
+                    .lines()
+                    .find_map(|line| {
+                        let (name, value) = line.split_once(':')?;
+                        name.eq_ignore_ascii_case("content-length")
+                            .then(|| value.trim().parse::<usize>().ok())?
+                    })
+                    .unwrap_or_else(|| panic!("a response had no length: {head}"));
+                let mut body = vec![0; length];
+                socket
+                    .read_exact(&mut body)
+                    .expect("a response's body could not be read");
+            }
+            let mut rest = Vec::new();
+            socket
+                .read_to_end(&mut rest)
+                .expect("a closed connection could not be read to its end");
+        });
+
+        let compiler = Arc::new(Compiler::default());
+        let serving = nvs_server::Serving::new(
+            Arc::new(nvs_server::Admission::new(&nvs_server::Ceiling::of(
+                &nvs_config::server::Capacity {
+                    configured: u64::MAX,
+                    per_request: None,
+                    budget: None,
+                },
+            ))),
+            Arc::new(nvs_server::Secure::of(None)),
+            Arc::new(nvs_server::Trusted::of(&[]).0),
+            Arc::new(nvs_server::Cors::of(None)),
+            Arc::default(),
+        );
+        let mut sched = nvs_host::Scheduler::new();
+        let installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        // Sized for every reading up front.
+        let readings = Rc::new(std::cell::RefCell::new(Vec::<Shared>::with_capacity(asked)));
+        let handler = Rc::new({
+            let compiler = Arc::clone(&compiler);
+            let readings = Rc::clone(&readings);
+            move |request: nvs_server::Request<nvs_server::Incoming>,
+                  _origin: nvs_server::Origin| {
+                readings.borrow_mut().push(Shared::now());
+                let file = std::path::Path::new(&path);
+                let published =
+                    nvs_server::published_of(&request).expect("the door carries its publish");
+                let folder = published.folder(file, &crate::config::ServedFiles);
+                let _config = published
+                    .entry(file, &crate::config::ServedFiles)
+                    .expect("the entry has a snapshot");
+                let (program, _routes) = compiler.compiled(&path).expect("the entry compiles");
+                let inbound = Inbound::new(request.method().as_str(), request.uri().path(), "");
+                // The folder's copy, which `nvs serve`'s handler counts at the same line.
+                nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Folder, 2);
+                nvs_server::Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture)
+                        .answering(inbound)
+                        .in_folder(Arc::clone(&folder)),
+                    None,
+                    None,
+                )
+            }
+        });
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let draining = draining.clone();
+            move |_ctx| {
+                nvs_server::serve_on_this_core(
+                    &mut listener,
+                    &handler,
+                    nvs_config::server::Waits::default(),
+                    &serving,
+                    &draining,
+                    |_note| {},
+                    || ControlFlow::Continue(()),
+                )
+                .expect("the accept loop failed");
+            }
+        });
+        loop {
+            match nvs_host::run_until_idle(&mut sched) {
+                Ok(report) if report.parked > 0 => {}
+                Ok(_) => break,
+                Err(error) => panic!("the scheduler stopped: {error}"),
+            }
+        }
+        drop(installed);
+        client.join().expect("the client thread panicked");
+
+        let readings = readings.borrow();
+        assert_eq!(
+            readings.len(),
+            asked,
+            "the handler ran {} times",
+            readings.len()
+        );
+        let warm = readings[2];
+        let first = readings[2 + SHARED_FIRST];
+        let second = readings[2 + SHARED_FIRST + SHARED_SECOND];
+        let over_first = first.since(warm);
+        let over_second = second.since(first);
+        let per_request = over_first.per(SHARED_FIRST as u64);
+        println!("shared writes per keep-alive request:\n{per_request}");
+        assert!(
+            over_first == per_request.times(SHARED_FIRST as u64)
+                && over_second == per_request.times(SHARED_SECOND as u64),
+            "the shared writes grew with the requests served: over {SHARED_FIRST} requests\n\
+             {over_first}\nand over {SHARED_SECOND} requests\n{over_second}"
+        );
+        assert!(
+            per_request.total() <= SHARED_WRITES,
+            "a keep-alive request made {} shared writes, over the {SHARED_WRITES} it is held \
+             to:\n{per_request}",
+            per_request.total()
+        );
+    }
+
+    /// How many requests [`a_keep_alive_request_makes_its_counted_shared_writes`]
+    /// counts over first.
+    #[cfg(debug_assertions)]
+    const SHARED_FIRST: usize = 20;
+
+    /// How many requests it counts over second.
+    #[cfg(debug_assertions)]
+    const SHARED_SECOND: usize = 40;
+
+    /// How many shared writes one keep-alive request may make: 48 measured.
+    /// A change that removes a counted site lowers this to what the test prints.
+    #[cfg(debug_assertions)]
+    const SHARED_WRITES: u64 = 48;
 
     /// An address on the loopback nothing is listening on, taken from the
     /// platform and given straight back so the boot under test is what binds it.

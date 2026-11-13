@@ -611,6 +611,23 @@ impl Ctx {
         isolate
     }
 
+    /// The shared writes [`Self::isolate`] makes when it copies this context, two for each
+    /// shared value it holds: the configuration's snapshot first, then every other value that
+    /// another request may hold too. The deadline is left out, because it is this tree's own.
+    /// A server counts them for `nvs_diagnostics::shared`, which this crate cannot reach.
+    #[cfg(debug_assertions)]
+    #[must_use]
+    pub fn isolate_copies(&self) -> (u64, u64) {
+        let some = |held: bool| if held { 2 } else { 0 };
+        (
+            some(self.config.is_some()),
+            some(self.run_hits.is_some())
+                + some(self.run_profile.is_some())
+                + some(self.grant_filter.is_some())
+                + some(self.runtime_error_class.is_some()),
+        )
+    }
+
     /// [`Self::isolate`] for `rule:security/isolate-shares-nothing`'s
     /// **method entry** — a child running a `static` method of the unit *this*
     /// context is already running, rather than another file.

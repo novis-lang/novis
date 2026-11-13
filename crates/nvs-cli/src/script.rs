@@ -1849,13 +1849,22 @@ impl Rerun {
 fn reply(state: &CompileState) -> Option<Answer> {
     match state {
         CompileState::Compiling(_) => None,
-        CompileState::Ready(compiled) => Some(Ok((
-            Prepared {
-                classes: compiled.unit.runtime_error_class(),
-                program: program_over(Arc::clone(compiled)),
-            },
-            Arc::clone(&compiled.routes),
-        ))),
+        CompileState::Ready(compiled) => {
+            let classes = compiled.unit.runtime_error_class();
+            // The unit and its route table, and the class table where the unit has one.
+            #[cfg(debug_assertions)]
+            nvs_diagnostics::shared::wrote(
+                nvs_diagnostics::shared::Line::Unit,
+                if classes.is_some() { 6 } else { 4 },
+            );
+            Some(Ok((
+                Prepared {
+                    classes,
+                    program: program_over(Arc::clone(compiled)),
+                },
+                Arc::clone(&compiled.routes),
+            )))
+        }
         CompileState::Failed(message) => Some(Err(message.clone())),
     }
 }
@@ -2007,12 +2016,16 @@ fn describes_the_disk(
 /// so a thread that panicked elsewhere has not made anything in here untrue,
 /// and refusing to read it would cost a working process its whole cache.
 fn shared<T>(lock: &RwLock<T>) -> RwLockReadGuard<'_, T> {
+    #[cfg(debug_assertions)]
+    nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::UnitsLock, 2);
     lock.read().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// A write guard on one of the same two maps, held for one `insert` and never
 /// across a compile — the module doc's *A reader never waits behind a compile*.
 fn exclusive<T>(lock: &RwLock<T>) -> RwLockWriteGuard<'_, T> {
+    #[cfg(debug_assertions)]
+    nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::UnitsLock, 2);
     lock.write().unwrap_or_else(PoisonError::into_inner)
 }
 
@@ -2083,6 +2096,22 @@ impl Resolver for Compiler {
 /// another, shares them rather than compiling again.
 fn program_over(compiled: Arc<Compiled>) -> Program {
     Box::new(move |ctx: &mut Ctx, args: Value| -> Value {
+        // The unit's tables this frame copies onto the context: its statics,
+        // its error class where it has one, its routes where it has any, its
+        // id and its query sites.
+        #[cfg(debug_assertions)]
+        nvs_diagnostics::shared::wrote(
+            nvs_diagnostics::shared::Line::Unit,
+            6 + if compiled.unit.runtime_error_class().is_some() {
+                2
+            } else {
+                0
+            } + if compiled.routes.rows().is_empty() {
+                0
+            } else {
+                2
+            },
+        );
         // The child unit's statics and its error class, which
         // `nvs_runtime::script::Program` requires before any of its code runs
         // and `Ctx::isolate` deliberately left empty.

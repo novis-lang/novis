@@ -1130,6 +1130,11 @@ impl Serving {
     /// If a thread panicked while holding the lock. Nothing done under it can
     /// panic — an `Arc` clone and an `Arc` store.
     fn policy(&self, snapshot: &Arc<nvs_config::Snapshot>) -> Arc<Policy> {
+        #[cfg(debug_assertions)]
+        {
+            nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::PolicyLock, 2);
+            nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Policy, 2);
+        }
         let held = Arc::clone(
             &self
                 .policy
@@ -1892,6 +1897,8 @@ where
         // its entry's snapshot out of the same publish, which the request
         // carries to the handler ([`published_of`]).
         let published = serving.current.published();
+        #[cfg(debug_assertions)]
+        nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Snapshot, 2);
         let snapshot = Arc::clone(published.host());
         let policy = serving.policy(&snapshot);
         // `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`'s
@@ -2169,6 +2176,13 @@ where
                         traced = isolate
                             .answering_request()
                             .and_then(nvs_runtime::Inbound::trace_context);
+                        #[cfg(debug_assertions)]
+                        if chosen.is_some() {
+                            nvs_diagnostics::shared::wrote(
+                                nvs_diagnostics::shared::Line::Snapshot,
+                                2,
+                            );
+                        }
                         ran_under.clone_from(&chosen);
                         // The body the program pulls, recorded under the gate
                         // of the snapshot it runs under, whose `[app.limits]`
@@ -2261,11 +2275,28 @@ where
                     // `[limits]` and every capability an entry asks for is this
                     // line: a context nobody configured states no ceiling and
                     // grants nothing.
+                    // Two clones of one snapshot: the one this future reads, and the
+                    // context's.
+                    #[cfg(debug_assertions)]
+                    nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Snapshot, 4);
                     let under = chosen.clone().unwrap_or_else(|| Arc::clone(&snapshot));
                     ctx.borrow_mut().set_config(Arc::clone(&under));
                     // A statement of its own, because the borrow a `match`
                     // scrutinee takes lives to the end of the whole `match` — and
                     // the arm below borrows the same context again to collect.
+                    // What the request's own context copies from this one as it starts.
+                    #[cfg(debug_assertions)]
+                    {
+                        let (snapshot, context) = ctx.borrow().isolate_copies();
+                        nvs_diagnostics::shared::wrote(
+                            nvs_diagnostics::shared::Line::Snapshot,
+                            snapshot,
+                        );
+                        nvs_diagnostics::shared::wrote(
+                            nvs_diagnostics::shared::Line::Context,
+                            context,
+                        );
+                    }
                     let started = isolate.start(&mut ctx.borrow_mut());
                     let response = match started {
                         Ok(running) => {

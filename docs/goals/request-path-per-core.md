@@ -6,7 +6,7 @@ context: [crates/nvs-server/src/serve.rs, crates/nvs-cli/src/serve.rs, docs/agen
 stages:
   - id: 1
     title: the shared writes of one request are counted and guarded
-    status: open
+    status: done
     context: [crates/nvs-host/src/counts.rs, crates/nvs-diagnostics/src/work.rs, crates/nvs-config/src/snapshot.rs, crates/nvs-cli/src/script.rs, docs/rules/testing/perf-two-mechanisms.md]
   - id: 2
     title: "the door reads the publish and the policy from its core's record"
@@ -36,14 +36,14 @@ checks:
   - id: shared-writes-counted
     stage: 1
     name: "a keep-alive request makes the same counted shared writes at any request count, and no more than its bound"
-    run: [cargo, test, --lib, --, a_keep_alive_request_makes_its_counted_shared_writes]
+    run: [cargo, test, --lib, --bin, nvs, --, a_keep_alive_request_makes_its_counted_shared_writes]
     timeout: 1800
     tests:
       - a_keep_alive_request_makes_its_counted_shared_writes
   - id: door-record
     stage: 2
     name: "the door takes no lock under the standing configuration, and a reload reaches the next request on the same core"
-    run: [cargo, test, --lib, --, a_reload_between_two_requests_on_one_core_reaches_the_second, the_door_takes_no_lock_under_the_standing_configuration]
+    run: [cargo, test, --lib, --bin, nvs, --, a_reload_between_two_requests_on_one_core_reaches_the_second, the_door_takes_no_lock_under_the_standing_configuration]
     timeout: 1800
     tests:
       - a_reload_between_two_requests_on_one_core_reaches_the_second
@@ -51,7 +51,7 @@ checks:
   - id: unit-slot
     stage: 3
     name: "a mount's entry is read from its core's record, and a swapped unit reaches the next request on the same core"
-    run: [cargo, test, --lib, --, a_mounts_entry_is_read_from_its_cores_record_without_a_lock, a_unit_swapped_between_two_requests_on_one_core_reaches_the_second]
+    run: [cargo, test, --lib, --bin, nvs, --, a_mounts_entry_is_read_from_its_cores_record_without_a_lock, a_unit_swapped_between_two_requests_on_one_core_reaches_the_second]
     timeout: 1800
     tests:
       - a_mounts_entry_is_read_from_its_cores_record_without_a_lock
@@ -59,7 +59,7 @@ checks:
   - id: one-buffer-head
     stage: 4
     name: "a framed head allocates the same for three header lines and for a hundred, and a rerun shares it"
-    run: [cargo, test, --lib, --, a_framed_head_allocates_the_same_for_three_header_lines_and_for_a_hundred, a_dispatching_units_rerun_shares_the_first_runs_head]
+    run: [cargo, test, --lib, --bin, nvs, --, a_framed_head_allocates_the_same_for_three_header_lines_and_for_a_hundred, a_dispatching_units_rerun_shares_the_first_runs_head]
     timeout: 1800
     tests:
       - a_framed_head_allocates_the_same_for_three_header_lines_and_for_a_hundred
@@ -67,14 +67,14 @@ checks:
   - id: static-off-core
     stage: 5
     name: "every shape of static request is answered with no file call on the thread that serves it"
-    run: [cargo, test, --lib, --, a_static_request_makes_no_file_call_on_its_core]
+    run: [cargo, test, --lib, --bin, nvs, --, a_static_request_makes_no_file_call_on_its_core]
     timeout: 1800
     tests:
       - a_static_request_makes_no_file_call_on_its_core
   - id: settings-resolved-once
     stage: 6
     name: "the door's settings are resolved once per snapshot, and a held log file is opened once"
-    run: [cargo, test, --lib, --, the_door_settings_are_resolved_once_per_snapshot, a_held_log_file_is_opened_once_for_any_number_of_requests]
+    run: [cargo, test, --lib, --bin, nvs, --, the_door_settings_are_resolved_once_per_snapshot, a_held_log_file_is_opened_once_for_any_number_of_requests]
     timeout: 1800
     tests:
       - the_door_settings_are_resolved_once_per_snapshot
@@ -252,7 +252,29 @@ simplicity, which the priority ordering does not allow. Two changes around it ar
 one-buffer head, and the workspace manifest's comment that says `Core\Http\Client` is `ureq`'s. No
 manifest names `ureq`, and the client is hand-written.
 
-**The measured count.** Stage 1 writes the per-request number and its per-line table here.
+**The measured count.** One keep-alive request to a compiled unit, with no `[[app]]` block and the
+shipped header set, makes **48** shared writes in debug, the same over 20 and over 40 requests.
+That is at least 28, so stages 2 and 3 are built. The guard's bound is 48
+(`crates/nvs-cli/src/serve.rs`'s `SHARED_WRITES`).
+
+| line | writes | where |
+|---|---|---|
+| `current-lock` | 2 | `Current::published` |
+| `publish-lock` | 2 | `Published::folder`'s read |
+| `policy-lock` | 2 | `Serving::policy` |
+| `units-lock` | 6 | the compile cache's `paths`, `env` and `units` reads |
+| `publish` | 2 | the door's `Arc<Published>` |
+| `snapshot` | 10 | the door's host clone, `under` and `set_config`, `Published::entry`'s host clone, `Ctx::isolate`'s copy |
+| `policy` | 4 | the `Arc<Policy>`, and the rendered `Content-Security-Policy` value |
+| `folder` | 4 | `Published::folder`'s clone, and `in_folder` |
+| `unit` | 14 | `reply`'s unit, routes and class table, and `program_over`'s statics, class table, id and query sites |
+| `admit` | 2 | the in-flight count |
+
+An entry an `[[app]]` block matches adds one `publish-lock` read and a `ran_under` clone. A
+dispatching unit under refusal mode adds the `Rerun` closure's compiler and folder clones.
+`Ctx::isolate`'s copies are counted by the door through `Ctx::isolate_copies`, because
+`nvs-runtime` does not depend on `nvs-diagnostics`. Every check runs `cargo test --lib --bin nvs`,
+because `nvs-cli` is a binary crate and `--lib` alone runs none of its tests.
 
 **Lanes:** one lane, in order. Every stage edits `crates/nvs-server/src/serve.rs` or
 `crates/nvs-cli/src/serve.rs`. Stages 4, 5 and 6 do not depend on stages 2 and 3, so they are built
@@ -265,36 +287,36 @@ whatever the count decides. Inside stage 5 and stage 6 the `Explore` searches ru
 **Does:** count every shared atomic write the door and the handler make for one request, guard the
 number, and decide stages 2 and 3 by it.
 
-- [ ] `crates/nvs-diagnostics/src/shared.rs:1`: a debug-only module `shared` in `nvs-diagnostics`.
+- [x] `crates/nvs-diagnostics/src/shared.rs:1`: a debug-only module `shared` in `nvs-diagnostics`.
   It has one thread-local count per named line, a `wrote(line, writes)` call and a `now()`/`since()`
   reading, as `crates/nvs-host/src/counts.rs:27` does it (`rule:testing/perf-two-mechanisms`,
   `crates/nvs-diagnostics/src/lib.rs:37`).
-- [ ] `crates/nvs-config/src/snapshot.rs:726`: count the lock sites, two writes each
+- [x] `crates/nvs-config/src/snapshot.rs:726`: count the lock sites, two writes each
   (`rule:testing/perf-two-mechanisms`). They are `Current::published` and `Current::load` (`:726`,
   `:738`), `Published::folder` and `Published::entry` (`crates/nvs-config/src/snapshot.rs:618`,
   `:657`, `:663`), `Serving::policy` (`crates/nvs-server/src/serve.rs:1132`), and the compile cache's
   `shared` and `exclusive` (`crates/nvs-cli/src/script.rs:2009`, `:2015`).
-- [ ] `crates/nvs-server/src/serve.rs:1891`: count the reference-count sites, two writes each
+- [x] `crates/nvs-server/src/serve.rs:1891`: count the reference-count sites, two writes each
   (`rule:testing/perf-two-mechanisms`). They are the door's (`:1891`, `:2168`, `:2260`, `:2261`,
   `:2285`), the policy's (`crates/nvs-server/src/serve.rs:1129`,
   `crates/nvs-server/src/secure.rs:158`, `:167`), the handler's (`crates/nvs-cli/src/serve.rs:1345`,
   `:1398`), the unit's (`crates/nvs-cli/src/script.rs:1855`, `:1857`, `:2094`, `:2099`, `:2101`), the
   publish's (`crates/nvs-config/src/snapshot.rs:619`, `:654`, `:658`), the context's
   (`crates/nvs-runtime/src/ctx/isolate.rs:551`) and `admit` (`crates/nvs-server/src/admit.rs:245`).
-- [ ] `crates/nvs-cli/src/serve.rs:4940`: test `a_keep_alive_request_makes_its_counted_shared_writes`
+- [x] `crates/nvs-cli/src/serve.rs:4940`: test `a_keep_alive_request_makes_its_counted_shared_writes`
   in that file's tests, under `#[cfg(debug_assertions)]`, on the harness of
   `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`. One client sends two warm-up
   requests and then 20 and 40 keep-alive requests to a compiled unit. The per-request count is the
   same for both sizes and at most the bound. A failure prints the count per line
   (`rule:testing/perf-two-mechanisms`).
-- [ ] `docs/goals/request-path-per-core.md:1`: run the test once with `cargo test --lib --
+- [x] `docs/goals/request-path-per-core.md:1`: run the test once with `cargo test --bin nvs --
   a_keep_alive_request_makes_its_counted_shared_writes --nocapture`. Set the bound to the number it
   prints. Write the number and the per-line table under **The measured count** in this file
   (`rule:testing/perf-two-mechanisms`).
-- [ ] `docs/goals/request-path-per-core.md:1`: decide stages 2 and 3 by the number, as the first
+- [x] `docs/goals/request-path-per-core.md:1`: decide stages 2 and 3 by the number, as the first
   standing decision says. Below 28, replace their items and delete their two checks in the same
-  commit (`rule:programs/memory-priority`).
-- [ ] `docs/rules/testing/perf-two-mechanisms.md:1`: `rule:testing/perf-two-mechanisms` names
+  commit (`rule:programs/memory-priority`). The count is 48, so both are built.
+- [x] `docs/rules/testing/perf-two-mechanisms.md:1`: `rule:testing/perf-two-mechanisms` names
   `nvs_diagnostics::shared` beside `nvs_host::counts` as a debug-only counter.
 
 ### 2. the door reads the publish and the policy from its core's record
@@ -505,47 +527,33 @@ resolved cell, and keep a configured log file open.
 
 ### State
 
-Nothing is built yet. The door reads `Current`, the policy, the publish's resolutions and the compile
-cache under process-wide locks for every request. `Inbound` boxes each header line, `OnDisk` calls the
-file system on the core thread, and four settings are parsed per request when set.
+Stage 1 is done. `nvs_diagnostics::shared` counts every shared write the door and the handler make,
+and `a_keep_alive_request_makes_its_counted_shared_writes` (`crates/nvs-cli/src/serve.rs`) holds one
+keep-alive request to 48. That is at least 28, so stages 2 and 3 are built (**The measured count**).
+`nvs-server` now depends on `nvs-diagnostics` outside its tests. `Ctx::isolate_copies` gives the
+door the copies `Ctx::isolate` makes, because `nvs-runtime` does not reach `nvs-diagnostics`. Every
+check's run is now `cargo test --lib --bin nvs`: `nvs-cli` is a binary crate, so `--lib` alone ran
+none of its tests.
+
+The sweep's `env-secret-proofs` and the nightly Miri failures of run 43201099245 were stale. No such
+check exists, and that run tested `578534cc7c`, before `7568aaa0fb` skipped all four tests under
+Miri.
 
 ### Next
 
-Stage 1, over `crates/nvs-diagnostics/src/shared.rs`, `crates/nvs-config/src/snapshot.rs`,
-`crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/secure.rs`, `crates/nvs-cli/src/script.rs` and
-`crates/nvs-cli/src/serve.rs`. No test is expected red.
+Stage 2, over `crates/nvs-config/src/snapshot.rs`, `crates/nvs-config/src/limits.rs`,
+`crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/secure.rs` and `crates/nvs-cli/src/serve.rs`.
+Follow the stage's **Split** line first. The handler's signature change breaks every handler the
+list names until each is updated. No test is expected red once it lands.
 
-- [ ] `crates/nvs-diagnostics/src/shared.rs:1`: a debug-only module `shared` in `nvs-diagnostics`.
-  It has one thread-local count per named line, a `wrote(line, writes)` call and a `now()`/`since()`
-  reading, as `crates/nvs-host/src/counts.rs:27` does it (`rule:testing/perf-two-mechanisms`,
-  `crates/nvs-diagnostics/src/lib.rs:37`).
-- [ ] `crates/nvs-config/src/snapshot.rs:726`: count the lock sites, two writes each
-  (`rule:testing/perf-two-mechanisms`). They are `Current::published` and `Current::load` (`:726`,
-  `:738`), `Published::folder` and `Published::entry` (`crates/nvs-config/src/snapshot.rs:618`,
-  `:657`, `:663`), `Serving::policy` (`crates/nvs-server/src/serve.rs:1132`), and the compile cache's
-  `shared` and `exclusive` (`crates/nvs-cli/src/script.rs:2009`, `:2015`).
-- [ ] `crates/nvs-server/src/serve.rs:1891`: count the reference-count sites, two writes each
-  (`rule:testing/perf-two-mechanisms`). They are the door's (`:1891`, `:2168`, `:2260`, `:2261`,
-  `:2285`), the policy's (`crates/nvs-server/src/serve.rs:1129`,
-  `crates/nvs-server/src/secure.rs:158`, `:167`), the handler's (`crates/nvs-cli/src/serve.rs:1345`,
-  `:1398`), the unit's (`crates/nvs-cli/src/script.rs:1855`, `:1857`, `:2094`, `:2099`, `:2101`), the
-  publish's (`crates/nvs-config/src/snapshot.rs:619`, `:654`, `:658`), the context's
-  (`crates/nvs-runtime/src/ctx/isolate.rs:551`) and `admit` (`crates/nvs-server/src/admit.rs:245`).
-- [ ] `crates/nvs-cli/src/serve.rs:4940`: test `a_keep_alive_request_makes_its_counted_shared_writes`
-  in that file's tests, under `#[cfg(debug_assertions)]`, on the harness of
-  `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`. One client sends two warm-up
-  requests and then 20 and 40 keep-alive requests to a compiled unit. The per-request count is the
-  same for both sizes and at most the bound. A failure prints the count per line
-  (`rule:testing/perf-two-mechanisms`).
-- [ ] `docs/goals/request-path-per-core.md:1`: run the test once with `cargo test --lib --
-  a_keep_alive_request_makes_its_counted_shared_writes --nocapture`. Set the bound to the number it
-  prints. Write the number and the per-line table under **The measured count** in this file
-  (`rule:testing/perf-two-mechanisms`).
-- [ ] `docs/goals/request-path-per-core.md:1`: decide stages 2 and 3 by the number, as the first
-  standing decision says. Below 28, replace their items and delete their two checks in the same
-  commit (`rule:programs/memory-priority`).
-- [ ] `docs/rules/testing/perf-two-mechanisms.md:1`: `rule:testing/perf-two-mechanisms` names
-  `nvs_diagnostics::shared` beside `nvs_host::counts` as a debug-only counter.
+- `Current` is `crates/nvs-config/src/snapshot.rs:721`; its publish paths are `:789`, `:808` and
+  `:831`. The counted sites in it, `Current::published` and `Current::load`, keep their counts.
+- `serve_on_this_core` is `crates/nvs-server/src/serve.rs:3456`, `published_of` `:728`, and
+  `Serving::policy` the function with the `PolicyLock` count.
+- The record's reads count nothing. Stage 2's `the_door_takes_no_lock_under_the_standing_configuration`
+  reads `Line::CurrentLock` and `Line::PolicyLock` from `nvs_diagnostics::shared`. Then lower
+  `SHARED_WRITES` in `crates/nvs-cli/src/serve.rs` to what the keep-alive test prints. It asserts
+  `<=`, so a lower count does not turn it red.
 
 ### Backlog
 

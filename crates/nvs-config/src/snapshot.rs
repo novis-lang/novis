@@ -41,6 +41,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
+#[cfg(debug_assertions)]
+use nvs_diagnostics::shared;
 use nvs_diagnostics::{Diagnostic, code};
 
 use crate::app;
@@ -615,7 +617,11 @@ impl Published {
     /// If a thread panicked while holding the lock, which nothing under it can do.
     pub fn folder(&self, entry: &Path, files: &dyn Files) -> Arc<Path> {
         let lock = "the publish's resolutions are never poisoned";
+        #[cfg(debug_assertions)]
+        shared::wrote(shared::Line::PublishLock, 2);
         if let Some(found) = self.resolved.read().expect(lock).folders.get(entry) {
+            #[cfg(debug_assertions)]
+            shared::wrote(shared::Line::Folder, 2);
             return Arc::clone(found);
         }
         // A path that does not resolve matches no block, and its folder is the one it names.
@@ -651,16 +657,26 @@ impl Published {
     /// If a thread panicked while holding the lock, which nothing under it can do.
     pub fn entry(&self, entry: &Path, files: &dyn Files) -> Result<Arc<Snapshot>, Diagnostic> {
         if self.blocks.apps.is_empty() {
+            #[cfg(debug_assertions)]
+            shared::wrote(shared::Line::Snapshot, 2);
             return Ok(Arc::clone(&self.host));
         }
         let lock = "the publish's resolutions are never poisoned";
+        #[cfg(debug_assertions)]
+        shared::wrote(shared::Line::PublishLock, 2);
         if let Some(found) = self.resolved.read().expect(lock).entries.get(entry) {
+            #[cfg(debug_assertions)]
+            shared::wrote(shared::Line::Snapshot, 2);
             return Ok(Arc::clone(found));
         }
         let canonical = files.canonical(entry).map_err(|err| {
             crate::resolve::unreadable(entry, &err, "it is the entry file being configured")
         })?;
+        #[cfg(debug_assertions)]
+        shared::wrote(shared::Line::PublishLock, 2);
         if let Some(found) = self.resolved.read().expect(lock).entries.get(&canonical) {
+            #[cfg(debug_assertions)]
+            shared::wrote(shared::Line::Snapshot, 2);
             return Ok(Arc::clone(found));
         }
         let chain = app::matching_canonical(&self.blocks.apps, &canonical);
@@ -724,6 +740,11 @@ impl Current {
     /// As [`load`](Current::load).
     #[must_use]
     pub fn published(&self) -> Arc<Published> {
+        #[cfg(debug_assertions)]
+        {
+            shared::wrote(shared::Line::CurrentLock, 2);
+            shared::wrote(shared::Line::Publish, 2);
+        }
         Arc::clone(&self.0.read().expect("the snapshot lock is never poisoned"))
     }
 
@@ -736,6 +757,11 @@ impl Current {
     /// is already unwinding through something else.
     #[must_use]
     pub fn load(&self) -> Arc<Snapshot> {
+        #[cfg(debug_assertions)]
+        {
+            shared::wrote(shared::Line::CurrentLock, 2);
+            shared::wrote(shared::Line::Snapshot, 2);
+        }
         Arc::clone(
             &self
                 .0

@@ -32,6 +32,8 @@ pub mod embedded;
 mod paths;
 pub mod record;
 mod render;
+#[cfg(debug_assertions)]
+pub mod shared;
 mod source;
 mod span;
 pub mod work;
