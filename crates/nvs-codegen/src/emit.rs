@@ -95,6 +95,28 @@ const POINTER_SIZE: i32 = 8;
 /// `align_shift` for an 8-byte-aligned stack slot: 2^3 == 8.
 const POINTER_ALIGN_SHIFT: u8 = 3;
 
+/// [`nvs_runtime::IMMORTAL_REFCOUNT`] as the `i64` immediate the inline count
+/// update compares against.
+#[expect(
+    clippy::cast_possible_wrap,
+    reason = "`usize::MAX` is the all-ones word, which is `-1` as an `i64`"
+)]
+const IMMORTAL_REFCOUNT_I64: i64 = nvs_runtime::IMMORTAL_REFCOUNT as i64;
+
+// What `Emitter::emit_refcount`'s inline count update relies on. Each header
+// keeps its count as its first word, one `usize` of 64 bits, so the update
+// loads and stores an `I64` at the published offset. A string's or an object's
+// count of `IMMORTAL_REFCOUNT` is never written, and that is the all-ones
+// word. A change to any of these fails the build here.
+const _: () = {
+    assert!(nvs_runtime::REFCOUNT_OFFSET == 0);
+    assert!(nvs_runtime::OBJ_REFCOUNT_OFFSET == 0);
+    assert!(nvs_runtime::ARRAY_REFCOUNT_OFFSET == 0);
+    assert!(std::mem::size_of::<usize>() == 8);
+    assert!(nvs_runtime::IMMORTAL_REFCOUNT == usize::MAX);
+    assert!(IMMORTAL_REFCOUNT_I64 == -1);
+};
+
 /// Memory flags for a load or store this frame fully controls — a stack slot
 /// it just allocated, or the `out` pointer its caller promised is writable.
 fn trusted() -> MemFlagsData {
@@ -1351,6 +1373,11 @@ impl Emitter<'_, '_> {
                 let (value, ty) = self.value(*operand)?;
                 if !self.immortal_literals.contains(&operand.index()) {
                     self.emit_refcount(true, value, ty)?;
+                    // The inline retain ends in a block of its own.
+                    return self
+                        .b
+                        .current_block()
+                        .ok_or_else(|| internal("a retain emitted outside any block"));
                 }
             }
             InstKind::Release { operand } => {
@@ -4433,13 +4460,19 @@ impl Emitter<'_, '_> {
 
     /// A retain or release of one refcounted value.
     ///
-    /// [`Ty::Str`] and [`Ty::Bytes`] share the `StrHeader` representation, so
-    /// they share the primitive.
+    /// A retain of a string, a `bytes`, an object or an array is inline, and
+    /// repeats the runtime entry's own work: a null test, a load of the count,
+    /// a compare against `IMMORTAL_REFCOUNT` (not for an array, which has no
+    /// such count) and a store of the count plus one. It never calls. A release
+    /// stays a call, because the inline form grew the compiled code by more
+    /// than a tenth; the crate docs' § *The inline retain* give the figures.
+    /// The `const` block beside [`IMMORTAL_REFCOUNT_I64`] asserts the layout
+    /// the inline retain relies on.
     ///
     /// An object's or an array's release is where a whole graph can be freed
-    /// at once — `nvs_runtime::release`'s own docs explain why that sweep is
-    /// one iterative worklist shared by both, which is what keeps this a
-    /// single call rather than a depth-bounded one.
+    /// at once. `nvs_runtime::release`'s own docs explain why that sweep is
+    /// one iterative worklist shared by both, which is what keeps it a single
+    /// call.
     fn emit_refcount(&mut self, retain: bool, value: Value, ty: Ty) -> Result<(), CodegenError> {
         // A tagged value's payload may or may not be refcounted, and its own
         // tag is what says which — so the branch is the runtime's, out of
@@ -4456,13 +4489,14 @@ impl Emitter<'_, '_> {
             self.b.ins().call(callee, &[tag_word, bits]);
             return Ok(());
         }
-        let symbol = match (ty, retain) {
-            (Ty::Str | Ty::Bytes, true) => "nvs_str_retain",
-            (Ty::Str | Ty::Bytes, false) => "nvs_str_release",
-            (Ty::Object, true) => "nvs_object_retain",
-            (Ty::Object, false) => "nvs_object_release",
-            (Ty::Array, true) => "nvs_array_retain",
-            (Ty::Array, false) => "nvs_array_release",
+        let (release, offset, immortal) = match ty {
+            Ty::Str | Ty::Bytes => ("nvs_str_release", nvs_runtime::REFCOUNT_OFFSET, true),
+            Ty::Object => ("nvs_object_release", nvs_runtime::OBJ_REFCOUNT_OFFSET, true),
+            Ty::Array => (
+                "nvs_array_release",
+                nvs_runtime::ARRAY_REFCOUNT_OFFSET,
+                false,
+            ),
             // An internal-consistency check on `nvs-ir`, not on the language,
             // which is why it is an `Internal` rather than an `Unsupported`:
             // the rows above are exactly `nvs_ir::ty::Ty::is_refcounted`'s,
@@ -4477,14 +4511,42 @@ impl Emitter<'_, '_> {
             // *widened* operand, where a decision phrased as the negation of
             // "this is a string" survives the widening and starts releasing
             // plain integers.
-            (other, _) => {
+            other => {
                 return Err(internal(&format!(
                     "a refcount operation on representation {other:?}"
                 )));
             }
         };
-        let callee = self.runtime_ref(symbol, RuntimeSig::Refcount)?;
-        self.b.ins().call(callee, &[value]);
+        if !retain {
+            let callee = self.runtime_ref(release, RuntimeSig::Refcount)?;
+            self.b.ins().call(callee, &[value]);
+            return Ok(());
+        }
+        let offset =
+            i32::try_from(offset).map_err(|_| internal("a reference count past a 2 GiB offset"))?;
+        let done = self.b.create_block();
+        let present = self.b.create_block();
+        // A null payload is `null`, which has no count.
+        self.b.ins().brif(value, present, &[], done, &[]);
+        self.b.switch_to_block(present);
+        let count = self.b.ins().load(types::I64, trusted(), value, offset);
+        // A string's or an object's immortal header is never written: it may
+        // sit in a unit's read-only data.
+        if immortal {
+            let bump = self.b.create_block();
+            let is_immortal = self
+                .b
+                .ins()
+                .icmp_imm_s(IntCC::Equal, count, IMMORTAL_REFCOUNT_I64);
+            self.b.ins().brif(is_immortal, done, &[], bump, &[]);
+            self.b.switch_to_block(bump);
+        }
+        // The entry's `checked_add` cannot fail either: every reference is a
+        // word in memory, so no count comes near the top of the address space.
+        let bumped = self.b.ins().iadd_imm_s(count, 1);
+        self.b.ins().store(trusted(), bumped, value, offset);
+        self.b.ins().jump(done, &[]);
+        self.b.switch_to_block(done);
         Ok(())
     }
 

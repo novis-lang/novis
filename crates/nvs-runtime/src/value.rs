@@ -650,6 +650,32 @@ impl Value {
         Some(object.class_name().to_owned())
     }
 
+    /// The reference count of this value's string, `bytes`, object or array,
+    /// or `None` for a value with no count. A literal's header reads
+    /// [`crate::IMMORTAL_REFCOUNT`].
+    ///
+    /// The safe reader a test holds compiled code's inline retain against
+    /// with: `nvs-codegen` writes this word without calling the runtime.
+    #[must_use]
+    pub fn refcount(&self) -> Option<usize> {
+        #[expect(
+            unsafe_code,
+            reason = "a refcounted value owns a reference to a live allocation \
+                      (see this type's Ownership section), so it is live for \
+                      this read"
+        )]
+        unsafe {
+            if let Some(ptr) = self.buffer_ptr() {
+                Some(NvsStr::refcount_of(ptr))
+            } else if let Some(ptr) = self.obj_ptr() {
+                Some(NvsObj::refcount_of(ptr))
+            } else {
+                self.array_ptr()
+                    .map(|ptr| crate::array::NvsArray::refcount_of(ptr))
+            }
+        }
+    }
+
     /// The fields of the anonymous object (`rule:types/anonymous-object`) this
     /// value is, by name in slot order, or `None` for any other value.
     ///

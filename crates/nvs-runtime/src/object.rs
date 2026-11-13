@@ -5201,6 +5201,10 @@ crate::nvs_helper! {
 
 /// Adds a reference — `nvs_ir::InstKind::Retain` for a `Ty::Object` operand.
 ///
+/// Compiled code does not call this: `nvs-codegen`'s `emit_refcount` repeats
+/// its work inline on the count word at [`OBJ_REFCOUNT_OFFSET`], and skips the store at [`crate::IMMORTAL_REFCOUNT`]. A change to
+/// what a retain does here changes that function and its `const` block with it.
+///
 /// # Safety
 ///
 /// `ptr` must refer to a live Novis object allocation.
@@ -5219,7 +5223,7 @@ crate::nvs_helper! {
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_retain(ptr: *mut ObjHeader) {
-    crate::budget::count_refcount_call();
+    crate::budget::count_refcount_call(true);
     if ptr.is_null() {
         return;
     }
@@ -5228,6 +5232,10 @@ pub unsafe extern "C" fn nvs_object_retain(ptr: *mut ObjHeader) {
 
 /// Drops a reference, freeing the object and everything it solely owns if it
 /// was the last — `nvs_ir::InstKind::Release` for a `Ty::Object` operand.
+///
+/// Compiled code calls this for every release of this kind. `nvs-codegen`'s
+/// `emit_refcount` emits the matching retain inline, so the count word's
+/// layout at [`OBJ_REFCOUNT_OFFSET`] is shared with it.
 ///
 /// # Safety
 ///
@@ -5248,7 +5256,7 @@ pub unsafe extern "C" fn nvs_object_retain(ptr: *mut ObjHeader) {
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_release(ptr: *mut ObjHeader) {
-    crate::budget::count_refcount_call();
+    crate::budget::count_refcount_call(false);
     #[expect(unsafe_code, reason = "the caller guarantees it owns the reference")]
     unsafe {
         release_graph(ptr);

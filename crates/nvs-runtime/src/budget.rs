@@ -1252,18 +1252,29 @@ thread_local! {
     /// refcount entries — see [`refcount_calls`]. Its own thread local, so
     /// [`Counters`]' hot line is the same in every build.
     static REFCOUNT_CALLS: Cell<usize> = const { Cell::new(0) };
+    /// Monotonic: how many of those entries were a retain — see
+    /// [`retain_calls`].
+    static RETAIN_CALLS: Cell<usize> = const { Cell::new(0) };
 }
 
 /// Counts one entry into a typed refcount helper: `nvs_str_retain`,
 /// `nvs_str_release`, `nvs_object_retain`, `nvs_object_release`,
-/// `nvs_array_retain` or `nvs_array_release`. Each calls this first.
+/// `nvs_array_retain` or `nvs_array_release`. Each calls this first, and
+/// `retain` says which half it is.
 ///
 /// It compiles to nothing without `debug_assertions`, so a release build pays
 /// nothing for the guards that read it.
 #[inline]
-pub(crate) fn count_refcount_call() {
+pub(crate) fn count_refcount_call(retain: bool) {
     #[cfg(debug_assertions)]
-    REFCOUNT_CALLS.with(|c| c.set(c.get().wrapping_add(1)));
+    {
+        REFCOUNT_CALLS.with(|c| c.set(c.get().wrapping_add(1)));
+        if retain {
+            RETAIN_CALLS.with(|c| c.set(c.get().wrapping_add(1)));
+        }
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = retain;
 }
 
 /// How many times this thread has entered a typed refcount helper, never
@@ -1277,6 +1288,18 @@ pub(crate) fn count_refcount_call() {
 #[must_use]
 pub fn refcount_calls() -> usize {
     REFCOUNT_CALLS.with(Cell::get)
+}
+
+/// How many times this thread has entered `nvs_str_retain`,
+/// `nvs_object_retain` or `nvs_array_retain`, never decreasing. Compiled code
+/// retains a string, an object or an array inline, so its run adds nothing
+/// here. A Rust caller of the three entries still does.
+///
+/// It exists only under `debug_assertions`, as [`refcount_calls`] does.
+#[cfg(debug_assertions)]
+#[must_use]
+pub fn retain_calls() -> usize {
+    RETAIN_CALLS.with(Cell::get)
 }
 
 /// How many bytes this thread has ever allocated, never decreasing.

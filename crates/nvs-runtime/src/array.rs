@@ -2327,6 +2327,10 @@ pub fn prime_empty_array() {
 
 /// Adds a reference — `nvs_ir::InstKind::Retain` for a `Ty::Array` operand.
 ///
+/// Compiled code does not call this: `nvs-codegen`'s `emit_refcount` repeats
+/// its work inline on the count word at [`ARRAY_REFCOUNT_OFFSET`]. A change to
+/// what a retain does here changes that function and its `const` block with it.
+///
 /// # Safety
 ///
 /// `ptr` must refer to a live Novis array allocation.
@@ -2345,7 +2349,7 @@ pub fn prime_empty_array() {
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_retain(ptr: *mut ArrayHeader) {
-    crate::budget::count_refcount_call();
+    crate::budget::count_refcount_call(true);
     if ptr.is_null() {
         return;
     }
@@ -2354,6 +2358,10 @@ pub unsafe extern "C" fn nvs_array_retain(ptr: *mut ArrayHeader) {
 
 /// Drops a reference, freeing the array and everything it solely owns if it
 /// was the last — `nvs_ir::InstKind::Release` for a `Ty::Array` operand.
+///
+/// Compiled code calls this for every release of this kind. `nvs-codegen`'s
+/// `emit_refcount` emits the matching retain inline, so the count word's
+/// layout at [`ARRAY_REFCOUNT_OFFSET`] is shared with it.
 ///
 /// # Safety
 ///
@@ -2374,7 +2382,7 @@ pub unsafe extern "C" fn nvs_array_retain(ptr: *mut ArrayHeader) {
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_release(ptr: *mut ArrayHeader) {
-    crate::budget::count_refcount_call();
+    crate::budget::count_refcount_call(false);
     if ptr.is_null() {
         return;
     }

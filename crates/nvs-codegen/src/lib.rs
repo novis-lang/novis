@@ -66,6 +66,30 @@
 //! at a call boundary and at the `out` slot — exactly as that type's own docs
 //! say. [`ty::clif_ty`] is the whole of the mapping.
 //!
+//! ## The inline retain
+//!
+//! A retain of a string, a `bytes`, an object or an array is emitted inline: a
+//! null test, a load of the count word, a compare against
+//! [`nvs_runtime::IMMORTAL_REFCOUNT`] (not for an array) and a store of the
+//! count plus one. It makes no call. A release stays a call to the typed
+//! runtime entry, and so does every retain and release of a tagged value.
+//!
+//! **What it spends,** counted in the instructions `nvs run --dump-asm`
+//! prints: `benches/compare/cases/html-page` went from 2,247 to 2,342 (4.2%),
+//! and `json-api` from 3,875 to 4,051 (4.5%). The inline release, which
+//! decrements in place above a count of one and calls the entry at one, took
+//! them to 3,946 and 6,043 (76% and 56%). Kept as a call in every error
+//! landing block alone, it was still 2,755 and 4,825 (23% and 25%). Most of
+//! that growth is Cranelift's register moves on the edges of the extra blocks.
+//! The growth bound for this change is a tenth, so the release stays a call.
+//!
+//! **What it relies on**, asserted by a `const` block in `emit`: each header's
+//! count is its first word, one `usize` of 64 bits, and only the request's own
+//! thread touches it. A string's or an object's count of `IMMORTAL_REFCOUNT`
+//! is never written, because that header may sit in read-only data. An array
+//! has no such count. `tests/refcount_calls.rs` holds the inline retain and the
+//! runtime entries to the same count on each kind.
+//!
 //! ## The hot-word checks
 //!
 //! Each is a load of one word from [`nvs_runtime::Ctx`] plus a

@@ -21,11 +21,10 @@
 //! One allocation, not two. A `Box<StrData>` holding a `Box<[u8]>` would be
 //! simpler to write, but it costs a second allocation and a second cache miss
 //! on every string produced, which is a latency question rather than a
-//! footprint one ([AGENTS.md](/AGENTS.md)). Codegen will
-//! eventually inline the refcount increment/decrement using
-//! [`REFCOUNT_OFFSET`]/[`LEN_OFFSET`]/[`CAP_OFFSET`]/[`PAYLOAD_OFFSET`] rather
-//! than calling [`nvs_str_retain`]/[`nvs_str_release`]; those constants exist
-//! so the layout is queried, never restated.
+//! footprint one ([AGENTS.md](/AGENTS.md)). Codegen emits a retain inline at
+//! [`REFCOUNT_OFFSET`] and reads a payload at [`LEN_OFFSET`] and
+//! [`PAYLOAD_OFFSET`]; those constants exist so the layout is queried, never
+//! restated.
 //!
 //! # Capacity, and what it spends
 //!
@@ -2278,6 +2277,10 @@ pub unsafe extern "C" fn nvs_str_eq(lhs: *const StrHeader, rhs: *const StrHeader
 /// for why that is the rule rather than a defensive check. A string literal's
 /// header is a no-op too, for the reason [`IMMORTAL_REFCOUNT`] states.
 ///
+/// Compiled code does not call this: `nvs-codegen`'s `emit_refcount` repeats
+/// its work inline on the count word at [`REFCOUNT_OFFSET`], and skips the store at [`IMMORTAL_REFCOUNT`]. A change to
+/// what a retain does here changes that function and its `const` block with it.
+///
 /// # Safety
 ///
 /// `ptr` must be null or refer to a live Novis string allocation.
@@ -2296,7 +2299,7 @@ pub unsafe extern "C" fn nvs_str_eq(lhs: *const StrHeader, rhs: *const StrHeader
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_str_retain(ptr: *mut StrHeader) {
-    crate::budget::count_refcount_call();
+    crate::budget::count_refcount_call(true);
     if ptr.is_null() {
         return;
     }
@@ -2331,6 +2334,10 @@ pub unsafe extern "C" fn nvs_str_retain(ptr: *mut StrHeader) {
 /// many times it happens, which is what lets compiled code transfer a literal
 /// into an array or a `Value` without a special case.
 ///
+/// Compiled code calls this for every release of this kind. `nvs-codegen`'s
+/// `emit_refcount` emits the matching retain inline, so the count word's
+/// layout at [`REFCOUNT_OFFSET`] is shared with it.
+///
 /// # Safety
 ///
 /// `ptr` must be null, or refer to a live Novis string allocation whose
@@ -2350,7 +2357,7 @@ pub unsafe extern "C" fn nvs_str_retain(ptr: *mut StrHeader) {
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_str_release(ptr: *mut StrHeader) {
-    crate::budget::count_refcount_call();
+    crate::budget::count_refcount_call(false);
     if ptr.is_null() {
         return;
     }

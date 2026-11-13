@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: "nested writes, appends and reassigned arrays cost what they add, not what they hold"
-summary: "Reached when a write into a row of an unshared array happens in place, an append to a property or element grows its string in place, an array passed at its last use is moved, and a retain or release that frees nothing makes no call, each held by a count guard that fails on faster than linear growth."
+summary: "Reached when a write into a row of an unshared array happens in place, an append to a property or element grows its string in place, an array passed at its last use is moved, and a retain makes no call, each held by a count guard that fails on faster than linear growth."
 context: [crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lib.rs, crates/nvs-codegen/tests/common/mod.rs, docs/rules/types/arrays.md]
 stages:
   - id: 1
@@ -25,7 +25,7 @@ stages:
     status: done
     context: [crates/nvs-codegen/src/emit.rs, crates/nvs-runtime/src/budget.rs, crates/nvs-codegen/tests/probes.rs]
   - id: 6
-    title: a retain or release that frees nothing runs without a call
+    title: a retain runs without a call
     status: open
     context: [crates/nvs-codegen/src/emit.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-runtime/src/string.rs, crates/nvs-runtime/src/object.rs, crates/nvs-runtime/src/array.rs]
   - id: 7
@@ -120,12 +120,12 @@ checks:
       - a_row_of_literals_enters_no_refcount_helper
   - id: refcount-inline
     stage: 6
-    name: "a row that frees nothing enters no refcount helper, and the inline count agrees with the helper's on every kind"
-    run: [cargo, test, --test, refcount_calls, --, a_row_that_frees_nothing_enters_no_refcount_helper, a_row_enters_a_refcount_helper_once_per_value_it_frees, compiled_code_and_the_runtime_agree_on_the_count_word]
+    name: "a row that retains enters no retain helper, compiled code names none, and the inline count agrees with the helper's on every kind"
+    run: [cargo, test, --test, refcount_calls, --, a_row_that_retains_enters_no_retain_helper, compiled_code_names_no_retain_helper, compiled_code_and_the_runtime_agree_on_the_count_word]
     timeout: 1800
     tests:
-      - a_row_that_frees_nothing_enters_no_refcount_helper
-      - a_row_enters_a_refcount_helper_once_per_value_it_frees
+      - a_row_that_retains_enters_no_retain_helper
+      - compiled_code_names_no_retain_helper
       - compiled_code_and_the_runtime_agree_on_the_count_word
 ---
 
@@ -299,6 +299,16 @@ where a call was one instruction. So the JIT output and the compile time per fun
 The stage measures `benches/compare/cases/html-page/main.nvs` and the `json-api` case beside it,
 and writes the figures into the module doc. Safe default: if their instruction count grows by more
 than a tenth, only the retain is inline.
+
+**The safe default applied: only the retain is inline, and every release is a call.** The six
+entries have no effect beyond the count write in a non-test build, so no kind had to stay a call
+for that reason. The figures, from `nvs run --dump-asm`: `html-page` 2,247 before, 3,946 with both
+inline (76%), 2,755 with the release a call in error landing blocks only (23%), and 2,342 with the
+retain alone (4.2%). `json-api` 3,875, 6,043, 4,825 and 4,051 (4.5%). The growth is mostly
+Cranelift's edge moves around the extra blocks. So the stage guards count retains: a debug-only
+`budget::retain_calls()` beside `refcount_calls()`. The stage, the summary and check
+`refcount-inline` now say "a retain". **What it spends:** 95 and 176 instructions in the two
+cases, and nothing per request.
 
 **The inline form adds one invariant, asserted in one place.** Compiled code now relies on four
 facts. The count is the first word of each header, at the published offset. It is one machine word
@@ -497,35 +507,34 @@ probes and the collector.
 - [x] Rewrite the literal's doc to say its count operations are not emitted
   (`crates/nvs-codegen/src/emit.rs:1748`).
 
-### 6. a retain or release that frees nothing runs without a call
+### 6. a retain runs without a call
 
-**Does:** emit the count update inline for strings, objects and arrays, and keep the helper for the
-release that frees.
+**Does:** emit the retain inline for strings, objects and arrays. The release stays a call, by the
+safe default (*Standing decisions*).
 
 **Split:** before the first edit, an `Explore` subagent lists every effect of the six typed retain
 and release entries beyond the count write, in every build kind, as `file.rs:NN` and one line each.
 
-- [ ] If the list names an effect in a non-test build, that kind stays a call and *Standing
+- [x] If the list names an effect in a non-test build, that kind stays a call and *Standing
   decisions* says why (`crates/nvs-runtime/src/release.rs:57`).
-- [ ] Count the instructions `nvs run --dump-asm` prints for the `html-page` and `json-api` cases,
+- [x] Count the instructions `nvs run --dump-asm` prints for the `html-page` and `json-api` cases,
   before any change (`benches/compare/cases/html-page/main.nvs:1`,
   `crates/nvs-codegen/src/lib.rs:116`).
-- [ ] `emit_refcount` emits the inline retain and the inline release with its call at a count of
-  one, for `Ty::Str`, `Ty::Bytes`, `Ty::Object` and `Ty::Array` (`rule:programs/memory-priority`,
+- [x] `emit_refcount` emits the inline retain, and the release stays a call by the safe default, for `Ty::Str`, `Ty::Bytes`, `Ty::Object` and `Ty::Array` (`rule:programs/memory-priority`,
   `crates/nvs-codegen/src/emit.rs:4338`).
-- [ ] A `const` block beside it asserts the three offsets, the word width and the sentinel
+- [x] A `const` block beside it asserts the three offsets, the word width and the sentinel
   (`crates/nvs-runtime/src/string.rs:216`, `crates/nvs-runtime/src/object.rs:3582`,
   `crates/nvs-runtime/src/array.rs:986`, `crates/nvs-runtime/src/string.rs:367`).
-- [ ] Each runtime entry's doc says compiled code repeats its fast path, and what must change with it
+- [x] Each runtime entry's doc says compiled code repeats its fast path, and what must change with it
   (`crates/nvs-runtime/src/string.rs:1979`, `crates/nvs-runtime/src/string.rs:2019`,
   `crates/nvs-runtime/src/object.rs:4144`, `crates/nvs-runtime/src/array.rs:1703`).
-- [ ] Tests `a_row_that_frees_nothing_enters_no_refcount_helper` and
-  `a_row_enters_a_refcount_helper_once_per_value_it_frees`, at 2,000 and 4,000 rows
+- [x] Tests `a_row_that_retains_enters_no_retain_helper`, at 2,000 and 4,000 rows, and
+  `compiled_code_names_no_retain_helper`
   (`crates/nvs-codegen/tests/refcount_calls.rs:1`).
-- [ ] Test `compiled_code_and_the_runtime_agree_on_the_count_word`: for each kind, a program
+- [x] Test `compiled_code_and_the_runtime_agree_on_the_count_word`: for each kind, a program
   retains and releases a value, and the count read from Rust matches at each step. A literal's
   header is never written (`crates/nvs-codegen/tests/refcount_calls.rs:1`).
-- [ ] Count the instructions again, apply the safe default if the growth is above a tenth, and write
+- [x] Count the instructions again, apply the safe default if the growth is above a tenth, and write
   both figures and the invariant into the module doc (`crates/nvs-codegen/src/lib.rs:116`).
 - [ ] Run `bun nv proofs --gate`, then `bun nv proofs --record-perf --force --id '<feature>'` for
   each stale figure. Lower a bench's `// bench: allocations N` line where its count dropped
