@@ -1,0 +1,39 @@
+<?nvs
+// Shows a script that runs when the server starts, stops or has failed work.
+//
+//     [[schedule]]
+//     name   = "announce-start"
+//     on     = "start"              # once, after the server starts to serve
+//     script = "jobs/announce.nvs"
+//     scope  = "host"               # an `on` entry always runs on each server
+//
+//     [[schedule]]
+//     name   = "announce-stop"
+//     on     = "stop"               # once, when the server begins to stop
+//     script = "jobs/announce.nvs"
+//     scope  = "host"
+//
+//     [[schedule]]
+//     name   = "report-failures"
+//     on     = "failed"             # at most once a minute
+//     script = "jobs/announce.nvs"
+//     scope  = "host"
+
+// `Core\Script::args()` returns a map with the entry's `name` and the event in `on`.
+// Here you run the file by hand with `nvs run`, so the result is `null`.
+var $given = Core\Script::args();
+if ($given == null) {
+    echo "started by hand, not by the server\n";
+} else {
+    array<mixed> $run = $given as array<mixed>;
+    tainted string $event = $run['on'] as string;
+    echo 'entry ', $run['name'] as string, ' ran for: ', $event, "\n";
+
+    // A `failed` run also gets the names of the entries that failed.
+    // It also gets the number of queue jobs that were moved to the dead-letter table.
+    if ($event == 'failed') {
+        array<mixed> $names = $run['schedule'] as array<mixed>;
+        echo 'failed entries: ', Core\Arr::count($names), "\n";
+        echo 'dead-letter jobs: ', $run['dead_letter'] as int, "\n";
+    }
+}

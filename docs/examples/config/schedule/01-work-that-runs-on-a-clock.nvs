@@ -17,7 +17,7 @@
 echo 'schedule myself: ', Core\Config::set('schedule', '* * * * *') ? 'yes' : 'no', "\n";
 
 // A program cannot read the list either, so the result is `null`. A scheduled
-// script only sees that it was started.
+// script gets its own entry from `Core\Script::args()`: its `name` and `"on" => "cron"`.
 echo 'read the list:   ', Core\Config::get('schedule') ?? "(nothing — the schedule is not a program's to see)", "\n";
 
 // A wrong `scope` value stops the server when it starts. An entry that never

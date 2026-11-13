@@ -39,4 +39,45 @@ runs the job on every server. Use `scope = "fleet"` to run it once, on one of yo
 The server may start a script in the app folder with no setting. A script in another folder needs
 that folder in `[capabilities.script] spawn`.
 
+## Run a job when the server starts or stops
+
+An entry can use `on` instead of `cron`. Then the job runs when something happens to the server.
+These two entries send a message to a chat when the server starts and when it stops:
+
+```toml
+[[schedule]]
+name = "announce-start"
+on = "start"
+script = "announce.nvs"
+scope = "host"
+
+[[schedule]]
+name = "announce-stop"
+on = "stop"
+script = "announce.nvs"
+scope = "host"
+
+[capabilities.net]
+connect = ["hooks.example.com"]
+```
+
+Both entries start the same script. `Core\Script::args()` returns the entry's `name` and `on`. The
+value of `on` is the event, for example `"start"`:
+
+```nvs
+<?nvs
+array<mixed> $run = Core\Script::args() as array<mixed>;
+Core\Http\Client::post('https://hooks.example.com/server', { json: ['job' => $run['name'], 'event' => $run['on']] });
+```
+
+A `start` job runs once, after the server begins to accept requests. The server does not wait for
+it, so a slow job does not delay any request.
+
+A `stop` job runs when the server begins to stop. The server waits for it, up to
+`[server] drain_timeout`. A `stop` job does not run when the server crashes or is killed. To get an
+alert when a server is down, use a monitor that runs on another computer.
+
+An `on` entry needs `scope = "host"`, and it cannot have a `timezone`. `on` can also be `"reload"`
+or `"failed"`.
+
 Read [schedule](/reference/config/schedule/) for every setting of a `[[schedule]]` entry.

@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-cli/src/serve.rs, crates/nvs-cli/src/reload.rs, crates/nvs-cli/src/worker.rs, docs/rules/config/a-reload-names-what-it-could-not-apply.md, docs/rules/concurrency/attempts-are-finite-and-a-dead-letter-is-kept.md]
   - id: 4
     title: the server runs every event end to end, and the feature has its proofs
-    status: open
+    status: done
     context: [crates/nvs-cli/tests/live_config.rs, docs/examples/config/schedule/about.md, docs/examples/config/schedule/01-work-that-runs-on-a-clock.nvs, tests/hostile/config/schedule/01-scheduling-my-own-work-from-a-request.nvs, website/src/content/docs/guides/simple-programs/scheduled-job.mdx, website/src/content/docs/guides/cookbook/schedule-job.mdx]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -304,21 +304,21 @@ on its own files. None of them builds.
 - [x] Test `a_failed_entry_runs_after_a_scheduled_script_throws`: a `* * * * *` entry that throws,
   and the failed script receives its name. This waits for the next whole minute, as
   `a_changed_schedule_roster_is_armed_from_the_next_tick` does (`crates/nvs-cli/tests/live_config.rs:1218`).
-- [ ] `docs/examples/config/schedule/about.md` says an entry runs on a time or on one of four server
+- [x] `docs/examples/config/schedule/about.md` says an entry runs on a time or on one of four server
   events, and that `stop` does not run on a crash (`docs/examples/config/schedule/about.md:1`).
-- [ ] Example `docs/examples/config/schedule/02-work-that-runs-on-a-server-event.nvs`: the `on`
+- [x] Example `docs/examples/config/schedule/02-work-that-runs-on-a-server-event.nvs`: the `on`
   entries in a comment, and a script body that reads `Core\Script::args()` and prints which event it
   ran for (`docs/examples/config/schedule/02-work-that-runs-on-a-server-event.nvs:1`).
-- [ ] Example 01's comment shows that a cron run reads the args map, if it says what the script
+- [x] Example 01's comment shows that a cron run reads the args map, if it says what the script
   receives (`docs/examples/config/schedule/01-work-that-runs-on-a-clock.nvs:1`).
-- [ ] Attack `tests/hostile/config/schedule/02-flooding-the-failed-entry.nvs`: a request pushes many
+- [x] Attack `tests/hostile/config/schedule/02-flooding-the-failed-entry.nvs`: a request pushes many
   jobs that fail, and the `failed` entry still runs at most once a minute
   (`tests/hostile/config/schedule/02-flooding-the-failed-entry.nvs:1`).
-- [ ] Each of the two website guides gets a short section with an `on = "start"` and an
+- [x] Each of the two website guides gets a short section with an `on = "start"` and an
   `on = "stop"` entry that posts to `hooks.example.com`
   (`website/src/content/docs/guides/simple-programs/scheduled-job.mdx:1`,
   `website/src/content/docs/guides/cookbook/schedule-job.mdx:1`).
-- [ ] `bun nv proofs --id directive:schedule` prints `complete.` and `bun nv render --website
+- [x] `bun nv proofs --id directive:schedule` prints `complete.` and `bun nv render --website
   --check` is green.
 
 ### 5. the goal is verified once, and every failure is fixed
@@ -331,42 +331,41 @@ on its own files. None of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. Every event runs from `tick_on_this_core` through `answer`.
+Stages 1 to 4 are done. Stage 5, the gate, is next. Every event runs from `tick_on_this_core`
+through `answer`, and the built `nvs serve` runs each of the four.
 
-`nvs_server::Events` (`crates/nvs-server/src/schedule.rs`) holds a reload generation with the
-newest `Reloaded { applied, restart }`, and a `Failures { schedule, dead_letter }` tally, behind
-atomics and two mutexes. `Fired` is now `Clone` and not `Copy`: `Cron`, `On(Event)` for start and
-stop, `Reload(Rc<Reloaded>)` and `Failed(Rc<Failures>)`. `held` became a `RefCell`, and `Armed`
-gained `owed` and `last_ran` for the `failed` floor (`FAILED_FLOOR`, one minute, by the injected
-clock); `carry_over` keeps all three across a reload.
+`crates/nvs-cli/tests/schedule_events.rs` has the three end-to-end tests, all green
+(`cargo test --test schedule_events`, about 33s; the failed one waits for the next whole minute).
+Its `Served` harness starts the server in its own process group and stops it with `SIGTERM` or a
+Ctrl-Break, as `one_binary.rs` does, because `live_config.rs`'s `Server` only kills, and a kill
+runs no `stop` entry. Each event script writes `Core\Script::args()` as JSON beside itself.
 
-`nvs serve` makes one `Arc<Events>` at boot, hands it to `reload::Process::feeding`, to every
-`Core`, to the ticker's `Rearm::events`, and to `arm_queue_workers`, whose `Crew` puts it on each
-`Workers` switch. `Process::logged` records each outcome it logs, so a repeated refusal the check
-does not log again runs no `reload` entry. `worker::turn` counts a dead letter after `report`'s
-statement succeeded, through the new `exhausted`. The ticker's `fire` counts every failed run
-(standing decision). `run_args` writes `outcome`, `restart`, `schedule` and `dead_letter`.
-
-`looper check --name reload-and-failed-fire` and `--name start-and-stop-fire` are green, and
-clippy is clean. The rule fragment says what stage 3 built, and `docs/rules/concurrency.md` took
-the render stage 2 had left out.
+The proofs: example 02 with its `.out`, example 01's comment, a short `about.md` with the rest in a
+new `details.md` (the proofs gate caps `about.md` at 200 words), attack 02, and a section in each
+website guide. `bun nv proofs --id directive:schedule` prints `complete.`, `--comments` passes
+every file, and `bun nv render --website --check` is green.
+The process-wide `nvs_server::Events` in `crates/nvs-server/src/schedule.rs` carries reloads and
+failures to the ticker. Every acceptance check of stages 1 to 3 is green, and clippy is clean.
 
 The acceptance sweep's `env-secret-proofs` names no check in the tree; it is a stale entry in
 looper's service, and its log does not exist. The nightly's jobs were cancelled by later pushes.
 
 ### Next
 
-Stage 4, the end-to-end tests first, then the proofs by its `**Split:**` line.
+Stage 5, the gate. Start `looper verify` with `run_in_background`, fix every failure in one pass,
+run it once more, then the goal-end gates (`bun nv verify --doc`, `bun nv owners --closes
+server-events`, `bun nv ci --check`) and `DONE`.
 
-- [ ] `crates/nvs-cli/tests/live_config.rs:80`: the `Server` harness, and `scheduling` at
-  `crates/nvs-cli/tests/live_config.rs:1202`, for the new `crates/nvs-cli/tests/schedule_events.rs`.
-  Each event script writes a file under the case's own directory the test waits for. A script
-  reads its map with `Core\Script::args()`, so it can write `args["on"]` and `args["outcome"]`.
-- [ ] `crates/nvs-cli/src/reload.rs:626`: the three tests the stage names. The reload one saves a
-  valid edit, then a broken one; the check notices a save within two `CHECK` passes.
-- [ ] `docs/examples/config/schedule/about.md:1`: then the three writing subagents on the example,
-  the attack and the two guides.
+- [ ] `crates/nvs-cli/tests/schedule_events.rs:1`: if a CI runner is slow, the stop test's 20s
+  drain and the 30s `BOUND` are where to look first.
+- [ ] `tests/hostile/config/schedule/02-flooding-the-failed-entry.nvs:1`: the proofs gate runs it
+  under `nvs run`; it ran clean on the debug binary.
 
-Expected red: none known. A test that built `run_args` from a `Fired` by value now passes `&Fired`.
+Expected red: none known. Possibly a cron script elsewhere in the tree that read its args as a
+string, which stage 2's map changed.
 
 ### Backlog
+
+- An unconfirmed report: `tests/hostile/core/Queue/push/01-huge-and-invalid-jobs.nvs` calls
+  `Core\Db::connect('jobs')` with no `db.connect` grant under `nvs run`, so it may end on its first
+  line. The proofs gate in stage 5 says whether that is a red.

@@ -409,6 +409,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
 ## Splitting a file
 
 ## Writing Novis
+- **`Core\Script::args()`'s strings are `tainted`, and `as` cannot target a tainted type.**
+  `as array<string>` fails `E0401` and `as array<tainted string>` fails `E0711`. Convert to
+  `array<mixed>`, then each value `as string`, which gives a `tainted string` to declare as one.
+  `docs/examples/config/schedule/02-work-that-runs-on-a-server-event.nvs` is the shape.
 - **In a `jsonAs<{...}>` shape, `key: ?T` means the key must be there and may be `null`; a key a
   server may leave out is `key?: T`, read with `??`.** `expires_in: ?int` type-checks and then
   throws "2 value(s) of `$shape{...}` did not match" on a token reply without `refresh_token`.

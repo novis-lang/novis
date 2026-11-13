@@ -24,5 +24,30 @@ scope = "host"
 needs no permission to start. `0 7 * * 1` means minute 0 of hour 7,
 on day 1 of the week, which is Monday. To run the job once by hand, use `nvs run schedule-job.nvs`.
 
+## Run a job when the server starts or stops
+
+Write `on` instead of `cron` to run a job when the server starts or stops:
+
+```toml
+[[schedule]]
+name = "announce-start"
+on = "start"
+script = "announce.nvs"
+scope = "host"
+
+[[schedule]]
+name = "announce-stop"
+on = "stop"
+script = "announce.nvs"
+scope = "host"
+
+[capabilities.net]
+connect = ["hooks.example.com"]
+```
+
+The script can post a message to `https://hooks.example.com/server`. `Core\Script::args()["on"]`
+is `"start"` or `"stop"`. A `start` job runs after the server begins to serve. A `stop` job runs
+when the server begins to stop. It does not run when the server crashes.
+
 [A scheduled job](/guides/simple-programs/scheduled-job/) is a longer example. Read
 [schedule](/reference/config/schedule/) for every setting of a `[[schedule]]` entry.
