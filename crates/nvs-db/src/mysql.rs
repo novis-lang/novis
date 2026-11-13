@@ -3507,6 +3507,17 @@ fn decode_row(columns: &[Column], packet: Vec<u8>) -> io::Result<MySqlRow> {
         };
         cells.push(cell);
     }
+    // The last cell ends the packet. An octet after it is a row these
+    // columns do not describe.
+    if reader.at != packet.len() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "a binary row has {} octets after its last cell",
+                packet.len() - reader.at
+            ),
+        ));
+    }
     Ok(MySqlRow { packet, cells })
 }
 
@@ -7132,6 +7143,25 @@ mod tests {
         packet.extend_from_slice(&bitmap);
         packet.extend_from_slice(&values);
         packet
+    }
+
+    /// The last cell ends the packet, so an octet after it makes the row
+    /// `InvalidData`. The same row without it decodes.
+    #[test]
+    fn a_mysql_row_with_octets_after_its_last_cell_is_invalid_data() {
+        let columns = [column_of(
+            "name",
+            ColumnType::MYSQL_TYPE_VAR_STRING,
+            ColumnFlags::empty(),
+            u16::from(COLLATION),
+            40,
+        )];
+        let packet = row_packet(&[Some(b"ada")]);
+        assert!(super::decode_row(&columns, packet.clone()).is_ok());
+        let mut longer = packet;
+        longer.push(0x00);
+        let error = super::decode_row(&columns, longer).expect_err("an octet past the last cell");
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
     }
 
     /// A text, JSON or bytes cell is a slice of the packet the row came in, so
