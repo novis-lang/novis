@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-cli/src/debug/listen.rs, crates/nvs-cli/src/debug/secure.rs, crates/nvs-cli/tests/debug_viewer.rs]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: no-printer-shows-a-secret
@@ -279,53 +279,38 @@ text that names the viewer's address, as `path:NN`.
 
 ### 4. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1, 2 and 3 are done, and each stage's checks ran green once by name on this Windows host.
-Stage 1 carries an inline secret into the `secrets` map and `dump --toml` writes `"<secret>"`.
-Stage 2's `platform::walk` reads the whole DACL, and any untrusted trustee with a refused right is
-a breach.
+Every stage is done, and the goal is reached. `looper verify` ran three times. The third run is
+green. The four acceptance checks pass by name, and `bun nv verify --doc`, `bun nv owners --closes
+operator-surfaces` and `bun nv ci --check` are green.
 
-Stage 3: `Secure::load` takes the bound `SocketAddr`, reads the token on every bind and the TLS
-files only off loopback, so `Secure::tls` is an `Option`. `Site::secure` is no longer optional, and
-`refused` checks the query token and the cookie before any route. The cookie name and the
-`Set-Cookie` value come from `Secure::cookie` and `Secure::set_cookie`: `__Host-nvs-debug` with
-`Secure` off loopback, `nvs-debug-<port>` without `Secure` on loopback. The loopback link is
-`http://ADDR/?token=…`. The help of `nvs debug` and `--listen`, the shipped `default.toml`
-comment, `docs/reference/tools/10-cli.md`, the website's debug viewer page and three `about.md`
-files tell the reader to open the printed link. The rule has a paragraph for every bind needing
-the token, with its cost and the declined options. Both acceptance tests ran once by name and
-pass, and the existing loopback cases in `debug_viewer.rs` and `debug_service.rs` send the cookie.
+The gate fixed three things:
+
+- A Windows breach names a well-known group in English (`trust::platform::WELL_KNOWN`), because
+  this host's German Windows printed `VORDEFINIERT\Benutzer` and the `init` tests pin the English
+  name. The rule says so.
+- `crates/nvs-cli/tests/debug_api.rs` sends the loopback cookie, because without it every request
+  answered `401` and the event stream waited out its time limit.
+- `crates/nvs-cli/tests/init.rs`'s Windows install test now expects a cache granted to the service
+  account to go unused by another account's run, as the stage 2 decision says, and then used once
+  the grant is removed. `docs/reference/tools/15-install.md` tells the reader.
+
+The website's debug viewer page split its token paragraph under the prose bound, three pages' questions
+ask about the token, and `llms-full.txt` is rendered again.
 
 The sweep items were stale: no `env-secret-proofs` check exists or has a log, and Miri run
-`43201099245` predates `7568aaa0fb`.
+`43201099245` ran on `578534cc7c`, before `7568aaa0fb` skipped those tests under Miri.
 
 ### Next
 
-Stage 4, the gate: run `looper verify` over the whole goal, fix every failure in one pass, run it
-once more, then the goal-end gates of AGENTS.md § *In the loop*.
-
-Tests that may go red at the gate, not run here:
-
-- From stage 3: the rest of `crates/nvs-cli/tests/debug_viewer.rs` and
-  `crates/nvs-cli/tests/debug_service.rs:315` (the replay case), which now send the cookie. Any
-  other test that fetches a loopback viewer path without the token answers `401`; a grep found only
-  those two files. A test that pins the shipped `crates/nvs-config/src/default.toml` text or the
-  `nvs debug --help` output may move with the new help sentences.
-- `cargo build --tests` fails here in `nvs-ext`'s image tests with `E0461` (`nvs_image` not found
-  for the host triple). It is not from this goal; the gate shows whether it is this host's build
-  state or a real break.
-- From stage 1: any case that expects an inline secret directive in `resolved.table`, or a
-  `--toml` document without `<secret>` keys; a grep found none.
-- From stage 2: any test on Windows whose scratch tree or checkout grants write to a trustee
-  outside the trusted list, and `crates/nvs-cli/tests/init.rs:799`, which still matches the new
-  message's prefix. Run the gate on a Windows runner too.
+None: the goal is reached, and the driver retires it.
 
 ### Backlog
 

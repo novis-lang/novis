@@ -48,7 +48,9 @@ DACL folds each trustee's entries in order, so a deny entry ahead of a grant cou
 grant is seen. Every error is on the refusing side. A deny for a group the trustee is in is not
 subtracted, a conditional or object deny is skipped, and an allowing entry of a kind the walk cannot
 read counts as another account's grant. The breach names the trustee's SID, with its name where Windows
-gives one, so the `/remove:g <SID>` help and `nvs init`'s repair apply to any trustee. Windows grants
+gives one, so the `/remove:g <SID>` help and `nvs init`'s repair apply to any trustee. A well-known
+group such as `Everyone`, `Authenticated Users` or `Users` is named in English, because Windows gives
+its name in the installed language and the message would differ by machine. Windows grants
 `Authenticated Users` modify rights by default on a non-system drive's root, so a configuration kept
 under such a path refuses until that inheritance is broken — that default *is* the hole this rule
 closes. Cost: one walk per checked path at boot and at reload, and nothing per request.
