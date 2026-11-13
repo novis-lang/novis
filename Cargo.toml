@@ -370,36 +370,31 @@ rcgen = { version = "0.14", default-features = false, features = [
 # The minimum is 50.0.1, the latest release, which carries the fixes for
 # RUSTSEC-2026-0379, -0422, -0423 and -0424, so a `cargo update` cannot resolve
 # back to a vulnerable release.
-# Every default feature but `cache`: Novis keeps a compiled module in its own
-# artifact cache (`rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`)
-# and never configures wasmtime's, and `cache` is the one path to `zstd` 0.13,
-# whose RUSTSEC-2026-0391, -0398, -0403 and -0410 are fixed only in 0.14.
+# Only the features the engine uses. Every other one is validator, compiler or
+# runtime code a guest could reach, in the component whose job is isolation.
+# The engine turns GC, threads, stack switching and the component model's async
+# off (`nvs_ext::call::PROPOSALS`), and nothing calls a core dump, a profiler,
+# guest debugging or the text format: a component loads from its binary alone.
+# `cache` stays off too: Novis keeps a compiled module in its own artifact cache
+# (`rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`), and `cache`
+# is the one path to `zstd` 0.13, whose RUSTSEC-2026-0391, -0398, -0403 and
+# -0410 are fixed only in 0.14. `crates/nvs-ext/tests/wasmtime_features.rs`
+# fails on a feature here that the engine turns off.
 wasmtime = { version = "50.0.1", default-features = false, features = [
-    "addr2line",
-    "anyhow",
+    # A guest call is a future the request's coroutine polls.
     "async",
-    "backtrace",
-    "compile-time-builtins",
+    # Every extension is a component.
     "component-model",
-    "component-model-async",
-    "coredump",
+    # The compiler; the engine loads no component compiled elsewhere but its own cache.
     "cranelift",
-    "debug",
-    "debug-builtins",
-    "demangle",
-    "gc",
-    "gc-copying",
-    "gc-drc",
-    "gc-null",
+    # A cold compile of a built-in component runs on every core.
     "parallel-compilation",
+    # One slot per instance, so an instance costs no mapping on the request path.
     "pooling-allocator",
-    "profiling",
+    # The engine, the store and the instance.
     "runtime",
-    "stack-switching",
+    # The standard library, which the host's threads and errors use.
     "std",
-    "threads",
-    "wat",
-    "wit-parser",
 ] }
 # The parser of the `nvs:ext@1.0.0` world's WIT text under `wit/`, at the
 # version wasmtime itself parses component types with, so it adds no crate

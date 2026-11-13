@@ -350,7 +350,7 @@ impl Loader {
     /// and stored there when it did not.
     fn compile(&self, sha256: &str, bytes: &[u8]) -> wasmtime::Result<Component> {
         let Some(cache) = &self.cache else {
-            return Component::new(&self.engine, bytes);
+            return Component::from_binary(&self.engine, bytes);
         };
         let key = CacheKey {
             pin: sha256.to_owned(),
@@ -359,7 +359,7 @@ impl Loader {
         if let Some(component) = cache.get(&key).and_then(|stored| self.cached(&stored)) {
             return Ok(component);
         }
-        let component = Component::new(&self.engine, bytes)?;
+        let component = Component::from_binary(&self.engine, bytes)?;
         if let Ok(serialized) = component.serialize() {
             let mut stored = Sha256::digest(&serialized).to_vec();
             stored.extend_from_slice(&serialized);

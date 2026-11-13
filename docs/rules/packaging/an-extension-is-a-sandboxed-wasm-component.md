@@ -19,6 +19,14 @@ it, and a wasmtime bump that turns a new one on by default does not widen the sa
 `nvs_ext::call::PROPOSALS`, and `crates/nvs-ext/tests/proposals.rs` loads every built-in component
 under it and checks that a guest using each excluded proposal does not compile.
 
+**wasmtime is built with only the features the engine uses**: `runtime`, `cranelift`,
+`component-model`, `async`, `pooling-allocator`, `std` and `parallel-compilation`. A feature for an
+excluded proposal (GC, threads, stack switching, the component model's async) is not built at all, and
+neither is a core dump, a profiler, guest debugging or the text format, which nothing calls. A
+component loads from its binary alone (`Component::from_binary`). The workspace `Cargo.toml`'s row
+gives each feature its reason, and `crates/nvs-ext/tests/wasmtime_features.rs` fails naming a feature
+the engine turns off or does not use.
+
 What this buys: one binary for every platform; bindings generated for any language with a wasm target
 rather than C only; a crashing or malicious extension that harms one request and not the process; and
 calls that are type-checked at compile time (`rule:packaging/extension-calls-are-statically-typed`).

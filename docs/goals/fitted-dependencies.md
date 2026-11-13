@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/json/pieces.rs, docs/rules/security/json-text-is-safe-inside-html.md, benches/members/README.md]
   - id: 6
     title: "wasmtime builds with only the features the engine uses"
-    status: open
+    status: done
     context: [crates/nvs-ext/Cargo.toml, crates/nvs-ext/src/call.rs, crates/nvs-ext/src/load.rs, docs/rules/packaging/an-extension-is-a-sandboxed-wasm-component.md]
   - id: 7
     title: "the built-in components are stored compressed, and a served program's are loaded before its first request"
@@ -425,18 +425,18 @@ The session checks the list against the second standing decision.
 
 **Does:** cut the workspace `wasmtime` row to the kept set, and load components from binary only.
 
-- [ ] A search over `crates/nvs-ext/src` and `crates/nvs-cli/src` confirms that nothing calls a
+- [x] A search over `crates/nvs-ext/src` and `crates/nvs-cli/src` confirms that nothing calls a
   core-dump, profiling or guest-debug API of `wasmtime` (`crates/nvs-ext/src/call.rs:899`). A feature
   with a caller stays, with the caller named in the row's comment.
-- [ ] The row holds the kept set of the standing decision, and its comment gives each kept feature
+- [x] The row holds the kept set of the standing decision, and its comment gives each kept feature
   one reason (`Cargo.toml:366-402`,
   `rule:packaging/an-extension-is-a-sandboxed-wasm-component`). `crates/nvs-ext/Cargo.toml:19-33`
   drops the sentence about wasmtime's defaults.
-- [ ] `Component::new` becomes `Component::from_binary` (`crates/nvs-ext/src/load.rs:353`, `:362`).
-- [ ] `cargo build`, then `cargo test --test proposals --test failure --test call --test cache`. A
+- [x] `Component::new` becomes `Component::from_binary` (`crates/nvs-ext/src/load.rs:353`, `:362`).
+- [x] `cargo build`, then `cargo test --test proposals --test failure --test call --test cache`. A
   feature whose removal fails either is put back, with its reason in the comment
   (`crates/nvs-ext/tests/proposals.rs:50`).
-- [ ] Tests `wasmtime_builds_with_no_feature_the_engine_turns_off`, which reads the row and
+- [x] Tests `wasmtime_builds_with_no_feature_the_engine_turns_off`, which reads the row and
   `PROPOSALS` and fails naming the feature, and `a_component_in_text_form_does_not_compile`
   (`crates/nvs-ext/tests/wasmtime_features.rs:1`, `crates/nvs-ext/src/call.rs:876`).
 
@@ -482,34 +482,37 @@ entry and where a checked program's extension classes are known.
 
 ### State
 
-Stages 1 to 5 are done, and `writer-one-pass` is green. The JSON lane is closed:
-`crates/nvs-stdlib/src/json/reader.rs` is the reader, `Sink` and `escaped` are the writer, and
-`serde_json` is named in `json.rs` and `json/` only inside test modules.
+Stages 1 to 6 are done, and `wasmtime-features` is green. The JSON lane closed with stage 5.
 
-The last slice fixed the perf records. `build` and `fill` keep their open containers in `Levels`
-(`crates/nvs-stdlib/src/json.rs`, `@Levels`): the first `LEVELS_INLINE` (4) on the call's stack,
-the rest in a spill `Vec`. `fill`'s frame `Vec` had been `decodeAs`'s seventh allocation, and
-`build`'s had been the extra bytes. All six `Core\Json` records are now at or below their last
-ones (`data/perf/members.md`): `decodeAs` 6 allocations and 368 bytes, `decode` 1205 bytes,
-`decodeEach` 2872 and `isValid` 1122.
+Stage 6 cut the workspace `wasmtime` row to the seven kept features, each with its reason in the
+comment. Nothing in `nvs-ext` or `nvs-cli` called a core dump, profiler, guest debugging, the text
+format, `anyhow` or `wit-parser`, and the build and the four named suites pass without
+`addr2line`, `backtrace` and `demangle`, so none of the optional ones stayed. The loader compiles
+with `Component::from_binary`. `proposals.rs` had used `Engine::default()` to show each excluded
+proposal's guest is valid wasm; that engine no longer builds GC or threads, so the proof is now a
+`wasmparser` validator with every feature on (a dev-dependency feature set in
+`crates/nvs-ext/Cargo.toml`). The rule states the feature set, and
+`crates/nvs-ext/tests/wasmtime_features.rs` holds it. `benches/abi-probe` turns `wat` on itself.
 
 The sweep's `env-secret-proofs` names no check in the tree: it is a stale entry in looper's service.
 The nightly's jobs were cancelled by later pushes.
 
 ### Next
 
-Stage 6, the other lane: `wasmtime`'s features. It shares nothing with the JSON files. Expected red
-until stage 8: any test that pins a decode of an integer literal past `u64::MAX` to a `float`, any
-typed-decode test that pins a repeated key's column, which is now after the value, and any
-`decodeEach` test that pins a byte offset or a column of an error inside a skipped value. The
-`decodeEach` suites in `each.rs` were not run, and neither were the deep-document tests since
-`Levels` replaced the frame vectors (`a_typed_decode_reads_its_deepest_document_on_a_small_stack`
-and the reader's deep-document tests exercise the spill).
+Stage 7, the same lane. Start with its **Split:** an `Explore` subagent finds where `nvs serve`
+finishes compiling its entry and where a checked program's extension classes are known.
 
-- Stage 6's first item: search `crates/nvs-ext/src` and `crates/nvs-cli/src` for core-dump,
-  profiling and guest-debug calls (`crates/nvs-ext/src/call.rs:899`).
-- The row is `Cargo.toml:377`, and its comment starts about `:366`.
-- `Component::new` is at `crates/nvs-ext/src/load.rs:353` and `:362`.
+- `crates/nvs-ext/build.rs:173` writes the components; Brotli at quality 9 goes in there.
+- `crates/nvs-ext/src/load.rs:351` is `Loader::compile`, which takes the bytes as a closure next.
+- `crates/nvs-ext/src/builtin.rs:19` holds the embedded bytes, and gains `expanded(name)`.
+
+Expected red until stage 8: any test that pins a decode of an integer literal past `u64::MAX` to a
+`float`, any typed-decode test that pins a repeated key's column, which is now after the value, and
+any `decodeEach` test that pins a byte offset or a column of an error inside a skipped value. The
+`decodeEach` suites in `each.rs` and the deep-document tests since `Levels` were not run. Of
+`nvs-ext`, only `proposals`, `failure`, `call`, `cache` and `wasmtime_features` ran after the cut;
+a test elsewhere that compiles component text through `Component::new`, or reads a trap's wasm
+backtrace, would go red, though a search found none.
 
 ### Backlog
 

@@ -25,9 +25,7 @@ default = []
 # for a component guest, `async` for a call that suspends on wasmtime's own
 # fiber and hands its future back to the caller, and `wat` so a test guest is
 # component text compiled at run time with no wasm toolchain. The workspace
-# entry takes wasmtime's defaults, which already carry all three, so naming
-# them here changes no resolved feature; it keeps them on if that entry ever
-# turns the defaults off.
+# entry leaves `wat` off, so this feature is the one that turns it on.
 wasm-probe = ["dep:wasmtime", "wasmtime/component-model", "wasmtime/async", "wasmtime/wat"]
 
 [dependencies]

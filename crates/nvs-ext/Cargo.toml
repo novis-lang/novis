@@ -20,8 +20,7 @@ default = ["engine", "pack"]
 # never instantiate, so they take this crate with `default-features = false`
 # and do not link wasmtime. `component-model` for a component guest, `async`
 # for a call the request's coroutine polls, `pooling-allocator` for one slot
-# per instance. wasmtime's defaults already carry all three; naming them keeps
-# them on if the workspace entry ever turns the defaults off.
+# per instance.
 engine = [
     "dep:nvs-config",
     "dep:wasmtime",
@@ -67,6 +66,9 @@ nvs-runtime.workspace = true
 # How the fixture test reaches `tests/conformance/ext/fixtures/`.
 nvs-repo.workspace = true
 wat.workspace = true
+# The proposals test validates each excluded proposal's guest with every
+# feature on, which the engine's own build no longer carries.
+wasmparser = { workspace = true, features = ["validate", "features", "simd"] }
 # The WASI test builds one probe component per WASI interface from the WIT
 # alone: `dummy-module` makes the core module a world needs.
 wit-component = { workspace = true, features = ["dummy-module"] }

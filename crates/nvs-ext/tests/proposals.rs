@@ -1,10 +1,10 @@
 //! `rule:packaging/an-extension-is-a-sandboxed-wasm-component`'s proposal set: the host's engine
 //! compiles every built-in component, and refuses a guest that uses a wasm proposal outside
-//! `nvs_ext::call::PROPOSALS`, which wasmtime's own defaults accept.
+//! `nvs_ext::call::PROPOSALS`, which a validator with every feature on accepts.
 
 use nvs_ext::call::Host;
 use nvs_ext::load::Loader;
-use wasmtime::Engine;
+use wasmparser::{Validator, WasmFeatures};
 use wasmtime::component::Component;
 
 /// The fields of one core module per proposal the host turns off, each using only that proposal.
@@ -45,12 +45,12 @@ fn every_built_in_component_compiles_under_the_hosts_proposals() {
 #[test]
 fn a_guest_using_a_proposal_outside_the_set_does_not_compile() {
     let host = Host::new(1, |_| Ok(())).expect("the host starts");
-    let wide = Engine::default();
     for (proposal, fields) in OUTSIDE {
         let bytes = wat::parse_str(format!("(component (core module {fields}))"))
             .unwrap_or_else(|err| panic!("the {proposal} guest parses: {err}"));
-        Component::new(&wide, &bytes)
-            .unwrap_or_else(|err| panic!("wasmtime's defaults accept {proposal}: {err:?}"));
+        Validator::new_with_features(WasmFeatures::all())
+            .validate_all(&bytes)
+            .unwrap_or_else(|err| panic!("a validator with every feature accepts {proposal}: {err}"));
         assert!(
             Component::new(host.engine(), &bytes).is_err(),
             "the host compiled a guest that uses {proposal}",
