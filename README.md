@@ -128,9 +128,7 @@ This section shows what comes next for Novis. There are no dates. The
 [roadmap page](https://novis-lang.org/in-depth/roadmap/) shows the same.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-The work is in the order it is planned. The order can change.
-
-1. **Scheduled jobs that run on server events.** *Working on it now.* A `[[schedule]]` entry can run its script when the server starts, stops or reloads. It can also run when a scheduled job or a queue job fails.
+Nothing is planned after the current release yet.
 <!-- roadmap:end -->
 
 ## Contributing

@@ -3,13 +3,5 @@
   "internal": [
     "chain-ends-green"
   ],
-  "themes": [
-    {
-      "title": "Scheduled jobs that run on server events",
-      "text": "A `[[schedule]]` entry can run its script when the server starts, stops or reloads. It can also run when a scheduled job or a queue job fails.",
-      "goals": [
-        "server-events"
-      ]
-    }
-  ]
+  "themes": []
 }
