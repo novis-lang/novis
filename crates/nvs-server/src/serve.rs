@@ -87,8 +87,8 @@
 //! cost that grows with traffic.
 //!
 //! The rest of a request's shared writes are counted by
-//! `nvs_diagnostics::shared` and bounded by `nvs-cli`'s keep-alive test: 34 in
-//! a debug build, for one keep-alive request to a compiled unit.
+//! `nvs_diagnostics::shared` and bounded by `nvs-cli`'s keep-alive test: 16 in
+//! a debug build, for one keep-alive request to a mount's compiled entry.
 
 use std::cell::{Cell, RefCell};
 use std::convert::Infallible;
@@ -1223,6 +1223,14 @@ impl Record {
     #[must_use]
     pub fn published(&self) -> &Arc<nvs_config::Published> {
         &self.published
+    }
+
+    /// The generation of the holder [`published`](Self::published) was read
+    /// at. A value a core keeps beside this record is current while this
+    /// number has not moved.
+    #[must_use]
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
     /// The host's snapshot of [`published`](Self::published), which the door

@@ -297,9 +297,10 @@ struct Traced {
 /// One stamp to keep per file, or per listed directory, in order.
 type Stamps = Vec<Option<Stamp>>;
 
-/// What a resolve gives its caller: the program with its unit's class table and
-/// its route table, or the one-line summary of why it did not compile.
-type Answer = Result<(Prepared, Arc<nvs_runtime::routes::Routes>), String>;
+/// What a resolve gives its caller: the compiled unit itself, or the one-line
+/// summary of why it did not compile. A caller builds its program from the unit
+/// ([`Compiled::program`]), so a holder of the unit needs no second lookup.
+type Answer = Result<Arc<Compiled>, String>;
 
 /// The `mtime`/size pair `rule:config/an-edit-reaches-the-next-request-without-a-restart` calls the cheap
 /// pre-filter: enough to say a file did *not* change, never enough to say what
@@ -585,6 +586,21 @@ pub(crate) struct Compiler {
     /// build a different struct, and this is the number an `nvs info` would
     /// report if it ever reported one.
     compiles: AtomicU64,
+    /// How many write guards this cache has taken on any of its locks. Every
+    /// write goes through [`Self::exclusive`], which moves this number while it
+    /// holds the guard, so a change to any map moves it.
+    ///
+    /// A core keeps one slot per mount row with the unit of the row's entry
+    /// (`crate::serve::mounts`), stamped with this number. A slot whose stamp
+    /// still equals it is current, so a request for a row's entry takes no lock
+    /// here. The reader loads this number before it reads a map, so a slot is
+    /// never stamped newer than what it holds.
+    ///
+    /// **What it spends:** one word per cache, and one write per write guard,
+    /// which is never on a request that reads a slot. A background check moves
+    /// it once per pass, so each core reads its slots again once per
+    /// `revalidate_freq`.
+    epoch: AtomicU64,
     /// The debug session every unit is compiled for, under the debug switch
     /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
     /// Each compile loads its unit into the session, which resolves every
@@ -636,6 +652,7 @@ impl Compiler {
             watcher: Mutex::new(Weak::new()),
             cache: RwLock::new(crate::cache::from_config(config)),
             compiles: AtomicU64::new(0),
+            epoch: AtomicU64::new(0),
             debug: None,
             counts: false,
         }
@@ -699,7 +716,7 @@ impl Compiler {
     pub(crate) fn reconfigure(&self, config: &Config) {
         let next = Revalidation::from_config(config);
         {
-            let mut held = exclusive(&self.revalidation);
+            let mut held = self.exclusive(&self.revalidation);
             if *held == next {
                 return;
             }
@@ -732,7 +749,7 @@ impl Compiler {
         if let Some(cache) = cache.as_mut() {
             cache.rekey(env);
         }
-        *exclusive(&self.cache) = cache;
+        *self.exclusive(&self.cache) = cache;
     }
 
     /// How many compiled units this cache holds right now.
@@ -764,26 +781,26 @@ impl Compiler {
     /// hashes whose units are gone, so a resolve that hit one would take step 1
     /// down to a compile anyway.
     pub(crate) fn rekey_to(&self, config: &Config) -> usize {
-        *exclusive(&self.backtracking) = nvs_types::Backtracking::of_config(config);
+        *self.exclusive(&self.backtracking) = nvs_types::Backtracking::of_config(config);
         self.rekey(env_hash(config, &nvs_config::grants::Grants::default()))
     }
 
     /// [`Self::rekey_to`] with the digest named rather than computed, which is
     /// the seam a test drives.
     pub(crate) fn rekey(&self, env: EnvHash) -> usize {
-        let mut keyed = exclusive(&self.env);
+        let mut keyed = self.exclusive(&self.env);
         if *keyed == env {
             return 0;
         }
         *keyed = env;
-        if let Some(cache) = exclusive(&self.cache).as_mut() {
+        if let Some(cache) = self.exclusive(&self.cache).as_mut() {
             cache.rekey(env);
         }
-        let mut units = exclusive(&self.units);
+        let mut units = self.exclusive(&self.units);
         let dropped = units.len();
         units.clear();
-        exclusive(&self.traces).clear();
-        exclusive(&self.paths).clear();
+        self.exclusive(&self.traces).clear();
+        self.exclusive(&self.paths).clear();
         dropped
     }
 
@@ -810,17 +827,22 @@ impl Compiler {
         &self,
         path: &str,
     ) -> Result<(Program, Arc<nvs_runtime::routes::Routes>), String> {
-        self.prepared(path)
-            .map(|(prepared, routes)| (prepared.program, routes))
+        self.unit(path).map(|unit| {
+            #[cfg(debug_assertions)]
+            nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Unit, 2);
+            let routes = Arc::clone(&unit.routes);
+            (program_over(unit), routes)
+        })
     }
 
-    /// [`Self::compiled`] with the unit's class table kept beside the program,
-    /// which is what [`Resolver::resolve`] answers with.
+    /// The compiled unit of `path`, which [`Self::compiled`] and
+    /// [`Resolver::resolve`] build their answers from, and which a core's slot
+    /// keeps (`crate::serve::mounts`).
     ///
     /// # Errors
     ///
     /// [`Self::compiled`]'s.
-    fn prepared(&self, path: &str) -> Answer {
+    pub(crate) fn unit(&self, path: &str) -> Answer {
         // Borrowed for the lookup a served request makes, so a path with a
         // pointer is answered without allocating a copy of its name.
         let known = shared(&self.paths).get(Path::new(path)).copied();
@@ -834,6 +856,18 @@ impl Compiler {
             Ok(observed) => self.take(path, &written, known, &observed, false),
             Err(answer) => answer,
         }
+    }
+
+    /// The unit `path`'s pointer names, where it names one that compiled:
+    /// step 1 alone, with no file-system call and no compile. `None` for a
+    /// path with no pointer, a compile in flight, and a path whose requests
+    /// are answered with a failure. Those take [`Self::unit`].
+    ///
+    /// A core fills its slots with this (`crate::serve::mounts`), so filling
+    /// one never compiles and never reads the disk.
+    pub(crate) fn standing_unit(&self, path: &Path) -> Option<Arc<Compiled>> {
+        let entry = shared(&self.paths).get(path).copied()?;
+        self.answer_at(path, entry.serving())?.ok()
     }
 
     /// The background check: every path this cache holds a pointer for, looked
@@ -1153,7 +1187,7 @@ impl Compiler {
         {
             return;
         }
-        let mut traces = exclusive(&self.traces);
+        let mut traces = self.exclusive(&self.traces);
         // Only onto the state that was checked: a compile that landed in
         // between recorded a current trace, and stamps, of its own.
         let Some(traced) = traces.get_mut(&entry) else {
@@ -1209,7 +1243,7 @@ impl Compiler {
     /// for a compile that publishes nothing. A caller waiting on it then finds
     /// nothing under the key and compiles the content itself.
     fn release(&self, key: &UnitKey, flight: &Arc<Flight>) {
-        let mut units = exclusive(&self.units);
+        let mut units = self.exclusive(&self.units);
         if matches!(units.get(key), Some(CompileState::Compiling(held)) if Arc::ptr_eq(held, flight))
         {
             units.remove(key);
@@ -1227,7 +1261,7 @@ impl Compiler {
     /// also the honest shape: what a waiter wants is what the table holds when
     /// it wakes, which is not what it held when it went to sleep.
     fn claim(&self, key: &UnitKey, flight: &Arc<Flight>) -> Claim {
-        let mut units = exclusive(&self.units);
+        let mut units = self.exclusive(&self.units);
         match units.get(key) {
             Some(CompileState::Compiling(ahead)) => Claim::Behind(Arc::clone(ahead)),
             Some(CompileState::Ready(_) | CompileState::Failed(_)) => Claim::Landed,
@@ -1268,7 +1302,7 @@ impl Compiler {
     /// trusts a matching stamp to mean that unit's content, so the stamp of the
     /// broken file must never stand beside it.
     fn fail(&self, path: &Path, generation: Generation, since: Option<Digest>) {
-        let mut paths = exclusive(&self.paths);
+        let mut paths = self.exclusive(&self.paths);
         if let Some(entry) = paths.get_mut(path)
             && Some(entry.unit.content) == since
         {
@@ -1303,7 +1337,7 @@ impl Compiler {
         generation: Generation,
         since: Option<Digest>,
     ) -> bool {
-        let mut paths = exclusive(&self.paths);
+        let mut paths = self.exclusive(&self.paths);
         let known = paths.get(path).copied();
         if known.map(|entry| entry.unit.content) != since {
             return false;
@@ -1367,13 +1401,13 @@ impl Compiler {
         // Spelled before either guard is taken, because a key reads `env`.
         let kept_keys: Vec<UnitKey> = keep.iter().map(|g| self.key_of(path, *g)).collect();
         {
-            let mut units = exclusive(&self.units);
+            let mut units = self.exclusive(&self.units);
             units.retain(|other, _| {
                 other.path() != path || other == &key || kept_keys.contains(other)
             });
             units.insert(key.clone(), state);
         }
-        let mut traces = exclusive(&self.traces);
+        let mut traces = self.exclusive(&self.traces);
         traces.retain(|(traced_path, content), traced| {
             if traced_path != path {
                 return true;
@@ -1850,20 +1884,10 @@ fn reply(state: &CompileState) -> Option<Answer> {
     match state {
         CompileState::Compiling(_) => None,
         CompileState::Ready(compiled) => {
-            let classes = compiled.unit.runtime_error_class();
-            // The unit and its route table, and the class table where the unit has one.
+            // The unit's own count.
             #[cfg(debug_assertions)]
-            nvs_diagnostics::shared::wrote(
-                nvs_diagnostics::shared::Line::Unit,
-                if classes.is_some() { 6 } else { 4 },
-            );
-            Some(Ok((
-                Prepared {
-                    classes,
-                    program: program_over(Arc::clone(compiled)),
-                },
-                Arc::clone(&compiled.routes),
-            )))
+            nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Unit, 2);
+            Some(Ok(Arc::clone(compiled)))
         }
         CompileState::Failed(message) => Some(Err(message.clone())),
     }
@@ -2021,12 +2045,27 @@ fn shared<T>(lock: &RwLock<T>) -> RwLockReadGuard<'_, T> {
     lock.read().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// A write guard on one of the same two maps, held for one `insert` and never
-/// across a compile — the module doc's *A reader never waits behind a compile*.
-fn exclusive<T>(lock: &RwLock<T>) -> RwLockWriteGuard<'_, T> {
-    #[cfg(debug_assertions)]
-    nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::UnitsLock, 2);
-    lock.write().unwrap_or_else(PoisonError::into_inner)
+impl Compiler {
+    /// A write guard on one of this cache's locks, held for one `insert` and
+    /// never across a compile — the module doc's *A reader never waits behind
+    /// a compile*.
+    ///
+    /// This is the one place a write guard is taken, and it moves
+    /// [`Self::epoch`] while it holds the guard. A slot stamped before this
+    /// write therefore no longer matches, and its reader looks again.
+    fn exclusive<'a, T>(&self, lock: &'a RwLock<T>) -> RwLockWriteGuard<'a, T> {
+        #[cfg(debug_assertions)]
+        nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::UnitsLock, 2);
+        let guard = lock.write().unwrap_or_else(PoisonError::into_inner);
+        self.epoch.fetch_add(1, Ordering::AcqRel);
+        guard
+    }
+
+    /// [`Self::epoch`] now. A reader loads it before it reads any map, and a
+    /// slot it fills is current while this number has not moved.
+    pub(crate) fn epoch(&self) -> u64 {
+        self.epoch.load(Ordering::Acquire)
+    }
 }
 
 /// Step 2: what the file behind `path` holds now.
@@ -2083,7 +2122,22 @@ impl Resolver for Compiler {
         // [`Self::prepared`] hands back is the half this seam has nothing to
         // do with — it still travels *into* the child, because the program
         // installs it on its own context.
-        self.prepared(path).map(|(prepared, _)| prepared)
+        self.unit(path).map(|unit| Prepared {
+            classes: unit.unit.runtime_error_class(),
+            program: program_over(unit),
+        })
+    }
+}
+
+impl Compiled {
+    /// A program over this unit, which keeps one reference to it.
+    pub(crate) fn program(self: &Arc<Self>) -> Program {
+        program_over(Arc::clone(self))
+    }
+
+    /// The route table this unit declared.
+    pub(crate) fn routes(&self) -> &Arc<nvs_runtime::routes::Routes> {
+        &self.routes
     }
 }
 
@@ -3231,7 +3285,7 @@ mod tests {
             // The edit, made while every reader is already looping. Its compile
             // stops at the cache lock this thread holds.
             started.wait();
-            let held = super::exclusive(&compiler.cache);
+            let held = compiler.exclusive(&compiler.cache);
             let editor = cores.spawn(|| {
                 swap.say("two");
                 compiler.revalidate();

@@ -1031,8 +1031,12 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     let stopped = Rc::new(Cell::new(false));
     // This core's own table over the mount set, which is the same set on every
     // core: what is per-core is the structure, because an `Rc` graph belongs to
-    // the thread that reads it. It is rebuilt when the set is replaced.
-    let tables = Rc::new(mounts::Local::new(mounts, Arc::clone(&snapshot)));
+    // the thread that reads it. It is rebuilt when the set is replaced. Each
+    // row's slot is filled here from the boot compile, before anything accepts.
+    let tables = Rc::new({
+        let (generation, published) = current.published_at();
+        mounts::Local::new(mounts, Arc::clone(&compiler), generation, &published)
+    });
 
     // Every request goes through `rule:http-server/a-request-resolves-in-five-steps`, and what they chose is either
     // a file to send — `nvs_server::statics`, the same policy a configured
@@ -1123,7 +1127,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // trace sample and the CSRF key. A reload reaches the next request,
             // because the door replaces the record before it calls this.
             let standing = record.host();
-            let table = tables.table(standing);
+            let table = tables.table(record.generation(), record.published());
             // The client address decides the development rebinding guard: a
             // request from this machine names this machine in its `Host`
             // (`nvs_server::Table::local_hosts_only`).
@@ -1179,41 +1183,36 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // The app folder is the mount's, not the file's: under
             // `dispatch = "path"` the file is anywhere below the mount's entry,
             // and the application is the same one.
-            let published = record.published();
-            let folder: Arc<Path> = published.folder(&mount.entry, &crate::config::ServedFiles);
-            let (config, compiled) = match published.entry(&file, &crate::config::ServedFiles) {
-                Err(refused) => (None, Err(refused.message)),
-                Ok(found) => (Some(found), compiler.compiled(&file.to_string_lossy())),
-            };
+            //
+            // The row's own entry is read from this core's slot for the row,
+            // with no lock (`mounts::Local::entry`). Any other file, and an
+            // entry whose slot has nothing to run, takes the shared lookups.
+            let entry = entry_for(&tables, &table, &compiler, mount, &file, record);
+            let config = entry.config();
             // Both halves of what the selected unit is: the code to run, and
             // `rule:routing/matched-once-before-the-handler`'s table to match against before it does.
             // `crate::script::Compiled` owns why the cache holds the second
             // one at all.
-            let (program, routes): (Program, Option<Arc<nvs_runtime::routes::Routes>>) =
-                match compiled {
-                    Ok((program, routes)) => (program, Some(routes)),
-                    // Reachable because step 4 can name a file the boot compile
-                    // never saw: under `dispatch = "path"` a `.nvs` under the mount
-                    // root compiles on the request that first asks for it. It is a
-                    // failing program rather than a panic because a handler answers
-                    // with a reply and not with a `Result`: `rule:security/isolate-shares-nothing`'s failure is a
-                    // value, and the accept loop turns one into this request's
-                    // `500`. It matches against nothing: a table is a product of
-                    // the compile that did not happen.
-                    Err(message) => (
-                        Box::new(move |ctx: &mut Ctx, _args| {
-                            ctx.set_pending(message);
-                            Value::null()
-                        }),
-                        None,
-                    ),
-                };
+            let routes: Option<&nvs_runtime::routes::Routes> =
+                entry.unit.as_ref().ok().map(|unit| &**unit.routes());
+            let program: Program = match &entry.unit {
+                Ok(unit) => unit.program(),
+                // Reachable because step 4 can name a file the boot compile
+                // never saw: under `dispatch = "path"` a `.nvs` under the mount
+                // root compiles on the request that first asks for it. It is a
+                // failing program rather than a panic because a handler answers
+                // with a reply and not with a `Result`: `rule:security/isolate-shares-nothing`'s failure is a
+                // value, and the accept loop turns one into this request's
+                // `500`. It matches against nothing: a table is a product of
+                // the compile that did not happen.
+                Err(message) => failing(message.clone()),
+            };
             // `rule:routing/a-gate-answers-around-every-handler`'s refusal mode:
             // a unit that calls `Core\Router::dispatch` runs for a request this
             // door refuses, with the refusal on the carrier, no match and no
             // body, so that its gate answers. Every other unit gets the door's
             // empty answer, as before.
-            let refusal_mode = routes.as_ref().is_some_and(|routes| routes.dispatches());
+            let refusal_mode = routes.is_some_and(nvs_runtime::routes::Routes::dispatches);
             if unknown_verb && !refusal_mode {
                 return Reply::not_implemented();
             }
@@ -1264,7 +1263,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // An unknown verb is matched against nothing: it is refused here.
             if unknown_verb {
                 inbound.set_refusal(nvs_runtime::routes::Refusal::UnknownMethod);
-            } else if let Some(routes) = &routes {
+            } else if let Some(routes) = routes {
                 nvs_server::route::take(routes, &mut inbound);
             }
             // `rule:security/csrf-is-on-by-default`'s refusal, over the match
@@ -1329,29 +1328,18 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // fresh isolate with no body, when a memory or CPU-time limit stops
             // its first run, so that its gate's `failed` answers. Nothing is
             // built until then: the closure keeps the head the door already
-            // holds, and finds the mount again by its place in the table.
+            // holds, runs the unit and the folder the first run read, and finds
+            // the mount again by its place in the table.
             let rerun = (refusal_mode && inbound.refusal().is_none()).then(|| {
-                #[cfg(debug_assertions)]
-                {
-                    nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Unit, 2);
-                    nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Folder, 2);
-                }
-                let compiler = Arc::clone(&compiler);
-                let folder = Arc::clone(&folder);
-                let at = table
-                    .mounts()
-                    .iter()
-                    .position(|row| std::ptr::eq(row, mount));
+                let entry = Rc::clone(&entry);
+                let at = mounts::row_of(table.mounts(), mount);
                 let table = Rc::clone(&table);
                 let trace = inbound.trace_context();
                 let watched = watched.clone();
                 nvs_server::Rerun::new(move || {
-                    let program: Program = match compiler.compiled(&file.to_string_lossy()) {
-                        Ok((program, _routes)) => program,
-                        Err(message) => Box::new(move |ctx: &mut Ctx, _args| {
-                            ctx.set_pending(message);
-                            Value::null()
-                        }),
+                    let program: Program = match &entry.unit {
+                        Ok(unit) => unit.program(),
+                        Err(message) => failing(message.clone()),
                     };
                     let mut inbound = carrier(
                         head.method.as_str(),
@@ -1372,7 +1360,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                     inbound.set_refusal(nvs_runtime::routes::Refusal::Limit);
                     let isolate = Isolate::new(program, Value::null(), Output::Capture)
                         .answering(inbound)
-                        .in_folder(folder);
+                        .in_folder(Arc::clone(&entry.folder));
                     let isolate = match mount {
                         Some(mount) => at_mount_origin(isolate, mount),
                         None => isolate,
@@ -1387,12 +1375,10 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // mount resolved, which is what the program's absolute links are
             // built from. [`at_mount_origin`] owns why it goes onto the
             // isolate and not onto the carrier beside the prefix above.
-            #[cfg(debug_assertions)]
-            nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Folder, 2);
             let isolate = at_mount_origin(
                 Isolate::new(program, Value::null(), Output::Capture)
                     .answering(inbound)
-                    .in_folder(Arc::clone(&folder)),
+                    .in_folder(Arc::clone(&entry.folder)),
                 mount,
             );
             // `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s
@@ -2558,6 +2544,54 @@ fn carrier<'h>(
     }
     inbound.set_peer(origin.client(), origin.scheme());
     inbound
+}
+
+/// What a request for `file` under `mount` runs: the snapshot, the app folder
+/// and the unit.
+///
+/// The row's own entry is read from this core's slot for the row, which takes
+/// no lock while the publish and the compile cache stand
+/// (`mounts::Local::entry`). Any other file, and an entry whose slot has nothing
+/// to run, takes the shared lookups ([`mounts::Entry::looked_up`]).
+fn entry_for(
+    tables: &mounts::Local,
+    table: &nvs_server::Table,
+    compiler: &Compiler,
+    mount: &Mounted,
+    file: &Path,
+    record: &nvs_server::Record,
+) -> Rc<mounts::Entry> {
+    (file == mount.entry)
+        .then(|| tables.entry(table, mount, record.generation(), record.published()))
+        .flatten()
+        .unwrap_or_else(|| {
+            // The isolate's copy of a folder the publish shares.
+            #[cfg(debug_assertions)]
+            nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Folder, 2);
+            Rc::new(mounts::Entry::looked_up(
+                compiler,
+                file,
+                &mount.entry,
+                record.published(),
+            ))
+        })
+}
+
+/// The program a request runs when its file did not compile: it fails with
+/// `message`, which the accept loop turns into the request's `500`.
+///
+/// Reachable because step 4 can name a file the boot compile never saw: under
+/// `dispatch = "path"` a `.nvs` under the mount root compiles on the request
+/// that first asks for it. It is a failing program and not a panic, because a
+/// handler answers with a reply and not with a `Result`
+/// (`rule:security/isolate-shares-nothing`'s failure is a value). It matches
+/// against no route table: a table is a product of the compile that did not
+/// happen.
+fn failing(message: String) -> Program {
+    Box::new(move |ctx: &mut Ctx, _args| {
+        ctx.set_pending(message);
+        Value::null()
+    })
 }
 
 fn at_mount_origin(isolate: Isolate, mount: &Mounted) -> Isolate {
@@ -5235,28 +5269,24 @@ mod tests {
     /// stack in a debug build: 3.0 measured, and 1.0 in release.
     const REQUEST_PROGRAM_STACK_PAGES: usize = 4;
 
-    /// The writes one keep-alive request makes to cache lines every core
-    /// shares, counted by `nvs_diagnostics::shared` on the serving thread.
+    /// One keep-alive connection of `asked` requests to `entry`, served on one
+    /// core the way `nvs serve`'s handler serves a mount's entry: the core's
+    /// table over one row, its slot for that row, and [`entry_for`].
     ///
-    /// One client sends two warm-up requests down one connection, then
-    /// [`SHARED_FIRST`] and [`SHARED_SECOND`] more, and one last request that
-    /// closes it. The handler reads the count as each request arrives, and does
-    /// per request what `nvs serve`'s handler does for a mount's entry: it looks
-    /// up the entry's folder and snapshot in the request's publish, takes the
-    /// compiled unit from the cache, and runs it in that folder. The count per
-    /// request is the same over both spans, so nothing in it grows with the
-    /// requests served, and it is at most [`SHARED_WRITES`].
-    ///
-    /// Debug builds only, because the counter exists only there.
+    /// The core's table is built before the socket accepts, as
+    /// `serve_on_worker` builds it, so a unit `compiler` already holds fills
+    /// the slot then. `between` runs on the client after the response to each
+    /// request and before the next one is sent, with the request's number,
+    /// counted from 1. Answers the count read as each request arrived, and the
+    /// body of each response.
     #[cfg(debug_assertions)]
-    #[test]
-    fn a_keep_alive_request_makes_its_counted_shared_writes() {
+    fn one_connection_through_the_slot(
+        entry: &std::path::Path,
+        compiler: &Arc<Compiler>,
+        asked: usize,
+        mut between: impl FnMut(usize) + Send + 'static,
+    ) -> (Vec<nvs_diagnostics::shared::Shared>, Vec<String>) {
         use nvs_diagnostics::shared::Shared;
-
-        let dir = nvs_repo::scratch("serve-shared-writes");
-        let entry = dir.join("entry.nvs");
-        std::fs::write(&entry, "<?nvs\necho \"counted\";\n").expect("the entry is writable");
-        let path = entry.to_string_lossy().into_owned();
 
         let mut listener =
             nvs_host::NvsListener::bind(a_free_address()).expect("the loopback refused a listener");
@@ -5264,7 +5294,6 @@ mod tests {
             .local_addr()
             .expect("a bound listener knows its own address");
         let draining = nvs_server::Draining::detached();
-        let asked = 2 + SHARED_FIRST + SHARED_SECOND + 1;
         let drained = draining.clone();
         let client = std::thread::spawn(move || {
             let _ends = EndsTheServer(drained);
@@ -5273,6 +5302,7 @@ mod tests {
             socket
                 .set_read_timeout(Some(CLIENT_PATIENCE))
                 .expect("the socket refused a read timeout");
+            let mut bodies = Vec::with_capacity(asked);
             for at in 1..=asked {
                 let closing = if at == asked {
                     "Connection: close\r\n"
@@ -5301,15 +5331,20 @@ mod tests {
                 socket
                     .read_exact(&mut body)
                     .expect("a response's body could not be read");
+                bodies.push(String::from_utf8_lossy(&body).into_owned());
+                if at < asked {
+                    between(at);
+                }
             }
             let mut rest = Vec::new();
             socket
                 .read_to_end(&mut rest)
                 .expect("a closed connection could not be read to its end");
+            bodies
         });
 
-        let compiler = Arc::new(Compiler::default());
-        let serving = nvs_server::Serving::new(
+        let current = Arc::new(nvs_config::Current::new(Arc::default()));
+        let serving = nvs_server::Serving::live(
             Arc::new(nvs_server::Admission::new(&nvs_server::Ceiling::of(
                 &nvs_config::server::Capacity {
                     configured: u64::MAX,
@@ -5320,34 +5355,54 @@ mod tests {
             Arc::new(nvs_server::Secure::of(None)),
             Arc::new(nvs_server::Trusted::of(&[]).0),
             Arc::new(nvs_server::Cors::of(None)),
-            Arc::default(),
+            Arc::clone(&current),
         );
+        let row = nvs_config::mount::Mounted {
+            prefix: "/".to_owned(),
+            host: None,
+            root: entry
+                .parent()
+                .expect("the entry is in a folder")
+                .to_path_buf(),
+            entry: entry.to_path_buf(),
+            origin: None,
+            captures: Vec::new(),
+        };
+        let tables = Rc::new({
+            let (generation, published) = current.published_at();
+            super::mounts::Local::new(
+                Arc::new(super::mounts::Mounts::new(vec![row])),
+                Arc::clone(compiler),
+                generation,
+                &published,
+            )
+        });
         let mut sched = nvs_host::Scheduler::new();
         let installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
         // Sized for every reading up front.
         let readings = Rc::new(std::cell::RefCell::new(Vec::<Shared>::with_capacity(asked)));
         let handler = Rc::new({
-            let compiler = Arc::clone(&compiler);
+            let compiler = Arc::clone(compiler);
             let readings = Rc::clone(&readings);
             move |request: nvs_server::Request<nvs_server::Incoming>,
                   _origin: nvs_server::Origin,
                   record: &nvs_server::Record| {
                 readings.borrow_mut().push(Shared::now());
-                let file = std::path::Path::new(&path);
-                let published = record.published();
-                let folder = published.folder(file, &crate::config::ServedFiles);
-                let _config = published
-                    .entry(file, &crate::config::ServedFiles)
-                    .expect("the entry has a snapshot");
-                let (program, _routes) = compiler.compiled(&path).expect("the entry compiles");
+                let table = tables.table(record.generation(), record.published());
+                let mount = &table.mounts()[0];
+                let chosen =
+                    super::entry_for(&tables, &table, &compiler, mount, &mount.entry, record);
+                let _config = chosen.config();
+                let program = match &chosen.unit {
+                    Ok(unit) => unit.program(),
+                    Err(message) => super::failing(message.clone()),
+                };
                 let inbound = Inbound::new(request.method().as_str(), request.uri().path(), "");
-                // The folder's copy, which `nvs serve`'s handler counts at the same line.
-                nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Folder, 2);
                 nvs_server::Reply::Run(
                     Isolate::new(program, Value::null(), Output::Capture)
                         .answering(inbound)
-                        .in_folder(Arc::clone(&folder)),
+                        .in_folder(Arc::clone(&chosen.folder)),
                     None,
                     None,
                 )
@@ -5376,15 +5431,53 @@ mod tests {
             }
         }
         drop(installed);
-        client.join().expect("the client thread panicked");
-
-        let readings = readings.borrow();
+        let bodies = client.join().expect("the client thread panicked");
+        let readings = readings.borrow().clone();
         assert_eq!(
             readings.len(),
             asked,
             "the handler ran {} times",
             readings.len()
         );
+        (readings, bodies)
+    }
+
+    /// A scratch entry file that prints `said`, in a folder named `name`,
+    /// compiled once into `compiler`, as the boot compiles every mount's entry.
+    /// The folder is deleted when the [`nvs_repo::Scratch`] is dropped.
+    #[cfg(debug_assertions)]
+    fn a_compiled_entry(
+        name: &str,
+        said: &str,
+        compiler: &Compiler,
+    ) -> (nvs_repo::Scratch, PathBuf) {
+        let dir = nvs_repo::scratch(name);
+        let entry = dir.join("entry.nvs");
+        std::fs::write(&entry, format!("<?nvs\necho \"{said}\";\n"))
+            .expect("the entry is writable");
+        compiler
+            .unit(&entry.to_string_lossy())
+            .expect("the entry compiles");
+        (dir, entry)
+    }
+
+    /// The writes one keep-alive request makes to cache lines every core
+    /// shares, counted by `nvs_diagnostics::shared` on the serving thread.
+    ///
+    /// One client sends two warm-up requests down one connection, then
+    /// [`SHARED_FIRST`] and [`SHARED_SECOND`] more, and one last request that
+    /// closes it ([`one_connection_through_the_slot`]). The count per request
+    /// is the same over both spans, so nothing in it grows with the requests
+    /// served, and it is at most [`SHARED_WRITES`].
+    ///
+    /// Debug builds only, because the counter exists only there.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_keep_alive_request_makes_its_counted_shared_writes() {
+        let compiler = Arc::new(Compiler::default());
+        let (_dir, entry) = a_compiled_entry("serve-shared-writes", "counted", &compiler);
+        let asked = 2 + SHARED_FIRST + SHARED_SECOND + 1;
+        let (readings, _bodies) = one_connection_through_the_slot(&entry, &compiler, asked, |_| {});
         let warm = readings[2];
         let first = readings[2 + SHARED_FIRST];
         let second = readings[2 + SHARED_FIRST + SHARED_SECOND];
@@ -5406,6 +5499,63 @@ mod tests {
         );
     }
 
+    /// `rule:testing/perf-two-mechanisms`: a request for a mount's own entry
+    /// reads the core's slot for the row, so after a warm-up, 20 requests take
+    /// no lock of the configuration holder, a publish or the compile cache.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_mounts_entry_is_read_from_its_cores_record_without_a_lock() {
+        use nvs_diagnostics::shared::Line;
+
+        let compiler = Arc::new(Compiler::default());
+        let (_dir, entry) = a_compiled_entry("serve-slot-no-lock", "slot", &compiler);
+        let (readings, bodies) =
+            one_connection_through_the_slot(&entry, &compiler, 2 + 20 + 1, |_| {});
+        assert!(bodies.iter().all(|body| body == "slot"), "{bodies:?}");
+        let over = readings[2 + 20].since(readings[2]);
+        for line in [
+            Line::CurrentLock,
+            Line::PublishLock,
+            Line::PolicyLock,
+            Line::UnitsLock,
+        ] {
+            assert_eq!(
+                over.on(line),
+                0,
+                "20 requests for a mount's entry wrote the {line:?} line:\n{over}"
+            );
+        }
+    }
+
+    /// `rule:config/an-edit-reaches-the-next-request-without-a-restart` on one
+    /// core: the entry is rewritten and the cache checks it between two
+    /// requests on one connection. The core's slot was read under the old
+    /// epoch, so the second request reads it again and runs the new program.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_unit_swapped_between_two_requests_on_one_core_reaches_the_second() {
+        let config: nvs_config::tree::Config = toml::from_str(
+            "[opcache]\nvalidate = \"hash\"\nrevalidate_freq = \"0s\"\nsettle = \"0s\"\n",
+        )
+        .expect("the fixture deserializes");
+        let compiler = Arc::new(Compiler::new(&config));
+        let (_dir, entry) = a_compiled_entry("serve-slot-swap", "old", &compiler);
+        let rewrite = {
+            let compiler = Arc::clone(&compiler);
+            let entry = entry.clone();
+            move |_at: usize| {
+                std::fs::write(&entry, "<?nvs\necho \"new\";\n").expect("the entry is writable");
+                compiler.revalidate();
+            }
+        };
+        let (_readings, bodies) = one_connection_through_the_slot(&entry, &compiler, 2, rewrite);
+        assert_eq!(
+            bodies,
+            ["old", "new"],
+            "the second request did not run the swapped unit"
+        );
+    }
+
     /// How many requests [`a_keep_alive_request_makes_its_counted_shared_writes`]
     /// counts over first.
     #[cfg(debug_assertions)]
@@ -5415,12 +5565,20 @@ mod tests {
     #[cfg(debug_assertions)]
     const SHARED_SECOND: usize = 40;
 
-    /// How many shared writes one keep-alive request may make: 34 measured,
-    /// since the door reads its core's record and the request holds one
-    /// snapshot reference. A change that removes a counted site lowers this to
-    /// what the test prints.
+    /// How many shared writes one keep-alive request may make: 16 measured,
+    /// since the door reads its core's record and the handler reads its row's
+    /// slot. What remains, line by line:
+    ///
+    /// - `snapshot`, 6: the request's own reference to its entry's snapshot,
+    ///   the context's clone at `set_config`, and the copy `Ctx::isolate` makes.
+    /// - `unit`, 8: the program's reference to the unit, and the statics, the
+    ///   class table, the id and the query sites `program_over` installs.
+    /// - `admit`, 2: the in-flight count.
+    ///
+    /// No lock line is written. A change that removes a counted site lowers
+    /// this to what the test prints.
     #[cfg(debug_assertions)]
-    const SHARED_WRITES: u64 = 34;
+    const SHARED_WRITES: u64 = 16;
 
     /// An address on the loopback nothing is listening on, taken from the
     /// platform and given straight back so the boot under test is what binds it.

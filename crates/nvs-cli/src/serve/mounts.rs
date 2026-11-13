@@ -9,6 +9,20 @@
 //! ([`Local::table`]). While the rows stand still, a request pays one atomic
 //! load for this and takes no lock.
 //!
+//! **Each row has a slot on each core.** The slot holds what a request for
+//! the row's own entry runs: the entry's snapshot, the core's own copy of the
+//! app folder, and the compiled unit ([`Entry`]). It was read under one publish
+//! generation and one epoch of the compile cache (`Compiler::epoch`), and it is
+//! current while both stand. A request for the entry then reads it with no lock
+//! and no write another core sees ([`Local::entry`]). Where either number
+//! moved, the request reads the slot again first, so an edit the cache swapped
+//! in reaches the next request on every core. The core fills every slot when it
+//! builds its table, from units the cache already holds, so filling one never
+//! compiles and never reads the disk. A file `dispatch = "path"` selects below
+//! the mount, and an entry with nothing in its slot, take the shared lookups
+//! ([`Entry::looked_up`]). Their paths come from requests, and a slot keyed by
+//! them would grow with what clients ask.
+//!
 //! **The expansion runs on `crate::script::watch`'s thread**, after each pass
 //! of the compiled-unit check ([`Rescan::pass`]). It keeps the stamp of every
 //! directory the last expansion looked in ([`Stamping`]), taken before it
@@ -62,7 +76,9 @@
 //! **What it spends:** one `stat` per directory the expansion looked in, per
 //! `revalidate_freq`, off the request path, and one cached compile lookup per
 //! row kept while it does not compile, on the same pass. Two sets of rows live during a
-//! swap, and each core rebuilds its table once per swap.
+//! swap, and each core rebuilds its table once per swap. Each core keeps one
+//! slot per row: three references and a copy of the folder path, so
+//! O(cores × rows) for the life of the rows.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -80,7 +96,7 @@ use nvs_server::Table;
 use nvs_server::mount::databases;
 
 use crate::config::LocalFiles;
-use crate::script::Compiler;
+use crate::script::{Compiled, Compiler};
 
 /// The rows every core answers from, and how many times they were replaced.
 #[derive(Debug)]
@@ -123,9 +139,11 @@ impl Mounts {
     }
 }
 
-/// One core's table over the process's [`Mounts`].
+/// One core's table over the process's [`Mounts`], with one slot per row.
 pub(super) struct Local {
     mounts: Arc<Mounts>,
+    /// The cache every slot reads its unit from.
+    compiler: Arc<Compiler>,
     built: RefCell<Built>,
 }
 
@@ -137,6 +155,122 @@ struct Built {
     /// so a request under the same snapshot compares nothing else.
     of: Arc<nvs_config::Snapshot>,
     table: Rc<Table>,
+    /// One slot per row of `table`, in the table's order.
+    slots: Vec<Slot>,
+}
+
+/// What a request for one row's own entry runs, as this core last read it.
+///
+/// The slot is current while the publish generation and the compile cache's
+/// epoch (`Compiler::epoch`) are the two it was read under. A request then
+/// reads it with no lock and no write another core sees.
+struct Slot {
+    /// The publish generation and the epoch this slot was read under.
+    read: (u64, u64),
+    /// `None` where the entry's blocks do not fold, or its pointer names no
+    /// unit that compiled. A request for it takes the shared lookup.
+    entry: Option<Rc<Entry>>,
+}
+
+/// What one request runs: the snapshot, the app folder and the unit.
+pub(super) struct Entry {
+    /// The snapshot the `[[app]]` blocks matching the file fold to, and `None`
+    /// where they do not fold.
+    pub(super) config: Option<Arc<nvs_config::Snapshot>>,
+    /// The app folder. A slot's folder is this core's own copy, so its count
+    /// is written by this core alone.
+    pub(super) folder: Arc<Path>,
+    /// The compiled unit, or the one-line summary of why it did not compile.
+    pub(super) unit: Result<Arc<Compiled>, String>,
+}
+
+impl Entry {
+    /// The request's own reference to its snapshot, which its context keeps.
+    pub(super) fn config(&self) -> Option<Arc<nvs_config::Snapshot>> {
+        #[cfg(debug_assertions)]
+        if self.config.is_some() {
+            nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Snapshot, 2);
+        }
+        self.config.clone()
+    }
+
+    /// What a request for `file` under `published` runs, read through the
+    /// shared lookups: the publish's resolved entries and folders, and the
+    /// compile cache, which compiles a file it has not seen.
+    pub(super) fn looked_up(
+        compiler: &Compiler,
+        file: &Path,
+        folder_of: &Path,
+        published: &nvs_config::Published,
+    ) -> Self {
+        let folder = published.folder(folder_of, &crate::config::ServedFiles);
+        let (config, unit) = match published.entry(file, &crate::config::ServedFiles) {
+            Err(refused) => (None, Err(refused.message)),
+            Ok(found) => (Some(found), compiler.unit(&file.to_string_lossy())),
+        };
+        Self {
+            config,
+            folder,
+            unit,
+        }
+    }
+}
+
+impl Slot {
+    /// `entry`'s slot under `published`, read with no compile and no read of
+    /// the disk for the unit. `epoch` is the cache's epoch, loaded before any
+    /// of its maps is read.
+    fn read(
+        compiler: &Compiler,
+        entry: &Path,
+        generation: u64,
+        epoch: u64,
+        published: &nvs_config::Published,
+    ) -> Self {
+        let filled = published
+            .entry(entry, &crate::config::ServedFiles)
+            .ok()
+            .zip(compiler.standing_unit(entry))
+            .map(|(config, unit)| {
+                let folder = published.folder(entry, &crate::config::ServedFiles);
+                Rc::new(Entry {
+                    config: Some(config),
+                    folder: Arc::from(&*folder),
+                    unit: Ok(unit),
+                })
+            });
+        Self {
+            read: (generation, epoch),
+            entry: filled,
+        }
+    }
+
+    /// One slot for each row of `table`.
+    fn every(
+        compiler: &Compiler,
+        table: &Table,
+        generation: u64,
+        published: &nvs_config::Published,
+    ) -> Vec<Self> {
+        let epoch = compiler.epoch();
+        table
+            .mounts()
+            .iter()
+            .map(|row| Self::read(compiler, &row.entry, generation, epoch, published))
+            .collect()
+    }
+}
+
+/// The place of `mount` in `rows`, found by its address, and `None` where it
+/// is not one of them.
+pub(super) fn row_of(rows: &[Mounted], mount: &Mounted) -> Option<usize> {
+    let offset = std::ptr::from_ref(mount)
+        .addr()
+        .checked_sub(rows.as_ptr().addr())?;
+    let at = offset / std::mem::size_of::<Mounted>().max(1);
+    rows.get(at)
+        .is_some_and(|row| std::ptr::eq(row, mount))
+        .then_some(at)
 }
 
 /// What a table is built with besides its rows and the database files it
@@ -155,26 +289,54 @@ fn switches(config: &nvs_config::Config) -> (nvs_config::server::Switches, Optio
 }
 
 impl Local {
-    pub(super) fn new(mounts: Arc<Mounts>, snapshot: Arc<nvs_config::Snapshot>) -> Self {
-        let (generation, rows) = mounts.rows();
-        let table = Rc::new(Table::from_config(rows.to_vec(), &snapshot.config));
+    /// The core's table over `mounts` under the publish `published`, read at
+    /// the holder's `generation`, with every row's slot filled.
+    pub(super) fn new(
+        mounts: Arc<Mounts>,
+        compiler: Arc<Compiler>,
+        generation: u64,
+        published: &Arc<nvs_config::Published>,
+    ) -> Self {
+        let built = Self::build(&mounts, &compiler, generation, published);
         Self {
             mounts,
-            built: RefCell::new(Built {
-                generation,
-                of: snapshot,
-                table,
-            }),
+            compiler,
+            built: RefCell::new(built),
         }
     }
 
-    /// The table a request under `snapshot` selects its mount from. This is
-    /// the table the core built, unless the rows were replaced since or
-    /// `snapshot` sets different switches. Then the core builds a new one.
+    /// A table over the rows standing now, with every slot filled.
+    fn build(
+        mounts: &Mounts,
+        compiler: &Compiler,
+        generation: u64,
+        published: &Arc<nvs_config::Published>,
+    ) -> Built {
+        let snapshot = published.host();
+        let (rows_at, rows) = mounts.rows();
+        let table = Rc::new(Table::from_config(rows.to_vec(), &snapshot.config));
+        let slots = Slot::every(compiler, &table, generation, published);
+        Built {
+            generation: rows_at,
+            of: Arc::clone(snapshot),
+            table,
+            slots,
+        }
+    }
+
+    /// The table a request under `published` selects its mount from. This is
+    /// the table the core built, unless the rows were replaced since or the
+    /// host's snapshot sets different switches. Then the core builds a new one
+    /// and fills every slot.
     ///
     /// A request under the snapshot the table was built from pays one atomic
     /// load and one pointer comparison.
-    pub(super) fn table(&self, snapshot: &Arc<nvs_config::Snapshot>) -> Rc<Table> {
+    pub(super) fn table(
+        &self,
+        generation: u64,
+        published: &Arc<nvs_config::Published>,
+    ) -> Rc<Table> {
+        let snapshot = published.host();
         let standing = self.mounts.generation.load(Ordering::Acquire);
         let mut built = self.built.borrow_mut();
         let same_rows = built.generation == standing;
@@ -188,13 +350,34 @@ impl Local {
             built.of = Arc::clone(snapshot);
             return Rc::clone(&built.table);
         }
-        let (generation, rows) = self.mounts.rows();
-        *built = Built {
-            generation,
-            of: Arc::clone(snapshot),
-            table: Rc::new(Table::from_config(rows.to_vec(), &snapshot.config)),
-        };
+        *built = Self::build(&self.mounts, &self.compiler, generation, published);
         Rc::clone(&built.table)
+    }
+
+    /// What a request for `mount`'s own entry runs, out of this core's slot
+    /// for the row. The slot is read again first where the publish generation
+    /// or the compile cache's epoch moved since it was read.
+    ///
+    /// `None` where `table` is not the one this core holds, and where the slot
+    /// has nothing to run. The request then takes [`Entry::looked_up`].
+    pub(super) fn entry(
+        &self,
+        table: &Table,
+        mount: &Mounted,
+        generation: u64,
+        published: &nvs_config::Published,
+    ) -> Option<Rc<Entry>> {
+        let epoch = self.compiler.epoch();
+        let mut built = self.built.borrow_mut();
+        if !std::ptr::eq(&*built.table, table) {
+            return None;
+        }
+        let at = row_of(table.mounts(), mount)?;
+        let slot = built.slots.get_mut(at)?;
+        if slot.read != (generation, epoch) {
+            *slot = Slot::read(&self.compiler, &mount.entry, generation, epoch, published);
+        }
+        slot.entry.clone()
     }
 }
 
@@ -563,23 +746,37 @@ mod tests {
         })
     }
 
+    /// A publish of `snapshot` alone.
+    fn published(snapshot: Arc<nvs_config::Snapshot>) -> Arc<nvs_config::Published> {
+        Arc::new(nvs_config::Published::host_only(snapshot))
+    }
+
+    /// A core's table over `rows` under `snapshot`, with a compiler that has
+    /// compiled nothing.
+    fn local(rows: Vec<Mounted>, snapshot: Arc<nvs_config::Snapshot>) -> Local {
+        Local::new(
+            Arc::new(Mounts::new(rows)),
+            Arc::new(Compiler::default()),
+            0,
+            &published(snapshot),
+        )
+    }
+
     /// `rule:config/a-startup-default-is-never-flipped` at a reload: a snapshot
     /// that differs only in `[mode] default` resolves different switches, so
     /// the core builds a new table. A new snapshot with the same mode keeps
     /// the table the core holds.
     #[test]
     fn a_snapshot_that_differs_only_in_its_mode_rebuilds_the_table() {
-        let local = Local::new(
-            Arc::new(Mounts::new(Vec::new())),
-            snapshot("[mode]\ndefault = \"production\"\n"),
-        );
-        let first = local.table(&snapshot("[mode]\ndefault = \"production\"\n"));
-        let same = local.table(&snapshot("[mode]\ndefault = \"production\"\n"));
+        let local = local(Vec::new(), snapshot("[mode]\ndefault = \"production\"\n"));
+        let table = |text: &str| local.table(0, &published(snapshot(text)));
+        let first = table("[mode]\ndefault = \"production\"\n");
+        let same = table("[mode]\ndefault = \"production\"\n");
         assert!(
             Rc::ptr_eq(&first, &same),
             "a snapshot with the same switches rebuilt the table"
         );
-        let development = local.table(&snapshot("[mode]\ndefault = \"development\"\n"));
+        let development = table("[mode]\ndefault = \"development\"\n");
         assert!(
             !Rc::ptr_eq(&first, &development),
             "a snapshot that changed only the mode kept the old table"
@@ -612,7 +809,7 @@ mod tests {
                 "[mode]\ndefault = \"development\"\n[db.main]\ndriver = \"sqlite\"\npath = \"{path}\"\n"
             ))
         };
-        let local = Local::new(Arc::new(Mounts::new(rows)), tree("old.sqlite"));
+        let local = local(rows, tree("old.sqlite"));
         let what = |table: &Table, path: &str| {
             table
                 .resolve(None, path, &nvs_server::OnDisk)
@@ -620,7 +817,7 @@ mod tests {
                 .expect("the root mount covers every path")
                 .what
         };
-        let before = local.table(&tree("old.sqlite"));
+        let before = local.table(0, &published(tree("old.sqlite")));
         assert_eq!(
             what(&before, "/old.sqlite"),
             nvs_server::What::Run(entry.clone())
@@ -629,7 +826,7 @@ mod tests {
             what(&before, "/style.css"),
             nvs_server::What::Static(root.join("style.css"))
         );
-        let after = local.table(&tree("new.sqlite"));
+        let after = local.table(0, &published(tree("new.sqlite")));
         assert!(
             !Rc::ptr_eq(&before, &after),
             "a snapshot that moved only its database file kept the old table"
