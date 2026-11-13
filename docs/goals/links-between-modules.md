@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-syntax/src/parser/decl.rs, crates/nvs-syntax/src/ast.rs, crates/nvs-hir/src/autoload.rs, crates/nvs-cli/src/check.rs, editors/vscode/syntaxes/nvs.tmLanguage.json, website/config/novis.tmLanguage.json, docs/rules/classes/reserved-spellings-are-lower-case.md, data/rules/programs.json]
   - id: 2
     title: a link to a link-only root is checked and lowered
-    status: open
+    status: done
     context: [crates/nvs-types/src/links.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-hir/src/members.rs, crates/nvs-hir/src/requires.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-diagnostics/src/code/types_e08.rs, docs/rules/routing/table-is-opt-in.md, docs/rules/core-classes/router-signed-url.md]
   - id: 3
     title: the server picks the mount a link goes through
@@ -314,9 +314,9 @@ and lower it to a path plus a handler.
 - [x] `ExprInfo::RouteLink` carries the handler for a links-root site, and the lowering calls a new
   helper with the prepared path and the handler (`crates/nvs-ir/src/lower/expr.rs:389`,
   `crates/nvs-ir/src/lower/expr.rs:7929`). Until stage 3 the helper throws "no mount serves it".
-- [ ] The five tests of check `a-links-target-is-checked`, beside the link tests
+- [x] The five tests of check `a-links-target-is-checked`, beside the link tests
   (`crates/nvs-types/src/links.rs:1`).
-- [ ] `rule:routing/table-is-opt-in` says a links root is never scanned and its routes never join the
+- [x] `rule:routing/table-is-opt-in` says a links root is never scanned and its routes never join the
   table (`docs/rules/routing/table-is-opt-in.md:25`). `rule:core-classes/router-signed-url` declines a
   signed link to another module (`docs/rules/core-classes/router-signed-url.md:1`).
 
@@ -444,43 +444,35 @@ users. The session then runs `bun nv render --website` once.
 
 ### State
 
-Stage 1 is done. Stage 2's code builds and is clippy-clean, but **no test of it exists or has run**.
-- `AutoloadMap::resolve_link[_recording]` probe the `links` half through `probe_entries`; `is_empty`
-  counts links entries. The scan reads `entries` only, so links roots are never scanned.
-- `crates/nvs-hir/src/link_targets.rs`: `Module::link_targets`, `read` (methods, `#[Route]` paths,
-  parameter types and `#[Query]`, no body) and `mark_links_only` (`E0303` on such a name → `E0897`).
-- The walk (`crates/nvs-hir/src/requires.rs:646`) loads a links target into the `SourceMap`, so its
-  digest joins the revalidation set, and never queues it. `mark_links_only` runs at the walk's end.
-- `crates/nvs-hir/src/members.rs:1160` `links_root_target`: the route argument of `url` and
-  `urlAbsolute` is left alone (a missing method is `E_UNDEFINED_MEMBER`), `urlSigned` is `E0898`.
-- Codes `E0897` and `E0898` with cards. `signedRoute` takes no route, so only `urlSigned` is refused.
-- `crates/nvs-types/src/links.rs:212` records an unresolved reference as `foreign`; `resolve` (`:443`)
-  builds its row with `foreign_route` (`:532`) and runs the four checks. `RouteLink::handler` is set.
-- Lowering calls `nvs_core_router_link_module[_absolute]` (`crates/nvs-stdlib/src/router.rs:1621`)
-  with the path and the handler, which throws "no mount serves" until stage 3.
+Stages 1 and 2 are done. A link to a links-root route is checked like a local one and lowers to
+`nvs_core_router_link_module[_absolute]` (`crates/nvs-stdlib/src/router.rs:1621`), which throws "no
+mount serves" until stage 3 gives it a table. The check `a-links-target-is-checked` is green: its five
+tests are in `crates/nvs-types/src/links.rs`'s `mod tests`, on a disk fixture.
 
-Unverified: that `nvs_types` adds no error for the unresolved method reference, and that an `E0303`
-from `nvs_types::lower` (a type annotation) is rewritten. `mark_links_only` runs in hir only. If the
-test shows it, call it again at the end of `check_program_loaded`.
+The test found that `new` on a links-root class got a plain `E0303` from `nvs_types`, after hir's
+rewrite. `check_files` (`crates/nvs-types/src/check.rs:396`) now runs
+`module.link_targets.mark_links_only` again at its end, so every pass's `E0303` becomes `E0897`.
+
+The sweep's `env-secret-proofs` is no check any more (`looper check` finds none). The nightly's jobs
+were cancelled by a later push, as before.
 
 ### Next
 
-Finish stage 2:
+Stage 3. Its gate is met: `docs/goals/request-path-per-core.md` no longer exists.
 
-- `crates/nvs-types/src/links.rs:938`: add a `#[cfg(test)] mod tests` with a disk fixture helper
-  (`nvs_repo::scratch`, `SourceMap::load`, `nvs_hir::resolve_program` with `CoreRoster::Trusted`,
-  then `crate::check_program` over every `Loaded`), and the five tests of check
-  `a-links-target-is-checked`. Fixture: entry writes `autoload links 'Framework\Shop' from
-  './Shop/src';`; `Shop/src/View/Index.nvs` declares `namespace Framework\Shop\View; use Core\Route;`
-  and a class with a routed `show(int $id, #[Core\Query] ?string $q = null)` plus an unrouted `plain`.
-  Assert: a good link records `RouteLink { handler: Some(..) }`; missing capture, unknown key, `'id'
-  => 'x'`, `plain` and a missing method give the local link's codes; `exprs.routes().rows()` has no
-  `Index` row and `loaded` has no target file; `new Index()` and a typed parameter give `E0897`, no
-  `E0303`; `urlSigned` gives `E0898`; the map's `files()` and `probe_trace().probed()` hold the target.
-  Run them once by name.
-- `docs/rules/routing/table-is-opt-in.md:25`: a links root is never scanned and its routes never join
-  the table. `docs/rules/core-classes/router-signed-url.md:1`: Declined, a signed link to another
-  module. Then set stage 2 done.
+- `crates/nvs-config/src/tree.rs:1423`: `Mount` gets `canonical: Option<bool>`, and `Mounted`
+  (`crates/nvs-config/src/mount.rs:56`) its block index and `canonical`.
+- `crates/nvs-config/src/mount.rs:295`: the pure resolution function beside `expand`: rows, each row's
+  handler set and the served row in, a prefix and an optional origin out. The three steps and the tie
+  rule are in the standing decisions.
+- `crates/nvs-cli/src/serve.rs:2474`: build each linking row's table after every row compiled, beside
+  `unreached_origin` (`:2499`), and fail the boot on an unbroken tie a link needs. Hand the table to
+  the isolate beside `at_mount_origin` (`:2615`), and have the router helper read it.
+- `crates/nvs-cli/src/serve/mounts.rs:401`: the reload does the same and leaves out a linking row
+  whose tie is unbroken.
+- Then `nvs config check`, the seven tests and the two of `canonical-is-checked`, and the rule
+  fragments, as stage 3's items list them. That is likely two sessions: the config half and the
+  resolution function first, then the serve wiring.
 
 No existing test is expected red. `the_rendered_map_names_what_was_skipped_and_what_was_shadowed` (with
 its `links (0)` line) has still not run.
