@@ -249,14 +249,6 @@ const C_DEPENDENCIES: Record<string, Entry> = {
       "hook GDB reads JIT code from. It reads the compiled image of a module the configuration loaded, " +
       "only when debug info is turned on, which `nvs_ext::call`'s `Config` never does.",
   },
-  "ittapi-sys": {
-    verdict: "unreachable",
-    requires: [],
-    record:
-      "Intel's ITT notify library, behind wasmtime's default `profiling` feature, for VTune. Only a " +
-      "`Config` that sets the VTune profiling strategy calls it, and `nvs_ext::call`'s does not, so " +
-      "nothing a request sends reaches it.",
-  },
 };
 
 // The built-in components: Rust crates outside the workspace, compiled for `wasm32-wasip2` and
