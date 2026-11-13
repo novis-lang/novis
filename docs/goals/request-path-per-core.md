@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-config/src/snapshot.rs, crates/nvs-config/src/limits.rs, crates/nvs-server/src/secure.rs, crates/nvs-cli/src/serve/mounts.rs, docs/rules/config/the-config-is-an-immutable-snapshot.md, docs/rules/security/no-cross-request-state.md]
   - id: 3
     title: "the handler reads its mount's snapshot, folder and unit from its core's record"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/serve/mounts.rs, crates/nvs-cli/src/script.rs, docs/rules/config/a-request-keeps-the-unit-it-resolved.md, docs/rules/config/an-edit-reaches-the-next-request-without-a-restart.md]
   - id: 4
     title: "the request head is one buffer, and a dispatching unit keeps one copy of it"
@@ -256,8 +256,19 @@ manifest names `ureq`, and the client is hand-written.
 shipped header set, makes **48** shared writes in debug, the same over 20 and over 40 requests.
 That is at least 28, so stages 2 and 3 are built. Once the door read its core's record, the
 `current-lock`, `policy-lock`, `publish` and `policy` lines fell to zero. Once the door borrowed the
-host's snapshot and moved the entry's, the `snapshot` line fell by 4, and the guard's bound is 34
-(`crates/nvs-cli/src/serve.rs`'s `SHARED_WRITES`).
+host's snapshot and moved the entry's, the `snapshot` line fell by 4. Once the handler read its
+row's slot, the `units-lock` and `folder` lines fell to zero and the `unit` line to 8. The guard's
+bound is 16: `snapshot` 6, `unit` 8 and `admit` 2 (`crates/nvs-cli/src/serve.rs`'s `SHARED_WRITES`).
+
+**The slot holds a unit only, never a failure.** `Compiler::standing_unit` fills a slot from step 1
+alone: the pointer's unit where it compiled, and nothing for a path with no pointer, a compile in
+flight or a failed edit. A slot with nothing to run sends its request to the shared lookup, which
+compiles or answers the failure as before. A slot that kept a failure could hide the fix of a path
+no background check watches, because only a request walks a path with no pointer. **What it
+spends:** nothing more for a row whose entry does not compile, which pays the shared lookup as
+before. The `Rerun` closure runs the unit and the folder the first run read, through the request's
+`Rc<Entry>`, so a rerun takes no lock and runs the same program
+(`rule:config/a-request-keeps-the-unit-it-resolved`).
 
 | line | writes | where |
 |---|---|---|
@@ -379,33 +390,33 @@ row's own entry takes no lock.
 **Split:** an `Explore` subagent lists every call of `exclusive(` in `crates/nvs-cli/src/script.rs`
 as `script.rs:NN` and the map it writes, before the epoch lands.
 
-- [ ] `Compiler` gains an epoch that every write guard moves before it is released. `exclusive`
+- [x] `Compiler` gains an epoch that every write guard moves before it is released. `exclusive`
   becomes the one function that does it (`rule:config/a-request-keeps-the-unit-it-resolved`,
   `crates/nvs-cli/src/script.rs:492`, `:2015`).
-- [ ] `Compiler` answers a lookup with the unit itself, so a slot can keep it and build a `Program`
+- [x] `Compiler` answers a lookup with the unit itself, so a slot can keep it and build a `Program`
   with one reference (`rule:config/a-request-keeps-the-unit-it-resolved`,
   `crates/nvs-cli/src/script.rs:809`, `:1849`, `:2084`).
-- [ ] `Built` gains one slot per row: the entry's snapshot, the core's own copy of the folder and the
+- [x] `Built` gains one slot per row: the entry's snapshot, the core's own copy of the folder and the
   unit, with the generation and epoch it was read under. `Local::new` and each rebuild fill every
   slot (`rule:config/an-edit-reaches-the-next-request-without-a-restart`,
   `crates/nvs-cli/src/serve/mounts.rs:133`, `:158`, `:177`).
-- [ ] The handler reads the slot when the selected file is the row's entry, and refreshes it when
+- [x] The handler reads the slot when the selected file is the row's entry, and refreshes it when
   the epoch or the generation moved. Any other file takes the shared lookup
   (`rule:config/a-request-keeps-the-unit-it-resolved`, `crates/nvs-cli/src/serve.rs:1184`, `:1194`).
-- [ ] The `Rerun` closure and the isolate take the folder from the slot
+- [x] The `Rerun` closure and the isolate take the folder from the slot
   (`rule:routing/a-gate-answers-around-every-handler`, `crates/nvs-cli/src/serve.rs:1345`, `:1398`).
-- [ ] Test `a_mounts_entry_is_read_from_its_cores_record_without_a_lock` in
+- [x] Test `a_mounts_entry_is_read_from_its_cores_record_without_a_lock` in
   `crates/nvs-cli/src/serve.rs` tests, under `#[cfg(debug_assertions)]`: after a warm-up, 20 requests
   count zero on every lock line (`rule:testing/perf-two-mechanisms`,
   `crates/nvs-cli/src/serve.rs:4940`).
-- [ ] Test `a_unit_swapped_between_two_requests_on_one_core_reaches_the_second` beside it: the entry
+- [x] Test `a_unit_swapped_between_two_requests_on_one_core_reaches_the_second` beside it: the entry
   is rewritten and revalidated between two requests on one connection, and the second answer is the
   new program's (`rule:config/an-edit-reaches-the-next-request-without-a-restart`,
   `crates/nvs-cli/src/serve.rs:4940`).
-- [ ] Lower the bound of `a_keep_alive_request_makes_its_counted_shared_writes` to what remains, and
+- [x] Lower the bound of `a_keep_alive_request_makes_its_counted_shared_writes` to what remains, and
   name each remaining line in its doc comment (`rule:testing/perf-two-mechanisms`,
   `crates/nvs-cli/src/serve.rs:4940`).
-- [ ] The module doc of `mounts.rs` and the `Compiler` field docs say what a request reads now and
+- [x] The module doc of `mounts.rs` and the `Compiler` field docs say what a request reads now and
   what a slot spends (`rule:programs/memory-priority`, `crates/nvs-cli/src/serve/mounts.rs:5`,
   `crates/nvs-cli/src/script.rs:533`).
 
@@ -529,25 +540,27 @@ resolved cell, and keep a configured log file open.
 
 ### State
 
-Stages 1 and 2 are done. Each core keeps an `OnCore` record of the publish, its generation and its
-own `Policy`, and the door reads it through `OnCore::standing` with one generation load. The door
-now borrows `record.host()` and takes no snapshot reference of its own. The handler's `chosen`
-moves into `ran_under` before the run loop, and the loop borrows it as `under`. The one clone left
-is the context's, at `set_config`. A keep-alive request makes 34 counted shared writes, and
-`SHARED_WRITES` is 34. The `door-record` check passes, and build, clippy and fmt are green.
+Stages 1, 2 and 3 are done. `Compiler` has an epoch that `Compiler::exclusive`, the one write
+guard, moves while it holds the lock, and `Compiler::unit` answers with the `Arc<Compiled>` itself.
+Each core's `mounts::Local` keeps one slot per row, filled by `Local::new` and each rebuild from
+`Compiler::standing_unit`, which never compiles or reads the disk. `serve::entry_for` reads the slot
+for a row's own entry and refreshes it when the publish generation or the epoch moved. Any other
+file takes `mounts::Entry::looked_up`. The rerun keeps the request's `Rc<Entry>`. A keep-alive
+request makes 16 counted shared writes, with no lock line, and `SHARED_WRITES` is 16. The checks
+`unit-slot` and `shared-writes-counted` pass, and build, clippy and fmt are green.
 
-The sweep's `env-secret-proofs` and the nightly Miri failures of run 43201099245 were stale a third
+The sweep's `env-secret-proofs` and the nightly Miri failures of run 43201099245 were stale a fourth
 time. No such check log exists, and that run tested `578534cc7c`, before `7568aaa0fb` skipped the
 four tests under Miri. A sweep that names them again needs no work.
 
 ### Next
 
-Stage 3, in its items' order. No test is expected red.
+Stage 4, in its items' order. No test is expected red.
 
-- `crates/nvs-cli/src/script.rs:2026` `exclusive` becomes the one write guard that moves the
-  `Compiler` epoch. The stage's `**Split:**` Explore lists every `exclusive(` call first.
-- `crates/nvs-cli/src/serve/mounts.rs:177` `Local::table` and `Built` gain one slot per row, filled
-  by `Local::new` and each rebuild, as stage 3's third item says.
+- `crates/nvs-runtime/src/ctx/inbound.rs:626` `Inbound` stores the head in one buffer with an
+  offset table behind an `Arc`, and `Inbound::framed` builds it with exact capacity.
+- `crates/nvs-cli/src/serve.rs:2534` `carrier` builds with `Inbound::framed`, and the `Rerun`
+  closure at `crates/nvs-cli/src/serve.rs:1339` keeps the head handle in place of `hyper`'s `Parts`.
 
 ### Backlog
 
@@ -555,6 +568,10 @@ Stage 3, in its items' order. No test is expected red.
   counted line sees it (`crates/nvs-server/src/spooled.rs:200`). A borrowed read would remove two
   shared writes.
 
+- `Compiler::advance` takes a write guard on every background pass, even for a pointer that did not
+  move, so the epoch moves once per `revalidate_freq` and each core reads its slots again then
+  (`crates/nvs-cli/src/script.rs:1333`). A read check before the write would keep slots current
+  across a quiet pass.
 - The first log write of a request to a file target still writes on the core thread.
 - `trace::respond` builds the `traceresponse` value as a `String` and copies it
   (`crates/nvs-server/src/trace.rs:366`).
