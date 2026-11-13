@@ -343,21 +343,27 @@ close the integer defect.
 **Does:** rewrite the typed decode's visitors as loops over the reader, so a constructor runs on the
 stack the call came in on. Read `secret` spans in one pass.
 
-- [ ] `Fill`, `FillList`, `Typed`, `Key` and `Found` read the reader's events. A declared key is
+- [x] `Fill`, `FillList`, `Typed`, `Key` and `Found` read the reader's events. A declared key is
   matched from the borrowed text, as today (`crates/nvs-stdlib/src/json.rs:2723-3077`, `:3251-3459`,
   `rule:security/derived-codec-qualifiers`).
 - [ ] `read_against` and `parse_against` run in place. `TaskBounds` and `IN_PLACE_BYTES` go, with
   the test at `:6095` (`crates/nvs-stdlib/src/json.rs:2424`, `:3467-3559`).
-- [ ] A typed integer outside its field's type follows the integer decision: `float` converts,
+  - [x] `read_against` runs in place, and `parse_against`, `TaskBounds` and the short-text test go.
+  - [ ] `IN_PLACE_BYTES` goes once `secret_spans` reads through the reader.
+- [x] A typed integer outside its field's type follows the integer decision: `float` converts,
   `uint` takes up to `u64::MAX`, and any other field reports its own issue
   (`crates/nvs-stdlib/src/json.rs:5433`).
 - [ ] `secret_spans`, `secret_values` and `Entries` read byte ranges from the reader's events in one
   pass (`crates/nvs-stdlib/src/json.rs:4024-4050`, `:4098-4146`, `:4215-4239`).
-- [ ] `decode_as`'s callers take the new error type: `crates/nvs-stdlib/src/jwt.rs:2177`,
-  `crates/nvs-stdlib/src/test.rs:3472`, `crates/nvs-stdlib/src/request.rs:3313`.
+- [x] `decode_as`'s callers take the new error type: `crates/nvs-stdlib/src/jwt.rs:2177`,
+  `crates/nvs-stdlib/src/test.rs:3472`, `crates/nvs-stdlib/src/request.rs:3313`. `decode_as` still
+  returns `Fault`, so no caller changed.
 - [ ] Tests `a_typed_decode_reads_its_deepest_document_on_a_small_stack`,
   `a_typed_integer_too_large_for_its_field_is_that_fields_issue` and
   `secret_spans_allocates_no_more_per_level_at_two_depths` (`crates/nvs-stdlib/src/json.rs:6095`).
+  - [x] `a_typed_decode_reads_its_deepest_document_on_a_small_stack` passes.
+  - [x] `a_typed_integer_too_large_for_its_field_is_that_fields_issue` passes.
+  - [ ] `secret_spans_allocates_no_more_per_level_at_two_depths`.
 
 ### 4. decodeEach reads through the same reader, and the spare stack leaves the tree
 
@@ -476,47 +482,41 @@ entry and where a checked program's extension classes are known.
 
 ### State
 
-Stages 1 and 2 are done. `crates/nvs-stdlib/src/json/reader.rs` is the reader, and `json.rs`'s
-`build` (`crates/nvs-stdlib/src/json.rs:2602`) is the untyped decode: a loop over its events with a `Vec<Open>` of open
-containers. `read`, `read_marked` and `read_polled` run it in place over `reader::Text` through
-`read_with`, and return `reader::Error`. `decode`, `isValid`, `Core\Request::json`,
-`Core\Test\Response::json`, the queue rows and `decode_as`'s `writes_decoder` path all read through
-it. The `one-allocation-per-key` tests pass, and so do the new conformance case and attack under
-`bun nv try`. The attack is `tests/hostile/core/Json/decode/05-...`, since `04-` was taken.
+Stages 1 and 2 are done, and stage 3 is done except `secret_spans`. `crates/nvs-stdlib/src/json/reader.rs`
+is the reader. `build` is the untyped decode, and `build_open` starts it on a container whose start
+the caller has read. `fill` is the typed decode: one loop over the reader's events with a
+`Vec<Filling>` of the objects and lists a contract fills. `Target` says where the next value goes,
+and `Next` where an open object's next value goes. A value no contract fills is `build`'s.
+`read_against` runs `fill` in place and returns `Halt`, which is a read error or a build's fault.
+`Builder` is no longer a `RefCell` and has no `fault` field. `decode_as` keeps its signature, so its
+callers did not change.
 
-The reader gained four caller codes: `TooLarge(Digits)`, `TooSmall(Digits)`, `Repeated(Box<str>)`
-and `Stopped`, so `Code` is no longer `Copy`. `Reader::refuse(code)` places one after the last
-token, where `serde_json` places a visitor's error. A repeated key is now reported after its value,
-and not after the whitespace and `}` that follow it. No case pins that column. `Error::code()` is
-`#[cfg(test)]` until a caller needs it.
+The integer decision is built: a scalar field's own value goes through `field_number`, so a
+`uint` arrives as `Value::uint` and a literal past `u64::MAX` as its nearest `float`
+(`reader::Number::Big` gained `nearest`). `scalar` takes a `uint` for a `uint` field and converts
+it for a `float` field, and refuses a non-finite `float`. A `mixed` field, a nested untyped value
+and an undeclared key still throw as `decode` does. Elements of a list field whose chain ends in a
+scalar are read by `build`, so `array<uint>` still throws past `i64::MAX`.
 
-`Decode` and its `serde` visitor stay only because `Fill` and `FillList` hand nested values to it.
-On `decode_as`'s `writes_decoder` path a literal past `u64::MAX` now throws, where it used to
-reach a `float` field. Stage 3 brings that path's field rules back.
-
-The sweep's `env-secret-proofs` names no check in the tree. The nightly at `267c8eb` was cancelled
-by a later push. The push run at `d11e15a` failed only `proofs / linux-x86_64`, and every proof in
-its log passed. The run at `29f56d8` was still running.
+`Decode`, `repeated` and `over_memory` stay for `json/each.rs` until stage 4. The sweep's
+`env-secret-proofs` names no check in the tree, and the nightly's cancelled jobs were cancelled by
+later pushes.
 
 ### Next
 
-Stage 3, in `crates/nvs-stdlib/src/json.rs` and the three callers of `decode_as`. Expected red
-until stage 8: any test that pins a decode of an integer literal past `u64::MAX` to a `float`.
-The gate also runs `a_document_at_the_ceiling_decodes_whatever_stack_the_caller_has`, which now
-holds the loop on a 64 KiB thread.
+Stage 3's last slice, then stage 4. Expected red until stage 8: any test that pins a decode of an
+integer literal past `u64::MAX` to a `float`, and any typed-decode test that pins a repeated key's
+column, which is now after the value.
 
-- [ ] `crates/nvs-stdlib/src/json.rs:3214` (`Fill`), `:3511` (`FillList`), `:3589` (`Typed`),
-  `:3693` (`Key`) and `:2982` (`Found`) read the reader's events. Nested untyped values come from
-  `build`, which takes a reader already inside a value. Then `Decode` at `:2299` goes.
-- [ ] `crates/nvs-stdlib/src/json.rs:3744` `read_against`, `:3764` `TaskBounds` and `:3790` `parse_against` run in place.
-  `IN_PLACE_BYTES` goes with its test at `:6489`.
-- [ ] The integer decision for typed fields, at `crates/nvs-stdlib/src/json.rs:3193`'s `visit_u64` and the field reader:
-  `float` converts, `uint` takes up to `u64::MAX`, and any other field reports its own issue.
-- [ ] `crates/nvs-stdlib/src/json.rs:4293` `secret_spans`, `:4367` `secret_values` and `:4484` `Entries` read byte ranges from
-  the reader's events.
-- [ ] Callers: `crates/nvs-stdlib/src/jwt.rs:2177`, `crates/nvs-stdlib/src/test.rs:3493`,
-  `crates/nvs-stdlib/src/request.rs:3311` and `:8387`.
-- [ ] The three tests of `typed-on-the-task-stack`, beside `crates/nvs-stdlib/src/json.rs:6489`.
+- [ ] `crates/nvs-stdlib/src/json.rs:4270` `secret_spans`, `:4344` `secret_values` and `:4461`
+  `Entries` read byte ranges from the reader's events in one pass. The reader needs an offset of
+  the last token's start and end for that.
+- [ ] `IN_PLACE_BYTES` at `crates/nvs-stdlib/src/json.rs:2497` goes, with the `ignore` at `:8491`
+  that names it.
+- [ ] Beside `crates/nvs-stdlib/src/json.rs:6473`, the test
+  `secret_spans_allocates_no_more_per_level_at_two_depths`.
+- [ ] Then stage 4: `crates/nvs-stdlib/src/json/each.rs:66` and
+  `crates/nvs-stdlib/src/json/each_probe.rs:1` read through the reader, and `Decode` goes.
 
 ### Backlog
 
