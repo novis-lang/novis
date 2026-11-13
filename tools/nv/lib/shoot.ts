@@ -238,7 +238,13 @@ async function viewerShot(shot: Extract<Shot, { kind: "viewer" }>, fixture: stri
         return re.exec(printed)?.[1] ?? null;
       };
       const server = await until("`nvs serve` printed no address", found(/listening on (http:\/\/\S+)/));
-      const viewer = (await until("`nvs serve` started no debug viewer", found(/the debug viewer is at (http:\/\/\S+)/))).replace(/\/$/, "");
+      // The printed link is `http://ADDR/?token=...`. The token is needed on every request: the link
+      // sets the cookie that carries it, so the API calls send that cookie and the browser opens the link first.
+      const link = new URL(await until("`nvs serve` started no debug viewer", found(/the debug viewer is at (http:\/\/\S+)/)));
+      const viewer = link.origin;
+      const admitted = await fetch(link, { redirect: "manual" });
+      const cookie = (admitted.headers.get("set-cookie") ?? "").split(";")[0];
+      if (!cookie) throw new Error(`the debug viewer set no cookie for its link: ${admitted.status}`);
       for (const r of shot.requests) {
         const init: RequestInit = { method: r.method, redirect: "manual" };
         if (r.body !== undefined) Object.assign(init, { body: r.body, headers: { "content-type": "application/x-www-form-urlencoded" } });
@@ -246,10 +252,11 @@ async function viewerShot(shot: Extract<Shot, { kind: "viewer" }>, fixture: stri
       }
       // The server seals its records on a deadline, and the service reads them once sealed.
       await until(`the viewer did not list all ${shot.requests.length} request(s)`, async () => {
-        const page = (await (await fetch(`${viewer}/api/requests`)).json()) as { requests?: unknown[] };
+        const page = (await (await fetch(`${viewer}/api/requests`, { headers: { cookie } })).json()) as { requests?: unknown[] };
         return (page.requests?.length ?? 0) >= shot.requests.length ? true : null;
       });
-      const { text, png } = await withBrowser((b) => takeSteps(b, viewer, shot.steps, "!document.querySelector('[aria-busy=\"true\"]')"));
+      const admit: Step = { kind: "open", path: `/${link.search}` };
+      const { text, png } = await withBrowser((b) => takeSteps(b, viewer, [admit, ...shot.steps],"!document.querySelector('[aria-busy=\"true\"]')"));
       return { recording: shotOut(hash, shotText(projectPaths(text.replaceAll(server, "http://127.0.0.1:<port>"), app))), png };
     } finally {
       stop.abort();
