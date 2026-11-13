@@ -272,6 +272,37 @@ impl Request {
             .unwrap_or_default()
     }
 
+    /// `[log] target` and its bounds for this request ([`Snapshot::log_sink`]). The keys are
+    /// `System`, so no overlay holds them.
+    #[must_use]
+    pub fn log_sink(&self) -> Option<&crate::limits::LogSink> {
+        self.base.log_sink()
+    }
+
+    /// `[log] level` in force for this request, or `None` where none is written and the mode has
+    /// no default. The key is `Runtime`, so a request whose overlay holds it or flips the mode
+    /// reads it through `get`, as [`deprecated`](Self::deprecated) does.
+    #[must_use]
+    pub fn log_level(&self) -> Option<nvs_render::Level> {
+        let key = "log.level";
+        if !self.overlay.contains_key(key) && !self.overlay.contains_key(mode::KEY) {
+            return crate::limits::resolved(&self.base).log_level;
+        }
+        self.get(key)
+            .and_then(|written| nvs_render::Level::of(&written))
+    }
+
+    /// `[log] format` in force for this request, read as [`log_level`](Self::log_level) is.
+    #[must_use]
+    pub fn log_format(&self) -> Option<crate::log::Format> {
+        let key = "log.format";
+        if !self.overlay.contains_key(key) && !self.overlay.contains_key(mode::KEY) {
+            return crate::limits::resolved(&self.base).log_format;
+        }
+        self.get(key)
+            .and_then(|written| crate::log::Format::of(&written))
+    }
+
     /// `[regex] backtracking` in force for this request: what the file wrote, then
     /// [`Backtracking::Allow`](crate::regex::Backtracking::Allow). The key is `System`, so no
     /// overlay holds it, and this reads the snapshot's tree and allocates nothing.

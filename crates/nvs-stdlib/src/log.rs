@@ -912,9 +912,7 @@ mod tests {
         const KEEP: usize = 2;
         let (_dir, path) = scratch("floor.log");
         ctx.set_diagnostic_sink(OutputSink::File(LogFile::with_bounds(
-            path.clone(),
-            MAX_BYTES,
-            KEEP,
+            &path, MAX_BYTES, KEEP,
         )));
         let mut produced = 0;
         for n in 0..64 {

@@ -2388,8 +2388,8 @@ where
                             // `false` here is never reached by a request. Read off
                             // the program's snapshot, because the two keys sit
                             // under `[limits]` and an `[[app]]` block may write them.
-                            let disconnect =
-                                nvs_config::app::disconnect_for(&under.config, &under.origins).ok();
+                            // The snapshot's resolved cell read them once.
+                            let disconnect = under.disconnect();
                             let mut peer = Peer {
                                 running: Some(running),
                                 supply,

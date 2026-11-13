@@ -668,7 +668,8 @@ pub(crate) fn run(
             told.clone(),
         )
         .draining_through(serving.generations())
-        .serving_rows(Arc::clone(&mounts)),
+        .serving_rows(Arc::clone(&mounts))
+        .holding_logs(),
     );
     crate::reload::install(Arc::clone(&host));
     // A saved configuration file reaches this process by itself —
@@ -1276,17 +1277,20 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // next request; `nvs_server::route::csrf` owns which requests each
             // half of the check covers, and `nvs_stdlib::session` owns the
             // cookie name, because the default is the one that module writes.
-            let key = nvs_config::http::csrf_key(&standing.config);
-            let upload_total = nvs_config::app::upload_total(&standing.config);
+            // The key and `upload_total` are read off the snapshot's resolved
+            // cell, so each is decoded or parsed once per configuration.
+            let key = standing.csrf_key();
+            let upload_total = standing.upload_total();
             let cookie = nvs_stdlib::session::cookie_in(&standing.config);
-            let verdict = nvs_server::route::csrf(&inbound, key.as_deref(), cookie);
+            let verdict = nvs_server::route::csrf(&inbound, key, cookie);
             // An urlencoded write whose token rides in its body is checked by
             // the request's own task, which can pull the body; the door cannot.
+            // Only that request copies the key.
             let program = match (verdict, key) {
                 (nvs_server::route::Csrf::InBody, Some(key)) if inbound.refusal().is_none() => {
                     nvs_server::route::reading_the_form(
                         program,
-                        key,
+                        key.to_vec(),
                         cookie.to_owned(),
                         refusal_mode,
                     )

@@ -43,9 +43,13 @@
 //! # It is opened lazily and closed across a rotation
 //!
 //! The handle is opened on the first write rather than at construction, so a
-//! configured target that is never written costs no descriptor. It is dropped
-//! before the renames, because on Windows renaming a file that is still open
-//! can fail.
+//! target nobody configured costs no descriptor. It is dropped before the
+//! renames, because on Windows renaming a file that is still open can fail.
+//!
+//! A server's publisher is the exception: boot and each reload take one
+//! [`LogFile::held`] per file target the publish names ([`held_for`]), open it,
+//! and keep it until the next publish stands. A request's handle then finds the
+//! file open, so no request opens a configured log file.
 //!
 //! # No capability check
 //!
@@ -56,7 +60,8 @@
 //! answer.
 //!
 //! **What it spends:** one entry in [`OPEN`] and one descriptor per path that a
-//! live handle names, and nothing per record.
+//! live handle names, and nothing per record. A server holds one descriptor per
+//! configured log file for the life of its configuration.
 
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
@@ -84,7 +89,7 @@ impl LogFile {
     /// A target at `path` under [`nvs_config::log::MAX_SIZE`] and
     /// [`nvs_config::log::KEEP`].
     #[must_use]
-    pub fn new(path: PathBuf) -> Self {
+    pub fn new(path: &Path) -> Self {
         Self::with_bounds(path, nvs_config::log::MAX_SIZE, nvs_config::log::KEEP)
     }
 
@@ -93,18 +98,20 @@ impl LogFile {
     /// A path another live handle already names shares that handle's file, and
     /// these bounds replace the ones it had: the newest configuration wins. The
     /// bounds are arguments so a test can rotate without writing
-    /// [`nvs_config::log::MAX_SIZE`] bytes.
+    /// [`nvs_config::log::MAX_SIZE`] bytes. The path is borrowed, and copied
+    /// only for a path no live handle names.
     #[must_use]
-    pub fn with_bounds(path: PathBuf, max_bytes: u64, keep: usize) -> Self {
+    pub fn with_bounds(path: &Path, max_bytes: u64, keep: usize) -> Self {
         let mut open = OPEN.lock().unwrap_or_else(PoisonError::into_inner);
         open.retain(|_, file| file.strong_count() > 0);
-        if let Some(shared) = open.get(&path).and_then(Weak::upgrade) {
+        if let Some(shared) = open.get(path).and_then(Weak::upgrade) {
             shared
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .bound(max_bytes, keep);
             return Self { shared };
         }
+        let path = path.to_path_buf();
         let shared = Arc::new(Mutex::new(Rotating {
             path: path.clone(),
             file: None,
@@ -115,6 +122,24 @@ impl LogFile {
         }));
         open.insert(path, Arc::downgrade(&shared));
         Self { shared }
+    }
+
+    /// A handle the publisher keeps for a configured target, with the file
+    /// opened now.
+    ///
+    /// Every request's handle to the same path then shares the open file, so
+    /// no request opens it. A failed open is ignored: the first write opens
+    /// the file, as it does for any handle.
+    #[must_use]
+    pub fn held(path: &Path, max_bytes: u64, keep: usize) -> Self {
+        let held = Self::with_bounds(path, max_bytes, keep);
+        drop(
+            held.shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .open(),
+        );
+        held
     }
 
     /// Appends `bytes`, rotating first if they would not fit.
@@ -129,6 +154,27 @@ impl LogFile {
             .unwrap_or_else(PoisonError::into_inner)
             .write(bytes)
     }
+}
+
+/// One held handle, opened now, for each file target the snapshots of
+/// `published` name ([`LogFile::held`]).
+///
+/// The publisher keeps the set until the next publish stands, so a request's
+/// handle finds the file open. Two snapshots that name one path share one file.
+#[must_use]
+pub fn held_for(published: &nvs_config::Published) -> Vec<LogFile> {
+    published
+        .snapshots()
+        .iter()
+        .filter_map(|snapshot| match snapshot.log_sink()? {
+            nvs_config::limits::LogSink::File {
+                path,
+                max_size,
+                keep,
+            } => Some(LogFile::held(path, *max_size, *keep)),
+            _ => None,
+        })
+        .collect()
 }
 
 /// One file's state, shared by every [`LogFile`] that names its path.
@@ -187,6 +233,8 @@ impl Rotating {
     /// length once.
     fn open(&mut self) -> io::Result<()> {
         if self.file.is_none() {
+            #[cfg(test)]
+            tests::OPENS.with(|opens| opens.set(opens.get() + 1));
             let file = OpenOptions::new()
                 .create(true)
                 .append(true)
@@ -258,6 +306,30 @@ fn remove(path: &Path) -> io::Result<()> {
 mod tests {
     use super::*;
 
+    std::thread_local! {
+        /// How many times this thread opened a live file.
+        pub(super) static OPENS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    /// One held handle keeps the file open, so the handles 20 requests make,
+    /// write and drop open it no more.
+    #[test]
+    fn a_held_log_file_is_opened_once_for_any_number_of_requests() {
+        let dir = nvs_repo::scratch_private("logfile-held");
+        let path = dir.join("nvs.log");
+        let before = OPENS.with(std::cell::Cell::get);
+        let held = LogFile::held(&path, 1 << 20, 1);
+        for n in 0..20 {
+            let mut log = LogFile::with_bounds(&path, 1 << 20, 1);
+            log.write(format!("record {n:02}\n").as_bytes())
+                .expect("a write to a private folder succeeds");
+            drop(log);
+        }
+        assert_eq!(OPENS.with(std::cell::Cell::get) - before, 1);
+        drop(held);
+        assert_eq!(fs::read_to_string(&path).unwrap().lines().count(), 20);
+    }
+
     /// Rotation `n` of `path`, as the target names it.
     fn rotation(path: &Path, n: usize) -> PathBuf {
         let mut name = path.as_os_str().to_owned();
@@ -278,7 +350,7 @@ mod tests {
     fn a_full_file_shifts_up_and_the_oldest_past_keep_is_deleted() {
         let dir = nvs_repo::scratch_private("logfile-shift");
         let path = dir.join("nvs.log");
-        let mut log = LogFile::with_bounds(path.clone(), 20, 2);
+        let mut log = LogFile::with_bounds(&path, 20, 2);
         for n in 0..10 {
             log.write(format!("record {n:02}\n").as_bytes())
                 .expect("a write to a private folder succeeds");
@@ -305,7 +377,7 @@ mod tests {
     fn keep_zero_deletes_the_full_file() {
         let dir = nvs_repo::scratch_private("logfile-keep-zero");
         let path = dir.join("nvs.log");
-        let mut log = LogFile::with_bounds(path.clone(), 20, 0);
+        let mut log = LogFile::with_bounds(&path, 20, 0);
         for n in 0..5 {
             log.write(format!("record {n:02}\n").as_bytes()).unwrap();
         }
@@ -321,7 +393,7 @@ mod tests {
         let dir = nvs_repo::scratch_private("logfile-restart");
         let path = dir.join("nvs.log");
         fs::write(&path, "0123456789012345678\n").unwrap();
-        let mut log = LogFile::with_bounds(path.clone(), 20, 1);
+        let mut log = LogFile::with_bounds(&path, 20, 1);
         log.write(b"new\n").unwrap();
         drop(log);
         assert_eq!(fs::read_to_string(&path).unwrap(), "new\n");
@@ -340,7 +412,7 @@ mod tests {
         fs::create_dir(&blocker).unwrap();
         fs::write(blocker.join("inside"), "x").unwrap();
 
-        let mut log = LogFile::with_bounds(path.clone(), 10, 1);
+        let mut log = LogFile::with_bounds(&path, 10, 1);
         for _ in 0..3 {
             log.write(b"8 bytes\n")
                 .expect("a failed rotation does not fail the write");
@@ -366,7 +438,7 @@ mod tests {
         let path = dir.join("nvs.log");
         let handles: Vec<_> = (0..4)
             .map(|writer| {
-                let mut log = LogFile::with_bounds(path.clone(), MAX, KEEP);
+                let mut log = LogFile::with_bounds(&path, MAX, KEEP);
                 std::thread::spawn(move || {
                     for n in 0..100 {
                         log.write(format!("writer {writer} record {n:03}\n").as_bytes())

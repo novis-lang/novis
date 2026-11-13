@@ -166,6 +166,39 @@ impl Snapshot {
         crate::limits::resolved(self).trace_response
     }
 
+    /// The decoded `[http] csrf_key` ([`crate::http::csrf_key`]), or `None` where the tree names
+    /// none (`rule:security/csrf-is-on-by-default`). Read off the resolved limits, so the key is
+    /// decoded once per snapshot.
+    #[must_use]
+    pub fn csrf_key(self: &Arc<Self>) -> Option<&[u8]> {
+        crate::limits::resolved(self)
+            .csrf_key
+            .as_ref()
+            .map(crate::limits::CsrfKey::bytes)
+    }
+
+    /// `[limits] upload_total` in bytes ([`crate::app::upload_total`]), read off the resolved
+    /// limits.
+    #[must_use]
+    pub fn upload_total(self: &Arc<Self>) -> u64 {
+        crate::limits::resolved(self).upload_total
+    }
+
+    /// `[limits] cancel_on_disconnect` and `disconnect_grace` ([`crate::app::disconnect_for`]),
+    /// read off the resolved limits. `None` for a value the boot refuses, which no started server
+    /// reads.
+    #[must_use]
+    pub fn disconnect(self: &Arc<Self>) -> Option<&crate::app::Disconnect> {
+        crate::limits::resolved(self).disconnect.as_ref()
+    }
+
+    /// `[log] target` with its bounds, or `None` where it names no target. `System` keys, so no
+    /// overlay holds them, and this is read off the resolved limits.
+    #[must_use]
+    pub fn log_sink(self: &Arc<Self>) -> Option<&crate::limits::LogSink> {
+        crate::limits::resolved(self).log_sink.as_ref()
+    }
+
     /// Builds the snapshot for `entry` out of an already-resolved tree.
     ///
     /// `entry` is canonicalized first and kept that way, for [`app`]'s reason: every comparison

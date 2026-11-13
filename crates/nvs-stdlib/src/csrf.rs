@@ -358,8 +358,8 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// The key `[http] csrf_key` names, read with [`nvs_config::http::csrf_key`],
-/// the reader the door uses.
+/// The key `[http] csrf_key` names, read off the snapshot's resolved cell,
+/// which is the reader the door uses.
 ///
 /// # Errors
 ///
@@ -367,8 +367,7 @@ nvs_runtime::nvs_helper! {
 /// A tree naming one that is not a key never boots, so that case is this one.
 fn configured_key(ctx: &nvs_runtime::Ctx, member: &str) -> Result<Key, Fault> {
     ctx.config()
-        .and_then(|config| nvs_config::http::csrf_key(&config.snapshot().config))
-        .as_deref()
+        .and_then(|config| config.snapshot().csrf_key())
         .and_then(Key::new)
         .ok_or_else(|| {
             Fault::thrown(format!(

@@ -1362,26 +1362,22 @@ impl DeclaredHeaders {
 /// caller was configured by something other than a resolved tree — a test,
 /// in practice. It is not a diagnostic at the one moment the engine has a
 /// failure to report; it is [`LogTarget::Unnamed`], the unconfigured routing.
+///
+/// The target and its bounds are read off the snapshot's resolved cell, so a
+/// request parses no text here. A file target's handle is the open one the
+/// publisher holds ([`crate::logfile::LogFile::held`]).
 fn log_target(config: Option<&nvs_config::Request>) -> LogTarget {
-    let Some((config, written)) =
-        config.and_then(|config| Some((config, config.get("log.target")?)))
-    else {
-        return LogTarget::Unnamed;
-    };
-    match nvs_config::log::Target::of(&written) {
-        Some(nvs_config::log::Target::Stderr) => LogTarget::Named(OutputSink::Stderr),
-        Some(nvs_config::log::Target::File(path)) => {
-            let (max_size, keep) = nvs_config::log::bounds(
-                config.get("log.max_size").as_deref(),
-                config.get("log.keep").as_deref(),
-            );
-            LogTarget::Named(OutputSink::File(crate::logfile::LogFile::with_bounds(
-                std::path::PathBuf::from(path),
-                max_size,
-                keep,
-            )))
-        }
-        Some(nvs_config::log::Target::Syslog) => LogTarget::Syslog,
+    use nvs_config::limits::LogSink;
+    match config.and_then(nvs_config::Request::log_sink) {
+        Some(LogSink::Stderr) => LogTarget::Named(OutputSink::Stderr),
+        Some(LogSink::File {
+            path,
+            max_size,
+            keep,
+        }) => LogTarget::Named(OutputSink::File(crate::logfile::LogFile::with_bounds(
+            path, *max_size, *keep,
+        ))),
+        Some(LogSink::Syslog) => LogTarget::Syslog,
         None => LogTarget::Unnamed,
     }
 }
@@ -1399,8 +1395,7 @@ fn log_target(config: Option<&nvs_config::Request>) -> LogTarget {
 /// module doc gives about doing this at boot rather than at the first record.
 fn log_minimum(config: Option<&nvs_config::Request>) -> Level {
     config
-        .and_then(|config| config.get("log.level"))
-        .and_then(|written| Level::of(&written))
+        .and_then(nvs_config::Request::log_level)
         .unwrap_or(Level::Debug)
 }
 
@@ -1416,8 +1411,7 @@ fn log_minimum(config: Option<&nvs_config::Request>) -> Level {
 /// the file.
 fn log_format(config: Option<&nvs_config::Request>) -> LogFormat {
     config
-        .and_then(|config| config.get("log.format"))
-        .and_then(|written| LogFormat::of(&written))
+        .and_then(nvs_config::Request::log_format)
         .unwrap_or(LogFormat::Json)
 }
 

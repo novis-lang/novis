@@ -176,6 +176,10 @@ pub(crate) struct Process {
     /// The generation of the snapshot the last reload published, and the
     /// source map its origins point into. `None` until a reload publishes.
     sources: Mutex<Option<(u64, Arc<SourceMap>)>>,
+    /// One open handle per log file the standing publish names, kept until
+    /// the next publish stands, so no request opens a configured log file.
+    /// One descriptor per configured log file.
+    logs: Mutex<Vec<nvs_runtime::logfile::LogFile>>,
 }
 
 /// What a reload does to the on-disk artifact cache, decided before the publish.
@@ -236,7 +240,17 @@ impl Process {
             pending: Mutex::new(Vec::new()),
             refused: Mutex::new(None),
             sources: Mutex::new(None),
+            logs: Mutex::new(Vec::new()),
         }
+    }
+
+    /// The same process, holding open each log file the standing publish
+    /// names ([`nvs_runtime::logfile::held_for`]).
+    #[must_use]
+    pub(crate) fn holding_logs(self) -> Self {
+        let held = nvs_runtime::logfile::held_for(&self.current.published_at().1);
+        *lock(&self.logs) = held;
+        self
     }
 
     /// The same process, draining the connections the server behind
@@ -441,6 +455,10 @@ impl Process {
             eprintln!("{moved}");
         }
         *lock(&self.sources) = Some((serving.generation, Arc::new(sources)));
+        // The new set is opened before the old one is dropped, so a path both
+        // name stays open.
+        let held = nvs_runtime::logfile::held_for(&self.current.published_at().1);
+        drop(std::mem::replace(&mut *lock(&self.logs), held));
         let pending: Vec<Pending> = report
             .ignored
             .iter()
