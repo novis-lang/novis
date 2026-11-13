@@ -14,6 +14,16 @@ reads the running value in every snapshot of the publish. Every snapshot of one 
 host's generation: the database pool keys on it, so a server of many applications keeps one pool per
 `[db.<name>]`, and the drain after a reload tracks one number.
 
+**Each server core keeps its own record of the standing publish, checked against one generation per
+request.** The holder has a generation that only a publish moves, under its write lock. A core's
+record holds the publish, its generation and the core's own render of the response policy. The door
+loads the generation once per request: an equal number means the record is read with no lock and no
+write another core sees, and a moved one means the record is replaced before the request is
+admitted. **A reload reaches every core at its next request, so no request runs on a configuration
+older than the one current when it started.** The record holds nothing of a request
+(`rule:security/no-cross-request-state`). Cost: one record per core, with one rendered policy of a few
+hundred bytes, and one atomic load per request.
+
 Replacement is **validate-then-publish**, in this order, and any failure before the last step leaves
 the running configuration completely untouched: read and parse the whole tree of files, where a
 syntax error, an unknown key or a duplicate key ends it; verify every `[[extension]]` pin against the

@@ -321,8 +321,8 @@ pub(crate) fn run(
     // `rule:concurrency/connection-bounds-are-finite`'s table for the boot's
     // snapshot: what a `[server.connection]` block wrote, over the finite set
     // `nvs_server::bounds::Connection` ships. A snapshot published later
-    // brings its own, and `nvs_server::Serving` derives it for the next
-    // connection, as it does the waits.
+    // brings its own, and each core's `nvs_server::Record` derives it for the
+    // next connection, as it does the waits.
     let bounds = match connection_bounds_for(&snapshot.config, &origins) {
         Ok(written) => nvs_server::bounds::Connection::configured(written),
         Err(diagnostic) => return report(diagnostic, &sources),
@@ -1097,13 +1097,13 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         let tables = Rc::clone(&tables);
         let draining = draining.clone();
         let watched = watched.clone();
-        // The holder, not a rate read out of it here: `[trace] sample` reloads
+        // No rate is read out of the tree here: `[trace] sample` reloads
         // (`rule:config/reloadability-is-its-own-field`), so a fraction resolved
         // while this Rust closure was being built would be the one an operator can no
         // longer change. What a request draws against is read below, per request,
-        // exactly as [`Scheduled`] reads a fire's tree per fire.
-        let current = Arc::clone(&current);
-        move |request: Request<Incoming>, origin: Origin| {
+        // off the core's record the door hands in, exactly as [`Scheduled`] reads
+        // a fire's tree per fire.
+        move |request: Request<Incoming>, origin: Origin, record: &nvs_server::Record| {
             // A verb `Core\Http\Method` does not carry names no application on
             // this server rather than none at this path:
             // `Reply::not_implemented` owns why that is a `501` and not the
@@ -1118,11 +1118,12 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             if nvs_server::mount::host_is_refused(&request) {
                 return Reply::bad_host();
             }
-            // The tree standing now, read once for everything below that the
-            // handler reads from it: the table's switches, the trace sample
-            // and the CSRF key. A reload reaches the next request.
-            let standing = current.load();
-            let table = tables.table(&standing);
+            // The host's snapshot of the core's record, read for everything
+            // below that the handler reads from it: the table's switches, the
+            // trace sample and the CSRF key. A reload reaches the next request,
+            // because the door replaces the record before it calls this.
+            let standing = record.host();
+            let table = tables.table(standing);
             // The client address decides the development rebinding guard: a
             // request from this machine names this machine in its `Host`
             // (`nvs_server::Table::local_hosts_only`).
@@ -1166,33 +1167,23 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 }
             };
             // The snapshot the program runs under: the one the `[[app]]` blocks
-            // matching this file fold to, out of the publish the door took for
-            // this request, so the door's answer and the program's configuration
-            // come from one reload (`rule:config/the-config-is-an-immutable-snapshot`).
-            // It is the file that runs and
-            // not the row's `entry`, which under `dispatch = "path"` is another
-            // file. A file whose blocks do not fold runs nothing: it answers as
-            // a failing program does, because running it under the host's
-            // snapshot instead would hand it grants its own blocks narrowed.
-            // `None` is a request this loop did not frame, and runs under the
-            // host's.
+            // matching this file fold to, out of the publish of the record the
+            // door answers under, so the door's answer and the program's
+            // configuration come from one reload
+            // (`rule:config/the-config-is-an-immutable-snapshot`). It is the file
+            // that runs and not the row's `entry`, which under `dispatch = "path"`
+            // is another file. A file whose blocks do not fold runs nothing: it
+            // answers as a failing program does, because running it under the
+            // host's snapshot instead would hand it grants its own blocks narrowed.
             //
             // The app folder is the mount's, not the file's: under
             // `dispatch = "path"` the file is anywhere below the mount's entry,
-            // and the application is the same one. A request this loop did not
-            // frame matches no `[[app]]` block, so its folder is the mount root.
-            let folder: Arc<Path> = nvs_server::published_of(&request).map_or_else(
-                || Arc::from(mount.root.as_path()),
-                |published| published.folder(&mount.entry, &crate::config::ServedFiles),
-            );
-            let (config, compiled) = match nvs_server::published_of(&request)
-                .map(|published| published.entry(&file, &crate::config::ServedFiles))
-            {
-                Some(Err(refused)) => (None, Err(refused.message)),
-                found => (
-                    found.and_then(Result::ok),
-                    compiler.compiled(&file.to_string_lossy()),
-                ),
+            // and the application is the same one.
+            let published = record.published();
+            let folder: Arc<Path> = published.folder(&mount.entry, &crate::config::ServedFiles);
+            let (config, compiled) = match published.entry(&file, &crate::config::ServedFiles) {
+                Err(refused) => (None, Err(refused.message)),
+                Ok(found) => (Some(found), compiler.compiled(&file.to_string_lossy())),
             };
             // Both halves of what the selected unit is: the code to run, and
             // `rule:routing/matched-once-before-the-handler`'s table to match against before it does.
@@ -1301,7 +1292,6 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 }
                 _ => program,
             };
-            drop(standing);
             if verdict == nvs_server::route::Csrf::Refused && inbound.refusal().is_none() {
                 if !refusal_mode {
                     return Reply::forbidden();
@@ -4932,7 +4922,8 @@ mod tests {
             let served = Rc::clone(&served);
             let readings = Rc::clone(&readings);
             move |request: nvs_server::Request<nvs_server::Incoming>,
-                  _origin: nvs_server::Origin| {
+                  _origin: nvs_server::Origin,
+                  _: &nvs_server::Record| {
                 let count = served.get();
                 served.set(count + 1);
                 if count % SOAK_PER_CONNECTION == SOAK_PER_CONNECTION / 2 {
@@ -5125,7 +5116,8 @@ mod tests {
             let readings = Rc::clone(&readings);
             let stacks = Rc::clone(&stacks);
             move |request: nvs_server::Request<nvs_server::Incoming>,
-                  _origin: nvs_server::Origin| {
+                  _origin: nvs_server::Origin,
+                  _: &nvs_server::Record| {
                 let path = if request.uri().path() == "/probe" {
                     readings
                         .borrow_mut()
@@ -5339,11 +5331,11 @@ mod tests {
             let compiler = Arc::clone(&compiler);
             let readings = Rc::clone(&readings);
             move |request: nvs_server::Request<nvs_server::Incoming>,
-                  _origin: nvs_server::Origin| {
+                  _origin: nvs_server::Origin,
+                  record: &nvs_server::Record| {
                 readings.borrow_mut().push(Shared::now());
                 let file = std::path::Path::new(&path);
-                let published =
-                    nvs_server::published_of(&request).expect("the door carries its publish");
+                let published = record.published();
                 let folder = published.folder(file, &crate::config::ServedFiles);
                 let _config = published
                     .entry(file, &crate::config::ServedFiles)
@@ -5423,10 +5415,11 @@ mod tests {
     #[cfg(debug_assertions)]
     const SHARED_SECOND: usize = 40;
 
-    /// How many shared writes one keep-alive request may make: 48 measured.
-    /// A change that removes a counted site lowers this to what the test prints.
+    /// How many shared writes one keep-alive request may make: 38 measured,
+    /// since the door reads its core's record. A change that removes a counted
+    /// site lowers this to what the test prints.
     #[cfg(debug_assertions)]
-    const SHARED_WRITES: u64 = 48;
+    const SHARED_WRITES: u64 = 38;
 
     /// An address on the loopback nothing is listening on, taken from the
     /// platform and given straight back so the boot under test is what binds it.
@@ -5538,9 +5531,9 @@ mod tests {
             Arc::default(),
         );
         let handler = Rc::new(
-            |_request: nvs_server::Request<nvs_server::Incoming>, _origin: nvs_server::Origin| {
-                nvs_server::Reply::healthy()
-            },
+            |_request: nvs_server::Request<nvs_server::Incoming>,
+             _origin: nvs_server::Origin,
+             _: &nvs_server::Record| { nvs_server::Reply::healthy() },
         );
         let waits = nvs_config::server::Waits {
             header: KEPT_ALIVE_FOR,
@@ -6454,7 +6447,8 @@ echo Core\Router::{member}(Docs::here);
             let compiler = Arc::clone(&compiler);
             let watched = Rc::clone(&watched);
             move |request: nvs_server::Request<nvs_server::Incoming>,
-                  _origin: nvs_server::Origin| {
+                  _origin: nvs_server::Origin,
+                  _: &nvs_server::Record| {
                 let file = if request.uri().path() == "/runaway" {
                     &spins
                 } else {

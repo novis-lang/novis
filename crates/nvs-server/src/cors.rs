@@ -121,9 +121,9 @@ use nvs_config::{Quantity, Unit};
 
 /// `rule:http-server/cors-is-closed-until-origins-are-named`'s policy, resolved from `[http.cors]`.
 ///
-/// One per published snapshot, on the terms [`crate::secure::Secure`] is: `[http.cors]` reloads,
-/// and [`crate::serve::Serving`] derives the policy again for the first request under a new one.
-///
+/// One per published snapshot and core, on the terms [`crate::secure::Secure`] is: `[http.cors]`
+/// reloads, and each core's [`crate::serve::Record`] renders the policy again for the first
+/// request it answers under a new one.
 #[derive(Clone, Debug)]
 pub struct Cors {
     /// The exact origins `[http.cors] origins` named, as written. **Empty is the whole of what
@@ -218,6 +218,21 @@ impl Cors {
             max_age: seconds_of(cors.and_then(|cors| cors.max_age.as_deref())),
             expose: line(cors.and_then(|cors| cors.expose.as_deref()), ""),
             credentials: cors.and_then(|cors| cors.credentials).unwrap_or(false),
+        }
+    }
+
+    /// A copy of this policy whose every value has bytes of its own, for one core to answer
+    /// under, on the terms of [`crate::secure::Secure::own`].
+    #[must_use]
+    pub fn own(&self) -> Self {
+        use crate::secure::own_value;
+        Self {
+            origins: self.origins.clone(),
+            methods: self.methods.as_ref().map(own_value),
+            headers: self.headers.as_ref().map(own_value),
+            max_age: own_value(&self.max_age),
+            expose: self.expose.as_ref().map(own_value),
+            credentials: self.credentials,
         }
     }
 

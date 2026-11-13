@@ -28,7 +28,8 @@ pub enum Line {
     CurrentLock,
     /// The lock of one publish's resolved entries and folders.
     PublishLock,
-    /// The lock of the server's rendered response policy.
+    /// A lock on a response policy every core shares. Each core renders its own policy into its
+    /// record, so no site writes this line, and `nvs-server`'s door test holds it at zero.
     PolicyLock,
     /// The locks of the compile cache's maps.
     UnitsLock,
@@ -36,7 +37,8 @@ pub enum Line {
     Publish,
     /// The count of one configuration snapshot.
     Snapshot,
-    /// The count of the rendered policy and of each header value it copies into a response.
+    /// The count of a response policy, or of a header value it copies into a response, that every
+    /// core shares. No site writes it while each core renders its own.
     Policy,
     /// The count of an app folder's path.
     Folder,

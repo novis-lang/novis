@@ -191,7 +191,7 @@ pub use prometheus::{scrape, scrape_every_core, serve_scrapes_on_this_core};
 pub use schedule::{Armed, Fires, Leases, Rearm, Roster, arm, tick_on_this_core};
 pub use secure::{Scheme, Secure};
 pub use serve::{
-    Answer, Draining, Generations, Listening, Reply, Rerun, Serving, published_of,
+    Answer, Draining, Generations, Listening, OnCore, Record, Reply, Rerun, Serving,
     serve_connection, serve_on_this_core,
 };
 pub use socket::{Framed, accept_key};

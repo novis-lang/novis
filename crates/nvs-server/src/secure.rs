@@ -6,7 +6,9 @@
 //! the whole of the decision is that **an operator who wrote nothing gets all of them**.
 //! [`Secure::of`] reads `[http.headers]` once at boot and renders the set into header lines;
 //! [`Secure::fill`] is what one response costs, which is four name lookups and four
-//! `HeaderValue` clones — a refcount bump each, no allocation and no re-parsing.
+//! `HeaderValue` clones — a refcount bump each, no allocation and no re-parsing. Each core
+//! answers under its own copy ([`Secure::own`]), so that refcount is on a line no other core
+//! writes.
 //!
 //! # Decision: the set *fills*, it does not overwrite, and that is what makes `setHeader` an override
 //!
@@ -93,9 +95,9 @@ pub use nvs_runtime::Scheme;
 
 /// `rule:http-server/secure-headers-with-nothing-written`'s header set, resolved from `[http.headers]` and rendered once.
 ///
-/// One per published snapshot: `[http.headers]` reloads, so [`crate::serve::Serving`] derives
-/// a new set the first time a request is answered under a new snapshot, and every core shares it.
-///
+/// One per published snapshot and core: `[http.headers]` reloads, so each core's
+/// [`crate::serve::Record`] renders a new set the first time it answers a request under a new
+/// snapshot.
 #[derive(Clone, Debug)]
 pub struct Secure {
     /// Every header that does not depend on the request, in the order
@@ -103,11 +105,6 @@ pub struct Secure {
     always: Vec<(HeaderName, HeaderValue)>,
     /// `Strict-Transport-Security`, held apart because [`Scheme`] decides whether it is sent.
     hsts: Option<HeaderValue>,
-    /// The shared writes a copy of each value of `always` makes, in the same order: two for a
-    /// value rendered from the configuration, whose bytes every core shares, and none for a
-    /// static one. `nvs_diagnostics::shared` counts them.
-    #[cfg(debug_assertions)]
-    copies: Vec<u64>,
 }
 
 /// The shipped set, which is what a tree writing no `[http.headers]` resolves to.
@@ -146,27 +143,26 @@ impl Secure {
         if let Some(policy) = permissions_policy(written) {
             always.push((PERMISSIONS_POLICY, policy));
         }
-        // Two values are static: `nosniff`, and the shipped referrer policy.
-        #[cfg(debug_assertions)]
-        let copies = always
-            .iter()
-            .map(|(name, _)| {
-                let shipped_referrer = *name == header::REFERRER_POLICY
-                    && written
-                        .and_then(|headers| headers.referrer_policy.as_deref())
-                        .is_none();
-                if *name == header::X_CONTENT_TYPE_OPTIONS || shipped_referrer {
-                    0
-                } else {
-                    2
-                }
-            })
-            .collect();
         Self {
             always,
             hsts: hsts(written),
-            #[cfg(debug_assertions)]
-            copies,
+        }
+    }
+
+    /// A copy of this set whose every value has bytes of its own, for one core to answer under.
+    ///
+    /// A cloned value shares its bytes and their count with the original. So a set every core
+    /// cloned from would make each response write a line every core writes. What it spends: the
+    /// bytes of one set per core, a few hundred.
+    #[must_use]
+    pub fn own(&self) -> Self {
+        Self {
+            always: self
+                .always
+                .iter()
+                .map(|(name, value)| (name.clone(), own_value(value)))
+                .collect(),
+            hsts: self.hsts.as_ref().map(own_value),
         }
     }
 
@@ -177,11 +173,8 @@ impl Secure {
     /// is why this may be applied at one point per response rather than in a fixed order
     /// against every other thing that writes one.
     pub fn fill(&self, headers: &mut HeaderMap, scheme: Scheme) {
-        for (at, (name, value)) in self.always.iter().enumerate() {
-            headers.entry(name).or_insert_with(|| {
-                self.copied(at);
-                value.clone()
-            });
+        for (name, value) in &self.always {
+            headers.entry(name).or_insert_with(|| value.clone());
         }
         // `rule:http-server/hsts-follows-the-effective-scheme`: on a plaintext connection a
         // browser ignores it, so sending it there is noise —
@@ -190,21 +183,17 @@ impl Secure {
         if let (Scheme::Https, Some(hsts)) = (scheme, self.hsts.as_ref()) {
             headers
                 .entry(header::STRICT_TRANSPORT_SECURITY)
-                .or_insert_with(|| {
-                    #[cfg(debug_assertions)]
-                    nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Policy, 2);
-                    hsts.clone()
-                });
+                .or_insert_with(|| hsts.clone());
         }
     }
+}
 
-    /// Counts the shared writes a copy of the `at`th value of `always` makes, in a debug build.
-    fn copied(&self, at: usize) {
-        #[cfg(debug_assertions)]
-        nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Policy, self.copies[at]);
-        #[cfg(not(debug_assertions))]
-        let _ = (self, at);
-    }
+/// `value` with bytes of its own, which no clone of `value` shares.
+pub(crate) fn own_value(value: &HeaderValue) -> HeaderValue {
+    let mut owned = HeaderValue::from_bytes(value.as_bytes())
+        .expect("the bytes of a header value are a header value");
+    owned.set_sensitive(value.is_sensitive());
+    owned
 }
 
 /// `written` as a header value, falling back to `shipped` where the wire cannot carry it —

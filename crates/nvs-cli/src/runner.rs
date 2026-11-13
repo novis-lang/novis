@@ -3747,7 +3747,8 @@ impl TestServer {
         let carried = std::sync::Arc::clone(routes);
         let handler = Rc::new(
             move |request: nvs_server::Request<nvs_server::Incoming>,
-                  origin: nvs_server::Origin| {
+                  origin: nvs_server::Origin,
+                  _: &nvs_server::Record| {
                 answer_on_the_wire(
                     &held,
                     &carried,

@@ -78,9 +78,17 @@
 //!
 //! # What it costs
 //!
-//! Each request takes a read lock on one process-wide `RwLock` to read the
-//! resolved policy, in `Serving::policy`. Cores contend on it, and the cost
-//! does not grow with traffic.
+//! Each core keeps one [`Record`] of the standing configuration: the publish,
+//! its generation and the core's own render of the response policy
+//! ([`OnCore`]). A request loads the holder's generation once and takes an
+//! `Rc` clone of the record, with no lock and no write another core sees. A
+//! reload replaces the record at the next request on each core, which renders
+//! the policy again. That is one record per core, a few hundred bytes, and no
+//! cost that grows with traffic.
+//!
+//! The rest of a request's shared writes are counted by
+//! `nvs_diagnostics::shared` and bounded by `nvs-cli`'s keep-alive test: 38 in
+//! a debug build, for one keep-alive request to a compiled unit.
 
 use std::cell::{Cell, RefCell};
 use std::convert::Infallible;
@@ -90,7 +98,7 @@ use std::ops::ControlFlow;
 use std::path::Path;
 use std::pin::Pin;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex, PoisonError, RwLock};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
@@ -639,8 +647,8 @@ pub enum Reply {
     /// **The third field is the snapshot the program runs under**, which the
     /// door writes onto the request's context in place of the host's
     /// (`rule:config/every-matching-app-block-applies-least-specific-first`): the
-    /// one the handler took for the selected entry out of the publish the door
-    /// left on the request ([`published_of`]). `None` runs the program under the
+    /// one the handler took for the selected entry out of the publish of the
+    /// record the door handed it ([`Record::published`]). `None` runs the program under the
     /// host's snapshot, which is what a handler with no `[[app]]` roster to
     /// match has.
     ///
@@ -713,20 +721,6 @@ impl std::fmt::Debug for Rerun {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("Rerun")
     }
-}
-
-/// The publish the door took at this request's start, which a handler takes
-/// the selected entry's snapshot out of
-/// ([`nvs_config::Published::entry`]).
-///
-/// The door leaves it in the request's extensions before the handler runs, so
-/// the host's snapshot the door answers under and the entry's snapshot the
-/// program runs under come from one publish, and a reload between the two
-/// cannot split a request across them. `None` only for a request this loop
-/// did not frame.
-#[must_use]
-pub fn published_of<B>(request: &Request<B>) -> Option<&Arc<nvs_config::Published>> {
-    request.extensions().get::<Arc<nvs_config::Published>>()
 }
 
 impl Reply {
@@ -1009,36 +1003,36 @@ impl Generations {
 }
 
 /// What every connection this server hands over is served under: `rule:http-server/the-server-block-is-boot-class`'s
-/// valve, the published tree, and the header set, cross-origin policy, proxy
-/// list, waits and connection bounds that tree configures.
+/// valve, the published tree, the policy the boot resolved for it, and the
+/// drains of the trees it has served.
 ///
 /// One argument rather than one per policy because these are the *shared* half
-/// of a connection's context — an [`Arc`] each, so every core answers under the
-/// one valve and the one configuration. A connection copies its waits and
-/// bounds out of the snapshot published when it is accepted, and keeps that
-/// copy for its whole life. A reload reaches the next connection, and drains
-/// the ones already open ([`Generations`]).
+/// of a connection's context, one valve and one holder for the whole process.
+/// Nothing here is read per request but the holder's generation: each core
+/// keeps its own [`Record`] of the standing publish and renders its own policy
+/// into it ([`OnCore`]). A connection copies its waits and bounds out of its
+/// core's record when it is accepted, and keeps that copy for its whole life.
+/// A reload reaches the next connection, and drains the ones already open
+/// ([`Generations`]).
 #[derive(Clone, Debug)]
 pub struct Serving {
     /// `rule:http-server/max-in-flight-refuses-before-allocating`'s in-flight
     /// ceiling, asked before the handler is.
     admission: Arc<Admission>,
-    /// The header set, the cross-origin policy and the proxy list of the last
-    /// snapshot a request was answered under, shared by every core
-    /// ([`Serving::policy`]).
-    policy: Arc<RwLock<Arc<Policy>>>,
+    /// The header set, the cross-origin policy, the proxy list and the bounds
+    /// the boot resolved, for the publish `current` held at
+    /// [`booted_at`](Self::booted_at). A core copies it into its record while
+    /// that publish stands, and never answers a request under this copy.
+    boot: Arc<Policy>,
+    /// The generation of `current` the boot policy was resolved for.
+    booted_at: u64,
     /// The tree this instance is serving — `rule:config/the-config-is-an-immutable-snapshot`'s
-    /// published snapshot, which every request reads through a clone taken at
-    /// its own start ([`serve_connection`]). It rides here for the reason the
-    /// policies above it do: one tree for the whole instance, shared by every
-    /// core rather than resolved per connection, and never re-read under a
-    /// request that has begun.
+    /// published set, which every core reads through its own record.
     ///
     /// The holder rather than the snapshot, so that a reload published while
     /// the server runs reaches the next request rather than the next start
     /// (`rule:config/the-config-is-an-immutable-snapshot`). A request that has begun is
-    /// unaffected either way: it holds the [`Arc`] it took, and the clone here
-    /// is taken once at its start.
+    /// unaffected either way: it holds the record it took at its start.
     current: Arc<nvs_config::Current>,
     /// The drain of the connections accepted under each tree `current` has
     /// published, which a reload begins for the tree it replaced.
@@ -1075,7 +1069,7 @@ impl Serving {
     /// `secure`, `cors` and `trusted` are the policies for the snapshot
     /// `current` holds now. A snapshot published later gets policies derived
     /// from its own `[http]` block and `[server] trusted_proxies`
-    /// ([`Serving::policy`]).
+    /// ([`OnCore::standing`]).
     #[must_use]
     pub fn live(
         admission: Arc<Admission>,
@@ -1084,17 +1078,17 @@ impl Serving {
         cors: Arc<Cors>,
         current: Arc<nvs_config::Current>,
     ) -> Self {
-        let policy = Policy {
-            of: current.load(),
-            secure,
-            cors,
-            trusted,
+        let boot = Policy {
+            secure: Secure::clone(&secure),
+            cors: Cors::clone(&cors),
+            trusted: Trusted::clone(&trusted),
             waits: None,
             bounds: crate::bounds::Connection::default(),
         };
         Self {
             admission,
-            policy: Arc::new(RwLock::new(Arc::new(policy))),
+            boot: Arc::new(boot),
+            booted_at: current.generation(),
             current,
             generations: Arc::new(Generations::default()),
         }
@@ -1108,42 +1102,73 @@ impl Serving {
         Arc::clone(&self.generations)
     }
 
-    /// The header set, the cross-origin policy and the proxy list a request
-    /// that took `snapshot` is answered under.
+    /// The same, under the connection bounds a boot resolved, rather than under
+    /// the ones this server ships. A snapshot published later brings the
+    /// bounds its own `[server.connection]` block resolves to.
+    ///
+    /// A step after the constructor and not a parameter of it, because that is
+    /// what the two callers are: a process that read a `[server.connection]`
+    /// block takes this, and every embedder and every test that is about
+    /// something else is served under
+    /// [`crate::bounds::Connection::default`] — which is
+    /// `rule:concurrency/connection-bounds-are-finite`'s point, that the
+    /// unconfigured table is already a complete one.
+    #[must_use]
+    pub fn bounded_by(mut self, bounds: crate::bounds::Connection) -> Self {
+        let mut boot = Policy::clone(&self.boot);
+        boot.bounds = bounds;
+        self.boot = Arc::new(boot);
+        self
+    }
+}
+
+/// The policies and the connection terms one published snapshot configures.
+#[derive(Clone, Debug)]
+struct Policy {
+    /// `rule:http-server/secure-headers-with-nothing-written`'s header set,
+    /// filled into every response this loop writes.
+    secure: Secure,
+    /// `rule:http-server/cors-is-closed-until-origins-are-named`'s cross-origin
+    /// policy, asked of a preflight before the handler is. Closed is the
+    /// default — [`crate::cors`] owns what that means and why the refusal is
+    /// taken here rather than in an application.
+    cors: Cors,
+    /// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
+    /// `[server] trusted_proxies`, resolved: who may assert a client address
+    /// or a scheme. Empty is the default and means no forwarded header is read
+    /// at all — [`crate::forwarded`] owns that difference.
+    trusted: Trusted,
+    /// `rule:http-server/the-server-block-is-boot-class`'s waits and
+    /// `drain_timeout`, for a connection accepted under this snapshot. `None`
+    /// for the snapshot [`Serving`] was built with: a connection accepted under
+    /// it keeps the waits its caller handed [`serve_connection`].
+    waits: Option<Waits>,
+    /// `rule:concurrency/connection-bounds-are-finite`'s table, for a
+    /// connection accepted under this snapshot.
+    bounds: crate::bounds::Connection,
+}
+
+impl Policy {
+    /// This policy with header values no other core shares.
+    fn own(&self) -> Self {
+        Self {
+            secure: self.secure.own(),
+            cors: self.cors.own(),
+            trusted: self.trusted.clone(),
+            waits: self.waits,
+            bounds: self.bounds,
+        }
+    }
+
+    /// The policy `snapshot` configures, rendered on this core.
     ///
     /// `[http.headers]`, `[http.cors]` and `[server] trusted_proxies` are
     /// `Reload`-class (`rule:config/reloadability-is-its-own-field`), so a
     /// reload that moves any of them reaches the next request. An entry of the
     /// proxy list that names no network is dropped here without a note: the
-    /// boot is where one is reported. Rendering the policies checks and builds
-    /// every header value, so it happens once per snapshot and not once per request:
-    /// the first request under a new snapshot derives them and stores them for
-    /// every core, and each request after it pays a read lock and a pointer
-    /// comparison. Two requests under two snapshots at once can derive in
-    /// turn, and each is still answered under its own snapshot.
-    ///
-    /// Memory: the policies of one snapshot, and that snapshot kept alive
-    /// until a request takes a newer one.
-    ///
-    /// # Panics
-    ///
-    /// If a thread panicked while holding the lock. Nothing done under it can
-    /// panic — an `Arc` clone and an `Arc` store.
-    fn policy(&self, snapshot: &Arc<nvs_config::Snapshot>) -> Arc<Policy> {
-        #[cfg(debug_assertions)]
-        {
-            nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::PolicyLock, 2);
-            nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Policy, 2);
-        }
-        let held = Arc::clone(
-            &self
-                .policy
-                .read()
-                .expect("the policy lock is never poisoned"),
-        );
-        if Arc::ptr_eq(&held.of, snapshot) {
-            return held;
-        }
+    /// boot is where one is reported. `held` gives the waits and the bounds
+    /// where `snapshot` does not resolve them.
+    fn of(snapshot: &nvs_config::Snapshot, held: &Self) -> Self {
         let http = snapshot.config.http.as_ref();
         let (trusted, _) = Trusted::of(
             snapshot
@@ -1161,88 +1186,123 @@ impl Serving {
             nvs_config::server::waits_for(&snapshot.config, &no_origins).map_or(held.waits, Some);
         let bounds = nvs_config::server::connection_bounds_for(&snapshot.config, &no_origins)
             .map_or(held.bounds, crate::bounds::Connection::configured);
-        let derived = Arc::new(Policy {
-            of: Arc::clone(snapshot),
-            secure: Arc::new(Secure::of(http)),
-            cors: Arc::new(Cors::of(http)),
-            trusted: Arc::new(trusted),
+        Self {
+            secure: Secure::of(http),
+            cors: Cors::of(http),
+            trusted,
             waits,
             bounds,
-        });
-        *self
-            .policy
-            .write()
-            .expect("the policy lock is never poisoned") = Arc::clone(&derived);
-        derived
-    }
-
-    /// The same, under the connection bounds a boot resolved, rather than under
-    /// the ones this server ships. A snapshot published later brings the
-    /// bounds its own `[server.connection]` block resolves to.
-    ///
-    /// A step after the constructor and not a parameter of it, because that is
-    /// what the two callers are: a process that read a `[server.connection]`
-    /// block takes this, and every embedder and every test that is about
-    /// something else is served under
-    /// [`crate::bounds::Connection::default`] — which is
-    /// `rule:concurrency/connection-bounds-are-finite`'s point, that the
-    /// unconfigured table is already a complete one.
-    #[must_use]
-    pub fn bounded_by(self, bounds: crate::bounds::Connection) -> Self {
-        {
-            let mut held = self
-                .policy
-                .write()
-                .expect("the policy lock is never poisoned");
-            let booted = &**held;
-            *held = Arc::new(Policy {
-                of: Arc::clone(&booted.of),
-                secure: Arc::clone(&booted.secure),
-                cors: Arc::clone(&booted.cors),
-                trusted: Arc::clone(&booted.trusted),
-                waits: booted.waits,
-                bounds,
-            });
         }
-        self
-    }
-
-    /// The waits and the connection bounds a connection accepted now is
-    /// served under: those of the snapshot published now, or `booted` and the
-    /// bounds [`bounded_by`](Self::bounded_by) set while that is still the
-    /// snapshot this was built with.
-    fn connection_terms(&self, booted: Waits) -> (Waits, crate::bounds::Connection) {
-        let policy = self.policy(&self.current.load());
-        (policy.waits.unwrap_or(booted), policy.bounds)
     }
 }
 
-/// The policies and the connection terms one published snapshot configures.
+/// One core's record of the standing configuration: the publish, its
+/// generation, and the policy this core rendered for it
+/// (`rule:config/the-config-is-an-immutable-snapshot`).
+///
+/// The door hands it to the handler, so the host's snapshot the door answers
+/// under and the entry's snapshot the program runs under come from one
+/// publish. A reload between the two cannot split a request across them.
+///
+/// Nothing of a request is in it: every value is the same for every request
+/// under one publish, and nothing is keyed by what a request sends
+/// (`rule:security/no-cross-request-state`).
 #[derive(Debug)]
-struct Policy {
-    /// The snapshot these were derived from. Only its address is compared.
-    of: Arc<nvs_config::Snapshot>,
-    /// `rule:http-server/secure-headers-with-nothing-written`'s header set,
-    /// filled into every response this loop writes.
-    secure: Arc<Secure>,
-    /// `rule:http-server/cors-is-closed-until-origins-are-named`'s cross-origin
-    /// policy, asked of a preflight before the handler is. Closed is the
-    /// default — [`crate::cors`] owns what that means and why the refusal is
-    /// taken here rather than in an application.
-    cors: Arc<Cors>,
-    /// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
-    /// `[server] trusted_proxies`, resolved: who may assert a client address
-    /// or a scheme. Empty is the default and means no forwarded header is read
-    /// at all — [`crate::forwarded`] owns that difference.
-    trusted: Arc<Trusted>,
-    /// `rule:http-server/the-server-block-is-boot-class`'s waits and
-    /// `drain_timeout`, for a connection accepted under this snapshot. `None`
-    /// for the snapshot [`Serving`] was built with: a connection accepted under
-    /// it keeps the waits its caller handed [`serve_connection`].
-    waits: Option<Waits>,
-    /// `rule:concurrency/connection-bounds-are-finite`'s table, for a
-    /// connection accepted under this snapshot.
-    bounds: crate::bounds::Connection,
+pub struct Record {
+    /// The generation of the holder `published` was read at.
+    generation: u64,
+    /// The publish standing when this record was made.
+    published: Arc<nvs_config::Published>,
+    /// The policy of the host's snapshot of `published`, rendered on this core.
+    policy: Policy,
+}
+
+impl Record {
+    /// The publish this record was made from, which a handler takes the
+    /// selected entry's snapshot out of ([`nvs_config::Published::entry`]).
+    #[must_use]
+    pub fn published(&self) -> &Arc<nvs_config::Published> {
+        &self.published
+    }
+
+    /// The host's snapshot of [`published`](Self::published), which the door
+    /// answers under.
+    #[must_use]
+    pub fn host(&self) -> &Arc<nvs_config::Snapshot> {
+        self.published.host()
+    }
+
+    /// The waits and the connection bounds a connection accepted under this
+    /// record is served under: the snapshot's, or `booted` and the bounds
+    /// [`Serving::bounded_by`] set while the boot publish stands.
+    fn connection_terms(&self, booted: Waits) -> (Waits, crate::bounds::Connection) {
+        (self.policy.waits.unwrap_or(booted), self.policy.bounds)
+    }
+}
+
+/// The record of one core, which [`serve_on_this_core`] builds before it
+/// accepts and every request on the core reads.
+///
+/// A request loads the holder's generation once. An equal number means the
+/// record stands, and the request takes an `Rc` clone of it with no lock and
+/// no write another core sees. A moved number means the record is replaced
+/// before the request is admitted, so a reload reaches every core at its next
+/// request, and no request runs under a configuration older than the one
+/// current when it started.
+///
+/// What it spends: one record per core, with one rendered policy of a few
+/// hundred bytes, and one atomic load per request.
+#[derive(Debug)]
+pub struct OnCore {
+    /// What every core serves under, which this core's connections read
+    /// through this value.
+    serving: Serving,
+    /// The record a request starting now reads while the generation stands.
+    record: RefCell<Rc<Record>>,
+}
+
+impl OnCore {
+    /// The record of the publish `serving`'s holder has now, with the boot's
+    /// policy copied into it while that publish is the boot's.
+    #[must_use]
+    pub fn new(serving: Serving) -> Self {
+        let record = RefCell::new(Rc::new(Self::made(&serving, &serving.boot)));
+        Self { serving, record }
+    }
+
+    /// A record of the publish standing now. `held` gives the waits and the
+    /// bounds a snapshot does not resolve.
+    fn made(serving: &Serving, held: &Policy) -> Record {
+        let (generation, published) = serving.current.published_at();
+        let policy = if generation == serving.booted_at {
+            serving.boot.own()
+        } else {
+            Policy::of(published.host(), held)
+        };
+        Record {
+            generation,
+            published,
+            policy,
+        }
+    }
+
+    /// The record a request starting now reads, replaced first where a
+    /// publish moved the holder's generation.
+    ///
+    /// # Panics
+    ///
+    /// Never: the cell is borrowed only here, and nothing borrowed under it
+    /// can borrow it again.
+    pub fn standing(&self) -> Rc<Record> {
+        let generation = self.serving.current.generation();
+        let held = Rc::clone(&self.record.borrow());
+        if held.generation == generation {
+            return held;
+        }
+        let record = Rc::new(Self::made(&self.serving, &held.policy));
+        *self.record.borrow_mut() = Rc::clone(&record);
+        record
+    }
 }
 
 /// The isolate answering one request, held by the future that is waiting for it.
@@ -1655,12 +1715,13 @@ pub fn serve_connection<H>(
     ctx: &mut Ctx,
     handler: &H,
     waits: Waits,
-    serving: &Serving,
+    on_core: &OnCore,
     draining: &Draining,
 ) -> hyper::Result<()>
 where
-    H: Fn(Request<Incoming>, Origin) -> Reply,
+    H: Fn(Request<Incoming>, Origin, &Record) -> Reply,
 {
+    let serving = &on_core.serving;
     let ctx = RefCell::new(ctx);
     // Borrowed once, here, rather than captured: the service below hands its
     // captures on to a future that outlives the call that made it, and a
@@ -1694,12 +1755,12 @@ where
     let pending_socket: RefCell<Option<nvs_runtime::Upgrade>> = RefCell::new(None);
     let pending_socket = &pending_socket;
     // `rule:concurrency/connection-bounds-are-finite`'s table and the waits
-    // for this connection, copied once here from the snapshot published now,
+    // for this connection, copied once here from its core's record,
     // rather than read per request or per hand-over: every response written
     // over this socket writes through the same send bound, and the framing at
     // the end of this function is held inside the same numbers. A reload
     // reaches the next connection.
-    let (waits, bounds) = serving.connection_terms(waits);
+    let (waits, bounds) = on_core.standing().connection_terms(waits);
     let send_timeout = bounds.send;
     // A request whose head has gone out and whose body is still being written.
     // At most one, because `hyper`'s h1 dispatcher writes one response at a
@@ -1745,7 +1806,7 @@ where
     let heads = &heads;
     let asked = Cell::new(0_u64);
     let asked = &asked;
-    let service = service_fn(move |mut request: Request<Incoming>| async move {
+    let service = service_fn(move |request: Request<Incoming>| async move {
         // A head that framed is a head that arrived: what this connection is
         // waiting for from here is the body, and then nothing until the answer
         // exists. A request with no body is already past it.
@@ -1885,22 +1946,20 @@ where
             }
             crate::spooled::request(store, &trace, answered);
         };
-        // `rule:config/the-config-is-an-immutable-snapshot`'s one clone, taken
-        // at the request's start and not when this connection was accepted: a
+        // `rule:config/the-config-is-an-immutable-snapshot`'s record, read at
+        // the request's start and not when this connection was accepted: a
         // connection carries any number of requests, so a tree read once per
         // socket would answer a request under whatever stood when its peer
-        // dialled. It is taken before the door writes anything, because the
+        // dialled. It is read before the door writes anything, because the
         // header set and the cross-origin policy every answer below carries are
-        // the host's snapshot's (`Serving::policy`). That is the only snapshot
-        // the policy is ever derived from, so requests to different mounts
-        // never derive it again. The program the handler runs is configured by
-        // its entry's snapshot out of the same publish, which the request
-        // carries to the handler ([`published_of`]).
-        let published = serving.current.published();
+        // the host's snapshot's, rendered on this core ([`OnCore::standing`]).
+        // The program the handler runs is configured by its entry's snapshot
+        // out of the same publish, which the handler reads off this record.
+        let record = on_core.standing();
         #[cfg(debug_assertions)]
         nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Snapshot, 2);
-        let snapshot = Arc::clone(published.host());
-        let policy = serving.policy(&snapshot);
+        let snapshot = Arc::clone(record.host());
+        let policy = &record.policy;
         // `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`'s
         // head, copied before the handler takes the request, where the store
         // is on in `development`. Every answer below hands it to `counted`. It
@@ -2119,10 +2178,7 @@ where
         // slotted page reaches the wire.
         let opening = stream::BodySlot::new(send_timeout, bounds.message)
             .with_scripts(crate::slotted::SCRIPTS);
-        // The publish the host's snapshot above came from, for the handler to
-        // take the selected entry's snapshot out of ([`published_of`]).
-        request.extensions_mut().insert(published);
-        let mut answered = match handler(request, origin).started() {
+        let mut answered = match handler(request, origin, &record).started() {
             // Already an answer: a mount table's `404`, or a file this server is
             // sending rather than running. Nothing is started for it, so the
             // isolate accounting below does not apply to it either.
@@ -3436,9 +3492,9 @@ impl Listening for nvs_host::NvsUnixListener {
 /// `keepalive_timeout` apply before any Novis code exists on it, so moving
 /// them under an open socket is a promise two of the four could not keep.
 ///
-/// `serving` is handed to every connection by clone rather than by copy, which
-/// is what [`Serving`]'s own docs say it is for: one valve, one header set and
-/// one configuration for the whole process, not one of each per core.
+/// `serving` is cloned once, into this core's [`OnCore`], and every connection
+/// the loop accepts shares that value: one valve and one holder for the whole
+/// process, and one record of the standing configuration per core.
 ///
 /// # Errors
 ///
@@ -3464,7 +3520,7 @@ pub fn serve_on_this_core<L, H>(
 ) -> io::Result<()>
 where
     L: Listening + ?Sized,
-    H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+    H: Fn(Request<Incoming>, Origin, &Record) -> Reply + 'static,
 {
     // Taken once, and it is also the check that this is a task at all: a wake
     // exists exactly when `spawn_child` has a parent to hang a child off.
@@ -3483,7 +3539,11 @@ where
     // Nothing is built where no exporter is named, and every count below is then
     // a branch — `crate::metrics::meter_this_core` owns why a registry that
     // already exists is adopted rather than started again.
-    let mut metered = serving.current.load();
+    //
+    // The core's record is built here, before anything is accepted, so no
+    // request makes it on first use. Every connection on this core shares it.
+    let on_core = Rc::new(OnCore::new(serving.clone()));
+    let mut metered = Arc::clone(on_core.standing().host());
     crate::metrics::meter_this_core(&metered.config);
     // The drain every connection this core accepts under one tree reads, made
     // again only when an accept finds a newer tree published. So an accept
@@ -3536,7 +3596,7 @@ where
                 continue;
             }
         };
-        let published = serving.current.load();
+        let published = Arc::clone(on_core.standing().host());
         if published.generation != accepted_under.0 {
             accepted_under = (
                 published.generation,
@@ -3548,12 +3608,9 @@ where
             metered = published;
         }
         let handler = Rc::clone(handler);
-        // `Arc`s and not `Rc`s: the `max_in_flight` valve is counted process-wide
-        // and `rule:http-server/secure-headers-with-nothing-written`
-        // 's header set is one policy for the whole server, so what a
-        // connection clones is shared by every core rather than by every
-        // connection on this one.
-        let serving = serving.clone();
+        // An `Rc`: the core's record and what it serves under are this core's,
+        // so a connection takes them with no write another core sees.
+        let on_core = Rc::clone(&on_core);
         // The connection's own drain, which this server's stop and a reload
         // that replaces the tree it was accepted under both begin.
         // `rule:concurrency/connection-bounds-are-finite`'s shutdown close is
@@ -3589,7 +3646,7 @@ where
                 ctx,
                 handler.as_ref(),
                 waits,
-                &serving,
+                &on_core,
                 &draining_here,
             ));
         });
@@ -4383,8 +4440,8 @@ pub(crate) mod tests {
     /// compiler in this crate — and it writes through `Ctx::write_output`,
     /// which is the buffer a compiled `echo` reaches under `rule:tooling/echo-always-has-a-sink`'s
     /// table.
-    fn echo_the_path() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
-        Rc::new(|request: Request<Incoming>, _origin: Origin| {
+    fn echo_the_path() -> Rc<impl Fn(Request<Incoming>, Origin, &Record) -> Reply> {
+        Rc::new(|request: Request<Incoming>, _origin: Origin, _: &Record| {
             let path = request.uri().path().to_owned();
             let program: Program = Box::new(move |child: &mut Ctx, _args| {
                 child
@@ -4406,8 +4463,8 @@ pub(crate) mod tests {
     /// response merely being well-formed. The path is the target's own here:
     /// stripping a mount prefix is `crate::mount`'s step 2 and this crate's
     /// tests have no table.
-    fn echo_the_carrier() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
-        Rc::new(|request: Request<Incoming>, _origin: Origin| {
+    fn echo_the_carrier() -> Rc<impl Fn(Request<Incoming>, Origin, &Record) -> Reply> {
+        Rc::new(|request: Request<Incoming>, _origin: Origin, _: &Record| {
             let mut inbound = nvs_runtime::Inbound::new(
                 request.method().as_str(),
                 request.uri().path(),
@@ -4570,9 +4627,11 @@ pub(crate) mod tests {
         });
 
         let served = path.clone();
-        let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-            statics::send(&served, request.headers(), &OnDisk)
-        });
+        let handler = Rc::new(
+            move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                statics::send(&served, request.headers(), &OnDisk)
+            },
+        );
         let mut sched = nvs_host::Scheduler::new();
         let _installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
@@ -4622,8 +4681,9 @@ pub(crate) mod tests {
     /// member will see, and it never touches the request's headers: whether this
     /// connection can be upgraded is `hyper`'s answer, and a handler re-reading
     /// `Connection: Upgrade` for itself would be asserting a second one.
-    fn say_whether_an_upgrade_was_offered() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
-        Rc::new(|request: Request<Incoming>, _origin: Origin| {
+    fn say_whether_an_upgrade_was_offered()
+    -> Rc<impl Fn(Request<Incoming>, Origin, &Record) -> Reply> {
+        Rc::new(|request: Request<Incoming>, _origin: Origin, _: &Record| {
             let inbound = nvs_runtime::Inbound::new(
                 request.method().as_str(),
                 request.uri().path(),
@@ -4748,65 +4808,67 @@ pub(crate) mod tests {
         carried: String,
         said: Rc<RefCell<Vec<String>>>,
         connection: fn(&mut Ctx) -> String,
-    ) -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
-        Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-            let inbound = nvs_runtime::Inbound::new(
-                request.method().as_str(),
-                request.uri().path(),
-                &carried,
-            );
-            let path = request.uri().path().to_owned();
-            let said = Rc::clone(&said);
-            let program: Program = Box::new(move |child: &mut Ctx, _args| {
-                // What the member will leave in the slot, built here for the
-                // same reason it can be: nothing but a program and an argument
-                // crosses, so a case needs no compiler to fill the slot the way
-                // `Core\Socket::upgrade` fills it.
-                let said_over_there = Rc::clone(&said);
-                let opened: Program = Box::new(move |conn: &mut Ctx, _args| {
-                    let line = connection(conn);
-                    said_over_there
-                        .borrow_mut()
-                        .push(format!("connection {line}"));
+    ) -> Rc<impl Fn(Request<Incoming>, Origin, &Record) -> Reply> {
+        Rc::new(
+            move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                let inbound = nvs_runtime::Inbound::new(
+                    request.method().as_str(),
+                    request.uri().path(),
+                    &carried,
+                );
+                let path = request.uri().path().to_owned();
+                let said = Rc::clone(&said);
+                let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                    // What the member will leave in the slot, built here for the
+                    // same reason it can be: nothing but a program and an argument
+                    // crosses, so a case needs no compiler to fill the slot the way
+                    // `Core\Socket::upgrade` fills it.
+                    let said_over_there = Rc::clone(&said);
+                    let opened: Program = Box::new(move |conn: &mut Ctx, _args| {
+                        let line = connection(conn);
+                        said_over_there
+                            .borrow_mut()
+                            .push(format!("connection {line}"));
+                        Value::null()
+                    });
+                    let filled = door.fill(child, opened);
+                    // What the *other* cell says about this same request, reported
+                    // beside the fill because it is what tells the two doors apart:
+                    // the upgrade slot is there only where `hyper` framed an upgrade, so
+                    // an event stream that opened without one opened over a
+                    // connection with no socket behind it — and nothing a `receive`
+                    // could ever read from.
+                    let framing = if child
+                        .inbound()
+                        .and_then(nvs_runtime::Inbound::upgrade_slot)
+                        .is_some()
+                    {
+                        FRAMED
+                    } else {
+                        NO_FRAMING
+                    };
+                    let mine = if filled {
+                        door.answered(&path, framing)
+                    } else {
+                        format!("{path} no cell")
+                    };
+                    // Read here, with this request's carrier still alive and its
+                    // arena at its peak — the number the connection's own reading
+                    // is compared against — and what this request answered with
+                    // beside it. That line is reported rather than read off the
+                    // wire because the event-stream door replaces it there: the peer gets the
+                    // event stream, and the one place a case can still see what the
+                    // request said for itself is here.
+                    said.borrow_mut().push(format!(
+                        "request {} {mine}",
+                        nvs_runtime::budget::live_bytes()
+                    ));
+                    child.write_output(mine.as_bytes()).expect("a buffer");
                     Value::null()
                 });
-                let filled = door.fill(child, opened);
-                // What the *other* cell says about this same request, reported
-                // beside the fill because it is what tells the two doors apart:
-                // the upgrade slot is there only where `hyper` framed an upgrade, so
-                // an event stream that opened without one opened over a
-                // connection with no socket behind it — and nothing a `receive`
-                // could ever read from.
-                let framing = if child
-                    .inbound()
-                    .and_then(nvs_runtime::Inbound::upgrade_slot)
-                    .is_some()
-                {
-                    FRAMED
-                } else {
-                    NO_FRAMING
-                };
-                let mine = if filled {
-                    door.answered(&path, framing)
-                } else {
-                    format!("{path} no cell")
-                };
-                // Read here, with this request's carrier still alive and its
-                // arena at its peak — the number the connection's own reading
-                // is compared against — and what this request answered with
-                // beside it. That line is reported rather than read off the
-                // wire because the event-stream door replaces it there: the peer gets the
-                // event stream, and the one place a case can still see what the
-                // request said for itself is here.
-                said.borrow_mut().push(format!(
-                    "request {} {mine}",
-                    nvs_runtime::budget::live_bytes()
-                ));
-                child.write_output(mine.as_bytes()).expect("a buffer");
-                Value::null()
-            });
-            Reply::run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
-        })
+                Reply::run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
+            },
+        )
     }
 
     /// Two mebibytes of query on an upgrading request's carrier — far more than
@@ -4983,7 +5045,7 @@ pub(crate) mod tests {
         door: Door,
     ) -> String
     where
-        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+        H: Fn(Request<Incoming>, Origin, &Record) -> Reply + 'static,
     {
         upgrade_once_under(Waits::default(), handler, path, door)
     }
@@ -4999,7 +5061,7 @@ pub(crate) mod tests {
         door: Door,
     ) -> String
     where
-        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+        H: Fn(Request<Incoming>, Origin, &Record) -> Reply + 'static,
     {
         upgrade_once_serving(wide_open(), waits, handler, path, door)
     }
@@ -5014,7 +5076,7 @@ pub(crate) mod tests {
         door: Door,
     ) -> String
     where
-        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+        H: Fn(Request<Incoming>, Origin, &Record) -> Reply + 'static,
     {
         upgrade_once_reading_to(serving, waits, handler, path, door, door.needle())
     }
@@ -5030,7 +5092,7 @@ pub(crate) mod tests {
         needle: String,
     ) -> String
     where
-        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+        H: Fn(Request<Incoming>, Origin, &Record) -> Reply + 'static,
     {
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
             .expect("the OS refused a port");
@@ -6483,8 +6545,8 @@ pub(crate) mod tests {
     /// It reads nothing off the request itself — not even the headers the walk
     /// decided from — so what the assertion sees is the walk's answer and could
     /// not be a header echoed back under another name.
-    fn echo_the_peer() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
-        Rc::new(|_request: Request<Incoming>, origin: Origin| {
+    fn echo_the_peer() -> Rc<impl Fn(Request<Incoming>, Origin, &Record) -> Reply> {
+        Rc::new(|_request: Request<Incoming>, origin: Origin, _: &Record| {
             let mut inbound = nvs_runtime::Inbound::new("GET", "/", "");
             inbound.set_peer(origin.client(), origin.scheme());
             let program: Program = Box::new(move |child: &mut Ctx, _args| {
@@ -6692,8 +6754,8 @@ pub(crate) mod tests {
     /// It says the bytes rather than a length, so that a case asserting them is
     /// asserting order and completeness together — a supplier that dropped a
     /// chunk or answered one twice would still report a plausible count.
-    fn echo_the_body() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
-        Rc::new(|request: Request<Incoming>, _origin: Origin| {
+    fn echo_the_body() -> Rc<impl Fn(Request<Incoming>, Origin, &Record) -> Reply> {
+        Rc::new(|request: Request<Incoming>, _origin: Origin, _: &Record| {
             let mut inbound = nvs_runtime::Inbound::new(
                 request.method().as_str(),
                 request.uri().path(),
@@ -6749,8 +6811,8 @@ pub(crate) mod tests {
 
     /// A handler whose program answers `ok` and never reads the body it was
     /// given, which is the program `rule:http-server/a-response-is-not-lost-to-an-unread-body` is about.
-    fn ignore_the_body() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
-        Rc::new(|request: Request<Incoming>, _origin: Origin| {
+    fn ignore_the_body() -> Rc<impl Fn(Request<Incoming>, Origin, &Record) -> Reply> {
+        Rc::new(|request: Request<Incoming>, _origin: Origin, _: &Record| {
             let (inbound, supply) = carrying(request);
             let program: Program = Box::new(|child: &mut Ctx, _args| {
                 child.write_output(b"ok").expect("a buffer");
@@ -6963,8 +7025,8 @@ pub(crate) mod tests {
     /// for the reason every program in this module is a Rust closure: this
     /// crate compiles nothing. `nvs_stdlib::response`'s own cases are the
     /// member's half, and the `.nvst` corpus is the language's.
-    fn stream_across_a_park() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
-        Rc::new(|request: Request<Incoming>, _origin: Origin| {
+    fn stream_across_a_park() -> Rc<impl Fn(Request<Incoming>, Origin, &Record) -> Reply> {
+        Rc::new(|request: Request<Incoming>, _origin: Origin, _: &Record| {
             let mut inbound = nvs_runtime::Inbound::new(
                 request.method().as_str(),
                 request.uri().path(),
@@ -7360,7 +7422,7 @@ pub(crate) mod tests {
         let handler = Rc::new({
             let counted = Arc::clone(&admission);
             let at_the_next = Rc::clone(&at_the_next);
-            move |request: Request<Incoming>, _origin: Origin| {
+            move |request: Request<Incoming>, _origin: Origin, _: &Record| {
                 if request.uri().path() == "/big" {
                     Reply::Done(Response::new(Answer::new(Bytes::from(vec![b'x'; WHOLE]))))
                 } else {
@@ -7446,55 +7508,57 @@ pub(crate) mod tests {
         let log: Log = Arc::new(std::sync::Mutex::new(Vec::new()));
         let handler = {
             let log = Arc::clone(&log);
-            Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-                let mut inbound = nvs_runtime::Inbound::new(
-                    request.method().as_str(),
-                    request.uri().path(),
-                    request.uri().query().unwrap_or(""),
-                );
-                let (head, incoming) = request.into_parts();
-                let supply = match crate::body::of(
-                    &head.headers,
-                    incoming,
-                    nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
-                ) {
-                    crate::body::Arrived::Streaming(supply, pull) => {
-                        inbound.set_body(pull);
-                        Some(supply)
-                    }
-                    crate::body::Arrived::Absent | crate::body::Arrived::TooLarge => None,
-                };
-                let released = Released(Arc::clone(&log));
-                let log = Arc::clone(&log);
-                let program: Program = Box::new(move |child: &mut Ctx, _args| {
-                    let _held = &released;
-                    note(&log, "the isolate started");
-                    let inbound = child
-                        .inbound_mut()
-                        .expect("the isolate ran with no request in front of it");
-                    let body = inbound.body().expect("a request that promised a body");
-                    // The park this case is about: ninety-six of the hundred
-                    // bytes the head promised are never sent, so the isolate is
-                    // still inside this loop when the peer goes away.
-                    note(
-                        &log,
-                        loop {
-                            match body.next_chunk() {
-                                Ok(Some(_chunk)) => {}
-                                Ok(None) => break "the body ended",
-                                Err(_refused) => break "the body failed",
-                            }
-                        },
+            Rc::new(
+                move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                    let mut inbound = nvs_runtime::Inbound::new(
+                        request.method().as_str(),
+                        request.uri().path(),
+                        request.uri().query().unwrap_or(""),
                     );
-                    note(&log, "the isolate finished");
-                    Value::null()
-                });
-                Reply::Run(
-                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
-                    supply,
-                    None,
-                )
-            })
+                    let (head, incoming) = request.into_parts();
+                    let supply = match crate::body::of(
+                        &head.headers,
+                        incoming,
+                        nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
+                    ) {
+                        crate::body::Arrived::Streaming(supply, pull) => {
+                            inbound.set_body(pull);
+                            Some(supply)
+                        }
+                        crate::body::Arrived::Absent | crate::body::Arrived::TooLarge => None,
+                    };
+                    let released = Released(Arc::clone(&log));
+                    let log = Arc::clone(&log);
+                    let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                        let _held = &released;
+                        note(&log, "the isolate started");
+                        let inbound = child
+                            .inbound_mut()
+                            .expect("the isolate ran with no request in front of it");
+                        let body = inbound.body().expect("a request that promised a body");
+                        // The park this case is about: ninety-six of the hundred
+                        // bytes the head promised are never sent, so the isolate is
+                        // still inside this loop when the peer goes away.
+                        note(
+                            &log,
+                            loop {
+                                match body.next_chunk() {
+                                    Ok(Some(_chunk)) => {}
+                                    Ok(None) => break "the body ended",
+                                    Err(_refused) => break "the body failed",
+                                }
+                            },
+                        );
+                        note(&log, "the isolate finished");
+                        Value::null()
+                    });
+                    Reply::Run(
+                        Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                        supply,
+                        None,
+                    )
+                },
+            )
         };
 
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
@@ -7615,53 +7679,57 @@ pub(crate) mod tests {
                 );
                 let handler = {
                     let log = Arc::clone(&log);
-                    Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-                        let mut inbound = nvs_runtime::Inbound::new(
-                            request.method().as_str(),
-                            request.uri().path(),
-                            request.uri().query().unwrap_or(""),
-                        );
-                        let (head, incoming) = request.into_parts();
-                        let supply = match crate::body::of(
-                            &head.headers,
-                            incoming,
-                            nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
-                        ) {
-                            crate::body::Arrived::Streaming(supply, pull) => {
-                                inbound.set_body(pull);
-                                Some(supply)
-                            }
-                            crate::body::Arrived::Absent | crate::body::Arrived::TooLarge => None,
-                        };
-                        let released = Released(Arc::clone(&log), core);
-                        let log = Arc::clone(&log);
-                        let program: Program = Box::new(move |child: &mut Ctx, _args| {
-                            let _held = &released;
-                            note(&log, core, "the isolate started");
-                            let inbound = child
-                                .inbound_mut()
-                                .expect("the isolate ran with no request in front of it");
-                            let body = inbound.body().expect("a request that promised a body");
-                            note(
-                                &log,
-                                core,
-                                loop {
-                                    match body.next_chunk() {
-                                        Ok(Some(_chunk)) => {}
-                                        Ok(None) => break "the body ended",
-                                        Err(_refused) => break "the body failed",
-                                    }
-                                },
+                    Rc::new(
+                        move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                            let mut inbound = nvs_runtime::Inbound::new(
+                                request.method().as_str(),
+                                request.uri().path(),
+                                request.uri().query().unwrap_or(""),
                             );
-                            Value::null()
-                        });
-                        Reply::Run(
-                            Isolate::new(program, Value::null(), Output::Capture)
-                                .answering(inbound),
-                            supply,
-                            None,
-                        )
-                    })
+                            let (head, incoming) = request.into_parts();
+                            let supply = match crate::body::of(
+                                &head.headers,
+                                incoming,
+                                nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
+                            ) {
+                                crate::body::Arrived::Streaming(supply, pull) => {
+                                    inbound.set_body(pull);
+                                    Some(supply)
+                                }
+                                crate::body::Arrived::Absent | crate::body::Arrived::TooLarge => {
+                                    None
+                                }
+                            };
+                            let released = Released(Arc::clone(&log), core);
+                            let log = Arc::clone(&log);
+                            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                                let _held = &released;
+                                note(&log, core, "the isolate started");
+                                let inbound = child
+                                    .inbound_mut()
+                                    .expect("the isolate ran with no request in front of it");
+                                let body = inbound.body().expect("a request that promised a body");
+                                note(
+                                    &log,
+                                    core,
+                                    loop {
+                                        match body.next_chunk() {
+                                            Ok(Some(_chunk)) => {}
+                                            Ok(None) => break "the body ended",
+                                            Err(_refused) => break "the body failed",
+                                        }
+                                    },
+                                );
+                                Value::null()
+                            });
+                            Reply::Run(
+                                Isolate::new(program, Value::null(), Output::Capture)
+                                    .answering(inbound),
+                                supply,
+                                None,
+                            )
+                        },
+                    )
                 };
                 let ended = Arc::clone(&log);
                 sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
@@ -7847,52 +7915,54 @@ pub(crate) mod tests {
         let started = RefCell::new(Some(started));
         let handler = {
             let notes = Arc::clone(&notes);
-            Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-                let mut inbound = nvs_runtime::Inbound::new(
-                    request.method().as_str(),
-                    request.uri().path(),
-                    request.uri().query().unwrap_or(""),
-                );
-                let (head, incoming) = request.into_parts();
-                let supply = match crate::body::of(
-                    &head.headers,
-                    incoming,
-                    nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
-                ) {
-                    crate::body::Arrived::Streaming(supply, pull) => {
-                        inbound.set_body(pull);
-                        Some(supply)
+            Rc::new(
+                move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                    let mut inbound = nvs_runtime::Inbound::new(
+                        request.method().as_str(),
+                        request.uri().path(),
+                        request.uri().query().unwrap_or(""),
+                    );
+                    let (head, incoming) = request.into_parts();
+                    let supply = match crate::body::of(
+                        &head.headers,
+                        incoming,
+                        nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
+                    ) {
+                        crate::body::Arrived::Streaming(supply, pull) => {
+                            inbound.set_body(pull);
+                            Some(supply)
+                        }
+                        crate::body::Arrived::Absent | crate::body::Arrived::TooLarge => None,
+                    };
+                    let notes = Arc::clone(&notes);
+                    let admission = Arc::clone(&admission);
+                    let then = then.borrow_mut().take().expect("one request per case");
+                    let started = started.borrow_mut().take();
+                    // Noted when the program's captures are dropped, which is its
+                    // end and its teardown alike: a cancelled task runs no more of
+                    // its own code.
+                    struct Stopped(Notes);
+                    impl Drop for Stopped {
+                        fn drop(&mut self) {
+                            noted(&self.0, "the request stopped");
+                        }
                     }
-                    crate::body::Arrived::Absent | crate::body::Arrived::TooLarge => None,
-                };
-                let notes = Arc::clone(&notes);
-                let admission = Arc::clone(&admission);
-                let then = then.borrow_mut().take().expect("one request per case");
-                let started = started.borrow_mut().take();
-                // Noted when the program's captures are dropped, which is its
-                // end and its teardown alike: a cancelled task runs no more of
-                // its own code.
-                struct Stopped(Notes);
-                impl Drop for Stopped {
-                    fn drop(&mut self) {
-                        noted(&self.0, "the request stopped");
-                    }
-                }
-                let stopped = Stopped(Arc::clone(&notes));
-                let program: Program = Box::new(move |child: &mut Ctx, _args| {
-                    let _stopped = &stopped;
-                    if let Some(started) = started {
-                        let _ = started.send(());
-                    }
-                    then(child, &notes, &admission);
-                    Value::null()
-                });
-                Reply::Run(
-                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
-                    supply,
-                    chosen.clone(),
-                )
-            })
+                    let stopped = Stopped(Arc::clone(&notes));
+                    let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                        let _stopped = &stopped;
+                        if let Some(started) = started {
+                            let _ = started.send(());
+                        }
+                        then(child, &notes, &admission);
+                        Value::null()
+                    });
+                    Reply::Run(
+                        Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                        supply,
+                        chosen.clone(),
+                    )
+                },
+            )
         };
 
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
@@ -8155,34 +8225,36 @@ pub(crate) mod tests {
         let watched = Rc::new(watchdog.register_requests());
         let serving = booted_on("[limits]\nwall_time = \"100ms\"\n");
         let (told, flagged) = std::sync::mpsc::channel::<bool>();
-        let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-            let (inbound, supply) = carrying(request);
-            let told = told.clone();
-            let program: Program = Box::new(move |run: &mut Ctx, _args| {
-                // A loop that polls the word and never waits, as compiled code
-                // does. The bound only ends a case whose flag never comes.
-                let bound = Instant::now() + Duration::from_secs(10);
-                while Instant::now() < bound {
-                    if run
-                        .safepoint_flags()
-                        .contains(nvs_runtime::SafepointFlags::WALL_TIME)
-                    {
-                        let _ = told.send(true);
-                        return Value::null();
+        let handler = Rc::new(
+            move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                let (inbound, supply) = carrying(request);
+                let told = told.clone();
+                let program: Program = Box::new(move |run: &mut Ctx, _args| {
+                    // A loop that polls the word and never waits, as compiled code
+                    // does. The bound only ends a case whose flag never comes.
+                    let bound = Instant::now() + Duration::from_secs(10);
+                    while Instant::now() < bound {
+                        if run
+                            .safepoint_flags()
+                            .contains(nvs_runtime::SafepointFlags::WALL_TIME)
+                        {
+                            let _ = told.send(true);
+                            return Value::null();
+                        }
+                        std::hint::spin_loop();
                     }
-                    std::hint::spin_loop();
-                }
-                let _ = told.send(false);
-                Value::null()
-            });
-            Reply::Run(
-                Isolate::new(program, Value::null(), Output::Capture)
-                    .answering(inbound)
-                    .watched_by(Rc::clone(&watched)),
-                supply,
-                None,
-            )
-        });
+                    let _ = told.send(false);
+                    Value::null()
+                });
+                Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture)
+                        .answering(inbound)
+                        .watched_by(Rc::clone(&watched)),
+                    supply,
+                    None,
+                )
+            },
+        );
 
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
             .expect("the OS refused a port");
@@ -8338,7 +8410,7 @@ pub(crate) mod tests {
         let addr = listener
             .local_addr()
             .expect("a bound listener had no address");
-        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin| {
+        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin, _: &Record| {
             let inbound = nvs_runtime::Inbound::new(
                 request.method().as_str(),
                 request.uri().path(),
@@ -8415,29 +8487,31 @@ pub(crate) mod tests {
         let admission = Arc::clone(&serving.admission);
         let routes = route.map(|route| nvs_runtime::routes::Routes::new(vec![route]));
         let page = Rc::new(page);
-        let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-            let mut inbound = nvs_runtime::Inbound::new(
-                request.method().as_str(),
-                request.uri().path(),
-                request.uri().query().unwrap_or(""),
-            );
-            if let Some(matched) = routes
-                .as_ref()
-                .and_then(|routes| routes.match_request("GET", request.uri().path()))
-            {
-                inbound.set_route(matched);
-            }
-            let page = Rc::clone(&page);
-            let program: Program = Box::new(move |ctx: &mut Ctx, _args| {
-                page(ctx);
-                Value::null()
-            });
-            Reply::Run(
-                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
-                None,
-                None,
-            )
-        });
+        let handler = Rc::new(
+            move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                let mut inbound = nvs_runtime::Inbound::new(
+                    request.method().as_str(),
+                    request.uri().path(),
+                    request.uri().query().unwrap_or(""),
+                );
+                if let Some(matched) = routes
+                    .as_ref()
+                    .and_then(|routes| routes.match_request("GET", request.uri().path()))
+                {
+                    inbound.set_route(matched);
+                }
+                let page = Rc::clone(&page);
+                let program: Program = Box::new(move |ctx: &mut Ctx, _args| {
+                    page(ctx);
+                    Value::null()
+                });
+                Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                    None,
+                    None,
+                )
+            },
+        );
         let client = std::thread::spawn(move || {
             let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
             socket
@@ -8526,25 +8600,27 @@ pub(crate) mod tests {
         let dispatched = Rc::new(Cell::new(0_usize));
         let handler = {
             let dispatched = Rc::clone(&dispatched);
-            Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-                let (head, incoming) = request.into_parts();
-                match crate::body::of(
-                    &head.headers,
-                    incoming,
-                    nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
-                ) {
-                    crate::body::Arrived::TooLarge => Reply::too_large(),
-                    crate::body::Arrived::Absent | crate::body::Arrived::Streaming(..) => {
-                        let dispatched = Rc::clone(&dispatched);
-                        let program: Program = Box::new(move |child: &mut Ctx, _args| {
-                            dispatched.set(dispatched.get() + 1);
-                            child.write_output(b"dispatched").expect("a buffer");
-                            Value::null()
-                        });
-                        Reply::run(Isolate::new(program, Value::null(), Output::Capture))
+            Rc::new(
+                move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                    let (head, incoming) = request.into_parts();
+                    match crate::body::of(
+                        &head.headers,
+                        incoming,
+                        nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
+                    ) {
+                        crate::body::Arrived::TooLarge => Reply::too_large(),
+                        crate::body::Arrived::Absent | crate::body::Arrived::Streaming(..) => {
+                            let dispatched = Rc::clone(&dispatched);
+                            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                                dispatched.set(dispatched.get() + 1);
+                                child.write_output(b"dispatched").expect("a buffer");
+                                Value::null()
+                            });
+                            Reply::run(Isolate::new(program, Value::null(), Output::Capture))
+                        }
                     }
-                }
-            })
+                },
+            )
         };
 
         let answer = served_by(listener, &handler, client);
@@ -8574,89 +8650,91 @@ pub(crate) mod tests {
     /// its snapshot — and [`Ctx::memory_breach`] afterwards is the same
     /// arithmetic `nvs_runtime`'s safepoint poll makes, which a hand-written
     /// program has no safepoint to make for it.
-    fn weigh_the_body(ceiling: usize) -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
-        Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-            let mut inbound = nvs_runtime::Inbound::new(
-                request.method().as_str(),
-                request.uri().path(),
-                request.uri().query().unwrap_or(""),
-            );
-            let (head, incoming) = request.into_parts();
-            let supply = match crate::body::of(
-                &head.headers,
-                incoming,
-                nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
-            ) {
-                crate::body::Arrived::Streaming(supply, pull) => {
-                    inbound.set_body(pull);
-                    Some(supply)
-                }
-                crate::body::Arrived::Absent | crate::body::Arrived::TooLarge => None,
-            };
-            let program: Program = Box::new(move |child: &mut Ctx, _args| {
-                /// The last bytes kept — room for the closing boundary and no
-                /// more, because a program holding the tail of a body this size
-                /// would be answering its own question.
-                const TAIL: usize = 64;
+    fn weigh_the_body(ceiling: usize) -> Rc<impl Fn(Request<Incoming>, Origin, &Record) -> Reply> {
+        Rc::new(
+            move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                let mut inbound = nvs_runtime::Inbound::new(
+                    request.method().as_str(),
+                    request.uri().path(),
+                    request.uri().query().unwrap_or(""),
+                );
+                let (head, incoming) = request.into_parts();
+                let supply = match crate::body::of(
+                    &head.headers,
+                    incoming,
+                    nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
+                ) {
+                    crate::body::Arrived::Streaming(supply, pull) => {
+                        inbound.set_body(pull);
+                        Some(supply)
+                    }
+                    crate::body::Arrived::Absent | crate::body::Arrived::TooLarge => None,
+                };
+                let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                    /// The last bytes kept — room for the closing boundary and no
+                    /// more, because a program holding the tail of a body this size
+                    /// would be answering its own question.
+                    const TAIL: usize = 64;
 
-                child.set_memory_limit(ceiling);
-                let base = nvs_runtime::budget::live_bytes();
-                let mut peak = base;
-                let mut carried = 0_usize;
-                let mut tail: Vec<u8> = Vec::new();
-                let mut failed = None;
-                {
-                    let inbound = child
-                        .inbound_mut()
-                        .expect("the isolate ran with no request in front of it");
-                    let body = inbound.body().expect("the request carried no body");
-                    loop {
-                        match body.next_chunk() {
-                            Ok(Some(chunk)) => {
-                                carried += chunk.len();
-                                tail.extend_from_slice(chunk);
-                                if tail.len() > TAIL {
-                                    tail.drain(..tail.len() - TAIL);
+                    child.set_memory_limit(ceiling);
+                    let base = nvs_runtime::budget::live_bytes();
+                    let mut peak = base;
+                    let mut carried = 0_usize;
+                    let mut tail: Vec<u8> = Vec::new();
+                    let mut failed = None;
+                    {
+                        let inbound = child
+                            .inbound_mut()
+                            .expect("the isolate ran with no request in front of it");
+                        let body = inbound.body().expect("the request carried no body");
+                        loop {
+                            match body.next_chunk() {
+                                Ok(Some(chunk)) => {
+                                    carried += chunk.len();
+                                    tail.extend_from_slice(chunk);
+                                    if tail.len() > TAIL {
+                                        tail.drain(..tail.len() - TAIL);
+                                    }
+                                    // Sampled here rather than after the loop: what
+                                    // the door holds is at its highest *during* the
+                                    // crossing, and a reading taken once the body
+                                    // has ended is a reading of nothing.
+                                    peak = peak.max(nvs_runtime::budget::live_bytes());
                                 }
-                                // Sampled here rather than after the loop: what
-                                // the door holds is at its highest *during* the
-                                // crossing, and a reading taken once the body
-                                // has ended is a reading of nothing.
-                                peak = peak.max(nvs_runtime::budget::live_bytes());
-                            }
-                            Ok(None) => break,
-                            Err(message) => {
-                                failed = Some(message.to_string());
-                                break;
+                                Ok(None) => break,
+                                Err(message) => {
+                                    failed = Some(message.to_string());
+                                    break;
+                                }
                             }
                         }
                     }
-                }
-                // A breach is a `FATAL` and never a throw — `rule:errors/on-limit`, which
-                // `Ctx::memory_breach`'s own doc names — so the other arm is
-                // here to be exhaustive rather than because it can happen.
-                let breach = match (failed, child.memory_breach()) {
-                    (Some(message), _) => format!("failed: {message}"),
-                    (None, Some(nvs_runtime::Fault::Fatal(message))) => message.to_string(),
-                    (None, Some(other)) => format!("{other:?}"),
-                    (None, None) => "none".to_owned(),
-                };
-                // `tail` last, because it is the only field carrying bytes the
-                // client chose: everything a case parses is left of it.
-                let said = format!(
-                    "carried={carried} held={held} breach={breach} tail={}",
-                    String::from_utf8_lossy(&tail),
-                    held = peak - base,
-                );
-                child.write_output(said.as_bytes()).expect("a buffer");
-                Value::null()
-            });
-            Reply::Run(
-                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
-                supply,
-                None,
-            )
-        })
+                    // A breach is a `FATAL` and never a throw — `rule:errors/on-limit`, which
+                    // `Ctx::memory_breach`'s own doc names — so the other arm is
+                    // here to be exhaustive rather than because it can happen.
+                    let breach = match (failed, child.memory_breach()) {
+                        (Some(message), _) => format!("failed: {message}"),
+                        (None, Some(nvs_runtime::Fault::Fatal(message))) => message.to_string(),
+                        (None, Some(other)) => format!("{other:?}"),
+                        (None, None) => "none".to_owned(),
+                    };
+                    // `tail` last, because it is the only field carrying bytes the
+                    // client chose: everything a case parses is left of it.
+                    let said = format!(
+                        "carried={carried} held={held} breach={breach} tail={}",
+                        String::from_utf8_lossy(&tail),
+                        held = peak - base,
+                    );
+                    child.write_output(said.as_bytes()).expect("a buffer");
+                    Value::null()
+                });
+                Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                    supply,
+                    None,
+                )
+            },
+        )
     }
 
     /// `rule:http-server/an-upload-is-received-only-through-files`'s
@@ -9010,25 +9088,27 @@ pub(crate) mod tests {
         });
 
         let served = Rc::new(Cell::new(0_usize));
-        let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-            let (inbound, supply) = carrying(request);
-            let first = served.get() == 0;
-            served.set(served.get() + 1);
-            let program: Program = Box::new(move |child: &mut Ctx, _args| {
-                if first {
-                    plant_the_suite(child);
-                } else {
-                    let said = probe_the_suite(child);
-                    child.write_output(said.as_bytes()).expect("a buffer");
-                }
-                Value::null()
-            });
-            Reply::Run(
-                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
-                supply,
-                None,
-            )
-        });
+        let handler = Rc::new(
+            move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                let (inbound, supply) = carrying(request);
+                let first = served.get() == 0;
+                served.set(served.get() + 1);
+                let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                    if first {
+                        plant_the_suite(child);
+                    } else {
+                        let said = probe_the_suite(child);
+                        child.write_output(said.as_bytes()).expect("a buffer");
+                    }
+                    Value::null()
+                });
+                Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                    supply,
+                    None,
+                )
+            },
+        );
         served_across_requests(listener, &handler, client, wide_open())
     }
 
@@ -9059,7 +9139,7 @@ pub(crate) mod tests {
             answer
         });
 
-        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin| {
+        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin, _: &Record| {
             let (inbound, supply) = carrying(request);
             let program: Program = Box::new(move |child: &mut Ctx, _args| {
                 plant_the_suite(child);
@@ -9107,23 +9187,25 @@ pub(crate) mod tests {
             let _installed = nvs_host::reactor::install(
                 nvs_host::Reactor::new().expect("the OS refused a poll"),
             );
-            let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-                let (inbound, supply) = carrying(request);
-                let program: Program = Box::new(move |child: &mut Ctx, _args| {
-                    if planting {
-                        plant_the_suite(child);
-                    } else {
-                        let said = probe_the_suite(child);
-                        child.write_output(said.as_bytes()).expect("a buffer");
-                    }
-                    Value::null()
-                });
-                Reply::Run(
-                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
-                    supply,
-                    None,
-                )
-            });
+            let handler = Rc::new(
+                move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                    let (inbound, supply) = carrying(request);
+                    let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                        if planting {
+                            plant_the_suite(child);
+                        } else {
+                            let said = probe_the_suite(child);
+                            child.write_output(said.as_bytes()).expect("a buffer");
+                        }
+                        Value::null()
+                    });
+                    Reply::Run(
+                        Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                        supply,
+                        None,
+                    )
+                },
+            );
             sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
                 serve_on_this_core(
                     &mut listener,
@@ -9342,53 +9424,55 @@ pub(crate) mod tests {
 
         let said = Rc::new(RefCell::new(Vec::<String>::new()));
         let handler_said = Rc::clone(&said);
-        let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-            let tight = request.uri().path() == "/tight";
-            let (inbound, supply) = carrying(request);
-            let said = Rc::clone(&handler_said);
-            let armed = armed.clone();
-            let program: Program = Box::new(move |child: &mut Ctx, _args| {
-                if !tight {
-                    child.set_memory_limit(ROOMY);
+        let handler = Rc::new(
+            move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                let tight = request.uri().path() == "/tight";
+                let (inbound, supply) = carrying(request);
+                let said = Rc::clone(&handler_said);
+                let armed = armed.clone();
+                let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                    if !tight {
+                        child.set_memory_limit(ROOMY);
+                        said.borrow_mut().push(format!(
+                            "roomy: affords={} over={} breach={}",
+                            nvs_runtime::budget::affords(ASK),
+                            child.over_memory_limit(),
+                            child.memory_breach().is_some(),
+                        ));
+                        return Value::null();
+                    }
+                    child.set_memory_limit(TIGHT);
+                    let ceiling = nvs_runtime::budget::armed_ceiling();
                     said.borrow_mut().push(format!(
-                        "roomy: affords={} over={} breach={}",
+                        "tight before: affords={}",
+                        nvs_runtime::budget::affords(ASK)
+                    ));
+                    armed.send(()).expect("the client stopped waiting");
+                    {
+                        let body = child
+                            .inbound_mut()
+                            .and_then(|inbound| inbound.body())
+                            .expect("the tight request carried no body");
+                        // Reads to the end, which parks until the client sends
+                        // the last three bytes after the roomy request is answered.
+                        while let Ok(Some(_chunk)) = body.next_chunk() {}
+                    }
+                    said.borrow_mut().push(format!(
+                        "tight after: affords={} over={} breach={} same ceiling={}",
                         nvs_runtime::budget::affords(ASK),
                         child.over_memory_limit(),
                         child.memory_breach().is_some(),
+                        nvs_runtime::budget::armed_ceiling() == ceiling,
                     ));
-                    return Value::null();
-                }
-                child.set_memory_limit(TIGHT);
-                let ceiling = nvs_runtime::budget::armed_ceiling();
-                said.borrow_mut().push(format!(
-                    "tight before: affords={}",
-                    nvs_runtime::budget::affords(ASK)
-                ));
-                armed.send(()).expect("the client stopped waiting");
-                {
-                    let body = child
-                        .inbound_mut()
-                        .and_then(|inbound| inbound.body())
-                        .expect("the tight request carried no body");
-                    // Reads to the end, which parks until the client sends
-                    // the last three bytes after the roomy request is answered.
-                    while let Ok(Some(_chunk)) = body.next_chunk() {}
-                }
-                said.borrow_mut().push(format!(
-                    "tight after: affords={} over={} breach={} same ceiling={}",
-                    nvs_runtime::budget::affords(ASK),
-                    child.over_memory_limit(),
-                    child.memory_breach().is_some(),
-                    nvs_runtime::budget::armed_ceiling() == ceiling,
-                ));
-                Value::null()
-            });
-            Reply::Run(
-                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
-                supply,
-                None,
-            )
-        });
+                    Value::null()
+                });
+                Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                    supply,
+                    None,
+                )
+            },
+        );
 
         let mut listener = listener;
         let mut sched = nvs_host::Scheduler::new();
@@ -9472,27 +9556,30 @@ pub(crate) mod tests {
         let handler_said = Rc::clone(&said);
         let seen = upgrade_once(
             move || {
-                Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-                    let (inbound, supply) = carrying(request);
-                    let said = Rc::clone(&handler_said);
-                    let program: Program = Box::new(move |child: &mut Ctx, _args| {
-                        plant_the_suite(child);
-                        let probing: Program = Box::new(move |conn: &mut Ctx, _args| {
-                            said.borrow_mut().push_str(&probe_the_suite(conn));
+                Rc::new(
+                    move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                        let (inbound, supply) = carrying(request);
+                        let said = Rc::clone(&handler_said);
+                        let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                            plant_the_suite(child);
+                            let probing: Program = Box::new(move |conn: &mut Ctx, _args| {
+                                said.borrow_mut().push_str(&probe_the_suite(conn));
+                                Value::null()
+                            });
+                            assert!(
+                                Door::Socket.fill(child, probing),
+                                "the upgrading request was offered no slot"
+                            );
                             Value::null()
                         });
-                        assert!(
-                            Door::Socket.fill(child, probing),
-                            "the upgrading request was offered no slot"
-                        );
-                        Value::null()
-                    });
-                    Reply::Run(
-                        Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
-                        supply,
-                        None,
-                    )
-                })
+                        Reply::Run(
+                            Isolate::new(program, Value::null(), Output::Capture)
+                                .answering(inbound),
+                            supply,
+                            None,
+                        )
+                    },
+                )
             },
             BLEEDING_UPGRADE,
             Door::Socket,
@@ -9541,8 +9628,8 @@ pub(crate) mod tests {
 
     /// A handler whose program says which sink it is writing through, so the
     /// response body *is* the carrier's class name.
-    fn echo_the_sink() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
-        Rc::new(|request: Request<Incoming>, _origin: Origin| {
+    fn echo_the_sink() -> Rc<impl Fn(Request<Incoming>, Origin, &Record) -> Reply> {
+        Rc::new(|request: Request<Incoming>, _origin: Origin, _: &Record| {
             let inbound = nvs_runtime::Inbound::new(
                 request.method().as_str(),
                 request.uri().path(),
@@ -9616,7 +9703,7 @@ pub(crate) mod tests {
         client: std::thread::JoinHandle<String>,
     ) -> String
     where
-        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+        H: Fn(Request<Incoming>, Origin, &Record) -> Reply + 'static,
     {
         served_under(listener, handler, client, wide_open())
     }
@@ -9630,7 +9717,7 @@ pub(crate) mod tests {
         serving: Serving,
     ) -> String
     where
-        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+        H: Fn(Request<Incoming>, Origin, &Record) -> Reply + 'static,
     {
         served_until(
             listener,
@@ -9655,7 +9742,7 @@ pub(crate) mod tests {
         serving: Serving,
     ) -> String
     where
-        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+        H: Fn(Request<Incoming>, Origin, &Record) -> Reply + 'static,
     {
         served_until(
             listener,
@@ -9698,7 +9785,7 @@ pub(crate) mod tests {
         keep_serving: impl FnMut() -> ControlFlow<()> + 'static,
     ) -> String
     where
-        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+        H: Fn(Request<Incoming>, Origin, &Record) -> Reply + 'static,
     {
         let handler = Rc::clone(handler);
         let mut sched = nvs_host::Scheduler::new();
@@ -9812,7 +9899,7 @@ pub(crate) mod tests {
         // the answer can be taken from: what a program holds is the child the
         // isolate built, so a tree that reached the connection and no further
         // prints the same absence as one that never arrived.
-        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
+        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin, _: &Record| {
             let program: Program = Box::new(move |child: &mut Ctx, _args| {
                 let said = match child.config().and_then(|config| config.get("cpu_time")) {
                     Some(written) => format!("cpu_time={written}"),
@@ -9875,26 +9962,28 @@ pub(crate) mod tests {
         );
         let own =
             tree_of("[limits]\ncpu_time = \"3s\"\n[http.headers]\nreferrer_policy = \"origin\"\n");
-        let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-            let published = published_of(&request).expect("the door left no publish");
-            assert!(
-                Arc::ptr_eq(published.host(), &host),
-                "the publish on the request is not the one the door answers under"
-            );
-            let program: Program = Box::new(move |child: &mut Ctx, _args| {
-                let said = match child.config().and_then(|config| config.get("cpu_time")) {
-                    Some(written) => format!("cpu_time={written}"),
-                    None => "no tree".to_owned(),
-                };
-                child.write_output(said.as_bytes()).expect("a buffer");
-                Value::null()
-            });
-            Reply::Run(
-                Isolate::new(program, Value::null(), Output::Capture),
-                None,
-                Some(Arc::clone(&own)),
-            )
-        });
+        let handler = Rc::new(
+            move |_: Request<Incoming>, _origin: Origin, record: &Record| {
+                let published = record.published();
+                assert!(
+                    Arc::ptr_eq(published.host(), &host),
+                    "the publish on the request is not the one the door answers under"
+                );
+                let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                    let said = match child.config().and_then(|config| config.get("cpu_time")) {
+                        Some(written) => format!("cpu_time={written}"),
+                        None => "no tree".to_owned(),
+                    };
+                    child.write_output(said.as_bytes()).expect("a buffer");
+                    Value::null()
+                });
+                Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture),
+                    None,
+                    Some(Arc::clone(&own)),
+                )
+            },
+        );
         let answer = served_under(listener, &handler, client, serving);
         assert!(
             answer.ends_with("cpu_time=3s"),
@@ -9904,6 +9993,126 @@ pub(crate) mod tests {
         assert!(
             lower.contains("referrer-policy: no-referrer\r\n"),
             "the door did not answer with the host snapshot's headers: {answer}"
+        );
+    }
+
+    /// A server over a holder `current`, with the policy of the tree it holds.
+    fn serving_over(current: &Arc<nvs_config::Current>) -> Serving {
+        Serving::live(
+            Arc::new(Admission::new(&Ceiling::of(&Capacity {
+                configured: 10_000,
+                per_request: None,
+                budget: None,
+            }))),
+            Arc::new(Secure::of(current.load().config.http.as_ref())),
+            Arc::new(Trusted::none()),
+            Arc::new(Cors::default()),
+            Arc::clone(current),
+        )
+    }
+
+    /// One request on an open keep-alive connection, read up to its body.
+    fn ask_on(socket: &mut TcpStream, path: &str) -> String {
+        socket
+            .write_all(format!("GET {path} HTTP/1.1\r\nHost: localhost\r\n\r\n").as_bytes())
+            .expect("the write failed");
+        let mut seen = String::new();
+        read_until(socket, &format!("hello {path}"), &mut seen);
+        seen
+    }
+
+    /// `rule:config/the-config-is-an-immutable-snapshot`: a core keeps a record
+    /// of the standing publish, and a publish between two requests on one
+    /// connection reaches the second. The policy header is the core's own
+    /// render of the new tree.
+    #[test]
+    fn a_reload_between_two_requests_on_one_core_reaches_the_second() {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let current = Arc::new(nvs_config::Current::new(tree_of(
+            "[http.headers]\nreferrer_policy = \"no-referrer\"\n",
+        )));
+        let serving = serving_over(&current);
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            let first = ask_on(&mut socket, "/first");
+            current
+                .publish(nvs_config::Snapshot::clone(&tree_of(
+                    "[http.headers]\nreferrer_policy = \"origin\"\n",
+                )))
+                .expect("the tree publishes");
+            socket
+                .write_all(b"GET /second HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            let mut second = String::new();
+            socket
+                .read_to_string(&mut second)
+                .expect("the response could not be read");
+            end_the_loop(addr);
+            format!("{first}\n=====\n{second}")
+        });
+        let answer = served_across_requests(listener, &echo_the_path(), client, serving);
+        let lower = answer.to_ascii_lowercase();
+        let (first, second) = lower
+            .split_once("\n=====\n")
+            .expect("the client answers both requests");
+        assert!(
+            first.contains("referrer-policy: no-referrer\r\n"),
+            "the first request was not answered under the boot tree: {answer}"
+        );
+        assert!(
+            second.contains("referrer-policy: origin\r\n"),
+            "the second request was not answered under the published tree: {answer}"
+        );
+    }
+
+    /// `rule:testing/perf-two-mechanisms`: under a standing configuration the
+    /// door reads its core's record, so twenty requests after a warm-up take
+    /// neither the holder's lock nor a policy lock.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn the_door_takes_no_lock_under_the_standing_configuration() {
+        use nvs_diagnostics::shared::{Line, Shared};
+        const ASKED: usize = 21;
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let current = Arc::new(nvs_config::Current::new(tree_of(
+            "[http.headers]\nreferrer_policy = \"no-referrer\"\n",
+        )));
+        let serving = serving_over(&current);
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            for at in 0..ASKED {
+                ask_on(&mut socket, &format!("/r{at}x"));
+            }
+            drop(socket);
+            end_the_loop(addr);
+            String::new()
+        });
+        // Sized for every reading up front, so a push allocates nothing.
+        let readings = Rc::new(RefCell::new(Vec::<Shared>::with_capacity(ASKED)));
+        let echo = echo_the_path();
+        let handler = Rc::new({
+            let readings = Rc::clone(&readings);
+            move |request: Request<Incoming>, origin: Origin, record: &Record| {
+                readings.borrow_mut().push(Shared::now());
+                echo(request, origin, record)
+            }
+        });
+        served_across_requests(listener, &handler, client, serving);
+        let readings = readings.borrow();
+        assert_eq!(readings.len(), ASKED, "every request reached the handler");
+        let counted = readings[ASKED - 1].since(readings[0]);
+        assert_eq!(
+            (counted.on(Line::CurrentLock), counted.on(Line::PolicyLock)),
+            (0, 0),
+            "the door took a lock under the standing configuration: {counted:?}"
         );
     }
 
@@ -10001,7 +10210,7 @@ pub(crate) mod tests {
     /// The table is built here rather than handed in because it is the door's
     /// own: [`crate::route::take`] runs where the unit and the request are both
     /// in hand, which in a server is this Rust closure.
-    fn echo_under_a_named_route() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
+    fn echo_under_a_named_route() -> Rc<impl Fn(Request<Incoming>, Origin, &Record) -> Reply> {
         let routes = Rc::new(nvs_runtime::routes::Routes::new(vec![
             nvs_runtime::routes::Route::new(
                 "Get",
@@ -10014,19 +10223,21 @@ pub(crate) mod tests {
                 }],
             ),
         ]));
-        Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-            let mut inbound = nvs_runtime::Inbound::new(
-                request.method().as_str(),
-                request.uri().path(),
-                request.uri().query().unwrap_or(""),
-            );
-            crate::route::take(&routes, &mut inbound);
-            let program: Program = Box::new(|child: &mut Ctx, _args| {
-                child.write_output(b"ok").expect("a buffer");
-                Value::null()
-            });
-            Reply::run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
-        })
+        Rc::new(
+            move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                let mut inbound = nvs_runtime::Inbound::new(
+                    request.method().as_str(),
+                    request.uri().path(),
+                    request.uri().query().unwrap_or(""),
+                );
+                crate::route::take(&routes, &mut inbound);
+                let program: Program = Box::new(|child: &mut Ctx, _args| {
+                    child.write_output(b"ok").expect("a buffer");
+                    Value::null()
+                });
+                Reply::run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
+            },
+        )
     }
 
     /// `rule:observability/a-registry-is-per-core-and-nothing-reads-it` on the
@@ -10579,7 +10790,7 @@ pub(crate) mod tests {
         let polled_on: Rc<RefCell<Vec<nvs_host::TaskId>>> = Rc::new(RefCell::new(Vec::new()));
         let handler = Rc::new({
             let polled_on = Rc::clone(&polled_on);
-            move |request: Request<Incoming>, _origin: Origin| {
+            move |request: Request<Incoming>, _origin: Origin, _: &Record| {
                 polled_on.borrow_mut().push(
                     nvs_host::current_task().expect("the connection future was polled off a task"),
                 );
@@ -10687,7 +10898,7 @@ pub(crate) mod tests {
             end_the_loop(addr);
         });
 
-        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin| {
+        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin, _: &Record| {
             let path = request.uri().path().to_owned();
             let program: Program = Box::new(move |child: &mut Ctx, _args| {
                 child
@@ -10827,7 +11038,7 @@ pub(crate) mod tests {
     /// accepting rather than the order the OS hands connections over in.
     fn tasks_finished<H>(connections: usize, handler: &Rc<H>) -> usize
     where
-        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+        H: Fn(Request<Incoming>, Origin, &Record) -> Reply + 'static,
     {
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
             .expect("the OS refused a port");
@@ -10905,7 +11116,8 @@ pub(crate) mod tests {
     /// ever went up by one per connection could not tell the two apart.
     #[test]
     fn no_task_is_spawned_to_serve_a_connection() {
-        let a_status = Rc::new(|_request: Request<Incoming>, _origin: Origin| Reply::not_found());
+        let a_status =
+            Rc::new(|_request: Request<Incoming>, _origin: Origin, _: &Record| Reply::not_found());
         let one = tasks_finished(1, &a_status);
         let two = tasks_finished(2, &a_status);
         assert_eq!(
@@ -10964,7 +11176,7 @@ pub(crate) mod tests {
         let handler = Rc::new({
             let connection = Rc::clone(&connection);
             let request = Rc::clone(&request);
-            move |_request: Request<Incoming>, _origin: Origin| {
+            move |_request: Request<Incoming>, _origin: Origin, _: &Record| {
                 connection.set(nvs_host::current_task());
                 let ran_on = Rc::clone(&request);
                 let program: Program = Box::new(move |child: &mut Ctx, _args| {
@@ -11298,34 +11510,36 @@ pub(crate) mod tests {
             Arc::new(Cors::of(http.as_ref())),
             tree,
         );
-        let handler = Rc::new(move |_request: Request<Incoming>, _origin: Origin| {
-            let program: Program = Box::new(move |child: &mut Ctx, _args| {
-                let config = child
-                    .config_mut()
-                    .expect("a served request has a configuration");
-                for (key, value) in settings {
-                    assert!(config.set(key, value), "`{key}` was refused");
-                }
-                if slotted {
-                    let cell = child
-                        .inbound()
-                        .and_then(nvs_runtime::Inbound::response_stream_slot)
-                        .cloned()
-                        .expect("a served request was offered no response-stream cell");
-                    let mut emit = cell
-                        .open_slotted("text/html", None, Vec::new(), child.response_http())
-                        .expect("the first stream on a request opens");
-                    emit.send(b"set".to_vec())
-                        .expect("the connection takes the body");
-                } else {
-                    child.write_output(b"set").expect("a buffer");
-                }
-                Value::null()
-            });
-            let isolate = Isolate::new(program, Value::null(), Output::Capture)
-                .answering(nvs_runtime::Inbound::new("GET", "/page", ""));
-            Reply::run(isolate)
-        });
+        let handler = Rc::new(
+            move |_request: Request<Incoming>, _origin: Origin, _: &Record| {
+                let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                    let config = child
+                        .config_mut()
+                        .expect("a served request has a configuration");
+                    for (key, value) in settings {
+                        assert!(config.set(key, value), "`{key}` was refused");
+                    }
+                    if slotted {
+                        let cell = child
+                            .inbound()
+                            .and_then(nvs_runtime::Inbound::response_stream_slot)
+                            .cloned()
+                            .expect("a served request was offered no response-stream cell");
+                        let mut emit = cell
+                            .open_slotted("text/html", None, Vec::new(), child.response_http())
+                            .expect("the first stream on a request opens");
+                        emit.send(b"set".to_vec())
+                            .expect("the connection takes the body");
+                    } else {
+                        child.write_output(b"set").expect("a buffer");
+                    }
+                    Value::null()
+                });
+                let isolate = Isolate::new(program, Value::null(), Output::Capture)
+                    .answering(nvs_runtime::Inbound::new("GET", "/page", ""));
+                Reply::run(isolate)
+            },
+        );
         let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
             .expect("the OS refused a port");
         let addr = listener
@@ -11483,7 +11697,7 @@ pub(crate) mod tests {
         let asked = Rc::new(Cell::new(false));
         let handler = Rc::new({
             let asked = Rc::clone(&asked);
-            move |_request: Request<Incoming>, _origin: Origin| {
+            move |_request: Request<Incoming>, _origin: Origin, _: &Record| {
                 asked.set(true);
                 Reply::status(StatusCode::OK)
             }
@@ -11546,7 +11760,7 @@ pub(crate) mod tests {
         let asked = Rc::new(Cell::new(false));
         let handler = Rc::new({
             let asked = Rc::clone(&asked);
-            move |_request: Request<Incoming>, _origin: Origin| {
+            move |_request: Request<Incoming>, _origin: Origin, _: &Record| {
                 asked.set(true);
                 Reply::status(StatusCode::OK)
             }
@@ -11651,7 +11865,7 @@ pub(crate) mod tests {
         let draining = Draining::detached();
         let handler = Rc::new({
             let draining = draining.clone();
-            move |request: Request<Incoming>, _origin: Origin| {
+            move |request: Request<Incoming>, _origin: Origin, _: &Record| {
                 assert_eq!(request.uri().path(), "/healthz");
                 Reply::health(&draining)
             }
@@ -11793,9 +12007,10 @@ pub(crate) mod tests {
                 let _installed = nvs_host::reactor::install(
                     nvs_host::Reactor::new().expect("the OS refused a poll"),
                 );
-                let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
-                    Reply::status(StatusCode::OK)
-                });
+                let handler =
+                    Rc::new(|_request: Request<Incoming>, _origin: Origin, _: &Record| {
+                        Reply::status(StatusCode::OK)
+                    });
                 sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
                     serve_on_this_core(
                         &mut listener,
@@ -11974,8 +12189,8 @@ pub(crate) mod tests {
     /// The isolate answering this one hands the core back twice before it says
     /// anything, so the request cannot be finished inside the poll that started
     /// it.
-    fn echo_after_two_parks() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
-        Rc::new(|_request: Request<Incoming>, _origin: Origin| {
+    fn echo_after_two_parks() -> Rc<impl Fn(Request<Incoming>, Origin, &Record) -> Reply> {
+        Rc::new(|_request: Request<Incoming>, _origin: Origin, _: &Record| {
             let program: Program = Box::new(move |child: &mut Ctx, _args| {
                 for _ in 0..2 {
                     // `Yielded` rather than `Parked`: nothing is going to wake
@@ -12085,7 +12300,7 @@ pub(crate) mod tests {
             answer
         });
 
-        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
+        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin, _: &Record| {
             let program: Program =
                 Box::new(|_: &mut Ctx, _args| panic!("the request gave up loudly"));
             Reply::run(Isolate::new(program, Value::null(), Output::Capture))
@@ -12482,13 +12697,14 @@ pub(crate) mod tests {
             (closed, seen, began.elapsed())
         });
 
-        let sleeps_past_the_drain = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
-            let program: Program = Box::new(|_child: &mut Ctx, _args| {
-                let _ = nvs_host::sleep(Duration::from_secs(600));
-                Value::null()
+        let sleeps_past_the_drain =
+            Rc::new(|_request: Request<Incoming>, _origin: Origin, _: &Record| {
+                let program: Program = Box::new(|_child: &mut Ctx, _args| {
+                    let _ = nvs_host::sleep(Duration::from_secs(600));
+                    Value::null()
+                });
+                Reply::run(Isolate::new(program, Value::null(), Output::Capture))
             });
-            Reply::run(Isolate::new(program, Value::null(), Output::Capture))
-        });
         let waits = Waits {
             drain: Duration::from_millis(300),
             ..Waits::default()
@@ -12573,33 +12789,34 @@ pub(crate) mod tests {
             )
         });
 
-        let streams_past_the_drain = Rc::new(|request: Request<Incoming>, _origin: Origin| {
-            let inbound =
-                nvs_runtime::Inbound::new(request.method().as_str(), request.uri().path(), "");
-            let program: Program = Box::new(|child: &mut Ctx, _args| {
-                let cell = child
-                    .inbound()
-                    .and_then(nvs_runtime::Inbound::response_stream_slot)
-                    .cloned()
-                    .expect("a served request was offered no response-stream cell");
-                let emit = cell
-                    .open("text/plain", None, Vec::new(), None)
-                    .expect("the first stream on a request opens");
-                child.set_body_stream(emit);
-                child
-                    .body_stream()
-                    .expect("the writing half was just set")
-                    .send(b"opened;".to_vec())
-                    .expect("the first chunk goes into an empty cell");
-                let _ = nvs_host::sleep(Duration::from_secs(600));
-                Value::null()
+        let streams_past_the_drain =
+            Rc::new(|request: Request<Incoming>, _origin: Origin, _: &Record| {
+                let inbound =
+                    nvs_runtime::Inbound::new(request.method().as_str(), request.uri().path(), "");
+                let program: Program = Box::new(|child: &mut Ctx, _args| {
+                    let cell = child
+                        .inbound()
+                        .and_then(nvs_runtime::Inbound::response_stream_slot)
+                        .cloned()
+                        .expect("a served request was offered no response-stream cell");
+                    let emit = cell
+                        .open("text/plain", None, Vec::new(), None)
+                        .expect("the first stream on a request opens");
+                    child.set_body_stream(emit);
+                    child
+                        .body_stream()
+                        .expect("the writing half was just set")
+                        .send(b"opened;".to_vec())
+                        .expect("the first chunk goes into an empty cell");
+                    let _ = nvs_host::sleep(Duration::from_secs(600));
+                    Value::null()
+                });
+                Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                    None,
+                    None,
+                )
             });
-            Reply::Run(
-                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
-                None,
-                None,
-            )
-        });
         let waits = Waits {
             drain: Duration::from_millis(300),
             ..Waits::default()
@@ -12696,9 +12913,10 @@ pub(crate) mod tests {
             }
         });
 
-        let answers_with_a_large_body = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
-            Reply::Done(Response::new(Answer::new(Bytes::from(vec![b'x'; WHOLE]))))
-        });
+        let answers_with_a_large_body =
+            Rc::new(|_request: Request<Incoming>, _origin: Origin, _: &Record| {
+                Reply::Done(Response::new(Answer::new(Bytes::from(vec![b'x'; WHOLE]))))
+            });
         let waits = Waits {
             drain: Duration::from_millis(300),
             ..Waits::default()
@@ -12772,7 +12990,7 @@ pub(crate) mod tests {
         let asked = Rc::new(Cell::new(false));
         let handler = Rc::new({
             let asked = Rc::clone(&asked);
-            move |_request: Request<Incoming>, _origin: Origin| {
+            move |_request: Request<Incoming>, _origin: Origin, _: &Record| {
                 asked.set(true);
                 Reply::not_found()
             }
@@ -12846,24 +13064,26 @@ pub(crate) mod tests {
             let _installed = nvs_host::reactor::install(
                 nvs_host::Reactor::new().expect("the OS refused a poll"),
             );
-            let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-                let _ = admitted.send(());
-                let (inbound, supply) = carrying(request);
-                let program: Program = Box::new(|run: &mut Ctx, _args| {
-                    if let Some(inbound) = run.inbound_mut()
-                        && let Some(body) = inbound.body()
-                    {
-                        while let Ok(Some(_chunk)) = body.next_chunk() {}
-                    }
-                    run.write_output(b"served").expect("a buffer");
-                    Value::null()
-                });
-                Reply::Run(
-                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
-                    supply,
-                    None,
-                )
-            });
+            let handler = Rc::new(
+                move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                    let _ = admitted.send(());
+                    let (inbound, supply) = carrying(request);
+                    let program: Program = Box::new(|run: &mut Ctx, _args| {
+                        if let Some(inbound) = run.inbound_mut()
+                            && let Some(body) = inbound.body()
+                        {
+                            while let Ok(Some(_chunk)) = body.next_chunk() {}
+                        }
+                        run.write_output(b"served").expect("a buffer");
+                        Value::null()
+                    });
+                    Reply::Run(
+                        Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                        supply,
+                        None,
+                    )
+                },
+            );
             sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
                 let left = Cell::new(connections);
                 serve_on_this_core(
@@ -13131,18 +13351,20 @@ pub(crate) mod tests {
                 nvs_host::reactor::with_current(|reactor| reactor.deadline_view())
                     .expect("the reactor was installed on the line above"),
             );
-            let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-                let (inbound, supply) = carrying(request);
-                let program: Program = Box::new(|run: &mut Ctx, _args| {
-                    run.write_output(b"served").expect("a buffer");
-                    Value::null()
-                });
-                Reply::Run(
-                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
-                    supply,
-                    None,
-                )
-            });
+            let handler = Rc::new(
+                move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                    let (inbound, supply) = carrying(request);
+                    let program: Program = Box::new(|run: &mut Ctx, _args| {
+                        run.write_output(b"served").expect("a buffer");
+                        Value::null()
+                    });
+                    Reply::Run(
+                        Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                        supply,
+                        None,
+                    )
+                },
+            );
             sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
                 let left = Cell::new(connections);
                 serve_on_this_core(
@@ -13544,13 +13766,15 @@ pub(crate) mod tests {
     fn answered_with(path: &str, body: Answer) -> String {
         let (listener, client) = one_get(path);
         let held = RefCell::new(Some(body));
-        let handler = Rc::new(move |_request: Request<Incoming>, _origin: Origin| {
-            Reply::Done(Response::new(
-                held.borrow_mut()
-                    .take()
-                    .expect("the case sends one request"),
-            ))
-        });
+        let handler = Rc::new(
+            move |_request: Request<Incoming>, _origin: Origin, _: &Record| {
+                Reply::Done(Response::new(
+                    held.borrow_mut()
+                        .take()
+                        .expect("the case sends one request"),
+                ))
+            },
+        );
         served_by(listener, &handler, client)
     }
 
@@ -13604,16 +13828,18 @@ pub(crate) mod tests {
     /// with a `traceresponse` of its own, under the tree `written`.
     fn traceresponse_under(written: &str) -> String {
         let (listener, client) = one_get("/door");
-        let handler = Rc::new(move |_request: Request<Incoming>, _origin: Origin| {
-            let mut response = Response::new(Answer::empty());
-            response.headers_mut().insert(
-                hyper::header::HeaderName::from_static("traceresponse"),
-                hyper::header::HeaderValue::from_static(
-                    "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
-                ),
-            );
-            Reply::Done(response)
-        });
+        let handler = Rc::new(
+            move |_request: Request<Incoming>, _origin: Origin, _: &Record| {
+                let mut response = Response::new(Answer::empty());
+                response.headers_mut().insert(
+                    hyper::header::HeaderName::from_static("traceresponse"),
+                    hyper::header::HeaderValue::from_static(
+                        "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+                    ),
+                );
+                Reply::Done(response)
+            },
+        );
         served_under(listener, &handler, client, booted_on(written)).to_ascii_lowercase()
     }
 
@@ -13659,7 +13885,7 @@ pub(crate) mod tests {
             u64::MAX,
         ));
         let (listener, client) = one_get("/door");
-        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
+        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin, _: &Record| {
             Reply::Done(Response::new(Answer::empty()))
         });
         let answer = served_under(
@@ -13714,7 +13940,7 @@ pub(crate) mod tests {
         handler: &Rc<H>,
     ) -> (String, nvs_runtime::spool::Request, Vec<u8>)
     where
-        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+        H: Fn(Request<Incoming>, Origin, &Record) -> Reply + 'static,
     {
         let dir = nvs_repo::scratch(name);
         nvs_runtime::spool::install(nvs_runtime::spool::Writer::new(
@@ -13776,7 +14002,7 @@ pub(crate) mod tests {
     /// it was sent, and no byte of a secret value reaches a spool file.
     #[test]
     fn a_spool_request_line_replaces_every_credential_header_in_development() {
-        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
+        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin, _: &Record| {
             let mut response = Response::new(Answer::new(Bytes::from_static(b"signed in")));
             response.headers_mut().insert(
                 hyper::header::SET_COOKIE,
@@ -13838,7 +14064,7 @@ pub(crate) mod tests {
     /// bytes, and with the length its `Content-Length` declared.
     #[test]
     fn a_spool_request_line_records_a_body_the_program_never_read_as_not_read() {
-        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin| {
+        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin, _: &Record| {
             let (inbound, supply) = carrying_traced(request);
             let program: Program = Box::new(|child: &mut Ctx, _args| {
                 child.write_output(b"ok").expect("a buffer");
@@ -13874,7 +14100,7 @@ pub(crate) mod tests {
     /// reads all of it.
     #[test]
     fn a_spool_request_line_cuts_a_request_body_read_past_request_body() {
-        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin| {
+        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin, _: &Record| {
             let (inbound, supply) = carrying_traced(request);
             let program: Program = Box::new(|child: &mut Ctx, _args| {
                 let mut said = b"read=".to_vec();
@@ -13930,7 +14156,7 @@ pub(crate) mod tests {
     /// up to that size and says it was cut, while the client gets all of it.
     #[test]
     fn a_spool_request_line_cuts_a_response_body_past_request_body() {
-        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
+        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin, _: &Record| {
             Reply::Done(Response::new(Answer::new(Bytes::from_static(
                 b"twelve bytes",
             ))))
@@ -13961,7 +14187,7 @@ pub(crate) mod tests {
     fn a_spool_request_line_records_a_streamed_body_as_body_lines() {
         const SENT: usize = (3 << 20) / 2;
         const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
-        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin| {
+        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin, _: &Record| {
             let (inbound, supply) = carrying_traced(request);
             let program: Program = Box::new(|child: &mut Ctx, _args| {
                 let cell = child
@@ -14046,7 +14272,7 @@ pub(crate) mod tests {
     /// spool.
     #[test]
     fn a_production_spool_request_line_records_no_input_and_no_response() {
-        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
+        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin, _: &Record| {
             let mut response = Response::new(Answer::new(Bytes::from_static(b"prod-body-value")));
             response.headers_mut().insert(
                 hyper::header::SET_COOKIE,
@@ -14095,7 +14321,7 @@ pub(crate) mod tests {
     /// under the request's trace id, while its `request` line has no input and no response.
     #[test]
     fn a_production_request_records_its_events_and_dumps_but_no_input() {
-        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin| {
+        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin, _: &Record| {
             let (inbound, supply) = carrying_traced(request);
             let program: Program = Box::new(|child: &mut Ctx, _args| {
                 child.record_query(
@@ -14246,72 +14472,74 @@ pub(crate) mod tests {
 
         let refused: Rc<RefCell<Option<Box<str>>>> = Rc::new(RefCell::new(None));
         let noted = Rc::clone(&refused);
-        let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
-            let mut inbound =
-                nvs_runtime::Inbound::new(request.method().as_str(), request.uri().path(), "");
-            for (name, value) in request.headers() {
-                inbound.push_header(name.as_str(), value.as_bytes());
-            }
-            let noted = Rc::clone(&noted);
-            let program: Program = Box::new(move |child: &mut Ctx, _args| {
-                let cell = child
-                    .inbound()
-                    .and_then(nvs_runtime::Inbound::response_stream_slot)
-                    .cloned()
-                    .expect("a served request was offered no response-stream cell");
-                let (emit, window) = match length {
-                    Some(total) => {
-                        let asked = child
-                            .inbound()
-                            .map(|inbound| {
-                                nvs_runtime::conditional::Asked::from_fields(inbound.headers())
-                            })
-                            .unwrap_or_default();
-                        let ranged = nvs_runtime::conditional::ranged(asked, etag, total);
-                        let (emit, window) = cell
-                            .open_ranged("video/mp4", None, Vec::new(), None, ranged)
-                            .expect("the first stream on a request opens");
-                        child.set_stream_window(Some(window));
-                        (emit, Some(window))
+        let handler = Rc::new(
+            move |request: Request<Incoming>, _origin: Origin, _: &Record| {
+                let mut inbound =
+                    nvs_runtime::Inbound::new(request.method().as_str(), request.uri().path(), "");
+                for (name, value) in request.headers() {
+                    inbound.push_header(name.as_str(), value.as_bytes());
+                }
+                let noted = Rc::clone(&noted);
+                let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                    let cell = child
+                        .inbound()
+                        .and_then(nvs_runtime::Inbound::response_stream_slot)
+                        .cloned()
+                        .expect("a served request was offered no response-stream cell");
+                    let (emit, window) = match length {
+                        Some(total) => {
+                            let asked = child
+                                .inbound()
+                                .map(|inbound| {
+                                    nvs_runtime::conditional::Asked::from_fields(inbound.headers())
+                                })
+                                .unwrap_or_default();
+                            let ranged = nvs_runtime::conditional::ranged(asked, etag, total);
+                            let (emit, window) = cell
+                                .open_ranged("video/mp4", None, Vec::new(), None, ranged)
+                                .expect("the first stream on a request opens");
+                            child.set_stream_window(Some(window));
+                            (emit, Some(window))
+                        }
+                        None => (
+                            cell.open("video/mp4", None, Vec::new(), None)
+                                .expect("the first stream on a request opens"),
+                            None,
+                        ),
+                    };
+                    child.set_body_stream(emit);
+                    let (at, len) = window.map_or((0, RANGED_BODY.len()), |window| {
+                        (
+                            usize::try_from(window.offset()).expect("a small offset"),
+                            usize::try_from(window.length()).expect("a small length"),
+                        )
+                    });
+                    let mut parts = vec![&RANGED_BODY[at..at + len]];
+                    match writes {
+                        Writes::Window => {}
+                        Writes::PastTheWindow => parts.push(b"!"),
+                        Writes::HalfTheWindow => parts = vec![&RANGED_BODY[at..at + len / 2]],
                     }
-                    None => (
-                        cell.open("video/mp4", None, Vec::new(), None)
-                            .expect("the first stream on a request opens"),
-                        None,
-                    ),
-                };
-                child.set_body_stream(emit);
-                let (at, len) = window.map_or((0, RANGED_BODY.len()), |window| {
-                    (
-                        usize::try_from(window.offset()).expect("a small offset"),
-                        usize::try_from(window.length()).expect("a small length"),
-                    )
+                    for part in parts {
+                        if let Err(past) = child.claim_stream_bytes(part.len()) {
+                            *noted.borrow_mut() = Some(past);
+                            continue;
+                        }
+                        child
+                            .body_stream()
+                            .expect("the writing half was just set")
+                            .send(part.to_vec())
+                            .expect("the connection takes each part");
+                    }
+                    Value::null()
                 });
-                let mut parts = vec![&RANGED_BODY[at..at + len]];
-                match writes {
-                    Writes::Window => {}
-                    Writes::PastTheWindow => parts.push(b"!"),
-                    Writes::HalfTheWindow => parts = vec![&RANGED_BODY[at..at + len / 2]],
-                }
-                for part in parts {
-                    if let Err(past) = child.claim_stream_bytes(part.len()) {
-                        *noted.borrow_mut() = Some(past);
-                        continue;
-                    }
-                    child
-                        .body_stream()
-                        .expect("the writing half was just set")
-                        .send(part.to_vec())
-                        .expect("the connection takes each part");
-                }
-                Value::null()
-            });
-            Reply::Run(
-                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
-                None,
-                None,
-            )
-        });
+                Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                    None,
+                    None,
+                )
+            },
+        );
         let mut sched = nvs_host::Scheduler::new();
         let _installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));

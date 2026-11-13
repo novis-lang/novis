@@ -32,8 +32,9 @@
 //! clones the `Arc` and dropped when the last of them finishes. A publish holds one per distinct
 //! chain of blocks plus the host's, and one map entry per entry file it resolved. That is
 //! O(in-flight publishes), which is one plus however many outlived a reload, and never
-//! O(requests). Per request it is an `RwLock` read and an `Arc` clone at start, and one map lookup
-//! for the entry's snapshot.
+//! O(requests). Per request it is one load of [`Current::generation`] where a server core keeps
+//! its own record of the set, or an `RwLock` read and an `Arc` clone where a reader does not, and
+//! one map lookup for the entry's snapshot.
 //!
 
 use std::collections::{BTreeMap, HashMap};
@@ -769,14 +770,20 @@ impl Current {
             shared::wrote(shared::Line::CurrentLock, 2);
             shared::wrote(shared::Line::Publish, 2);
         }
-        let set = self.set.read().expect("the snapshot lock is never poisoned");
+        let set = self
+            .set
+            .read()
+            .expect("the snapshot lock is never poisoned");
         (self.generation(), Arc::clone(&set))
     }
 
     /// Stores `set` and moves the generation, both under the write lock: the one way a set is
     /// published.
     fn swap(&self, set: Published) {
-        let mut held = self.set.write().expect("the snapshot lock is never poisoned");
+        let mut held = self
+            .set
+            .write()
+            .expect("the snapshot lock is never poisoned");
         *held = Arc::new(set);
         self.generation.fetch_add(1, Ordering::Release);
     }
@@ -793,7 +800,12 @@ impl Current {
             shared::wrote(shared::Line::CurrentLock, 2);
             shared::wrote(shared::Line::Publish, 2);
         }
-        Arc::clone(&self.set.read().expect("the snapshot lock is never poisoned"))
+        Arc::clone(
+            &self
+                .set
+                .read()
+                .expect("the snapshot lock is never poisoned"),
+        )
     }
 
     /// The host's snapshot serving now, for a request to hold for its whole life.
@@ -886,7 +898,12 @@ impl Current {
         let mut next = next;
         let boot = self.load().carry_boot(&mut next, keep)?;
         let snapshot = Arc::new(next);
-        self.swap(Published::new(Arc::clone(&snapshot), blocks, entries, files)?);
+        self.swap(Published::new(
+            Arc::clone(&snapshot),
+            blocks,
+            entries,
+            files,
+        )?);
         Ok(Reload { snapshot, boot })
     }
 }
