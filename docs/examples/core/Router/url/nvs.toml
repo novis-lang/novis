@@ -1,0 +1,12 @@
+# The server serves files from this folder. Example 04 is mounted at /blog,
+# and the start file of the shop is mounted at /shop.
+[server]
+root = "."
+
+[[server.mount]]
+prefix = "/blog"
+entry  = "04-a-link-to-another-module.nvs"
+
+[[server.mount]]
+prefix = "/shop"
+entry  = "shop/public/index.nvs"

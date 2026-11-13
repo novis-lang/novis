@@ -166,6 +166,49 @@ not a CDN: there is no `max-age` and no precompressed lookup.
 
 <!-- src: `rule:http-server/static-serving-is-one-policy` -->
 
+# Links between modules
+
+A module is one program on the server, with its own entry file. A module can link to a route of
+another module. It declares the other module's classes with `autoload links`. Novis reads those
+classes for their routes only. It does not compile them, and your program cannot call them.
+
+```nvs
+autoload 'Framework\{..}' from '../src';                 // this module's own classes
+autoload links discover 'Framework' from '../../*/src';  // every module, for links only
+
+use Framework\Shop\View\Index;
+
+echo Core\Router::url(Index::show, ['id' => 3]);         // /base/shop/item/3
+```
+
+The compiler checks the link the same way it checks a link inside one program. The method must
+exist and have a `#[Route]`, and every capture needs a value. The server then picks the mount the
+link goes through. It takes the first of these that serves the route:
+
+1. A mount from the same `[[server.mount]]` block. All modules of one `scan` are one block.
+2. A mount on the same host. The link is a path.
+3. A mount on another host that has an `origin`. The link starts with that origin.
+
+When two mounts match at the same step, the one whose block has `canonical = true` is used:
+
+```toml
+[[server.mount]]
+prefix    = "/shop"
+entry     = "Shop/public/index.nvs"
+canonical = true                    # the main mount of this entry
+```
+
+- With no `canonical` mount, or with two, the server does not start. The message names both blocks
+  and the route. Two mounts of one entry that no link needs are allowed.
+- Two `canonical = true` blocks for one entry are an error, also when no link needs them.
+- A link to a module that does not compile throws an error when it runs. The other modules still
+  start.
+- `nvs config check --mounts` prints every mount and the mount each link goes through.
+- `Core\Router::urlSigned` cannot link to another module. The module that checks a signature must
+  also create it.
+
+<!-- src: `rule:routing/a-link-reaches-another-module`, `rule:http-server/a-canonical-mount-breaks-a-tie` -->
+
 # What a program reads about its door
 
 The matched prefix is stripped before the program runs, so `Core\Request::path()` is the

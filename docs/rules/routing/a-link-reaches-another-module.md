@@ -27,9 +27,10 @@ deployment compiles. **A target row that did not compile does not stop the serve
 logged at boot and throws when it runs, naming the handler and the mount, until a pass compiles the
 target (`rule:http-server/a-mount-table-expands-at-boot`).
 
-The one place a links-root name may be written is the route argument of `url` and `urlAbsolute`.
-Anywhere else it is `E0897`, and `urlSigned` and `signedRoute` never take one
-(`rule:core-classes/router-signed-url`).
+A links-root name may be written in two places: the route argument of `url` and `urlAbsolute`, and
+a `use` import of a class the program links to, so a namespaced file links by the short name. An
+import calls nothing. Anywhere else the name is `E0897`, and `urlSigned` and `signedRoute` never take
+one (`rule:core-classes/router-signed-url`).
 
 **What it spends:** O(rows × links-root handlers) per expansion of the mount table, shared by every
 request of a row. Nothing is held per request.

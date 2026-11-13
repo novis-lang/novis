@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-stdlib/src/test.rs, crates/nvs-lsp/src/definition.rs, crates/nvs-lsp/src/completion.rs, docs/rules/testing/in-process-request.md]
   - id: 5
     title: two modules link under nvs serve, and the feature has its proofs
-    status: open
+    status: done
     context: [crates/nvs-cli/tests/per_mount_config.rs, docs/examples/tools/server/mounts-which-file-answers-a-request/about.md, docs/examples/core/Router/url/about.md, docs/examples/lang/programs/autoload-find-a-class-by-its-namespace/about.md, tools/nv/proofs/roster.ts]
   - id: 6
     title: the rules, the reference, the website and nvs agent show say all of it
@@ -392,24 +392,25 @@ reads* and runs `bun nv proofs --comments` on its own files. None of them builds
   `prefix = "/base/{1:lower}"`, an explicit second mount `/shop.second` of `Shop`'s entry, and a host
   mount on `shop.example.com` (`crates/nvs-cli/tests/links_between_modules.rs:1`).
 - [x] Its three tests, named in check `two-modules-link-under-nvs-serve`.
-- [ ] New example folder `docs/examples/tools/server/links-between-modules/`: `about.md`, `nvs.toml`,
+- [x] New example folder `docs/examples/tools/server/links-between-modules/`: `about.md`, `nvs.toml`,
   two modules, and three numbered examples with `.nvsr` requests: a link between two scanned modules,
   a link to another host, and `canonical` choosing between two mounts
   (`docs/examples/tools/server/links-between-modules/about.md:1`).
-- [ ] Attack `tests/hostile/tools/server/links-between-modules/01-a-module-uses-a-links-root-class.nvs`:
-  a module tries to call, construct and sign through a class it may only link to, and each attempt
-  does not compile (`tests/hostile/tools/server/links-between-modules/01-a-module-uses-a-links-root-class.nvs:1`).
-- [ ] Bench `benches/members/tools/server/links-between-modules.nvs`: one link to another module per
+- [x] Attacks `tests/hostile/tools/server/links-between-modules/01-call-a-method-of-another-module.nvs`,
+  `02-create-an-object-of-another-module.nvs` and `03-sign-a-link-to-another-module.nvs`: a module
+  tries to call, construct and sign through a class it may only link to, and each attempt does not
+  compile. One file each, because an `expect-refusal` attack cannot name its code.
+- [x] Bench `benches/members/tools/server/links-between-modules.nvs`: one link to another module per
   operation, with its growth (`benches/members/tools/server/links-between-modules.nvs:1`).
-- [ ] Example `05-link-to-another-module.nvs` in the autoload folder, showing `autoload links discover`
+- [x] Example `05-link-to-another-module.nvs` in the autoload folder, showing `autoload links discover`
   (`docs/examples/lang/programs/autoload-find-a-class-by-its-namespace/about.md:1`). Example
   `04-a-link-to-another-module.nvs` in `docs/examples/core/Router/url/`
   (`docs/examples/core/Router/url/about.md:1`). Example `02` with `canonical` in
   `docs/examples/tools/server/mounts-which-file-answers-a-request/`
   (`docs/examples/tools/server/mounts-which-file-answers-a-request/about.md:1`). Each `about.md`
   gains one sentence for it.
-- [ ] The help text for `nvs config check --mounts` (`crates/nvs-cli/src/config.rs:60`).
-- [ ] `bun nv proofs --id tools:server/links-between-modules` and `bun nv proofs --id 'Core\Router::url'`
+- [x] The help text for `nvs config check --mounts` (`crates/nvs-cli/src/config.rs:60`).
+- [x] `bun nv proofs --id tools:server/links-between-modules` and `bun nv proofs --id 'Core\Router::url'`
   each print `complete.` (`tools/nv/proofs/roster.ts:433`).
 
 ### 6. the rules, the reference, the website and nvs agent show say all of it
@@ -453,41 +454,39 @@ users. The session then runs `bun nv render --website` once.
 
 ### State
 
-Stages 1 to 4 are done, and the stage 4 check's two tests pass.
+Stages 1 to 5 are done. Stage 5's three end-to-end tests pass, and both proofs checks print
+`complete.`. Every example and attack of `tools:server/links-between-modules`, `Core\Router::url`,
+the mounts feature and the autoload feature passes under `bun nv proofs --run`.
 
-- Server: boot links every row after the compile loop (`crates/nvs-cli/src/serve.rs:590`), reload
-  in `linked` (`crates/nvs-cli/src/serve/mounts.rs:393`), both through `link_rows`
-  (`crates/nvs-cli/src/serve.rs:2523`) and `nvs_config::mount::links_of`. `at_mount_origin` puts
-  the table on the isolate, and `crates/nvs-stdlib/src/router.rs:1623` reads it.
-- `nvs config check`: `mount_links` (`crates/nvs-cli/src/config.rs:1557`); `--mounts` prints
-  `mount_lines`.
-- Test request: the `Answering` seam (`crates/nvs-runtime/src/inproc.rs:56`) has `mounts`,
-  `module_links`, and `answer` takes the links. `UnderTest::with_mounts`
-  (`crates/nvs-cli/src/runner.rs:1367`) expands the table and compiles each row once, only for a
-  unit that links to another module. `links_through` (`crates/nvs-stdlib/src/test.rs:2975`) picks
-  the row by the `mount` key and calls `links_of`.
-- Editor: `LinkRoute::name` is the method name's span. `linked_at`
-  (`crates/nvs-lsp/src/definition.rs:185`) answers go to definition, and hover's `linked_route`
-  shows the handler and the route path.
-
-A target module's entry has to call `Core\Router` to serve its routes as link targets
-(`rule:routing/table-is-opt-in`). The sweep's `env-secret-proofs` has no check and no log, so it is
-stale. The nightly's jobs were cancelled by a later push.
+- End to end: `crates/nvs-cli/tests/links_between_modules.rs:1`. The host test links from `Shop`'s
+  host mount to `Blog`, whose scan row has an origin.
+- A `use` import may name a links-root class the program links to
+  (`crates/nvs-hir/src/resolve.rs:268`), recorded in Standing decisions and the rule.
+- `with_mounts` (`crates/nvs-cli/src/runner.rs:1373`) takes the config's origins, so a relative
+  `[server] root` resolves against its file. `nvs run --request` gets the table of the row its mount
+  and `Host` name (`crates/nvs-cli/src/main.rs:1834`), through `Mounts::links_for`
+  (`crates/nvs-runtime/src/inproc.rs:140`), which `Core\Test::request` calls too.
+- `docs/reference/tools/25-server.md:169` is the feature's heading. The perf ledger's last
+  `Core\Router::url` record (4.7 µs/op) is the quiet one; the one before it ran under load.
+- A target module's entry calls `Core\Router::dispatch` to serve its routes as link targets
+  (`rule:routing/table-is-opt-in`). The sweep's `env-secret-proofs` is stale, and the nightly's jobs
+  were cancelled by a later push.
 
 ### Next
 
-Stage 5. First the end-to-end tests, then the proofs, as its **Split:** says:
+Stage 6, three writing subagents as its **Split:** says, then `bun nv render --website` once:
 
-- `crates/nvs-cli/tests/links_between_modules.rs:1`: new file on the harness of
-  `crates/nvs-cli/tests/per_mount_config.rs:385`, with `Blog` and `Shop` under one scan
-  `prefix = "/base/{1:lower}"`, a second mount of `Shop`'s entry, and a host mount. Its three tests
-  are the ones check `two-modules-link-under-nvs-serve` names. Each module's entry calls
-  `Core\Router::dispatch` so its routes are in its table.
-- `docs/examples/tools/server/links-between-modules/about.md:1`, the attack, the bench and the three
-  examples in existing folders: three writing subagents on disjoint files, then
-  `bun nv proofs --id tools:server/links-between-modules` and `bun nv proofs --id 'Core\Router::url'`.
+- `website/src/content/docs/guides/how-to-use/modules.mdx:1`: the new page, with links from
+  `project-layout.mdx:30` and `configuration.mdx:37`. The example folder
+  `docs/examples/tools/server/links-between-modules/` is a working model of the table.
+- `website/src/content/docs/syntax/programs/namespaces.mdx:14` and `routes.mdx:100`.
+- `docs/reference/tools/25-server.md:169`: the section exists; review it against the stage 6 item
+  and tick it. `docs/reference/core/Router.md:1` and the cards at
+  `crates/nvs-stdlib/src/router.rs:441`, `:459`, `:474`. Mention that `use` may name a links class.
+- `bun nv brief --where canonical`, then the `docs/reference/lang/` render.
 
-No existing test is expected red. `the_rendered_map_names_what_was_skipped_and_what_was_shadowed`
+`llms-full.txt` is stale until the render, since `25-server.md` changed. No existing test is expected
+red. `the_rendered_map_names_what_was_skipped_and_what_was_shadowed`
 (with its `links (0)` line) has still not run.
 
 ### Backlog

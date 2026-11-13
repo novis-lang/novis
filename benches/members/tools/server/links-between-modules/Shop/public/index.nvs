@@ -1,0 +1,24 @@
+<?nvs
+// The entry of the shop module. It answers the requests for its pages.
+
+autoload 'Framework\Shop' from '../src';
+
+class Open implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'refused';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'failed';
+    }
+}
+
+Core\Router::dispatch(new Open());

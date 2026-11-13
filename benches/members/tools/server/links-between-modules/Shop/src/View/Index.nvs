@@ -1,0 +1,21 @@
+<?nvs
+// The pages of the shop module. The bench links to them from another module.
+
+namespace Framework\Shop\View;
+
+class Index
+{
+    #[Core\Route(path: '/item/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(uint $id): void
+    {
+        echo 'one item';
+    }
+
+    #[Core\Route(path: '/page/{slug}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function page(string $slug): void
+    {
+        echo 'one page';
+    }
+}

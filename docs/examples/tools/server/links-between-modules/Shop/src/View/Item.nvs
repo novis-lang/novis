@@ -1,0 +1,12 @@
+<?nvs
+namespace Framework\Shop\View;
+
+class Item
+{
+    #[Core\Route(path: '/item/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(int $id): void
+    {
+        echo 'item ', $id;
+    }
+}

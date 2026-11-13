@@ -1,0 +1,17 @@
+<?nvs
+// Attack: a program reads another module with `autoload links` and calls a method of
+// its class. With `autoload links`, a class is only for links, so the program should not compile.
+// hostile: expect-refusal
+
+autoload links 'Framework\Shop' from './Shop/src';
+
+use Framework\Shop\View\Index;
+
+// 1. Creates a link to the route of the other module. This line is allowed.
+echo Core\Router::url(Index::show, ['id' => 3]), "\n";
+
+// 2. Calls a method of the same class. This is not allowed.
+echo Index::price(), "\n";
+
+// 3. Calls the route method directly with its full class name. This is not allowed either.
+Framework\Shop\View\Index::show(3);

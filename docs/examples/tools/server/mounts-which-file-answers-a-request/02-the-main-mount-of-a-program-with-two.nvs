@@ -1,0 +1,19 @@
+<?nvs
+// Shows how `canonical = true` chooses the mount of a link when one program has two mounts.
+// The `nvs.toml` next to this file mounts the documentation at `/docs` and at `/help`.
+
+// `autoload links` reads the classes of the documentation only to find their routes.
+autoload links 'Docs' from './docs/src';
+
+use Core\Http\Method;
+use Docs\Page;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // Both mounts serve this route. The `/docs` mount sets `canonical = true`, so the link uses it.
+    echo Core\Router::url(Page::show, ['name' => 'install']);
+} else {
+    // From the command line, this part sends one request to the mount `/blog`.
+    // This prints `/docs/page/install`.
+    var $page = Core\Test::request(Method::Get, '/', { mount: '/blog' });
+    echo $page->body(), "\n";
+}

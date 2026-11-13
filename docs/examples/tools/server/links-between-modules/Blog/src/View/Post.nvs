@@ -1,0 +1,12 @@
+<?nvs
+namespace Framework\Blog\View;
+
+class Post
+{
+    #[Core\Route(path: '/post/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(int $id): void
+    {
+        echo 'post ', $id;
+    }
+}

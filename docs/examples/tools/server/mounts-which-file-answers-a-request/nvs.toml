@@ -1,8 +1,24 @@
-# The server serves files from this folder. The mount sends every URL
-# that starts with /shop to the example program.
+# The server serves files from this folder. The first mount sends every URL
+# that starts with /shop to example 01.
 [server]
 root = "."
 
 [[server.mount]]
 prefix = "/shop"
 entry  = "01-one-file-for-every-path-under-a-prefix.nvs"
+
+# Example 02 is mounted at /blog.
+[[server.mount]]
+prefix = "/blog"
+entry  = "02-the-main-mount-of-a-program-with-two.nvs"
+
+# The documentation has two mounts. A link to it uses /docs,
+# because that mount sets `canonical = true`.
+[[server.mount]]
+prefix    = "/docs"
+entry     = "docs/public/index.nvs"
+canonical = true
+
+[[server.mount]]
+prefix = "/help"
+entry  = "docs/public/index.nvs"

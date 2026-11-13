@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/
+--MOUNT--
+/news
+--HEADERS--
+host: www.example.com

@@ -828,6 +828,14 @@ is not an empty one. `mount` is the prefix the request came in under, `""` for t
 mount row, so `captures` without a `mount`, or keyed by anything but position, is a `LogicError`:
 the root has no pattern to capture.
 
+**A test request gives the link to another module that `nvs serve` gives.** Where the unit links to
+a route of an `autoload links` root and the configuration the test run reads writes a
+`[[server.mount]]` table, the run expands that table and compiles each row's entry once, as the boot
+does. The `mount` key picks the served row by its prefix, the row with no host first, and each link
+is resolved by the function the server calls ([`routing/a-link-reaches-another-module`](routing.md#routing-a-link-reaches-another-module)). With
+no mount table, or a `mount` no row has, the link throws and names its handler. A tie no `canonical`
+breaks leaves the link out, so it throws too, where `nvs serve` would refuse to boot.
+
 The response is a `Core`-owned instance whose readings are members, so a status is `status()` and
 never a property: `status(): uint`, `body(): string`, `header(string $name): ?string`, `headers():
 array<array<string>>`, `cookies(): array<string>`, `json({maxDepth?: uint}): mixed` and

@@ -13,6 +13,9 @@ A prefix can also contain `{..}`. In `autoload 'Site\{..}' from '../src';`, `{..
 the name of the folder that `..` points to from this file. If the file is in `Blog/public`, the
 prefix is `Site\Blog`.
 
+`autoload links` reads a folder only to find its routes. Your program can link to these routes but
+cannot call their classes.
+
 **Good to know:** every `autoload` declaration is read when the program is compiled. A class that
 cannot be found stops the compile with an error. `nvs check --autoload-map` shows which folders
 each prefix uses.

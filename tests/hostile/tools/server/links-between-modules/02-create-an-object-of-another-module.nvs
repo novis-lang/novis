@@ -1,0 +1,20 @@
+<?nvs
+// Attack: a program reads another module with `autoload links` and creates an object of
+// its class. With `autoload links`, a class is only for links, so the program should not compile.
+// hostile: expect-refusal
+
+autoload links 'Framework\Shop' from './Shop/src';
+
+use Framework\Shop\View\Index;
+
+// 1. Uses the class as the type of a parameter.
+class Holder
+{
+    public static function take(Index $page): void
+    {
+        echo 'taken', "\n";
+    }
+}
+
+// 2. Creates an object of the class with `new` and passes it on.
+Holder::take(new Index());

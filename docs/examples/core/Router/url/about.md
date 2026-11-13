@@ -14,5 +14,5 @@ instance method, write `$shop->order(...)`. A variable whose method has no `#[Ro
 
 If a path changes, you change it in the `#[Route]` only. Every link to that method follows it.
 
-The examples show a link with one capture, values that become the query string, and the links of a
-menu.
+The examples show a link with one capture, values that become the query string, the links of a
+menu, and a link to another module.

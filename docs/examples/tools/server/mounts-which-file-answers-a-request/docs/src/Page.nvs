@@ -1,0 +1,12 @@
+<?nvs
+namespace Docs;
+
+class Page
+{
+    #[Core\Route(path: '/page/{name}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(string $name): void
+    {
+        echo 'page ', $name;
+    }
+}

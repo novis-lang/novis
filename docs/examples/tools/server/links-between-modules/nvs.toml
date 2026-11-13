@@ -1,0 +1,36 @@
+# The server serves files from this folder.
+[server]
+root = "."
+
+# The scan mounts each module of this folder on www.example.com:
+# Blog at /blog and Shop at /shop.
+[[server.mount]]
+host   = "www.example.com"
+scan   = "*/public/index.nvs"
+prefix = "/{1:lower}"
+origin = "https://www.example.com"
+
+# The blog has a new address. The old address /blog still works.
+# `canonical = true` makes every link to the blog use the new address.
+[[server.mount]]
+host      = "www.example.com"
+prefix    = "/journal"
+entry     = "Blog/public/index.nvs"
+canonical = true
+
+# Example 1 is a news page on the same host as the modules.
+[[server.mount]]
+host   = "www.example.com"
+prefix = "/news"
+entry  = "01-a-link-to-a-module-on-the-same-host.nvs"
+
+# Example 2 is a help page on another host.
+[[server.mount]]
+host  = "help.example.com"
+entry = "02-a-link-to-a-module-on-another-host.nvs"
+
+# Example 3 is a start page on the same host as the modules.
+[[server.mount]]
+host   = "www.example.com"
+prefix = "/start"
+entry  = "03-canonical-picks-one-of-two-mounts.nvs"

@@ -1,0 +1,20 @@
+<?nvs
+// Shows how a program builds a link to a page of another module.
+// The `nvs.toml` next to this file mounts this file at `/blog` and the Shop module at `/shop`.
+
+// `autoload links` reads the folder of each module only to find its routes.
+// The program can build a link to a route of these classes. It cannot call their methods.
+autoload links discover 'Site' from './modules/*/src';
+
+use Core\Http\Method;
+use Site\Shop\Cart;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // The server mounts the Shop module at `/shop`, so the link starts with `/shop`.
+    echo Core\Router::url(Cart::show, ['id' => 3]);
+} else {
+    // From the command line, this part sends one request to the mount `/blog`.
+    // This prints `/shop/cart/3`.
+    var $page = Core\Test::request(Method::Get, '/', { mount: '/blog' });
+    echo $page->body(), "\n";
+}

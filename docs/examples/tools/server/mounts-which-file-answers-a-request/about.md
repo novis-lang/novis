@@ -7,7 +7,7 @@ the server uses the one with the longest prefix. When no mount matches, the serv
 The server removes the prefix before the program runs, so `Core\Request::path()` returns only the
 part after the prefix. The same program therefore works under `/shop` and under `/`. A mount with
 `scan` in place of `entry` is a pattern for many files. The server creates one mount for each file
-that matches the pattern.
+that matches the pattern. A link uses the mount with `canonical = true` when two mounts serve it.
 
 **In plain words:** a mount is the sign at the entrance of a building. The sign says which office
 receives the visitors of each department.

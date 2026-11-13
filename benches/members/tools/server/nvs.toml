@@ -1,0 +1,11 @@
+# Two modules on one server. The bench is the blog module, and it links to the shop module.
+[server]
+root = "."
+
+[[server.mount]]
+prefix = "/blog"
+entry = "links-between-modules.nvs"
+
+[[server.mount]]
+prefix = "/shop"
+entry = "links-between-modules/Shop/public/index.nvs"

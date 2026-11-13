@@ -1,0 +1,12 @@
+<?nvs
+namespace Site\Shop;
+
+class Cart
+{
+    #[Core\Route(path: '/cart/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(int $id): void
+    {
+        echo 'cart ', $id;
+    }
+}

@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to build the link to a route of another program on the same server.
+// The `nvs.toml` next to this file mounts this file at `/blog` and the shop at `/shop`.
+
+// `autoload links` reads the classes of the shop only to find their routes.
+autoload links 'Shop' from './shop/src';
+
+use Core\Http\Method;
+use Shop\Cart;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // The link starts with `/shop`, the prefix of the mount that serves the shop.
+    // `page` is a `#[Core\Query]` parameter of the route, so it goes into the query string.
+    echo Core\Router::url(Cart::show, ['id' => 3, 'page' => 2]);
+} else {
+    // From the command line, this part sends one request to the mount `/blog`.
+    // This prints `/shop/cart/3?page=2`.
+    var $page = Core\Test::request(Method::Get, '/', { mount: '/blog' });
+    echo $page->body(), "\n";
+}

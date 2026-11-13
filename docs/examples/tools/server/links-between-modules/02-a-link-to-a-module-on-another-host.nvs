@@ -1,0 +1,9 @@
+<?nvs
+// Shows a link from a program on `help.example.com` to a module on `www.example.com`.
+autoload links discover 'Framework' from '*/src';
+
+use Framework\Shop\View\Item;
+
+// Shop is on another host, so the link starts with the `origin` of its mount.
+// This prints "https://www.example.com/shop/item/3".
+echo Core\Router::url(Item::show, ['id' => 3]), "\n";

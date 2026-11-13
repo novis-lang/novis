@@ -283,6 +283,7 @@ fn write_file(path: &Path, text: &str) {
 /// The first step: both modules are rows of one `scan`, so each links to the
 /// other through the shared `/base` prefix. Neither takes `Shop`'s second
 /// mount or its host mount.
+// covers: tools:server/links-between-modules
 #[test]
 fn two_scanned_modules_link_through_the_shared_prefix() {
     let server = Server::start("scan");
@@ -300,6 +301,7 @@ fn two_scanned_modules_link_through_the_shared_prefix() {
 
 /// A second mount of `Shop`'s entry links to its own routes under its own
 /// prefix. Its link to `Blog` takes the one row on the same host.
+// covers: tools:server/links-between-modules
 #[test]
 fn a_link_inside_a_second_mount_of_one_entry_stays_in_that_mount() {
     let server = Server::start("second");
@@ -313,6 +315,7 @@ fn a_link_inside_a_second_mount_of_one_entry_stays_in_that_mount() {
 /// The third step: under its host mount, `Shop` has no `Blog` row in its
 /// block or on its host, so its link to `Blog` is absolute with the origin of
 /// the row that serves `Blog`. Its own link stays a path.
+// covers: tools:server/links-between-modules
 #[test]
 fn a_link_to_a_module_on_another_host_carries_its_origin() {
     let server = Server::start("host");

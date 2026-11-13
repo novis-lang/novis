@@ -1,0 +1,14 @@
+<?nvs
+// Attack: a program signs a link to a route of another module. Only the module that
+// checks a signed link may create it, so the program should not compile.
+// hostile: expect-refusal
+
+autoload links 'Framework\Shop' from './Shop/src';
+
+use Framework\Shop\View\Index;
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+// 1. Signs a link to the route of the other module with `Core\Router::urlSigned`.
+echo Core\Router::urlSigned(Index::show, ['id' => 3], { keys: $keys, until: null }), "\n";

@@ -87,8 +87,9 @@ enum Command {
         programs: Vec<PathBuf>,
         /// Also print the mount table. Each line is one mount: its prefix, its
         /// host, the file it runs and the `[[server.mount]]` block it comes
-        /// from. Under a mount, each link to another module is printed with
-        /// the mount that link uses.
+        /// from. The word `canonical` follows a block that sets
+        /// `canonical = true`. Under a mount, each link to another module is
+        /// printed with the mount that link uses.
         // `rule:http-server/a-mount-table-expands-at-boot` and
         // `rule:routing/a-link-reaches-another-module`.
         #[arg(long)]

@@ -1,0 +1,19 @@
+<?nvs
+// A page of another module. The attacks link to its route and try to use it in other ways.
+
+namespace Framework\Shop\View;
+
+class Index
+{
+    #[Core\Route(path: '/item/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(int $id): void
+    {
+        echo 'item ', $id, "\n";
+    }
+
+    public static function price(): int
+    {
+        return 42;
+    }
+}

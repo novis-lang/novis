@@ -1,0 +1,48 @@
+<?nvs
+// Builds the link to a product page of another module, as a page of a blog does for each product it shows.
+// bench: iterations 256
+// bench: complexity constant
+
+autoload links 'Framework\Shop' from './links-between-modules/Shop/src';
+
+use Framework\Shop\View\Index;
+
+class Bench
+{
+    // Runs in the request. It builds `$rounds` links to the shop module.
+    public static function links(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $link = Core\Router::url(Index::show, ['id' => $total % 1000]);
+            // chained: the next id depends on this result
+            if ($link == '/shop/item/7') {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    // Sends one request to the blog module. The path of the request is the number of links to build.
+    public static function run(uint $rounds): uint
+    {
+        var $response = Core\Test::request(Core\Http\Method::Get, '/' . $rounds, { mount: '/blog' });
+        // A link that fails gives the status `500`. Then the bench stops with an error.
+        if ($response->status() != 200) {
+            throw new RuntimeError('the request failed with the status ' . $response->status());
+        }
+        return (Core\Str::trim($response->body()) as ?uint) ?? 0;
+    }
+}
+
+// The request runs this file again. In that run, this part builds the links.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    uint $rounds = (Core\Str::trim(Core\Request::path(), { characters: '/' }) as ?uint) ?? 0;
+    echo Bench::links($rounds);
+} else {
+    echo Bench::run(256), "\n";
+}
