@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-cli/tests/per_mount_config.rs, docs/examples/tools/server/mounts-which-file-answers-a-request/about.md, docs/examples/core/Router/url/about.md, docs/examples/lang/programs/autoload-find-a-class-by-its-namespace/about.md, tools/nv/proofs/roster.ts]
   - id: 6
     title: the rules, the reference, the website and nvs agent show say all of it
-    status: open
+    status: done
     context: [docs/reference/tools/25-server.md, docs/reference/core/Router.md, website/src/content/docs/syntax/programs/namespaces.mdx, website/src/content/docs/syntax/attributes/routes.mdx, website/src/content/docs/guides/how-to-use/configuration.mdx, website/src/content/docs/guides/how-to-use/project-layout.mdx, crates/nvs-cli/src/agent.rs]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
@@ -422,27 +422,27 @@ one writes the reference chapter and the `Core\Router` cards, and one checks the
 `brief --where`. Each is held to AGENTS.md § *Text an end user reads* where its files are read by
 users. The session then runs `bun nv render --website` once.
 
-- [ ] New website page `website/src/content/docs/guides/how-to-use/modules.mdx`, "Many modules on
+- [x] New website page `website/src/content/docs/guides/how-to-use/modules.mdx`, "Many modules on
   one server": the `scan` mount, one entry file per module with its own root, `autoload links discover`,
   a link between modules, a link to another host, and `canonical`. It gets a sidebar entry if the
   sidebar is not generated, and `project-layout.mdx` and `configuration.mdx` link to it
   (`website/src/content/docs/guides/how-to-use/project-layout.mdx:30`,
   `website/src/content/docs/guides/how-to-use/configuration.mdx:37`).
-- [ ] `namespaces.mdx` documents `autoload links` and the discover prefix
+- [x] `namespaces.mdx` documents `autoload links` and the discover prefix
   (`website/src/content/docs/syntax/programs/namespaces.mdx:14`). `routes.mdx` gets a section "Link to
   another module" (`website/src/content/docs/syntax/attributes/routes.mdx:100`).
-- [ ] The reference chapter's mount section documents `canonical`, the order a link picks its mount,
+- [x] The reference chapter's mount section documents `canonical`, the order a link picks its mount,
   `autoload links` and `nvs config check --mounts`. `nvs agent show` and `llms-full.txt` print this
   chapter (`docs/reference/tools/25-server.md:95`, `crates/nvs-cli/src/agent.rs:363`).
-- [ ] `docs/reference/core/Router.md` and the `url` and `urlAbsolute` cards say a link may name a route
+- [x] `docs/reference/core/Router.md` and the `url` and `urlAbsolute` cards say a link may name a route
   of another module, and the `urlSigned` card says it may not (`docs/reference/core/Router.md:1`,
   `crates/nvs-stdlib/src/router.rs:441`, `crates/nvs-stdlib/src/router.rs:459`,
   `crates/nvs-stdlib/src/router.rs:474`).
-- [ ] The language reference's autoload chapter that `bun nv render` writes into `docs/reference/lang/`
+- [x] The language reference's autoload chapter that `bun nv render` writes into `docs/reference/lang/`
   carries the new forms after a render. If it is hand-written, the section is edited.
-- [ ] `bun nv brief --where` finds the new rules by `link`, `module`, `another program` and
+- [x] `bun nv brief --where` finds the new rules by `link`, `module`, `another program` and
   `canonical`. A rule's title is reworded until it does.
-- [ ] `bun nv render --website` writes `llms-full.txt`, and the three checks of stage 6 are green.
+- [x] `bun nv render --website` writes `llms-full.txt`, and the three checks of stage 6 are green.
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -454,39 +454,30 @@ users. The session then runs `bun nv render --website` once.
 
 ### State
 
-Stages 1 to 5 are done. Stage 5's three end-to-end tests pass, and both proofs checks print
-`complete.`. Every example and attack of `tools:server/links-between-modules`, `Core\Router::url`,
-the mounts feature and the autoload feature passes under `bun nv proofs --run`.
+Stages 1 to 6 are done. Stage 6 landed in two commits: the `url`, `urlAbsolute` and `urlSigned`
+cards, `Router.md`, the autoload example's `about.md` and the link rule's title, then the website.
 
-- End to end: `crates/nvs-cli/tests/links_between_modules.rs:1`. The host test links from `Shop`'s
-  host mount to `Blog`, whose scan row has an origin.
-- A `use` import may name a links-root class the program links to
-  (`crates/nvs-hir/src/resolve.rs:268`), recorded in Standing decisions and the rule.
-- `with_mounts` (`crates/nvs-cli/src/runner.rs:1373`) takes the config's origins, so a relative
-  `[server] root` resolves against its file. `nvs run --request` gets the table of the row its mount
-  and `Host` name (`crates/nvs-cli/src/main.rs:1834`), through `Mounts::links_for`
-  (`crates/nvs-runtime/src/inproc.rs:140`), which `Core\Test::request` calls too.
-- `docs/reference/tools/25-server.md:169` is the feature's heading. The perf ledger's last
-  `Core\Router::url` record (4.7 µs/op) is the quiet one; the one before it ran under load.
-- A target module's entry calls `Core\Router::dispatch` to serve its routes as link targets
-  (`rule:routing/table-is-opt-in`). The sweep's `env-secret-proofs` is stale, and the nightly's jobs
-  were cancelled by a later push.
+- The guide page is `website/src/content/docs/guides/how-to-use/modules.mdx:1`, with three snippets
+  and a fixture under `website/snippets/guides/how-to-use/modules/`. Its `apps.term` runs
+  `nvs config check --mounts` and shows each link's mount.
+- The link rule's title lives in `data/rules/routing/a-link-reaches-another-module.json`, not in
+  `docs/rules/routing.md`, which `bun nv rules --render` writes.
+- `bun nv site --check` is green on a fresh `bun nv site --build`, and
+  `bun nv render --website --check` is green. `bun nv brief --where` finds the rules by `link`,
+  `module`, `another program` and `canonical`.
+- The sweep's `env-secret-proofs` names no check in the tree. The nightly's jobs were cancelled by a
+  later push.
 
 ### Next
 
-Stage 6, three writing subagents as its **Split:** says, then `bun nv render --website` once:
+Stage 7, the gate:
 
-- `website/src/content/docs/guides/how-to-use/modules.mdx:1`: the new page, with links from
-  `project-layout.mdx:30` and `configuration.mdx:37`. The example folder
-  `docs/examples/tools/server/links-between-modules/` is a working model of the table.
-- `website/src/content/docs/syntax/programs/namespaces.mdx:14` and `routes.mdx:100`.
-- `docs/reference/tools/25-server.md:169`: the section exists; review it against the stage 6 item
-  and tick it. `docs/reference/core/Router.md:1` and the cards at
-  `crates/nvs-stdlib/src/router.rs:441`, `:459`, `:474`. Mention that `use` may name a links class.
-- `bun nv brief --where canonical`, then the `docs/reference/lang/` render.
+- `docs/goals/links-between-modules.md:447`: start `looper verify` in the background, fix every
+  failure in one pass, run it once more. Then the goal-end gates of AGENTS.md § *In the loop*:
+  `bun nv verify --doc`, `bun nv owners --closes links-between-modules`, `bun nv ci --check`.
 
-`llms-full.txt` is stale until the render, since `25-server.md` changed. No existing test is expected
-red. `the_rendered_map_names_what_was_skipped_and_what_was_shadowed`
-(with its `links (0)` line) has still not run.
+No existing test is expected red. `the_rendered_map_names_what_was_skipped_and_what_was_shadowed`
+(with its `links (0)` line) has still not run, and the card text in
+`crates/nvs-stdlib/src/router.rs:443` may move a test that pins card text.
 
 ### Backlog
