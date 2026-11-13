@@ -130,11 +130,10 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **Faster writes to arrays and strings.** *Working on it now.* A write to a nested array, or an append to a string in a property, changes the value in place. The cost no longer grows with the size of the value.
-2. **A request path that scales with cores.** Each core keeps its own copy of what every request reads. Static files are read on a separate thread.
-3. **Checked links between modules.** `Core\Router::url` can link to a page of another module on the same server. The compiler checks the link, and the server adds the right prefix.
-4. **A JSON reader and writer made for Novis.** `Core\Json` reads and writes Novis values directly. The `nvs` binary also becomes smaller.
-5. **Scheduled jobs that run on server events.** A `[[schedule]]` entry can run its script when the server starts, stops or reloads. It can also run when a scheduled job or a queue job fails.
+1. **A request path that scales with cores.** *Working on it now.* Each core keeps its own copy of what every request reads. Static files are read on a separate thread.
+2. **Checked links between modules.** `Core\Router::url` can link to a page of another module on the same server. The compiler checks the link, and the server adds the right prefix.
+3. **A JSON reader and writer made for Novis.** `Core\Json` reads and writes Novis values directly. The `nvs` binary also becomes smaller.
+4. **Scheduled jobs that run on server events.** A `[[schedule]]` entry can run its script when the server starts, stops or reloads. It can also run when a scheduled job or a queue job fails.
 <!-- roadmap:end -->
 
 ## Contributing

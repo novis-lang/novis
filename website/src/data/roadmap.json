@@ -5,13 +5,6 @@
   ],
   "themes": [
     {
-      "title": "Faster writes to arrays and strings",
-      "text": "A write to a nested array, or an append to a string in a property, changes the value in place. The cost no longer grows with the size of the value.",
-      "goals": [
-        "in-place-writes"
-      ]
-    },
-    {
       "title": "A request path that scales with cores",
       "text": "Each core keeps its own copy of what every request reads. Static files are read on a separate thread.",
       "goals": [
