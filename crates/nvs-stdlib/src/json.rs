@@ -6456,6 +6456,11 @@ pub(crate) mod tests {
     /// of 64 KiB. The read is a loop on the caller's own stack, so no level
     /// takes a native frame.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "a read and a build of two documents at the ceiling, which is minutes under \
+                  Miri, and the ceiling is a constant"
+    )]
     fn a_typed_decode_reads_its_deepest_document_on_a_small_stack() {
         let levels = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize") - 1;
         let direct = format!(r#"{}null{}"#, r#"{"":"#.repeat(levels), "}".repeat(levels));
