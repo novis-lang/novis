@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-config/src/schedule.rs, crates/nvs-config/src/directive.rs, crates/nvs-config/src/default.toml, crates/nvs-config/tests/resolve.rs, docs/rules/config/cron-is-five-fields-and-nothing-more.md, docs/rules/config/scope-has-no-default.md, data/rules/config.json]
   - id: 2
     title: start and stop entries run, and every run reads one map
-    status: open
+    status: done
     context: [crates/nvs-cli/src/serve.rs, crates/nvs-stdlib/src/script.rs, docs/rules/concurrency/one-process-serves-requests-schedules-and-jobs.md, docs/rules/concurrency/a-drain-closes-a-connection-cleanly.md]
   - id: 3
     title: reload and failed entries run
@@ -222,28 +222,28 @@ what 2 and 3 build.
 **Does:** arm event entries beside cron entries, run `start` on the first pass and `stop` on the
 drain, and give every run the args map.
 
-- [ ] `Armed` carries a trigger, a cron expression or an event, and `arm` builds it with stage 1's
+- [x] `Armed` carries a trigger, a cron expression or an event, and `arm` builds it with stage 1's
   one parser. An `on` entry needs no `cron` and has no `next` (`crates/nvs-server/src/schedule.rs:138`,
   `crates/nvs-server/src/schedule.rs:409`, `crates/nvs-server/src/schedule.rs:430`).
-- [ ] `due` and `soonest` skip event entries, so a minute never runs one, and `carry_over` keeps an
+- [x] `due` and `soonest` skip event entries, so a minute never runs one, and `carry_over` keeps an
   event entry's running count (`crates/nvs-server/src/schedule.rs:598`,
   `crates/nvs-server/src/schedule.rs:691`).
-- [ ] `tick_on_this_core` runs each `start` entry once on its first pass, through the same `fire`
+- [x] `tick_on_this_core` runs each `start` entry once on its first pass, through the same `fire`
   and `overlap` path a cron entry takes (`crates/nvs-server/src/schedule.rs:641`,
   `crates/nvs-server/src/schedule.rs:881`).
-- [ ] On the drain, the tick runs each `stop` entry and then waits for every fire it started, up to
+- [x] On the drain, the tick runs each `stop` entry and then waits for every fire it started, up to
   `[server] drain_timeout`, before it returns. The `keep_ticking` closure keeps its meaning, and the
   wait is the drain's own deadline (`crates/nvs-cli/src/serve.rs:1526`,
   `crates/nvs-config/src/server.rs:225`).
-- [ ] `Fires::isolate` is told which trigger it fires for, and `Scheduled::isolate` hands the args map
+- [x] `Fires::isolate` is told which trigger it fires for, and `Scheduled::isolate` hands the args map
   in place of the name string (`crates/nvs-server/src/schedule.rs:310`,
   `crates/nvs-cli/src/serve.rs:2108`, `crates/nvs-cli/src/serve.rs:2163`).
-- [ ] Tests `a_start_entry_runs_once_on_the_first_pass`, `a_stop_entry_runs_on_the_drain_and_is_waited_for`
+- [x] Tests `a_start_entry_runs_once_on_the_first_pass`, `a_stop_entry_runs_on_the_drain_and_is_waited_for`
   and `a_minute_never_runs_an_event_entry` beside the ticker's own tests, with the injected clock
   (`crates/nvs-server/src/schedule.rs:1371`).
-- [ ] Test `every_scheduled_run_reads_one_map_from_its_args` beside the serve fire tests
+- [x] Test `every_scheduled_run_reads_one_map_from_its_args` beside the serve fire tests
   (`crates/nvs-cli/src/serve.rs:3485`).
-- [ ] `rule:config/a-scheduled-run-is-a-root-isolate` says the script reads the args map, and
+- [x] `rule:config/a-scheduled-run-is-a-root-isolate` says the script reads the args map, and
   `rule:concurrency/one-process-serves-requests-schedules-and-jobs` says the drain runs `stop`
   entries and waits for them (`docs/rules/config/a-scheduled-run-is-a-root-isolate.md:17`,
   `docs/rules/concurrency/one-process-serves-requests-schedules-and-jobs.md:12`).
@@ -320,35 +320,47 @@ on its own files. None of them builds.
 
 ### State
 
-Stage 1 is done. `Schedule` has `on`, and `nvs_config::schedule::validate` refuses both or neither
-of `cron` and `on`, an unknown `on` word, `on` with `scope = "fleet"` and `on` with `timezone`, each
-as `E0611` naming the entry and the file. `nvs_config::schedule::Event` (`Start`, `Stop`, `Reload`,
-`Failed`) with `Event::parse` and `Event::word` is the one home of the four words. The rule
-`config/an-entry-runs-on-a-server-event` is written with status `designed` and `goal: server-events`;
-stage 4 sets it `shipped` and drops `goal` once the server runs every event. `default.toml` shows the
-`on` key, and `bun nv directives --check-template` is green. The tests
-`an_event_entry_is_checked_at_boot` and `an_entry_names_exactly_one_of_cron_and_on` pass.
+Stages 1 and 2 are done. `Armed` carries a private `Trigger` (`Cron { cron, zone }` or `On(Event)`),
+and `arm` builds it with stage 1's two parsers; an `on` entry has `next = None`, so `due` and
+`soonest` never see it. The per-fire decision (`overlap`, then the `fleet` lease) is one function,
+`answer`, which minutes and events both take. `tick_on_this_core` runs each `start` entry on its
+first pass, after the first rearm, and on a `keep_ticking` break runs each `stop` entry, then waits
+for them up to its new last parameter `drain` and cancels a stop run still going then, with a note.
+A roster with no minute and no rearm now ends through the tail instead of returning with runs still
+in flight. `held` is `Cell<Option<Fired>>`, so a queued fire keeps what it ran for.
 
-An `on` entry boots today but is not armed: `nvs_server::schedule::arm` notes it as naming no `cron`
-(`crates/nvs-server/src/schedule.rs:432`). Stage 2 replaces that.
+`nvs_server::Fired` (`Cron`, `On(Event)`, `word()`) is what `Fires::isolate` is now told, and
+`serve.rs`'s `run_args` builds the args map `["name" => ..., "on" => ...]` every run reads; `nvs
+serve` passes `waits.drain` as the tick's drain. The stage 2 and 3 checks now run
+`cargo test --lib --bin nvs`, because `--lib` never builds the serve tests. `looper check --name
+start-and-stop-fire` is green, and both rule fragments say what stage 2 built.
 
-### Next
-
-Stage 2, start and stop entries run, and every run reads one map. Files:
-`crates/nvs-server/src/schedule.rs`, `crates/nvs-cli/src/serve.rs` and two rule fragments.
-
-- [ ] `crates/nvs-server/src/schedule.rs:411`: `arm` builds a trigger, `Cron` or `Event`, calling
-  `nvs_config::schedule::Event::parse`; `Armed` carries it.
-- [ ] `crates/nvs-server/src/schedule.rs:598`: `due`, `soonest` and `carry_over` handle event entries.
-- [ ] `crates/nvs-server/src/schedule.rs:641`: the first pass runs `start` entries.
-- [ ] `crates/nvs-cli/src/serve.rs:1544`: the drain runs `stop` entries and waits for them.
-- [ ] `crates/nvs-cli/src/serve.rs:2184`: the args map replaces `Value::text(entry.name())`.
-- [ ] The four stage 2 tests, then `docs/rules/config/a-scheduled-run-is-a-root-isolate.md:17`.
-
-Expected red once the args map lands: any test that reads a cron run's args as a string, in
-`crates/nvs-cli/src/serve.rs` and `crates/nvs-cli/tests/`. Stage 2 updates each as it goes.
+No test read a cron run's args as a string, so nothing went red from the map.
 
 The acceptance sweep's `env-secret-proofs` names no check in the tree; it is a stale entry in
 looper's service, and its log does not exist. The nightly's jobs were cancelled by later pushes.
+
+### Next
+
+Stage 3, reload and failed entries run. Files: `crates/nvs-server/src/schedule.rs`,
+`crates/nvs-cli/src/serve.rs`, `crates/nvs-cli/src/reload.rs`, `crates/nvs-cli/src/worker.rs`.
+
+- [ ] `crates/nvs-server/src/schedule.rs:661`: `Events` beside `Roster`, `Send + Sync` (atomics and
+  a mutex), with the reload generation and newest outcome, and the failure tally.
+- [ ] `crates/nvs-server/src/schedule.rs:223`: `Fired` gains the event data, for example
+  `Reload { applied, restart }` and `Failed { schedule, dead_letter }`, or carries it beside
+  `On(Event)`; `run_args` at `crates/nvs-cli/src/serve.rs:2140` writes the extra keys.
+- [ ] `crates/nvs-server/src/schedule.rs:736`: `tick_on_this_core` takes `Option<&Events>` (or an
+  `Arc`), and each pass after the due walk runs `reload` entries on a new generation and `failed`
+  entries under the one-minute floor, through `answer`. Mind the clippy argument count: the
+  function has 7 now.
+- [ ] `crates/nvs-cli/src/serve.rs:2231`, `:2174`, `:2198`: count a failure for every entry that is
+  not `on = "failed"`; `Armed` needs a public way to say that, such as `runs_on` made public.
+- [ ] `crates/nvs-cli/src/serve.rs:1563` and `crates/nvs-cli/src/worker.rs:1673`: the dead-letter count.
+- [ ] `crates/nvs-cli/src/reload.rs:357`, `:564`, `:773`, `:802`: each outcome written into `Events`.
+- [ ] `crates/nvs-server/src/schedule.rs:2469`: the three stage 3 tests beside
+  `a_minute_never_runs_an_event_entry`; `tick_events` there is the harness to extend.
+
+Expected red: none known. Every caller of `tick_on_this_core` changes again when it takes `Events`.
 
 ### Backlog
