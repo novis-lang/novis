@@ -161,8 +161,51 @@ pub fn at(
             range: range_at(file, local.binding.declared, encoding),
         });
     }
+    if let Some((target, route, _, _)) = linked_at(analysed, offset) {
+        return Some(Declared {
+            path: target.path.clone(),
+            range: range_at(analysed.map.file(target.file), route.name, encoding),
+        });
+    }
     let (target, _) = named_at(analysed, offset)?;
     declared(analysed, &target, encoding)
+}
+
+/// The route of another module that the cursor at `offset` is on: the route
+/// argument of a `Core\Router` link to a class under an `autoload links` root
+/// (`rule:routing/a-link-reaches-another-module`). It returns the class as the
+/// links root read it, the route, the argument's span and the handler.
+///
+/// A links root is never compiled, so no symbol table has the class and
+/// [`site`] cannot find it. The route is the one `nvs_hir::link_targets` read
+/// off the target file, and its method name's span is in that file. The
+/// argument is the node directly inside the recorded link, and it must end
+/// with the handler's method, so a cursor on the `$params` argument is not on
+/// the route.
+pub(crate) fn linked_at(
+    analysed: &Analysed,
+    offset: BytePos,
+) -> Option<(&nvs_hir::LinkTarget, &nvs_hir::LinkRoute, Span, &str)> {
+    let path = analysed.index.at(offset);
+    let nodes = path.nodes();
+    nodes.iter().enumerate().find_map(|(depth, node)| {
+        let ExprInfo::RouteLink {
+            handler: Some(handler),
+            ..
+        } = analysed.exprs.lookup(node.span)?
+        else {
+            return None;
+        };
+        let argument = nodes.get(depth.checked_sub(1)?)?.span;
+        let (class, method) = handler.rsplit_once("::")?;
+        let written = text_of(analysed.map.file(analysed.entry), argument);
+        if !written.ends_with(&format!("::{method}")) {
+            return None;
+        }
+        let target = analysed.module.link_targets.get(&QName::parse(class))?;
+        let route = target.routes.iter().find(|route| route.method == method)?;
+        Some((target, route, argument, handler.as_str()))
+    })
 }
 
 /// The `location` of the completion file's value whose `value` is the text of
@@ -1662,6 +1705,71 @@ mod tests {
     const OWNERS: &str = "<?nvs\nclass Order {\n  type Meta = {total: int};\n  public function \
                           of(Order::Meta $m): int { return 1; }\n}\nenum Status {\n  type Pair = \
                           array<Status>;\n  Open,\n}\nStatus::Pair $p = [Status::Open];\n";
+
+    /// A cursor on the route argument of a link to another module jumps to the
+    /// method in the file the `autoload links` root names, and hover shows the
+    /// handler and the route's path. The class is never compiled, so this is
+    /// the one way an editor reaches it.
+    #[test]
+    fn a_links_target_goes_to_its_definition() {
+        const TARGET: &str = "<?nvs\nnamespace Framework\\Shop\\View;\n\nuse Core\\Http\\Method;\n\
+                              use Core\\Route;\n\nclass Index\n{\n    #[Route(path: '/item/{id}', \
+                              method: Method::Get)]\n    public static function show(int $id): \
+                              void {}\n}\n";
+        let dir = nvs_repo::scratch("lsp-links-target");
+        let view = dir.join("Shop").join("src").join("View");
+        std::fs::create_dir_all(&view).expect("create the target's folder");
+        std::fs::write(view.join("Index.nvs"), TARGET).expect("write the target");
+        let entry = dir.join("main.nvs");
+        let source = "<?nvs\nautoload links 'Framework\\Shop' from './Shop/src';\n\n\
+                      echo Core\\Router::url(Framework\\Shop\\View\\Index::show, ['id' => 3]);\n";
+        std::fs::write(&entry, source).expect("write the entry");
+        let uri = uri_of(&entry).expect("a scratch path is UTF-8");
+        let mut documents = Documents::new();
+        documents.open(uri.clone(), 1, source.to_owned());
+        let analysed = analyse(&documents, &uri).expect("an open document analyses");
+        let written = "Index::sh";
+        let found = source.find(written).expect("the entry writes it") + written.len();
+        let offset = u32::try_from(found).expect("a test document is short");
+
+        let declared = at(
+            &analysed,
+            &CompletionFiles::default(),
+            offset,
+            PositionEncoding::Utf8,
+        )
+        .expect("the route argument has a definition");
+        assert!(
+            declared
+                .path
+                .ends_with(std::path::Path::new("View").join("Index.nvs")),
+            "the definition opened {}",
+            declared.path.display()
+        );
+        assert_eq!(
+            declared.range.start,
+            Position::new(9, 27),
+            "the definition is not the method's name"
+        );
+
+        let hover = crate::hover::answer(
+            &analysed,
+            &CompletionFiles::default(),
+            offset,
+            PositionEncoding::Utf8,
+            None,
+        )
+        .expect("the route argument has a hover");
+        let lsp_types::HoverContents::Markup(markup) = hover.contents else {
+            panic!("the hover is not markdown");
+        };
+        assert!(
+            markup.value.contains(r"Framework\Shop\View\Index::show")
+                && markup.value.contains("`/item/{id}`"),
+            "the hover does not show the route: {}",
+            markup.value
+        );
+    }
 
     /// Where a cursor just past the first `written` in `source` jumps to, as
     /// `line:character` — the declared name's own range, which is the caret an

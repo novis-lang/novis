@@ -67,6 +67,9 @@ pub struct LinkTarget {
 pub struct LinkRoute {
     /// The method the attribute is on.
     pub method: String,
+    /// Where that method's name is written in [`LinkTarget::file`], which an
+    /// editor opens for go to definition.
+    pub name: nvs_diagnostics::Span,
     /// Whether that method is `static`.
     pub is_static: bool,
     /// The `path` as written. `None` where it is not a plain string literal,
@@ -273,6 +276,7 @@ fn read_method(method: &MethodMember, src: &SourceFile, scope: &Scope, target: &
             });
         target.routes.push(LinkRoute {
             method: name.clone(),
+            name: method.name,
             is_static,
             path,
             params: params.clone(),

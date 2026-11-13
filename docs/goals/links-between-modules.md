@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-config/src/tree.rs, crates/nvs-config/src/mount.rs, crates/nvs-cli/src/serve.rs, crates/nvs-cli/src/serve/mounts.rs, crates/nvs-cli/src/config.rs, crates/nvs-stdlib/src/router.rs, crates/nvs-runtime/src/ctx/wiring.rs, docs/rules/routing/an-origin-is-per-mount-and-checked-at-boot.md, docs/rules/http-server/a-mount-carries-no-policy.md]
   - id: 4
     title: a test and the editor give the server's link
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/test.rs, crates/nvs-lsp/src/definition.rs, crates/nvs-lsp/src/completion.rs, docs/rules/testing/in-process-request.md]
   - id: 5
     title: two modules link under nvs serve, and the feature has its proofs
@@ -367,9 +367,9 @@ row's table to every request it serves.
 - [x] `Core\Test::request` resolves a links-root link through the shared function, over the mount
   table of the configuration the test run reads, with the `mount` key picking the served row
   (`crates/nvs-stdlib/src/test.rs:2924`, `crates/nvs-stdlib/src/test.rs:2950`).
-- [ ] Go to definition on a links-root route argument opens the target method, and hover shows its
+- [x] Go to definition on a links-root route argument opens the target method, and hover shows its
   route (`crates/nvs-lsp/src/definition.rs:899`).
-- [ ] Tests `a_test_request_gives_the_servers_link_to_another_module`
+- [x] Tests `a_test_request_gives_the_servers_link_to_another_module`
   (`crates/nvs-stdlib/src/test.rs:1`) and `a_links_target_goes_to_its_definition`
   (`crates/nvs-lsp/src/definition.rs:1`).
 - [x] `rule:testing/in-process-request` says a test request gives the same link to another module
@@ -450,38 +450,41 @@ users. The session then runs `bun nv render --website` once.
 
 ### State
 
-Stages 1 to 3 are done, and both stage 3 checks pass. A compiled unit records its
-links-root handlers (`ExprTypeTable::module_links`, carried on `Routes::module_links`).
-`Mounted` has a `links: Option<Arc<Links>>` field, filled by `nvs_config::mount::links_of`
-(`crates/nvs-config/src/mount.rs:538`) through `link_rows` (`crates/nvs-cli/src/serve.rs:2522`).
-`Mounted::same_row` compares rows without their links, and the rescan uses it.
+Stages 1 to 4 are done, and the stage 4 check's two tests pass.
 
-- Boot links every row after the compile loop (`crates/nvs-cli/src/serve.rs:590`); reload does in
-  `linked` (`crates/nvs-cli/src/serve/mounts.rs:393`).
-- Request: `at_mount_origin` (`crates/nvs-cli/src/serve.rs:2708`) puts the table on the isolate,
-  which reaches `Ctx::set_module_links`; `crates/nvs-stdlib/src/router.rs:1623` reads it.
-- `nvs config check`: `mount_links` (`crates/nvs-cli/src/config.rs:1557`) compiles each mounted
-  entry and calls `crate::serve::link_rows`. A tie exits non-zero, and an unserved link is a
-  warning. `--mounts` prints `mount_lines`. Test: `config_check_resolves_each_link_to_another_module`.
+- Server: boot links every row after the compile loop (`crates/nvs-cli/src/serve.rs:590`), reload
+  in `linked` (`crates/nvs-cli/src/serve/mounts.rs:393`), both through `link_rows`
+  (`crates/nvs-cli/src/serve.rs:2523`) and `nvs_config::mount::links_of`. `at_mount_origin` puts
+  the table on the isolate, and `crates/nvs-stdlib/src/router.rs:1623` reads it.
+- `nvs config check`: `mount_links` (`crates/nvs-cli/src/config.rs:1557`); `--mounts` prints
+  `mount_lines`.
+- Test request: the `Answering` seam (`crates/nvs-runtime/src/inproc.rs:56`) has `mounts`,
+  `module_links`, and `answer` takes the links. `UnderTest::with_mounts`
+  (`crates/nvs-cli/src/runner.rs:1367`) expands the table and compiles each row once, only for a
+  unit that links to another module. `links_through` (`crates/nvs-stdlib/src/test.rs:2975`) picks
+  the row by the `mount` key and calls `links_of`.
+- Editor: `LinkRoute::name` is the method name's span. `linked_at`
+  (`crates/nvs-lsp/src/definition.rs:185`) answers go to definition, and hover's `linked_route`
+  shows the handler and the route path.
 
 A target module's entry has to call `Core\Router` to serve its routes as link targets
 (`rule:routing/table-is-opt-in`). The sweep's `env-secret-proofs` has no check and no log, so it is
-stale; the nightly's jobs were cancelled by a later push.
+stale. The nightly's jobs were cancelled by a later push.
 
 ### Next
 
-Stage 4, one session:
+Stage 5. First the end-to-end tests, then the proofs, as its **Split:** says:
 
-- `crates/nvs-stdlib/src/test.rs:2924`: `Core\Test::request` feeds `nvs_config::mount::links_of`
-  the mount table of the configuration the test run reads, picks the served row by the `mount` key,
-  and puts the table on the context with `Ctx::set_module_links`. With no mount table, a links-root
-  link throws naming the handler. The row's handler sets need each row's compiled routes, which
-  the test host compiles as `crate::config::mount_links` does in the binary.
-- `crates/nvs-lsp/src/definition.rs:899`: go to definition on a links-root route argument opens
-  the target method, and hover shows its route.
-- `docs/rules/testing/in-process-request.md:1` says a test request gives the same link.
+- `crates/nvs-cli/tests/links_between_modules.rs:1`: new file on the harness of
+  `crates/nvs-cli/tests/per_mount_config.rs:385`, with `Blog` and `Shop` under one scan
+  `prefix = "/base/{1:lower}"`, a second mount of `Shop`'s entry, and a host mount. Its three tests
+  are the ones check `two-modules-link-under-nvs-serve` names. Each module's entry calls
+  `Core\Router::dispatch` so its routes are in its table.
+- `docs/examples/tools/server/links-between-modules/about.md:1`, the attack, the bench and the three
+  examples in existing folders: three writing subagents on disjoint files, then
+  `bun nv proofs --id tools:server/links-between-modules` and `bun nv proofs --id 'Core\Router::url'`.
 
-No existing test is expected red. `the_rendered_map_names_what_was_skipped_and_what_was_shadowed` (with
-its `links (0)` line) has still not run.
+No existing test is expected red. `the_rendered_map_names_what_was_skipped_and_what_was_shadowed`
+(with its `links (0)` line) has still not run.
 
 ### Backlog

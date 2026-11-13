@@ -166,6 +166,7 @@ pub fn answer(
         .map(|node| node.span)
         .collect();
     let answered = route(analysed, offset, data)
+        .or_else(|| linked_route(analysed, offset))
         .or_else(|| autoload_prefix(analysed, offset))
         .or_else(|| written_class_name(analysed, offset))
         .or_else(|| property_segment(analysed, offset))
@@ -209,6 +210,25 @@ pub fn answer(
         // written in.
         range: Some(range_at(analysed.map.file(analysed.entry), node, encoding)),
     })
+}
+
+/// The route argument of a link to another module, answered with the handler
+/// and the route's path (`rule:routing/a-link-reaches-another-module`). The
+/// path is the one the target file declares, without a mount prefix, because
+/// the server picks the mount.
+fn linked_route(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
+    let (_, route, argument, handler) = crate::definition::linked_at(analysed, offset)?;
+    let path = route
+        .path
+        .as_deref()
+        .map_or_else(String::new, |path| format!("\n\nRoute path: `{path}`."));
+    Some((
+        format!(
+            "```nvs\n{handler}\n```\n\nA route of another module.{path} The server adds the \
+             prefix of the mount that serves it."
+        ),
+        argument,
+    ))
 }
 
 /// A `#[Route]` attribute, or the name of a method one is on, answered with the
