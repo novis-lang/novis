@@ -1091,18 +1091,14 @@ the class `App\Text\Greeter` is read from `./src/Text/Greeter.nvs`. `App` is rem
 parts are folders, and the last part is the file name. One prefix can have several folders, and
 they are searched in the order you wrote them.
 
-`autoload discover` takes a folder pattern with a `*`. Every folder that matches is used for the
-namespace named by the part that `*` matched. `autoload discover 'Site' from '../../*/src';` puts
-`Site` in front of that name, so the folder `Shop/src` is the namespace `Site\Shop`.
+`autoload discover 'Site' from '../../*/src';` uses every folder the pattern matches. The folder
+`Shop/src` is the namespace `Site\Shop`.
 
-A prefix can also contain `{..}`. In `autoload 'Site\{..}' from '../src';`, `{..}` is replaced by
-the name of the folder that `..` points to from this file. If the file is in `Blog/public`, the
-prefix is `Site\Blog`.
+In `autoload 'Site\{..}' from '../src';`, `{..}` is replaced by the name of the folder that `..`
+points to. In `Blog/public`, the prefix is `Site\Blog`.
 
-`autoload links` reads a folder only to find its routes. Your program can link to these routes but
-cannot call their classes. A `use` line may import such a class, so a link can use its short name.
-Both forms take it: `autoload links 'Site\Shop' from '../../Shop/src';` and
-`autoload links discover 'Site' from '../../*/src';`.
+`autoload links` reads a folder only for its routes. Your program can link to them but cannot call
+their classes. Both forms take it, as in `autoload links discover 'Site' from '../../*/src';`.
 
 **Good to know:** every `autoload` declaration is read when the program is compiled. A class that
 cannot be found stops the compile with an error. `nvs check --autoload-map` shows which folders
