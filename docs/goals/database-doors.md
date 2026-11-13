@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-db/src/mysql.rs, docs/rules/core-classes/db-crate-boundary.md, docs/rules/packaging/somebody-elses-specification-is-a-crate.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: defaults-are-literals
@@ -230,7 +230,8 @@ is allowed as it is: `table_info`, `table_xinfo`, `table_list`, `index_list`, `i
 `database_list`, `collation_list`, `function_list`, `module_list`, `pragma_list`, `compile_options`.
 A *value* row is allowed with no argument only: `user_version`, `application_id`, `journal_mode`,
 `page_size`, `page_count`, `freelist_count`, `data_version`, `encoding`. A *session* row may be
-written, and it names the value the reset writes back: the eight of `SESSION_PRAGMAS`. The reset's
+written, and it names the value the reset writes back: seven rows. `writable_schema` has none, since
+a schema it lets a request damage stays in the file after any reset. The reset's
 text is built from the session rows, so a pragma a request may write is always set back. A refusal is
 a `DbError` of kind `Permission` that names the pragma. **What it spends:** one table lookup per
 prepared `PRAGMA`. A cached statement pays nothing. Usability: a program cannot run `optimize`,
@@ -558,48 +559,42 @@ into the Novis string.
 
 ### 8. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done, and `one-copy-per-text-cell` is green. Stage 8 is next. The sweep items were
-stale an eighth time: no `env-secret-proofs.log` exists, and Miri run `43201099245` ran on
-`578534cc7c`, which predates `7568aaa0fb`.
+Every stage is done, and the goal is reached. The sweep items were stale a ninth time: no
+`env-secret-proofs.log` exists, and Miri run `43201099245` ran on `578534cc7c`, which predates
+`7568aaa0fb`.
 
-How stage 7 works. `decode_row` (`crates/nvs-db/src/mysql.rs:3423`) takes the packet by value and
-reads it with `RowReader`: the header octet, the bitmap two bits in, then each cell at its type's
-width. `MySqlRow` (`:3163`) keeps the packet and a `MySqlCell<Span>` per cell. `MySqlCell<B>`
-(`:3221`) has `mysql_common`'s variants, and `MySqlRow::value` returns `MySqlCell<&[u8]>` by value.
-`scalar` (`:3795`) takes that cell, so every caller compiled unchanged, `direct.rs`, `nvs-stdlib` and
-`nvs-cli` included. An `UNSIGNED` integer is a `UInt` at every width. A date or time length outside
-the protocol's, or an unknown type code, is `InvalidData` naming the column, where `mysql_common`
-panicked. Trailing octets after the last cell are still ignored, as before. The 58 `mysql::tests`
-and `maria::` lib tests pass. Both rule fragments carry the argument, and `docs/rules/security.md`
-was re-rendered: stage 6 had left the chapter behind its fragment.
+Stage 8's first verify had two reds. The decimal-default attack under `tests/hostile/core/Db-Schema/`
+was not in the formatter's layout. `db-execute-many-takes-a-set-per-execution` printed "expected
+`array<secret mixed>`": stage 3 widened an argument's nested element types. `Env::widened_element`
+(`crates/nvs-types/src/lib.rs`) now records the widened and declared element type while an element
+is checked. `mismatch` (`crates/nvs-types/src/expr/assign.rs`) names the declared type when the value
+is not `secret`. The second and third verify runs are green.
+
+Both backlog items landed. `writable_schema` has no row, so a request cannot turn it on
+(`a_request_cannot_make_the_schema_writable`). `decode_row` (`crates/nvs-db/src/mysql.rs:3423`)
+refuses octets after the last cell as `InvalidData`. `bun nv db-matrix` passes for MySQL and MariaDB,
+over TCP and over a socket, with and without that check. `DbError`'s `about.md` fits 160 words and
+says when `serverMessage` is set. The error types page says a failed connect is an `IOError`.
+`bun nv verify --doc`, `bun nv owners --closes database-doors` and `bun nv ci --check` are green.
 
 ### Next
 
-Stage 8 (`docs/goals/database-doors.md`, § 8): start `looper verify` in the background, fix every
-failure in one pass, run it again. Then the goal-end gates: `bun nv verify --doc`,
-`bun nv owners --closes database-doors`, `bun nv ci --check`.
+- [ ] `docs/goals/README.md:1`: the driver runs the acceptance and retires this goal, which deletes
+  this file. Every standing decision is already in a rule fragment: `db-error`,
+  `db-pool-reset-is-a-boundary`, `somebody-elses-specification-is-a-crate` and `db-crate-boundary`.
+  `operator-surfaces` is next on the chain.
 
-Expected reds: a test that scripts a MySQL or MariaDB connect now meets `SELECT CURRENT_ROLE()` after
-the zone's `SET`, and one that scripts a reset meets `COM_INIT_DB` and a second `COM_QUERY`. A
-`PRAGMA` with no row now gets a `Permission` error, a query-site snapshot may print ` plain`, and a
-test pinning "bound a value." fails. A test outside `nvs-db` that compared `MySqlRow::value` against
-a `mysql_common` `Value` no longer compiles; none was found in the build. The live matrix legs for
-MySQL and MariaDB have not run the hand-read row: run `bun nv db-matrix --driver mysql` and
-`--driver mariadb` in stage 8. `nvs_image` in `target/debug` may still be a Linux build, which fails
-`nvs-ext`'s `image_decode`; it is not this goal's.
+Expected reds: none. `pragmas-by-name` and `one-copy-per-text-cell` were run by name after this
+session's last change, and both are green.
 
 ### Backlog
 
-- `writable_schema` is a session row, as the standing decision lists it. A request can still turn it
-  on and edit `sqlite_schema` inside its own request. Stage 8 should weigh dropping the row, which
-  would refuse it outright and cost nothing the tree uses.
-- `decode_row` ignores octets after the last cell. Refusing them is stricter and costs nothing, but
-  it should be proved against the live MySQL and MariaDB legs first.
+- Nothing is left for this goal.
