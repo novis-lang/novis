@@ -13,16 +13,14 @@
 //! **Unix is the mode bits. Windows is the DACL**, and `rule:config/ownership-is-the-trust-boundary`'s answer for which ACEs it accepts is
 //! implemented here: the owner must be this account,
 //! `BUILTIN\Administrators`, `NT AUTHORITY\SYSTEM` or a member of `Administrators`, because an
-//! administrator can take ownership of any file anyway. No *effective* write right may reach
-//! `Everyone`, `NT AUTHORITY\Authenticated Users`, `BUILTIN\Users`, `BUILTIN\Guests` or
-//! `ANONYMOUS LOGON`. Effective rather than by ACE, so a deny entry counts, an inherited grant is
-//! seen, and the question asked is the one that matters — can that principal write this file —
-//! rather than how the ACL happens to be spelled. Those SIDs are the Windows spelling of "the
-//! group and the world"; the write rights are every one that changes the bytes, the name or the
-//! ACL itself, `WRITE_DAC` and `WRITE_OWNER` included, because either of those buys the rest.
-//! `platform::effective_rights` computes that in one pass over the DACL rather than through
-//! `GetEffectiveRightsFromAclW`, and its own doc owns why — the answer is the same one, and the
-//! call it stands in for is orders of magnitude dearer per principal.
+//! administrator can take ownership of any file anyway. No *effective* write right may reach any
+//! other account: every trustee in the DACL is one of `platform::trusted`'s list or a member of
+//! `Administrators`, or holds no write right. That is Unix's group and world bits, read off an
+//! access list with no fixed set of groups to forget one from. Effective rather than by ACE, so a
+//! deny entry counts and an inherited grant is seen. The write rights are every one that changes
+//! the bytes, the name or the ACL itself, `WRITE_DAC` and `WRITE_OWNER` included, because either
+//! of those buys the rest. `platform::walk` computes every trustee's rights in one pass over the
+//! DACL rather than through `GetEffectiveRightsFromAclW`, and its own doc owns why.
 //!
 //! **Canonicalization is part of the check, not a side effect of it.** [`check`] returns the
 //! canonical path, and that is what makes the resolver's cycle test compare files rather than
@@ -664,9 +662,8 @@ mod platform {
         EqualSid, GetAce, GetLengthSid, GetTokenInformation, INHERIT_ONLY_ACE, LookupAccountNameW,
         LookupAccountSidW, OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID,
         SECURITY_MAX_SID_SIZE, SID_NAME_USE, SidTypeUser, TOKEN_QUERY, TOKEN_USER, TokenUser,
-        WELL_KNOWN_SID_TYPE, WinAnonymousSid, WinAuthenticatedUserSid, WinBuiltinAdministratorsSid,
-        WinBuiltinGuestsSid, WinBuiltinUsersSid, WinLocalServiceSid, WinLocalSystemSid,
-        WinWorldSid,
+        WELL_KNOWN_SID_TYPE, WinBuiltinAdministratorsSid, WinCreatorOwnerRightsSid,
+        WinCreatorOwnerSid, WinLocalServiceSid, WinLocalSystemSid,
     };
     use windows_sys::Win32::Storage::FileSystem::{
         DELETE, FILE_ALL_ACCESS, FILE_APPEND_DATA, FILE_DELETE_CHILD, FILE_GENERIC_READ,
@@ -674,7 +671,11 @@ mod platform {
         WRITE_DAC, WRITE_OWNER,
     };
     use windows_sys::Win32::System::SystemServices::{
-        ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE,
+        ACCESS_ALLOWED_ACE_TYPE, ACCESS_ALLOWED_CALLBACK_ACE_TYPE, ACCESS_DENIED_ACE_TYPE,
+        ACCESS_DENIED_CALLBACK_ACE_TYPE, ACCESS_DENIED_CALLBACK_OBJECT_ACE_TYPE,
+        ACCESS_DENIED_OBJECT_ACE_TYPE, SYSTEM_ACCESS_FILTER_ACE_TYPE, SYSTEM_ALARM_ACE_TYPE,
+        SYSTEM_ALARM_OBJECT_ACE_TYPE, SYSTEM_AUDIT_ACE_TYPE, SYSTEM_AUDIT_CALLBACK_ACE_TYPE,
+        SYSTEM_AUDIT_OBJECT_ACE_TYPE,
     };
     use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
@@ -765,21 +766,72 @@ mod platform {
     /// `Modify` right Windows gives `Authenticated Users` on a non-system drive's root passes.
     const REPLACE_RIGHTS: u32 = FILE_DELETE_CHILD | WRITE_DAC | WRITE_OWNER;
 
-    /// The Windows spelling of "the group and the world" — the principals `rule:config/ownership-is-the-trust-boundary` refuses write to,
-    /// with the name a refusal prints and the SID it prints beside it. The name is the English one
-    /// on every host, so it identifies the group to a reader; the SID is what [`group_help`]'s
-    /// `icacls` takes, because that command resolves a name in the installed language.
-    const UNTRUSTED: &[(WELL_KNOWN_SID_TYPE, &str, &str)] = &[
-        (WinWorldSid, "Everyone", "*S-1-1-0"),
-        (
-            WinAuthenticatedUserSid,
-            "NT AUTHORITY\\Authenticated Users",
-            "*S-1-5-11",
-        ),
-        (WinBuiltinUsersSid, "BUILTIN\\Users", "*S-1-5-32-545"),
-        (WinBuiltinGuestsSid, "BUILTIN\\Guests", "*S-1-5-32-546"),
-        (WinAnonymousSid, "NT AUTHORITY\\ANONYMOUS LOGON", "*S-1-5-7"),
-    ];
+    /// The trustees `rule:config/ownership-is-the-trust-boundary` lets hold a write right, besides
+    /// a member of `Administrators`: the path's owner when it has one, the judged account,
+    /// `SYSTEM`, `Administrators`, `NT SERVICE\TrustedInstaller`, `OWNER RIGHTS`, which is the
+    /// owner, and `CREATOR OWNER`, which matches no account when access is checked. Every other
+    /// trustee is "another account", which is the Windows half of Unix's group and world bits.
+    ///
+    /// Cost: two SIDs built and one SHA-1 of a short name, once per checked path.
+    fn trusted(owner: PSID, account: &Account) -> Result<Vec<Sid>, Untrusted> {
+        let mut sids = vec![
+            account.id.clone(),
+            well_known(WinLocalSystemSid)?,
+            well_known(WinBuiltinAdministratorsSid)?,
+            well_known(WinCreatorOwnerRightsSid)?,
+            well_known(WinCreatorOwnerSid)?,
+            service_sid("TrustedInstaller"),
+        ];
+        if !owner.is_null() {
+            sids.push(copy_sid(owner));
+        }
+        Ok(sids)
+    }
+
+    /// One trustee's entries in a DACL, folded in the order Windows evaluates them.
+    struct Grant {
+        trustee: Sid,
+        allowed: u32,
+        denied: u32,
+    }
+
+    /// What one walk of a DACL finds: each trustee's effective rights in the order the trustees
+    /// first appear, and the rights that entries of a kind the walk cannot read allow.
+    struct Walk {
+        grants: Vec<Grant>,
+        unknown: Option<(u32, u32)>,
+    }
+
+    impl Walk {
+        /// The first trustee that holds a right in `refused` and is neither in `trusted` nor a
+        /// member of `Administrators`, with its rights. Each trustee is one [`Grant`], so the
+        /// group lookup runs at most once per distinct trustee, and only for one that holds a
+        /// refused right.
+        fn untrusted(&self, trusted: &[Sid], refused: u32) -> Option<(&Sid, u32)> {
+            self.grants
+                .iter()
+                .filter(|grant| grant.allowed & refused != 0)
+                .find(|grant| {
+                    let sid = as_psid(&grant.trustee);
+                    !trusted.iter().any(|known| equal(sid, known)) && !in_administrators(sid)
+                })
+                .map(|grant| (&grant.trustee, grant.allowed))
+        }
+    }
+
+    /// `sid` as a breach names it: its name where this machine gives one and its SID always, and
+    /// the SID as `icacls` takes it (`*S-1-5-32-545`), when Windows can write it as text.
+    fn trustee(sid: &Sid) -> (String, Option<String>) {
+        let text = sid_text(as_psid(sid));
+        let bare = text.trim_matches('`');
+        let star = bare.starts_with("S-").then(|| format!("*{bare}"));
+        let label = match (account_name(as_psid(sid)), &star) {
+            (Some((name, _)), Some(star)) => format!("`{name}` (`{star}`)"),
+            (_, Some(star)) => format!("`{star}`"),
+            (_, None) => text,
+        };
+        (label, star)
+    }
 
     /// `fs::canonicalize` returns a verbatim `\\?\` path, and the rest of the tree — a diagnostic,
     /// the boot log, `rule:config/every-matching-app-block-applies-least-specific-first`'s prefix
@@ -981,15 +1033,20 @@ mod platform {
                   from it outliving the call"
     )]
     pub(super) fn exposure(path: &Path) -> Option<String> {
+        let me = Account {
+            id: token_user().ok()?,
+            name: None,
+        };
         let wide = wide(path);
+        let mut owner: PSID = std::ptr::null_mut();
         let mut dacl: *mut ACL = std::ptr::null_mut();
         let mut descriptor: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
         let status = unsafe {
             GetNamedSecurityInfoW(
                 wide.as_ptr(),
                 SE_FILE_OBJECT,
-                DACL_SECURITY_INFORMATION,
-                std::ptr::null_mut(),
+                OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+                &mut owner,
                 std::ptr::null_mut(),
                 &mut dacl,
                 std::ptr::null_mut(),
@@ -999,33 +1056,40 @@ mod platform {
         if status != ERROR_SUCCESS {
             return None;
         }
-        let found = readable_by_others(dacl);
+        let found = readable_by_others(owner, dacl, &me);
         unsafe { LocalFree(descriptor) };
         found
     }
 
-    /// Each of `rule:config/ownership-is-the-trust-boundary`'s untrusted principals against `FILE_READ_DATA`, which is the one right that
+    /// The first trustee outside [`trusted`] with `FILE_READ_DATA`, which is the one right that
     /// hands over the credential itself.
-    fn readable_by_others(dacl: *const ACL) -> Option<String> {
+    fn readable_by_others(owner: PSID, dacl: *const ACL, me: &Account) -> Option<String> {
         if dacl.is_null() {
             return Some("has a null DACL, which grants every account every right".to_string());
         }
-        for (kind, name, sid) in UNTRUSTED {
-            let rights = effective_rights(dacl, &well_known(*kind).ok()?).ok()?;
-            if rights & FILE_READ_DATA != 0 {
-                return Some(format!(
-                    "grants read access to `{name}` (`{sid}`, rights {rights:#010x})"
-                ));
-            }
+        let walk = walk(dacl).ok()?;
+        if let Some((kind, rights)) = walk
+            .unknown
+            .filter(|(_, rights)| rights & FILE_READ_DATA != 0)
+        {
+            return Some(format!(
+                "has an access entry of type {kind}, which this check cannot read, granting \
+                 rights {rights:#010x}"
+            ));
         }
-        None
+        let trusted = trusted(owner, me).ok()?;
+        let (sid, rights) = walk.untrusted(&trusted, FILE_READ_DATA)?;
+        let (label, _) = trustee(sid);
+        Some(format!(
+            "grants read access to {label}, rights {rights:#010x}"
+        ))
     }
 
     /// `rule:config/ownership-is-the-trust-boundary` against one descriptor of `path`: the owner
-    /// first, then each untrusted principal's rights against `refused`, which is [`WRITE_RIGHTS`]
-    /// or [`REPLACE_RIGHTS`]. Each breach carries the `icacls` command that repairs it, with
-    /// `path` filled in. The help is built only for a breach, so a path that passes costs nothing
-    /// more than the check.
+    /// first, then one walk of the DACL for a trustee outside [`trusted`] with a right in
+    /// `refused`, which is [`WRITE_RIGHTS`] or [`REPLACE_RIGHTS`]. Each breach carries the
+    /// `icacls` command that repairs it, with `path` filled in. The help is built only for a
+    /// breach, so a path that passes costs nothing more than the check.
     fn examine(
         path: &Path,
         owner: PSID,
@@ -1039,12 +1103,12 @@ mod platform {
                 owner_help(path),
             ));
         }
-        let trusted = [
+        let owners = [
             well_known(WinBuiltinAdministratorsSid)?,
             well_known(WinLocalSystemSid)?,
         ];
         if !equal(owner, &account.id)
-            && !trusted.iter().any(|sid| equal(owner, sid))
+            && !owners.iter().any(|sid| equal(owner, sid))
             && !in_administrators(owner)
         {
             return Err(Untrusted::breach(
@@ -1064,51 +1128,74 @@ mod platform {
                 null_dacl_help(path, me.trim_matches('`')),
             ));
         }
-        for (kind, name, sid) in UNTRUSTED {
-            let rights = effective_rights(dacl, &well_known(*kind)?)?;
-            if rights & refused != 0 {
-                let what = if refused == WRITE_RIGHTS {
-                    "write access"
-                } else {
-                    "the right to delete the folders in it"
-                };
-                return Err(Untrusted::fixable(
-                    format!("grants {what} to `{name}` (`{sid}`, rights {rights:#010x})"),
-                    group_help(path, sid),
-                    path,
-                    Some(sid),
-                ));
+        let what = if refused == WRITE_RIGHTS {
+            "write access"
+        } else {
+            "the right to delete the folders in it"
+        };
+        let walk = walk(dacl)?;
+        if let Some((kind, rights)) = walk.unknown.filter(|(_, rights)| rights & refused != 0) {
+            let me = sid_text(as_psid(&account.id));
+            return Err(Untrusted::breach(
+                format!(
+                    "has an access entry of type {kind}, which this check cannot read, granting \
+                     {what} (rights {rights:#010x})"
+                ),
+                null_dacl_help(path, me.trim_matches('`')),
+            ));
+        }
+        let trusted = trusted(owner, account)?;
+        let Some((sid, rights)) = walk.untrusted(&trusted, refused) else {
+            return Ok(());
+        };
+        let message = |label: &str| format!("grants {what} to {label}, rights {rights:#010x}");
+        match trustee(sid) {
+            (label, Some(star)) => Err(Untrusted::fixable(
+                message(&label),
+                group_help(path, &star),
+                path,
+                Some(&star),
+            )),
+            (label, None) => {
+                let me = sid_text(as_psid(&account.id));
+                Err(Untrusted::breach(
+                    message(&label),
+                    null_dacl_help(path, me.trim_matches('`')),
+                ))
             }
         }
-        Ok(())
     }
 
-    /// What `sid` may actually do to the object this ACL protects — every deny entry ahead of a
-    /// grant subtracted, and every inherited entry seen, because the DACL a security descriptor
-    /// hands over already carries them materialized.
+    /// Every trustee's effective rights on the object this ACL protects, in one pass: for each
+    /// trustee, every deny entry ahead of a grant subtracted, and every inherited entry seen,
+    /// because the DACL a security descriptor hands over already carries them materialized.
     ///
-    /// **This is the answer `GetEffectiveRightsFromAclW` gives, computed here instead, and the
-    /// reason is the clock.** That call costs on the order of a millisecond per principal — `rule:config/ownership-is-the-trust-boundary`
-    /// asks about each untrusted one, on the path and on its parent, so a [`check`](super::check)
-    /// built on it is milliseconds of pure overhead, and `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache pays it on every `nvs run` before it may look
-    /// at a single artifact. The walk is orders of magnitude cheaper and answers the same question,
-    /// because the rules that make the answer *effective* rather than a spelling are all in it: the
-    /// entries are evaluated in order, so a `DENY` removes the bits it names from anything a later
-    /// `ALLOW` grants, and an inherited entry is an ordinary entry in this ACL by the time anyone
-    /// reads it. An `INHERIT_ONLY` entry is skipped — it describes what children get and not this
-    /// object — and a generic bit is mapped to the file rights it stands for. Group membership is
-    /// considered by neither: the trustee is always one of `rule:config/ownership-is-the-trust-boundary`'s own well-known SIDs, and it is
-    /// that SID's own entries that are being asked about.
+    /// **This is the answer `GetEffectiveRightsFromAclW` gives for each trustee, computed here
+    /// instead, and the reason is the clock.** That call costs on the order of a millisecond per
+    /// principal, and `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s
+    /// artifact cache checks its directory on every `nvs run`. The walk is orders of magnitude
+    /// cheaper: the entries are evaluated in order, so a `DENY` removes the bits it names from
+    /// anything a later `ALLOW` for the same trustee grants. An `INHERIT_ONLY` entry is skipped,
+    /// because it describes what children get and not this object, and a generic bit is mapped to
+    /// the file rights it stands for.
     ///
+    /// Every error is on the refusing side. A deny entry for a group the trustee is in is not
+    /// subtracted, so a grant it would cancel still counts. A conditional or object deny entry is
+    /// skipped for the same reason. An entry of an allowing kind whose trustee this cannot read is
+    /// folded into [`Walk::unknown`], and the caller treats it as another account's grant. Audit,
+    /// alarm and label entries belong in a SACL and grant nothing.
     #[expect(
         unsafe_code,
         reason = "one `GetAce` per entry of an ACL that outlives this call, each read through the \
-                  header layout every access-allowed and access-denied entry shares"
+                  header and mask every entry type starts with, and the trustee read only for the \
+                  two layouts that put the SID right after the mask"
     )]
-    fn effective_rights(dacl: *const ACL, sid: &Sid) -> Result<u32, Untrusted> {
+    fn walk(dacl: *const ACL) -> Result<Walk, Untrusted> {
         let count = unsafe { (*dacl).AceCount };
-        let mut allowed = 0u32;
-        let mut denied = 0u32;
+        let mut walk = Walk {
+            grants: Vec::new(),
+            unknown: None,
+        };
         for index in 0..u32::from(count) {
             let mut ace: *mut core::ffi::c_void = std::ptr::null_mut();
             if unsafe { GetAce(dacl, index, &mut ace) } == 0 {
@@ -1120,29 +1207,62 @@ mod platform {
             if u32::from(header.AceFlags) & INHERIT_ONLY_ACE != 0 {
                 continue;
             }
-            let allow = match u32::from(header.AceType) {
-                ACCESS_ALLOWED_ACE_TYPE => true,
-                ACCESS_DENIED_ACE_TYPE => false,
-                // An audit entry grants nothing, and a callback or object entry cannot appear in a
-                // file's DACL — neither is an access this has to account for.
-                _ => continue,
-            };
-            // An `ACCESS_DENIED_ACE` is the same three fields in the same order, which is why one
-            // type reads both. `addr_of!` rather than a reference: the SID runs past the end of
-            // the struct that names its first word.
-            let entry = ace.cast::<ACCESS_ALLOWED_ACE>();
-            let trustee = unsafe { std::ptr::addr_of!((*entry).SidStart) };
-            if !equal(trustee.cast::<core::ffi::c_void>().cast_mut(), sid) {
-                continue;
+            if usize::from(header.AceSize) < size_of::<ACE_HEADER>() + size_of::<u32>() {
+                return Err(Untrusted::Unreadable(format!(
+                    "entry {index} of its DACL is shorter than an access mask"
+                )));
             }
+            // Every entry type puts its access mask right after the header, so the mask is read
+            // through the one layout before the type is known.
+            let entry = ace.cast::<ACCESS_ALLOWED_ACE>();
             let mask = specific(unsafe { (*entry).Mask });
+            let kind = u32::from(header.AceType);
+            let allow = match kind {
+                ACCESS_ALLOWED_ACE_TYPE | ACCESS_ALLOWED_CALLBACK_ACE_TYPE => true,
+                ACCESS_DENIED_ACE_TYPE => false,
+                ACCESS_DENIED_OBJECT_ACE_TYPE
+                | ACCESS_DENIED_CALLBACK_ACE_TYPE
+                | ACCESS_DENIED_CALLBACK_OBJECT_ACE_TYPE
+                | SYSTEM_AUDIT_ACE_TYPE
+                | SYSTEM_ALARM_ACE_TYPE
+                | SYSTEM_AUDIT_OBJECT_ACE_TYPE
+                | SYSTEM_ALARM_OBJECT_ACE_TYPE
+                | SYSTEM_AUDIT_CALLBACK_ACE_TYPE..=SYSTEM_ACCESS_FILTER_ACE_TYPE => continue,
+                _ => {
+                    let (_, rights) = walk.unknown.get_or_insert((kind, 0));
+                    *rights |= mask;
+                    continue;
+                }
+            };
+            // A denied and a callback entry put the SID in the same place as an allowed one.
+            // `addr_of!` rather than a reference: the SID runs past the end of the struct that
+            // names its first word.
+            let sid = unsafe { std::ptr::addr_of!((*entry).SidStart) }
+                .cast::<core::ffi::c_void>()
+                .cast_mut();
+            let at = match walk
+                .grants
+                .iter()
+                .position(|grant| equal(sid, &grant.trustee))
+            {
+                Some(at) => at,
+                None => {
+                    walk.grants.push(Grant {
+                        trustee: copy_sid(sid),
+                        allowed: 0,
+                        denied: 0,
+                    });
+                    walk.grants.len() - 1
+                }
+            };
+            let grant = &mut walk.grants[at];
             if allow {
-                allowed |= mask & !denied;
+                grant.allowed |= mask & !grant.denied;
             } else {
-                denied |= mask & !allowed;
+                grant.denied |= mask & !grant.allowed;
             }
         }
-        Ok(allowed)
+        Ok(walk)
     }
 
     /// A right mask with every generic bit replaced by the file rights it stands for.
@@ -1526,6 +1646,62 @@ mod platform {
             }
             let why = Account::named("no-such-account-anywhere").expect_err("nobody has it");
             assert!(why.contains("`no-such-account-anywhere`"), "{why}");
+        }
+
+        /// `NT SERVICE\TrustedInstaller`, which owns the system's own files.
+        const TRUSTED_INSTALLER: &str =
+            "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464";
+
+        /// A write entry for any trustee outside the trusted list is a breach that names its SID:
+        /// a made-up user no machine knows, `INTERACTIVE` and `Account Operators` alike.
+        #[test]
+        fn a_write_entry_for_any_other_trustee_is_a_breach_that_names_its_sid() {
+            for other in ["S-1-5-21-9-9-9-2002", "S-1-5-4", "S-1-5-32-548"] {
+                let sddl = format!("O:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FW;;;{other})");
+                let why = verdict(&sddl, |owner| owner).expect_err("another account may write");
+                assert!(
+                    why.starts_with("grants write access to ")
+                        && why.contains(&format!("`*{other}`")),
+                    "{why}"
+                );
+            }
+        }
+
+        /// The owner, the judged account, `SYSTEM`, `Administrators`, `TrustedInstaller`,
+        /// `OWNER RIGHTS` and `CREATOR OWNER` may all hold full control.
+        #[test]
+        fn full_control_for_every_trusted_trustee_passes() {
+            let sddl = format!(
+                "O:{USER}D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;{USER})(A;;FA;;;OW)(A;;FA;;;CO)\
+                 (A;;FA;;;{TRUSTED_INSTALLER})"
+            );
+            verdict(&sddl, |owner| owner).expect("the owner judges its own file");
+            let service = "O:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;LS)";
+            verdict(service, |_| {
+                Account::named("LocalService").expect("well known")
+            })
+            .expect("a folder granted to the account it is judged for");
+            verdict(service, |owner| owner)
+                .expect_err("the same folder, judged for another account");
+        }
+
+        /// A deny entry ahead of a grant for the same trustee cancels it. A deny entry after the
+        /// grant does not, because Windows stops at the grant.
+        #[test]
+        fn only_a_deny_entry_ahead_of_the_grant_cancels_it() {
+            let other = "S-1-5-4";
+            let ahead = format!("O:BAD:P(A;;FA;;;BA)(D;;FA;;;{other})(A;;FA;;;{other})");
+            verdict(&ahead, |owner| owner).expect("the deny comes first");
+            let behind = format!("O:BAD:P(A;;FA;;;BA)(A;;FA;;;{other})(D;;FA;;;{other})");
+            verdict(&behind, |owner| owner).expect_err("the grant comes first");
+        }
+
+        /// An allowing entry of a kind the walk cannot read counts as another account's grant.
+        #[test]
+        fn an_entry_of_an_unknown_kind_counts_as_a_grant() {
+            let sddl = "O:BAD:P(A;;FA;;;BA)(OA;;FA;00000000-0000-0000-0000-000000000001;;WD)";
+            let why = verdict(sddl, |owner| owner).expect_err("an object entry allows");
+            assert!(why.contains("type 5"), "{why}");
         }
     }
 }

@@ -206,7 +206,7 @@ fn a_link_in_a_directory_a_well_known_group_may_write_is_a_breach() {
         .expect_err("anyone in BUILTIN\\Users could replace the junction");
     assert!(
         matches!(&why, Untrusted::Breach { .. })
-            && why.message().contains("BUILTIN\\Users")
+            && why.message().contains(&format!("`{USERS}`"))
             && why.message().contains("holds the link"),
         "the refusal names the link's directory: {why:?}",
     );
@@ -302,6 +302,113 @@ fn icacls(dir: &std::path::Path, args: &[&str]) {
 #[cfg(windows)]
 const USERS: &str = "*S-1-5-32-545";
 
+/// A file `nvs.toml` in a scratch folder of its own. On Windows the folder stops inheriting
+/// first, so a grant on it is the only entry for that trustee.
+fn lone_file(name: &str) -> (nvs_repo::Scratch, std::path::PathBuf) {
+    let dir = scratch(name);
+    let file = dir.join("nvs.toml");
+    fs::write(&file, "").expect("a configuration file");
+    #[cfg(windows)]
+    {
+        icacls(&dir, &["/inheritance:d"]);
+        icacls(&file, &["/inheritance:d"]);
+    }
+    (dir, file)
+}
+
+/// `rule:config/ownership-is-the-trust-boundary`: no other account may write the file or its
+/// folder. On Windows that is any trustee outside the trusted list, so the four logon groups
+/// no fixed list named are each refused by SID, on the file and on its folder. On Unix it is
+/// the group bit and the world bit.
+// covers: tools:config/trust
+#[test]
+fn a_write_entry_for_any_other_account_is_a_breach() {
+    let (dir, file) = lone_file("any-other-account");
+    check(&file).expect("the file is inside the boundary before any grant");
+    #[cfg(windows)]
+    for sid in ["*S-1-5-4", "*S-1-5-2", "*S-1-5-3", "*S-1-5-6"] {
+        let folder = nvs_config::trust::canonical(dir.path()).expect("the folder exists");
+        for (path, named) in [
+            (file.as_path(), "nvs.toml`".to_string()),
+            (dir.path(), format!("`{}` ", folder.display())),
+        ] {
+            icacls(path, &["/grant:r", &format!("{sid}:M")]);
+            let why = check(&file).expect_err("another account may write");
+            assert!(
+                matches!(why, Untrusted::Breach { .. })
+                    && why.message().contains(&format!("`{sid}`"))
+                    && why.message().contains(&named),
+                "the refusal names {named} and {sid}: {why:?}",
+            );
+            icacls(path, &["/remove:g", sid]);
+        }
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        for (path, normal) in [(file.as_path(), 0o600), (dir.path(), 0o700)] {
+            for bit in [0o020, 0o002] {
+                fs::set_permissions(path, fs::Permissions::from_mode(normal | bit))
+                    .expect("this account owns the path");
+                let why = check(&file).expect_err("another account may write");
+                assert!(
+                    matches!(why, Untrusted::Breach { .. }),
+                    "a {:04o} path is refused: {why:?}",
+                    normal | bit,
+                );
+                fs::set_permissions(path, fs::Permissions::from_mode(normal))
+                    .expect("this account owns the path");
+            }
+        }
+    }
+    check(&file).expect("every grant is gone and the file is inside the boundary again");
+}
+
+/// This account's own SID as `icacls` takes it, read from `whoami`.
+#[cfg(windows)]
+fn my_sid() -> String {
+    // `whoami` prints this account and opens nothing in the repository.
+    let done = nvs_repo::spawn("whoami", &[])
+        .args(["/user", "/fo", "csv", "/nh"])
+        .output()
+        .expect("`whoami` ships with Windows");
+    let line = String::from_utf8_lossy(&done.stdout);
+    let sid = line
+        .trim()
+        .rsplit(',')
+        .next()
+        .expect("a CSV row")
+        .trim_matches('"');
+    assert!(sid.starts_with("S-"), "`whoami /user` printed {line}");
+    format!("*{sid}")
+}
+
+/// The trusted accounts may hold full control: on Windows the owner, `SYSTEM`,
+/// `Administrators` and `TrustedInstaller`, on the file and on its folder. On Unix an
+/// owner-writable file in an owner-writable folder.
+// covers: tools:config/trust
+#[test]
+fn a_write_entry_for_a_trusted_account_passes() {
+    let (dir, file) = lone_file("trusted-account");
+    #[cfg(windows)]
+    {
+        let me = my_sid();
+        let installer = "*S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464";
+        for path in [file.as_path(), dir.path()] {
+            for sid in [me.as_str(), "*S-1-5-18", "*S-1-5-32-544", installer] {
+                icacls(path, &["/grant:r", &format!("{sid}:F")]);
+            }
+        }
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&file, fs::Permissions::from_mode(0o644)).expect("an owner mode");
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o755)).expect("an owner mode");
+    }
+    check(&file).unwrap_or_else(|why| panic!("{}", why.message()));
+}
+
 /// `rule:config/ownership-is-the-trust-boundary`'s DACL half: an entry granting an untrusted principal a write right is a breach, and the
 /// refusal names the principal rather than a mode.
 #[cfg(windows)]
@@ -314,7 +421,7 @@ fn a_directory_a_well_known_group_may_write_is_a_breach() {
     icacls(&dir, &["/grant:r", &format!("{USERS}:(WD)")]);
     let why = check(&dir).expect_err("anyone in BUILTIN\\Users could create a file here");
     assert!(
-        matches!(why, Untrusted::Breach { .. }) && why.message().contains("BUILTIN\\Users"),
+        matches!(why, Untrusted::Breach { .. }) && why.message().contains(&format!("`{USERS}`")),
         "the refusal was read off the DACL and names the principal: {why:?}",
     );
 

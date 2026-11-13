@@ -674,8 +674,7 @@ group. The help is built only for a breach, so a path that passes costs nothing 
 
 **The directory that contains a checked folder fails only when another account can replace that
 folder.** It keeps the owner test. Its write test asks only for the rights that delete or rename an
-entry: on Windows `FILE_DELETE_CHILD`, `WRITE_DAC` or `WRITE_OWNER` for one of the untrusted groups
-below, and on Unix a write bit for the group or for others unless the sticky bit is set. With the
+entry: on Windows `FILE_DELETE_CHILD`, `WRITE_DAC` or `WRITE_OWNER` for another account, and on Unix a write bit for the group or for others unless the sticky bit is set. With the
 sticky bit only an entry's owner, the directory's owner and root can remove an entry, and the folder
 has passed its own owner test. The folder's own `DELETE` right is in the folder's own test. Adding an
 entry beside the folder changes nothing Novis reads, so the `Modify` right Windows gives
@@ -702,12 +701,22 @@ directory of compiled code.
 
 **On Windows the equivalent is the DACL**: the owner is the runtime account, `BUILTIN\Administrators`,
 `NT AUTHORITY\SYSTEM` or a member of `Administrators`, and no *effective* write right — data, append, EA, attributes, `DELETE`,
-`WRITE_DAC` or `WRITE_OWNER` — reaches `Everyone`, `Authenticated Users`, `BUILTIN\Users`,
-`BUILTIN\Guests` or `ANONYMOUS LOGON`. The two ACL rights are in the mask because either one buys all
-the others in a second step. Effective rights rather than the presence of an ACE, so a deny entry
-counts and an inherited grant is seen. Windows grants `Authenticated Users` modify rights by default on a non-system drive's
-root, so a configuration kept under such a path refuses until that inheritance is broken — that default
-*is* the hole this rule closes.
+`WRITE_DAC` or `WRITE_OWNER` — reaches **any other account**. The trusted trustees are the path's owner,
+the account the check judges for, `SYSTEM`, `Administrators`, `NT SERVICE\TrustedInstaller`,
+`OWNER RIGHTS`, which is the owner, `CREATOR OWNER`, which matches no account when access is checked,
+and a member of `Administrators` by the owner test's lookup. Every other trustee, a user, a custom group
+or a built-in one, is another account, which is Unix's group and world bits on an access list. The
+judged account is trusted because a service's data folder grants it write, and the lookup runs once per
+distinct trustee that holds a refused right. The two ACL rights are in the mask because either one buys
+all the others in a second step. Effective rights rather than the presence of an ACE: one walk of the
+DACL folds each trustee's entries in order, so a deny entry ahead of a grant counts and an inherited
+grant is seen. Every error is on the refusing side. A deny for a group the trustee is in is not
+subtracted, a conditional or object deny is skipped, and an allowing entry of a kind the walk cannot
+read counts as another account's grant. The breach names the trustee's SID, with its name where Windows
+gives one, so the `/remove:g <SID>` help and `nvs init`'s repair apply to any trustee. Windows grants
+`Authenticated Users` modify rights by default on a non-system drive's root, so a configuration kept
+under such a path refuses until that inheritance is broken — that default *is* the hole this rule
+closes. Cost: one walk per checked path at boot and at reload, and nothing per request.
 
 **An owner that is a member of `Administrators` passes on Windows, for every account the check judges
 for.** An administrator can take ownership of any file, so trusting one as owner gives nobody a right
@@ -788,6 +797,10 @@ account `LocalSystem` nor an administrator". `resolve::JudgedFor` resolves a tre
   changes a folder that other projects share.
 - **A configuration key that turns the check off.** It would be written in the file the check
   guards, so whoever can write the file could turn it off.
+- **A list of untrusted groups on Windows.** Five well-known groups were refused and every other
+  trustee passed, so a grant to `INTERACTIVE`, a deploy user or a custom group went unseen. A longer
+  list leaves the same gap.
+- **A key that names more trusted accounts.** It would sit in the file the check guards.
 
 Where the check runs is [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered).
 
@@ -937,7 +950,10 @@ content must be valid UTF-8, and an empty file, a whitespace-only file, or one o
 
 Only the `password_file` that won the merge is opened. The value never enters the merged table, is
 never logged, and `nvs config dump` renders it `<secret>` beside the file it came from —
-`password_file` stays set so the dump can name it. `Core\Config::all` renders every secret directive
+`password_file` stays set so the dump can name it. **An inline value leaves the merged table the
+same way**: it is carried beside the table with the configuration file that wrote it as its origin,
+so every printer of the table has no value to print, and the dump renders it `<secret>` beside that
+file. What it spends: one map entry per inline secret, at boot and at each reload. `Core\Config::all` renders every secret directive
 `<secret>` too, whether a file or the tree set it, because a page or a log line that prints every
 setting is the usual way a credential leaks. `Core\Config::get` returns the value: it is the one
 reader a program that connects with the credential needs.
@@ -1769,8 +1785,10 @@ starts in). `dump --origin` is where each override is named, per key, with the f
 the one it overrode; a default's origin is `default`, or `default (production)` /
 `default (development)` where the mode chose it ([`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults) and the
 startup rows). The origin names the file and not the line, because a parsed value carries no span. A
-secret renders `<secret>` and names the file its value came from, never the value. `--toml`
-serializes the written table alone: a default written into the document would change the tree it is
+secret renders `<secret>` and names the file its value came from, never the value: the secret file,
+or the configuration file for a value written inline. `--toml` writes an inline secret's key with
+the value `"<secret>"`, so a diff of two environments shows the key is set, and a file-backed
+secret keeps its `_file` key. `--toml` serializes the written table alone: a default written into the document would change the tree it is
 read back as (a mode row stops following the mode, a `[limits.hard]` ceiling starts bounding every
 `[[app]]` block, a core count or a data-folder path pins it to one machine), so the document read
 back lists the same rows.

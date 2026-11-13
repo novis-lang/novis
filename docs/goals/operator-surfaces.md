@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-config/src/secret.rs, crates/nvs-config/src/audit.rs, crates/nvs-config/tests/secret.rs, crates/nvs-cli/tests/config_audit.rs, docs/rules/config/check-and-dump-audit-the-tree-offline.md]
   - id: 2
     title: the Windows ownership check reads the whole access list
-    status: open
+    status: done
     context: [crates/nvs-config/src/trust.rs, crates/nvs-config/tests/trust.rs]
   - id: 3
     title: the debug viewer answers only a request that carries its token
@@ -215,27 +215,27 @@ a configuration value, as `file.rs:NN` and one line each. It looks in `crates/nv
 **Does:** replace the loop over five groups with one walk of the DACL that refuses every untrusted
 trustee, and state one rule for both platforms.
 
-- [ ] `examine` walks the DACL once and returns the first untrusted trustee with a refused right,
+- [x] `examine` walks the DACL once and returns the first untrusted trustee with a refused right,
   for the file test, the parent test and the link-holder test alike
   (`rule:config/ownership-is-the-trust-boundary`, `crates/nvs-config/src/trust.rs:1067`,
   `crates/nvs-config/src/trust.rs:1108`).
-- [ ] The trusted trustees are the standing decision's list, with `in_administrators` asked once per
+- [x] The trusted trustees are the standing decision's list, with `in_administrators` asked once per
   distinct trustee (`crates/nvs-config/src/trust.rs:1042`, `crates/nvs-config/src/trust.rs:1301`).
-- [ ] An allow entry of an unknown kind counts as an allow (`crates/nvs-config/src/trust.rs:1123`).
-- [ ] `UNTRUSTED` goes, and the breach prints the trustee's name where Windows gives one and its
+- [x] An allow entry of an unknown kind counts as an allow (`crates/nvs-config/src/trust.rs:1123`).
+- [x] `UNTRUSTED` goes, and the breach prints the trustee's name where Windows gives one and its
   SID always (`crates/nvs-config/src/trust.rs:772`, `crates/nvs-config/src/trust.rs:1075`).
-- [ ] Test `a_write_entry_for_any_other_account_is_a_breach`. On Windows it grants Modify, by SID
+- [x] Test `a_write_entry_for_any_other_account_is_a_breach`. On Windows it grants Modify, by SID
   through the file's `icacls` helper, to `INTERACTIVE`, `NETWORK`, `BATCH` and `SERVICE` in turn, on
   the file and on its directory, and expects `E0607` naming that SID each time. On Unix it sets the
   group bit and the world bit in turn (`crates/nvs-config/tests/trust.rs:287`,
   `crates/nvs-config/tests/trust.rs:82`).
-- [ ] Test `a_write_entry_for_a_trusted_account_passes`: on Windows, full control for the owner,
+- [x] Test `a_write_entry_for_a_trusted_account_passes`: on Windows, full control for the owner,
   `SYSTEM` and `Administrators` passes. On Unix, an owner-writable file passes
   (`crates/nvs-config/tests/trust.rs:1`).
-- [ ] The existing Windows cases follow, the deny case and the parent's replace test among them
+- [x] The existing Windows cases follow, the deny case and the parent's replace test among them
   (`crates/nvs-config/tests/trust.rs:194`, `crates/nvs-config/tests/trust.rs:309`,
   `crates/nvs-config/tests/trust.rs:331`, `crates/nvs-config/tests/trust.rs:450`).
-- [ ] `rule:config/ownership-is-the-trust-boundary` states the Windows test as "no other account",
+- [x] `rule:config/ownership-is-the-trust-boundary` states the Windows test as "no other account",
   lists the trusted trustees, and drops the five names from the parent paragraph
   (`docs/rules/config/ownership-is-the-trust-boundary.md:10`,
   `docs/rules/config/ownership-is-the-trust-boundary.md:38`).
@@ -285,46 +285,49 @@ text that names the viewer's address, as `path:NN`.
 
 ### State
 
-Stage 1 is done, and its two checks are green. `Secret` has a `source` (`Source::File` or
-`Source::Tree`). `materialize` carries an inline directive value into the map with its
-configuration file as origin. `strip_inline` removes it from the table by walking `SECRETS`
-(`remove_at`, which keeps a block the removal empties, so `[http]` with only `csrf_key` still
-retypes to a block `apply` can write into). `redact_inline` writes `"<secret>"` under each inline
-key for `dump --toml` alone. The `Explore` list of printers named one more that prints values, the
-reload's restart-pending record (`crates/nvs-cli/src/reload.rs:418`); it reads the table, which now
-has no secret, so it needs no change. Diagnostics that quote a written value quote non-secret
-directives only. `no_printer_shows_a_secret_directive` drives the dump, `--origin`, `--toml`, the
-merged and snapshot tables, `Core\Config::all`, the boot advisories and the `both_set` refusal,
-and checks `get` still returns the value. A new `SECRETS` row fails it until `fixture` has a block
-for the row.
+Stage 1 is done, and its two checks are green. An inline secret directive is carried into the
+`secrets` map and stripped from the table, and `dump --toml` writes it as `"<secret>"`.
 
-Stages 2 and 3 are untouched. The tree holds a Windows check over five groups and a loopback viewer
-with no token.
+Stage 2 is done, and its check `any-other-writer-is-a-breach` is green on this Windows host.
+`platform::walk` folds every trustee's entries in one pass into a `Walk` of `Grant`s, and
+`Walk::untrusted` returns the first trustee outside `platform::trusted` (owner, judged account,
+`SYSTEM`, `Administrators`, `TrustedInstaller`, `OWNER RIGHTS`, `CREATOR OWNER`) that holds a
+refused right and is not in `Administrators`. An allowing entry of an unreadable kind lands in
+`Walk::unknown` and is a breach with the null-DACL help. A conditional or object deny is skipped.
+The breach reads "grants write access to `NAME` (`*SID`), rights 0x…", with the name left out
+where Windows has none, and its `Repair` carries the `*SID`. `exposure` uses the same walk for
+read, judged for this process. `UNTRUSTED` and `effective_rights` are gone. Four in-memory DACL
+cases sit in `trust::platform::tests`, and both acceptance tests ran once by name.
+
+The sweep items were stale: no `env-secret-proofs` check exists, and Miri run `43201099245`
+predates `7568aaa0fb`. Stage 3 is untouched: the loopback viewer has no token.
 
 ### Next
 
-Stage 2, the Windows ownership check reads the whole access list. Files:
-`crates/nvs-config/src/trust.rs`, `crates/nvs-config/tests/trust.rs` and
-`docs/rules/config/ownership-is-the-trust-boundary.md`. Stage 3 may run beside it in its own files.
+Stage 3, the debug viewer answers only a request that carries its token. Files:
+`crates/nvs-cli/src/debug/secure.rs`, `crates/nvs-cli/src/debug/listen.rs`,
+`crates/nvs-cli/src/debug.rs`, `crates/nvs-cli/tests/debug_viewer.rs`,
+`crates/nvs-cli/tests/debug_service.rs` and the rule. Start with the stage's `Explore` split.
 
-- [ ] `crates/nvs-config/src/trust.rs:1067`: `examine` walks the DACL once, for the file, parent and
-  link-holder tests (`crates/nvs-config/src/trust.rs:1108`).
-- [ ] `crates/nvs-config/src/trust.rs:1042`: the trusted trustees, with `in_administrators` asked
-  once per distinct trustee (`crates/nvs-config/src/trust.rs:1301`).
-- [ ] `crates/nvs-config/src/trust.rs:1123`: an allow entry of an unknown kind counts as an allow.
-- [ ] `crates/nvs-config/src/trust.rs:772`: `UNTRUSTED` goes, and the breach names the SID
-  (`crates/nvs-config/src/trust.rs:1075`).
-- [ ] `crates/nvs-config/tests/trust.rs:287`: tests `a_write_entry_for_any_other_account_is_a_breach`
-  and `a_write_entry_for_a_trusted_account_passes` (`crates/nvs-config/tests/trust.rs:82`).
-- [ ] `crates/nvs-config/tests/trust.rs:194`: the existing Windows cases follow
-  (`crates/nvs-config/tests/trust.rs:309`, `crates/nvs-config/tests/trust.rs:331`,
-  `crates/nvs-config/tests/trust.rs:450`).
-- [ ] `docs/rules/config/ownership-is-the-trust-boundary.md:10`: the rule states "no other account"
-  (`docs/rules/config/ownership-is-the-trust-boundary.md:38`).
+- [ ] `crates/nvs-cli/src/debug/secure.rs:25`: `Secure` splits into the token, loaded on every bind,
+  and TLS off loopback (`crates/nvs-cli/src/debug/listen.rs:130`).
+- [ ] `crates/nvs-cli/src/debug/listen.rs:306`: `refused` checks the token on every bind, and the
+  loopback cookie has its own name (`crates/nvs-cli/src/debug/listen.rs:77`,
+  `crates/nvs-cli/src/debug/listen.rs:456`, `crates/nvs-cli/src/debug/listen.rs:466`).
+- [ ] `crates/nvs-cli/src/debug/listen.rs:135`: the loopback link carries `?token=`, and
+  `crates/nvs-cli/src/debug.rs:227` prints it. Help at `crates/nvs-cli/src/debug.rs:105` and `:128`.
+- [ ] `crates/nvs-cli/tests/debug_viewer.rs:1`: the two acceptance tests, and the existing loopback
+  cases send the token (`crates/nvs-cli/tests/debug_viewer.rs:181`, `:210`, `:226`, `:263`,
+  `crates/nvs-cli/tests/debug_service.rs:47`).
+- [ ] `docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md:64`: every bind
+  needs the token, and what it costs.
 
-Tests that may go red at the gate from stage 1, not run here: any case in
-`crates/nvs-config/tests/` or `crates/nvs-config/src/audit.rs` that expects an inline secret
-directive in `resolved.table`, or a `--toml` document without `<secret>` keys. A grep found none.
+Tests that may go red at the gate, not run here. From stage 1: any case that expects an inline
+secret directive in `resolved.table`, or a `--toml` document without `<secret>` keys; a grep found
+none. From stage 2: any test on Windows whose scratch tree or checkout grants write to a trustee
+outside the trusted list, such as a CI runner account that is not the test's own, and
+`crates/nvs-cli/tests/init.rs:799`, which still matches the new message's prefix. Run the gate on a
+Windows runner too.
 
 ### Backlog
 
