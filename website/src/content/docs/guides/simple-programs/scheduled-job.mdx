@@ -62,13 +62,10 @@ connect = ["hooks.example.com"]
 ```
 
 Both entries start the same script. `Core\Script::args()` returns the entry's `name` and `on`. The
-value of `on` is the event, for example `"start"`:
+value of `on` is the event, for example `"start"`. When you run the script by hand, the result is
+`null`:
 
-```nvs
-<?nvs
-array<mixed> $run = Core\Script::args() as array<mixed>;
-Core\Http\Client::post('https://hooks.example.com/server', { json: ['job' => $run['name'], 'event' => $run['on']] });
-```
+<Snippet src="guides/simple-programs/scheduled-job/announce.nvs" />
 
 A `start` job runs once, after the server begins to accept requests. The server does not wait for
 it, so a slow job does not delay any request.

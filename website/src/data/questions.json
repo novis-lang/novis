@@ -95,13 +95,14 @@
   },
   "/guides/cookbook/schedule-job/": {
     "feature": "guides/cookbook/schedule-job.mdx",
-    "hash": "0088c0a4cde03ce3",
+    "hash": "fbdad79c52e01dab",
     "questions": [
       "How do I run a program every Monday morning?",
       "Example of a weekly report that runs by itself",
       "What does the cron line 0 7 * * 1 mean?",
       "Run a scheduled program once by hand to try it",
-      "Does a scheduled script need a permission before the server starts it?"
+      "Does a scheduled script need a permission before the server starts it?",
+      "Send a chat message when the server stops"
     ]
   },
   "/guides/cookbook/signed-cookie/": {
@@ -468,14 +469,14 @@
   },
   "/guides/simple-programs/scheduled-job/": {
     "feature": "guides/simple-programs/scheduled-job.mdx",
-    "hash": "59b7c5391808cb86",
+    "hash": "01754fa21e86d656",
     "questions": [
       "How do I delete old log files every night?",
-      "Example of a job that runs at 3 in the morning",
       "Keep only the newest three files in a folder",
       "Run a cleanup job on only one of my servers",
       "Allow a nightly job to delete files on the server",
-      "Start a scheduled script that is in another folder"
+      "Start a scheduled script that is in another folder",
+      "Run a script when the server starts or stops"
     ]
   },
   "/guides/simple-programs/scraper/": {
@@ -1798,13 +1799,14 @@
   },
   "/reference/config/schedule/": {
     "feature": "directive:schedule",
-    "hash": "0b39fbf2256bfe8d",
+    "hash": "b65807731bdf8d0c",
     "questions": [
       "Run a job every night",
       "How do I run a script at fixed times like cron?",
       "Run a scheduled task on only one host in a cluster",
       "Set the time zone for scheduled jobs",
-      "What happens when the previous run is still going?"
+      "What happens when the previous run is still going?",
+      "Run a script when the server starts, stops, reloads or a job fails"
     ]
   },
   "/reference/config/secrets-from-files/": {

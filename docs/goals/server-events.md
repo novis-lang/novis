@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-cli/tests/live_config.rs, docs/examples/config/schedule/about.md, docs/examples/config/schedule/01-work-that-runs-on-a-clock.nvs, tests/hostile/config/schedule/01-scheduling-my-own-work-from-a-request.nvs, website/src/content/docs/guides/simple-programs/scheduled-job.mdx, website/src/content/docs/guides/cookbook/schedule-job.mdx]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: an-event-entry-is-checked-at-boot
@@ -323,49 +323,42 @@ on its own files. None of them builds.
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. Stage 5, the gate, is next. Every event runs from `tick_on_this_core`
-through `answer`, and the built `nvs serve` runs each of the four.
+Every stage is done, and the goal is reached. `looper verify` over the whole goal was green on its
+first run (`bun nv verify`, 1017s), so it had no failure to fix. The goal-end gates are green:
+`bun nv verify --doc`, `bun nv owners --closes server-events` and `bun nv ci --check`.
 
-`crates/nvs-cli/tests/schedule_events.rs` has the three end-to-end tests, all green
-(`cargo test --test schedule_events`, about 33s; the failed one waits for the next whole minute).
-Its `Served` harness starts the server in its own process group and stops it with `SIGTERM` or a
-Ctrl-Break, as `one_binary.rs` does, because `live_config.rs`'s `Server` only kills, and a kill
-runs no `stop` entry. Each event script writes `Core\Script::args()` as JSON beside itself.
+The goal-end gates found four things outside the verify run, each fixed:
 
-The proofs: example 02 with its `.out`, example 01's comment, a short `about.md` with the rest in a
-new `details.md` (the proofs gate caps `about.md` at 200 words), attack 02, and a section in each
-website guide. `bun nv proofs --id directive:schedule` prints `complete.`, `--comments` passes
-every file, and `bun nv render --website --check` is green.
-The process-wide `nvs_server::Events` in `crates/nvs-server/src/schedule.rs` carries reloads and
-failures to the ticker. Every acceptance check of stages 1 to 3 is green, and clippy is clean.
+- `data/rules/config/an-entry-runs-on-a-server-event.json` was still `designed` and owned by this
+  goal. It is `shipped` now, guarded by the resolve test, the ticker and `schedule_events.rs`.
+- `docs/rules/config.md` and `docs/ground-rules.md` were re-rendered with `bun nv rules --render`.
+- The simple-programs guide had an inline Novis fence. It is now the snippet
+  `website/snippets/guides/simple-programs/scheduled-job/announce.nvs` with its `.out`.
+- The questions of the three schedule pages were stale. Each has an event question and is stamped.
 
-The acceptance sweep's `env-secret-proofs` names no check in the tree; it is a stale entry in
-looper's service, and its log does not exist. The nightly's jobs were cancelled by later pushes.
+The proofs gate (`feature proofs: ok` in `bun nv ci --check`) runs the Queue attack clean, so the
+backlog's unconfirmed report is not a red.
+
+The acceptance sweep's `env-secret-proofs` names no check in the tree, and its log does not
+exist. The nightly's jobs were cancelled by later pushes.
 
 ### Next
 
-Stage 5, the gate. Start `looper verify` with `run_in_background`, fix every failure in one pass,
-run it once more, then the goal-end gates (`bun nv verify --doc`, `bun nv owners --closes
-server-events`, `bun nv ci --check`) and `DONE`.
+Nothing in this goal. The loop retires it and takes `chain-ends-green`.
 
 - [ ] `crates/nvs-cli/tests/schedule_events.rs:1`: if a CI runner is slow, the stop test's 20s
   drain and the 30s `BOUND` are where to look first.
-- [ ] `tests/hostile/config/schedule/02-flooding-the-failed-entry.nvs:1`: the proofs gate runs it
-  under `nvs run`; it ran clean on the debug binary.
 
-Expected red: none known. Possibly a cron script elsewhere in the tree that read its args as a
-string, which stage 2's map changed.
+Expected red: none known.
 
 ### Backlog
 
-- An unconfirmed report: `tests/hostile/core/Queue/push/01-huge-and-invalid-jobs.nvs` calls
-  `Core\Db::connect('jobs')` with no `db.connect` grant under `nvs run`, so it may end on its first
-  line. The proofs gate in stage 5 says whether that is a red.
+None.

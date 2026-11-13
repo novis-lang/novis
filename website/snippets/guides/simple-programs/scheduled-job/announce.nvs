@@ -1,0 +1,10 @@
+<?nvs
+// This program sends a message to a chat when the server starts or stops.
+// `Core\Script::args()` returns the entry's `name` and `on`. Run by hand, the result is `null`.
+var $given = Core\Script::args();
+if ($given == null) {
+    echo "started by hand, not by the server\n";
+} else {
+    array<mixed> $run = $given as array<mixed>;
+    Core\Http\Client::post('https://hooks.example.com/server', { json: ['job' => $run['name'], 'event' => $run['on']] });
+}
