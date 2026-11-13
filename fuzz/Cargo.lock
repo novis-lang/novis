@@ -1555,6 +1555,7 @@ dependencies = [
  "hyper",
  "jiff",
  "nvs-config",
+ "nvs-diagnostics",
  "nvs-footprint",
  "nvs-host",
  "nvs-render",

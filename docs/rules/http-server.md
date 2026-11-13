@@ -372,6 +372,8 @@ A request head may have at most 100 header lines, `Host` included. A head with 1
 
 The bound is the parser's and not a size policy. A head is parsed into an array of this many entries, so the number is also what one head costs to parse. [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite) leaves a head's size to the proxy, and this rule does not change that: a proxy still owns how many bytes a head may have.
 
+**What a head spends**, per [`programs/memory-priority`](programs.md#programs-memory-priority): once parsed, the request's copy of its head (`nvs_runtime::Head`) holds its bytes once, back to back in one buffer, and two words per header line plus three for the request line. It is built in three allocations for any number of lines, because the parser has counted the lines before the first copy. The parser's own head is freed once the body is split. A dispatching unit's rerun shares the first run's copy and makes none of its own. A head is never kept for a later request ([`security/no-cross-request-state`](security.md#security-no-cross-request-state)).
+
 **Declined:**
 
 - **A setting.** No application needs more than a hundred header lines, and one that does is sending state the body should carry.
@@ -659,6 +661,7 @@ A single `Range` is honoured; a multi-range request, a second `Range` line, a bo
 **In development, a request from a loopback address must name this machine in `Host`:** `localhost`, a name under `.localhost`, a loopback address, or a host a `[[server.mount]]` lists. Any other host reaches no mount and gets the table's `404`, and only the health probe answers it. That closes DNS rebinding, where a web page makes its own name resolve to `127.0.0.1`. A request from another machine is not asked, so a development server on `0.0.0.0` still answers its network address.
 
 - **Memory:** one open file handle and one 64 KiB chunk per in-flight file response, plus the HTTP layer's write buffer, whatever the file's size or the range's. The next chunk is read only when that buffer has room, so a slow peer holds the read back. Nothing is cached between requests: O(in-flight), not O(files served).
+- **Latency:** every lookup, open and chunk read runs on the blocking pool ([`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall)), one hand-off per path asked and one per chunk sent, so a slow disk stalls its own request and no other request on the core.
 
 **Declined:**
 
@@ -2268,6 +2271,8 @@ released. That is a fraction of a percent of any request that allocated enough t
 The runtime is one single-threaded scheduler pinned per core, and a request never migrates. A blocking syscall on that thread stalls every coroutine pinned to the same core — the requests that lose are the neighbours, and they did nothing. A socket read is *not* one of those syscalls: the stream parks the coroutine and hands the core back ([`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract)), which is the cheaper mechanism and the one to reach for whenever the kernel can report the wait.
 
 **Filesystem calls, name resolution, and waiting on a child process go to the blocking pool**; the reactor thread issues no call that can block on external state. The pool is **bounded at twice the core count**, per worker, and never grows with requests served. The handoff costs microseconds against operations that cost milliseconds, and what it avoids is an entire core idle for the same interval.
+
+**Static serving is one of them.** The server's file lookup and open (`OnDisk`) each hand their whole body to the pool as one job: the `stat`, the canonical path and a link's walk for a path a mount selects, and the `stat`, the open and the `fstat` for the file it sends. A file body reads each 64 KiB chunk as one job, with the file moved in and back, and its first job seeks to the range's start. That covers a static mount, the default document, a miss that reaches the entry and the file a `Core\Response::sendFile` names. What it spends: one hand-off per path asked and one per chunk sent. A request under `static = true` pays one to three hand-offs before its program runs.
 
 **A job's CPU time is the request's.** The pool thread reads its own CPU clock before and after each job, and each answer a pinned thread gives, and the task adds the difference to its request's charge when the answer lands. `[limits] cpu_time` then counts a slow statement or a large file hashed off the core exactly as it counts the same work on it ([`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees)). That is two clock reads per job, and one more word per published request tree.
 

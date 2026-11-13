@@ -864,7 +864,9 @@ impl Compiler {
     /// are answered with a failure. Those take [`Self::unit`].
     ///
     /// A core fills its slots with this (`crate::serve::mounts`), so filling
-    /// one never compiles and never reads the disk.
+    /// one never compiles and never reads the disk. A slot never keeps a
+    /// failure: only a request walks a path with no pointer, so a kept failure
+    /// could hide the fix of a path no background check watches.
     pub(crate) fn standing_unit(&self, path: &Path) -> Option<Arc<Compiled>> {
         let entry = shared(&self.paths).get(path).copied()?;
         self.answer_at(path, entry.serving())?.ok()
