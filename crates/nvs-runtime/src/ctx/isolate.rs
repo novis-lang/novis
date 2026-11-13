@@ -420,6 +420,7 @@ impl Ctx {
         child.run_profile = self.run_profile.clone();
         child.debug_sinks = self.child_sinks();
         child.origin = self.origin.clone();
+        child.module_links = self.module_links.clone();
         // The effective configuration, overlay included — see the doc above for
         // why the copy goes this way round and not through the snapshot alone.
         child.config = self.config.clone();
@@ -557,6 +558,7 @@ impl Ctx {
         isolate.run_profile = self.run_profile.clone();
         isolate.debug_sinks = self.child_sinks();
         isolate.origin = self.origin.clone();
+        isolate.module_links = self.module_links.clone();
         // The configuration **including the parent's overlay**, so a child
         // starts from the values in force where it was spawned rather than from
         // the file. That is the direction `rule:security/isolate-shares-nothing`'s table wants: a parent that
@@ -764,6 +766,7 @@ impl Ctx {
             run_hits: self.run_hits.clone(),
             run_profile: self.run_profile.clone(),
             origin: self.origin.clone(),
+            module_links: self.module_links.clone(),
             config: self.config.clone(),
             grant_filter: self.grant_filter.clone(),
             script_depth: self.script_depth.saturating_add(1),
@@ -1068,6 +1071,7 @@ pub struct PlacedIsolate {
     run_hits: Option<std::sync::Arc<StmtHits>>,
     run_profile: Option<std::sync::Arc<crate::Profiler>>,
     origin: Option<Box<str>>,
+    module_links: Option<std::sync::Arc<nvs_config::mount::Links>>,
     config: Option<nvs_config::Request>,
     grant_filter: Option<std::sync::Arc<[nvs_config::capability::Cap]>>,
     script_depth: u32,
@@ -1146,6 +1150,7 @@ impl PlacedIsolate {
             DebugSinks::for_child(self.run_profile.as_ref(), &DebugSinks::default());
         child.run_profile = self.run_profile;
         child.origin = self.origin;
+        child.module_links = self.module_links;
         child.config = self.config;
         child.grant_filter = self.grant_filter;
         child.script_depth = self.script_depth;

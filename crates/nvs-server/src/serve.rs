@@ -11099,6 +11099,7 @@ pub(crate) mod tests {
                 captures: Vec::new(),
                 block: 0,
                 canonical: false,
+                links: None,
             }],
             crate::mount::Dispatch::Entry,
             true,

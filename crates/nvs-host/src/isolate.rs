@@ -170,6 +170,9 @@ pub struct Isolate {
     /// [`Isolate::at_origin`], and `None` for every isolate whose context takes
     /// its parent's answer.
     origin: Option<Box<str>>,
+    /// The link table of the mount the door chose — [`Isolate::linking_through`],
+    /// and `None` for every isolate whose context takes its parent's.
+    module_links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
     peer: Option<Box<dyn PeerSocket>>,
     /// The writing half of the response this isolate's events are the body of —
     /// [`Isolate::over_event_stream`], and `None` for every isolate that is not
@@ -257,6 +260,7 @@ impl Isolate {
             kind: None,
             folder: None,
             origin: None,
+            module_links: None,
             peer: None,
             event_stream: None,
             inbox: None,
@@ -460,6 +464,17 @@ impl Isolate {
     #[must_use]
     pub fn at_origin(mut self, origin: &str) -> Self {
         self.origin = Some(origin.into());
+        self
+    }
+
+    /// Gives it the table its links to other modules are built from: the one
+    /// the mount that accepted the request holds
+    /// (`rule:routing/a-link-reaches-another-module`). It arrives here for
+    /// [`Self::at_origin`]'s reason: it is per mount, and nothing a peer wrote
+    /// can reach it.
+    #[must_use]
+    pub fn linking_through(mut self, links: std::sync::Arc<nvs_runtime::ModuleLinks>) -> Self {
+        self.module_links = Some(links);
         self
     }
 
@@ -670,6 +685,7 @@ impl Isolate {
             kind,
             folder,
             origin,
+            module_links,
             peer,
             event_stream,
             inbox,
@@ -830,6 +846,10 @@ impl Isolate {
         // door that resolved none leaves the parent's answer standing.
         if let Some(origin) = origin {
             isolate_ctx.set_origin(&origin);
+        }
+        // The mount's link table, for the same reason and at the same point.
+        if let Some(links) = module_links {
+            isolate_ctx.set_module_links(links);
         }
         // `rule:concurrency/a-connection-is-a-root-isolate`'s socket, on the same context and for the same reason:
         // it is what this isolate *is*, so it is there before the program's

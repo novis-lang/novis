@@ -303,6 +303,7 @@ fn a_tree_with_no_mount_block_has_one_implicit_mount_at_the_root() {
                 captures: Vec::new(),
                 block: 0,
                 canonical: false,
+                links: None,
             }]
         );
     }
@@ -653,6 +654,7 @@ fn a_link_takes_the_first_step_with_a_candidate() {
         captures: Vec::new(),
         block,
         canonical: false,
+        links: None,
     };
     let mut rows = vec![
         row("/base/blog", None, "/www/Blog/index.nvs", 0),

@@ -39,8 +39,9 @@
 //! [`Mounted`] per resolved mount held per configuration generation. Nothing here runs per request.
 //!
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use nvs_diagnostics::{Diagnostic, code};
 
@@ -83,7 +84,46 @@ pub struct Mounted {
     /// The block's `canonical`, `false` where it is not written
     /// (`rule:http-server/a-canonical-mount-breaks-a-tie`).
     pub canonical: bool,
+    /// Where each link of this row's unit to another module goes
+    /// (`rule:routing/a-link-reaches-another-module`). The server fills it in after every row has
+    /// compiled, with [`links_of`]. It is `None` for a row whose unit links to no other module, and
+    /// [`expand`] leaves it `None`.
+    ///
+    /// Cost: one table per linking row per expansion, shared by every request of the row and by
+    /// every core's copy of the row through the `Arc`.
+    pub links: Option<Arc<Links>>,
 }
+
+impl Mounted {
+    /// Whether `other` is this row when [`Mounted::links`] is not compared. A row an expansion
+    /// just produced has no links yet, and a running server compares it to the row it serves by
+    /// this.
+    #[must_use]
+    pub fn same_row(&self, other: &Self) -> bool {
+        let Self {
+            prefix,
+            host,
+            entry,
+            root,
+            origin,
+            captures,
+            block,
+            canonical,
+            links: _,
+        } = self;
+        *prefix == other.prefix
+            && *host == other.host
+            && *entry == other.entry
+            && *root == other.root
+            && *origin == other.origin
+            && *captures == other.captures
+            && *block == other.block
+            && *canonical == other.canonical
+    }
+}
+
+/// A row's links to other modules: the handler, `Class::method`, to where [`link`] sent it.
+pub type Links = HashMap<String, Link>;
 
 /// `rule:http-server/a-mount-table-expands-at-boot`'s implicit mount, for a tree that writes no
 /// `[[server.mount]]` at all. `nvs test` over a
@@ -489,6 +529,31 @@ pub fn link(
     Err(Unlinked::Unserved)
 }
 
+/// The links of row `from`: [`link`] asked for each handler in `handlers`, the handlers its unit
+/// links to under an `autoload links` root. The table holds each handler that found a row, and
+/// each one that found none comes back beside it with the reason.
+///
+/// Cost: one [`link`] per handler, off the request path. The table is O(handlers).
+#[must_use]
+pub fn links_of(
+    rows: &[Mounted],
+    serves: &dyn Fn(usize, &str) -> bool,
+    from: usize,
+    handlers: &[String],
+) -> (Links, Vec<(String, Unlinked)>) {
+    let mut table = Links::with_capacity(handlers.len());
+    let mut unlinked = Vec::new();
+    for handler in handlers {
+        match link(rows, serves, from, handler) {
+            Ok(found) => {
+                table.insert(handler.clone(), found);
+            }
+            Err(why) => unlinked.push((handler.clone(), why)),
+        }
+    }
+    (table, unlinked)
+}
+
 /// What happens to a refused match: [`expand`] returns it as the error, and [`expand_again`]
 /// keeps it and goes on without the match.
 type Refusal<'a> = &'a mut dyn FnMut(Diagnostic) -> Result<(), Diagnostic>;
@@ -764,6 +829,7 @@ fn mounted(
         captures,
         block: index,
         canonical: block.canonical.unwrap_or(false),
+        links: None,
     })
 }
 

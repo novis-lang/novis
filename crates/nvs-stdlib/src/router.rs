@@ -1616,23 +1616,46 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Router::url` to a route of another module — see
-    /// [`link::MODULE_SYMBOL`]. No mount serves a handler of another module
-    /// yet, so the call throws and names the handler.
+    /// [`link::MODULE_SYMBOL`]. The mount the request came through gave the
+    /// context a table, and the handler's row in it is the prefix, and the
+    /// origin where the target is on another host. The call throws and names
+    /// the handler where no mount serves it.
     fn nvs_core_router_link_module(ctx, args: [3]) {
-        let _ = ctx;
-        let _ = link_template(args, "url")?;
-        Err(no_mount_serves(&args[1], "url"))
+        let template = link_template(args, "url")?;
+        let handler = args[1].as_text().unwrap_or_default();
+        let Some(found) = ctx.module_link(handler) else {
+            return Err(no_mount_serves(&args[1], "url"));
+        };
+        let path = substitute(template, &args[2], "url")?;
+        let origin = found.elsewhere.as_deref().map_or("", |at| at.trim_end_matches('/'));
+        produced(&format!("{origin}{}{path}", joined(&found.prefix)))
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router::urlAbsolute` to a route of another module, which throws
-    /// as [`nvs_core_router_link_module`] does.
+    /// `Core\Router::urlAbsolute` to a route of another module: what
+    /// [`nvs_core_router_link_module`] builds, always with an origin in
+    /// front. That is the target row's origin on another host, and the origin
+    /// of the row the request came through otherwise.
     fn nvs_core_router_link_module_absolute(ctx, args: [3]) {
-        let _ = ctx;
-        let _ = link_template(args, "urlAbsolute")?;
-        Err(no_mount_serves(&args[1], "urlAbsolute"))
+        let template = link_template(args, "urlAbsolute")?;
+        let handler = args[1].as_text().unwrap_or_default();
+        let Some(found) = ctx.module_link(handler) else {
+            return Err(no_mount_serves(&args[1], "urlAbsolute"));
+        };
+        let path = substitute(template, &args[2], "urlAbsolute")?;
+        let path = format!("{}{path}", joined(&found.prefix));
+        match found.origin.as_deref() {
+            Some(origin) => produced(&format!("{}{path}", origin.trim_end_matches('/'))),
+            None => with_origin(ctx, &path),
+        }
     }
+}
+
+/// A mount prefix as a link puts it in front of a route's path: `/` is the
+/// root and adds nothing, so a route at `/a` under it is `/a` and not `//a`.
+fn joined(prefix: &str) -> &str {
+    if prefix == "/" { "" } else { prefix }
 }
 
 /// The error a link to another module throws when no mount serves its

@@ -810,6 +810,10 @@ pub struct Routes {
     /// — [`Self::dispatches`], a fact about the calls for the reason
     /// `absolute_links` is one.
     dispatches: bool,
+    /// Every handler under an `autoload links` root the unit links to —
+    /// [`Self::module_links`], a fact about the calls for the reason
+    /// `absolute_links` is one. Empty for most units.
+    module_links: Vec<String>,
 }
 
 /// A request the door refused, which a dispatching program still runs for in
@@ -861,6 +865,7 @@ impl Routes {
             prefixes,
             absolute_links: false,
             dispatches: false,
+            module_links: Vec::new(),
         }
     }
 
@@ -910,6 +915,23 @@ impl Routes {
     #[must_use]
     pub fn absolute_links(&self) -> bool {
         self.absolute_links
+    }
+
+    /// The same table, declared by a unit that links to `handlers` under an
+    /// `autoload links` root (`nvs_types::ExprTypeTable::module_links`).
+    #[must_use]
+    pub fn linking_to_modules(mut self, handlers: Vec<String>) -> Self {
+        self.module_links = handlers;
+        self
+    }
+
+    /// Every handler of another module the unit links to, sorted and once
+    /// each. Read at boot and on each expansion, never per request: the server
+    /// finds the mount that serves each one
+    /// (`rule:routing/a-link-reaches-another-module`).
+    #[must_use]
+    pub fn module_links(&self) -> &[String] {
+        &self.module_links
     }
 
     /// The same table, declared by a unit that calls `Core\Router::dispatch`

@@ -590,6 +590,7 @@ mod tests {
             captures: Vec::new(),
             block: 0,
             canonical: false,
+            links: None,
         }
     }
 

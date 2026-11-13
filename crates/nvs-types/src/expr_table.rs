@@ -2715,6 +2715,27 @@ impl ExprTypeTable {
             .any(|info| matches!(info, ExprInfo::RouteLink { absolute: true, .. }))
     }
 
+    /// Every handler this program links to under an `autoload links` root, sorted and once
+    /// each: the `handler` of every [`ExprInfo::RouteLink`] that has one. The server finds the
+    /// mount that serves each one at boot (`rule:routing/a-link-reaches-another-module`).
+    #[must_use]
+    pub fn module_links(&self) -> Vec<String> {
+        let mut handlers: Vec<String> = self
+            .entries
+            .iter()
+            .filter_map(|info| match info {
+                ExprInfo::RouteLink {
+                    handler: Some(handler),
+                    ..
+                } => Some(handler.clone()),
+                _ => None,
+            })
+            .collect();
+        handlers.sort_unstable();
+        handlers.dedup();
+        handlers
+    }
+
     /// Records `rule:tooling/commands-are-compiled`'s finished command table —
     /// every `#[Command]` in the program, collected across its files and already
     /// held to that rule's duplicate-name error by

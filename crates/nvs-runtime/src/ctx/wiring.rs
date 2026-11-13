@@ -214,6 +214,7 @@ impl Ctx {
             log_minimum: Level::Debug,
             log_format: LogFormat::Json,
             origin: None,
+            module_links: None,
             commands: None,
             routes: None,
             arguments: Vec::new(),
@@ -463,6 +464,20 @@ impl Ctx {
     /// rather than of a review.
     pub fn set_origin(&mut self, origin: &str) {
         self.origin = Some(origin.trim_end_matches('/').into());
+    }
+
+    /// Where `handler`, a route of another module, is served from the mount
+    /// this request came through, or `None` where no mount serves it or no
+    /// door wrote a table (`rule:routing/a-link-reaches-another-module`).
+    #[must_use]
+    pub fn module_link(&self, handler: &str) -> Option<&nvs_config::mount::Link> {
+        self.module_links.as_deref()?.get(handler)
+    }
+
+    /// Gives this request the link table of the mount it came through. Written
+    /// before the request runs, by the door, as [`Self::set_origin`] is.
+    pub fn set_module_links(&mut self, links: std::sync::Arc<nvs_config::mount::Links>) {
+        self.module_links = Some(links);
     }
 
     /// This request's configuration, or `None` on a context nobody configured —

@@ -147,7 +147,7 @@ use nvs_runtime::script::Program;
 use nvs_runtime::{Ctx, Inbound, OutputSink, TaskRoot, Value};
 use nvs_server::{
     Admission, Arrived, Ceiling, Cors, Incoming, OnDisk, Origin, Reply, Request, Resolved, Secure,
-    Serving, Table, Trusted, What,
+    Serving, Trusted, What,
 };
 
 use crate::script::Compiler;
@@ -516,10 +516,6 @@ pub(crate) fn run(
         },
         |path| path.display().to_string(),
     );
-    // This thread's table, for the enumeration below alone. Every worker builds
-    // its own from the same mounts, because a `Table` is an `Rc` graph and
-    // belongs to the thread that reads it.
-    let table = Rc::new(Table::from_config(mounts.clone(), &snapshot.config));
 
     // `rule:http-server/a-path-is-never-derived-from-a-url`, kept before the
     // socket exists: **every** path this server can execute
@@ -560,10 +556,15 @@ pub(crate) fn run(
     // refuses still fails the start, and so does a table where nothing compiled.
     let mut failing = std::collections::BTreeSet::new();
     let mut compiled = 0_usize;
-    for mounted in table.mounts() {
+    let mut routes = Vec::with_capacity(mounts.len());
+    for mounted in &mounts {
         match compiled_under(&compiler, mounted) {
-            Ok(()) => compiled += 1,
+            Ok(table) => {
+                compiled += 1;
+                routes.push(Some(table));
+            }
             Err(Unserved::Uncompiled(message)) => {
+                routes.push(None);
                 eprintln!(
                     "error: the mount at `{}` serves `{}`, {NOT_COMPILED_AT_START}, and its \
                      requests answer 500 until it compiles: {message}",
@@ -581,6 +582,17 @@ pub(crate) fn run(
     if compiled == 0 {
         eprintln!("error: no mount compiled, so there is nothing to serve");
         return ExitCode::FAILURE;
+    }
+    // `rule:routing/a-link-reaches-another-module`: once every row has
+    // compiled, each row that links to another module gets the table of where
+    // each link goes. A tie a link needs fails the start, as an unreached
+    // origin does. A link no row serves is logged, and throws when it runs.
+    for unlinked in link_rows(&mut mounts, &routes) {
+        if unlinked.tie {
+            eprintln!("error: {}", unlinked.sentence);
+            return ExitCode::FAILURE;
+        }
+        eprintln!("warning: {}", unlinked.sentence);
     }
     // The rows every core answers from, on the same thread as the check below
     // (`mounts`'s module doc). A tree that writes `[[server.mount]]` has them
@@ -2296,6 +2308,7 @@ fn one_mount(path: &Path) -> Result<Mounted, String> {
         captures: Vec::new(),
         block: 0,
         canonical: false,
+        links: None,
     })
 }
 
@@ -2470,13 +2483,90 @@ fn fold_origins(mounts: &mut [Mounted], published: &nvs_config::Published) {
 /// does not compile — it renders its diagnostics itself (`crate::script`) —
 /// and [`Unserved::Unreached`] with a sentence naming the mount, the entry and
 /// the two keys that resolve an origin for it.
-fn compiled_under(compiler: &Compiler, mount: &Mounted) -> Result<(), Unserved> {
+fn compiled_under(
+    compiler: &Compiler,
+    mount: &Mounted,
+) -> Result<Arc<nvs_runtime::routes::Routes>, Unserved> {
     let entry = mount.entry.to_string_lossy().into_owned();
     let (_program, routes) = compiler.compiled(&entry).map_err(Unserved::Uncompiled)?;
     match unreached_origin(mount, &routes) {
         Some(refusal) => Err(Unserved::Unreached(refusal)),
-        None => Ok(()),
+        None => Ok(routes),
     }
+}
+
+/// A link of one row to another module that [`link_rows`] found no row for.
+#[derive(Debug)]
+struct Unlinked {
+    /// The linking row, as an index into the rows.
+    row: usize,
+    /// `true` for a tie `canonical` does not break, which fails a boot and
+    /// leaves the linking row out of a later expansion. `false` for a link no
+    /// row serves, which is logged and throws when it runs.
+    tie: bool,
+    /// The log line, naming the linking mount, its entry and the handler.
+    sentence: String,
+}
+
+/// `rule:routing/a-link-reaches-another-module`'s tables: each row whose unit
+/// links to another module gets [`Mounted::links`], from
+/// `nvs_config::mount::links_of`. `routes` holds each row's compiled route
+/// table, in the rows' order, and `None` for a row that did not compile, which
+/// serves nothing. A row that links to no other module keeps `None`.
+///
+/// Boot and every later expansion call this after every row has compiled.
+///
+/// Cost: one set of handlers per compiled row, and one pass over the rows per
+/// link, off the request path. Each linking row holds one table, shared by its
+/// requests (`Mounted::links`).
+fn link_rows(
+    rows: &mut [Mounted],
+    routes: &[Option<Arc<nvs_runtime::routes::Routes>>],
+) -> Vec<Unlinked> {
+    let handled: Vec<std::collections::HashSet<&str>> = routes
+        .iter()
+        .map(|table| {
+            table.as_ref().map_or_else(Default::default, |table| {
+                table.rows().iter().map(|route| route.handler()).collect()
+            })
+        })
+        .collect();
+    let serves =
+        |at: usize, handler: &str| handled.get(at).is_some_and(|set| set.contains(handler));
+    let mut unlinked = Vec::new();
+    let mut tables = Vec::with_capacity(rows.len());
+    for (at, table) in routes.iter().enumerate() {
+        let handlers = table.as_ref().map_or(&[][..], |table| table.module_links());
+        if handlers.is_empty() {
+            tables.push(None);
+            continue;
+        }
+        let (links, missed) = nvs_config::mount::links_of(rows, &serves, at, handlers);
+        for (handler, why) in missed {
+            let row = &rows[at];
+            let tie = matches!(why, nvs_config::mount::Unlinked::Tie(_));
+            let then = if tie {
+                ""
+            } else {
+                ". The link throws when it runs"
+            };
+            unlinked.push(Unlinked {
+                row: at,
+                tie,
+                sentence: format!(
+                    "the mount at `{}` serves `{}`, and {}{then}",
+                    row.prefix,
+                    row.entry.display(),
+                    why.describe(&handler, rows),
+                ),
+            });
+        }
+        tables.push(Some(Arc::new(links)));
+    }
+    for (row, links) in rows.iter_mut().zip(tables) {
+        row.links = links;
+    }
+    unlinked
 }
 
 /// Why [`compiled_under`] did not pass a mount. The start keeps a mount that
@@ -2615,6 +2705,12 @@ fn failing(message: String) -> Program {
 }
 
 fn at_mount_origin(isolate: Isolate, mount: &Mounted) -> Isolate {
+    // The row's links to other modules travel the same way, for the same
+    // reason: they are per mount (`rule:routing/a-link-reaches-another-module`).
+    let isolate = match &mount.links {
+        Some(links) => isolate.linking_through(Arc::clone(links)),
+        None => isolate,
+    };
     match &mount.origin {
         Some(origin) => isolate.at_origin(origin),
         None => isolate,
@@ -5390,6 +5486,7 @@ mod tests {
             captures: Vec::new(),
             block: 0,
             canonical: false,
+            links: None,
         };
         let tables = Rc::new({
             let (generation, published) = current.published_at();
@@ -6103,6 +6200,259 @@ echo Core\Router::{member}(Docs::here);
             done.ok,
             String::from_utf8(done.output.into_bytes()).expect("a link is text"),
         )
+    }
+
+    /// Two modules on disk, `Blog` and `Shop`, under `dir`. `Shop`'s entry
+    /// serves `Framework\Shop\View\Index::show` at `/item/{id}` and links to
+    /// it, since only a unit that uses the router reads its roots for routes
+    /// (`rule:routing/table-is-opt-in`). `Blog`'s
+    /// entry declares `Shop/src` for links only and prints `member`'s link to
+    /// that route. Where `shop_compiles` is `false`, `Shop`'s entry does not
+    /// compile. Answers the directory and the two entries.
+    fn two_modules(
+        case: &str,
+        member: &str,
+        shop_compiles: bool,
+    ) -> (nvs_repo::Scratch, PathBuf, PathBuf) {
+        let dir = nvs_repo::scratch(&format!("serve-links-{case}"));
+        let view = dir.join("Shop").join("src").join("View");
+        std::fs::create_dir_all(&view).expect("the target's folder is writable");
+        std::fs::write(
+            view.join("Index.nvs"),
+            "<?nvs\nnamespace Framework\\Shop\\View;\n\nclass Index\n{\n    \
+             #[Core\\Route(path: '/item/{id}', method: Core\\Http\\Method::Get)]\n    \
+             #[Core\\Access(allow: Core\\Audience::Public)]\n    \
+             public static function show(int $id): string { return 'item'; }\n}\n",
+        )
+        .expect("the target is writable");
+        let entry = |module: &str, source: &str| {
+            let public = dir.join(module).join("public");
+            std::fs::create_dir_all(&public).expect("the module's folder is writable");
+            let path = public.join("index.nvs");
+            std::fs::write(&path, source).expect("the entry is writable");
+            path
+        };
+        let shop = entry(
+            "Shop",
+            if shop_compiles {
+                "<?nvs\nautoload 'Framework\\Shop' from '../src';\n\n\
+                 echo Core\\Router::url(Framework\\Shop\\View\\Index::show, ['id' => 1]);\n"
+            } else {
+                "<?nvs\nautoload 'Framework\\Shop' from '../src';\n\necho 'shop'\n"
+            },
+        );
+        let blog = entry(
+            "Blog",
+            &format!(
+                "<?nvs\nautoload links 'Framework\\Shop' from '../../Shop/src';\n\n\
+                 echo Core\\Router::{member}(Framework\\Shop\\View\\Index::show, ['id' => 3]);\n"
+            ),
+        );
+        (dir, blog, shop)
+    }
+
+    /// One row of a table: `entry` at `prefix` on `host`, from block `block`.
+    fn row(entry: &std::path::Path, prefix: &str, host: Option<&str>, block: usize) -> Mounted {
+        let mut row = one_mount(entry).expect("the entry this case wrote is a file in a directory");
+        row.prefix = prefix.to_owned();
+        row.host = host.map(str::to_owned);
+        row.block = block;
+        row
+    }
+
+    /// [`super::link_rows`] over `rows`, each compiled first as the boot
+    /// compiles it, and a row that does not compile serving nothing.
+    fn linked(compiler: &Compiler, rows: &mut [Mounted]) -> Vec<super::Unlinked> {
+        let routes: Vec<_> = rows
+            .iter()
+            .map(|row| {
+                compiler
+                    .compiled(&row.entry.to_string_lossy())
+                    .ok()
+                    .map(|(_program, routes)| routes)
+            })
+            .collect();
+        super::link_rows(rows, &routes)
+    }
+
+    /// `rule:http-server/a-canonical-mount-breaks-a-tie`'s first step: the
+    /// rows of the block the request came through win, so every row of one
+    /// `scan` links inside that scan. A second block mounts `Shop` again on
+    /// the same host, and the link does not take it.
+    #[test]
+    fn a_link_takes_the_mount_block_that_served_the_request() {
+        let (_dir, blog, shop) = two_modules("block", "url", true);
+        let compiler = Compiler::default();
+        let mut rows = vec![
+            row(&blog, "/base/blog", None, 0),
+            row(&shop, "/other", None, 1),
+            row(&shop, "/base/shop", None, 0),
+        ];
+        let unlinked = linked(&compiler, &mut rows);
+        assert!(unlinked.is_empty(), "every link found a row: {unlinked:?}");
+        assert_eq!(
+            served_under(&compiler, &rows[0]),
+            (true, "/base/shop/item/3".to_owned()),
+            "the link left the block the request came through"
+        );
+    }
+
+    /// The second step: with no row of its own block, a link takes a row on
+    /// its own host and stays a path. A row on another host with an origin
+    /// is not taken while one on this host serves the route.
+    #[test]
+    fn a_link_falls_back_to_a_mount_on_the_same_host() {
+        let (_dir, blog, shop) = two_modules("host", "url", true);
+        let compiler = Compiler::default();
+        let mut elsewhere = row(&shop, "/", Some("shop.example.test"), 2);
+        elsewhere.origin = Some("https://shop.example.test".to_owned());
+        let mut rows = vec![
+            row(&blog, "/blog", None, 0),
+            elsewhere,
+            row(&shop, "/shop", None, 1),
+        ];
+        let unlinked = linked(&compiler, &mut rows);
+        assert!(unlinked.is_empty(), "every link found a row: {unlinked:?}");
+        assert_eq!(
+            served_under(&compiler, &rows[0]),
+            (true, "/shop/item/3".to_owned()),
+            "the link did not take the row on its own host"
+        );
+    }
+
+    /// The third step: the one row that serves the route is on another host,
+    /// so `url` writes an absolute link with that row's origin, and
+    /// `urlAbsolute` writes the same link.
+    #[test]
+    fn a_link_to_another_host_is_absolute_with_its_origin() {
+        for member in ["url", "urlAbsolute"] {
+            let (_dir, blog, shop) = two_modules(&format!("origin-{member}"), member, true);
+            let compiler = Compiler::default();
+            let mut elsewhere = row(&shop, "/", Some("shop.example.test"), 1);
+            elsewhere.origin = Some("https://shop.example.test/".to_owned());
+            let mut here = row(&blog, "/", Some("blog.example.test"), 0);
+            here.origin = Some("https://blog.example.test".to_owned());
+            let mut rows = vec![here, elsewhere];
+            let unlinked = linked(&compiler, &mut rows);
+            assert!(unlinked.is_empty(), "every link found a row: {unlinked:?}");
+            assert_eq!(
+                served_under(&compiler, &rows[0]),
+                (true, "https://shop.example.test/item/3".to_owned()),
+                "`{member}` to a module on another host is not absolute with that host's origin"
+            );
+        }
+    }
+
+    /// Two rows of different blocks on the same host both serve the route.
+    /// The one whose block sets `canonical = true` wins.
+    #[test]
+    fn canonical_breaks_a_tie() {
+        let (_dir, blog, shop) = two_modules("canonical", "url", true);
+        let compiler = Compiler::default();
+        let mut main = row(&shop, "/shop", None, 2);
+        main.canonical = true;
+        let mut rows = vec![
+            row(&blog, "/blog", None, 0),
+            row(&shop, "/old-shop", None, 1),
+            main,
+        ];
+        let unlinked = linked(&compiler, &mut rows);
+        assert!(
+            unlinked.is_empty(),
+            "canonical did not break the tie: {unlinked:?}"
+        );
+        assert_eq!(
+            served_under(&compiler, &rows[0]),
+            (true, "/shop/item/3".to_owned()),
+            "the link did not take the canonical block"
+        );
+    }
+
+    /// The same tie with no `canonical` is a tie a link needs, and the boot
+    /// fails on it. The sentence names both blocks and the handler.
+    #[test]
+    fn a_tie_a_link_needs_refuses_the_boot() {
+        let (_dir, blog, shop) = two_modules("tie", "url", true);
+        let compiler = Compiler::default();
+        let mut rows = vec![
+            row(&blog, "/blog", None, 0),
+            row(&shop, "/old-shop", None, 1),
+            row(&shop, "/shop", None, 2),
+        ];
+        let unlinked = linked(&compiler, &mut rows);
+        let [tie] = unlinked.as_slice() else {
+            panic!("the tie was not reported once: {unlinked:?}");
+        };
+        assert!(
+            tie.tie && tie.row == 0,
+            "the tie does not fail the boot: {tie:?}"
+        );
+        for named in [
+            "/old-shop",
+            "/shop",
+            r"Framework\Shop\View\Index::show",
+            "canonical",
+        ] {
+            assert!(
+                tie.sentence.contains(named),
+                "the boot error does not name `{named}`: {}",
+                tie.sentence
+            );
+        }
+    }
+
+    /// Two mounts of one entry with no `canonical` start, while no link needs
+    /// to choose between them. Existing tables keep starting.
+    #[test]
+    fn a_tie_no_link_needs_still_boots() {
+        let (_dir, _blog, shop) = two_modules("no-link", "url", true);
+        let compiler = Compiler::default();
+        let mut rows = vec![
+            row(&shop, "/old-shop", None, 0),
+            row(&shop, "/shop", None, 1),
+        ];
+        let unlinked = linked(&compiler, &mut rows);
+        assert!(
+            unlinked.is_empty(),
+            "a tie no link needs was reported: {unlinked:?}"
+        );
+        assert!(
+            rows.iter().all(|row| row.links.is_none()),
+            "a row that links to no other module was given a table"
+        );
+    }
+
+    /// The target module does not compile, so it serves nothing. The start
+    /// goes on: the link is logged, and it throws when it runs. Another row
+    /// still serves its own requests.
+    #[test]
+    fn a_link_to_a_module_that_did_not_compile_throws_and_the_rest_serve() {
+        let (_dir, blog, shop) = two_modules("broken", "url", false);
+        let (_docs_dir, docs) = an_entry_linking_with("broken-target", "url");
+        let compiler = Compiler::default();
+        let mut rows = vec![
+            row(&blog, "/blog", None, 0),
+            row(&shop, "/shop", None, 1),
+            row(&docs, "/docs", None, 2),
+        ];
+        let unlinked = linked(&compiler, &mut rows);
+        let [unserved] = unlinked.as_slice() else {
+            panic!("the link to the broken module was not logged once: {unlinked:?}");
+        };
+        assert!(
+            !unserved.tie && unserved.sentence.contains("throws"),
+            "a link to a module that did not compile fails the boot: {unserved:?}"
+        );
+        let (ok, wrote) = served_under(&compiler, &rows[0]);
+        assert!(
+            !ok && wrote.is_empty(),
+            "the link to the broken module wrote `{wrote}`"
+        );
+        assert_eq!(
+            served_under(&compiler, &rows[2]),
+            (true, "/docs/here".to_owned()),
+            "a row that does not link stopped serving"
+        );
     }
 
     /// `rule:programs/program-id` under `nvs serve`: a served request reads

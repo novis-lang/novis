@@ -381,6 +381,60 @@ impl Local {
     }
 }
 
+/// Gives every row its links to other modules (`super::link_rows`), after the
+/// rescan compiled them. A row whose link meets a tie `canonical` does not
+/// break is left out, and the links are built again over the rows that stay,
+/// since the row left out may have been a candidate. Answers the sentence of
+/// each row left out and of each link no row serves, for the pass to log once.
+///
+/// Every row here compiled already in this pass or an earlier one, so reading
+/// its route table compiles nothing, except a row in `failing`, which is not
+/// read and serves nothing.
+fn linked(
+    compiler: &Compiler,
+    rows: &mut Vec<Mounted>,
+    failing: &BTreeSet<PathBuf>,
+) -> Vec<String> {
+    let mut routes: Vec<_> = rows
+        .iter()
+        .map(|row| {
+            (!failing.contains(&row.entry))
+                .then(|| compiler.compiled(&row.entry.to_string_lossy()).ok())
+                .flatten()
+                .map(|(_program, routes)| routes)
+        })
+        .collect();
+    let mut left_out = Vec::new();
+    loop {
+        let unlinked = super::link_rows(rows, &routes);
+        let tied: BTreeSet<usize> = unlinked
+            .iter()
+            .filter(|one| one.tie)
+            .map(|one| one.row)
+            .collect();
+        if tied.is_empty() {
+            left_out.extend(unlinked.into_iter().map(|one| one.sentence));
+            return left_out;
+        }
+        left_out.extend(
+            unlinked
+                .into_iter()
+                .filter(|one| one.tie)
+                .map(|one| format!("left out of the mount table: {}", one.sentence)),
+        );
+        let mut at = 0;
+        rows.retain(|_| {
+            at += 1;
+            !tied.contains(&(at - 1))
+        });
+        let mut at = 0;
+        routes.retain(|_| {
+            at += 1;
+            !tied.contains(&(at - 1))
+        });
+    }
+}
+
 /// The stamp a directory is compared by: its modification time, or `None`
 /// where it is not there.
 type Stamp = Option<SystemTime>;
@@ -582,7 +636,7 @@ impl Rescan {
         let mut unreached = Vec::new();
         let failing = &mut self.failing;
         rows.retain(|row| {
-            if standing.contains(row) && !failing.contains(&row.entry) {
+            if standing.iter().any(|held| held.same_row(row)) && !failing.contains(&row.entry) {
                 return true;
             }
             match compiler.compiled(&row.entry.to_string_lossy()) {
@@ -590,7 +644,7 @@ impl Rescan {
                     failing.remove(&row.entry);
                     match super::unreached_origin(row, &routes) {
                         Some(sentence) => {
-                            unreached.push(sentence);
+                            unreached.push(format!("left out of the mount table: {sentence}"));
                             false
                         }
                         None => true,
@@ -605,10 +659,11 @@ impl Rescan {
             }
         });
         failing.retain(|entry| rows.iter().any(|row| row.entry == *entry));
+        unreached.extend(linked(compiler, &mut rows, failing));
         let mut said = BTreeSet::new();
         for sentence in unreached {
             if !self.unreached.contains(&sentence) {
-                eprintln!("warning: left out of the mount table: {sentence}");
+                eprintln!("warning: {sentence}");
             }
             said.insert(sentence);
         }
@@ -804,6 +859,7 @@ mod tests {
             captures: Vec::new(),
             block: 0,
             canonical: false,
+            links: None,
         }];
         let tree = |file: &str| {
             let path = root.join(file).to_string_lossy().replace('\\', "/");

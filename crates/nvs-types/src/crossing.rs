@@ -102,6 +102,9 @@ pub fn runtime_routes(exprs: &crate::ExprTypeTable) -> nvs_runtime::routes::Rout
     } else {
         crossed
     };
+    // The handlers of another module the unit links to, for the same reason:
+    // the server reads them off this table at boot to find each one's mount.
+    let crossed = crossed.linking_to_modules(exprs.module_links());
     // And the dispatch half, for the same reason: whether the unit calls
     // `Core\Router::dispatch` is a call the checker saw, and the door reads it
     // off this table to choose refusal mode.

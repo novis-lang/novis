@@ -988,6 +988,14 @@ pub struct Ctx {
     /// once — tens of them, not thousands — and nothing at all for a program
     /// that configures none.
     origin: Option<Box<str>>,
+    /// Where each link to another module goes from the mount this request
+    /// came through (`rule:routing/a-link-reaches-another-module`), or `None`
+    /// where the door wrote none. Written before the request runs, like
+    /// [`Self::origin`].
+    ///
+    /// **What it spends:** one word per request and one `Arc` count. The
+    /// table itself is the mount row's, shared by every request of the row.
+    module_links: Option<std::sync::Arc<nvs_config::mount::Links>>,
     /// `rule:config/the-config-is-an-immutable-snapshot`
     /// 's configuration, as this request sees it: the snapshot it cloned at
     /// start and the copy-on-write overlay `Core\Config::set` writes over it.

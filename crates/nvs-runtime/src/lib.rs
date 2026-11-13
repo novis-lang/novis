@@ -335,6 +335,10 @@ pub use helpers::{stringify, symbols, to_float, to_int, to_uint, value_to_string
 pub use identity::{
     numeric_identical, numeric_ordering, nvs_array_eq, value_hash, value_identical,
 };
+/// A mount row's links to other modules, which a door hands an isolate
+/// (`rule:routing/a-link-reaches-another-module`). Named here so a host that
+/// does not read the configuration can carry one.
+pub use nvs_config::mount::Links as ModuleLinks;
 pub use object::{
     AllowedValues, AttributeDesc, COMPARE_TO, CONSTRUCTOR, ClassDesc, ClassId, ClassTable,
     CodecElement, CodecField, CodecTy, ConstantDesc, ConstantValue, Door, EnumCases, EnumDesc,
