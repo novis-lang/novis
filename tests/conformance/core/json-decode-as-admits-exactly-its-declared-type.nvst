@@ -111,21 +111,20 @@ echo "strict-int=", Probe::mark(Probe::asInt("-1") && !Probe::asUint("-1")), "\n
 // other type here does, and `?T` in the neighbouring case is how one admits it.
 echo "null-taken=", $nullTaken, "\n";
 
-// `uint`'s bound, named on both sides at each end. The floor is the ordinary
-// one, and the ceiling is not: `rule:types/arithmetic` gives `uint` the range up to
-// 2^64−1, but a JSON document carries one number type and this reader refuses
-// a literal past `int` before any field is looked at, so `i64::MAX` is as high
-// as a `uint` field can be reached from the wire.
+// `uint`'s bound, named on both sides at each end. `rule:types/arithmetic` gives
+// `uint` the range up to 2^64−1, and a typed decode reads a `uint` field up to
+// exactly that, past the `int` ceiling an untyped decode stops at.
 echo "u-zero=", Probe::mark(Probe::asUint("0")), "\n";
-echo "u-max=", Probe::mark(Probe::asUint("9223372036854775807")), "\n";
-echo "u-over=", Probe::mark(Probe::asUint("9223372036854775808")), "\n";
+echo "u-past-int=", Probe::mark(Probe::asUint("9223372036854775808")), "\n";
+echo "u-max=", Probe::mark(Probe::asUint("18446744073709551615")), "\n";
+echo "u-over=", Probe::mark(Probe::asUint("18446744073709551616")), "\n";
 echo "i-max=", Probe::mark(Probe::asInt("9223372036854775807")), "\n";
 echo "i-over=", Probe::mark(Probe::asInt("9223372036854775808")), "\n";
 
 // `rule:core-classes/derive-reports-every-field`: a refusal names the field it stopped at — but only when it got
-// as far as a field. The two `uint` refusals above are the pair that shows it:
-// one is the declared type refusing a value the document held, the other is the
-// document never being read, and only the first carries a path.
+// as far as a field. Both `uint` ends are the declared type refusing a value
+// the document held, so both carry the path, the one past 2^64−1 as much as
+// the negative one.
 try {
     Core\Json::decodeAs<AsUint>("{\"v\":-1}");
     echo "not reached\n";
@@ -135,11 +134,11 @@ try {
     }
 }
 try {
-    Core\Json::decodeAs<AsUint>("{\"v\":9223372036854775808}");
+    Core\Json::decodeAs<AsUint>("{\"v\":18446744073709551616}");
     echo "not reached\n";
 } catch (ParseError $ceiling) {
     foreach ($ceiling->issues as {path: string, message: string} $issue) {
-        echo "ceiling path=[", $issue->path, "]\n";
+        echo "ceiling path=[", $issue->path, "] ", $issue->message, "\n";
     }
 }
 // And the `int`/`float` split says which type refused, not which number: the
@@ -166,10 +165,11 @@ strict-float=y
 strict-int=y
 null-taken=0
 u-zero=y
+u-past-int=y
 u-max=y
 u-over=n
 i-max=y
 i-over=n
 floor path=[v] expected uint, found a number
-ceiling path=[]
+ceiling path=[v] expected uint, found a number
 fraction path=[v] expected int, found a number

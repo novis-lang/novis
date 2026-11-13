@@ -1,5 +1,5 @@
 --TEST--
-Core\Json::decode throws on an integer above `int`'s maximum up to the `u64` maximum and on an exponent no `float` can hold, reads `-0` as a float, and Core\Json::encode keeps the point on a whole-valued float
+Core\Json::decode throws on an integer literal outside `int`, at any length, and on an exponent no `float` can hold, reads `-0` as a float, and Core\Json::encode keeps the point on a whole-valued float
 --FILE--
 <?nvs
 // Every row decodes a document and encodes the result again. A thrown error
@@ -14,19 +14,20 @@ final class Show {
     }
 }
 
-// `int`'s maximum is read exactly. The next number up to the `u64` maximum
-// throws. A number above the `u64` maximum is read as a float.
+// `int`'s maximum is read exactly. Every whole number above it throws,
+// however many digits it has.
 array<string> $band = [
     "9223372036854775807",
     "9223372036854775808",
     "18446744073709551615",
     "18446744073709551616",
+    "1000000000000000000000000000000000000000",
 ];
 foreach ($band as string $row) {
     echo $row, " -> ", Show::round($row), "\n";
 }
 
-// `int`'s minimum is read exactly. One below it is read as a float.
+// `int`'s minimum is read exactly. One below it throws.
 array<string> $negative = ["-9223372036854775808", "-9223372036854775809"];
 foreach ($negative as string $low) {
     echo $low, " -> ", Show::round($low), "\n";
@@ -53,9 +54,10 @@ foreach ($whole as string $w) {
 9223372036854775807 -> 9223372036854775807
 9223372036854775808 -> refused
 18446744073709551615 -> refused
-18446744073709551616 -> 1.8446744073709552e+19
+18446744073709551616 -> refused
+1000000000000000000000000000000000000000 -> refused
 -9223372036854775808 -> -9223372036854775808
--9223372036854775809 -> -9.223372036854776e+18
+-9223372036854775809 -> refused
 1e999 -> refused
 -1e999 -> refused
 1e308 -> 1e+308

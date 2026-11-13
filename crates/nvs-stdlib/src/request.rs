@@ -8415,19 +8415,31 @@ pub(crate) mod tests {
     /// `jsonAs<T>()` reads its body in `decodeAs`'s one pass, and every bad
     /// body throws the message it threw when it read the body into arrays and
     /// hydrated those: past the depth, a key written twice (declared and not),
-    /// an integer out of range, a value of the wrong type, a missing property,
-    /// a list where an object is expected, and text after the document.
+    /// a value of the wrong type, a missing property, a list where an object
+    /// is expected, and text after the document.
+    ///
+    /// An integer out of range is the one exception. The array path's untyped
+    /// reader throws it as a syntax error, and the one pass reports it as the
+    /// `int` property's issue, as every typed decode does.
     // covers: Core\Request::jsonAs
     #[test]
     fn json_as_refuses_each_bad_body_with_the_message_the_array_path_gave() {
         let class = reading_class();
         let max = 3;
         for text in [
+            r#"{"n":9223372036854775808}"#,
+            r#"{"n":18446744073709551616}"#,
+        ] {
+            assert_eq!(
+                refused_in_one_pass(class, text, max),
+                "Core\\Request::jsonAs(): 1 value(s) of `Reading` did not match",
+                "{text}"
+            );
+        }
+        for text in [
             r#"{"n":1,"x":[[[1]]]}"#,
             r#"{"n":1,"n":2}"#,
             r#"{"n":1,"x":1,"x":2}"#,
-            r#"{"n":9223372036854775808}"#,
-            r#"{"n":18446744073709551616}"#,
             r#"{"n":"7"}"#,
             r#"{"n":7.5}"#,
             "{}",

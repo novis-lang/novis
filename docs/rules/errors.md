@@ -1093,8 +1093,14 @@ merely **unusual** when every reader agrees and the spelling is only uncommon.
 The ambiguity list is **closed and written down**: [`errors/http-message-defects`](errors.md#errors-http-message-defects),
 [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count) and
 [`errors/path-component-refusals`](errors.md#errors-path-component-refusals), and a JSON object that writes one key twice, which
-`Core\Json::decode` and every decoder built on it refuse with a `ParseError` naming the key, are all
-of it. A defect not on the list is accepted; adding
+`Core\Json::decode` and every decoder built on it refuse with a `ParseError` naming the key, and a
+JSON integer literal outside `int`, are all of it. One JSON reader rounds such a literal to a float
+and another keeps every digit, so `decode`, `isValid` and `Core\Request::json` throw the `ParseError`
+"too large" or "too small" at any length. The message shows at most the first 32 digits, then `...`.
+A typed decode reads the literal against the declared field instead: a `float` field takes it, a
+`uint` field takes it up to `u64::MAX`, and any other field reports it as that field's issue. The
+reader counts digits as it reads them, so the check costs nothing per number
+(`crates/nvs-stdlib/src/json/reader.rs`). A defect not on the list is accepted; adding
 one is a change to this rule. That is what makes the rule testable and fuzzable, and what stops
 "strict" from growing every time somebody reads a specification more carefully.
 
