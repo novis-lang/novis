@@ -302,7 +302,7 @@ PowerShell, put quotes around an argument that contains parentheses: `"svc-novis
 give reading and running back to all accounts, run
 `icacls <folder> /grant *S-1-5-32-545:(OI)(CI)RX`.
 
-Two things about accounts:
+Three things about accounts:
 
 - An administrator account has administrator rights only in a prompt started with **Run as
   administrator**, or after you accept the Windows prompt for admin rights. In a normal prompt it
@@ -314,6 +314,9 @@ Two things about accounts:
   `Administrators`, a member of `Administrators`, or `SYSTEM`. So a folder that an administrator
   created passes. In a prompt started with **Run as administrator**,
   `icacls <path> /setowner *S-1-5-32-544` makes `Administrators` the owner.
+- After step 4, the account that runs `nvs` can change `cache` and `logs`. If you run `nvs` with
+  this configuration under a different account, `nvs` does not use that cache. It prints a warning
+  and compiles each program again. Another account could have written the files in that cache.
 
 # Linux and macOS
 

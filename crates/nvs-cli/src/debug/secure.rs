@@ -106,7 +106,10 @@ impl Secure {
     /// The `Set-Cookie` value that stores `token` in the browser. `Secure` goes with TLS alone.
     pub(crate) fn set_cookie(&self, token: &str) -> String {
         let secure = if self.tls.is_some() { " Secure;" } else { "" };
-        format!("{}={token}; Path=/;{secure} HttpOnly; SameSite=Strict", self.cookie)
+        format!(
+            "{}={token}; Path=/;{secure} HttpOnly; SameSite=Strict",
+            self.cookie
+        )
     }
 
     pub(crate) fn token(&self) -> &str {

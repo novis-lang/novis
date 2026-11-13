@@ -131,7 +131,10 @@ impl Served {
             .split_once("/?token=")
             .expect("the link carries the token");
         let addr: SocketAddr = addr.parse().expect("the link names an address");
-        (addr, format!("Cookie: nvs-debug-{}={token}\r\n", addr.port()))
+        (
+            addr,
+            format!("Cookie: nvs-debug-{}={token}\r\n", addr.port()),
+        )
     }
 
     fn debug(&self) -> PathBuf {
@@ -339,9 +342,7 @@ fn a_replay_reaches_the_server_and_its_typed_header_is_written_nowhere() {
 
     let target = exchange(
         viewer,
-        &format!(
-            "GET /api/replay HTTP/1.1\r\nHost: {viewer}\r\n{cookie}Connection: close\r\n\r\n"
-        ),
+        &format!("GET /api/replay HTTP/1.1\r\nHost: {viewer}\r\n{cookie}Connection: close\r\n\r\n"),
     );
     assert!(
         target.contains("{\"target\":\"127.0.0.1:"),

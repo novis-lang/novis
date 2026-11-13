@@ -459,8 +459,7 @@ fn cookie_token<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
 fn admitted(path: &str, cookie: &str) -> Response<Body> {
     let mut response = text(StatusCode::SEE_OTHER, "The token is accepted.");
     let headers = response.headers_mut();
-    if let (Ok(location), Ok(cookie)) =
-        (HeaderValue::from_str(path), HeaderValue::from_str(cookie))
+    if let (Ok(location), Ok(cookie)) = (HeaderValue::from_str(path), HeaderValue::from_str(cookie))
     {
         headers.insert(header::LOCATION, location);
         headers.insert(header::SET_COOKIE, cookie);

@@ -562,7 +562,8 @@ fn nvs_init_checks_its_folder_alone_the_cache_one_folder_up_and_nvs_run_not_the_
 /// from the one above it is not that folder's to remove; after `/inheritance:d` it is, and the two
 /// commands on the one outer folder are the repair for the folders inside it as well. Steps 3 and
 /// 4, and the grant that gives reading back, change nothing the check reads: a group that may only
-/// read and run passes, and so does a single account that may change the cache folder.
+/// read and run passes. A cache folder the service account may change is not used by another
+/// account's run, and it is used once that grant is removed.
 ///
 /// Each group in the chapter's SID table is then given the right to change the configuration
 /// folder by the SID the table has for it. The three groups of ordinary accounts are refused with
@@ -691,15 +692,29 @@ fn the_icacls_steps_turn_a_folder_every_account_may_change_into_one_nvs_init_wri
     .expect("the configuration is editable");
     let program = elsewhere.join("index.nvs");
     std::fs::write(&program, "<?nvs\necho \"served\\n\";\n").expect("the program is written");
-    let ran = nvs()
-        .arg("run")
-        .arg(&program)
-        .output()
-        .expect("the binary under test runs");
-    let stderr = String::from_utf8_lossy(&ran.stderr);
+    let run = || {
+        let ran = nvs()
+            .arg("run")
+            .arg(&program)
+            .output()
+            .expect("the binary under test runs");
+        (
+            ran.status.success(),
+            String::from_utf8_lossy(&ran.stderr).into_owned(),
+        )
+    };
+    // The service account may change the cache, and this test runs as another account, so that
+    // account would run code the service wrote. The cache is not used, and the warning names it.
+    let (ran, stderr) = run();
     assert!(
-        ran.status.success() && stderr.is_empty(),
-        "a cache folder one named account may change is not refused: {stderr}"
+        ran && stderr.contains("is not used") && stderr.contains(&format!("`{SERVICE}`")),
+        "a cache folder another account may change is not used, and the warning names it: {stderr}"
+    );
+    icacls(&cache, &["/remove:g", SERVICE]);
+    let (ran, stderr) = run();
+    assert!(
+        ran && stderr.is_empty(),
+        "a cache folder only this account may change is used: {stderr}"
     );
     assert!(
         files_under(&cache)

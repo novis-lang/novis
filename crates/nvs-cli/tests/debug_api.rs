@@ -39,6 +39,8 @@ struct Service {
     child: Child,
     data: nvs_repo::Scratch,
     addr: SocketAddr,
+    /// The token the printed link carries, which every request sends as the loopback cookie.
+    token: String,
 }
 
 impl Service {
@@ -101,11 +103,22 @@ impl Service {
             .rsplit_once(':')
             .and_then(|(_, rest)| rest.split('/').next()?.parse::<u16>().ok())
             .expect("the link names a port");
+        let token = link
+            .split_once("?token=")
+            .expect("the link carries the token")
+            .1
+            .to_owned();
         Self {
             child,
             data,
             addr: SocketAddr::from(([127, 0, 0, 1], port)),
+            token,
         }
+    }
+
+    /// The `Cookie` header line the printed link sets, with its token.
+    fn cookie(&self) -> String {
+        format!("Cookie: nvs-debug-{}={}\r\n", self.addr.port(), self.token)
     }
 
     /// `GET path`, and the status and the body.
@@ -121,12 +134,13 @@ impl Service {
             .set_read_timeout(Some(PATIENCE))
             .expect("a timeout is set");
         let addr = self.addr;
+        let cookie = self.cookie();
         let request = match body {
-            None => {
-                format!("{method} {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n")
-            }
+            None => format!(
+                "{method} {path} HTTP/1.1\r\nHost: {addr}\r\n{cookie}Connection: close\r\n\r\n"
+            ),
             Some(body) => format!(
-                "{method} {path} HTTP/1.1\r\nHost: {addr}\r\nOrigin: http://{addr}\r\n\
+                "{method} {path} HTTP/1.1\r\nHost: {addr}\r\n{cookie}Origin: http://{addr}\r\n\
                  Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                 body.len()
             ),
@@ -174,7 +188,11 @@ impl Service {
         stream
             .set_read_timeout(Some(PATIENCE))
             .expect("a timeout is set");
-        let request = format!("GET /api/events HTTP/1.1\r\nHost: {}\r\n\r\n", self.addr);
+        let request = format!(
+            "GET /api/events HTTP/1.1\r\nHost: {}\r\n{}\r\n",
+            self.addr,
+            self.cookie()
+        );
         stream
             .write_all(request.as_bytes())
             .expect("the request is sent");

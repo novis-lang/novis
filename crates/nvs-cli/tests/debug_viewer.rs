@@ -387,7 +387,11 @@ fn on_loopback_every_path_needs_the_token() {
     let port = service.addr.port();
     let wrong = format!("Cookie: nvs-debug-{port}=0123456789abcdef0123456789abcdef\r\n");
     // The other port's name: a cookie another service on this address set is not this one's.
-    let other = format!("Cookie: nvs-debug-{}={}\r\n", port.wrapping_add(1), service.token);
+    let other = format!(
+        "Cookie: nvs-debug-{}={}\r\n",
+        port.wrapping_add(1),
+        service.token
+    );
     for path in [
         "/",
         "/requests/4bf92f3577b34da6a3ce929d0e0e4736/00f067aa0ba902b7",
@@ -451,7 +455,10 @@ fn the_printed_loopback_link_opens_the_viewer() {
     assert!(admitted.has(&format!(
         "set-cookie: nvs-debug-{port}={token}; Path=/; HttpOnly; SameSite=Strict"
     )));
-    assert!(!admitted.has("secure;"), "a loopback cookie has no `Secure` attribute");
+    assert!(
+        !admitted.has("secure;"),
+        "a loopback cookie has no `Secure` attribute"
+    );
 
     let cookie = service.cookie();
     let page = service.plain(&get("/", &host, &cookie));

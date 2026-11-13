@@ -819,14 +819,32 @@ mod platform {
         }
     }
 
-    /// `sid` as a breach names it: its name where this machine gives one and its SID always, and
-    /// the SID as `icacls` takes it (`*S-1-5-32-545`), when Windows can write it as text.
+    /// The English names of the well-known groups a breach most often names. Windows gives these
+    /// names in the installed language, so a message and its search on the web differ by machine.
+    /// Every other account keeps the name this machine gives it.
+    const WELL_KNOWN: [(&str, &str); 6] = [
+        ("S-1-1-0", "Everyone"),
+        ("S-1-5-7", "NT AUTHORITY\\ANONYMOUS LOGON"),
+        ("S-1-5-11", "NT AUTHORITY\\Authenticated Users"),
+        ("S-1-5-19", "NT AUTHORITY\\LOCAL SERVICE"),
+        ("S-1-5-32-545", "BUILTIN\\Users"),
+        ("S-1-5-32-546", "BUILTIN\\Guests"),
+    ];
+
+    /// `sid` as a breach names it: its name and its SID always, and the SID as `icacls` takes it
+    /// (`*S-1-5-32-545`), when Windows can write it as text. A group on [`WELL_KNOWN`] has its
+    /// English name, and any other has the name this machine gives it.
     fn trustee(sid: &Sid) -> (String, Option<String>) {
         let text = sid_text(as_psid(sid));
         let bare = text.trim_matches('`');
         let star = bare.starts_with("S-").then(|| format!("*{bare}"));
-        let label = match (account_name(as_psid(sid)), &star) {
-            (Some((name, _)), Some(star)) => format!("`{name}` (`{star}`)"),
+        let english = WELL_KNOWN
+            .iter()
+            .find(|(known, _)| *known == bare)
+            .map(|(_, name)| (*name).to_owned());
+        let name = english.or_else(|| account_name(as_psid(sid)).map(|(name, _)| name));
+        let label = match (name, &star) {
+            (Some(name), Some(star)) => format!("`{name}` (`{star}`)"),
             (_, Some(star)) => format!("`{star}`"),
             (_, None) => text,
         };
