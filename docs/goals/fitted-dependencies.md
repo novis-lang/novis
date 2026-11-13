@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-ext/Cargo.toml, crates/nvs-ext/src/call.rs, crates/nvs-ext/src/load.rs, docs/rules/packaging/an-extension-is-a-sandboxed-wasm-component.md]
   - id: 7
     title: "the built-in components are stored compressed, and a served program's are loaded before its first request"
-    status: open
+    status: done
     context: [crates/nvs-ext/build.rs, crates/nvs-ext/src/builtin.rs, crates/nvs-ext/src/load.rs, crates/nvs-cli/src/extensions.rs, docs/rules/packaging/the-first-party-components-are-built-in.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
@@ -260,7 +260,13 @@ every `Novis\` call against a built-in manifest, so the set is known when the co
 calls none. Otherwise one cache read per called component, or one expand and compile on a cold cache,
 once per binary. That work leaves the first request. A file compiled after start, in development,
 still loads on its first call as today. Safe default: if the set needs a new pass over the program,
-no start-time load is built. The rule then says the first call pays it.
+no start-time load is built. The rule then says the first call pays it. **How the set is known:** the checker's types are gone by the time a unit is compiled, so the
+set is read off the IR. `nvs_codegen::Unit::extension_classes` is the sorted classes of the
+program's `ExtensionCall`s, read by one scan of the instructions on a compile and on a cache load
+alike, at one compare per instruction off the request path. The emitter could collect them with no
+scan, but a unit from the artifact cache has no emitter, and one fact gets one mechanism. The
+server prints one `loaded the built-in component` line per component, before its `listening on`
+lines.
 
 **These crates stay, and no session reopens them.** `hyper`: it parses attacker bytes, and owning
 HTTP/1 framing spends security to buy simplicity. `gix`: one shallow fetch, off the request path, over
@@ -448,27 +454,27 @@ load a served program's components at start.
 **Split:** an `Explore` subagent lists, as `file.rs:NN`, where `nvs serve` finishes compiling its
 entry and where a checked program's extension classes are known.
 
-- [ ] `build.rs` writes each component as `<name>.nvsx.br`, its manifest and source sections plain,
+- [x] `build.rs` writes each component as `<name>.nvsx.br`, its manifest and source sections plain,
   and the pin of the expanded bytes. `brotli` joins the build dependencies and the dependencies
   (`crates/nvs-ext/build.rs:173-184`, `crates/nvs-ext/Cargo.toml:53`,
   `rule:packaging/the-first-party-components-are-built-in`).
-- [ ] `builtin.rs` exposes the stored bytes, the plain sections and one `expanded(name)` that checks
+- [x] `builtin.rs` exposes the stored bytes, the plain sections and one `expanded(name)` that checks
   the pin, with a debug-build count of expansions (`crates/nvs-ext/src/builtin.rs:19-53`).
-- [ ] `BUILTINS`, `builtin_manifests`, `Loader::builtins` and the site at `:532` read the plain
+- [x] `BUILTINS`, `builtin_manifests`, `Loader::builtins` and the site at `:532` read the plain
   sections (`crates/nvs-ext/src/load.rs:449-466`, `:532`, `:734-769`).
-- [ ] `Loader::compile` takes the bytes as a closure, so a cache hit never expands, and
+- [x] `Loader::compile` takes the bytes as a closure, so a cache hit never expands, and
   `Builtin::extension` passes `expanded` (`crates/nvs-ext/src/load.rs:351-366`, `:697-709`).
-- [ ] The tests that read `IMAGE`, `INTL`, `PDF` or `SPREADSHEET` call `expanded`
+- [x] The tests that read `IMAGE`, `INTL`, `PDF` or `SPREADSHEET` call `expanded`
   (`crates/nvs-ext/tests/builtin.rs:15`, `crates/nvs-ext/tests/intl.rs:17`,
   `crates/nvs-ext/tests/pdf.rs:21`).
-- [ ] The four tests of `components-stored-compressed`, each over `Loader::builtins`
+- [x] The four tests of `components-stored-compressed`, each over `Loader::builtins`
   (`crates/nvs-ext/tests/builtin_stored.rs:1`).
-- [ ] `nvs serve` loads each built-in component its program calls before it accepts, outside any
+- [x] `nvs serve` loads each built-in component its program calls before it accepts, outside any
   request's budget (`crates/nvs-cli/src/extensions.rs:164-194`, `crates/nvs-cli/src/main.rs:1213`,
   `crates/nvs-types/src/ext_lib.rs:208`).
-- [ ] Test `a_served_program_loads_the_built_in_components_it_calls_before_it_accepts`
+- [x] Test `a_served_program_loads_the_built_in_components_it_calls_before_it_accepts`
   (`crates/nvs-cli/tests/builtin_warm.rs:1`).
-- [ ] The rule states the stored form, the measured sizes, what a miss and a start spend, and the
+- [x] The rule states the stored form, the measured sizes, what a miss and a start spend, and the
   Declined list of the standing decision
   (`docs/rules/packaging/the-first-party-components-are-built-in.md:13`, `:24`, `:62`).
 
@@ -482,37 +488,42 @@ entry and where a checked program's extension classes are known.
 
 ### State
 
-Stages 1 to 6 are done, and `wasmtime-features` is green. The JSON lane closed with stage 5.
+Stages 1 to 7 are done. Stage 8, the gate, is next.
 
-Stage 6 cut the workspace `wasmtime` row to the seven kept features, each with its reason in the
-comment. Nothing in `nvs-ext` or `nvs-cli` called a core dump, profiler, guest debugging, the text
-format, `anyhow` or `wit-parser`, and the build and the four named suites pass without
-`addr2line`, `backtrace` and `demangle`, so none of the optional ones stayed. The loader compiles
-with `Component::from_binary`. `proposals.rs` had used `Engine::default()` to show each excluded
-proposal's guest is valid wasm; that engine no longer builds GC or threads, so the proof is now a
-`wasmparser` validator with every feature on (a dev-dependency feature set in
-`crates/nvs-ext/Cargo.toml`). The rule states the feature set, and
-`crates/nvs-ext/tests/wasmtime_features.rs` holds it. `benches/abi-probe` turns `wat` on itself.
+Stage 7 stores each built-in component as Brotli at quality 9 with a 4 MiB window, its manifest and
+source sections plain beside it (`nvs_ext::builtin::Stored`, `STORED`, `expanded`, and a debug-build
+per-thread `expansions` count). The four are 14.5 MB stored of about 44 MB expanded. `IMAGE`,
+`INTL`, `PDF` and `SPREADSHEET` are now `Stored` statics, and the `_SHA256` and `_CLASS` constants
+stay. `Loader::compile` takes the bytes as a closure, so a cache hit never expands. A release build
+optimises `brotli` for the build script through `[profile.release.package.brotli]`. `nvs serve`
+loads the built-in components its mounts call before it binds, from
+`nvs_codegen::Unit::extension_classes`, a scan of the IR's `ExtensionCall`s on both the compile and
+the cache-load path (`crates/nvs-codegen/src/lib.rs`, `crates/nvs-cli/src/serve.rs`,
+`crates/nvs-cli/src/extensions.rs` `load_built_in`). `builtin_stored` and `builtin_warm` pass. The
+rule states the stored form, the sizes, the costs and the Declined list.
 
-The sweep's `env-secret-proofs` names no check in the tree: it is a stale entry in looper's service.
-The nightly's jobs were cancelled by later pushes.
+The sweep's `env-secret-proofs` names no check in the tree: it is a stale entry in looper's service,
+and its log does not exist. The nightly's jobs were cancelled by later pushes.
 
 ### Next
 
-Stage 7, the same lane. Start with its **Split:** an `Explore` subagent finds where `nvs serve`
-finishes compiling its entry and where a checked program's extension classes are known.
+Stage 8, the gate: start `looper verify` with `run_in_background`, then fix every failure it names
+in one pass.
 
-- `crates/nvs-ext/build.rs:173` writes the components; Brotli at quality 9 goes in there.
-- `crates/nvs-ext/src/load.rs:351` is `Loader::compile`, which takes the bytes as a closure next.
-- `crates/nvs-ext/src/builtin.rs:19` holds the embedded bytes, and gains `expanded(name)`.
+- `crates/nvs-ext/tests/builtin.rs:162` checks each component's recorded size against its expanded
+  bytes now; a drift past 5% means an `extensions/*/src/lib.rs` figure needs rewriting.
+- `crates/nvs-cli/src/serve.rs:599` prints the new `loaded the built-in component` lines on stdout
+  before `listening on`; a serve test that pins the whole of stdout for a program calling a
+  `Novis\` class would go red.
 
 Expected red until stage 8: any test that pins a decode of an integer literal past `u64::MAX` to a
 `float`, any typed-decode test that pins a repeated key's column, which is now after the value, and
 any `decodeEach` test that pins a byte offset or a column of an error inside a skipped value. The
 `decodeEach` suites in `each.rs` and the deep-document tests since `Levels` were not run. Of
-`nvs-ext`, only `proposals`, `failure`, `call`, `cache` and `wasmtime_features` ran after the cut;
-a test elsewhere that compiles component text through `Component::new`, or reads a trap's wasm
-backtrace, would go red, though a search found none.
+`nvs-ext`, only `proposals`, `failure`, `call`, `cache`, `wasmtime_features` and `builtin_stored`
+ran after the cuts; `builtin`, `intl` and `pdf` were changed to read `expanded` and were not run.
+A test that compiles component text through `Component::new`, or reads a trap's wasm backtrace,
+would go red, though a search found none.
 
 ### Backlog
 
