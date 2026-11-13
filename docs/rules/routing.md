@@ -974,7 +974,7 @@ and the reason is logged.
 
 <a id="routing-a-link-reaches-another-module"></a>
 
-## A link to another module names its route through an `autoload links` root; the compiler checks the method and the server picks the mount
+## A link to another module (another program on the server) names its route through an `autoload links` root; the compiler checks the method and the server picks the mount
 
 `rule:routing/a-link-reaches-another-module`
 

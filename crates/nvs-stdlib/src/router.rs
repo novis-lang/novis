@@ -442,7 +442,10 @@ const PARAMS_DOC: ParamDoc = ParamDoc {
 const URL_DOC: MethodDoc = MethodDoc {
     short: "Builds the link to the route of the method `$route`. Each value in `$params` fills the \
             capture with the same name, and the other values become the query string. Every \
-            value is percent-encoded, so it stays inside its own part of the link.",
+            value is percent-encoded, so it stays inside its own part of the link. `$route` may \
+            be a route of another module on the same server, when its class is under an \
+            `autoload links` folder. The link then goes through the mount that the server \
+            picks for that module.",
     params: &[ROUTE_DOC, PARAMS_DOC],
     ret: "The path, for example `/users/42?page=2`. An optional `{name?}` capture is left out \
           when `$params` has no value for it. The `/` characters in a `{name...}` capture stay \
@@ -460,7 +463,8 @@ const URL_DOC: MethodDoc = MethodDoc {
 const URL_ABSOLUTE_DOC: MethodDoc = MethodDoc {
     short: "Builds the same link as `url`, with the origin of your site in front. The origin \
             is the `origin` setting of the `[[app]]` block in `nvs.toml`. It never comes from \
-            the `Host` or `X-Forwarded-Host` header of a request.",
+            the `Host` or `X-Forwarded-Host` header of a request. For a route of another \
+            module, the origin is the one of the mount the link goes through.",
     params: &[ROUTE_DOC, PARAMS_DOC],
     ret: "The full URL, for example `https://example.test/users/42?page=2`. There is exactly \
           one `/` between the origin and the path.",
@@ -476,7 +480,8 @@ const URL_SIGNED_DOC: MethodDoc = MethodDoc {
     short: "Builds the same link as `url`, with a signature in the `_sig` query parameter at \
             the end. The signature is made from the route's `path` in its `#[Route]` and from \
             `$params`. So the link still works when the program is mounted at another path, or \
-            when the method gets a new name. `Core\\Router::signedRoute` checks the signature.",
+            when the method gets a new name. `Core\\Router::signedRoute` checks the signature. \
+            `$route` cannot be a route of another module. Such a call does not compile.",
     params: &[
         ROUTE_DOC,
         PARAMS_DOC,

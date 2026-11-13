@@ -1,6 +1,6 @@
 ---
 summary: reverse routing — a link to a route by its method, as a rooted path or with the configured origin in front — and the verbs a path claims
-keywords: route, url, link, reverse routing, route method, method reference, #[Core\Route], origin, mount, router, methodsFor, Allow, 404, 405
+keywords: route, url, link, reverse routing, route method, method reference, #[Core\Route], origin, mount, router, another module, autoload links, methodsFor, Allow, 404, 405
 ---
 
 `Core\Router::url` builds a link to the route of a method, written `Users::show` with no `(...)`:
@@ -14,6 +14,12 @@ throws an error when it has no route. A `$params` array missing a capture or car
 a capture nor a handler parameter declared `#[Core\Query]` is a compile error. A key that is
 declared `#[Core\Query]` becomes the link's query string, `/users/7?page=2`. `urlAbsolute` is `url` with the `[[app]] origin` from `nvs.toml` in
 front, and throws `RuntimeError` when none is configured.
+
+A link may name a route of another module, which is another program on the same server. The
+linking program declares that module's classes with `autoload links`, and may import such a class
+with `use`. The compiler checks the method and its captures the same way, and the server picks the
+mount the link goes through. `urlSigned` cannot name such a route, and that call does not compile.
+The server chapter's section *Links between modules* has the whole picture.
 
 `methodsFor` asks the table the other question, the one `Core\Request::route()` leaves open when it
 answers `null`: which verbs does this path claim? An empty array means no route claims it at all —
