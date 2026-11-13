@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/json/reader.rs, docs/rules/security/derived-codec-qualifiers.md]
   - id: 4
     title: "decodeEach reads through the same reader, and the spare stack leaves the tree"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/json/each.rs, crates/nvs-stdlib/src/json/reader.rs, crates/nvs-host/src/stack.rs, docs/rules/core-classes/json-whole-and-stream.md]
   - id: 5
     title: "the writer escapes each string in one pass, and Core\\Json names serde_json only in its tests"
@@ -370,23 +370,23 @@ stack the call came in on. Read `secret` spans in one pass.
 **Does:** put the reader behind `decodeEach`'s chunk feed, then delete what only the recursion
 needed.
 
-- [ ] `Feed` becomes the reader's chunked source. `Toward`, `Skip` and `each_line` become loops over
+- [x] `Feed` becomes the reader's chunked source. `Toward`, `Skip` and `each_line` become loops over
   events, and a skipped string or key is never copied (`crates/nvs-stdlib/src/json/each.rs:135`,
   `:473-545`, `rule:core-classes/json-whole-and-stream`).
-- [ ] `crates/nvs-stdlib/src/json/each_probe.rs:1` is deleted with its `mod` line
+- [x] `crates/nvs-stdlib/src/json/each_probe.rs:1` is deleted with its `mod` line
   (`crates/nvs-stdlib/src/json.rs:5879`) and the `corosensei` dev-dependency it alone needs
   (`crates/nvs-stdlib/Cargo.toml:164`). A test in it that pins what a program observes moves to
   `each.rs`.
-- [ ] `on_spare_stack`, `on_spare_stack_within`, the `SPARE` slot and their tests go.
+- [x] `on_spare_stack`, `on_spare_stack_within`, the `SPARE` slot and their tests go.
   `suspendable` reserves its own 256 KiB constant (`crates/nvs-host/src/stack.rs:175-265`, `:290`,
   `:1010-1050`, `crates/nvs-host/src/lib.rs:174`).
-- [ ] The workspace row drops `unbounded_depth`, and its comment says what `serde_json` is for now
+- [x] The workspace row drops `unbounded_depth`, and its comment says what `serde_json` is for now
   (`Cargo.toml:651-672`).
-- [ ] `rule:core-classes/json-whole-and-stream` states the walk's memory with the smaller stack
+- [x] `rule:core-classes/json-whole-and-stream` states the walk's memory with the smaller stack
   (`docs/rules/core-classes/json-whole-and-stream.md:73`).
-- [ ] Test `decode_each_reads_a_token_cut_across_two_chunks`: a string, a number, a surrogate pair
+- [x] Test `decode_each_reads_a_token_cut_across_two_chunks`: a string, a number, a surrogate pair
   and a keyword, each cut at every byte (`crates/nvs-stdlib/src/json/each.rs:1`).
-- [ ] Test `nothing_in_the_tree_asks_for_a_spare_stack_or_an_unbounded_depth`: it reads every `.rs`
+- [x] Test `nothing_in_the_tree_asks_for_a_spare_stack_or_an_unbounded_depth`: it reads every `.rs`
   file under `crates/` and the workspace `Cargo.toml`, and fails naming the file
   (`crates/nvs-stdlib/src/json.rs:5890`).
 
@@ -401,7 +401,7 @@ The session checks the list against the second standing decision.
 
 - [ ] `Sink` writes structure and scalars itself. One escape function covers JSON's escapes, the six
   HTML-safe ones and, when asked, every non-ASCII character. `HtmlSafe` and `escape_non_ascii` go
-  (`crates/nvs-stdlib/src/json.rs:1128-1251`, `:2044-2064`, `:2140-2231`,
+  (`crates/nvs-stdlib/src/json.rs:1119-1240`, `:2040-2060`, `:2136-2227`,
   `rule:security/json-text-is-safe-inside-html`).
 - [ ] The pretty profile and `encodeEach`'s pieces use the same writer
   (`crates/nvs-stdlib/src/json/pieces.rs:1`).
@@ -414,9 +414,9 @@ The session checks the list against the second standing decision.
   spends. The line about a faster parser goes (`crates/nvs-stdlib/src/json.rs:1-56`, `:358-360`).
 - [ ] Tests `every_scalar_is_written_as_the_oracle_writes_it`, over every scalar in the saved seeds
   and a table of float edges, `a_string_is_scanned_once_per_encode_at_two_sizes` and
-  `escape_unicode_writes_the_document_once` (`crates/nvs-stdlib/src/json.rs:8298`).
+  `escape_unicode_writes_the_document_once` (`crates/nvs-stdlib/src/json.rs:8723`).
 - [ ] Test `core_json_names_serde_json_only_in_its_tests`: it reads `json.rs` and every file under
-  `json/`, and fails naming a line outside a test module (`crates/nvs-stdlib/src/json.rs:5890`).
+  `json/`, and fails naming a line outside a test module (`crates/nvs-stdlib/src/json.rs:8723`).
 - [ ] The six `Core\Json` members are measured again, as `benches/members/README.md:1` says, and
   each record is at or below its last one (`data/perf/members.md:397`,
   `rule:testing/member-perf-ledger`).
@@ -482,46 +482,37 @@ entry and where a checked program's extension classes are known.
 
 ### State
 
-Stages 1, 2 and 3 are done, and `typed-on-the-task-stack` is green. `crates/nvs-stdlib/src/json/reader.rs`
-is the reader. `build` is the untyped decode, and `build_open` starts it on a container whose start
-the caller has read. `fill` is the typed decode: one loop over the reader's events with a
-`Vec<Filling>` of the objects and lists a contract fills. `Target` says where the next value goes,
-and `Next` where an open object's next value goes. A value no contract fills is `build`'s.
-`read_against` runs `fill` in place and returns `Halt`, a read error or a build's fault.
-`decode_as` keeps its signature, so its callers did not change.
+Stages 1 to 4 are done, and `each-on-the-reader` is green. `crates/nvs-stdlib/src/json/reader.rs` is
+the reader. `build` is the untyped decode, `fill` the typed one, `secret_values` the secret scan, and
+each is one loop over the reader's events. A scalar field reads a `uint` and a literal past
+`u64::MAX` as its nearest `float`; every untyped read throws past `int`.
 
-The integer decision is built: a scalar field's own value goes through `field_number`, so a
-`uint` arrives as `Value::uint` and a literal past `u64::MAX` as its nearest `float`
-(`reader::Number::Big` gained `nearest`). `scalar` takes a `uint` for a `uint` field and converts
-it for a `float` field, and refuses a non-finite `float`. A `mixed` field, a nested untyped value
-and an undeclared key still throw as `decode` does. Elements of a list field whose chain ends in a
-scalar are read by `build`, so `array<uint>` still throws past `i64::MAX`.
+`decodeEach` (`crates/nvs-stdlib/src/json/each.rs`) reads through `Feed`, a `reader::Source` whose
+`advance` suspends the coroutine. `toward` is one loop with a `Vec<Frame>` of the pointer's open
+containers, and `each_element` and `each_line` build elements with `build_open` and `build`. The
+reader gained `skip`, which copies no string value at any length, `another` for JSON Lines, and
+`Error::byte` for the message's "at byte". A skipped key is still checked for UTF-8, so skipping
+costs O(longest key), as before. `Decode`, `each_probe.rs` and the spare stack are gone, and
+`suspendable` reserves 256 KiB. The `serde_json` row has no `unbounded_depth`.
 
-`secret_spans` is one loop over the reader's events (`secret_values`, with `Walked` per open
-container and `Lands` for where the next value goes). The reader gained `start()` and `end()`, the
-byte offsets of the last value it started and of the next byte. The reader is built with
-`SECRET_DEPTH + 1`, so a body deeper than 128 levels is withheld whole, as `serde_json`'s own limit
-did. `Entries` and `IN_PLACE_BYTES` are gone, and nothing in `json.rs` calls `on_spare_stack`.
-
-`env-secret-proofs` names no check in the tree and has no log. The nightly's jobs were cancelled
-by later pushes.
+The sweep's `env-secret-proofs` names no check in the tree: it is a stale entry in looper's service.
+The nightly's jobs were cancelled by later pushes.
 
 ### Next
 
-Stage 4. Expected red until stage 8: any test that pins a decode of an integer literal past
-`u64::MAX` to a `float`, and any typed-decode test that pins a repeated key's column, which is now
-after the value.
+Stage 5. Expected red until stage 8: any test that pins a decode of an integer literal past
+`u64::MAX` to a `float`, any typed-decode test that pins a repeated key's column, which is now
+after the value, and any `decodeEach` test that pins a byte offset or a column of an error inside
+a skipped value. The `decodeEach` suites in `each.rs` were not run; the rewrite is checked only by
+the two new tests.
 
-- [ ] `Feed` at `crates/nvs-stdlib/src/json/each.rs:138` becomes a `reader::Source` over chunks.
-  `Skip` at `:258` and `Toward` at `:345` become loops over the reader's events, and `each_line` at
-  `:544` reads through the reader. `secret_values`' `skip_value` in `crates/nvs-stdlib/src/json.rs`
-  is the shape of a skip.
-- [ ] `crates/nvs-stdlib/src/json/each_probe.rs:1` goes with its `mod` line at
-  `crates/nvs-stdlib/src/json.rs:6168`.
-- [ ] `Decode` at `crates/nvs-stdlib/src/json.rs:2298`, `over_memory` at `:2487` and `repeated` at
-  `:3595` go once `each.rs` no longer names them.
-- [ ] `on_spare_stack` and `SPARE` at `crates/nvs-host/src/stack.rs:213-260` go, then the workspace
-  row's `unbounded_depth`, then the two stage 4 tests.
+- [ ] `crates/nvs-stdlib/Cargo.toml:106`: an `Explore` list of `serde_json::` calls outside test
+  modules in `nvs-stdlib` and `nvs-runtime`, checked against the second standing decision.
+- [ ] `Sink` at `crates/nvs-stdlib/src/json.rs:1119` and `HtmlSafe` at `:1206` become one writer
+  with one escape table. `escape_non_ascii` at `:2040` goes.
+- [ ] `crates/nvs-stdlib/src/json/pieces.rs:1` and the pretty profile use the same writer.
+- [ ] The module doc at `crates/nvs-stdlib/src/json.rs:1-56` is rewritten as a whole. It still says
+  `serde_json` is the parser.
 
 ### Backlog
 
