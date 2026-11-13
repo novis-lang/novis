@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/string.rs, crates/nvs-runtime/src/helpers.rs, crates/nvs-ir/src/ir.rs, docs/rules/classes/property-observer-pipeline.md]
   - id: 3
     title: an append of an interpolated string writes its parts into the target
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/string.rs, crates/nvs-ir/src/ir.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-codegen/src/emit.rs, docs/rules/types/string-holes.md]
   - id: 4
     title: an array or string passed at its last use is moved
@@ -407,26 +407,26 @@ append a local already has.
 **Does:** remove the temporary string a `.=` builds from an interpolation or a `.` chain, and the
 string a `uint` hole renders into.
 
-- [ ] `nvs_str_append_parts` beside `nvs_str_append`: measure, grow once, write each part into the
+- [x] `nvs_str_append_parts` beside `nvs_str_append`: measure, grow once, write each part into the
   tail, and copy when the target is shared or a part is the target (`rule:types/string-holes`,
   `crates/nvs-runtime/src/string.rs:1837`, `crates/nvs-runtime/src/string.rs:1745`).
-- [ ] Test `an_append_of_parts_writes_what_the_join_writes`: every part kind, alone and mixed,
+- [x] Test `an_append_of_parts_writes_what_the_join_writes`: every part kind, alone and mixed,
   against a join followed by a plain append (`crates/nvs-runtime/src/string.rs:2559`).
-- [ ] `InstKind::StrAppend` takes `Vec<ConcatPart>` as its suffix, in the IR, its doc and the
+- [x] `InstKind::StrAppend` takes `Vec<ConcatPart>` as its suffix, in the IR, its doc and the
   printer (`crates/nvs-ir/src/ir.rs:1684`, `crates/nvs-ir/src/print.rs:341`).
-- [ ] Codegen emits `nvs_str_append` for one `Str` part and `nvs_str_append_parts` for any other
+- [x] Codegen emits `nvs_str_append` for one `Str` part and `nvs_str_append_parts` for any other
   list, with the parts on the stack as the join passes them
   (`crates/nvs-codegen/src/emit.rs:1062`, `crates/nvs-codegen/src/emit.rs:4021`,
   `crates/nvs-codegen/src/emit.rs:4079`).
-- [ ] `lower_string_append` lowers an interpolation or a `.` chain to parts. Stage 2's property arm
+- [x] `lower_string_append` lowers an interpolation or a `.` chain to parts. Stage 2's property arm
   calls the same function (`crates/nvs-ir/src/lower/stmt.rs:1038`,
   `crates/nvs-ir/src/lower/expr.rs:2278`, `crates/nvs-ir/src/lower/expr.rs:3286`).
-- [ ] `PartKind::Uint` beside `PartKind::Int`, in the IR, the printer, the runtime's part kinds and
+- [x] `PartKind::Uint` beside `PartKind::Int`, in the IR, the printer, the runtime's part kinds and
   the hole lowering (`crates/nvs-ir/src/ir.rs:2325`, `crates/nvs-ir/src/print.rs:334`,
   `crates/nvs-runtime/src/string.rs:1574`, `crates/nvs-ir/src/lower/expr.rs:2344`).
-- [ ] Test `a_uint_hole_joins_as_a_part`: the IR of an interpolation over a `uint` has no
+- [x] Test `a_uint_hole_joins_as_a_part`: the IR of an interpolation over a `uint` has no
   `helper.uint_to_string` (`crates/nvs-ir/src/lower/tests.rs:2004`).
-- [ ] Tests `an_interpolated_append_allocates_only_as_the_target_grows` and
+- [x] Tests `an_interpolated_append_allocates_only_as_the_target_grows` and
   `an_interpolated_append_that_reads_its_target_still_copies_it`. The first reads
   `budget::allocations()`: 2,000 more appends make fewer than 200 more requests
   (`crates/nvs-codegen/tests/in_place_writes.rs:1`).
@@ -535,47 +535,48 @@ and release entries beyond the count write, in every build kind, as `file.rs:NN`
 
 ### State
 
-Stages 1 and 2 are done. `.=` on a plain `string` property or a `string` static property is
-`FieldGet`/`StaticGet`, `StrAppend`, `FieldSet`/`StaticSet` (`lower_slot_append`,
-`crates/nvs-ir/src/lower/stmt.rs:613`). `.=` on a `string` element at any depth is one
-`Helper::ArrayStrAppendThrough` call (`lower_element_append`, `crates/nvs-ir/src/lower/stmt.rs:728`;
-`NvsArray::str_append_through`, `crates/nvs-runtime/src/array.rs:1658`;
-`nvs_array_str_append_through`, `crates/nvs-runtime/src/helpers.rs:474`). `emit_write_through` now
-takes its helper and passes `null` for no inner level (`crates/nvs-ir/src/lower/stmt.rs:2354`). A
-suffix that is not a local's value goes through `append_suffix`
-(`crates/nvs-ir/src/lower/stmt.rs:804`), which retains a borrowed one. A guarded or observed root
-keeps the rewrite (*Standing decisions*). Checks `appends-in-place` and
-`appends-keep-shared-strings` pass, as does the conformance case
-`an-append-leaves-a-shared-string-alone.nvst`. Build, clippy and rustfmt are green; no verify ran.
+Stages 1 to 3 are done. `.=` of an interpolation or a `.` chain onto a `string` local, a plain
+property or a static property is one `StrAppend` whose suffix is a list of `ConcatPart`
+(`append_parts`, `crates/nvs-ir/src/lower/stmt.rs:842`; `slot_append_parts`, `:818`;
+`lower_string_append`, `:1337`). The parts come from `interpolated_pieces`
+(`crates/nvs-ir/src/lower/expr.rs:2315`) and `concat_pieces` (`:3325`), which the join paths now
+call too. One `Str` part calls `nvs_str_append`; any other list calls `nvs_str_append_parts`
+(`crates/nvs-runtime/src/string.rs:2063`) through a new `RuntimeSig::StrAppendParts`. The runtime
+copies when the target is shared or a part is the target. `PartKind::Uint` / `StrPart::UINT` exist,
+and a joined `uint` hole, and a `uint` `Core\Str::format` argument, no longer call
+`uint_to_string`. An element `.=` still takes one `Str` suffix through `append_suffix`. Checks
+`parts-append-in-place` and `parts-append-writes-the-join` pass. Build, clippy and rustfmt are
+green; no verify ran.
 
-One behaviour moved with the decision *The slot is read after the last operand that can run
-code*: `$this->out .= $this->f()` reads `out` after `f()` runs, where the rewrite read it before.
 Expect red in stage 7: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` that print a
-property, static property or element `.=` (they now show `str_append`, or
-`array_str_append_through`, in place of `concat` and `array_set`), and any test that pinned the old
-read order of a `.=` whose suffix writes its own target.
+property, static property or element `.=` (stage 2: `str_append` or `array_str_append_through` in
+place of `concat` and `array_set`), any snapshot of a `.=` whose suffix is an interpolation or a
+`.` chain (now `str.append vN, <parts>` with no `concat`), any snapshot of an interpolation or a
+`Core\Str::format` call over a `uint` (now `uint vN`, no `uint_to_string`), and any test that pinned
+the old read order of a `.=` whose suffix writes its own target.
 
-The sweep items stay stale. No `env-secret-proofs` check exists. Nightly run 43201099245 built
-`578534cc`, which does not contain `7568aaa0fb`, the commit that skips those Miri tests.
+The sweep items stay stale. No `env-secret-proofs` check or log exists. Nightly run 43201099245
+built `578534cc`, which does not contain `7568aaa0fb`, the commit that skips those Miri tests.
 
 ### Next
 
-Stage 3, starting with the runtime half, which nothing else depends on.
+Stage 4. Its `**Split:**` line comes first.
 
-- [ ] `crates/nvs-runtime/src/string.rs:1969`: write checkpoints under stage 3's first item, then
-  `nvs_str_append_parts` beside `nvs_str_append`, and its test
-  `an_append_of_parts_writes_what_the_join_writes`.
-- [ ] `crates/nvs-ir/src/ir.rs:1740`: `StrAppend`'s suffix becomes `Vec<ConcatPart>`, then the
-  printer and `emit_str_append` (`crates/nvs-codegen/src/emit.rs:1067`).
-- [ ] `crates/nvs-ir/src/lower/stmt.rs:804`: `append_suffix` and `lower_string_append` both lower
-  an interpolation or a `.` chain to parts. The property and static arms use `append_suffix`, so
-  that one change covers them. The element helper still takes one `Str` suffix.
-- [ ] `crates/nvs-codegen/tests/in_place_writes.rs:1`: the two tests of check
-  `parts-append-in-place`.
+- [ ] `crates/nvs-ir/src/lower/mod.rs:3279`: an `Explore` subagent lists every reader of a frame's
+  locals (landing block, scope-end sweep, generator state, debug probes, collector) as
+  `file.rs:NN`, one line each.
+- [ ] `crates/nvs-ir/src/lower/stmt.rs:1419`: the one function that decides the move, called from
+  `lower_reassignment` and the lowering of `return`.
+- [ ] `crates/nvs-ir/src/lower/call.rs:238`: the argument lowering passes a moved local with no
+  retain, stages it as transferred, and takes it out of `Env`.
+- [ ] `crates/nvs-ir/src/lower/tests.rs:2004`: `a_local_is_moved_only_where_every_condition_holds`.
+- [ ] `crates/nvs-codegen/tests/in_place_writes.rs:1`: the four tests of check `last-use-move`.
 
 ### Backlog
 
 - `$this->p = $this->p . e`, the `=` spelling of a property or element append, keeps the rewrite.
+- `.=` of an interpolation onto an element joins first, because the element helper takes one `Str`
+  suffix (`crates/nvs-ir/src/lower/stmt.rs:728`).
 - A parameter read once and stored into a property is still retained and released.
 - A `foreach` element is retained and released each step, though the loop holds the array
   (`crates/nvs-ir/src/lower/control.rs:1234`).
