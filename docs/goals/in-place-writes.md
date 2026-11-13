@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/helpers.rs, crates/nvs-ir/src/ir.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-codegen/tests/arrays.rs]
   - id: 2
     title: an append to a property or an element grows its string in place
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/string.rs, crates/nvs-runtime/src/helpers.rs, crates/nvs-ir/src/ir.rs, docs/rules/classes/property-observer-pipeline.md]
   - id: 3
     title: an append of an interpolated string writes its parts into the target
@@ -238,6 +238,14 @@ root, the inner keys, the last key and the suffix. It never builds a row. An abs
 throws what the read throws today (`rule:types/absent-storage-is-never-a-zero-value`). It applies
 when the element type is `string`. A `?string` or `mixed` element keeps the rewrite.
 
+**An element append under a guarded or observed root property keeps the rewrite.** A
+`PropertyGuard` is given the new element and an observer the whole new array, so each needs the
+appended string as a value of its own before or after the write. The in-place call never builds
+it, so keeping the guard in front of the helper would mean building the copy the helper exists to
+avoid. Security first: the guard and observer calls stay exactly as they are, and only the plain
+roots (a local, a static property, a property with neither interface) take the helper. **What it
+spends:** nothing; a guarded root costs what it costs today.
+
 **`StrAppend` takes parts.** Its suffix becomes a list of `ConcatPart`. One `Str` part calls
 `nvs_str_append` as now. Any other list calls a new `nvs_str_append_parts`, which measures the
 parts, grows the target once and writes each part into the tail. A `Uint` part joins the `Int`
@@ -361,37 +369,37 @@ a level only when its count is above one.
 **Does:** give `.=` on a plain property slot, a static property and a `string` element the in-place
 append a local already has.
 
-- [ ] `lower_compound_assignment` gains the plain-slot arm: receiver held as `values-stay-alive`
+- [x] `lower_compound_assignment` gains the plain-slot arm: receiver held as `values-stay-alive`
   holds it, suffix lowered, then `FieldGet`, `StrAppend`, `FieldSet` back to back
   (`rule:types/arrays`, `crates/nvs-ir/src/lower/stmt.rs:554`,
   `crates/nvs-ir/src/lower/stmt.rs:1038`). The plain-slot test is the one `lower_store`'s property
   arm uses to emit a bare `FieldSet` (`crates/nvs-ir/src/lower/stmt.rs:1387`).
-- [ ] A static `string` property takes the same arm with its own load and store. If its store runs
+- [x] A static `string` property takes the same arm with its own load and store. If its store runs
   anything else, it keeps the rewrite and *Standing decisions* says why
   (`crates/nvs-ir/src/lower/stmt.rs:554`).
-- [ ] A suffix read from a property, a static property or an element is retained across the append
+- [x] A suffix read from a property, a static property or an element is retained across the append
   and released after it (`crates/nvs-ir/src/lower/expr.rs:1020`).
-- [ ] The write-through walk gains the string-append leaf, which builds no row and throws on an
+- [x] The write-through walk gains the string-append leaf, which builds no row and throws on an
   absent key (`rule:types/absent-storage-is-never-a-zero-value`,
   `crates/nvs-runtime/src/array.rs:1534`, `crates/nvs-runtime/src/string.rs:1837`).
-- [ ] `nvs_array_str_append_through` and `Helper::ArrayStrAppendThrough`, in the enum, the printer
+- [x] `nvs_array_str_append_through` and `Helper::ArrayStrAppendThrough`, in the enum, the printer
   and the symbol table (`crates/nvs-runtime/src/helpers.rs:370`, `crates/nvs-ir/src/ir.rs:2613`,
   `crates/nvs-ir/src/print.rs:596`, `crates/nvs-codegen/src/emit.rs:4962`).
-- [ ] `lower_compound_assignment` sends `.=` on an element of type `string` to that helper, at any
+- [x] `lower_compound_assignment` sends `.=` on an element of type `string` to that helper, at any
   depth, with the `PropertyGuard` call kept in front (`crates/nvs-ir/src/lower/stmt.rs:554`,
   `crates/nvs-ir/src/lower/stmt.rs:2049`).
-- [ ] Rewrite the docs that say only a local appends in place
+- [x] Rewrite the docs that say only a local appends in place
   (`crates/nvs-ir/src/lower/stmt.rs:534`, `crates/nvs-ir/src/ir.rs:1680`).
-- [ ] The three growth guards of check `appends-in-place`. Each appends a piece a method returns,
+- [x] The three growth guards of check `appends-in-place`. Each appends a piece a method returns,
   so the late read is under test (`crates/nvs-codegen/tests/in_place_writes.rs:1`).
-- [ ] Test `an_append_to_a_shared_string_still_copies_it`: a second variable keeps the old text for
+- [x] Test `an_append_to_a_shared_string_still_copies_it`: a second variable keeps the old text for
   a property, a static property and an element, and so does a suffix that is the target
   (`crates/nvs-codegen/tests/in_place_writes.rs:1`).
-- [ ] Tests `an_append_to_an_absent_element_throws_what_the_read_throws` and
+- [x] Tests `an_append_to_an_absent_element_throws_what_the_read_throws` and
   `an_append_to_a_guarded_or_hooked_property_keeps_its_calls`
   (`rule:classes/property-guard-runs-before-the-write`,
   `crates/nvs-codegen/tests/in_place_writes.rs:1`).
-- [ ] Conformance case `tests/conformance/lang/an-append-leaves-a-shared-string-alone.nvst:1`
+- [x] Conformance case `tests/conformance/lang/an-append-leaves-a-shared-string-alone.nvst:1`
   (`rule:types/arrays`).
 
 ### 3. an append of an interpolated string writes its parts into the target
@@ -527,34 +535,43 @@ and release entries beyond the count write, in every build kind, as `file.rs:NN`
 
 ### State
 
-Stage 1 is done. A nested write is one `Helper::ArrayWriteThrough` call
-(`crates/nvs-ir/src/lower/stmt.rs:2108`, `crates/nvs-runtime/src/array.rs:1523`). The `Index` arm's
-comment, the module doc (`crates/nvs-ir/src/lib.rs:127`, `crates/nvs-ir/src/lib.rs:333`) and
-`rule:types/arrays`' first bullet describe it. The conformance case
-`tests/conformance/lang/a-nested-write-leaves-a-shared-row-alone.nvst` prints its `--EXPECT--` on
-the debug build. The stage's three checks pass, and build and clippy are green. No verify ran, so
-snapshots that print a nested write may be red: look for `array_row_for_write` or a climbing
-`array.set` in `crates/nvs-ir/src/lower/snapshots/`.
+Stages 1 and 2 are done. `.=` on a plain `string` property or a `string` static property is
+`FieldGet`/`StaticGet`, `StrAppend`, `FieldSet`/`StaticSet` (`lower_slot_append`,
+`crates/nvs-ir/src/lower/stmt.rs:613`). `.=` on a `string` element at any depth is one
+`Helper::ArrayStrAppendThrough` call (`lower_element_append`, `crates/nvs-ir/src/lower/stmt.rs:728`;
+`NvsArray::str_append_through`, `crates/nvs-runtime/src/array.rs:1658`;
+`nvs_array_str_append_through`, `crates/nvs-runtime/src/helpers.rs:474`). `emit_write_through` now
+takes its helper and passes `null` for no inner level (`crates/nvs-ir/src/lower/stmt.rs:2354`). A
+suffix that is not a local's value goes through `append_suffix`
+(`crates/nvs-ir/src/lower/stmt.rs:804`), which retains a borrowed one. A guarded or observed root
+keeps the rewrite (*Standing decisions*). Checks `appends-in-place` and
+`appends-keep-shared-strings` pass, as does the conformance case
+`an-append-leaves-a-shared-string-alone.nvst`. Build, clippy and rustfmt are green; no verify ran.
+
+One behaviour moved with the decision *The slot is read after the last operand that can run
+code*: `$this->out .= $this->f()` reads `out` after `f()` runs, where the rewrite read it before.
+Expect red in stage 7: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` that print a
+property, static property or element `.=` (they now show `str_append`, or
+`array_str_append_through`, in place of `concat` and `array_set`), and any test that pinned the old
+read order of a `.=` whose suffix writes its own target.
 
 The sweep items stay stale. No `env-secret-proofs` check exists. Nightly run 43201099245 built
 `578534cc`, which does not contain `7568aaa0fb`, the commit that skips those Miri tests.
 
 ### Next
 
-Stage 2, starting with the plain-slot property arm and its guards.
+Stage 3, starting with the runtime half, which nothing else depends on.
 
-- [ ] `crates/nvs-ir/src/lower/stmt.rs:557`: write checkpoints under stage 2's first item, then add
-  the plain-slot arm to `lower_compound_assignment`. The plain-slot test is the one
-  `lower_store`'s property arm uses for a bare `FieldSet`. `lower_string_append` is
-  `crates/nvs-ir/src/lower/stmt.rs:1049`.
-- [ ] `crates/nvs-ir/src/lower/expr.rs:1020`: the static `string` property arm, and the suffix
-  retain for a read of shared storage.
-- [ ] `crates/nvs-runtime/src/array.rs:1523`: the string-append leaf beside `NvsArray::write_through`,
-  then `nvs_array_str_append_through` beside `nvs_array_write_through`
-  (`crates/nvs-runtime/src/helpers.rs:406`). The element arm keeps `emit_element_guard` in front
-  (`crates/nvs-ir/src/lower/stmt.rs:2170`).
-- [ ] `crates/nvs-codegen/tests/in_place_writes.rs:1`: the guards and tests of checks
-  `appends-in-place` and `appends-keep-shared-strings`.
+- [ ] `crates/nvs-runtime/src/string.rs:1969`: write checkpoints under stage 3's first item, then
+  `nvs_str_append_parts` beside `nvs_str_append`, and its test
+  `an_append_of_parts_writes_what_the_join_writes`.
+- [ ] `crates/nvs-ir/src/ir.rs:1740`: `StrAppend`'s suffix becomes `Vec<ConcatPart>`, then the
+  printer and `emit_str_append` (`crates/nvs-codegen/src/emit.rs:1067`).
+- [ ] `crates/nvs-ir/src/lower/stmt.rs:804`: `append_suffix` and `lower_string_append` both lower
+  an interpolation or a `.` chain to parts. The property and static arms use `append_suffix`, so
+  that one change covers them. The element helper still takes one `Str` suffix.
+- [ ] `crates/nvs-codegen/tests/in_place_writes.rs:1`: the two tests of check
+  `parts-append-in-place`.
 
 ### Backlog
 
