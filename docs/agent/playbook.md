@@ -33,6 +33,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `natural(&mut ` to `open_natural(&mut ` wrote `open_natural(&mutpermutation`, and the build failed
   at five sites. End both strings on a character that is not a space, such as the argument after
   it. See `crates/nvs-stdlib/src/sort.rs`.
+- **The Write and Edit tools turn a backslash, `u` and four hex digits into that character.** A JSON
+  test text with an escape, written in a Rust raw string, came out holding the character itself, and
+  a lone surrogate's escape became a different code point. Write the escape in a plain string with a
+  doubled backslash, which arrives as written, and grep the file for the escape after the write.
+  See `crates/nvs-stdlib/src/json/reader/tests.rs`.
 - **`bun nv splice --patch` writes a `\\` in a patch's NEW block as one `\`.** A Rust string such as
   `"Core\\Env::get"` lands as `"Core\Env::get"`, and the build fails with `unknown character escape`.
   Write a `Core` name in a patch as a raw string, `r"Core\Env::get"`, or make that edit with Edit.
