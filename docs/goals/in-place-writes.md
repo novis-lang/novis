@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-codegen/src/emit.rs, crates/nvs-runtime/src/budget.rs, crates/nvs-codegen/tests/probes.rs]
   - id: 6
     title: a retain runs without a call
-    status: open
+    status: done
     context: [crates/nvs-codegen/src/emit.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-runtime/src/string.rs, crates/nvs-runtime/src/object.rs, crates/nvs-runtime/src/array.rs]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
@@ -536,7 +536,7 @@ and release entries beyond the count write, in every build kind, as `file.rs:NN`
   header is never written (`crates/nvs-codegen/tests/refcount_calls.rs:1`).
 - [x] Count the instructions again, apply the safe default if the growth is above a tenth, and write
   both figures and the invariant into the module doc (`crates/nvs-codegen/src/lib.rs:116`).
-- [ ] Run `bun nv proofs --gate`, then `bun nv proofs --record-perf --force --id '<feature>'` for
+- [x] Run `bun nv proofs --gate`, then `bun nv proofs --record-perf --force --id '<feature>'` for
   each stale figure. Lower a bench's `// bench: allocations N` line where its count dropped
   (`rule:testing/member-perf-ledger`, `benches/members/README.md:1`).
 
@@ -550,15 +550,11 @@ and release entries beyond the count write, in every build kind, as `file.rs:NN`
 
 ### State
 
-Stages 1 to 5 are done. Stage 5: `InstKind::is_immortal_literal`
-(`crates/nvs-ir/src/ir.rs:2361`) is true for `ConstStr`, `ConstBytes`, `ConstMarkup` and
-`ConstDuration`. `Emitter::define` records each such value in `Emitter::immortal_literals`, and
-the `Retain` and `Release` arms (`crates/nvs-codegen/src/emit.rs:1350`) skip it.
-`budget::refcount_calls()` (`crates/nvs-runtime/src/budget.rs:1278`) reads a debug-only thread
-local that `count_refcount_call` bumps at the top of the six typed entries. `nvs_codegen::clif`
-now prints a `;; fnN = <symbol>` line per import (`crates/nvs-codegen/src/lib.rs:2650`), which is
-how `a_literal_is_never_retained_or_released` finds refcount symbols. Both tests of check
-`literals-uncounted` pass, and both went red with the skip disabled. Build, clippy and rustfmt are
+Stages 1 to 6 are done. Stage 6: `emit_refcount` (`crates/nvs-codegen/src/emit.rs:4476`) emits a
+typed retain inline, and every release stays a call by the safe default (*Standing decisions*,
+and `crates/nvs-codegen/src/lib.rs:69`). New: `Value::refcount` and the debug-only
+`budget::retain_calls()`. The three tests of check `refcount-inline` pass, and both guards went
+red with the retain made a call again. The proofs gate owed nothing. Build, clippy and rustfmt are
 green; no verify ran.
 
 Expect red in stage 7: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` that print a
@@ -569,22 +565,23 @@ place of `concat` and `array_set`), any snapshot of a `.=` whose suffix is an in
 `$x = f($x)` or `return f($x)` over an array or string local passed to a compiled function (stage
 4: no `retain` of the local, and no `release` of its old value), and any test that pinned the old
 read order of a `.=` whose suffix writes its own target. Any test that pinned `clif` text now
-sees the `;;` import lines. The sweep items are stale: no `env-secret-proofs` check exists, and
-nightly 43201099245 predates `7568aaa0fb`, which skips those Miri tests.
+sees the `;;` import lines, and no `nvs_*_retain` import for a typed retain. An instruction or
+block count guard in `benches/abi-probe` may see the inline retain's extra blocks. The sweep items
+are stale: no `env-secret-proofs` check exists, and nightly 43201099245 predates `7568aaa0fb`,
+which skips those Miri tests.
 
 ### Next
 
-Stage 6. Start with its `**Split:**` line: the `Explore` list of every effect of the six typed
-entries. The debug-only `count_refcount_call` is one, and it is a test counter, not a reason to
-keep a call. Once the update is inline, compiled code reaches the counter only on the call path,
-which is what the stage 6 guards count.
+Stage 7, the gate stage. Start `looper verify` with `run_in_background`, write the handoff, and end
+the turn to wait for its report. Fix every failure in one pass against the list above, then run it
+once more. Then the goal-end gates of AGENTS.md § *In the loop*.
 
-- [ ] Count `nvs run --dump-asm` instructions for `benches/compare/cases/html-page/main.nvs:1` and
-  `json-api` before any change.
-- [ ] `crates/nvs-codegen/src/emit.rs:4443`: `emit_refcount` emits the inline retain and release,
-  calling the helper only at a count of one.
-- [ ] `crates/nvs-runtime/src/string.rs:216`: the `const` block of offsets, width and sentinel.
-- [ ] `crates/nvs-codegen/tests/refcount_calls.rs:1`: the three tests of check `refcount-inline`.
+- [ ] `looper verify` over the whole goal (`docs/goals/in-place-writes.md:543`).
+- [ ] `benches/abi-probe/tests/perf_guards.rs:1` and the IR snapshots: one fix pass, each
+  snapshot checked against the stage that changed it, never blessed blind.
+- [ ] `looper verify` once more, green (`docs/goals/in-place-writes.md:547`).
+- [ ] `AGENTS.md:1` § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes
+  in-place-writes`, `bun nv ci --check`.
 
 ### Backlog
 
@@ -600,3 +597,5 @@ which is what the stage 6 guards count.
   `mixed`) keeps the retain; `lower_fixed_arg` is the only place that moves.
 - `a_local_is_moved_only_where_every_condition_holds` has no generator or nullsafe program; both
   conditions are in `last_use_move`.
+- The inline release, measured at 23% and 25% growth with error landing blocks kept as calls. A
+  cheaper shape (fewer blocks, or a cold slow path Cranelift places out of line) may fit the bound.
