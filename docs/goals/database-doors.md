@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-db/src/sqlite.rs]
   - id: 5
     title: "the PostgreSQL, MySQL and MariaDB resets return the session to its configured state"
-    status: open
+    status: done
     context: [crates/nvs-db/src/mysql.rs, crates/nvs-db/src/maria.rs, crates/nvs-db/src/pg.rs, docs/rules/core-classes/db-safe-connection-defaults.md]
   - id: 6
     title: "one live test per driver reads the session state table, SQL Server included"
@@ -265,7 +265,12 @@ reset's `OK` it sends `COM_INIT_DB` with the configured database. Then one `SET`
 connection configured with no database asks `SELECT DATABASE()` and is closed when the answer is not
 `NULL`. **What it spends:** one more command per pooled release, and the charset rides the statement
 the time zone already costs. Written in one send where the wire layer allows, it adds no round trip.
-The safe default is one round trip more per release. Safe default if the live test shows a role
+The safe default is one round trip more per release, and stage 5 took it: `Wire::send` flushes one
+packet, so pipelining would need a second send path. The database is read from `Peer::database`,
+which the connection already holds for `KILL QUERY`, so no field is added. The `SET` also assigns
+`collation_connection = utf8mb4_general_ci`, the handshake's collation, since setting
+`character_set_connection` alone moves the collation to the server's default for `utf8mb4`. Safe
+default if the live test shows a role
 survives the reset: that server family resets with `COM_CHANGE_USER`, which costs one authentication
 per release. **Declined:** parsing statements to refuse `USE`. A statement classifier is a second SQL
 reader to keep right.
@@ -466,25 +471,25 @@ as `file.rs:NN` and the pragma, before the first edit.
 **Does:** make the shared MySQL reset select the configured database and charset again, add sequence
 state to the PostgreSQL reset, and pin PostgreSQL's string syntax at startup.
 
-- [ ] `MySqlConn` and `MariaConn` keep the database they logged in with, and both pass it to
+- [x] `MySqlConn` and `MariaConn` keep the database they logged in with, and both pass it to
   `reset_session` (`rule:security/db-pool-reset-is-a-boundary`, `crates/nvs-db/src/mysql.rs:2152`,
   `crates/nvs-db/src/maria.rs:679`, `crates/nvs-db/src/conn.rs:853`).
-- [ ] `reset_session` sends `COM_INIT_DB` with that database after the reset's `OK`, then one `SET`
+- [x] `reset_session` sends `COM_INIT_DB` with that database after the reset's `OK`, then one `SET`
   for the three charset variables and the time zone (`crates/nvs-db/src/mysql.rs:2191`,
   `crates/nvs-db/src/mysql.rs:1758`, `rule:core-classes/db-safe-connection-defaults`).
-- [ ] A connection configured with no database asks `SELECT DATABASE()` in the reset and returns an
+- [x] A connection configured with no database asks `SELECT DATABASE()` in the reset and returns an
   error when the answer is not `NULL`, so the pool closes it (`crates/nvs-db/src/mysql.rs:2191`).
-- [ ] `RESET_COMMANDS` gains `DISCARD SEQUENCES` (`crates/nvs-db/src/pg.rs:3541`).
-- [ ] The startup message sends `standard_conforming_strings = on`, and the comment on
+- [x] `RESET_COMMANDS` gains `DISCARD SEQUENCES` (`crates/nvs-db/src/pg.rs:3541`).
+- [x] The startup message sends `standard_conforming_strings = on`, and the comment on
   `backslash_escapes` says the driver pins it (`crates/nvs-db/src/pg.rs:1321`,
   `crates/nvs-db/src/sql.rs:132`).
-- [ ] Tests `a_mysql_reset_selects_the_configured_database_and_charset_again` and
+- [x] Tests `a_mysql_reset_selects_the_configured_database_and_charset_again` and
   `a_mysql_connection_with_no_database_is_closed_when_a_request_chose_one`, over a scripted peer as
   the module's other reset tests are (`crates/nvs-db/src/mysql.rs:2191`).
-- [ ] Tests `the_postgres_reset_discards_sequence_state` and
+- [x] Tests `the_postgres_reset_discards_sequence_state` and
   `the_postgres_startup_message_pins_standard_conforming_strings`, over a scripted peer
   (`crates/nvs-db/src/pg.rs:3541`, `crates/nvs-db/src/pg.rs:1302`).
-- [ ] `rule:security/db-pool-reset-is-a-boundary` names the default database, the charset and the
+- [x] `rule:security/db-pool-reset-is-a-boundary` names the default database, the charset and the
   generated id in its property, and the per-backend commands
   (`docs/rules/security/db-pool-reset-is-a-boundary.md:5`). `rule:core-classes/db-safe-connection-defaults`
   says the charset is set again after every reset and the string syntax is pinned
@@ -510,7 +515,7 @@ what each run shows.
   and did not skip: break its assertion once, see the matrix name it as failed, and revert
   (`docs/agent/playbook/running-things/python-tools-db-matrix-py-reports-ok-for-a-case-that-never.md:1`).
 - [ ] Each kind a run shows surviving is fixed in that driver's reset, by the standing decisions:
-  MySQL and MariaDB roles (`crates/nvs-db/src/mysql.rs:2191`), and SQL Server's kinds
+  MySQL and MariaDB roles (`crates/nvs-db/src/mysql.rs:2234`), and SQL Server's kinds
   (`crates/nvs-db/src/tds/mod.rs:481`).
 - [ ] The existing per-driver reset cases stay, and each names the table where it repeats a kind
   (`crates/nvs-db/tests/handshake.rs:1018`, `crates/nvs-db/tests/handshake.rs:1383`).
@@ -552,46 +557,49 @@ into the Novis string.
 
 ### State
 
-Stages 1 to 4 are done, and `secret-binds-are-known` and `pragmas-by-name` are green. Stage 5 is
-next. The sweep items were stale a fifth time: no `env-secret-proofs.log` exists, and Miri run
-`43201099245` ran on `578534cc7c`, which predates `7568aaa0fb`.
+Stages 1 to 5 are done, and `resets-restore-the-configured-session` is green. Stage 6 is next. The
+sweep items were stale a sixth time: no `env-secret-proofs.log` exists, and Miri run `43201099245`
+ran on `578534cc7c`, which predates `7568aaa0fb`.
 
-How stage 4 works. `PRAGMAS` (`crates/nvs-db/src/sqlite.rs`, beside `LOCK_WAIT`) is one table of
-`Pragma::Read`, `Pragma::Value` and `Pragma::Session(reset value)` rows. `pragma_allowed` is what
-`authorize` asks for an `AuthAction::Pragma`. `session_pragmas()` builds the text `open` and `clean`
-run. A refusal writes the pragma's name to the thread-local `REFUSED_PRAGMA`, and `server_error`
-takes it on an `SQLITE_AUTH` code, so the `Permission` error's server text names the pragma.
-`clean` reads `PRAGMA database_list` as a statement, and when `last_insert_rowid()` is not zero it
-inserts rowid 0 into a `temp` table it drops. `rusqlite` 0.41.1 has no setter.
+How stage 5 works. `reset_session` (`crates/nvs-db/src/mysql.rs`, after `MySqlConn::reset`) takes
+the database from `Peer::database`, so `MySqlConn` and `MariaConn` gained no field. After the reset's
+`OK` it sends `COM_INIT_DB` (new constant beside `COM_QUERY`), or, for an empty database, runs
+`no_database_is_selected`, which reads `SELECT DATABASE()` as a text result and returns
+`PermissionDenied` when the cell is not `0xFB`. Then one `SET` through the new `run_own_text`
+assigns the three charset variables, `collation_connection` and the zone. `set_session_time_zone`
+also goes through `run_own_text`. PostgreSQL's `RESET_COMMANDS` has nine rows, the ninth
+`DISCARD SEQUENCES`, and `authenticate` sends `standard_conforming_strings = on`.
 
-**`SqliteTarget::setup` is new.** The session store (`crates/nvs-stdlib/src/session/sqlite.rs`)
-sends `synchronous = NORMAL`, which has no row. Its `SETUP` runs before the authorizer is installed,
-as the standing decision's safe default allows. A block sets `setup: &[]`.
-
-The two new attacks are `tests/hostile/core/Db-Connection/query/05-...` and `06-...`, each with an
-`[[app]]` block in `nvs.toml`. Both pass `bun nv proofs --id 'Core\Db\Connection::query' --run`.
+Two pre-existing reds from stage 2 are fixed: `a_failed_reset_destroys_the_connection_rather_than_returning_it`
+in `mysql.rs` and in `tds/plan.rs` looked for the server's sentence in the rendering, and now look
+for `(code N)`. The PostgreSQL test `a_reset_is_section_13s_eight_commands_...` is renamed
+`a_reset_is_its_rules_commands_in_one_flush_and_not_discard_all`.
 
 ### Next
 
-Stage 5, in the order its items are written (`docs/goals/database-doors.md`, § 5).
+Stage 6, in the order its items are written (`docs/goals/database-doors.md`, § 6). Its matrix runs
+need Docker and `tests/db/compose.yaml`. If the session cannot start a server, write `reset.rs`, its
+lib test and the `pool_reuse.rs` case, and file the runs as the blocker.
 
-- [ ] `crates/nvs-db/src/mysql.rs:2191` `reset_session`, `crates/nvs-db/src/mysql.rs:2152`,
-  `crates/nvs-db/src/maria.rs:679`, `crates/nvs-db/src/conn.rs:853`: keep the login database on
-  `MySqlConn` and `MariaConn`, then `COM_INIT_DB` and one `SET` for the charset and time zone after
-  the reset's `OK`. With no database, ask `SELECT DATABASE()` and fail when it is not `NULL`.
-- [ ] `crates/nvs-db/src/pg.rs:3541` `RESET_COMMANDS` gains `DISCARD SEQUENCES`, and
-  `crates/nvs-db/src/pg.rs:1321` sends `standard_conforming_strings = on` at startup. Fix the comment
-  on `backslash_escapes` (`crates/nvs-db/src/sql.rs:132`).
-- [ ] `crates/nvs-db/src/mysql.rs:2191` and `crates/nvs-db/src/pg.rs:1302`: the four tests stage 5
-  names, over the scripted peers the modules' reset tests already use.
-- [ ] `docs/rules/security/db-pool-reset-is-a-boundary.md:5` and
-  `docs/rules/core-classes/db-safe-connection-defaults.md:12`, then `bun nv rules --render`.
+- [ ] New `crates/nvs-db/src/reset.rs:1`: the kinds (database, role, charset, generated id and
+  sequence state, session variables) and one function from a `Driver` and a kind to change SQL and
+  read SQL, or a reason. No wildcard. Register it in `crates/nvs-db/src/lib.rs`.
+- [ ] `crates/nvs-db/src/reset.rs:1`: test `every_driver_answers_for_every_kind_of_session_state`.
+- [ ] `crates/nvs-db/tests/pool_reuse.rs:359`: test
+  `a_reset_returns_every_kind_of_session_state_to_the_configured_one`, with the skip at
+  `crates/nvs-db/tests/pool_reuse.rs:86`.
+- [ ] The five `bun nv db-matrix --driver <name>` runs (`tools/nv/cmd/db-matrix.ts:128`), each case
+  broken once to prove it asserts.
+- [ ] `crates/nvs-db/src/tds/mod.rs:481` and `crates/nvs-db/src/mysql.rs:2234` `reset_session`: a
+  kind that survives is fixed per the standing decisions.
+- [ ] `crates/nvs-db/tests/handshake.rs:1018` and `:1383` name the table, and `docs/agent/testing.md`
+  gains the matrix section.
 
-Expected red: any test that runs a `PRAGMA` with no row through `nvs_db::sqlite::open` now gets a
-`Permission` error. The tree's own Rust and `.nvs` files send none outside the session store, but a
-snapshot or fixture that pinned `pragma_database_list` in the reset's text would change. Snapshot
-tests that print a query site may print ` plain` after the span (`crates/nvs-ir/src/print.rs`), and
-any test pinning "bound a value." fails. `bun nv affected --run` was not run.
+Expected red: a test elsewhere that scripts a MySQL or MariaDB pool reset and answers only `0x1F`
+and `0x03` now panics on `COM_INIT_DB` (`0x02`). None was found under `crates/nvs-db/src`, but a
+`nvs-stdlib` or `tests/` fixture might. Earlier stages' expected reds still stand: a `PRAGMA` with no
+row now gets a `Permission` error, a query-site snapshot may print ` plain`, and a test pinning
+"bound a value." fails. `bun nv affected --run` was not run.
 
 ### Backlog
 
