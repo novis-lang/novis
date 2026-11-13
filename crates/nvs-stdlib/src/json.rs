@@ -7400,6 +7400,10 @@ pub(crate) mod tests {
     /// writes goes through the module's own reader and writer. A comment may
     /// name it.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "scans every line of the module's source, which Miri runs for minutes"
+    )]
     fn core_json_names_serde_json_only_in_its_tests() {
         let root = nvs_repo::path("crates/nvs-stdlib/src");
         let mut files = vec![root.join("json.rs")];
