@@ -1010,9 +1010,7 @@ mod tests {
         std::fs::create_dir_all(&view).expect("create the target's folder");
         std::fs::write(view.join("Index.nvs"), TARGET).expect("write the target");
         let entry = dir.join("main.nvs");
-        let src = format!(
-            "<?nvs\nautoload links 'Framework\\Shop' from './Shop/src';\n\n{body}"
-        );
+        let src = format!("<?nvs\nautoload links 'Framework\\Shop' from './Shop/src';\n\n{body}");
         std::fs::write(&entry, src).expect("write the entry");
 
         let mut map = SourceMap::new();
@@ -1020,13 +1018,8 @@ mod tests {
         let entry_id = map.load(&entry).expect("load the entry");
         let stmts = nvs_syntax::parse_file(map.file(entry_id), &mut diags);
         assert!(!diags.has_errors(), "the entry failed to parse: {diags:?}");
-        let (module, files, autoload) = nvs_hir::resolve_program(
-            entry_id,
-            stmts,
-            &mut map,
-            CoreRoster::Trusted,
-            &mut diags,
-        );
+        let (module, files, autoload) =
+            nvs_hir::resolve_program(entry_id, stmts, &mut map, CoreRoster::Trusted, &mut diags);
         let program: Vec<_> = files
             .iter()
             .map(|file| crate::ProgramFile {
@@ -1058,7 +1051,11 @@ mod tests {
         let good = check(
             "Core\\Router::url(Framework\\Shop\\View\\Index::show, ['id' => 3, 'q' => 'a']);\n",
         );
-        assert!(!good.diags.has_errors(), "a good link failed: {:?}", good.diags);
+        assert!(
+            !good.diags.has_errors(),
+            "a good link failed: {:?}",
+            good.diags
+        );
         assert_eq!(
             good.handlers(),
             [Some(r"Framework\Shop\View\Index::show".to_owned())]
@@ -1066,7 +1063,11 @@ mod tests {
 
         let cases = [
             ("['q' => 'a']", "show", code::E_ROUTE_LINK_MISSING_PARAM),
-            ("['id' => 3, 'nope' => 1]", "show", code::E_ROUTE_LINK_UNKNOWN_PARAM),
+            (
+                "['id' => 3, 'nope' => 1]",
+                "show",
+                code::E_ROUTE_LINK_UNKNOWN_PARAM,
+            ),
             ("['id' => 'x']", "show", code::E_ROUTE_LINK_VALUE_NOT_IN_SET),
             ("[]", "plain", code::E_LINK_METHOD_HAS_NO_ROUTE),
             ("[]", "missing", code::E_UNDEFINED_MEMBER),

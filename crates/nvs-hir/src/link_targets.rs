@@ -25,8 +25,8 @@ use std::path::PathBuf;
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceId, code};
 use nvs_syntax::ast::{
-    AttributeGroup, ClassMemberKind, ExprKind, MethodMember, Param, Stmt, StmtKind, Type,
-    TypeAtom, TypeKind,
+    AttributeGroup, ClassMemberKind, ExprKind, MethodMember, Param, Stmt, StmtKind, Type, TypeAtom,
+    TypeKind,
 };
 use rustc_hash::FxHashMap;
 
@@ -288,7 +288,10 @@ fn read_param(param: &Param, src: &SourceFile, scope: &Scope) -> LinkParam {
         .to_owned();
     LinkParam {
         name,
-        ty: param.ty.as_ref().and_then(|ty| checked_type(ty, src, scope)),
+        ty: param
+            .ty
+            .as_ref()
+            .and_then(|ty| checked_type(ty, src, scope)),
         query: has_attribute(&param.attributes, QUERY, src, scope),
         has_default: param.default.is_some(),
     }

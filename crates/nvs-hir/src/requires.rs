@@ -652,13 +652,8 @@ fn walk(
                     continue;
                 };
                 let new_stmts = parse_fresh(&mut parses, map.file(new_id), diags);
-                let target = crate::link_targets::read(
-                    &new_stmts,
-                    map.file(new_id),
-                    &name,
-                    new_id,
-                    path,
-                );
+                let target =
+                    crate::link_targets::read(&new_stmts, map.file(new_id), &name, new_id, path);
                 link_targets.insert(name, target);
             }
         }
@@ -3330,14 +3325,24 @@ class Unreached {}
         assert!(!diags.has_errors(), "{diags:?}");
 
         // The ordinary root resolves, and the links root does not.
-        assert!(built.resolve(&QName::parse(r"Framework\Blog\Page")).hit.is_some());
+        assert!(
+            built
+                .resolve(&QName::parse(r"Framework\Blog\Page"))
+                .hit
+                .is_some()
+        );
         assert!(
             built
                 .resolve(&QName::parse(r"Framework\Shop\Page"))
                 .tried
                 .is_empty()
         );
-        assert!(built.enumerate().iter().all(|(name, _)| !name.to_string().contains("Shop")));
+        assert!(
+            built
+                .enumerate()
+                .iter()
+                .all(|(name, _)| !name.to_string().contains("Shop"))
+        );
 
         let mut diags = Diagnostics::new();
         let _ = AutoloadMap::build(

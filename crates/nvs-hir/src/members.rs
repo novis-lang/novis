@@ -1139,9 +1139,10 @@ fn link_route_index<'s>(
     {
         return None;
     }
-    let named = list
-        .iter()
-        .position(|arg| arg.name.is_some_and(|name| src.span_text(name) == Some("route")));
+    let named = list.iter().position(|arg| {
+        arg.name
+            .is_some_and(|name| src.span_text(name) == Some("route"))
+    });
     let first = list
         .first()
         .filter(|arg| arg.name.is_none() && !arg.spread)
