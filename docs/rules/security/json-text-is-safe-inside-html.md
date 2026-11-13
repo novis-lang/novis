@@ -16,16 +16,18 @@ case. Making `encode`'s result tainted when its input is would make every API th
 add a launder step for nothing. Taint also cannot tell a JSON response from a page the text is pasted
 into, and the escaped text is safe in both.
 
-**One formatter, so every writer agrees.** The escape is part of how the encoder writes a string
-fragment, not a second pass over the output. It applies to the compact and the pretty profile, to keys
-and values, to `{ escapeUnicode: true }`, and to each piece of `Core\Json::encodeEach`. Every other
+**One escape table, so every writer agrees.** The six are rows of the one table the encoder writes
+every string with, beside JSON's own escapes, in the same pass over the string's bytes. It applies to
+the compact and the pretty profile, to keys and values, and to each piece of `Core\Json::encodeEach`.
+`{ escapeUnicode: true }` is that same pass with one more class of byte, the first byte of a non-ASCII
+character, so it is no second pass over the output either. Every other
 member that writes a program's values as JSON goes through that encoder: `Core\Response::json`,
 `Core\Http\Client`'s `json` option, `Core\Sse`'s payload, `Core\Queue`'s job arguments and `Core\Jwt`'s
 claims.
 
 **What it spends.** Five bytes more for each escaped character, the apostrophe included, and nothing
-for a string without them. The encoder already reads every byte of a string for quotes and control
-characters, so the six are one more compare per byte.
+for a string without them. The encoder reads every byte of a string once, through one table lookup,
+so a byte that needs no escape costs that one lookup however many rows the table has.
 
 **Three JSON writers are outside it, because none of their text reaches a page as JSON text.**
 
@@ -43,7 +45,7 @@ characters, so the six are one more compare per byte.
   this one does. A program that needs the raw bytes for a reader that compares text byte for byte is a
   later decision, made when such a reader is named.
 - **A tainted result.** Above, under *Escape, do not taint*.
-- **A second pass over the finished text,** as `escapeUnicode` does for non-ASCII characters. It would
-  cost one more copy of every document, and the formatter already has each string's bytes.
+- **A second pass over the finished text.** It would cost one more copy of every document, and the
+  writer already reads each string's bytes.
 - **Leaving out the apostrophe,** as Go does. It is the most common of the six in text, but a
   single-quoted attribute is a common place for JSON, and five bytes per apostrophe is the price.

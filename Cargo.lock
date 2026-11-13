@@ -4769,6 +4769,7 @@ dependencies = [
  "uuid",
  "wit-parser 0.261.0",
  "x25519-dalek",
+ "zmij",
 ]
 
 [[package]]

@@ -1,59 +1,53 @@
-//! `Core\Json`, over `serde_json`.
+//! `Core\Json`: its own reader and its own writer.
 //!
 //! The registry (`crates/nvs-stdlib/src/registry.rs`, published by `nvs meta --json`)
 //! is the one source of every signature, `rule:core-api/field-wise-precedence`. What
-//! belongs here is the crate choice, the two shapes JSON has that Novis does not, and
-//! the places this module refuses a value the C `json_encode`/`json_decode` would have
-//! degraded instead.
+//! belongs here is how a document is read and written, the two shapes JSON has that
+//! Novis does not, and the places this module refuses a value the C
+//! `json_encode`/`json_decode` would have degraded instead.
 //!
-//! # The crate, and why this one
+//! # The reader
 //!
-//! RFC 8259 is an external specification, so [AGENTS.md](/AGENTS.md)
-//! § *Implementation invariants* makes it a dependency rather than a
-//! hand-written parser. `serde_json` is the pick, for two properties no other
-//! Rust JSON crate has both of:
+//! RFC 8259 is somebody else's specification, and
+//! `rule:packaging/somebody-elses-specification-is-a-crate` argues why this
+//! module owns its reader anyway. [`reader`] is a pull tokenizer: one event
+//! per call, the grammar checked against one bit per open level, held inline,
+//! and no recursion, so a document's depth is a loop bound and no caller
+//! switches stacks. Every consumer is a loop over its events. [`build`] makes
+//! [`nvs_runtime::NvsArray`]s and [`Value`]s directly, one allocation per
+//! object key. `decodeAs<T>`'s [`fill`] is driven by the class's field list,
+//! so an object the class fills becomes one slot per field and never an
+//! array. [`secret_values`] finds the secret fields' spans in one read.
+//! Nothing is ever materialized twice.
 //!
-//! * **It can be driven without its own `Value` tree.** [`build`] is a loop
-//!   over [`reader`]'s events, so a document becomes [`nvs_runtime::NvsArray`]s and
-//!   [`Value`]s *directly*. `decodeAs<T>`'s [`fill`] is a loop over [`reader`]'s
-//!   events, driven by the class's field list, so an object the class fills becomes one slot per
-//!   field and never an array. Nothing is ever materialized twice. That is
-//!   what keeps latency, in `rule:programs/memory-priority`'s ordering, honest
-//!   on a member every request path uses.
-//! * **Every byte of the document is the crate's.** Novis writes no JSON
-//!   grammar of its own at all: one scalar at a time goes through the crate's
-//!   serializer for its escaping and its number formatting, and the structure
-//!   around them — the braces, the commas, the `pretty` profile's indentation —
-//!   is `serde_json`'s own [`Formatter`]. What [`Encodable`] owns is the
-//!   *order* values are visited in, which is what § *The walk carries its own
-//!   stack* is about.
+//! The reader keeps `serde_json`'s message text, line and column for every
+//! syntax error, because `.out` files pin them, and its tests hold it to that
+//! crate as their oracle over every saved fuzz input.
 //!
-//! Pure Rust, no build script, no C — `rule:packaging/a-c-dependency-answers-two-questions`'s two questions do not even
-//! arise.
+//! **What it spends:** per decode, one frame per open level in each
+//! consumer's `Vec`, asked from the request's budget before it grows, and a
+//! scratch buffer for a string with escapes. Both are freed with the call.
 //!
-//! # `escapeUnicode` is a post-pass, not a formatter
+//! # The writer
 //!
-//! `serde_json` never escapes a non-ASCII character, and overriding that means
-//! implementing the whole `Formatter` trait twice — once over the compact
-//! writer and once over the pretty one. [`escape_non_ascii`] does it in one
-//! pass over the finished document instead, and is exactly as correct: **in
-//! JSON, a non-ASCII byte can only occur inside a string**, since every
-//! structural character, every number and every keyword is ASCII. So a scan
-//! that rewrites each non-ASCII `char` as its `\uXXXX` escape cannot touch
-//! anything it should not.
+//! [`Encodable`] walks the value, and [`Sink`] writes every byte: the
+//! punctuation, the `pretty` profile's indentation, the numbers and the
+//! strings. An integer is written in decimal from a buffer on the stack. A
+//! float is written by `zmij`, the formatter `serde_json` itself calls. Each
+//! string and key is written by [`escaped`], in one read of its bytes, against
+//! one table, [`ESCAPE`]. The table has JSON's own escapes and the six of
+//! `rule:security/json-text-is-safe-inside-html`: `<`, `>`, `&`, `'`, U+2028
+//! and U+2029. There is no option to turn the six off, so the compact and the
+//! pretty profile, `encodeEach` and every other writer of a program's values
+//! in this crate escape them.
 //!
-//! **What it spends:** one extra `String` the size of the document, on the
-//! `{ escapeUnicode: true }` path only — an option a call has to ask for.
+//! `{ escapeUnicode: true }` is the same pass with one more class of byte:
+//! the first byte of a non-ASCII character, whose character is written as
+//! its `\uXXXX` escape, or a surrogate pair past U+FFFF. Its document is
+//! written once, as a plain one is.
 //!
-//! # Every string is safe inside an HTML page, and that one is a formatter
-//!
-//! `rule:security/json-text-is-safe-inside-html` escapes `<`, `>`, `&`, `'`,
-//! U+2028 and U+2029 in every string and key, with no option. That one *is* a
-//! [`Formatter`], `HtmlSafe`, because it changes only how a string fragment is
-//! written, and every string goes through [`Sink::scalar`]'s compact
-//! serializer whatever profile the structure has. So the pretty profile,
-//! `escapeUnicode`, `encodeEach` and every other writer of a program's values
-//! in this crate escape the same six by one override.
+//! **What it spends:** the document's chunks, and six bytes per escaped
+//! character. A string with nothing to escape is copied in one write.
 //!
 //! # The refusals
 //!
@@ -64,7 +58,8 @@
 //! * **Nesting past `maxDepth` throws**, and the cap is on by default at
 //!   [`DEFAULT_MAX_DEPTH`] rather than opt-in — nesting is the one JSON input
 //!   that costs unbounded work before any value exists. [`DEPTH_CEILING`] is
-//!   the hard bound a call cannot raise past, because the parse recurses. What
+//!   the hard bound a call cannot raise past
+//!   (`rule:http-server/engine-depth-is-bounded-per-decoder`). What
 //!   it bounds is structure that is legal and merely deep: a value that
 //!   encloses itself is refused by the entry below before this one can be
 //!   reached, so the two failures name themselves rather than both reading as
@@ -146,10 +141,9 @@
 //! # `isValid` decodes and discards
 //!
 //! It answers exactly what [`nvs_core_json_decode`] would accept, which is the
-//! property that matters, and it allocates the document to do it. A second
-//! `()`-producing visitor would avoid that, and it is a duplicate of [`build`]
-//! with every body replaced by `Ok(())` — a second walk to keep in step with
-//! the first, against a cost nothing has measured.
+//! property that matters, and it allocates the document to do it. A check
+//! that reads the events and builds nothing is a smaller loop over the same
+//! reader, and it is not built yet.
 //!
 //! # A value type crosses as text, not as its slots
 //!
@@ -236,7 +230,7 @@
 //! takes the copy-on-write path and the document stays the snapshot the encode
 //! began on. What that spends is a refcount pair per level per hand-written
 //! member, and nothing at all on a document with none. The [`Fault`] such a
-//! member raises travels out on [`Reentry`] rather than as `serde`'s own error,
+//! member raises travels out on [`Reentry`] rather than as a [`Refused`],
 //! which is a string and would lose the class a `catch` names.
 //!
 //! # The walk carries its own stack
@@ -259,11 +253,12 @@
 //! message names a value with read off it rather than out of a second
 //! structure.
 //!
-//! **The decoder builds objects the same way.** The parse runs on the spare
-//! stack, and what it reads is turned into instances by [`walk`] once it has
-//! ended: an object or a list nested in the document pushes a [`Build`]
-//! frame, and an object's constructor runs when its frame is popped, once
-//! every field is a value. So
+//! **The decoder builds objects the same way.** [`fill`] builds while the
+//! reader reads, on the task's own stack, as § *`decodeAs` reads the text
+//! against the class* says. [`walk`] builds from values a call already holds:
+//! an object or a list nested in them pushes a [`Build`] frame, and an
+//! object's constructor runs when its frame is popped, once every field is a
+//! value. So
 //! a document inside `maxDepth` is built whatever the build's native frames
 //! weigh, and `maxDepth` is the only bound on its depth. Two calls still take
 //! native stack, and each is compiled code with its own check: a constructor,
@@ -328,9 +323,9 @@
 //! # What a document costs per byte, at every size
 //!
 //! **Time per document byte at the largest size is within 1.5 times its time at
-//! 64 KiB, or within serde_json's own growth on the same shape where that is
-//! larger:** its parse for a decode, and its write of its own `Value` for an
-//! encode. Past the caches every reader and writer pays for fresh pages and for
+//! 64 KiB, or within the oracle crate's own growth on the same shape where
+//! that is larger:** its parse for a decode, and its write of its own `Value`
+//! for an encode. Past the caches every reader and writer pays for fresh pages and for
 //! a value tree larger than the cache, and no change here removes that.
 //! `tests::serde_reference_ladder` prints both, shape by shape, from 1 KiB to
 //! 32 MiB. Each member's `.scale.nvs` ladder judges what the member adds above
@@ -353,10 +348,8 @@
 //!   declared length is reserved before the bytes arrive (`request`'s
 //!   `pull_whole`).
 //!
-//! A faster parser than serde_json is a goal of its own, and only once
-//! serde_json's own parse is over half a member's time at 1 MiB or more and that
-//! member still misses the bound above. A document larger than memory is read
-//! and written by `decodeEach` and `encodeEach`, below.
+//! A document larger than memory is read and written by `decodeEach` and
+//! `encodeEach`, below.
 //!
 //! # A document read one element at a time
 //!
@@ -378,8 +371,6 @@ use nvs_runtime::budget::ChunkWriter;
 use nvs_runtime::{
     ClassDesc, CodecTy, EnumCases, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value,
 };
-use serde::ser::{Error as _, Serialize};
-use serde_json::ser::{CompactFormatter, Formatter, PrettyFormatter};
 
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -975,7 +966,7 @@ const ENCODE: &str = "toJson";
 /// down; it is re-derived for exactly the length of one call and never held
 /// across a nested walk, which is the same shape every helper's own ABI
 /// boundary gives a `Ctx`. The fault is behind a cell because a
-/// `serde_json::Error` is a string and a thrown class is not: the walk stops
+/// [`Refused`] is a string and a thrown class is not: the walk stops
 /// with an ordinary one and the [`Fault`] — a [`Fault::Pending`] whose
 /// exception object is already recorded on the context — is picked up by
 /// [`rendered`] on the way out.
@@ -1016,14 +1007,14 @@ impl Reentry {
             .is_some_and(nvs_runtime::DeadlineBatch::stopped)
     }
 
-    /// Records `fault` and answers the `serde` error that stops the walk.
+    /// Records `fault` and answers the [`Refused`] that stops the walk.
     ///
     /// The message is what a caller that never asks [`Self::raised`] would
     /// render, so it names the member rather than describing the machinery;
     /// every caller in this crate asks, and gets the class the member threw.
-    fn stopped_by<E: serde::ser::Error>(&self, fault: Fault, class: &str) -> E {
+    fn stopped_by(&self, fault: Fault, class: &str) -> Refused {
         *self.raised.borrow_mut() = Some(fault);
-        E::custom(format!("`{class}::{ENCODE}()` did not answer a document"))
+        refuse(format!("`{class}::{ENCODE}()` did not answer a document"))
     }
 
     /// The fault a member raised, taken, and `None` where the walk stopped on
@@ -1071,7 +1062,7 @@ struct Frame {
     /// Where the walk has got to inside it.
     at: Cursor,
     /// Whether an entry has been written already, which is the `first` every
-    /// [`Formatter`] separator asks for.
+    /// [`Sink`] separator asks for.
     wrote: bool,
 }
 
@@ -1103,142 +1094,303 @@ enum Cursor {
     Returned { produced: Value, written: bool },
 }
 
-/// The document being written, and the crate's own writer for every byte of it.
+/// How a document is laid out, and which characters its strings escape.
 ///
-/// `serde_json`'s [`Formatter`] decides each structural byte — the braces, the
-/// commas, the `pretty` profile's indentation — and one scalar at a time goes
-/// through the crate's serializer for its escaping and its number formatting.
-/// The calls below are made in the order `serde_json`'s own serializer makes
-/// them, so a [`PrettyFormatter`], whose indentation is state it carries
-/// between them, writes what `serde_json::to_string_pretty` would have.
+/// [`Profile::COMPACT`] is every writer's but `Core\Json::encode`'s, which
+/// reads its two options into this.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Profile {
+    /// Two spaces per level and a newline before each entry, with `": "`
+    /// after a key: the `pretty` option.
+    pretty: bool,
+    /// Every non-ASCII character written as its `\uXXXX` escape, a
+    /// surrogate pair past U+FFFF: the `escapeUnicode` option.
+    ascii: bool,
+}
+
+impl Profile {
+    /// No whitespace, and every character outside the escape table as itself.
+    pub(crate) const COMPACT: Self = Self {
+        pretty: false,
+        ascii: false,
+    };
+}
+
+/// The document being written: every byte of it, in one pass.
+///
+/// The structure is the walk's: each call below is one brace, separator, key
+/// or scalar, made in the order the [`Stack`] reaches it. The `pretty`
+/// profile's layout is the indent and one flag, `has_value`, carried between
+/// calls. That flag is set by the last entry written at any level and cleared
+/// by each container opened, so an empty container closes on its own line
+/// exactly when a nested one wrote last. Every byte matches what `serde_json`
+/// writes for the same value, and the differential tests hold that.
 ///
 /// The buffer is a [`ChunkWriter`], so the bytes already written never move,
 /// and each new chunk asks the request's memory ceiling first. After a refusal
 /// it writes nothing, and [`Encodable::written`] ends the walk at its next
 /// value.
-struct Sink<F> {
+struct Sink {
     out: ChunkWriter,
-    fmt: F,
+    profile: Profile,
+    /// The `pretty` profile's level, which is the number of open containers.
+    indent: usize,
+    /// Whether the `pretty` profile closes the next container on a line of
+    /// its own.
+    has_value: bool,
 }
 
-/// What a write into [`Sink`]'s buffer cannot be.
-const INFALLIBLE: &str = "a `ChunkWriter` sink never fails a write";
+/// The `pretty` profile's indent for one level.
+const INDENT: &[u8] = b"  ";
 
-impl<F: Formatter> Sink<F> {
-    /// One scalar, spelled by the crate: its escaping, its number formatting.
-    ///
-    /// A fresh serializer per scalar rather than one held across the walk,
-    /// which is what lets the structure above it be a loop instead of a
-    /// recursion. The bytes are the same either way — a scalar has no
-    /// punctuation for a formatter to profile.
-    ///
-    /// # Errors
-    ///
-    /// Whatever the crate refuses to write, which for the tags reaching here is
-    /// nothing.
-    fn scalar<T: Serialize + ?Sized>(&mut self, value: &T) -> Result<(), serde_json::Error> {
-        value.serialize(&mut serde_json::Serializer::with_formatter(
-            &mut self.out,
-            HtmlSafe,
-        ))
+impl Sink {
+    /// An empty document under `profile`.
+    fn new(profile: Profile) -> Self {
+        Self {
+            out: ChunkWriter::new(),
+            profile,
+            indent: 0,
+            has_value: false,
+        }
+    }
+
+    fn null(&mut self) {
+        self.out.put(b"null");
+    }
+
+    fn boolean(&mut self, value: bool) {
+        self.out.put(if value { b"true" } else { b"false" });
+    }
+
+    fn int(&mut self, value: i64) {
+        if value < 0 {
+            self.out.put(b"-");
+        }
+        self.uint(value.unsigned_abs());
+    }
+
+    /// `value` in decimal, written from a buffer on the stack.
+    fn uint(&mut self, mut value: u64) {
+        let mut digits = [0_u8; 20];
+        let mut at = digits.len();
+        loop {
+            at -= 1;
+            // `value % 10` is below ten, so it fits a byte.
+            digits[at] = b'0' + u8::try_from(value % 10).unwrap_or(0);
+            value /= 10;
+            if value == 0 {
+                break;
+            }
+        }
+        self.out.put(digits.get(at..).unwrap_or_default());
+    }
+
+    /// A finite `f64` in its shortest form that reads back as the same
+    /// number, which is `zmij`'s, as `serde_json` writes it.
+    fn float(&mut self, value: f64) {
+        let mut buffer = zmij::Buffer::new();
+        self.out.put(buffer.format_finite(value).as_bytes());
+    }
+
+    /// `text` in quotes, with [`ESCAPE`]'s escapes.
+    fn string(&mut self, text: &str) {
+        self.out.put(b"\"");
+        escaped(&mut self.out, text, self.profile.ascii);
+        self.out.put(b"\"");
     }
 
     fn open_array(&mut self) {
-        self.fmt.begin_array(&mut self.out).expect(INFALLIBLE);
+        self.open(b"[");
     }
 
     fn close_array(&mut self) {
-        self.fmt.end_array(&mut self.out).expect(INFALLIBLE);
-    }
-
-    fn open_element(&mut self, first: bool) {
-        self.fmt
-            .begin_array_value(&mut self.out, first)
-            .expect(INFALLIBLE);
-    }
-
-    fn close_element(&mut self) {
-        self.fmt.end_array_value(&mut self.out).expect(INFALLIBLE);
+        self.close(b"]");
     }
 
     fn open_object(&mut self) {
-        self.fmt.begin_object(&mut self.out).expect(INFALLIBLE);
+        self.open(b"{");
     }
 
     fn close_object(&mut self) {
-        self.fmt.end_object(&mut self.out).expect(INFALLIBLE);
+        self.close(b"}");
+    }
+
+    fn open(&mut self, bracket: &[u8]) {
+        self.indent += 1;
+        self.has_value = false;
+        self.out.put(bracket);
+    }
+
+    fn close(&mut self, bracket: &[u8]) {
+        self.indent = self.indent.saturating_sub(1);
+        if self.profile.pretty && self.has_value {
+            self.out.put(b"\n");
+            self.indented();
+        }
+        self.out.put(bracket);
+    }
+
+    /// The separator before an array's element or an object's key.
+    fn open_element(&mut self, first: bool) {
+        if self.profile.pretty {
+            self.out.put(if first { b"\n" } else { b",\n" });
+            self.indented();
+        } else if !first {
+            self.out.put(b",");
+        }
+    }
+
+    fn indented(&mut self) {
+        for _ in 0..self.indent {
+            self.out.put(INDENT);
+        }
+    }
+
+    fn close_element(&mut self) {
+        self.has_value = true;
     }
 
     /// The separator, the key and the colon that reach one entry's value.
-    ///
-    /// # Errors
-    ///
-    /// As [`Sink::scalar`]'s, the key being a string like any other.
-    fn key(&mut self, first: bool, name: &str) -> Result<(), serde_json::Error> {
-        self.fmt
-            .begin_object_key(&mut self.out, first)
-            .expect(INFALLIBLE);
-        self.scalar(name)?;
-        self.fmt.end_object_key(&mut self.out).expect(INFALLIBLE);
-        self.fmt
-            .begin_object_value(&mut self.out)
-            .expect(INFALLIBLE);
-        Ok(())
+    fn key(&mut self, first: bool, name: &str) {
+        self.open_element(first);
+        self.string(name);
+        self.out.put(if self.profile.pretty { b": " } else { b":" });
     }
 
     fn close_entry(&mut self) {
-        self.fmt.end_object_value(&mut self.out).expect(INFALLIBLE);
+        self.has_value = true;
     }
 }
 
-/// The compact formatter, with `<`, `>`, `&`, `'`, U+2028 and U+2029 written as
-/// `\u` escapes in every string and key — `rule:security/json-text-is-safe-inside-html`.
-///
-/// [`Sink::scalar`] is the one place a string is written, and its scalars have
-/// no punctuation, so the pretty profile and `encodeEach`'s pieces escape the
-/// same characters through this alone. `serde_json` already gives a fragment
-/// only the bytes it does not escape itself, and splits it only at an ASCII
-/// byte, so a three-byte U+2028 is never cut in two.
-///
-/// **What it spends:** five bytes more per escaped character, and one compare
-/// per byte of each string beside the crate's own escape lookup.
-#[derive(Clone, Copy)]
-struct HtmlSafe;
+/// Why the encoder stopped, as the message a caller words its own refusal
+/// around.
+#[derive(Debug)]
+pub(crate) struct Refused(String);
 
-impl Formatter for HtmlSafe {
-    fn write_string_fragment<W>(&mut self, writer: &mut W, fragment: &str) -> std::io::Result<()>
-    where
-        W: ?Sized + std::io::Write,
-    {
-        let bytes = fragment.as_bytes();
-        let mut written = 0;
-        let mut at = 0;
-        while at < bytes.len() {
-            let (escape, width): (&[u8], usize) = match bytes[at] {
-                b'<' => (b"\\u003c", 1),
-                b'>' => (b"\\u003e", 1),
-                b'&' => (b"\\u0026", 1),
-                b'\'' => (b"\\u0027", 1),
-                0xE2 if bytes.get(at + 1) == Some(&0x80) => match bytes.get(at + 2) {
-                    Some(0xA8) => (b"\\u2028", 3),
-                    Some(0xA9) => (b"\\u2029", 3),
-                    _ => {
-                        at += 1;
-                        continue;
-                    }
-                },
+impl fmt::Display for Refused {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+/// A byte [`ESCAPE`] writes as its own `\u00XX`: a control character, and
+/// the four ASCII characters of `rule:security/json-text-is-safe-inside-html`.
+const UU: u8 = b'u';
+/// The first byte of U+2028 and U+2029, which the same rule escapes. Other
+/// characters share it, so the next two bytes decide.
+const SEP: u8 = 1;
+/// The first byte of any other non-ASCII character, escaped under
+/// `escapeUnicode` alone.
+const NON: u8 = 2;
+
+/// The one escape table of every string and key the encoder writes.
+///
+/// `0` writes the byte as itself. A letter is the escape's second byte, after
+/// the backslash: JSON's own `\b`, `\t`, `\n`, `\f`, `\r`, `\"` and `\\`.
+/// [`UU`], [`SEP`] and [`NON`] are the three longer escapes. A continuation
+/// byte of a non-ASCII character is `0`: the scan steps over it, or past it
+/// with the whole character under `escapeUnicode`.
+static ESCAPE: [u8; 256] = {
+    let mut table = [0_u8; 256];
+    let mut byte = 0;
+    while byte < 0x20 {
+        table[byte] = UU;
+        byte += 1;
+    }
+    table[0x08] = b'b';
+    table[0x09] = b't';
+    table[0x0A] = b'n';
+    table[0x0C] = b'f';
+    table[0x0D] = b'r';
+    table[b'"' as usize] = b'"';
+    table[b'\\' as usize] = b'\\';
+    table[b'<' as usize] = UU;
+    table[b'>' as usize] = UU;
+    table[b'&' as usize] = UU;
+    table[b'\'' as usize] = UU;
+    let mut lead = 0xC0;
+    while lead < 0x100 {
+        table[lead] = NON;
+        lead += 1;
+    }
+    table[0xE2] = SEP;
+    table
+};
+
+#[cfg(test)]
+thread_local! {
+    /// The string bytes [`escaped`] has read on this thread, for the test
+    /// that holds each string to one scan.
+    static SCANNED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// The contents of one JSON string: `text` with [`ESCAPE`]'s escapes, and with
+/// every non-ASCII character escaped too where `ascii` is set.
+///
+/// One read of `text`. A run of bytes that needs no escape is copied in one
+/// write. **What it spends:** six bytes per escaped character, twelve for a
+/// surrogate pair, and nothing for a string without one.
+fn escaped(out: &mut ChunkWriter, text: &str, ascii: bool) {
+    #[cfg(test)]
+    SCANNED.with(|scanned| scanned.set(scanned.get() + text.len()));
+    let bytes = text.as_bytes();
+    let mut written = 0;
+    let mut at = 0;
+    while let Some(&byte) = bytes.get(at) {
+        let class = ESCAPE[usize::from(byte)];
+        if class == 0 {
+            at += 1;
+            continue;
+        }
+        let width = match class {
+            SEP | NON if ascii => {
+                let Some(ch) = text.get(at..).and_then(|rest| rest.chars().next()) else {
+                    break;
+                };
+                out.put(bytes.get(written..at).unwrap_or_default());
+                let mut units = [0_u16; 2];
+                for unit in ch.encode_utf16(&mut units) {
+                    unit_escape(out, *unit);
+                }
+                ch.len_utf8()
+            }
+            SEP => match bytes.get(at + 1..at + 3) {
+                Some([0x80, low @ (0xA8 | 0xA9)]) => {
+                    out.put(bytes.get(written..at).unwrap_or_default());
+                    unit_escape(out, 0x2000 | u16::from(*low - 0x80));
+                    3
+                }
                 _ => {
                     at += 1;
                     continue;
                 }
-            };
-            writer.write_all(&bytes[written..at])?;
-            writer.write_all(escape)?;
-            at += width;
-            written = at;
-        }
-        writer.write_all(&bytes[written..])
+            },
+            NON => {
+                at += 1;
+                continue;
+            }
+            UU => {
+                out.put(bytes.get(written..at).unwrap_or_default());
+                unit_escape(out, u16::from(byte));
+                1
+            }
+            short => {
+                out.put(bytes.get(written..at).unwrap_or_default());
+                out.put(&[b'\\', short]);
+                1
+            }
+        };
+        at += width;
+        written = at;
     }
+    out.put(bytes.get(written..).unwrap_or_default());
+}
+
+/// One UTF-16 code unit as `\u` and four lowercase hex digits.
+fn unit_escape(out: &mut ChunkWriter, unit: u16) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let digit = |shift: u16| HEX[usize::from(unit >> shift & 0xF)];
+    out.put(&[b'\\', b'u', digit(12), digit(8), digit(4), digit(0)]);
 }
 
 /// The walk's own stack, on the heap.
@@ -1288,14 +1440,13 @@ impl<'a> Encodable<'a> {
         Self { value, walk }
     }
 
-    /// The whole document, written through `fmt`'s punctuation.
+    /// The whole document, written under `profile`.
     ///
     /// A loop over [`Stack`] rather than a recursion: one value is written per
     /// turn, and a container pushes a frame the next turn steps into, so the
-    /// only thing a document's nesting spends is that `Vec`. Every
-    /// [`Formatter`] call is made in the order `serde_json`'s own serializer
-    /// makes it — separator, key, colon, value, end — because a
-    /// [`PrettyFormatter`] carries its indentation between them.
+    /// only thing a document's nesting spends is that `Vec`. Each [`Sink`]
+    /// call is made in document order — separator, key, colon, value, end —
+    /// because the `pretty` profile carries its indentation between them.
     ///
     /// # Errors
     ///
@@ -1306,14 +1457,12 @@ impl<'a> Encodable<'a> {
     /// A document the request's memory ceiling refused is empty. The breach is
     /// already recorded, and the request's next poll stops it.
     ///
-    /// The bytes are UTF-8, because every one of them came from `serde_json`.
-    /// They are the writer's own chunks, so the caller copies them once, into
+    /// The bytes are UTF-8: the punctuation is ASCII, and [`escaped`] cuts a
+    /// string only at an ASCII byte or at the edge of a whole character. They
+    /// are the writer's own chunks, so the caller copies them once, into
     /// whatever it hands on.
-    fn written<F: Formatter>(self, fmt: F) -> Result<ChunkWriter, serde_json::Error> {
-        let mut sink = Sink {
-            out: ChunkWriter::new(),
-            fmt,
-        };
+    fn written(self, profile: Profile) -> Result<ChunkWriter, Refused> {
+        let mut sink = Sink::new(profile);
         let mut stack = Stack { frames: Vec::new() };
         let mut next = Some(self.value);
         loop {
@@ -1421,12 +1570,9 @@ const DEPTH_CEILING_FRAMES: usize = DEPTH_CEILING as usize - 1;
 
 /// One refusal, as the error every door into this encoder answers with.
 ///
-/// The walk writes the document's structure itself, so no serializer is left to
-/// raise this — the type stays `serde_json`'s because a caller words its own
-/// message out of one ([`document`]) and because a scalar the crate itself
-/// refuses arrives as the same type.
-fn refuse(why: impl fmt::Display) -> serde_json::Error {
-    serde_json::Error::custom(why)
+/// A caller words its own message around it ([`document`]).
+fn refuse(why: impl fmt::Display) -> Refused {
+    Refused(why.to_string())
 }
 
 /// A live object's handle and the descriptor its class compiled in, and `None`
@@ -1470,10 +1616,7 @@ impl Frame {
     ///
     /// An array key that is not UTF-8 — JSON has nowhere to put one — and a
     /// slot the class descriptor does not name.
-    fn advance<F: Formatter>(
-        &mut self,
-        sink: &mut Sink<F>,
-    ) -> Result<Option<Value>, serde_json::Error> {
+    fn advance(&mut self, sink: &mut Sink) -> Result<Option<Value>, Refused> {
         let first = !self.wrote;
         let held = self.value;
         match &mut self.at {
@@ -1514,13 +1657,13 @@ impl Frame {
                             let len = 20 - cursor.len();
                             let name =
                                 std::str::from_utf8(&digits[..len]).expect("a decimal is ASCII");
-                            sink.key(first, name)?;
+                            sink.key(first, name);
                         }
                         nvs_runtime::SlotKey::Str(key) => {
                             let name = std::str::from_utf8(key.as_bytes()).map_err(|_| {
                                 refuse("an array key that is not UTF-8 has no JSON encoding")
                             })?;
-                            sink.key(first, name)?;
+                            sink.key(first, name);
                         }
                     }
                 }
@@ -1548,7 +1691,7 @@ impl Frame {
                         .field_name(slot)
                         .ok_or_else(|| refuse("a slot below the field count is named"))?;
                     *at = slot;
-                    sink.key(first, name)?;
+                    sink.key(first, name);
                     return Ok(Some(value));
                 }
                 Ok(None)
@@ -1561,7 +1704,7 @@ impl Frame {
                 };
                 *at = *next;
                 *next += 1;
-                sink.key(first, &field.key)?;
+                sink.key(first, &field.key);
                 // A borrowed read, exactly as `nvs_ir::InstKind::FieldGet` is:
                 // the object holds the reference for the length of this call
                 // and nothing here hands the value on to Novis code.
@@ -1624,17 +1767,12 @@ impl Stack {
     /// A value with no JSON encoding at all — a `bytes` buffer, a non-finite
     /// `float`, an instance of a class that declared no codec — and whatever
     /// the descent itself refuses.
-    fn value<F: Formatter>(
-        &mut self,
-        walk: &Reentry,
-        value: Value,
-        sink: &mut Sink<F>,
-    ) -> Result<bool, serde_json::Error> {
+    fn value(&mut self, walk: &Reentry, value: Value, sink: &mut Sink) -> Result<bool, Refused> {
         match value.tag() {
-            Some(Tag::Null) => sink.scalar(&())?,
-            Some(Tag::Bool) => sink.scalar(&value.as_bool().unwrap_or(false))?,
-            Some(Tag::Int) => sink.scalar(&value.as_int().unwrap_or(0))?,
-            Some(Tag::Uint) => sink.scalar(&value.as_uint().unwrap_or(0))?,
+            Some(Tag::Null) => sink.null(),
+            Some(Tag::Bool) => sink.boolean(value.as_bool().unwrap_or(false)),
+            Some(Tag::Int) => sink.int(value.as_int().unwrap_or(0)),
+            Some(Tag::Uint) => sink.uint(value.as_uint().unwrap_or(0)),
             Some(Tag::Float) => {
                 let number = value.as_float().unwrap_or(0.0);
                 if !number.is_finite() {
@@ -1646,7 +1784,7 @@ impl Stack {
                         nvs_runtime::php_float_to_string(number)
                     )));
                 }
-                sink.scalar(&number)?;
+                sink.float(number);
             }
             // `rule:types/decimal`'s scalar is exact and JSON's one number type is
             // an `f64` in every consumer that reads it — this module's own, in
@@ -1661,7 +1799,7 @@ impl Stack {
                     .as_decimal()
                     .ok_or_else(|| refuse("a `Tag::Decimal` value is always a decimal"))?
                     .to_string();
-                sink.scalar(text.as_str())?;
+                sink.string(&text);
             }
             // `rule:types/bytes` makes a `string` guaranteed-valid UTF-8 and
             // [`Tag::Bytes`] is its own tag over the shared allocation, so "the
@@ -1672,7 +1810,7 @@ impl Stack {
                 let text = value
                     .as_text()
                     .ok_or_else(|| refuse("a `Tag::Str` value always has text"))?;
-                sink.scalar(text)?;
+                sink.string(text);
             }
             Some(Tag::Array) => return self.array(value, sink),
             Some(Tag::Object) => return self.object(walk, value, sink),
@@ -1719,12 +1857,7 @@ impl Stack {
     /// names rather than a program does —
     /// `rule:core-classes/derive-generates-what-is-missing` owns the first and
     /// that section the second.
-    fn object<F: Formatter>(
-        &mut self,
-        walk: &Reentry,
-        value: Value,
-        sink: &mut Sink<F>,
-    ) -> Result<bool, serde_json::Error> {
+    fn object(&mut self, walk: &Reentry, value: Value, sink: &mut Sink) -> Result<bool, Refused> {
         self.room()?;
         let ptr = value
             .obj_ptr()
@@ -1772,7 +1905,7 @@ impl Stack {
                      no point on the timeline",
                 )
             })?;
-            sink.scalar(text.as_str())?;
+            sink.string(&text);
             return Ok(false);
         }
         // `rule:core-classes/derive-generates-what-is-missing` read at the one
@@ -1838,16 +1971,11 @@ impl Stack {
     ///
     /// # Errors
     ///
-    /// The `serde` error that stops the walk, with the member's own [`Fault`]
+    /// The [`Refused`] that stops the walk, with the member's own [`Fault`]
     /// left on [`Reentry`] for [`rendered`] to answer with — so a `LogicError` a
     /// `toJson` threw reaches the program as that class rather than as this
     /// encoder's refusal.
-    fn answered(
-        &self,
-        walk: &Reentry,
-        value: Value,
-        class: &str,
-    ) -> Result<Value, serde_json::Error> {
+    fn answered(&self, walk: &Reentry, value: Value, class: &str) -> Result<Value, Refused> {
         let standing = Standing::under(value, &self.frames);
         let called = {
             #[expect(
@@ -1880,11 +2008,7 @@ impl Stack {
     /// One rule, not an option: an Novis array is PHP's one ordered-map type, so
     /// *something* has to decide, and `json_encode`'s own list test is the
     /// answer every program migrating from PHP already expects.
-    fn array<F: Formatter>(
-        &mut self,
-        value: Value,
-        sink: &mut Sink<F>,
-    ) -> Result<bool, serde_json::Error> {
+    fn array(&mut self, value: Value, sink: &mut Sink) -> Result<bool, Refused> {
         self.room()?;
         let ptr = value
             .array_ptr()
@@ -1928,7 +2052,7 @@ impl Stack {
     /// The nesting refusal past [`DEPTH_CEILING`], which is a throw and never
     /// an abort: what this bounds is the `Vec` above and not the thread's own
     /// stack.
-    fn room(&self) -> Result<(), serde_json::Error> {
+    fn room(&self) -> Result<(), Refused> {
         if self.frames.len() >= DEPTH_CEILING_FRAMES {
             return Err(refuse(format!(
                 "a value nested past {DEPTH_CEILING} levels has no JSON encoding"
@@ -1947,7 +2071,7 @@ impl Stack {
     /// write it twice. Only a repeat on the current path is a walk that would
     /// not end, and it ends here — named by the chain that closed it, with no
     /// marker invented in a document somebody else's reader parses.
-    fn cycle(&self, id: usize) -> Option<serde_json::Error> {
+    fn cycle(&self, id: usize) -> Option<Refused> {
         if !self.frames.iter().any(|frame| frame.id == id) {
             return None;
         }
@@ -1982,20 +2106,17 @@ impl Stack {
     /// # Errors
     ///
     /// As [`Frame::advance`]'s.
-    fn advance<F: Formatter>(
-        &mut self,
-        sink: &mut Sink<F>,
-    ) -> Result<Option<Value>, serde_json::Error> {
+    fn advance(&mut self, sink: &mut Sink) -> Result<Option<Value>, Refused> {
         match self.frames.last_mut() {
             Some(frame) => frame.advance(sink),
             None => Ok(None),
         }
     }
 
-    /// One whole value written, told to the level it belongs to — the comma the
-    /// next entry needs, and the `has_value` a [`PrettyFormatter`] closes a
-    /// container on.
-    fn finished<F: Formatter>(&mut self, sink: &mut Sink<F>) {
+    /// One whole value written, told to the level it belongs to: the next
+    /// entry writes a comma, and the `pretty` profile closes the container on
+    /// a line of its own.
+    fn finished(&mut self, sink: &mut Sink) {
         let Some(frame) = self.frames.last_mut() else {
             return;
         };
@@ -2013,7 +2134,7 @@ impl Stack {
     /// The member's answer is a reference that frame owns and the walk above it
     /// kept none of, so it goes here whether that walk wrote a document or
     /// refused one — [`Stack`]'s own `drop` is the refusing half.
-    fn close<F: Formatter>(&mut self, sink: &mut Sink<F>) {
+    fn close(&mut self, sink: &mut Sink) {
         let Some(frame) = self.frames.pop() else {
             return;
         };
@@ -2032,31 +2153,6 @@ impl Stack {
             _ => sink.close_object(),
         }
     }
-}
-
-/// Every non-ASCII `char` of `text` rewritten as its `\uXXXX` escape —
-/// `{ escapeUnicode: true }`. This module's own docs own why a post-pass is
-/// sound.
-fn escape_non_ascii(text: &str) -> String {
-    if text.is_ascii() {
-        return text.to_owned();
-    }
-    let mut out = String::with_capacity(text.len());
-    let mut buffer = [0u16; 2];
-    for ch in text.chars() {
-        if ch.is_ascii() {
-            out.push(ch);
-            continue;
-        }
-        for unit in ch.encode_utf16(&mut buffer) {
-            out.push_str("\\u");
-            for shift in [12, 8, 4, 0] {
-                let nibble = u32::from(*unit) >> shift & 0xf;
-                out.push(char::from_digit(nibble, 16).expect("a nibble is always a hex digit"));
-            }
-        }
-    }
-    out
 }
 
 /// `value` as one compact JSON document, refused under `member` where it holds
@@ -2080,7 +2176,7 @@ pub(crate) fn written(
     value: Value,
     member: &str,
 ) -> Result<String, Fault> {
-    rendered(ctx, value, false, member, |why| {
+    rendered(ctx, value, Profile::COMPACT, member, |why| {
         Fault::thrown_as(ThrownClass::Logic, format!("{member}(): {why}"))
     })
 }
@@ -2098,9 +2194,9 @@ pub(crate) fn written(
 pub(crate) fn document(
     ctx: &mut nvs_runtime::Ctx,
     value: Value,
-    refused: impl FnOnce(&serde_json::Error) -> Fault,
+    refused: impl FnOnce(&Refused) -> Fault,
 ) -> Result<String, Fault> {
-    rendered(ctx, value, false, ENCODE_MEMBER, refused)
+    rendered(ctx, value, Profile::COMPACT, ENCODE_MEMBER, refused)
 }
 
 /// The member a deadline stop names where the caller names none.
@@ -2120,15 +2216,15 @@ pub(crate) fn written_chunks(
     value: Value,
     member: &str,
 ) -> Result<Vec<Vec<u8>>, Fault> {
-    let chunks = rendered_chunks(ctx, value, false, member, |why| {
+    let chunks = rendered_chunks(ctx, value, Profile::COMPACT, member, |why| {
         Fault::thrown_as(ThrownClass::Logic, format!("{member}(): {why}"))
     })?;
     Ok(chunks.finish().unwrap_or_default())
 }
 
 /// The whole encoding half in one call: the walk, the option that frames it,
-/// and the one place a [`Fault`] a member raised is preferred to `serde`'s
-/// error.
+/// and the one place a [`Fault`] a member raised is preferred to the
+/// encoder's own [`Refused`].
 ///
 /// Every door into this encoder comes through here, which is what makes the
 /// module's "one encoder" claim true of the hand-written half as well: a class
@@ -2141,17 +2237,16 @@ pub(crate) fn written_chunks(
 fn rendered(
     ctx: &mut nvs_runtime::Ctx,
     value: Value,
-    pretty: bool,
+    profile: Profile,
     member: &str,
-    refused: impl FnOnce(&serde_json::Error) -> Fault,
+    refused: impl FnOnce(&Refused) -> Fault,
 ) -> Result<String, Fault> {
-    let out = rendered_bytes(ctx, value, pretty, member, refused)?;
+    let out = rendered_bytes(ctx, value, profile, member, refused)?;
     #[expect(
         unsafe_code,
         clippy::disallowed_methods,
-        reason = "every byte came from `serde_json`, which emits UTF-8 \
-                  — the same step and the same reason as that crate's own \
-                  `to_string`"
+        reason = "the writer emits UTF-8: its punctuation is ASCII, and it \
+                  cuts a string only at an ASCII byte or a whole character"
     )]
     let written = unsafe { String::from_utf8_unchecked(out) };
     Ok(written)
@@ -2167,11 +2262,11 @@ fn rendered(
 fn rendered_bytes(
     ctx: &mut nvs_runtime::Ctx,
     value: Value,
-    pretty: bool,
+    profile: Profile,
     member: &str,
-    refused: impl FnOnce(&serde_json::Error) -> Fault,
+    refused: impl FnOnce(&Refused) -> Fault,
 ) -> Result<Vec<u8>, Fault> {
-    let chunks = rendered_chunks(ctx, value, pretty, member, refused)?;
+    let chunks = rendered_chunks(ctx, value, profile, member, refused)?;
     Ok(chunks.joined().unwrap_or_default())
 }
 
@@ -2184,17 +2279,12 @@ fn rendered_bytes(
 fn rendered_chunks(
     ctx: &mut nvs_runtime::Ctx,
     value: Value,
-    pretty: bool,
+    profile: Profile,
     member: &str,
-    refused: impl FnOnce(&serde_json::Error) -> Fault,
+    refused: impl FnOnce(&Refused) -> Fault,
 ) -> Result<ChunkWriter, Fault> {
     let walk = Reentry::new(ctx);
-    let subject = Encodable::document(&walk, value);
-    let written = if pretty {
-        subject.written(PrettyFormatter::new())
-    } else {
-        subject.written(CompactFormatter)
-    };
+    let written = Encodable::document(&walk, value).written(profile);
     // A walk the deadline stopped is the deadline's FATAL, naming `member`.
     // What it wrote drops with `written`.
     deadline_finished(&walk.deadline, ctx, member)?;
@@ -2217,8 +2307,8 @@ fn joined_text(chunks: ChunkWriter) -> Value {
     });
     #[expect(
         clippy::disallowed_methods,
-        reason = "every byte came from `serde_json`, which writes UTF-8, and a \
-                  chunk boundary inside a character is joined back here"
+        reason = "the writer emits UTF-8, and a chunk boundary inside a \
+                  character is joined back here"
     )]
     let text = Value::str(text);
     text
@@ -2237,17 +2327,15 @@ nvs_runtime::nvs_helper! {
     /// reference ladder's peak per document byte is 2.00 from 1 MiB to 32 MiB
     /// on every shape, and its allocations per byte are one per chunk.
     fn nvs_core_json_encode(ctx, args: [3]) {
-        let pretty = flag(&args[1], "pretty")?;
-        let escape = flag(&args[2], "escapeUnicode")?;
-        let refused = |why: &serde_json::Error| Fault::thrown_as(
+        let profile = Profile {
+            pretty: flag(&args[1], "pretty")?,
+            ascii: flag(&args[2], "escapeUnicode")?,
+        };
+        let refused = |why: &Refused| Fault::thrown_as(
             ThrownClass::Logic,
             format!("Core\\Json::encode(): {why}"),
         );
-        if escape {
-            let written = rendered(ctx, args[0], pretty, ENCODE_MEMBER, refused)?;
-            return Ok(Value::text(&escape_non_ascii(&written)));
-        }
-        Ok(joined_text(rendered_chunks(ctx, args[0], pretty, ENCODE_MEMBER, refused)?))
+        Ok(joined_text(rendered_chunks(ctx, args[0], profile, ENCODE_MEMBER, refused)?))
     }
 }
 
@@ -2271,8 +2359,8 @@ fn flag(value: &Value, option: &str) -> Result<bool, Fault> {
 
 /// The deadline poll one parse shares across every value it reads.
 ///
-/// `rule:http-server/time-is-bounded-inside-a-helper`: `serde_json` drives
-/// the parse, so each value read through a seed counts one step of a
+/// `rule:http-server/time-is-bounded-inside-a-helper`: each value the
+/// reader's consumer builds counts one step of a
 /// [`nvs_runtime::DeadlineBatch`], and the deadline is read once every
 /// [`nvs_runtime::DEADLINE_POLL_BATCH`] values. A step that finds it passed
 /// fails the parse at once, and the caller turns that into the deadline's
@@ -3302,12 +3390,9 @@ fn fill<'a, S: reader::Source>(
                         ..
                     }) => match element {
                         None => Target::Fill(*contract),
-                        Some(element) => Target::typed(
-                            *contract,
-                            *index,
-                            element.ty,
-                            element.element.as_deref(),
-                        ),
+                        Some(element) => {
+                            Target::typed(*contract, *index, element.ty, element.element.as_deref())
+                        }
                     },
                 };
                 match (target, value) {
@@ -3397,9 +3482,7 @@ fn fill<'a, S: reader::Source>(
                     // The entry, and the set's growth when it is full, are
                     // asked for in front of the insert that allocates them.
                     let grow = if seen.len() == seen.capacity() {
-                        seen.capacity()
-                            .max(4)
-                            .saturating_mul(size_of::<Box<str>>())
+                        seen.capacity().max(4).saturating_mul(size_of::<Box<str>>())
                     } else {
                         0
                     };
@@ -6317,7 +6400,9 @@ pub(crate) mod tests {
     }
 
     /// [`int_shape`] with a wire type per key.
-    fn typed_shape(fields: &[(&str, CodecTy)]) -> (*const ClassDesc, *const nvs_runtime::ShapeCodec) {
+    fn typed_shape(
+        fields: &[(&str, CodecTy)],
+    ) -> (*const ClassDesc, *const nvs_runtime::ShapeCodec) {
         let keys: Vec<&str> = fields.iter().map(|(key, _)| *key).collect();
         let keys = &keys[..];
         let fields = fields
@@ -6373,8 +6458,15 @@ pub(crate) mod tests {
         let read = |text: &str| -> Result<Read, String> {
             let mut ctx = nvs_runtime::Ctx::buffered();
             let mut builder = Builder::new(&mut ctx);
-            let found = read_against(text, DEFAULT_MAX_DEPTH_U32, contract, false, &mut builder, None)
-                .map_err(|why| why.to_string())?;
+            let found = read_against(
+                text,
+                DEFAULT_MAX_DEPTH_U32,
+                contract,
+                false,
+                &mut builder,
+                None,
+            )
+            .map_err(|why| why.to_string())?;
             Ok(match &found {
                 Found::Built(value) => {
                     let ptr = value.obj_ptr().expect("a built shape is an object");
@@ -6398,11 +6490,17 @@ pub(crate) mod tests {
         let past_u64 = "18446744073709551616";
         let long = "9".repeat(400);
 
-        let fitted = read(&format!(r#"{{"f":{past_u64},"i":1,"u":18446744073709551615}}"#));
+        let fitted = read(&format!(
+            r#"{{"f":{past_u64},"i":1,"u":18446744073709551615}}"#
+        ));
         assert_eq!(fitted, Ok(Ok((18_446_744_073_709_551_616.0, u64::MAX))));
 
         for (text, key, wanted) in [
-            (r#"{"f":1,"i":9223372036854775808,"u":1}"#.to_owned(), "i", "int"),
+            (
+                r#"{"f":1,"i":9223372036854775808,"u":1}"#.to_owned(),
+                "i",
+                "int",
+            ),
             (format!(r#"{{"f":1,"i":1,"u":{past_u64}}}"#), "u", "uint"),
             (format!(r#"{{"f":{long},"i":1,"u":1}}"#), "f", "float"),
             (format!(r#"{{"f":1,"i":-{long},"u":1}}"#), "i", "int"),
@@ -6512,7 +6610,14 @@ pub(crate) mod tests {
         let contract = unsafe { Contract::new(class, Some(shape)) }.over(Reading::Wire(&lists));
         let read = |ctx: &mut nvs_runtime::Ctx, text: &str| {
             let mut builder = Builder::new(ctx);
-            let found = read_against(text, DEFAULT_MAX_DEPTH_U32, contract, true, &mut builder, None);
+            let found = read_against(
+                text,
+                DEFAULT_MAX_DEPTH_U32,
+                contract,
+                true,
+                &mut builder,
+                None,
+            );
             let open = builder.slots.len();
             (
                 found.map(|found| match found {
@@ -6966,26 +7071,326 @@ pub(crate) mod tests {
         assert!(decoded("{oops}", 8).is_err());
     }
 
+    /// `escapeUnicode` writes every non-ASCII character as a `\u` escape, a
+    /// surrogate pair past U+FFFF, and leaves ASCII as it is.
     #[test]
     fn escaping_touches_only_what_is_outside_ascii() {
-        assert_eq!(escape_non_ascii(r#"{"a":1}"#), r#"{"a":1}"#);
-        assert_eq!(
-            escape_non_ascii("{\"a\":\"\u{e9}\"}"),
-            "{\"a\":\"\\u00e9\"}"
+        let ascii = Profile {
+            pretty: false,
+            ascii: true,
+        };
+        let string = |text: &str| sink_written(ascii, |sink| sink.string(text));
+        assert_eq!(string("a1"), "\"a1\"");
+        assert_eq!(string("\u{e9}"), "\"\\u00e9\"");
+        assert_eq!(string("\u{1f600}"), "\"\\ud83d\\ude00\"");
+        assert_eq!(string("\u{2028}<"), "\"\\u2028\\u003c\"");
+    }
+
+    /// What one series of [`Sink`] calls writes under `profile`.
+    fn sink_written(profile: Profile, write: impl FnOnce(&mut Sink)) -> String {
+        let mut sink = Sink::new(profile);
+        write(&mut sink);
+        String::from_utf8(sink.out.joined().unwrap_or_default()).expect("the writer writes UTF-8")
+    }
+
+    /// Every non-ASCII character of `text` as its `\u` escape: the post-pass
+    /// `escapeUnicode` once was, kept as the oracle of the one-pass writer.
+    /// Sound over a whole document, because JSON has non-ASCII bytes only
+    /// inside its strings.
+    fn escape_non_ascii(text: &str) -> String {
+        let mut out = String::with_capacity(text.len());
+        let mut buffer = [0_u16; 2];
+        for ch in text.chars() {
+            if ch.is_ascii() {
+                out.push(ch);
+                continue;
+            }
+            for unit in ch.encode_utf16(&mut buffer) {
+                out.push_str(&format!("\\u{unit:04x}"));
+            }
+        }
+        out
+    }
+
+    /// `serde_json`'s text for `value`, with the six characters of
+    /// `rule:security/json-text-is-safe-inside-html` escaped as the writer
+    /// escapes them. The crate writes each of them as itself, and only inside
+    /// a string, so a replace over its text is exact.
+    fn oracle_written<T: serde::Serialize + ?Sized>(value: &T) -> String {
+        let text = serde_json::to_string(value).expect("the oracle writes a scalar");
+        text.replace('<', "\\u003c")
+            .replace('>', "\\u003e")
+            .replace('&', "\\u0026")
+            .replace('\'', "\\u0027")
+            .replace('\u{2028}', "\\u2028")
+            .replace('\u{2029}', "\\u2029")
+    }
+
+    /// Every scalar a saved seed holds, keys included, is written byte for
+    /// byte as `serde_json` writes it, and as the old `escapeUnicode`
+    /// post-pass wrote it. So is a table of integer and float edges.
+    #[cfg_attr(miri, ignore = "reads every saved seed, which Miri runs for minutes")]
+    #[test]
+    fn every_scalar_is_written_as_the_oracle_writes_it() {
+        fn leaves(value: &serde_json::Value, out: &mut Vec<serde_json::Value>) {
+            match value {
+                serde_json::Value::Array(items) => {
+                    for item in items {
+                        leaves(item, out);
+                    }
+                }
+                serde_json::Value::Object(entries) => {
+                    for (key, item) in entries {
+                        out.push(serde_json::Value::String(key.clone()));
+                        leaves(item, out);
+                    }
+                }
+                scalar => out.push(scalar.clone()),
+            }
+        }
+        let ascii = Profile {
+            pretty: false,
+            ascii: true,
+        };
+        let mut scalars = Vec::new();
+        let dir = nvs_repo::path("fuzz/seeds/json");
+        for entry in std::fs::read_dir(&dir).expect("fuzz/seeds/json is readable") {
+            let bytes = std::fs::read(entry.expect("a readable seed").path()).expect("a seed");
+            if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                leaves(&value, &mut scalars);
+            }
+        }
+        assert!(scalars.len() > 100, "the saved seeds hold scalars");
+        for float in [
+            0.0,
+            -0.0,
+            0.1,
+            1.0,
+            -1.5,
+            1e15,
+            1e16,
+            1e21,
+            1e-7,
+            123_456.789,
+            9_007_199_254_740_993.0,
+            f64::MAX,
+            f64::MIN,
+            f64::MIN_POSITIVE,
+            f64::EPSILON,
+            5e-324,
+        ] {
+            scalars.push(serde_json::Value::from(float));
+        }
+        for int in [0, 1, -1, 9, 10, -10, i64::MAX, i64::MIN] {
+            scalars.push(serde_json::Value::from(int));
+        }
+        scalars.push(serde_json::Value::from(u64::MAX));
+        scalars.push(serde_json::Value::from(
+            "\u{0}\u{1f}\u{7f}\"\\/\u{2027}\u{2028}\u{2029}\u{202a}",
+        ));
+        let mut failed = Vec::new();
+        for scalar in &scalars {
+            for profile in [Profile::COMPACT, ascii] {
+                let written = sink_written(profile, |sink| match scalar {
+                    serde_json::Value::Null => sink.null(),
+                    serde_json::Value::Bool(value) => sink.boolean(*value),
+                    serde_json::Value::String(text) => sink.string(text),
+                    serde_json::Value::Number(number) => {
+                        if let Some(int) = number.as_i64() {
+                            sink.int(int);
+                        } else if let Some(uint) = number.as_u64() {
+                            sink.uint(uint);
+                        } else {
+                            sink.float(number.as_f64().expect("a JSON number"));
+                        }
+                    }
+                    serde_json::Value::Array(_) | serde_json::Value::Object(_) => {}
+                });
+                let mut expected = oracle_written(scalar);
+                if profile.ascii {
+                    expected = escape_non_ascii(&expected);
+                }
+                if written != expected {
+                    failed.push(format!("{scalar:?}: wrote {written:?}, want {expected:?}"));
+                }
+            }
+        }
+        assert!(failed.is_empty(), "{}", failed.join("\n"));
+    }
+
+    /// Each string and key is read once per encode, under every profile, at
+    /// two sizes: the bytes the escape scan reads are the bytes the strings
+    /// have.
+    #[cfg_attr(miri, ignore = "encodes 10,000 entries, which Miri runs for minutes")]
+    #[test]
+    fn a_string_is_scanned_once_per_encode_at_two_sizes() {
+        for entries in [100, 10_000] {
+            let mut members = Vec::new();
+            let mut length = 0;
+            for n in 0..entries {
+                let key = format!("key-{n}");
+                let text = format!("<a href='x'>\u{e9}\u{2028}{n}\u{1f600}</a>");
+                length += key.len() + text.len();
+                members.push(format!(
+                    "{}:{}",
+                    serde_json::to_string(&key).expect("a key"),
+                    serde_json::to_string(&text).expect("a string")
+                ));
+            }
+            let value =
+                decoded(&format!("{{{}}}", members.join(",")), 8).expect("the document decodes");
+            for pretty in [false, true] {
+                for ascii in [false, true] {
+                    let before = SCANNED.with(std::cell::Cell::get);
+                    encoded_as(value, Profile { pretty, ascii }).expect("the value encodes");
+                    let scanned = SCANNED.with(std::cell::Cell::get) - before;
+                    assert_eq!(
+                        scanned, length,
+                        "{entries} entries, pretty {pretty}, ascii {ascii}"
+                    );
+                }
+            }
+            #[expect(unsafe_code, reason = "this frame holds the only reference")]
+            unsafe {
+                value.release();
+            }
+        }
+    }
+
+    /// `{ escapeUnicode: true }` writes the document once, as the plain encode
+    /// does: the same allocations, and the text the post-pass wrote.
+    // covers: Core\Json::encode
+    #[test]
+    fn escape_unicode_writes_the_document_once() {
+        // The writer's first chunk doubles from 64 bytes, so the padding puts
+        // both texts between 128 and 256 bytes, where it grows the same times.
+        let text = format!(
+            "{{\"caf\u{e9}\":[\"\u{1f600}<\u{2028}\",1.5,null],\"plain\":\"{}\"}}",
+            "text ".repeat(18)
         );
-        // Outside the BMP, so a surrogate pair — which is the only escape a
-        // JSON `\u` can spell.
-        assert_eq!(escape_non_ascii("\"\u{1f600}\""), "\"\\ud83d\\ude00\"");
+        let value = decoded(&text, 8).expect("the document decodes");
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut allocations = Vec::new();
+        let mut written = Vec::new();
+        for escape in [false, true] {
+            let args = [value, Value::bool(false), Value::bool(escape)];
+            let before = nvs_runtime::budget::allocations();
+            let answer = nvs_runtime::call(nvs_core_json_encode, &mut ctx, &args)
+                .expect("the value encodes");
+            allocations.push(nvs_runtime::budget::allocations() - before);
+            written.push(
+                String::from_utf8(answer.as_str_bytes().expect("a string").to_vec())
+                    .expect("UTF-8"),
+            );
+            #[expect(unsafe_code, reason = "this frame holds the only reference")]
+            unsafe {
+                answer.release();
+            }
+        }
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+        assert_eq!(allocations[0], allocations[1], "{allocations:?}");
+        assert!(
+            (129..=256).contains(&written[0].len()),
+            "{}",
+            written[0].len()
+        );
+        assert!(
+            (129..=256).contains(&written[1].len()),
+            "{}",
+            written[1].len()
+        );
+        assert_eq!(written[1], escape_non_ascii(&written[0]));
+        assert!(written[1].is_ascii(), "{}", written[1]);
+    }
+
+    /// The source of `Core\Json`, `json.rs` and every file under `json/`,
+    /// names `serde_json` only inside a test module: the crate is the oracle
+    /// of the differential tests, and every document a program sends or
+    /// writes goes through the module's own reader and writer. A comment may
+    /// name it.
+    #[test]
+    fn core_json_names_serde_json_only_in_its_tests() {
+        let root = nvs_repo::path("crates/nvs-stdlib/src");
+        let mut files = vec![root.join("json.rs")];
+        let mut dirs = vec![root.join("json")];
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(&dir).expect("a readable directory") {
+                let path = entry.expect("a readable entry").path();
+                if path.is_dir() {
+                    dirs.push(path);
+                } else if path.extension().is_some_and(|ext| ext == "rs") {
+                    files.push(path);
+                }
+            }
+        }
+        let mut named = Vec::new();
+        for file in &files {
+            // A file named `tests.rs` is a test module of its own.
+            if file.file_name().is_some_and(|name| name == "tests.rs") {
+                continue;
+            }
+            let source = std::fs::read_to_string(file).expect("a readable source file");
+            for (line, text) in lines_outside_test_modules(&source) {
+                let code = text.trim_start();
+                if !code.starts_with("//") && code.contains("serde_json") {
+                    named.push(format!("{}:{line}: {code}", file.display()));
+                }
+            }
+        }
+        assert!(files.len() >= 4, "the module's files are found: {files:?}");
+        assert!(named.is_empty(), "{}", named.join("\n"));
+    }
+
+    /// Each line of `source` with its number, leaving out every
+    /// `#[cfg(test)]` item: a module, a function or a `use`, up to the line
+    /// that closes it at its own indent.
+    fn lines_outside_test_modules(source: &str) -> Vec<(usize, &str)> {
+        let mut kept = Vec::new();
+        let mut lines = source.lines().enumerate();
+        while let Some((at, text)) = lines.next() {
+            if text.trim() != "#[cfg(test)]" {
+                kept.push((at + 1, text));
+                continue;
+            }
+            let indent = text.len() - text.trim_start().len();
+            // The item the attribute is on, past any other attributes.
+            for (_, item) in lines.by_ref() {
+                let body = item.trim();
+                if body.starts_with("#[") || body.starts_with("///") {
+                    continue;
+                }
+                if body.ends_with(';') || body.ends_with('}') {
+                    break;
+                }
+                for (_, inner) in lines.by_ref() {
+                    let closes = inner.len() - inner.trim_start().len() == indent
+                        && inner.trim_start().starts_with('}');
+                    if closes {
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+        kept
     }
 
     /// One Novis value as the JSON document `Core\Json::encode($v)` writes,
     /// with the member's option bag and `Fault` wrapping left out: what these
     /// tests ask about is the walk and the message it produces.
     fn encoded(value: Value) -> Result<String, String> {
+        encoded_as(value, Profile::COMPACT)
+    }
+
+    /// [`encoded`] under `profile`.
+    fn encoded_as(value: Value, profile: Profile) -> Result<String, String> {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let walk = Reentry::new(&mut ctx);
         Encodable::document(&walk, value)
-            .written(CompactFormatter)
+            .written(profile)
             .map(|out| {
                 String::from_utf8(out.joined().unwrap_or_default())
                     .expect("the encoder writes UTF-8")
@@ -7071,16 +7476,26 @@ pub(crate) mod tests {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let walk = Reentry::new(&mut ctx);
         let pretty = Encodable::document(&walk, value)
-            .written(PrettyFormatter::new())
+            .written(Profile {
+                pretty: true,
+                ascii: false,
+            })
             .map(|out| String::from_utf8(out.joined().unwrap_or_default()).expect("UTF-8"))
             .expect("the value encodes");
         assert_eq!(
             pretty,
             "{\n  \"\\u003ck\\u003e\": [\n    \"\\u0026\\u0027\\u2028\\u2029\u{e9}\"\n  ]\n}"
         );
-        let compact = encoded(value).expect("the value encodes");
+        let ascii = encoded_as(
+            value,
+            Profile {
+                pretty: false,
+                ascii: true,
+            },
+        )
+        .expect("the value encodes");
         assert_eq!(
-            escape_non_ascii(&compact),
+            ascii,
             "{\"\\u003ck\\u003e\":[\"\\u0026\\u0027\\u2028\\u2029\\u00e9\"]}"
         );
         #[expect(unsafe_code, reason = "this frame holds the only reference")]
@@ -7476,9 +7891,16 @@ pub(crate) mod tests {
             )]
             let contract = unsafe { Contract::new(class, Some(shape)) }.over(Reading::Wire(&lists));
             let mut builder = Builder::new(&mut ctx);
-            let found = read_against(text, DEFAULT_MAX_DEPTH_U32, contract, false, &mut builder, None)
-                .map_err(|why| why.to_string())
-                .expect("the document parses");
+            let found = read_against(
+                text,
+                DEFAULT_MAX_DEPTH_U32,
+                contract,
+                false,
+                &mut builder,
+                None,
+            )
+            .map_err(|why| why.to_string())
+            .expect("the document parses");
             assert_eq!(builder.slots.len(), 0, "{text} leaves no slot open");
             let Found::Built(value) = &found else {
                 panic!("{text} arrives built");

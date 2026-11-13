@@ -555,8 +555,8 @@ impl<S: Source> Reader<S> {
             Span::Scratch => &self.scratch,
         };
         std::str::from_utf8(bytes).map_err(|why| {
-            let column = (self.offset() - self.line_start)
-                .saturating_sub(bytes.len() - why.valid_up_to());
+            let column =
+                (self.offset() - self.line_start).saturating_sub(bytes.len() - why.valid_up_to());
             Error {
                 code: Code::InvalidUnicodeCodePoint,
                 line: self.line,

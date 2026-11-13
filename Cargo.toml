@@ -673,6 +673,9 @@ jiff = "0.2"
 # float parsed, and nothing else.
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip", "raw_value"] }
+# `Core\Json`'s writer formats a float with the crate `serde_json` itself calls,
+# so a float is written as the oracle writes it. It was linked already.
+zmij = "1.0.23"
 
 # --- configuration (`rule:config/the-file-is-nvs-toml-and-it-is-toml`) ---
 # Pure Rust, and both refusals of

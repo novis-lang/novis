@@ -1045,7 +1045,11 @@ mod tests {
         if let Some(bool) = value.as_bool() {
             return bool.to_string();
         }
-        assert_eq!(value.tag(), Some(nvs_runtime::Tag::Null), "a scalar element");
+        assert_eq!(
+            value.tag(),
+            Some(nvs_runtime::Tag::Null),
+            "a scalar element"
+        );
         "null".to_owned()
     }
 
@@ -1075,8 +1079,7 @@ mod tests {
             for piece in [&text.as_bytes()[..cut], &text.as_bytes()[cut..]] {
                 array.append(Value::bytes(NvsStr::new(piece)));
             }
-            let elements =
-                walk(&mut ctx, Value::array(array), "", false).expect("the walk starts");
+            let elements = walk(&mut ctx, Value::array(array), "", false).expect("the walk starts");
             let mut got = Vec::new();
             while let Some(element) = next(&mut ctx, elements).expect("the document is valid") {
                 got.push(shown(element));
