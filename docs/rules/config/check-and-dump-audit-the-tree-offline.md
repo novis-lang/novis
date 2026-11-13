@@ -25,8 +25,10 @@ starts in). `dump --origin` is where each override is named, per key, with the f
 the one it overrode; a default's origin is `default`, or `default (production)` /
 `default (development)` where the mode chose it (`rule:config/a-mode-is-five-defaults` and the
 startup rows). The origin names the file and not the line, because a parsed value carries no span. A
-secret renders `<secret>` and names the file its value came from, never the value. `--toml`
-serializes the written table alone: a default written into the document would change the tree it is
+secret renders `<secret>` and names the file its value came from, never the value: the secret file,
+or the configuration file for a value written inline. `--toml` writes an inline secret's key with
+the value `"<secret>"`, so a diff of two environments shows the key is set, and a file-backed
+secret keeps its `_file` key. `--toml` serializes the written table alone: a default written into the document would change the tree it is
 read back as (a mode row stops following the mode, a `[limits.hard]` ceiling starts bounding every
 `[[app]]` block, a core count or a data-folder path pins it to one machine), so the document read
 back lists the same rows.

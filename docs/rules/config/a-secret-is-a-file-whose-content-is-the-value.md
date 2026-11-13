@@ -20,7 +20,10 @@ content must be valid UTF-8, and an empty file, a whitespace-only file, or one o
 
 Only the `password_file` that won the merge is opened. The value never enters the merged table, is
 never logged, and `nvs config dump` renders it `<secret>` beside the file it came from —
-`password_file` stays set so the dump can name it. `Core\Config::all` renders every secret directive
+`password_file` stays set so the dump can name it. **An inline value leaves the merged table the
+same way**: it is carried beside the table with the configuration file that wrote it as its origin,
+so every printer of the table has no value to print, and the dump renders it `<secret>` beside that
+file. What it spends: one map entry per inline secret, at boot and at each reload. `Core\Config::all` renders every secret directive
 `<secret>` too, whether a file or the tree set it, because a page or a log line that prints every
 setting is the usual way a credential leaks. `Core\Config::get` returns the value: it is the one
 reader a program that connects with the credential needs.

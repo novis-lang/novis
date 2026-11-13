@@ -368,6 +368,80 @@ fn dump_numbers_each_app_block_and_the_toml_document_dumps_the_same_rows() {
     drop(std::fs::remove_dir_all(&again));
 }
 
+/// A secret directive written inline is `<secret>` in every form of the dump: the
+/// listing, `--origin`, which names the configuration file as its origin, and
+/// `--toml`, which keeps the key so a diff shows it is set.
+// covers: tools:cli/nvs-config-check-and-nvs-config-dump
+#[test]
+fn dump_prints_no_inline_secret_directive() {
+    const DB: &str = "inline-db-password-Kq9";
+    const CSRF: &str = "Y2FuYXJ5LWNyZWRlbnRpYWwtUXo3dlg5LW5vdmlzISE=";
+    const CACHE: &str = "inline-cache-password-Kq9";
+    let dir = scratch("inline-secrets");
+    std::fs::write(
+        dir.join("nvs.toml"),
+        format!(
+            "[db.main]\ndriver = \"postgres\"\npassword = \"{DB}\"\n\n\
+             [http]\ncsrf_key = \"{CSRF}\"\n\n\
+             [cache.shared]\nurl = \"redis://cache.internal\"\npassword = \"{CACHE}\"\n"
+        ),
+    )
+    .expect("the tree is written");
+    let keys = ["cache.shared.password", "db.main.password", "http.csrf_key"];
+
+    let (dump, err, code) = nvs_in(&dir, &["config", "dump", "nvs.toml"]);
+    assert_eq!(code, Some(0), "{err}");
+    assert_eq!(
+        only(&dump, &keys),
+        keys.map(|key| (key, "<secret>")),
+        "{dump}"
+    );
+
+    let (origin, err, code) = nvs_in(&dir, &["config", "dump", "--origin", "nvs.toml"]);
+    assert_eq!(code, Some(0), "{err}");
+    for key in keys {
+        let line = line_of(&origin, key);
+        assert!(
+            line.contains("<secret>") && line.trim_end().ends_with("nvs.toml"),
+            "an inline secret names the configuration file as its origin: {line}",
+        );
+    }
+
+    let (document, err, code) = nvs_in(&dir, &["config", "dump", "--toml", "nvs.toml"]);
+    assert_eq!(code, Some(0), "{err}");
+    let table: toml::Table = document.parse().expect("the document is TOML");
+    let at = |path: &[&str]| {
+        let (last, blocks) = path.split_last()?;
+        let mut block = &table;
+        for segment in blocks {
+            block = block.get(*segment)?.as_table()?;
+        }
+        block.get(*last)?.as_str().map(str::to_owned)
+    };
+    for path in [
+        &["db", "main", "password"][..],
+        &["http", "csrf_key"],
+        &["cache", "shared", "password"],
+    ] {
+        assert_eq!(
+            at(path).as_deref(),
+            Some("<secret>"),
+            "{path:?}: {document}"
+        );
+    }
+
+    for (form, text) in [
+        ("dump", &dump),
+        ("--origin", &origin),
+        ("--toml", &document),
+    ] {
+        for value in [DB, CSRF, CACHE] {
+            assert!(!text.contains(value), "`{form}` prints a secret: {text}");
+        }
+    }
+    drop(std::fs::remove_dir_all(&dir));
+}
+
 /// Every refusal the chapter lists exits `1` with its code on standard error and
 /// prints no summary line, and so does a `[limits]` value that is not a quantity or
 /// is above its ceiling.

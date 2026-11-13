@@ -626,22 +626,164 @@ fn both_halves_of_the_cache_shared_password_pair_is_refused() {
     );
 }
 
-/// The credential-shaped field names this census recognizes.
+/// The value every case of [`no_printer_shows_a_secret_directive`] writes, chosen so that no other
+/// text in a listing contains it. It is 32 octets in base64, because `[http] csrf_key` takes
+/// nothing else.
+const CANARY: &str = "Y2FuYXJ5LWNyZWRlbnRpYWwtUXo3dlg5LW5vdmlzISE=";
+
+/// The rest of a block a row of [`SECRETS`](nvs_config::secret::SECRETS) is written in, so the tree
+/// resolves, keyed by the row's block. A row with no entry here fails the test that reads it, so a
+/// new secret directive is driven through every printer the day it is added.
+fn fixture(block: &str) -> Option<(&'static str, &'static str)> {
+    Some(match block {
+        "db.*" => ("db.main", "driver = \"postgres\"\n"),
+        "mail.*" => (
+            "mail.relay",
+            "host = \"smtp.internal\"\nfrom = \"app@example.test\"\nuser = \"app\"\n",
+        ),
+        "ldap.*" => (
+            "ldap.corp",
+            "url = \"ldaps://dc1.example.test\"\nuser = \"svc@example.test\"\n",
+        ),
+        "http.client.proxy" => (
+            "http.client.proxy",
+            "url = \"http://proxy.internal:3128\"\nresolve = \"local\"\nusername = \"app\"\n",
+        ),
+        "http" => ("http", ""),
+        "cache.shared" => ("cache.shared", "url = \"redis://cache.internal\"\n"),
+        _ => return None,
+    })
+}
+
+/// Every text a printer of configuration values makes from `resolved`, labelled by the printer.
 ///
-/// A list rather than a heuristic, and deliberately a short one: it is what to extend when a
-/// deployment starts writing a credential under a name that is not here. Extending it is loud rather
-/// than optional, because the assertion below fails the moment such a field exists without its
-/// `_file` sibling.
-const CREDENTIAL_FIELDS: &[&str] = &[
-    "password",
-    "passphrase",
-    "secret",
-    "token",
-    "api_key",
-    "access_key",
-    "private_key",
-    "csrf_key",
+/// The list is `rule:security/redaction-reaches-the-tools-own-renderings`'s: the dump with and
+/// without origins and with its default rows, `--toml`, the merged table a reload record reads,
+/// the snapshot's table, `Core\Config::all`, and every advisory the boot wrote.
+fn printed(fs: &Fake, resolved: &Resolved) -> Vec<(&'static str, String)> {
+    use nvs_config::audit::{Audit, defaults_of};
+    let defaults = defaults_of(&resolved.table);
+    let audit = Audit::of_files(resolved).with_defaults(&defaults);
+    let mut toml_dump = resolved.table.clone();
+    nvs_config::secret::redact_inline(&mut toml_dump, &resolved.config, &resolved.secrets);
+    let snapshot = nvs_config::Snapshot::build(resolved, &p("srv/app.nvs"), fs)
+        .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes));
+    let all = nvs_config::Request::new(Arc::clone(&snapshot)).all();
+    vec![
+        ("dump", audit.render(false)),
+        ("dump --origin", audit.render(true)),
+        (
+            "dump --toml",
+            toml::to_string(&toml_dump).expect("serializes"),
+        ),
+        (
+            "the merged table",
+            toml::to_string(&resolved.table).expect("serializes"),
+        ),
+        (
+            "the snapshot's table",
+            toml::to_string(&snapshot.table).expect("serializes"),
+        ),
+        ("Core\\Config::all", format!("{all:?}")),
+        ("the boot's advisories", format!("{:?}", resolved.warnings)),
+    ]
+}
+
+/// No printer of configuration values shows a secret directive's value, whichever half of the
+/// pair wrote it (`rule:config/a-secret-is-a-file-whose-content-is-the-value`).
+///
+/// For every row of `SECRETS`, one tree writes the value inline and one names a file holding it.
+/// Each printer is read for the value, and the refusal for a pair set twice is read too. The value
+/// still reaches `Core\Config::get`, so the redaction has not lost it.
+#[test]
+fn no_printer_shows_a_secret_directive() {
+    for pair in nvs_config::secret::SECRETS {
+        let (header, rest) = fixture(pair.block).unwrap_or_else(|| {
+            panic!(
+                "`{}` has no fixture in this test, so no printer is checked against it",
+                pair.block
+            )
+        });
+        let key = format!("{header}.{}", pair.value);
+        let inline = format!("[{header}]\n{rest}{} = \"{CANARY}\"\n", pair.value);
+        let named = format!("[{header}]\n{rest}{}_file = \"secrets/s\"\n", pair.value);
+        for (spelling, root) in [("inline", &inline), ("from a file", &named)] {
+            let fs = Fake::with(&[
+                ("etc/nvs.toml", root),
+                ("etc/secrets/s", &format!("{CANARY}\n")),
+                ("srv/app.nvs", "<?nvs\n"),
+            ]);
+            let resolved = tree_of(&fs, "etc/nvs.toml");
+            for (printer, text) in printed(&fs, &resolved) {
+                assert!(
+                    !text.contains(CANARY),
+                    "`{key}` written {spelling} is shown by {printer}:\n{text}",
+                );
+            }
+            let snapshot = nvs_config::Snapshot::build(&resolved, &p("srv/app.nvs"), &fs)
+                .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes));
+            assert_eq!(
+                nvs_config::Request::new(snapshot).get(&key),
+                Some(CANARY.to_string()),
+                "`{key}` written {spelling} still reaches `Core\\Config::get`",
+            );
+            let dumped = printed(&fs, &resolved)
+                .into_iter()
+                .find(|(printer, _)| *printer == "dump --toml")
+                .map(|(_, text)| text)
+                .unwrap_or_default();
+            let marked = format!("{} = \"<secret>\"", pair.value);
+            assert_eq!(
+                dumped.contains(&marked),
+                spelling == "inline",
+                "`--toml` writes `<secret>` under `{key}` when it is written inline, and its \
+                 `_file` key when it is not:\n{dumped}",
+            );
+        }
+        let both = format!(
+            "[{header}]\n{rest}{} = \"{CANARY}\"\n{}_file = \"secrets/s\"\n",
+            pair.value, pair.value
+        );
+        let fs = Fake::with(&[
+            ("etc/nvs.toml", &both),
+            ("etc/secrets/s", &format!("{CANARY}\n")),
+        ]);
+        let diagnostic = refusal(&fs, "etc/nvs.toml");
+        let text = format!("{diagnostic:?}");
+        assert!(
+            !text.contains(CANARY),
+            "the refusal for both halves of `{key}` shows the value: {text}",
+        );
+    }
+}
+
+/// A field on the typed tree named like a credential that is not one, and why.
+///
+/// A row that names no field fails [`every_key_named_like_a_credential_is_a_secret_or_listed_with_a_reason`],
+/// so this list stays as short as the tree.
+const NOT_A_SECRET: &[(&str, &str, &str)] = &[
+    (
+        "Debug",
+        "tls_key_file",
+        "a path to the viewer's TLS key file, which the viewer reads itself; the key is never a \
+         configuration value",
+    ),
+    (
+        "Debug",
+        "token_file",
+        "a path to the viewer's token file, which the viewer reads itself; the token is never a \
+         configuration value",
+    ),
 ];
+
+/// Whether a field name is shaped like a credential: it ends in one of the words a credential is
+/// named with, or is the `_file` sibling of such a field.
+fn named_like_a_credential(field: &str) -> bool {
+    let base = field.strip_suffix("_file").unwrap_or(field);
+    ["password", "passphrase", "key", "secret", "token"]
+        .iter()
+        .any(|word| base.ends_with(word))
+}
 
 /// Every `pub struct` in the config tree, as its name and the field names it declares.
 ///
@@ -674,49 +816,80 @@ fn tree_structs() -> Vec<(String, Vec<String>)> {
 }
 
 /// `rule:config/a-secret-is-a-file-whose-content-is-the-value` marks *directives*, plural: a credential added to the typed tree with no
-/// [`SECRETS`] row is a `_file` sibling that silently does nothing.
+/// [`SECRETS`] row is a `_file` sibling that silently does nothing, and a value every printer shows.
 ///
 /// Nothing about such an omission fails to compile, and no behavioural case can find it, because
-/// the missing code and the missing case are the same absence. So this asserts both directions
-/// over the tree's own source: a credential field implies a `_file` sibling and a row, and a row
-/// implies a credential field that has one.
+/// the missing code and the missing case are the same absence. So this reads every field the tree
+/// declares: one named like a credential is a row's value with its `_file` sibling, that sibling,
+/// or a row of [`NOT_A_SECRET`] with its reason. Each row names a field the tree has.
 #[test]
-fn every_credential_on_the_tree_has_a_file_sibling_and_a_secrets_row() {
+fn every_key_named_like_a_credential_is_a_secret_or_listed_with_a_reason() {
     let structs = tree_structs();
     assert!(
         structs.iter().any(|(name, _)| name == "Database"),
         "the census read no structs at all, so it is asserting nothing: {structs:?}",
     );
+    let marked = |field: &str| {
+        nvs_config::secret::SECRETS
+            .iter()
+            .any(|pair| pair.value == field)
+    };
+    let listed = |name: &str, field: &str| {
+        NOT_A_SECRET
+            .iter()
+            .any(|(owner, listed, _)| *owner == name && *listed == field)
+    };
 
     let mut found: BTreeSet<String> = BTreeSet::new();
     for (name, fields) in &structs {
-        for credential in CREDENTIAL_FIELDS {
-            if !fields.iter().any(|field| field == credential) {
+        for field in fields.iter().filter(|field| named_like_a_credential(field)) {
+            if listed(name, field) {
                 continue;
             }
-            found.insert((*credential).to_string());
-            let sibling = format!("{credential}_file");
+            if let Some(value) = field.strip_suffix("_file") {
+                assert!(
+                    marked(value) && fields.iter().any(|other| other == value),
+                    "`{name}.{field}` is named like a credential's file and is the `_file` sibling \
+                     of no secret directive: add a row to `secret::SECRETS`, or a row with its \
+                     reason to `NOT_A_SECRET`",
+                );
+                continue;
+            }
+            found.insert(field.clone());
+            let sibling = format!("{field}_file");
             assert!(
                 fields.contains(&sibling),
-                "`{name}` holds a `{credential}` and no `{sibling}`: `rule:config/a-secret-is-a-file-whose-content-is-the-value` gives every \
+                "`{name}` holds a `{field}` and no `{sibling}`: `rule:config/a-secret-is-a-file-whose-content-is-the-value` gives every \
                  credential a file half, and a deployment that injects secrets as files cannot \
                  reach this one at all",
             );
             assert!(
-                nvs_config::secret::SECRETS
-                    .iter()
-                    .any(|pair| pair.value == *credential),
-                "`{name}` holds a `{credential}` with no row in `secret::SECRETS`, so its \
-                 `{sibling}` parses, dumps, and is never read",
+                marked(field),
+                "`{name}` holds a `{field}` with no row in `secret::SECRETS`, so every printer \
+                 shows it and its `{sibling}` is never read; or it is not a credential, and \
+                 `NOT_A_SECRET` lists it with its reason",
             );
         }
+    }
+
+    for (owner, field, reason) in NOT_A_SECRET {
+        assert!(
+            structs
+                .iter()
+                .any(|(name, fields)| name == owner && fields.iter().any(|f| f == field)),
+            "`NOT_A_SECRET` lists `{owner}.{field}` ({reason}), and the tree declares no such field",
+        );
+        assert!(
+            named_like_a_credential(field),
+            "`NOT_A_SECRET` lists `{owner}.{field}`, which is not named like a credential",
+        );
     }
 
     for pair in nvs_config::secret::SECRETS {
         assert!(
             found.contains(pair.value),
             "`SECRETS` marks `{}` in `{}` and the tree declares no such credential field — either \
-             the field was renamed or `CREDENTIAL_FIELDS` above no longer recognizes it",
+             the field was renamed or its name no longer reads as a credential",
             pair.value,
             pair.block,
         );

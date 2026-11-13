@@ -6,7 +6,7 @@ context: [docs/rules/config/ownership-is-the-trust-boundary.md, docs/rules/confi
 stages:
   - id: 1
     title: a dump redacts every secret directive
-    status: open
+    status: done
     context: [crates/nvs-config/src/secret.rs, crates/nvs-config/src/audit.rs, crates/nvs-config/tests/secret.rs, crates/nvs-cli/tests/config_audit.rs, docs/rules/config/check-and-dump-audit-the-tree-offline.md]
   - id: 2
     title: the Windows ownership check reads the whole access list
@@ -177,37 +177,37 @@ a configuration value, as `file.rs:NN` and one line each. It looks in `crates/nv
 `crates/nvs-cli/src` (the reload record, `debug/`, `telemetry.rs`), `crates/nvs-server/src` and
 `crates/nvs-stdlib/src/config.rs`.
 
-- [ ] `Secret` records its source, a file or the configuration tree
+- [x] `Secret` records its source, a file or the configuration tree
   (`rule:config/a-secret-is-a-file-whose-content-is-the-value`,
   `crates/nvs-config/src/secret.rs:82`). Every reader of `Secret::file` follows, the dump's origin
   column and the secret file's integrity check among them.
-- [ ] `materialize` inserts a `Secret` for the inline half
+- [x] `materialize` inserts a `Secret` for the inline half
   (`crates/nvs-config/src/secret.rs:405`).
-- [ ] `strip_inline` removes each inline secret directive from the table by walking `SECRETS`, and
+- [x] `strip_inline` removes each inline secret directive from the table by walking `SECRETS`, and
   keeps the typed tree's value for `apply` (`crates/nvs-config/src/secret.rs:498`,
   `crates/nvs-config/src/secret.rs:538`, `crates/nvs-config/src/resolve.rs:611`).
-- [ ] `Audit::listing` and `Audit::render` name the configuration file as the origin of an inline
+- [x] `Audit::listing` and `Audit::render` name the configuration file as the origin of an inline
   secret (`rule:config/check-and-dump-audit-the-tree-offline`,
   `crates/nvs-config/src/audit.rs:85`, `crates/nvs-config/src/audit.rs:109`).
-- [ ] `dump --toml` writes `"<secret>"` under the key of each inline secret
+- [x] `dump --toml` writes `"<secret>"` under the key of each inline secret
   (`crates/nvs-cli/src/config.rs:1726`).
-- [ ] Each printer the `Explore` list names prints `<secret>` for a key `is_secret_key` accepts, or
+- [x] Each printer the `Explore` list names prints `<secret>` for a key `is_secret_key` accepts, or
   prints no value (`rule:security/redaction-reaches-the-tools-own-renderings`,
   `crates/nvs-config/src/secret.rs:328`).
-- [ ] The module doc of `secret.rs` says what is true now (`crates/nvs-config/src/secret.rs:1`).
-- [ ] Test `no_printer_shows_a_secret_directive`: for each row of `SECRETS`, one tree with an inline
+- [x] The module doc of `secret.rs` says what is true now (`crates/nvs-config/src/secret.rs:1`).
+- [x] Test `no_printer_shows_a_secret_directive`: for each row of `SECRETS`, one tree with an inline
   value and one with a file value. Neither value appears in `render(false)`, `render(true)`, the
   `--toml` text, `Request::all`, the `both_set` diagnostic, or any printer the list names
   (`crates/nvs-config/tests/secret.rs:1`).
-- [ ] Test `every_key_named_like_a_credential_is_a_secret_or_listed_with_a_reason`, with the
+- [x] Test `every_key_named_like_a_credential_is_a_secret_or_listed_with_a_reason`, with the
   `NOT_A_SECRET` list, replacing `CREDENTIAL_FIELDS` and keeping the `_file` sibling assertion
   (`crates/nvs-config/tests/secret.rs:635`, `crates/nvs-config/tests/secret.rs:684`).
-- [ ] Test `dump_prints_no_inline_secret_directive`: the built `nvs` runs `config dump`, `dump
+- [x] Test `dump_prints_no_inline_secret_directive`: the built `nvs` runs `config dump`, `dump
   --origin` and `dump --toml` on a tree with an inline `[db.main] password`, `[http] csrf_key` and
   `[cache.shared] password` (`crates/nvs-cli/tests/config_audit.rs:1`).
-- [ ] `rule:config/a-secret-is-a-file-whose-content-is-the-value` says an inline value leaves the
+- [x] `rule:config/a-secret-is-a-file-whose-content-is-the-value` says an inline value leaves the
   table as a file's does (`docs/rules/config/a-secret-is-a-file-whose-content-is-the-value.md:1`).
-- [ ] `rule:config/check-and-dump-audit-the-tree-offline` says what `--toml` writes for an inline
+- [x] `rule:config/check-and-dump-audit-the-tree-offline` says what `--toml` writes for an inline
   secret (`docs/rules/config/check-and-dump-audit-the-tree-offline.md:28`).
 
 ### 2. the Windows ownership check reads the whole access list
@@ -285,35 +285,46 @@ text that names the viewer's address, as `path:NN`.
 
 ### State
 
-Nothing is built yet. The tree holds a dump that prints inline secret directives, a Windows check
-over five groups, and a loopback viewer with no token. `SECRETS`, `is_secret_key`, the `icacls` test
-helper and the off-loopback token all exist.
+Stage 1 is done, and its two checks are green. `Secret` has a `source` (`Source::File` or
+`Source::Tree`). `materialize` carries an inline directive value into the map with its
+configuration file as origin. `strip_inline` removes it from the table by walking `SECRETS`
+(`remove_at`, which keeps a block the removal empties, so `[http]` with only `csrf_key` still
+retypes to a block `apply` can write into). `redact_inline` writes `"<secret>"` under each inline
+key for `dump --toml` alone. The `Explore` list of printers named one more that prints values, the
+reload's restart-pending record (`crates/nvs-cli/src/reload.rs:418`); it reads the table, which now
+has no secret, so it needs no change. Diagnostics that quote a written value quote non-secret
+directives only. `no_printer_shows_a_secret_directive` drives the dump, `--origin`, `--toml`, the
+merged and snapshot tables, `Core\Config::all`, the boot advisories and the `both_set` refusal,
+and checks `get` still returns the value. A new `SECRETS` row fails it until `fixture` has a block
+for the row.
+
+Stages 2 and 3 are untouched. The tree holds a Windows check over five groups and a loopback viewer
+with no token.
 
 ### Next
 
-Stage 1, a dump redacts every secret directive. Files: `crates/nvs-config/src/secret.rs`,
-`crates/nvs-config/src/audit.rs`, `crates/nvs-cli/src/config.rs`, their two test files and two rule
-fragments. An `Explore` subagent lists the other printers of configuration values first.
+Stage 2, the Windows ownership check reads the whole access list. Files:
+`crates/nvs-config/src/trust.rs`, `crates/nvs-config/tests/trust.rs` and
+`docs/rules/config/ownership-is-the-trust-boundary.md`. Stage 3 may run beside it in its own files.
 
-- [ ] `crates/nvs-config/src/secret.rs:82`: `Secret` records its source.
-- [ ] `crates/nvs-config/src/secret.rs:405`: `materialize` inserts a `Secret` for the inline half.
-- [ ] `crates/nvs-config/src/secret.rs:498`: `strip_inline` removes each inline secret directive
-  from the table (`crates/nvs-config/src/secret.rs:538`, `crates/nvs-config/src/resolve.rs:611`).
-- [ ] `crates/nvs-config/src/audit.rs:85`: `Audit::listing` and `Audit::render` name the
-  configuration file as an inline secret's origin (`crates/nvs-config/src/audit.rs:109`).
-- [ ] `crates/nvs-cli/src/config.rs:1726`: `dump --toml` writes `"<secret>"` under each inline
-  secret's key.
-- [ ] `crates/nvs-config/src/secret.rs:328`: each printer the `Explore` list names prints
-  `<secret>` or no value.
-- [ ] `crates/nvs-config/src/secret.rs:1`: the module doc of `secret.rs`.
-- [ ] `crates/nvs-config/tests/secret.rs:635`: tests `no_printer_shows_a_secret_directive` and
-  `every_key_named_like_a_credential_is_a_secret_or_listed_with_a_reason`
-  (`crates/nvs-config/tests/secret.rs:684`).
-- [ ] `crates/nvs-cli/tests/config_audit.rs:1`: test `dump_prints_no_inline_secret_directive`.
-- [ ] `docs/rules/config/a-secret-is-a-file-whose-content-is-the-value.md:1`: the two rule
-  fragments (`docs/rules/config/check-and-dump-audit-the-tree-offline.md:28`).
+- [ ] `crates/nvs-config/src/trust.rs:1067`: `examine` walks the DACL once, for the file, parent and
+  link-holder tests (`crates/nvs-config/src/trust.rs:1108`).
+- [ ] `crates/nvs-config/src/trust.rs:1042`: the trusted trustees, with `in_administrators` asked
+  once per distinct trustee (`crates/nvs-config/src/trust.rs:1301`).
+- [ ] `crates/nvs-config/src/trust.rs:1123`: an allow entry of an unknown kind counts as an allow.
+- [ ] `crates/nvs-config/src/trust.rs:772`: `UNTRUSTED` goes, and the breach names the SID
+  (`crates/nvs-config/src/trust.rs:1075`).
+- [ ] `crates/nvs-config/tests/trust.rs:287`: tests `a_write_entry_for_any_other_account_is_a_breach`
+  and `a_write_entry_for_a_trusted_account_passes` (`crates/nvs-config/tests/trust.rs:82`).
+- [ ] `crates/nvs-config/tests/trust.rs:194`: the existing Windows cases follow
+  (`crates/nvs-config/tests/trust.rs:309`, `crates/nvs-config/tests/trust.rs:331`,
+  `crates/nvs-config/tests/trust.rs:450`).
+- [ ] `docs/rules/config/ownership-is-the-trust-boundary.md:10`: the rule states "no other account"
+  (`docs/rules/config/ownership-is-the-trust-boundary.md:38`).
 
-No existing test is expected red before the stage's own edits.
+Tests that may go red at the gate from stage 1, not run here: any case in
+`crates/nvs-config/tests/` or `crates/nvs-config/src/audit.rs` that expects an inline secret
+directive in `resolved.table`, or a `--toml` document without `<secret>` keys. A grep found none.
 
 ### Backlog
 

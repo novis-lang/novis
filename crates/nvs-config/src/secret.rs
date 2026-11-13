@@ -49,7 +49,10 @@
 //! renders the value `<secret>` and names the file it came from, and it can only do that if the
 //! file is still recorded.
 //!
-//! **The value never enters the merged table**, and that is what [`Secret`] exists for. The table is
+//! **The value never enters the merged table**, and that is what [`Secret`] exists for. That holds
+//! for a value written inline too: [`materialize`] carries it into the map with the configuration
+//! file as its origin ([`Source::Tree`]), [`strip_inline`] takes it out of the table, and
+//! [`redact_inline`] writes `<secret>` back under its key for `--toml` alone. The table is
 //! the stream `rule:config/check-and-dump-audit-the-tree-offline` serializes whole for `nvs config dump --toml` and the one
 //! [`Snapshot::retype`](crate::Snapshot) rebuilds the typed tree out of, so a content put into it
 //! would have to be redacted again by every reader that walks it — and the one that forgets writes a
@@ -73,17 +76,32 @@ use nvs_diagnostics::{Diagnostic, code};
 use crate::resolve::{Files, Origin, origin_note};
 use crate::tree::Config;
 
-/// One secret, materialized: the value `rule:config/a-secret-is-a-file-whose-content-is-the-value` read, and the file it came from.
+/// One secret, materialized: the value in force, the file it came from, and which half of the pair
+/// put it there.
 ///
 /// The file is kept because it is half of what `rule:config/check-and-dump-audit-the-tree-offline`'s dump prints — `<secret>` says a value is in
 /// force and the path says which file decides it, and an audit that cannot name the file cannot act
-/// on it.
+/// on it. For a value written inline that file is the configuration file, and [`Source::Tree`]
+/// says so, so nothing reads it again as a secret file.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Secret {
-    /// The file's whole content, cut to `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s value.
+    /// The value: a secret file's whole content, cut to `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s
+    /// value, or the string a configuration file wrote inline.
     pub value: String,
-    /// The trusted, absolute path it was read from.
+    /// The trusted, absolute path of the secret file, or of the configuration file that wrote the
+    /// value inline. Empty for an inline value with no recorded origin.
     pub file: PathBuf,
+    /// Which half of the pair put the value in force.
+    pub source: Source,
+}
+
+/// Which half of a secret pair a [`Secret`] came from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Source {
+    /// The `_file` half: [`Secret::file`] is a secret file, trusted and read.
+    File,
+    /// The inline half: [`Secret::file`] is the configuration file that wrote the value.
+    Tree,
 }
 
 /// What [`materialize`] read out of the tree: every secret, by the dotted key it is the value of.
@@ -398,15 +416,18 @@ pub fn materialize(
                     }
                     out.secrets.insert(key, secret);
                 }
-                // The inline half is in force and there is nothing for `rule:config/a-secret-is-a-file-whose-content-is-the-value` to read — the value is
-                // already the table's. It gets the advisory all the same, because the rule an
-                // operator has to hold is then one sentence with no exception in it, and a space
-                // before a closing quote is missed about as easily as one inside a file.
+                // The inline half is in force and there is no file to read. The value is carried
+                // beside the table as a file's is, because [`strip_inline`] takes it out of the
+                // table, and the configuration file that wrote it is its origin. It gets the
+                // advisory all the same, because the rule an operator has to hold is then one
+                // sentence with no exception in it, and a space before a closing quote is missed
+                // about as easily as one inside a file.
                 (None, Some(value)) => {
+                    let written_in = origins.get(&key);
                     if let Some(edge) = padding(value) {
-                        out.warnings
-                            .push(padded(&key, edge, None, origins.get(&key)));
+                        out.warnings.push(padded(&key, edge, None, written_in));
                     }
+                    out.secrets.insert(key, inline_secret(value, written_in));
                 }
                 (None, None) => {}
             }
@@ -475,14 +496,7 @@ fn program_secrets(
                     if let Some(edge) = padding(value) {
                         out.warnings.push(padded(&key, edge, None, written_in));
                     }
-                    let file = written_in.map(|origin| origin.path.clone());
-                    out.secrets.insert(
-                        key,
-                        Secret {
-                            value: value.to_owned(),
-                            file: file.unwrap_or_default(),
-                        },
-                    );
+                    out.secrets.insert(key, inline_secret(value, written_in));
                 }
                 // `settings::check_file` refused every value that is not a string.
                 (None, None) => {}
@@ -492,10 +506,18 @@ fn program_secrets(
     Ok(())
 }
 
-/// Takes every inline `[secrets]` and `[app.secrets]` value out of the table and the typed tree,
-/// once [`materialize`] has carried each beside them. Each `_file` half stays, so the dump can name
-/// the file a value came from, as `password_file` stays.
+/// Takes every inline secret out of the table, once [`materialize`] has carried each beside it.
+///
+/// A secret directive's value leaves the table by a walk of [`SECRETS`], and stays on the typed
+/// tree, where [`apply`] put it. Every inline `[secrets]` and `[app.secrets]` value leaves the
+/// table and the typed tree both, because `Core\Config::secret` reads the map alone. Each `_file`
+/// half stays, so the dump can name the file a value came from.
 pub fn strip_inline(config: &mut Config, table: &mut toml::Table) {
+    for pair in SECRETS {
+        for site in (pair.sites)(config) {
+            remove_at(table, pair, site.name);
+        }
+    }
     let keep_files = |block: &mut toml::Table| block.retain(|key, _| key.ends_with("_file"));
     let strip = |parent: &mut toml::Table| {
         if let Some(toml::Value::Table(block)) = parent.get_mut(crate::settings::SECRETS) {
@@ -523,6 +545,97 @@ pub fn strip_inline(config: &mut Config, table: &mut toml::Table) {
             }
         }
     }
+}
+
+/// Writes [`REDACTED`] into `table` under the key of every secret the configuration wrote inline,
+/// for `nvs config dump --toml` (`rule:config/check-and-dump-audit-the-tree-offline`).
+///
+/// [`strip_inline`] took each such value out of the table, and a diff of two environments has to
+/// show that the key is set. A secret read from a file is left alone: its `_file` key is still in
+/// the table. Cost: one walk of [`SECRETS`] and of `secrets`, per dump.
+pub fn redact_inline(table: &mut toml::Table, config: &Config, secrets: &BTreeMap<String, Secret>) {
+    let inline = |key: &str| {
+        secrets
+            .get(key)
+            .is_some_and(|secret| secret.source == Source::Tree)
+    };
+    let redacted = || toml::Value::String(REDACTED.to_owned());
+    for pair in SECRETS {
+        'site: for site in (pair.sites)(config) {
+            if !inline(&pair.key(site.name)) {
+                continue;
+            }
+            let mut block = &mut *table;
+            for segment in pair.block.split('.') {
+                let segment = if segment == "*" { site.name } else { segment };
+                let next = block
+                    .entry(segment)
+                    .or_insert_with(|| toml::Value::Table(toml::Table::new()));
+                let toml::Value::Table(inner) = next else {
+                    continue 'site;
+                };
+                block = inner;
+            }
+            block.insert(pair.value.to_owned(), redacted());
+        }
+    }
+    let program = format!("{}.", crate::settings::SECRETS);
+    for (key, secret) in secrets {
+        if secret.source != Source::Tree {
+            continue;
+        }
+        let (parent, name) = if let Some(name) = key.strip_prefix(&program) {
+            (Some(&mut *table), name)
+        } else if let Some((index, name)) = key
+            .strip_prefix("app.")
+            .and_then(|rest| rest.split_once('.'))
+            .and_then(|(index, rest)| Some((index.parse::<usize>().ok()?, rest)))
+            .and_then(|(index, rest)| Some((index, rest.strip_prefix(&program)?)))
+        {
+            let app = match table.get_mut("app") {
+                Some(toml::Value::Array(apps)) => apps.get_mut(index),
+                _ => None,
+            };
+            match app {
+                Some(toml::Value::Table(app)) => (Some(app), name),
+                _ => (None, name),
+            }
+        } else {
+            (None, "")
+        };
+        let Some(parent) = parent else {
+            continue;
+        };
+        if let toml::Value::Table(block) = parent
+            .entry(crate::settings::SECRETS)
+            .or_insert_with(|| toml::Value::Table(toml::Table::new()))
+        {
+            block.insert(name.to_owned(), redacted());
+        }
+    }
+}
+
+/// Removes `pair`'s value from `table` in the block `name` names. The path is walked segment by
+/// segment, so a block name with a `.` in it is one segment.
+///
+/// A block the removal empties stays in the table: `[http]` with only `csrf_key` written must
+/// still deserialize to a block, or [`apply`] has nowhere to put the value back.
+fn remove_at(table: &mut toml::Table, pair: &SecretPair, name: &str) {
+    fn walk(table: &mut toml::Table, path: &[&str], value: &str) {
+        let Some((head, rest)) = path.split_first() else {
+            table.remove(value);
+            return;
+        };
+        if let Some(toml::Value::Table(inner)) = table.get_mut(*head) {
+            walk(inner, rest, value);
+        }
+    }
+    let path: Vec<&str> = pair
+        .block
+        .split('.')
+        .map(|segment| if segment == "*" { name } else { segment })
+        .collect();
+    walk(table, &path, pair.value);
 }
 
 /// Puts every materialized secret onto a typed tree, at the key it is the value of.
@@ -611,7 +724,19 @@ fn read(
     Ok(Secret {
         value: value.to_string(),
         file: trusted,
+        source: Source::File,
     })
+}
+
+/// A value the configuration wrote inline, with the file that wrote it as its origin.
+fn inline_secret(value: &str, written_in: Option<&Origin>) -> Secret {
+    Secret {
+        value: value.to_owned(),
+        file: written_in
+            .map(|origin| origin.path.clone())
+            .unwrap_or_default(),
+        source: Source::Tree,
+    }
 }
 
 /// How a value is padded, as the phrase a message says it with, and `None` when it is not.

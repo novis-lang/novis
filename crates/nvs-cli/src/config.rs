@@ -1723,7 +1723,11 @@ pub(crate) fn dump(config: &[PathBuf], paths: &[PathBuf], origin: bool, as_toml:
     // on standard output. Anything added to that stream is something the diff
     // reports as a change.
     if as_toml {
-        return match toml::to_string(&resolved.table) {
+        // An inline secret left the table at the merge. It is written back as `"<secret>"`, so
+        // the diff shows the key is set and never the value.
+        let mut table = resolved.table.clone();
+        nvs_config::secret::redact_inline(&mut table, &resolved.config, &resolved.secrets);
+        return match toml::to_string(&table) {
             Ok(text) => {
                 print!("{text}");
                 ExitCode::SUCCESS
