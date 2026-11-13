@@ -549,6 +549,12 @@ impl<'a> Lowering<'a> {
     /// says which of them keep the rewrite. See [`InstKind::StrAppend`] and
     /// [`Helper::ArrayStrAppendThrough`].
     ///
+    /// **Open gap:** the rewrite reads its target before `e` runs. The
+    /// in-place append and `rule:expressions/an-operand-keeps-its-value-while-later-operands-run`
+    /// read it after. So a guarded, hooked or observed `string` property
+    /// appends to the old string where `e` assigns that same property, and a
+    /// plain one appends to the new string.
+    ///
     /// # Panics
     ///
     /// Panics naming the target when it is not one [`is_reevaluable_target`]

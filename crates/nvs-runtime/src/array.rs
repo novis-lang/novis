@@ -1528,6 +1528,12 @@ impl NvsArray {
     /// three calls and copied its row now makes one call and copies nothing
     /// that is not shared.
     ///
+    /// Declined: the lowering taking an unshared row out of its outer array
+    /// and storing it back. The outer array would have an empty slot between
+    /// two instructions, and an append that throws would lose the row unless
+    /// the lowering put it back on the error edge. Here one function owns the
+    /// whole decision.
+    ///
     /// # Errors
     ///
     /// [`WriteThroughFault::Occupied`] where the final append finds its next

@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-codegen/src/emit.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-runtime/src/string.rs, crates/nvs-runtime/src/object.rs, crates/nvs-runtime/src/array.rs]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: nested-writes-in-place
@@ -542,49 +542,38 @@ and release entries beyond the count write, in every build kind, as `file.rs:NN`
 
 ### 7. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done. Stage 6: `emit_refcount` (`crates/nvs-codegen/src/emit.rs:4476`) emits a
-typed retain inline, and every release stays a call by the safe default (*Standing decisions*,
-and `crates/nvs-codegen/src/lib.rs:69`). New: `Value::refcount` and the debug-only
-`budget::retain_calls()`. The three tests of check `refcount-inline` pass, and both guards went
-red with the retain made a call again. The proofs gate owed nothing. Build, clippy and rustfmt are
-green; no verify ran.
-
-Expect red in stage 7: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` that print a
-property, static property or element `.=` (stage 2: `str_append` or `array_str_append_through` in
-place of `concat` and `array_set`), any snapshot of a `.=` whose suffix is an interpolation or a
-`.` chain (now `str.append vN, <parts>` with no `concat`), any snapshot of an interpolation or a
-`Core\Str::format` call over a `uint` (now `uint vN`, no `uint_to_string`), any snapshot of
-`$x = f($x)` or `return f($x)` over an array or string local passed to a compiled function (stage
-4: no `retain` of the local, and no `release` of its old value), and any test that pinned the old
-read order of a `.=` whose suffix writes its own target. Any test that pinned `clif` text now
-sees the `;;` import lines, and no `nvs_*_retain` import for a typed retain. An instruction or
-block count guard in `benches/abi-probe` may see the inline retain's extra blocks. The sweep items
-are stale: no `env-secret-proofs` check exists, and nightly 43201099245 predates `7568aaa0fb`,
-which skips those Miri tests.
+Stage 7 is under way. The first `looper verify` stopped at its test step with five reds, all of
+them tests that pinned what a stage changed. They are fixed in `2a9c71ae7f`: four IR snapshots
+were checked one by one, and `borrowed_stores` now expects `$o->s .= e` to read the slot after `e`
+(`rule:expressions/an-operand-keeps-its-value-while-later-operands-run`). The second verify run
+is green over all its steps. The goal-end gates are green: `bun nv verify --doc`, `bun nv owners
+--closes in-place-writes` (no gap) and `bun nv ci --check`. Every stage is done. The two declined
+decisions held only here moved to doc comments: `InstKind::is_immortal_literal` and
+`Array::write_through`. The order gap below moved to `lower_compound_assignment`'s doc in
+`crates/nvs-ir/src/lower/stmt.rs`. The sweep items were stale: no `env-secret-proofs` check
+exists, and nightly 43201099245 predates `7568aaa0fb`, which skips those Miri tests.
 
 ### Next
 
-Stage 7, the gate stage. Start `looper verify` with `run_in_background`, write the handoff, and end
-the turn to wait for its report. Fix every failure in one pass against the list above, then run it
-once more. Then the goal-end gates of AGENTS.md § *In the loop*.
+Nothing. The goal is reached, and the driver runs its acceptance checks and retires it.
 
-- [ ] `looper verify` over the whole goal (`docs/goals/in-place-writes.md:543`).
-- [ ] `benches/abi-probe/tests/perf_guards.rs:1` and the IR snapshots: one fix pass, each
-  snapshot checked against the stage that changed it, never blessed blind.
-- [ ] `looper verify` once more, green (`docs/goals/in-place-writes.md:547`).
-- [ ] `AGENTS.md:1` § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes
+- [x] `looper verify`, a fix pass, and `looper verify` once more, green.
+- [x] `AGENTS.md:1` § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes
   in-place-writes`, `bun nv ci --check`.
 
 ### Backlog
 
+- A guarded, hooked or observed `string` property keeps the `.=` rewrite, which reads the slot
+  before `e` runs. The operand rule and the plain-property path read it after `e`, so the two
+  forms differ when `e` assigns the same property.
 - `$this->p = $this->p . e`, the `=` spelling of a property or element append, keeps the rewrite.
 - `.=` of an interpolation onto an element joins first, because the element helper takes one `Str`
   suffix (`crates/nvs-ir/src/lower/stmt.rs:728`).

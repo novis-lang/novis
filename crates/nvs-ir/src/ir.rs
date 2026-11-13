@@ -2357,6 +2357,10 @@ impl InstKind {
     /// emits nothing for one whose operand such an instruction defines
     /// directly. A value that reaches a block parameter keeps its calls,
     /// since a phi can merge a literal with a value that is counted.
+    ///
+    /// Declined: dropping these operations in the lowering. It emits them at
+    /// many sites, and the one place every count operation passes is
+    /// `nvs-codegen`'s `emit_refcount`.
     #[must_use]
     pub const fn is_immortal_literal(&self) -> bool {
         matches!(
