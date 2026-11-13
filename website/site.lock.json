@@ -381,7 +381,7 @@
   "tools/debug-viewer/index.mdx": {
     "tools:cli/nvs-debug": "73b36a5bf356946f",
     "tools:cli/nvs-debug-to-test": "4941c66c86f3237c",
-    "tools:cli/the-debug-viewer": "6b9de246986e9ad7"
+    "tools:cli/the-debug-viewer": "3631ffddd36edae5"
   },
   "tools/debugger/index.mdx": {
     "tools:editor/nvs-dap": "894cd41ad9f221e8"

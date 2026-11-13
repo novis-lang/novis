@@ -23,10 +23,12 @@ store = true
 ```
 
 Then start your server in development. `nvs serve` starts `nvs debug` for you, and stops it when the
-server stops. `nvs debug` prints a link to the viewer. Open that link, because it contains a token.
-The viewer answers only a browser that has the token. Another account on the same computer does not
-have it. The address is `127.0.0.1:8137`. `[debug] listen` or the `--listen` option sets another
-address.
+server stops.
+
+`nvs debug` prints a link to the viewer. Open that link, because it contains a token. The viewer
+answers only a browser that has the token. Another account on the same computer does not have it.
+
+The address is `127.0.0.1:8137`. `[debug] listen` or the `--listen` option sets another address.
 
 A production server never starts `nvs debug`. On a production host, you run `nvs debug` yourself.
 

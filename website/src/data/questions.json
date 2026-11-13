@@ -1500,12 +1500,12 @@
   },
   "/reference/cli/the-debug-viewer/": {
     "feature": "tools:cli/the-debug-viewer",
-    "hash": "6b9de246986e9ad7",
+    "hash": "3631ffddd36edae5",
     "questions": [
       "How do I look at the requests my development server recorded?",
       "See the queries, dumps and log lines of one request on a timeline",
       "Which errors does my application throw most often?",
-      "Which rows differ between a 500 response and a 404 response?",
+      "Why does the debug viewer answer 401 when I open its address?",
       "Send a recorded request to my server again, or make a test from it",
       "Use the debug viewer when my server runs in a Docker container"
     ]
@@ -1572,10 +1572,10 @@
   },
   "/reference/config/debug/": {
     "feature": "directive:debug.keep_temporary",
-    "hash": "75f6910033c08e35",
+    "hash": "7ba4d82d9f8da2bb",
     "questions": [
       "Keep temporary files after a script fails so I can inspect them",
-      "Show debug output in the browser page during development",
+      "Use my own token file for the debug viewer",
       "Save a record of every request so I can look at it later",
       "Limit the disk space and the age of saved request records",
       "Change the address and port of the debug viewer",
@@ -18616,12 +18616,12 @@
   },
   "/tools/debug-viewer/": {
     "feature": "tools/debug-viewer/index.mdx",
-    "hash": "692dd931833b8299",
+    "hash": "b1cc75ac561d4219",
     "questions": [
       "How do I see the requests my development server handled?",
       "Which queries did one request run, and how long did each take?",
       "Find every request that threw the same exception",
-      "Compare two requests to the same route side by side",
+      "Why does the debug viewer need the link with the token?",
       "Send a recorded request to my server again",
       "Make a test from a request I saw in the browser"
     ]
