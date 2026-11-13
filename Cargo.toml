@@ -174,8 +174,9 @@ mio = { version = "1", features = ["os-poll", "net"] }
 # `h2` comes from. `client` is on for the one client in this tree that is not an
 # application's: `nvs-server`'s OTLP exporter posts to a collector, and an
 # exchange framed by a parser of ours would be a parser of ours to get right. What a
-# program makes outbound requests with is `Core\Http\Client`, which is `ureq`'s
-# and stays there.
+# program makes outbound requests with is `Core\Http\Client`, which is
+# hand-written over `nvs_host`'s parking stream (`nvs-stdlib`'s `http::transport`)
+# and links no HTTP client crate.
 #
 # **`tokio` is in the lock file, and it is not a runtime.** `hyper` 1.11 depends
 # on `tokio` unconditionally with `features = ["sync"]` — one `oneshot` in

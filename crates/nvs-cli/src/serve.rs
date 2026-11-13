@@ -1228,10 +1228,12 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 request.method().as_str(),
                 &stripped,
                 request.uri().query().unwrap_or(""),
-                request
-                    .headers()
-                    .iter()
-                    .map(|(name, value)| (name.as_str(), value.as_bytes())),
+                || {
+                    request
+                        .headers()
+                        .iter()
+                        .map(|(name, value)| (name.as_str(), value.as_bytes()))
+                },
                 origin,
             );
             // `rule:observability/an-inbound-traceparent-is-continued`'s trace, off the header lines just pushed: continued
@@ -1310,7 +1312,12 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // keeps (`nvs_server::body`). A declared length already over the
             // global `[limits] upload_total` is refused here, before a program
             // exists to be given it. A request already refused is given no body.
-            let supply = match nvs_server::body::of(&head.headers, incoming, upload_total) {
+            let arrived = nvs_server::body::of(&head.headers, incoming, upload_total);
+            // The carrier has its own copy of the head, so `hyper`'s is
+            // freed here and the connection's read buffer is not held for the
+            // rest of the request.
+            drop(head);
+            let supply = match arrived {
                 _ if inbound.refusal().is_some() => None,
                 Arrived::Absent => None,
                 Arrived::TooLarge if refusal_mode => {
@@ -1327,10 +1334,11 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // dispatching unit's request the door accepted is run again, in a
             // fresh isolate with no body, when a memory or CPU-time limit stops
             // its first run, so that its gate's `failed` answers. Nothing is
-            // built until then: the closure keeps the head the door already
-            // holds, runs the unit and the folder the first run read, and finds
-            // the mount again by its place in the table.
+            // built until then: the closure shares the first carrier's head,
+            // runs the unit and the folder the first run read, and finds the
+            // mount again by its place in the table.
             let rerun = (refusal_mode && inbound.refusal().is_none()).then(|| {
+                let shared = Rc::clone(inbound.head());
                 let entry = Rc::clone(&entry);
                 let at = mounts::row_of(table.mounts(), mount);
                 let table = Rc::clone(&table);
@@ -1341,15 +1349,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                         Ok(unit) => unit.program(),
                         Err(message) => failing(message.clone()),
                     };
-                    let mut inbound = carrier(
-                        head.method.as_str(),
-                        &stripped,
-                        head.uri.query().unwrap_or(""),
-                        head.headers
-                            .iter()
-                            .map(|(name, value)| (name.as_str(), value.as_bytes())),
-                        origin,
-                    );
+                    let mut inbound = rerun_carrier(shared, origin);
                     if let Some(trace) = trace {
                         inbound.set_trace_context(trace);
                     }
@@ -2531,17 +2531,31 @@ fn unreached_origin(mount: &Mounted, routes: &nvs_runtime::routes::Routes) -> Op
 /// walk ran on the connection, because the answer decides policy on responses
 /// no handler ever sees. `Inbound::set_peer` owns why its two answers are one
 /// call, and `Core\Request::clientIp()` and `::scheme()` read them back.
-fn carrier<'h>(
+///
+/// `headers` is called twice, so the head is sized once and copied once
+/// (`Inbound::framed`).
+fn carrier<'h, I>(
     method: &str,
     path: &str,
     query: &str,
-    headers: impl IntoIterator<Item = (&'h str, &'h [u8])>,
+    headers: impl Fn() -> I,
     origin: Origin,
-) -> Inbound {
-    let mut inbound = Inbound::new(method, path, query);
-    for (name, value) in headers {
-        inbound.push_header(name, value);
-    }
+) -> Inbound
+where
+    I: Iterator<Item = (&'h str, &'h [u8])>,
+{
+    let mut inbound = Inbound::framed(method, path, query, headers);
+    inbound.set_peer(origin.client(), origin.scheme());
+    inbound
+}
+
+/// The carrier of a dispatching unit's rerun: the first carrier's `head`,
+/// shared and not copied, and the same peer.
+///
+/// The door adds the trace, the mount and the refusal, as it did for the first
+/// run (`rule:routing/a-gate-answers-around-every-handler`).
+fn rerun_carrier(head: Rc<nvs_runtime::Head>, origin: Origin) -> Inbound {
+    let mut inbound = Inbound::with_head(head);
     inbound.set_peer(origin.client(), origin.scheme());
     inbound
 }
@@ -5553,6 +5567,61 @@ mod tests {
             bodies,
             ["old", "new"],
             "the second request did not run the swapped unit"
+        );
+    }
+
+    /// `rule:routing/a-gate-answers-around-every-handler`'s rerun reads the
+    /// request the first run read, from the same buffer: the head is shared,
+    /// not copied, and the peer is the same.
+    #[test]
+    fn a_dispatching_units_rerun_shares_the_first_runs_head() {
+        let mut lines = hyper::HeaderMap::new();
+        lines.append(
+            "host",
+            hyper::header::HeaderValue::from_static("example.com"),
+        );
+        lines.append(
+            "accept",
+            hyper::header::HeaderValue::from_static("text/html"),
+        );
+        lines.append(
+            "accept",
+            hyper::header::HeaderValue::from_static("application/json"),
+        );
+        let origin = nvs_server::forwarded::walk(
+            nvs_server::Arrival::Tcp("192.0.2.7".parse().expect("an address")),
+            &nvs_server::Trusted::none(),
+            &lines,
+        )
+        .expect("an untrusted peer is never refused");
+        let first = super::carrier(
+            "POST",
+            "/orders",
+            "page=2",
+            || {
+                lines
+                    .iter()
+                    .map(|(name, value)| (name.as_str(), value.as_bytes()))
+            },
+            origin,
+        );
+        let rerun = super::rerun_carrier(Rc::clone(first.head()), origin);
+        assert!(
+            Rc::ptr_eq(first.head(), rerun.head()),
+            "the rerun copied the head"
+        );
+        assert_eq!(
+            (rerun.method(), rerun.path(), rerun.query()),
+            ("POST", "/orders", "page=2")
+        );
+        assert_eq!(
+            rerun.headers().collect::<Vec<_>>(),
+            first.headers().collect::<Vec<_>>()
+        );
+        assert_eq!(rerun.headers().len(), 3);
+        assert_eq!(
+            (rerun.client(), rerun.scheme()),
+            (first.client(), first.scheme())
         );
     }
 

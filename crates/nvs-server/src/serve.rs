@@ -675,8 +675,10 @@ pub enum Reply {
 /// carrier is made, and only for a run that has stopped.
 ///
 /// **What it spends:** whatever the closure keeps of the request for as long
-/// as the first run lasts — the door keeps the request's head, which it
-/// already held, so a request that is never run again copies nothing.
+/// as the first run lasts. The door keeps a second handle on the first
+/// carrier's head (`nvs_runtime::Head`), so the rerun reads the same buffer,
+/// and a request that is never run again copies nothing. `hyper`'s own head is
+/// freed once the body is split.
 pub struct Rerun(Box<dyn FnOnce() -> Isolate>);
 
 impl Rerun {

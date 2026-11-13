@@ -2,6 +2,8 @@ A request head may have at most 100 header lines, `Host` included. A head with 1
 
 The bound is the parser's and not a size policy. A head is parsed into an array of this many entries, so the number is also what one head costs to parse. `rule:http-server/four-idle-waits-all-finite` leaves a head's size to the proxy, and this rule does not change that: a proxy still owns how many bytes a head may have.
 
+**What a head spends**, per `rule:programs/memory-priority`: once parsed, the request's copy of its head (`nvs_runtime::Head`) holds its bytes once, back to back in one buffer, and two words per header line plus three for the request line. It is built in three allocations for any number of lines, because the parser has counted the lines before the first copy. The parser's own head is freed once the body is split. A dispatching unit's rerun shares the first run's copy and makes none of its own. A head is never kept for a later request (`rule:security/no-cross-request-state`).
+
 **Declined:**
 
 - **A setting.** No application needs more than a hundred header lines, and one that does is sending state the body should carry.

@@ -307,7 +307,7 @@ pub use ctx::{
     DEBUG_STEP_OFFSET, DEPRECATED_OFFSET, DebugFlags, DebugStop, DeclaredHeader, ErrorClass,
     EventStreamDoor, ExtensionHost, FRAME_CALLER_OFFSET, FRAME_FUNCTION_OFFSET, FRAME_RECORD_SIZE,
     FRAME_SITE_OFFSET, FRAME_SLOT_COUNT_OFFSET, FRAME_SLOTS_OFFSET, FaultSite, Frame, FrameRecord,
-    Frames, HOLD_PIECE, HOT_LINE_BYTES, HeldChild, HeldConnection, HeldReader, HeldSocket,
+    Frames, HOLD_PIECE, HOT_LINE_BYTES, Head, HeldChild, HeldConnection, HeldReader, HeldSocket,
     HeldValue, HttpAnswer, HttpSent, Inbound, InboundSpec, LateInit, LateInitCall, Limit,
     LogWriter, NATIVE_STEP_ROOM, OnDeprecated, OpenSpawn, OutputSink, POLL_GAP, PlacedIsolate,
     ProfileFormat, ProfileTrack, Profiler, QuerySites, RequestBody, Returned, RunKind,

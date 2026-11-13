@@ -150,22 +150,18 @@ pub enum Scheme {
 /// carried by the registry rows of the members that read this and not by any
 /// field here — there is no representation of a qualifier at runtime.
 ///
-/// **What it spends:** a short allocation per field of the request line, plus
-/// two per header field line and one growing vector to hold them, one more
-/// allocation for a request that arrived with a body, and nothing at all for a
-/// process serving none. **Not the body's bytes** — see [`RequestBody`]. The
-/// peer costs no allocation at all: an address and a scheme are held inline, as
-/// the words the door decided them as.
+/// **What it spends:** the request line and the header lines are one [`Head`]:
+/// their bytes once, two words per header line and three for the request line,
+/// in three allocations however many lines there are. One more allocation for a
+/// request that arrived with a body, and nothing at all for a process serving
+/// none. **Not the body's bytes** — see [`RequestBody`]. The peer costs no
+/// allocation at all: an address and a scheme are held inline, as the words the
+/// door decided them as.
 pub struct Inbound {
-    /// The method token the peer wrote, verbatim and un-uppercased.
-    method: Box<str>,
-    /// The request path with the matched mount's prefix removed, still
-    /// percent-encoded.
-    path: Box<str>,
-    /// Everything after the `?`, without it, and `""` where the target carried
-    /// no query at all — the two are not distinguished, because a query with no
-    /// pairs and no query yield the same empty set of parameters.
-    query: Box<str>,
+    /// The method, the path, the query and every header line, as one shared
+    /// [`Head`]. A dispatching unit's rerun reads the same head through a
+    /// second handle, so the head is copied once per request.
+    head: Rc<Head>,
     /// `rule:routing/a-request-reads-its-mount`
     /// 's first half: the prefix `rule:http-server/a-request-resolves-in-five-steps` step 2 took off [`Self::path`]
     /// above, which is the one fact about where an application was deployed
@@ -192,22 +188,6 @@ pub struct Inbound {
     /// many as the `scan` has `*`s — one, for the tenant-per-directory layout
     /// `rule:routing/a-request-reads-its-mount` exists to serve.
     mount_captures: Box<[Box<str>]>,
-    /// One entry per header field line, in arrival order, name first.
-    ///
-    /// **A list rather than a map, for [`DeclaredHeader`]'s reason read the
-    /// other way round.** A request may carry a field name more than once and
-    /// the values are not interchangeable — `X-Forwarded-For` and `Via` are
-    /// ordered, `Accept` is a set — so a map would answer with the last line
-    /// and lose the rest, which is the silent-wrong-answer shape rather than a
-    /// storage choice. Nothing here folds two lines together: whether one name
-    /// standing twice is read as one combined value or as two is
-    /// `nvs_stdlib::request`'s, and it answers both.
-    ///
-    /// A name is a token and so is text; a **value is bytes**, because
-    /// RFC 9110 § 5.5 still admits `obs-text` and refusing one is the door's decision to
-    /// make rather than this carrier's. A Novis `string` is bytes either way,
-    /// so nothing downstream pays for it.
-    headers: Vec<(Box<str>, Box<[u8]>)>,
     /// The body still on the wire, as [`RequestBody`] — never its bytes — and
     /// `None` for a request that arrived without one.
     ///
@@ -504,12 +484,9 @@ impl std::fmt::Debug for Inbound {
     /// Reading it to say more would consume what the program is owed.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Inbound")
-            .field("method", &self.method)
-            .field("path", &self.path)
-            .field("query", &self.query)
+            .field("head", &self.head)
             .field("mount_prefix", &self.mount_prefix)
             .field("mount_captures", &self.mount_captures)
-            .field("headers", &self.headers)
             .field("client", &self.client)
             .field("scheme", &self.scheme)
             .field("body", &self.body.is_some())
@@ -520,6 +497,98 @@ impl std::fmt::Debug for Inbound {
             .field("upgrade", &self.upgrade.is_some())
             .field("sse", &self.sse.is_some())
             .field("stream", &self.stream.is_some())
+            .finish()
+    }
+}
+
+/// The request line and every header line, back to back in one buffer.
+///
+/// `bytes` holds the method, the path, the query and then each line's name and
+/// value, in arrival order. `ends` holds where each of those parts ends, so
+/// part `n` is `bytes[ends[n - 1]..ends[n]]`. [`Inbound::framed`] knows every
+/// line before it copies one, so it sizes both vectors exactly and the head
+/// costs three allocations, the third being the [`Rc`], however many lines it
+/// has. [`Inbound::push_header`] appends to the same buffer.
+///
+/// **A list rather than a map, for [`DeclaredHeader`]'s reason read the other
+/// way round.** A request may carry a field name more than once and the values
+/// are not interchangeable — `X-Forwarded-For` and `Via` are ordered, `Accept`
+/// is a set — so a map would answer with the last line and lose the rest.
+/// Nothing here folds two lines together: whether one name standing twice is
+/// read as one combined value or as two is `nvs_stdlib::request`'s, and it
+/// answers both.
+///
+/// A name is a token and so is text; a **value is bytes**, because
+/// RFC 9110 § 5.5 still admits `obs-text` and refusing one is the door's
+/// decision to make rather than this carrier's. The method, the path, the query and each
+/// name were copied whole from a `&str`, so each of those parts reads back as
+/// text.
+///
+/// **What it spends:** the head's bytes once, three words for the request line
+/// and two per header line. Nothing of it outlives its request: a head is
+/// never kept for the next one (`rule:security/no-cross-request-state`).
+#[derive(Clone)]
+pub struct Head {
+    bytes: Vec<u8>,
+    ends: Vec<usize>,
+}
+
+/// The parts before the first header line: the method, the path and the query.
+const REQUEST_LINE_PARTS: usize = 3;
+
+impl Head {
+    /// A head with room for exactly `bytes` bytes and `lines` header lines.
+    fn with_capacity(bytes: usize, lines: usize) -> Self {
+        Self {
+            bytes: Vec::with_capacity(bytes),
+            ends: Vec::with_capacity(REQUEST_LINE_PARTS + 2 * lines),
+        }
+    }
+    fn push(&mut self, part: &[u8]) {
+        self.bytes.extend_from_slice(part);
+        self.ends.push(self.bytes.len());
+    }
+    fn part(&self, at: usize) -> &[u8] {
+        let start = at.checked_sub(1).map_or(0, |before| self.ends[before]);
+        &self.bytes[start..self.ends[at]]
+    }
+    /// A part that was pushed from a `&str`, so it is always UTF-8 and the
+    /// empty answer is never reached.
+    fn text(&self, at: usize) -> &str {
+        std::str::from_utf8(self.part(at)).unwrap_or_default()
+    }
+    /// The verb, verbatim.
+    #[must_use]
+    pub fn method(&self) -> &str {
+        self.text(0)
+    }
+    /// The mount-stripped request path.
+    #[must_use]
+    pub fn path(&self) -> &str {
+        self.text(1)
+    }
+    /// The raw query string, without the `?`.
+    #[must_use]
+    pub fn query(&self) -> &str {
+        self.text(2)
+    }
+    /// Every header field line, in arrival order, as `(name, value)`.
+    pub fn lines(&self) -> impl ExactSizeIterator<Item = (&str, &[u8])> {
+        let count = (self.ends.len() - REQUEST_LINE_PARTS) / 2;
+        (0..count).map(move |line| {
+            let name = REQUEST_LINE_PARTS + 2 * line;
+            (self.text(name), self.part(name + 1))
+        })
+    }
+}
+
+impl std::fmt::Debug for Head {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Head")
+            .field("method", &self.method())
+            .field("path", &self.path())
+            .field("query", &self.query())
+            .field("lines", &self.lines().collect::<Vec<_>>())
             .finish()
     }
 }
@@ -624,16 +693,47 @@ impl Inbound {
     /// them, and no headers yet — [`Self::push_header`] adds those.
     #[must_use]
     pub fn new(method: &str, path: &str, query: &str) -> Self {
+        let mut head = Head::with_capacity(method.len() + path.len() + query.len(), 0);
+        head.push(method.as_bytes());
+        head.push(path.as_bytes());
+        head.push(query.as_bytes());
+        Self::with_head(Rc::new(head))
+    }
+    /// A request whose head arrived whole: the request line and every header
+    /// line, in arrival order.
+    ///
+    /// `lines` is called twice, once to size the head and once to copy it, so
+    /// the head is built in at most three allocations for any number of lines.
+    /// It must give the same lines both times.
+    #[must_use]
+    pub fn framed<'h, I>(method: &str, path: &str, query: &str, lines: impl Fn() -> I) -> Self
+    where
+        I: Iterator<Item = (&'h str, &'h [u8])>,
+    {
+        let (count, bytes) = lines().fold((0, 0), |(count, bytes), (name, value)| {
+            (count + 1, bytes + name.len() + value.len())
+        });
+        let mut head = Head::with_capacity(method.len() + path.len() + query.len() + bytes, count);
+        head.push(method.as_bytes());
+        head.push(path.as_bytes());
+        head.push(query.as_bytes());
+        for (name, value) in lines() {
+            head.push(name.as_bytes());
+            head.push(value);
+        }
+        Self::with_head(Rc::new(head))
+    }
+    /// A request that reads `head`, which another carrier of the same request
+    /// may share. A dispatching unit's rerun is built this way.
+    #[must_use]
+    pub fn with_head(head: Rc<Head>) -> Self {
         Self {
-            method: method.into(),
-            path: path.into(),
-            query: query.into(),
+            head,
             // What a carrier nobody mounted says, and the same thing a mount at
             // `/` with no glob says: nothing was stripped and nothing was
             // captured. [`Self::set_mount`] is the only way to anything else.
             mount_prefix: "".into(),
             mount_captures: Box::new([]),
-            headers: Vec::new(),
             body: None,
             // The fail-closed pair, and both are what a carrier built by
             // something that never asked the question says: no peer to name,
@@ -794,17 +894,23 @@ impl Inbound {
     /// The verb, verbatim.
     #[must_use]
     pub fn method(&self) -> &str {
-        &self.method
+        self.head.method()
     }
     /// The mount-stripped request path.
     #[must_use]
     pub fn path(&self) -> &str {
-        &self.path
+        self.head.path()
     }
     /// The raw query string, without the `?`.
     #[must_use]
     pub fn query(&self) -> &str {
-        &self.query
+        self.head.query()
+    }
+    /// The shared head this carrier reads. A second carrier built from it with
+    /// [`Self::with_head`] reads the same lines from the same buffer.
+    #[must_use]
+    pub fn head(&self) -> &Rc<Head> {
+        &self.head
     }
     /// Adds one header field line, which joins whatever is already here rather
     /// than replacing a line of the same name — the inbound half of
@@ -815,8 +921,13 @@ impl Inbound {
     /// RFC 9110 § 5.3 makes two lines of one name equivalent to one comma-joined
     /// value *in the order received*, so a writer that sorted them would have
     /// changed what the peer said.
+    ///
+    /// It appends to the head's buffer, which may grow. A head another carrier
+    /// shares is copied first, so that carrier does not see the new line.
     pub fn push_header(&mut self, name: &str, value: &[u8]) {
-        self.headers.push((name.into(), value.into()));
+        let head = Rc::make_mut(&mut self.head);
+        head.push(name.as_bytes());
+        head.push(value);
     }
     /// Every header field line, in arrival order, as `(name, value)`.
     ///
@@ -824,7 +935,7 @@ impl Inbound {
     /// together does the folding, and one that wants them apart cannot get them
     /// back from a fold.
     pub fn headers(&self) -> impl ExactSizeIterator<Item = (&str, &[u8])> {
-        self.headers.iter().map(|(name, value)| (&**name, &**value))
+        self.head.lines()
     }
     /// The cookie `name`, or `None` where the request carries none a reader is
     /// allowed to see.
@@ -2214,6 +2325,55 @@ mod tests {
         assert!(empty.has_body());
         let body = empty.body().expect("an empty body is still a body");
         assert!(body.next_chunk().expect("no failure").is_none());
+    }
+
+    /// `rule:http-server/a-request-head-has-at-most-100-header-lines`'s cost:
+    /// a framed head is one buffer, one offset table and one handle, so the
+    /// number of lines does not change the number of allocations.
+    #[test]
+    fn a_framed_head_allocates_the_same_for_three_header_lines_and_for_a_hundred() {
+        fn framed(count: usize) -> usize {
+            let lines: Vec<(String, Vec<u8>)> = (0..count)
+                .map(|n| (format!("x-line-{n}"), format!("value {n}").into_bytes()))
+                .collect();
+            let before = crate::budget::allocations();
+            let inbound = Inbound::framed("POST", "/orders", "page=2", || {
+                lines
+                    .iter()
+                    .map(|(name, value)| (name.as_str(), value.as_slice()))
+            });
+            let made = crate::budget::allocations() - before;
+            assert_eq!(
+                (inbound.method(), inbound.path(), inbound.query()),
+                ("POST", "/orders", "page=2"),
+            );
+            let read: Vec<(&str, &[u8])> = inbound.headers().collect();
+            let wrote: Vec<(&str, &[u8])> = lines
+                .iter()
+                .map(|(name, value)| (name.as_str(), value.as_slice()))
+                .collect();
+            assert_eq!(read, wrote);
+            made
+        }
+        let three = framed(3);
+        let hundred = framed(100);
+        assert_eq!(three, hundred, "the line count changed the allocations");
+        assert!(three <= 3, "a framed head made {three} allocations");
+    }
+
+    /// A line pushed onto a shared head is the pushing carrier's alone.
+    #[test]
+    fn a_line_pushed_onto_a_shared_head_is_not_seen_by_the_other_carrier() {
+        let mut first = Inbound::framed("GET", "/", "", || {
+            [("host", b"example.com".as_slice())].into_iter()
+        });
+        let second = Inbound::with_head(Rc::clone(first.head()));
+        first.push_header("x-late", b"1");
+        assert_eq!(first.headers().len(), 2);
+        assert_eq!(
+            second.headers().collect::<Vec<_>>(),
+            [("host", b"example.com".as_slice())]
+        );
     }
 
     /// The two halves of the carrier reach a program on different terms —
