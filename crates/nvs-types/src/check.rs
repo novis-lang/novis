@@ -395,6 +395,9 @@ fn check_files(
         exprs,
         diags,
     );
+    // A class under an `autoload links` root is undeclared to this pass too,
+    // so `new` and a type annotation report it as `E0303`. Name hir's reason.
+    module.link_targets.mark_links_only(diags);
     enums
 }
 

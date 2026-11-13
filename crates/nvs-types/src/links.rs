@@ -936,3 +936,233 @@ fn supplied<'a>(arg: &'a LinkArg, param: &crate::routes::RouteParam) -> Option<(
     let value = arg.value.as_deref()?;
     Some((value, value.to_owned()))
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+
+    use nvs_diagnostics::{Code, Diagnostics, SourceMap, code};
+    use nvs_hir::{AutoloadMap, CoreRoster};
+
+    use crate::expr_table::{ExprInfo, ExprTypeTable};
+    use crate::ty::TypeInterner;
+
+    /// The module a link reaches: one class under a links root, with a routed
+    /// `show` that takes a capture and a `#[Query]` parameter, and an unrouted
+    /// `plain`. Its bodies are empty, because nothing in it is compiled.
+    const TARGET: &str = "<?nvs\n\
+        namespace Framework\\Shop\\View;\n\
+        \n\
+        use Core\\Http\\Method;\n\
+        use Core\\Query;\n\
+        use Core\\Route;\n\
+        \n\
+        class Index\n\
+        {\n\
+            #[Route(path: '/item/{id}', method: Method::Get)]\n\
+            public static function show(int $id, #[Query] ?string $q = null): void {}\n\
+        \n\
+            public static function plain(): void {}\n\
+        }\n";
+
+    /// What one fixture's compile left behind.
+    struct Checked {
+        exprs: ExprTypeTable,
+        diags: Diagnostics,
+        map: SourceMap,
+        autoload: AutoloadMap,
+        /// The canonical path of every file the walk compiled.
+        loaded: Vec<PathBuf>,
+    }
+
+    impl Checked {
+        fn codes(&self) -> Vec<Code> {
+            self.diags.iter().filter_map(|d| d.code).collect()
+        }
+
+        fn has(&self, want: Code) -> bool {
+            self.codes().contains(&want)
+        }
+
+        /// Every link the check resolved, as its handler.
+        fn handlers(&self) -> Vec<Option<String>> {
+            self.exprs
+                .since(0)
+                .iter()
+                .filter_map(|info| match info {
+                    ExprInfo::RouteLink { handler, .. } => Some(handler.clone()),
+                    _ => None,
+                })
+                .collect()
+        }
+    }
+
+    /// Whether `path` is the target file, `Shop/src/View/Index.nvs`.
+    fn is_target(path: &Path) -> bool {
+        path.ends_with(Path::new("View").join("Index.nvs"))
+    }
+
+    /// Writes an entry with `body` after its `autoload links` line, and the
+    /// target module beside it, then resolves and checks the program from disk.
+    fn check(body: &str) -> Checked {
+        let dir = nvs_repo::scratch("links-target");
+        let view = dir.join("Shop").join("src").join("View");
+        std::fs::create_dir_all(&view).expect("create the target's folder");
+        std::fs::write(view.join("Index.nvs"), TARGET).expect("write the target");
+        let entry = dir.join("main.nvs");
+        let src = format!(
+            "<?nvs\nautoload links 'Framework\\Shop' from './Shop/src';\n\n{body}"
+        );
+        std::fs::write(&entry, src).expect("write the entry");
+
+        let mut map = SourceMap::new();
+        let mut diags = Diagnostics::new();
+        let entry_id = map.load(&entry).expect("load the entry");
+        let stmts = nvs_syntax::parse_file(map.file(entry_id), &mut diags);
+        assert!(!diags.has_errors(), "the entry failed to parse: {diags:?}");
+        let (module, files, autoload) = nvs_hir::resolve_program(
+            entry_id,
+            stmts,
+            &mut map,
+            CoreRoster::Trusted,
+            &mut diags,
+        );
+        let program: Vec<_> = files
+            .iter()
+            .map(|file| crate::ProgramFile {
+                src: map.file(file.id),
+                stmts: &file.stmts,
+            })
+            .collect();
+        let mut interner = TypeInterner::new();
+        let mut exprs = ExprTypeTable::new();
+        crate::check_program(&program, &module, &mut interner, &mut exprs, &mut diags);
+        let loaded = files
+            .iter()
+            .filter_map(|file| map.file(file.id).path().map(Path::to_path_buf))
+            .collect();
+        Checked {
+            exprs,
+            diags,
+            map,
+            autoload,
+            loaded,
+        }
+    }
+
+    /// `rule:routing/link-target-and-params-are-checked`, over a route of a
+    /// links root: a good link resolves with the target's handler, and each
+    /// of the local link's mistakes is the local link's error.
+    #[test]
+    fn a_link_to_a_links_root_route_is_checked_like_a_local_one() {
+        let good = check(
+            "Core\\Router::url(Framework\\Shop\\View\\Index::show, ['id' => 3, 'q' => 'a']);\n",
+        );
+        assert!(!good.diags.has_errors(), "a good link failed: {:?}", good.diags);
+        assert_eq!(
+            good.handlers(),
+            [Some(r"Framework\Shop\View\Index::show".to_owned())]
+        );
+
+        let cases = [
+            ("['q' => 'a']", "show", code::E_ROUTE_LINK_MISSING_PARAM),
+            ("['id' => 3, 'nope' => 1]", "show", code::E_ROUTE_LINK_UNKNOWN_PARAM),
+            ("['id' => 'x']", "show", code::E_ROUTE_LINK_VALUE_NOT_IN_SET),
+            ("[]", "plain", code::E_LINK_METHOD_HAS_NO_ROUTE),
+            ("[]", "missing", code::E_UNDEFINED_MEMBER),
+        ];
+        for (params, method, want) in cases {
+            let bad = check(&format!(
+                "Core\\Router::url(Framework\\Shop\\View\\Index::{method}, {params});\n"
+            ));
+            assert!(
+                bad.has(want),
+                "`{method}` with {params} gave {:?}, want {want:?}",
+                bad.codes()
+            );
+        }
+    }
+
+    /// A links root is read for one link and never compiled: none of its
+    /// routes is in the program's table, and its file is not a compiled file.
+    #[test]
+    fn a_links_root_route_never_joins_the_table() {
+        let checked =
+            check("Core\\Router::url(Framework\\Shop\\View\\Index::show, ['id' => 3]);\n");
+        assert!(!checked.diags.has_errors(), "{:?}", checked.diags);
+        let rows = checked.exprs.routes().rows();
+        assert!(
+            rows.iter().all(|row| !row.handler.contains("Index")),
+            "a links root's route joined the table: {:?}",
+            rows.iter().map(|row| &row.handler).collect::<Vec<_>>()
+        );
+        assert!(
+            !checked.loaded.iter().any(|path| is_target(path)),
+            "the target file was compiled: {:?}",
+            checked.loaded
+        );
+    }
+
+    /// Every use of a links-root class but a link's route is `E0897`, never
+    /// the plain unknown-class `E0303`.
+    #[test]
+    fn a_links_root_class_used_for_anything_else_does_not_compile() {
+        let uses = [
+            "new Framework\\Shop\\View\\Index();\n",
+            "class Holder\n{\n    public static function take(Framework\\Shop\\View\\Index $page): void {}\n}\n",
+        ];
+        for body in uses {
+            let checked = check(body);
+            assert!(
+                checked.has(code::E_LINKS_ONLY_CLASS),
+                "{body} gave {:?}",
+                checked.diags
+            );
+            assert!(
+                !checked.has(code::E_UNDEFINED_CLASS),
+                "{body} still gave E0303: {:?}",
+                checked.diags
+            );
+        }
+    }
+
+    /// `rule:core-classes/router-signed-url`: a program cannot sign a link
+    /// that another program checks.
+    #[test]
+    fn a_signed_link_to_a_links_root_route_does_not_compile() {
+        let checked = check(
+            "Core\\Router::urlSigned(Framework\\Shop\\View\\Index::show, ['id' => 3], \
+             ['keys' => [], 'until' => null]);\n",
+        );
+        assert!(
+            checked.has(code::E_SIGNED_LINK_TO_ANOTHER_MODULE),
+            "{:?}",
+            checked.codes()
+        );
+    }
+
+    /// The target file is in the source map and in the probe trace, so a
+    /// changed or removed route recompiles the program that links to it.
+    #[test]
+    fn a_links_target_file_joins_the_revalidation_set() {
+        let checked =
+            check("Core\\Router::url(Framework\\Shop\\View\\Index::show, ['id' => 3]);\n");
+        assert!(
+            checked
+                .map
+                .files()
+                .any(|file| file.path().is_some_and(is_target)),
+            "the target is not in the source map"
+        );
+        assert!(
+            checked
+                .autoload
+                .probe_trace()
+                .probed()
+                .iter()
+                .any(|path| is_target(path)),
+            "the target is not in the probe trace: {:?}",
+            checked.autoload.probe_trace().probed()
+        );
+    }
+}
