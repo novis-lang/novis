@@ -682,6 +682,13 @@ pub(crate) struct Env<'a> {
     /// argument list by [`crate::expr::args::check_args_typed`], which widens the
     /// outer list's note with an inner one, so a nested call never narrows it.
     pub secret_in_arguments: bool,
+    /// The element type an array literal written as an argument widened, and
+    /// the type it was declared as, while that element is checked. The literal
+    /// checks its elements against the `secret`-admitting form, so a `secret`
+    /// value is judged once at the argument. A value that does not fit and is
+    /// not `secret` is a mistake against the declared type, and
+    /// `crate::expr::assign::mismatch` names that type in its message.
+    pub widened_element: Option<(TypeId, TypeId)>,
     /// The span of every call whose arguments hold a `secret` value, by
     /// [`Self::secret_in_arguments`] or by an argument's own type. Filled by
     /// [`crate::expr::args::check_args_typed`] and read by

@@ -1204,11 +1204,19 @@ pub(crate) fn check_array_literal(
     // nested arrays included, and the literal keeps the qualifier on its own
     // type below. So the argument is judged once, as a whole, and not again at
     // the element.
+    let declared_elem = elem_expected;
     let elem_expected = match elem_expected {
         Some(elem) if dispatched || env.in_call_argument => {
             Some(super::quals::mixed_admitting_secret(elem, env.interner))
         }
         other => other,
+    };
+    // An argument's element that does not fit is reported against the type it
+    // was declared as, where the value is not `secret` ([`Env::widened_element`]).
+    // A dispatched literal keeps the widened type, as its own comment says.
+    let widened = match (declared_elem, elem_expected) {
+        (Some(declared), Some(elem)) if !dispatched && declared != elem => Some((elem, declared)),
+        _ => None,
     };
     // Whether an element carries `secret`, so a literal written as an argument
     // keeps it below.
@@ -1239,7 +1247,9 @@ pub(crate) fn check_array_literal(
         let before = env.diags.len();
         let nested = dispatched && matches!(item.value.kind, ExprKind::ArrayLiteral(_));
         env.dispatched_literal = nested;
+        let outer_widened = std::mem::replace(&mut env.widened_element, widened);
         let elem_ty = check_expr(&item.value, elem_expected, live, scope, ctx, env);
+        env.widened_element = outer_widened;
         env.dispatched_literal = false;
         holds_secret |= super::quals::contains_secret(elem_ty, env.interner);
         if dispatched && !nested && env.diags.len() == before {

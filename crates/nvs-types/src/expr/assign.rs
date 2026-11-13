@@ -715,6 +715,16 @@ pub(crate) fn mismatch(
     actual: TypeId,
     env: &mut Env<'_>,
 ) -> Option<Diagnostic> {
+    // An array literal's element widened for a `secret` value names the type
+    // it was declared as when the value is not `secret` ([`Env::widened_element`]).
+    let expected = match env.widened_element {
+        Some((widened, declared))
+            if widened == expected && !super::quals::contains_secret(actual, env.interner) =>
+        {
+            declared
+        }
+        _ => expected,
+    };
     let expected_desc = env.interner.describe(expected);
     let actual_desc = env.interner.describe(actual);
     let diag = type_mismatch(
