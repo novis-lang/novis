@@ -237,6 +237,12 @@ tables with two mounts of one entry keep starting. `canonical` joins the closed 
 `rule:http-server/a-mount-carries-no-policy`, because it says which door is the main one, which is
 routing and not policy. It is `System` and reloadable, like `origin`.
 
+**Two `canonical = true` blocks that mount one entry are `E0621`, whether or not a link needs
+them.** `canonical` means "the one main door", so two of them say nothing a link could use. `nvs
+config check` refuses two literal blocks naming one `entry`, and the expansion refuses a pair a
+`scan` reaches; a later expansion keeps the first and leaves the second out. This is safer and
+simpler than finding the contradiction only when a link happens to meet it.
+
 **A target row that did not compile does not stop the server.** A link to it is logged at boot and
 throws when it runs, naming the handler and the mount, until a pass compiles the target. This follows
 `rule:http-server/a-mount-table-expands-at-boot`'s Declined boot that fails when any mount does not
@@ -327,11 +333,11 @@ Gate: `docs/goals/request-path-per-core.md` no longer exists.
 **Does:** add `canonical`, resolve each links-root handler per row at boot and reload, and give the
 row's table to every request it serves.
 
-- [ ] `Mount` gets `canonical: Option<bool>`, and `Mounted` gets its block index and `canonical`
+- [x] `Mount` gets `canonical: Option<bool>`, and `Mounted` gets its block index and `canonical`
   (`crates/nvs-config/src/tree.rs:1417`, `crates/nvs-config/src/mount.rs:56`,
   `crates/nvs-config/src/mount.rs:532`).
-- [ ] The pure resolution function beside `expand`, with the three steps and the tie rule
-  (`crates/nvs-config/src/mount.rs:295`).
+- [x] The pure resolution function beside `expand`, with the three steps and the tie rule
+  (`crates/nvs-config/src/mount.rs:440`).
 - [ ] The boot compile builds each linking row's table after every row has compiled, and an unbroken
   tie a link needs fails the boot like an unreached origin (`crates/nvs-cli/src/serve.rs:563`,
   `crates/nvs-cli/src/serve.rs:2484`, `crates/nvs-cli/src/serve.rs:2512`).
@@ -345,11 +351,11 @@ row's table to every request it serves.
 - [ ] The seven tests of check `the-server-picks-the-mount`, beside the origin tests
   (`crates/nvs-cli/src/serve.rs:5736`). The two of check `canonical-is-checked` in
   `crates/nvs-config/tests/mount.rs:1`.
-- [ ] New fragments `docs/rules/routing/a-link-reaches-another-module.md` and
+- [x] New fragments `docs/rules/routing/a-link-reaches-another-module.md` and
   `docs/rules/http-server/a-canonical-mount-breaks-a-tie.md`, from the standing decisions, with their
   records, their slugs in `data/rules/routing.json` and `data/rules/http-server.json`, and
   `bun nv rules --render`.
-- [ ] `rule:http-server/a-mount-carries-no-policy` adds `canonical` to the key set, and
+- [x] `rule:http-server/a-mount-carries-no-policy` adds `canonical` to the key set, and
   `rule:http-server/a-mount-table-expands-at-boot` names `nvs config check --mounts` in place of
   `nvs info --config` (`docs/rules/http-server/a-mount-carries-no-policy.md:1`,
   `docs/rules/http-server/a-mount-table-expands-at-boot.md:26`).
@@ -444,35 +450,41 @@ users. The session then runs `bun nv render --website` once.
 
 ### State
 
-Stages 1 and 2 are done. A link to a links-root route is checked like a local one and lowers to
-`nvs_core_router_link_module[_absolute]` (`crates/nvs-stdlib/src/router.rs:1621`), which throws "no
-mount serves" until stage 3 gives it a table. The check `a-links-target-is-checked` is green: its five
-tests are in `crates/nvs-types/src/links.rs`'s `mod tests`, on a disk fixture.
+Stages 1 and 2 are done. Stage 3's config half and its rules landed: `canonical` is a mount key,
+each `Mounted` carries `block` and `canonical`, and two canonical blocks for one entry are `E0621`
+(a new standing decision). `nvs_config::mount::link` (`crates/nvs-config/src/mount.rs:440`) is the
+pure resolution: rows, `serves(row, handler)` and the linking row in, a `Link` (`prefix`,
+`elsewhere`, `origin`, `row`) or an `Unlinked` (`Unserved`, `Tie`) out, and `Unlinked::describe`
+gives the sentence. The check `canonical-is-checked` is green, and
+`a_link_takes_the_first_step_with_a_candidate` (`crates/nvs-config/tests/mount.rs:646`) pins the three
+steps. The two rule fragments exist, and `nvs info --config` is `nvs config check --mounts` in the
+rules, which the serve half of this stage makes true.
 
-The test found that `new` on a links-root class got a plain `E0303` from `nvs_types`, after hir's
-rewrite. `check_files` (`crates/nvs-types/src/check.rs:396`) now runs
-`module.link_targets.mark_links_only` again at its end, so every pass's `E0303` becomes `E0897`.
+The lowered site `nvs_core_router_link_module[_absolute]` (`crates/nvs-stdlib/src/router.rs:1231`)
+still throws "no mount serves", since nothing hands it a table yet.
 
-The sweep's `env-secret-proofs` is no check any more (`looper check` finds none). The nightly's jobs
-were cancelled by a later push, as before.
+The sweep's `env-secret-proofs` has no log and no check any more. The nightly's jobs were cancelled by
+a later push, as before.
 
 ### Next
 
-Stage 3. Its gate is met: `docs/goals/request-path-per-core.md` no longer exists.
+Stage 3's serve half, one session:
 
-- `crates/nvs-config/src/tree.rs:1423`: `Mount` gets `canonical: Option<bool>`, and `Mounted`
-  (`crates/nvs-config/src/mount.rs:56`) its block index and `canonical`.
-- `crates/nvs-config/src/mount.rs:295`: the pure resolution function beside `expand`: rows, each row's
-  handler set and the served row in, a prefix and an optional origin out. The three steps and the tie
-  rule are in the standing decisions.
-- `crates/nvs-cli/src/serve.rs:2474`: build each linking row's table after every row compiled, beside
-  `unreached_origin` (`:2499`), and fail the boot on an unbroken tie a link needs. Hand the table to
-  the isolate beside `at_mount_origin` (`:2615`), and have the router helper read it.
-- `crates/nvs-cli/src/serve/mounts.rs:401`: the reload does the same and leaves out a linking row
-  whose tie is unbroken.
-- Then `nvs config check`, the seven tests and the two of `canonical-is-checked`, and the rule
-  fragments, as stage 3's items list them. That is likely two sessions: the config half and the
-  resolution function first, then the serve wiring.
+- `crates/nvs-cli/src/serve.rs:2501`: beside `unreached_origin`, after every row compiled, build each
+  linking row's table by calling `nvs_config::mount::link` for each links-root handler its unit
+  lowers (the handler names the compiled unit records for the module link sites). `serves` reads each
+  compiled row's own route table; a row that did not compile serves nothing. An `Unlinked::Tie` fails
+  the boot like an unreached origin. An `Unserved` is logged and the link throws when it runs.
+- `crates/nvs-cli/src/serve.rs:2617`: hand the table (an `Arc<HashMap<handler, Link>>`) to the
+  isolate beside `at_mount_origin`, through a new setter in `crates/nvs-runtime/src/ctx/wiring.rs:439`,
+  and have the router helper read it (`crates/nvs-stdlib/src/router.rs:1556`).
+- `crates/nvs-cli/src/serve/mounts.rs:401`: the reload builds the tables again and leaves out a
+  linking row whose tie is unbroken, logging `Unlinked::describe`.
+- `crates/nvs-cli/src/config.rs:1414`: `nvs config check` compiles the rows through the compile cache
+  and reports a tie and an unserved link, and `--mounts` prints the table (`:60`).
+- `crates/nvs-cli/src/serve.rs:5736`: the seven tests of `the-server-picks-the-mount`. They are in
+  `nvs-cli`, so they run under `cargo test --bin nvs`, and the check's `--lib` command needs that fix
+  (see the playbook's first Tooling trap).
 
 No existing test is expected red. `the_rendered_map_names_what_was_skipped_and_what_was_shadowed` (with
 its `links (0)` line) has still not run.
