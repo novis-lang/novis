@@ -219,6 +219,11 @@ services:
   # ---------------------------------------------------------------------------------------------------
   postgres:
     image: postgres:18.6
+    # An init process is PID 1, not the postmaster. Under load, the healthcheck's timeout kills its
+    # `sh -c` and leaves `pg_isready` orphaned. Reparented to a postmaster at PID 1, its exit code 2
+    # reads as a crashed backend: every connection is cut and the server spends minutes in recovery,
+    # refusing all clients with SQLSTATE 57P03.
+    init: true
     depends_on:
       certs:
         condition: service_completed_successfully
