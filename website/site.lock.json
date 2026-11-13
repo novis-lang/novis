@@ -155,7 +155,7 @@
   "syntax/errors/error-types.mdx": {
     "ArithmeticError": "d6121f623d34b376",
     "Core\\Cli\\NotInteractive": "202969e53dc98681",
-    "Core\\Db\\DbError": "8aae05404c188be2",
+    "Core\\Db\\DbError": "9f149c3b10d38d51",
     "Core\\Db\\RolledBack": "a4931fd605de92c0",
     "Core\\DeprecatedError": "3a02da527e3b70de",
     "Core\\Ldap\\LdapError": "d2f60a042ae278ee",

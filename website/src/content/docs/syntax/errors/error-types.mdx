@@ -22,7 +22,7 @@ Each built-in failure throws one of them.
 | `RecursionError` | `RuntimeError` | a call stack that is too deep |
 | `ArithmeticError` | `Throwable` | division by zero, a number too large for `int`, a `float` with a fraction converted to `int` |
 | `Core\Cli\NotInteractive` | `RuntimeError` | a prompt with no terminal to read from and no default |
-| `Core\Db\DbError` | `RuntimeError` | a database that does not accept a query, a connection or a commit |
+| `Core\Db\DbError` | `RuntimeError` | a database that does not accept a query or a commit. A failed connection is an `IOError` |
 | `Core\Db\RolledBack` | `RuntimeError` | a transaction that your own code rolled back |
 | `Core\Ldap\LdapError` | `RuntimeError` | a directory server that does not accept an operation, or that cannot be reached |
 | `Core\DeprecatedError` | `LogicError` | a use of deprecated code, when `[errors] deprecated` is `"throw"` |
@@ -33,7 +33,7 @@ class it expects.
 
 <FeatureSection examples="lang/errors/properties-not-accessors" heading="Properties" id="properties" />
 
-`Core\Db\DbError` also has `kind`, and `Core\Db\RolledBack` has `reason`. `Core\Ldap\LdapError` has
+`Core\Db\DbError` also has `kind`, `sql` and `serverMessage`, and `Core\Db\RolledBack` has `reason`. `Core\Ldap\LdapError` has
 `kind` and `code`.
 
 <FeatureSection examples="lang/errors/constructing-and-subclassing" heading="Your own error class" id="your-own-error-class" />

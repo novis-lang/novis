@@ -21407,7 +21407,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 | `ArithmeticError` | `Throwable` | — |
 | `Core\Test\Failure` | `Throwable` | — |
 | `Core\Cli\NotInteractive` | `RuntimeError` | — |
-| `Core\Db\DbError` | `RuntimeError` | `$kind`, `$sqlState`, `$driverCode`, `$constraint`, `$sql` |
+| `Core\Db\DbError` | `RuntimeError` | `$kind`, `$sqlState`, `$driverCode`, `$constraint`, `$sql`, `$serverMessage` |
 | `Core\Db\RolledBack` | `RuntimeError` | `$reason` |
 | `Core\Ldap\LdapError` | `RuntimeError` | `$kind`, `$code` |
 | `Core\DeprecatedError` | `LogicError` | — |

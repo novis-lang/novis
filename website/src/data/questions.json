@@ -16950,11 +16950,12 @@
   },
   "/reference/types/db-dberror/": {
     "feature": "Core\\Db\\DbError",
-    "hash": "d21be5147caec20f",
+    "hash": "b5038f0bf7c3cbe2",
     "questions": [
       "Catch an error when a database query fails",
       "Log the SQL statement of a failed query",
       "Get the SQLSTATE and driver code of an error",
+      "Read the database server's own error message",
       "One database error type for MySQL, PostgreSQL and SQLite"
     ]
   },
@@ -18239,7 +18240,7 @@
   },
   "/syntax/errors/error-types/": {
     "feature": "syntax/errors/error-types.mdx",
-    "hash": "1e8ad4ef731d341c",
+    "hash": "d4576dfcaee8c358",
     "questions": [
       "Which error classes exist and when is each one thrown?",
       "How do I write my own error class?",
