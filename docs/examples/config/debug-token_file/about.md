@@ -1,7 +1,6 @@
 The file with the token that opens the debug viewer. There is no default.
 
-`nvs debug` needs a token when `[debug] listen` is an address that is not loopback. Without this
-setting, `nvs debug` creates a random token in `debug/` in the data folder. It prints a link that
+`nvs debug` always needs a token, on every address. Without this setting, `nvs debug` creates a random token in `debug/` in the data folder. It prints a link that
 contains the token. Open that link once, and the browser keeps the token in a cookie.
 
 Set this when you want to choose the token yourself. The file contains the token on one line. The

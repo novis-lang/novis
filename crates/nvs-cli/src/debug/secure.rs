@@ -1,5 +1,8 @@
-//! What `nvs debug` serves the viewer with off loopback: a TLS configuration and a token
-//! (`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`).
+//! What `nvs debug` serves the viewer with: a token on every bind, and a TLS configuration off
+//! loopback (`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`).
+//!
+//! The token is needed on loopback too, because every local account and every page that reaches a
+//! loopback port can otherwise read the spool's request data through the viewer's API.
 //!
 //! `[debug] tls_cert_file`, `tls_key_file` and `token_file` name files somebody brought. Without
 //! them, or when a named file does not exist, the service uses its own, generated once into the
@@ -8,10 +11,11 @@
 //! certificate. The certificate is self-signed with `rcgen` for `localhost` and the bound address,
 //! and the token is 32 bytes from the thread's CSPRNG, written as hex.
 //!
-//! **What it spends:** one certificate generation the first time the service runs off loopback, and
-//! the configuration and token for the service's life.
+//! **What it spends:** one token file the first time the service runs, one certificate generation
+//! the first time it runs off loopback, and the configuration and token for the service's life.
+//! Each viewer request costs one comparison of the token, in constant time.
 
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -21,29 +25,36 @@ use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 
 use super::listen::Listen;
 
-/// The TLS configuration and the token one service serves with.
+/// The token one service serves with, the cookie that carries it, and off loopback the TLS
+/// configuration.
 pub(crate) struct Secure {
-    tls: Arc<rustls::ServerConfig>,
+    tls: Option<Arc<rustls::ServerConfig>>,
     token: String,
+    cookie: String,
 }
 
 impl Secure {
     /// The overrides `listen` names where their files exist, and the generated files otherwise.
-    /// The error is the message to print.
+    /// The TLS files are read only when `addr` is off loopback. The error is the message to print.
     pub(crate) fn load(
         listen: &Listen,
         folder: &nvs_config::data::Folder,
-        ip: IpAddr,
+        addr: SocketAddr,
     ) -> Result<Self, String> {
         let [own_cert, own_key, own_token] = folder.viewer_secrets();
-        let (cert, key) = match (given(listen.cert.as_deref()), given(listen.key.as_deref())) {
-            (Some(cert), Some(key)) => (cert, key),
-            _ => {
-                if !own_cert.exists() || !own_key.exists() {
-                    generate(&own_cert, &own_key, ip)?;
+        let tls = if addr.ip().is_loopback() {
+            None
+        } else {
+            let (cert, key) = match (given(listen.cert.as_deref()), given(listen.key.as_deref())) {
+                (Some(cert), Some(key)) => (cert, key),
+                _ => {
+                    if !own_cert.exists() || !own_key.exists() {
+                        generate(&own_cert, &own_key, addr.ip())?;
+                    }
+                    (own_cert, own_key)
                 }
-                (own_cert, own_key)
-            }
+            };
+            Some(Arc::new(config(&cert, &key)?))
         };
         let token = match given(listen.token.as_deref()) {
             Some(token) => token,
@@ -72,14 +83,30 @@ impl Secure {
                     .to_owned(),
             );
         }
-        Ok(Self {
-            tls: Arc::new(config(&cert, &key)?),
-            token,
-        })
+        // `__Host-` makes the browser keep the cookie only when it is `Secure`, so it needs TLS.
+        // A browser sends a loopback cookie to every port of the address, so the port is in its
+        // name, and two services on one address do not replace each other's cookie.
+        let cookie = match tls {
+            Some(_) => "__Host-nvs-debug".to_owned(),
+            None => format!("nvs-debug-{}", addr.port()),
+        };
+        Ok(Self { tls, token, cookie })
     }
 
-    pub(crate) fn tls(&self) -> Arc<rustls::ServerConfig> {
-        Arc::clone(&self.tls)
+    /// The TLS configuration, off loopback.
+    pub(crate) fn tls(&self) -> Option<Arc<rustls::ServerConfig>> {
+        self.tls.clone()
+    }
+
+    /// The name of the cookie that carries the token.
+    pub(crate) fn cookie(&self) -> &str {
+        &self.cookie
+    }
+
+    /// The `Set-Cookie` value that stores `token` in the browser. `Secure` goes with TLS alone.
+    pub(crate) fn set_cookie(&self, token: &str) -> String {
+        let secure = if self.tls.is_some() { " Secure;" } else { "" };
+        format!("{}={token}; Path=/;{secure} HttpOnly; SameSite=Strict", self.cookie)
     }
 
     pub(crate) fn token(&self) -> &str {

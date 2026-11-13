@@ -410,14 +410,15 @@
 # The largest the index may grow. Past it, `nvs debug` deletes the oldest requests first.
 #index_max = "1G"                     # default
 
-# The address `nvs debug` serves the debug viewer on: an IP address and a port. Open it in a
-# browser. `nvs debug --listen` changes it for one run. If the port is in use, `nvs debug` stops
+# The address `nvs debug` serves the debug viewer on: an IP address and a port. `nvs debug` prints
+# a link with this address. `nvs debug --listen` changes it for one run. If the port is in use, `nvs debug` stops
 # with an error.
 #listen = "127.0.0.1:8137"            # default; restart required
 
-# With `listen` on an address that is not loopback, `nvs debug` serves the viewer over HTTPS and
-# needs a token. It creates a certificate, a key and a token in `debug/` in the data folder. Then it
-# prints a link that contains the token. These three keys name your own files instead. If a file
+# The viewer always needs a token. `nvs debug` creates one in `debug/` in the data folder, and the
+# link it prints contains the token. Open that link in your browser. With `listen` on an address
+# that is not loopback, `nvs debug` uses HTTPS. It also creates a certificate and a key there.
+# These three keys name your own files instead. If a file
 # does not exist, `nvs debug` prints a warning and uses the file it created.
 #tls_cert_file = "/etc/novis/debug.crt" # example; restart required
 #tls_key_file = "/etc/novis/debug.key"  # example; restart required

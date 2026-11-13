@@ -119,16 +119,19 @@ impl Served {
         )
     }
 
-    /// The address of the viewer the server's service printed.
-    fn viewer(&self) -> SocketAddr {
+    /// The address of the viewer the server's service printed, and the `Cookie` header line that
+    /// carries the link's token.
+    fn viewer(&self) -> (SocketAddr, String) {
         let link = self
             .viewer
             .recv_timeout(PATIENCE)
             .expect("the service prints its viewer's link");
-        link.trim_start_matches("http://")
-            .trim_end_matches('/')
-            .parse()
-            .expect("the link names an address")
+        let (addr, token) = link
+            .trim_start_matches("http://")
+            .split_once("/?token=")
+            .expect("the link carries the token");
+        let addr: SocketAddr = addr.parse().expect("the link names an address");
+        (addr, format!("Cookie: nvs-debug-{}={token}\r\n", addr.port()))
     }
 
     fn debug(&self) -> PathBuf {
@@ -316,7 +319,7 @@ fn a_replay_reaches_the_server_and_its_typed_header_is_written_nowhere() {
         "replay",
         &format!("{DEVELOPMENT}\n[debug]\nstore = true\nlisten = \"127.0.0.1:0\"\n"),
     );
-    let viewer = served.viewer();
+    let (viewer, cookie) = served.viewer();
     let answer = exchange(
         served.addr,
         "GET /orders?page=2 HTTP/1.1\r\nHost: localhost\r\n\
@@ -336,7 +339,9 @@ fn a_replay_reaches_the_server_and_its_typed_header_is_written_nowhere() {
 
     let target = exchange(
         viewer,
-        &format!("GET /api/replay HTTP/1.1\r\nHost: {viewer}\r\nConnection: close\r\n\r\n"),
+        &format!(
+            "GET /api/replay HTTP/1.1\r\nHost: {viewer}\r\n{cookie}Connection: close\r\n\r\n"
+        ),
     );
     assert!(
         target.contains("{\"target\":\"127.0.0.1:"),
@@ -351,7 +356,7 @@ fn a_replay_reaches_the_server_and_its_typed_header_is_written_nowhere() {
         viewer,
         &format!(
             "POST /api/replay HTTP/1.1\r\nHost: {viewer}\r\nOrigin: http://{viewer}\r\n\
-             Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n\
+             {cookie}Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n\
              {body}",
             body.len()
         ),

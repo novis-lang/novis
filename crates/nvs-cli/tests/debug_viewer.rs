@@ -7,7 +7,8 @@
 //!
 //! The attack: a page that rebinds its own name to the service sends a `Host` the service does not
 //! answer to; a page on another origin sends a changing request; a service bound off loopback is
-//! asked in plain HTTP and without its token.
+//! asked in plain HTTP and without its token; and on loopback, another local account or page asks
+//! any path without the token the printed link carries.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -33,6 +34,8 @@ struct Service {
     link: String,
     /// The address it listens on.
     addr: SocketAddr,
+    /// The token the link carries.
+    token: String,
 }
 
 impl Service {
@@ -49,12 +52,23 @@ impl Service {
             .rsplit_once(':')
             .and_then(|(_, rest)| rest.split('/').next()?.parse::<u16>().ok())
             .expect("the link names a port");
+        let token = link
+            .split_once("?token=")
+            .expect("the link carries the token")
+            .1
+            .to_owned();
         Self {
             child,
             data,
             link,
             addr: SocketAddr::from(([127, 0, 0, 1], port)),
+            token,
         }
+    }
+
+    /// The `Cookie` header line a loopback service's link sets, with its token.
+    fn cookie(&self) -> String {
+        format!("Cookie: nvs-debug-{}={}\r\n", self.addr.port(), self.token)
     }
 
     /// `request` over plain HTTP, as written, and the whole response.
@@ -181,7 +195,7 @@ fn post(host: &str, extra: &str) -> String {
 fn every_view_path_is_the_page_with_the_rules_headers() {
     let service = Service::start("127.0.0.1:0");
     assert!(
-        service.link.starts_with("http://127.0.0.1:"),
+        service.link.starts_with("http://127.0.0.1:") && service.link.contains("/?token="),
         "{}",
         service.link
     );
@@ -190,7 +204,7 @@ fn every_view_path_is_the_page_with_the_rules_headers() {
         "/",
         "/requests/4bf92f3577b34da6a3ce929d0e0e4736/00f067aa0ba902b7",
     ] {
-        let page = service.plain(&get(path, &host, ""));
+        let page = service.plain(&get(path, &host, &service.cookie()));
         assert_eq!(page.status, 200, "{path}");
         assert!(page.body.contains("<div id=\"app\"></div>"), "{path}");
         assert!(page.has("content-security-policy: default-src 'none'; script-src 'self'"));
@@ -200,7 +214,7 @@ fn every_view_path_is_the_page_with_the_rules_headers() {
     let script = service.plain(&get(
         "/viewer.js",
         &format!("localhost:{}", service.addr.port()),
-        "",
+        &service.cookie(),
     ));
     assert_eq!(script.status, 200);
     assert!(script.has("content-type: text/javascript"));
@@ -240,13 +254,14 @@ fn a_changing_request_needs_the_own_origin_and_a_json_body() {
         &format!("{own}Content-Type: application/x-www-form-urlencoded\r\n"),
     ));
     assert_eq!(form.status, 415);
-    let allowed = service.plain(&post(&host, &format!("{own}{json}")));
+    let cookie = service.cookie();
+    let allowed = service.plain(&post(&host, &format!("{own}{json}{cookie}")));
     assert_eq!(
         allowed.status, 409,
         "every check passed, and a service started by hand has no replay target"
     );
     assert!(allowed.body.contains("started by hand"), "{}", allowed.body);
-    let target = service.plain(&get("/api/replay", &host, ""));
+    let target = service.plain(&get("/api/replay", &host, &cookie));
     assert_eq!(
         (target.status, target.body.as_str()),
         (200, r#"{"target":null}"#),
@@ -266,7 +281,7 @@ fn the_watermark_is_pushed_after_a_batch_is_committed() {
     stream
         .set_read_timeout(Some(PATIENCE))
         .expect("a timeout is set");
-    let request = get("/api/events", &service.addr.to_string(), "");
+    let request = get("/api/events", &service.addr.to_string(), &service.cookie());
     stream
         .write_all(request.as_bytes())
         .expect("the request is sent");
@@ -363,4 +378,86 @@ fn off_loopback_it_serves_tls_and_admits_only_the_token() {
     ));
     assert_eq!(page.status, 200);
     assert!(page.body.contains("<div id=\"app\"></div>"));
+}
+
+#[test]
+fn on_loopback_every_path_needs_the_token() {
+    let service = Service::start("127.0.0.1:0");
+    let host = service.addr.to_string();
+    let port = service.addr.port();
+    let wrong = format!("Cookie: nvs-debug-{port}=0123456789abcdef0123456789abcdef\r\n");
+    // The other port's name: a cookie another service on this address set is not this one's.
+    let other = format!("Cookie: nvs-debug-{}={}\r\n", port.wrapping_add(1), service.token);
+    for path in [
+        "/",
+        "/requests/4bf92f3577b34da6a3ce929d0e0e4736/00f067aa0ba902b7",
+        "/viewer.js",
+        "/viewer.css",
+        "/api/events",
+        "/api/requests",
+        "/api/request",
+        "/api/profile",
+        "/api/coverage",
+        "/api/source",
+        "/api/stream",
+        "/api/quarantine",
+        "/api/search",
+        "/api/exceptions",
+        "/api/settings",
+        "/api/replay",
+        "/api/to-test",
+        "/api/no-such-path",
+        "/?token=0123456789abcdef0123456789abcdef",
+    ] {
+        for extra in ["", wrong.as_str(), other.as_str()] {
+            let answer = service.plain(&get(path, &host, extra));
+            assert_eq!(answer.status, 401, "{path} {extra}");
+            assert!(!answer.body.contains("<div id=\"app\">"), "{path}");
+            assert!(answer.has("content-security-policy"), "{path}");
+        }
+    }
+    let own = format!("Origin: http://{host}\r\nContent-Type: application/json\r\n");
+    for path in ["/api/replay", "/api/index/discard"] {
+        for extra in ["", wrong.as_str()] {
+            let request = format!(
+                "POST {path} HTTP/1.1\r\nHost: {host}\r\n{own}{extra}Content-Length: 2\r\n\
+                 Connection: close\r\n\r\n{{}}"
+            );
+            assert_eq!(service.plain(&request).status, 401, "POST {path} {extra}");
+        }
+    }
+    let put = format!(
+        "PUT /api/settings HTTP/1.1\r\nHost: {host}\r\n{own}Content-Length: 2\r\n\
+         Connection: close\r\n\r\n{{}}"
+    );
+    assert_eq!(service.plain(&put).status, 401, "PUT /api/settings");
+}
+
+#[test]
+fn the_printed_loopback_link_opens_the_viewer() {
+    let service = Service::start("127.0.0.1:0");
+    let link = service
+        .link
+        .strip_prefix(&format!("http://{}", service.addr))
+        .expect("the link names the bound address");
+    assert_eq!(link, format!("/?token={}", service.token));
+    let host = service.addr.to_string();
+    let port = service.addr.port();
+    let token = &service.token;
+
+    let admitted = service.plain(&get(link, &host, ""));
+    assert_eq!(admitted.status, 303, "{}", admitted.head);
+    assert!(admitted.has("location: /\r\n") || admitted.head.ends_with("location: /"));
+    assert!(admitted.has(&format!(
+        "set-cookie: nvs-debug-{port}={token}; Path=/; HttpOnly; SameSite=Strict"
+    )));
+    assert!(!admitted.has("secure;"), "a loopback cookie has no `Secure` attribute");
+
+    let cookie = service.cookie();
+    let page = service.plain(&get("/", &host, &cookie));
+    assert_eq!(page.status, 200);
+    assert!(page.body.contains("<div id=\"app\"></div>"));
+    let settings = service.plain(&get("/api/settings", &host, &cookie));
+    assert_eq!(settings.status, 200, "{}", settings.body);
+    assert!(settings.has("content-type: application/json"));
 }

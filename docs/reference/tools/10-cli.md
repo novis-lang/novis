@@ -446,8 +446,10 @@ folder that only your account can open. In production, a record has no headers a
     nvs debug [--listen <address>]
 
 `nvs debug` also serves the debug viewer, a page that shows the recorded requests in a browser. It
-prints the page's address when it starts. The address is `http://127.0.0.1:8137/` unless
-`[debug] listen` or `--listen` sets another one. If that port is in use, `nvs debug` stops with an
+prints a link to the page when it starts. Open that link, because it contains a token. The viewer
+answers only a browser that has the token. Another account on the same computer does not have it,
+so it cannot read your requests. The address is `127.0.0.1:8137` unless `[debug] listen` or
+`--listen` sets another one. If that port is in use, `nvs debug` stops with an
 error. It does not pick another port, so a link to the viewer still works after a restart.
 
 | Page | What it shows |
@@ -484,10 +486,11 @@ A profile that `Core\Debug::startProfile` wrote has a download link. In VS Code,
 that opens it in the Novis extension. When the server ran with `[debug] mode = ["coverage"]`, a
 request's page shows which lines of each source file ran, and how often.
 
-The viewer is for you alone. On a loopback address, it answers only its own page. A page on another
-site cannot read it. When `listen` is not a loopback address, for example in a container,
-`nvs debug` serves the viewer over HTTPS. It creates a certificate and a token, and prints a link
-that contains the token. Your browser warns about the certificate once. `[debug] tls_cert_file`,
+The viewer is for you alone. It answers only a browser that opened the printed link, which contains
+a token. `nvs debug` creates the token once, in `debug/` in the data folder, so the link still works
+after a restart. A page on another site cannot read the viewer. When `listen` is not a loopback
+address, for example in a container, `nvs debug` serves the viewer over HTTPS. It creates a
+certificate for that. Your browser warns about the certificate once. `[debug] tls_cert_file`,
 `tls_key_file` and `token_file` name your own files instead.
 
 # nvs debug to-test

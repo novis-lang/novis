@@ -269,7 +269,8 @@ impl Folder {
     }
 
     /// `debug/viewer.crt`, `debug/viewer.key` and `debug/viewer.token`: the certificate, its key
-    /// and the token `nvs debug` generates to serve the viewer off loopback, in that order
+    /// that `nvs debug` generates to serve the viewer off loopback, and the token it needs on every
+    /// bind, in that order
     /// (`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`). They are kept so
     /// a restart serves the same link and the same certificate.
     #[must_use]

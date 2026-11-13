@@ -13,9 +13,11 @@
 //! **Who is served.** On loopback, a `Host` must name a loopback address or `localhost` with the
 //! bound port, which turns away a page that rebinds its own name to this address. Off loopback the
 //! name a browser uses is not known here, because a published port and a container's name change
-//! it, so the token decides instead: [`super::secure`] makes the TLS configuration and the token,
-//! the printed link carries the token once, and from then on an `HttpOnly`, `Secure`,
-//! `SameSite=Strict` cookie does. Everywhere, an `Origin` that is sent must be the page's own, a
+//! it, so the token alone decides. On every bind the token is needed: [`super::secure`] loads it,
+//! and off loopback the TLS configuration too. The printed link carries the token once, and from
+//! then on an `HttpOnly`, `SameSite=Strict` cookie does, `Secure` and `__Host-` off loopback and
+//! named with the port on it. Another local account or a page that reaches the port has no token,
+//! so it reads no request data. Everywhere, an `Origin` that is sent must be the page's own, a
 //! request that changes something needs that `Origin` and a JSON body, and every response carries
 //! [`CSP`], `nosniff`, `no-referrer` and `no-store`.
 //!
@@ -72,10 +74,6 @@ const STALLED: Duration = Duration::from_secs(30);
 /// How often an event stream with nothing new sends a comment, which is how a closed tab is found.
 const KEEP_ALIVE: Duration = Duration::from_secs(15);
 
-/// The cookie that carries the token off loopback. `__Host-` makes the browser keep it only when it
-/// is `Secure`, has `Path=/` and names no domain.
-const COOKIE: &str = "__Host-nvs-debug";
-
 /// The page, the same for every view path: the app mounts into `#app` and routes on the path.
 pub(crate) const PAGE: &str = "<!doctype html>\n<html lang=\"en\">\n<head><meta charset=\"utf-8\">\
 <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Novis debug</title>\
@@ -127,14 +125,10 @@ pub(crate) fn start(
     let index = folder.debug_index();
     let api = Api::open(&index, signal)
         .map_err(|err| format!("the debug viewer cannot read `{}`: {err}", index.display()))?;
-    let secure = if addr.ip().is_loopback() {
-        None
-    } else {
-        Some(Secure::load(listen, folder, addr.ip())?)
-    };
-    let link = match &secure {
-        None => format!("http://{addr}/"),
-        Some(secure) => {
+    let secure = Secure::load(listen, folder, addr)?;
+    let link = match secure.tls() {
+        None => format!("http://{addr}/?token={}", secure.token()),
+        Some(_) => {
             let host = if addr.ip().is_unspecified() {
                 format!("localhost:{}", addr.port())
             } else {
@@ -206,9 +200,9 @@ fn connection(stream: TcpStream, site: &Site) {
         return;
     }
     let _ = stream.set_nodelay(true);
-    let transport = match &site.secure {
+    let transport = match site.secure.tls() {
         None => Transport::Plain(stream),
-        Some(secure) => match rustls::ServerConnection::new(secure.tls()) {
+        Some(tls) => match rustls::ServerConnection::new(tls) {
             Ok(tls) => Transport::Tls(Box::new(rustls::StreamOwned::new(tls, stream))),
             Err(_) => return,
         },
@@ -223,11 +217,11 @@ fn connection(stream: TcpStream, site: &Site) {
     );
 }
 
-/// What every connection shares: the bound address, the off-loopback secrets, the watermark, the
+/// What every connection shares: the bound address, the token and TLS, the watermark, the
 /// index's read connection, the settings file and the replay target.
 struct Site {
     addr: SocketAddr,
-    secure: Option<Secure>,
+    secure: Secure,
     watermark: Arc<Watermark>,
     api: Api,
     settings: Store,
@@ -303,20 +297,19 @@ impl Site {
                 "A request that changes something needs a JSON body.",
             ));
         }
-        if let Some(secure) = &self.secure {
-            if let Some(token) = query_token(request.uri().query()) {
-                return Some(if secure.admits(token) {
-                    admitted(request.uri().path(), token)
-                } else {
-                    text(StatusCode::UNAUTHORIZED, "This token is not valid.")
-                });
-            }
-            if !cookie_token(headers).is_some_and(|token| secure.admits(token)) {
-                return Some(text(
-                    StatusCode::UNAUTHORIZED,
-                    "Open the link that `nvs debug` printed. It contains the token.",
-                ));
-            }
+        let secure = &self.secure;
+        if let Some(token) = query_token(request.uri().query()) {
+            return Some(if secure.admits(token) {
+                admitted(request.uri().path(), &secure.set_cookie(token))
+            } else {
+                text(StatusCode::UNAUTHORIZED, "This token is not valid.")
+            });
+        }
+        if !cookie_token(headers, secure.cookie()).is_some_and(|token| secure.admits(token)) {
+            return Some(text(
+                StatusCode::UNAUTHORIZED,
+                "Open the link that `nvs debug` printed. It contains the token.",
+            ));
         }
         None
     }
@@ -375,7 +368,7 @@ impl Site {
         let Some((name, port)) = split_host(host) else {
             return false;
         };
-        if self.secure.is_some() {
+        if self.secure.tls().is_some() {
             return true;
         }
         let port = port.unwrap_or(80);
@@ -386,7 +379,7 @@ impl Site {
 
     /// Whether `origin` is the page's own: this listener's scheme and the `Host` already admitted.
     fn is_own_origin(&self, origin: &str, host: &str) -> bool {
-        let scheme = if self.secure.is_some() {
+        let scheme = if self.secure.tls().is_some() {
             "https://"
         } else {
             "http://"
@@ -452,23 +445,22 @@ fn query_token(query: Option<&str>) -> Option<&str> {
         .find_map(|pair| pair.strip_prefix("token="))
 }
 
-/// The token the [`COOKIE`] cookie carries.
-fn cookie_token(headers: &HeaderMap) -> Option<&str> {
+/// The token the cookie named `name` carries.
+fn cookie_token<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
     headers
         .get_all(header::COOKIE)
         .iter()
         .filter_map(|value| value.to_str().ok())
         .flat_map(|value| value.split(';'))
-        .find_map(|pair| pair.trim().strip_prefix(COOKIE)?.strip_prefix('='))
+        .find_map(|pair| pair.trim().strip_prefix(name)?.strip_prefix('='))
 }
 
-/// The link's token accepted: the cookie set, and the browser sent to the same path without it.
-fn admitted(path: &str, token: &str) -> Response<Body> {
-    let cookie = format!("{COOKIE}={token}; Path=/; Secure; HttpOnly; SameSite=Strict");
+/// The link's token accepted: `cookie` set, and the browser sent to the same path without it.
+fn admitted(path: &str, cookie: &str) -> Response<Body> {
     let mut response = text(StatusCode::SEE_OTHER, "The token is accepted.");
     let headers = response.headers_mut();
     if let (Ok(location), Ok(cookie)) =
-        (HeaderValue::from_str(path), HeaderValue::from_str(&cookie))
+        (HeaderValue::from_str(path), HeaderValue::from_str(cookie))
     {
         headers.insert(header::LOCATION, location);
         headers.insert(header::SET_COOKIE, cookie);
@@ -767,6 +759,7 @@ mod tests {
             header::COOKIE,
             HeaderValue::from_static("x=1; __Host-nvs-debug=abc"),
         );
-        assert_eq!(cookie_token(&headers), Some("abc"));
+        assert_eq!(cookie_token(&headers, "__Host-nvs-debug"), Some("abc"));
+        assert_eq!(cookie_token(&headers, "nvs-debug-8137"), None);
     }
 }

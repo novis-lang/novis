@@ -101,8 +101,9 @@ pub(crate) enum Signal {
 /// are written to files in the data folder. This command reads those files into one database,
 /// `debug/index.sqlite`, and then deletes them.
 ///
-/// The debug viewer shows those requests in a browser. `nvs debug` prints its address, which is
-/// `http://127.0.0.1:8137/` unless `[debug] listen` or `--listen` sets another one.
+/// The debug viewer shows those requests in a browser. `nvs debug` prints a link to it. Open that
+/// link, because it contains a token. The viewer answers only a browser that has the token. The
+/// address is `127.0.0.1:8137` unless `[debug] listen` or `--listen` sets another one.
 ///
 /// It runs until you stop it. Records older than `[debug] index_age` are deleted, and so are the
 /// oldest records when the database grows past `[debug] index_max`. Only one `nvs debug` runs for
@@ -126,7 +127,7 @@ pub(crate) struct Args {
     #[arg(long, value_name = "FILE")]
     tail: Vec<PathBuf>,
     /// Serve the debug viewer on this IP address and port, such as `127.0.0.1:8137`. This
-    /// replaces `[debug] listen` for this run.
+    /// replaces `[debug] listen` for this run. Open the link that `nvs debug` prints.
     #[arg(long, value_name = "ADDRESS")]
     listen: Option<String>,
     /// Set by `nvs serve` for the service it starts: stop once standard input closes, and exit

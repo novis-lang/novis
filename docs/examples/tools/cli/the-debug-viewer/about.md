@@ -1,8 +1,9 @@
 `nvs debug` serves the debug viewer, a page in your browser that shows the requests your server
 recorded.
 
-Turn on `[debug] store = true` in `nvs.toml` first. Then open the address that `nvs debug` prints,
-which is `http://127.0.0.1:8137/` by default. The first page lists the newest requests. Each row
+Turn on `[debug] store = true` in `nvs.toml` first. Then open the link that `nvs debug` prints. The
+link contains a token, and the viewer answers only a browser that has it. The address is
+`127.0.0.1:8137` by default. The first page lists the newest requests. Each row
 has the status, the duration, the number of queries and dumps, and whether the request threw an
 error. Open a request to see its timeline, its queries, its `Core\Debug::dump` values and its log
 lines. The exceptions page has one row for each error class and the line that threw it, with a

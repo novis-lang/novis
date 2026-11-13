@@ -79,10 +79,24 @@ an address off loopback, `nvs debug` generates a self-signed certificate with `r
 graph, and a random token, keeps both in the data folder's `debug/` directory, private to the
 service's account, and prints a URL that carries the token. The browser warns about the certificate
 once. `[debug] tls_cert_file`, `tls_key_file` and `token_file` are optional overrides for someone who
-brings their own, and boot does not fail when they are absent. The token is accepted once from the
-printed URL and then lives in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie, and a request without
-that cookie is refused. A bind off loopback never serves plain HTTP and never serves without a token.
-`crates/nvs-cli/src/debug/secure.rs` makes and loads the certificate and the token.
+brings their own, and boot does not fail when they are absent. A bind off loopback never serves plain
+HTTP. `crates/nvs-cli/src/debug/secure.rs` makes and loads the certificate and the token.
+
+**Every bind needs the token, loopback too.** A loopback port is open to every local account and to
+every page a browser on the host loads, and the viewer's API reads the spool's request data. The token
+is the same file on every bind, `token_file` or the generated one, read at each start, so an open tab
+survives a restart and whoever can read the token can already read the spool. `nvs debug` prints the
+link with `?token=`; the first request with it sets a cookie and redirects to the same path, and a
+request with neither the query token nor the cookie answers `401` before any route, the page and an
+unmatched path included. The cookie is `HttpOnly`, `SameSite=Strict` and `Path=/` everywhere. Off
+loopback it is `__Host-nvs-debug` and `Secure`. On loopback, where there is no TLS for `Secure` and
+`__Host-`, it is `nvs-debug-<port>`, because a browser sends a loopback cookie to every port of the
+address and two services must not replace each other's. TLS stays off loopback only, and no setting
+is added. **What it spends:** one constant-time comparison per viewer request and one token file per
+data folder, nothing on an application's request path. A bookmark of the bare address answers `401`
+with the sentence that names the printed link. Declined: a peer-credential check, because TCP has none
+on every platform. Declined: a token made new at each start, because it signs an open tab out at each
+restart of a development server.
 
 Because it is a browser-facing local listener, `Host` and `Origin` are
 allowlisted against DNS rebinding. On loopback a `Host` names `localhost` or a loopback address with

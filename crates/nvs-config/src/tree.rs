@@ -580,7 +580,7 @@ pub struct Debug {
     pub tls_cert_file: Option<String>,
     /// The key that pairs with [`Debug::tls_cert_file`]. `System`.
     pub tls_key_file: Option<String>,
-    /// A token to admit the viewer's page with off loopback, in place of the generated one.
+    /// A token to admit the viewer's page with on every bind, in place of the generated one.
     /// `System`.
     pub token_file: Option<String>,
 }
