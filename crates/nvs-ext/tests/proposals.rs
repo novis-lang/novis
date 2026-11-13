@@ -50,7 +50,9 @@ fn a_guest_using_a_proposal_outside_the_set_does_not_compile() {
             .unwrap_or_else(|err| panic!("the {proposal} guest parses: {err}"));
         Validator::new_with_features(WasmFeatures::all())
             .validate_all(&bytes)
-            .unwrap_or_else(|err| panic!("a validator with every feature accepts {proposal}: {err}"));
+            .unwrap_or_else(|err| {
+                panic!("a validator with every feature accepts {proposal}: {err}")
+            });
         assert!(
             Component::new(host.engine(), &bytes).is_err(),
             "the host compiled a guest that uses {proposal}",

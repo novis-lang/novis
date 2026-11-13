@@ -24,8 +24,9 @@
 //! the set's classes are unique and its hash does not depend on the entries' order.
 //!
 //! **A built-in component skips check 1 and the reserved half of check 6.** [`Loader::builtins`]
-//! reads each one's sections and checks its world, and compiles nothing. Its first
-//! [`Builtin::extension`] compiles it, under the digest `build.rs` took, and runs checks 5 to 7 with
+//! reads each one's sections from the plain copies the binary stores, checks its world, and
+//! expands and compiles nothing. Its first [`Builtin::extension`] compiles it, expanding it only
+//! when the cache misses, under the digest `build.rs` took, and runs checks 5 to 7 with
 //! `Novis\` admitted, because the binary is its pin and `Novis\` is reserved for it. An
 //! `[[extension]]` entry declaring a `Novis\` class is still refused, so no entry can shadow one.
 //!
@@ -82,6 +83,7 @@ use wasmtime::component::ResourceType;
 use wasmtime::component::types::{ComponentFunc, ComponentItem, Record};
 use wasmtime::component::{Component, types::Type};
 
+use crate::builtin::Stored;
 use crate::manifest::{Manifest, Method, WorldVersion};
 use crate::section;
 use crate::source::Source;
@@ -346,11 +348,16 @@ impl Loader {
         &self.environment
     }
 
-    /// The component `bytes` compile to, from the cache when it holds a good entry under `sha256`,
-    /// and stored there when it did not.
-    fn compile(&self, sha256: &str, bytes: &[u8]) -> wasmtime::Result<Component> {
+    /// The component the bytes `read` returns compile to, from the cache when it holds a good
+    /// entry under `sha256`, and stored there when it did not. `read` runs only on a miss, so a
+    /// built-in component that hits the cache is never expanded.
+    fn compile<B: AsRef<[u8]>>(
+        &self,
+        sha256: &str,
+        read: impl FnOnce() -> wasmtime::Result<B>,
+    ) -> wasmtime::Result<Component> {
         let Some(cache) = &self.cache else {
-            return Component::from_binary(&self.engine, bytes);
+            return Component::from_binary(&self.engine, read()?.as_ref());
         };
         let key = CacheKey {
             pin: sha256.to_owned(),
@@ -359,7 +366,7 @@ impl Loader {
         if let Some(component) = cache.get(&key).and_then(|stored| self.cached(&stored)) {
             return Ok(component);
         }
-        let component = Component::from_binary(&self.engine, bytes)?;
+        let component = Component::from_binary(&self.engine, read()?.as_ref())?;
         if let Ok(serialized) = component.serialize() {
             let mut stored = Sha256::digest(&serialized).to_vec();
             stored.extend_from_slice(&serialized);
@@ -416,7 +423,7 @@ impl Loader {
                 ),
             ));
         }
-        let component = self.compile(&sha256, bytes).map_err(|err| {
+        let component = self.compile(&sha256, || Ok(bytes)).map_err(|err| {
             refused(
                 &entry.path,
                 format!("the file is not a valid component: {err:#}"),
@@ -444,31 +451,23 @@ impl Loader {
     /// not implement. Either one is a broken build.
     pub fn builtins(&self) -> Result<Vec<Builtin>, Refused> {
         nvs_footprint::builtins();
-        BUILTINS
+        crate::builtin::STORED
             .iter()
-            .map(|&(name, bytes, sha256)| self.builtin(name, bytes, sha256))
+            .map(|stored| self.builtin(stored))
             .collect()
     }
 
-    /// The built-in component `name`, from the `bytes` the binary carries and the digest the build
-    /// took of them.
-    fn builtin(
-        &self,
-        name: &'static str,
-        bytes: &'static [u8],
-        sha256: &[u8; 32],
-    ) -> Result<Builtin, Refused> {
-        let path = PathBuf::from(format!("built-in {name}.nvsx"));
-        let (mut manifest, source) = sections(&path, bytes)?;
+    /// The built-in component `stored`, its sections read from the plain copies the binary
+    /// carries, so nothing is expanded.
+    fn builtin(&self, stored: &'static Stored) -> Result<Builtin, Refused> {
+        let (path, manifest, source) = stored_sections(stored)?;
         if !self.admits(manifest.world) {
             return Err(refused(&path, self.mismatch(manifest.world)));
         }
-        manifest.builtin = Some(name.to_owned());
         Ok(Builtin {
-            name,
+            name: stored.name,
             path,
-            bytes,
-            sha256: hex(sha256),
+            sha256: hex(&stored.sha256),
             manifest,
             source,
             loader: self.clone(),
@@ -616,8 +615,30 @@ enum Reserve {
 
 /// The manifest and the source a component's `bytes` carry, or why they do not read.
 fn sections(path: &Path, bytes: &[u8]) -> Result<(Manifest, Source), Refused> {
+    let sections = section::read(bytes).map_err(|err| refused(path, err.0))?;
+    parse_sections(path, sections)
+}
+
+/// The path a built-in component's refusals name, and its manifest and source, read from the
+/// plain sections the binary carries beside its compressed bytes. The manifest names it as built
+/// in.
+fn stored_sections(stored: &Stored) -> Result<(PathBuf, Manifest, Source), Refused> {
+    let path = PathBuf::from(format!("built-in {}.nvsx", stored.name));
+    let sections = section::Sections {
+        manifest: Some(stored.manifest),
+        source: (!stored.source.is_empty()).then_some(stored.source),
+    };
+    let (mut manifest, source) = parse_sections(&path, sections)?;
+    manifest.builtin = Some(stored.name.to_owned());
+    Ok((path, manifest, source))
+}
+
+/// The manifest and the source two section payloads hold, or why they do not read.
+fn parse_sections(
+    path: &Path,
+    sections: section::Sections<'_>,
+) -> Result<(Manifest, Source), Refused> {
     let refuse = |reason: String| refused(path, reason);
-    let sections = section::read(bytes).map_err(|err| refuse(err.0))?;
     let manifest = sections
         .manifest
         .ok_or_else(|| refuse("the component has no `nvs.manifest` section".to_owned()))?;
@@ -632,8 +653,8 @@ fn sections(path: &Path, bytes: &[u8]) -> Result<(Manifest, Source), Refused> {
     Ok((manifest, source))
 }
 
-/// One built-in component: its bytes, which the binary carries, its manifest and its source, and
-/// its compiled form once something calls it
+/// One built-in component: its manifest and its source, read from the plain sections the binary
+/// carries, and its compiled form once something calls it
 /// (`rule:packaging/the-first-party-components-are-built-in`).
 ///
 /// It has no `[[extension]]` entry. The digest `build.rs` took is its pin and its cache key, so
@@ -642,7 +663,6 @@ fn sections(path: &Path, bytes: &[u8]) -> Result<(Manifest, Source), Refused> {
 pub struct Builtin {
     name: &'static str,
     path: PathBuf,
-    bytes: &'static [u8],
     sha256: String,
     manifest: Manifest,
     source: Source,
@@ -681,7 +701,7 @@ impl Builtin {
         self.extension.get().is_some()
     }
 
-    /// The name `BUILTINS` gives it, which is its crate's directory under `extensions/`.
+    /// Its name, which is its crate's directory under `extensions/`.
     pub fn name(&self) -> &'static str {
         self.name
     }
@@ -698,9 +718,13 @@ impl Builtin {
         nvs_footprint::component(self.name);
         self.extension
             .get_or_init(|| {
+                let name = self.name;
                 let component = self
                     .loader
-                    .compile(&self.sha256, self.bytes)
+                    .compile(&self.sha256, || {
+                        crate::builtin::expanded(name)
+                            .map_err(|err| wasmtime::format_err!("{}", err.0))
+                    })
                     .map_err(|err| {
                         refused(
                             &self.path,
@@ -728,24 +752,6 @@ impl Builtin {
     }
 }
 
-/// Every built-in component: its name, the bytes the binary carries and the digest the build took.
-/// A name is its crate's directory under `extensions/`, which observed selection reads to know
-/// which component a changed path belongs to (`tools/nv/select/keys.ts`).
-const BUILTINS: [(&str, &[u8], &[u8; 32]); 4] = [
-    (
-        "image",
-        crate::builtin::IMAGE,
-        &crate::builtin::IMAGE_SHA256,
-    ),
-    ("intl", crate::builtin::INTL, &crate::builtin::INTL_SHA256),
-    ("pdf", crate::builtin::PDF, &crate::builtin::PDF_SHA256),
-    (
-        "spreadsheet",
-        crate::builtin::SPREADSHEET,
-        &crate::builtin::SPREADSHEET_SHA256,
-    ),
-];
-
 /// The manifests of the built-in components, read without an engine and without compiling: what
 /// a compiler types a call into `Novis\` against, beside the manifests [`read_manifests`] reads.
 /// Each carries its source section's files in [`Manifest::source`] and its name in
@@ -756,13 +762,11 @@ const BUILTINS: [(&str, &[u8], &[u8; 32]); 4] = [
 /// The first built-in component whose sections do not read, which is a broken build.
 pub fn builtin_manifests() -> Result<Vec<Manifest>, Refused> {
     nvs_footprint::builtins();
-    BUILTINS
+    crate::builtin::STORED
         .iter()
-        .map(|&(name, bytes, _)| {
-            let (mut manifest, source) =
-                sections(&PathBuf::from(format!("built-in {name}.nvsx")), bytes)?;
+        .map(|stored| {
+            let (_, mut manifest, source) = stored_sections(stored)?;
             manifest.source = source.files;
-            manifest.builtin = Some(name.to_owned());
             Ok(manifest)
         })
         .collect()

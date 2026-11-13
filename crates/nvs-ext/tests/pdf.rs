@@ -18,7 +18,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
-use nvs_ext::builtin::{Decompression, PDF, PDF_CLASS, PDF_SHA256, cap_decompression};
+use nvs_ext::builtin::{Decompression, PDF_CLASS, PDF_SHA256, cap_decompression, expanded};
 use nvs_ext::call::{Error, Failure, Host, Limit, Meter, Request};
 use nvs_ext::convert::{Key, Value};
 use nvs_ext::load::{Builtin, Extension, Loader};
@@ -248,7 +248,10 @@ fn the_pdf_component_is_built_in_and_answers_with_no_configuration() {
     let builtin = pdf(&builtins);
     let digest: String = PDF_SHA256.iter().map(|b| format!("{b:02x}")).collect();
     assert_eq!(builtin.sha256(), digest);
-    assert_eq!(builtin.sha256(), nvs_ext::load::pin(PDF));
+    assert_eq!(
+        builtin.sha256(),
+        nvs_ext::load::pin(&expanded("pdf").expect("the PDF component expands"))
+    );
     assert!(!builtin.compiled(), "loading compiled the component");
     let extension = builtin
         .extension()

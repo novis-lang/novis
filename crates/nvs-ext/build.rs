@@ -17,6 +17,11 @@
 //! A component's Novis source is every `.nvs` file directly in its crate's `nvs/` folder, packed
 //! into `nvs.source` in the order of their names, each under its file name.
 //!
+//! Each component is written four times into `OUT_DIR`: the `.nvsx` compressed with Brotli as
+//! `<name>.nvsx.br`, its manifest and source sections plain as `<name>.manifest` and
+//! `<name>.source`, and the SHA-256 of the expanded `.nvsx` as `<name>.sha256`, which stays its
+//! pin. A component with no source section has an empty `<name>.source`.
+//!
 //! Only a build with the `engine` feature embeds the components; a reader of manifests alone
 //! builds none.
 
@@ -177,12 +182,39 @@ fn main() {
                 component.name
             )
         });
-        write(&out.join(format!("{}.nvsx", component.name)), &nvsx);
+        let sections = section::read(&nvsx).unwrap_or_else(|err| {
+            panic!(
+                "the built-in component `{}` does not read back: {}",
+                component.name, err.0
+            )
+        });
+        let name = component.name;
+        write(&out.join(format!("{name}.nvsx.br")), &compress(&nvsx));
         write(
-            &out.join(format!("{}.sha256", component.name)),
-            &Sha256::digest(&nvsx),
+            &out.join(format!("{name}.manifest")),
+            sections.manifest.unwrap_or_default(),
         );
+        write(
+            &out.join(format!("{name}.source")),
+            sections.source.unwrap_or_default(),
+        );
+        write(&out.join(format!("{name}.sha256")), &Sha256::digest(&nvsx));
     }
+}
+
+/// `bytes` compressed with Brotli at quality 9 and a 4 MiB window: most of the best ratio, at a
+/// few seconds per component rather than the minutes quality 11 takes.
+fn compress(bytes: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(bytes.len() / 3);
+    let params = brotli::enc::BrotliEncoderParams {
+        quality: 9,
+        lgwin: 22,
+        size_hint: bytes.len(),
+        ..brotli::enc::BrotliEncoderParams::default()
+    };
+    brotli::BrotliCompress(&mut &bytes[..], &mut out, &params)
+        .unwrap_or_else(|err| panic!("a built-in component does not compress: {err}"));
+    out
 }
 
 /// Builds the component crate in `dir` into `target`, and returns the directory its wasm is in.

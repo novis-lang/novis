@@ -1294,6 +1294,13 @@ debug = 0
 [profile.dev.package.nvs-ext]
 opt-level = 2
 
+# `nvs-ext`'s build script compresses the built-in components with `brotli`, about 43 MB of wasm.
+# A release build compiles a build script's dependencies at `opt-level = 0` unless a row names
+# them, and unoptimised Brotli at quality 9 takes minutes there. This row gives the build script
+# the same code the runtime links. The dev profile has it from `package."*"` above.
+[profile.release.package.brotli]
+opt-level = 3
+
 [profile.bench]
 inherits = "release"
 debug = true

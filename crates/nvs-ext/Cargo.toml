@@ -26,6 +26,7 @@ engine = [
     "dep:wasmtime",
     "dep:wasmtime-wasi-io",
     "dep:rand",
+    "dep:brotli",
     "wasmtime/component-model",
     "wasmtime/async",
     "wasmtime/pooling-allocator",
@@ -35,6 +36,9 @@ engine = [
 pack = ["dep:wit-component", "dep:wit-parser"]
 
 [dependencies]
+# Expands a built-in component, which the binary stores compressed, when it is
+# compiled (`src/builtin.rs`).
+brotli = { workspace = true, optional = true }
 # The entry's grants and the caller's capabilities, which `grants` intersects.
 nvs-config = { workspace = true, optional = true }
 # Records which built-in component a run used, for observed selection.
@@ -51,7 +55,9 @@ wit-parser = { workspace = true, optional = true }
 
 [build-dependencies]
 # `build.rs` compiles the packer's source files into itself, so it takes their
-# dependencies, and `sha2` for the built-in components' pins.
+# dependencies, `sha2` for the built-in components' pins and `brotli` for
+# their stored form.
+brotli.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

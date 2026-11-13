@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
-use nvs_ext::builtin::{INTL, INTL_CLASS, INTL_SHA256};
+use nvs_ext::builtin::{INTL_CLASS, INTL_SHA256, expanded};
 use nvs_ext::call::{Error, Failure, Host, Meter, Request};
 use nvs_ext::convert::{Key, Value};
 use nvs_ext::load::{Builtin, Extension, Loader};
@@ -143,7 +143,10 @@ fn the_intl_component_is_built_in_and_answers_with_no_configuration() {
     let builtin = intl(&builtins);
     let digest: String = INTL_SHA256.iter().map(|b| format!("{b:02x}")).collect();
     assert_eq!(builtin.sha256(), digest);
-    assert_eq!(builtin.sha256(), nvs_ext::load::pin(INTL));
+    assert_eq!(
+        builtin.sha256(),
+        nvs_ext::load::pin(&expanded("intl").expect("the intl component expands"))
+    );
     assert!(!builtin.compiled(), "loading compiled the component");
     let extension = builtin
         .extension()
@@ -756,7 +759,10 @@ fn the_guest_carries_no_time_zone_database() {
     );
     // A compiled tz database is a run of TZif files, each starting with this magic.
     assert!(
-        !INTL.windows(4).any(|bytes| bytes == b"TZif"),
+        !expanded("intl")
+            .expect("the intl component expands")
+            .windows(4)
+            .any(|bytes| bytes == b"TZif"),
         "the intl component carries a TZif file"
     );
 }

@@ -12,8 +12,8 @@ use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
 use nvs_ext::builtin::{
-    IMAGE, IMAGE_CLASS, IMAGE_SHA256, INTL, INTL_CLASS, PDF, PDF_CLASS, PDF_SHA256, SPREADSHEET,
-    SPREADSHEET_CLASS, SPREADSHEET_SHA256,
+    IMAGE_CLASS, IMAGE_SHA256, INTL_CLASS, PDF_CLASS, PDF_SHA256, SPREADSHEET_CLASS,
+    SPREADSHEET_SHA256, expanded,
 };
 use nvs_ext::call::{Error, Failure, Host, Meter};
 use nvs_ext::convert::{Key, Value};
@@ -162,15 +162,16 @@ fn recorded_mib(path: &Path) -> f64 {
 #[test]
 fn the_recorded_growth_matches_the_embedded_components() {
     let docs = [
-        (nvs_repo::path("extensions/intl/src/lib.rs"), INTL),
-        (nvs_repo::path("extensions/image/src/lib.rs"), IMAGE),
-        (nvs_repo::path("extensions/pdf/src/lib.rs"), PDF),
+        (nvs_repo::path("extensions/intl/src/lib.rs"), "intl"),
+        (nvs_repo::path("extensions/image/src/lib.rs"), "image"),
+        (nvs_repo::path("extensions/pdf/src/lib.rs"), "pdf"),
         (
             nvs_repo::path("extensions/spreadsheet/src/lib.rs"),
-            SPREADSHEET,
+            "spreadsheet",
         ),
     ];
-    for (path, bytes) in docs {
+    for (path, name) in docs {
+        let bytes = expanded(name).expect("the component expands");
         let recorded = recorded_mib(&path);
         let embedded = bytes.len() as f64 / (1024.0 * 1024.0);
         let drift = (recorded - embedded).abs() / embedded;
@@ -335,7 +336,10 @@ fn a_built_in_component_needs_no_extension_entry_and_no_pin() {
     let image = image(&builtins);
     let digest: String = IMAGE_SHA256.iter().map(|b| format!("{b:02x}")).collect();
     assert_eq!(image.sha256(), digest);
-    assert_eq!(image.sha256(), nvs_ext::load::pin(IMAGE));
+    assert_eq!(
+        image.sha256(),
+        nvs_ext::load::pin(&expanded("image").expect("the image component expands"))
+    );
     let extension = image.extension().expect("the image component loads");
     assert_eq!(extension.sha256, digest);
     assert_eq!(extension.memory, None);
@@ -358,9 +362,9 @@ fn the_spreadsheet_component_is_one_of_four_built_in() {
         classes,
         [IMAGE_CLASS, INTL_CLASS, PDF_CLASS, SPREADSHEET_CLASS]
     );
-    for (class, bytes, sha256) in [
-        (PDF_CLASS, PDF, PDF_SHA256),
-        (SPREADSHEET_CLASS, SPREADSHEET, SPREADSHEET_SHA256),
+    for (class, name, sha256) in [
+        (PDF_CLASS, "pdf", PDF_SHA256),
+        (SPREADSHEET_CLASS, "spreadsheet", SPREADSHEET_SHA256),
     ] {
         let builtin = builtins
             .iter()
@@ -368,7 +372,8 @@ fn the_spreadsheet_component_is_one_of_four_built_in() {
             .unwrap_or_else(|| panic!("{class} is built in"));
         let digest: String = sha256.iter().map(|b| format!("{b:02x}")).collect();
         assert_eq!(builtin.sha256(), digest);
-        assert_eq!(builtin.sha256(), nvs_ext::load::pin(bytes));
+        let bytes = expanded(name).unwrap_or_else(|err| panic!("{class} expands: {}", err.0));
+        assert_eq!(builtin.sha256(), nvs_ext::load::pin(&bytes));
         let extension = builtin
             .extension()
             .unwrap_or_else(|err| panic!("{class} loads: {err:?}"));

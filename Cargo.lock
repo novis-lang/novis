@@ -4417,6 +4417,7 @@ name = "nvs-ext"
 version = "0.0.3"
 dependencies = [
  "aes",
+ "brotli",
  "flate2",
  "hayro-syntax",
  "lopdf",
