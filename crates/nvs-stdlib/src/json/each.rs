@@ -1,26 +1,33 @@
 //! `Core\Json::decodeEach`: the elements of one array, or the values of a JSON
 //! Lines stream, read one at a time while a `foreach` loop runs.
 //!
-//! `rule:core-classes/json-whole-and-stream` is the rule, and the parent
-//! module's doc says why the reader is serde_json in a coroutine.
+//! `rule:core-classes/json-whole-and-stream` is the rule.
 //!
 //! # The walk
 //!
-//! serde_json reads the document from [`Feed`], inside a coroutine with a stack
-//! of its own (`nvs_host::suspendable`). The coroutine suspends in two places:
-//! when [`Feed`] needs the next chunk, and when an element has been built. Each
-//! `advance()` resumes it until one element is built or the document ends. So
-//! the walk holds one chunk, the parse's own frames, and one element.
+//! The walk reads the document with [`reader::Reader`], the reader every
+//! `Core\Json` decode uses, from [`Feed`], inside a coroutine with a stack of
+//! its own (`nvs_host::suspendable`). The coroutine suspends in two places:
+//! when [`Feed`] needs the next chunk, and when an element has been built.
+//! Each `advance()` resumes it until one element is built or the document
+//! ends. So the walk holds one chunk, the reader, and one element.
+//!
+//! A token may cross two chunks, and the reader keeps its state between them
+//! only because the coroutine keeps the reader's frame alive. Every loop over
+//! the reader's events is flat, so the coroutine's stack holds a few frames
+//! at any depth.
 //!
 //! **The coroutine builds each element as `Core\Json::decode` builds a
-//! document**, with [`Decode`], and calls no compiled code. A typed walk then
-//! builds `T` out of that value with [`hydrate`], on the task's own stack in
-//! `advance()`, which is where a constructor may run. That is the tree-first
-//! path `decodeAs` takes for a class that reads its own document, so every
-//! check and every message is the one `decodeAs` makes.
+//! document**, with [`build_open`], and calls no compiled code. A typed walk
+//! then builds `T` out of that value with [`hydrate`], on the task's own stack
+//! in `advance()`, which is where a constructor may run. That is the
+//! tree-first path `decodeAs` takes for a class that reads its own document,
+//! so every check and every message is the one `decodeAs` makes.
 //!
 //! **What it spends:** per walk in flight, the source's own chunk
-//! (`crate::byte_source`'s cost) and the parse's copy of it, the coroutine's stack (`nvs_host::suspendable`'s cost), one element as a
+//! (`crate::byte_source`'s cost) and the coroutine's copy of it, the
+//! reader's scratch buffer, the coroutine's stack (`nvs_host::suspendable`'s
+//! cost), one frame per open level on the pointer's path, one element as a
 //! value, and for a typed walk the same element as `T`. A typed element is
 //! built twice, once as a value and once as `T`, which is time spent per
 //! element in place of a second decoder that runs compiled code across
@@ -28,42 +35,34 @@
 //!
 //! # Outside the pointer
 //!
-//! [`Toward`] walks the path `$at` names, one step per nesting level. Every
-//! value off that path, before the array or after it, is read by [`Skip`]:
-//! its syntax and its depth are checked, and nothing is built. The document
-//! after the array is read to its end, so trailing text still fails.
+//! [`toward`] walks the path `$at` names, one frame per nesting level. Every
+//! value off that path, before the array or after it, is read by
+//! [`reader::Reader::skip`]: its syntax and its depth are checked, and nothing
+//! is built. The document after the array is read to its end, so trailing
+//! text still fails.
 //!
-//! **A skipped string value is not kept.** serde_json copies a string into its
-//! scratch buffer to give a visitor a `&str`, so [`Skip`] does not ask for
-//! one. It peeks with `deserialize_option`, and the byte serde_json peeked is
-//! the last one [`Feed`] handed out, since `io::Bytes` reads one byte per call.
-//! A `"` is read with `deserialize_ignored_any`, whose `ignore_str` keeps
-//! nothing. An array or an object is read with [`Skip`] again, so its depth is
-//! still checked. `ignore_value` would check none.
-//!
-//! **What it spends:** a skipped object's keys still pass through
-//! serde_json's `MapKey`, which copies each key into scratch. So skipping costs
+//! **A skipped string value is never copied**, at any length and across any
+//! number of chunks. A skipped object's keys are read as every key is: a key
+//! inside one chunk and without escapes is a slice of that chunk, and any
+//! other is copied into the reader's scratch buffer. So skipping costs
 //! O(longest key), counted against the request, and nothing for its values.
 //!
 //! # A failure in the middle
 //!
-//! A syntax error is found by the parse at some byte, which can be after many
+//! A syntax error is found by the reader at some byte, which can be after many
 //! elements were given to the program. The walk ends there, and the
-//! `ParseError` names the byte offset ([`Feed`] counts the bytes it hands
-//! out). The elements already given stay given.
-
-use std::cell::Cell;
-use std::io;
+//! `ParseError` names that byte's offset in the whole document. The elements
+//! already given stay given.
 
 use nvs_host::{CoroutineResult, Suspendable, Yielder};
 use nvs_runtime::{Fault, Tag, ThrownClass, Value};
-use serde::de::{DeserializeSeed, Deserializer, IgnoredAny, MapAccess, SeqAccess, Visitor};
 
 use crate::byte_source::ByteSource;
 
+use super::reader::{self, Code, Event};
 use super::{
-    DEADLINE_PASSED, Deadline, Decode, ELEMENTS, ELEMENTS_NAME, Lists, Reading, check_codec,
-    hydrate, max_depth, repeated,
+    Deadline, ELEMENTS, ELEMENTS_NAME, Lists, Reading, build, build_open, check_codec, hydrate,
+    max_depth, scalar_of, stopped,
 };
 
 /// The member every message names.
@@ -82,9 +81,9 @@ const SOURCE_AT: usize = 2;
 
 /// What the coroutine suspends with.
 enum Up {
-    /// [`Feed`] has handed out every byte it has, and needs the next chunk.
+    /// [`Feed`] has read every byte it has, and needs the next chunk.
     Need,
-    /// An element, as the one reference [`Decode`] made, with the lists a
+    /// An element, as the one reference [`build_open`] made, with the lists a
     /// typed walk's [`hydrate`] asks about.
     Element(Value, Option<Lists>),
 }
@@ -93,7 +92,7 @@ enum Up {
 /// the source and after an element.
 type Down = Option<Vec<u8>>;
 
-/// How the coroutine ends: the whole document read, or the parse's error and
+/// How the coroutine ends: the whole document read, or the read's error and
 /// the byte offset it was found at.
 type Ended = Result<(), (String, u64)>;
 
@@ -133,306 +132,180 @@ impl nvs_runtime::HeldReader for Walk {
 // Inside the coroutine
 // ----------------------------------------------------------------------------
 
-/// The bytes serde_json reads, one chunk at a time. It suspends with
-/// [`Up::Need`] when a chunk is used up, and counts every byte it hands out.
+/// The reader's source: one chunk at a time. It suspends with [`Up::Need`]
+/// when the reader has used a chunk up.
 struct Feed<'y> {
     /// The chunk being read.
     chunk: Vec<u8>,
-    /// How much of it is read.
-    at: usize,
-    /// How many bytes of the source were handed out.
-    handed: &'y Cell<u64>,
-    /// The last byte handed out: the one serde_json has peeked, where it has.
-    last: &'y Cell<u8>,
     /// The coroutine's side of the switch.
     yielder: &'y Yielder<Down, Up>,
 }
 
-impl io::Read for Feed<'_> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        while self.at == self.chunk.len() {
-            match self.yielder.suspend(Up::Need) {
-                Some(next) => {
-                    self.chunk = next;
-                    self.at = 0;
-                }
-                None => return Ok(0),
+impl reader::Source for Feed<'_> {
+    fn chunk(&self) -> &[u8] {
+        &self.chunk
+    }
+
+    fn advance(&mut self) -> bool {
+        match self.yielder.suspend(Up::Need) {
+            Some(next) => {
+                self.chunk = next;
+                true
             }
+            // The last chunk stays, as the trait asks.
+            None => false,
         }
-        let n = buf.len().min(self.chunk.len() - self.at);
-        buf[..n].copy_from_slice(&self.chunk[self.at..self.at + n]);
-        self.at += n;
-        if let Some(&byte) = buf[..n].last() {
-            self.last.set(byte);
-        }
-        let n_bytes = u64::try_from(n).unwrap_or(u64::MAX);
-        self.handed.set(self.handed.get().saturating_add(n_bytes));
-        Ok(n)
     }
 }
+
+/// The reader the walk reads with.
+type Reader<'y> = reader::Reader<Feed<'y>>;
 
 /// What every step of the walk shares.
 #[derive(Clone, Copy)]
 struct Walker<'w, 'y> {
-    /// The deepest nesting allowed, counted from the document.
-    max: u32,
     /// Whether elements are built for [`hydrate`], which asks which arrays
     /// were JSON lists.
     typed: bool,
     /// The coroutine's side of the switch.
     yielder: &'y Yielder<Down, Up>,
-    /// Set once the pointer's array is reached.
-    found: &'w Cell<bool>,
-    /// [`Feed`]'s last byte handed out, which [`Skip`] reads.
-    last: &'w Cell<u8>,
     /// The request's deadline, counted once per value the walk builds or
     /// skips. [`Deadline`] owns how often it is read and what that costs.
     deadline: &'w Deadline,
 }
 
-impl<'w> Walker<'w, '_> {
-    /// The [`Decode`] for a value at `depth`.
-    const fn decode(self, depth: u32) -> Decode<'w> {
-        Decode {
-            depth,
-            max: self.max,
-            lists: None,
-            deadline: Some(self.deadline),
-        }
-    }
-
-    /// The [`Skip`] for a value off the path at `depth`.
-    const fn skip(self, depth: u32) -> Skip<'w> {
-        Skip {
-            depth,
-            max: self.max,
-            last: self.last,
-            deadline: self.deadline,
-        }
-    }
-
-    /// Builds the value `deserializer` is at as an element, at `depth`, and
-    /// suspends with it. `false` where there was none.
-    fn element<'de, S: SeqAccess<'de>>(self, seq: &mut S, depth: u32) -> Result<bool, S::Error> {
-        let lists = self.typed.then(Lists::default);
-        let seed = Decode {
-            lists: lists.as_ref(),
-            ..self.decode(depth)
-        };
-        let Some(value) = seq.next_element_seed(seed)? else {
-            return Ok(false);
-        };
-        self.yielder.suspend(Up::Element(value, lists));
-        Ok(true)
-    }
-}
-
-/// The scalar visits of a visitor that accepts every scalar and builds nothing.
-macro_rules! accepted_scalars {
-    () => {
-        fn visit_bool<E: serde::de::Error>(self, _: bool) -> Result<(), E> {
-            Ok(())
-        }
-        fn visit_i64<E: serde::de::Error>(self, _: i64) -> Result<(), E> {
-            Ok(())
-        }
-        fn visit_u64<E: serde::de::Error>(self, _: u64) -> Result<(), E> {
-            Ok(())
-        }
-        fn visit_f64<E: serde::de::Error>(self, _: f64) -> Result<(), E> {
-            Ok(())
-        }
-        fn visit_str<E: serde::de::Error>(self, _: &str) -> Result<(), E> {
-            Ok(())
-        }
-        fn visit_unit<E: serde::de::Error>(self) -> Result<(), E> {
-            Ok(())
-        }
-    };
-}
-
-/// A value off the pointer's path: its syntax and its depth are checked, and
-/// nothing is built. A string value is not kept either (§ *Outside the
-/// pointer*).
-#[derive(Clone, Copy)]
-struct Skip<'w> {
-    /// This value's nesting level.
-    depth: u32,
-    /// The deepest nesting allowed.
-    max: u32,
-    /// [`Feed`]'s last byte handed out.
-    last: &'w Cell<u8>,
-    /// The walk's deadline poll, which counts each skipped value too.
-    deadline: &'w Deadline,
-}
-
-impl<'de> DeserializeSeed<'de> for Skip<'_> {
-    type Value = ();
-
-    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<(), D::Error> {
-        if self
-            .deadline
-            .borrow_mut()
-            .as_mut()
-            .is_some_and(nvs_runtime::DeadlineBatch::stopped)
-        {
-            return Err(<D::Error as serde::de::Error>::custom(DEADLINE_PASSED));
-        }
-        // `deserialize_option` peeks at the value's first byte and consumes
-        // nothing but a `null`, so `visit_some` chooses how to read the rest.
-        deserializer.deserialize_option(self)
-    }
-}
-
-impl<'de> Visitor<'de> for Skip<'_> {
-    type Value = ();
-
-    fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("a JSON value")
-    }
-
-    accepted_scalars!();
-
-    fn visit_none<E: serde::de::Error>(self) -> Result<(), E> {
-        Ok(())
-    }
-
-    fn visit_some<D: Deserializer<'de>>(self, deserializer: D) -> Result<(), D::Error> {
-        if self.last.get() == b'"' {
-            deserializer.deserialize_ignored_any(IgnoredAny).map(|_| ())
-        } else {
-            deserializer.deserialize_any(self)
-        }
-    }
-
-    fn visit_seq<S: SeqAccess<'de>>(self, mut seq: S) -> Result<(), S::Error> {
-        let inner = self.opened()?;
-        while seq.next_element_seed(inner)?.is_some() {}
-        Ok(())
-    }
-
-    fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<(), M::Error> {
-        let inner = self.opened()?;
-        while map.next_key::<IgnoredAny>()?.is_some() {
-            map.next_value_seed(inner)?;
+impl Walker<'_, '_> {
+    /// Counts one step of the deadline's poll, and fails the read where the
+    /// deadline has passed.
+    fn polled(self, reader: &Reader<'_>) -> Result<(), reader::Error> {
+        if stopped(Some(self.deadline)) {
+            return Err(reader.refuse(Code::Stopped));
         }
         Ok(())
     }
-}
 
-impl Skip<'_> {
-    /// The level inside an array or an object opened at this one, or
-    /// [`Decode`]'s refusal where this level may not open one.
-    fn opened<E: serde::de::Error>(self) -> Result<Self, E> {
-        let decode = Decode {
-            depth: self.depth,
-            max: self.max,
-            lists: None,
-            deadline: None,
-        };
-        if self.depth >= self.max {
-            return Err(decode.too_deep());
-        }
-        Ok(Self {
-            depth: self.depth + 1,
-            ..self
-        })
+    /// Reads the next value off the pointer's path and builds nothing.
+    /// `false` where the container around it ends instead.
+    fn skip(self, reader: &mut Reader<'_>) -> Result<bool, reader::Error> {
+        reader.skip(|| stopped(Some(self.deadline)))
     }
 }
 
-/// The value at the start of `path`, at `depth`: the array to walk where the
-/// path is empty, and otherwise the object or array the next step is inside.
-struct Toward<'p, 'w, 'y> {
-    /// The steps still to take, each a decoded reference token.
-    path: &'p [String],
-    /// This value's nesting level.
-    depth: u32,
-    /// What every step shares.
-    walker: Walker<'w, 'y>,
+/// One container on the pointer's path that [`toward`] has open.
+enum Frame {
+    /// An array: the index of its next element, and the index the path names,
+    /// if the step is an index at all.
+    List { at: usize, wanted: Option<usize> },
+    /// An object: whether its key on the path was read already.
+    Map { taken: bool },
 }
 
-impl<'de> DeserializeSeed<'de> for Toward<'_, '_, '_> {
-    type Value = ();
-
-    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<(), D::Error> {
-        deserializer.deserialize_any(self)
-    }
-}
-
-impl Toward<'_, '_, '_> {
-    /// The level inside an array or an object opened here, or [`Decode`]'s
-    /// refusal where this level may not open one.
-    fn opened<E: serde::de::Error>(&self) -> Result<u32, E> {
-        if self.depth >= self.walker.max {
-            return Err(self.walker.decode(self.depth).too_deep());
-        }
-        Ok(self.depth + 1)
-    }
-}
-
-impl<'de> Visitor<'de> for Toward<'_, '_, '_> {
-    type Value = ();
-
-    fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("a JSON value")
-    }
-
-    // A scalar is where the path ends without an array: the walk reports
-    // that once the document is read.
-    accepted_scalars!();
-
-    fn visit_seq<S: SeqAccess<'de>>(self, mut seq: S) -> Result<(), S::Error> {
-        let inner = self.opened()?;
-        let Some((step, rest)) = self.path.split_first() else {
-            self.walker.found.set(true);
-            while self.walker.element(&mut seq, inner)? {}
-            return Ok(());
-        };
-        let wanted = index_of(step);
-        let mut at = 0usize;
-        loop {
-            let more = if Some(at) == wanted {
-                seq.next_element_seed(Toward {
-                    path: rest,
-                    depth: inner,
-                    walker: self.walker,
-                })?
-            } else {
-                seq.next_element_seed(self.walker.skip(inner))?
-            };
-            if more.is_none() {
-                return Ok(());
-            }
-            at += 1;
-        }
-    }
-
-    fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<(), M::Error> {
-        let inner = self.opened()?;
-        let Some((step, rest)) = self.path.split_first() else {
-            return Err(serde::de::Error::custom(
-                "the value the pointer names is an object, not an array",
-            ));
-        };
-        let mut taken = false;
-        while let Some(key) = map.next_key::<String>()? {
-            if key == *step {
-                // A key on the path written twice would make the walk read two
-                // arrays as one, so it is refused as `decode` refuses it.
-                if taken {
-                    return Err(repeated(&key));
+/// Reads the document, walks the array at the end of `path` and gives each of
+/// its elements, and reads the rest of the document. `true` once the array
+/// was found.
+///
+/// A loop over the reader's events. `frames` keeps the containers on the path
+/// that are open, at most one per step of `path`. Every value off the path is
+/// skipped. A key on the path written twice would make the walk read two
+/// arrays as one, so it is refused as `decode` refuses it.
+fn toward(
+    reader: &mut Reader<'_>,
+    path: &[String],
+    walker: Walker<'_, '_>,
+) -> Result<bool, reader::Error> {
+    let mut frames: Vec<Frame> = Vec::with_capacity(path.len());
+    let mut found = false;
+    // Whether the next event is a value on the path, at level `frames.len()`.
+    let mut on_path = true;
+    loop {
+        walker.polled(reader)?;
+        let level = frames.len();
+        if !on_path {
+            match frames.last_mut() {
+                None => {
+                    // The reader gives `None` only at the text's end, and
+                    // refuses anything but whitespace after the document.
+                    reader.next()?;
+                    return Ok(found);
                 }
-                taken = true;
-                map.next_value_seed(Toward {
-                    path: rest,
-                    depth: inner,
-                    walker: self.walker,
-                })?;
-            } else {
-                map.next_value_seed(self.walker.skip(inner))?;
+                Some(Frame::List { at, wanted }) => {
+                    let next = *at;
+                    *at += 1;
+                    if Some(next) == *wanted {
+                        on_path = true;
+                    } else if !walker.skip(reader)? {
+                        frames.pop();
+                    }
+                }
+                Some(Frame::Map { taken }) => {
+                    let taken_before = *taken;
+                    let step = &path[level - 1];
+                    let on_step = match reader.next()? {
+                        Some(Event::Key(key)) => Some(key == step.as_str()),
+                        _ => None,
+                    };
+                    match on_step {
+                        // The object's end.
+                        None => {
+                            frames.pop();
+                        }
+                        Some(true) if taken_before => {
+                            return Err(reader.refuse(Code::Repeated(step.as_str().into())));
+                        }
+                        Some(true) => {
+                            if let Some(Frame::Map { taken }) = frames.last_mut() {
+                                *taken = true;
+                            }
+                            on_path = true;
+                        }
+                        Some(false) => {
+                            walker.skip(reader)?;
+                        }
+                    }
+                }
             }
+            continue;
         }
-        Ok(())
+        on_path = false;
+        match reader.next()? {
+            // An array that ends before the index the path names.
+            Some(Event::EndArray | Event::EndObject) => {
+                frames.pop();
+            }
+            Some(Event::StartArray) if level == path.len() => {
+                found = true;
+                each_element(reader, walker)?;
+            }
+            Some(Event::StartObject) if level == path.len() => {
+                return Err(reader.refuse(Code::NotAnArray));
+            }
+            Some(Event::StartArray) => frames.push(Frame::List {
+                at: 0,
+                wanted: index_of(&path[level]),
+            }),
+            Some(Event::StartObject) => frames.push(Frame::Map { taken: false }),
+            // A scalar, where the path ends without an array: the walk reports
+            // that once the document is read. `None` is unreachable, since the
+            // reader refuses a text that ends where a value belongs.
+            Some(_) | None => {}
+        }
+    }
+}
+
+/// Gives each element of the array whose `[` the reader gave last, up to and
+/// with its `]`.
+fn each_element(reader: &mut Reader<'_>, walker: Walker<'_, '_>) -> Result<(), reader::Error> {
+    loop {
+        walker.polled(reader)?;
+        let lists = walker.typed.then(Lists::default);
+        let deadline = Some(walker.deadline);
+        let value = match reader.next()? {
+            Some(Event::EndArray) | None => return Ok(()),
+            Some(Event::StartArray) => build_open(reader, true, lists.as_ref(), deadline)?,
+            Some(Event::StartObject) => build_open(reader, false, lists.as_ref(), deadline)?,
+            Some(scalar) => scalar_of(scalar).map_err(|code| reader.refuse(code))?,
+        };
+        walker.yielder.suspend(Up::Element(value, lists));
     }
 }
 
@@ -486,7 +359,12 @@ fn tokens_of(pointer: &str) -> Result<Vec<String>, Fault> {
         .collect()
 }
 
-/// The coroutine's body: the whole parse of one source.
+/// A byte offset as the message gives it.
+fn offset(byte: usize) -> u64 {
+    u64::try_from(byte).unwrap_or(u64::MAX)
+}
+
+/// The coroutine's body: the whole read of one source.
 fn read_source(
     yielder: &Yielder<Down, Up>,
     path: &[String],
@@ -495,73 +373,42 @@ fn read_source(
     typed: bool,
     deadline: nvs_runtime::DeadlineBatch,
 ) -> Ended {
-    let handed = Cell::new(0u64);
-    let found = Cell::new(false);
-    let last = Cell::new(0u8);
     let deadline = Deadline::new(Some(deadline));
     let feed = Feed {
         chunk: Vec::new(),
-        at: 0,
-        handed: &handed,
-        last: &last,
         yielder,
     };
-    let mut deserializer = serde_json::Deserializer::from_reader(feed);
-    // Depth is `Decode`'s and `Skip`'s to bound, as `parse` in the parent
-    // module says, and the coroutine's stack holds the deepest allowed.
-    deserializer.disable_recursion_limit();
+    let mut reader = reader::Reader::new(feed, max);
     let walker = Walker {
-        max,
         typed,
         yielder,
-        found: &found,
-        last: &last,
         deadline: &deadline,
     };
     let read = if lines {
-        each_line(&mut deserializer, walker)
+        each_line(&mut reader, walker).map(|()| true)
     } else {
-        Toward {
-            path,
-            depth: 1,
-            walker,
-        }
-        .deserialize(&mut deserializer)
-        .and_then(|()| deserializer.end())
+        toward(&mut reader, path, walker)
     };
-    let at = handed.get().saturating_sub(1);
-    read.map_err(|why| (why.to_string(), at))?;
-    if !lines && !found.get() {
+    let found = read.map_err(|why| (why.to_string(), offset(why.byte())))?;
+    if !found {
         return Err((
             "the document has no array where the pointer points".to_owned(),
-            at,
+            offset(reader.end().saturating_sub(1)),
         ));
     }
     Ok(())
 }
 
-/// JSON Lines: each value of the stream is an element, at depth 1.
-fn each_line<R: io::Read>(
-    deserializer: &mut serde_json::Deserializer<serde_json::de::IoRead<R>>,
-    walker: Walker<'_, '_>,
-) -> Result<(), serde_json::Error> {
-    loop {
-        // `end` reads whitespace up to the next value and fails with
-        // "trailing characters" only when one follows, so a pass is the end of
-        // the stream and that failure is the next value.
-        match deserializer.end() {
-            Ok(()) => return Ok(()),
-            Err(why) if why.is_io() => return Err(why),
-            Err(_) => {}
-        }
+/// JSON Lines: each value of the stream is an element, and a document of its
+/// own.
+fn each_line(reader: &mut Reader<'_>, walker: Walker<'_, '_>) -> Result<(), reader::Error> {
+    while reader.another()? {
+        walker.polled(reader)?;
         let lists = walker.typed.then(Lists::default);
-        let value = Decode {
-            lists: lists.as_ref(),
-            ..walker.decode(1)
-        }
-        .deserialize(&mut *deserializer)?;
+        let value = build(reader, lists.as_ref(), Some(walker.deadline))?;
         walker.yielder.suspend(Up::Element(value, lists));
     }
+    Ok(())
 }
 
 // ----------------------------------------------------------------------------
@@ -1181,6 +1028,62 @@ mod tests {
                 "the walk ended"
             );
             released(elements);
+        }
+    }
+
+    /// A scalar element, as text the case compares.
+    fn shown(value: Value) -> String {
+        if let Some(text) = value.as_text() {
+            return format!("{text:?}");
+        }
+        if let Some(int) = value.as_int() {
+            return int.to_string();
+        }
+        if let Some(float) = value.as_float() {
+            return format!("{float:?}");
+        }
+        if let Some(bool) = value.as_bool() {
+            return bool.to_string();
+        }
+        assert_eq!(value.tag(), Some(nvs_runtime::Tag::Null), "a scalar element");
+        "null".to_owned()
+    }
+
+    /// The reader keeps a token that a chunk end cuts: a string with escapes,
+    /// a number, a surrogate pair and each keyword read the same at every cut,
+    /// on the coroutine's own stack.
+    // covers: Core\Json::decodeEach
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the walk's coroutine stack maps a guard page, which Miri does not emulate"
+    )]
+    fn decode_each_reads_a_token_cut_across_two_chunks() {
+        let text = r#"["a\"bé c", -12345.678e-2, "😀", true, false, null, 98765]"#;
+        let want = [
+            "\"a\\\"bé c\"",
+            "-123.45678",
+            "\"😀\"",
+            "true",
+            "false",
+            "null",
+            "98765",
+        ];
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        for cut in 1..text.len() {
+            let mut array = NvsArray::new();
+            for piece in [&text.as_bytes()[..cut], &text.as_bytes()[cut..]] {
+                array.append(Value::bytes(NvsStr::new(piece)));
+            }
+            let elements =
+                walk(&mut ctx, Value::array(array), "", false).expect("the walk starts");
+            let mut got = Vec::new();
+            while let Some(element) = next(&mut ctx, elements).expect("the document is valid") {
+                got.push(shown(element));
+                released(element);
+            }
+            released(elements);
+            assert_eq!(got, want, "cut at byte {cut}");
         }
     }
 

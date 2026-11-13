@@ -190,6 +190,9 @@ pub(crate) struct Error {
     code: Code,
     line: usize,
     column: usize,
+    /// The offset in the whole text of the byte the error is found at: the
+    /// last byte read or looked at, or the last byte of the text at its end.
+    byte: usize,
 }
 
 impl Error {
@@ -197,6 +200,13 @@ impl Error {
     #[cfg(test)]
     pub(crate) const fn code(&self) -> &Code {
         &self.code
+    }
+
+    /// The offset in the whole text of the byte the error is found at.
+    /// `Core\Json::decodeEach` names it, since its line and column may be far
+    /// into a long stream.
+    pub(crate) const fn byte(&self) -> usize {
+        self.byte
     }
 }
 
@@ -267,6 +277,9 @@ pub(crate) enum Code {
     TooSmall(Digits),
     /// A key written twice in one object.
     Repeated(Box<str>),
+    /// `Core\Json::decodeEach`'s pointer names an object where it needs an
+    /// array.
+    NotAnArray,
     /// The request's deadline passed during the read. Nobody reads the
     /// message: the caller reports the deadline's own error.
     Stopped,
@@ -313,6 +326,7 @@ impl fmt::Display for Code {
                     nvs_runtime::quoted(key)
                 );
             }
+            Self::NotAnArray => "the value the pointer names is an object, not an array",
             Self::Stopped => "the request's deadline has passed",
         })
     }
@@ -392,6 +406,11 @@ pub(crate) struct Reader<S> {
     /// The offset in the whole text of the first byte of the last value
     /// [`Reader::next`] started.
     start: usize,
+    /// Set while [`Reader::skip`] reads: a string value is checked and not
+    /// kept.
+    discard: bool,
+    /// Set while [`Reader::skip_string`] reads, so an escape writes nothing.
+    quiet: bool,
 }
 
 impl<S: Source> Reader<S> {
@@ -419,6 +438,8 @@ impl<S: Source> Reader<S> {
             copied: false,
             token: None,
             start: 0,
+            discard: false,
+            quiet: false,
         }
     }
 
@@ -433,6 +454,65 @@ impl<S: Source> Reader<S> {
     /// container's end, that is where the value ends.
     pub(crate) const fn end(&self) -> usize {
         self.offset()
+    }
+
+    /// Whether another document follows, for JSON Lines, where each value of
+    /// the text is a document of its own. It reads whitespace, and gives
+    /// `false` at the end of the text. On `true`, [`Reader::next`] reads the
+    /// next document. It is called before the first document and after each
+    /// one has ended, and nowhere else.
+    ///
+    /// # Errors
+    ///
+    /// A scratch buffer the request cannot afford.
+    pub(crate) fn another(&mut self) -> Result<bool, Error> {
+        if self.depth > 0 || !matches!(self.expect, Expect::Value | Expect::End) {
+            return Ok(false);
+        }
+        if self.whitespace()?.is_none() {
+            return Ok(false);
+        }
+        self.expect = Expect::Value;
+        Ok(true)
+    }
+
+    /// Reads the next value to its end and builds nothing. It returns `false`
+    /// where the container around it ends instead, after reading that end.
+    ///
+    /// The grammar and `maxDepth` are checked as [`Reader::next`] checks them.
+    /// A string value is checked for its escapes and its control bytes, as
+    /// `serde_json` skips one. Its bytes are never copied, at any length and
+    /// across any number of chunks, and are not checked for UTF-8, since no
+    /// string is made from them. A key is read and checked as
+    /// [`Reader::next`] reads it. `stopped` is asked once per token, and a
+    /// `true` stops the read.
+    ///
+    /// # Errors
+    ///
+    /// [`Reader::next`]'s, and [`Code::Stopped`] where `stopped` said so.
+    pub(crate) fn skip(&mut self, mut stopped: impl FnMut() -> bool) -> Result<bool, Error> {
+        let depth = self.depth;
+        self.discard = true;
+        let read = loop {
+            if stopped() {
+                break Err(self.fail(Code::Stopped));
+            }
+            match self.step() {
+                Err(why) => break Err(why),
+                // Unreachable: a value or a container's end comes first.
+                Ok(None) => break Ok(false),
+                Ok(Some(Token::Key(span))) => {
+                    if let Err(why) = self.text(span) {
+                        break Err(why);
+                    }
+                }
+                Ok(Some(_)) if self.depth < depth => break Ok(false),
+                Ok(Some(_)) if self.depth == depth => break Ok(true),
+                Ok(Some(_)) => {}
+            }
+        };
+        self.discard = false;
+        read
     }
 
     /// The next event, or `None` once the document and the whitespace after it
@@ -474,11 +554,15 @@ impl<S: Source> Reader<S> {
             Span::Chunk(from, to) => self.source.chunk().get(from..to).unwrap_or_default(),
             Span::Scratch => &self.scratch,
         };
-        std::str::from_utf8(bytes).map_err(|why| Error {
-            code: Code::InvalidUnicodeCodePoint,
-            line: self.line,
-            column: (self.offset() - self.line_start)
-                .saturating_sub(bytes.len() - why.valid_up_to()),
+        std::str::from_utf8(bytes).map_err(|why| {
+            let column = (self.offset() - self.line_start)
+                .saturating_sub(bytes.len() - why.valid_up_to());
+            Error {
+                code: Code::InvalidUnicodeCodePoint,
+                line: self.line,
+                column,
+                byte: (self.line_start + column).saturating_sub(1),
+            }
         })
     }
 
@@ -494,6 +578,7 @@ impl<S: Source> Reader<S> {
             code,
             line: self.line,
             column: self.offset() - self.line_start,
+            byte: self.offset().saturating_sub(1),
         }
     }
 
@@ -506,11 +591,13 @@ impl<S: Source> Reader<S> {
                 code,
                 line: self.line + 1,
                 column: 0,
+                byte: self.offset(),
             },
             Some(_) => Error {
                 code,
                 line: self.line,
                 column: self.offset() + 1 - self.line_start,
+                byte: self.offset(),
             },
             None => self.fail(code),
         }
@@ -692,7 +779,12 @@ impl<S: Source> Reader<S> {
             b'-' | b'0'..=b'9' => Token::Number(self.number(byte)?),
             b'"' => {
                 self.at += 1;
-                Token::Str(self.string()?)
+                if self.discard {
+                    self.skip_string()?;
+                    Token::Str(Span::Chunk(0, 0))
+                } else {
+                    Token::Str(self.string()?)
+                }
             }
             b'[' | b'{' => return self.open(byte),
             _ => return Err(self.fail_peeked(Code::ExpectedSomeValue, Some(byte))),
@@ -810,6 +902,43 @@ impl<S: Source> Reader<S> {
         }
     }
 
+    /// [`Reader::string`] for a string [`Reader::skip`] reads: its escapes and
+    /// its control bytes are checked, and none of its bytes is copied.
+    fn skip_string(&mut self) -> Result<(), Error> {
+        self.token = None;
+        self.quiet = true;
+        let read = self.skip_string_bytes();
+        self.quiet = false;
+        read
+    }
+
+    /// [`Reader::skip_string`]'s loop.
+    fn skip_string_bytes(&mut self) -> Result<(), Error> {
+        loop {
+            let chunk = self.source.chunk();
+            self.at += stop_at(chunk.get(self.at..).unwrap_or_default());
+            match chunk.get(self.at).copied() {
+                Some(b'"') => {
+                    self.at += 1;
+                    return Ok(());
+                }
+                Some(b'\\') => {
+                    self.at += 1;
+                    self.escape()?;
+                }
+                Some(byte) => {
+                    self.read_one(byte);
+                    return Err(self.fail(Code::ControlCharacterWhileParsingString));
+                }
+                None => {
+                    if self.next_chunk()?.is_none() {
+                        return Err(self.fail(Code::EofWhileParsingString));
+                    }
+                }
+            }
+        }
+    }
+
     /// The escape after a `\`, written into the scratch buffer.
     fn escape(&mut self) -> Result<(), Error> {
         let Some(byte) = self.next_byte()? else {
@@ -882,9 +1011,10 @@ impl<S: Source> Reader<S> {
         }
     }
 
-    /// Writes `bytes` into the scratch buffer, asking the budget first.
+    /// Writes `bytes` into the scratch buffer, asking the budget first. While
+    /// [`Reader::skip`] reads a string value, nothing is written.
     fn push(&mut self, bytes: &[u8]) -> Result<(), Error> {
-        if extend(&mut self.scratch, bytes) {
+        if self.quiet || extend(&mut self.scratch, bytes) {
             Ok(())
         } else {
             Err(self.fail(Code::OverMemory))

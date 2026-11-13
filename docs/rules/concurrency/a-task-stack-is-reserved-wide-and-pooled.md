@@ -37,18 +37,18 @@ number and keeps its high-water mark. Its tasks are already bounded by `max_task
 `nvs run`'s scheduler ends with its one program, so a second compiled-in number would bound nothing
 the work does not.
 
-A parse whose native recursion depth is set by its input, such as `Core\Json::decode` at its 1024-level
-ceiling, runs on the worker thread's one **spare stack**, 8 MiB reserved, and never on the task's
-own. What is left of a task's stack depends on how deep the program already is and on the build's frame
-sizes, so the task's stack cannot promise room for such a parse. The spare stack is one reservation per
-worker thread, O(workers), and the pages the deepest parse touched stay resident for the life of the
-thread. Code on it never calls compiled Novis code, whose recursion limit is armed for the task's stack.
+No parse recurses natively by its input's depth. What is left of a task's stack depends on how deep the
+program already is and on the build's frame sizes, so the task's stack cannot promise room for such a
+parse. `Core\Json`'s reader is a loop whose depth is a counter, so every decode runs on the task's own
+stack. `Core\Json::decodeEach` suspends in the middle of a document, so its read runs in a coroutine
+with a stack of its own, 256 KiB reserved per walk in flight and freed with the walk. Code on it never
+calls compiled Novis code, whose recursion limit is armed for the task's stack.
 
 - **Memory:** each task in flight reserves 1 MiB of address space, charged to its request, and keeps
   resident only the pages its frames touched. So a request whose memory limit is 256 MB runs at most
   about 250 tasks at once. A serving core also holds up to twice its share of
   `max_in_flight` in idle reservations between tasks, with all but 8 KiB of each given back once the
-  core is idle, and each worker thread one 8 MiB spare stack.
+  core is idle.
 
 **Declined:**
 - **One stack per request, shared by its connection and its program.** A request can outlive its

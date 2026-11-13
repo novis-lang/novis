@@ -651,28 +651,28 @@ fancy-regex = "0.19"
 # `crates/nvs-stdlib/src/time.rs` owns why this crate and not another.
 jiff = "0.2"
 
-# --- JSON (`Core\Json`) ---
-# RFC 8259 is an external specification, so it is a dependency rather than a
-# hand-written parser (docs/ground-rules.md § *Implementation invariants*). `serde_json`
-# is the only Rust JSON crate that is simultaneously the ecosystem default,
-# pure Rust with no build script, and driveable *without* its own `Value` tree
-# — `Core\Json::decode` builds an `NvsArray` straight from a visitor, so no
-# document is ever materialized twice. `serde` itself is the visitor trait it
-# is driven through. `derive` is on for exactly one consumer, `nvs-config`'s
-# block tree: `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s
-# unknown-key refusal *is* `deny_unknown_fields`, an
-# attribute on a struct rather than machinery we write, so the macro replaces
-# code here rather than adding any.
-# `raw_value` is what lets a `decimal` (`rule:types/decimal`) be written as an exact JSON
-# number rather than a lossy `f64`, and `unbounded_depth` is what lets
-# `Core\Json`'s own `maxDepth` be the bound rather than the crate's fixed 128. `float_roundtrip` makes every float parse
-# to the nearest `f64`: without it a number like `8888888388888831.0` decodes
-# one step off, so `encode` and `decode` do not give back the value they were
-# given. It costs about twice the time per float parsed, and nothing else.
-# `crates/nvs-stdlib/src/json.rs` owns why this crate and not another, and what
-# keeps an unbounded depth safe.
+# --- JSON ---
+# `serde_json` reads and writes the small documents of a fixed shape: JOSE
+# headers and claims, JWK import, WebAuthn client data, push subscriptions,
+# queue rows, extension manifests, the editor's wire, the debug service and
+# the CLI's own files. Each keeps the crate's own depth limit of 128. A
+# document a request or a program sends to `Core\Json` is read by the module's
+# own reader, `crates/nvs-stdlib/src/json/reader.rs`, which names `serde_json`
+# only as the oracle of its tests
+# (`rule:packaging/somebody-elses-specification-is-a-crate`).
+# `serde` itself is the visitor trait it is driven through. `derive` is on for
+# exactly one consumer, `nvs-config`'s block tree:
+# `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s
+# unknown-key refusal *is* `deny_unknown_fields`, an attribute on a struct
+# rather than machinery we write, so the macro replaces code here rather than
+# adding any.
+# `raw_value` is for the LSP and the debug API, which pass a JSON text through
+# unread. `float_roundtrip` makes every float parse to the nearest `f64`, as
+# the reader does, so the oracle and the reader agree: without it a number like
+# `8888888388888831.0` decodes one step off. It costs about twice the time per
+# float parsed, and nothing else.
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["float_roundtrip", "raw_value", "unbounded_depth"] }
+serde_json = { version = "1", features = ["float_roundtrip", "raw_value"] }
 
 # --- configuration (`rule:config/the-file-is-nvs-toml-and-it-is-toml`) ---
 # Pure Rust, and both refusals of

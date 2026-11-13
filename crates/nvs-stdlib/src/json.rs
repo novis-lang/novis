@@ -13,8 +13,8 @@
 //! hand-written parser. `serde_json` is the pick, for two properties no other
 //! Rust JSON crate has both of:
 //!
-//! * **It can be driven without its own `Value` tree.** [`Decode`] is a
-//!   `serde::de::Visitor`, so a document becomes [`nvs_runtime::NvsArray`]s and
+//! * **It can be driven without its own `Value` tree.** [`build`] is a loop
+//!   over [`reader`]'s events, so a document becomes [`nvs_runtime::NvsArray`]s and
 //!   [`Value`]s *directly*. `decodeAs<T>`'s [`fill`] is a loop over [`reader`]'s
 //!   events, driven by the class's field list, so an object the class fills becomes one slot per
 //!   field and never an array. Nothing is ever materialized twice. That is
@@ -147,7 +147,7 @@
 //!
 //! It answers exactly what [`nvs_core_json_decode`] would accept, which is the
 //! property that matters, and it allocates the document to do it. A second
-//! `()`-producing visitor would avoid that, and it is a duplicate of [`Decode`]
+//! `()`-producing visitor would avoid that, and it is a duplicate of [`build`]
 //! with every body replaced by `Ok(())` — a second walk to keep in step with
 //! the first, against a cost nothing has measured.
 //!
@@ -159,7 +159,7 @@
 //! by [`scalar`], so a document this crate writes is one it accepts back.
 //!
 //! A `decimal` is `"19.99"`. JSON has one number type and every consumer reads
-//! it as an `f64`, including [`Decode`], so a `decimal` written as a number
+//! it as an `f64`, including [`build`], so a `decimal` written as a number
 //! comes back rounded — the degradation the integer band above already refuses.
 //! The cost is that a client sees a string where it may have expected a number,
 //! spent under `rule:programs/memory-priority` to buy exactness, which is
@@ -290,7 +290,7 @@
 //! [`build_object`] runs [`decode_fields`] over those slots and pops them, so
 //! the object's parent finds a built instance, or the object's issues, in its
 //! own slot. No tree of the document is ever made. Every other value is read
-//! by [`Decode`] unchanged, so each check that visitor makes is made at the
+//! by [`build`] unchanged, so each check that loop makes is made at the
 //! same place, with the same message. That covers a key the class does not
 //! declare, a `mixed` field, a class that wrote its own `fromJson`, and a value
 //! of the wrong JSON type, whose issue names what it found.
@@ -306,7 +306,7 @@
 //! the document's size. A list field's elements wait in one vector until the
 //! list's object is built. A set of undeclared keys is made only once an object
 //! has one, and lives until that object is read. Generic arrays are built only
-//! for the values above that [`Decode`] reads, and each one a built object's
+//! for the values above that [`build`] reads, and each one a built object's
 //! slots held is kept until the call returns ([`Builder::kept`]).
 //!
 //! `Core\Request::queryAs`, `postAs` and `Core\Arr::shapeAs` hold their
@@ -360,35 +360,17 @@
 //!
 //! # A document read one element at a time
 //!
-//! `Core\Json::decodeEach` runs serde_json inside a coroutine of its own. The
-//! coroutine suspends after each element it builds, and whenever serde_json
-//! needs the next chunk of the source. serde_json stays the only JSON parser,
-//! [`Decode`] and `decodeAs`'s checks build each element, and a message names
-//! the line and column in the whole document. The rule is
-//! `rule:core-classes/json-whole-and-stream`.
-//!
-//! `each_probe` chose it among the three readers of the goal `json-streaming`'s
-//! decision 6. Each walked `/items` of a document of small objects, in chunks of
-//! 64 KiB, on the `proof` profile:
-//!
-//! | reader | ns per byte at 1 MiB | peak at 1 MiB | at 16 MiB | at 256 MiB | message for a bad element |
-//! |---|---|---|---|---|---|
-//! | `read` of the whole document | 15.9 | the document's | | | `line 1 column 35` |
-//! | (a) serde_json in a coroutine | 19.2 | 311,735 | 318,907 | 318,907 | `line 1 column 35` |
-//! | (c) a framer before [`read`] | 10.8 | 190,564 | 196,780 | 196,780 | `line 1 column 7` |
-//!
-//! Both keep memory flat within 8 KiB from 1 MiB to 256 MiB, under the bar's
-//! 64 KiB, and both are under twice the whole read's time. (a) is the first
-//! that meets all three legs, so it is built. (c) is faster but names a
-//! position inside the element, and it is a hand-written parser of JSON's outer
-//! structure, which RFC 8259 being a dependency rules out. (b), a pull-reader
-//! crate, parses values with its own grammar and writes its own messages, so it
-//! fails the message leg before any figure. The peak does not count the
-//! coroutine's stack, which is reserved like a task's and resident only in the
-//! pages the parse touches.
+//! `Core\Json::decodeEach` reads with [`reader`] inside a coroutine of its own.
+//! The coroutine suspends after each element it builds, and whenever the
+//! reader needs the next chunk of the source. A token cut by a chunk end is
+//! kept in the reader's frame, which the coroutine keeps alive. [`build`] and
+//! `decodeAs`'s checks build each element, and a message names the line and
+//! column in the whole document. The rule is
+//! `rule:core-classes/json-whole-and-stream`, and `each`'s module doc says what
+//! a walk holds.
 //!
 //! **What it spends:** one coroutine stack per walk in flight, plus one chunk
-//! of the source and the element being built.
+//! of the source, the reader's scratch buffer and the element being built.
 
 use std::fmt;
 
@@ -396,7 +378,6 @@ use nvs_runtime::budget::ChunkWriter;
 use nvs_runtime::{
     ClassDesc, CodecTy, EnumCases, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value,
 };
-use serde::de::{DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Error as _, Serialize};
 use serde_json::ser::{CompactFormatter, Formatter, PrettyFormatter};
 
@@ -1669,7 +1650,7 @@ impl Stack {
             }
             // `rule:types/decimal`'s scalar is exact and JSON's one number type is
             // an `f64` in every consumer that reads it — this module's own, in
-            // [`Decode`], as much as a browser's — so a `decimal` is written as
+            // [`build`], as much as a browser's — so a `decimal` is written as
             // a **string**: `"19.99"`, digits and scale intact. That is the
             // spelling [`scalar`] reads back, so `Core\Json::encode` and
             // `decodeAs<T>` are one round trip rather than a pair that loses
@@ -2288,26 +2269,6 @@ fn flag(value: &Value, option: &str) -> Result<bool, Fault> {
 // Decoding
 // ============================================================================
 
-/// The seed that turns one JSON value into one Novis [`Value`], at a known
-/// nesting level.
-///
-/// `Copy` and carried by value: a child is `Decode { depth: depth + 1, .. }`,
-/// so the recursion needs no borrow of a shared counter and no reset on the
-/// way back out.
-#[derive(Clone, Copy, Debug)]
-struct Decode<'a> {
-    /// This value's own nesting level; the document is 1.
-    depth: u32,
-    /// The level past which nothing is read — [`max_depth`]'s answer.
-    max: u32,
-    /// Where each array built from a JSON list is noted, on a parse a class
-    /// decode reads ([`read_marked`]), and `None` on every other.
-    lists: Option<&'a Lists>,
-    /// The request's deadline, on a parse a member runs ([`read_polled`]),
-    /// and `None` where the caller polls nothing.
-    deadline: Option<&'a Deadline>,
-}
-
 /// The deadline poll one parse shares across every value it reads.
 ///
 /// `rule:http-server/time-is-bounded-inside-a-helper`: `serde_json` drives
@@ -2347,126 +2308,6 @@ fn deadline_finished(
 /// the caller reports the deadline's FATAL instead.
 const DEADLINE_PASSED: &str = "the request's deadline has passed";
 
-impl Decode<'_> {
-    /// Counts this value as one step of the parse's deadline poll, and fails
-    /// the parse where the deadline has passed.
-    fn polled<E: serde::de::Error>(self) -> Result<(), E> {
-        if stopped(self.deadline) {
-            return Err(E::custom(DEADLINE_PASSED));
-        }
-        Ok(())
-    }
-
-    /// This value's elements, one level deeper.
-    fn child(self) -> Self {
-        Self {
-            depth: self.depth + 1,
-            ..self
-        }
-    }
-
-    /// The refusal a container at this level makes when its *contents* would
-    /// be past the cap.
-    fn too_deep<E: serde::de::Error>(self) -> E {
-        E::custom(format!(
-            "nesting is deeper than the `maxDepth` of {}",
-            self.max
-        ))
-    }
-}
-
-impl<'de> DeserializeSeed<'de> for Decode<'_> {
-    type Value = Value;
-
-    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Value, D::Error> {
-        self.polled()?;
-        deserializer.deserialize_any(self)
-    }
-}
-
-impl<'de> Visitor<'de> for Decode<'_> {
-    type Value = Value;
-
-    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("a JSON value")
-    }
-
-    fn visit_unit<E: serde::de::Error>(self) -> Result<Value, E> {
-        Ok(Value::null())
-    }
-
-    fn visit_bool<E: serde::de::Error>(self, value: bool) -> Result<Value, E> {
-        Ok(Value::bool(value))
-    }
-
-    fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<Value, E> {
-        Ok(Value::int(value))
-    }
-
-    /// The one number arm that can refuse: a positive literal past
-    /// `i64::MAX` is "too large for `int`", and this module's
-    /// § *The refusals* owns how much further that band reaches.
-    fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<Value, E> {
-        i64::try_from(value)
-            .map(Value::int)
-            .map_err(|_| E::custom(format!("the integer {value} is too large for `int`")))
-    }
-
-    fn visit_f64<E: serde::de::Error>(self, value: f64) -> Result<Value, E> {
-        Ok(Value::float(value))
-    }
-
-    fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Value, E> {
-        if !nvs_runtime::budget::affords(size_of::<Value>().saturating_add(value.len())) {
-            return Err(over_memory());
-        }
-        Ok(Value::text(value))
-    }
-
-    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Value, A::Error> {
-        if self.depth >= self.max {
-            return Err(self.too_deep());
-        }
-        // The handle owns every element it is given, and releases them all if
-        // an element further along refuses — so a failed decode leaks nothing
-        // even though it stops half way. Each element's place is asked for in
-        // front of it, so a list past the memory limit stops at the limit. The
-        // array itself is asked for too, since `[[],[],…]` is mostly arrays.
-        let mut array = NvsArray::try_new().ok_or_else(over_memory)?;
-        loop {
-            if !affords_entry(&array, 0) {
-                return Err(over_memory());
-            }
-            let Some(value) = seq.next_element_seed(self.child())? else {
-                break;
-            };
-            array.append(value);
-        }
-        let value = Value::array(array);
-        if let Some(lists) = self.lists {
-            lists.note(value);
-        }
-        Ok(value)
-    }
-
-    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Value, A::Error> {
-        if self.depth >= self.max {
-            return Err(self.too_deep());
-        }
-        let mut array = NvsArray::try_new().ok_or_else(over_memory)?;
-        while let Some(key) = map.next_key::<String>()? {
-            if !affords_entry(&array, key.len()) {
-                return Err(over_memory());
-            }
-            let value = map.next_value_seed(self.child())?;
-            if array.replace(NvsStr::new(key.as_bytes()), value) {
-                return Err(repeated(&key));
-            }
-        }
-        Ok(Value::array(array))
-    }
-}
-
 /// Whether the request can afford one more entry in `array`, with a key of
 /// `key` bytes.
 ///
@@ -2476,16 +2317,6 @@ impl<'de> Visitor<'de> for Decode<'_> {
 /// is the rule.
 fn affords_entry(array: &NvsArray, key: usize) -> bool {
     nvs_runtime::budget::affords(size_of::<Value>().saturating_add(key)) && array.affords_write()
-}
-
-/// The error a parse stops with once the request cannot afford its next step.
-///
-/// The budget has already recorded the breach, so a member that returns this
-/// as its `Err` is reported as the memory limit's `FATAL` and not as a
-/// `ParseError`. [`nvs_core_json_is_valid`] is the one member that answers a
-/// failed parse instead of throwing, and it reads the context first.
-fn over_memory<E: serde::de::Error>() -> E {
-    E::custom("the document does not fit in the request's memory limit")
 }
 
 /// Reads one whole document, refusing anything after it.
@@ -3587,16 +3418,6 @@ fn fill<'a, S: reader::Source>(
             },
         }
     }
-}
-
-/// The refusal of a key written twice in one object, for [`Decode::visit_map`]
-/// and `decodeEach`. The key is quoted, so a long key costs the message
-/// [`nvs_runtime::QUOTED_BYTES`] and no more.
-fn repeated<E: serde::de::Error>(key: &str) -> E {
-    E::custom(format!(
-        "the key {:?} appears twice in one object",
-        nvs_runtime::quoted(key)
-    ))
 }
 
 /// Writes `found` into `slot`, or returns `true` where the slot is filled
@@ -6163,9 +5984,6 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
         ))
     })
 }
-
-#[cfg(test)]
-mod each_probe;
 
 mod each;
 mod pieces;
@@ -8892,5 +8710,48 @@ pub(crate) mod tests {
                 );
             }
         }
+    }
+
+    /// No JSON read needs a stack switch or a parse whose depth is native
+    /// recursion: no `.rs` file under `crates/` names the spare stack or turns
+    /// off `serde_json`'s depth limit, and the workspace row does not ask for
+    /// the feature that allows it. The names are split here, so this file
+    /// does not match itself, and the feature is matched in quotes, as a
+    /// manifest names it, so this test's own name does not match.
+    #[test]
+    #[cfg_attr(miri, ignore = "reads the repository's files")]
+    fn nothing_in_the_tree_asks_for_a_spare_stack_or_an_unbounded_depth() {
+        let needles = [
+            concat!("on_spare", "_stack"),
+            concat!("SPARE", "_STACK_SIZE"),
+            concat!("disable_recursion", "_limit"),
+            concat!("\"unbounded", "_depth\""),
+        ];
+        let mut files = vec![nvs_repo::path("Cargo.toml")];
+        let mut dirs = vec![nvs_repo::path("crates")];
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(&dir).expect("the case reads `crates/`") {
+                let path = entry.expect("a directory entry").path();
+                if path.is_dir() {
+                    dirs.push(path);
+                } else if path.extension().is_some_and(|ext| ext == "rs") {
+                    files.push(path);
+                }
+            }
+        }
+        assert!(files.len() > 100, "the walk found the crates");
+        let found: Vec<String> = files
+            .iter()
+            .filter_map(|path| {
+                let text = std::fs::read_to_string(path).ok()?;
+                let named: Vec<&str> = needles
+                    .iter()
+                    .copied()
+                    .filter(|needle| text.contains(needle))
+                    .collect();
+                (!named.is_empty()).then(|| format!("{} names {named:?}", path.display()))
+            })
+            .collect();
+        assert!(found.is_empty(), "{found:#?}");
     }
 }
