@@ -25,8 +25,13 @@ if (!Core\Json::isValid($atLimit) || Core\Json::isValid($pastLimit)) {
 echo 'step 2: done', "\n";
 
 // 3. The largest `int` is valid. One more is too large for `int`, so it is not valid.
+// A number with a thousand digits is not valid, whether it is positive or negative.
+string $thousand = Core\Str::repeat('9', 1000);
 if (!Core\Json::isValid('9223372036854775807') || Core\Json::isValid('9223372036854775808')) {
     throw new LogicError('the largest int changed');
+}
+if (Core\Json::isValid($thousand) || Core\Json::isValid('[-' . $thousand . ']')) {
+    throw new LogicError('a number too large for `int` was called valid');
 }
 echo 'step 3: done', "\n";
 

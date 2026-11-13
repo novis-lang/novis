@@ -152,7 +152,7 @@ pub(crate) struct Digits {
 
 impl Digits {
     /// The first [`HEAD`] of `digits`, and their count.
-    fn of(digits: &[u8]) -> Self {
+    pub(crate) fn of(digits: &[u8]) -> Self {
         let mut head = [0; HEAD];
         let kept = digits.len().min(HEAD);
         head[..kept].copy_from_slice(&digits[..kept]);
@@ -189,6 +189,14 @@ pub(crate) struct Error {
     column: usize,
 }
 
+impl Error {
+    /// What went wrong.
+    #[cfg(test)]
+    pub(crate) const fn code(&self) -> &Code {
+        &self.code
+    }
+}
+
 /// `serde_json`'s form: the message, then `at line L column C`.
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -200,8 +208,10 @@ impl fmt::Display for Error {
     }
 }
 
-/// What went wrong. Each message is the one `serde_json` gives.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// What went wrong. Each message of a syntax error is the one `serde_json`
+/// gives. The last five are a caller's: it refuses a token the grammar allows,
+/// and [`Reader::refuse`] places the refusal after that token.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Code {
     /// The text ended inside an array.
     EofWhileParsingList,
@@ -243,8 +253,20 @@ pub(crate) enum Code {
     UnexpectedEndOfHexEscape,
     /// A container opens past the reader's `maxDepth`.
     TooDeep(u32),
-    /// The scratch buffer would cross the request's memory limit.
+    /// The scratch buffer, or a value a caller builds, would cross the
+    /// request's memory limit.
     OverMemory,
+    /// A positive integer literal past `i64::MAX`, for a caller that builds
+    /// an `int`.
+    TooLarge(Digits),
+    /// A negative integer literal below `i64::MIN`, for a caller that builds
+    /// an `int`.
+    TooSmall(Digits),
+    /// A key written twice in one object.
+    Repeated(Box<str>),
+    /// The request's deadline passed during the read. Nobody reads the
+    /// message: the caller reports the deadline's own error.
+    Stopped,
 }
 
 impl fmt::Display for Code {
@@ -275,6 +297,20 @@ impl fmt::Display for Code {
                 return write!(f, "nesting is deeper than the `maxDepth` of {max}");
             }
             Self::OverMemory => "the document does not fit in the request's memory limit",
+            Self::TooLarge(digits) => {
+                return write!(f, "the integer {digits} is too large for `int`");
+            }
+            Self::TooSmall(digits) => {
+                return write!(f, "the integer -{digits} is too small for `int`");
+            }
+            Self::Repeated(key) => {
+                return write!(
+                    f,
+                    "the key {:?} appears twice in one object",
+                    nvs_runtime::quoted(key)
+                );
+            }
+            Self::Stopped => "the request's deadline has passed",
         })
     }
 }
@@ -401,6 +437,13 @@ impl<S: Source> Reader<S> {
             Token::StartObject => Event::StartObject,
             Token::EndObject => Event::EndObject,
         }))
+    }
+
+    /// `code` right after the token [`Reader::next`] gave last: a caller's
+    /// refusal of a token the grammar allows, where `serde_json` places a
+    /// visitor's error.
+    pub(crate) const fn refuse(&self, code: Code) -> Error {
+        self.fail(code)
     }
 
     /// A string's bytes as text, refused where they are not UTF-8. The

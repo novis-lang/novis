@@ -6,7 +6,7 @@ part with `as` before you use it, for example `$person["name"] as string`.
 
 If the text is not valid JSON, `decode` throws a `ParseError`. It also throws one when the document
 is nested deeper than the `maxDepth` option allows, which is 512 levels by default, or when a whole
-number is too large for `int`. It never returns `null` to report an error.
+number is too large or too small for `int`. It never returns `null` to report an error.
 
 **Good to know:** when you know the structure of the document in advance, `Core\Json::decodeAs`
 reads it straight into a class or a shape.

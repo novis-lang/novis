@@ -1,0 +1,23 @@
+--TEST--
+`Core\Json::decode` throws a `ParseError` for an integer literal outside `int` at any length, positive or negative, and its message shows at most 32 of the digits
+--FILE--
+<?nvs
+string $long = Core\Str::repeat('9', 400);
+array<string> $texts = ['18446744073709551616', '-9223372036854775809', $long, '[-' . $long . ']'];
+foreach ($texts as string $text) {
+    try {
+        Core\Json::decode($text);
+        echo "not reached\n";
+    } catch (ParseError $e) {
+        echo $e->message, "\n";
+    }
+}
+echo Core\Json::decode('-9223372036854775808') as int, "\n";
+echo Core\Json::isValid('-' . $long) ? "valid\n" : "not valid\n";
+--EXPECT--
+Core\Json::decode(): the integer 18446744073709551616 is too large for `int` at line 1 column 20
+Core\Json::decode(): the integer -9223372036854775809 is too small for `int` at line 1 column 20
+Core\Json::decode(): the integer 99999999999999999999999999999999... is too large for `int` at line 1 column 400
+Core\Json::decode(): the integer -99999999999999999999999999999999... is too small for `int` at line 1 column 402
+-9223372036854775808
+not valid

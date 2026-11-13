@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a client sends a whole number with more digits than any number type can store.
+// Every decode should throw a `ParseError` with a short message, and `isValid` should return `false`.
+
+// 1. A number with ten thousand digits: alone, inside a list, and negative inside an object.
+string $digits = Core\Str::repeat('9', 10000);
+array<string> $texts = [$digits, '[1,' . $digits . ']', '{"total":-' . $digits . '}'];
+foreach ($texts as string $text) {
+    try {
+        Core\Json::decode($text);
+        throw new LogicError('a number too large for `int` was decoded');
+    } catch (ParseError $e) {
+        echo $e->message, "\n";
+    }
+}
+
+// 2. The same three texts. `isValid` must return `false` for each of them.
+foreach ($texts as string $text) {
+    if (Core\Json::isValid($text)) {
+        throw new LogicError('a number too large for `int` was called valid');
+    }
+}
+echo "step 2: done\n";
+
+// 3. A list of one thousand numbers that each have one digit too many for `int`.
+string $list = '[' . Core\Str::repeat('92233720368547758070,', 999) . '1]';
+try {
+    Core\Json::decode($list);
+    throw new LogicError('a number too large for `int` was decoded');
+} catch (ParseError $e) {
+    echo $e->message, "\n";
+}

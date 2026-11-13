@@ -78,17 +78,15 @@
 //!   is substituted into the document to stand for the cycle, because this
 //!   document is somebody else's contract rather than our own diagnostic
 //!   format.
-//! * **An integer literal too large for `int` throws**, rather than
+//! * **An integer literal outside `int` throws, at any length**, rather than
 //!   degrading to `float`: silent precision loss on a wire format is the bug
-//!   `JSON_BIGINT_AS_STRING` exists to work around. The refusal reaches
-//!   `i64::MAX`..=`u64::MAX` and no further: `serde_json` has already widened a
-//!   longer literal to `f64` by the time [`Decode::visit_f64`] sees it, and the
-//!   two are indistinguishable there, since the raw token is not in the
-//!   visitor's hands. Reaching past that band means either the
-//!   `arbitrary_precision` feature, which routes *every* number through a
-//!   private map token and is a workspace-wide switch, or a `RawValue`
-//!   pre-pass — neither worth a whole document's re-scan for a band that starts
-//!   at 1.8e19.
+//!   `JSON_BIGINT_AS_STRING` exists to work around. A literal with no fraction
+//!   and no exponent past `i64::MAX` is "too large for `int`", and one below
+//!   `i64::MIN` is "too small", at the column after the literal. [`reader`]
+//!   counts the digits as it reads them, so the message shows at most the
+//!   first 32 and then `...`, and a long literal cannot fill a log line. A
+//!   typed decode still reads such a literal into a `float` field, and a `uint`
+//!   field takes one up to `u64::MAX`, since the program named that type.
 //! * **A key written twice in one object throws**, naming the key
 //!   (`rule:errors/ambiguous-input-refused`). Two readers keep different
 //!   copies of a repeated key, so the document says two things at once. The
@@ -2354,12 +2352,7 @@ impl Decode<'_> {
     /// Counts this value as one step of the parse's deadline poll, and fails
     /// the parse where the deadline has passed.
     fn polled<E: serde::de::Error>(self) -> Result<(), E> {
-        if let Some(deadline) = self.deadline
-            && deadline
-                .borrow_mut()
-                .as_mut()
-                .is_some_and(nvs_runtime::DeadlineBatch::stopped)
-        {
+        if stopped(self.deadline) {
             return Err(E::custom(DEADLINE_PASSED));
         }
         Ok(())
@@ -2496,24 +2489,21 @@ fn over_memory<E: serde::de::Error>() -> E {
     E::custom("the document does not fit in the request's memory limit")
 }
 
-/// The longest text [`read`] and [`read_against`] parse on the caller's own
-/// stack.
+/// The longest text [`read_against`] and `secret_spans` parse on the caller's
+/// own stack.
 ///
 /// Each nesting level takes at least one byte, so a text this short nests at
 /// most this deep. A helper is entered with at least `nvs_runtime`'s
 /// `STACK_RESERVE` of stack left, and
-/// `the_deepest_short_text_parses_in_the_unwinding_reserve` and
-/// `a_decode_as_parses_its_deepest_short_text_in_the_unwinding_reserve` check
+/// `a_decode_as_parses_its_deepest_short_text_in_the_unwinding_reserve` checks
 /// that this many levels fit in it on the debug profile.
 const IN_PLACE_BYTES: usize = 64;
 
 /// Reads one whole document, refusing anything after it.
 ///
-/// The parse takes one native frame per nesting level, so a text that could
-/// nest deeper than [`IN_PLACE_BYTES`] is parsed on the thread's spare stack
-/// (`nvs_host::on_spare_stack`), which holds [`DEPTH_CEILING`] levels on every
-/// profile. The parse calls no compiled code, which is what that stack needs.
-pub(crate) fn read(text: &str, max: u32) -> Result<Value, serde_json::Error> {
+/// [`build`] reads it in a loop over [`reader::Reader`]'s events, so the read
+/// takes the same native stack at any depth and runs on the caller's own.
+pub(crate) fn read(text: &str, max: u32) -> Result<Value, reader::Error> {
     read_with(text, max, None, None)
 }
 
@@ -2522,7 +2512,7 @@ pub(crate) fn read(text: &str, max: u32) -> Result<Value, serde_json::Error> {
 /// Tests call it. A member calls [`read_polled`], which also polls the
 /// request's deadline.
 #[cfg(test)]
-pub(crate) fn read_marked(text: &str, max: u32, lists: &Lists) -> Result<Value, serde_json::Error> {
+pub(crate) fn read_marked(text: &str, max: u32, lists: &Lists) -> Result<Value, reader::Error> {
     read_with(text, max, Some(lists), None)
 }
 
@@ -2542,7 +2532,7 @@ pub(crate) fn read_polled(
     text: &str,
     max: u32,
     lists: Option<&Lists>,
-) -> Result<Result<Value, serde_json::Error>, Fault> {
+) -> Result<Result<Value, reader::Error>, Fault> {
     let deadline = deadline_of(ctx);
     let read = read_with(text, max, lists, Some(&deadline));
     if let Err(fault) = deadline_finished(&deadline, ctx, member) {
@@ -2561,19 +2551,187 @@ pub(crate) fn read_polled(
     Ok(read)
 }
 
-/// [`read`], [`read_marked`] and [`read_polled`], on the stack the text's
-/// length needs.
+/// [`read`], [`read_marked`] and [`read_polled`]: [`build`] over the whole
+/// text, and then nothing but whitespace.
 fn read_with(
     text: &str,
     max: u32,
     lists: Option<&Lists>,
     deadline: Option<&Deadline>,
-) -> Result<Value, serde_json::Error> {
-    if text.len() <= IN_PLACE_BYTES {
-        parse(text, max, lists, deadline)
-    } else {
-        nvs_host::on_spare_stack(|| parse(text, max, lists, deadline))
+) -> Result<Value, reader::Error> {
+    let mut reader = reader::Reader::new(reader::Text(text.as_bytes()), max);
+    let value = build(&mut reader, lists, deadline)?;
+    match reader.next() {
+        // The reader gives `None` only at the text's end, and refuses
+        // anything but whitespace after the document.
+        Ok(_) => Ok(value),
+        Err(why) => {
+            #[expect(
+                unsafe_code,
+                reason = "the decoded value owns exactly the one reference `read` \
+                          would have handed back, and nothing else holds it"
+            )]
+            unsafe {
+                value.release();
+            }
+            Err(why)
+        }
     }
+}
+
+/// One container [`build`] has open.
+struct Open {
+    /// What the container holds so far. Dropping it releases all of that.
+    array: NvsArray,
+    /// The key the object's next value goes under, once the reader gave it.
+    key: Option<NvsStr>,
+    /// Whether the document wrote a list.
+    list: bool,
+}
+
+/// Builds the one value `reader` reads next, as `Core\Json::decode` gives it.
+///
+/// A loop over the reader's events, which checks the grammar and the depth.
+/// `open` keeps the containers not yet closed, and each of its growths is
+/// asked from the request's budget first. A key is built once, as the string
+/// the array stores. Each value read counts one step of `deadline`'s poll, and
+/// each array built from a JSON list is noted in `lists`.
+///
+/// **What it spends:** one [`Open`] per open level on the heap, freed with the
+/// call. On an error, dropping `open` frees everything built so far.
+fn build<S: reader::Source>(
+    reader: &mut reader::Reader<S>,
+    lists: Option<&Lists>,
+    deadline: Option<&Deadline>,
+) -> Result<Value, reader::Error> {
+    use reader::{Code, Event};
+    let mut open: Vec<Open> = Vec::new();
+    loop {
+        let Some(event) = reader.next()? else {
+            // Unreachable: the reader refuses a text that ends inside a value.
+            return Err(reader.refuse(Code::EofWhileParsingValue));
+        };
+        let value = match event {
+            Event::Key(key) => {
+                let top = open.last_mut().filter(|top| !top.list);
+                let Some(top) = top else {
+                    // Unreachable: the reader gives a key only inside an object.
+                    return Err(reader.refuse(Code::KeyMustBeAString));
+                };
+                if !affords_entry(&top.array, key.len()) {
+                    return Err(reader.refuse(Code::OverMemory));
+                }
+                top.key = Some(NvsStr::new(key.as_bytes()));
+                continue;
+            }
+            Event::EndArray | Event::EndObject => {
+                let Some(done) = open.pop() else {
+                    // Unreachable: the reader closes only what it opened.
+                    return Err(reader.refuse(Code::TrailingCharacters));
+                };
+                let value = Value::array(done.array);
+                if done.list
+                    && let Some(lists) = lists
+                {
+                    lists.note(value);
+                }
+                value
+            }
+            start => {
+                if stopped(deadline) {
+                    return Err(reader.refuse(Code::Stopped));
+                }
+                if open
+                    .last()
+                    .is_some_and(|top| top.list && !affords_entry(&top.array, 0))
+                {
+                    return Err(reader.refuse(Code::OverMemory));
+                }
+                match start {
+                    Event::Null => Value::null(),
+                    Event::Bool(value) => Value::bool(value),
+                    Event::Number(number) => {
+                        number_of(number).map_err(|code| reader.refuse(code))?
+                    }
+                    Event::Str(text) => {
+                        let ask = size_of::<Value>().saturating_add(text.len());
+                        if !nvs_runtime::budget::affords(ask) {
+                            return Err(reader.refuse(Code::OverMemory));
+                        }
+                        Value::text(text)
+                    }
+                    _ => {
+                        let list = matches!(start, Event::StartArray);
+                        let grow = open.capacity().max(4).saturating_mul(size_of::<Open>());
+                        if open.len() == open.capacity() && !nvs_runtime::budget::affords(grow) {
+                            return Err(reader.refuse(Code::OverMemory));
+                        }
+                        let Some(array) = NvsArray::try_new() else {
+                            return Err(reader.refuse(Code::OverMemory));
+                        };
+                        open.push(Open {
+                            array,
+                            key: None,
+                            list,
+                        });
+                        continue;
+                    }
+                }
+            }
+        };
+        let Some(top) = open.last_mut() else {
+            return Ok(value);
+        };
+        if top.list {
+            top.array.append(value);
+            continue;
+        }
+        let Some(key) = top.key.take() else {
+            // Unreachable: the reader gives a member's key before its value.
+            // The value is not stored, so the stack frees it.
+            #[expect(unsafe_code, reason = "this frame holds the value's only reference")]
+            unsafe {
+                value.release();
+            }
+            return Err(reader.refuse(Code::KeyMustBeAString));
+        };
+        // A second reference to the key, which costs no allocation, so the
+        // refusal of a repeat can name it.
+        let name = key.clone();
+        if top.array.replace(key, value) {
+            let name = String::from_utf8_lossy(name.as_bytes());
+            return Err(reader.refuse(Code::Repeated(name.into())));
+        }
+    }
+}
+
+/// The `int` or `float` a number decodes to. An integer literal outside
+/// `int` is refused at any length, with its digits.
+fn number_of(number: reader::Number) -> Result<Value, reader::Code> {
+    use reader::{Code, Digits, Number};
+    match number {
+        Number::Int(value) => Ok(Value::int(value)),
+        Number::Float(value) => Ok(Value::float(value)),
+        Number::Uint(value) => Err(Code::TooLarge(Digits::of(value.to_string().as_bytes()))),
+        Number::Big {
+            negative: false,
+            digits,
+        } => Err(Code::TooLarge(digits)),
+        Number::Big {
+            negative: true,
+            digits,
+        } => Err(Code::TooSmall(digits)),
+    }
+}
+
+/// Whether `deadline` has passed, counting one step of its poll.
+fn stopped(deadline: Option<&Deadline>) -> bool {
+    deadline.is_some_and(|deadline| {
+        deadline
+            .borrow_mut()
+            .as_mut()
+            .is_some_and(nvs_runtime::DeadlineBatch::stopped)
+    })
 }
 
 /// The arrays one class decode's parse built from a JSON list, by address.
@@ -2606,44 +2764,6 @@ impl Lists {
         value
             .array_ptr()
             .is_some_and(|ptr| self.0.borrow().contains(&ptr.addr()))
-    }
-}
-
-/// [`read`]'s parse, on whatever stack it is called on.
-///
-/// `disable_recursion_limit` is deliberate and is what [`DEPTH_CEILING`]
-/// exists to make safe: `serde_json`'s own limit is 128, which is below the
-/// default of [`DEFAULT_MAX_DEPTH`], so leaving it on would make the
-/// declared default unreachable. [`Decode`]'s own counter is the bound
-/// instead, and it is checked against a ceiling the call cannot raise.
-fn parse(
-    text: &str,
-    max: u32,
-    lists: Option<&Lists>,
-    deadline: Option<&Deadline>,
-) -> Result<Value, serde_json::Error> {
-    let mut deserializer = serde_json::Deserializer::from_str(text);
-    deserializer.disable_recursion_limit();
-    let value = Decode {
-        depth: 1,
-        max,
-        lists,
-        deadline,
-    }
-    .deserialize(&mut deserializer)?;
-    match deserializer.end() {
-        Ok(()) => Ok(value),
-        Err(why) => {
-            #[expect(
-                unsafe_code,
-                reason = "the decoded value owns exactly the one reference `read` \
-                          would have handed back, and nothing else holds it"
-            )]
-            unsafe {
-                value.release();
-            }
-            Err(why)
-        }
     }
 }
 
@@ -2785,7 +2905,7 @@ pub(crate) unsafe fn decode_as(
     unsafe {
         check_codec(class, shape, member)?;
     }
-    let unparsed = |why: serde_json::Error| {
+    let unparsed = |why: &dyn fmt::Display| {
         let message = format!("{member}(): {why}");
         let issues = crate::issue::list([("", message.as_str())]);
         Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
@@ -2798,7 +2918,8 @@ pub(crate) unsafe fn decode_as(
     )]
     let contract = unsafe { Contract::new(class, shape) }.over(reading);
     if contract.writes_decoder() {
-        let document = read_polled(ctx, member, text, max, Some(&lists))?.map_err(unparsed)?;
+        let document =
+            read_polled(ctx, member, text, max, Some(&lists))?.map_err(|why| unparsed(&why))?;
         #[expect(
             unsafe_code,
             reason = "the same live descriptor the caller vouched for"
@@ -2822,7 +2943,7 @@ pub(crate) unsafe fn decode_as(
     }
     // The outermost value: an instance or its issues, a list of those, or a
     // value of the wrong JSON type, which the calls below report.
-    let found = read.map_err(unparsed)?;
+    let found = read.map_err(|why| unparsed(&why))?;
     #[expect(
         unsafe_code,
         reason = "the same live descriptor the caller vouched for, and a value this \
@@ -6241,10 +6362,9 @@ pub(crate) mod tests {
             .expect("the decoding thread does not panic")
     }
 
-    /// The ceiling is a promise about *stack*, so the deepest document a call
-    /// may ask for has to decode on the debug profile, whose frames are the
-    /// fattest. The calling thread's stack is far too small for that parse, so
-    /// the test also shows the parse runs on the spare stack.
+    /// The deepest document a call may ask for decodes on the debug profile,
+    /// whose frames are the fattest, on a thread with a 64 KiB stack. [`read`]
+    /// is a loop, so the native stack it takes does not grow with the depth.
     #[cfg_attr(
         miri,
         ignore = "a guard page needs `mprotect`, which Miri does not emulate"
@@ -6253,16 +6373,6 @@ pub(crate) mod tests {
     fn a_document_at_the_ceiling_decodes_whatever_stack_the_caller_has() {
         let levels = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize") - 1;
         decoded_on_a_thread(nested_text(levels), 64 << 10).expect("the ceiling is decodable");
-    }
-
-    /// The deepest text [`read`] parses in place fits in the stack a helper is
-    /// always entered with. That text is all opening brackets: it nests one
-    /// level per byte and fails only at its end.
-    #[test]
-    fn the_deepest_short_text_parses_in_the_unwinding_reserve() {
-        let why = decoded_on_a_thread("[".repeat(IN_PLACE_BYTES), nvs_runtime::STACK_RESERVE)
-            .expect_err("an unclosed list is not a document");
-        assert!(why.contains("EOF while parsing a list"), "{why}");
     }
 
     /// A class `Node` whose one field, keyed `""`, nests another `Node`:
@@ -6704,10 +6814,84 @@ pub(crate) mod tests {
         assert!(why.contains("maxDepth"), "{why}");
     }
 
+    /// An integer literal outside `int` throws at any length, at the column
+    /// after the literal, and its message shows at most 32 digits. The two
+    /// bounds of `int` still decode.
+    // covers: Core\Json::decode
     #[test]
-    fn an_integer_past_int_is_refused_rather_than_widened() {
-        let why = decoded("9223372036854775808", 8).expect_err("2^63 is past `int`");
-        assert!(why.contains("too large for `int`"), "{why}");
+    fn an_integer_literal_outside_int_throws_at_any_length() {
+        let long = "9".repeat(400);
+        let shown = format!("{}...", "9".repeat(32));
+        let cases = [
+            (
+                "9223372036854775808".to_owned(),
+                "the integer 9223372036854775808 is too large for `int` at line 1 column 19"
+                    .to_owned(),
+            ),
+            (
+                "18446744073709551616".to_owned(),
+                "the integer 18446744073709551616 is too large for `int` at line 1 column 20"
+                    .to_owned(),
+            ),
+            (
+                "-9223372036854775809".to_owned(),
+                "the integer -9223372036854775809 is too small for `int` at line 1 column 20"
+                    .to_owned(),
+            ),
+            (
+                format!("[1,{long}]"),
+                format!("the integer {shown} is too large for `int` at line 1 column 403"),
+            ),
+            (
+                format!(r#"{{"a":-{long}}}"#),
+                format!("the integer -{shown} is too small for `int` at line 1 column 406"),
+            ),
+        ];
+        for (text, message) in cases {
+            let why = read(&text, 8).expect_err(&text);
+            assert_eq!(why.to_string(), message);
+            assert!(
+                matches!(
+                    why.code(),
+                    reader::Code::TooLarge(_) | reader::Code::TooSmall(_)
+                ),
+                "{why}"
+            );
+        }
+        for (text, bound) in [
+            ("9223372036854775807", i64::MAX),
+            ("-9223372036854775808", i64::MIN),
+        ] {
+            let value = read(text, 8).expect(text);
+            assert_eq!(value.as_int(), Some(bound));
+        }
+    }
+
+    /// An untyped decode makes one allocation per object key: the key, built
+    /// once as the string the array stores. The rest is the object's own
+    /// growth, which doubles, so it barely changes from 1,000 keys to 16,000.
+    // covers: Core\Json::decode
+    #[test]
+    #[cfg_attr(miri, ignore = "decodes 17,000 keys, which Miri runs for minutes")]
+    fn an_untyped_decode_allocates_once_per_object_key_at_two_sizes() {
+        let mut rest = Vec::new();
+        for keys in [1_000, 16_000] {
+            let members: Vec<String> = (0..keys).map(|n| format!(r#""key-{n:05}":{n}"#)).collect();
+            let text = format!("{{{}}}", members.join(","));
+            let ctx = nvs_runtime::Ctx::buffered();
+            let before = nvs_runtime::budget::allocations();
+            let value = read(&text, DEFAULT_MAX_DEPTH_U32).expect("the object decodes");
+            let made = nvs_runtime::budget::allocations() - before;
+            #[expect(unsafe_code, reason = "this frame holds the only reference")]
+            unsafe {
+                value.release();
+            }
+            drop(ctx);
+            assert!(made >= keys, "{keys} keys made {made} allocations");
+            rest.push(made - keys);
+        }
+        assert!(rest[0] <= 64, "{rest:?}");
+        assert!(rest[1] <= rest[0] + 16, "{rest:?}");
     }
 
     /// A float decodes to the nearest `f64`, so the text `encode` writes for
