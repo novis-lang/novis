@@ -21,12 +21,19 @@ default = []
 # want on every `cargo build` for the ~18 months before M9. CI runs a dedicated
 # job with this feature on; day-to-day work on the front end does not pay for it.
 #
-# The async-bridge probe needs three of wasmtime's features: `component-model`
+# The async-bridge probe needs four of wasmtime's features: `component-model`
 # for a component guest, `async` for a call that suspends on wasmtime's own
-# fiber and hands its future back to the caller, and `wat` so a test guest is
-# component text compiled at run time with no wasm toolchain. The workspace
-# entry leaves `wat` off, so this feature is the one that turns it on.
-wasm-probe = ["dep:wasmtime", "wasmtime/component-model", "wasmtime/async", "wasmtime/wat"]
+# fiber and hands its future back to the caller, `wat` so a test guest is
+# component text compiled at run time with no wasm toolchain, and `anyhow` so
+# a `wasmtime::Error` converts into the probe's `anyhow::Error` with `?`. The
+# workspace entry leaves `wat` and `anyhow` off, so this feature turns them on.
+wasm-probe = [
+    "dep:wasmtime",
+    "wasmtime/component-model",
+    "wasmtime/async",
+    "wasmtime/wat",
+    "wasmtime/anyhow",
+]
 
 [dependencies]
 anyhow.workspace = true

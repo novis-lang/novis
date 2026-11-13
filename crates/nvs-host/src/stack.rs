@@ -181,7 +181,6 @@
 //! What it spends: one reservation per coroutine in flight, O(in-flight) and
 //! never O(requests), plus the pages its parse touched.
 
-use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -448,7 +447,8 @@ impl Stacks {
 thread_local! {
     /// The role and base of every stack this thread's [`Stacks`] handed to a
     /// task and has not taken back, for [`live_resident_pages`].
-    static LIVE: RefCell<Vec<(Role, usize)>> = const { RefCell::new(Vec::new()) };
+    static LIVE: std::cell::RefCell<Vec<(Role, usize)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
 }
 
 /// How many pages are resident on the stacks this thread's tasks run on now,
