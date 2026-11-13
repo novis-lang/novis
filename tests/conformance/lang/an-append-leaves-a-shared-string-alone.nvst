@@ -1,0 +1,51 @@
+--TEST--
+`.=` changes only the string it names: a string another variable, a `foreach` or a row has keeps its text, for a property, a static property and an element at any depth
+--FILE--
+<?nvs
+class Page {
+    public string $out = "";
+    public static string $log = "";
+}
+
+var $page = new Page();
+$page->out .= "ab";
+var $kept = $page->out;
+$page->out .= "cd";
+echo $kept, " ", $page->out, "\n";
+
+Page::$log .= "ab";
+var $logged = Page::$log;
+Page::$log .= "cd";
+echo $logged, " ", Page::$log, "\n";
+
+array<string> $parts = ["k" => "ab"];
+var $before = $parts;
+$parts["k"] .= "cd";
+echo $before["k"], " ", $parts["k"], "\n";
+
+array<array<string>> $rows = [["html" => "ab"], ["html" => "x"]];
+var $row = $rows[0];
+foreach ($rows as var $r) {
+    $rows[1]["html"] .= "y";
+    echo $r["html"], " ";
+}
+$rows[0]["html"] .= "cd";
+echo $row["html"], " ", $rows[0]["html"], " ", $rows[1]["html"], "\n";
+
+$page->out .= $page->out;
+$parts["k"] .= $parts["k"];
+echo $page->out, " ", $parts["k"], "\n";
+
+try {
+    $rows[2]["html"] .= "z";
+} catch (Throwable $e) {
+    echo "caught ";
+}
+echo Core\Arr::count($rows), "\n";
+--EXPECT--
+ab abcd
+ab abcd
+ab abcd
+ab x ab abcd xyy
+abcdabcd abcdabcd
+caught 2

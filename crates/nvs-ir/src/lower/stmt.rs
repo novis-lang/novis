@@ -534,16 +534,16 @@ impl<'a> Lowering<'a> {
     /// evaluation is the same load and observes the same value, but
     /// `f()->count += 1` would call `f()` twice where PHP calls it once.
     ///
-    /// **`.=` on a plain `string` local is the one exception**, and it takes
-    /// [`Self::lower_string_append`] instead. The rewrite would be correct for
-    /// it, but its
-    /// `InstKind::Concat` can only build a fresh buffer and copy the whole
-    /// accumulation into it, so `$out .= $piece` in a loop is quadratic in the
-    /// number of appends. Every other target keeps the rewrite, because a
-    /// property or an element already needs the write-back the rewrite
-    /// performs; see [`InstKind::StrAppend`]. A `??.=` takes it too: a local
-    /// whose representation is a plain string can never be `null`, so the
-    /// operator is the plain `.=` there.
+    /// **`.=` appends in place on a `string` local, a plain `string` property,
+    /// a `string` static property and a `string` element.** The rewrite would
+    /// be correct for each, but its `InstKind::Concat` can only build a fresh
+    /// buffer and copy the whole accumulation into it, so `$out .= $piece` in
+    /// a loop is quadratic in the number of appends. A local takes
+    /// [`Self::lower_string_append`], and a `??.=` takes it too: a local whose
+    /// representation is a plain string can never be `null`. A property, a
+    /// static property and an element take [`Self::lower_slot_append`], which
+    /// says which of them keep the rewrite. See [`InstKind::StrAppend`] and
+    /// [`Helper::ArrayStrAppendThrough`].
     ///
     /// # Panics
     ///
@@ -704,8 +704,98 @@ impl<'a> Lowering<'a> {
                 self.release_temporaries_since(mark, *cur);
                 true
             }
+            ExprKind::Index {
+                base,
+                index: Some(index),
+            } => self.lower_element_append(target, base, index, value, env, cur),
             _ => false,
         }
+    }
+    /// `$a[$i]["html"] .= e;` where the element type is `string`: one
+    /// [`Helper::ArrayStrAppendThrough`] call at any depth, whose result
+    /// [`Self::write_back_array`] stores back. Answers `false`, having lowered
+    /// nothing, where the target keeps the rewrite.
+    ///
+    /// The root is a local, a static property, or a property with no
+    /// `PropertyGuard` and no observer. A guard is given the new element and
+    /// an observer the whole new array, so both need the new value as a value
+    /// of its own, and the rewrite builds it. An inner append has no row to
+    /// append to and keeps the rewrite, which throws as a read does.
+    ///
+    /// The receiver, every key and the suffix are lowered once, left to
+    /// right, as [`Self::lower_store`]'s `Index` arm lowers them, and the root
+    /// is read last. The call borrows the keys and the suffix.
+    fn lower_element_append(
+        &mut self,
+        target: &Expr,
+        base: &Expr,
+        index: &Expr,
+        value: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> bool {
+        let Some(ExprInfo::Index { elem_ty, .. }) = self.exprs.lookup(target.span) else {
+            return false;
+        };
+        if erase_checked_ty(*elem_ty, self.checked_types) != Ty::Str {
+            return false;
+        }
+        let mut key_exprs: Vec<&Expr> = vec![index];
+        let mut root = base.unparenthesized();
+        while let ExprKind::Index { base: inner, index } = &root.kind {
+            let Some(key) = index.as_deref() else {
+                return false;
+            };
+            key_exprs.push(key);
+            root = inner.unparenthesized();
+        }
+        key_exprs.reverse();
+        let plain_root = match &root.kind {
+            ExprKind::Variable(_) | ExprKind::StaticPropertyAccess { .. } => true,
+            ExprKind::PropertyAccess {
+                nullsafe: false, ..
+            } => matches!(
+                self.member_record(root.span),
+                Some(ExprInfo::Property {
+                    observer: None,
+                    guard: None,
+                    ..
+                })
+            ),
+            _ => false,
+        };
+        if !plain_root {
+            return false;
+        }
+        let temporaries = self.temporaries_mark();
+        let addresses = self.staged_mark();
+        self.stage_target_address(root, env, cur);
+        let mut later = key_exprs.clone();
+        later.push(value);
+        self.hold_store_receiver(OperandSite::StoreBase, root, &later, env, cur);
+        let mut keys = Vec::with_capacity(key_exprs.len());
+        for (i, key) in key_exprs.iter().enumerate() {
+            let (key_v, key_ty, key_aliasing) = self.lower_array_key(key, env, cur);
+            self.hold_store_key(key, (key_v, key_ty, key_aliasing), &later[i + 1..], *cur);
+            keys.push((key_v, key_ty, key_aliasing));
+        }
+        let suffix = self.append_suffix(value, env, cur);
+        let (root_v, _) = self.lower_expr(root, None, env, cur);
+        let last = keys.pop();
+        let inner: Vec<_> = keys.into_iter().map(Some).collect();
+        let written = self.emit_write_through(
+            Helper::ArrayStrAppendThrough,
+            root_v,
+            &inner,
+            last,
+            suffix,
+            env,
+            cur,
+        );
+        self.write_back_array(root, written, env, cur);
+        self.unstage_to(addresses);
+        self.release_temporaries_since(temporaries, *cur);
+        true
     }
     /// The suffix of an append into a property, a static property or an
     /// element, converted to a `string` and owned by this frame unless it is
@@ -2214,7 +2304,15 @@ impl<'a> Lowering<'a> {
                         }
                     }
                 } else {
-                    self.emit_write_through(root_v, &inner_keys, outer_key, v, env, cur)
+                    self.emit_write_through(
+                        Helper::ArrayWriteThrough,
+                        root_v,
+                        &inner_keys,
+                        outer_key,
+                        v,
+                        env,
+                        cur,
+                    )
                 };
                 self.write_back_array(root, written, env, cur);
                 self.unstage_to(addresses);
@@ -2234,19 +2332,28 @@ impl<'a> Lowering<'a> {
             ),
         }
     }
-    /// The [`Helper::ArrayWriteThrough`] call of a nested element write, and
+    /// The [`Helper::ArrayWriteThrough`] call of a nested element write, or
+    /// the [`Helper::ArrayStrAppendThrough`] call of an element append, and
     /// the array it gives to store back. `inner` is one key per level between
     /// the root and the target, `None` for an append, and `last` is the
-    /// target's own key. `v` already owns the reference the call consumes.
+    /// target's own key. `v` is the value, whose reference a write consumes,
+    /// or the suffix, which an append borrows.
     ///
     /// The call borrows every key, so a fresh key becomes this statement's
     /// temporary and is released after the call, and on its error edge. One
-    /// inner key travels as itself. A deeper chain or an inner append travels
-    /// as an array of keys, in which `null` is an append. That array is a
-    /// temporary of its own. **What it spends:** one small array per write
-    /// at depth three or more, freed by the same statement.
+    /// inner key travels as itself, and no inner level as `null`. A deeper
+    /// chain or an inner append travels as an array of keys, in which `null`
+    /// is an append. That array is a temporary of its own. **What it spends:**
+    /// one small array per write at depth three or more, freed by the same
+    /// statement.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the call's own operands plus the lowering context; a struct would buy its two \
+                  call sites nothing"
+    )]
     fn emit_write_through(
         &mut self,
+        helper: Helper,
         root_v: ValueId,
         inner: &[Option<(ValueId, Ty, bool)>],
         last: Option<(ValueId, Ty, bool)>,
@@ -2260,6 +2367,7 @@ impl<'a> Lowering<'a> {
             }
         }
         let inner_v = match inner {
+            [] => self.emit(*cur, Ty::Null, InstKind::ConstNull).0,
             [Some((key_v, _, _))] => *key_v,
             _ => {
                 let mut entries = Vec::with_capacity(inner.len());
@@ -2289,7 +2397,7 @@ impl<'a> Lowering<'a> {
             *cur,
             Ty::Array,
             InstKind::HelperCall {
-                helper: Helper::ArrayWriteThrough,
+                helper,
                 args: vec![root_v, inner_v, last_v, v],
             },
             env,

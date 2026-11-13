@@ -5022,6 +5022,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::ArrayTruthy => "nvs_array_truthy",
         Helper::ValueTruthy => "nvs_value_truthy",
         Helper::ArrayWriteThrough => "nvs_array_write_through",
+        Helper::ArrayStrAppendThrough => "nvs_array_str_append_through",
         Helper::ArrayInoutWrite => "nvs_array_inout_write",
         Helper::GuardKeyPath => "nvs_guard_key_path",
         Helper::IntToUint => "nvs_int_to_uint",

@@ -1708,20 +1708,22 @@ pub enum InstKind {
         /// [`PartKind::Str`], one reference to the first is consumed.
         pieces: Vec<ConcatPart>,
     },
-    /// `$s .= e` where `$s` is a plain [`Ty::Str`] local — the one compound
-    /// assignment `crate::lower::Lowering::lower_compound_assignment` does not
-    /// rewrite to `$x = $x op e`, because the rewrite's
-    /// [`InstKind::Concat`] can only ever build a *fresh* buffer and copy the
-    /// whole accumulation into it. In a loop that is quadratic, which is what
-    /// this instruction exists to stop being.
+    /// `$s .= e` where `$s` is a plain [`Ty::Str`] local, a plain `string`
+    /// property or a `string` static property. Lowering does not rewrite
+    /// these to `$x = $x op e`, because the rewrite's [`InstKind::Concat`] can
+    /// only ever build a *fresh* buffer and copy the whole accumulation into
+    /// it. In a loop that is quadratic, which is what this instruction exists
+    /// to stop being. An element takes [`Helper::ArrayStrAppendThrough`].
     ///
     /// **Defines a fresh [`crate::ty::Ty::Str`] value on exactly
     /// [`InstKind::ArraySet`]'s consume-one-reference-yield-one protocol** —
     /// see that variant's own doc comment, which is the one home for it. The
     /// consequence for lowering is the same one: the *holder* of `target` — a
-    /// local's `Env` binding — is re-pointed at the result, with no retain and
-    /// no release of either, because the consumed reference and the produced
-    /// one are that same one slot's. `nvs_runtime`'s `nvs_str_append` owns
+    /// local's `Env` binding, or the slot a `FieldGet` or `StaticGet` just
+    /// read — is re-pointed at the result, with no retain and no release of
+    /// either, because the consumed reference and the produced one are that
+    /// same one slot's. Nothing runs between a slot's load, this instruction
+    /// and the store back. `nvs_runtime`'s `nvs_str_append` owns
     /// when the two are the same pointer (solely owned, and enough room) and
     /// when a copy-on-write separation makes them different ones.
     ///
@@ -1733,10 +1735,9 @@ pub enum InstKind {
     /// `crate::lower::Lowering::owned_temporaries` staging `Concat`'s own
     /// operands go through.
     ///
-    /// Restricted to a plain local target on purpose. A property or element
-    /// target would have to write the result back through a `FieldSet` or an
-    /// `ArraySet`, which is the write-back `Concat`'s rewrite already gets for
-    /// free; those keep the rewrite.
+    /// A property with a hook, a `PropertyGuard`, an observer or a `lateinit`
+    /// step keeps the rewrite, because each of those needs the new value as
+    /// a value of its own.
     StrAppend {
         /// The string appended to, already lowered and already [`Ty::Str`].
         /// One reference to it is consumed.
@@ -2669,6 +2670,20 @@ pub enum Helper {
     /// It throws where the last append finds its next key taken. The root is
     /// then still the caller's, as it arrived, and the value is released.
     ArrayWriteThrough,
+    /// `$a[$i]["html"] .= $piece` on a `string` element, at any depth: one
+    /// call that appends to the string where the array stores it.
+    ///
+    /// Four operands: the root as a `Ty::Array`, the inner keys in
+    /// [`Helper::ArrayWriteThrough`]'s forms with `null` for no inner level,
+    /// the last key, and the suffix as a `Ty::Str`. It consumes the root and
+    /// gives the one reference to the root to store back, and borrows every
+    /// key and the suffix. The runtime copies a level, or the string, only
+    /// where its count is above one, and builds no row.
+    ///
+    /// It throws what a read throws where a key names no entry
+    /// (`rule:types/absent-storage-is-never-a-zero-value`). The root is then
+    /// still the caller's, as it arrived.
+    ArrayStrAppendThrough,
     /// One write to a `foreach (… as inout $v)` binding
     /// (`rule:iteration/an-inout-loop-walks-the-array-it-began-with`), emitted
     /// by `crate::lower::Lowering::write_through_element`. Four operands: the

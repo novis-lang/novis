@@ -282,3 +282,187 @@ echo Core\\Str::length(Log::$out);
         )
     });
 }
+
+#[cfg(debug_assertions)]
+#[test]
+fn an_element_append_allocates_in_proportion_to_what_it_adds() {
+    // One guard per depth: a local's element, and a property's row.
+    assert_linear("an element append", |n| {
+        format!(
+            "<?nvs
+array<string> $parts = [\"a\" => \"\"];
+var $i = 0;
+while ($i < {n}) {{
+    $parts[\"a\"] .= Core\\Str::repeat(\"x\", 8);
+    $i = $i + 1;
+}}
+echo Core\\Str::length($parts[\"a\"]);
+"
+        )
+    });
+    assert_linear("a nested element append", |n| {
+        format!(
+            "<?nvs
+class Page {{
+    public array<array<string>> $rows;
+    public function constructor() {{ $this->rows = [[\"html\" => \"\"]]; }}
+    public function piece(int $i): string {{ return \"<p>\" . $i . \"</p>\"; }}
+    public function fill(int $n): void {{
+        var $i = 0;
+        while ($i < $n) {{
+            $this->rows[0][\"html\"] .= $this->piece($i);
+            $i = $i + 1;
+        }}
+    }}
+}}
+var $page = new Page();
+$page->fill({n});
+echo Core\\Str::length($page->rows[0][\"html\"]);
+"
+        )
+    });
+}
+
+#[test]
+fn an_append_to_a_shared_string_still_copies_it() {
+    // A second variable has the property's string.
+    assert_eq!(
+        output_of(
+            "<?nvs
+class Page {
+    public string $out = \"\";
+}
+var $page = new Page();
+$page->out .= \"ab\";
+var $kept = $page->out;
+$page->out .= \"cd\";
+echo $kept, \"/\", $page->out;
+"
+        ),
+        "ab/abcd"
+    );
+    // A second variable has the static property's string.
+    assert_eq!(
+        output_of(
+            "<?nvs
+class Log {
+    public static string $out = \"\";
+}
+Log::$out .= \"ab\";
+var $kept = Log::$out;
+Log::$out .= \"cd\";
+echo $kept, \"/\", Log::$out;
+"
+        ),
+        "ab/abcd"
+    );
+    // A second variable has the element's string, and another has the row.
+    assert_eq!(
+        output_of(
+            "<?nvs
+array<array<string>> $g = [[\"s\" => \"\"]];
+$g[0][\"s\"] .= \"ab\";
+var $kept = $g[0][\"s\"];
+var $row = $g[0];
+$g[0][\"s\"] .= \"cd\";
+echo $kept, \"/\", $row[\"s\"], \"/\", $g[0][\"s\"];
+"
+        ),
+        "ab/ab/abcd"
+    );
+    // The suffix is the target itself.
+    assert_eq!(
+        output_of(
+            "<?nvs
+class Page {
+    public string $out = \"ab\";
+    public static string $log = \"cd\";
+}
+var $page = new Page();
+$page->out .= $page->out;
+Page::$log .= Page::$log;
+array<string> $a = [\"k\" => \"ef\"];
+$a[\"k\"] .= $a[\"k\"];
+echo $page->out, \"/\", Page::$log, \"/\", $a[\"k\"];
+"
+        ),
+        "abab/cdcd/efef"
+    );
+}
+
+#[test]
+fn an_append_to_an_absent_element_throws_what_the_read_throws() {
+    let read = output_of(
+        "<?nvs
+array<array<string>> $g = [[\"s\" => \"\"]];
+try {
+    echo $g[0][\"t\"];
+} catch (Throwable $e) {
+    echo $e->message, \"/\";
+}
+try {
+    echo $g[1][\"s\"];
+} catch (Throwable $e) {
+    echo $e->message, \"/\";
+}
+echo Core\\Arr::count($g), Core\\Arr::count($g[0]);
+",
+    );
+    let append = output_of(
+        "<?nvs
+array<array<string>> $g = [[\"s\" => \"\"]];
+try {
+    $g[0][\"t\"] .= \"x\";
+} catch (Throwable $e) {
+    echo $e->message, \"/\";
+}
+try {
+    $g[1][\"s\"] .= \"x\";
+} catch (Throwable $e) {
+    echo $e->message, \"/\";
+}
+echo Core\\Arr::count($g), Core\\Arr::count($g[0]);
+",
+    );
+    assert_eq!(append, read);
+    assert!(append.ends_with("/11"), "the append built a row: {append}");
+}
+
+#[test]
+fn an_append_to_a_guarded_or_hooked_property_keeps_its_calls() {
+    assert_eq!(
+        output_of(
+            "<?nvs
+final class Page implements PropertyGuard, PropertyObserver {
+    public string $out = \"a\";
+    public array<string> $parts;
+    public string $label {
+        set(string $value) { echo \"hook/\"; $this->label = $value; }
+    }
+    public function constructor() {
+        $this->parts = [\"k\" => \"a\"];
+        $this->label = \"a\";
+    }
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
+        echo \"guard \", $name, \" \", Core\\Json::encode($keys), \"/\";
+    }
+    public function beforePropertyUnset(string $name, array<string> $keys): void {}
+    public function onPropertyGet(string $name, mixed $value): void {}
+    public function onPropertySet(string $name, mixed $value): void { echo \"set \", $name, \"/\"; }
+}
+var $page = new Page();
+echo \"|\";
+$page->out .= \"b\";
+$page->parts[\"k\"] .= \"b\";
+$page->label .= \"b\";
+echo $page->out, $page->parts[\"k\"], $page->label;
+"
+        )
+        .split_once('|')
+        .map(|(_, after)| after.to_owned()),
+        Some(
+            "guard out []/set out/guard parts [\"k\"]/set parts/guard label []/hook/set label/ababab"
+                .to_owned()
+        )
+    );
+}

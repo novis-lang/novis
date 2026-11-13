@@ -1158,6 +1158,20 @@ pub enum WriteThroughFault {
     NotAnArray,
 }
 
+/// Why [`NvsArray::str_append_through`] appended nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppendThroughFault {
+    /// The key at this position of the chain names no entry.
+    Absent(usize),
+    /// The request's memory limit refused a level's write. The breach is
+    /// already recorded.
+    Refused,
+    /// A level is not an array, or the end of the chain is not a string. A
+    /// checked program never reaches this, because the element type is
+    /// declared.
+    NotAString,
+}
+
 /// An owning handle to one reference of an Novis array.
 ///
 /// Cloning retains, dropping releases, and a mutator separates first when the
@@ -1615,6 +1629,120 @@ impl NvsArray {
         )]
         unsafe {
             crate::release::release_value(released);
+        }
+    }
+
+    /// Appends `suffix` to the string at the end of a key chain:
+    /// `$rows[$i]["html"] .= $piece` is `inner` `[$i]` and `last` `"html"`.
+    /// Borrows `suffix`.
+    ///
+    /// The walk is [`Self::write_through`]'s. Each level, and the string at
+    /// the end, is copied only when its count is above one
+    /// (`rule:types/arrays`). So the string grows in place when nothing else
+    /// has it. The walk builds no row: every key on the chain must already
+    /// name an entry, as a read needs (`rule:types/absent-storage-is-never-a-zero-value`).
+    ///
+    /// The whole chain is checked before anything is written, so a failure
+    /// leaves every level as it was.
+    ///
+    /// **What it spends:** nothing per request. An append to an element that
+    /// read the element, appended a copy and wrote the copy back now makes
+    /// one call and copies nothing that is not shared.
+    ///
+    /// # Errors
+    ///
+    /// [`AppendThroughFault::Absent`] with the position of the first key that
+    /// names no entry, [`AppendThroughFault::Refused`] where the memory limit
+    /// refuses a level, and [`AppendThroughFault::NotAString`] where a level
+    /// or the end of the chain has the wrong type.
+    pub fn str_append_through(
+        &mut self,
+        inner: &[PathKey<'_>],
+        last: PathKey<'_>,
+        suffix: &NvsStr,
+    ) -> Result<(), AppendThroughFault> {
+        self.check_str_append_through(inner, last, 0)?;
+        self.str_append_checked_path(inner, last, suffix);
+        Ok(())
+    }
+
+    /// Whether [`Self::str_append_through`] can write the whole chain, where
+    /// `depth` is the position of `inner`'s first key in the whole chain.
+    /// Reads only, and asks the memory limit for each level the write
+    /// touches.
+    fn check_str_append_through(
+        &self,
+        inner: &[PathKey<'_>],
+        last: PathKey<'_>,
+        depth: usize,
+    ) -> Result<(), AppendThroughFault> {
+        if !self.affords_write() {
+            return Err(AppendThroughFault::Refused);
+        }
+        let table = self.header().table.borrow();
+        let Some((step, rest)) = inner.split_first() else {
+            return match table.row_at(last) {
+                None => Err(AppendThroughFault::Absent(depth)),
+                Some(value) if value.str_ptr().is_some() => Ok(()),
+                Some(_) => Err(AppendThroughFault::NotAString),
+            };
+        };
+        match table.row_at(*step) {
+            None => Err(AppendThroughFault::Absent(depth)),
+            Some(row) => match row.as_array() {
+                Some(row) => row.check_str_append_through(rest, last, depth.saturating_add(1)),
+                None => Err(AppendThroughFault::NotAString),
+            },
+        }
+    }
+
+    /// The append [`Self::check_str_append_through`] has already approved.
+    fn str_append_checked_path(
+        &mut self,
+        inner: &[PathKey<'_>],
+        last: PathKey<'_>,
+        suffix: &NvsStr,
+    ) {
+        self.make_unique();
+        let mut table = self.header().table.borrow_mut();
+        let step = inner.first().copied().unwrap_or(last);
+        let Some(slot) = table.row_slot(step) else {
+            return;
+        };
+        match inner.split_first() {
+            Some((_, rest)) => {
+                let Some(ptr) = slot.array_ptr() else {
+                    return;
+                };
+                #[expect(
+                    unsafe_code,
+                    reason = "the slot owns one reference to the row, and this \
+                              handle takes it over until it is stored back below"
+                )]
+                let mut row = unsafe { Self::from_raw(ptr) };
+                row.str_append_checked_path(rest, last, suffix);
+                *slot = Value::from_array_ptr(row.into_raw());
+            }
+            None => {
+                let Some(ptr) = slot.str_ptr() else {
+                    return;
+                };
+                #[expect(
+                    unsafe_code,
+                    reason = "the slot owns one reference to the string, and this \
+                              handle takes it over until the result is stored back \
+                              below; `suffix` is a separate live handle, and an append \
+                              reads a suffix that is the same allocation before it moves"
+                )]
+                let target = unsafe { NvsStr::from_raw(ptr) };
+                #[expect(
+                    clippy::disallowed_methods,
+                    reason = "the slot is a `string` and the suffix is one, so their join \
+                              is UTF-8 too"
+                )]
+                let appended = Value::str(target.append(suffix.as_bytes()));
+                *slot = appended;
+            }
         }
     }
 

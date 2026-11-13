@@ -458,6 +458,84 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
+    /// `nvs_ir::Helper::ArrayStrAppendThrough` — `.=` on a `string` element,
+    /// `$rows[$i]["html"] .= $piece`, as one call.
+    /// [`crate::NvsArray::str_append_through`] is the walk, and its doc says
+    /// when a level or the string is copied.
+    ///
+    /// The arguments are the root array, the inner keys, the last key and the
+    /// suffix, with the inner keys in [`nvs_array_write_through`]'s forms.
+    /// Consumes the root's reference and returns the one reference to the
+    /// root to store back. Every key and the suffix are borrowed.
+    ///
+    /// On a failure the root is exactly as it arrived and still owned by the
+    /// caller. A key that names no entry throws what a read of it throws
+    /// (`rule:types/absent-storage-is-never-a-zero-value`).
+    fn nvs_array_str_append_through(_ctx, args: [4]) {
+        let root = args[0]
+            .array_ptr()
+            .ok_or_else(|| wrong_tag("nvs_array_str_append_through", Tag::Array, args[0]))?;
+        let suffix_ptr = args[3]
+            .str_ptr()
+            .ok_or_else(|| wrong_tag("nvs_array_str_append_through", Tag::Str, args[3]))?;
+        // Every key is read before the root is taken over, so a key with a
+        // wrong tag leaves the root the caller's. `values` is the chain as
+        // the program wrote it, for the error an absent key throws.
+        let mut values = Vec::new();
+        if let Some(keys) = args[1].as_array() {
+            let mut slot = keys.next_slot(0);
+            while let Some(at) = slot {
+                values.push(keys.value_at(at).unwrap_or_default());
+                slot = keys.next_slot(at + 1);
+            }
+        } else if args[1].tag() != Some(Tag::Null) {
+            values.push(args[1]);
+        }
+        values.push(args[2]);
+        let lent = values
+            .iter()
+            .map(|key| LentKey::of(*key))
+            .collect::<Result<Vec<_>, _>>()?;
+        let steps: Vec<_> = lent.iter().map(LentKey::step).collect();
+        let Some((last, inner)) = steps.split_last() else {
+            return Err(Fault::fatal(
+                "internal error: nvs_array_str_append_through has no key",
+            ));
+        };
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Array argument owns a reference to a live allocation, \
+                      which this call takes over on success, and a Tag::Str argument \
+                      is live for the whole call"
+        )]
+        let (mut handle, suffix) = unsafe {
+            (
+                crate::NvsArray::from_raw(root),
+                std::mem::ManuallyDrop::new(NvsStr::from_raw(suffix_ptr)),
+            )
+        };
+        match handle.str_append_through(inner, *last, &suffix) {
+            Ok(()) => Ok(Value::array(handle)),
+            Err(fault) => {
+                // The root's reference stays the caller's.
+                let _ = handle.into_raw();
+                Err(match fault {
+                    crate::array::AppendThroughFault::Absent(at) => {
+                        undefined_key(values.get(at).copied().unwrap_or_default())
+                    }
+                    crate::array::AppendThroughFault::Refused => {
+                        Fault::fatal("memory limit reached by an array write")
+                    }
+                    crate::array::AppendThroughFault::NotAString => Fault::fatal(
+                        "internal error: nvs_array_str_append_through met a level of the wrong type",
+                    ),
+                })
+            }
+        }
+    }
+}
+
+crate::nvs_helper! {
     /// `nvs_ir::Helper::GuardKeyPath` — the `$keys` a `PropertyGuard` is given
     /// for an element write. Reads the root array along the path and writes
     /// nothing, so a row the write would create is simply absent here.
@@ -3558,6 +3636,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_array_truthy", address(nvs_array_truthy)),
         ("nvs_value_truthy", address(nvs_value_truthy)),
         ("nvs_array_write_through", address(nvs_array_write_through)),
+        (
+            "nvs_array_str_append_through",
+            address(nvs_array_str_append_through),
+        ),
         (
             "nvs_array_inout_write",
             address(crate::array::nvs_array_inout_write),

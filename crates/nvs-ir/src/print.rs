@@ -595,6 +595,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::ArrayTruthy => "array_truthy",
         Helper::ValueTruthy => "value_truthy",
         Helper::ArrayWriteThrough => "array_write_through",
+        Helper::ArrayStrAppendThrough => "array_str_append_through",
         Helper::ArrayInoutWrite => "array_inout_write",
         Helper::GuardKeyPath => "guard_key_path",
         Helper::DecimalTruthy => "decimal_truthy",
