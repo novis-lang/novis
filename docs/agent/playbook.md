@@ -317,6 +317,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   the Windows host, where a Unix-gated test does not exist, and the check fails as "did not run and
   pass". A DONE was refused for that. Gate only the assertion that differs by platform, as
   `a_short_read_parks_the_next_read_on_edge_triggered_platforms` does (`crates/nvs-host/src/net.rs`).
+- **An `assert!` in a serve case's client thread hangs the case.** The panic ends the thread before
+  it calls `end_the_loop`, so `run_until_idle` waits on the accept loop until the run is killed, and
+  the failure is never printed. Record each wrong answer, end the loop, and assert after
+  `client.join()`, as `a_static_request_makes_no_file_call_on_its_core` does
+  (`crates/nvs-server/src/serve.rs`).
 - **A test task that waits in a loop of `suspend_current(Waiting::Yielded)` hangs `run_until_idle`.**
   A yielded task goes back on the run queue, so the queue never empties and the reactor never
   polls to wake the task it waits for. One such stream test ran for two hours with no output. Park

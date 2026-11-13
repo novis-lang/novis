@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/inbound.rs, docs/rules/http-server/a-request-head-has-at-most-100-header-lines.md, docs/rules/routing/a-gate-answers-around-every-handler.md]
   - id: 5
     title: "a static file's calls run off the core"
-    status: open
+    status: done
     context: [crates/nvs-server/src/mount.rs, crates/nvs-server/src/statics.rs, crates/nvs-host/src/blocking.rs, docs/rules/http-server/a-core-is-never-blocked-on-a-syscall.md, docs/rules/http-server/static-serving-is-one-policy.md]
   - id: 6
     title: "a setting the door reads is parsed once per configuration"
@@ -461,29 +461,29 @@ rerun keep that handle.
 `crates/nvs-server/src` outside tests, and every one `Core\Response::sendFile` reaches in
 `crates/nvs-stdlib/src/response.rs`, as `file.rs:NN` and the thread it runs on.
 
-- [ ] `OnDisk::file` runs its whole body, `spelled_through_links` included, as one
+- [x] `OnDisk::file` runs its whole body, `spelled_through_links` included, as one
   `nvs_host::blocking::run` job (`rule:http-server/a-core-is-never-blocked-on-a-syscall`,
   `crates/nvs-server/src/mount.rs:139`, `:164`).
-- [ ] `OnDisk::open` runs `metadata`, `open` and `fstat` as one job, and its comment follows
+- [x] `OnDisk::open` runs `metadata`, `open` and `fstat` as one job, and its comment follows
   (`rule:http-server/a-core-is-never-blocked-on-a-syscall`, `crates/nvs-server/src/statics.rs:150`).
-- [ ] A file body reads each chunk as one job, with the file moved in and back, and the first job
+- [x] A file body reads each chunk as one job, with the file moved in and back, and the first job
   seeks (`rule:http-server/a-core-is-never-blocked-on-a-syscall`,
   `crates/nvs-server/src/serve.rs:336`, `:485`).
-- [ ] No `RefCell` borrow is held across the handler call or the body's poll
+- [x] No `RefCell` borrow is held across the handler call or the body's poll
   (`rule:concurrency/one-future-per-connection`, `crates/nvs-server/src/serve.rs:2114`, `:2686`).
-- [ ] Each call the list names on a core thread, and not through `OnDisk`, is routed through the pool
+- [x] Each call the list names on a core thread, and not through `OnDisk`, is routed through the pool
   or written under `### Backlog` with its reason
   (`rule:http-server/a-core-is-never-blocked-on-a-syscall`, `crates/nvs-server/src/mount.rs:139`).
-- [ ] Test `a_static_request_makes_no_file_call_on_its_core` in `crates/nvs-server/src/serve.rs`
+- [x] Test `a_static_request_makes_no_file_call_on_its_core` in `crates/nvs-server/src/serve.rs`
   tests. A `cfg(test)` thread-local counts each raw file call on the thread that makes it. One core
   serves 20 keep-alive requests over a scratch folder: a hit, a miss that reaches the entry, a path
   through a link, a default document, a range of a file of three chunks and a `sendFile`. Every
   answer is right, the serving thread counts zero, and `nvs_host::blocking::pool_size` shows a thread
   (`rule:http-server/a-core-is-never-blocked-on-a-syscall`, `crates/nvs-server/src/serve.rs:10679`).
-- [ ] `rule:http-server/a-core-is-never-blocked-on-a-syscall` names static serving and its cost: one
+- [x] `rule:http-server/a-core-is-never-blocked-on-a-syscall` names static serving and its cost: one
   hand-off per path asked and per chunk
   (`docs/rules/http-server/a-core-is-never-blocked-on-a-syscall.md:1`).
-- [ ] `rule:http-server/static-serving-is-one-policy` and the `# What it spends` of `statics.rs`
+- [x] `rule:http-server/static-serving-is-one-policy` and the `# What it spends` of `statics.rs`
   say the same (`docs/rules/http-server/static-serving-is-one-policy.md:1`,
   `crates/nvs-server/src/statics.rs:51`).
 
@@ -541,33 +541,41 @@ resolved cell, and keep a configured log file open.
 
 ### State
 
-Stages 1 to 4 are done. `Inbound` keeps its method, path, query and header lines in one
-`nvs_runtime::Head`: one byte buffer and one table of part ends, behind an `Rc`.
-`Inbound::framed` takes a closure that gives the lines, calls it twice, and builds the head in three
-allocations for any line count. `push_header` appends through `Rc::make_mut`, so a shared head is
-copied before a line is added. `carrier` builds with `Inbound::framed`. The door drops `hyper`'s
-`Parts` once `body::of` has read its headers. The `Rerun` closure keeps an `Rc` of the first
-carrier's head and builds its carrier with `rerun_carrier`. The tests
-`a_framed_head_allocates_the_same_for_three_header_lines_and_for_a_hundred`,
-`a_line_pushed_onto_a_shared_head_is_not_seen_by_the_other_carrier` and
-`a_dispatching_units_rerun_shares_the_first_runs_head` pass, and build, clippy and fmt are green.
+Stages 1 to 5 are done. `OnDisk::file` (`crates/nvs-server/src/mount.rs:145`) and `OnDisk::open`
+(`crates/nvs-server/src/statics.rs:160`) each run their whole body as one `nvs_host::blocking::run`
+job. The footprint calls stay on the calling thread, because their capture is thread-local.
+`Answer::File` holds `Option<File>` and a `seek`, and each `poll_frame` moves the file into one job
+that seeks on the first chunk and reads one chunk. `Answer::file` no longer seeks and no longer
+fails, so a seek error now cuts the body as a short file does. A `cfg(test)` counter,
+`crate::mount::file_calls`, counts each raw call on the thread that makes it, through
+`mount::file_call()`. No `RefCell` borrow of shared per-core state is held across a park:
+`Local::table` and `Local::entry` drop their borrow before they return, and the `ctx`, `writing` and
+`sending` cells belong to one connection. The test `a_static_request_makes_no_file_call_on_its_core`
+(`crates/nvs-server/src/serve.rs:11002`) passes, and build and clippy are green.
 
-The sweep's `env-secret-proofs` and the nightly Miri failures of run 43201099245 were stale a fifth
+The sweep's `env-secret-proofs` and the nightly Miri failures of run 43201099245 were stale a sixth
 time. No such check log exists, and that run tested `578534cc7c`, before `7568aaa0fb` skipped the
 four tests under Miri. A sweep that names them again needs no work.
 
 ### Next
 
-Stage 5, in its items' order, after its `**Split:**` search. No test is expected red.
+Stage 6, in its items' order, after its `**Split:**` search. No test is expected red.
 
-- `crates/nvs-server/src/mount.rs:139` `OnDisk::file` runs its whole body as one
-  `nvs_host::blocking::run` job.
-- `crates/nvs-server/src/statics.rs:150` `OnDisk::open` runs `metadata`, `open` and `fstat` as one
-  job.
-- `crates/nvs-server/src/serve.rs:336` a file body reads each chunk as one job.
+- `crates/nvs-config/src/limits.rs:80` `Resolved` gains the decoded CSRF key, `upload_total`, the
+  `Disconnect` pair and the log settings.
+- `crates/nvs-config/src/snapshot.rs:144` `Snapshot` and `Request` gain the readers.
+- `crates/nvs-runtime/src/logfile.rs:98` `LogFile::with_bounds` takes a borrowed path.
 
 ### Backlog
 
+- `Core\Response::sendFile` checks its grant with `capability::metadata` and `capability::readable`
+  on the core thread, and off a request it also opens and reads there
+  (`crates/nvs-stdlib/src/response.rs:2113`). Every `Core` file door in `nvs_runtime::capability`
+  takes `&Ctx` and runs its call on the core, as `Core\IO` does. Moving the call after the grant
+  check to the pool, as `pin_host` does for a name lookup, is one change for every door at once.
+  The file a request sends is opened and read through `OnDisk`, off the core.
+- `Table::withholding` makes each `[db]` file canonical on the core thread, once per configuration
+  and never per request (`crates/nvs-server/src/mount.rs:288`).
 - `spooled::door_store` clones the snapshot into a `nvs_config::Request` on every request, and no
   counted line sees it (`crates/nvs-server/src/spooled.rs:200`). A borrowed read would remove two
   shared writes.
