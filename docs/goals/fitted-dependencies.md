@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-stdlib/src/json/each.rs, crates/nvs-stdlib/src/json/reader.rs, crates/nvs-host/src/stack.rs, docs/rules/core-classes/json-whole-and-stream.md]
   - id: 5
     title: "the writer escapes each string in one pass, and Core\\Json names serde_json only in its tests"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/json/pieces.rs, docs/rules/security/json-text-is-safe-inside-html.md, benches/members/README.md]
   - id: 6
     title: "wasmtime builds with only the features the engine uses"
@@ -417,7 +417,7 @@ The session checks the list against the second standing decision.
   `escape_unicode_writes_the_document_once` (`crates/nvs-stdlib/src/json.rs:8723`).
 - [x] Test `core_json_names_serde_json_only_in_its_tests`: it reads `json.rs` and every file under
   `json/`, and fails naming a line outside a test module (`crates/nvs-stdlib/src/json.rs:8723`).
-- [ ] The six `Core\Json` members are measured again, as `benches/members/README.md:1` says, and
+- [x] The six `Core\Json` members are measured again, as `benches/members/README.md:1` says, and
   each record is at or below its last one (`data/perf/members.md:397`,
   `rule:testing/member-perf-ledger`).
 
@@ -482,44 +482,34 @@ entry and where a checked program's extension classes are known.
 
 ### State
 
-Stages 1 to 4 are done. `crates/nvs-stdlib/src/json/reader.rs` is the reader, and `build`, `fill`,
-`secret_values` and `decodeEach`'s `toward` are loops over its events. Stage 5's writer is in. `Sink` (`crates/nvs-stdlib/src/json.rs`, `@Sink`) writes every byte under
-a `Profile { pretty, ascii }`. `escaped` reads each string once against `ESCAPE`, the one table.
-Floats go through `zmij`, now a direct dependency. `HtmlSafe`, `escape_non_ascii` and the
-`escapeUnicode` post-pass are gone. The encoder's error is `Refused`, and the callers in `jwt.rs`,
-`queue.rs` and `sse.rs` compiled unchanged. The four `writer-one-pass` tests and the two rewritten
-escape tests pass. The module doc and `rule:security/json-text-is-safe-inside-html` are rewritten.
+Stages 1 to 5 are done, and `writer-one-pass` is green. The JSON lane is closed:
+`crates/nvs-stdlib/src/json/reader.rs` is the reader, `Sink` and `escaped` are the writer, and
+`serde_json` is named in `json.rs` and `json/` only inside test modules.
 
-The `Explore` list matches the second standing decision. Outside tests, `serde_json` is in
-`crypto.rs` (JWK), `jwe.rs`, `jwt.rs`, `passkey.rs`, `queue.rs`, `webpush.rs` and the runtime's
-`spool.rs`. `fuzz.rs:678`'s `json_oracle` is the oracle, compiled in every build because `fuzz` is
-a `pub mod`.
-
-The perf run (`bun nv proofs --record-perf --group 'Core\Json'`) recorded five members. `encode`
-and `encodeEach` are unchanged. `decode`, `decodeEach` and `isValid` make about 4 fewer allocations
-per op but use +73, +159 and +35 bytes per op (`data/perf/members.md`, the `Core\Json` rows).
-`decodeAs` did 7 allocations against its declared `allocations 6` and was not recorded. Both
-changes come from the reader of stages 2 to 4, not from the writer.
+The last slice fixed the perf records. `build` and `fill` keep their open containers in `Levels`
+(`crates/nvs-stdlib/src/json.rs`, `@Levels`): the first `LEVELS_INLINE` (4) on the call's stack,
+the rest in a spill `Vec`. `fill`'s frame `Vec` had been `decodeAs`'s seventh allocation, and
+`build`'s had been the extra bytes. All six `Core\Json` records are now at or below their last
+ones (`data/perf/members.md`): `decodeAs` 6 allocations and 368 bytes, `decode` 1205 bytes,
+`decodeEach` 2872 and `isValid` 1122.
 
 The sweep's `env-secret-proofs` names no check in the tree: it is a stale entry in looper's service.
 The nightly's jobs were cancelled by later pushes.
 
 ### Next
 
-Stage 5's last item, the perf records. Then the stage is done once `looper check --name
-writer-one-pass` is green. Expected red until stage 8: any test that pins a decode of an integer
-literal past `u64::MAX` to a `float`, any typed-decode test that pins a repeated key's column, which
-is now after the value, and any `decodeEach` test that pins a byte offset or a column of an error
-inside a skipped value. The `decodeEach` suites in `each.rs` were not run.
+Stage 6, the other lane: `wasmtime`'s features. It shares nothing with the JSON files. Expected red
+until stage 8: any test that pins a decode of an integer literal past `u64::MAX` to a `float`, any
+typed-decode test that pins a repeated key's column, which is now after the value, and any
+`decodeEach` test that pins a byte offset or a column of an error inside a skipped value. The
+`decodeEach` suites in `each.rs` were not run, and neither were the deep-document tests since
+`Levels` replaced the frame vectors (`a_typed_decode_reads_its_deepest_document_on_a_small_stack`
+and the reader's deep-document tests exercise the spill).
 
-- [ ] `decodeAs`'s seventh allocation: `benches/members/core/Json/decodeAs.nvs:5` declares 6. Find
-  it under `decode_as` (`crates/nvs-stdlib/src/json.rs:2842`) and `fill`, likely the `Builder`'s
-  slot `Vec` or the reader's scratch, and remove it or pre-size it. Re-run
-  `bun nv proofs --record-perf --group 'Core\Json'`.
-- [ ] `crates/nvs-stdlib/src/json.rs:2510`: the bytes per op of `decode`, `decodeEach` and
-  `isValid`. Find what `build` and the reader's scratch buffer reserve per call, and size it to the
-  document's needs. If a figure stays above its last record, the stage records why it is the price of the
-  reader, under `## Standing decisions`, and ticks the item.
+- Stage 6's first item: search `crates/nvs-ext/src` and `crates/nvs-cli/src` for core-dump,
+  profiling and guest-debug calls (`crates/nvs-ext/src/call.rs:899`).
+- The row is `Cargo.toml:377`, and its comment starts about `:366`.
+- `Component::new` is at `crates/nvs-ext/src/load.rs:353` and `:362`.
 
 ### Backlog
 
