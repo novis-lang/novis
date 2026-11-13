@@ -13,7 +13,7 @@ var $db = Db::connect('notes');
 array<string> $form = [
     "0, stolen text(50) DEFAULT 'x'",
     '0) , stolen int64',
-    "0; DROP TABLE prices_from_form; --",
+    '0; DROP TABLE prices_from_form; --',
     '1.2.3',
     '--1',
     '1e5',
