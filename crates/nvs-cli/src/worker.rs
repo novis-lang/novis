@@ -244,6 +244,10 @@ pub(crate) struct Workers {
     /// it, on the way out of the handshake and on the teardown that cancels it alike. So the list
     /// holds at most `[queue] workers` ids, and only while those workers connect.
     connecting: Rc<RefCell<Vec<nvs_host::TaskId>>>,
+    /// Where `nvs serve` counts each job a worker on this switch moved to the dead-letter table,
+    /// which an `on = "failed"` entry runs on (`rule:config/an-entry-runs-on-a-server-event`).
+    /// [`None`] under `nvs run`, which runs no schedule.
+    events: Option<Arc<nvs_server::Events>>,
 }
 
 /// A worker's entry in [`Workers`]'s list of workers still opening their connection, removed when
@@ -268,6 +272,7 @@ impl Workers {
             bell: Bell::process(),
             idle: IDLE_WAIT,
             connecting: Rc::new(RefCell::new(Vec::new())),
+            events: None,
         }
     }
 
@@ -450,17 +455,24 @@ pub(crate) struct Crew {
     /// Cloned into every worker's task and dropped when that task returns, so its strong count
     /// less one is how many workers are still running, stopped ones included.
     alive: Rc<()>,
+    /// Where every worker of this crew counts a dead-lettered job, or [`None`].
+    events: Option<Arc<nvs_server::Events>>,
 }
 
 impl Crew {
-    /// A crew with no worker, following `current`.
-    pub(crate) fn new(draining: nvs_server::Draining, current: Arc<nvs_config::Current>) -> Self {
+    /// A crew with no worker, following `current`, counting each dead-lettered job in `events`.
+    pub(crate) fn new(
+        draining: nvs_server::Draining,
+        current: Arc<nvs_config::Current>,
+        events: Option<Arc<nvs_server::Events>>,
+    ) -> Self {
         Self {
             draining,
             current,
             on: None,
             members: Vec::new(),
             alive: Rc::new(()),
+            events,
         }
     }
 
@@ -494,7 +506,10 @@ impl Crew {
             .on
             .as_ref()
             .expect("a member is only added while the crew has a connection");
-        let switch = Workers::draining(self.draining.clone());
+        let switch = Workers {
+            events: self.events.clone(),
+            ..Workers::draining(self.draining.clone())
+        };
         self.members.push(switch.clone());
         let (ctx, body) = worker(switch, bounds, block, &self.current);
         let alive = Rc::clone(&self.alive);
@@ -628,7 +643,10 @@ fn claim_until_stopped(
     // ends, the queue silently never drains, and a program polling `stats` sees a counter that
     // stays at zero with nothing anywhere to say why. Warning rather than fatal for
     // `rule:errors/escalation-ladder`'s reason — the run's own script is not this task's to end.
-    if let Err(refused) = take_turns(workers, || turn(ctx, &mut conn, current, visibility)) {
+    let events = workers.events.as_deref();
+    if let Err(refused) = take_turns(workers, || {
+        turn(ctx, &mut conn, current, visibility, events)
+    }) {
         eprintln!("warning: the queue worker on `[db.{name}]` stopped: {refused}");
     }
 }
@@ -675,11 +693,14 @@ fn take_turns(workers: &Workers, mut turn: impl FnMut() -> io::Result<bool>) -> 
 /// The visibility window is read from `current` at the start of the turn, so a reload that moves
 /// `[queue] visibility` reaches the next turn. `boot` is the window used when the snapshot in
 /// force resolves no queue.
+///
+/// `events` counts each job this turn moved to the dead-letter table, once the move succeeded.
 fn turn(
     ctx: &mut nvs_runtime::Ctx,
     conn: &mut Wire,
     current: &nvs_config::Current,
     boot: Duration,
+    events: Option<&nvs_server::Events>,
 ) -> io::Result<bool> {
     let now = nvs_stdlib::queue::now_millis();
     let cutoff = now.saturating_sub(window(&current.load(), boot));
@@ -701,6 +722,14 @@ fn turn(
             // somebody else's code took.
             conn.bound_next_exchange();
             report(conn, &job, now, failure.as_ref())?;
+            // `rule:config/an-entry-runs-on-a-server-event`: after the statement, so a move that
+            // failed is not counted.
+            if failure.is_some()
+                && exhausted(&job)
+                && let Some(events) = events
+            {
+                events.dead_lettered();
+            }
             claimed = true;
         }
     }
@@ -1621,6 +1650,13 @@ fn errors_after(job: &Job, held_at: i64, failure: &nvs_host::Failure) -> String 
     )
 }
 
+/// Whether the attempt that just ended was `job`'s last, so a failure moves it to the dead-letter
+/// table. `>=` and not `==` because `[queue] max_attempts` is configuration an operator can lower
+/// under a job that has already used more than the new bound.
+fn exhausted(job: &Job) -> bool {
+    job.attempts >= job.max_attempts
+}
+
 /// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s write-back: the row the claim took, told what the attempt did.
 ///
 /// **A branch per outcome, and one lease.** An attempt that returned is `Succeeded`; one that
@@ -1674,7 +1710,7 @@ fn report(
             ),
         };
     };
-    if job.attempts >= job.max_attempts {
+    if exhausted(job) {
         // The ladder's floor: the attempt was the job's last, so the row moves rather than being armed
         // again — one statement, keyed on the same lease, which is where "never deleted by the
         // runtime" is actually kept. `>=` and not `==` because `[queue] max_attempts` is
@@ -3189,6 +3225,7 @@ mod tests {
             bell: bell.clone(),
             idle,
             connecting: Rc::default(),
+            events: None,
         };
         (workers, bell)
     }
@@ -3221,7 +3258,7 @@ mod tests {
             super::take_turns(&workers, || {
                 let turn = asked.turns.get() + 1;
                 asked.turns.set(turn);
-                let claimed = super::turn(ctx, &mut conn, &current, bounds(1).visibility)?;
+                let claimed = super::turn(ctx, &mut conn, &current, bounds(1).visibility, None)?;
                 if !claimed {
                     asked.empty.set(asked.empty.get() + 1);
                 } else if asked.claimed_on.get().is_none() {

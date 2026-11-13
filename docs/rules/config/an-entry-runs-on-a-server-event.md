@@ -47,6 +47,10 @@ for the other.
   `"schedule" => [<entry names that failed>]`, each name once, and `"dead_letter" => <int>`. A run
   of a `failed` entry is never counted, so a failing `failed` script cannot run itself again. Under
   `overlap = "skip"` a run still going absorbs the next minute's failures into the run after it.
+  Each pass takes the tally out of `Events` and gives every `failed` entry its own copy, so two of
+  them both see every failure, and a pass with no `failed` entry drops it, so the tally never grows
+  without a reader. A run that `overlap = "kill"` or the drain cancelled is not a failure. The
+  ticker records a fire's failure itself, so `nvs serve`'s `Fires` counts nothing.
 
 **The one-minute floor is a constant, not a setting.** A request can cause failures indirectly, by
 pushing jobs that fail, and the floor bounds how many runs that can start. One minute is the

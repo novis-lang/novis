@@ -1913,6 +1913,12 @@ could stop — which is the graceful shutdown a terminating signal, a service ma
 each ask of one. The drain wakes a worker out of that wait, so a shutdown does not wait for it to run
 out ([`concurrency/a-push-wakes-an-idle-worker`](concurrency.md#concurrency-a-push-wakes-an-idle-worker)).
 
+**The drain is also the ticker's `stop` event.** When the ticker sees the drain it fires nothing more
+on a minute, runs each `on = "stop"` entry once, and waits for those runs up to `[server]
+drain_timeout` before it ends; a stop run still going then is cancelled as a request is
+([`config/an-entry-runs-on-a-server-event`](config.md#config-an-entry-runs-on-a-server-event)). So a stop is bounded by that period, and a `stop`
+script runs while the process is still serving its last requests.
+
 **The queue needs no lease and a `fleet` schedule does.** A worker asks the database for a row and
 gets one or does not ([`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement)), so a fleet of instances each
 running their own workers is the intended deployment rather than a hazard; a scheduled entry has to

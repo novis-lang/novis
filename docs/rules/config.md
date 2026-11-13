@@ -2435,9 +2435,11 @@ entry is late. Everything downstream follows with nothing added:
 - Its grants are that snapshot's `[capabilities]`. The script must still lie under the global
   `script.spawn` roots for the configuration to resolve (`E0611`), so a block can narrow what a
   fire may do and never makes a script schedulable.
-- The script receives its entry's `name` through `Core\Script::args()`
-  ([`core-classes/script-args`](core-classes.md#core-classes-script-args)) and answers with a top-level `return`, exactly as any `spawn
-  script` target does. There is no scheduler-specific accessor.
+- The script reads one map from `Core\Script::args()` ([`core-classes/script-args`](core-classes.md#core-classes-script-args)):
+  `["name" => <entry name>, "on" => "cron"]` for a cron run, and the event's word under `"on"` for
+  an event run ([`config/an-entry-runs-on-a-server-event`](config.md#config-an-entry-runs-on-a-server-event)), so every run reads its entry the
+  same way. It answers with a top-level `return`, exactly as any `spawn script` target does. There
+  is no scheduler-specific accessor.
 - `Core\Request`, `Core\Server` and `Core\Session` throw inside it
   ([`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate)) — there is no request.
 - Its result is logged, not delivered: the `return` value goes into the run's log line, and an
@@ -2594,6 +2596,10 @@ for the other.
   `"schedule" => [<entry names that failed>]`, each name once, and `"dead_letter" => <int>`. A run
   of a `failed` entry is never counted, so a failing `failed` script cannot run itself again. Under
   `overlap = "skip"` a run still going absorbs the next minute's failures into the run after it.
+  Each pass takes the tally out of `Events` and gives every `failed` entry its own copy, so two of
+  them both see every failure, and a pass with no `failed` entry drops it, so the tally never grows
+  without a reader. A run that `overlap = "kill"` or the drain cancelled is not a failure. The
+  ticker records a fire's failure itself, so `nvs serve`'s `Fires` counts nothing.
 
 **The one-minute floor is a constant, not a setting.** A request can cause failures indirectly, by
 pushing jobs that fail, and the floor bounds how many runs that can start. One minute is the

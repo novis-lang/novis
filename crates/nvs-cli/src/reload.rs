@@ -180,6 +180,10 @@ pub(crate) struct Process {
     /// the next publish stands, so no request opens a configured log file.
     /// One descriptor per configured log file.
     logs: Mutex<Vec<nvs_runtime::logfile::LogFile>>,
+    /// Where each logged outcome is also recorded, for the `on = "reload"`
+    /// entries the ticker runs (`rule:config/an-entry-runs-on-a-server-event`).
+    /// `None` where no ticker reads it.
+    events: Option<Arc<nvs_server::Events>>,
 }
 
 /// What a reload does to the on-disk artifact cache, decided before the publish.
@@ -241,7 +245,19 @@ impl Process {
             refused: Mutex::new(None),
             sources: Mutex::new(None),
             logs: Mutex::new(Vec::new()),
+            events: None,
         }
+    }
+
+    /// The same process, recording each reload outcome it logs in `events`.
+    ///
+    /// A step after the constructor for the same reason as
+    /// [`draining_through`](Process::draining_through): only a server has a
+    /// ticker to read it.
+    #[must_use]
+    pub(crate) fn feeding(mut self, events: Arc<nvs_server::Events>) -> Self {
+        self.events = Some(events);
+        self
     }
 
     /// The same process, holding open each log file the standing publish
@@ -579,9 +595,23 @@ impl Process {
     /// The write's own failure is swallowed, per `rule:errors/engine-floor`: a
     /// full disk under the log target is not a reason to fail the reload that
     /// already happened.
+    ///
+    /// The outcome is recorded in [`Process::events`] beside the record, so a
+    /// `reload` entry runs once for each outcome the log shows. It carries the
+    /// names of the restart keys and nothing else: no value, and no refusal
+    /// text, which quotes a line that can hold a secret.
     fn logged(&self, outcome: &Result<Report, String>, changed: &[PathBuf]) {
         let config = nvs_config::Request::new(self.current.load());
         drop(LogWriter::resolve(Some(&config)).write(&record(outcome, changed)));
+        if let Some(events) = &self.events {
+            events.reloaded(match outcome {
+                Ok(report) => nvs_server::Reloaded {
+                    applied: true,
+                    restart: report.ignored.iter().map(|key| (*key).to_owned()).collect(),
+                },
+                Err(_) => nvs_server::Reloaded::default(),
+            });
+        }
     }
 }
 

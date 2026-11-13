@@ -115,14 +115,17 @@
 //! running renews in the store it took its key from, because its renewal holds
 //! that store's [`Rc`].
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::collections::BTreeSet;
 use std::io;
 use std::ops::ControlFlow;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
-use jiff::Zoned;
 use jiff::tz::TimeZone;
+use jiff::{Timestamp, Zoned};
 use nvs_config::capability::Cap;
 use nvs_config::schedule::{Cron, Event, zone_of};
 use nvs_config::tree::{Capabilities, LimitSet, Schedule};
@@ -190,10 +193,16 @@ pub struct Armed {
     /// Whether a fire is held for this entry — `queue`'s single pending run, and never more than
     /// one of them (`rule:config/overlap-is-skip-queue-or-kill`).
     ///
-    /// The tick is the only reader and the only writer, so this is a plain [`Cell`] rather than a
+    /// The tick is the only reader and the only writer, so this is a [`RefCell`] rather than a
     /// shared one; the copy a fire's clone carries is dead weight and is never asked.
     /// It is what that held fire runs for, and [`None`] when nothing is held.
-    held: Cell<Option<Fired>>,
+    held: RefCell<Option<Fired>>,
+    /// The failures an `on = "failed"` entry has not run for yet, moved here out of [`Events`]
+    /// on each pass and handed to the entry's next run. Always empty for every other entry.
+    owed: RefCell<Failures>,
+    /// When an `on = "failed"` entry last started a run, by the ticker's clock, which is where
+    /// [`FAILED_FLOOR`] is measured from. [`None`] until its first run.
+    last_ran: Cell<Option<Timestamp>>,
     /// The task the last fire of this entry was spawned as, which is what `kill` cancels.
     ///
     /// [`None`] until the first fire, and stale rather than cleared once one ends: cancelling a
@@ -218,24 +227,160 @@ enum Trigger {
 /// What one fire runs for, handed to [`Fires::isolate`] so the run's arguments can say it.
 ///
 /// Its own type rather than the entry's trigger, because one fire of an event carries what that
-/// event was, and the entry does not.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// event was, and the entry does not. The two events that carry data hold it behind an [`Rc`],
+/// because every entry that runs on that event is handed the same one.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Fired {
     /// The entry's `cron` minute arrived.
     Cron,
-    /// The server event the entry's `on` names happened.
+    /// The process started or began its drain: [`Event::Start`] or [`Event::Stop`].
     On(Event),
+    /// A reload ended, with its outcome.
+    Reload(Rc<Reloaded>),
+    /// Runs failed, or jobs were dead-lettered, since this entry last ran.
+    Failed(Rc<Failures>),
 }
 
 impl Fired {
     /// The word a run reads under `"on"` in its args: `cron`, or the event's own word.
     #[must_use]
-    pub const fn word(self) -> &'static str {
+    pub const fn word(&self) -> &'static str {
         match self {
             Self::Cron => "cron",
             Self::On(event) => event.word(),
+            Self::Reload(_) => Event::Reload.word(),
+            Self::Failed(_) => Event::Failed.word(),
         }
     }
+}
+
+/// One reload's outcome, as an `on = "reload"` run reads it
+/// (`rule:config/an-entry-runs-on-a-server-event`).
+///
+/// It carries no value, no file path and no refusal text, because a refusal quotes the line it
+/// refused and that line can hold a secret. The run reads the details from the log.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Reloaded {
+    /// Whether the reload published the new tree. `false` is a refusal, and the running tree
+    /// is unchanged.
+    pub applied: bool,
+    /// The dotted name of each `Boot` key whose change waits for a restart.
+    pub restart: Vec<String>,
+}
+
+/// The failures an `on = "failed"` run is handed: each scheduled entry whose run failed, once,
+/// and how many queue jobs were moved to the dead-letter table.
+///
+/// Bounded by the roster and one integer, whatever the number of failures.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Failures {
+    /// The name of each entry whose run threw, reached a limit or did not compile.
+    pub schedule: BTreeSet<String>,
+    /// How many jobs this process moved to the dead-letter table.
+    pub dead_letter: u64,
+}
+
+impl Failures {
+    /// Whether nothing failed.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.schedule.is_empty() && self.dead_letter == 0
+    }
+
+    /// Adds `other` to this tally.
+    fn absorb(&mut self, other: &Self) {
+        self.schedule.extend(other.schedule.iter().cloned());
+        self.dead_letter = self.dead_letter.saturating_add(other.dead_letter);
+    }
+}
+
+/// The shortest gap between two runs of one `on = "failed"` entry.
+///
+/// A constant and not a setting (`rule:config/an-entry-runs-on-a-server-event`): a request can
+/// cause failures indirectly, by pushing jobs that fail, and this bounds how many runs that can
+/// start. One minute is the resolution `cron` already has.
+const FAILED_FLOOR: Duration = Duration::from_secs(60);
+
+/// The process-wide record of the events a server's other parts see and the ticker runs entries
+/// on: the newest reload outcome, and the failures since the ticker last looked
+/// (`rule:config/an-entry-runs-on-a-server-event`).
+///
+/// `nvs serve` makes one at boot and shares it as an [`Arc`] with the reload, the ticker and the
+/// queue workers, so this is `Send + Sync`. The ticker polls it once per pass, which is at most one
+/// `Rearm::every` late, and no task, thread or wake is added for it.
+///
+/// **What it spends:** per process, two atomics, one reload outcome, and a set of entry names no
+/// larger than the roster. Nothing per request.
+#[derive(Debug, Default)]
+pub struct Events {
+    /// Moves once for each reload outcome. The ticker compares it with the generation it last
+    /// ran `reload` entries for, which costs one load per pass.
+    generation: AtomicU64,
+    /// The newest outcome, with the generation it was written at. Several reloads between two
+    /// passes leave only the newest.
+    reloaded: Mutex<Option<(u64, Reloaded)>>,
+    /// Whether [`Events::failures`] has anything, read each pass without the lock. Written under
+    /// that lock, so the two never disagree once it is released.
+    failing: AtomicBool,
+    /// Every failure since the ticker last took them.
+    failures: Mutex<Failures>,
+}
+
+impl Events {
+    /// Records a reload's outcome. Called once per outcome the reload logs.
+    pub fn reloaded(&self, outcome: Reloaded) {
+        let mut newest = locked(&self.reloaded);
+        // Under the lock, so two reloads never write the same generation.
+        let generation = self.generation.load(Ordering::Relaxed).wrapping_add(1);
+        *newest = Some((generation, outcome));
+        self.generation.store(generation, Ordering::Release);
+    }
+
+    /// Records that the run of the entry `name` failed.
+    pub fn failed(&self, name: &str) {
+        let mut failures = locked(&self.failures);
+        if !failures.schedule.contains(name) {
+            failures.schedule.insert(name.to_owned());
+        }
+        self.failing.store(true, Ordering::Release);
+    }
+
+    /// Records one job moved to the dead-letter table.
+    pub fn dead_lettered(&self) {
+        let mut failures = locked(&self.failures);
+        failures.dead_letter = failures.dead_letter.saturating_add(1);
+        self.failing.store(true, Ordering::Release);
+    }
+
+    /// The generation of the newest reload outcome, or `0` before the first.
+    fn generation(&self) -> u64 {
+        self.generation.load(Ordering::Acquire)
+    }
+
+    /// The newest reload outcome and its generation, when it is not `seen`.
+    fn newer_than(&self, seen: u64) -> Option<(u64, Reloaded)> {
+        if self.generation() == seen {
+            return None;
+        }
+        locked(&self.reloaded).clone()
+    }
+
+    /// Every failure recorded since the last call, which leaves the tally empty, or [`None`] when
+    /// there is none.
+    fn take_failures(&self) -> Option<Failures> {
+        if !self.failing.load(Ordering::Acquire) {
+            return None;
+        }
+        let mut failures = locked(&self.failures);
+        self.failing.store(false, Ordering::Release);
+        Some(std::mem::take(&mut *failures)).filter(|taken| !taken.is_empty())
+    }
+}
+
+/// `mutex`, taken whether or not a holder panicked: every value behind these locks is whole after
+/// each statement that writes it.
+fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// The entry's `overlap` (`rule:config/overlap-is-skip-queue-or-kill`): what a fire does when the
@@ -285,7 +430,16 @@ impl Armed {
 
     /// Whether `queue` is holding a fire for this entry.
     fn held(&self) -> bool {
-        self.held.get().is_some()
+        self.held.borrow().is_some()
+    }
+
+    /// Whether [`FAILED_FLOOR`] has passed at `now` since this entry last started a run. A clock
+    /// that stepped back past that run counts as passed, so a step does not silence the entry.
+    fn floor_passed(&self, now: &Zoned) -> bool {
+        self.last_ran.get().is_none_or(|last| {
+            let gap = now.timestamp().duration_since(last);
+            gap.is_negative() || gap.unsigned_abs() >= FAILED_FLOOR
+        })
     }
 
     /// Whether `now` has reached this entry's next fire.
@@ -370,7 +524,8 @@ pub trait Fires {
     /// `rule:config/a-scheduled-run-is-a-root-isolate`'s shape, and the implementation owes all of
     /// it: the deployment's configuration on the context it is handed, `Isolate::new` with the
     /// run's args map as the argument the script reads back through `Core\Script::args()` — the
-    /// entry's `name` and `fired`'s word under `"on"` — and [`nvs_host::Output`] `Capture`, because
+    /// entry's `name`, `fired`'s word under `"on"` and the event's own keys — and
+    /// [`nvs_host::Output`] `Capture`, because
     /// a scheduled run's output is logged rather than delivered.
     ///
     /// The tree is owed **first**, before anything here asks a capability, and it is owed here
@@ -566,7 +721,9 @@ pub fn arm(
                 grants: entry.grants.as_ref().map(grant_names),
             },
             fleet,
-            held: Cell::new(None),
+            held: RefCell::new(None),
+            owed: RefCell::new(Failures::default()),
+            last_ran: Cell::new(None),
             fired_as: Cell::new(None),
         });
     }
@@ -642,6 +799,10 @@ pub struct Rearm<'a> {
     /// Answers the roster to tick from now on, or [`None`] when the configuration it was armed
     /// from has not changed since the last answer.
     pub roster: &'a mut dyn FnMut() -> Option<Roster>,
+    /// The process's reloads and failures, which `on = "reload"` and `on = "failed"` entries run
+    /// on, or [`None`] where nothing records them. Here and not beside the roster, because only a
+    /// ticker that outlives one configuration lives long enough to see either event.
+    pub events: Option<Arc<Events>>,
 }
 
 impl std::fmt::Debug for Rearm<'_> {
@@ -687,7 +848,9 @@ fn carry_over(old: Vec<Armed>, mut fresh: Vec<Armed>) -> Vec<Armed> {
             continue;
         };
         entry.running = Rc::clone(&before.running);
-        entry.held.set(before.held.get());
+        entry.held.replace(before.held.take());
+        entry.owed.replace(before.owed.take());
+        entry.last_ran.set(before.last_ran.get());
         entry.fired_as.set(before.fired_as.get());
         if before.trigger == entry.trigger {
             entry.next.clone_from(&before.next);
@@ -725,8 +888,17 @@ fn carry_over(old: Vec<Armed>, mut fresh: Vec<Armed>) -> Vec<Armed> {
 /// again. When `keep_ticking` breaks, which is the drain, each `on = "stop"` entry runs once, and
 /// the tail waits for those runs up to `drain` from then. A `stop` run still going at that instant
 /// is cancelled, as a request still running at the drain period's end is. A stop by cancellation
-/// runs no `stop` entry, because the task that would run it is being torn down. Both events go
-/// through the same `overlap` question a minute does.
+/// runs no `stop` entry, because the task that would run it is being torn down.
+///
+/// **The other two events come from [`Rearm::events`].** Each pass, after the due walk, runs every
+/// `on = "reload"` entry once when a reload outcome is newer than the one it last ran for, with the
+/// newest outcome, and runs an `on = "failed"` entry when failures are owed to it and
+/// [`FAILED_FLOOR`] has passed since its last run. A `failed` entry still running under
+/// `overlap = "skip"` keeps what it is owed for the run after it. Each pass takes the failures out
+/// of [`Events`] and gives each `failed` entry its own copy, so two of them both see every failure.
+/// A fire that fails is recorded there, unless its entry is `on = "failed"`, so a failing
+/// `failed` script never runs itself again. Every event goes through the same `overlap` question
+/// a minute does.
 ///
 /// # Errors
 ///
@@ -753,6 +925,9 @@ where
     let outstanding = Rc::new(Cell::new(0_usize));
     let mut leases: Option<Rc<dyn Leases>> = leases.cloned();
     let mut first = true;
+    let events = rearm.as_ref().and_then(|rearm| rearm.events.clone());
+    // A reload before the ticker's first pass is not this ticker's to run for.
+    let mut seen = events.as_deref().map_or(0, Events::generation);
     // Whether the loop ended on the drain, which is the one ending that runs `stop` entries.
     let drained = loop {
         if let Some(fresh) = rearm.as_mut().and_then(|rearm| (rearm.roster)()) {
@@ -768,6 +943,7 @@ where
                     leases.as_ref(),
                     &outstanding,
                     &parent,
+                    events.as_ref(),
                 )?;
             }
         }
@@ -815,12 +991,60 @@ where
                 leases.as_ref(),
                 &outstanding,
                 &parent,
+                events.as_ref(),
             )?;
             if !entries[index].rearm(&clock) {
                 fires.note(&format!(
                     "`{}` has no further fire inside the horizon and will not run again",
                     entries[index].name()
                 ));
+            }
+        }
+        // `rule:config/an-entry-runs-on-a-server-event`'s two events that happen while the
+        // process serves. After the rearm at the top of this pass, so an entry a reload added runs
+        // for that reload.
+        if let Some(events) = &events {
+            if let Some((generation, outcome)) = events.newer_than(seen) {
+                seen = generation;
+                let fired = Fired::Reload(Rc::new(outcome));
+                for entry in entries.iter().filter(|entry| entry.runs_on(Event::Reload)) {
+                    answer(
+                        entry,
+                        fired.clone(),
+                        fires,
+                        leases.as_ref(),
+                        &outstanding,
+                        &parent,
+                        Some(events),
+                    )?;
+                }
+            }
+            // Taken on every pass, with or without a `failed` entry, so the tally in `Events`
+            // never holds more than one pass of failures.
+            let failed = || entries.iter().filter(|entry| entry.runs_on(Event::Failed));
+            if let Some(fresh) = events.take_failures() {
+                for entry in failed() {
+                    entry.owed.borrow_mut().absorb(&fresh);
+                }
+            }
+            for entry in failed() {
+                let waits = entry.owed.borrow().is_empty()
+                    || !entry.floor_passed(&clock)
+                    || (entry.busy() && entry.overlap == Overlap::Skip);
+                if waits {
+                    continue;
+                }
+                let owed = entry.owed.take();
+                entry.last_ran.set(Some(clock.timestamp()));
+                answer(
+                    entry,
+                    Fired::Failed(Rc::new(owed)),
+                    fires,
+                    leases.as_ref(),
+                    &outstanding,
+                    &parent,
+                    Some(events),
+                )?;
             }
         }
         // `overlap = "queue"`: a held fire starts the moment the run before it has ended, and this is
@@ -833,11 +1057,18 @@ where
         // the `overlap` question before the lease was asked for, so this host never took a key for
         // the interval it was held from.
         for entry in entries.iter() {
-            if let Some(fired) = entry.held.get()
-                && !entry.busy()
+            if !entry.busy()
+                && let Some(fired) = entry.held.take()
             {
-                entry.held.set(None);
-                start(entry, fired, fires, &outstanding, &parent, None)?;
+                start(
+                    entry,
+                    fired,
+                    fires,
+                    &outstanding,
+                    &parent,
+                    None,
+                    events.as_ref(),
+                )?;
             }
         }
         if keep_ticking().is_break() {
@@ -856,6 +1087,7 @@ where
                 leases.as_ref(),
                 &outstanding,
                 &parent,
+                events.as_ref(),
             )?;
         }
     }
@@ -919,6 +1151,7 @@ where
 /// The one path every fire takes, a minute's and a server event's alike
 /// (`rule:config/an-entry-runs-on-a-server-event`), so an event entry's `overlap` means what a
 /// cron entry's does. An event entry is never `fleet`, because [`arm`] does not arm one.
+/// `events` is where a fire that fails is recorded.
 fn answer<F>(
     entry: &Armed,
     fired: Fired,
@@ -926,6 +1159,7 @@ fn answer<F>(
     leases: Option<&Rc<dyn Leases>>,
     outstanding: &Rc<Cell<usize>>,
     parent: &Rc<Wake>,
+    events: Option<&Arc<Events>>,
 ) -> io::Result<()>
 where
     F: Fires + 'static,
@@ -946,7 +1180,9 @@ where
             // run ends. One, never a queue: the second overlap above is dropped
             // instead, because an unbounded backlog in front of a non-durable executor is
             // what `rule:concurrency/deferred-is-bounded-by-two-directives` refuses to build.
-            Overlap::Queue => entry.held.set(Some(fired)),
+            Overlap::Queue => {
+                entry.held.replace(Some(fired));
+            }
             Overlap::Kill => {
                 // The run is cancelled at its next safepoint and its teardown *waited for*
                 // before the new one starts, which is the ordering `overlap` states: the two
@@ -974,7 +1210,7 @@ where
                         entry.name()
                     ));
                 } else {
-                    start(entry, fired, fires, outstanding, parent, None)?;
+                    start(entry, fired, fires, outstanding, parent, None, events)?;
                 }
             }
         }
@@ -986,7 +1222,7 @@ where
         // reading one host's log has to be able to tell from a failure — and on a fleet of
         // twenty this is the ordinary line that nineteen of them write.
         if let Some(held) = took_the_lease(entry, leases) {
-            start(entry, fired, fires, outstanding, parent, Some(held))?;
+            start(entry, fired, fires, outstanding, parent, Some(held), events)?;
         } else {
             fires.note(&format!(
                 "`{}` is held by another host for this interval and is not run here \
@@ -995,7 +1231,7 @@ where
             ));
         }
     } else {
-        start(entry, fired, fires, outstanding, parent, None)?;
+        start(entry, fired, fires, outstanding, parent, None, events)?;
     }
     Ok(())
 }
@@ -1014,6 +1250,7 @@ fn start<F>(
     outstanding: &Rc<Cell<usize>>,
     parent: &Rc<Wake>,
     renewal: Option<Renewal>,
+    events: Option<&Arc<Events>>,
 ) -> io::Result<()>
 where
     F: Fires + 'static,
@@ -1027,7 +1264,7 @@ where
     };
     entry
         .fired_as
-        .set(Some(fire(entry, fired, fires, running, renewal)?));
+        .set(Some(fire(entry, fired, fires, running, renewal, events)?));
     Ok(())
 }
 
@@ -1070,24 +1307,38 @@ impl Drop for Ran {
 /// `renewal` is the key a `fleet` entry's fire took, and is [`None`] for every other fire. It is
 /// started here rather than by the caller because this is the task the lease's renewal is held for: the
 /// timer is a child of it, so the run ending is what stops the key being extended.
+///
+/// A run that did not compile, threw or reached a limit is recorded in `events`, unless the entry
+/// is `on = "failed"` (`rule:config/an-entry-runs-on-a-server-event`). A cancelled run is not a
+/// failure, because a `kill` or the drain ended it.
 fn fire<F>(
     entry: &Armed,
     fired: Fired,
     fires: &Rc<F>,
     running: Ran,
     renewal: Option<Renewal>,
+    events: Option<&Arc<Events>>,
 ) -> io::Result<TaskId>
 where
     F: Fires + 'static,
 {
     let fires = Rc::clone(fires);
     let entry = entry.clone();
+    let events = events
+        .filter(|_| !entry.runs_on(Event::Failed))
+        .map(Arc::clone);
     let spawned = spawn_child(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |ctx| {
         let _running = running;
+        let failed = || {
+            if let Some(events) = &events {
+                events.failed(entry.name());
+            }
+        };
         if let Some(renewal) = renewal {
             renewal.keep(&fires, entry.name());
         }
         let Some(isolate) = fires.isolate(&entry, fired, ctx) else {
+            failed();
             return;
         };
         // The entry's sub-caps, on the isolate and not on the context the implementor was handed: what a
@@ -1106,6 +1357,9 @@ where
             .map(|trace| (trace, nvs_runtime::trace_clock()));
         match isolate.narrowed_by(entry.narrowing.clone()).run(ctx) {
             Ok(mut done) => {
+                if !done.ok {
+                    failed();
+                }
                 fires.ran(&entry, &done);
                 // The entry's name is what the root span is *of*, which is a
                 // scheduled run's whole request line: it has no method and no
@@ -1126,10 +1380,13 @@ where
             // The argument had no meaning across the boundary, which is a fault in the caller's
             // `isolate` rather than anything the script did. Nothing ran, so there is no completion
             // to log and this is the only place it can be said.
-            Err(refused) => fires.note(&format!(
-                "`{}` was not run: its argument could not cross: {refused}",
-                entry.name()
-            )),
+            Err(refused) => {
+                failed();
+                fires.note(&format!(
+                    "`{}` was not run: its argument could not cross: {refused}",
+                    entry.name()
+                ));
+            }
         }
     });
     // The id is `kill`'s handle on this run and nothing else's: `overlap`'s other two modes never reach
@@ -1360,6 +1617,36 @@ mod tests {
         ceiling: Cell<usize>,
         /// What each fire's own context said about `limits` and `grants`, in the order the fires ran.
         narrowed: Rc<RefCell<Vec<(String, Narrowed)>>>,
+        /// The entries whose script does not compile: [`Fires::isolate`] answers [`None`] for
+        /// them, which is a failed run.
+        failing: Vec<&'static str>,
+    }
+
+    /// What a fire ran for, as [`Watcher::fired`] writes it: the event's word, and for `reload`
+    /// and `failed` what the run's args map carries.
+    fn described(fired: &Fired) -> String {
+        match fired {
+            Fired::Reload(reloaded) => format!(
+                "reload {} [{}]",
+                if reloaded.applied {
+                    "applied"
+                } else {
+                    "refused"
+                },
+                reloaded.restart.join(",")
+            ),
+            Fired::Failed(failures) => format!(
+                "failed [{}] dl={}",
+                failures
+                    .schedule
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+                    .join(","),
+                failures.dead_letter
+            ),
+            Fired::Cron | Fired::On(_) => fired.word().to_owned(),
+        }
     }
 
     /// What a fire's context answers about its entry's sub-caps, read inside the run itself.
@@ -1403,6 +1690,7 @@ mod tests {
                 configured: None,
                 ceiling: Cell::new(0),
                 narrowed: Rc::new(RefCell::new(Vec::new())),
+                failing: Vec::new(),
             }
         }
     }
@@ -1412,8 +1700,11 @@ mod tests {
             self.asked_on.set(nvs_host::current_task());
             self.fired
                 .borrow_mut()
-                .push(format!("{} {}", entry.name(), fired.word()));
+                .push(format!("{} {}", entry.name(), described(&fired)));
             self.started.set(self.started.get() + 1);
+            if self.failing.contains(&entry.name()) {
+                return None;
+            }
             // On the fire's own context, which is the parent a sub-cap is measured against: the
             // isolate below inherits it, and `Ctx::narrow` then asks what remains of *this* budget.
             if let Some(snapshot) = &self.configured {
@@ -1539,6 +1830,7 @@ mod tests {
                     Some(Rearm {
                         every: Duration::from_millis(50),
                         roster: &mut roster,
+                        events: None,
                     }),
                     || ControlFlow::Break(()),
                     TEST_DRAIN,
@@ -2007,8 +2299,15 @@ mod tests {
                     mine: Rc::clone(&armed[0].running),
                     parent: Rc::new(Wake::current().expect("the case runs as a task")),
                 };
-                fire(&armed[0], Fired::Cron, &watcher, running, Some(renewal))
-                    .expect("the fire is a task");
+                fire(
+                    &armed[0],
+                    Fired::Cron,
+                    &watcher,
+                    running,
+                    Some(renewal),
+                    None,
+                )
+                .expect("the fire is a task");
                 // The fire is this task's child, so this one outlives it — the same park the
                 // ticker's own tail makes, woken by that guard on the way out.
                 while outstanding.get() > 0 {
@@ -2358,6 +2657,7 @@ mod tests {
                     every.map(|every| Rearm {
                         every,
                         roster: &mut unchanged,
+                        events: None,
                     }),
                     move || {
                         let pass = seen.get();
@@ -2513,6 +2813,194 @@ mod tests {
         assert!(
             watcher.fired.borrow().is_empty(),
             "a roster with no minute ran nothing, and the ticker returned"
+        );
+    }
+
+    /// Run the ticker over `entries` with a rearm that reads `events`, for `passes` passes. Pass
+    /// `n` reads the clock as `from` plus `n` times `step` seconds. `between(n)` runs at the end of
+    /// pass `n`, which is where a case writes what pass `n + 1` sees. The last pass is the drain.
+    fn tick_with(
+        entries: &[Schedule],
+        watcher: Watcher,
+        events: &Arc<Events>,
+        (from, step): (&str, i64),
+        passes: usize,
+        mut between: impl FnMut(usize) + 'static,
+    ) -> Rc<Watcher> {
+        let from = instant(from);
+        let roster = arm(entries, &from, None, |note| {
+            panic!("nothing to report at boot, and it said: {note}")
+        });
+        let watcher = Rc::new(watcher);
+        let events = Arc::clone(events);
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let watcher = Rc::clone(&watcher);
+            move |_ctx| {
+                let mut roster = roster;
+                let pass = Rc::new(Cell::new(0_usize));
+                let read = Rc::clone(&pass);
+                let mut unchanged = || -> Option<Roster> { None };
+                tick_on_this_core(
+                    &mut roster,
+                    &watcher,
+                    None,
+                    move || {
+                        let moved = i64::try_from(read.get()).expect("a case runs few passes");
+                        from.timestamp()
+                            .checked_add(jiff::SignedDuration::from_secs(step * moved))
+                            .expect("the case stays inside the calendar")
+                            .to_zoned(TimeZone::UTC)
+                    },
+                    Some(Rearm {
+                        every: Duration::from_millis(1),
+                        roster: &mut unchanged,
+                        events: Some(events),
+                    }),
+                    move || {
+                        let at = pass.get();
+                        between(at);
+                        pass.set(at + 1);
+                        if at + 1 < passes {
+                            ControlFlow::Continue(())
+                        } else {
+                            ControlFlow::Break(())
+                        }
+                    },
+                    TEST_DRAIN,
+                )
+                .expect("the ticker ran as a task");
+            }
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        watcher
+    }
+
+    /// A reload outcome, as the reload writes it into [`Events`].
+    fn reload(applied: bool, restart: &[&str]) -> Reloaded {
+        Reloaded {
+            applied,
+            restart: restart.iter().map(|key| (*key).to_owned()).collect(),
+        }
+    }
+
+    /// `rule:config/an-entry-runs-on-a-server-event`: a `reload` entry runs once for each new
+    /// outcome, with the newest one when several arrive between two passes, and never for an
+    /// outcome written before the ticker started.
+    #[test]
+    fn a_reload_entry_runs_once_per_new_outcome() {
+        let events = Arc::new(Events::default());
+        events.reloaded(reload(true, &["server.listen"]));
+        let writes = Arc::clone(&events);
+        let watcher = tick_with(
+            &[on("reloaded", "reload")],
+            Watcher::new(),
+            &events,
+            ("2026-01-01T00:00:00Z", 1),
+            6,
+            move |pass| match pass {
+                0 => writes.reloaded(reload(true, &["server.workers"])),
+                2 => {
+                    writes.reloaded(reload(false, &[]));
+                    writes.reloaded(reload(true, &[]));
+                }
+                3 => writes.reloaded(reload(false, &[])),
+                _ => {}
+            },
+        );
+        assert_eq!(
+            watcher.fired.borrow().as_slice(),
+            [
+                "reloaded reload applied [server.workers]",
+                "reloaded reload applied []",
+                "reloaded reload refused []",
+            ],
+            "one run per pass that saw a new outcome, each with the newest one"
+        );
+        assert_eq!(watcher.logged.borrow().len(), 3, "every run finished");
+    }
+
+    /// `rule:config/an-entry-runs-on-a-server-event`: a `failed` entry runs at most once a minute.
+    /// Each run counts every failure since the one before it, and names each entry once.
+    ///
+    /// The clock moves twenty seconds a pass, so the run after the first one has to wait three
+    /// passes for its minute while failures arrive.
+    #[test]
+    fn a_failed_entry_runs_at_most_once_a_minute_and_counts_every_failure() {
+        let events = Arc::new(Events::default());
+        let writes = Arc::clone(&events);
+        let watcher = tick_with(
+            &[on("alert", "failed")],
+            Watcher::new(),
+            &events,
+            ("2026-01-01T00:00:00Z", 20),
+            6,
+            move |pass| match pass {
+                0 => {
+                    writes.failed("nightly");
+                    writes.dead_lettered();
+                }
+                1 => {
+                    writes.failed("hourly");
+                    writes.failed("nightly");
+                    writes.failed("nightly");
+                }
+                2 => writes.dead_lettered(),
+                _ => {}
+            },
+        );
+        assert_eq!(
+            watcher.fired.borrow().as_slice(),
+            [
+                "alert failed [nightly] dl=1",
+                "alert failed [hourly,nightly] dl=1",
+            ],
+            "the first run at the first pass after a failure, the second a minute after it"
+        );
+        assert!(
+            events.take_failures().is_none(),
+            "every failure was handed to a run"
+        );
+    }
+
+    /// `rule:config/an-entry-runs-on-a-server-event`: a failing `failed` entry is never counted as
+    /// a failure, so its runs carry only the cron entry that failed beside it.
+    #[test]
+    fn a_failed_entry_never_counts_its_own_failure() {
+        let events = Arc::new(Events::default());
+        let watcher = tick_with(
+            &[on("alert", "failed"), entry("nightly", "* * * * *", "host")],
+            Watcher {
+                failing: vec!["alert", "nightly"],
+                ..Watcher::new()
+            },
+            &events,
+            ("2026-01-01T00:00:30Z", 30),
+            7,
+            |_| {},
+        );
+        let fired = watcher.fired.borrow();
+        let alerts: Vec<&String> = fired
+            .iter()
+            .filter(|fired| fired.starts_with("alert"))
+            .collect();
+        assert_eq!(
+            alerts, ["alert failed [nightly] dl=0"; 3],
+            "each alert run carried the cron entry and never itself: {fired:?}"
+        );
+        assert_eq!(
+            fired
+                .iter()
+                .filter(|fired| *fired == "nightly cron")
+                .count(),
+            3,
+            "the cron entry ran at each of its three minutes: {fired:?}"
+        );
+        assert!(
+            events.take_failures().is_none(),
+            "the last alert run failed too, and nothing counted it"
         );
     }
 

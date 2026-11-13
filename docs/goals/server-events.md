@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-cli/src/serve.rs, crates/nvs-stdlib/src/script.rs, docs/rules/concurrency/one-process-serves-requests-schedules-and-jobs.md, docs/rules/concurrency/a-drain-closes-a-connection-cleanly.md]
   - id: 3
     title: reload and failed entries run
-    status: open
+    status: done
     context: [crates/nvs-cli/src/serve.rs, crates/nvs-cli/src/reload.rs, crates/nvs-cli/src/worker.rs, docs/rules/config/a-reload-names-what-it-could-not-apply.md, docs/rules/concurrency/attempts-are-finite-and-a-dead-letter-is-kept.md]
   - id: 4
     title: the server runs every event end to end, and the feature has its proofs
@@ -159,6 +159,17 @@ minute's failures into the run after it. Declined: a run per failure, because th
 of failures into a burst of runs at the moment the host is already in trouble. Declined: a
 configurable window, because nobody has asked for one and it is one more key to get wrong.
 
+**The ticker records a fire's failure, not `nvs serve`'s `Fires`.** `fire` in
+`crates/nvs-server/src/schedule.rs` already sees each way a run fails: `Fires::isolate` answering
+`None` (the script did not compile or its blocks did not fold), a completion with `ok = false`
+(a throw or a limit), and an argument that could not cross. Counting there is one place instead of
+three in `serve.rs`, it skips an `on = "failed"` entry without a public `runs_on`, and the unit
+tests reach it through the test `Fires`. `Events` reaches the ticker through `Rearm::events`, which
+kept `tick_on_this_core` at seven parameters, because only a ticker that outlives one configuration
+can see a reload or a failure. Each pass takes the failure tally out of `Events` and gives each
+`failed` entry its own copy, so two `failed` entries both see every failure, and a pass with no
+`failed` entry drops the tally, so it never grows without a reader.
+
 **The events reach the ticker through one process-wide `Events`, polled every `SCHEDULE_POLL`.**
 `Events` lives in `crates/nvs-server/src/schedule.rs` beside `Armed`, is made once at boot in
 `serve.rs` and shared as an `Arc` with the reload path and the queue workers. It holds a reload
@@ -253,23 +264,22 @@ drain, and give every run the args map.
 **Does:** add the process-wide `Events`, feed it from the reload, the fire outcome and the
 dead-letter move, and run `reload` and `failed` entries from the tick.
 
-- [ ] `Events` in `crates/nvs-server/src/schedule.rs`, per the standing decision: a reload generation
+- [x] `Events` in `crates/nvs-server/src/schedule.rs`, per the standing decision: a reload generation
   with the newest outcome and restart keys, and the failure tally (`crates/nvs-server/src/schedule.rs:553`).
-- [ ] `serve.rs` makes one `Events` at boot and hands it to the ticker, the reload path and
+- [x] `serve.rs` makes one `Events` at boot and hands it to the ticker, the reload path and
   `arm_queue_workers` (`crates/nvs-cli/src/serve.rs:1445`, `crates/nvs-cli/src/serve.rs:1540`).
-- [ ] The reload path writes each outcome into `Events` beside its `Core\Log` record: applied with
+- [x] The reload path writes each outcome into `Events` beside its `Core\Log` record: applied with
   its restart-pending key names, or refused. No value and no refusal text
   (`crates/nvs-cli/src/reload.rs:357`, `crates/nvs-cli/src/reload.rs:564`,
   `crates/nvs-cli/src/reload.rs:773`, `crates/nvs-cli/src/reload.rs:802`).
-- [ ] `Scheduled::ran` and the not-run warnings count a failure for every entry that is not
-  `on = "failed"` (`crates/nvs-cli/src/serve.rs:2129`, `crates/nvs-cli/src/serve.rs:2152`,
-  `crates/nvs-cli/src/serve.rs:2186`).
-- [ ] The dead-letter move counts one dead letter in `Events` once its statement succeeded, on every
+- [x] Every failed run counts a failure for every entry that is not `on = "failed"`; the ticker's
+  `fire` counts it, per the standing decision (`crates/nvs-server/src/schedule.rs:1314`).
+- [x] The dead-letter move counts one dead letter in `Events` once its statement succeeded, on every
   dialect (`crates/nvs-cli/src/worker.rs:1673`).
-- [ ] Each pass of `tick_on_this_core` runs `reload` entries when the generation moved, and `failed`
+- [x] Each pass of `tick_on_this_core` runs `reload` entries when the generation moved, and `failed`
   entries when the tally is not empty and a minute has passed since that entry's last run, taking
   the tally as it fires (`crates/nvs-server/src/schedule.rs:659`).
-- [ ] Tests `a_reload_entry_runs_once_per_new_outcome`,
+- [x] Tests `a_reload_entry_runs_once_per_new_outcome`,
   `a_failed_entry_runs_at_most_once_a_minute_and_counts_every_failure` and
   `a_failed_entry_never_counts_its_own_failure`, with the injected clock
   (`crates/nvs-server/src/schedule.rs:1371`).
@@ -320,47 +330,42 @@ on its own files. None of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `Armed` carries a private `Trigger` (`Cron { cron, zone }` or `On(Event)`),
-and `arm` builds it with stage 1's two parsers; an `on` entry has `next = None`, so `due` and
-`soonest` never see it. The per-fire decision (`overlap`, then the `fleet` lease) is one function,
-`answer`, which minutes and events both take. `tick_on_this_core` runs each `start` entry on its
-first pass, after the first rearm, and on a `keep_ticking` break runs each `stop` entry, then waits
-for them up to its new last parameter `drain` and cancels a stop run still going then, with a note.
-A roster with no minute and no rearm now ends through the tail instead of returning with runs still
-in flight. `held` is `Cell<Option<Fired>>`, so a queued fire keeps what it ran for.
+Stages 1, 2 and 3 are done. Every event runs from `tick_on_this_core` through `answer`.
 
-`nvs_server::Fired` (`Cron`, `On(Event)`, `word()`) is what `Fires::isolate` is now told, and
-`serve.rs`'s `run_args` builds the args map `["name" => ..., "on" => ...]` every run reads; `nvs
-serve` passes `waits.drain` as the tick's drain. The stage 2 and 3 checks now run
-`cargo test --lib --bin nvs`, because `--lib` never builds the serve tests. `looper check --name
-start-and-stop-fire` is green, and both rule fragments say what stage 2 built.
+`nvs_server::Events` (`crates/nvs-server/src/schedule.rs`) holds a reload generation with the
+newest `Reloaded { applied, restart }`, and a `Failures { schedule, dead_letter }` tally, behind
+atomics and two mutexes. `Fired` is now `Clone` and not `Copy`: `Cron`, `On(Event)` for start and
+stop, `Reload(Rc<Reloaded>)` and `Failed(Rc<Failures>)`. `held` became a `RefCell`, and `Armed`
+gained `owed` and `last_ran` for the `failed` floor (`FAILED_FLOOR`, one minute, by the injected
+clock); `carry_over` keeps all three across a reload.
 
-No test read a cron run's args as a string, so nothing went red from the map.
+`nvs serve` makes one `Arc<Events>` at boot, hands it to `reload::Process::feeding`, to every
+`Core`, to the ticker's `Rearm::events`, and to `arm_queue_workers`, whose `Crew` puts it on each
+`Workers` switch. `Process::logged` records each outcome it logs, so a repeated refusal the check
+does not log again runs no `reload` entry. `worker::turn` counts a dead letter after `report`'s
+statement succeeded, through the new `exhausted`. The ticker's `fire` counts every failed run
+(standing decision). `run_args` writes `outcome`, `restart`, `schedule` and `dead_letter`.
+
+`looper check --name reload-and-failed-fire` and `--name start-and-stop-fire` are green, and
+clippy is clean. The rule fragment says what stage 3 built, and `docs/rules/concurrency.md` took
+the render stage 2 had left out.
 
 The acceptance sweep's `env-secret-proofs` names no check in the tree; it is a stale entry in
 looper's service, and its log does not exist. The nightly's jobs were cancelled by later pushes.
 
 ### Next
 
-Stage 3, reload and failed entries run. Files: `crates/nvs-server/src/schedule.rs`,
-`crates/nvs-cli/src/serve.rs`, `crates/nvs-cli/src/reload.rs`, `crates/nvs-cli/src/worker.rs`.
+Stage 4, the end-to-end tests first, then the proofs by its `**Split:**` line.
 
-- [ ] `crates/nvs-server/src/schedule.rs:661`: `Events` beside `Roster`, `Send + Sync` (atomics and
-  a mutex), with the reload generation and newest outcome, and the failure tally.
-- [ ] `crates/nvs-server/src/schedule.rs:223`: `Fired` gains the event data, for example
-  `Reload { applied, restart }` and `Failed { schedule, dead_letter }`, or carries it beside
-  `On(Event)`; `run_args` at `crates/nvs-cli/src/serve.rs:2140` writes the extra keys.
-- [ ] `crates/nvs-server/src/schedule.rs:736`: `tick_on_this_core` takes `Option<&Events>` (or an
-  `Arc`), and each pass after the due walk runs `reload` entries on a new generation and `failed`
-  entries under the one-minute floor, through `answer`. Mind the clippy argument count: the
-  function has 7 now.
-- [ ] `crates/nvs-cli/src/serve.rs:2231`, `:2174`, `:2198`: count a failure for every entry that is
-  not `on = "failed"`; `Armed` needs a public way to say that, such as `runs_on` made public.
-- [ ] `crates/nvs-cli/src/serve.rs:1563` and `crates/nvs-cli/src/worker.rs:1673`: the dead-letter count.
-- [ ] `crates/nvs-cli/src/reload.rs:357`, `:564`, `:773`, `:802`: each outcome written into `Events`.
-- [ ] `crates/nvs-server/src/schedule.rs:2469`: the three stage 3 tests beside
-  `a_minute_never_runs_an_event_entry`; `tick_events` there is the harness to extend.
+- [ ] `crates/nvs-cli/tests/live_config.rs:80`: the `Server` harness, and `scheduling` at
+  `crates/nvs-cli/tests/live_config.rs:1202`, for the new `crates/nvs-cli/tests/schedule_events.rs`.
+  Each event script writes a file under the case's own directory the test waits for. A script
+  reads its map with `Core\Script::args()`, so it can write `args["on"]` and `args["outcome"]`.
+- [ ] `crates/nvs-cli/src/reload.rs:626`: the three tests the stage names. The reload one saves a
+  valid edit, then a broken one; the check notices a save within two `CHECK` passes.
+- [ ] `docs/examples/config/schedule/about.md:1`: then the three writing subagents on the example,
+  the attack and the two guides.
 
-Expected red: none known. Every caller of `tick_on_this_core` changes again when it takes `Events`.
+Expected red: none known. A test that built `run_args` from a `Fired` by value now passes `&Fired`.
 
 ### Backlog

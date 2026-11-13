@@ -686,6 +686,11 @@ pub(crate) fn run(
     // is what an operator running this by hand has.
     let told = Notify::from_env();
     told.install();
+    // `rule:config/an-entry-runs-on-a-server-event`: the one record of the
+    // reloads and failures the ticker runs `reload` and `failed` entries on.
+    // The reload writes into it, and so do the ticker's fires and the queue
+    // workers.
+    let events = Arc::new(nvs_server::Events::default());
     // The process a reload publishes through. The configuration check below
     // and a service manager's stop (`crate::dispatch`) reach the same process,
     // which takes it from where this installs it.
@@ -700,6 +705,7 @@ pub(crate) fn run(
         )
         .draining_through(serving.generations())
         .serving_rows(Arc::clone(&mounts))
+        .feeding(Arc::clone(&events))
         .holding_logs(),
     );
     crate::reload::install(Arc::clone(&host));
@@ -836,6 +842,7 @@ pub(crate) fn run(
             mounts,
             snapshot,
             current,
+            events,
             waits,
             serving,
             ticks: true,
@@ -896,6 +903,7 @@ pub(crate) fn run(
             mounts: mounts.clone(),
             snapshot: Arc::clone(&snapshot),
             current: Arc::clone(&current),
+            events: Arc::clone(&events),
             waits,
             serving: serving.clone(),
             // One listener and so one core answering scrapes, on the same
@@ -1003,6 +1011,9 @@ struct Core {
     /// this core *builds* is `Boot`-class and is the tree this process started
     /// on, and what a fire *runs under* is whatever a reload has published since.
     current: Arc<nvs_config::Current>,
+    /// The process's one record of reloads and failures, which the ticker on
+    /// this core reads and the queue workers on it write.
+    events: Arc<nvs_server::Events>,
     /// The `[server]` waits for the boot's snapshot. A connection accepted under a
     /// snapshot published later takes that snapshot's own waits
     /// (`nvs_server::serve_connection`), and the exporters keep these.
@@ -1049,6 +1060,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         mounts,
         snapshot,
         current,
+        events,
         waits,
         serving,
         ticks,
@@ -1497,6 +1509,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         // store a fleet entry's lease is taken in re-arms nothing.
         let mut armed_from = Arc::clone(&snapshot);
         let current = Arc::clone(&current);
+        let events = Arc::clone(&events);
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
             let mut held = lease.clone();
             let mut roster = || {
@@ -1536,6 +1549,9 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 Some(nvs_server::Rearm {
                     every: SCHEDULE_POLL,
                     roster: &mut roster,
+                    // `rule:config/an-entry-runs-on-a-server-event`: each pass
+                    // runs `reload` and `failed` entries from what this holds.
+                    events: Some(events),
                 }),
                 || {
                     // The same drain the accept loop reads, so a stop ends the
@@ -1560,7 +1576,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     }
     // `rule:concurrency/one-process-serves-requests-schedules-and-jobs`'s third
     // subsystem, armed where the ticker is and for the ticker's reasons.
-    let Ok(crew) = arm_queue_workers(sched, &current, ticks, &draining) else {
+    let Ok(crew) = arm_queue_workers(sched, &current, ticks, &draining, Some(&events)) else {
         // Printed and drained where the refusal was decided, so this core ends here rather than
         // taking a listener, and the boot's exit code is every core's answer together.
         return false;
@@ -1946,6 +1962,7 @@ fn arm_queue_workers(
     current: &Arc<nvs_config::Current>,
     ticks: bool,
     draining: &nvs_server::Draining,
+    events: Option<&Arc<nvs_server::Events>>,
 ) -> Result<Option<crate::worker::Crew>, ExitCode> {
     let armed = match queue_on_this_core(&current.load().config, ticks) {
         Ok(armed) => armed,
@@ -1957,7 +1974,7 @@ fn arm_queue_workers(
     if !ticks {
         return Ok(None);
     }
-    let mut crew = crate::worker::Crew::new(draining.clone(), Arc::clone(current));
+    let mut crew = crate::worker::Crew::new(draining.clone(), Arc::clone(current), events.cloned());
     if let Some((bounds, block)) = armed {
         crew.arm(sched, &bounds, &block);
     }
@@ -2134,13 +2151,44 @@ struct Scheduled {
 /// and an event run alike (`rule:config/an-entry-runs-on-a-server-event`):
 /// `["name" => <entry name>, "on" => <"cron" or the event's word>]`.
 ///
+/// A `reload` run also reads `"outcome" => "applied" | "refused"` and
+/// `"restart" => [<key names>]`. A `failed` run also reads
+/// `"schedule" => [<entry names>]` and `"dead_letter" => <int>`.
+///
 /// One shape for every trigger, so a script run by a minute and one run by an
 /// event read their entry the same way. What it spends: one small array per
 /// fire, freed when the run ends.
-fn run_args(name: &str, fired: nvs_server::Fired) -> Value {
+fn run_args(name: &str, fired: &nvs_server::Fired) -> Value {
+    let key = |key: &[u8]| nvs_runtime::NvsStr::new(key);
+    let list = |names: &mut dyn Iterator<Item = &String>| {
+        let mut list = nvs_runtime::NvsArray::new();
+        for name in names {
+            list.append(Value::text(name));
+        }
+        Value::array(list)
+    };
     let mut map = nvs_runtime::NvsArray::new();
-    map.set(nvs_runtime::NvsStr::new(b"name"), Value::text(name));
-    map.set(nvs_runtime::NvsStr::new(b"on"), Value::text(fired.word()));
+    map.set(key(b"name"), Value::text(name));
+    map.set(key(b"on"), Value::text(fired.word()));
+    match fired {
+        nvs_server::Fired::Reload(reloaded) => {
+            let outcome = if reloaded.applied {
+                "applied"
+            } else {
+                "refused"
+            };
+            map.set(key(b"outcome"), Value::text(outcome));
+            map.set(key(b"restart"), list(&mut reloaded.restart.iter()));
+        }
+        nvs_server::Fired::Failed(failures) => {
+            map.set(key(b"schedule"), list(&mut failures.schedule.iter()));
+            map.set(
+                key(b"dead_letter"),
+                Value::int(i64::try_from(failures.dead_letter).unwrap_or(i64::MAX)),
+            );
+        }
+        nvs_server::Fired::Cron | nvs_server::Fired::On(_) => {}
+    }
     Value::array(map)
 }
 
@@ -2205,7 +2253,7 @@ impl nvs_server::Fires for Scheduled {
         // args map back through `Core\Script::args()`, and there is no
         // scheduler-specific accessor. Ownership: the map is the one reference
         // `Isolate::new` consumes, so nothing here releases anything.
-        let args = run_args(entry.name(), fired);
+        let args = run_args(entry.name(), &fired);
         // `Output::Capture` because a scheduled run's `echo` is its own captured
         // output rather than this process's stdout (`rule:tooling/echo-always-has-a-sink`'s table), and
         // that capture is what the line below reports.
@@ -4829,6 +4877,7 @@ mod tests {
             &current,
             true,
             &nvs_server::Draining::detached(),
+            None,
         )
         .expect("a queue converged to its own schema is served")
         .map_or(0, |crew| crew.len());
@@ -4893,7 +4942,7 @@ mod tests {
         let current = current_of(&written);
         let draining = nvs_server::Draining::detached();
         let mut sched = nvs_host::Scheduler::new();
-        let armed = super::arm_queue_workers(&mut sched, &current, true, &draining);
+        let armed = super::arm_queue_workers(&mut sched, &current, true, &draining, None);
         assert!(
             armed.is_err(),
             "a queue over a file holding no table at all was served"
@@ -4928,6 +4977,7 @@ mod tests {
             &current,
             true,
             &nvs_server::Draining::detached(),
+            None,
         )
         .expect("a tree with no queue has no storage to be behind")
         .map_or(0, |crew| crew.len());
