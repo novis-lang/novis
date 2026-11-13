@@ -1548,6 +1548,122 @@ fn a_schedule_script_in_an_included_file_resolves_against_that_file() {
     );
 }
 
+/// One `on` entry: `name`, `script` and the `on` word, with the rest of the block after it.
+fn event_entry(on: &str, rest: &str) -> String {
+    format!(
+        "[[schedule]]\nname = \"announce\"\non = \"{on}\"\nscript = \"jobs/report.nvs\"\n{rest}"
+    )
+}
+
+/// The `E0611` a tree is refused with, after checking that it names the entry and the file the bad
+/// key was written in.
+fn refused_naming_the_line(fs: &Fake, entry: &str, why: &str) -> Diagnostic {
+    let diagnostic = refusal(fs, "etc/nvs.toml");
+    assert_eq!(diagnostic.code, Some(code::E_BAD_SCHEDULE), "{why}");
+    assert!(
+        diagnostic.message.contains(entry),
+        "{why}: the refusal names the entry: {}",
+        diagnostic.message,
+    );
+    assert!(
+        diagnostic
+            .notes
+            .iter()
+            .any(|note| note.contains("nvs.toml")),
+        "{why}: the refusal names the file the key is written in: {:?}",
+        diagnostic.notes,
+    );
+    diagnostic
+}
+
+/// `rule:config/an-entry-runs-on-a-server-event`: an `on` entry is checked at boot like a `cron`
+/// one. A word that is not one of the four, `scope = "fleet"` and any `timezone` each refuse the
+/// boot as `E0611`, and every one of the four words with `scope = "host"` is accepted. The accepted
+/// side is asserted for all four, because a parser that knew only `start` would pass the refusals.
+#[test]
+fn an_event_entry_is_checked_at_boot() {
+    for word in ["start", "stop", "reload", "failed"] {
+        let fs = scheduling(&event_entry(word, "scope = \"host\"\n"));
+        let resolved = tree_of(&fs, "etc/nvs.toml");
+        assert_eq!(
+            resolved.config.schedule[0].on.as_deref(),
+            Some(word),
+            "`on = \"{word}\"` with `scope = \"host\"` is accepted",
+        );
+        assert_eq!(
+            nvs_config::schedule::Event::parse(word).map(nvs_config::schedule::Event::word),
+            Some(word),
+            "the boot and the ticker read `{word}` through the same parser",
+        );
+    }
+
+    for (word, why) in [
+        ("boot", "a word that is not one of the four"),
+        ("Start", "a capital letter: the four words are lowercase"),
+        ("", "an empty `on` with no `cron`: it says nothing"),
+    ] {
+        let fs = scheduling(&event_entry(word, "scope = \"host\"\n"));
+        refused_naming_the_line(&fs, "announce", why);
+    }
+
+    let fs = scheduling(&event_entry("start", "scope = \"fleet\"\n"));
+    let diagnostic =
+        refused_naming_the_line(&fs, "announce", "an `on` entry with `scope = \"fleet\"`");
+    assert!(
+        diagnostic.message.contains("fleet"),
+        "the refusal names the scope it cannot take: {}",
+        diagnostic.message,
+    );
+
+    let fs = scheduling(&event_entry(
+        "stop",
+        "scope = \"host\"\ntimezone = \"Europe/Vienna\"\n",
+    ));
+    let diagnostic = refused_naming_the_line(&fs, "announce", "an `on` entry with a `timezone`");
+    assert!(
+        diagnostic.message.contains("timezone"),
+        "the refusal names the key that does nothing: {}",
+        diagnostic.message,
+    );
+}
+
+/// `rule:config/an-entry-runs-on-a-server-event`: an entry names exactly one of `cron` and `on`.
+/// Both refuse the boot, neither refuses it, and each one alone is accepted.
+#[test]
+fn an_entry_names_exactly_one_of_cron_and_on() {
+    let both = format!("{}on = \"start\"\n", entry("scope = \"host\"\n"));
+    let diagnostic = refused_naming_the_line(&scheduling(&both), "nightly", "`cron` and `on`");
+    assert!(
+        diagnostic.message.contains("cron") && diagnostic.message.contains("on"),
+        "the refusal names both keys: {}",
+        diagnostic.message,
+    );
+
+    let neither =
+        "[[schedule]]\nname = \"nightly\"\nscript = \"jobs/report.nvs\"\nscope = \"host\"\n";
+    let diagnostic =
+        refused_naming_the_line(&scheduling(neither), "nightly", "no `cron` and no `on`");
+    assert!(
+        diagnostic.message.contains("cron") && diagnostic.message.contains("on"),
+        "the refusal names the two keys it wants one of: {}",
+        diagnostic.message,
+    );
+
+    let cron = tree_of(&scheduling(&entry("scope = \"host\"\n")), "etc/nvs.toml");
+    assert_eq!(
+        cron.config.schedule[0].on, None,
+        "a `cron` entry alone is accepted"
+    );
+    let on = tree_of(
+        &scheduling(&event_entry("start", "scope = \"host\"\n")),
+        "etc/nvs.toml",
+    );
+    assert_eq!(
+        on.config.schedule[0].cron, None,
+        "an `on` entry alone is accepted"
+    );
+}
+
 /// `rule:config/scheduled-work-is-a-config-block` and `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`: `scope` has no default, so an entry without one refuses the boot rather than
 /// having this file pick a coordination model for the operator. Asserted on both sides and with the
 /// third answer beside them — a check that only refused the *absent* key would pass just as well if

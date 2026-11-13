@@ -2,7 +2,9 @@ The accepted dialect is **five-field POSIX cron** — minute, hour, day-of-month
 plus exactly five named shorthands: `@hourly`, `@daily`, `@weekly`, `@monthly`, `@yearly`. Each
 shorthand expands to its five-field form before anything reads it, so `@daily` and `0 0 * * *` are the
 same schedule and nothing downstream can tell them apart. There is no seconds field and none of
-Quartz's `L`, `W`, `#` or `?`.
+Quartz's `L`, `W`, `#` or `?`. A server event is not a shorthand: an entry that runs on one writes
+`on` in place of `cron` (`rule:config/an-entry-runs-on-a-server-event`), so every `cron` value is a
+time.
 
 The exclusions are the point. A seconds field turns a scheduler into a timer, which is a different
 feature with a different accuracy contract, and every dialect that adds one also adds the operators

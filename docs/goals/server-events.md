@@ -6,7 +6,7 @@ context: [docs/rules/config/scheduled-work-is-a-config-block.md, docs/rules/conf
 stages:
   - id: 1
     title: the on key is checked at boot
-    status: open
+    status: done
     context: [crates/nvs-config/src/schedule.rs, crates/nvs-config/src/directive.rs, crates/nvs-config/src/default.toml, crates/nvs-config/tests/resolve.rs, docs/rules/config/cron-is-five-fields-and-nothing-more.md, docs/rules/config/scope-has-no-default.md, data/rules/config.json]
   - id: 2
     title: start and stop entries run, and every run reads one map
@@ -195,24 +195,24 @@ what 2 and 3 build.
 
 **Does:** add `on` to the `[[schedule]]` entry, check it at boot, and write the new rule.
 
-- [ ] `Schedule` gets `pub on: Option<String>`, documented as the event an entry runs on
+- [x] `Schedule` gets `pub on: Option<String>`, documented as the event an entry runs on
   (`config/an-entry-runs-on-a-server-event`, `crates/nvs-config/src/tree.rs:1264`).
-- [ ] `validate` refuses, as `E0611` naming the entry and the line, both `cron` and `on`, neither,
+- [x] `validate` refuses, as `E0611` naming the entry and the line, both `cron` and `on`, neither,
   an unknown `on` value, `on` with `scope = "fleet"`, and `on` with `timezone`. `cron` stops being
   required on its own (`crates/nvs-config/src/schedule.rs:140`, `crates/nvs-config/src/schedule.rs:171`,
   `crates/nvs-config/src/schedule.rs:330`).
-- [ ] An `Event` enum (`Start`, `Stop`, `Reload`, `Failed`) with one parser, which `validate` and
+- [x] An `Event` enum (`Start`, `Stop`, `Reload`, `Failed`) with one parser, which `validate` and
   stage 2's `arm` both call, so the four words have one home (`crates/nvs-config/src/schedule.rs:60`).
-- [ ] The commented `[[schedule]]` block in `default.toml` shows an `on` entry, and the directive row
+- [x] The commented `[[schedule]]` block in `default.toml` shows an `on` entry, and the directive row
   stays `System` (`crates/nvs-config/src/default.toml:908`, `crates/nvs-config/src/directive.rs:317`).
-- [ ] Test `an_event_entry_is_checked_at_boot`: each refusal above is `E0611` and names the line, and
+- [x] Test `an_event_entry_is_checked_at_boot`: each refusal above is `E0611` and names the line, and
   `on = "start"` with `scope = "host"` passes (`crates/nvs-config/tests/resolve.rs:1556`).
-- [ ] Test `an_entry_names_exactly_one_of_cron_and_on` (`crates/nvs-config/tests/resolve.rs:1556`).
-- [ ] The new fragment `docs/rules/config/an-entry-runs-on-a-server-event.md` from the standing
+- [x] Test `an_entry_names_exactly_one_of_cron_and_on` (`crates/nvs-config/tests/resolve.rs:1556`).
+- [x] The new fragment `docs/rules/config/an-entry-runs-on-a-server-event.md` from the standing
   decisions, its record `data/rules/config/an-entry-runs-on-a-server-event.json` with
   `crates/nvs-config/tests/resolve.rs` in `guardedBy`, its slug in the `rules` list of
   `data/rules/config.json`, and `bun nv rules --render` (`data/rules/config.json:1`).
-- [ ] `rule:config/scheduled-work-is-a-config-block` shows `on` in its block and says an entry names
+- [x] `rule:config/scheduled-work-is-a-config-block` shows `on` in its block and says an entry names
   `cron` or `on` (`docs/rules/config/scheduled-work-is-a-config-block.md:1`), and
   `rule:config/cron-is-five-fields-and-nothing-more` says `on` is not a cron shorthand
   (`docs/rules/config/cron-is-five-fields-and-nothing-more.md:1`).
@@ -320,28 +320,35 @@ on its own files. None of them builds.
 
 ### State
 
-Nothing is built yet. `[[schedule]]` runs cron entries only, armed in `nvs_server::arm`, ticked by
-`tick_on_this_core` on one core, and fired through `Scheduled` in `crates/nvs-cli/src/serve.rs`. A
-cron run receives its entry's name as a string.
+Stage 1 is done. `Schedule` has `on`, and `nvs_config::schedule::validate` refuses both or neither
+of `cron` and `on`, an unknown `on` word, `on` with `scope = "fleet"` and `on` with `timezone`, each
+as `E0611` naming the entry and the file. `nvs_config::schedule::Event` (`Start`, `Stop`, `Reload`,
+`Failed`) with `Event::parse` and `Event::word` is the one home of the four words. The rule
+`config/an-entry-runs-on-a-server-event` is written with status `designed` and `goal: server-events`;
+stage 4 sets it `shipped` and drops `goal` once the server runs every event. `default.toml` shows the
+`on` key, and `bun nv directives --check-template` is green. The tests
+`an_event_entry_is_checked_at_boot` and `an_entry_names_exactly_one_of_cron_and_on` pass.
+
+An `on` entry boots today but is not armed: `nvs_server::schedule::arm` notes it as naming no `cron`
+(`crates/nvs-server/src/schedule.rs:432`). Stage 2 replaces that.
 
 ### Next
 
-Stage 1, the on key is checked at boot. Files: `crates/nvs-config/src/tree.rs`,
-`crates/nvs-config/src/schedule.rs`, `crates/nvs-config/src/default.toml`,
-`crates/nvs-config/tests/resolve.rs`, `data/rules/config.json` and three rule fragments.
+Stage 2, start and stop entries run, and every run reads one map. Files:
+`crates/nvs-server/src/schedule.rs`, `crates/nvs-cli/src/serve.rs` and two rule fragments.
 
-- [ ] `crates/nvs-config/src/tree.rs:1264`: `Schedule` gets `on`.
-- [ ] `crates/nvs-config/src/schedule.rs:140`: `validate` refuses the five `on` mistakes as `E0611`.
-- [ ] `crates/nvs-config/src/schedule.rs:60`: the `Event` enum and its one parser.
-- [ ] `crates/nvs-config/src/default.toml:908`: the commented block shows an `on` entry.
-- [ ] `crates/nvs-config/tests/resolve.rs:1556`: tests `an_event_entry_is_checked_at_boot` and
-  `an_entry_names_exactly_one_of_cron_and_on`.
-- [ ] `data/rules/config.json:1`: the new rule `config/an-entry-runs-on-a-server-event`, its fragment
-  and its record, then `bun nv rules --render`.
-- [ ] `docs/rules/config/scheduled-work-is-a-config-block.md:1`: the block shows `on`
-  (`docs/rules/config/cron-is-five-fields-and-nothing-more.md:1`).
+- [ ] `crates/nvs-server/src/schedule.rs:411`: `arm` builds a trigger, `Cron` or `Event`, calling
+  `nvs_config::schedule::Event::parse`; `Armed` carries it.
+- [ ] `crates/nvs-server/src/schedule.rs:598`: `due`, `soonest` and `carry_over` handle event entries.
+- [ ] `crates/nvs-server/src/schedule.rs:641`: the first pass runs `start` entries.
+- [ ] `crates/nvs-cli/src/serve.rs:1544`: the drain runs `stop` entries and waits for them.
+- [ ] `crates/nvs-cli/src/serve.rs:2184`: the args map replaces `Value::text(entry.name())`.
+- [ ] The four stage 2 tests, then `docs/rules/config/a-scheduled-run-is-a-root-isolate.md:17`.
 
-No existing test is expected red before stage 2 changes the args a cron run receives. Stage 2 then
-updates any test that reads a cron run's args as a string.
+Expected red once the args map lands: any test that reads a cron run's args as a string, in
+`crates/nvs-cli/src/serve.rs` and `crates/nvs-cli/tests/`. Stage 2 updates each as it goes.
+
+The acceptance sweep's `env-secret-proofs` names no check in the tree; it is a stale entry in
+looper's service, and its log does not exist. The nightly's jobs were cancelled by later pushes.
 
 ### Backlog

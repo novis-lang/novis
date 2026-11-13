@@ -1,0 +1,15 @@
+{
+  "title": "A `[[schedule]]` entry with `on` runs on a server start, stop, reload or failure",
+  "status": "designed",
+  "seeAlso": [
+    "config/scheduled-work-is-a-config-block",
+    "config/a-scheduled-run-is-a-root-isolate",
+    "config/scope-has-no-default",
+    "config/cron-is-five-fields-and-nothing-more",
+    "concurrency/a-drain-closes-a-connection-cleanly"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/resolve.rs"
+  ],
+  "goal": "server-events"
+}

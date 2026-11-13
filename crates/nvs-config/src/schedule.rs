@@ -65,6 +65,47 @@ const SHORTHANDS: [(&str, &str); 5] = [
     ("@yearly", "0 0 1 1 *"),
 ];
 
+/// The server event an `on` entry runs on — `rule:config/an-entry-runs-on-a-server-event`.
+///
+/// **The four words have one home, and it is [`Event::parse`].** [`validate`] refuses what it cannot
+/// read, and the ticker's `arm` reads the same word again into this type, so a word the boot accepted
+/// is a word the ticker knows. A second list would let the two disagree, and an entry that booted and
+/// never runs is the failure this module exists to prevent.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum Event {
+    /// Once per process, on the ticker's first pass after the listeners are bound.
+    Start,
+    /// Once, when the drain begins, waited for up to `[server] drain_timeout`.
+    Stop,
+    /// Once per new reload outcome, applied or refused.
+    Reload,
+    /// At most once a minute, with every failed scheduled run and dead-lettered job since its last run.
+    Failed,
+}
+
+impl Event {
+    /// Every event, in the order the rule lists them.
+    pub const ALL: [Self; 4] = [Self::Start, Self::Stop, Self::Reload, Self::Failed];
+
+    /// The event `word` names, exactly as `on` writes it, or [`None`]. Case and surrounding space
+    /// are not forgiven: `on` is a closed list of four lowercase words, as `scope` is of two.
+    #[must_use]
+    pub fn parse(word: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|event| event.word() == word)
+    }
+
+    /// The word `on` writes for this event, and the value a run reads under `"on"` in its args.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Start => "start",
+            Self::Stop => "stop",
+            Self::Reload => "reload",
+            Self::Failed => "failed",
+        }
+    }
+}
+
 /// How far ahead [`Cron::next_after`] will look before answering [`None`].
 ///
 /// Nine years rather than one: `0 0 29 2 *` is a schedule, and the longest gap between two 29
@@ -133,7 +174,9 @@ pub fn anchor(
 /// # Errors
 ///
 /// One [`Diagnostic`], `E0611`, for the first entry that cannot answer: no `name` or a duplicate
-/// one, no `cron` or one outside the cron dialect, a `timezone` no IANA database knows, no `script` or
+/// one, both or neither of `cron` and `on`, a `cron` outside the cron dialect, an `on` that is not
+/// one of the four [`Event`]s, an `on` entry with a `timezone` or with `scope = "fleet"`, a
+/// `timezone` no IANA database knows, no `script` or
 /// one outside the `script.spawn` roots, no `scope` or one that is neither `fleet` nor `host`, an
 /// `overlap` that is none of its three, or a `fleet` entry with no shared store to hold its
 /// lease.
@@ -168,18 +211,17 @@ pub fn validate(
             ));
         }
 
-        let cron = required(entry, index, "cron", entry.cron.as_deref(), origins)?;
-        if let Err(fault) = Cron::parse(cron) {
+        let event = trigger(entry, index, origins)?;
+        if event.is_some() && written(entry.timezone.as_deref()).is_some() {
             return Err(refusal(
                 index,
                 entry,
-                format!("`cron = \"{cron}\"` is not a schedule: {fault}"),
-                "a schedule is POSIX cron with five fields: minute, hour, day of month, month and \
-                 day of week. `@hourly`, `@daily`, `@weekly`, `@monthly` and `@yearly` also work. \
-                 A seconds field and Quartz's `L`, `W`, `#` and `?` do not",
-                "write the five fields, or one of the five shorthands",
+                "has both `on` and `timezone`".to_string(),
+                "`timezone` decides the minute a `cron` entry runs. An `on` entry runs on a server \
+                 event and has no minute, so the key would do nothing",
+                "remove `timezone` from this entry",
                 origins,
-                "cron",
+                "timezone",
             ));
         }
 
@@ -207,6 +249,23 @@ pub fn validate(
                  one depends on the job",
                 "set `scope = \"host\"` for work whose effect is local, `scope = \"fleet\"` for \
                  work that must happen once",
+                origins,
+                "scope",
+            ));
+        }
+        if let Some(event) = event
+            && scope == "fleet"
+        {
+            return Err(refusal(
+                index,
+                entry,
+                format!(
+                    "`on = \"{}\"` is `scope = \"fleet\"`, and a server event happens on one host",
+                    event.word()
+                ),
+                "`fleet` runs an entry once across all hosts. A server starts, stops, reloads and \
+                 fails on its own host, so an `on` entry runs on the host where the event happened",
+                "set `scope = \"host\"`",
                 origins,
                 "scope",
             ));
@@ -301,6 +360,70 @@ fn configures_a_shared_store(config: &Config) -> bool {
         .is_some_and(|url| !url.trim().is_empty())
 }
 
+/// What starts an entry's runs: [`None`] for a `cron` entry whose expression parses, the [`Event`]
+/// for an `on` entry, or the refusal. An entry names exactly one of the two keys
+/// (`rule:config/an-entry-runs-on-a-server-event`), so both and neither are refused here.
+fn trigger(
+    entry: &Schedule,
+    index: usize,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<Option<Event>, Diagnostic> {
+    match (written(entry.cron.as_deref()), written(entry.on.as_deref())) {
+        (Some(_), Some(_)) => Err(refusal(
+            index,
+            entry,
+            "has both `cron` and `on`".to_string(),
+            "`cron` runs an entry at the minutes it names, and `on` runs it on a server event. An \
+             entry has one of the two",
+            "keep one of the keys, or write a second entry for the other",
+            origins,
+            "on",
+        )),
+        (None, None) => Err(refusal(
+            index,
+            entry,
+            "has neither `cron` nor `on`".to_string(),
+            "an entry says when it runs: `cron` names minutes, and `on` names a server event",
+            "add `cron = \"0 3 * * *\"` or `on = \"start\"`, with the value this job needs",
+            origins,
+            "name",
+        )),
+        (Some(cron), None) => match Cron::parse(cron) {
+            Ok(_) => Ok(None),
+            Err(fault) => Err(refusal(
+                index,
+                entry,
+                format!("`cron = \"{cron}\"` is not a schedule: {fault}"),
+                "a schedule is POSIX cron with five fields: minute, hour, day of month, month and \
+                 day of week. `@hourly`, `@daily`, `@weekly`, `@monthly` and `@yearly` also work. \
+                 A seconds field and Quartz's `L`, `W`, `#` and `?` do not",
+                "write the five fields, or one of the five shorthands",
+                origins,
+                "cron",
+            )),
+        },
+        (None, Some(on)) => Event::parse(on).map(Some).ok_or_else(|| {
+            refusal(
+                index,
+                entry,
+                format!("`on = \"{on}\"` is not a server event"),
+                "`start` runs when the server starts, `stop` when it begins to stop, `reload` \
+                 after a configuration reload, and `failed` after a scheduled run or a queued job \
+                 fails",
+                "name one of `start`, `stop`, `reload` or `failed`",
+                origins,
+                "on",
+            )
+        }),
+    }
+}
+
+/// A key's value, or [`None`] when it is absent or empty: a key set to `""` has said nothing, which
+/// is how [`required`] reads it too.
+fn written(value: Option<&str>) -> Option<&str> {
+    value.filter(|text| !text.trim().is_empty())
+}
+
 /// A field an entry requires, or the refusal naming it. An empty string is absent: a key set to `""` has
 /// said nothing, and reporting it as present would send the operator looking for a different bug.
 fn required<'a>(
@@ -316,8 +439,8 @@ fn required<'a>(
             index,
             entry,
             format!("has no `{field}`"),
-            "`name`, `cron`, `script` and `scope` have no default in a `[[schedule]]` entry. \
-             Each one is a choice about the job",
+            "`name`, `script` and `scope` have no default in a `[[schedule]]` entry. Each one is \
+             a choice about the job",
             "add the key to the entry",
             origins,
             field,

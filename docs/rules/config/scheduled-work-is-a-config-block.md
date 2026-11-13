@@ -1,5 +1,6 @@
 Scheduled work is a `[[schedule]]` array-of-tables in `nvs.toml`, and nothing else: an entry names a
-`cron` expression and a `script`, and the server fires that file as an ordinary `spawn script`
+`cron` expression or an `on` server event (`rule:config/an-entry-runs-on-a-server-event`), exactly
+one of the two, and a `script`, and the server fires that file as an ordinary `spawn script`
 isolate (`rule:security/isolate-shares-nothing`). There is **no API surface** — no `Core\Schedule`,
 no registration call, no attribute — because a schedule is deployment state, and a runtime
 registration would be process-global state established by whichever request ran first.
@@ -7,7 +8,7 @@ registration would be process-global state established by whichever request ran 
 ```toml
 [[schedule]]                          # System, every key
 name     = "nightly-report"           # required, unique — the log and metric label
-cron     = "0 3 * * *"
+cron     = "0 3 * * *"                # or on = "start" | "stop" | "reload" | "failed"
 script   = "jobs/report.nvs"
 scope    = "fleet"                    # required, no default: "fleet" | "host"
 timezone = "Europe/Vienna"            # default "UTC"

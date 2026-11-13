@@ -926,6 +926,10 @@
 # path outside them is a boot error and not a first-fire one.
 #name = "nightly-report"              # example
 #cron = "0 3 * * *"                   # example
+# `on` runs the entry on a server event in place of `cron`: `start`, `stop`, `reload` or `failed`.
+# An entry has exactly one of `cron` and `on`. An `on` entry needs `scope = "host"` and no
+# `timezone`.
+#on = "start"                         # example
 #script = "scripts/report.nvs"        # example
 # `cron` is five-field cron, and nothing more. `scope` is required: `fleet` runs the entry once
 # across the deployment, `host` once on each. `overlap` is `skip`, `queue` or `kill` — what happens

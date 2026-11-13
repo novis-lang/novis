@@ -58,6 +58,7 @@
     "config/a-fleet-entry-fires-at-most-once-under-a-lease",
     "config/overlap-is-skip-queue-or-kill",
     "config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once",
+    "config/an-entry-runs-on-a-server-event",
     "config/cache-shared-is-the-grant-over-the-configured-store",
     "config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it",
     "config/unix-scheme-in-a-url-and-a-bare-path-in-a-host",

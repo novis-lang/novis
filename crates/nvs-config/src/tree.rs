@@ -1269,6 +1269,10 @@ pub struct Schedule {
     pub name: Option<String>,
     /// Five-field cron, and nothing more (`rule:config/cron-is-five-fields-and-nothing-more`).
     pub cron: Option<String>,
+    /// The server event the entry runs on, in place of `cron`: `start`, `stop`, `reload` or
+    /// `failed` (`rule:config/an-entry-runs-on-a-server-event`). An entry names exactly one of the
+    /// two, which `nvs_config::schedule::validate` checks at boot.
+    pub on: Option<String>,
     /// The `.nvs` to fire. A relative path is joined to the folder of the file that wrote it while
     /// the configuration is read, and then checked against the `script.spawn` roots. A path outside
     /// them is a *boot* error, not a first-fire one.
