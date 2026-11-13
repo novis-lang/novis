@@ -85,6 +85,14 @@ enum Command {
         // `rule:config/settings-and-secrets-are-a-programs-own-values`'s `W1028`.
         #[arg(long = "program", value_name = "FILE")]
         programs: Vec<PathBuf>,
+        /// Also print the mount table. Each line is one mount: its prefix, its
+        /// host, the file it runs and the `[[server.mount]]` block it comes
+        /// from. Under a mount, each link to another module is printed with
+        /// the mount that link uses.
+        // `rule:http-server/a-mount-table-expands-at-boot` and
+        // `rule:routing/a-link-reaches-another-module`.
+        #[arg(long)]
+        mounts: bool,
     },
     /// Print every key in force, one per line, in dotted-key order.
     ///
@@ -121,7 +129,8 @@ impl Args {
                 files,
                 account,
                 programs,
-            } => check(config, &files, account.as_deref(), &programs),
+                mounts,
+            } => check(config, &files, account.as_deref(), &programs, mounts),
             Command::Dump {
                 files,
                 origin,
@@ -1411,11 +1420,18 @@ fn rendered(diagnostic: Diagnostic, sources: &SourceMap) -> ExitCode {
 /// A tree that writes a key in one of the four open blocks also compiles the
 /// programs that might read it, and warns about each key none of them reads
 /// ([`unread_keys`]). Those warnings count on the summary line.
+///
+/// A tree that writes `[[server.mount]]` compiles each mounted entry as the
+/// boot does, and resolves each link to another module the way the boot does
+/// ([`mount_links`]). A tie a link needs is an error, as it fails the boot. A
+/// link no mount serves and a mount that does not compile are warnings, as the
+/// boot logs them. With `show_mounts`, the table is printed ([`mount_lines`]).
 pub(crate) fn check(
     config: &[PathBuf],
     paths: &[PathBuf],
     account: Option<&str>,
     programs: &[PathBuf],
+    show_mounts: bool,
 ) -> ExitCode {
     let judged;
     let files: &dyn nvs_config::resolve::Files = match account {
@@ -1468,7 +1484,38 @@ pub(crate) fn check(
         }
         render_diagnostics(&mut diags, &sources);
     }
-    let warnings = resolved.warnings.len() + unread.len();
+    let linked = match mount_links(&resolved, files) {
+        Ok(linked) => linked,
+        Err(refused) => return rendered(refused, &sources),
+    };
+    let mut linking = 0_usize;
+    let mut tied = false;
+    if let Some(linked) = &linked {
+        for message in &linked.uncompiled {
+            eprintln!("warning: {message}");
+            linking += 1;
+        }
+        for unlinked in &linked.unlinked {
+            if unlinked.tie {
+                eprintln!("error: {}", unlinked.sentence);
+                tied = true;
+            } else {
+                eprintln!("warning: {}", unlinked.sentence);
+                linking += 1;
+            }
+        }
+        if show_mounts {
+            for line in mount_lines(&linked.rows) {
+                println!("{line}");
+            }
+        }
+    } else if show_mounts {
+        println!("no `[[server.mount]]` block is written, so there is no mount table");
+    }
+    if tied {
+        return ExitCode::FAILURE;
+    }
+    let warnings = resolved.warnings.len() + unread.len() + linking;
 
     let set = nvs_config::audit::Audit::of_files(&resolved)
         .listing()
@@ -1485,6 +1532,101 @@ pub(crate) fn check(
         plural(warnings),
     );
     ExitCode::SUCCESS
+}
+
+/// The mount table `check` resolved, with each row's links to other modules.
+struct MountLinks {
+    /// The expanded rows, each linking row with its [`nvs_config::mount::Mounted::links`].
+    rows: Vec<nvs_config::mount::Mounted>,
+    /// Each link that found no row, from [`crate::serve::link_rows`].
+    unlinked: Vec<crate::serve::Unlinked>,
+    /// One sentence per row whose entry does not compile. Such a row serves no link.
+    uncompiled: Vec<String>,
+}
+
+/// `rule:routing/a-link-reaches-another-module`'s resolution, as `nvs serve`'s boot runs it:
+/// the table expanded, each entry compiled through the compile cache, and
+/// [`crate::serve::link_rows`] over the result. `None` when the tree writes no
+/// `[[server.mount]]`, because the implicit mount names a file nobody asked to check.
+///
+/// Cost: one compile per mounted entry, which the compile cache may already hold.
+///
+/// # Errors
+///
+/// The mount table's own refusal, which `nvs serve` makes on the same tree.
+fn mount_links(
+    resolved: &nvs_config::resolve::Resolved,
+    files: &dyn nvs_config::resolve::Files,
+) -> Result<Option<MountLinks>, Diagnostic> {
+    let written = resolved
+        .config
+        .server
+        .as_ref()
+        .is_some_and(|server| !server.mount.is_empty());
+    if !written {
+        return Ok(None);
+    }
+    let mut rows = nvs_config::mount::expand(&resolved.config, &resolved.origins, files)?;
+    let compiler = crate::script::Compiler::new(&resolved.config);
+    let mut uncompiled = Vec::new();
+    let routes: Vec<_> = rows
+        .iter()
+        .map(
+            |row| match compiler.compiled(&row.entry.to_string_lossy()) {
+                Ok((_program, routes)) => Some(routes),
+                Err(message) => {
+                    uncompiled.push(format!(
+                        "the mount at `{}` serves `{}`, which does not compile, so it serves no \
+                     link: {message}",
+                        row.prefix,
+                        row.entry.display()
+                    ));
+                    None
+                }
+            },
+        )
+        .collect();
+    let unlinked = crate::serve::link_rows(&mut rows, &routes);
+    Ok(Some(MountLinks {
+        rows,
+        unlinked,
+        uncompiled,
+    }))
+}
+
+/// What `nvs config check --mounts` prints: one line per row, and under a row
+/// one line per link to another module, in handler order.
+fn mount_lines(rows: &[nvs_config::mount::Mounted]) -> Vec<String> {
+    let mut lines = Vec::new();
+    for row in rows {
+        let host = row
+            .host
+            .as_deref()
+            .map_or_else(|| "any host".to_owned(), |host| format!("host `{host}`"));
+        let canonical = if row.canonical { ", canonical" } else { "" };
+        lines.push(format!(
+            "mount `{}` on {host}: `{}` (block {}{canonical})",
+            row.prefix,
+            row.entry.display(),
+            row.block + 1,
+        ));
+        let Some(links) = &row.links else {
+            continue;
+        };
+        let mut handlers: Vec<_> = links.iter().collect();
+        handlers.sort_by(|a, b| a.0.cmp(b.0));
+        for (handler, link) in handlers {
+            let at = link
+                .elsewhere
+                .as_deref()
+                .map_or_else(String::new, |origin| format!(" at `{origin}`"));
+            lines.push(format!(
+                "  link `{handler}` goes through `{}`{at}",
+                link.prefix
+            ));
+        }
+    }
+    lines
 }
 
 /// One key of the four open blocks, as `check` judges it.
@@ -2318,5 +2460,93 @@ mod tests {
             ]
         );
         assert_eq!(root.stored(), nvs_config::Roots::Defaults);
+    }
+
+    /// `nvs config check` resolves a link to another module as the boot does. `Blog` links to a
+    /// route of `Shop`, and `Shop` is mounted twice on one host. Without `canonical` the link
+    /// ties, which is the error the boot would fail on. With `canonical` on one block, `--mounts`
+    /// prints the link going through that block's prefix.
+    #[test]
+    fn config_check_resolves_each_link_to_another_module() {
+        let dir = nvs_repo::scratch("config-check-links");
+        let view = dir.join("Shop").join("src").join("View");
+        fs::create_dir_all(&view).expect("the target's folder is writable");
+        fs::write(
+            view.join("Index.nvs"),
+            "<?nvs\nnamespace Framework\\Shop\\View;\n\nclass Index\n{\n    \
+             #[Core\\Route(path: '/item/{id}', method: Core\\Http\\Method::Get)]\n    \
+             #[Core\\Access(allow: Core\\Audience::Public)]\n    \
+             public static function show(int $id): string { return 'item'; }\n}\n",
+        )
+        .expect("the target is writable");
+        for (module, source) in [
+            (
+                "Shop",
+                "<?nvs\nautoload 'Framework\\Shop' from '../src';\n\n\
+                 echo Core\\Router::url(Framework\\Shop\\View\\Index::show, ['id' => 1]);\n",
+            ),
+            (
+                "Blog",
+                "<?nvs\nautoload links 'Framework\\Shop' from '../../Shop/src';\n\n\
+                 echo Core\\Router::url(Framework\\Shop\\View\\Index::show, ['id' => 3]);\n",
+            ),
+        ] {
+            let public = dir.join(module).join("public");
+            fs::create_dir_all(&public).expect("the module's folder is writable");
+            fs::write(public.join("index.nvs"), source).expect("the entry is writable");
+        }
+        let table = |canonical: &str| {
+            let file = dir.join("nvs.toml");
+            fs::write(
+                &file,
+                format!(
+                    "[server]\nroot = \".\"\n\n\
+                     [[server.mount]]\nprefix = \"/blog\"\nentry = \"Blog/public/index.nvs\"\n\n\
+                     [[server.mount]]\nprefix = \"/old-shop\"\nentry = \"Shop/public/index.nvs\"\n\n\
+                     [[server.mount]]\nprefix = \"/shop\"\nentry = \"Shop/public/index.nvs\"\n\
+                     {canonical}"
+                ),
+            )
+            .expect("the configuration is writable");
+            let mut sources = SourceMap::new();
+            let roots = super::roots_in(&[file], &dir);
+            let resolved = nvs_config::resolve::resolve(&roots, &mut sources, &super::LocalFiles)
+                .expect("the configuration resolves");
+            super::mount_links(&resolved, &super::LocalFiles)
+                .expect("the mount table expands")
+                .expect("the tree writes a mount table")
+        };
+
+        let tied = table("");
+        assert!(tied.uncompiled.is_empty(), "{:?}", tied.uncompiled);
+        let [tie] = tied.unlinked.as_slice() else {
+            panic!("the tie was not reported once: {:?}", tied.unlinked);
+        };
+        assert!(tie.tie && tie.row == 0, "the tie is not an error: {tie:?}");
+        for named in ["/old-shop", "/shop", "canonical"] {
+            assert!(
+                tie.sentence.contains(named),
+                "the error does not name `{named}`: {}",
+                tie.sentence
+            );
+        }
+
+        let broken = table("canonical = true\n");
+        assert!(broken.unlinked.is_empty(), "{:?}", broken.unlinked);
+        let lines = super::mount_lines(&broken.rows);
+        assert!(
+            lines
+                .iter()
+                .any(|line| line
+                    == "  link `Framework\\Shop\\View\\Index::show` goes through `/shop`"),
+            "the link is not printed through the canonical block: {lines:#?}"
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.starts_with("mount `/shop` on any host:")
+                    && line.ends_with("(block 3, canonical)")),
+            "the canonical row is not printed: {lines:#?}"
+        );
     }
 }

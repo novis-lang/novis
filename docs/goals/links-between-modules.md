@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-types/src/links.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-hir/src/members.rs, crates/nvs-hir/src/requires.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-diagnostics/src/code/types_e08.rs, docs/rules/routing/table-is-opt-in.md, docs/rules/core-classes/router-signed-url.md]
   - id: 3
     title: the server picks the mount a link goes through
-    status: open
+    status: done
     context: [crates/nvs-config/src/tree.rs, crates/nvs-config/src/mount.rs, crates/nvs-cli/src/serve.rs, crates/nvs-cli/src/serve/mounts.rs, crates/nvs-cli/src/config.rs, crates/nvs-stdlib/src/router.rs, crates/nvs-runtime/src/ctx/wiring.rs, docs/rules/routing/an-origin-is-per-mount-and-checked-at-boot.md, docs/rules/http-server/a-mount-carries-no-policy.md]
   - id: 4
     title: a test and the editor give the server's link
@@ -346,7 +346,7 @@ row's table to every request it serves.
 - [x] Each request gets its row's table on the isolate beside its origin, and the new router helper
   reads it (`crates/nvs-cli/src/serve.rs:1381`, `crates/nvs-runtime/src/ctx/wiring.rs:439`,
   `crates/nvs-stdlib/src/router.rs:1556`).
-- [ ] `nvs config check` compiles the rows and reports a tie and an unserved link, and `--mounts`
+- [x] `nvs config check` compiles the rows and reports a tie and an unserved link, and `--mounts`
   prints the table (`crates/nvs-cli/src/config.rs:1414`, `crates/nvs-cli/src/config.rs:60`).
 - [x] The seven tests of check `the-server-picks-the-mount`, beside the origin tests
   (`crates/nvs-cli/src/serve.rs:5736`). The two of check `canonical-is-checked` in
@@ -450,41 +450,36 @@ users. The session then runs `bun nv render --website` once.
 
 ### State
 
-Stages 1 and 2 are done. Stage 3 has everything but `nvs config check`. A compiled unit records its
+Stages 1 to 3 are done, and both stage 3 checks pass. A compiled unit records its
 links-root handlers (`ExprTypeTable::module_links`, carried on `Routes::module_links`).
 `Mounted` has a `links: Option<Arc<Links>>` field, filled by `nvs_config::mount::links_of`
 (`crates/nvs-config/src/mount.rs:538`) through `link_rows` (`crates/nvs-cli/src/serve.rs:2522`).
 `Mounted::same_row` compares rows without their links, and the rescan uses it.
 
-- Boot: `crates/nvs-cli/src/serve.rs:590` links every row after the compile loop. A tie fails the
-  start, and an unserved link is a warning.
-- Reload: `linked` (`crates/nvs-cli/src/serve/mounts.rs:393`) links again after each rescan. It
-  leaves out a linking row whose tie is unbroken, then links again over the rows that stay.
-- Request: `at_mount_origin` (`crates/nvs-cli/src/serve.rs:2707`) puts the row's table on the
-  isolate (`Isolate::linking_through`). It reaches `Ctx::set_module_links`, and spawned children
-  copy it. `nvs_core_router_link_module[_absolute]` (`crates/nvs-stdlib/src/router.rs:1623`) reads
-  it with one hash lookup.
+- Boot links every row after the compile loop (`crates/nvs-cli/src/serve.rs:590`); reload does in
+  `linked` (`crates/nvs-cli/src/serve/mounts.rs:393`).
+- Request: `at_mount_origin` (`crates/nvs-cli/src/serve.rs:2708`) puts the table on the isolate,
+  which reaches `Ctx::set_module_links`; `crates/nvs-stdlib/src/router.rs:1623` reads it.
+- `nvs config check`: `mount_links` (`crates/nvs-cli/src/config.rs:1557`) compiles each mounted
+  entry and calls `crate::serve::link_rows`. A tie exits non-zero, and an unserved link is a
+  warning. `--mounts` prints `mount_lines`. Test: `config_check_resolves_each_link_to_another_module`.
 
-The seven tests of `the-server-picks-the-mount` pass by name (`crates/nvs-cli/src/serve.rs:6283`),
-and the check now runs `cargo test --bin nvs`. A unit reads its roots for routes only when it uses
-the router (`rule:routing/table-is-opt-in`), so a target module's entry has to call `Core\Router` to
-serve its routes as link targets. The fixture does that.
-
-The sweep's `env-secret-proofs` has no check and no log, so it is stale. The nightly's jobs were
-cancelled by a later push.
+A target module's entry has to call `Core\Router` to serve its routes as link targets
+(`rule:routing/table-is-opt-in`). The sweep's `env-secret-proofs` has no check and no log, so it is
+stale; the nightly's jobs were cancelled by a later push.
 
 ### Next
 
-The last item of stage 3, one session:
+Stage 4, one session:
 
-- `crates/nvs-cli/src/config.rs:1414`: `nvs config check` compiles each mounted entry through a
-  `crate::script::Compiler` (it expands the table at `:1534` already). It then calls
-  `crate::serve::link_rows` (make it `pub(crate)`), and reports each tie as an error and each unserved
-  link as a warning. `--mounts` (`:60`, a new flag) prints each row: prefix, host, entry, block,
-  `canonical`, and each links-root handler with the prefix it resolves to. Add a test beside
-  `check`'s own tests. Then set stage 3 to done in the front matter.
-- Then stage 4: `Core\Test::request` feeds `links_of` the configuration's mount table, and the editor
-  goes to a links target's definition.
+- `crates/nvs-stdlib/src/test.rs:2924`: `Core\Test::request` feeds `nvs_config::mount::links_of`
+  the mount table of the configuration the test run reads, picks the served row by the `mount` key,
+  and puts the table on the context with `Ctx::set_module_links`. With no mount table, a links-root
+  link throws naming the handler. The row's handler sets need each row's compiled routes, which
+  the test host compiles as `crate::config::mount_links` does in the binary.
+- `crates/nvs-lsp/src/definition.rs:899`: go to definition on a links-root route argument opens
+  the target method, and hover shows its route.
+- `docs/rules/testing/in-process-request.md:1` says a test request gives the same link.
 
 No existing test is expected red. `the_rendered_map_names_what_was_skipped_and_what_was_shadowed` (with
 its `links (0)` line) has still not run.

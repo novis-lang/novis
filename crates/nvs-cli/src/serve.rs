@@ -2497,15 +2497,15 @@ fn compiled_under(
 
 /// A link of one row to another module that [`link_rows`] found no row for.
 #[derive(Debug)]
-struct Unlinked {
+pub(crate) struct Unlinked {
     /// The linking row, as an index into the rows.
-    row: usize,
+    pub(crate) row: usize,
     /// `true` for a tie `canonical` does not break, which fails a boot and
     /// leaves the linking row out of a later expansion. `false` for a link no
     /// row serves, which is logged and throws when it runs.
-    tie: bool,
+    pub(crate) tie: bool,
     /// The log line, naming the linking mount, its entry and the handler.
-    sentence: String,
+    pub(crate) sentence: String,
 }
 
 /// `rule:routing/a-link-reaches-another-module`'s tables: each row whose unit
@@ -2514,12 +2514,13 @@ struct Unlinked {
 /// table, in the rows' order, and `None` for a row that did not compile, which
 /// serves nothing. A row that links to no other module keeps `None`.
 ///
-/// Boot and every later expansion call this after every row has compiled.
+/// Boot and every later expansion call this after every row has compiled, and
+/// so does `nvs config check` (`crate::config::mount_links`).
 ///
 /// Cost: one set of handlers per compiled row, and one pass over the rows per
 /// link, off the request path. Each linking row holds one table, shared by its
 /// requests (`Mounted::links`).
-fn link_rows(
+pub(crate) fn link_rows(
     rows: &mut [Mounted],
     routes: &[Option<Arc<nvs_runtime::routes::Routes>>],
 ) -> Vec<Unlinked> {

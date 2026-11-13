@@ -1817,9 +1817,17 @@ the entry and the file, and its help is the line that allows what the entry mean
 `[settings]`, `[secrets]`, `[app.settings]` or `[app.secrets]` has each `[[app]] entry`, each entry
 a `[[server.mount]]` reaches and each `--program <file>` compiled, and every key none of them reads
 is `W1028`, counted on the summary line with the other warnings
-([`config/settings-and-secrets-are-a-programs-own-values`](config.md#config-settings-and-secrets-are-a-programs-own-values)). A tree that writes none of the four
-compiles nothing, so the check stays a read of the files. The mount table is expanded as `nvs serve`
-expands it, and its refusal is `check`'s.
+([`config/settings-and-secrets-are-a-programs-own-values`](config.md#config-settings-and-secrets-are-a-programs-own-values)). The mount table is expanded as
+`nvs serve` expands it, and its refusal is `check`'s.
+
+**A tree that writes `[[server.mount]]` also has every mounted entry compiled, as the boot compiles
+it**, and each link to another module resolved by the boot's own function
+([`routing/a-link-reaches-another-module`](routing.md#routing-a-link-reaches-another-module)). A tie a link needs and `canonical` does not break is
+an error, as it fails the boot. A link no mount serves and a mount that does not compile are
+warnings, as the boot logs them. `check --mounts` prints the expanded table: each row's prefix, host,
+entry and block, whether it is `canonical`, and under it each link with the prefix it goes through.
+A tree that writes neither a mount nor one of the four blocks compiles nothing, so the check stays a
+read of the files.
 
 Both read without the ownership check, and `check --as <account>` runs it for the account that will
 serve ([`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered)). What a reload actually published is
