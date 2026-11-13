@@ -2488,14 +2488,6 @@ fn over_memory<E: serde::de::Error>() -> E {
     E::custom("the document does not fit in the request's memory limit")
 }
 
-/// The longest text `secret_spans` parses on the caller's own stack.
-///
-/// Each nesting level takes at least one byte, so a text this short nests at
-/// most this deep. A helper is entered with at least `nvs_runtime`'s
-/// `STACK_RESERVE` of stack left, and 64 levels of `serde_json`'s recursion
-/// fit in it on the debug profile.
-const IN_PLACE_BYTES: usize = 64;
-
 /// Reads one whole document, refusing anything after it.
 ///
 /// [`build`] reads it in a loop over [`reader::Reader`]'s events, so the read
@@ -4257,8 +4249,9 @@ const SECRET_DEPTH: u32 = 128;
 ///
 /// The walk follows the document and the field list together, as the decoder does, and it runs
 /// whether or not the decode succeeds, since the bytes are recorded either way. A value under a
-/// key written twice is replaced both times. **What it spends:** the document is read once more
-/// per level the walk descends, and only for a body the spool records, which is `development`.
+/// key written twice is replaced both times. **What it spends:** one read of the document, and
+/// one [`Walked`] per open level the walk reads against a contract, at most [`SECRET_DEPTH`],
+/// freed with the call. Only a body the spool records is read, which is `development`.
 ///
 /// # Safety
 ///
@@ -4278,19 +4271,7 @@ pub(crate) unsafe fn secret_spans(
         if text.trim().is_empty() {
             return Some(Vec::new());
         }
-        // One native frame per level, as `read_with` takes, so a long text is walked on the
-        // spare stack. The walk calls no compiled code.
-        let walk = || {
-            let document: &serde_json::value::RawValue = serde_json::from_str(text).ok()?;
-            let mut spans = Vec::new();
-            secret_values(contract, document, text, 0, &mut spans)?;
-            Some(spans)
-        };
-        if text.len() <= IN_PLACE_BYTES {
-            walk()
-        } else {
-            nvs_host::on_spare_stack(walk)
-        }
+        secret_values(contract, text)
     });
     found.or_else(|| (!reaches_secret(contract)).then(Vec::new))
 }
@@ -4340,49 +4321,98 @@ pub(crate) unsafe fn secret_form_spans(
     Some(spans)
 }
 
-/// [`secret_spans`]' walk over one `value` of the document `text`, read against `contract`.
-fn secret_values(
-    contract: Contract<'_>,
-    value: &serde_json::value::RawValue,
-    text: &str,
-    depth: u32,
-    spans: &mut Vec<std::ops::Range<usize>>,
-) -> Option<()> {
-    if depth > SECRET_DEPTH {
-        return None;
-    }
-    let json = value.get();
-    match json.trim_start().as_bytes().first() {
-        Some(b'[') => {
-            let items: Vec<&serde_json::value::RawValue> = serde_json::from_str(json).ok()?;
-            for item in items {
-                secret_values(contract, item, text, depth + 1, spans)?;
-            }
-        }
-        Some(b'{') => {
-            if contract.writes_decoder() {
-                return (!reaches_secret(contract)).then_some(());
-            }
-            let Entries(entries) = serde_json::from_str(json).ok()?;
-            for (key, value) in entries {
-                for (index, field) in contract.fields().iter().enumerate() {
+/// One container [`secret_values`] reads against a contract.
+#[derive(Clone, Copy)]
+struct Walked<'a> {
+    /// The contract an object is read against, or each element of a list.
+    contract: Contract<'a>,
+    /// Whether the document wrote a list.
+    list: bool,
+}
+
+/// Where [`secret_values`] puts the next value the reader starts.
+#[derive(Clone, Copy)]
+enum Lands<'a> {
+    /// Read against this contract.
+    In(Contract<'a>),
+    /// A `secret` property takes it, so its bytes are a span.
+    Secret,
+    /// Nothing reads it.
+    Nowhere,
+}
+
+/// [`secret_spans`]' walk over the document `text`, read against `contract`, in one loop over
+/// [`reader::Reader`]'s events. `None` where `text` is not one document, nests deeper than
+/// [`SECRET_DEPTH`], or reaches a class that writes its own decoder and can reach a `secret`
+/// property.
+fn secret_values(contract: Contract<'_>, text: &str) -> Option<Vec<std::ops::Range<usize>>> {
+    use reader::Event;
+    let mut reader = reader::Reader::new(reader::Text(text.as_bytes()), SECRET_DEPTH + 1);
+    let mut spans = Vec::new();
+    let mut open: Vec<Walked<'_>> = Vec::new();
+    let mut lands = Lands::In(contract);
+    while let Some(event) = reader.next().ok()? {
+        match event {
+            Event::Key(key) => {
+                let object = open.last()?.contract;
+                lands = Lands::Nowhere;
+                for (index, field) in object.fields().iter().enumerate() {
                     if field.key != key {
                         continue;
                     }
-                    if contract.desc.field_is_secret(field.slot) {
-                        let start = value
-                            .get()
-                            .as_ptr()
-                            .addr()
-                            .checked_sub(text.as_ptr().addr())?;
-                        spans.push(start..start + value.get().len());
-                    } else if let Some(nested) = nested(contract, index) {
-                        secret_values(nested, value, text, depth + 1, spans)?;
+                    if object.desc.field_is_secret(field.slot) {
+                        lands = Lands::Secret;
+                        break;
+                    }
+                    if let (Lands::Nowhere, Some(nested)) = (lands, nested(object, index)) {
+                        lands = Lands::In(nested);
+                    }
+                }
+                continue;
+            }
+            Event::EndArray | Event::EndObject => {
+                open.pop();
+            }
+            Event::StartArray | Event::StartObject => {
+                let list = event == Event::StartArray;
+                match lands {
+                    Lands::In(contract) if list || !contract.writes_decoder() => {
+                        open.push(Walked { contract, list });
+                    }
+                    Lands::In(contract) if reaches_secret(contract) => return None,
+                    Lands::In(_) | Lands::Nowhere => skip_value(&mut reader)?,
+                    Lands::Secret => {
+                        let start = reader.start();
+                        skip_value(&mut reader)?;
+                        spans.push(start..reader.end());
                     }
                 }
             }
+            Event::Null | Event::Bool(_) | Event::Number(_) | Event::Str(_) => {
+                if let Lands::Secret = lands {
+                    spans.push(reader.start()..reader.end());
+                }
+            }
         }
-        _ => {}
+        // The next value is a list's next element, or waits for its key.
+        lands = match open.last() {
+            Some(walked) if walked.list => Lands::In(walked.contract),
+            _ => Lands::Nowhere,
+        };
+    }
+    Some(spans)
+}
+
+/// Reads the rest of the container whose start `reader` gave last, to its end.
+fn skip_value<S: reader::Source>(reader: &mut reader::Reader<S>) -> Option<()> {
+    use reader::Event;
+    let mut depth = 1_usize;
+    while depth > 0 {
+        match reader.next().ok()?? {
+            Event::StartArray | Event::StartObject => depth += 1,
+            Event::EndArray | Event::EndObject => depth -= 1,
+            _ => {}
+        }
     }
     Some(())
 }
@@ -4454,34 +4484,6 @@ fn nested<'a>(contract: Contract<'a>, index: usize) -> Option<Contract<'a>> {
         reason = "a descriptor `nvs-codegen` resolved is the compiled unit's, live as the outer one is"
     )]
     Some(unsafe { Contract::new(class, contract.shape_at(index)) })
-}
-
-/// A JSON object's entries in the order written, each value still its own text. A key written
-/// twice is kept twice.
-struct Entries<'a>(Vec<(String, &'a serde_json::value::RawValue)>);
-
-impl<'de> serde::Deserialize<'de> for Entries<'de> {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct Walk;
-        impl<'de> Visitor<'de> for Walk {
-            type Value = Entries<'de>;
-
-            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str("a JSON object")
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Entries<'de>, A::Error> {
-                let mut entries = Vec::new();
-                while let Some(entry) =
-                    map.next_entry::<String, &'de serde_json::value::RawValue>()?
-                {
-                    entries.push(entry);
-                }
-                Ok(Entries(entries))
-            }
-        }
-        deserializer.deserialize_map(Walk)
-    }
 }
 
 /// `rule:core-classes/derive-property-list`'s decode run once per element: a JSON array in, one instance of
@@ -8486,11 +8488,6 @@ pub(crate) mod tests {
     /// [`secret_spans`] finds are the values that land in a `secret` property, in a nested class
     /// and in a list of them, and under a key written twice. A body that is not one document is
     /// withheld where the class has a `secret` property, and an empty one has nothing to replace.
-    #[cfg_attr(
-        miri,
-        ignore = "the first body is longer than `IN_PLACE_BYTES`, so it is walked on the spare \
-                  stack, whose guard page needs `mprotect`, which Miri does not emulate"
-    )]
     #[test]
     fn secret_spans_names_each_value_a_secret_property_takes() {
         let (login, plain) = secret_classes();
@@ -8524,6 +8521,35 @@ pub(crate) mod tests {
             Some(Vec::new()),
             "a class with no secret withholds nothing"
         );
+    }
+
+    /// [`secret_spans`] reads the document once, so a secret value under lists nested 8 deep and
+    /// under lists nested 120 deep costs the same allocations, give or take the growth of the
+    /// walk's own stack. A walk that read each level again would allocate once more per level.
+    #[test]
+    fn secret_spans_allocates_no_more_per_level_at_two_depths() {
+        let (login, _) = secret_classes();
+        let mut made = Vec::new();
+        for levels in [8, 120] {
+            let text = format!(
+                r#"{{"profiles":{}{{"token":"tk"}}{}}}"#,
+                "[".repeat(levels),
+                "]".repeat(levels)
+            );
+            let ctx = nvs_runtime::Ctx::buffered();
+            let before = nvs_runtime::budget::allocations();
+            #[expect(unsafe_code, reason = "`secret_classes` leaks its table")]
+            let spans = unsafe { secret_spans(login, None, Some(&text)) };
+            made.push(nvs_runtime::budget::allocations() - before);
+            drop(ctx);
+            let found: Vec<&str> = spans
+                .expect("a document")
+                .into_iter()
+                .map(|span| &text[span])
+                .collect();
+            assert_eq!(found, [r#""tk""#], "{levels} levels");
+        }
+        assert!(made[1] <= made[0] + 8, "{made:?}");
     }
 
     /// [`secret_spans`]' twin for a urlencoded form: each value whose name lands in a `secret`

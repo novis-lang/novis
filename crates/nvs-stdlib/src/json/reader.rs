@@ -389,6 +389,9 @@ pub(crate) struct Reader<S> {
     /// Where the token being read starts in the current chunk, while a chunk
     /// change must keep it.
     token: Option<usize>,
+    /// The offset in the whole text of the first byte of the last value
+    /// [`Reader::next`] started.
+    start: usize,
 }
 
 impl<S: Source> Reader<S> {
@@ -415,7 +418,21 @@ impl<S: Source> Reader<S> {
             scratch: Vec::new(),
             copied: false,
             token: None,
+            start: 0,
         }
+    }
+
+    /// Where the last value [`Reader::next`] started begins in the whole text:
+    /// its first byte, which is its `"`, `[` or `{` where it has one. A key is
+    /// not a value, so it does not move this.
+    pub(crate) const fn start(&self) -> usize {
+        self.start
+    }
+
+    /// Where the next byte is in the whole text. Right after a scalar or a
+    /// container's end, that is where the value ends.
+    pub(crate) const fn end(&self) -> usize {
+        self.offset()
     }
 
     /// The next event, or `None` once the document and the whitespace after it
@@ -655,6 +672,7 @@ impl<S: Source> Reader<S> {
 
     /// The value that starts with `byte`, which is unread.
     fn value(&mut self, byte: u8) -> Result<Token, Error> {
+        self.start = self.offset();
         let token = match byte {
             b'n' => {
                 self.at += 1;
