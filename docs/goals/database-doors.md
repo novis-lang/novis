@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-db/tests/pool_reuse.rs, crates/nvs-db/tests/handshake.rs, crates/nvs-db/src/tds/mod.rs, tools/nv/cmd/db-matrix.ts]
   - id: 7
     title: a MySQL text cell is copied once
-    status: open
+    status: done
     context: [crates/nvs-db/src/mysql.rs, docs/rules/core-classes/db-crate-boundary.md, docs/rules/packaging/somebody-elses-specification-is-a-crate.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
@@ -537,23 +537,23 @@ what each run shows.
 **Does:** decode a binary row into ranges over its packet, so a text cell's bytes are copied once,
 into the Novis string.
 
-- [ ] `rule:packaging/somebody-elses-specification-is-a-crate` gains the argument for this one
+- [x] `rule:packaging/somebody-elses-specification-is-a-crate` gains the argument for this one
   call: what is owned, why, and what stays borrowed
   (`docs/rules/packaging/somebody-elses-specification-is-a-crate.md:1`).
-- [ ] `decode_row` reads the null bitmap, length-encoded strings, fixed-width integers and floats,
+- [x] `decode_row` reads the null bitmap, length-encoded strings, fixed-width integers and floats,
   and the binary date and time layouts by hand. `MySqlRow` keeps the packet and one range or number
   per cell (`rule:core-classes/db-crate-boundary`, `crates/nvs-db/src/mysql.rs:3005`,
   `crates/nvs-db/src/mysql.rs:2948`, `crates/nvs-db/src/mysql.rs:2982`).
-- [ ] `scalar` borrows text and bytes from the packet, and the `uint` row keeps its unsigned read
+- [x] `scalar` borrows text and bytes from the packet, and the `uint` row keeps its unsigned read
   (`crates/nvs-db/src/mysql.rs:3339`, `crates/nvs-db/src/mysql.rs:3024`). MariaDB's row path and
   every caller of `MySqlRow::value` follow (`crates/nvs-db/src/direct.rs:257`).
-- [ ] The existing `decode_row` tests pass unchanged in what they expect.
-- [ ] Test `a_mysql_text_cell_is_read_in_place_from_its_packet`: every text and bytes scalar of a
+- [x] The existing `decode_row` tests pass unchanged in what they expect.
+- [x] Test `a_mysql_text_cell_is_read_in_place_from_its_packet`: every text and bytes scalar of a
   decoded row points inside that row's packet (`crates/nvs-db/src/mysql.rs:3005`).
-- [ ] Test `a_mysql_row_allocates_the_same_at_four_and_at_sixty_four_text_cells`: it counts
+- [x] Test `a_mysql_row_allocates_the_same_at_four_and_at_sixty_four_text_cells`: it counts
   allocations while decoding each row and compares the two counts. It uses the tree's counter
   (`crates/nvs-runtime/src/budget.rs:1182`), or a test-only counter where that one is not live.
-- [ ] `rule:core-classes/db-crate-boundary` says the row values are read here and why
+- [x] `rule:core-classes/db-crate-boundary` says the row values are read here and why
   (`docs/rules/core-classes/db-crate-boundary.md:1`).
 
 ### 8. the goal is verified once, and every failure is fixed
@@ -566,49 +566,40 @@ into the Novis string.
 
 ### State
 
-Stages 1 to 6 are done, and `every-driver-answers-for-session-state` is green. Stage 7 is next. The
-sweep items were stale a seventh time: no `env-secret-proofs.log` exists, and Miri run
-`43201099245` ran on `578534cc7c`, which predates `7568aaa0fb`.
+Stages 1 to 7 are done, and `one-copy-per-text-cell` is green. Stage 8 is next. The sweep items were
+stale an eighth time: no `env-secret-proofs.log` exists, and Miri run `43201099245` ran on
+`578534cc7c`, which predates `7568aaa0fb`.
 
-How stage 6 works. `crates/nvs-db/src/reset.rs` has `Kind` (five), `Probe` (`Sql`, `Closes`,
-`None`) and `probe(driver, kind)`, one function per driver, no wildcard. `pool_reuse.rs`'s
-`a_reset_returns_every_kind_of_session_state_to_the_configured_one` opens the leg's driver through
-`any_leg`, reads, changes, asserts the change took, releases, draws, resets and reads again. A read
-that the server refuses is the value `error <SQLSTATE>`, which is how PostgreSQL's `lastval()` is
-compared. The runs found: MySQL refuses a prepared `USE` (1295), and MariaDB runs it with no effect,
-so neither has a database row. A role survived the reset on both, and is now fixed by `login_roles`
-(`crates/nvs-db/src/mysql.rs`, after `no_database_is_selected`), which reads `CURRENT_ROLE()` at open
-through the new `own_text_cell`, and `reset_session` ends with that `SET ROLE`. `MySqlConn` and
-`MariaConn` gained a `roles` field. SQL Server: `EXECUTE AS` makes the reset fail with 596, so the
-connection closes (`Probe::Closes`). `tests/db/mysql-init.sql` grants `novis_reset_role`. All eight
-matrix legs are green, and the case was proved to assert on every leg. Five stage-2 reds in
-`nvs-db`'s lib now read `ServerError.message`, and `bun nv verify --fast -p nvs-db` is green.
+How stage 7 works. `decode_row` (`crates/nvs-db/src/mysql.rs:3423`) takes the packet by value and
+reads it with `RowReader`: the header octet, the bitmap two bits in, then each cell at its type's
+width. `MySqlRow` (`:3163`) keeps the packet and a `MySqlCell<Span>` per cell. `MySqlCell<B>`
+(`:3221`) has `mysql_common`'s variants, and `MySqlRow::value` returns `MySqlCell<&[u8]>` by value.
+`scalar` (`:3795`) takes that cell, so every caller compiled unchanged, `direct.rs`, `nvs-stdlib` and
+`nvs-cli` included. An `UNSIGNED` integer is a `UInt` at every width. A date or time length outside
+the protocol's, or an unknown type code, is `InvalidData` naming the column, where `mysql_common`
+panicked. Trailing octets after the last cell are still ignored, as before. The 58 `mysql::tests`
+and `maria::` lib tests pass. Both rule fragments carry the argument, and `docs/rules/security.md`
+was re-rendered: stage 6 had left the chapter behind its fragment.
 
 ### Next
 
-Stage 7, in the order its items are written (`docs/goals/database-doors.md`, § 7). Its line anchors
-moved with stage 6: `MySqlRow` is now `crates/nvs-db/src/mysql.rs:3156`, `decode_row` `:3213` and
-`scalar` `:3523`. The direct caller is `crates/nvs-db/src/direct.rs:195`, and the allocation counter
-is `crates/nvs-runtime/src/budget.rs:1245`.
+Stage 8 (`docs/goals/database-doors.md`, § 8): start `looper verify` in the background, fix every
+failure in one pass, run it again. Then the goal-end gates: `bun nv verify --doc`,
+`bun nv owners --closes database-doors`, `bun nv ci --check`.
 
-- [ ] `docs/rules/packaging/somebody-elses-specification-is-a-crate.md:1` gains the argument.
-- [ ] `decode_row` (`crates/nvs-db/src/mysql.rs:3213`) reads the binary row by hand into ranges.
-- [ ] `scalar` (`crates/nvs-db/src/mysql.rs:3523`) borrows from the packet, and `direct.rs:195`
-  follows.
-- [ ] `crates/nvs-db/src/mysql.rs:3213`: tests `a_mysql_text_cell_is_read_in_place_from_its_packet`
-  and `a_mysql_row_allocates_the_same_at_four_and_at_sixty_four_text_cells`.
-- [ ] `docs/rules/core-classes/db-crate-boundary.md:1` says the row values are read here.
-
-Expected red outside `nvs-db`: a test that scripts a MySQL or MariaDB connect now meets
-`SELECT CURRENT_ROLE()` after the zone's `SET`, and one that scripts a reset meets `COM_INIT_DB` and
-a second `COM_QUERY`. None was found in `crates/nvs-db/src`. Earlier stages' expected reds still
-stand: a `PRAGMA` with no row now gets a `Permission` error, a query-site snapshot may print
-` plain`, and a test pinning "bound a value." fails. `bun nv affected --run` was not run. The
-`nvs_image` crate in `target/debug` was built for Linux, so `cargo build --tests` fails on
-`nvs-ext`'s `image_decode` until it is rebuilt for Windows; it is not this goal's.
+Expected reds: a test that scripts a MySQL or MariaDB connect now meets `SELECT CURRENT_ROLE()` after
+the zone's `SET`, and one that scripts a reset meets `COM_INIT_DB` and a second `COM_QUERY`. A
+`PRAGMA` with no row now gets a `Permission` error, a query-site snapshot may print ` plain`, and a
+test pinning "bound a value." fails. A test outside `nvs-db` that compared `MySqlRow::value` against
+a `mysql_common` `Value` no longer compiles; none was found in the build. The live matrix legs for
+MySQL and MariaDB have not run the hand-read row: run `bun nv db-matrix --driver mysql` and
+`--driver mariadb` in stage 8. `nvs_image` in `target/debug` may still be a Linux build, which fails
+`nvs-ext`'s `image_decode`; it is not this goal's.
 
 ### Backlog
 
 - `writable_schema` is a session row, as the standing decision lists it. A request can still turn it
   on and edit `sqlite_schema` inside its own request. Stage 8 should weigh dropping the row, which
   would refuse it outright and cost nothing the tree uses.
+- `decode_row` ignores octets after the last cell. Refusing them is stricter and costs nothing, but
+  it should be proved against the live MySQL and MariaDB legs first.
