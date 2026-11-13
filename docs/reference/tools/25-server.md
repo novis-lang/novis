@@ -173,12 +173,12 @@ another module. It declares the other module's classes with `autoload links`. No
 classes for their routes only. It does not compile them, and your program cannot call them.
 
 ```nvs
-autoload 'Framework\{..}' from '../src';                 // this module's own classes
-autoload links discover 'Framework' from '../../*/src';  // every module, for links only
+autoload 'Framework\{..}' from '../src'; // this module's own classes
+autoload links discover 'Framework' from '../../*/src'; // every module, for links only
 
 use Framework\Shop\View\Index;
 
-echo Core\Router::url(Index::show, ['id' => 3]);         // /base/shop/item/3
+echo Core\Router::url(Index::show, ['id' => 3]); // /base/shop/item/3
 ```
 
 The compiler checks the link the same way it checks a link inside one program. The method must

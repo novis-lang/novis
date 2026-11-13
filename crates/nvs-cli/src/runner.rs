@@ -1382,7 +1382,8 @@ impl UnderTest {
         if self.routes.module_links().is_empty() || !written {
             return self;
         }
-        let Ok(rows) = nvs_config::mount::expand(config, origins, &nvs_config::resolve::Disk) else {
+        let Ok(rows) = nvs_config::mount::expand(config, origins, &nvs_config::resolve::Disk)
+        else {
             return self;
         };
         let compiler = crate::script::Compiler::new(config);

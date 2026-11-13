@@ -359,7 +359,11 @@ mod tests {
     fn a_request_reaches_the_installed_unit_and_its_answer_comes_back() {
         let mut ctx = Ctx::new(crate::OutputSink::Sink);
         let completion = scoped(&Fixed(201), || {
-            answer(&mut ctx, Box::new(Inbound::new("GET", "/users/1", "")), |_, _| None)
+            answer(
+                &mut ctx,
+                Box::new(Inbound::new("GET", "/users/1", "")),
+                |_, _| None,
+            )
         })
         .expect("the installed unit refused a request");
         assert_eq!(
@@ -376,7 +380,9 @@ mod tests {
     #[test]
     fn a_run_with_no_unit_under_test_is_told_so_rather_than_panicking() {
         let mut ctx = Ctx::new(crate::OutputSink::Sink);
-        let refused = answer(&mut ctx, Box::new(Inbound::new("GET", "/", "")), |_, _| None);
+        let refused = answer(&mut ctx, Box::new(Inbound::new("GET", "/", "")), |_, _| {
+            None
+        });
         assert_eq!(refused.unwrap_err(), AnswerError::NoUnit);
     }
 
@@ -385,7 +391,11 @@ mod tests {
         let mut ctx = Ctx::new(crate::OutputSink::Sink);
         ctx.set_inbound(Inbound::new("GET", "/served", ""));
         let refused = scoped(&Fixed(200), || {
-            answer(&mut ctx, Box::new(Inbound::new("GET", "/again", "")), |_, _| None)
+            answer(
+                &mut ctx,
+                Box::new(Inbound::new("GET", "/again", "")),
+                |_, _| None,
+            )
         });
         assert_eq!(
             refused.unwrap_err(),

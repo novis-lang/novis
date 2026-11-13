@@ -1630,9 +1630,23 @@ mod tests {
             .flat_map(|_| [Say::Text("tick"), Say::Quiet(Duration::from_millis(20))])
             .collect();
         let (at, served) = talking_origin(None, script);
-        let mut open = opened(at, Duration::from_secs(10), Duration::from_secs(3), 1 << 20);
+        let mut open = opened(
+            at,
+            Duration::from_secs(10),
+            Duration::from_secs(600),
+            1 << 20,
+        );
 
-        let mut arrived = 0;
+        // The lifetime starts once the peer has been heard, so a handshake slowed
+        // by a loaded runner cannot use up the lifetime before the first tick.
+        let first = heard(&mut open).expect("the peer's first tick");
+        assert_ne!(
+            first.tag(),
+            Some(Tag::Null),
+            "the peer's first tick is a message"
+        );
+        open.until = Instant::now() + Duration::from_secs(3);
+        let mut arrived = 1;
         let refused = loop {
             match heard(&mut open) {
                 Ok(message) if message.tag() == Some(Tag::Null) => {

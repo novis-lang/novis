@@ -972,7 +972,7 @@ struct Core {
     /// The fleet's one compiled-unit cache, so a source compiles once for the
     /// process rather than once per core.
     compiler: Arc<Compiler>,
-    /// The mount table's rows, which every core turns into its own [`Table`], and turns
+    /// The mount table's rows, which every core turns into its own [`nvs_server::mount::Table`], and turns
     /// again each time they are replaced (`mounts::Local`).
     mounts: Arc<mounts::Mounts>,
     /// The tree this process booted on, read by every core and written by none.

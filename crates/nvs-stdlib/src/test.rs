@@ -6565,7 +6565,12 @@ mod tests {
             }
         }
 
-        fn row(prefix: &str, entry: &str, block: usize, canonical: bool) -> nvs_config::mount::Mounted {
+        fn row(
+            prefix: &str,
+            entry: &str,
+            block: usize,
+            canonical: bool,
+        ) -> nvs_config::mount::Mounted {
             nvs_config::mount::Mounted {
                 prefix: prefix.to_owned(),
                 host: None,
@@ -6613,7 +6618,9 @@ mod tests {
         let serves = vec![Default::default(), shop.clone(), shop, Default::default()];
         let server = |from: usize| {
             let serving = |at: usize, handler: &str| {
-                serves.get(at).is_some_and(|set: &std::collections::HashSet<String>| set.contains(handler))
+                serves
+                    .get(at)
+                    .is_some_and(|set: &std::collections::HashSet<String>| set.contains(handler))
             };
             nvs_config::mount::link(&rows, &serving, from, HANDLER)
                 .expect("the server links this row")
