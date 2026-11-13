@@ -5,13 +5,6 @@
   ],
   "themes": [
     {
-      "title": "A JSON reader and writer made for Novis",
-      "text": "`Core\\Json` reads and writes Novis values directly. The `nvs` binary also becomes smaller.",
-      "goals": [
-        "fitted-dependencies"
-      ]
-    },
-    {
       "title": "Scheduled jobs that run on server events",
       "text": "A `[[schedule]]` entry can run its script when the server starts, stops or reloads. It can also run when a scheduled job or a queue job fails.",
       "goals": [
