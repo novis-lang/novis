@@ -1,0 +1,10 @@
+<?nvs
+// Shows how `canonical = true` picks one mount when a module has two.
+// The server serves Blog at `/blog` and at `/journal`.
+autoload links discover 'Framework' from 'apps/*/src';
+
+use Framework\Blog\View\Post;
+
+// The `/journal` mount has `canonical = true`, so the link uses it.
+// This prints "/journal/post/5".
+echo Core\Router::url(Post::show, ['id' => 5]), "\n";

@@ -253,7 +253,7 @@
   },
   "/guides/how-to-use/configuration/": {
     "feature": "guides/how-to-use/configuration.mdx",
-    "hash": "c086cd576ad99cda",
+    "hash": "ead42072bc288aa5",
     "questions": [
       "Override a few settings without editing nvs.toml",
       "How do I create a new configuration file with every setting?",
@@ -297,9 +297,20 @@
       "How long does a WebSocket or an event stream stay open?"
     ]
   },
+  "/guides/how-to-use/modules/": {
+    "feature": "guides/how-to-use/modules.mdx",
+    "hash": "0cd3941e06971f8d",
+    "questions": [
+      "How do I run several apps on one server?",
+      "Serve every folder with an index file under its own path",
+      "Which address does a link use when one app has two paths?",
+      "How do I link from one app to a page of another app?",
+      "Give each app its own subdomain and link between them"
+    ]
+  },
   "/guides/how-to-use/project-layout/": {
     "feature": "guides/how-to-use/project-layout.mdx",
-    "hash": "08e9a5bffd49bda0",
+    "hash": "23e13d37982d3cca",
     "questions": [
       "How should I organize the folders of a Novis web app?",
       "Where do I put the entry file, classes and tests?",
@@ -13229,27 +13240,29 @@
   },
   "/reference/core/router/url/": {
     "feature": "Core\\Router::url",
-    "hash": "7f0c7d315831ba87",
+    "hash": "c41f9c616d57c9b1",
     "questions": [
       "How do I build a link to the method of a route?",
       "Generate a URL with path values and a query string",
       "Safely put user text into a link",
-      "Keep links working when a route path changes"
+      "Keep links working when a route path changes",
+      "Link to a page of another app on the same server"
     ]
   },
   "/reference/core/router/urlabsolute/": {
     "feature": "Core\\Router::urlAbsolute",
-    "hash": "2d2ebad0c91360f5",
+    "hash": "2d0ae9c9260feb7d",
     "questions": [
       "How do I build a full URL with the domain?",
       "Make an absolute link for an email",
       "Generate links for a sitemap",
-      "Where does the site origin for full URLs come from?"
+      "Where does the site origin for full URLs come from?",
+      "Build a full URL to a page that another host serves"
     ]
   },
   "/reference/core/router/urlsigned/": {
     "feature": "Core\\Router::urlSigned",
-    "hash": "21011e10e674153c",
+    "hash": "71033a9efc1c6c5a",
     "questions": [
       "How do I make a link that nobody can change?",
       "Create a download link that expires after one hour",
@@ -17903,7 +17916,7 @@
   },
   "/syntax/attributes/routes/": {
     "feature": "syntax/attributes/routes.mdx",
-    "hash": "ab79baed79ebf97d",
+    "hash": "55a4363705b44e89",
     "questions": [
       "How do I map a URL path to a method in my web app?",
       "Declare a route with a placeholder like /users/{id}",
@@ -18408,7 +18421,7 @@
   },
   "/syntax/programs/namespaces/": {
     "feature": "syntax/programs/namespaces.mdx",
-    "hash": "2fd3db3932f7e553",
+    "hash": "4fcfc4631943041f",
     "questions": [
       "How do I put a class in a namespace?",
       "How do I import a class from another file?",

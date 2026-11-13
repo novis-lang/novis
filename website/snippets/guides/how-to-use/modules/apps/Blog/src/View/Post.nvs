@@ -1,0 +1,16 @@
+<?nvs
+namespace Framework\Blog\View;
+
+use Framework\Shop\View\Item;
+
+class Post
+{
+    #[Core\Route(path: '/post/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(int $id): void
+    {
+        echo 'post ', $id, "\n";
+        // This links to a page of the Shop module.
+        echo Core\Router::url(Item::show, ['id' => $id]);
+    }
+}

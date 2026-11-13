@@ -60,6 +60,9 @@ listen = ["127.0.0.1:8000"]
 The `[capabilities]` blocks say which files, hosts and programs your code may use. A call that is
 not allowed throws a `RuntimeError`. The message shows the exact line to add to `nvs.toml`.
 
+A `[[server.mount]]` block serves one program at a path or a host. To serve many programs from one
+`nvs.toml`, read [Many modules on one server](/guides/how-to-use/modules/).
+
 A relative path in the file is relative to the folder of the file. It is not relative to the
 folder you run `nvs` in.
 

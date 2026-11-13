@@ -224,7 +224,7 @@
     "lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file": "60afa9930f2ba83d"
   },
   "syntax/programs/namespaces.mdx": {
-    "lang:programs/autoload-find-a-class-by-its-namespace": "3ce7267d789c90c5",
+    "lang:programs/autoload-find-a-class-by-its-namespace": "e733081983bb9240",
     "lang:programs/namespaces-and-use": "8100b74138cab7b6"
   },
   "syntax/programs/require.mdx": {

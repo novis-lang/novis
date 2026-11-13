@@ -1,0 +1,30 @@
+[server]
+root = "."
+
+# Blog is served at /blog and Shop at /shop.
+[[server.mount]]
+host   = "www.example.com"
+scan   = "apps/*/public/index.nvs"
+prefix = "/{1:lower}"
+origin = "https://www.example.com"
+
+# Blog is also served at /journal. Every link to Blog uses this address.
+[[server.mount]]
+host      = "www.example.com"
+prefix    = "/journal"
+entry     = "apps/Blog/public/index.nvs"
+canonical = true
+
+[[server.mount]]
+host   = "www.example.com"
+prefix = "/news"
+entry  = "news.nvs"
+
+[[server.mount]]
+host  = "help.example.com"
+entry = "help.nvs"
+
+[[server.mount]]
+host   = "www.example.com"
+prefix = "/start"
+entry  = "start.nvs"

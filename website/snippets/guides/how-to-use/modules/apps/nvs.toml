@@ -1,0 +1,16 @@
+# Each module of this folder is served on www.example.com: Blog at /blog and Shop at /shop.
+[server]
+root = "."
+
+[[server.mount]]
+host   = "www.example.com"
+scan   = "*/public/index.nvs"
+prefix = "/{1:lower}"
+origin = "https://www.example.com"
+
+# Blog is also served at /journal. A link that could use /blog or /journal uses /journal.
+[[server.mount]]
+host      = "www.example.com"
+prefix    = "/journal"
+entry     = "Blog/public/index.nvs"
+canonical = true

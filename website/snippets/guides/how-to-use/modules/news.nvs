@@ -1,0 +1,12 @@
+<?nvs
+// Shows a link from this program to a page of the Shop module.
+
+// `autoload links` reads the routes of every module in the `apps` folder.
+// Your program can link to these routes, but it cannot call their code.
+autoload links discover 'Framework' from 'apps/*/src';
+
+use Framework\Shop\View\Item;
+
+// This program and Shop are on the same host, so the link is a path.
+// The server serves Shop at `/shop`. This prints "/shop/item/3".
+echo Core\Router::url(Item::show, ['id' => 3]), "\n";

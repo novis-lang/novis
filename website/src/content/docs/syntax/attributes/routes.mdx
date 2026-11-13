@@ -52,6 +52,22 @@ has. `Core\Router::methodsFor($path)` returns the methods the path has. An empty
 and any other array means `405`. The server does not check `accessAs`. Your program checks it
 before it calls the method. Without `dispatch`, the CSRF check is the only check that runs for you.
 
+## Link to another module
+
+A module is a program with its own entry file on the same server. A program can link to a route of
+another module. It declares the classes of the other modules with `autoload links`, as in
+`autoload links discover 'Framework' from '../../*/src';`. Then
+`Core\Router::url(Index::show, ['id' => 3])` returns the URL of that route in the other module.
+
+- A `use` import of such a class is allowed. Any other use of the class does not compile.
+- The class is not compiled into your program. Your program cannot call its methods.
+- The compiler checks the link as it checks a local link. The method must exist and have a
+  `#[Core\Route]`, and every capture needs a value.
+- The server picks the mount that the link uses.
+- `Core\Router::urlSigned` cannot link to another module. Such a call does not compile.
+
+The page [Many modules on one server](/guides/how-to-use/modules/) shows a complete setup.
+
 <FeatureSection examples="lang/attributes/core-api-and-the-openapi-document" heading="An OpenAPI document" id="an-openapi-document" />
 
 The examples above do not print the document. This file is one more route with `#[Core\Api]`:

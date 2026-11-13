@@ -1092,11 +1092,17 @@ parts are folders, and the last part is the file name. One prefix can have sever
 they are searched in the order you wrote them.
 
 `autoload discover` takes a folder pattern with a `*`. Every folder that matches is used for the
-namespace named by the part that `*` matched.
+namespace named by the part that `*` matched. `autoload discover 'Site' from '../../*/src';` puts
+`Site` in front of that name, so the folder `Shop/src` is the namespace `Site\Shop`.
 
 A prefix can also contain `{..}`. In `autoload 'Site\{..}' from '../src';`, `{..}` is replaced by
 the name of the folder that `..` points to from this file. If the file is in `Blog/public`, the
 prefix is `Site\Blog`.
+
+`autoload links` reads a folder only to find its routes. Your program can link to these routes but
+cannot call their classes. A `use` line may import such a class, so a link can use its short name.
+Both forms take it: `autoload links 'Site\Shop' from '../../Shop/src';` and
+`autoload links discover 'Site' from '../../*/src';`.
 
 **Good to know:** every `autoload` declaration is read when the program is compiled. A class that
 cannot be found stops the compile with an error. `nvs check --autoload-map` shows which folders
@@ -1306,11 +1312,54 @@ class Home
 }
 ```
 
+```nvs file=modules/Shop/public/index.nvs
+<?nvs
+// The server runs this file for every request to the Shop module.
+autoload 'Site\{..}' from '../src';
+
+// The gate lets every request through.
+class Open implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'no page here';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'something went wrong';
+    }
+}
+
+// `dispatch` calls the method of the route that the request matched.
+Core\Router::dispatch(new Open());
+```
+
 ```nvs file=modules/Shop/public/start.nvs
 <?nvs
 // `{..}` is the name of the folder that `..` points to from this file.
 // In `modules/Blog/public` that folder is `Blog`, so the prefix is `Site\Blog`.
 autoload 'Site\{..}' from '../src';
+```
+
+```nvs file=modules/Shop/src/Cart.nvs
+<?nvs
+namespace Site\Shop;
+
+class Cart
+{
+    #[Core\Route(path: '/cart/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(int $id): void
+    {
+        echo 'cart ', $id;
+    }
+}
 ```
 
 ```nvs file=modules/Shop/src/Home.nvs
@@ -1342,6 +1391,133 @@ echo Site\Shop\Home::title(), "\n";
 ```output
 Blog home
 Shop home
+```
+
+## Example 05: link to another module
+
+```nvs file=modules/Blog/public/start.nvs
+<?nvs
+// `{..}` is the name of the folder that `..` points to from this file.
+// In `modules/Blog/public` that folder is `Blog`, so the prefix is `Site\Blog`.
+autoload 'Site\{..}' from '../src';
+```
+
+```nvs file=modules/Blog/src/Home.nvs
+<?nvs
+namespace Site\Blog;
+
+class Home
+{
+    public static function title(): string
+    {
+        return 'Blog home';
+    }
+}
+```
+
+```nvs file=modules/Shop/public/index.nvs
+<?nvs
+// The server runs this file for every request to the Shop module.
+autoload 'Site\{..}' from '../src';
+
+// The gate lets every request through.
+class Open implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'no page here';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'something went wrong';
+    }
+}
+
+// `dispatch` calls the method of the route that the request matched.
+Core\Router::dispatch(new Open());
+```
+
+```nvs file=modules/Shop/public/start.nvs
+<?nvs
+// `{..}` is the name of the folder that `..` points to from this file.
+// In `modules/Blog/public` that folder is `Blog`, so the prefix is `Site\Blog`.
+autoload 'Site\{..}' from '../src';
+```
+
+```nvs file=modules/Shop/src/Cart.nvs
+<?nvs
+namespace Site\Shop;
+
+class Cart
+{
+    #[Core\Route(path: '/cart/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(int $id): void
+    {
+        echo 'cart ', $id;
+    }
+}
+```
+
+```nvs file=modules/Shop/src/Home.nvs
+<?nvs
+namespace Site\Shop;
+
+class Home
+{
+    public static function title(): string
+    {
+        return 'Shop home';
+    }
+}
+```
+
+```toml file=nvs.toml
+# The server serves files from this folder. Example 05 is mounted at /blog,
+# and the start file of the Shop module is mounted at /shop.
+[server]
+root = "."
+
+[[server.mount]]
+prefix = "/blog"
+entry  = "main.nvs"
+
+[[server.mount]]
+prefix = "/shop"
+entry  = "modules/Shop/public/index.nvs"
+```
+
+```nvs
+<?nvs
+// Shows how a program builds a link to a page of another module.
+// The `nvs.toml` next to this file mounts this file at `/blog` and the Shop module at `/shop`.
+
+// `autoload links` reads the folder of each module only to find its routes.
+// The program can build a link to a route of these classes. It cannot call their methods.
+autoload links discover 'Site' from './modules/*/src';
+
+use Core\Http\Method;
+use Site\Shop\Cart;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // The server mounts the Shop module at `/shop`, so the link starts with `/shop`.
+    echo Core\Router::url(Cart::show, ['id' => 3]);
+} else {
+    // From the command line, this part sends one request to the mount `/blog`.
+    // This prints `/shop/cart/3`.
+    var $page = Core\Test::request(Method::Get, '/', { mount: '/blog' });
+    echo $page->body(), "\n";
+}
+```
+
+```output
+/shop/cart/3
 ```
 
 # File paths: a relative path starts at the folder of its file

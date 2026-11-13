@@ -1377,11 +1377,17 @@ parts are folders, and the last part is the file name. One prefix can have sever
 they are searched in the order you wrote them.
 
 `autoload discover` takes a folder pattern with a `*`. Every folder that matches is used for the
-namespace named by the part that `*` matched.
+namespace named by the part that `*` matched. `autoload discover 'Site' from '../../*/src';` puts
+`Site` in front of that name, so the folder `Shop/src` is the namespace `Site\Shop`.
 
 A prefix can also contain `{..}`. In `autoload 'Site\{..}' from '../src';`, `{..}` is replaced by
 the name of the folder that `..` points to from this file. If the file is in `Blog/public`, the
 prefix is `Site\Blog`.
+
+`autoload links` reads a folder only to find its routes. Your program can link to these routes but
+cannot call their classes. A `use` line may import such a class, so a link can use its short name.
+Both forms take it: `autoload links 'Site\Shop' from '../../Shop/src';` and
+`autoload links discover 'Site' from '../../*/src';`.
 
 **Good to know:** every `autoload` declaration is read when the program is compiled. A class that
 cannot be found stops the compile with an error. `nvs check --autoload-map` shows which folders
@@ -1591,11 +1597,54 @@ class Home
 }
 ```
 
+```nvs file=modules/Shop/public/index.nvs
+<?nvs
+// The server runs this file for every request to the Shop module.
+autoload 'Site\{..}' from '../src';
+
+// The gate lets every request through.
+class Open implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'no page here';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'something went wrong';
+    }
+}
+
+// `dispatch` calls the method of the route that the request matched.
+Core\Router::dispatch(new Open());
+```
+
 ```nvs file=modules/Shop/public/start.nvs
 <?nvs
 // `{..}` is the name of the folder that `..` points to from this file.
 // In `modules/Blog/public` that folder is `Blog`, so the prefix is `Site\Blog`.
 autoload 'Site\{..}' from '../src';
+```
+
+```nvs file=modules/Shop/src/Cart.nvs
+<?nvs
+namespace Site\Shop;
+
+class Cart
+{
+    #[Core\Route(path: '/cart/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(int $id): void
+    {
+        echo 'cart ', $id;
+    }
+}
 ```
 
 ```nvs file=modules/Shop/src/Home.nvs
@@ -1627,6 +1676,133 @@ echo Site\Shop\Home::title(), "\n";
 ```output
 Blog home
 Shop home
+```
+
+#### Example 05: link to another module
+
+```nvs file=modules/Blog/public/start.nvs
+<?nvs
+// `{..}` is the name of the folder that `..` points to from this file.
+// In `modules/Blog/public` that folder is `Blog`, so the prefix is `Site\Blog`.
+autoload 'Site\{..}' from '../src';
+```
+
+```nvs file=modules/Blog/src/Home.nvs
+<?nvs
+namespace Site\Blog;
+
+class Home
+{
+    public static function title(): string
+    {
+        return 'Blog home';
+    }
+}
+```
+
+```nvs file=modules/Shop/public/index.nvs
+<?nvs
+// The server runs this file for every request to the Shop module.
+autoload 'Site\{..}' from '../src';
+
+// The gate lets every request through.
+class Open implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'no page here';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'something went wrong';
+    }
+}
+
+// `dispatch` calls the method of the route that the request matched.
+Core\Router::dispatch(new Open());
+```
+
+```nvs file=modules/Shop/public/start.nvs
+<?nvs
+// `{..}` is the name of the folder that `..` points to from this file.
+// In `modules/Blog/public` that folder is `Blog`, so the prefix is `Site\Blog`.
+autoload 'Site\{..}' from '../src';
+```
+
+```nvs file=modules/Shop/src/Cart.nvs
+<?nvs
+namespace Site\Shop;
+
+class Cart
+{
+    #[Core\Route(path: '/cart/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(int $id): void
+    {
+        echo 'cart ', $id;
+    }
+}
+```
+
+```nvs file=modules/Shop/src/Home.nvs
+<?nvs
+namespace Site\Shop;
+
+class Home
+{
+    public static function title(): string
+    {
+        return 'Shop home';
+    }
+}
+```
+
+```toml file=nvs.toml
+### The server serves files from this folder. Example 05 is mounted at /blog,
+### and the start file of the Shop module is mounted at /shop.
+[server]
+root = "."
+
+[[server.mount]]
+prefix = "/blog"
+entry  = "main.nvs"
+
+[[server.mount]]
+prefix = "/shop"
+entry  = "modules/Shop/public/index.nvs"
+```
+
+```nvs
+<?nvs
+// Shows how a program builds a link to a page of another module.
+// The `nvs.toml` next to this file mounts this file at `/blog` and the Shop module at `/shop`.
+
+// `autoload links` reads the folder of each module only to find its routes.
+// The program can build a link to a route of these classes. It cannot call their methods.
+autoload links discover 'Site' from './modules/*/src';
+
+use Core\Http\Method;
+use Site\Shop\Cart;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // The server mounts the Shop module at `/shop`, so the link starts with `/shop`.
+    echo Core\Router::url(Cart::show, ['id' => 3]);
+} else {
+    // From the command line, this part sends one request to the mount `/blog`.
+    // This prints `/shop/cart/3`.
+    var $page = Core\Test::request(Method::Get, '/', { mount: '/blog' });
+    echo $page->body(), "\n";
+}
+```
+
+```output
+/shop/cart/3
 ```
 
 ### File paths: a relative path starts at the folder of its file
@@ -39933,7 +40109,7 @@ Checks the signature in the `_sig` query parameter with the keys in `$keys`, and
 <a id="core-core-router"></a>
 ### `Core\Router`
 
-Keywords: route, url, link, reverse routing, route method, method reference, #[Core\Route], origin, mount, router, methodsFor, Allow, 404, 405, url, urlAbsolute, urlSigned, signedRoute, match, methodsFor, dispatch
+Keywords: route, url, link, reverse routing, route method, method reference, #[Core\Route], origin, mount, router, another module, autoload links, methodsFor, Allow, 404, 405, url, urlAbsolute, urlSigned, signedRoute, match, methodsFor, dispatch
 
 `Core\Router::url` builds a link to the route of a method, written `Users::show` with no `(...)`:
 each `{capture}` in the path is substituted from `$params`, percent-encoded into its own segment, and
@@ -39946,6 +40122,12 @@ throws an error when it has no route. A `$params` array missing a capture or car
 a capture nor a handler parameter declared `#[Core\Query]` is a compile error. A key that is
 declared `#[Core\Query]` becomes the link's query string, `/users/7?page=2`. `urlAbsolute` is `url` with the `[[app]] origin` from `nvs.toml` in
 front, and throws `RuntimeError` when none is configured.
+
+A link may name a route of another module, which is another program on the same server. The
+linking program declares that module's classes with `autoload links`, and may import such a class
+with `use`. The compiler checks the method and its captures the same way, and the server picks the
+mount the link goes through. `urlSigned` cannot name such a route, and that call does not compile.
+The server chapter's section *Links between modules* has the whole picture.
 
 `methodsFor` asks the table the other question, the one `Core\Request::route()` leaves open when it
 answers `null`: which verbs does this path claim? An empty array means no route claims it at all —
@@ -40014,7 +40196,7 @@ https://example.test/users/7
 Core\Router::url(callable $route, array<mixed> $params = []): string
 ```
 
-Builds the link to the route of the method `$route`. Each value in `$params` fills the capture with the same name, and the other values become the query string. Every value is percent-encoded, so it stays inside its own part of the link.
+Builds the link to the route of the method `$route`. Each value in `$params` fills the capture with the same name, and the other values become the query string. Every value is percent-encoded, so it stays inside its own part of the link. `$route` may be a route of another module on the same server, when its class is under an `autoload links` folder. The link then goes through the mount that the server picks for that module.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -40032,7 +40214,7 @@ Builds the link to the route of the method `$route`. Each value in `$params` fil
 Core\Router::urlAbsolute(callable $route, array<mixed> $params = []): string
 ```
 
-Builds the same link as `url`, with the origin of your site in front. The origin is the `origin` setting of the `[[app]]` block in `nvs.toml`. It never comes from the `Host` or `X-Forwarded-Host` header of a request.
+Builds the same link as `url`, with the origin of your site in front. The origin is the `origin` setting of the `[[app]]` block in `nvs.toml`. It never comes from the `Host` or `X-Forwarded-Host` header of a request. For a route of another module, the origin is the one of the mount the link goes through.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -40050,7 +40232,7 @@ Builds the same link as `url`, with the origin of your site in front. The origin
 Core\Router::urlSigned(callable $route, array<mixed> $params, { keys: array<secret bytes>, until: ?Core\Time\Instant } $settings): string
 ```
 
-Builds the same link as `url`, with a signature in the `_sig` query parameter at the end. The signature is made from the route's `path` in its `#[Route]` and from `$params`. So the link still works when the program is mounted at another path, or when the method gets a new name. `Core\Router::signedRoute` checks the signature.
+Builds the same link as `url`, with a signature in the `_sig` query parameter at the end. The signature is made from the route's `path` in its `#[Route]` and from `$params`. So the link still works when the program is mounted at another path, or when the method gets a new name. `Core\Router::signedRoute` checks the signature. `$route` cannot be a route of another module. Such a call does not compile.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -60334,6 +60516,47 @@ With `static = true`, step 3 serves the exact file and nothing else: no director
 strong `ETag`; one `Range` is honoured and anything else is a `416`. A `.nvs` file is never served
 as source, under any setting, from any mount. This is a development convenience and a fallback,
 not a CDN: there is no `max-age` and no precompressed lookup.
+
+### Links between modules
+
+A module is one program on the server, with its own entry file. A module can link to a route of
+another module. It declares the other module's classes with `autoload links`. Novis reads those
+classes for their routes only. It does not compile them, and your program cannot call them.
+
+```nvs
+autoload 'Framework\{..}' from '../src';                 // this module's own classes
+autoload links discover 'Framework' from '../../*/src';  // every module, for links only
+
+use Framework\Shop\View\Index;
+
+echo Core\Router::url(Index::show, ['id' => 3]);         // /base/shop/item/3
+```
+
+The compiler checks the link the same way it checks a link inside one program. The method must
+exist and have a `#[Route]`, and every capture needs a value. The server then picks the mount the
+link goes through. It takes the first of these that serves the route:
+
+1. A mount from the same `[[server.mount]]` block. All modules of one `scan` are one block.
+2. A mount on the same host. The link is a path.
+3. A mount on another host that has an `origin`. The link starts with that origin.
+
+When two mounts match at the same step, the one whose block has `canonical = true` is used:
+
+```toml
+[[server.mount]]
+prefix    = "/shop"
+entry     = "Shop/public/index.nvs"
+canonical = true                    # the main mount of this entry
+```
+
+- With no `canonical` mount, or with two, the server does not start. The message names both blocks
+  and the route. Two mounts of one entry that no link needs are allowed.
+- Two `canonical = true` blocks for one entry are an error, also when no link needs them.
+- A link to a module that does not compile throws an error when it runs. The other modules still
+  start.
+- `nvs config check --mounts` prints every mount and the mount each link goes through.
+- `Core\Router::urlSigned` cannot link to another module. The module that checks a signature must
+  also create it.
 
 ### What a program reads about its door
 

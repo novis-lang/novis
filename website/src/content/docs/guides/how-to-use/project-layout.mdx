@@ -21,6 +21,8 @@ shop/
 
 `nvs serve public/index.nvs` runs the entry file once for each request. In production mode the
 server sends every request to this one file. The file finds the route and calls your classes.
+One server can also run many programs, each with its own entry file. Read
+[Many modules on one server](/guides/how-to-use/modules/).
 
 Run the command from the `shop` folder. Novis reads `nvs.toml` from the folder you run `nvs` in.
 It does not look in the folder of the entry file. When the folder you run `nvs` in has no

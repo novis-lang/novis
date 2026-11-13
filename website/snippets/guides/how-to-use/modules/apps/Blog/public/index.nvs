@@ -1,0 +1,27 @@
+<?nvs
+// The server runs this file for every request to its module.
+// Every module in this folder has the same file, byte for byte.
+autoload 'Framework\{..}' from '../src';
+autoload links discover 'Framework' from '../../*/src';
+
+// The gate lets every request through.
+class Open implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'no page here';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'something went wrong';
+    }
+}
+
+// `dispatch` calls the method of the route that the request matched.
+Core\Router::dispatch(new Open());

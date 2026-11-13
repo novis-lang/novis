@@ -1,0 +1,9 @@
+$ nvs config check --mounts nvs.toml
+mount `/blog` on host `www.example.com`: `~/project/Blog/public/index.nvs` (block 1)
+  link `Framework\Shop\View\Item::show` goes through `/shop`
+mount `/journal` on host `www.example.com`: `~/project/Blog/public/index.nvs` (block 2, canonical)
+  link `Framework\Shop\View\Item::show` goes through `/shop`
+mount `/shop` on host `www.example.com`: `~/project/Shop/public/index.nvs` (block 1)
+  link `Framework\Blog\View\Post::show` goes through `/blog`
+ok: 1 file, 9 directives set, 0 overrides, 0 warnings
+exit 0

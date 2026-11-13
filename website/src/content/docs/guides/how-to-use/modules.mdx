@@ -1,0 +1,98 @@
+---
+title: Many modules on one server
+covers: []
+description: Serve many modules from one nvs.toml, and link from one module to a page of another.
+---
+
+import Snippet from '@components/Snippet.astro'
+import Terminal from '@components/Terminal.astro'
+
+A module is a program with its own entry file. One server can run many modules, and one module can
+link to a page of another module.
+
+```txt skip="a file tree"
+apps/
+  nvs.toml
+  Blog/
+    public/index.nvs      the entry file of Blog
+    src/View/Post.nvs     the class Framework\Blog\View\Post
+  Shop/
+    public/index.nvs      the entry file of Shop
+    src/View/Item.nvs     the class Framework\Shop\View\Item
+```
+
+## One mount for every module
+
+A `[[server.mount]]` block with `scan` serves every entry file that matches the pattern. `{1}` is the
+text that the first `*` matched. `{1:lower}` is the same text in lower case.
+
+```toml
+[server]
+root = "."
+
+[[server.mount]]
+host   = "www.example.com"
+scan   = "*/public/index.nvs"
+prefix = "/{1:lower}"
+origin = "https://www.example.com"
+```
+
+This block serves Blog at `/blog` and Shop at `/shop`. `origin` is optional. A module on another host
+needs it to link to these modules.
+
+## One entry file for each module
+
+Each module has its own entry file. The line `autoload 'Framework\{..}' from '../src';` loads the
+classes of this module from its own `src` folder.
+
+The line `autoload links discover 'Framework' from '../../*/src';` reads the classes of every module.
+Novis reads them only for their routes. It does not compile them, and your program cannot call them.
+You can import such a class with `use`, so a link can use its short name.
+
+## A link to another module
+
+`Core\Router::url` returns the link to a route of another module. The compiler checks the link. The
+method must exist and have a `#[Route]`. Each `{...}` part of the route path needs a value in the
+array.
+
+<Snippet src="guides/how-to-use/modules/news.nvs" />
+
+## A link to a module on another host
+
+When the module is on another host, the link starts with the `origin` of its mount. Without an
+`origin`, no link from another host can reach the module. `Core\Router::urlAbsolute` always starts
+the link with an origin.
+
+<Snippet src="guides/how-to-use/modules/help.nvs" />
+
+## Two mounts for one module
+
+The server picks the mount a link goes through. It takes the first of these that serves the route:
+
+1. A mount from the same `[[server.mount]]` block. All modules of one `scan` are one block.
+2. A mount on the same host. The link is a path.
+3. A mount on another host that has an `origin`. The link starts with that origin.
+
+Two mounts can match at the same step. Then the server uses the block with `canonical = true`:
+
+```toml skip="it names Blog/public/index.nvs of the folder tree above"
+[[server.mount]]
+host      = "www.example.com"
+prefix    = "/journal"
+entry     = "Blog/public/index.nvs"
+canonical = true
+```
+
+<Snippet src="guides/how-to-use/modules/start.nvs" />
+
+- If a link needs this choice and no block has `canonical = true`, the server does not start.
+  It also does not start when two such blocks match.
+- Two `canonical = true` blocks for one entry file are always an error.
+- `Core\Router::urlSigned` cannot link to another module. A signed link works only inside one module.
+
+`nvs config check --mounts` prints every mount. Under each mount, it prints the mount each link goes
+through:
+
+<Terminal src="guides/how-to-use/modules/apps.term" />
+
+Read [Configuration](/guides/how-to-use/configuration/) for the other blocks of `nvs.toml`.

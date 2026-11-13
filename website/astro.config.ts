@@ -421,6 +421,11 @@ export default defineConfig({
                   attrs: { 'data-subtext': 'What nvs.toml controls, and how to check it' },
                 },
                 {
+                  label: 'Many modules on one server',
+                  link: '/guides/how-to-use/modules/',
+                  attrs: { 'data-subtext': 'Serve many modules, and link between them' },
+                },
+                {
                   label: 'Handling requests',
                   link: '/guides/how-to-use/requests/',
                   attrs: { 'data-subtext': 'Routes, the request and the response' },
