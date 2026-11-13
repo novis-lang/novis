@@ -545,7 +545,7 @@ fn after_walk(
     record_pipeline_slots(signatures, &module.graph, interner, exprs);
     // The links' fold, which is the second pass over the same table and the reason
     // the table is collected across the files rather than per file.
-    crate::links::resolve(&routes, links, exprs, diags);
+    crate::links::resolve(&routes, &module.link_targets, links, exprs, diags);
     // `rule:core-classes/derive-property-list`'s second pass over the same table, after every deriving
     // class has recorded its codec: a field naming one of them is reachable
     // whichever file declared it.

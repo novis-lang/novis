@@ -122,6 +122,12 @@ pub(crate) struct LinkSite {
     /// The written position of the argument that fills `urlSigned`'s signing
     /// settings, and `None` for the two members that sign nothing.
     settings_at: Option<usize>,
+    /// The class and method argument 0 names where the reference resolved to
+    /// nothing the program declares, as written and resolved against the
+    /// file's namespace and imports. [`resolve`] checks it against a class
+    /// under an `autoload links` root, and drops it for any other class, which
+    /// name resolution has already reported.
+    foreign: Option<(QName, String)>,
     /// Argument 1's literal string keys, in written order, or `None` where it
     /// is not an array literal — in which case there is nothing to check
     /// coverage against and `rule:routing/link-target-and-params-are-checked`
@@ -233,10 +239,20 @@ pub(crate) fn record_site(
     ) {
         return;
     }
-    let Some(ExprInfo::CallableRef(resolved)) = env.exprs.lookup(target.span) else {
-        return;
+    let (handler, foreign) = match env.exprs.lookup(target.span) {
+        Some(ExprInfo::CallableRef(resolved)) => {
+            (format!("{}::{}", resolved.class, resolved.method), None)
+        }
+        // `urlSigned` never takes another module's route, which name
+        // resolution reports, and `is` compares a route this program matched.
+        _ if member == IS || member == SIGNED => return,
+        _ => {
+            let Some((class, method)) = written_reference(target, ctx, env) else {
+                return;
+            };
+            (format!("{class}::{method}"), Some((class, method)))
+        }
     };
-    let handler = format!("{}::{}", resolved.class, resolved.method);
     if member == IS {
         env.links.push(LinkSite {
             span: call.span,
@@ -245,6 +261,7 @@ pub(crate) fn record_site(
             target_span: target.span,
             params_at: None,
             settings_at: None,
+            foreign: None,
             args: None,
         });
         return;
@@ -271,8 +288,31 @@ pub(crate) fn record_site(
         target_span: target.span,
         params_at,
         settings_at,
+        foreign,
         args,
     });
+}
+
+/// The class and method a written `Class::method` reference names, resolved
+/// against the file's namespace and imports, or `None` for any other shape.
+fn written_reference(target: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<(QName, String)> {
+    let ExprKind::StaticCall {
+        class,
+        method: nvs_syntax::ast::MemberName::Ident(method),
+        ..
+    } = &target.kind
+    else {
+        return None;
+    };
+    let ExprKind::ConstFetch(name) = &class.kind else {
+        return None;
+    };
+    let class = nvs_hir::resolve_ref(
+        crate::span_text(env.src, name.span),
+        ctx.namespace,
+        ctx.imports,
+    );
+    Some((class, crate::span_text(env.src, *method).to_owned()))
 }
 
 /// The written position of the argument that fills parameter `param`, found
@@ -402,12 +442,29 @@ fn folded_as(expr: &Expr, ty: crate::ty::Ty, env: &mut Env<'_>) -> Option<ConstA
 /// program's table and a name declared in any file resolves from any other.
 pub(crate) fn resolve(
     routes: &RouteTable,
+    targets: &nvs_hir::LinkTargets,
     sites: &[LinkSite],
     exprs: &mut ExprTypeTable,
     diags: &mut Diagnostics,
 ) {
     for site in sites {
-        let Some(row) = routes.handled_by(&site.handler) else {
+        let foreign_row;
+        let row = match &site.foreign {
+            None => routes.handled_by(&site.handler),
+            Some((class, method)) => {
+                // A class no links root declares was reported as undeclared,
+                // and a method the class does not declare as undefined.
+                let Some(target) = targets.get(class) else {
+                    continue;
+                };
+                if !target.methods.iter().any(|declared| declared == method) {
+                    continue;
+                }
+                foreign_row = foreign_route(target, method, &site.handler, site.target_span);
+                foreign_row.as_ref()
+            }
+        };
+        let Some(row) = row else {
             report_no_route(site, diags);
             continue;
         };
@@ -457,9 +514,85 @@ pub(crate) fn resolve(
                 signed: (site.member == SIGNED).then(|| row.path.clone()),
                 params_at: site.params_at,
                 settings_at: site.settings_at,
+                handler: site.foreign.as_ref().map(|_| site.handler.clone()),
             },
         );
     }
+}
+
+/// A route row for `method` of a class under an `autoload links` root, built
+/// from what [`nvs_hir::link_targets`] read of its file, or `None` where the
+/// method has no `#[Route]` whose path is a plain string.
+///
+/// The row carries what [`resolve`]'s four checks read: the path, and each
+/// capture and `#[Query]` parameter with its type. A capture whose type is a
+/// class or an enum has no type here, so its value is not checked. Nothing
+/// else on the row is read for a link, and nothing past this function sees
+/// the row.
+fn foreign_route(
+    target: &nvs_hir::LinkTarget,
+    method: &str,
+    handler: &str,
+    span: Span,
+) -> Option<crate::routes::Route> {
+    use crate::routes::{ParamIn, Route, RouteParam};
+    let route = target
+        .routes
+        .iter()
+        .find(|route| route.method == method && route.path.is_some())?;
+    let path = route.path.clone()?;
+    let pieces = crate::routes::link_pieces(&path)?;
+    let param = |name: &str, source: ParamIn, required: bool| {
+        let declared = route.params.iter().find(|param| param.name == name);
+        RouteParam {
+            name: name.to_owned(),
+            source,
+            required,
+            ty: declared.and_then(|param| param.ty.clone()),
+            allowed: None,
+            parses: false,
+            cases: None,
+            default: None,
+        }
+    };
+    let mut params: Vec<RouteParam> = pieces
+        .iter()
+        .filter_map(|piece| match piece {
+            UrlPiece::Required(name) | UrlPiece::Rest(name) => {
+                Some(param(name, ParamIn::Path, true))
+            }
+            UrlPiece::Optional(name) => Some(param(name, ParamIn::Path, false)),
+            UrlPiece::Literal(_) => None,
+        })
+        .collect();
+    params.extend(
+        route
+            .params
+            .iter()
+            .filter(|declared| declared.query)
+            .map(|declared| param(&declared.name, ParamIn::Query, !declared.has_default)),
+    );
+    Some(Route {
+        verb: String::new(),
+        path,
+        handler: handler.to_owned(),
+        static_handler: route.is_static,
+        returns_value: false,
+        params,
+        access: None,
+        csrf: true,
+        slotted: false,
+        summary: None,
+        description: None,
+        returns: None,
+        bodies: Vec::new(),
+        tags: Vec::new(),
+        security: Vec::new(),
+        errors: Vec::new(),
+        example: None,
+        operation_id: None,
+        span,
+    })
 }
 
 /// `E0754` for a site whose method has no `#[Route]`, worded for the member

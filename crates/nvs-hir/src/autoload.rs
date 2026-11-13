@@ -579,10 +579,11 @@ impl AutoloadMap {
 
     /// Whether any declaration was collected at all — the fast exit for a
     /// program that never wrote one, which is every program until it needs a
-    /// framework.
+    /// framework. A map with only `autoload links` entries is not empty: a
+    /// link may still need one of them.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
+        self.entries.is_empty() && self.links.is_empty()
     }
 
     /// The file that declares `name`, and every path probed on the way to it.
@@ -593,44 +594,24 @@ impl AutoloadMap {
     /// name plus `.nvs`, compared to the on-disk entry exactly.
     #[must_use]
     pub fn resolve(&self, name: &QName) -> Probe {
-        let mut probe = Probe::default();
-        let segments = name.segments();
+        probe_entries(&self.entries, name)
+    }
 
-        let mut best: Option<&Entry> = None;
-        for entry in &self.entries {
-            if entry.segments.len() >= segments.len() {
-                continue;
-            }
-            if !segments.starts_with(&entry.segments) {
-                continue;
-            }
-            if best.is_none_or(|b| b.segments.len() < entry.segments.len()) {
-                best = Some(entry);
-            }
-        }
-        let Some(entry) = best else {
-            return probe;
-        };
+    /// [`Self::resolve`] over the `autoload links` half alone: the file a
+    /// link's target class is read from, never compiled
+    /// (`crate::link_targets`). The longest prefix wins, and the file name must
+    /// be spelled exactly, as for [`Self::resolve`].
+    #[must_use]
+    pub fn resolve_link(&self, name: &QName) -> Probe {
+        probe_entries(&self.links, name)
+    }
 
-        let suffix = &segments[entry.segments.len()..];
-        for root in &entry.roots {
-            let mut candidate = root.clone();
-            for segment in &suffix[..suffix.len() - 1] {
-                candidate.push(segment);
-            }
-            candidate.push(format!("{}.{SOURCE_EXTENSION}", suffix[suffix.len() - 1]));
-            probe.tried.push(candidate.clone());
-
-            let Some(canonical) = crate::requires::canonicalize(&candidate) else {
-                continue;
-            };
-            if !spelled_exactly(&canonical, root, suffix) {
-                continue;
-            }
-            probe.hit = Some(canonical);
-            return probe;
-        }
-
+    /// [`Self::resolve_link`], keeping what it probed in this map's
+    /// [`ProbeTrace`] for [`Self::resolve_recording`]'s reason: a file added
+    /// under a links root can change which file a link reads.
+    pub fn resolve_link_recording(&mut self, name: &QName) -> Probe {
+        let probe = self.resolve_link(name);
+        self.trace.probed.extend(probe.tried.iter().cloned());
         probe
     }
 
@@ -1378,6 +1359,50 @@ fn prefix_segments(base_dir: &Path, prefix: &str, span: Span) -> Result<Vec<Stri
 fn is_namespace_segment(name: &str) -> bool {
     let mut chars = name.chars();
     chars.next().is_some_and(|c| c.is_ascii_uppercase()) && chars.all(|c| c.is_ascii_alphanumeric())
+}
+
+/// The file among `entries` that declares `name`, and every path probed on the
+/// way to it: [`AutoloadMap::resolve`]'s probe, over either half of the map.
+fn probe_entries(entries: &[Entry], name: &QName) -> Probe {
+    let mut probe = Probe::default();
+    let segments = name.segments();
+
+    let mut best: Option<&Entry> = None;
+    for entry in entries {
+        if entry.segments.len() >= segments.len() {
+            continue;
+        }
+        if !segments.starts_with(&entry.segments) {
+            continue;
+        }
+        if best.is_none_or(|b| b.segments.len() < entry.segments.len()) {
+            best = Some(entry);
+        }
+    }
+    let Some(entry) = best else {
+        return probe;
+    };
+
+    let suffix = &segments[entry.segments.len()..];
+    for root in &entry.roots {
+        let mut candidate = root.clone();
+        for segment in &suffix[..suffix.len() - 1] {
+            candidate.push(segment);
+        }
+        candidate.push(format!("{}.{SOURCE_EXTENSION}", suffix[suffix.len() - 1]));
+        probe.tried.push(candidate.clone());
+
+        let Some(canonical) = crate::requires::canonicalize(&candidate) else {
+            continue;
+        };
+        if !spelled_exactly(&canonical, root, suffix) {
+            continue;
+        }
+        probe.hit = Some(canonical);
+        return probe;
+    }
+
+    probe
 }
 
 /// Whether the entry `canonicalize` landed on is spelled the way the name

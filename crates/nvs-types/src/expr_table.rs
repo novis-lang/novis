@@ -1356,6 +1356,11 @@ pub enum ExprInfo {
         /// The written position of the argument that fills `urlSigned`'s
         /// signing settings, and `None` for the two members that sign nothing.
         settings_at: Option<usize>,
+        /// The route's handler, `Class::method`, for a link to a class under an
+        /// `autoload links` root, and `None` for a route of this program. The
+        /// server finds the mount that serves this handler; the compiler never
+        /// reads a mount.
+        handler: Option<String>,
     },
     /// `Core\Router\Match::is` over a **written** method reference that
     /// resolved to a method with a route — [`ExprInfo::RouteLink`]'s fold for

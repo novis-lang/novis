@@ -1223,6 +1223,15 @@ pub mod link {
     /// written method reference, folded to the `Class::method` label its rows
     /// carry. Here beside the link symbols because the same pass folds it.
     pub const IS_SYMBOL: &str = "nvs_core_router_match_is_route";
+    /// `nvs_core_router_link_module` — `Core\Router::url` to a route of
+    /// another module, a class under an `autoload links` root. Argument 0 is
+    /// the prepared mount-relative path, as for [`SYMBOL`], and argument 1 is
+    /// the route's handler, `Class::method`, which the server maps to the
+    /// mount that serves it.
+    pub const MODULE_SYMBOL: &str = "nvs_core_router_link_module";
+    /// `nvs_core_router_link_module_absolute` — [`MODULE_SYMBOL`] for
+    /// `Core\Router::urlAbsolute`.
+    pub const MODULE_ABSOLUTE_SYMBOL: &str = "nvs_core_router_link_module_absolute";
     /// What separates two pieces. `\u{1}` because a path segment cannot hold
     /// one: `rule:routing/path-grammar`'s capture names are identifiers and its
     /// fixed segments come
@@ -1259,7 +1268,14 @@ pub mod link {
     /// roster out of the member rows and so would never reach an
     /// implementation no [`super::CoreMethod`] names — the same reason
     /// [`crate::registry::CONSTRUCTORS`] is chained there.
-    pub const SYMBOLS: [&str; 4] = [SYMBOL, ABSOLUTE_SYMBOL, SIGNED_SYMBOL, IS_SYMBOL];
+    pub const SYMBOLS: [&str; 6] = [
+        SYMBOL,
+        ABSOLUTE_SYMBOL,
+        SIGNED_SYMBOL,
+        IS_SYMBOL,
+        MODULE_SYMBOL,
+        MODULE_ABSOLUTE_SYMBOL,
+    ];
 }
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
@@ -1270,6 +1286,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_router_url_absolute" => (nvs_core_router_url_absolute as *const ()).cast(),
         "nvs_core_router_link" => (nvs_core_router_link as *const ()).cast(),
         "nvs_core_router_link_absolute" => (nvs_core_router_link_absolute as *const ()).cast(),
+        "nvs_core_router_link_module" => (nvs_core_router_link_module as *const ()).cast(),
+        "nvs_core_router_link_module_absolute" => {
+            (nvs_core_router_link_module_absolute as *const ()).cast()
+        }
         "nvs_core_router_url_signed" => (nvs_core_router_url_signed as *const ()).cast(),
         "nvs_core_router_link_signed" => (nvs_core_router_link_signed as *const ()).cast(),
         "nvs_core_router_signed_route" => (nvs_core_router_signed_route as *const ()).cast(),
@@ -1592,6 +1612,37 @@ nvs_runtime::nvs_helper! {
         let path = mounted(ctx, &substitute(template, &args[1], "urlAbsolute")?);
         with_origin(ctx, &path)
     }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Router::url` to a route of another module — see
+    /// [`link::MODULE_SYMBOL`]. No mount serves a handler of another module
+    /// yet, so the call throws and names the handler.
+    fn nvs_core_router_link_module(ctx, args: [3]) {
+        let _ = ctx;
+        let _ = link_template(args, "url")?;
+        Err(no_mount_serves(&args[1], "url"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Router::urlAbsolute` to a route of another module, which throws
+    /// as [`nvs_core_router_link_module`] does.
+    fn nvs_core_router_link_module_absolute(ctx, args: [3]) {
+        let _ = ctx;
+        let _ = link_template(args, "urlAbsolute")?;
+        Err(no_mount_serves(&args[1], "urlAbsolute"))
+    }
+}
+
+/// The error a link to another module throws when no mount serves its
+/// handler.
+fn no_mount_serves(handler: &Value, member: &str) -> Fault {
+    let handler = handler.as_text().unwrap_or_default();
+    Fault::thrown(format!(
+        "Core\\Router::{member}(): no mount serves `{handler}`. A link to another module needs \
+         a `[[server.mount]]` in `nvs.toml` that serves the module of this route"
+    ))
 }
 
 /// `path` with the unit's configured origin in front — the half of

@@ -51,6 +51,9 @@ pub struct Module {
     /// Every `type` alias's fully-substituted expansion (see
     /// [`crate::aliases`]).
     pub aliases: crate::aliases::AliasTable,
+    /// Every class a link names under an `autoload links` root, read for its
+    /// routes and never compiled (see [`crate::link_targets`]).
+    pub link_targets: crate::link_targets::LinkTargets,
 }
 
 /// Resolves parsed files' top-level namespace/`use`/declaration structure

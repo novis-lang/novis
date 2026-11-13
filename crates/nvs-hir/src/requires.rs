@@ -419,6 +419,9 @@ fn walk(
     let mut scan: Option<Span> = None;
     let mut probed: FxHashSet<QName> = FxHashSet::default();
     let mut autoload_map: Option<AutoloadMap> = None;
+    // The classes a link names under an `autoload links` root, each read for
+    // its routes and never queued (`crate::link_targets`).
+    let mut link_targets = crate::link_targets::LinkTargets::default();
     let mut carried = carried_source(extensions);
     let components = component_namespaces(extensions);
 
@@ -636,6 +639,28 @@ fn walk(
                 next = Some((name, span, path));
                 break;
             }
+            // A name no ordinary root places may be one a links root does.
+            // Its file is loaded into the map, so its text joins the unit's
+            // revalidation set, and read for its routes. It never joins
+            // `work`, so nothing in it is collected or compiled.
+            if let Some(path) = built.resolve_link_recording(&name).hit {
+                let new_id = match by_path.get(&path) {
+                    Some(&id) => Some(id),
+                    None => map.load(&path).ok(),
+                };
+                let Some(new_id) = new_id else {
+                    continue;
+                };
+                let new_stmts = parse_fresh(&mut parses, map.file(new_id), diags);
+                let target = crate::link_targets::read(
+                    &new_stmts,
+                    map.file(new_id),
+                    &name,
+                    new_id,
+                    path,
+                );
+                link_targets.insert(name, target);
+            }
         }
         let Some((name, span, path)) = next else {
             break;
@@ -661,6 +686,7 @@ fn walk(
     let mut module = resolver.into_module();
     module.graph = hierarchy.resolve(&module.symbols, diags);
 
+    members.link_to(&link_targets);
     for file in &loaded {
         members.check(
             &file.stmts,
@@ -673,6 +699,8 @@ fn walk(
     }
     module.members = members.into_table();
     module.aliases = aliases.resolve(diags);
+    link_targets.mark_links_only(diags);
+    module.link_targets = link_targets;
 
     (module, loaded, autoload_map.unwrap_or_default())
 }
@@ -1987,7 +2015,7 @@ fn require_path_segments(
 /// own diagnostic belongs to `nvs_types::expr`'s `ExprKind::Str` arm, and a
 /// best-effort path that names no file is already
 /// `code::E_REQUIRE_TARGET_NOT_FOUND`'s case.
-fn cook_quoted(src: &SourceFile, span: Span) -> Option<String> {
+pub(crate) fn cook_quoted(src: &SourceFile, span: Span) -> Option<String> {
     let raw = src.span_text(span)?;
     let quote = raw.chars().next()?;
     if quote != '\'' && quote != '"' || raw.len() < 2 || !raw.ends_with(quote) {

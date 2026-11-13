@@ -211,6 +211,9 @@ pub struct MemberResolver<'a> {
     /// import — [`crate::hierarchy::undeclared_name`]'s `core`. A resolver
     /// built with [`Self::new`] holds [`CoreRoster::Trusted`] and offers none.
     core: CoreRoster<'a>,
+    /// The classes a link names under an `autoload links` root
+    /// ([`crate::link_targets`]). Empty until [`Self::link_to`].
+    links: crate::link_targets::LinkTargets,
 }
 
 impl Default for MemberResolver<'_> {
@@ -233,6 +236,7 @@ impl Default for MemberResolver<'_> {
         Self {
             table,
             core: CoreRoster::Trusted,
+            links: crate::link_targets::LinkTargets::default(),
         }
     }
 }
@@ -261,6 +265,13 @@ impl<'a> MemberResolver<'a> {
         let entry = self.table.entry(class.name.clone());
         entry.methods.extend(class.methods.iter().cloned());
         entry.consts.extend(class.consts.iter().cloned());
+    }
+
+    /// Gives [`Self::check`] the classes a link may name under an `autoload
+    /// links` root. Their route arguments are checked against `targets`, and
+    /// left to `nvs_types::links` for the route itself.
+    pub fn link_to(&mut self, targets: &crate::link_targets::LinkTargets) {
+        self.links = targets.clone();
     }
 
     /// Consumes the resolver, returning the [`MemberTable`] it collected.
@@ -410,6 +421,7 @@ impl<'a> MemberResolver<'a> {
             refused_toplevel: refused_toplevel_names(stmts, src),
             fn_self: None,
             strict_docs,
+            links: &self.links,
             diags,
         };
         check_stmts(stmts, src, None, &[], &FxHashMap::default(), &mut env);
@@ -442,6 +454,8 @@ struct Env<'a> {
     /// reading one is the same mistake seen from its use site, so `E0320` and
     /// `E0319` skip a name in here rather than reporting the cascade.
     refused_toplevel: FxHashSet<String>,
+    /// [`MemberResolver::link_to`]'s classes.
+    links: &'a crate::link_targets::LinkTargets,
     /// The self-name of the `fn` literal whose body is being walked
     /// (`rule:types/anonymous-function-self-name`), or `None` outside one.
     ///
@@ -1084,7 +1098,14 @@ fn walk_args_admitting_method_ref(
                 })
             )
         });
+    let link = link_route_index(class, method, list, src, ctx);
     for (index, Arg { value, .. }) in list.iter().enumerate() {
+        if let Some((at, member)) = link
+            && at == index
+            && links_root_target(value, member, src, ctx, env)
+        {
+            continue;
+        }
         match (&value.kind, reference == Some(index)) {
             (ExprKind::StaticCall { class: named, .. }, true) => {
                 walk_class_side(named, src, ctx, env);
@@ -1092,6 +1113,104 @@ fn walk_args_admitting_method_ref(
             _ => walk_expr(value, src, ctx, env),
         }
     }
+}
+
+/// `Core\Router`'s three link builders, whose route argument may name a class
+/// under an `autoload links` root.
+const LINK_BUILDERS: &[&str] = &["url", "urlAbsolute", "urlSigned"];
+
+/// The written position of a `Core\Router` link's route argument, and which
+/// link builder it is: the argument written `route:`, or else the first one.
+fn link_route_index<'s>(
+    class: &Expr,
+    method: &MemberName,
+    list: &[Arg],
+    src: &'s SourceFile,
+    ctx: &Ctx<'_>,
+) -> Option<(usize, &'s str)> {
+    let (ExprKind::ConstFetch(class_name), MemberName::Ident(name_span)) = (&class.kind, method)
+    else {
+        return None;
+    };
+    let member = src.span_text(*name_span)?;
+    if !LINK_BUILDERS.contains(&member)
+        || resolve_ref(name_text(src, class_name), ctx.namespace, ctx.imports).to_string()
+            != r"Core\Router"
+    {
+        return None;
+    }
+    let named = list
+        .iter()
+        .position(|arg| arg.name.is_some_and(|name| src.span_text(name) == Some("route")));
+    let first = list
+        .first()
+        .filter(|arg| arg.name.is_none() && !arg.spread)
+        .map(|_| 0);
+    Some((named.or(first)?, member))
+}
+
+/// Checks a link's route argument when it names a class under an `autoload
+/// links` root, and whether it did. Such a class is not declared, so the
+/// ordinary walk would call it missing.
+///
+/// `url` and `urlAbsolute` may name it. The method must exist on the class,
+/// and `nvs_types::links` checks its route. `urlSigned` may not, because a
+/// signature is checked with the key of the program that made it
+/// (`rule:core-classes/router-signed-url`).
+fn links_root_target(
+    value: &Expr,
+    member: &str,
+    src: &SourceFile,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> bool {
+    let ExprKind::StaticCall {
+        class,
+        method: MemberName::Ident(method_span),
+        args: CallArgs::MethodRef,
+        ..
+    } = &value.kind
+    else {
+        return false;
+    };
+    let ExprKind::ConstFetch(class_name) = &class.kind else {
+        return false;
+    };
+    let qname = resolve_ref(name_text(src, class_name), ctx.namespace, ctx.imports);
+    if env.symbols.contains(&qname) {
+        return false;
+    }
+    let Some(target) = env.links.get(&qname) else {
+        return false;
+    };
+    let name = src.span_text(*method_span).unwrap_or_default();
+    if member == "urlSigned" {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_SIGNED_LINK_TO_ANOTHER_MODULE,
+                format!(
+                    "`Core\\Router::urlSigned` cannot link to `{qname}::{name}`, which is under \
+                     an `autoload links` root"
+                ),
+            )
+            .with_primary(value.span, "a route of another module")
+            .with_help(
+                "a signed link is checked by the module that created it. Call `urlSigned` in \
+                 the module that declares this route, or link with `Core\\Router::url`",
+            ),
+        );
+        return true;
+    }
+    if !target.methods.iter().any(|method| method == name) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_UNDEFINED_MEMBER,
+                format!("`{qname}` has no method named `{name}`"),
+            )
+            .with_primary(value.span, "referenced here"),
+        );
+    }
+    true
 }
 
 /// Which argument of this static call is a method reference, if any is.

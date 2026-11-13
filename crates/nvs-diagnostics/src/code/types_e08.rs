@@ -1230,4 +1230,25 @@ codes! {
          not secret, such as an id or a name. Keep the secret in the element value, with an \
          element type such as `array<secret string>`.",
     );
+    /// A class under an `autoload links` root, written anywhere but the route
+    /// argument of `Core\Router::url` or `Core\Router::urlAbsolute`. A links
+    /// root is read for its routes and never compiled, so the program has no
+    /// such class to call, construct or type a value with.
+    pub const E_LINKS_ONLY_CLASS: Code = Code::new("E0897").card(
+        "A class under an `autoload links` root can only be the route of a link. Write it as \
+         the first argument of `Core\\Router::url` or `Core\\Router::urlAbsolute`, such as \
+         `Core\\Router::url(Shop\\View\\Index::render)`. The program does not compile the \
+         classes under that root. To use the class in any other way, declare its root with \
+         `autoload` and no `links`.",
+    );
+    /// `Core\Router::urlSigned` given a route of a class under an `autoload
+    /// links` root. A signature is checked with the key of the program that
+    /// made it, so one program cannot sign a link another program trusts
+    /// (`rule:core-classes/router-signed-url`). `signedRoute` takes no route,
+    /// so it has no such call.
+    pub const E_SIGNED_LINK_TO_ANOTHER_MODULE: Code = Code::new("E0898").card(
+        "`Core\\Router::urlSigned` cannot link to a route of another module. The module that \
+         checks a signed link must also create it. Call `urlSigned` in the module that \
+         declares the route, or link with `Core\\Router::url`.",
+    );
 }

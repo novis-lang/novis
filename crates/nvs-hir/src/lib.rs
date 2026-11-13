@@ -62,6 +62,7 @@ pub mod hierarchy;
 pub mod imports;
 pub mod interfaces;
 pub mod lenders;
+pub mod link_targets;
 pub mod members;
 pub mod qname;
 pub mod requires;
@@ -77,6 +78,7 @@ pub use hierarchy::{
 };
 pub use imports::{ImportSite, candidates, import_site};
 pub use lenders::Lender;
+pub use link_targets::{LinkParam, LinkRoute, LinkTarget, LinkTargets};
 pub use members::{ClassMembers, MemberResolver, MemberTable};
 pub use qname::QName;
 pub use requires::{

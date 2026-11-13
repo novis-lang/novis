@@ -393,6 +393,7 @@ impl<'a> Lowering<'a> {
                     spellings,
                     params_at,
                     settings_at,
+                    handler,
                     ..
                 }) = self.exprs.lookup(expr.span)
                 {
@@ -402,6 +403,7 @@ impl<'a> Lowering<'a> {
                         signed: signed.clone(),
                         params_at: *params_at,
                         settings_at: *settings_at,
+                        handler: handler.clone(),
                     };
                     return self.lower_route_link(&prepared, link, args, env, cur);
                 }
@@ -4568,6 +4570,7 @@ impl<'a> Lowering<'a> {
             signed,
             params_at,
             settings_at,
+            handler,
         } = link;
         let mark = self.temporaries_mark();
         let (template, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(prepared.to_owned()));
@@ -4585,6 +4588,13 @@ impl<'a> Lowering<'a> {
             panic!("nvs-ir: a resolved route link has a written argument list")
         };
         let mut lowered = vec![template];
+        // A route of another module: the handler follows the path, and the
+        // server picks the mount that serves it.
+        if let Some(handler) = &handler {
+            let (handler, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(handler.clone()));
+            self.account_for_arg(handler, Ty::Str, ArgOwnership::Borrowed, false, *cur);
+            lowered.push(handler);
+        }
         if let Some(name) = &signed {
             let (name, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(name.clone()));
             self.account_for_arg(name, Ty::Str, ArgOwnership::Borrowed, false, *cur);
@@ -4636,10 +4646,12 @@ impl<'a> Lowering<'a> {
             self.lower_signing_settings(&list[at].value, &[], env, cur, &mut settings);
         }
         lowered.extend(settings);
-        let symbol = match (signed.is_some(), absolute) {
-            (true, _) => nvs_types::CORE_ROUTE_LINK_SIGNED,
-            (false, true) => nvs_types::CORE_ROUTE_LINK_ABSOLUTE,
-            (false, false) => nvs_types::CORE_ROUTE_LINK,
+        let symbol = match (signed.is_some(), handler.is_some(), absolute) {
+            (true, _, _) => nvs_types::CORE_ROUTE_LINK_SIGNED,
+            (false, true, true) => nvs_types::CORE_ROUTE_LINK_MODULE_ABSOLUTE,
+            (false, true, false) => nvs_types::CORE_ROUTE_LINK_MODULE,
+            (false, false, true) => nvs_types::CORE_ROUTE_LINK_ABSOLUTE,
+            (false, false, false) => nvs_types::CORE_ROUTE_LINK,
         };
         let result = self.emit_fallible(
             *cur,
@@ -7994,6 +8006,9 @@ struct RouteLink {
     /// The written position of the argument that fills `urlSigned`'s signing
     /// settings.
     settings_at: Option<usize>,
+    /// The route's handler, for a link to another module. It is passed after
+    /// the path, and the call goes to `nvs_types::CORE_ROUTE_LINK_MODULE`.
+    handler: Option<String>,
 }
 
 /// The one value every member of an [`TestShape::Any`]/[`TestShape::All`] chain
