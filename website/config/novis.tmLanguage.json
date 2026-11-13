@@ -588,6 +588,10 @@
         },
         {
           "name": "keyword.other.nvs",
+          "match": "(?<![$\\w])(?<!->)(?<!::)links\\b(?=\\s+(?:discover\\b|['\"]))"
+        },
+        {
+          "name": "keyword.other.nvs",
           "match": "(?<![$\\w])(?:get|set)\\b(?=\\s*(?:\\{|=>))"
         }
       ]

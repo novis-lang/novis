@@ -1974,7 +1974,8 @@ pub struct UseDecl {
 }
 
 /// `autoload 'Prefix' from 'a', 'b';` or `autoload discover 'glob';` — the
-/// two forms of `rule:programs/autoload`.
+/// two forms of `rule:programs/autoload` — each of which may be written
+/// `autoload links ...`.
 ///
 /// Every string here is a *span*, not a cooked value, exactly as
 /// [`ExprKind::Str`]'s is: the parser records what was written and
@@ -1984,6 +1985,9 @@ pub struct UseDecl {
 pub struct AutoloadDecl {
     /// The whole declaration, `autoload` through the `;`.
     pub span: Span,
+    /// Whether `links` was written after `autoload`: the roots are read for the
+    /// routes a link names, and never compiled.
+    pub links: bool,
     /// Which of the two forms was written.
     pub kind: AutoloadKind,
 }
@@ -2003,10 +2007,15 @@ pub enum AutoloadKind {
         /// still records what it could read.
         roots: Vec<Span>,
     },
-    /// `autoload discover '../../*/src';` — each directory the glob matches
-    /// becomes a root whose matched segment is its own prefix. `discover` is
-    /// contextual, not a reserved word: it means this only after `autoload`.
+    /// `autoload discover '../../*/src';` or `autoload discover 'Prefix' from
+    /// '../../*/src';` — each directory the glob matches becomes a root whose
+    /// matched segment is its own prefix, behind the fixed prefix when one is
+    /// written. `discover` is contextual, not a reserved word: it means this
+    /// only after `autoload`.
     Discover {
+        /// The fixed prefix's literal, quotes included, when `'Prefix' from`
+        /// was written before the glob.
+        prefix: Option<Span>,
         /// The glob's literal, quotes included. Whether it holds exactly one
         /// `*` occupying a whole segment is `nvs_hir`'s check, not the
         /// parser's — the answer needs the cooked string.

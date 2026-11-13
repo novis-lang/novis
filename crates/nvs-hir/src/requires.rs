@@ -465,10 +465,11 @@ fn walk(
                 let file_sites: Vec<Site> = harvest
                     .autoloads
                     .into_iter()
-                    .map(|(kind, span)| Site {
+                    .map(|(kind, span, links)| Site {
                         base_dir: base_dir.clone(),
                         kind,
                         span,
+                        links,
                     })
                     .collect();
                 // The map is fixed the moment it is first consulted. A
@@ -852,8 +853,9 @@ struct Harvest {
     /// `code::E_REQUIRE_PATH_NOT_STATIC`.
     dynamic: Vec<Span>,
     /// Each `autoload` declaration, cooked, still needing the declaring
-    /// file's own directory bound to it — [`autoload::Site`]'s `base_dir`.
-    autoloads: Vec<(autoload::SiteKind, Span)>,
+    /// file's own directory bound to it — [`autoload::Site`]'s `base_dir` —
+    /// with its span and whether it was written `autoload links`.
+    autoloads: Vec<(autoload::SiteKind, Span, bool)>,
     /// Every name used where a class, interface, enum or `type` alias is
     /// meant, already resolved through the namespace and imports in force
     /// where it was written.
@@ -1343,17 +1345,30 @@ fn record_autoload(decl: &AutoloadDecl, src: &SourceFile, out: &mut Harvest) {
                 roots,
             }
         }
-        AutoloadKind::Discover { glob: literal } => {
+        AutoloadKind::Discover {
+            prefix,
+            glob: literal,
+        } => {
             let Some(glob) = cook(*literal) else {
                 return;
             };
+            let prefix = match prefix {
+                None => None,
+                Some(written) => {
+                    let Some(prefix) = cook(*written) else {
+                        return;
+                    };
+                    Some((prefix, *written))
+                }
+            };
             autoload::SiteKind::Discover {
+                prefix,
                 glob,
                 literal: *literal,
             }
         }
     };
-    out.autoloads.push((kind, decl.span));
+    out.autoloads.push((kind, decl.span, decl.links));
 }
 
 /// Records every name a method declaration mentions: its attribute groups,
@@ -2721,6 +2736,15 @@ class Unreached {}
             base_dir: dir.path.to_path_buf(),
             kind: kind(span),
             span,
+            links: false,
+        }
+    }
+
+    /// [`site`], written `autoload links`.
+    fn links(dir: &TempDir, id: SourceId, kind: impl FnOnce(Span) -> autoload::SiteKind) -> Site {
+        Site {
+            links: true,
+            ..site(dir, id, kind)
         }
     }
 
@@ -2736,7 +2760,22 @@ class Unreached {}
 
     fn discover(glob: &str) -> impl FnOnce(Span) -> autoload::SiteKind {
         let glob = glob.to_owned();
-        move |literal| autoload::SiteKind::Discover { glob, literal }
+        move |literal| autoload::SiteKind::Discover {
+            prefix: None,
+            glob,
+            literal,
+        }
+    }
+
+    /// [`discover`], with `'Prefix' from` written before the glob.
+    fn discover_under(prefix: &str, glob: &str) -> impl FnOnce(Span) -> autoload::SiteKind {
+        let prefix = prefix.to_owned();
+        let glob = glob.to_owned();
+        move |literal| autoload::SiteKind::Discover {
+            prefix: Some((prefix, literal)),
+            glob,
+            literal,
+        }
     }
 
     fn scratch_id(map: &mut SourceMap) -> SourceId {
@@ -3179,6 +3218,7 @@ class Unreached {}
                 "  Acme   explicit  override\n",
                 "  Gone   explicit  absent\n",
                 "  Other  discover  Other/src\n",
+                "links (0)\n",
                 "shadowed (1)\n",
                 "  Acme   discover  Acme/src\n",
                 "skipped (3)\n",
@@ -3187,6 +3227,142 @@ class Unreached {}
                 "  vendor    not a PascalCase namespace segment\n",
                 "missing (1)\n",
                 "  Gone   absent\n",
+            )
+        );
+    }
+
+    /// `autoload discover 'Framework' from './*/src';` maps `Shop/src` to
+    /// `Framework\Shop`, and the bare directory name maps nothing.
+    #[test]
+    fn discover_puts_its_prefix_in_front_of_each_folder() {
+        let dir = TempDir::new("autoload-discover-prefix");
+        dir.write(
+            "Shop/src/View/Index.nvs",
+            "<?nvs\nnamespace Framework\\Shop\\View;\nclass Index {}\n",
+        );
+
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let mut diags = Diagnostics::new();
+        let built = AutoloadMap::build(
+            &[site(&dir, id, discover_under("Framework", "./*/src"))],
+            &mut diags,
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+
+        let hit = built
+            .resolve(&QName::parse(r"Framework\Shop\View\Index"))
+            .hit
+            .expect("the prefixed module resolves");
+        assert!(hit.ends_with(Path::new("Shop").join("src").join("View").join("Index.nvs")));
+        assert!(
+            built
+                .resolve(&QName::parse(r"Shop\View\Index"))
+                .tried
+                .is_empty()
+        );
+
+        // The fixed prefix is held to the shape an explicit one is.
+        let mut diags = Diagnostics::new();
+        let _ = AutoloadMap::build(
+            &[site(&dir, id, discover_under("App\\*", "./*/src"))],
+            &mut diags,
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_AUTOLOAD_PREFIX_SHAPE)),
+            "{diags:?}"
+        );
+    }
+
+    /// The module's own root is ordinary, so a links glob over every module
+    /// skips it. A links root never resolves a name, and two links
+    /// declarations of one prefix with different roots collide.
+    #[test]
+    fn an_ordinary_root_beats_a_links_root_at_the_same_prefix() {
+        let dir = TempDir::new("autoload-links-beaten");
+        for module in ["Blog", "Shop"] {
+            dir.write(
+                &format!("{module}/src/Page.nvs"),
+                &format!("<?nvs\nnamespace Framework\\{module};\nclass Page {{}}\n"),
+            );
+        }
+
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let mut diags = Diagnostics::new();
+        let built = AutoloadMap::build(
+            &[
+                links(&dir, id, discover_under("Framework", "./*/src")),
+                site(&dir, id, prefix(r"Framework\Blog", &["./Blog/src"])),
+            ],
+            &mut diags,
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+
+        // The ordinary root resolves, and the links root does not.
+        assert!(built.resolve(&QName::parse(r"Framework\Blog\Page")).hit.is_some());
+        assert!(
+            built
+                .resolve(&QName::parse(r"Framework\Shop\Page"))
+                .tried
+                .is_empty()
+        );
+        assert!(built.enumerate().iter().all(|(name, _)| !name.to_string().contains("Shop")));
+
+        let mut diags = Diagnostics::new();
+        let _ = AutoloadMap::build(
+            &[
+                links(&dir, id, prefix(r"Framework\Shop", &["./Shop/src"])),
+                links(&dir, id, prefix(r"Framework\Shop", &["./Blog/src"])),
+            ],
+            &mut diags,
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_DUPLICATE_AUTOLOAD_PREFIX)),
+            "{diags:?}"
+        );
+    }
+
+    /// `nvs check --autoload-map` lists links roots in their own section, a
+    /// links prefix an ordinary one owns under `shadowed`, and a missing links
+    /// root under `missing`.
+    #[test]
+    fn the_autoload_map_lists_links_roots_apart() {
+        let dir = TempDir::new("autoload-links-render");
+        for module in ["Blog", "Shop"] {
+            fs::create_dir_all(dir.path.join(module).join("src")).expect("create module");
+        }
+
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let mut diags = Diagnostics::new();
+        let built = AutoloadMap::build(
+            &[
+                site(&dir, id, prefix(r"Framework\Blog", &["./Blog/src"])),
+                links(&dir, id, discover_under("Framework", "./*/src")),
+                links(&dir, id, prefix(r"Framework\Gone", &["./Gone/src"])),
+            ],
+            &mut diags,
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+
+        assert_eq!(
+            built.render(&dir.path),
+            concat!(
+                "prefixes (1)\n",
+                "  Framework\\Blog  explicit  Blog/src\n",
+                "links (2)\n",
+                "  Framework\\Gone  explicit  Gone/src\n",
+                "  Framework\\Shop  discover  Shop/src\n",
+                "shadowed (1)\n",
+                "  Framework\\Blog  links     Blog/src\n",
+                "skipped (0)\n",
+                "missing (1)\n",
+                "  Framework\\Gone  Gone/src\n",
             )
         );
     }
@@ -3296,6 +3472,7 @@ class Unreached {}
                 ],
             },
             span: at(0, 38),
+            links: false,
         };
         assert_eq!(
             roots.directories(),
@@ -3328,6 +3505,7 @@ class Unreached {}
                 roots: vec![(".".to_owned(), at(25, 28))],
             },
             span: at(0, 29),
+            links: false,
         };
         assert_eq!(
             braced.namespace(),

@@ -70,8 +70,9 @@ pub(crate) struct Args {
     // after it is not a document.
     #[arg(long, conflicts_with = "autoload_map")]
     json: bool,
-    /// Print the resolved `autoload` map instead of `no errors`,
-    /// including what a `discover` glob skipped and what was shadowed.
+    /// Print the resolved `autoload` map instead of `no errors`.
+    /// The `links` section lists the roots an `autoload links` declaration
+    /// adds. The map also lists what a `discover` glob skipped and what was shadowed.
     #[arg(long)]
     autoload_map: bool,
     /// Also report every public member with no `///` doc comment above it.

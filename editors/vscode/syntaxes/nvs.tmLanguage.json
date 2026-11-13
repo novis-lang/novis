@@ -385,6 +385,11 @@
           "match": "(?<![$\\w])(?<!->)(?<!::)covariant\\b(?=\\s+[?\\\\A-Za-z_])"
         },
         { "name": "keyword.other.nvs", "match": "(?<![$\\w])(?:from|discover)\\b(?=\\s*['\"$])" },
+        {
+          "comment": "`links` is a keyword only after `autoload`, before a quoted prefix or `discover` (crates/nvs-syntax/src/parser/decl.rs, parse_autoload_decl). Anywhere else it is a name, such as a method `links()`.",
+          "name": "keyword.other.nvs",
+          "match": "(?<![$\\w])(?<!->)(?<!::)links\\b(?=\\s+(?:discover\\b|['\"]))"
+        },
         { "name": "keyword.other.nvs", "match": "(?<![$\\w])(?:get|set)\\b(?=\\s*(?:\\{|=>))" }
       ]
     },

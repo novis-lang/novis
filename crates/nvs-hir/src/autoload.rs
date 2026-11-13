@@ -27,6 +27,13 @@
 //!   every site at once rather than accepting them one at a time: the
 //!   explicit set has to be complete before a glob can know what to skip,
 //!   and that is exactly what makes the map order-independent.
+//! - **`autoload links` roots are a second half of the map,** built by the
+//!   same pass so its duplicates collide the same way, and read by nothing
+//!   that resolves, enumerates or claims a file. **An ordinary entry beats a
+//!   links one at the same prefix**, which is how a links glob over every
+//!   module passes over the module's own root and the framework's.
+//! - **`discover` may put a fixed prefix in front of each directory's name**,
+//!   held to the shape an explicit prefix is.
 //! - **A discovered directory whose name is not a legal namespace segment is
 //!   skipped, not diagnosed.** A glob over a filesystem inevitably sweeps
 //!   `.git`, `vendor` and `node_modules`; diagnosing them would make the form
@@ -55,8 +62,11 @@
 //!   App       explicit  override
 //!   Billing   explicit  billing/src
 //!   Plugin    discover  Plugin/src
-//! shadowed (1)
+//! links (1)
+//!   Shop      discover  Shop/src
+//! shadowed (2)
 //!   App       discover  App/src
+//!   Plugin    links     Plugin/src
 //! skipped (1)
 //!   vendor    not a PascalCase namespace segment
 //! missing (1)
@@ -112,6 +122,9 @@ pub struct Site {
     pub kind: SiteKind,
     /// The whole declaration, for a diagnostic to point at.
     pub span: Span,
+    /// Whether it was written `autoload links`: its roots go to the map's
+    /// links half, which nothing compiles.
+    pub links: bool,
 }
 
 /// The forms a [`Site`] takes, with every literal already decoded.
@@ -127,8 +140,11 @@ pub enum SiteKind {
         /// that wrote it, quotes included.
         roots: Vec<(String, Span)>,
     },
-    /// `autoload discover '<glob>';`
+    /// `autoload discover '<glob>';` or `autoload discover 'Prefix' from '<glob>';`
     Discover {
+        /// The fixed prefix each matched directory's name is put behind, with
+        /// its literal, quotes included.
+        prefix: Option<(String, Span)>,
         /// The glob, containing exactly one `*` occupying a whole segment.
         glob: String,
         /// The glob's literal, quotes included.
@@ -177,7 +193,7 @@ impl Site {
                 let first = roots.first().map(|(_, dir)| (*literal, dir.clone()));
                 first.into_iter().chain(roots).collect()
             }
-            SiteKind::Discover { glob, literal } => {
+            SiteKind::Discover { glob, literal, .. } => {
                 let parts = glob_parts(glob);
                 star_segment(&parts)
                     .ok()
@@ -273,6 +289,15 @@ pub struct AutoloadMap {
     /// already owned, with the root the glob would have given it — the
     /// vendor-override rule, made visible.
     shadowed: Vec<(String, PathBuf)>,
+    /// The prefixes `autoload links` declarations map, apart from
+    /// [`Self::entries`] so nothing that resolves, enumerates or claims a file
+    /// ever reads one. A link names a route under one of them, and that is all
+    /// they are for.
+    links: Vec<Entry>,
+    /// Every prefix an `autoload links` declaration produced that an ordinary
+    /// entry already owned, with its first root: the module's own root and the
+    /// framework's are ordinary, and a links glob over every module skips them.
+    links_shadowed: Vec<(String, PathBuf)>,
     /// What *this program's* resolution probed, as opposed to what the
     /// declarations above say it could: written only by
     /// [`Self::resolve_recording`].
@@ -383,18 +408,46 @@ impl AutoloadMap {
     /// where those are already reported.
     #[must_use]
     pub fn build_borrowing(own: &[Site], borrowed: &[Site], diags: &mut Diagnostics) -> Self {
-        let mut map = Self {
-            sites: own.to_vec(),
-            ..Self::default()
-        };
-        let mut unreported = Diagnostics::new();
         let ordered: Vec<(&Site, bool)> = own
             .iter()
             .map(|site| (site, false))
             .chain(borrowed.iter().map(|site| (site, true)))
             .collect();
+        let (ordinary, links): (Vec<_>, Vec<_>) =
+            ordered.into_iter().partition(|(site, _)| !site.links);
 
-        for &(site, is_borrowed) in &ordered {
+        let mut map = Self::default();
+        map.fill(&ordinary, diags);
+        map.sites = own.to_vec();
+
+        // The links half is built by the same pass, so two links declarations
+        // of one prefix collide exactly as two ordinary ones do. Then an
+        // ordinary entry beats a links one at the same prefix.
+        let mut half = Self::default();
+        half.fill(&links, diags);
+        map.skipped.extend(half.skipped);
+        map.trace.probed.extend(half.trace.probed);
+        map.trace.listed.extend(half.trace.listed);
+        for entry in half.entries {
+            if map.entry(&entry.segments).is_some() {
+                if !entry.borrowed {
+                    let root = entry.roots.first().cloned().unwrap_or_default();
+                    map.links_shadowed.push((entry.segments.join("\\"), root));
+                }
+            } else {
+                map.links.push(entry);
+            }
+        }
+        map
+    }
+
+    /// Adds the entries of `ordered`'s declarations to this map: every
+    /// explicit prefix first, then every `discover` glob, which skips a prefix
+    /// an explicit one already owns.
+    fn fill(&mut self, ordered: &[(&Site, bool)], diags: &mut Diagnostics) {
+        let map = self;
+        let mut unreported = Diagnostics::new();
+        for &(site, is_borrowed) in ordered {
             let SiteKind::Prefix { prefix, roots, .. } = &site.kind else {
                 continue;
             };
@@ -429,14 +482,25 @@ impl AutoloadMap {
             });
         }
 
-        for &(site, is_borrowed) in &ordered {
-            let SiteKind::Discover { glob, .. } = &site.kind else {
+        for &(site, is_borrowed) in ordered {
+            let SiteKind::Discover { glob, prefix, .. } = &site.kind else {
                 continue;
             };
             let sink = if is_borrowed {
                 &mut unreported
             } else {
                 &mut *diags
+            };
+            // The fixed prefix is held to the shape an explicit one is.
+            let fixed = match prefix {
+                None => Vec::new(),
+                Some((prefix, _)) => match prefix_segments(&site.base_dir, prefix, site.span) {
+                    Ok(segments) => segments,
+                    Err(diagnostic) => {
+                        sink.report(diagnostic);
+                        continue;
+                    }
+                },
             };
             let expanded = discover(&site.base_dir, glob, site.span, sink);
             if !is_borrowed {
@@ -445,7 +509,9 @@ impl AutoloadMap {
                 map.trace.listed.extend(expanded.listed);
             }
             for (name, root) in expanded.found {
-                let segments = vec![name.clone()];
+                let mut segments = fixed.clone();
+                segments.push(name);
+                let name = segments.join("\\");
                 match map.entry(&segments).map(|e| (e.span, e.explicit)) {
                     // A borrowed glob that repeats a prefix already taken adds
                     // nothing and says nothing.
@@ -468,8 +534,6 @@ impl AutoloadMap {
                 }
             }
         }
-
-        map
     }
 
     /// The declarations this program wrote, in the order the walk met them —
@@ -744,8 +808,19 @@ impl AutoloadMap {
 
         let mut entries: Vec<&Entry> = self.entries.iter().collect();
         entries.sort_by(|a, b| a.segments.cmp(&b.segments));
-        let mut shadowed = self.shadowed.clone();
-        shadowed.sort_by(|a, b| a.0.cmp(&b.0));
+        let mut links: Vec<&Entry> = self.links.iter().collect();
+        links.sort_by(|a, b| a.segments.cmp(&b.segments));
+        let mut shadowed: Vec<(String, PathBuf, &str)> = self
+            .shadowed
+            .iter()
+            .map(|(prefix, root)| (prefix.clone(), root.clone(), "discover"))
+            .chain(
+                self.links_shadowed
+                    .iter()
+                    .map(|(prefix, root)| (prefix.clone(), root.clone(), "links")),
+            )
+            .collect();
+        shadowed.sort_by(|a, b| (&a.0, a.2).cmp(&(&b.0, b.2)));
         let skipped: Vec<(String, &str)> = self
             .skipped
             .iter()
@@ -754,14 +829,14 @@ impl AutoloadMap {
 
         let width = entries
             .iter()
+            .chain(&links)
             .map(|entry| entry.segments.join("\\").chars().count())
-            .chain(shadowed.iter().map(|(prefix, _)| prefix.chars().count()))
+            .chain(shadowed.iter().map(|(prefix, ..)| prefix.chars().count()))
             .max()
             .unwrap_or(0);
 
         let mut out = String::new();
-        let _ = writeln!(out, "prefixes ({})", entries.len());
-        for entry in &entries {
+        let row = |out: &mut String, entry: &Entry| {
             let roots: Vec<String> = entry.roots.iter().map(|root| show(root, &base)).collect();
             let _ = writeln!(
                 out,
@@ -774,11 +849,20 @@ impl AutoloadMap {
                 },
                 roots.join(", "),
             );
+        };
+        let _ = writeln!(out, "prefixes ({})", entries.len());
+        for entry in &entries {
+            row(&mut out, entry);
+        }
+
+        let _ = writeln!(out, "links ({})", links.len());
+        for entry in &links {
+            row(&mut out, entry);
         }
 
         let _ = writeln!(out, "shadowed ({})", shadowed.len());
-        for (prefix, root) in &shadowed {
-            let _ = writeln!(out, "  {prefix:width$}  discover  {}", show(root, &base));
+        for (prefix, root, kind) in &shadowed {
+            let _ = writeln!(out, "  {prefix:width$}  {kind:8}  {}", show(root, &base));
         }
 
         let _ = writeln!(out, "skipped ({})", skipped.len());
@@ -793,6 +877,7 @@ impl AutoloadMap {
 
         let missing: Vec<(String, String)> = entries
             .iter()
+            .chain(&links)
             .flat_map(|entry| {
                 entry
                     .roots

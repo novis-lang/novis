@@ -1038,13 +1038,73 @@ $registry->discover();
     let StmtKind::AutoloadDecl(three) = &stmts[2].kind else {
         panic!("expected an autoload decl: {:?}", stmts[2]);
     };
-    let AutoloadKind::Discover { glob } = &three.kind else {
+    let AutoloadKind::Discover { prefix, glob } = &three.kind else {
         panic!("expected the discover form: {three:?}");
     };
+    assert_eq!(*prefix, None);
     assert_eq!(text(&map, id, *glob), "'../../*/src'");
+    assert!(!three.links);
 
     // `discover` is contextual: it means the second form only straight after
     // `autoload`, and is an ordinary member name anywhere else.
+    assert!(matches!(stmts[3].kind, StmtKind::Expr(_)));
+}
+
+/// `autoload links` takes both forms, and `discover` takes a fixed prefix
+/// before `from` and its glob. `links` stays an ordinary name everywhere else.
+#[test]
+fn a_links_declaration_parses_in_both_forms() {
+    let mut map = SourceMap::new();
+    let id = map.add(
+        "t.nvs",
+        r"<?nvs
+autoload links 'Framework\Shop' from '../../Shop/src';
+autoload links discover 'Framework' from '../../*/src';
+autoload discover 'Framework' from '../*/src';
+$page->links();
+",
+    );
+    let mut diags = Diagnostics::new();
+    let stmts = parse_file(map.file(id), &mut diags);
+    assert!(!diags.has_errors(), "unexpected diagnostics: {diags:?}");
+    assert_eq!(stmts.len(), 4);
+
+    let StmtKind::AutoloadDecl(one) = &stmts[0].kind else {
+        panic!("expected an autoload decl: {:?}", stmts[0]);
+    };
+    assert!(one.links);
+    let AutoloadKind::Prefix { prefix, roots } = &one.kind else {
+        panic!("expected the prefix form: {one:?}");
+    };
+    assert_eq!(text(&map, id, *prefix), r"'Framework\Shop'");
+    assert_eq!(text(&map, id, roots[0]), "'../../Shop/src'");
+
+    let StmtKind::AutoloadDecl(two) = &stmts[1].kind else {
+        panic!("expected an autoload decl: {:?}", stmts[1]);
+    };
+    assert!(two.links);
+    let AutoloadKind::Discover {
+        prefix: Some(prefix),
+        glob,
+    } = &two.kind
+    else {
+        panic!("expected the discover form with a prefix: {two:?}");
+    };
+    assert_eq!(text(&map, id, *prefix), "'Framework'");
+    assert_eq!(text(&map, id, *glob), "'../../*/src'");
+
+    let StmtKind::AutoloadDecl(three) = &stmts[2].kind else {
+        panic!("expected an autoload decl: {:?}", stmts[2]);
+    };
+    assert!(!three.links);
+    assert!(matches!(
+        three.kind,
+        AutoloadKind::Discover {
+            prefix: Some(_),
+            ..
+        }
+    ));
+
     assert!(matches!(stmts[3].kind, StmtKind::Expr(_)));
 }
 

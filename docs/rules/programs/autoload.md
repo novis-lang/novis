@@ -5,6 +5,8 @@ autoload 'Framework' from './';                        // one prefix, one root
 autoload 'Acme\Legacy' from '../vendor/acme/lib',
                             '../vendor/acme/compat';   // one prefix, several roots
 autoload discover '../../*/src';                       // each directory names its own prefix
+autoload discover 'Framework' from '../../*/src';      // the same, behind a fixed prefix
+autoload links discover 'Framework' from '../../*/src'; // either form, read for links only
 ```
 
 Paths resolve **relative to the file that declares them**, never to the entry point, which is what lets
@@ -43,6 +45,21 @@ name is not a legal `PascalCase` namespace segment is **skipped, not diagnosed**
 filesystem inevitably sweeps `.git` and `vendor`. The glob itself is held stricter: one that is not a
 single whole-segment `*`, and one whose base directory does not exist, are both
 `E_AUTOLOAD_GLOB_SHAPE`, because a typo that silently discovers nothing is the worst outcome on offer.
+
+`discover` may write a fixed prefix, `from` and the glob: `autoload discover 'Framework' from
+'../../*/src';` maps `Shop/src` to `Framework\Shop`. The prefix is held to `E_AUTOLOAD_PREFIX_SHAPE`
+and may carry one braced segment, as an explicit prefix may. Without it, `discover` maps each directory
+under its bare name.
+
+`autoload links` writes either form for links only. Its roots are a second half of the map: the
+route argument of `Core\Router::url` and `urlAbsolute` may name a class under one, and nothing
+else reads them — no name under them is autoloaded, and they join neither the route table nor
+`implementing<T>()` (`rule:routing/link-target-and-params-are-checked`). **An ordinary root beats a
+links root at the same prefix**, so `autoload links discover 'Framework' from '../../*/src';` over
+every module passes over the module's own root and the framework's, and a link to one of their routes
+stays inside the current program. Two links declarations of one prefix with different roots are
+`E_DUPLICATE_AUTOLOAD_PREFIX`, as two ordinary ones are. `--autoload-map` lists links roots in a counted
+`links` section, and a links prefix an ordinary one owns under `shadowed`.
 
 Longest matching prefix wins; within a prefix, roots are probed in declaration order and the first hit
 wins, which is what makes a vendor override work. Remaining segments are directories, the last is the
@@ -94,7 +111,11 @@ interfaces the framework owns, rather than on each other's concrete classes, are
   into every program, so each module's `#[Route]` table and `implementing<T>()` hold every other
   module's classes, and two modules that both declare `/` collide. It would also need roots that
   resolve by name without being enumerated, and still a way to name the current module.
-- **`discover` taking a prefix.** It maps every directory the glob matches, which is the same problem.
-- **`*` instead of `{..}` inside a prefix.** A reader coming from PSR-4 reads `*` as a wildcard, and
-  that is the meaning the braced segment does not have.
+- **`*` instead of `{..}` inside a prefix,** and so a `discover` prefix written `'Framework\*'`. A
+  reader coming from PSR-4 reads `*` as a wildcard, and that is the meaning the braced segment does
+  not have; `'App\*'` is the mistake `E_AUTOLOAD_PREFIX_SHAPE` names.
+- **A trailing `for links` on the declaration.** The modifier would sit far from the keyword it
+  changes, after a list of roots of any length.
+- **A separate `link` declaration.** It would be a second keyword with the same path rules as
+  `autoload`.
 - **A missing root as an error.** A deployment leaves a module out by leaving its directory out.

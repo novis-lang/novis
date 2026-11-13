@@ -811,7 +811,7 @@ fn literal_at(
         stmts.iter().find_map(|stmt| match &stmt.kind {
             StmtKind::AutoloadDecl(found) if found.span == decl.span => Some(match &found.kind {
                 AutoloadKind::Prefix { prefix, roots } => (Some(*prefix), roots.clone()),
-                AutoloadKind::Discover { glob } => (None, vec![*glob]),
+                AutoloadKind::Discover { prefix, glob } => (*prefix, vec![*glob]),
             }),
             _ => None,
         })?;
@@ -2172,6 +2172,46 @@ const MEMBER_WORDS: &[&str] = &[
 /// roster beside `CLASSES` rather than a filter over it.
 const CASE_WORDS: &[&str] = &["case"];
 
+/// The words that may follow `autoload`: the parser's two contextual words in
+/// that position, `rule:programs/autoload`'s `links` and `discover`.
+const AUTOLOAD_WORDS: &[&str] = &["discover", "links"];
+
+/// The word that may follow `autoload links`.
+const AUTOLOAD_LINKS_WORDS: &[&str] = &["discover"];
+
+/// The contextual words a name written straight after `autoload`, or after
+/// `autoload links`, may be. `None` anywhere else.
+///
+/// Both words lex as ordinary names, so the tokens before the cursor and the
+/// text of the last one decide, as `nvs_syntax::parser`'s
+/// `parse_autoload_decl` reads them.
+fn after_autoload(cursor: &Cursor<'_>) -> Option<&'static [&'static str]> {
+    use TokenKind as T;
+    let upto = cursor.upto();
+    let stem = upto.len() - name_run(upto).len();
+    let file = cursor.analysed.map.file(cursor.analysed.entry);
+    let tokens = tokenize(file, &mut Diagnostics::new());
+    let before: Vec<&Token> = tokens
+        .iter()
+        .take_while(|token| token.span.end as usize <= stem)
+        .filter(|token| token.kind != T::Eof)
+        .collect();
+    match before.as_slice() {
+        [.., last] if last.kind == T::Keyword(Keyword::Autoload) => Some(AUTOLOAD_WORDS),
+        [.., autoload, last]
+            if autoload.kind == T::Keyword(Keyword::Autoload)
+                && last.kind == T::Ident
+                && file
+                    .text()
+                    .get(last.span.start as usize..last.span.end as usize)
+                    == Some("links") =>
+        {
+            Some(AUTOLOAD_LINKS_WORDS)
+        }
+        _ => None,
+    }
+}
+
 /// What may be written at a cursor that is in no access.
 ///
 /// The node the cursor is *directly* inside decides, which the module doc's
@@ -2204,6 +2244,7 @@ fn position(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
                 Vec::new()
             }
         }
+        _ if let Some(offered) = after_autoload(cursor) => words(offered),
         _ => match written(cursor) {
             Written::Variable => in_scope(cursor),
             Written::Import => in_reach(cursor, Spelled::Qualified),

@@ -719,16 +719,38 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// and whether that file is reachable by `require` from the entry point,
     /// are `nvs_hir`'s checks — the parser can see neither.
     ///
-    /// `discover` is **contextual**: an ordinary identifier everywhere else,
-    /// meaning the second form only in this one position, so no existing
-    /// member or class named `discover` stops compiling.
+    /// `discover` and `links` are **contextual**: ordinary identifiers
+    /// everywhere else, meaning a form only straight after `autoload` (and
+    /// `discover` after `autoload links`), so no existing member or class of
+    /// either name stops compiling. A prefix is always a quoted string, so a
+    /// bare word in that position cannot be anything else.
+    ///
+    /// `discover` takes its glob alone, or a fixed prefix, `from` and the glob.
     pub(super) fn parse_autoload_decl(&mut self, start: Span) -> Stmt {
         self.bump(); // 'autoload'
+        let links = self.at_contextual("links");
+        if links {
+            self.bump();
+        }
         let kind = if self.at_contextual("discover") {
             self.bump();
-            match self.parse_written_autoload_path("a quoted glob") {
-                Some(glob) => AutoloadKind::Discover { glob },
-                None => return self.recover_autoload_decl(start),
+            let Some(first) = self.parse_written_autoload_path("a quoted glob or prefix") else {
+                return self.recover_autoload_decl(start);
+            };
+            if self.at_contextual("from") {
+                self.bump();
+                match self.parse_written_autoload_path("a quoted glob") {
+                    Some(glob) => AutoloadKind::Discover {
+                        prefix: Some(first),
+                        glob,
+                    },
+                    None => return self.recover_autoload_decl(start),
+                }
+            } else {
+                AutoloadKind::Discover {
+                    prefix: None,
+                    glob: first,
+                }
             }
         } else {
             let Some(prefix) = self.parse_written_autoload_path("a quoted namespace prefix") else {
@@ -756,7 +778,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         let span = start.to(self.last_span);
         Stmt {
             span,
-            kind: StmtKind::AutoloadDecl(AutoloadDecl { span, kind }),
+            kind: StmtKind::AutoloadDecl(AutoloadDecl { span, links, kind }),
         }
     }
 
