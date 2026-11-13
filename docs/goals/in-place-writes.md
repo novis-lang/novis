@@ -314,39 +314,39 @@ benches. Stage 6's last items run `bun nv proofs --gate` and record each stale f
 **Does:** replace the row descent and the `ArraySet` climb with one write-through call that copies
 a level only when its count is above one.
 
-- [ ] Check the gate: `docs/goals/values-stay-alive.md` is gone, and
+- [x] Check the gate: `docs/goals/values-stay-alive.md` is gone, and
   `crates/nvs-codegen/tests/borrowed_stores.rs:1` holds
   `every_store_form_keeps_its_target_alive_while_the_value_runs_code`. Read where the `Index` arm
   now loads its root (`crates/nvs-ir/src/lower/stmt.rs:1902`).
-- [ ] `NvsArray` gains the write-through walk: a recursive function over the key chain that makes a
+- [x] `NvsArray` gains the write-through walk: a recursive function over the key chain that makes a
   level unique only above a count of one, builds an absent row, and fails before it inserts
   (`rule:types/arrays`, `crates/nvs-runtime/src/array.rs:1534`,
   `crates/nvs-runtime/src/array.rs:2080`, `crates/nvs-runtime/src/array.rs:2184`).
-- [ ] Test `a_write_through_copies_only_a_level_that_is_shared` beside the array tests: every mix of
+- [x] Test `a_write_through_copies_only_a_level_that_is_shared` beside the array tests: every mix of
   shared and unshared root and row, an absent row, an inner append, and a refused append
   (`crates/nvs-runtime/src/array.rs:2639`).
-- [ ] `nvs_array_write_through` replaces `nvs_array_row_for_write`, with the ownership rules of the
+- [x] `nvs_array_write_through` replaces `nvs_array_row_for_write`, with the ownership rules of the
   standing decision (`rule:errors/propagation`, `crates/nvs-runtime/src/helpers.rs:370`).
-- [ ] `Helper::ArrayWriteThrough` replaces `Helper::ArrayRowForWrite` in the enum, its doc, the
+- [x] `Helper::ArrayWriteThrough` replaces `Helper::ArrayRowForWrite` in the enum, its doc, the
   printer and the symbol table (`crates/nvs-ir/src/ir.rs:2613`, `crates/nvs-ir/src/ir.rs:2483`,
   `crates/nvs-ir/src/print.rs:596`, `crates/nvs-codegen/src/emit.rs:4962`).
-- [ ] The `Index` arm emits one write-through for a nested target. Keys are borrowed, so the key
+- [x] The `Index` arm emits one write-through for a nested target. Keys are borrowed, so the key
   retains go and a fresh key is an owned temporary. A single-level write is unchanged
   (`crates/nvs-ir/src/lower/stmt.rs:1958`, `crates/nvs-ir/src/lower/stmt.rs:1979`,
   `crates/nvs-ir/src/lower/stmt.rs:2011`).
 - [ ] Rewrite the comments that describe the descent, as wholes
   (`crates/nvs-ir/src/lower/stmt.rs:1841`, `crates/nvs-ir/src/lower/stmt.rs:2287`,
   `crates/nvs-runtime/src/helpers.rs:482`).
-- [ ] Replace `writing_through_a_nested_subscript_separates_every_level` and its snapshot with
+- [x] Replace `writing_through_a_nested_subscript_separates_every_level` and its snapshot with
   `a_nested_write_lowers_to_one_write_through` (`crates/nvs-ir/src/lower/tests.rs:2004`).
-- [ ] Create `crates/nvs-codegen/tests/in_place_writes.rs:1` with a `bytes_of_run` helper modelled
+- [x] Create `crates/nvs-codegen/tests/in_place_writes.rs:1` with a `bytes_of_run` helper modelled
   on `allocations_of_run` (`crates/nvs-codegen/tests/arrays.rs:130`), and the three growth guards
   of check `nested-writes-in-place`. The property guard takes its value from a method call.
-- [ ] Tests `a_nested_write_into_a_shared_row_still_copies_it` and
+- [x] Tests `a_nested_write_into_a_shared_row_still_copies_it` and
   `a_nested_write_into_a_shared_array_still_copies_it`: a second variable, a `foreach` over the
   array, and a closure each keep the contents they had
   (`crates/nvs-codegen/tests/in_place_writes.rs:1`).
-- [ ] Test `a_nested_append_that_throws_leaves_the_array_as_it_was`: an append into a row whose
+- [x] Test `a_nested_append_that_throws_leaves_the_array_as_it_was`: an append into a row whose
   next index is taken throws, the catch reads the array unchanged, and live bytes balance
   (`crates/nvs-codegen/tests/in_place_writes.rs:1`).
 - [ ] Conformance case `tests/conformance/lang/a-nested-write-leaves-a-shared-row-alone.nvst:1`, so
@@ -527,48 +527,31 @@ and release entries beyond the count write, in every build kind, as `file.rs:NN`
 
 ### State
 
-Nothing is built. The tree lowers a nested write through `Helper::ArrayRowForWrite`, sends every
-`.=` but a local's to the rewrite, and retains every variable it passes by value. No test file of
-this goal exists. Stage 1 waits for `values-stay-alive`.
+Stage 1's code and its tests are in. `NvsArray::write_through` (`crates/nvs-runtime/src/array.rs:1523`)
+walks the key chain under each parent's table borrow. It copies a level only above a count of one,
+builds an absent row, and checks the whole chain before it writes. `nvs_array_write_through`
+(`crates/nvs-runtime/src/helpers.rs:406`) and `Helper::ArrayWriteThrough` replace the row helper.
+The `Index` arm calls `Lowering::emit_write_through` (`crates/nvs-ir/src/lower/stmt.rs:2119`) for
+a nested target, and a single-level write is unchanged. All nine tests of the stage's three checks
+pass, each run once by name. Build and `cargo clippy --all-targets -- -D warnings` are green. No
+verify ran, so other snapshots that print a nested write may be red: look for
+`array_row_for_write` or a climbing `array.set` in `crates/nvs-ir/src/lower/snapshots/`.
+
+The sweep items were stale. No `env-secret-proofs` check exists. The three nightly Miri jobs were
+two timeouts and one unsupported `mmap`, and `7568aaa0fb` already skips all four tests under Miri.
 
 ### Next
 
-Stage 1, over `crates/nvs-runtime/src/array.rs`, `crates/nvs-runtime/src/helpers.rs`,
-`crates/nvs-ir/src/ir.rs`, `crates/nvs-ir/src/lower/stmt.rs` and
-`crates/nvs-codegen/tests/in_place_writes.rs`. Expect the snapshot of
-`writing_through_a_nested_subscript_separates_every_level` to go red until its item replaces it.
+Stage 1's four remaining items, then stage 2.
 
-- [ ] `crates/nvs-codegen/tests/borrowed_stores.rs:1`: check the gate. This file holds
-  `every_store_form_keeps_its_target_alive_while_the_value_runs_code`, and
-  `docs/goals/values-stay-alive.md` is gone. Read where the `Index` arm now loads its root
-  (`crates/nvs-ir/src/lower/stmt.rs:1902`).
-- [ ] `crates/nvs-runtime/src/array.rs:1534`: `NvsArray` gains the write-through walk
-  (`rule:types/arrays`, `crates/nvs-runtime/src/array.rs:2080`,
-  `crates/nvs-runtime/src/array.rs:2184`).
-- [ ] `crates/nvs-runtime/src/array.rs:2639`: test
-  `a_write_through_copies_only_a_level_that_is_shared`.
-- [ ] `crates/nvs-runtime/src/helpers.rs:370`: `nvs_array_write_through` replaces
-  `nvs_array_row_for_write` (`rule:errors/propagation`).
-- [ ] `crates/nvs-ir/src/ir.rs:2613`: `Helper::ArrayWriteThrough` replaces
-  `Helper::ArrayRowForWrite` (`crates/nvs-ir/src/ir.rs:2483`, `crates/nvs-ir/src/print.rs:596`,
-  `crates/nvs-codegen/src/emit.rs:4962`).
-- [ ] `crates/nvs-ir/src/lower/stmt.rs:1979`: the `Index` arm emits one write-through for a nested
-  target (`crates/nvs-ir/src/lower/stmt.rs:1958`, `crates/nvs-ir/src/lower/stmt.rs:2011`).
-- [ ] Rewrite the comments that describe the descent (`crates/nvs-ir/src/lower/stmt.rs:1841`,
-  `crates/nvs-ir/src/lower/stmt.rs:2287`, `crates/nvs-runtime/src/helpers.rs:482`).
-- [ ] `crates/nvs-ir/src/lower/tests.rs:2004`: replace the snapshot test with
-  `a_nested_write_lowers_to_one_write_through`.
-- [ ] Create `crates/nvs-codegen/tests/in_place_writes.rs:1` with `bytes_of_run` and the three
-  growth guards (`crates/nvs-codegen/tests/arrays.rs:130`).
-- [ ] `crates/nvs-codegen/tests/in_place_writes.rs:1`: tests
-  `a_nested_write_into_a_shared_row_still_copies_it`,
-  `a_nested_write_into_a_shared_array_still_copies_it` and
-  `a_nested_append_that_throws_leaves_the_array_as_it_was`.
+- [ ] `crates/nvs-ir/src/lower/stmt.rs:1880`: rewrite the `Index` arm's block comment as a whole.
+  It still describes the descent and the climb.
 - [ ] Conformance case `tests/conformance/lang/a-nested-write-leaves-a-shared-row-alone.nvst:1`
-  (`rule:types/arrays`).
+  (`rule:types/arrays`). The fixtures in `crates/nvs-codegen/tests/in_place_writes.rs` are the
+  shapes. A `foreach` binding needs `as var $v`.
 - [ ] Rewrite the module doc's nested-write bullet (`crates/nvs-ir/src/lib.rs:127`).
 - [ ] `docs/rules/types/arrays.md:1`: `rule:types/arrays` gains its bullet, then
-  `bun nv rules --render`.
+  `bun nv rules --render`. Then set stage 1 `done`.
 
 ### Backlog
 

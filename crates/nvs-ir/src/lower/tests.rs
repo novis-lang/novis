@@ -2104,18 +2104,62 @@ fn writing_an_element_through_a_property_base_stores_the_result_back() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `$grid[0][1] = 5;` — a nested subscript separates *every* level of the
-/// chain and writes each one back in turn, which the snapshot reads as
-/// one `array_row_for_write` descending and two `array.set`s climbing
-/// back out, outermost last. The row helper is what makes the descent's
-/// ownership uniform (see `ir::Helper::ArrayRowForWrite`), so there is no
-/// retain beside it and no branch for the absent key.
+/// `$grid[0][1] = 5;` lowers to one `array_write_through`, whose result is
+/// written back to `$g`. No row is read on the way down and no `array.set`
+/// climbs back out, so nothing adds a reference to a row and an unshared one
+/// is written where it is stored. The keys are borrowed, so neither is
+/// retained. A write into one level is still one `array.set`.
 #[test]
-fn writing_through_a_nested_subscript_separates_every_level() {
+fn a_nested_write_lowers_to_one_write_through() {
     let (f, map, file) = lower_first_method(
-        "<?nvs\nclass T {\n  function m(array<array<int>> $g): void {\n    $g[0][1] = 5;\n  }\n}\n",
+        "<?nvs
+class T {
+  function m(array<array<int>> $g, string $k): void {
+    $g[0][$k] = 5;
+  }
+}
+",
     );
-    assert_snapshot!(print_function(&f, map.file(file)));
+    let text = print_function(&f, map.file(file));
+    assert_eq!(text.matches("array_write_through").count(), 1, "{text}");
+    assert!(!text.contains("array.set"), "a climbing set: {text}");
+    assert!(
+        !text.contains("array.get"),
+        "a row read on the way down: {text}"
+    );
+    assert!(
+        !text.contains("retain"),
+        "a borrowed key is retained: {text}"
+    );
+
+    // A deeper chain passes its inner keys as one array, freed by the
+    // statement, and an inner append is a `null` in it.
+    let (f, map, file) = lower_first_method(
+        "<?nvs
+class T {
+  function m(array<array<array<int>>> $g): void {
+    $g[0][][\"k\"] = 5;
+  }
+}
+",
+    );
+    let text = print_function(&f, map.file(file));
+    assert_eq!(text.matches("array_write_through").count(), 1, "{text}");
+    assert!(text.contains("const.null"), "an inner append's key: {text}");
+    assert!(!text.contains("array.set"), "a climbing set: {text}");
+
+    let (f, map, file) = lower_first_method(
+        "<?nvs
+class T {
+  function m(array<int> $g): void {
+    $g[0] = 5;
+  }
+}
+",
+    );
+    let text = print_function(&f, map.file(file));
+    assert!(!text.contains("array_write_through"), "{text}");
+    assert_eq!(text.matches("array.set").count(), 1, "{text}");
 }
 
 /// A `bool` subscript is not one of `rule:types/arrays`'s legal key source
@@ -4302,8 +4346,8 @@ fn a_subscript_through_a_tagged_base_lowers() {
 /// level, and writes it the way the plain `=` does
 /// (`rule:expressions/defaulting-assignment`). The inner level takes the
 /// `null`-answering `array.get.ornull`; the outer level's base may then be
-/// `null`, so it asks the tag. The write builds the row with
-/// `array_row_for_write`, so `$g["k"]["j"] ??= 5` with no `"k"` creates it.
+/// `null`, so it asks the tag. The write is one `array_write_through`, which
+/// builds an absent row, so `$g["k"]["j"] ??= 5` with no `"k"` creates it.
 /// `+=` on the same target keeps the reads that throw.
 #[test]
 fn coalesce_assign_lowers_a_guarded_read_of_its_target() {
@@ -4322,7 +4366,7 @@ fn coalesce_assign_lowers_a_guarded_read_of_its_target() {
         "{text}"
     );
     assert!(!text.contains("array.get v"), "a throwing read: {text}");
-    assert_eq!(text.matches("array_row_for_write").count(), 1, "{text}");
+    assert_eq!(text.matches("array_write_through").count(), 1, "{text}");
 
     let (f, map, file) = lower_first_method(concat!(
         "<?nvs\nclass T {\n",
@@ -4404,7 +4448,7 @@ fn a_defaulting_assignment_stages_its_target_once() {
         "{text}"
     );
     assert!(!text.contains("array.get v"), "a throwing read: {text}");
-    assert_eq!(text.matches("array_row_for_write").count(), 1, "{text}");
+    assert_eq!(text.matches("array_write_through").count(), 1, "{text}");
 }
 
 /// The default a defaulting assignment starts from is a constant of the

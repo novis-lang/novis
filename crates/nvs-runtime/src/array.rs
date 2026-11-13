@@ -239,7 +239,7 @@ use std::hash::{BuildHasherDefault, Hash, Hasher};
 use std::ptr::NonNull;
 
 use crate::string::{KeyRef, NvsStr, StrHeader};
-use crate::value::Value;
+use crate::value::{Tag, Value};
 
 /// One key/value pair, owning one reference to each.
 pub(crate) struct Entry {
@@ -618,6 +618,53 @@ impl Table {
     /// `i64::MAX` as a key — which is what keeps the refusal off the hot path.
     fn next_is_occupied(&self) -> bool {
         self.next_index == Some(i64::MAX) && self.get_index(i64::MAX).is_some()
+    }
+
+    /// The value one step of a nested write names, borrowed. An append names
+    /// no entry, because it always starts a fresh row.
+    fn row_at(&self, step: PathKey<'_>) -> Option<Value> {
+        match step {
+            PathKey::Str(key) => self.get(KeyRef::of(key)),
+            PathKey::Index(index) => self.get_index(index),
+            PathKey::Append => None,
+        }
+    }
+
+    /// The slot of the entry one step of a nested write names, so the walk
+    /// can write the row it holds without taking it out of the table.
+    fn row_slot(&mut self, step: PathKey<'_>) -> Option<&mut Value> {
+        match &mut self.shape {
+            Shape::Packed(values) => {
+                let slot = match step {
+                    PathKey::Str(key) => packed_index(key.as_bytes())?,
+                    PathKey::Index(index) => usize::try_from(index).ok()?,
+                    PathKey::Append => return None,
+                };
+                values.get_mut(slot)
+            }
+            Shape::Hashed(hashed) => {
+                let at = match step {
+                    PathKey::Str(key) => hashed.find(KeyRef::of(key))?,
+                    PathKey::Index(index) => {
+                        hashed.find(KeyRef::bare(index.to_string().as_bytes()))?
+                    }
+                    PathKey::Append => return None,
+                };
+                Some(&mut hashed.indexed_mut(at).value)
+            }
+        }
+    }
+
+    /// Stores `value` where one step of a nested write names, taking over its
+    /// reference and handing back what it displaced. A `string` key is
+    /// retained, because the table keeps it. An append hands `value` back where
+    /// [`Table::next_is_occupied`].
+    fn store(&mut self, step: PathKey<'_>, value: Value) -> Result<Option<Value>, Value> {
+        match step {
+            PathKey::Str(key) => Ok(self.set(key.clone(), value)),
+            PathKey::Index(index) => Ok(self.set_index(index, value)),
+            PathKey::Append => self.append(value).map(|()| None),
+        }
     }
 
     /// Appends under the next integer key, or hands `value` back untouched
@@ -1085,6 +1132,32 @@ impl SlotKey {
     }
 }
 
+/// One step of a nested write's key chain — [`NvsArray::write_through`]'s
+/// argument. A key is lent by the caller, and an append names the next
+/// integer key.
+#[derive(Debug, Clone, Copy)]
+pub enum PathKey<'a> {
+    /// A `string` key.
+    Str(&'a NvsStr),
+    /// An `int` key, which a packed array reaches with no string built.
+    Index(i64),
+    /// `[]`: the next integer key. An inner append always starts a new row.
+    Append,
+}
+
+/// Why [`NvsArray::write_through`] stored nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WriteThroughFault {
+    /// An append found its next integer key already live.
+    Occupied,
+    /// The request's memory limit refused a level's write. The breach is
+    /// already recorded.
+    Refused,
+    /// A level on the path is not an array. A checked program never reaches
+    /// this, because the element type is declared.
+    NotAnArray,
+}
+
 /// An owning handle to one reference of an Novis array.
 ///
 /// Cloning retains, dropping releases, and a mutator separates first when the
@@ -1422,6 +1495,127 @@ impl NvsArray {
             self.try_append(value).is_ok(),
             "an array a producer built from index 0 cannot have its next integer key occupied"
         );
+    }
+
+    /// Writes `value` at the end of a key chain: `$grid[$i][$j] = $v` is
+    /// `inner` `[$i]` and `last` `$j`. Takes over `value`'s reference.
+    ///
+    /// The walk holds each level's table borrowed while it writes the level
+    /// below, so a row is written where it is stored. Each level is copied
+    /// only when its count is above one, which means another variable, a
+    /// `foreach` or a closure also has it (`rule:types/arrays`). An absent row,
+    /// or one that is `null`, is built and inserted. An inner append always
+    /// builds a new row.
+    ///
+    /// The whole chain is checked before anything is written. So a failure
+    /// leaves every level as it was, and releases `value`.
+    ///
+    /// **What it spends:** nothing per request. A write of depth two that made
+    /// three calls and copied its row now makes one call and copies nothing
+    /// that is not shared.
+    ///
+    /// # Errors
+    ///
+    /// [`WriteThroughFault::Occupied`] where the final append finds its next
+    /// key live, [`WriteThroughFault::Refused`] where the memory limit refuses
+    /// a level, and [`WriteThroughFault::NotAnArray`] where a level is not an
+    /// array.
+    pub fn write_through(
+        &mut self,
+        inner: &[PathKey<'_>],
+        last: PathKey<'_>,
+        value: Value,
+    ) -> Result<(), WriteThroughFault> {
+        if let Err(fault) = self.check_write_through(inner, last) {
+            #[expect(
+                unsafe_code,
+                reason = "the write took over `value`'s one reference and stores nothing"
+            )]
+            unsafe {
+                crate::release::release_value(value);
+            }
+            return Err(fault);
+        }
+        self.write_checked_path(inner, last, value);
+        Ok(())
+    }
+
+    /// Whether [`Self::write_through`] can write the whole chain. Reads only,
+    /// and asks the memory limit for each level the write touches.
+    fn check_write_through(
+        &self,
+        inner: &[PathKey<'_>],
+        last: PathKey<'_>,
+    ) -> Result<(), WriteThroughFault> {
+        if !self.affords_write() {
+            return Err(WriteThroughFault::Refused);
+        }
+        let table = self.header().table.borrow();
+        let Some((step, rest)) = inner.split_first() else {
+            if matches!(last, PathKey::Append) && table.next_is_occupied() {
+                return Err(WriteThroughFault::Occupied);
+            }
+            return Ok(());
+        };
+        let row = table
+            .row_at(*step)
+            .filter(|row| row.tag() != Some(Tag::Null));
+        match row {
+            Some(row) => match row.as_array() {
+                Some(row) => row.check_write_through(rest, last),
+                None => Err(WriteThroughFault::NotAnArray),
+            },
+            // Every level below is a new row: one header each, and the
+            // entry the write stores.
+            None => {
+                let headers = size_of::<ArrayHeader>().saturating_mul(inner.len());
+                if crate::budget::affords(headers) {
+                    Ok(())
+                } else {
+                    Err(WriteThroughFault::Refused)
+                }
+            }
+        }
+    }
+
+    /// The write [`Self::check_write_through`] has already approved.
+    fn write_checked_path(&mut self, inner: &[PathKey<'_>], last: PathKey<'_>, value: Value) {
+        self.make_unique();
+        let mut table = self.header().table.borrow_mut();
+        let stored = match inner.split_first() {
+            None => table.store(last, value),
+            Some((step, rest)) => {
+                if let Some(slot) = table.row_slot(*step)
+                    && let Some(ptr) = slot.array_ptr()
+                {
+                    #[expect(
+                        unsafe_code,
+                        reason = "the slot owns one reference to the row, and this \
+                                  handle takes it over until it is stored back below"
+                    )]
+                    let mut row = unsafe { Self::from_raw(ptr) };
+                    row.write_checked_path(rest, last, value);
+                    *slot = Value::from_array_ptr(row.into_raw());
+                    return;
+                }
+                let mut row = Self::new();
+                row.write_checked_path(rest, last, value);
+                table.store(*step, Value::array(row))
+            }
+        };
+        drop(table);
+        // The check ruled out a refused append, and a displaced value is the
+        // table's reference to an entry this write replaced.
+        let (Ok(Some(released)) | Err(released)) = stored else {
+            return;
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the table no longer holds this value, and owned its one reference"
+        )]
+        unsafe {
+            crate::release::release_value(released);
+        }
     }
 
     /// Room for `additional` more entries, answering `false` where the
@@ -2101,11 +2295,9 @@ pub(crate) unsafe fn entry_at_index(array: *mut ArrayHeader, index: i64) -> Opti
 /// Reads the entry at `key` **without** retaining what it holds, answering a
 /// missing key with `null`.
 ///
-/// This is the *vivifying* read — the one `nvs_runtime::helpers::
-/// nvs_array_row_for_write` is built on, where an absent key means "build the
-/// row PHP would have built". A read written in source goes through
-/// `nvs_array_required_get` instead, which throws there
-/// (`nvs_ir::InstKind::ArrayGet`). Neither the array nor the key is consumed,
+/// A read written in source goes through `nvs_array_required_get` instead,
+/// which throws on an absent key (`nvs_ir::InstKind::ArrayGet`). Neither the
+/// array nor the key is consumed,
 /// and the value written to `out` is *borrowed*: the array keeps its
 /// reference, so a caller that stores the result retains it itself.
 ///
@@ -3918,5 +4110,123 @@ mod tests {
             }
         }
         assert_eq!(live_bytes(), before);
+    }
+
+    /// The allocation the row at `index` of `root` is stored in.
+    fn row_ptr(root: &NvsArray, index: i64) -> *mut ArrayHeader {
+        root.get_index(index)
+            .and_then(Value::array_ptr)
+            .expect("the row is an array")
+    }
+
+    fn int_at(root: &NvsArray, row: i64, index: i64) -> Option<i64> {
+        let row = root.get_index(row)?;
+        row.as_array()?.get_index(index)?.as_int()
+    }
+
+    /// `[[0, 10]]`, a root of one row.
+    fn grid() -> NvsArray {
+        let mut root = NvsArray::new();
+        root.append(Value::array(list_of(2)));
+        root
+    }
+
+    #[test]
+    fn a_write_through_copies_only_a_level_that_is_shared() {
+        let before = live_bytes();
+        // Every mix of a shared and an unshared root and row. A level another
+        // holder has is copied, and that holder still reads what it had.
+        for (share_root, share_row) in [(false, false), (true, false), (false, true), (true, true)]
+        {
+            let mut root = grid();
+            let other_root = share_root.then(|| root.clone());
+            // The clone retains the row the root holds.
+            let other_row = share_row.then(|| {
+                root.get_index(0)
+                    .and_then(|row| row.as_array().map(|row| (*row).clone()))
+                    .expect("the row is an array")
+            });
+            let root_before = root.ptr.as_ptr();
+            let row_before = row_ptr(&root, 0);
+            root.write_through(&[PathKey::Index(0)], PathKey::Index(1), Value::int(99))
+                .expect("the write is allowed");
+            assert_eq!(int_at(&root, 0, 1), Some(99));
+            assert_eq!(
+                root.ptr.as_ptr() == root_before,
+                !share_root,
+                "{share_root} {share_row}"
+            );
+            // The root's copy shares the row, so a copied root copies it too.
+            let row_copied = share_root || share_row;
+            assert_eq!(
+                row_ptr(&root, 0) == row_before,
+                !row_copied,
+                "{share_root} {share_row}"
+            );
+            if let Some(other) = &other_root {
+                assert_eq!(int_at(other, 0, 1), Some(10));
+            }
+            if let Some(row) = &other_row {
+                assert_eq!(row.get_index(1).and_then(Value::as_int), Some(10));
+            }
+        }
+
+        // An absent row is built and inserted, under a string key and an int.
+        // An inner append starts a new row.
+        {
+            let mut root = grid();
+            let name = key("k");
+            root.write_through(&[PathKey::Str(&name)], PathKey::Index(0), Value::int(7))
+                .expect("the write is allowed");
+            let row = root.get(b"k").expect("the row was inserted");
+            let row = row.as_array().expect("the row is an array");
+            assert_eq!(row.get_index(0).and_then(Value::as_int), Some(7));
+            root.write_through(&[PathKey::Index(5)], PathKey::Append, Value::int(8))
+                .expect("the write is allowed");
+            assert_eq!(int_at(&root, 5, 0), Some(8));
+            root.write_through(&[PathKey::Append], PathKey::Str(&name), Value::int(3))
+                .expect("the write is allowed");
+            assert_eq!(root.count(), 4);
+            let row = root.get(b"6").expect("the append used the next index");
+            let row = row.as_array().expect("the row is an array");
+            assert_eq!(row.get(b"k").and_then(Value::as_int), Some(3));
+        }
+
+        // A refused append changes nothing at any level, and copies nothing.
+        {
+            let mut full = NvsArray::new();
+            full.set_index(i64::MAX, Value::int(1));
+            let mut root = NvsArray::new();
+            root.append(Value::array(full));
+            let other = root.clone();
+            let root_before = root.ptr.as_ptr();
+            let row_before = row_ptr(&root, 0);
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "the value is an ASCII literal, and the test checks it is freed"
+            )]
+            let refused =
+                root.write_through(&[PathKey::Index(0)], PathKey::Append, Value::str(key("x")));
+            assert_eq!(refused, Err(WriteThroughFault::Occupied));
+            assert_eq!(root.ptr.as_ptr(), root_before);
+            assert_eq!(row_ptr(&root, 0), row_before);
+            assert_eq!(other.refcount(), 2);
+        }
+
+        // A level that is not an array is refused before anything is written.
+        {
+            let mut root = NvsArray::new();
+            root.append(Value::int(1));
+            let refused =
+                root.write_through(&[PathKey::Index(0)], PathKey::Index(0), Value::int(2));
+            assert_eq!(refused, Err(WriteThroughFault::NotAnArray));
+            assert_eq!(root.get_index(0).and_then(Value::as_int), Some(1));
+        }
+
+        assert_eq!(
+            live_bytes(),
+            before,
+            "every row and the refused value were freed"
+        );
     }
 }

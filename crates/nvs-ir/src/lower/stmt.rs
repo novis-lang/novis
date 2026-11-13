@@ -1960,7 +1960,8 @@ impl<'a> Lowering<'a> {
                 // the `None`s below are that level, and the descent and the
                 // climb each have one arm for it.
                 let mut keys_lowered = 0;
-                let mut inner_keys: Vec<Option<(ValueId, bool)>> = Vec::with_capacity(levels.len());
+                let mut inner_keys: Vec<Option<(ValueId, Ty, bool)>> =
+                    Vec::with_capacity(levels.len());
                 // Each key with its representation, `None` for an append, in
                 // path order: the `$keys` a `PropertyGuard` is given.
                 let mut guard_keys: Vec<Option<(ValueId, Ty)>> =
@@ -1981,7 +1982,7 @@ impl<'a> Lowering<'a> {
                                 *cur,
                             );
                             guard_keys.push(Some((key_v, key_ty)));
-                            Some((key_v, key_aliasing))
+                            Some((key_v, key_ty, key_aliasing))
                         }
                     };
                     if key.is_none() {
@@ -2001,7 +2002,7 @@ impl<'a> Lowering<'a> {
                             *cur,
                         );
                         guard_keys.push(Some((key_v, key_ty)));
-                        Some((key_v, key_aliasing))
+                        Some((key_v, key_ty, key_aliasing))
                     }
                 };
                 if outer_key.is_none() {
@@ -2033,7 +2034,7 @@ impl<'a> Lowering<'a> {
                     self.emit_retain(*cur, root_v);
                     self.own_temporary(root_v);
                     let keys = inner_keys.iter_mut().chain(std::iter::once(&mut outer_key));
-                    for (key_v, key_aliasing) in keys.flatten() {
+                    for (key_v, _, key_aliasing) in keys.flatten() {
                         if *key_aliasing {
                             self.emit_retain(*cur, *key_v);
                             self.own_temporary(*key_v);
@@ -2065,69 +2066,27 @@ impl<'a> Lowering<'a> {
                 } else {
                     root_v
                 };
-                for key in &inner_keys {
-                    if let Some((key_v, true)) = *key {
-                        self.emit_retain(*cur, key_v);
-                    }
-                }
-                if let Some((key_v, true)) = outer_key {
-                    self.emit_retain(*cur, key_v);
-                }
                 if elem_ty.is_refcounted() && aliasing {
                     self.emit_retain(*cur, v);
                 }
                 if elem_ty.is_refcounted() && extra_owner {
                     self.emit_retain(*cur, v);
                 }
-                // Down the chain. Each row arrives owning one reference —
-                // `Helper::ArrayRowForWrite`'s whole job, since the
-                // `ArraySet` below consumes one and an `InstKind::ArrayGet`
-                // would both borrow and *throw* on an absent key, where a
-                // write has to build the row.
-                let mut arrays: Vec<ValueId> = Vec::with_capacity(levels.len() + 1);
-                arrays.push(root_v);
-                for (level, key) in levels.iter().zip(&inner_keys) {
-                    let row_ty = self.row_ty_of(level);
-                    let array = *arrays.last().expect("pushed the root above");
-                    let (row, _) = match *key {
-                        Some((key_v, _)) => self.emit_fallible(
-                            *cur,
-                            row_ty,
-                            InstKind::HelperCall {
-                                helper: Helper::ArrayRowForWrite,
-                                args: vec![array, key_v],
-                            },
-                            env,
-                        ),
-                        // An append level has nothing to descend *into*: PHP
-                        // starts a fresh row and the climb below appends it,
-                        // which is why its key is never named. The empty
-                        // `ArrayNew` already arrives owning one reference, so
-                        // this is the same ownership `ArrayRowForWrite` hands
-                        // back.
-                        None => self.emit(
-                            *cur,
-                            row_ty,
-                            InstKind::ArrayNew {
-                                entries: Vec::new(),
-                            },
-                        ),
-                    };
-                    arrays.push(row);
-                }
-                // And back up, innermost first, so each level is handed the
-                // separated array the level below just produced.
-                let innermost = *arrays.last().expect("pushed the root above");
-                let mut written = match outer_key {
-                    None => self.emit_array_append(*cur, innermost, v, env),
-                    Some((key_v, _)) => self.emit_array_set(*cur, innermost, key_v, v),
+                let written = if inner_keys.is_empty() {
+                    // One level: the array instruction consumes its key, so a
+                    // borrowed one is retained for it.
+                    match outer_key {
+                        None => self.emit_array_append(*cur, root_v, v, env),
+                        Some((key_v, _, key_aliasing)) => {
+                            if key_aliasing {
+                                self.emit_retain(*cur, key_v);
+                            }
+                            self.emit_array_set(*cur, root_v, key_v, v)
+                        }
+                    }
+                } else {
+                    self.emit_write_through(root_v, &inner_keys, outer_key, v, env, cur)
                 };
-                for (i, key) in inner_keys.iter().enumerate().rev() {
-                    written = match *key {
-                        Some((key_v, _)) => self.emit_array_set(*cur, arrays[i], key_v, written),
-                        None => self.emit_array_append(*cur, arrays[i], written, env),
-                    };
-                }
                 self.write_back_array(root, written, env, cur);
                 self.unstage_to(addresses);
                 self.release_temporaries_since(temporaries, *cur);
@@ -2146,6 +2105,69 @@ impl<'a> Lowering<'a> {
             ),
         }
     }
+    /// The [`Helper::ArrayWriteThrough`] call of a nested element write, and
+    /// the array it gives to store back. `inner` is one key per level between
+    /// the root and the target, `None` for an append, and `last` is the
+    /// target's own key. `v` already owns the reference the call consumes.
+    ///
+    /// The call borrows every key, so a fresh key becomes this statement's
+    /// temporary and is released after the call, and on its error edge. One
+    /// inner key travels as itself. A deeper chain or an inner append travels
+    /// as an array of keys, in which `null` is an append. That array is a
+    /// temporary of its own. **What it spends:** one small array per write
+    /// at depth three or more, freed by the same statement.
+    fn emit_write_through(
+        &mut self,
+        root_v: ValueId,
+        inner: &[Option<(ValueId, Ty, bool)>],
+        last: Option<(ValueId, Ty, bool)>,
+        v: ValueId,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
+        for (key_v, key_ty, key_aliasing) in inner.iter().flatten().chain(last.iter()) {
+            if key_ty.is_refcounted() && !key_aliasing {
+                self.own_temporary(*key_v);
+            }
+        }
+        let inner_v = match inner {
+            [Some((key_v, _, _))] => *key_v,
+            _ => {
+                let mut entries = Vec::with_capacity(inner.len());
+                for (i, key) in inner.iter().enumerate() {
+                    let entry = match *key {
+                        // The array keeps its own reference to each key.
+                        Some((key_v, key_ty, _)) => {
+                            if key_ty.is_refcounted() {
+                                self.emit_retain(*cur, key_v);
+                            }
+                            key_v
+                        }
+                        None => self.emit(*cur, Ty::Null, InstKind::ConstNull).0,
+                    };
+                    entries.push((i.to_string(), entry));
+                }
+                let (keys, _) = self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries });
+                self.own_temporary(keys);
+                keys
+            }
+        };
+        let last_v = match last {
+            Some((key_v, _, _)) => key_v,
+            None => self.emit(*cur, Ty::Null, InstKind::ConstNull).0,
+        };
+        self.emit_fallible(
+            *cur,
+            Ty::Array,
+            InstKind::HelperCall {
+                helper: Helper::ArrayWriteThrough,
+                args: vec![root_v, inner_v, last_v, v],
+            },
+            env,
+        )
+        .0
+    }
+
     /// The `PropertyGuard` check before an element write or an element
     /// `unset`, when `root` is a property of a class that implements
     /// `PropertyGuard`. Every other root emits nothing.
@@ -2431,10 +2453,9 @@ impl<'a> Lowering<'a> {
         // Down the chain, borrowing each row. A level is an ordinary element
         // *read* — [`AbsentKey::Throws`], so `unset($g["nope"]["1"])` throws
         // exactly as `$g["nope"]["1"]` would (`rule:types/absent-storage-is-never-a-zero-value`, PHP being
-        // silent there instead). Deliberately **not**
-        // [`Helper::ArrayRowForWrite`], whose absent-key answer is to
-        // vivify: a removal that first creates the row it is removing from
-        // would leave an entry behind that neither language puts there.
+        // silent there instead). A write builds an absent row
+        // ([`Helper::ArrayWriteThrough`]). A removal that built the row it
+        // removes from would leave an entry that neither language puts there.
         // Nothing is retained yet, so a throw out of any level drops nothing.
         let mut arrays: Vec<ValueId> = Vec::with_capacity(levels.len() + 1);
         arrays.push(root_v);

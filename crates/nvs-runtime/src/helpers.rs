@@ -346,62 +346,114 @@ crate::nvs_helper! {
     }
 }
 
+/// One key of a nested write as [`nvs_array_write_through`] is given it: a
+/// `string` the caller lends, an `int`, or `null` for an append.
+enum LentKey {
+    /// The handle never releases, because the caller keeps the reference.
+    Str(std::mem::ManuallyDrop<NvsStr>),
+    Index(i64),
+    Append,
+}
+
+impl LentKey {
+    fn of(value: Value) -> Result<Self, Fault> {
+        if let Some(ptr) = value.str_ptr() {
+            #[expect(
+                unsafe_code,
+                reason = "a Tag::Str argument is a live allocation the caller keeps \
+                          for this call, and the handle never releases it"
+            )]
+            let key = unsafe { NvsStr::from_raw(ptr) };
+            return Ok(Self::Str(std::mem::ManuallyDrop::new(key)));
+        }
+        if let Some(index) = value.as_int() {
+            return Ok(Self::Index(index));
+        }
+        if value.tag() == Some(Tag::Null) {
+            return Ok(Self::Append);
+        }
+        Err(wrong_tag("nvs_array_write_through", Tag::Str, value))
+    }
+
+    fn step(&self) -> crate::array::PathKey<'_> {
+        match self {
+            Self::Str(key) => crate::array::PathKey::Str(key),
+            Self::Index(index) => crate::array::PathKey::Index(*index),
+            Self::Append => crate::array::PathKey::Append,
+        }
+    }
+}
+
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::ArrayRowForWrite` — one level of a nested
-    /// `$grid[0][1] = v`'s descent, and the only array entry point whose
-    /// answer is **owned** rather than borrowed.
+    /// `nvs_ir::Helper::ArrayWriteThrough` — a nested element write,
+    /// `$grid[$i][$j] = $v`, as one call. [`crate::NvsArray::write_through`]
+    /// is the walk, and its doc says when a level is copied.
     ///
-    /// Two cases, one ownership answer. A row that is there comes back
-    /// retained, so the [`crate::array::nvs_array_set`] the lowering emits on
-    /// the way back up has a reference to consume — and so the row's count is
-    /// at least two, which is exactly what makes that write separate it
-    /// (`rule:types/arrays`). A key that is *absent* comes back as the thread's empty
-    /// array, which is PHP's auto-vivification: `$g[9][0] = 1` over an empty
-    /// `$g` builds the missing row rather than faulting. That row separates on
-    /// the write for the same reason the present one does — the singleton's
-    /// count is never 1 either — so the two cases reach `make_unique` alike.
-    /// The fresh row is not inserted here; the same `nvs_array_set` stores it,
-    /// since replacing a row and inserting one are one instruction.
+    /// The arguments are the root array, the inner keys, the last key and the
+    /// value. The inner keys are one `string` or `int` key for one inner
+    /// level, and an array of keys for a deeper chain or an inner append. A
+    /// `null` key is an append. The array is never a key, so its tag tells the
+    /// forms apart, and a write of depth two allocates nothing for its keys.
     ///
-    /// The declared element type is what rules out the third case PHP has —
-    /// a present entry that is not an array — so a non-array row here is an
-    /// internal inconsistency and is reported as a wrong tag rather than as a
-    /// language-level fault.
-    fn nvs_array_row_for_write(_ctx, args: [2]) {
-        let array = args[0]
+    /// Consumes the root's reference and the value's, and returns the one
+    /// reference to the root to store back, as `nvs_ir::InstKind::ArraySet`
+    /// does. Every key is borrowed, and a key the write stores is retained.
+    ///
+    /// On a failure the root is exactly as it arrived and still owned by the
+    /// caller, the value is released, and nothing was inserted. An append whose
+    /// next key is taken throws a `LogicError`, as `$a[] = $v` does
+    /// (`rule:errors/propagation`).
+    fn nvs_array_write_through(_ctx, args: [4]) {
+        let root = args[0]
             .array_ptr()
-            .ok_or_else(|| wrong_tag("nvs_array_row_for_write", Tag::Array, args[0]))?;
-        let mut row = Value::default();
+            .ok_or_else(|| wrong_tag("nvs_array_write_through", Tag::Array, args[0]))?;
+        let last = LentKey::of(args[2])?;
+        // Every key is read before the root is taken over, so a key with a
+        // wrong tag leaves the root the caller's.
+        let mut deep = Vec::new();
+        let mut one = None;
+        if let Some(keys) = args[1].as_array() {
+            deep.reserve(keys.count());
+            let mut slot = keys.next_slot(0);
+            while let Some(at) = slot {
+                deep.push(LentKey::of(keys.value_at(at).unwrap_or_default())?);
+                slot = keys.next_slot(at + 1);
+            }
+        } else if args[1].tag() != Some(Tag::Null) {
+            one = Some(LentKey::of(args[1])?);
+        }
         #[expect(
             unsafe_code,
-            reason = "a Tag::Array argument owns a reference to a live \
-                      allocation, so it is live for this read, and `row` is a \
-                      readable 16-byte slot on this frame"
+            reason = "a Tag::Array argument owns a reference to a live allocation, \
+                      which this call takes over on success"
         )]
-        unsafe {
-            if let Some(key) = args[1].str_ptr() {
-                crate::array::nvs_array_get(array, key, &raw mut row);
-            } else if let Some(index) = args[1].as_int() {
-                crate::array::nvs_array_get_index(array, index, &raw mut row);
-            } else {
-                return Err(wrong_tag("nvs_array_row_for_write", Tag::Str, args[1]));
+        let mut handle = unsafe { crate::NvsArray::from_raw(root) };
+        let written = match &one {
+            Some(inner) => handle.write_through(&[inner.step()], last.step(), args[3]),
+            None => {
+                let steps: Vec<_> = deep.iter().map(LentKey::step).collect();
+                handle.write_through(&steps, last.step(), args[3])
             }
-        }
-        let Some(ptr) = row.array_ptr() else {
-            if row.tag().is_none() || row.tag() == Some(Tag::Null) {
-                return Ok(Value::from_array_ptr(crate::array::nvs_array_new()));
-            }
-            return Err(wrong_tag("nvs_array_row_for_write", Tag::Array, row));
         };
-        #[expect(
-            unsafe_code,
-            reason = "the entry just read is live for as long as the array \
-                      holding it, which this call's argument owns"
-        )]
-        unsafe {
-            crate::array::nvs_array_retain(ptr);
+        match written {
+            Ok(()) => Ok(Value::array(handle)),
+            Err(fault) => {
+                // The root's reference stays the caller's.
+                let _ = handle.into_raw();
+                Err(match fault {
+                    crate::array::WriteThroughFault::Occupied => Fault::thrown_as(
+                        crate::ThrownClass::Logic,
+                        "Cannot add element to the array as the next element is already occupied",
+                    ),
+                    crate::array::WriteThroughFault::Refused => {
+                        Fault::fatal("memory limit reached by an array write")
+                    }
+                    crate::array::WriteThroughFault::NotAnArray => {
+                        Fault::fatal("internal error: nvs_array_write_through met a row that is not an array")
+                    }
+                })
+            }
         }
-        Ok(row)
     }
 }
 
@@ -476,10 +528,9 @@ crate::nvs_helper! {
     ///
     /// An absent key is told from a stored `null` by
     /// [`crate::array::entry`]'s `Option`, so an `array<?string>` holding a
-    /// `null` at `"k"` reads that `null` back rather than throwing.
-    /// [`crate::array::nvs_array_get`] is the other read — the vivifying one
-    /// the *write* side descends through, whose absent-key answer is a fresh
-    /// row (`nvs_ir::Helper::ArrayRowForWrite`).
+    /// `null` at `"k"` reads that `null` back rather than throwing. A nested
+    /// write reads no row through here: [`nvs_array_write_through`] walks the
+    /// chain itself, and builds a row that is absent.
     fn nvs_array_required_get(_ctx, args: [2]) {
         let array = args[0]
             .array_ptr()
@@ -3506,7 +3557,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_bytes_truthy", address(nvs_bytes_truthy)),
         ("nvs_array_truthy", address(nvs_array_truthy)),
         ("nvs_value_truthy", address(nvs_value_truthy)),
-        ("nvs_array_row_for_write", address(nvs_array_row_for_write)),
+        ("nvs_array_write_through", address(nvs_array_write_through)),
         (
             "nvs_array_inout_write",
             address(crate::array::nvs_array_inout_write),

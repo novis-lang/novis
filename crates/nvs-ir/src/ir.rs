@@ -2077,7 +2077,7 @@ pub enum InstKind {
     /// [`crate::ty::Ty::Tagged`] whatever the element type is, and the entry
     /// point is `nvs_array_optional_get`. The write side asks the
     /// same question and answers it differently — an absent key vivifies —
-    /// which is what [`Helper::ArrayRowForWrite`] exists for. Reads `array`
+    /// in [`Helper::ArrayWriteThrough`]. Reads `array`
     /// without
     /// retaining it, the same way `FieldGet` reads its `object` receiver — a
     /// caller copying the result into a second durable slot retains it
@@ -2536,9 +2536,8 @@ pub enum AbsentKey {
 /// `Ty::Object` condition needs none of these: `rule:enums/truthiness` makes it always
 /// truthy with nothing to inspect at runtime, so that case lowers straight to
 /// a fresh [`InstKind::ConstBool`] instead). A family of its own is
-/// [`Helper::ArrayRowForWrite`], here for the reason its own doc
-/// gives: an array primitive whose ownership answer is uniform across a
-/// present and an absent key, which no borrowing read can be.
+/// [`Helper::ArrayWriteThrough`], here for the reason its own doc gives: an
+/// array write whose key chain is too long for one instruction's operands.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[non_exhaustive]
 pub enum Helper {
@@ -2648,25 +2647,28 @@ pub enum Helper {
     /// Like that helper it cannot fail — every tag has a row — so it carries
     /// no error edge.
     ValueTruthy,
-    /// One level of a nested array-element write's descent
-    /// (`crate::lower::Lowering::lower_reassignment`'s `Index` arm): the row
-    /// `args[1]` names in the array `args[0]`, **with a reference of its
-    /// own** — a retain of what was there, or a freshly allocated empty
-    /// array when the key is absent, which is PHP's auto-vivification.
+    /// A nested array-element write, `$grid[$i][$j] = $v`, as one call
+    /// (`crate::lower::Lowering::lower_reassignment`'s `Index` arm). A write
+    /// into one level stays an [`InstKind::ArraySet`] or
+    /// [`InstKind::ArrayAppend`].
     ///
-    /// It exists because a write asks the absent-key question and gets the
-    /// opposite answer to a read's: [`InstKind::ArrayGet`] *throws* there
-    /// (`rule:types/absent-storage-is-never-a-zero-value`), while `$g[9][0] = 1` must build the row PHP
-    /// would have built. It also *borrows*, where a descent needs a reference
-    /// of its own to hand the [`InstKind::ArraySet`] on the way back up.
-    /// Folding the two into
-    /// one entry point keeps the ownership uniform — the result is always
-    /// exactly one owned reference, so the lowering emits no retain beside
-    /// it — and it is why a nested write needs no branch in the IR at all.
-    /// The vivified row is not inserted into `args[0]` here; the `ArraySet`
-    /// on the way back up stores it, which is the same instruction that
-    /// re-points an existing row.
-    ArrayRowForWrite,
+    /// Four operands: the root as a `Ty::Array`, the inner keys, the last key
+    /// and the value as a `Ty::Tagged`. The inner keys are one key for one
+    /// inner level, and an array of keys for a deeper chain or an inner
+    /// append, in which a `null` is an append. The last key is `null` for an
+    /// append. A key is a `Ty::Str` or a `Ty::Int`.
+    ///
+    /// It keeps [`InstKind::ArraySet`]'s ownership: it consumes the root and
+    /// the value, and gives the one reference to the root to store back, so
+    /// `crate::lower::Lowering::write_back_array` is the same for both. Every
+    /// key is borrowed. The runtime copies a level only where its count is
+    /// above one, and builds a row that is absent, which is PHP's
+    /// auto-vivification. An [`InstKind::ArrayGet`] throws there instead
+    /// (`rule:types/absent-storage-is-never-a-zero-value`).
+    ///
+    /// It throws where the last append finds its next key taken. The root is
+    /// then still the caller's, as it arrived, and the value is released.
+    ArrayWriteThrough,
     /// One write to a `foreach (… as inout $v)` binding
     /// (`rule:iteration/an-inout-loop-walks-the-array-it-began-with`), emitted
     /// by `crate::lower::Lowering::write_through_element`. Four operands: the
