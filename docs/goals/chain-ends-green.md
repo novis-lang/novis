@@ -6,7 +6,7 @@ context: [tools/nv/cmd/ci.ts, docs/rules/testing/every-run-runs-every-job.md, do
 stages:
   - id: 1
     title: one command says whether main's tip is green
-    status: open
+    status: done
     context: [tools/nv/test/ci.test.ts, tools/nv/cmd/release.ts, docs/agent/commands.md]
   - id: 2
     title: "the goal is verified once, then pushed, watched and fixed until the run is green"
@@ -138,17 +138,17 @@ stage 2 needs stage 1's command.
 
 **Does:** adds `bun nv ci --green`, as § *Standing decisions* says, with its tests and its help.
 
-- [ ] `tools/nv/cmd/ci.ts:1448`: the mode `--green` joins `modes` and the dispatch at
+- [x] `tools/nv/cmd/ci.ts:1448`: the mode `--green` joins `modes` and the dispatch at
   `tools/nv/cmd/ci.ts:1472`. Its function takes `CiSeams`, as `status` does
   (`tools/nv/cmd/ci.ts:856`).
-- [ ] `tools/nv/cmd/ci.ts:776`: the built commit is found with the `NOTES_ONLY` filter that the
+- [x] `tools/nv/cmd/ci.ts:776`: the built commit is found with the `NOTES_ONLY` filter that the
   unpushed-commit list already uses. One function serves both.
-- [ ] `tools/nv/cmd/release.ts:719`: the `CI` run is judged by `lookUpFullRun`'s rule, exported or
+- [x] `tools/nv/cmd/release.ts:719`: the `CI` run is judged by `lookUpFullRun`'s rule, exported or
   moved so `ci.ts` calls it. A run still going and a cancelled run are not green.
-- [ ] `tools/nv/cmd/ci.ts:149`: the required workflows come from `ONE_RUN_ON_MAIN` and each
+- [x] `tools/nv/cmd/ci.ts:149`: the required workflows come from `ONE_RUN_ON_MAIN` and each
   workflow's own `on:` block under `.github/workflows/`, never from a list in the new function.
-- [ ] `tools/nv/cmd/ci.ts:1`: the header and the usage text name `--green` and its three exit codes.
-- [ ] `tools/nv/test/ci.test.ts:106`: a `describe("bun nv ci --green")` block with faked `gh` and
+- [x] `tools/nv/cmd/ci.ts:1`: the header and the usage text name `--green` and its three exit codes.
+- [x] `tools/nv/test/ci.test.ts:106`: a `describe("bun nv ci --green")` block with faked `gh` and
   `git`, one test for each of these:
   - a green complete run on the built commit exits 0
   - a run still going exits 1
@@ -159,8 +159,8 @@ stage 2 needs stage 1's command.
   - a green run on an older built commit exits 1
   - a refused push exits 1
   - a `gh` that fails exits 2
-- [ ] `docs/agent/commands.md:632`: the command list names `bun nv ci --green`.
-- [ ] `bun test tools/nv/test/ci.test.ts` is green. This stage's change is checked by that run, since
+- [x] `docs/agent/commands.md:632`: the command list names `bun nv ci --green`.
+- [x] `bun test tools/nv/test/ci.test.ts` is green. This stage's change is checked by that run, since
   a cargo build does not reach it.
 
 ### 2. the goal is verified once, then pushed, watched and fixed until the run is green
@@ -200,23 +200,28 @@ Once verify is green, every session runs this cycle until the run is green or th
 
 ### State
 
-Nothing is built. `bun nv ci` has no `--green` mode. This goal is last on the chain, and it starts
-when every goal before it is reached. Pushes of this goal so far: 0.
+Stage 1 is done. `bun nv ci --green` exists (`green` in `tools/nv/cmd/ci.ts`, under `// ---- --green`),
+with ten tests in `describe("bun nv ci --green")` (`tools/nv/test/ci.test.ts:106`). The whole of
+`ci.test.ts` is green, 69 tests. `outsideNotes` is now the one `NOTES_ONLY` filter, which
+`unpushedCodeFiles` and the built-commit search share. `greenFullRun` was already exported from
+`release.ts`, so `release.ts` is unchanged. `looper check --name green-mode-exists` passes.
+
+The acceptance sweep's `env-secret-proofs` names no check in the tree (`looper check` finds none), and
+the nightly run's cancelled jobs were cancelled by later pushes. Neither needs a fix.
+
+Run live on `main` at `80331be10`, `--green` exits 1. CI push run 43517495984 is still going, with
+two red jobs already: `extension sandbox probes` and `third-party attribution`. Website's push run is
+green. Pushes of this goal so far: 0.
 
 ### Next
 
-**Stage 1, in `tools/nv/cmd/ci.ts`, `tools/nv/cmd/release.ts` and `tools/nv/test/ci.test.ts`.** No
-gate to wait on.
+**Stage 2, the gate stage.** Commit stage 1 first if it is not on `main`.
 
-- [ ] `tools/nv/cmd/ci.ts:1448`: the mode `--green` joins `modes` and the dispatch. Its function
-  takes `CiSeams`, as `status` does (`tools/nv/cmd/ci.ts:856`).
-- [ ] `tools/nv/cmd/ci.ts:776`: one function finds the built commit with the `NOTES_ONLY` filter.
-- [ ] `tools/nv/cmd/release.ts:719`: `ci.ts` calls `lookUpFullRun`'s rule for a `CI` run.
-- [ ] `tools/nv/cmd/ci.ts:149`: the required workflows come from `ONE_RUN_ON_MAIN` and each
-  workflow's `on:` block.
-- [ ] `tools/nv/cmd/ci.ts:1`: the header and the usage text name `--green` and its exit codes.
-- [ ] `tools/nv/test/ci.test.ts:106`: the nine `--green` tests of stage 1.
-- [ ] `docs/agent/commands.md:632`: the command list names `bun nv ci --green`.
+- Run `looper verify` with `run_in_background`, and end the turn. Fix every failure in one pass, then
+  run it once more. No test is expected to go red.
+- Then run the cycle of stage 2. Start with `bun nv ci --watch --past "extension sandbox probes"
+  --past "third-party attribution"`, so run 43517495984 finishes. Then read both failed logs under
+  `.agent-tmp/ci/`. `third-party attribution` has a local step, `bun nv gen-attribution --check`.
 
 ### Backlog
 
