@@ -577,3 +577,261 @@ pub fn html_tags(html: &str) -> String {
     }
     source(&tree).replace('\u{1}', "&")
 }
+
+/// One token `Core\Json`'s reader gave, or `serde_json` visited, in a form two
+/// reads can be compared in.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum JsonToken {
+    /// `null`.
+    Null,
+    /// `true` or `false`.
+    Bool(bool),
+    /// An integer that fits `i64`.
+    Int(i64),
+    /// A positive integer past `i64::MAX` that fits `u64`.
+    Uint(u64),
+    /// A float, by its bits, so `-0.0` and `0.0` differ.
+    Float(u64),
+    /// An integer literal past both: its sign, digit count and leading digits.
+    Big(bool, usize, String),
+    /// A string value.
+    Str(String),
+    /// An object key.
+    Key(String),
+    /// `[`.
+    StartArray,
+    /// `]`.
+    EndArray,
+    /// `{`.
+    StartObject,
+    /// `}`.
+    EndObject,
+}
+
+/// Every token one read gave, in order, and the error that ended it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct JsonRead {
+    /// The tokens before the end or the error.
+    pub tokens: Vec<JsonToken>,
+    /// The error's message, with its line and column.
+    pub error: Option<String>,
+}
+
+/// `bytes` read by `Core\Json`'s reader at the deepest `maxDepth`, as one text,
+/// or in chunks of `chunk` bytes.
+#[must_use]
+pub fn json_read(bytes: &[u8], chunk: Option<usize>) -> JsonRead {
+    use crate::json::reader::{Cut, Reader, Text};
+    let max = u32::try_from(crate::json::DEPTH_CEILING).unwrap_or(u32::MAX);
+    match chunk {
+        None => tokens_of(Reader::new(Text(bytes), max)),
+        Some(size) => tokens_of(Reader::new(Cut::new(bytes, size), max)),
+    }
+}
+
+/// Every event `reader` gives, to the end or to its error.
+pub(crate) fn tokens_of<S: crate::json::reader::Source>(
+    mut reader: crate::json::reader::Reader<S>,
+) -> JsonRead {
+    use crate::json::reader::{Event, Number};
+    let mut tokens = Vec::new();
+    loop {
+        let token = match reader.next() {
+            Ok(None) => {
+                return JsonRead {
+                    tokens,
+                    error: None,
+                };
+            }
+            Err(why) => {
+                return JsonRead {
+                    tokens,
+                    error: Some(why.to_string()),
+                };
+            }
+            Ok(Some(event)) => match event {
+                Event::Null => JsonToken::Null,
+                Event::Bool(value) => JsonToken::Bool(value),
+                Event::Number(Number::Int(value)) => JsonToken::Int(value),
+                Event::Number(Number::Uint(value)) => JsonToken::Uint(value),
+                Event::Number(Number::Float(value)) => JsonToken::Float(value.to_bits()),
+                Event::Number(Number::Big { negative, digits }) => {
+                    JsonToken::Big(negative, digits.count(), digits.to_string())
+                }
+                Event::Str(text) => JsonToken::Str(text.to_owned()),
+                Event::Key(text) => JsonToken::Key(text.to_owned()),
+                Event::StartArray => JsonToken::StartArray,
+                Event::EndArray => JsonToken::EndArray,
+                Event::StartObject => JsonToken::StartObject,
+                Event::EndObject => JsonToken::EndObject,
+            },
+        };
+        tokens.push(token);
+    }
+}
+
+/// `bytes` read by `serde_json::from_slice`, which is the oracle `Core\Json`'s
+/// reader is compared with. The crate keeps its own depth limit of 128.
+#[must_use]
+pub fn json_oracle(bytes: &[u8]) -> JsonRead {
+    use serde::de::DeserializeSeed;
+    let mut tokens = Vec::new();
+    let mut parser = serde_json::Deserializer::from_slice(bytes);
+    let read = Record(&mut tokens)
+        .deserialize(&mut parser)
+        .and_then(|()| parser.end());
+    JsonRead {
+        tokens,
+        error: read.err().map(|why| why.to_string()),
+    }
+}
+
+/// The oracle's visitor: it writes each token it is given into the list.
+struct Record<'a>(&'a mut Vec<JsonToken>);
+
+impl<'de> serde::de::DeserializeSeed<'de> for Record<'_> {
+    type Value = ();
+
+    fn deserialize<D: serde::Deserializer<'de>>(self, parser: D) -> Result<(), D::Error> {
+        parser.deserialize_any(self)
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for Record<'_> {
+    type Value = ();
+
+    fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("a JSON value")
+    }
+
+    fn visit_unit<E>(self) -> Result<(), E> {
+        self.0.push(JsonToken::Null);
+        Ok(())
+    }
+
+    fn visit_bool<E>(self, value: bool) -> Result<(), E> {
+        self.0.push(JsonToken::Bool(value));
+        Ok(())
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<(), E> {
+        self.0.push(JsonToken::Int(value));
+        Ok(())
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<(), E> {
+        self.0
+            .push(i64::try_from(value).map_or(JsonToken::Uint(value), JsonToken::Int));
+        Ok(())
+    }
+
+    fn visit_f64<E>(self, value: f64) -> Result<(), E> {
+        self.0.push(JsonToken::Float(value.to_bits()));
+        Ok(())
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<(), E> {
+        self.0.push(JsonToken::Str(value.to_owned()));
+        Ok(())
+    }
+
+    fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<(), A::Error> {
+        self.0.push(JsonToken::StartArray);
+        while seq.next_element_seed(Record(&mut *self.0))?.is_some() {}
+        self.0.push(JsonToken::EndArray);
+        Ok(())
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<(), A::Error> {
+        self.0.push(JsonToken::StartObject);
+        while map.next_key_seed(KeyRecord(&mut *self.0))?.is_some() {
+            map.next_value_seed(Record(&mut *self.0))?;
+        }
+        self.0.push(JsonToken::EndObject);
+        Ok(())
+    }
+}
+
+/// The oracle's visitor for an object key.
+struct KeyRecord<'a>(&'a mut Vec<JsonToken>);
+
+impl<'de> serde::de::DeserializeSeed<'de> for KeyRecord<'_> {
+    type Value = ();
+
+    fn deserialize<D: serde::Deserializer<'de>>(self, parser: D) -> Result<(), D::Error> {
+        parser.deserialize_any(self)
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for KeyRecord<'_> {
+    type Value = ();
+
+    fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("a key")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<(), E> {
+        self.0.push(JsonToken::Key(value.to_owned()));
+        Ok(())
+    }
+}
+
+/// Where `Core\Json`'s reader and `serde_json` read `bytes` differently, or
+/// `None` where they agree.
+///
+/// They agree when both give the same tokens and the same error text. Two
+/// differences are named exceptions. The oracle's own depth limit of 128
+/// stops it where the reader goes on. An integer literal past `u64::MAX` or
+/// below `i64::MIN` is a float to the oracle, or "number out of range" once
+/// it passes `f64::MAX`, and the reader gives it as a big integer.
+#[must_use]
+pub fn json_reader_disagreement(bytes: &[u8]) -> Option<String> {
+    let read = json_read(bytes, None);
+    let oracle = json_oracle(bytes);
+    if oracle
+        .error
+        .as_deref()
+        .is_some_and(|why| why.starts_with("recursion limit exceeded"))
+    {
+        let shared = oracle.tokens.len().min(read.tokens.len());
+        return same_tokens(&read.tokens[..shared], &oracle.tokens[..shared]);
+    }
+    if oracle
+        .error
+        .as_deref()
+        .is_some_and(|why| why.starts_with("number out of range"))
+        && matches!(
+            read.tokens.get(oracle.tokens.len()),
+            Some(JsonToken::Big(..))
+        )
+    {
+        return same_tokens(&read.tokens[..oracle.tokens.len()], &oracle.tokens);
+    }
+    if read.tokens.len() != oracle.tokens.len() || read.error != oracle.error {
+        return Some(format!(
+            "the reader gave {} tokens and {:?}, the oracle {} tokens and {:?}",
+            read.tokens.len(),
+            read.error,
+            oracle.tokens.len(),
+            oracle.error
+        ));
+    }
+    same_tokens(&read.tokens, &oracle.tokens)
+}
+
+/// The first place two lists of the same length differ. A big integer from
+/// the reader matches any float from the oracle.
+fn same_tokens(read: &[JsonToken], oracle: &[JsonToken]) -> Option<String> {
+    read.iter()
+        .zip(oracle)
+        .position(|pair| match pair {
+            (JsonToken::Big(..), JsonToken::Float(_)) => false,
+            (mine, theirs) => mine != theirs,
+        })
+        .map(|at| {
+            format!(
+                "token {at}: the reader gave {:?}, the oracle {:?}",
+                read[at], oracle[at]
+            )
+        })
+}

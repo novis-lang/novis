@@ -21,6 +21,20 @@ What stays borrowed is everything per connection or per statement: packet framin
 authentication and column definitions. The argument for any such call names the cost the crate
 imposes, the lines owned, and what is still borrowed.
 
+`Core\Json`'s reader is the second such call, in `crates/nvs-stdlib/src/json/reader.rs`. `serde_json`
+reads a document by recursion, one native frame per nesting level, so a deep document needed a spare
+stack and a depth that bounds stack rather than a loop. It hands a visitor each key as a borrowed or
+copied `str`, so a key was copied once more on its way into a Novis string. It widens an integer literal
+past `u64::MAX` to a `float` before the caller sees the token, so a too-large literal was silently
+rounded. The owned reader is a pull tokenizer of about 750 lines: one event per call, the grammar
+checked against one bit per open level, held inline, strings with their escapes, and the RFC 8259
+number grammar with a digit count. It never recurses, its depth is a loop bound, and it has no `unsafe`
+block. It keeps `serde_json`'s message text, line and column for every syntax error, and a differential
+test over every saved fuzz input holds that. What stays borrowed is `serde_json` itself everywhere a
+small document of a fixed shape is read, such as JOSE headers, JWK import and the editor's wire, and
+as the oracle of that test. Declined: SIMD scanning, a pull-reader crate, whose messages differ, and
+the crate's `arbitrary_precision` feature, which routes every number through a private map token.
+
 The split is the one the tree already lives with. Cranelift compiles, and the lowering into it is
 written here; `serde_json` parses, and the derive that emits Novis IR from Novis types
 (`rule:core-classes/derive-attribute`) could not be a crate. When a feature is half of each — a

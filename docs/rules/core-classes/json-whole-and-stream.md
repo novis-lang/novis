@@ -52,8 +52,12 @@ the request, and never O(document).
 Two values on one line are read as two elements, as every JSON Lines reader reads them, because the
 parse cannot tell a newline it consumed after a number from one it did not.
 
-**The reader is serde_json, driven inside a coroutine** that suspends after each element and whenever
-it needs the next chunk. JSON keeps one parser, and a message names a position in the whole document.
+**The reader is Novis's own, with its own stack, driven inside a coroutine** that suspends after each
+element and whenever it needs the next chunk. `crates/nvs-stdlib/src/json/reader.rs` is a pull
+tokenizer that keeps one bit per open level and never recurses, so the coroutine needs no stack for
+nesting (`rule:packaging/somebody-elses-specification-is-a-crate`). A token may cross two chunks, and
+the coroutine keeps the reader's state between them. JSON keeps one parser, and a message names a
+position in the whole document.
 `crates/nvs-stdlib/src/json.rs`'s module doc, § *A document read one element at a time*, holds the
 probe's figures. The coroutine builds each element as `decode` builds a document and runs no compiled
 code. A typed walk then builds `T` from that value on the task's own stack, through the tree-first path
@@ -82,10 +86,12 @@ stack, resident only in the pages the parse touches. An `encodeEach` walk holds 
 - **A whole shape only.** It cannot serve a document larger than the request's memory ceiling, which is
   a real workload.
 - **A pull-reader crate.** It parses values with its own grammar and writes its own messages, so every
-  message the whole decode gives would differ for the same document.
+  message the whole decode gives would differ for the same document. The owned reader is already a
+  pull reader that keeps those messages.
 - **A framer that finds each element's bytes and hands them to the whole decoder.** It ran 1.5 times
-  faster than the coroutine in the probe, but it is a hand-written parser of JSON's outer structure,
-  which RFC 8259 being a dependency rules out, and its messages name a column inside the element.
+  faster than the coroutine in the probe, but it reads the document twice: once to find an element's
+  end and once to decode it. Its messages also name a column inside the element. The owned reader
+  reads each byte once and names the column in the whole document.
   Rewriting a skipped value inside the byte feed is the same framer, and is declined with it.
 - **The parser's ignoring path for a whole skipped value.** It checks no depth and keeps one byte per
   open level, so it would trade the string's copy for a nesting one and drop `maxDepth`.

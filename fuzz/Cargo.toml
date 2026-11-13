@@ -60,6 +60,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "json_reader"
+path = "fuzz_targets/json_reader.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "lex"
 path = "fuzz_targets/lex.rs"
 test = false

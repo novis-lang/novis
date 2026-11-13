@@ -6063,6 +6063,7 @@ mod each_probe;
 
 mod each;
 mod pieces;
+pub(crate) mod reader;
 
 /// The two walks' entry points, for `crate::io`'s case that writes
 /// `encodeEach`'s pieces through `Core\IO::writeStream` and reads them back.

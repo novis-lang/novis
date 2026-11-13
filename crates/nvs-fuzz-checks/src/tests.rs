@@ -6,13 +6,14 @@ type Target = (&'static str, &'static str, fn(&[u8]));
 
 /// Each target with a check, the directory under `fuzz/seeds/` its inputs are
 /// in, and the check. `ast` reads `parse`'s seeds, since both take one source
-/// text.
-const TARGETS: [Target; 17] = [
+/// text, and `json_reader` reads `json`'s, since both take one JSON text.
+const TARGETS: [Target; 18] = [
     ("ast", "parse", crate::ast),
     ("cookie", "cookie", crate::cookie),
     ("decompress", "decompress", crate::decompress),
     ("image_path", "image_path", crate::image_path),
     ("json", "json", crate::json),
+    ("json_reader", "json", crate::json_reader),
     ("lex", "lex", crate::lex),
     ("markdown", "markdown", crate::markdown),
     (
