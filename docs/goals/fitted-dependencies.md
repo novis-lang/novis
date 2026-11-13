@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-ext/build.rs, crates/nvs-ext/src/builtin.rs, crates/nvs-ext/src/load.rs, crates/nvs-cli/src/extensions.rs, docs/rules/packaging/the-first-party-components-are-built-in.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: reader-agrees
@@ -480,50 +480,32 @@ entry and where a checked program's extension classes are known.
 
 ### 8. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done. Stage 8, the gate, is next.
+Every stage is done, and the goal is reached. `looper verify` is green over the whole goal, and
+`bun nv verify --doc`, `bun nv owners --closes fitted-dependencies` and `bun nv ci --check` are
+green.
 
-Stage 7 stores each built-in component as Brotli at quality 9 with a 4 MiB window, its manifest and
-source sections plain beside it (`nvs_ext::builtin::Stored`, `STORED`, `expanded`, and a debug-build
-per-thread `expansions` count). The four are 14.5 MB stored of about 44 MB expanded. `IMAGE`,
-`INTL`, `PDF` and `SPREADSHEET` are now `Stored` statics, and the `_SHA256` and `_CLASS` constants
-stay. `Loader::compile` takes the bytes as a closure, so a cache hit never expands. A release build
-optimises `brotli` for the build script through `[profile.release.package.brotli]`. `nvs serve`
-loads the built-in components its mounts call before it binds, from
-`nvs_codegen::Unit::extension_classes`, a scan of the IR's `ExtensionCall`s on both the compile and
-the cache-load path (`crates/nvs-codegen/src/lib.rs`, `crates/nvs-cli/src/serve.rs`,
-`crates/nvs-cli/src/extensions.rs` `load_built_in`). `builtin_stored` and `builtin_warm` pass. The
-rule states the stored form, the sizes, the costs and the Declined list.
-
-The sweep's `env-secret-proofs` names no check in the tree: it is a stale entry in looper's service,
-and its log does not exist. The nightly's jobs were cancelled by later pushes.
+The gate fixed six things. `website/src/data/numbers.json`, the rule chapters and
+`THIRD-PARTY-LICENSES.txt` were rendered again. `json_as_refuses_each_bad_body_with_the_message_the_array_path_gave`
+in `crates/nvs-stdlib/src/request.rs` and two conformance cases under `tests/conformance/core/`
+now pin the decided integer behaviour: an untyped decode throws at any length, and a typed `uint`
+field reads up to `u64::MAX` and reports a larger literal as its own issue. The
+`Core\Json::decode` and `isValid` pages' search questions were rewritten and stamped. The
+Postgres test container now runs under an init process (`tests/db/compose.yaml`): an orphaned
+`pg_isready` from a timed-out healthcheck made the postmaster at PID 1 restart into crash recovery,
+and two `nvs-cli` runner tests failed with SQLSTATE 57P03. The integer decision now lives in
+`rule:errors/ambiguous-input-refused`.
 
 ### Next
 
-Stage 8, the gate: start `looper verify` with `run_in_background`, then fix every failure it names
-in one pass.
-
-- `crates/nvs-ext/tests/builtin.rs:162` checks each component's recorded size against its expanded
-  bytes now; a drift past 5% means an `extensions/*/src/lib.rs` figure needs rewriting.
-- `crates/nvs-cli/src/serve.rs:599` prints the new `loaded the built-in component` lines on stdout
-  before `listening on`; a serve test that pins the whole of stdout for a program calling a
-  `Novis\` class would go red.
-
-Expected red until stage 8: any test that pins a decode of an integer literal past `u64::MAX` to a
-`float`, any typed-decode test that pins a repeated key's column, which is now after the value, and
-any `decodeEach` test that pins a byte offset or a column of an error inside a skipped value. The
-`decodeEach` suites in `each.rs` and the deep-document tests since `Levels` were not run. Of
-`nvs-ext`, only `proposals`, `failure`, `call`, `cache`, `wasmtime_features` and `builtin_stored`
-ran after the cuts; `builtin`, `intl` and `pdf` were changed to read `expanded` and were not run.
-A test that compiles component text through `Component::new`, or reads a trap's wasm backtrace,
-would go red, though a search found none.
+- `docs/goals/README.md:3` the driver retires this goal, and `server-events` is next on the chain.
 
 ### Backlog
 
