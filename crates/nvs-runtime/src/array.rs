@@ -2345,6 +2345,7 @@ pub fn prime_empty_array() {
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_retain(ptr: *mut ArrayHeader) {
+    crate::budget::count_refcount_call();
     if ptr.is_null() {
         return;
     }
@@ -2373,6 +2374,7 @@ pub unsafe extern "C" fn nvs_array_retain(ptr: *mut ArrayHeader) {
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_release(ptr: *mut ArrayHeader) {
+    crate::budget::count_refcount_call();
     if ptr.is_null() {
         return;
     }

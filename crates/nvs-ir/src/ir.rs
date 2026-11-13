@@ -2347,6 +2347,25 @@ pub enum InstKind {
     },
 }
 
+impl InstKind {
+    /// Whether the value this instruction defines is an immortal literal in
+    /// the unit's data section: [`Self::ConstStr`], [`Self::ConstBytes`],
+    /// [`Self::ConstMarkup`] and [`Self::ConstDuration`].
+    ///
+    /// A retain or release of such a value changes no count, because the
+    /// header's count is `nvs_runtime::IMMORTAL_REFCOUNT`. So `nvs-codegen`
+    /// emits nothing for one whose operand such an instruction defines
+    /// directly. A value that reaches a block parameter keeps its calls,
+    /// since a phi can merge a literal with a value that is counted.
+    #[must_use]
+    pub const fn is_immortal_literal(&self) -> bool {
+        matches!(
+            self,
+            Self::ConstStr(_) | Self::ConstBytes(_) | Self::ConstMarkup(_) | Self::ConstDuration(_)
+        )
+    }
+}
+
 /// Which class an [`InstKind::ClassTest`] tests against.
 ///
 /// Two forms rather than two instructions, because the test is the same test:

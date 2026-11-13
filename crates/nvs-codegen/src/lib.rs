@@ -2656,6 +2656,31 @@ impl<M: Module> UnitBuilder<M> {
         buffer.push('\n');
         buffer.push_str(&self.ctx.func.to_string());
         buffer.push('\n');
+        // Cranelift prints an import as `fn3 = u0:17`, so each one's symbol
+        // follows on a `;; fn3 = nvs_str_retain` line. A test can then check
+        // which runtime entries a function calls. The doubled `;` keeps the
+        // line apart from the `; <name>` head of the next function.
+        let func = &self.ctx.func;
+        for (fref, data) in func.dfg.ext_funcs.iter() {
+            let codegen::ir::ExternalName::User(user) = &data.name else {
+                continue;
+            };
+            let Some(target) = func.params.user_named_funcs().get(*user) else {
+                continue;
+            };
+            // `cranelift-module` names a function in namespace 0 and a data
+            // object in namespace 1.
+            if target.namespace != 0 {
+                continue;
+            }
+            let id = cranelift_module::FuncId::from_u32(target.index);
+            let decl = self.module.declarations().get_function_decl(id);
+            buffer.push_str(";; ");
+            buffer.push_str(&fref.to_string());
+            buffer.push_str(" = ");
+            buffer.push_str(decl.name.as_deref().unwrap_or("?"));
+            buffer.push('\n');
+        }
     }
 
     /// Appends the just-compiled function's disassembly, if one was asked for.

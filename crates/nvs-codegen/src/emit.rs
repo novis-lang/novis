@@ -76,7 +76,7 @@ use nvs_runtime::{
     FRAME_SITE_OFFSET, FRAME_SLOT_COUNT_OFFSET, FRAME_SLOTS_OFFSET, OK, SAFEPOINT_OFFSET,
     STACK_LIMIT_OFFSET, StrPart, THROWN, Tag, Value as NvsValue,
 };
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ty::{clif_ty, tag_of};
 use crate::{Classes, CodegenError, Signatures};
@@ -323,6 +323,7 @@ pub(crate) fn emit_function(
         landing_status: None,
         order,
         stack_check_pending: !is_leaf(f),
+        immortal_literals: FxHashSet::default(),
     };
     emitter.emit_blocks()?;
     emitter.b.seal_all_blocks();
@@ -667,6 +668,11 @@ struct Emitter<'a, 'f> {
     /// [`Self::emit_safepoint`] for why taking it at the first poll lands it
     /// at function entry.
     stack_check_pending: bool,
+    /// Every value an immortal literal defines, by its IR index — see
+    /// [`nvs_ir::ir::InstKind::is_immortal_literal`]. A `Retain` or `Release`
+    /// of one of these emits nothing. **What it spends:** one set entry per
+    /// literal while compiling, and nothing at run time.
+    immortal_literals: FxHashSet<u32>,
 }
 
 impl Emitter<'_, '_> {
@@ -732,6 +738,9 @@ impl Emitter<'_, '_> {
             .ty
             .ok_or_else(|| internal("a value-defining instruction with no representation"))?;
         self.values.insert(result.index(), (value, ty));
+        if inst.kind.is_immortal_literal() {
+            self.immortal_literals.insert(result.index());
+        }
         Ok(())
     }
 
@@ -1336,13 +1345,19 @@ impl Emitter<'_, '_> {
                 let (value, ty) = self.value(*value)?;
                 self.store_value(slot, 0, value, ty)?;
             }
+            // A literal's header carries `IMMORTAL_REFCOUNT`, so its retain
+            // and release would change nothing: neither is emitted.
             InstKind::Retain { operand } => {
                 let (value, ty) = self.value(*operand)?;
-                self.emit_refcount(true, value, ty)?;
+                if !self.immortal_literals.contains(&operand.index()) {
+                    self.emit_refcount(true, value, ty)?;
+                }
             }
             InstKind::Release { operand } => {
                 let (value, ty) = self.value(*operand)?;
-                self.emit_refcount(false, value, ty)?;
+                if !self.immortal_literals.contains(&operand.index()) {
+                    self.emit_refcount(false, value, ty)?;
+                }
             }
             InstKind::TakeThrown => {
                 let callee = self.runtime_ref("nvs_take_thrown", RuntimeSig::PtrToPtr)?;
@@ -1756,10 +1771,13 @@ impl Emitter<'_, '_> {
     /// goes into the unit's data section, so `$a["beta"]` inside a loop
     /// materializes a constant pointer rather than an `nvs_str_new` per
     /// evaluation. The header's refcount is
-    /// [`nvs_runtime::IMMORTAL_REFCOUNT`], which every retain and release
-    /// compares against and steps over; the data object is declared
-    /// **not writable**, so a lapse in that protocol faults here instead of
-    /// silently corrupting a word two requests share.
+    /// [`nvs_runtime::IMMORTAL_REFCOUNT`]. A `Retain` or `Release` whose
+    /// operand is the literal itself is not emitted at all
+    /// ([`nvs_ir::ir::InstKind::is_immortal_literal`]). One that reaches the
+    /// literal through a block parameter is emitted, and the runtime compares
+    /// the count against the sentinel and steps over it. The data object is
+    /// declared **not writable**, so a lapse in that protocol faults here
+    /// instead of silently corrupting a word two requests share.
     ///
     /// The layout stays `nvs-runtime`'s: this function asks
     /// [`nvs_runtime::immortal_header_bytes`] for the bytes and does not know

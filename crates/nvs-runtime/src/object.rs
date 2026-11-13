@@ -5219,6 +5219,7 @@ crate::nvs_helper! {
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_retain(ptr: *mut ObjHeader) {
+    crate::budget::count_refcount_call();
     if ptr.is_null() {
         return;
     }
@@ -5247,6 +5248,7 @@ pub unsafe extern "C" fn nvs_object_retain(ptr: *mut ObjHeader) {
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_release(ptr: *mut ObjHeader) {
+    crate::budget::count_refcount_call();
     #[expect(unsafe_code, reason = "the caller guarantees it owns the reference")]
     unsafe {
         release_graph(ptr);

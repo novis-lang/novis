@@ -1246,6 +1246,39 @@ pub fn allocations() -> usize {
     COUNTERS.with(|c| c.requests.get())
 }
 
+#[cfg(debug_assertions)]
+thread_local! {
+    /// Monotonic: how many times this thread entered one of the six typed
+    /// refcount entries — see [`refcount_calls`]. Its own thread local, so
+    /// [`Counters`]' hot line is the same in every build.
+    static REFCOUNT_CALLS: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Counts one entry into a typed refcount helper: `nvs_str_retain`,
+/// `nvs_str_release`, `nvs_object_retain`, `nvs_object_release`,
+/// `nvs_array_retain` or `nvs_array_release`. Each calls this first.
+///
+/// It compiles to nothing without `debug_assertions`, so a release build pays
+/// nothing for the guards that read it.
+#[inline]
+pub(crate) fn count_refcount_call() {
+    #[cfg(debug_assertions)]
+    REFCOUNT_CALLS.with(|c| c.set(c.get().wrapping_add(1)));
+}
+
+/// How many times this thread has entered a typed refcount helper, never
+/// decreasing. A null operand and an immortal header count too, because the
+/// call was still made.
+///
+/// It exists only under `debug_assertions`. A guard that compiled code makes
+/// no helper call for some value reads it around a run, as it reads
+/// [`allocations`] (`rule:testing/bench-counters`).
+#[cfg(debug_assertions)]
+#[must_use]
+pub fn refcount_calls() -> usize {
+    REFCOUNT_CALLS.with(Cell::get)
+}
+
 /// How many bytes this thread has ever allocated, never decreasing.
 ///
 /// The other half of [`allocations`]: a run that allocated nothing has a zero

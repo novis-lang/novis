@@ -2296,6 +2296,7 @@ pub unsafe extern "C" fn nvs_str_eq(lhs: *const StrHeader, rhs: *const StrHeader
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_str_retain(ptr: *mut StrHeader) {
+    crate::budget::count_refcount_call();
     if ptr.is_null() {
         return;
     }
@@ -2349,6 +2350,7 @@ pub unsafe extern "C" fn nvs_str_retain(ptr: *mut StrHeader) {
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_str_release(ptr: *mut StrHeader) {
+    crate::budget::count_refcount_call();
     if ptr.is_null() {
         return;
     }
