@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-runtime/src/string.rs, crates/nvs-ir/src/ir.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-codegen/src/emit.rs, docs/rules/types/string-holes.md]
   - id: 4
     title: an array or string passed at its last use is moved
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/call.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-ir/src/ty.rs, docs/rules/statements/inout-is-the-by-reference-spelling.md]
   - id: 5
     title: a literal is never retained or released
@@ -440,32 +440,32 @@ string a `uint` hole renders into.
 `file.rs:NN` and one line each: the landing block, the scope-end sweep, generator state, debug
 probes and the collector.
 
-- [ ] One function decides the move for a statement and returns the local's name.
+- [x] One function decides the move for a statement and returns the local's name.
   `lower_reassignment` and the lowering of `return` call it. `release_all_locals` already skips a
   returned local through `except` (`rule:types/arrays`, `crates/nvs-ir/src/lower/stmt.rs:1112`,
   `crates/nvs-ir/src/lower/mod.rs:4249`).
-- [ ] The argument lowering passes a moved local with no retain, stages it as transferred, and takes
+- [x] The argument lowering passes a moved local with no retain, stages it as transferred, and takes
   it out of `Env`. The change sits in the one operand function `values-stay-alive` left, found by
   `OperandSite` (`crates/nvs-ir/src/lower/call.rs:238`, `crates/nvs-ir/src/lower/call.rs:485`).
-- [ ] The reassignment binds the result as a fresh binding at the local's declared type, with no
+- [x] The reassignment binds the result as a fresh binding at the local's declared type, with no
   release of an old value (`crates/nvs-ir/src/lower/stmt.rs:1366`).
-- [ ] Every reader the subagent listed is checked against a moved local. Each is static from `Env`,
+- [x] Every reader the subagent listed is checked against a moved local. Each is static from `Env`,
   or its function kind joins the conditions (`crates/nvs-ir/src/lower/mod.rs:3279`).
-- [ ] Test `a_local_is_moved_only_where_every_condition_holds`: one program per condition, each with
+- [x] Test `a_local_is_moved_only_where_every_condition_holds`: one program per condition, each with
   that one condition broken, and each keeps its `retain` (`crates/nvs-ir/src/lower/tests.rs:2004`).
-- [ ] Tests `an_array_passed_and_reassigned_allocates_in_proportion_to_what_it_adds` and
+- [x] Tests `an_array_passed_and_reassigned_allocates_in_proportion_to_what_it_adds` and
   `a_string_passed_and_returned_allocates_in_proportion_to_what_it_adds`. The second is a recursive
   walk that returns its accumulator (`crates/nvs-codegen/tests/in_place_writes.rs:1`).
-- [ ] Test `a_passed_array_another_variable_shares_is_still_copied`: `$ys = $xs` before the call,
+- [x] Test `a_passed_array_another_variable_shares_is_still_copied`: `$ys = $xs` before the call,
   and `$ys` keeps its contents (`crates/nvs-codegen/tests/in_place_writes.rs:1`).
-- [ ] Test `a_moved_argument_is_released_once_on_every_way_out`: the callee throws, a later argument
+- [x] Test `a_moved_argument_is_released_once_on_every_way_out`: the callee throws, a later argument
   throws, and the call returns. Live bytes balance each time
   (`crates/nvs-codegen/tests/in_place_writes.rs:1`).
-- [ ] Conformance case `tests/conformance/lang/a-passed-array-a-second-variable-shares-is-copied.nvst:1`
+- [x] Conformance case `tests/conformance/lang/a-passed-array-a-second-variable-shares-is-copied.nvst:1`
   (`rule:types/arrays`).
-- [ ] The module doc gains the invariant: a moved local is absent from `Env`, and which function
+- [x] The module doc gains the invariant: a moved local is absent from `Env`, and which function
   decides it (`crates/nvs-ir/src/lib.rs:127`).
-- [ ] `rule:statements/inout-is-the-by-reference-spelling` gains a Declined entry: moving the
+- [x] `rule:statements/inout-is-the-by-reference-spelling` gains a Declined entry: moving the
   holder's reference into the cell, with the two reasons. Then run `bun nv rules --render`
   (`docs/rules/statements/inout-is-the-by-reference-spelling.md:39`).
 
@@ -535,42 +535,39 @@ and release entries beyond the count write, in every build kind, as `file.rs:NN`
 
 ### State
 
-Stages 1 to 3 are done. `.=` of an interpolation or a `.` chain onto a `string` local, a plain
-property or a static property is one `StrAppend` whose suffix is a list of `ConcatPart`
-(`append_parts`, `crates/nvs-ir/src/lower/stmt.rs:842`; `slot_append_parts`, `:818`;
-`lower_string_append`, `:1337`). The parts come from `interpolated_pieces`
-(`crates/nvs-ir/src/lower/expr.rs:2315`) and `concat_pieces` (`:3325`), which the join paths now
-call too. One `Str` part calls `nvs_str_append`; any other list calls `nvs_str_append_parts`
-(`crates/nvs-runtime/src/string.rs:2063`) through a new `RuntimeSig::StrAppendParts`. The runtime
-copies when the target is shared or a part is the target. `PartKind::Uint` / `StrPart::UINT` exist,
-and a joined `uint` hole, and a `uint` `Core\Str::format` argument, no longer call
-`uint_to_string`. An element `.=` still takes one `Str` suffix through `append_suffix`. Checks
-`parts-append-in-place` and `parts-append-writes-the-join` pass. Build, clippy and rustfmt are
-green; no verify ran.
+Stages 1 to 4 are done. Stage 4: `Lowering::last_use_move`
+(`crates/nvs-ir/src/lower/stmt.rs:1438`) decides the move, and `lower_reassignment` (`:1535`)
+and the `return` arm (`:189`) set `Lowering::pending_move` around the value. `lower_fixed_arg`
+(`crates/nvs-ir/src/lower/call.rs:252`) takes it where the parameter is transferred and the
+argument's type equals the parameter's, then stages the value as transferred with no retain and
+removes the local from `Env`, which every reader of a frame's locals reads (`lib.rs` says so). The
+local count is a text scan, `mentions_of` (`stmt.rs:3101`). The conditions include no enclosing `try` (`try_stack` empty), no generator, and no `foreach … inout` binding or
+subject. Checks `last-use-move` and `move-conditions` and the conformance case pass. Build, clippy
+and rustfmt are green; no verify ran.
 
 Expect red in stage 7: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` that print a
 property, static property or element `.=` (stage 2: `str_append` or `array_str_append_through` in
 place of `concat` and `array_set`), any snapshot of a `.=` whose suffix is an interpolation or a
 `.` chain (now `str.append vN, <parts>` with no `concat`), any snapshot of an interpolation or a
-`Core\Str::format` call over a `uint` (now `uint vN`, no `uint_to_string`), and any test that pinned
-the old read order of a `.=` whose suffix writes its own target.
+`Core\Str::format` call over a `uint` (now `uint vN`, no `uint_to_string`), any snapshot of
+`$x = f($x)` or `return f($x)` over an array or string local passed to a compiled function (stage
+4: no `retain` of the local, and no `release` of its old value), and any test that pinned the old
+read order of a `.=` whose suffix writes its own target.
 
-The sweep items stay stale. No `env-secret-proofs` check or log exists. Nightly run 43201099245
-built `578534cc`, which does not contain `7568aaa0fb`, the commit that skips those Miri tests.
+The sweep items stay stale: no `env-secret-proofs` check exists, and nightly 43201099245 predates
+`7568aaa0fb`, which skips those Miri tests.
 
 ### Next
 
-Stage 4. Its `**Split:**` line comes first.
+Stage 5.
 
-- [ ] `crates/nvs-ir/src/lower/mod.rs:3279`: an `Explore` subagent lists every reader of a frame's
-  locals (landing block, scope-end sweep, generator state, debug probes, collector) as
-  `file.rs:NN`, one line each.
-- [ ] `crates/nvs-ir/src/lower/stmt.rs:1419`: the one function that decides the move, called from
-  `lower_reassignment` and the lowering of `return`.
-- [ ] `crates/nvs-ir/src/lower/call.rs:238`: the argument lowering passes a moved local with no
-  retain, stages it as transferred, and takes it out of `Env`.
-- [ ] `crates/nvs-ir/src/lower/tests.rs:2004`: `a_local_is_moved_only_where_every_condition_holds`.
-- [ ] `crates/nvs-codegen/tests/in_place_writes.rs:1`: the four tests of check `last-use-move`.
+- [ ] `crates/nvs-ir/src/ir.rs:954`: one predicate on `InstKind` for `ConstStr`, `ConstBytes` (`:966`)
+  and `ConstMarkup` (`:982`).
+- [ ] `crates/nvs-codegen/src/emit.rs:1339`: the `Retain` and `Release` arms skip a value a literal
+  defines; `emit_refcount` is at `:4425`.
+- [ ] `crates/nvs-runtime/src/budget.rs:1245`: a `refcount_calls()` counter beside `allocations()`,
+  under `debug_assertions`.
+- [ ] `crates/nvs-codegen/tests/refcount_calls.rs:1`: the two tests of check `literals-uncounted`.
 
 ### Backlog
 
@@ -582,3 +579,7 @@ Stage 4. Its `**Split:**` line comes first.
   (`crates/nvs-ir/src/lower/control.rs:1234`).
 - A `foreach` step is two helper calls, one for the slot and one for the value.
 - `.=` through an `inout` string parameter keeps the rewrite (`crates/nvs-ir/src/lower/stmt.rs:568`).
+- A move into a `$fn(...)` call, a variadic tail or a parameter that widens the argument (`?T`,
+  `mixed`) keeps the retain; `lower_fixed_arg` is the only place that moves.
+- `a_local_is_moved_only_where_every_condition_holds` has no generator or nullsafe program; both
+  conditions are in `last_use_move`.
