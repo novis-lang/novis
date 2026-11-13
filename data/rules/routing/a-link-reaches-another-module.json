@@ -1,5 +1,5 @@
 {
-  "title": "A link to another module (another program on the server) names its route through an `autoload links` root; the compiler checks the method and the server picks the mount",
+  "title": "A link to another module (another program on the server) names its route through an `autoload links` root; the compiler checks the method and the server picks the mount, with `canonical` breaking a tie",
   "status": "shipped",
   "seeAlso": [
     "routing/link-target-and-params-are-checked",

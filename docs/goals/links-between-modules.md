@@ -466,6 +466,9 @@ named three failures, and the second run is green. The goal-end gates are green 
   stale is measured again, and the namespaces page is stamped.
 - The sweep's `env-secret-proofs` names no check in the tree. The nightly's jobs were cancelled by a
   later push.
+- `brief-finds-the-links-rule` was red: `bun nv brief --where` matches rule titles, and the routing
+  rule's title did not say `canonical`. Its title in `data/rules/routing/a-link-reaches-another-module.json`
+  now does, and the check is green.
 
 ### Next
 
