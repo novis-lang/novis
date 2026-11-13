@@ -153,6 +153,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **`cargo test --lib` runs none of `nvs-cli`'s tests, and says `0 passed` for every crate.**
+  `nvs-cli` is a binary crate with no library target, so a test in `crates/nvs-cli/src/` runs under
+  `cargo test --bin nvs -- <name>`. A goal check whose test lives there runs
+  `cargo test --lib --bin nvs -- <name>`, or its `must run` fails with the test green.
+  `until: gone crates/nvs-cli/Cargo.toml:[[bin]]`
 - **A value `nvs run` reads off the context before `ctx.set_config` is the empty configuration.**
   The `--events` publisher took its configuration there, so its topics had no application and the
   `Core\Sse\Message` examples printed nothing, which only `floor-debt` caught. Read anything
