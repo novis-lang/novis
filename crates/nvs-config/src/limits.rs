@@ -14,11 +14,14 @@
 //! for server work and nothing for a CLI program ([`crate::defaults::Value::Serving`]), so both are
 //! resolved, and a request reads the half its [`Request::serves`] names.
 //!
-//! **Filled on first read, and never copied.** The cell is empty in every snapshot, however it was
-//! built, and the first reader fills it. A clone of a snapshot starts empty, because cloning is how
-//! a snapshot is changed before it is published, and a table read off the tree before the change
-//! would be stale. The one change made in place, a publish carrying a `Boot` key back
-//! (`Current::carry_boot`), empties the cell too.
+//! **Filled when it is published, and never copied.** A [`Published`](crate::Published) set fills
+//! the cell of the host's snapshot when it is made, and of each entry's snapshot when that entry is
+//! folded. So a reload pays the parsing before the swap, and no request pays it. A snapshot that
+//! is never published, such as one a test builds, fills it on its first read. A clone of a
+//! snapshot starts empty, because cloning is how a snapshot is changed before it is published,
+//! and a table read off the tree before the change would be stale. The one change made in place,
+//! a publish carrying a `Boot` key back (`Current::carry_boot`), runs before the set is made, and
+//! empties the cell too.
 //!
 //! What it spends: per snapshot, two rows of [`LIMITS`] readings, four flags and a size, under a
 //! kilobyte, built once and shared by every request that clones the snapshot. Nothing in it is

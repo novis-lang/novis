@@ -330,11 +330,11 @@ count**).
 **Split:** an `Explore` subagent lists every handler passed to `serve_connection` or
 `serve_on_this_core`, tests included, as `file.rs:NN`, before the signature changes.
 
-- [ ] `Current` gains a generation that both publish paths move under the write lock, through one
+- [x] `Current` gains a generation that both publish paths move under the write lock, through one
   private swap function, and a `generation()` load
   (`rule:config/the-config-is-an-immutable-snapshot`, `crates/nvs-config/src/snapshot.rs:705`,
   `:787`, `:817`).
-- [ ] The publisher fills the limits cell of the host's snapshot and of every folded entry before
+- [x] The publisher fills the limits cell of the host's snapshot and of every folded entry before
   the swap. `Current::new`, `Current::of` and the slow path of `Published::entry` fill it too
   (`rule:config/the-config-is-an-immutable-snapshot`, `crates/nvs-config/src/limits.rs:147`,
   `crates/nvs-config/src/snapshot.rs:710`, `:716`, `:666`). The module doc's *Filled on first read*
@@ -527,29 +527,50 @@ resolved cell, and keep a configured log file open.
 
 ### State
 
-Stage 1 is done. `nvs_diagnostics::shared` counts every shared write the door and the handler make,
-and `a_keep_alive_request_makes_its_counted_shared_writes` (`crates/nvs-cli/src/serve.rs`) holds one
-keep-alive request to 48. That is at least 28, so stages 2 and 3 are built (**The measured count**).
-`nvs-server` now depends on `nvs-diagnostics` outside its tests. `Ctx::isolate_copies` gives the
-door the copies `Ctx::isolate` makes, because `nvs-runtime` does not reach `nvs-diagnostics`. Every
-check's run is now `cargo test --lib --bin nvs`: `nvs-cli` is a binary crate, so `--lib` alone ran
-none of its tests.
+Stage 1 is done. Stage 2's `nvs-config` half is done: `Current` has a `generation()` that its one
+private `swap` moves under the write lock, and `Current::published_at` reads the set and its
+generation under one lock (counted as `published` is). Every `Published` fills the limits cell of
+the host's snapshot when it is made, and of each folded entry when it folds, so a publish pays the
+parsing before the swap. The `limits.rs` module doc says so. Nothing in `nvs-server` reads the
+generation yet, and the build and clippy are green.
 
-The sweep's `env-secret-proofs` and the nightly Miri failures of run 43201099245 were stale. No such
-check exists, and that run tested `578534cc7c`, before `7568aaa0fb` skipped all four tests under
-Miri.
+The sweep's `env-secret-proofs` and the nightly Miri failures of run 43201099245 were stale again.
+No such check log exists, and that run tested `578534cc7c`, before `7568aaa0fb` skipped the four
+tests under Miri. A sweep that names them again needs no work.
 
 ### Next
 
-Stage 2, over `crates/nvs-config/src/snapshot.rs`, `crates/nvs-config/src/limits.rs`,
-`crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/secure.rs` and `crates/nvs-cli/src/serve.rs`.
-Follow the stage's **Split** line first. The handler's signature change breaks every handler the
-list names until each is updated. No test is expected red once it lands.
+Stage 2's `nvs-server` half, over `crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/secure.rs`,
+`crates/nvs-server/src/cors.rs`, `crates/nvs-cli/src/serve.rs` and `crates/nvs-cli/src/runner.rs`.
+The **Split** list is below, so do not run it again. No test is expected red once it lands.
 
-- `Current` is `crates/nvs-config/src/snapshot.rs:721`; its publish paths are `:789`, `:808` and
-  `:831`. The counted sites in it, `Current::published` and `Current::load`, keep their counts.
-- `serve_on_this_core` is `crates/nvs-server/src/serve.rs:3456`, `published_of` `:728`, and
-  `Serving::policy` the function with the `PolicyLock` count.
+- `crates/nvs-server/src/serve.rs:1022` `Serving`: its `policy` becomes the boot `Arc<Policy>` with
+  no lock. `bounded_by` takes `self`, so it rebuilds that `Arc` with no lock either.
+  `Serving::policy` (`:1132`) becomes the record's replace. It derives a policy from the new host
+  snapshot as it does now, with the old record's waits and bounds as the fallback.
+- `crates/nvs-server/src/serve.rs:1222` `Policy` holds owned `Secure`, `Cors` and `Trusted`, not
+  `Arc`s. The per-core render of the boot policy needs `Secure::own` and `Cors::own`, which make
+  every `HeaderValue` again from its bytes (`crates/nvs-server/src/secure.rs:100`,
+  `crates/nvs-server/src/cors.rs:128`). A test may hand `Serving::new` a `Secure` that is not its
+  snapshot's, so the record copies the boot policy while the generation is the boot one, and
+  never renders it from the snapshot.
+- The record: `Record { generation, published, policy }`, behind a per-core
+  `OnCore(RefCell<Rc<Record>>)` that `serve_on_this_core` (`crates/nvs-server/src/serve.rs:3456`)
+  builds before it accepts and passes to `serve_connection` (`:1652`) as a new argument. The door
+  (`:1899`) loads `current.generation()`. On a moved number it calls `Current::published_at` and
+  replaces the record. Then it takes an `Rc` clone for the request. `connection_terms` (`:1214`)
+  reads the same record.
+- The handler bound becomes `Fn(Request<Incoming>, Origin, &Record) -> Reply`. The insert at
+  `:2124` and `published_of` (`:728`) go. The handlers to update: in `crates/nvs-cli/src/serve.rs`
+  the ones bound at `:1095`, `:4930`, `:5123`, `:5338`, `:5540` and `:6453`, and in
+  `crates/nvs-cli/src/runner.rs` the one at `:3748`. In `crates/nvs-server/src/serve.rs` the test
+  helpers `echo_the_carrier` `:4409`, `say_whether_an_upgrade_was_offered` `:4625`,
+  `echo_the_path` `:4386`, `echo_under_a_named_route` `:10004`, `echo_after_two_parks` `:11977`
+  and `upgrade_leaving` `:4746`. The closures bound at `:4573`, `:7447`, `:7616`, `:7848`,
+  `:8158`, `:9110`, `:9345`, `:10580`, `:10690`, `:10964`, `:11652`, `:11796`, `:12088`, `:12485`,
+  `:12576`, `:12699`, `:12773`, `:12849`, `:13134` and `:14249`. The `H: Fn` bounds at `:4986`,
+  `:5002`, `:5017`, `:5033`, `:9619`, `:9633`, `:9658`, `:9701`, `:10830` and `:13717`. The one
+  reader of `published_of` in a test is `:9879`. A `cargo build` lists any that are missed.
 - The record's reads count nothing. Stage 2's `the_door_takes_no_lock_under_the_standing_configuration`
   reads `Line::CurrentLock` and `Line::PolicyLock` from `nvs_diagnostics::shared`. Then lower
   `SHARED_WRITES` in `crates/nvs-cli/src/serve.rs` to what the keep-alive test prints. It asserts

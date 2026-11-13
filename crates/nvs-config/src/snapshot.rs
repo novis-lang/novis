@@ -552,6 +552,7 @@ impl Published {
     /// has not handed it the roster.
     #[must_use]
     pub fn host_only(host: Arc<Snapshot>) -> Self {
+        crate::limits::resolved(&host);
         Self {
             host,
             blocks: AppBlocks::default(),
@@ -571,6 +572,7 @@ impl Published {
         entries: &[PathBuf],
         files: &dyn Files,
     ) -> Result<Self, Diagnostic> {
+        crate::limits::resolved(&host);
         let set = Self {
             host,
             blocks,
@@ -696,6 +698,7 @@ impl Published {
                 let mut folded = Snapshot::clone(&self.host);
                 folded.fold(&self.blocks, &chain, files)?;
                 let folded = Arc::new(folded);
+                crate::limits::resolved(&folded);
                 let mut resolved = self.resolved.write().expect(lock);
                 Arc::clone(resolved.chains.entry(chain).or_insert(folded))
             }
@@ -717,20 +720,65 @@ impl Published {
 /// a dependency bought for one uncontended read is not a trade this crate makes (`rule:packaging/a-c-dependency-answers-two-questions`).
 /// The host's snapshot and its entries are one value behind it, so no request reads two publishes.
 ///
+/// **A generation that only a publish moves.** A server core keeps its own record of the set and
+/// loads [`generation`](Current::generation) once per request. An equal number means its record
+/// is the standing set, read with no lock. A moved one means the core takes the set again with
+/// [`published_at`](Current::published_at). The number moves under the write lock, so the set and
+/// its number are always read together. What it spends: one word per holder.
 #[derive(Debug)]
-pub struct Current(RwLock<Arc<Published>>);
+pub struct Current {
+    set: RwLock<Arc<Published>>,
+    generation: AtomicU64,
+}
 
 impl Current {
     /// The holder, serving `snapshot` to every entry from the moment it exists.
     #[must_use]
     pub fn new(snapshot: Arc<Snapshot>) -> Self {
-        Self(RwLock::new(Arc::new(Published::host_only(snapshot))))
+        Self::of(Published::host_only(snapshot))
     }
 
     /// The holder, serving `published` from the moment it exists.
     #[must_use]
     pub fn of(published: Published) -> Self {
-        Self(RwLock::new(Arc::new(published)))
+        Self {
+            set: RwLock::new(Arc::new(published)),
+            generation: AtomicU64::new(0),
+        }
+    }
+
+    /// How many sets were published since this holder was made: one atomic load and no lock.
+    ///
+    /// The number moves after the set it names is stored, so a reader that saw it move takes the
+    /// new set or a newer one.
+    #[must_use]
+    pub fn generation(&self) -> u64 {
+        self.generation.load(Ordering::Acquire)
+    }
+
+    /// The published set serving now and its [`generation`](Current::generation), read under one
+    /// lock so the two always agree.
+    ///
+    /// # Panics
+    ///
+    /// As [`load`](Current::load).
+    #[must_use]
+    pub fn published_at(&self) -> (u64, Arc<Published>) {
+        #[cfg(debug_assertions)]
+        {
+            shared::wrote(shared::Line::CurrentLock, 2);
+            shared::wrote(shared::Line::Publish, 2);
+        }
+        let set = self.set.read().expect("the snapshot lock is never poisoned");
+        (self.generation(), Arc::clone(&set))
+    }
+
+    /// Stores `set` and moves the generation, both under the write lock: the one way a set is
+    /// published.
+    fn swap(&self, set: Published) {
+        let mut held = self.set.write().expect("the snapshot lock is never poisoned");
+        *held = Arc::new(set);
+        self.generation.fetch_add(1, Ordering::Release);
     }
 
     /// The published set serving now, for a request to take its entry's snapshot from.
@@ -745,7 +793,7 @@ impl Current {
             shared::wrote(shared::Line::CurrentLock, 2);
             shared::wrote(shared::Line::Publish, 2);
         }
-        Arc::clone(&self.0.read().expect("the snapshot lock is never poisoned"))
+        Arc::clone(&self.set.read().expect("the snapshot lock is never poisoned"))
     }
 
     /// The host's snapshot serving now, for a request to hold for its whole life.
@@ -764,7 +812,7 @@ impl Current {
         }
         Arc::clone(
             &self
-                .0
+                .set
                 .read()
                 .expect("the snapshot lock is never poisoned")
                 .host,
@@ -809,8 +857,7 @@ impl Current {
         let mut next = next;
         let boot = self.load().carry_boot(&mut next, keep)?;
         let snapshot = Arc::new(next);
-        let set = Published::host_only(Arc::clone(&snapshot));
-        *self.0.write().expect("the snapshot lock is never poisoned") = Arc::new(set);
+        self.swap(Published::host_only(Arc::clone(&snapshot)));
         Ok(Reload { snapshot, boot })
     }
 
@@ -839,8 +886,7 @@ impl Current {
         let mut next = next;
         let boot = self.load().carry_boot(&mut next, keep)?;
         let snapshot = Arc::new(next);
-        let set = Published::new(Arc::clone(&snapshot), blocks, entries, files)?;
-        *self.0.write().expect("the snapshot lock is never poisoned") = Arc::new(set);
+        self.swap(Published::new(Arc::clone(&snapshot), blocks, entries, files)?);
         Ok(Reload { snapshot, boot })
     }
 }
