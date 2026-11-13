@@ -5,13 +5,6 @@
   ],
   "themes": [
     {
-      "title": "Fixes from a security review",
-      "text": "A review of the whole runtime found places where a safety rule did not apply. Each place gets a fix and a test.",
-      "goals": [
-        "operator-surfaces"
-      ]
-    },
-    {
       "title": "Faster writes to arrays and strings",
       "text": "A write to a nested array, or an append to a string in a property, changes the value in place. The cost no longer grows with the size of the value.",
       "goals": [
