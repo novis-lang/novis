@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-db/src/mysql.rs, crates/nvs-db/src/maria.rs, crates/nvs-db/src/pg.rs, docs/rules/core-classes/db-safe-connection-defaults.md]
   - id: 6
     title: "one live test per driver reads the session state table, SQL Server included"
-    status: open
+    status: done
     context: [crates/nvs-db/tests/pool_reuse.rs, crates/nvs-db/tests/handshake.rs, crates/nvs-db/src/tds/mod.rs, tools/nv/cmd/db-matrix.ts]
   - id: 7
     title: a MySQL text cell is copied once
@@ -272,7 +272,12 @@ which the connection already holds for `KILL QUERY`, so no field is added. The `
 `character_set_connection` alone moves the collation to the server's default for `utf8mb4`. Safe
 default if the live test shows a role
 survives the reset: that server family resets with `COM_CHANGE_USER`, which costs one authentication
-per release. **Declined:** parsing statements to refuse `USE`. A statement classifier is a second SQL
+per release. **Stage 6 found a role survives on both servers, and took a cheaper fix:** the
+connection reads `CURRENT_ROLE()` once at open (`login_roles` in `crates/nvs-db/src/mysql.rs`) and
+the reset ends with `SET ROLE` back to it. **What it spends:** one round trip per open and one per
+release, and the statement text per connection. Security is the same, latency is better, and no
+credential is used again. **Declined:** `SET ROLE DEFAULT`, which MariaDB lacks and which misses
+`activate_all_roles_on_login`. **Declined:** parsing statements to refuse `USE`. A statement classifier is a second SQL
 reader to keep right.
 
 **PostgreSQL adds `DISCARD SEQUENCES` and pins `standard_conforming_strings = on` at startup.** The
@@ -287,7 +292,11 @@ rewrite them.
 **SQL Server keeps `sp_reset_connection`, and the live test decides what it adds.** That reset
 returns the session to the login's database, and the driver already restores the isolation level
 (`crates/nvs-db/src/tds/mod.rs:481`). Where the test shows a kind survives, the driver restores it
-after the reset. Where no statement can, the connection is closed and not pooled.
+after the reset. Where no statement can, the connection is closed and not pooled. **Stage 6 found
+no kind that survives.** `USE`, `@@IDENTITY`, the session context and `DATEFIRST` all return. A
+session a request's `EXECUTE AS` left impersonating fails `sp_reset_connection` with error 596, so it
+is closed, which `reset.rs` records as `Probe::Closes`. **Declined:** a `REVERT` before every reset.
+It costs a round trip per release and undoes one level only.
 
 **A MySQL text cell is copied once, from the packet into the Novis string.** `decode_row` reads the
 binary row by hand into ranges over the packet: the null bitmap, length-encoded strings, fixed-width
@@ -500,26 +509,26 @@ state to the PostgreSQL reset, and pin PostgreSQL's string syntax at startup.
 **Does:** write the table of session state, walk it against a live server for each driver, and fix
 what each run shows.
 
-- [ ] New `crates/nvs-db/src/reset.rs:1`: the kinds of session state, and one function from a
+- [x] New `crates/nvs-db/src/reset.rs:1`: the kinds of session state, and one function from a
   `Driver` and a kind to its change SQL and read SQL, or to the reason it has none. No `match` in it
   has a wildcard (`rule:security/db-pool-reset-is-a-boundary`).
-- [ ] Test `every_driver_answers_for_every_kind_of_session_state` in that file: it walks every
+- [x] Test `every_driver_answers_for_every_kind_of_session_state` in that file: it walks every
   `Driver` and kind and fails naming a pair with empty SQL and no reason.
-- [ ] Test `a_reset_returns_every_kind_of_session_state_to_the_configured_one` in
+- [x] Test `a_reset_returns_every_kind_of_session_state_to_the_configured_one` in
   `crates/nvs-db/tests/pool_reuse.rs:359`, once per driver. It opens the leg's driver, reads each
   kind, changes it, releases through `pool::release`, draws again and reads the first value. It
   follows the file's skip rule (`crates/nvs-db/tests/pool_reuse.rs:86`).
-- [ ] This stage requires these runs, once each: `bun nv db-matrix --driver postgres`,
+- [x] This stage requires these runs, once each: `bun nv db-matrix --driver postgres`,
   `bun nv db-matrix --driver mysql`, `bun nv db-matrix --driver mariadb`,
   `bun nv db-matrix --driver mssql` and `bun nv db-matrix --driver sqlite`. Prove each case asserted
   and did not skip: break its assertion once, see the matrix name it as failed, and revert
   (`docs/agent/playbook/running-things/python-tools-db-matrix-py-reports-ok-for-a-case-that-never.md:1`).
-- [ ] Each kind a run shows surviving is fixed in that driver's reset, by the standing decisions:
+- [x] Each kind a run shows surviving is fixed in that driver's reset, by the standing decisions:
   MySQL and MariaDB roles (`crates/nvs-db/src/mysql.rs:2234`), and SQL Server's kinds
   (`crates/nvs-db/src/tds/mod.rs:481`).
-- [ ] The existing per-driver reset cases stay, and each names the table where it repeats a kind
+- [x] The existing per-driver reset cases stay, and each names the table where it repeats a kind
   (`crates/nvs-db/tests/handshake.rs:1018`, `crates/nvs-db/tests/handshake.rs:1383`).
-- [ ] `docs/agent/testing.md` has no words on a test that needs a database server. It gains a short
+- [x] `docs/agent/testing.md` has no words on a test that needs a database server. It gains a short
   section: the matrix convention of the standing decision, and that a new driver answers `reset.rs`
   before it is pooled (`docs/agent/testing.md:1`).
 
@@ -557,49 +566,46 @@ into the Novis string.
 
 ### State
 
-Stages 1 to 5 are done, and `resets-restore-the-configured-session` is green. Stage 6 is next. The
-sweep items were stale a sixth time: no `env-secret-proofs.log` exists, and Miri run `43201099245`
-ran on `578534cc7c`, which predates `7568aaa0fb`.
+Stages 1 to 6 are done, and `every-driver-answers-for-session-state` is green. Stage 7 is next. The
+sweep items were stale a seventh time: no `env-secret-proofs.log` exists, and Miri run
+`43201099245` ran on `578534cc7c`, which predates `7568aaa0fb`.
 
-How stage 5 works. `reset_session` (`crates/nvs-db/src/mysql.rs`, after `MySqlConn::reset`) takes
-the database from `Peer::database`, so `MySqlConn` and `MariaConn` gained no field. After the reset's
-`OK` it sends `COM_INIT_DB` (new constant beside `COM_QUERY`), or, for an empty database, runs
-`no_database_is_selected`, which reads `SELECT DATABASE()` as a text result and returns
-`PermissionDenied` when the cell is not `0xFB`. Then one `SET` through the new `run_own_text`
-assigns the three charset variables, `collation_connection` and the zone. `set_session_time_zone`
-also goes through `run_own_text`. PostgreSQL's `RESET_COMMANDS` has nine rows, the ninth
-`DISCARD SEQUENCES`, and `authenticate` sends `standard_conforming_strings = on`.
-
-Two pre-existing reds from stage 2 are fixed: `a_failed_reset_destroys_the_connection_rather_than_returning_it`
-in `mysql.rs` and in `tds/plan.rs` looked for the server's sentence in the rendering, and now look
-for `(code N)`. The PostgreSQL test `a_reset_is_section_13s_eight_commands_...` is renamed
-`a_reset_is_its_rules_commands_in_one_flush_and_not_discard_all`.
+How stage 6 works. `crates/nvs-db/src/reset.rs` has `Kind` (five), `Probe` (`Sql`, `Closes`,
+`None`) and `probe(driver, kind)`, one function per driver, no wildcard. `pool_reuse.rs`'s
+`a_reset_returns_every_kind_of_session_state_to_the_configured_one` opens the leg's driver through
+`any_leg`, reads, changes, asserts the change took, releases, draws, resets and reads again. A read
+that the server refuses is the value `error <SQLSTATE>`, which is how PostgreSQL's `lastval()` is
+compared. The runs found: MySQL refuses a prepared `USE` (1295), and MariaDB runs it with no effect,
+so neither has a database row. A role survived the reset on both, and is now fixed by `login_roles`
+(`crates/nvs-db/src/mysql.rs`, after `no_database_is_selected`), which reads `CURRENT_ROLE()` at open
+through the new `own_text_cell`, and `reset_session` ends with that `SET ROLE`. `MySqlConn` and
+`MariaConn` gained a `roles` field. SQL Server: `EXECUTE AS` makes the reset fail with 596, so the
+connection closes (`Probe::Closes`). `tests/db/mysql-init.sql` grants `novis_reset_role`. All eight
+matrix legs are green, and the case was proved to assert on every leg. Five stage-2 reds in
+`nvs-db`'s lib now read `ServerError.message`, and `bun nv verify --fast -p nvs-db` is green.
 
 ### Next
 
-Stage 6, in the order its items are written (`docs/goals/database-doors.md`, § 6). Its matrix runs
-need Docker and `tests/db/compose.yaml`. If the session cannot start a server, write `reset.rs`, its
-lib test and the `pool_reuse.rs` case, and file the runs as the blocker.
+Stage 7, in the order its items are written (`docs/goals/database-doors.md`, § 7). Its line anchors
+moved with stage 6: `MySqlRow` is now `crates/nvs-db/src/mysql.rs:3156`, `decode_row` `:3213` and
+`scalar` `:3523`. The direct caller is `crates/nvs-db/src/direct.rs:195`, and the allocation counter
+is `crates/nvs-runtime/src/budget.rs:1245`.
 
-- [ ] New `crates/nvs-db/src/reset.rs:1`: the kinds (database, role, charset, generated id and
-  sequence state, session variables) and one function from a `Driver` and a kind to change SQL and
-  read SQL, or a reason. No wildcard. Register it in `crates/nvs-db/src/lib.rs`.
-- [ ] `crates/nvs-db/src/reset.rs:1`: test `every_driver_answers_for_every_kind_of_session_state`.
-- [ ] `crates/nvs-db/tests/pool_reuse.rs:359`: test
-  `a_reset_returns_every_kind_of_session_state_to_the_configured_one`, with the skip at
-  `crates/nvs-db/tests/pool_reuse.rs:86`.
-- [ ] The five `bun nv db-matrix --driver <name>` runs (`tools/nv/cmd/db-matrix.ts:128`), each case
-  broken once to prove it asserts.
-- [ ] `crates/nvs-db/src/tds/mod.rs:481` and `crates/nvs-db/src/mysql.rs:2234` `reset_session`: a
-  kind that survives is fixed per the standing decisions.
-- [ ] `crates/nvs-db/tests/handshake.rs:1018` and `:1383` name the table, and `docs/agent/testing.md`
-  gains the matrix section.
+- [ ] `docs/rules/packaging/somebody-elses-specification-is-a-crate.md:1` gains the argument.
+- [ ] `decode_row` (`crates/nvs-db/src/mysql.rs:3213`) reads the binary row by hand into ranges.
+- [ ] `scalar` (`crates/nvs-db/src/mysql.rs:3523`) borrows from the packet, and `direct.rs:195`
+  follows.
+- [ ] `crates/nvs-db/src/mysql.rs:3213`: tests `a_mysql_text_cell_is_read_in_place_from_its_packet`
+  and `a_mysql_row_allocates_the_same_at_four_and_at_sixty_four_text_cells`.
+- [ ] `docs/rules/core-classes/db-crate-boundary.md:1` says the row values are read here.
 
-Expected red: a test elsewhere that scripts a MySQL or MariaDB pool reset and answers only `0x1F`
-and `0x03` now panics on `COM_INIT_DB` (`0x02`). None was found under `crates/nvs-db/src`, but a
-`nvs-stdlib` or `tests/` fixture might. Earlier stages' expected reds still stand: a `PRAGMA` with no
-row now gets a `Permission` error, a query-site snapshot may print ` plain`, and a test pinning
-"bound a value." fails. `bun nv affected --run` was not run.
+Expected red outside `nvs-db`: a test that scripts a MySQL or MariaDB connect now meets
+`SELECT CURRENT_ROLE()` after the zone's `SET`, and one that scripts a reset meets `COM_INIT_DB` and
+a second `COM_QUERY`. None was found in `crates/nvs-db/src`. Earlier stages' expected reds still
+stand: a `PRAGMA` with no row now gets a `Permission` error, a query-site snapshot may print
+` plain`, and a test pinning "bound a value." fails. `bun nv affected --run` was not run. The
+`nvs_image` crate in `target/debug` was built for Linux, so `cargo build --tests` fails on
+`nvs-ext`'s `image_decode` until it is rebuilt for Windows; it is not this goal's.
 
 ### Backlog
 
