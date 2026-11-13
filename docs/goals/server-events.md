@@ -293,14 +293,15 @@ one writes example 02 and updates `about.md`, one writes attack 02, and one upda
 guides. Each is held to AGENTS.md § *Text an end user reads* and runs `bun nv proofs --comments`
 on its own files. None of them builds.
 
-- [ ] New test file `crates/nvs-cli/tests/schedule_events.rs`, built on the `Server` harness and the
-  `scheduling` helper of `crates/nvs-cli/tests/live_config.rs:1200`. Each event script writes a file
-  the test waits for, never a sleep (`crates/nvs-cli/tests/schedule_events.rs:1`).
-- [ ] Test `a_start_and_a_stop_entry_run_under_nvs_serve`: the start file appears while the server
+- [x] New test file `crates/nvs-cli/tests/schedule_events.rs`, on a harness of its own in the shape
+  of `crates/nvs-cli/tests/live_config.rs`'s `Server`, started in its own process group so the
+  test can stop it as `one_binary.rs` does. Each event script writes a file the test waits for,
+  never a sleep (`crates/nvs-cli/tests/schedule_events.rs:1`).
+- [x] Test `a_start_and_a_stop_entry_run_under_nvs_serve`: the start file appears while the server
   serves, and the stop file exists when the stopped process has exited.
-- [ ] Test `a_reload_entry_runs_after_a_saved_configuration`: a saved valid edit writes
+- [x] Test `a_reload_entry_runs_after_a_saved_configuration`: a saved valid edit writes
   `outcome = applied`, and a saved broken edit writes `outcome = refused`.
-- [ ] Test `a_failed_entry_runs_after_a_scheduled_script_throws`: a `* * * * *` entry that throws,
+- [x] Test `a_failed_entry_runs_after_a_scheduled_script_throws`: a `* * * * *` entry that throws,
   and the failed script receives its name. This waits for the next whole minute, as
   `a_changed_schedule_roster_is_armed_from_the_next_tick` does (`crates/nvs-cli/tests/live_config.rs:1218`).
 - [ ] `docs/examples/config/schedule/about.md` says an entry runs on a time or on one of four server
