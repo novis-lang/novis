@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: [server-events, chain-ends-green]
+chain: [chain-ends-green]
 floor:
   - id: floor-debt
     name: every owed or red atom is paid green
@@ -37,12 +37,11 @@ floor:
 
 # Goals
 
-The chain holds 2 goal(s). `server-events` is live.
+The chain holds 1 goal(s). `chain-ends-green` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
-| 1 | [`server-events`](server-events.md) **live** | Reached when a [[schedule]] entry with on = start, stop, reload or failed runs its script on that event under nvs serve, is checked at boot, and has its feature proofs. | 1 ✓ the on key is checked at boot · 2 ✓ start and stop entries run, and every run reads one map · 3 ✓ reload and failed entries run · 4 ✓ the server runs every event end to end, and the feature has its proofs · 5 ✓ the goal is verified once, and every failure is fixed |
-| 2 | [`chain-ends-green`](chain-ends-green.md) | Reached when origin/main holds every commit of the chain that a CI run builds, and the push runs of CI and Website on that commit ended green. The session pushes, watches the run, fixes every red job and pushes again until that holds. | **1 one command says whether main's tip is green** · 2 the goal is verified once, then pushed, watched and fixed until the run is green |
+| 1 | [`chain-ends-green`](chain-ends-green.md) **live** | Reached when origin/main holds every commit of the chain that a CI run builds, and the push runs of CI and Website on that commit ended green. The session pushes, watches the run, fixes every red job and pushes again until that holds. | **1 one command says whether main's tip is green** · 2 the goal is verified once, then pushed, watched and fixed until the run is green |
 
 Off the chain (side goals): [`release-green`](release-green.md).
 
