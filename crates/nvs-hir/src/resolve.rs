@@ -270,6 +270,20 @@ impl Resolver {
         core: crate::hierarchy::CoreRoster<'_>,
         diags: &mut Diagnostics,
     ) {
+        self.resolve_imports_linking(core, &crate::link_targets::LinkTargets::default(), diags);
+    }
+
+    /// [`Self::resolve_imports`], where an import may also name a class in
+    /// `links`, a class the program links to under an `autoload links` root.
+    /// Such an import is resolved, so `Core\Router::url` may name the class by
+    /// its short name. Every other use of that name is still the `E0303` that
+    /// [`crate::link_targets::LinkTargets::mark_links_only`] explains.
+    pub fn resolve_imports_linking(
+        &mut self,
+        core: crate::hierarchy::CoreRoster<'_>,
+        links: &crate::link_targets::LinkTargets,
+        diags: &mut Diagnostics,
+    ) {
         for import in &mut self.module.imports {
             // The same set every other resolver in this crate trusts — see
             // `hierarchy::resolve_supertype`. Importing a reserved global is
@@ -282,7 +296,8 @@ impl Resolver {
             import.resolved = import.target.is_reserved_global_class()
                 || import.target.is_reserved_global_interface()
                 || self.module.symbols.contains(&import.target)
-                || import.target.is_core() && core.imports(&import.target);
+                || import.target.is_core() && core.imports(&import.target)
+                || links.get(&import.target).is_some();
             if !import.resolved {
                 diags.report(
                     Diagnostic::error(

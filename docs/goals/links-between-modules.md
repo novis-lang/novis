@@ -184,7 +184,10 @@ current program's own table.
 **A links root is read for routes, and never compiled.** Its classes are not autoloaded, never join
 the route table or `implementing<T>()`, and are not in the program enumeration's scan. The one place a
 name under a links root may be written is the route argument of `Core\Router::url` and
-`Core\Router::urlAbsolute`. Anywhere else it is a new `E08xx` code (the next free one in
+`Core\Router::urlAbsolute`, and a `use` import of a class the program links to, so a link may write
+the short name. An import names nothing a program can call, and every other use of the imported name
+is still the error below. Declined: forcing the fully qualified name at each link, because a
+namespaced file then cannot write a link the way it writes every other class name. Anywhere else it is a new `E08xx` code (the next free one in
 `crates/nvs-diagnostics/src/code/types_e08.rs`) whose message says the root is declared for links
 only. The check parses only the file that declares the target class, and reads the target method's
 `#[Route]` and `#[Query]` attributes and its capture types. The method, the captures and the keys are
@@ -384,11 +387,11 @@ files: one writes the new example folder and its `about.md`, one writes the atta
 one writes the three examples added to existing folders. Each is held to AGENTS.md § *Text an end user
 reads* and runs `bun nv proofs --comments` on its own files. None of them builds.
 
-- [ ] New test file `crates/nvs-cli/tests/links_between_modules.rs`, on the harness of
+- [x] New test file `crates/nvs-cli/tests/links_between_modules.rs`, on the harness of
   `crates/nvs-cli/tests/per_mount_config.rs:385`, with modules `Blog` and `Shop` under one scan
   `prefix = "/base/{1:lower}"`, an explicit second mount `/shop.second` of `Shop`'s entry, and a host
   mount on `shop.example.com` (`crates/nvs-cli/tests/links_between_modules.rs:1`).
-- [ ] Its three tests, named in check `two-modules-link-under-nvs-serve`.
+- [x] Its three tests, named in check `two-modules-link-under-nvs-serve`.
 - [ ] New example folder `docs/examples/tools/server/links-between-modules/`: `about.md`, `nvs.toml`,
   two modules, and three numbered examples with `.nvsr` requests: a link between two scanned modules,
   a link to another host, and `canonical` choosing between two mounts

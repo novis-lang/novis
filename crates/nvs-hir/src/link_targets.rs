@@ -12,7 +12,9 @@
 //! set exactly as a compiled file's does.
 //!
 //! **The one place such a name may be written is the route argument of
-//! `Core\Router::url` and `Core\Router::urlAbsolute`.** [`crate::members`]
+//! `Core\Router::url` and `Core\Router::urlAbsolute`,** and a `use` import of
+//! a class the program links to, so that argument may be the short name
+//! ([`crate::resolve::Resolver::resolve_imports_linking`]). [`crate::members`]
 //! leaves that argument to `nvs_types::links`, which checks it against these
 //! routes. Every other use of the name is an `E0303` from whichever pass met
 //! it, and [`LinkTargets::mark_links_only`] turns each such report into

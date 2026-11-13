@@ -1127,6 +1127,37 @@ mod tests {
         }
     }
 
+    /// A `use` import may name a links-root class the program links to, so a
+    /// link writes its short name. The imported name used for anything else is
+    /// still `E0897`.
+    #[test]
+    fn a_use_import_names_a_links_root_class_for_a_link() {
+        let good = check(
+            "use Framework\\Shop\\View\\Index;\n\n\
+             Core\\Router::url(Index::show, ['id' => 3]);\n",
+        );
+        assert!(
+            !good.diags.has_errors(),
+            "an imported link failed: {:?}",
+            good.diags
+        );
+        assert_eq!(
+            good.handlers(),
+            [Some(r"Framework\Shop\View\Index::show".to_owned())]
+        );
+
+        let bad = check(
+            "use Framework\\Shop\\View\\Index;\n\n\
+             Core\\Router::url(Index::show, ['id' => 3]);\n\
+             new Index();\n",
+        );
+        assert!(
+            bad.has(code::E_LINKS_ONLY_CLASS),
+            "the imported class was constructed: {:?}",
+            bad.diags
+        );
+    }
+
     /// `rule:core-classes/router-signed-url`: a program cannot sign a link
     /// that another program checks.
     #[test]
