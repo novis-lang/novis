@@ -413,6 +413,33 @@ pub struct Unit {
     /// `nvs_ir::Program::functions`, the number a frame record carries — see
     /// [`Unit::debug_function`]. Empty without it.
     debug_functions: Vec<String>,
+    /// Every extension class the unit calls a method of, sorted and each once — see
+    /// [`Unit::extension_classes`].
+    extension_classes: Box<[String]>,
+}
+
+/// Every extension class a call in `program` names, sorted and each once: the classes of its
+/// [`nvs_ir::ir::InstKind::ExtensionCall`]s. Both ways a [`Unit`] is made read it, so a unit from
+/// the artifact cache knows the same classes as one compiled now.
+///
+/// **What it costs:** one compare per instruction, per compile and per cache load, off the request
+/// path. Building the set inside the lowering would need a new output from each of its three
+/// function entry points.
+fn extension_classes(program: &Program) -> Box<[String]> {
+    let mut classes: Vec<String> = Vec::new();
+    for function in &program.functions {
+        for block in &function.blocks {
+            for inst in &block.insts {
+                if let nvs_ir::ir::InstKind::ExtensionCall { class, .. } = &inst.kind
+                    && !classes.contains(class)
+                {
+                    classes.push(class.clone());
+                }
+            }
+        }
+    }
+    classes.sort();
+    classes.into_boxed_slice()
 }
 
 /// The pages of a unit this process compiled: `cranelift-jit`'s own mapping,
@@ -626,6 +653,17 @@ impl ScriptFn {
 }
 
 impl Unit {
+    /// Every extension class the unit calls a method of, sorted and each once. The emitter adds
+    /// each class as it writes the call, so this costs no pass over the program. `nvs serve`
+    /// reads it to load the built-in components a program calls before it accepts
+    /// (`rule:packaging/the-first-party-components-are-built-in`).
+    ///
+    /// **Memory:** one string per distinct class called, per unit.
+    #[must_use]
+    pub fn extension_classes(&self) -> &[String] {
+        &self.extension_classes
+    }
+
     /// This unit's **entry script frame**, ready to run: the top-level
     /// statements of the program's first file, which is what an embedder
     /// enters.
@@ -1196,6 +1234,8 @@ pub struct Descriptors {
     /// [`Unit::statics`]'s own contents, read off the IR here for the reason
     /// every other field is: the loading process lowered the same source.
     statics: std::sync::Arc<[Option<nvs_runtime::FieldDefault>]>,
+    /// [`extension_classes`] of the program, read off the IR for the reason `statics` is.
+    extension_classes: Box<[String]>,
     /// [`class_desc_symbol`]'s name for each descriptor, to the address a
     /// relocation against it resolves to. Built once here rather than searched
     /// per relocation: a loader asks this for every undefined symbol in the
@@ -1247,6 +1287,7 @@ impl Descriptors {
                 .iter()
                 .map(|prop| prop.default_value.clone())
                 .collect(),
+            extension_classes: extension_classes(program),
         }
     }
 
@@ -1377,6 +1418,7 @@ impl Descriptors {
             debug_slots: FxHashMap::default(),
             debug_sites: None,
             debug_functions: Vec::new(),
+            extension_classes: self.extension_classes,
         }
     }
 }
@@ -1447,6 +1489,8 @@ struct UnitBuilder<M> {
     desc_symbols: Arc<Mutex<FxHashMap<String, usize>>>,
     /// See [`emit::Literals`].
     literals: emit::Literals,
+    /// [`extension_classes`] of the program [`Self::compile_all`] compiles.
+    extension_classes: Box<[String]>,
     entries: Vec<(String, cranelift_module::FuncId)>,
     /// Set only by [`disassemble`]: the accumulated text of every function's
     /// generated code. `None` is the ordinary compile, which asks Cranelift
@@ -2494,6 +2538,7 @@ impl<M: Module> UnitBuilder<M> {
             statics: FxHashMap::default(),
             static_defaults: Vec::new(),
             literals: emit::Literals::default(),
+            extension_classes: Box::default(),
             entries: Vec::new(),
             disasm,
             clif: None,
@@ -2509,6 +2554,7 @@ impl<M: Module> UnitBuilder<M> {
     /// defined function; `finalize_definitions` is what would object if one
     /// were never defined.
     fn compile_all(&mut self, program: &Program) -> Result<(), CodegenError> {
+        self.extension_classes = extension_classes(program);
         self.classes = Classes::build(&program.classes, &program.shape_codecs, &program.enums);
         // Publish every descriptor before any body is emitted, for the same
         // reason the function declarations below come first: a lowering may
@@ -2773,6 +2819,7 @@ impl UnitBuilder<JITModule> {
             debug_slots: self.debug_slots,
             debug_sites: self.debug_sites,
             debug_functions: self.debug_functions,
+            extension_classes: self.extension_classes,
         })
     }
 

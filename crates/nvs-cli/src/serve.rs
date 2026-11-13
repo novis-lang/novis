@@ -583,6 +583,25 @@ pub(crate) fn run(
         eprintln!("error: no mount compiled, so there is nothing to serve");
         return ExitCode::FAILURE;
     }
+    // `rule:packaging/the-first-party-components-are-built-in`: every built-in component a
+    // compiled mount calls is loaded now, before any socket is bound, so no request pays the
+    // compile. Each line comes before the `listening on` lines. A file compiled after start still
+    // loads its components on its first call.
+    let called: std::collections::BTreeSet<String> = mounts
+        .iter()
+        .filter_map(|mounted| compiler.standing_unit(&mounted.entry))
+        .flat_map(|unit| unit.extension_classes().to_vec())
+        .collect();
+    for loaded in
+        crate::extensions::load_built_in(called.iter().map(String::as_str), &snapshot.config)
+    {
+        match loaded {
+            Ok(name) => println!("loaded the built-in component `{name}`"),
+            Err(reason) => eprintln!(
+                "warning: a built-in component did not load, and its first call throws: {reason}"
+            ),
+        }
+    }
     // `rule:routing/a-link-reaches-another-module`: once every row has
     // compiled, each row that links to another module gets the table of where
     // each link goes. A tie a link needs fails the start, as an unreached

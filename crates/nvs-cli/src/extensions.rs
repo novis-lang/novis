@@ -188,6 +188,26 @@ fn built_in(class: &str, config: Option<&Config>) -> Option<Result<&'static Load
     )
 }
 
+/// The built-in components declaring a class of `classes`, each compiled or read from the
+/// artifact cache now, in the order of `classes`. `nvs serve` calls it before it accepts, with
+/// the classes its compiled units call, so no request pays the load. A class no built-in
+/// component declares is skipped. Returns each component that loaded, and why each that did not.
+/// One that did not load fails again on its first call, which throws as it does without this.
+///
+/// **What it spends at start:** nothing for no classes. Otherwise one cache read per component,
+/// or one expand and compile on a cold cache, once per binary. The compiled form is held for the
+/// process, as the first call would hold it.
+pub(crate) fn load_built_in<'a>(
+    classes: impl IntoIterator<Item = &'a str>,
+    config: &Config,
+) -> Vec<Result<&'static str, String>> {
+    classes
+        .into_iter()
+        .filter_map(|class| built_in(class, Some(config)))
+        .map(|loaded| loaded.map(|extension| extension.manifest.builtin.as_deref().unwrap_or("")))
+        .collect()
+}
+
 /// Every entry of `config`'s `[[extension]]` array, loaded into one set.
 ///
 /// `origins` and `sources` are the resolved tree's, so a refusal points at the entry's line.

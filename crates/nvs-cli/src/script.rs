@@ -2141,6 +2141,11 @@ impl Compiled {
     pub(crate) fn routes(&self) -> &Arc<nvs_runtime::routes::Routes> {
         &self.routes
     }
+
+    /// Every extension class this unit calls a method of — `nvs_codegen::Unit::extension_classes`.
+    pub(crate) fn extension_classes(&self) -> &[String] {
+        self.unit.extension_classes()
+    }
 }
 
 /// The [`Program`] over one compiled unit: arm the isolate's context with that
