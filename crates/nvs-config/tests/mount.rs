@@ -11,7 +11,7 @@
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 
-use nvs_config::mount::{Mounted, expand, expand_again};
+use nvs_config::mount::{self, Mounted, expand, expand_again};
 use nvs_config::resolve::Files;
 use nvs_config::tree::Config;
 use nvs_config::trust::Untrusted;
@@ -301,6 +301,8 @@ fn a_tree_with_no_mount_block_has_one_implicit_mount_at_the_root() {
                 root: p("/www/public"),
                 origin: None,
                 captures: Vec::new(),
+                block: 0,
+                canonical: false,
             }]
         );
     }
@@ -574,4 +576,116 @@ fn two_mounts_whose_hosts_differ_only_in_case_are_a_duplicate() {
          entry = \"Blog/public/index.nvs\"\n",
     );
     assert_eq!(refused.code, Some(code::E_BAD_MOUNT));
+}
+
+/// `rule:http-server/a-canonical-mount-breaks-a-tie`: `canonical` is a mount key, every row a block
+/// produces carries it with the block's index, and a value that is not a boolean is refused.
+#[test]
+fn canonical_is_a_mount_key() {
+    let fs = Fake::with(&["/www/Blog/public/index.nvs", "/www/Shop/public/index.nvs"]);
+    let mounts = table(
+        &fs,
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/public/index.nvs\"\n\
+         prefix = \"/base/{1}\"\n\n[[server.mount]]\nprefix = \"/shop\"\n\
+         entry = \"Shop/public/index.nvs\"\ncanonical = true\n",
+    );
+    let at = |prefix: &str| {
+        mounts
+            .iter()
+            .find(|one| one.prefix == prefix)
+            .unwrap_or_else(|| panic!("no row at {prefix}"))
+    };
+    assert_eq!(
+        (at("/base/Blog").block, at("/base/Blog").canonical),
+        (0, false)
+    );
+    assert_eq!(
+        (at("/base/Shop").block, at("/base/Shop").canonical),
+        (0, false)
+    );
+    assert_eq!((at("/shop").block, at("/shop").canonical), (1, true));
+
+    let wrong: Result<Config, _> = toml::from_str(
+        "[[server.mount]]\nprefix = \"/a\"\nentry = \"a.nvs\"\ncanonical = \"yes\"\n",
+    );
+    assert!(wrong.is_err(), "`canonical` takes `true` or `false`");
+}
+
+/// Two `canonical = true` blocks for one entry are refused: by `nvs config check` where both
+/// write the file, and by the expansion where a `scan` reaches it.
+#[test]
+fn two_canonical_mounts_for_one_entry_are_refused() {
+    let literal = "[server]\nroot = \"/www\"\n\n[[server.mount]]\nprefix = \"/a\"\n\
+                   entry = \"Shop/public/index.nvs\"\ncanonical = true\n\n[[server.mount]]\n\
+                   prefix = \"/b\"\nentry = \"Shop/public/index.nvs\"\ncanonical = true\n";
+    let refused = checked(literal);
+    assert_eq!(refused.code, Some(code::E_BAD_MOUNT));
+    assert!(refused.message.contains("canonical"), "{}", refused.message);
+
+    let fs = Fake::with(&["/www/Shop/public/index.nvs"]);
+    let scanned = "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/public/index.nvs\"\n\
+                   prefix = \"/{1}\"\ncanonical = true\n\n[[server.mount]]\nprefix = \"/main\"\n\
+                   entry = \"Shop/public/index.nvs\"\ncanonical = true\n";
+    let refused = refusal(&fs, scanned);
+    assert_eq!(refused.code, Some(code::E_BAD_MOUNT));
+
+    // A later expansion keeps the first and leaves the second out.
+    let (mounts, left_out) =
+        expand_again(&tree(scanned), &BTreeMap::new(), &fs).expect("the table expands");
+    assert_eq!(mounts.len(), 1);
+    assert_eq!(left_out.len(), 1);
+
+    // One canonical block beside a plain one is the normal shape.
+    let one = scanned.replacen("canonical = true\n", "", 1);
+    assert_eq!(table(&fs, &one).len(), 2);
+}
+
+/// `rule:http-server/a-canonical-mount-breaks-a-tie`'s three steps: the linking row's own block,
+/// then its host, then another host with an origin, and `canonical` breaking a tie at one step.
+#[test]
+fn a_link_takes_the_first_step_with_a_candidate() {
+    let row = |prefix: &str, host: Option<&str>, entry: &str, block: usize| Mounted {
+        prefix: prefix.to_string(),
+        host: host.map(str::to_string),
+        entry: p(entry),
+        root: p("/www"),
+        origin: host.map(|host| format!("https://{host}")),
+        captures: Vec::new(),
+        block,
+        canonical: false,
+    };
+    let mut rows = vec![
+        row("/base/blog", None, "/www/Blog/index.nvs", 0),
+        row("/base/shop", None, "/www/Shop/index.nvs", 0),
+        row("/shop", None, "/www/Shop/index.nvs", 1),
+        row("/", Some("shop.example.com"), "/www/Shop/index.nvs", 2),
+        row("/", Some("blog.example.com"), "/www/Blog/index.nvs", 3),
+    ];
+    let handler = r"Framework\Shop\Index::render";
+    let shop = p("/www/Shop/index.nvs");
+    let serves =
+        |rows: &[Mounted], at: usize, wanted: &str| wanted == handler && rows[at].entry == shop;
+
+    // Step 1: the scanned block's own row, though `/shop` serves it too.
+    let link = mount::link(&rows, &|at, h| serves(&rows, at, h), 0, handler).expect("linked");
+    assert_eq!(
+        (link.prefix.as_str(), link.elsewhere.as_deref()),
+        ("/base/shop", None)
+    );
+
+    // Step 3: from another host, the one candidate on a third host with an origin.
+    let link = mount::link(&rows, &|at, h| serves(&rows, at, h), 4, handler).expect("linked");
+    assert_eq!(link.elsewhere.as_deref(), Some("https://shop.example.com"));
+    assert_eq!(link.origin.as_deref(), Some("https://shop.example.com"));
+
+    // Step 2 with a tie: from a host-less row of another block, `/base/shop` and `/shop` tie.
+    rows.push(row("/admin", None, "/www/Admin/index.nvs", 4));
+    let tied = mount::link(&rows, &|at, h| serves(&rows, at, h), 5, handler);
+    assert_eq!(tied, Err(mount::Unlinked::Tie(vec![1, 2])));
+    rows[2].canonical = true;
+    let link = mount::link(&rows, &|at, h| serves(&rows, at, h), 5, handler).expect("linked");
+    assert_eq!(link.prefix, "/shop");
+
+    let none = mount::link(&rows, &|_, _| false, 0, handler);
+    assert_eq!(none, Err(mount::Unlinked::Unserved));
 }

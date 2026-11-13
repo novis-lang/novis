@@ -11097,6 +11097,8 @@ pub(crate) mod tests {
                 entry: root.join("index.nvs"),
                 origin: None,
                 captures: Vec::new(),
+                block: 0,
+                canonical: false,
             }],
             crate::mount::Dispatch::Entry,
             true,

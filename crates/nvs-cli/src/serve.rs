@@ -2294,6 +2294,8 @@ fn one_mount(path: &Path) -> Result<Mounted, String> {
         root,
         origin: None,
         captures: Vec::new(),
+        block: 0,
+        canonical: false,
     })
 }
 
@@ -5386,6 +5388,8 @@ mod tests {
             entry: entry.to_path_buf(),
             origin: None,
             captures: Vec::new(),
+            block: 0,
+            canonical: false,
         };
         let tables = Rc::new({
             let (generation, published) = current.published_at();

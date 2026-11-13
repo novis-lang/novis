@@ -1115,6 +1115,8 @@ mod tests {
             entry,
             origin: None,
             captures: Vec::new(),
+            block: 0,
+            canonical: false,
         }
     }
 

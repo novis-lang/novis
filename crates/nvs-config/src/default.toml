@@ -659,6 +659,9 @@
 #host = "{1}.example.com"             # example
 #entry = "apps/shop/public/index.nvs"  # example
 #origin = "https://shop.example.com"  # example
+# `canonical` marks the main mount of an entry. When two mounts could serve a link to another
+# module, the link takes the canonical one.
+#canonical = true                     # example
 
 
 # ----------------------------------------------------------------------------------------------

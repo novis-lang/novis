@@ -77,6 +77,12 @@ pub struct Mounted {
     /// these `tainted`, which is how a multi-tenant application learns which tenant it is serving
     /// without the route table naming a host.
     pub captures: Vec<String>,
+    /// Which `[[server.mount]]` block produced this row, counted from `0` in the order written.
+    /// Every row of one `scan` has the same index, which is what step 1 of [`link`] reads.
+    pub block: usize,
+    /// The block's `canonical`, `false` where it is not written
+    /// (`rule:http-server/a-canonical-mount-breaks-a-tie`).
+    pub canonical: bool,
 }
 
 /// `rule:http-server/a-mount-table-expands-at-boot`'s implicit mount, for a tree that writes no
@@ -112,8 +118,43 @@ pub fn check(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), 
     }
     for (index, block) in server.mount.iter().enumerate() {
         shape(index, block, origins)?;
+        // Two literal blocks for one file are visible without the disk. Two that meet only
+        // through a `scan` are refused by [`expand`].
+        let canonical = |block: &Mount| block.canonical == Some(true);
+        let first = server.mount[..index].iter().position(|earlier| {
+            canonical(block)
+                && canonical(earlier)
+                && block.entry.is_some()
+                && earlier.entry == block.entry
+        });
+        if let Some(first) = first {
+            let entry = PathBuf::from(block.entry.as_deref().unwrap_or_default());
+            return Err(two_canonical(first, index, &entry, origins));
+        }
     }
     Ok(())
+}
+
+/// Two `canonical = true` blocks that mount one entry
+/// (`rule:http-server/a-canonical-mount-breaks-a-tie`).
+fn two_canonical(
+    first: usize,
+    second: usize,
+    entry: &Path,
+    origins: &BTreeMap<String, Origin>,
+) -> Diagnostic {
+    refuse(
+        format!(
+            "{} and {} both set `canonical = true` for `{}`",
+            ordinal(first),
+            ordinal(second),
+            entry.display()
+        ),
+        "`canonical` marks the one main mount of an entry. A link to another module takes that \
+         mount, so only one block may set it",
+        "remove `canonical` from one of the two blocks",
+        origins.get(&format!("server.mount.{second}.canonical")),
+    )
 }
 
 /// One block's shape, and the arithmetic between its `{n}` references and its `*`s.
@@ -327,6 +368,127 @@ pub fn expand_again(
     Ok((mounts, left_out))
 }
 
+/// Where a link to another module's route goes, from one row of the table
+/// (`rule:routing/a-link-reaches-another-module`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Link {
+    /// The prefix of the row that serves the target, put in front of the route's own path.
+    pub prefix: String,
+    /// The origin of the target's row when it is on another host. `Core\Router::url` then writes
+    /// an absolute link with it. `None` when the target is on the linking row's own host.
+    pub elsewhere: Option<String>,
+    /// What `Core\Router::urlAbsolute` puts in front: [`Link::elsewhere`] when it is set, and the
+    /// linking row's own origin otherwise.
+    pub origin: Option<String>,
+    /// The row that serves the target, as an index into the rows [`link`] read.
+    pub row: usize,
+}
+
+/// Why [`link`] found no row for a handler.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Unlinked {
+    /// No row serves the handler as an ordinary route, or each one that does is on another host
+    /// and has no origin.
+    Unserved,
+    /// Two or more rows serve it at the same step, and `canonical` does not pick one. Each is an
+    /// index into the rows [`link`] read.
+    Tie(Vec<usize>),
+}
+
+impl Unlinked {
+    /// The sentence a boot failure, a log line and a thrown error all use, naming the handler and
+    /// the blocks.
+    #[must_use]
+    pub fn describe(&self, handler: &str, rows: &[Mounted]) -> String {
+        match self {
+            Self::Unserved => format!("no mount serves `{handler}`"),
+            Self::Tie(tied) => {
+                let named: Vec<String> = tied
+                    .iter()
+                    .filter_map(|&at| rows.get(at))
+                    .map(|row| format!("{} at `{}`", ordinal(row.block), row.prefix))
+                    .collect();
+                format!(
+                    "a link to `{handler}` could go through {}. Set `canonical = true` on the one \
+                     block the link should take",
+                    named.join(" or ")
+                )
+            }
+        }
+    }
+}
+
+/// Which row a link from row `from` to `handler` goes through
+/// (`rule:http-server/a-canonical-mount-breaks-a-tie`).
+///
+/// The candidates are the rows `serves` says hold `handler` as an ordinary route. A row whose
+/// unit did not compile serves nothing. The first step with a candidate decides:
+///
+/// 1. rows from the same `[[server.mount]]` block as `from`, so every row of one `scan` counts;
+/// 2. rows on the same host as `from`, or with no host where `from` has none;
+/// 3. rows on another host that have an origin.
+///
+/// Two candidates at one step are a tie, and the one row from a `canonical` block among them wins.
+/// Boot, reload, `nvs config check` and `Core\Test::request` all call this, so they agree.
+///
+/// Cost: one pass over the rows per handler, off the request path.
+///
+/// # Errors
+///
+/// [`Unlinked::Unserved`] when no step has a candidate, and [`Unlinked::Tie`] when the deciding
+/// step has two or more and not exactly one of them is canonical.
+pub fn link(
+    rows: &[Mounted],
+    serves: &dyn Fn(usize, &str) -> bool,
+    from: usize,
+    handler: &str,
+) -> Result<Link, Unlinked> {
+    let Some(here) = rows.get(from) else {
+        return Err(Unlinked::Unserved);
+    };
+    let candidates: Vec<usize> = (0..rows.len()).filter(|&at| serves(at, handler)).collect();
+    let steps: [&dyn Fn(&Mounted) -> bool; 3] = [
+        &|row| row.block == here.block,
+        &|row| row.host == here.host,
+        &|row| row.host != here.host && row.origin.is_some(),
+    ];
+    for (step, matches) in steps.iter().enumerate() {
+        let found: Vec<usize> = candidates
+            .iter()
+            .copied()
+            .filter(|&at| matches(&rows[at]))
+            .collect();
+        let chosen = match found.as_slice() {
+            [] => continue,
+            [one] => *one,
+            many => {
+                let canonical: Vec<usize> = many
+                    .iter()
+                    .copied()
+                    .filter(|&at| rows[at].canonical)
+                    .collect();
+                match canonical.as_slice() {
+                    [one] => *one,
+                    _ => return Err(Unlinked::Tie(found)),
+                }
+            }
+        };
+        let target = &rows[chosen];
+        let elsewhere = if step == 2 {
+            target.origin.clone()
+        } else {
+            None
+        };
+        return Ok(Link {
+            prefix: target.prefix.clone(),
+            origin: elsewhere.clone().or_else(|| here.origin.clone()),
+            elsewhere,
+            row: chosen,
+        });
+    }
+    Err(Unlinked::Unserved)
+}
+
 /// What happens to a refused match: [`expand`] returns it as the error, and [`expand_again`]
 /// keeps it and goes on without the match.
 type Refusal<'a> = &'a mut dyn FnMut(Diagnostic) -> Result<(), Diagnostic>;
@@ -399,7 +561,20 @@ fn expanding(
             }
         }
     }
-    let mut table: Vec<Mounted> = table.into_iter().map(|(_, one)| one).collect();
+    // Two canonical blocks for one entry name two main doors, and a link could take either. That
+    // is refused whether or not a link needs it, because `canonical` says nothing else.
+    let mut kept: Vec<Mounted> = Vec::with_capacity(table.len());
+    for (_, one) in table {
+        let first = kept.iter().find(|held| {
+            one.canonical && held.canonical && held.entry == one.entry && held.block != one.block
+        });
+        if let Some(first) = first {
+            refused(two_canonical(first.block, one.block, &one.entry, origins))?;
+            continue;
+        }
+        kept.push(one);
+    }
+    let mut table = kept;
     table.sort_by(|left, right| (&left.host, &left.prefix).cmp(&(&right.host, &right.prefix)));
     Ok(table)
 }
@@ -587,6 +762,8 @@ fn mounted(
             .as_deref()
             .map(|origin| substitute(origin, &captures)),
         captures,
+        block: index,
+        canonical: block.canonical.unwrap_or(false),
     })
 }
 

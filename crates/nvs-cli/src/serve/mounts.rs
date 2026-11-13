@@ -802,6 +802,8 @@ mod tests {
             entry: entry.clone(),
             origin: None,
             captures: Vec::new(),
+            block: 0,
+            canonical: false,
         }];
         let tree = |file: &str| {
             let path = root.join(file).to_string_lossy().replace('\\', "/");

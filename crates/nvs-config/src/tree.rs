@@ -1433,6 +1433,10 @@ pub struct Mount {
     /// Optional — what `Core\Router::urlAbsolute` prepends for requests arriving here
     /// (`rule:routing/an-origin-is-per-mount-and-checked-at-boot`).
     pub origin: Option<String>,
+    /// Whether this block is the main way in to the entries it mounts. A link to another module
+    /// that two mounts could serve equally well takes the canonical one
+    /// (`rule:http-server/a-canonical-mount-breaks-a-tie`).
+    pub canonical: Option<bool>,
 }
 
 /// `[cache]` — `Core\Cache`'s two tiers, and nothing else: `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s compiled
