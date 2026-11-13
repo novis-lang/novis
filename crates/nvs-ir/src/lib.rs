@@ -124,23 +124,18 @@
 //!   primitive beside it. A `uint` subscript therefore branches on its value
 //!   and joins its two arms as a tagged key. `lower::Lowering::lower_array_key`
 //!   and `lower_rendered_array_key` own those exceptions.
-//! - **A nested element write always separates the inner row, and that is
-//!   the price of having no branch.** `$grid[0][1] = v` flattens to its root
-//!   plus one key per level and descends with [`ir::Helper::ArrayRowForWrite`]
-//!   — a row that arrives owning a reference of its own, because the
-//!   [`ir::InstKind::ArraySet`] climbing back out consumes one. So every level
-//!   below the root reaches its write at a refcount of at least two and
-//!   `rule:types/arrays`' copy-on-write separates it, even when nothing else was ever
-//!   going to observe the old row. **The cost is O(inner) per write**, paid
-//!   once per level, and it is correct rather than merely acceptable: a copy
-//!   is what the value semantics promise, and only an optimizer can tell that
-//!   this particular one is unobservable. The follow-up that removes it is a
-//!   *write-through* descent — one runtime entry point that takes the whole
-//!   key chain, walks it holding the parent's borrow rather than a reference,
-//!   and separates only where the count genuinely says it must — which is a
-//!   `nvs-runtime` ABI question and not a lowering
-//!   one. Nothing depends on the copy happening, so it can be taken away
-//!   without changing an observable.
+//! - **A nested element write is one write-through call, and copies a level
+//!   only where another holder shares it.** `$grid[0][1] = v` flattens to its
+//!   root plus one key per level and lowers to one
+//!   [`ir::Helper::ArrayWriteThrough`]. The runtime walks the chain under each
+//!   parent's borrow, so no level gains a reference on the way down. A level
+//!   whose count is one is written in place, and one above one is copied, as
+//!   `rule:types/arrays`' copy-on-write requires. The decision is the count at
+//!   run time; the compiler proves nothing about uniqueness. The keys are
+//!   borrowed, and travel as themselves at depth two. **What it spends:** one
+//!   call where a write of depth two made three, and one small key array per
+//!   write at depth three or more. An unshared row costs O(what the write
+//!   adds), not O(the row).
 //! - **A shape's wire contract is a constant of the call site, never of its
 //!   class.** A member handed an inline shape as its type argument —
 //!   `Core\Arr::shapeAs<{ n: int }>` — needs the per-field wire types
@@ -332,13 +327,13 @@
 //!    target twice, so the checker refuses it where it is written rather than
 //!    leaving it to that rewrite's own panic. A *nested* write — `$grid[0][1] =
 //!    v`, whose base is itself an index expression — lowers: it flattens to
-//!    its root holder plus one key per level, descends, and writes every
-//!    level back with the outermost last, auto-vivifying an absent row the
-//!    way PHP does. Neither
-//!    [`ir::InstKind::ArrayGet`] throws on an absent key
-//!    (`rule:types/absent-storage-is-never-a-zero-value`), which is the *read* side's answer to the same question this
-//!    vivifying descent asks; [`ir::InstKind::ArraySet`] models no absent key
-//!    at all, because a write is what makes one present.
+//!    its root holder plus one key per level and is one
+//!    [`ir::Helper::ArrayWriteThrough`] call, which builds an absent row the
+//!    way PHP does. [`ir::InstKind::ArrayGet`] throws on an absent key
+//!    (`rule:types/absent-storage-is-never-a-zero-value`), which is the *read*
+//!    side's answer to the same question the write-through answers by building
+//!    the row; [`ir::InstKind::ArraySet`] models no absent key at all, because
+//!    a write is what makes one present.
 //! 6. **An anonymous function lowers, and so does `$f(...)`, and what an argument
 //!    is checked against travels on the callable object.** The call is one [`ir::Helper::CallCallable`]
 //!    — `nvs_runtime::call_callable`, the same entry point native `Core` code

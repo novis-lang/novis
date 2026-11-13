@@ -1,0 +1,49 @@
+--TEST--
+a nested write changes only the array it names: a row or an array another variable, a `foreach` or a closure has keeps its contents, at every depth
+--FILE--
+<?nvs
+array<array<int>> $g = [[1, 2]];
+var $row = $g[0];
+$g[0][0] = 9;
+echo $row[0], " ", $g[0][0], "\n";
+
+array<array<int>> $a = [[1, 2]];
+var $b = $a;
+$a[0][1] = 7;
+$a[1][] = 5;
+echo $b[0][1], " ", Core\Arr::count($b), " ", $a[0][1], " ", $a[1][0], "\n";
+
+array<array<int>> $l = [[1], [2]];
+foreach ($l as var $r) {
+    $l[1][0] = 8;
+    echo $r[0];
+}
+echo " ", $l[1][0], "\n";
+
+array<array<int>> $c = [[1, 2]];
+var $f = fn() => $c[0][0];
+$c[0][0] = 9;
+echo $f(), " ", $c[0][0], "\n";
+
+array<array<array<string>>> $t = [];
+$t["x"]["y"]["z"] = "deep";
+var $u = $t;
+$t["x"]["y"]["z"] = "changed";
+$t["x"][]["w"] = "fresh";
+echo $u["x"]["y"]["z"], " ", $t["x"]["y"]["z"], " ", $t["x"]["0"]["w"], "\n";
+
+array<array<int>> $full = [[9223372036854775807 => 1], [2]];
+var $copy = $full;
+try {
+    $full[0][] = 5;
+} catch (LogicError $e) {
+    echo "caught ";
+}
+echo Core\Arr::count($full[0]), " ", Core\Arr::count($copy[0]), "\n";
+--EXPECT--
+1 9
+2 1 7 5
+12 8
+1 9
+deep changed fresh
+caught 1 1

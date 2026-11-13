@@ -1,5 +1,10 @@
 The container is an insertion-ordered hash with copy-on-write value semantics.
 
+- **A write copies a level only when another holder shares it, at every depth.** `$g[$i][$j] = $v`
+  writes an unshared row in place and copies a row or an array that a second variable, a `foreach`
+  or a closure also holds. The decision is the reference count at run time, so a nested write into an
+  unshared array costs what it adds, not what the row holds. A write that throws changes no level.
+
 **Every key is a `string`.** There is no integer key. One key type means one key domain: which
 subscripts name the same entry is decided once, at the subscript, and nothing later converts a key
 between two kinds.

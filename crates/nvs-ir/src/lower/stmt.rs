@@ -1877,32 +1877,23 @@ impl<'a> Lowering<'a> {
             // `Self::write_back_array` does exactly that, and its own doc
             // comment owns why no retain or release goes with it.
             //
-            // A *nested* target (`$grid[0][1] = v`) is the same write one
-            // level down, and the separation has to run at every level: the
-            // target is flattened to its root and one key per level, the root
-            // and each key are lowered exactly once (PHP evaluates neither
-            // twice), the chain is descended with `InstKind::ArrayGet`, and
-            // the `ArraySet`s are then emitted back up with the *outermost*
-            // last, so the value handed to `Self::write_back_array` is the
-            // root array that now holds every re-pointed row. Each key is used
-            // twice — borrowed by the `ArrayGet`, stored by the `ArraySet` —
-            // but only the store takes a reference, so the single-level
-            // `if key_aliasing { retain }` still applies exactly once per key.
-            // The descent itself is `Helper::ArrayRowForWrite` rather than an
-            // `InstKind::ArrayGet`, because a row has to arrive owning a
-            // reference (the `ArraySet` below it consumes one) *and* an
-            // absent key has to auto-vivify the way PHP's does — see that
-            // helper's own doc comment, and this crate's module docs for what
-            // the resulting refcount means for the copy.
+            // A *nested* target (`$grid[0][1] = v`) flattens to its root and
+            // one key per level. The root and each key are lowered exactly
+            // once, as PHP evaluates them. The whole chain is then one
+            // `Helper::ArrayWriteThrough` call (`Self::emit_write_through`):
+            // the runtime walks the levels under each parent's borrow, copies
+            // a level only where its count is above one, and builds an absent
+            // row with the write that needs it. The call returns the root to
+            // store back, so `Self::write_back_array` ends a nested write as
+            // it ends a single-level one. The call borrows its keys, so no key
+            // is retained for it, and a fresh key is released after it.
             //
             // An intermediate level may itself be an append (`$g[][0] = 1;`),
             // PHP's "start a fresh row and write into it". It has no key to
-            // lower and nothing to descend into, so its row is an empty
-            // `InstKind::ArrayNew` and the climb stores it back with an
-            // `InstKind::ArrayAppend` — which is why the fresh row's key is
-            // never named anywhere here. The *read* spelling `$a[]` is
-            // `E0481` in `nvs_types`, and a base that declares no element
-            // type is `E0482` there, so neither reaches this arm from source.
+            // lower, so it travels as `null` in the key chain, and the runtime
+            // appends a fresh row there. The *read* syntax `$a[]` is `E0481`
+            // in `nvs_types`, and a base that declares no element type is
+            // `E0482` there, so neither reaches this arm from source.
             ExprKind::Index { base, index } => {
                 let Some(ExprInfo::Index { elem_ty, .. }) = self.exprs.lookup(target.span) else {
                     panic!(
@@ -1955,10 +1946,8 @@ impl<'a> Lowering<'a> {
                 // each exactly once, and every retain deferred until nothing
                 // that can throw is left to lower. The array is read last, so
                 // a value that replaces it is written into the array that is
-                // there when the store runs. An intermediate level may itself be
-                // an *append* (`$g[][0] = 1;`) and then has no key at all —
-                // the `None`s below are that level, and the descent and the
-                // climb each have one arm for it.
+                // there when the store runs. An intermediate level that is an
+                // *append* (`$g[][0] = 1;`) has no key, and is a `None` below.
                 let mut keys_lowered = 0;
                 let mut inner_keys: Vec<Option<(ValueId, Ty, bool)>> =
                     Vec::with_capacity(levels.len());

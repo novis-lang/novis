@@ -6,7 +6,7 @@ context: [crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lib.rs, crates/nvs-
 stages:
   - id: 1
     title: a nested write into an unshared array happens in place
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/helpers.rs, crates/nvs-ir/src/ir.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-codegen/tests/arrays.rs]
   - id: 2
     title: an append to a property or an element grows its string in place
@@ -334,7 +334,7 @@ a level only when its count is above one.
   retains go and a fresh key is an owned temporary. A single-level write is unchanged
   (`crates/nvs-ir/src/lower/stmt.rs:1958`, `crates/nvs-ir/src/lower/stmt.rs:1979`,
   `crates/nvs-ir/src/lower/stmt.rs:2011`).
-- [ ] Rewrite the comments that describe the descent, as wholes
+- [x] Rewrite the comments that describe the descent, as wholes
   (`crates/nvs-ir/src/lower/stmt.rs:1841`, `crates/nvs-ir/src/lower/stmt.rs:2287`,
   `crates/nvs-runtime/src/helpers.rs:482`).
 - [x] Replace `writing_through_a_nested_subscript_separates_every_level` and its snapshot with
@@ -349,11 +349,11 @@ a level only when its count is above one.
 - [x] Test `a_nested_append_that_throws_leaves_the_array_as_it_was`: an append into a row whose
   next index is taken throws, the catch reads the array unchanged, and live bytes balance
   (`crates/nvs-codegen/tests/in_place_writes.rs:1`).
-- [ ] Conformance case `tests/conformance/lang/a-nested-write-leaves-a-shared-row-alone.nvst:1`, so
+- [x] Conformance case `tests/conformance/lang/a-nested-write-leaves-a-shared-row-alone.nvst:1`, so
   the shared and unshared paths run under ASAN and Miri (`rule:types/arrays`).
-- [ ] Rewrite the module doc's nested-write bullet as a whole: what the write-through does and
+- [x] Rewrite the module doc's nested-write bullet as a whole: what the write-through does and
   what it spends (`crates/nvs-ir/src/lib.rs:127`).
-- [ ] `rule:types/arrays` gains one bullet: a write copies a level only when another holder shares
+- [x] `rule:types/arrays` gains one bullet: a write copies a level only when another holder shares
   it, at every depth. Then run `bun nv rules --render` (`docs/rules/types/arrays.md:1`).
 
 ### 2. an append to a property or an element grows its string in place
@@ -527,31 +527,34 @@ and release entries beyond the count write, in every build kind, as `file.rs:NN`
 
 ### State
 
-Stage 1's code and its tests are in. `NvsArray::write_through` (`crates/nvs-runtime/src/array.rs:1523`)
-walks the key chain under each parent's table borrow. It copies a level only above a count of one,
-builds an absent row, and checks the whole chain before it writes. `nvs_array_write_through`
-(`crates/nvs-runtime/src/helpers.rs:406`) and `Helper::ArrayWriteThrough` replace the row helper.
-The `Index` arm calls `Lowering::emit_write_through` (`crates/nvs-ir/src/lower/stmt.rs:2119`) for
-a nested target, and a single-level write is unchanged. All nine tests of the stage's three checks
-pass, each run once by name. Build and `cargo clippy --all-targets -- -D warnings` are green. No
-verify ran, so other snapshots that print a nested write may be red: look for
-`array_row_for_write` or a climbing `array.set` in `crates/nvs-ir/src/lower/snapshots/`.
+Stage 1 is done. A nested write is one `Helper::ArrayWriteThrough` call
+(`crates/nvs-ir/src/lower/stmt.rs:2108`, `crates/nvs-runtime/src/array.rs:1523`). The `Index` arm's
+comment, the module doc (`crates/nvs-ir/src/lib.rs:127`, `crates/nvs-ir/src/lib.rs:333`) and
+`rule:types/arrays`' first bullet describe it. The conformance case
+`tests/conformance/lang/a-nested-write-leaves-a-shared-row-alone.nvst` prints its `--EXPECT--` on
+the debug build. The stage's three checks pass, and build and clippy are green. No verify ran, so
+snapshots that print a nested write may be red: look for `array_row_for_write` or a climbing
+`array.set` in `crates/nvs-ir/src/lower/snapshots/`.
 
-The sweep items were stale. No `env-secret-proofs` check exists. The three nightly Miri jobs were
-two timeouts and one unsupported `mmap`, and `7568aaa0fb` already skips all four tests under Miri.
+The sweep items stay stale. No `env-secret-proofs` check exists. Nightly run 43201099245 built
+`578534cc`, which does not contain `7568aaa0fb`, the commit that skips those Miri tests.
 
 ### Next
 
-Stage 1's four remaining items, then stage 2.
+Stage 2, starting with the plain-slot property arm and its guards.
 
-- [ ] `crates/nvs-ir/src/lower/stmt.rs:1880`: rewrite the `Index` arm's block comment as a whole.
-  It still describes the descent and the climb.
-- [ ] Conformance case `tests/conformance/lang/a-nested-write-leaves-a-shared-row-alone.nvst:1`
-  (`rule:types/arrays`). The fixtures in `crates/nvs-codegen/tests/in_place_writes.rs` are the
-  shapes. A `foreach` binding needs `as var $v`.
-- [ ] Rewrite the module doc's nested-write bullet (`crates/nvs-ir/src/lib.rs:127`).
-- [ ] `docs/rules/types/arrays.md:1`: `rule:types/arrays` gains its bullet, then
-  `bun nv rules --render`. Then set stage 1 `done`.
+- [ ] `crates/nvs-ir/src/lower/stmt.rs:557`: write checkpoints under stage 2's first item, then add
+  the plain-slot arm to `lower_compound_assignment`. The plain-slot test is the one
+  `lower_store`'s property arm uses for a bare `FieldSet`. `lower_string_append` is
+  `crates/nvs-ir/src/lower/stmt.rs:1049`.
+- [ ] `crates/nvs-ir/src/lower/expr.rs:1020`: the static `string` property arm, and the suffix
+  retain for a read of shared storage.
+- [ ] `crates/nvs-runtime/src/array.rs:1523`: the string-append leaf beside `NvsArray::write_through`,
+  then `nvs_array_str_append_through` beside `nvs_array_write_through`
+  (`crates/nvs-runtime/src/helpers.rs:406`). The element arm keeps `emit_element_guard` in front
+  (`crates/nvs-ir/src/lower/stmt.rs:2170`).
+- [ ] `crates/nvs-codegen/tests/in_place_writes.rs:1`: the guards and tests of checks
+  `appends-in-place` and `appends-keep-shared-strings`.
 
 ### Backlog
 
