@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-stdlib/src/json.rs, crates/nvs-fuzz-checks/src/json.rs, crates/nvs-fuzz-checks/src/tests.rs, docs/rules/core-classes/json-whole-and-stream.md, docs/rules/http-server/engine-depth-is-bounded-per-decoder.md]
   - id: 2
     title: "decode, isValid and Request::json build values from the reader, with one allocation per key"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/json/reader.rs, crates/nvs-stdlib/src/request.rs, tests/hostile/README.md]
   - id: 3
     title: "decodeAs and jsonAs fill classes from the reader on the task's own stack"
@@ -315,26 +315,26 @@ the rule changes that allow it.
 **Does:** make the untyped decode a loop over the reader's events, on the caller's own stack, and
 close the integer defect.
 
-- [ ] `Decode` becomes a loop with a `Vec` of open arrays. A key is built once, as the Novis string
+- [x] `Decode` becomes a loop with a `Vec` of open arrays. A key is built once, as the Novis string
   the array stores (`crates/nvs-stdlib/src/json.rs:2272-2392`, `:2379-2384`,
   `rule:core-classes/json-whole-and-stream`).
-- [ ] `read`, `read_marked` and `parse` call it in place, and `read_with` goes with the test at
+- [x] `read`, `read_marked` and `parse` call it in place, and `read_with` goes with the test at
   `:5983`. `IN_PLACE_BYTES` stays for stage 3's two sites. `read` returns the reader's error type
   (`crates/nvs-stdlib/src/json.rs:2415-2449`, `:2484-2514`).
-- [ ] The callers of `read` take the new error type: `crates/nvs-stdlib/src/test.rs:3411`,
+- [x] The callers of `read` take the new error type: `crates/nvs-stdlib/src/test.rs:3411`,
   `crates/nvs-stdlib/src/queue.rs:3466`, `crates/nvs-stdlib/src/request.rs:3182`, and
   `nvs_core_json_decode` and `nvs_core_json_is_valid` (`crates/nvs-stdlib/src/json.rs:2529`).
-- [ ] The integer decision: a literal outside `int` throws at any length, with the capped digits
+- [x] The integer decision: a literal outside `int` throws at any length, with the capped digits
   (`crates/nvs-stdlib/src/json.rs:2324-2339`). The module doc's refusal entry says so (`:81-91`).
-- [ ] Tests `an_untyped_decode_allocates_once_per_object_key_at_two_sizes` and
+- [x] Tests `an_untyped_decode_allocates_once_per_object_key_at_two_sizes` and
   `an_integer_literal_outside_int_throws_at_any_length` (`crates/nvs-stdlib/src/json.rs:8298`).
-- [ ] An attack: a body holds an integer with more digits than any number type, as a value and
+- [x] An attack: a body holds an integer with more digits than any number type, as a value and
   inside a list. Each decode throws, and `isValid` returns `false`
-  (`tests/hostile/core/Json/decode/04-an-integer-longer-than-any-number-type.nvs:1`,
+  (`tests/hostile/core/Json/decode/05-an-integer-longer-than-any-number-type.nvs:1`,
   `tests/hostile/core/Json/isValid/01-deep-huge-and-broken-texts.nvs:27`).
-- [ ] A conformance case for the same literal, positive and negative
+- [x] A conformance case for the same literal, positive and negative
   (`tests/conformance/core/json-decode-refuses-an-integer-outside-int-at-any-length.nvst:1`).
-- [ ] `bun nv proofs --comments` over the new `.nvs` files passes, and the `decode` and `isValid`
+- [x] `bun nv proofs --comments` over the new `.nvs` files passes, and the `decode` and `isValid`
   pages still say what happens (`docs/examples/core/Json/decode/about.md:9`,
   `docs/examples/core/Json/isValid/about.md:5`).
 
@@ -476,48 +476,47 @@ entry and where a checked program's extension classes are known.
 
 ### State
 
-Stage 1 is done. `crates/nvs-stdlib/src/json/reader.rs` is the reader: `Reader<S: Source>` with
-`Reader::new(source, max_depth)` and `next() -> Result<Option<Event<'_>>, Error>`. `Text` is the
-one-chunk source and `Cut` a source of fixed-size chunks. `Number` is `Int`, `Uint`, `Float` or
-`Big { negative, digits }`, and `Digits`' `Display` writes at most 32 digits, then `...`.
-`Code::TooDeep(max)` gives `decode`'s depth message, at the column after the bracket, as
-`02-text-that-is-not-valid-json.out` pins it. `Code::OverMemory` gives `over_memory`'s message.
-An error ends the read: the reader is not fused.
+Stages 1 and 2 are done. `crates/nvs-stdlib/src/json/reader.rs` is the reader, and `json.rs`'s
+`build` (`crates/nvs-stdlib/src/json.rs:2602`) is the untyped decode: a loop over its events with a `Vec<Open>` of open
+containers. `read`, `read_marked` and `read_polled` run it in place over `reader::Text` through
+`read_with`, and return `reader::Error`. `decode`, `isValid`, `Core\Request::json`,
+`Core\Test\Response::json`, the queue rows and `decode_as`'s `writes_decoder` path all read through
+it. The `one-allocation-per-key` tests pass, and so do the new conformance case and attack under
+`bun nv try`. The attack is `tests/hostile/core/Json/decode/05-...`, since `04-` was taken.
 
-`nvs_stdlib::fuzz` holds `json_read`, `json_oracle` and `json_reader_disagreement`, so the oracle
-and its two exceptions have one home. `nvs-fuzz-checks` therefore did not gain `serde_json`: its
-`json_reader` check calls `json_reader_disagreement` and compares chunk sizes 1, 2, 3, 7 and 64.
-The `reader-agrees` check is green, and so is the fuzz replay over all 1374 `json` seeds. Nothing
-calls the reader yet. `Core\Json` still parses through `serde_json` on a spare stack, and
-`json.rs`'s module doc still says RFC 8259 is a dependency. Stage 5 rewrites that doc as a whole.
+The reader gained four caller codes: `TooLarge(Digits)`, `TooSmall(Digits)`, `Repeated(Box<str>)`
+and `Stopped`, so `Code` is no longer `Copy`. `Reader::refuse(code)` places one after the last
+token, where `serde_json` places a visitor's error. A repeated key is now reported after its value,
+and not after the whitespace and `}` that follow it. No case pins that column. `Error::code()` is
+`#[cfg(test)]` until a caller needs it.
+
+`Decode` and its `serde` visitor stay only because `Fill` and `FillList` hand nested values to it.
+On `decode_as`'s `writes_decoder` path a literal past `u64::MAX` now throws, where it used to
+reach a `float` field. Stage 3 brings that path's field rules back.
+
+The sweep's `env-secret-proofs` names no check in the tree. The nightly at `267c8eb` was cancelled
+by a later push. The push run at `d11e15a` failed only `proofs / linux-x86_64`, and every proof in
+its log passed. The run at `29f56d8` was still running.
 
 ### Next
 
-Stage 2, in `crates/nvs-stdlib/src/json.rs`, its three callers and three new `.nvs` and `.nvst`
-files. Expected red until the stage ends: any test that pins an integer literal past `u64::MAX`
-decoding to a `float`.
+Stage 3, in `crates/nvs-stdlib/src/json.rs` and the three callers of `decode_as`. Expected red
+until stage 8: any test that pins a decode of an integer literal past `u64::MAX` to a `float`.
+The gate also runs `a_document_at_the_ceiling_decodes_whatever_stack_the_caller_has`, which now
+holds the loop on a 64 KiB thread.
 
-- [ ] `crates/nvs-stdlib/src/json.rs:2272-2392`: `Decode` becomes a loop over `Reader` events with
-  a `Vec` of open arrays, each push asked from `budget::affords` first. A key is built once as the
-  Novis string the array stores (`rule:core-classes/json-whole-and-stream`).
-- [ ] `crates/nvs-stdlib/src/json.rs:2415-2449`, `:2484-2514`: `read`, `read_marked` and `parse`
-  run in place over `reader::Text`, and `read_with` goes with its test at `:5983`. `IN_PLACE_BYTES`
-  stays for stage 3. `read` returns `reader::Error`. Stage 2 adds the accessors it needs, such as a
-  `code()`, which was removed while nothing called it.
-- [ ] Callers take the new error type: `crates/nvs-stdlib/src/test.rs:3411`,
-  `crates/nvs-stdlib/src/queue.rs:3466`, `crates/nvs-stdlib/src/request.rs:3182`, and
-  `nvs_core_json_decode` and `nvs_core_json_is_valid` at `crates/nvs-stdlib/src/json.rs:2529`.
-- [ ] `crates/nvs-stdlib/src/json.rs:2324-2339`: `Number::Uint` and `Number::Big` throw "the integer
-  {digits} is too large for `int`", and a negative one says "too small", at the column after the
-  literal. The module doc's refusal entry says so (`:81-91`).
-- [ ] `crates/nvs-stdlib/src/json.rs:8298`: tests
-  `an_untyped_decode_allocates_once_per_object_key_at_two_sizes` and
-  `an_integer_literal_outside_int_throws_at_any_length`.
-- [ ] `tests/hostile/core/Json/decode/04-an-integer-longer-than-any-number-type.nvs:1` and
-  `tests/hostile/core/Json/isValid/01-deep-huge-and-broken-texts.nvs:27`: the attack.
-  `tests/conformance/core/json-decode-refuses-an-integer-outside-int-at-any-length.nvst:1`: the case.
-- [ ] `docs/examples/core/Json/decode/about.md:9` and `docs/examples/core/Json/isValid/about.md:5`
-  still say what happens, and `bun nv proofs --comments` passes over the new `.nvs` files.
+- [ ] `crates/nvs-stdlib/src/json.rs:3214` (`Fill`), `:3511` (`FillList`), `:3589` (`Typed`),
+  `:3693` (`Key`) and `:2982` (`Found`) read the reader's events. Nested untyped values come from
+  `build`, which takes a reader already inside a value. Then `Decode` at `:2299` goes.
+- [ ] `crates/nvs-stdlib/src/json.rs:3744` `read_against`, `:3764` `TaskBounds` and `:3790` `parse_against` run in place.
+  `IN_PLACE_BYTES` goes with its test at `:6489`.
+- [ ] The integer decision for typed fields, at `crates/nvs-stdlib/src/json.rs:3193`'s `visit_u64` and the field reader:
+  `float` converts, `uint` takes up to `u64::MAX`, and any other field reports its own issue.
+- [ ] `crates/nvs-stdlib/src/json.rs:4293` `secret_spans`, `:4367` `secret_values` and `:4484` `Entries` read byte ranges from
+  the reader's events.
+- [ ] Callers: `crates/nvs-stdlib/src/jwt.rs:2177`, `crates/nvs-stdlib/src/test.rs:3493`,
+  `crates/nvs-stdlib/src/request.rs:3311` and `:8387`.
+- [ ] The three tests of `typed-on-the-task-stack`, beside `crates/nvs-stdlib/src/json.rs:6489`.
 
 ### Backlog
 
