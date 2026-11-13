@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-server/src/mount.rs, crates/nvs-server/src/statics.rs, crates/nvs-host/src/blocking.rs, docs/rules/http-server/a-core-is-never-blocked-on-a-syscall.md, docs/rules/http-server/static-serving-is-one-policy.md]
   - id: 6
     title: "a setting the door reads is parsed once per configuration"
-    status: open
+    status: done
     context: [crates/nvs-config/src/limits.rs, crates/nvs-config/src/http.rs, crates/nvs-config/src/app.rs, crates/nvs-runtime/src/ctx/output.rs, crates/nvs-runtime/src/logfile.rs]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
@@ -495,40 +495,40 @@ resolved cell, and keep a configured log file open.
 **Split:** an `Explore` subagent lists every read of `snapshot.config`, `config.get(` and
 `Quantity::parse` reachable per request from the door and the handler, as `file.rs:NN` and the key.
 
-- [ ] `Resolved` gains the decoded CSRF key in a type that prints nothing, `upload_total`, the
+- [x] `Resolved` gains the decoded CSRF key in a type that prints nothing, `upload_total`, the
   `Disconnect` pair, and the log target, bounds, level and format
   (`rule:config/the-config-is-an-immutable-snapshot`, `crates/nvs-config/src/limits.rs:80`, `:101`).
-- [ ] `Snapshot` and `Request` gain the readers, and the three text readers fill the cell
+- [x] `Snapshot` and `Request` gain the readers, and the three text readers fill the cell
   (`rule:security/csrf-is-on-by-default`, `crates/nvs-config/src/snapshot.rs:144`,
   `crates/nvs-config/src/request.rs:249`, `crates/nvs-config/src/http.rs:638`,
   `crates/nvs-config/src/app.rs:324`, `:614`).
-- [ ] The handler reads the key and `upload_total` from the cell, and copies the key only for a form
+- [x] The handler reads the key and `upload_total` from the cell, and copies the key only for a form
   whose token is in its body (`rule:security/csrf-is-on-by-default`,
   `rule:http-server/request-body-and-upload-total-are-two-caps`,
   `crates/nvs-cli/src/serve.rs:1287`, `crates/nvs-server/src/route.rs:408`).
-- [ ] The door reads the `Disconnect` pair from the cell of the snapshot the program runs under
+- [x] The door reads the `Disconnect` pair from the cell of the snapshot the program runs under
   (`rule:http-server/a-request-outlives-a-client-that-goes-away`,
   `crates/nvs-server/src/serve.rs:2272`).
-- [ ] `log_target`, `log_minimum` and `log_format` read the cell, with the overlay check for the two
+- [x] `log_target`, `log_minimum` and `log_format` read the cell, with the overlay check for the two
   `Runtime` keys (`rule:errors/log-write`, `crates/nvs-runtime/src/ctx/output.rs:613`, `:1365`,
   `:1400`, `:1417`).
-- [ ] `LogFile::with_bounds` takes a borrowed path and allocates only for a path it has not seen
+- [x] `LogFile::with_bounds` takes a borrowed path and allocates only for a path it has not seen
   (`rule:http-server/the-floor-cannot-fill-the-disk`, `crates/nvs-runtime/src/logfile.rs:98`).
-- [ ] Boot and each reload take and open one `LogFile` per file target they publish, and keep it
+- [x] Boot and each reload take and open one `LogFile` per file target they publish, and keep it
   until the next publish stands (`rule:http-server/the-floor-cannot-fill-the-disk`,
   `crates/nvs-cli/src/serve.rs:501`, `crates/nvs-cli/src/reload.rs:357`).
-- [ ] Each per-request read the list names that this stage does not move is written under
+- [x] Each per-request read the list names that this stage does not move is written under
   `### Backlog` with its key (`rule:config/the-config-is-an-immutable-snapshot`,
   `crates/nvs-config/src/limits.rs:80`).
-- [ ] Test `the_door_settings_are_resolved_once_per_snapshot` in `crates/nvs-config/src/limits.rs`
+- [x] Test `the_door_settings_are_resolved_once_per_snapshot` in `crates/nvs-config/src/limits.rs`
   tests: two reads of the key, `upload_total` and the `Disconnect` pair under one snapshot return the
   same addresses, and a clone of the snapshot resolves its own
   (`rule:config/the-config-is-an-immutable-snapshot`, `crates/nvs-config/src/limits.rs:147`).
-- [ ] Test `a_held_log_file_is_opened_once_for_any_number_of_requests` in
+- [x] Test `a_held_log_file_is_opened_once_for_any_number_of_requests` in
   `crates/nvs-runtime/src/logfile.rs` tests: with one handle held, 20 handles made, written and
   dropped count one open on a `cfg(test)` counter
   (`rule:http-server/the-floor-cannot-fill-the-disk`, `crates/nvs-runtime/src/logfile.rs:98`).
-- [ ] The module doc of `limits.rs` states what the cell holds and spends now
+- [x] The module doc of `limits.rs` states what the cell holds and spends now
   (`rule:programs/memory-priority`, `crates/nvs-config/src/limits.rs:23`).
 
 ### 7. the goal is verified once, and every failure is fixed
@@ -541,33 +541,37 @@ resolved cell, and keep a configured log file open.
 
 ### State
 
-Stages 1 to 5 are done. `OnDisk::file` (`crates/nvs-server/src/mount.rs:145`) and `OnDisk::open`
-(`crates/nvs-server/src/statics.rs:160`) each run their whole body as one `nvs_host::blocking::run`
-job. The footprint calls stay on the calling thread, because their capture is thread-local.
-`Answer::File` holds `Option<File>` and a `seek`, and each `poll_frame` moves the file into one job
-that seeks on the first chunk and reads one chunk. `Answer::file` no longer seeks and no longer
-fails, so a seek error now cuts the body as a short file does. A `cfg(test)` counter,
-`crate::mount::file_calls`, counts each raw call on the thread that makes it, through
-`mount::file_call()`. No `RefCell` borrow of shared per-core state is held across a park:
-`Local::table` and `Local::entry` drop their borrow before they return, and the `ctx`, `writing` and
-`sending` cells belong to one connection. The test `a_static_request_makes_no_file_call_on_its_core`
-(`crates/nvs-server/src/serve.rs:11002`) passes, and build and clippy are green.
+Stages 1 to 6 are done. `limits::Resolved` (`crates/nvs-config/src/limits.rs:97`) holds the decoded
+CSRF key as `CsrfKey`, whose `Debug` prints `CsrfKey(..)`, `upload_total`, the `Disconnect` pair
+and `LogSink` with the log level and format. `Snapshot::csrf_key`, `upload_total`, `disconnect` and
+`log_sink` read it, and `Request::log_level` and `log_format` read it unless the overlay holds the
+key or flips the mode. The door, `Core\Csrf` and the disconnect read use the cell, and the door
+copies the key only for a form whose token is in its body. `LogFile::with_bounds` takes a `&Path`.
+`LogFile::held` opens a handle now, and `logfile::held_for` takes one per file target of a
+publish. `reload::Process::holding_logs` holds the boot's set, and each reload replaces it after
+the publish stands, opening the new set before it drops the old one. An entry folded on its first
+request after the publish has no held handle, and its first log write opens the file. Both stage
+tests pass, and build and clippy are green.
 
-The sweep's `env-secret-proofs` and the nightly Miri failures of run 43201099245 were stale a sixth
+The sweep's `env-secret-proofs` and the nightly Miri failures of run 43201099245 were stale a seventh
 time. No such check log exists, and that run tested `578534cc7c`, before `7568aaa0fb` skipped the
 four tests under Miri. A sweep that names them again needs no work.
 
 ### Next
 
-Stage 6, in its items' order, after its `**Split:**` search. No test is expected red.
+Stage 7, the gate. No test is expected red, but the stage 6 change of `LogFile::with_bounds` and of
+the log readers reaches every crate that logs.
 
-- `crates/nvs-config/src/limits.rs:80` `Resolved` gains the decoded CSRF key, `upload_total`, the
-  `Disconnect` pair and the log settings.
-- `crates/nvs-config/src/snapshot.rs:144` `Snapshot` and `Request` gain the readers.
-- `crates/nvs-runtime/src/logfile.rs:98` `LogFile::with_bounds` takes a borrowed path.
+- `crates/nvs-config/src/limits.rs:97` run `looper verify` in the background, then fix every
+  failure in one pass.
+- `crates/nvs-runtime/src/logfile.rs:98` then the goal-end gates: `bun nv verify --doc`,
+  `bun nv owners --closes request-path-per-core` and `bun nv ci --check`.
 
 ### Backlog
 
+- The door reads `[trace] sample` through `nvs_config::export::head_sample` and `[session] cookie`
+  through `nvs_stdlib::session::cookie_in` on every request (`crates/nvs-cli/src/serve.rs:1250`,
+  `:1284`). Both read the typed tree with no text parsing and no allocation, so stage 6 kept them.
 - `Core\Response::sendFile` checks its grant with `capability::metadata` and `capability::readable`
   on the core thread, and off a request it also opens and reads there
   (`crates/nvs-stdlib/src/response.rs:2113`). Every `Core` file door in `nvs_runtime::capability`
