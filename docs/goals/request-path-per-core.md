@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-cli/src/serve/mounts.rs, crates/nvs-cli/src/script.rs, docs/rules/config/a-request-keeps-the-unit-it-resolved.md, docs/rules/config/an-edit-reaches-the-next-request-without-a-restart.md]
   - id: 4
     title: "the request head is one buffer, and a dispatching unit keeps one copy of it"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/inbound.rs, docs/rules/http-server/a-request-head-has-at-most-100-header-lines.md, docs/rules/routing/a-gate-answers-around-every-handler.md]
   - id: 5
     title: "a static file's calls run off the core"
@@ -208,10 +208,11 @@ query and every name and value lie back to back in one byte buffer. One vector o
 with exact capacity, because `hyper` has framed the head before the first copy. `Inbound::framed`
 builds it in at most three allocations for any line count. `push_header` stays for builders that do
 not know the count, such as tests and the in-process request, and appends to the same buffer.
-Offsets are `usize`. The handle is an `Arc`, and a dispatching unit's `Rerun` keeps that handle, not
-`hyper`'s `Parts`. `Parts` is dropped at the door, so the connection's read buffer is free during the
-request. **What it spends:** two words per header line, and two atomic writes on the request's own
-line for a dispatching unit only. Readers keep their signatures. Declined: reusing a head buffer for
+Offsets are `usize`. The handle is an `Rc`, and a dispatching unit's `Rerun` keeps that handle, not
+`hyper`'s `Parts`. An `Rc` and not an `Arc`, because `Inbound` already holds `Rc` cells and never
+leaves its thread, so an atomic count would buy nothing. `Parts` is dropped at the door, so the
+connection's read buffer is free during the request. **What it spends:** two words per header line,
+and no atomic write. Readers keep their signatures. Declined: reusing a head buffer for
 the next request, which is cross-request state.
 
 **Static file calls go through `nvs_host::blocking::run`, inside `OnDisk`.** That is the pool
@@ -425,30 +426,30 @@ as `script.rs:NN` and the map it writes, before the epoch lands.
 **Does:** store the head as one buffer and one offset table behind a shared handle, and make the
 rerun keep that handle.
 
-- [ ] `Inbound` stores its method, path, query and header lines in one shared head. `Inbound::framed`
+- [x] `Inbound` stores its method, path, query and header lines in one shared head. `Inbound::framed`
   builds it with exact capacity, and `push_header` appends to it
   (`rule:http-server/a-request-head-has-at-most-100-header-lines`,
   `crates/nvs-runtime/src/ctx/inbound.rs:210`, `:626`, `:818`).
-- [ ] `method`, `path`, `query`, `headers` and `cookie` keep their signatures over the new storage
+- [x] `method`, `path`, `query`, `headers` and `cookie` keep their signatures over the new storage
   (`rule:http-server/a-request-head-has-at-most-100-header-lines`,
   `crates/nvs-runtime/src/ctx/inbound.rs:801`, `:826`, `:849`).
-- [ ] `carrier` builds the head with `Inbound::framed`
+- [x] `carrier` builds the head with `Inbound::framed`
   (`rule:http-server/a-request-head-has-at-most-100-header-lines`,
   `crates/nvs-cli/src/serve.rs:2548`, `:1237`).
-- [ ] The `Rerun` closure keeps the first carrier's head handle and builds its carrier from it.
+- [x] The `Rerun` closure keeps the first carrier's head handle and builds its carrier from it.
   `hyper`'s `Parts` is dropped once the body is split (`rule:routing/a-gate-answers-around-every-handler`,
   `crates/nvs-cli/src/serve.rs:1314`, `:1343`, `:1361`). The doc of `Rerun` follows
   (`crates/nvs-server/src/serve.rs:665`).
-- [ ] Test `a_framed_head_allocates_the_same_for_three_header_lines_and_for_a_hundred` in
+- [x] Test `a_framed_head_allocates_the_same_for_three_header_lines_and_for_a_hundred` in
   `crates/nvs-runtime/src/ctx/inbound.rs` tests: `nvs_runtime::budget::allocations` around
   `Inbound::framed` reads the same for both sizes and at most three
   (`rule:testing/perf-two-mechanisms`, `crates/nvs-runtime/src/ctx/inbound.rs:1250`).
-- [ ] Test `a_dispatching_units_rerun_shares_the_first_runs_head` in `crates/nvs-cli/src/serve.rs`
+- [x] Test `a_dispatching_units_rerun_shares_the_first_runs_head` in `crates/nvs-cli/src/serve.rs`
   tests: the rerun's carrier reads the same lines from the same buffer as the first run's
   (`rule:routing/a-gate-answers-around-every-handler`, `crates/nvs-cli/src/serve.rs:4940`).
-- [ ] The workspace manifest's comment says `Core\Http\Client` is hand-written
+- [x] The workspace manifest's comment says `Core\Http\Client` is hand-written
   (`rule:packaging/a-c-dependency-answers-two-questions`, `Cargo.toml:177`).
-- [ ] `rule:http-server/a-request-head-has-at-most-100-header-lines` gains what a head spends: its
+- [x] `rule:http-server/a-request-head-has-at-most-100-header-lines` gains what a head spends: its
   bytes once and two words per line
   (`docs/rules/http-server/a-request-head-has-at-most-100-header-lines.md:1`).
 
@@ -540,34 +541,36 @@ resolved cell, and keep a configured log file open.
 
 ### State
 
-Stages 1, 2 and 3 are done. `Compiler` has an epoch that `Compiler::exclusive`, the one write
-guard, moves while it holds the lock, and `Compiler::unit` answers with the `Arc<Compiled>` itself.
-Each core's `mounts::Local` keeps one slot per row, filled by `Local::new` and each rebuild from
-`Compiler::standing_unit`, which never compiles or reads the disk. `serve::entry_for` reads the slot
-for a row's own entry and refreshes it when the publish generation or the epoch moved. Any other
-file takes `mounts::Entry::looked_up`. The rerun keeps the request's `Rc<Entry>`. A keep-alive
-request makes 16 counted shared writes, with no lock line, and `SHARED_WRITES` is 16. The checks
-`unit-slot` and `shared-writes-counted` pass, and build, clippy and fmt are green.
+Stages 1 to 4 are done. `Inbound` keeps its method, path, query and header lines in one
+`nvs_runtime::Head`: one byte buffer and one table of part ends, behind an `Rc`.
+`Inbound::framed` takes a closure that gives the lines, calls it twice, and builds the head in three
+allocations for any line count. `push_header` appends through `Rc::make_mut`, so a shared head is
+copied before a line is added. `carrier` builds with `Inbound::framed`. The door drops `hyper`'s
+`Parts` once `body::of` has read its headers. The `Rerun` closure keeps an `Rc` of the first
+carrier's head and builds its carrier with `rerun_carrier`. The tests
+`a_framed_head_allocates_the_same_for_three_header_lines_and_for_a_hundred`,
+`a_line_pushed_onto_a_shared_head_is_not_seen_by_the_other_carrier` and
+`a_dispatching_units_rerun_shares_the_first_runs_head` pass, and build, clippy and fmt are green.
 
-The sweep's `env-secret-proofs` and the nightly Miri failures of run 43201099245 were stale a fourth
+The sweep's `env-secret-proofs` and the nightly Miri failures of run 43201099245 were stale a fifth
 time. No such check log exists, and that run tested `578534cc7c`, before `7568aaa0fb` skipped the
 four tests under Miri. A sweep that names them again needs no work.
 
 ### Next
 
-Stage 4, in its items' order. No test is expected red.
+Stage 5, in its items' order, after its `**Split:**` search. No test is expected red.
 
-- `crates/nvs-runtime/src/ctx/inbound.rs:626` `Inbound` stores the head in one buffer with an
-  offset table behind an `Arc`, and `Inbound::framed` builds it with exact capacity.
-- `crates/nvs-cli/src/serve.rs:2534` `carrier` builds with `Inbound::framed`, and the `Rerun`
-  closure at `crates/nvs-cli/src/serve.rs:1339` keeps the head handle in place of `hyper`'s `Parts`.
+- `crates/nvs-server/src/mount.rs:139` `OnDisk::file` runs its whole body as one
+  `nvs_host::blocking::run` job.
+- `crates/nvs-server/src/statics.rs:150` `OnDisk::open` runs `metadata`, `open` and `fstat` as one
+  job.
+- `crates/nvs-server/src/serve.rs:336` a file body reads each chunk as one job.
 
 ### Backlog
 
 - `spooled::door_store` clones the snapshot into a `nvs_config::Request` on every request, and no
   counted line sees it (`crates/nvs-server/src/spooled.rs:200`). A borrowed read would remove two
   shared writes.
-
 - `Compiler::advance` takes a write guard on every background pass, even for a pointer that did not
   move, so the epoch moves once per `revalidate_freq` and each core reads its slots again then
   (`crates/nvs-cli/src/script.rs:1333`). A read check before the write would keep slots current
