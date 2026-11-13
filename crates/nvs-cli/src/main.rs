@@ -1823,6 +1823,37 @@ fn send_file_body(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> std::io
     }
 }
 
+/// The link table for the request `ctx` answers, when the unit links to
+/// another module and the configuration writes a mount table. The row is the
+/// one the request's mount and `Host` header name
+/// ([`nvs_runtime::inproc::Mounts::links_for`]). `None` without a request,
+/// without such a link, or without a row, and each link then throws when it
+/// runs.
+///
+/// Cost: one pass over the rows per linked handler, once per run.
+fn request_links(
+    ctx: &nvs_runtime::Ctx,
+    under_test: &runner::UnderTest,
+) -> Option<std::sync::Arc<nvs_runtime::ModuleLinks>> {
+    use nvs_runtime::inproc::Answering;
+    let inbound = ctx.inbound()?;
+    let mounts = under_test.mounts()?;
+    let host = inbound
+        .headers()
+        .find(|(name, _)| name.eq_ignore_ascii_case("host"))
+        .and_then(|(_, value)| std::str::from_utf8(value).ok())
+        .map(|host| {
+            host.rsplit_once(':')
+                .map_or(host, |(name, _port)| name)
+                .to_ascii_lowercase()
+        });
+    mounts.links_for(
+        inbound.mount_prefix(),
+        host.as_deref(),
+        under_test.module_links(),
+    )
+}
+
 /// Builds the carrier `nvs run --request <file>` describes.
 ///
 /// The format is `nvs-test`'s, because that crate writes these files for a
@@ -2313,7 +2344,15 @@ fn run_run(
     // run has one, and it is this program: `Core\Test::request` inside a `nvs
     // run` asks the same entry a served request would, which is what lets a
     // conformance case reach the member at all.
-    let under_test = runner::UnderTest::new(&unit, &checked).with_mounts(&for_compiler.config);
+    let under_test = runner::UnderTest::new(&unit, &checked)
+        .with_mounts(&for_compiler.config, &for_compiler.origins);
+    // `rule:routing/a-link-reaches-another-module`: a `--request` gets the
+    // link table of the row its mount and `Host` name, from the same table a
+    // test request reads, so a link to another module is the one `nvs serve`
+    // writes.
+    if let Some(links) = request_links(&ctx, &under_test) {
+        ctx.set_module_links(links);
+    }
     if let Some(site) = fault_inject {
         ctx.inject_fault(site.into());
     }

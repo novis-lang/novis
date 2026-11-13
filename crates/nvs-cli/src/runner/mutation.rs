@@ -83,6 +83,8 @@ pub(super) struct Runs<'a> {
     /// mutant's unit is installed in it here.
     pub(super) ctx: &'a dyn Fn() -> nvs_runtime::Ctx,
     pub(super) config: &'a nvs_config::Config,
+    /// Which file wrote each key of `config`.
+    pub(super) origins: &'a std::collections::BTreeMap<String, nvs_config::Origin>,
     pub(super) extensions: Option<Arc<nvs_ext::load::Set>>,
     pub(super) jobs: usize,
     /// The run's selection. A mutant narrows it to the tests that reach it.
@@ -193,6 +195,7 @@ fn run_one(
         ctx,
         Rc::clone(checked),
         runs.config,
+        runs.origins,
         runs.extensions.clone(),
         shape,
         &select,
@@ -328,12 +331,14 @@ mod tests {
             wall: None,
         };
         let config = nvs_config::Config::default();
+        let origins = std::collections::BTreeMap::new();
         let select = Selection::default();
         let (baseline, _) = run_suite_in_a_task(
             &unit,
             ctx,
             Rc::clone(&checked),
             &config,
+            &origins,
             None,
             shape,
             &select,
@@ -371,6 +376,7 @@ mod tests {
         let runs = Runs {
             ctx: &crate::script::granting_ctx,
             config: &config,
+            origins: &origins,
             extensions: None,
             jobs: crate::runner::default_jobs(),
             select: &select,

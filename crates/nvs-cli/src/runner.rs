@@ -943,6 +943,7 @@ pub(crate) fn run(
         ctx,
         Rc::clone(&checked),
         &snapshot.config,
+        &snapshot.origins,
         extensions.clone(),
         Shape {
             format,
@@ -1072,6 +1073,7 @@ pub(crate) fn run(
             let runs = mutation::Runs {
                 ctx: &new_ctx,
                 config: &snapshot.config,
+                origins: &snapshot.origins,
                 extensions,
                 jobs,
                 select,
@@ -1200,6 +1202,7 @@ fn run_suite_in_a_task(
     ctx: nvs_runtime::Ctx,
     checked: Rc<crate::Checked>,
     config: &nvs_config::Config,
+    origins: &std::collections::BTreeMap<String, nvs_config::Origin>,
     extensions: Option<Arc<nvs_ext::load::Set>>,
     shape: Shape,
     select: &Selection,
@@ -1211,7 +1214,7 @@ fn run_suite_in_a_task(
     // the way a `spawn script` reaches the resolver, so the two guards nest
     // rather than either one being a special case; each of the run's cores
     // installs the same two for its whole life ([`Seams`]).
-    let under_test = Arc::new(UnderTest::new(unit, &checked).with_mounts(config));
+    let under_test = Arc::new(UnderTest::new(unit, &checked).with_mounts(config, origins));
     // A test's own isolate is built by this crate directly, but a `spawn script`
     // *inside* a test goes through the seam and needs the same resolver
     // `nvs run` installs — one per run, so two tests spawning one path share
@@ -1364,7 +1367,14 @@ impl UnderTest {
     ///
     /// Cost: one compile per mounted entry, once per run and only for a unit
     /// that links to another module. The table is O(rows × routes).
-    pub(crate) fn with_mounts(mut self, config: &nvs_config::Config) -> Self {
+    ///
+    /// `origins` says which file wrote each key, so a relative `[server] root`
+    /// resolves against that file and never against the current directory.
+    pub(crate) fn with_mounts(
+        mut self,
+        config: &nvs_config::Config,
+        origins: &std::collections::BTreeMap<String, nvs_config::Origin>,
+    ) -> Self {
         let written = config
             .server
             .as_ref()
@@ -1372,11 +1382,7 @@ impl UnderTest {
         if self.routes.module_links().is_empty() || !written {
             return self;
         }
-        let Ok(rows) = nvs_config::mount::expand(
-            config,
-            &std::collections::BTreeMap::new(),
-            &nvs_config::resolve::Disk,
-        ) else {
+        let Ok(rows) = nvs_config::mount::expand(config, origins, &nvs_config::resolve::Disk) else {
             return self;
         };
         let compiler = crate::script::Compiler::new(config);
@@ -5286,6 +5292,7 @@ mod tests {
             ctx,
             std::rc::Rc::new(checked),
             &nvs_config::Config::default(),
+            &std::collections::BTreeMap::new(),
             None,
             shape,
             &Selection::by_name(filter),
@@ -5337,6 +5344,7 @@ mod tests {
             ctx,
             std::rc::Rc::new(checked),
             &nvs_config::Config::default(),
+            &std::collections::BTreeMap::new(),
             None,
             shape,
             select,
@@ -6763,6 +6771,7 @@ mod tests {
                 ctx,
                 std::rc::Rc::new(checked),
                 &nvs_config::Config::default(),
+                &std::collections::BTreeMap::new(),
                 None,
                 shape,
                 &Selection::default(),

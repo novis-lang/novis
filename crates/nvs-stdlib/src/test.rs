@@ -2966,8 +2966,8 @@ fn described(verb: &str, target: &str, args: &[Value]) -> Result<nvs_runtime::In
 ///
 /// The row is the one whose prefix is the `mount` key, and `/` for the root.
 /// Where rows on several hosts share that prefix, the row with no host is
-/// taken first. Each handler is resolved by `nvs_config::mount::links_of`,
-/// which `nvs serve` calls too, so a test gets the link the server gives. A
+/// taken first ([`nvs_runtime::inproc::Mounts::links_for`]). Each handler is
+/// resolved by `nvs_config::mount::links_of`, which `nvs serve` calls too, so a test gets the link the server gives. A
 /// handler that finds no row is left out, and its link throws when it runs. A
 /// `mount` no row has gives no table, so every such link throws.
 ///
@@ -2977,20 +2977,7 @@ fn links_through(
     mount: &str,
     handlers: &[String],
 ) -> Option<std::sync::Arc<nvs_runtime::ModuleLinks>> {
-    let prefix = if mount.is_empty() { "/" } else { mount };
-    let rows = &mounts.rows;
-    let from = rows
-        .iter()
-        .position(|row| row.prefix == prefix && row.host.is_none())
-        .or_else(|| rows.iter().position(|row| row.prefix == prefix))?;
-    let serves = |at: usize, handler: &str| {
-        mounts
-            .serves
-            .get(at)
-            .is_some_and(|set| set.contains(handler))
-    };
-    let (links, _unlinked) = nvs_config::mount::links_of(rows, &serves, from, handlers);
-    Some(std::sync::Arc::new(links))
+    mounts.links_for(mount, None, handlers)
 }
 
 /// The `captures` option as the list `Core\Request\Mount::captures()` reads

@@ -127,6 +127,39 @@ pub struct Mounts {
     pub serves: Vec<HashSet<String>>,
 }
 
+impl Mounts {
+    /// The link table of the row a request at `mount` on `host` came through,
+    /// for the module links `handlers` names. `None` when no row has that
+    /// prefix.
+    ///
+    /// The row is picked by its prefix, `/` for the empty one. Among rows with
+    /// that prefix, the one whose host is `host` comes first, then the one with
+    /// no host, then any. Each link is resolved by
+    /// [`nvs_config::mount::links_of`], the function the server calls.
+    #[must_use]
+    pub fn links_for(
+        &self,
+        mount: &str,
+        host: Option<&str>,
+        handlers: &[String],
+    ) -> Option<std::sync::Arc<crate::ModuleLinks>> {
+        let prefix = if mount.is_empty() { "/" } else { mount };
+        let rows = &self.rows;
+        let at = |wanted: Option<&str>| {
+            rows.iter()
+                .position(|row| row.prefix == prefix && row.host.as_deref() == wanted)
+        };
+        let from = host
+            .and_then(|host| at(Some(host)))
+            .or_else(|| at(None))
+            .or_else(|| rows.iter().position(|row| row.prefix == prefix))?;
+        let serves =
+            |at: usize, handler: &str| self.serves.get(at).is_some_and(|set| set.contains(handler));
+        let (links, _unlinked) = nvs_config::mount::links_of(rows, &serves, from, handlers);
+        Some(std::sync::Arc::new(links))
+    }
+}
+
 /// Why [`answer`] has no completion to hand back.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AnswerError {
