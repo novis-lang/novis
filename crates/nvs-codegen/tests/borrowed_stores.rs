@@ -71,14 +71,15 @@ echo $bad == "" ? "ok" : $bad;
 
 /// Each store form, the statements that run it and read the storage back,
 /// and the text they print. The array forms write into the array that is
-/// there once the value has run. The other forms write the storage they read
-/// before it.
+/// there once the value has run. The other forms write into the object their
+/// receiver named before it. `$o->s .= e` reads the slot only after `e` runs,
+/// so it appends to the string `replace()` stored.
 fn forms() -> Vec<(&'static str, String, &'static str)> {
     vec![
         (
             "$o->s .= e",
             "$h->s .= $h->replace();\necho $h->s;\n".to_owned(),
-            "old-1-abcdefghijklmnop!",
+            "new-2-abcdefghijklmnop!",
         ),
         (
             "$o->arr[] = e",

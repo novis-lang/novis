@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object) -> int {
@@ -9,13 +9,15 @@ fn m(object) -> int {
     ; stmt s0 @4:5-4:20
     v1 = const.int 1  ; int
     v2 = array.new ["0": v1]  ; array
-    ; stmt s1 @5:5-5:27
+    ; stmt s1 @5:5-5:20
     v3 = class.of v0  ; classdesc
     retain v2
     v4 = call T::take(this: v3, v2) ! bb2  ; int
+    ; stmt s2 @6:5-6:14
+    v5 = const.int 1  ; int
     release v2
     release v0
-    return v4
+    return v5
   bb1:
     release v0
     propagate "m() at t.nvs:1"

@@ -1334,11 +1334,13 @@ fn reassigning_a_string_local_releases_its_previous_value() {
 /// so the call's own result needs no refcount treatment — this fixture
 /// isolates the argument-side retain from the return-side question the
 /// two tests below cover. Net effect on `$s`'s own slot: one retain right
-/// before the call, one release at `m`'s own exit sweep.
+/// before the call, one release at `m`'s own exit sweep. The call is a
+/// statement of its own, so it is not the last-use move that
+/// `return self::take($s)` takes.
 #[test]
 fn passing_a_string_local_as_a_call_argument_retains_it() {
     let (f, map, file) = lower_first_method(
-        "<?nvs\nclass T {\n  function m(): int {\n    string $s = \"hi\";\n    return self::take($s);\n  }\n  static function take(string $x): int {\n    return 1;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): int {\n    string $s = \"hi\";\n    self::take($s);\n    return 1;\n  }\n  static function take(string $x): int {\n    return 1;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1868,11 +1870,12 @@ fn a_spread_of_a_call_result_releases_the_subject_after_the_copy() {
 /// `Lowering::lower_call_args`'s aliasing check, exactly mirroring the
 /// `string`/`bytes` analogs above. `erase_checked_ty`'s
 /// `CheckedTy::Array(_) => Ty::Array` arm is what makes this boundary
-/// work with no insertion point of its own.
+/// work with no insertion point of its own. The call is a statement of its
+/// own, so it is not the last-use move that `return self::take($a)` takes.
 #[test]
 fn passing_an_array_local_as_a_call_argument_retains_it() {
     let (f, map, file) = lower_first_method(
-        "<?nvs\nclass T {\n  function m(): int {\n    array $a = [1];\n    return self::take($a);\n  }\n  static function take(array $x): int {\n    return 1;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): int {\n    array $a = [1];\n    self::take($a);\n    return 1;\n  }\n  static function take(array $x): int {\n    return 1;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1970,14 +1973,12 @@ fn assigning_a_string_local_its_own_concatenation_hands_the_binding_over() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `$this->p .= "x";` keeps the `$x = $x . e` rewrite: a property target
-/// already needs the `FieldSet` write-back the rewrite performs, so
-/// `Lowering::lower_string_append`'s one-slot bookkeeping does not reach
-/// it and `concat` is still what runs. An `int` suffix on a `string`
-/// local is the same story one operand along — it is converted through
-/// `helper.int_to_string` first, then appended.
+/// `$this->p .= "x";` on a plain `string` property is load, append, store:
+/// the suffix is lowered first, then `field.get` reads the slot,
+/// `str.append` grows it, and `field.set` writes it back, with no retain,
+/// no `concat` and no second read of the slot.
 #[test]
-fn appending_to_a_property_keeps_the_concat_rewrite() {
+fn appending_to_a_plain_property_grows_it_in_place() {
     let (f, map, file) = lower_first_method(
         "<?nvs\nclass T {\n  public string $p = \"\";\n  function m(): void {\n    \
              $this->p .= \"x\";\n  }\n}\n",
