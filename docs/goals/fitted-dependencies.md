@@ -6,7 +6,7 @@ context: [Cargo.toml, docs/rules/packaging/somebody-elses-specification-is-a-cra
 stages:
   - id: 1
     title: "a JSON reader with its own stack reads every token, and agrees with serde_json on every saved input"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/json.rs, crates/nvs-fuzz-checks/src/json.rs, crates/nvs-fuzz-checks/src/tests.rs, docs/rules/core-classes/json-whole-and-stream.md, docs/rules/http-server/engine-depth-is-bounded-per-decoder.md]
   - id: 2
     title: "decode, isValid and Request::json build values from the reader, with one allocation per key"
@@ -282,29 +282,29 @@ lanes share only the workspace `Cargo.toml`, in different rows, and may run side
 **Does:** add the reader as a new module that nothing calls yet, with its tests, its fuzz target and
 the rule changes that allow it.
 
-- [ ] `rule:packaging/somebody-elses-specification-is-a-crate` argues the exception: what the owned
+- [x] `rule:packaging/somebody-elses-specification-is-a-crate` argues the exception: what the owned
   reader costs and buys, as the first standing decision says
   (`docs/rules/packaging/somebody-elses-specification-is-a-crate.md:13`). Then `bun nv rules --check`
   names any stale chapter.
-- [ ] `rule:core-classes/json-whole-and-stream` says the reader is Novis's own, with its own stack,
+- [x] `rule:core-classes/json-whole-and-stream` says the reader is Novis's own, with its own stack,
   inside the same coroutine. Its two Declined entries that cite "RFC 8259 being a dependency" get the
   present reason (`docs/rules/core-classes/json-whole-and-stream.md:55`, `:84-91`).
-- [ ] `crates/nvs-stdlib/src/json/reader.rs:1`: the source trait with a slice source, the events, the
+- [x] `crates/nvs-stdlib/src/json/reader.rs:1`: the source trait with a slice source, the events, the
   grammar bits for `DEPTH_CEILING` levels, strings with escapes and surrogate pairs, the RFC 8259
   number grammar with a digit count, and the error type with `serde_json`'s message text, line and
   column (`rule:http-server/engine-depth-is-bounded-per-decoder`,
   `crates/nvs-stdlib/src/json.rs:5881`).
-- [ ] Test `the_reader_accepts_and_refuses_what_rfc_8259_says`: a table of accepted and refused
+- [x] Test `the_reader_accepts_and_refuses_what_rfc_8259_says`: a table of accepted and refused
   texts, each refused one with its message and position (`crates/nvs-stdlib/src/json/reader.rs:1`).
-- [ ] Test `the_reader_and_the_oracle_agree_on_every_saved_json_seed`: for every file under
+- [x] Test `the_reader_and_the_oracle_agree_on_every_saved_json_seed`: for every file under
   `fuzz/seeds/json/`, the same verdict as `serde_json`, the same error text on a syntax error, and
   equal scalars in order. The oracle's depth limit of 128 and the reader's own refusals are named
   exceptions (`crates/nvs-stdlib/src/json/reader.rs:1`, `rule:testing/a-fuzz-search-gates-nothing`).
-- [ ] Tests `the_reader_reads_the_deepest_document_on_a_small_stack`, with the helper
+- [x] Tests `the_reader_reads_the_deepest_document_on_a_small_stack`, with the helper
   `decoded_on_a_thread` uses (`crates/nvs-stdlib/src/json.rs:5976`),
   `a_document_cut_at_any_byte_reads_the_same_from_chunks` and
   `a_lone_surrogate_and_invalid_utf8_are_refused` (`crates/nvs-stdlib/src/json/reader.rs:1`).
-- [ ] A fuzz target `json_reader` and its check, which runs the oracle comparison on any bytes. Its
+- [x] A fuzz target `json_reader` and its check, which runs the oracle comparison on any bytes. Its
   row in `TARGETS` reads the `json` seeds (`fuzz/fuzz_targets/json_reader.rs:1`,
   `crates/nvs-fuzz-checks/src/json_reader.rs:1`, `crates/nvs-fuzz-checks/src/tests.rs:10`,
   `crates/nvs-fuzz-checks/src/lib.rs:1`). `nvs-fuzz-checks` gains `serde_json`, and
@@ -476,42 +476,48 @@ entry and where a checked program's extension classes are known.
 
 ### State
 
-Nothing is built yet. `Core\Json` parses and writes through `serde_json`, on a spare stack for any
-text over 64 bytes. The `wasmtime` row holds every default feature but `cache`. The four built-in
-components are embedded as plain wasm.
+Stage 1 is done. `crates/nvs-stdlib/src/json/reader.rs` is the reader: `Reader<S: Source>` with
+`Reader::new(source, max_depth)` and `next() -> Result<Option<Event<'_>>, Error>`. `Text` is the
+one-chunk source and `Cut` a source of fixed-size chunks. `Number` is `Int`, `Uint`, `Float` or
+`Big { negative, digits }`, and `Digits`' `Display` writes at most 32 digits, then `...`.
+`Code::TooDeep(max)` gives `decode`'s depth message, at the column after the bracket, as
+`02-text-that-is-not-valid-json.out` pins it. `Code::OverMemory` gives `over_memory`'s message.
+An error ends the read: the reader is not fused.
+
+`nvs_stdlib::fuzz` holds `json_read`, `json_oracle` and `json_reader_disagreement`, so the oracle
+and its two exceptions have one home. `nvs-fuzz-checks` therefore did not gain `serde_json`: its
+`json_reader` check calls `json_reader_disagreement` and compares chunk sizes 1, 2, 3, 7 and 64.
+The `reader-agrees` check is green, and so is the fuzz replay over all 1374 `json` seeds. Nothing
+calls the reader yet. `Core\Json` still parses through `serde_json` on a spare stack, and
+`json.rs`'s module doc still says RFC 8259 is a dependency. Stage 5 rewrites that doc as a whole.
 
 ### Next
 
-Stage 1, in `crates/nvs-stdlib/src/json/reader.rs`, `crates/nvs-fuzz-checks/` and two rule fragments.
-Nothing calls the reader yet, so no existing test is expected red.
+Stage 2, in `crates/nvs-stdlib/src/json.rs`, its three callers and three new `.nvs` and `.nvst`
+files. Expected red until the stage ends: any test that pins an integer literal past `u64::MAX`
+decoding to a `float`.
 
-- [ ] `docs/rules/packaging/somebody-elses-specification-is-a-crate.md:13`: the rule argues the
-  exception, with what the owned reader costs and buys
-  (`rule:packaging/somebody-elses-specification-is-a-crate`). `bun nv rules --check` then names any
-  stale chapter.
-- [ ] `docs/rules/core-classes/json-whole-and-stream.md:55`: the rule says the reader is Novis's own,
-  with its own stack, inside the same coroutine. Its two Declined entries at `:84-91` get the present
-  reason (`rule:core-classes/json-whole-and-stream`).
-- [ ] `crates/nvs-stdlib/src/json/reader.rs:1`: the source trait with a slice source, the events,
-  the grammar bits for `DEPTH_CEILING` levels, strings with escapes and surrogate pairs, the RFC 8259
-  number grammar with a digit count, and the error type with `serde_json`'s message text, line and
-  column. Its `mod` line goes at `crates/nvs-stdlib/src/json.rs:5881`
-  (`rule:http-server/engine-depth-is-bounded-per-decoder`).
-- [ ] `crates/nvs-stdlib/src/json/reader.rs:1`: test
-  `the_reader_accepts_and_refuses_what_rfc_8259_says`, a table of accepted and refused texts, each
-  refused one with its message and position.
-- [ ] `crates/nvs-stdlib/src/json/reader.rs:1`: test
-  `the_reader_and_the_oracle_agree_on_every_saved_json_seed`, over every file under
-  `fuzz/seeds/json/`. The oracle's depth limit of 128 and the reader's own refusals are named
-  exceptions (`rule:testing/a-fuzz-search-gates-nothing`).
-- [ ] `crates/nvs-stdlib/src/json.rs:5976`: with that helper, test
-  `the_reader_reads_the_deepest_document_on_a_small_stack`. Beside it,
-  `a_document_cut_at_any_byte_reads_the_same_from_chunks` and
-  `a_lone_surrogate_and_invalid_utf8_are_refused`.
-- [ ] `fuzz/fuzz_targets/json_reader.rs:1`: the fuzz target, its check at
-  `crates/nvs-fuzz-checks/src/json_reader.rs:1` and its `TARGETS` row over the `json` seeds at
-  `crates/nvs-fuzz-checks/src/tests.rs:10`. `nvs-fuzz-checks` gains `serde_json`, and
-  `nvs_stdlib::fuzz` exports the reader's entry.
+- [ ] `crates/nvs-stdlib/src/json.rs:2272-2392`: `Decode` becomes a loop over `Reader` events with
+  a `Vec` of open arrays, each push asked from `budget::affords` first. A key is built once as the
+  Novis string the array stores (`rule:core-classes/json-whole-and-stream`).
+- [ ] `crates/nvs-stdlib/src/json.rs:2415-2449`, `:2484-2514`: `read`, `read_marked` and `parse`
+  run in place over `reader::Text`, and `read_with` goes with its test at `:5983`. `IN_PLACE_BYTES`
+  stays for stage 3. `read` returns `reader::Error`. Stage 2 adds the accessors it needs, such as a
+  `code()`, which was removed while nothing called it.
+- [ ] Callers take the new error type: `crates/nvs-stdlib/src/test.rs:3411`,
+  `crates/nvs-stdlib/src/queue.rs:3466`, `crates/nvs-stdlib/src/request.rs:3182`, and
+  `nvs_core_json_decode` and `nvs_core_json_is_valid` at `crates/nvs-stdlib/src/json.rs:2529`.
+- [ ] `crates/nvs-stdlib/src/json.rs:2324-2339`: `Number::Uint` and `Number::Big` throw "the integer
+  {digits} is too large for `int`", and a negative one says "too small", at the column after the
+  literal. The module doc's refusal entry says so (`:81-91`).
+- [ ] `crates/nvs-stdlib/src/json.rs:8298`: tests
+  `an_untyped_decode_allocates_once_per_object_key_at_two_sizes` and
+  `an_integer_literal_outside_int_throws_at_any_length`.
+- [ ] `tests/hostile/core/Json/decode/04-an-integer-longer-than-any-number-type.nvs:1` and
+  `tests/hostile/core/Json/isValid/01-deep-huge-and-broken-texts.nvs:27`: the attack.
+  `tests/conformance/core/json-decode-refuses-an-integer-outside-int-at-any-length.nvst:1`: the case.
+- [ ] `docs/examples/core/Json/decode/about.md:9` and `docs/examples/core/Json/isValid/about.md:5`
+  still say what happens, and `bun nv proofs --comments` passes over the new `.nvs` files.
 
 ### Backlog
 
